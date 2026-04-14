@@ -22,7 +22,7 @@ Run these commands in the root of your target project to add the remote, disable
 git remote add agent-standards https://github.com/Lukk17/agent-standards
 git remote set-url --push agent-standards no_push
 git fetch agent-standards
-git checkout agent-standards/main -- .agents .claude kilo.jsonc.example opencode.json.example AGENTS.md.example
+git checkout agent-standards/master -- .agents .claude kilo.jsonc.example opencode.json.example AGENTS.md.example
 git commit -m "Import central agent-standards (.agents and .claude)"
 ```
 
@@ -32,7 +32,7 @@ When the central standards repository is updated, pull the latest files into you
 
 ```bash
 git fetch agent-standards
-git checkout agent-standards/main -- .agents .claude
+git checkout agent-standards/master -- .agents .claude
 git commit -m "Update AI standards from central repository"
 ```
 
