@@ -1,0 +1,38 @@
+### OS & System Files
+.DS_Store
+Thumbs.db
+*~
+*.swp
+*.bak
+
+### IDEs & Editors
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+### Environment & Secrets
+.env
+.env.*
+!.env.example
+
+### Claude Code Local Overrides
+# These files contain your local API tokens, sandbox configs, and personal memory.
+# They must never be tracked in the central repository.
+.claude/settings.local.json
+CLAUDE.local.md
+.claude/CLAUDE.local.md
+
+### General Local Overrides
+# Catch-all for any other agent's local preference files you might add later.
+*.local.json
+*.local.md
+
+### Conversion Script Artifacts
+# If you run the conversion scripts locally inside this repo,
+# you might want to ignore temporary build or output folders if they are generated.
+node_modules/
+__pycache__/
