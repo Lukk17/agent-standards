@@ -75,9 +75,9 @@ Every project with a Dockerfile must have a `.dockerignore` file that excludes:
 
 - Use named volumes for persistent data; never use anonymous volumes.
 - Define `depends_on` with `condition: service_healthy` when a service depends on another being ready.
-- Extract all configurable values to a `.env` file referenced in `compose.yaml`; never hardcode values in `compose.yaml`.
-- Use `compose.yaml` (not `docker-compose.yml`) as per the current Compose specification.
-- Pin specific image versions in `compose.yaml` the same as in Dockerfiles.
+- Extract all configurable values to a `.env` file referenced in `docker-compose.yaml`; never hardcode values in `docker-compose.yaml`.
+- Use `docker-compose.yaml`.
+- Pin specific image versions in `docker-compose.yaml` the same as in Dockerfiles.
 
 ---
 
