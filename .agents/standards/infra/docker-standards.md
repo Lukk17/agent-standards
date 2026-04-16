@@ -86,3 +86,61 @@ Every project with a Dockerfile must have a `.dockerignore` file that excludes:
 - Order Dockerfile instructions from least to most frequently changed to maximize cache reuse.
 - Copy dependency manifests and install dependencies before copying application source code.
 - Combine related `RUN` commands with `&&` to minimize layer count.
+
+---
+
+## Image Scanning
+
+- Run **Trivy** (`trivy image`) on every built image in CI before pushing to any registry.
+- Block the push and deployment pipeline if the scan finds any `CRITICAL` or `HIGH` severity CVE that has an available fix.
+- Store the scan report as a CI artifact for audit purposes.
+
+---
+
+## SBOM Generation
+
+- Generate a Software Bill of Materials (SBOM) in **CycloneDX** or **SPDX** format for every published image using `syft` or `docker buildx build --sbom=true`.
+- Attach the SBOM as an OCI artifact referrer to the image manifest in the registry.
+- Store the SBOM as a CI build artifact alongside the scan report.
+
+---
+
+## Container Signing
+
+- Sign every image pushed to a production registry using **cosign** (Sigstore):
+  ```bash
+  cosign sign --key cosign.key registry/image:tag
+  ```
+- Verify the signature in the deployment pipeline before pulling the image:
+  ```bash
+  cosign verify --key cosign.pub registry/image:tag
+  ```
+- Use keyless signing (OIDC-based) for CI environments that support it (GitHub Actions, GitLab CI).
+
+---
+
+## Preferred Base Images
+
+- For compiled languages (Java, Go, Rust), prefer **distroless** (`gcr.io/distroless/...`) or **scratch** base images for the runtime stage to minimise the attack surface.
+- For interpreted languages (Python, Node.js) that require a shell or package manager at runtime, use official `-slim` or `-alpine` variants.
+- Never use generic `ubuntu:latest` or `debian:latest` as a runtime base; always use the smallest viable image.
+
+---
+
+## OCI Image Labels
+
+- Every published image must include standard OCI annotations:
+  ```dockerfile
+  LABEL org.opencontainers.image.title="my-service"
+  LABEL org.opencontainers.image.version="1.2.3"
+  LABEL org.opencontainers.image.source="https://github.com/org/repo"
+  LABEL org.opencontainers.image.revision="<git-sha>"
+  LABEL org.opencontainers.image.created="<build-timestamp>"
+  ```
+
+---
+
+## Registry Retention Policy
+
+- Define a tag retention policy in the container registry: keep the last 10 tagged releases and all tags matching `v*.*.*`; automatically delete untagged (dangling) images after 7 days.
+- Never accumulate unlimited untagged images; they consume storage and obscure the image history.

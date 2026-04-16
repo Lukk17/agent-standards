@@ -90,3 +90,84 @@
   - macOS: Use community.general.homebrew. [Confidence: 100%]
     - Link: https://docs.ansible.com/projects/ansible/latest/collections/community/general/homebrew_module.html
     - Quote: "(stable)"
+
+---
+
+### Error Recovery
+
+- Use `block` / `rescue` / `always` for any task group that modifies system state and may need rollback:
+  ```yaml
+  - block:
+      - name: Deploy application
+        # ... tasks
+    rescue:
+      - name: Rollback on failure
+        # ... rollback tasks
+    always:
+      - name: Send notification
+        # ... notification tasks
+  ```
+- The `rescue` block must restore the system to a known-good state; log the failure with the error message.
+- The `always` block must run cleanup tasks (remove temp files, release locks) regardless of success or failure.
+
+---
+
+### Performance Optimisation
+
+- Enable SSH pipelining in `ansible.cfg` (`pipelining = True`) to reduce SSH connection overhead for multi-task playbooks. [Confidence: 100%]
+- Enable ControlPersist via SSH multiplexing in `ansible.cfg` to reuse SSH connections:
+  ```ini
+  [ssh_connection]
+  pipelining = True
+  ssh_args = -o ControlMaster=auto -o ControlPersist=60s
+  ```
+- Use `async` with `poll: 0` for long-running tasks (package installs, service restarts), then use `async_status` to wait for completion, allowing other tasks to run in parallel.
+- Enable fact caching (`fact_caching = jsonfile`) for large inventories to avoid re-gathering facts on every run.
+
+---
+
+### Dynamic Inventory
+
+- Use the official cloud provider inventory plugins (not deprecated scripts) for dynamic inventory:
+  - AWS: `amazon.aws.aws_ec2`
+  - GCP: `google.cloud.gcp_compute`
+  - Azure: `azure.azcollection.azure_rm`
+- Store inventory plugin configuration in `inventory/` directory as YAML files committed to the repository.
+- Filter dynamic inventory using `filters` and `keyed_groups` to create logical host groups without hardcoding IPs.
+
+---
+
+### AWX / Ansible Automation Platform (AAP)
+
+- Define all automation as reusable Job Templates in AWX/AAP; do not run ad-hoc playbooks against production.
+- Use **Survey Variables** in Job Templates for operator-supplied runtime parameters; define allowed values and defaults.
+- Use **Credentials** objects in AWX/AAP for all secrets; never pass secrets as extra variables.
+- Name Job Templates using the convention: `[Environment] Role/Action Description` (e.g., `[Prod] Deploy Web Application`).
+
+---
+
+### Testing Pipeline Stages
+
+Run automation through the following gate sequence in CI before any production execution:
+
+1. **Lint**: `ansible-lint` — zero violations.
+2. **Syntax check**: `ansible-playbook --syntax-check` — zero errors.
+3. **Dry run**: `ansible-playbook --check --diff` against a staging inventory — review diff output.
+4. **Molecule test**: Full role execution + idempotency check in an isolated container/VM.
+5. **Verify**: Run `verify.yml` assertions to confirm the expected infrastructure state.
+6. **Promote**: Merge to main triggers execution against production inventory.
+
+---
+
+### Collection Dependency Pinning
+
+- Pin all Ansible Galaxy collections to exact versions in `requirements.yml`:
+  ```yaml
+  collections:
+    - name: community.general
+      version: "9.x.x"
+    - name: amazon.aws
+      version: "8.x.x"
+  ```
+- Run `ansible-galaxy collection install -r requirements.yml --force` in CI to ensure reproducible collection installs.
+- Never use `version: "*"` or omit the version field in `requirements.yml`.

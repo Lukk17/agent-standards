@@ -132,3 +132,48 @@ Use `fail` for values that must match a specific format or constraint:
 - Every chart must include at minimum a `helm lint` check in CI.
 - Use `helm template` + `kubeconform` or `kubeval` to validate rendered manifests against the Kubernetes API schema.
 - Write `helm test` hooks for post-deploy smoke tests where applicable.
+
+---
+
+## External Secrets Integration
+
+- Never store raw Kubernetes `Secret` manifests in the chart or in version control.
+- Use the **External Secrets Operator** (`ExternalSecret` CRD) to pull secrets from an external vault (AWS Secrets Manager, HashiCorp Vault, Azure Key Vault) at deploy time.
+- Define a `SecretStore` or `ClusterSecretStore` reference in the chart as a required value; fail with `required` if the store name is not provided.
+
+---
+
+## OCI Registry Distribution
+
+- Publish charts to an OCI registry (`helm push`) rather than a traditional Helm repository where possible.
+- The chart image tag must equal the chart `version` in `Chart.yaml`; never push untagged or `latest` chart images.
+- In CI/CD, always `helm pull oci://registry/chart --version x.y.z` before deploying; do not deploy from a local working copy.
+
+---
+
+## Chart Dependency Management
+
+- Declare all subchart dependencies in `Chart.yaml` with explicit `version` constraints (no `*` or `>=`).
+- Commit `Chart.lock` to version control to guarantee reproducible builds.
+- Run `helm dependency update` in CI after any change to `Chart.yaml`; verify the lockfile is up to date.
+
+---
+
+## Security Scanning
+
+- Run **Trivy** (`trivy config`) or **Checkov** on rendered Helm manifests in CI to detect misconfigured security contexts, missing resource limits, and exposed secrets.
+- Block deployment on any `CRITICAL` or `HIGH` severity misconfigurations in the rendered manifests.
+
+---
+
+## Namespace Isolation
+
+- Every chart must parameterise its target namespace via `.Values.namespace`; never hardcode `default`.
+- Include a `Namespace` resource template in the chart (guarded by `.Values.createNamespace`) so the namespace is created as part of the chart lifecycle.
+
+---
+
+## Resource Quotas and Limit Ranges
+
+- Provide optional `ResourceQuota` and `LimitRange` templates in the chart, enabled by `.Values.resourceQuota.enabled`.
+- Default `LimitRange` values must be conservative to prevent runaway resource consumption in shared clusters.

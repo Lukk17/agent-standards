@@ -129,3 +129,63 @@ These rules extend `testing-standards.md`:
 - Use `bloc_test` package for BLoC/Cubit unit tests.
 - Use `ProviderContainer` for testing Riverpod providers in isolation.
 - Widget tests must use `pumpWidget` with a `ProviderScope` wrapping when Riverpod is used.
+
+---
+
+## Accessibility
+
+- Wrap every custom interactive widget with a `Semantics` widget that describes its role, label, and state.
+- Use `MergeSemantics` to combine related widgets (icon + label) into a single accessibility node.
+- Use `ExcludeSemantics` for purely decorative elements (background images, dividers).
+- Enforce a minimum touch target size of **48×48 logical pixels** for all tappable elements (`GestureDetector`, `InkWell`).
+- Test accessibility with the Flutter Accessibility Scanner and verify no `Semantics` nodes have missing labels.
+
+---
+
+## Performance Profiling
+
+- Use **Flutter DevTools** (Performance view) to identify jank before shipping; maintain 60/120 fps on target devices.
+- Wrap expensive subtrees in `RepaintBoundary` to isolate repaints; verify with the "Highlight repaints" overlay.
+- Use `const` constructors on every leaf widget where possible; run `flutter analyze` to catch missing `const` annotations.
+- Avoid expensive operations in `build()` methods; move computation to providers/BLoC or pre-compute in `initState`.
+
+---
+
+## Environment Configuration (Flavors)
+
+- Define three flavors: `dev`, `staging`, `prod`, each with its own `main_<flavor>.dart` entry point.
+- Pass environment-specific configuration via `--dart-define` or a generated `app_config.dart` (never hardcode URLs or keys).
+- Use `flutter_flavorizr` or manual flavor configuration in `android/app/build.gradle` and `ios/Runner.xcconfig`.
+
+---
+
+## Platform-Specific Code
+
+- Isolate platform-specific code behind a Dart interface with platform implementations; use `MethodChannel` or **Pigeon** for native communication.
+- Always guard platform-specific calls with `Platform.isAndroid` / `Platform.isIOS` / `kIsWeb`.
+- Use **Pigeon** for type-safe method channel communication; never write raw method channel boilerplate for new integrations.
+
+---
+
+## Deep Linking
+
+- Configure universal links (iOS) and app links (Android) in `GoRouter` using path parameters.
+- Register URL schemes and associated domains in `Info.plist` and `AndroidManifest.xml`.
+- Test deep link routing in both cold-start and warm-start scenarios.
+
+---
+
+## CI/CD
+
+- Use **GitHub Actions** (or equivalent) with a matrix build for both Android (APK/AAB) and iOS (IPA).
+- Use **Fastlane** for signing and distribution to TestFlight and Google Play Internal Track.
+- Enforce `flutter analyze` and `flutter test` as required PR checks before any merge.
+- Pin the Flutter SDK version in `.fvmrc` (Flutter Version Management) and commit it to the repo; all team members and CI must use the same version.
+
+---
+
+## App Size Optimisation
+
+- Enable deferred components for large optional features (e.g., heavy onboarding flows) to reduce initial download size.
+- Use `flutter build apk --analyze-size` and `flutter build ios --analyze-size` in CI to track size regressions.
+- Compress all bundled image assets; use `.webp` format for raster images and `flutter_svg` for vector assets.

@@ -141,3 +141,61 @@ tasks.withType<JavaCompile> {
 - Instantiate the heavy SOAP Service class once (e.g., as a Spring Bean or Singleton) to avoid the high overhead of repeatedly parsing the WSDL file on every request.
 - Utilize HTTP connection pooling for the underlying transport layer to improve throughput.
 - Catch and handle SOAPFaultExceptions to differentiate upstream business logic errors from local transport or parsing errors.
+
+---
+
+#### 6. WS-Security
+
+- Use WS-Security (WSS4J / Spring-WS `Wss4jSecurityInterceptor`) when the integration partner requires message-level security beyond transport TLS.
+- For username/password authentication over WS-Security, use `UsernameToken` with `PasswordDigest` mode; never transmit passwords in plaintext in the SOAP header.
+- For high-security integrations, use X.509 certificate signing and encryption of the SOAP body; store private keys in a KMS or Java KeyStore — never in plaintext files.
+- Document the WS-Security profile variant required by each integration partner in `docs/TRANSLATIONS.md` alongside the translation table.
+
+---
+
+#### 7. SOAP Fault Handling
+
+- Always catch `SOAPFaultException` at the service client boundary and map it to a typed application exception before propagating to business logic.
+- Log the full fault code, fault string, and detail element at `WARN` level (not `ERROR` unless the fault is unexpected); after redacting any PII in the detail element.
+- Define a fault taxonomy in the integration documentation: distinguish between business faults (e.g., invalid invoice number) and system faults (e.g., service unavailable).
+- Never propagate a raw `SOAPFaultException` to an HTTP API response; always translate to a standardized error envelope.
+
+---
+
+#### 8. Message Logging
+
+- Log all outbound SOAP requests and inbound responses at `DEBUG` level using a Spring-WS `PayloadLoggingInterceptor` or a custom `ClientInterceptor`.
+- Before writing to logs, redact: authentication credentials in WS-Security headers, PII fields (names, addresses, tax IDs), and financial data.
+- In production, enable message logging only when a debug flag is set via environment variable; do not log full envelopes by default.
+
+---
+
+#### 9. Retry and Circuit Breaker
+
+- Wrap all outbound SOAP client calls with a **Resilience4j** circuit breaker and retry policy (identical rules as in `spring-boot-standards.md`).
+- Configure exponential backoff with jitter on retry; set a maximum of 3 retries for transient faults.
+- Treat `HTTP 5xx` responses and `SOAPFaultException` with a system fault code as retryable; treat business faults as non-retryable.
+
+---
+
+#### 10. Testing SOAP Integrations
+
+- Use **WireMock** (`wiremock-jre8` or `WireMockExtension` for JUnit 5) to stub SOAP endpoints in unit and integration tests; never call real external SOAP services in automated tests.
+- Store WireMock response stubs (raw SOAP XML files) under `src/test/resources/wiremock/` versioned alongside the WSDL.
+- Use **SoapUI** or **ReadyAPI** for exploratory integration testing against the real partner endpoint during development and certification.
+
+---
+
+#### 11. WSDL Versioning
+
+- Treat the WSDL as an immutable contract once published; changes require a new WSDL version in a new subdirectory (e.g., `wsdl/v2/`).
+- Additive changes (new optional elements in the XSD) are permitted without a version bump if they do not break existing generated code.
+- Coordinate WSDL version upgrades with the integration partner before updating the dependency in `build.gradle.kts`.
+
+---
+
+#### 12. MTOM (Message Transmission Optimization Mechanism)
+
+- Use MTOM for transmitting binary payloads (PDFs, images, signed documents) larger than 10 KB to avoid base64 encoding overhead.
+- Configure `javax.xml.ws.soap.MTOMFeature` on the service port when MTOM is required.
+- Enforce a maximum attachment size limit and validate MIME types of received attachments to prevent abuse.

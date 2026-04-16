@@ -134,3 +134,86 @@ labels:
 - Define `NetworkPolicy` to restrict ingress and egress to only what is necessary.
 - Default-deny all traffic and whitelist explicitly.
 - Use `Service` type `ClusterIP` internally; expose externally only via `Ingress` or `LoadBalancer` with justification.
+
+---
+
+## Autoscaling
+
+- Define a `HorizontalPodAutoscaler` (HPA) for every production Deployment that handles variable traffic:
+  ```yaml
+  spec:
+    minReplicas: 2
+    maxReplicas: 20
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 70
+  ```
+- For event-driven workloads (queue consumers), use **KEDA** `ScaledObject` instead of CPU-based HPA.
+- Never set `minReplicas: 0` for services that must always be available.
+
+---
+
+## Resource Governance
+
+- Define a `ResourceQuota` per namespace to cap total CPU, memory, and object counts:
+  ```yaml
+  spec:
+    hard:
+      requests.cpu: "10"
+      requests.memory: 20Gi
+      limits.cpu: "20"
+      limits.memory: 40Gi
+      pods: "50"
+  ```
+- Define a `LimitRange` per namespace to enforce default requests/limits on containers that omit them.
+- Use **VPA** (Vertical Pod Autoscaler) in `Recommendation` mode for workloads with unpredictable resource patterns; review VPA recommendations before applying.
+
+---
+
+## Observability
+
+- Annotate all pods with Prometheus scrape annotations:
+  ```yaml
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+  ```
+- Define a `ServiceMonitor` (Prometheus Operator CRD) for every service that exposes metrics to enable automatic Prometheus discovery.
+- Expose a dedicated metrics port separate from the application port; do not multiplex application traffic and metrics on the same port.
+
+---
+
+## Policy Enforcement
+
+- Deploy **Kyverno** or **OPA Gatekeeper** to enforce cluster-wide policies as admission webhooks.
+- Enforce at minimum the Kubernetes **Baseline Pod Security Standard** on all non-system namespaces, and **Restricted** on production namespaces.
+- Policies must be in `Enforce` mode in production; `Audit` mode is acceptable only during initial rollout.
+
+---
+
+## Persistent Volumes
+
+- Select `StorageClass` explicitly; never rely on the cluster default storage class.
+- Use `ReadWriteOnce` for single-pod workloads and `ReadWriteMany` only when multiple pods must share the volume concurrently (requires a compatible CSI driver).
+- Define `VolumeSnapshotClass` and schedule automated volume snapshots for stateful workloads.
+- Set `reclaimPolicy: Retain` on `PersistentVolume` objects backing production data to prevent accidental data loss on PVC deletion.
+
+---
+
+## Init Containers
+
+- Use init containers for pre-start tasks: database migration execution, config file rendering, dependency health checks.
+- Init containers must be idempotent; the pod must be able to restart and re-run init containers without corruption.
+- Keep init container images minimal; prefer the same base image as the main container where possible.
+
+---
+
+## Admission Control
+
+- Require `ValidatingWebhookConfiguration` for critical resource types (Deployments, Services, Ingresses) to enforce schema and policy checks before resources are persisted.
+- Webhook failures must not silently allow invalid resources; set `failurePolicy: Fail` for security-critical webhooks.

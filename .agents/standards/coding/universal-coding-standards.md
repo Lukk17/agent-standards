@@ -60,3 +60,50 @@ Ensure solutions are long-term, not duct-tape fixes.
 - Do not create helpers, utilities, or abstractions for one-time operations.
 - Do not design for hypothetical future requirements (YAGNI).
 - Extract configuration to environment variables or config files; never hardcode environment-specific values.
+
+---
+
+## Logging
+
+- Use structured logging (JSON format) in all production services. Never use plain concatenated strings as log messages.
+- Log levels: `ERROR` for unhandled exceptions and data integrity issues; `WARN` for recoverable problems and deprecations; `INFO` for significant business events (request received, job completed); `DEBUG` for diagnostic detail (disabled in production by default).
+- Every log entry on a request path must include a `correlationId` / `traceId` to allow cross-service tracing.
+- Never log: passwords, tokens, full credit card numbers, personal identification numbers, or any secret material.
+- Do not use `print` / `console.log` for operational output in any language; use the project's configured logging framework.
+
+---
+
+## Observability
+
+- Expose a `/metrics` endpoint (Prometheus format) on all HTTP services.
+- Instrument all external I/O (database calls, HTTP requests, queue publishes) with duration histograms and error counters.
+- Propagate trace context headers (`traceparent` per W3C Trace Context spec) on all outbound HTTP calls.
+- Use OpenTelemetry SDK as the default instrumentation library; do not use vendor-specific SDKs that cannot be swapped.
+- Every service must expose a health endpoint (`/health` or `/healthz`) that reflects real readiness (DB connection live, dependencies reachable).
+
+---
+
+## Performance
+
+- Never load an unbounded collection into memory; always paginate or stream large result sets.
+- Detect and eliminate N+1 query patterns: use batch loading, joins, or DataLoader patterns instead.
+- Avoid blocking I/O on threads that serve synchronous requests; use async I/O or offload to a worker pool.
+- Profile before optimising: do not add caching or concurrency complexity without a measured baseline showing a problem.
+
+---
+
+## Dependency Management
+
+- Before adding a new dependency, verify: active maintenance (commit in last 6 months), permissive licence (MIT, Apache-2.0, BSD), no known critical CVEs.
+- Prohibited licence types: GPL, AGPL, LGPL (unless legal has approved). Copyleft licences must not appear in production artefacts.
+- Pin dependency versions in lock files (`package-lock.json`, `poetry.lock`, `gradle.lockfile`). Never use unbounded version ranges in production.
+- Run a Software Composition Analysis (SCA) scan (e.g., `npm audit`, `pip-audit`, OWASP Dependency-Check) in CI on every PR.
+
+---
+
+## Code Review
+
+- Every change to a shared codebase requires at minimum one peer review approval before merging.
+- Reviewers must verify: correctness, standards compliance, test coverage, and absence of security issues — not just style.
+- Review comments marked `blocking` must be resolved before merge. Comments marked `nit` may be deferred.
+- The author must not merge their own PR without at least one external approval.

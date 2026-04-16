@@ -94,3 +94,67 @@ These rules extend `testing-standards.md`:
 - Check for an existing `venv` before creating one.
 - Use `pytest-asyncio` for testing async functions.
 - Use `httpx.AsyncClient` with FastAPI's `app` for API integration tests (no running server needed).
+
+---
+
+## Dependency and Package Management
+
+- Use **uv** as the default package and project manager for new projects (replaces pip + virtualenv + pip-tools).
+- All projects must have a `pyproject.toml` at the root with `[project]` metadata, `requires-python`, and pinned dependencies.
+- Commit `uv.lock` (or `poetry.lock`) to version control; never ship with unpinned transitive dependencies.
+- Run `pip-audit` or `uv audit` in CI to detect known CVEs in dependencies on every PR.
+
+---
+
+## Linting and Formatting
+
+- Use **ruff** for both linting and formatting in all projects; it replaces flake8, isort, and black.
+- Configure ruff in `pyproject.toml`:
+  ```toml
+  [tool.ruff]
+  line-length = 120
+  [tool.ruff.lint]
+  select = ["E", "F", "I", "N", "UP", "S", "B", "A"]
+  ```
+- Enforce ruff as a CI quality gate: zero warnings, zero errors policy.
+- Use **pre-commit** with `ruff`, `ruff-format`, and `mypy` hooks; commit `.pre-commit-config.yaml` to the repository.
+
+---
+
+## Type Checking
+
+- Run **mypy** in strict mode (`--strict`) as a CI quality gate.
+- All public function signatures must be fully typed; internal helpers may use inference where unambiguous.
+
+---
+
+## Database Access
+
+- Use **SQLAlchemy 2.x** with the async engine (`create_async_engine`) for all relational database access.
+- Use **Alembic** for schema migrations; never modify database schema outside of migration scripts.
+- Never execute raw SQL strings; use SQLAlchemy Core expressions or the ORM for all queries.
+
+---
+
+## Background Tasks
+
+- Use **Celery** (with Redis or RabbitMQ broker) for CPU-bound or long-running background jobs.
+- Use **ARQ** for lightweight async task queues in FastAPI services already using async/await.
+- Do not use `FastAPI.BackgroundTasks` for jobs that take more than a few seconds or that must survive a server restart.
+
+---
+
+## FastAPI Lifespan
+
+- Use the `lifespan` context manager for application startup and shutdown logic (database pool init, cache warm-up); do not use the deprecated `@app.on_event` hooks.
+  ```python
+  from contextlib import asynccontextmanager
+
+  @asynccontextmanager
+  async def lifespan(app: FastAPI):
+      await startup()
+      yield
+      await shutdown()
+
+  app = FastAPI(lifespan=lifespan)
+  ```

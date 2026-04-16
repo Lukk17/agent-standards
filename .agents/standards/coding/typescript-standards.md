@@ -98,3 +98,53 @@ These rules extend `testing-standards.md`:
 - Use `msw` (Mock Service Worker) for mocking HTTP calls in tests — do not mock `fetch` or `axios` directly.
 - Type all mocks explicitly; never use `jest.fn()` / `vi.fn()` without a typed signature.
 - Test files must be co-located with source files using `.test.ts` or `.spec.ts` suffix, or placed in a `__tests__/` directory at the same level.
+
+---
+
+## Linting and Formatting
+
+- Use **ESLint** with `typescript-eslint` (strict config) and **Prettier** in every project.
+- Both tools must run as CI quality gates with zero warnings/errors policy; do not use `// eslint-disable` without a comment explaining why.
+- Commit `.eslintrc` (or `eslint.config.ts`) and `.prettierrc` to the repository.
+- Use **lint-staged** + **husky** for pre-commit hooks that run ESLint and Prettier on staged files only.
+
+---
+
+## Package Manager
+
+- Use **pnpm** as the default package manager for all new projects (workspace support, strict dependency isolation).
+- Commit `pnpm-lock.yaml` to version control; never delete or regenerate it without a documented reason.
+- Use `pnpm workspaces` for monorepos; pair with **Turborepo** for incremental build caching across packages.
+
+---
+
+## Logging (Node.js)
+
+- Use **pino** as the default logger for all Node.js services (structured JSON output, minimal overhead).
+- Never use `console.log` / `console.error` for operational output in production code.
+- Configure log level via environment variable (`LOG_LEVEL`); default to `info` in production and `debug` in development.
+- Include `correlationId` / `requestId` in every log line on the request path using pino's `child` logger pattern.
+
+---
+
+## Graceful Shutdown (Node.js)
+
+- Handle `SIGTERM` and `SIGINT` signals in every long-running Node.js process.
+- On signal receipt: stop accepting new requests, drain in-flight requests, close database connections, then exit with code 0.
+- Set a shutdown timeout (e.g., 30s); if draining takes longer, force-exit with code 1 and log the reason.
+
+---
+
+## Observability
+
+- Instrument all Node.js services with the **OpenTelemetry Node.js SDK** (`@opentelemetry/sdk-node`).
+- Auto-instrument HTTP, database, and queue clients using the appropriate OpenTelemetry instrumentation packages.
+- Export traces and metrics to an OTLP collector; do not use vendor-specific SDKs in business code.
+
+---
+
+## Monorepo Structure
+
+- Use **pnpm workspaces** with packages organised under `packages/` (shared libraries) and `apps/` (deployable services).
+- Use **Turborepo** `turbo.json` to define the build/test/lint pipeline with correct dependency declarations for incremental caching.
+- Each package must have its own `tsconfig.json` that extends a shared root config; never share a single `tsconfig.json` across packages.

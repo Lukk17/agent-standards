@@ -63,3 +63,57 @@ Report the verification in the chat using this structure:
 ## Reporting Errors
 
 Report all errors, deviations, and suboptimal implementations directly in the chat, structured by filename with specific details on what is wrong and why it fails the plan or standards.
+
+---
+
+## Rollback Plan
+
+Every plan that modifies existing behaviour must include a rollback section:
+
+1. **Rollback trigger**: define the condition that requires rollback (e.g., health check failure, error rate spike).
+2. **Rollback steps**: exact, ordered steps to revert the change (migration rollback script, previous image tag, feature flag toggle).
+3. **Rollback owner**: identify who executes the rollback (automated pipeline or manual operator step).
+
+If a change is irreversible (e.g., a destructive database migration), state this explicitly and require explicit user acknowledgement before proceeding.
+
+---
+
+## Dependency Analysis
+
+Before writing the step-by-step breakdown, identify:
+
+- **Affected components**: every file, service, schema, or config that must change together.
+- **Blast radius**: list downstream consumers that could be broken by the change.
+- **Change order**: if components must be updated in a specific sequence, state the sequence and the reason.
+
+---
+
+## Risk Assessment
+
+Include a risk table for every non-trivial plan:
+
+| Risk | Likelihood | Impact | Mitigation |
+|---|---|---|---|
+| \<description\> | Low / Med / High | Low / Med / High | \<action\> |
+
+Risks that are High × High must be resolved before implementation begins.
+
+---
+
+## Phased Delivery
+
+For large changes (more than 5 files or more than one service):
+
+- Break the plan into phases, each independently deployable and testable.
+- Each phase must leave the system in a valid, working state.
+- State the definition of "done" for each phase before starting it.
+
+---
+
+## Performance Impact Assessment
+
+For any change that touches a hot path, database query, or external API call, include:
+
+- Expected change in latency (p50 / p99 estimate).
+- Whether a load test or benchmark is required before merging.
+- Any caching, indexing, or batching changes needed alongside the feature change.

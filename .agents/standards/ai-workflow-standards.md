@@ -63,3 +63,49 @@ Before proposing any configuration change, explicitly list the worst-case scenar
 4. If any instruction is unclear, ask before starting.
 5. After generating code, perform a mental compiler-check: trace through the logic to catch errors before presenting.
 6. Apply OWASP security practices, input validation, and use only trusted dependencies.
+
+---
+
+## Tool Use Policy
+
+- Always prefer dedicated tools (Read, Edit, Grep, Glob) over shell commands when an equivalent tool exists.
+- Use shell execution only for operations that have no dedicated tool equivalent.
+- Never run destructive commands (rm -rf, drop table, force-push) without explicit user confirmation.
+- If a tool call fails, diagnose the root cause before retrying. Do not retry the identical call more than once.
+
+---
+
+## Context Window Management
+
+- When a task requires reading many files, read the most relevant ones first and defer others until needed.
+- If accumulated context exceeds ~70% of the window, summarize completed sub-tasks internally and release intermediate detail.
+- Split large implementation tasks into sequential sub-tasks rather than attempting them in one pass.
+- Never truncate file writes due to context pressure; if a file is too large to write completely, pause and inform the user.
+
+---
+
+## Multi-Agent Coordination
+
+- A parent agent must provide each sub-agent with a fully self-contained prompt: relevant file paths, applicable standards, and a precise success criterion.
+- Sub-agents must not make assumptions about context that was not explicitly passed to them.
+- A parent agent must validate sub-agent output before accepting it; never blindly merge sub-agent results.
+- Sub-agents must not push to remote repositories, send external messages, or take irreversible actions without explicit authorization in their prompt.
+
+---
+
+## Escalation Policy
+
+- If a requirement is ambiguous, stop and ask before writing any code. Do not interpret ambiguity silently.
+- If an implementation would require deviating from architectural standards, surface the conflict to the user and propose options. Do not silently deviate.
+- If a required tool, credential, or environment is unavailable, report it immediately rather than working around it with an inferior substitute.
+- "I assumed it was fine" is a critical failure.
+
+---
+
+## Output Formatting
+
+- Use fenced code blocks with the correct language tag for all code snippets.
+- Use numbered lists for sequential steps; use bullet lists for unordered items.
+- Keep prose responses concise; prefer structured output (tables, lists) over paragraphs for technical content.
+- Never pad responses with filler phrases ("Great question!", "Certainly!").
+- When reporting verification results, always use the structured format defined in `implementation-plan-standards.md`.

@@ -53,3 +53,51 @@
 - Require the use of official, verified KiCad libraries whenever possible. [Confidence: 100%]
 - When generating or selecting footprints for surface-mount components, verify that the pad geometries conform to IPC-7351 standards to prevent tombstoning during reflow. [Confidence: 100%]
 - Mandate that 3D models are mapped correctly to all footprints to visually verify spatial clearances and prevent physical collisions during assembly. [Confidence: 100%]
+
+---
+
+### Schematic Design Standards
+
+- Organise complex schematics into **hierarchical sheets** with one sheet per functional block (power supply, microcontroller, communication interface). [Confidence: 100%]
+- Use **net labels** for connections between sheets rather than drawing long wires; net labels must be unique and descriptive (e.g., `UART0_TX`, `I2C0_SDA`).
+- Add **power flags** (`PWR_FLAG`) to all power nets that are sourced from connectors or regulators to prevent ERC errors and ensure correct netlisting. [Confidence: 100%]
+- Annotate all components with sequential reference designators per functional block (e.g., U1xx for MCUs, C2xx for filter capacitors).
+- Run **ERC (Electrical Rules Check)** with zero errors before exporting the netlist or generating the PCB layout. [Confidence: 100%]
+
+---
+
+### Bill of Materials (BOM)
+
+- Generate the BOM from the schematic using KiCad's built-in BOM exporter or `kibom` plugin; never maintain it manually. [Confidence: 100%]
+- Every component in the BOM must include: Reference Designator, Value, Manufacturer, Manufacturer Part Number (MPN), Footprint, and LCSC/Digi-Key/Mouser part number.
+- Prefer components available from at least two independent distributors to reduce supply-chain risk.
+- Store the exported BOM in `docs/bom/` versioned alongside the schematic source files.
+
+---
+
+### Gerber Export Checklist
+
+Before sending to fabrication, verify and export: [Confidence: 100%]
+- **Copper layers**: F.Cu, B.Cu (and inner layers if applicable).
+- **Silkscreen**: F.Silkscreen, B.Silkscreen.
+- **Solder mask**: F.Mask, B.Mask.
+- **Paste mask**: F.Paste (for SMD reflow).
+- **Board outline**: Edge.Cuts.
+- **Drill file**: Excellon format, with separate files for PTH and NPTH.
+- Run DRC one final time after Gerber export and verify the preview in a Gerber viewer (e.g., gerbv, KiCad Gerber Viewer) before submission.
+
+---
+
+### High-Speed Signal Integrity
+
+- Route **differential pairs** (USB, Ethernet, LVDS) with the KiCad differential pair router; enforce length matching within ±0.1mm. [Confidence: 100%]
+- Specify target **impedance** for high-speed traces (e.g., 90Ω differential for USB, 50Ω single-ended for RF) in the board stackup and configure the trace width calculator accordingly. [Confidence: 100%]
+- Keep high-speed signal return paths short: every signal trace must have an unbroken ground return plane immediately below it with no slots or cuts interrupting the return path.
+
+---
+
+### Revision Control
+
+- Store all KiCad project files (`.kicad_pro`, `.kicad_sch`, `.kicad_pcb`, `.kicad_sym`, `.kicad_mod`) in Git. [Confidence: 100%]
+- Disable "Save with full paths" in KiCad preferences to ensure footprint and symbol paths are relative and portable across developer machines. [Confidence: 100%]
+- Tag every release in Git when Gerbers are sent to fabrication (`fab/v1.0`, `fab/v1.1`); never modify a tagged revision after ordering.

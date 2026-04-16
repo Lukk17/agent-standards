@@ -87,3 +87,61 @@ These rules extend `testing-standards.md`:
 - Use JUnit 5.
 - Use `@InjectMocks` and `@Mock` (Mockito) instead of manual `@BeforeEach` initialization.
 - Extract object creation to helper methods or a shared `TestDataFactory` class.
+
+---
+
+## Logging
+
+- Use **SLF4J** as the logging API in all code; never import a concrete logging framework (Logback, Log4j2) directly in business logic.
+- Use **Logback** as the default implementation; switch to Log4j2 only if async appenders or advanced routing are required.
+- In production, configure Logback with a JSON encoder (e.g., `logstash-logback-encoder`) to produce structured log output.
+- Use `@Slf4j` (Lombok) for logger injection; never instantiate `LoggerFactory.getLogger(...)` manually in annotated classes.
+- Log at `ERROR` for unhandled exceptions, `WARN` for recoverable issues, `INFO` for significant domain events, `DEBUG` for diagnostic detail.
+
+---
+
+## Code Quality Tools
+
+Add the following to every Gradle build and fail the build on violations:
+
+- **Checkstyle**: enforce Google Java Style or a project-defined ruleset.
+- **SpotBugs**: static bytecode analysis; treat all `HIGH` and `MEDIUM` priority findings as errors.
+- **PMD**: copy-paste detection and additional code smell rules.
+
+```kotlin
+// build.gradle.kts example
+plugins {
+    checkstyle
+    id("com.github.spotbugs") version "6.x"
+    pmd
+}
+checkstyle { toolVersion = "10.x"; isIgnoreFailures = false }
+spotbugs { effort = Effort.MAX; reportLevel = Confidence.MEDIUM }
+pmd { isIgnoreFailures = false }
+```
+
+---
+
+## Jackson Configuration
+
+- Register `JavaTimeModule` globally to support `java.time` types; never configure per-object-mapper ad hoc.
+- Set `FAIL_ON_UNKNOWN_PROPERTIES` to `false` for inbound DTOs (tolerant reader pattern) and `true` only for outbound serialisation tests.
+- Use `@JsonProperty` on DTO fields to decouple JSON keys from Java field names explicitly.
+- Never expose domain entities directly as JSON response bodies; always use dedicated DTO/record types.
+
+---
+
+## Null Safety
+
+- Annotate all public API method parameters and return types with `@NonNull` or `@Nullable` (from `org.jspecify` or `jakarta.annotation`).
+- Enable null-checking in the IDE and CI (IntelliJ inspections or the NullAway Checker Framework annotation processor).
+- Do not rely on `Optional` as a null safety mechanism for fields or constructor parameters; use it only as a return type for methods that explicitly represent "absent value".
+
+---
+
+## Concurrency
+
+- Prefer **Virtual Threads** (Java 21) for all I/O-bound concurrency; do not create platform thread pools manually for I/O tasks.
+- Use **`CompletableFuture`** for composing async pipelines; always specify an explicit executor — never use the common pool for I/O tasks.
+- Avoid shared mutable state; use immutable Records or `@Value` classes as data carriers between threads.
+- Document thread-safety guarantees (or lack thereof) on every class that is shared across threads.
