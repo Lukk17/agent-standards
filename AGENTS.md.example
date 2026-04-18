@@ -2,6 +2,11 @@
 
 This file provides guidance to coding agent when working with code in this repository.
 
+## Proactive Skill Usage
+
+Always invoke relevant project skills (`/skill-name`) before starting implementation work. Skills provide domain-specific standards and patterns that must be followed. For example, invoke `/code-reviewer` before reviewing code, `/security-review` before auditing for vulnerabilities, or `/coding-standards` before writing new code. Check `.claude/skills/` for available skills matching the current task.
+
+
 ## What This Repo Is
 
 
