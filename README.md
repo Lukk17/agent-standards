@@ -16,6 +16,17 @@ To protect the central repository, we configure the remote as a read-only source
 
 #### Step 1: Initial Setup in a New Project
 
+Enable symlink support in Git:
+Globally
+```shell
+git config --global core.symlinks true
+```
+Locally for this repository only
+```shell
+git config core.symlinks true
+```
+
+
 Run these commands in the root of your target project to add the remote, disable pushing, and extract the specific payload files into your workspace:
 
 ```bash
