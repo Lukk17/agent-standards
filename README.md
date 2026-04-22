@@ -283,6 +283,14 @@ Restart IDE and terminal after openspec initialization.
 | OpenCode | `.opencode/skills/openspec-*/` -> `.agents/skills/` | `.opencode/commands/opsx-*.md` |
 | Codex | `.codex/skills/openspec-*/` -> `.agents/skills/` | `$CODEX_HOME/prompts/opsx-*.md` |
 
+#### Command Syntax Variations
+
+Because the AI coding landscape is fragmented, OpenSpec generates files for two different architectures. Depending on your specific agent UI, your commands will appear in one of two ways:
+* Standalone Markdown Commands: Agents that read flat files will show commands with extensions in their dropdowns (e.g., /opsx-propose.md).
+* Agent Skills: Agents that parse semantic SKILL.md metadata or have native integration will use standard slash syntax (e.g., /opsx:propose).
+
+Use the syntax that appears in your agent's autocomplete menu.
+
 #### The Full OpenSpec Workflow
 
 Once initialized, invoke OpenSpec skills from your agent using the full artifact-driven lifecycle:
@@ -292,24 +300,30 @@ You need to start coding agent first - for example, by running in terminal:
 ```shell
 claude
 ```
-
 #### 1. Propose the change
 Use multiline prompts to include logs or detailed context.
-Inside coding agent shell run: 
-```
-/opsx:propose add dark mode support
+Inside coding agent shell run your specific command variation:
 
-(Optional: paste relevant UI constraints or error logs here)
+```text
+/opsx:propose add dark mode support
+```
+
+```text
+/opsx-propose.md add dark mode support
 ```
 The agent creates the proposal, design, and implementation tasks under `openspec/changes/`.
 
 #### 2. Apply the code
-Review the generated `tasks.md` by manaully editing md files or just telling agent what is wrong with it.
+Review the generated `tasks.md` by manually editing md files or just telling agent what is wrong with it.
 
 After plan approval agent can start implementation:
 
 ```text
 /opsx:apply
+```
+
+```text
+/opsx-apply.md
 ```
 The agent writes the code and checks off the boxes in your `tasks.md`.
 
@@ -320,10 +334,18 @@ If bugs occur or tests fail, pass the logs back to refine the implementation.
 /opsx:verify The toggle button is invisible on mobile. Fix it.
 ```
 
+```text
+/opsx-verify.md The toggle button is invisible on mobile. Fix it.
+```
+
 #### 4. Archive the change
 Once the code is working and tested, merge the documentation.
 
 ```text
 /opsx:archive
+```
+
+```text
+/opsx-archive.md
 ```
 The agent merges the delta specs into `openspec/specs/` and moves the change folder to `openspec/changes/archive/`.
