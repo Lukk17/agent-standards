@@ -1,18 +1,19 @@
 # AGENTS.md
 
-This file provides guidance to coding agent when working with code in this repository.
+This file provides shared instructions to all AI coding agents working in this repository.
 
-## Proactive Skill Usage
+## Skills
 
-Always invoke relevant project skills (`/skill-name`) before starting implementation work. Skills provide domain-specific standards and patterns that must be followed. For example, invoke `/code-reviewer` before reviewing code, `/security-review` before auditing for vulnerabilities, or `/coding-standards` before writing new code. Check `.claude/skills/` for available skills matching the current task.
+This project includes agent skills in `.agents/skills/`. Invoke relevant skills before starting implementation work. For example:
 
+- `/code-reviewer` before reviewing code
+- `/security-review` before auditing for vulnerabilities
+- `/coding-standards` before writing new code
 
 ## What This Repo Is
 
+<!-- Describe your project here -->
 
-## How to be compatible with IDE
+## Architecture
 
-Always output file edits using strict SEARCH/REPLACE blocks.
-Ensure exact matching of existing indentation and formatting for the diff viewer to parse correctly.
-Never use the built-in read tool.
-If you need to read a file, use the bash tool to execute cat, head, or grep on the file path instead.
+<!-- Describe key architectural decisions, patterns, and constraints here -->
