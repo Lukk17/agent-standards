@@ -167,7 +167,7 @@ cp opencode.json.example opencode.json
 
 ```bash
 git fetch agent-standards
-git checkout agent-standards/master -- .agents .claude .kilocode .opencode .codex .kilo
+git checkout agent-standards/master -- .agents .claude .kilocode .opencode .codex
 git commit -m "Update AI standards from central repository"
 ```
 
@@ -227,6 +227,7 @@ For global Codex settings, edit `~/.codex/config.toml`:
 project_doc_max_bytes = 65536
 ```
 
+
 ---
 
 ### OpenSpec Integration
@@ -238,7 +239,6 @@ project_doc_max_bytes = 65536
 The `.kilocode/skills/`, `.opencode/skills/`, and `.codex/skills/` directories are all symlinked to `.agents/skills/`. When `openspec init` writes skills to any of these directories, they land in `.agents/skills/` — the canonical location already read by all agents.
 
 Commands are tool-specific (different formats per agent) and cannot be centralized. OpenSpec creates them in each tool's native commands directory, which is expected and correct.
-
 #### Using OpenSpec in a project that imports agent-standards
 
 After running Step 1 above, initialize OpenSpec in your project:
@@ -250,12 +250,12 @@ npm install -g @fission-ai/openspec@latest
 # Initialize with all agents
 # Skills land in .agents/skills/ via existing symlinks
 # Commands are created in each tool's native commands directory
-openspec init --tools claude,kilocode,opencode,codex
+openspec init --tools "claude,kilocode,opencode,codex"
 ```
 
 What `openspec init` creates:
 
-```
+```text
 openspec/
   config.yaml              # OpenSpec project config
   specs/                   # Living documentation of your system
@@ -272,33 +272,58 @@ openspec/
 .opencode/commands/opsx-propose.md
 ```
 
+Restart IDE and terminal after openspec initialization.
+
 #### OpenSpec tool directories reference
 
 | Tool | Skills written to | Commands written to |
 |---|---|---|
-| Claude Code | `.claude/skills/openspec-*/` → `.agents/skills/` | `.claude/commands/opsx/*.md` |
-| Kilo Code | `.kilocode/skills/openspec-*/` → `.agents/skills/` | `.kilocode/workflows/opsx-*.md` |
-| OpenCode | `.opencode/skills/openspec-*/` → `.agents/skills/` | `.opencode/commands/opsx-*.md` |
-| Codex | `.codex/skills/openspec-*/` → `.agents/skills/` | `$CODEX_HOME/prompts/opsx-*.md` |
+| Claude Code | `.claude/skills/openspec-*/` -> `.agents/skills/` | `.claude/commands/opsx/*.md` |
+| Kilo Code | `.kilocode/skills/openspec-*/` -> `.agents/skills/` | `.kilocode/workflows/opsx-*.md` |
+| OpenCode | `.opencode/skills/openspec-*/` -> `.agents/skills/` | `.opencode/commands/opsx-*.md` |
+| Codex | `.codex/skills/openspec-*/` -> `.agents/skills/` | `$CODEX_HOME/prompts/opsx-*.md` |
 
-Then invoke OpenSpec skills from your agent:
+#### The Full OpenSpec Workflow
 
-```
-/opsx:propose "add dark mode support"
-```
+Once initialized, invoke OpenSpec skills from your agent using the full artifact-driven lifecycle:
 
----
-
-### Managing MCP Servers
-
-The Model Context Protocol allows AI agents to connect to external tools like databases, GitHub, and local file systems.
-
-The official registry: https://registry.modelcontextprotocol.io/
-
-To add an MCP server in Claude Code:
-
-```bash
-claude mcp add @modelcontextprotocol/server-filesystem
+#### 0. Run Coding Agent
+You need to start coding agent first - for example, by running in terminal:
+```shell
+claude
 ```
 
-This updates `.claude/settings.json` automatically.
+#### 1. Propose the change
+Use multiline prompts to include logs or detailed context.
+Inside coding agent shell run: 
+```
+/opsx:propose add dark mode support
+
+(Optional: paste relevant UI constraints or error logs here)
+```
+The agent creates the proposal, design, and implementation tasks under `openspec/changes/`.
+
+#### 2. Apply the code
+Review the generated `tasks.md` by manaully editing md files or just telling agent what is wrong with it.
+
+After plan approval agent can start implementation:
+
+```text
+/opsx:apply
+```
+The agent writes the code and checks off the boxes in your `tasks.md`.
+
+#### 3. Verify and refine
+If bugs occur or tests fail, pass the logs back to refine the implementation.
+
+```text
+/opsx:verify The toggle button is invisible on mobile. Fix it.
+```
+
+#### 4. Archive the change
+Once the code is working and tested, merge the documentation.
+
+```text
+/opsx:archive
+```
+The agent merges the delta specs into `openspec/specs/` and moves the change folder to `openspec/changes/archive/`.
