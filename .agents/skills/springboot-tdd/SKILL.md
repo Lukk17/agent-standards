@@ -53,7 +53,7 @@ Patterns:
 @WebMvcTest(MarketController.class)
 class MarketControllerTest {
   @Autowired MockMvc mockMvc;
-  @MockBean MarketService marketService;
+  @MockitoBean MarketService marketService;
 
   @Test
   void returnsMarkets() throws Exception {
