@@ -173,19 +173,23 @@ git commit -m "Update AI standards from central repository"
 
 ---
 
-### Usage with Claude Code
+### Working With AI Coding Agents
 
-Claude Code reads `.claude/CLAUDE.md`, which imports `AGENTS.md` via:
+> Copy-paste-friendly section. Drop this into any target repo's README after importing `agent-standards` to document agent usage for your team.
 
-```markdown
-@../AGENTS.md
+This project follows shared standards imported from [agent-standards](https://github.com/Lukk17/agent-standards). All supported agents read `AGENTS.md` from the project root and discover skills from `.agents/skills/` automatically. Pick whichever agent you prefer — they all share the same instructions and skills.
+
+#### Claude Code
+
+Claude Code reads `.claude/CLAUDE.md`, which imports `AGENTS.md` via `@../AGENTS.md`. Skills in `.claude/skills/` (symlinked to `.agents/skills/`) are auto-discovered. No additional config required.
+
+Start it from the project root:
+
+```shell
+claude
 ```
 
-Skills in `.claude/skills/` (symlinked to `.agents/skills/`) are automatically discovered. No additional configuration required.
-
----
-
-### Usage with Kilo Code
+#### Kilo Code
 
 Kilo Code reads `AGENTS.md` from the project root automatically and discovers skills from `.agents/skills/` natively.
 
@@ -197,9 +201,7 @@ Optionally copy `kilo.jsonc.example` to `kilo.jsonc` at the project root to enab
 }
 ```
 
----
-
-### Usage with OpenCode
+#### OpenCode
 
 OpenCode reads `AGENTS.md` automatically and discovers skills from `.agents/skills/` natively.
 
@@ -214,11 +216,15 @@ Optionally copy `opencode.json.example` to `opencode.json` for additional config
 
 `opencode.json` must remain at the project root (not inside `.opencode/`).
 
----
-
-### Usage with Codex CLI
+#### Codex CLI
 
 Codex reads `AGENTS.md` from the project root and discovers skills from `.agents/skills/` automatically. No project-level config file is required.
+
+Start it from the project root:
+
+```shell
+codex
+```
 
 For global Codex settings, edit `~/.codex/config.toml`:
 
@@ -227,6 +233,17 @@ For global Codex settings, edit `~/.codex/config.toml`:
 project_doc_max_bytes = 65536
 ```
 
+#### Invoking skills
+
+Skills are invoked from inside the agent shell using slash syntax. Examples:
+
+```text
+/code-reviewer
+/security-review
+/coding-standards
+```
+
+Depending on the agent UI, slash commands may appear as `/name` or `/name.md` in the autocomplete menu — use whichever your agent shows.
 
 ---
 
@@ -235,6 +252,11 @@ project_doc_max_bytes = 65536
 [OpenSpec](https://github.com/Fission-AI/OpenSpec) is a spec-driven development framework that installs skills and commands into each agent's native directories.
 
 #### How the symlinks work with OpenSpec
+
+Make sure to enable symlinks in git:
+```shell
+git config core.symlinks true
+```
 
 The `.kilocode/skills/`, `.opencode/skills/`, and `.codex/skills/` directories are all symlinked to `.agents/skills/`. When `openspec init` writes skills to any of these directories, they land in `.agents/skills/` — the canonical location already read by all agents.
 
