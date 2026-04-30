@@ -287,6 +287,132 @@ cp opencode.json.example opencode.json  # optional
 
 ---
 
+### Bootstrap prompt (first run)
+
+Paste this into the agent on its very first run in a freshly-imported project. 
+It forces the agent to verify the wiring works (instead of just claiming it does), discover the instruction tree, and patch any gaps before it writes a single line of code.
+
+
+````text
+You are bootstrapping into a project. 
+Before you do any other work,
+run this verification + wiring pass and report back as a checklist.
+
+## 1. Verify skills wiring (read, don't list)
+
+Skills live canonically in `.agents/skills/`. Every agent dir
+(`.claude/skills/`, `.kilocode/skills/`, `.opencode/skills/`, `.codex/skills/`)
+is a symlink pointing there. Symlinks frequently break on Windows checkouts —
+do not trust a directory listing.
+
+For your own agent's skills dir, open ONE skill through the symlink path
+(e.g. `.claude/skills/coding-standards/SKILL.md`) and quote the first
+heading line back. If the read fails, the symlink is broken — report it
+and stop; do not silently fall back to `.agents/skills/`.
+
+Then list which of the four agent dirs (`.claude`, `.kilocode`, `.opencode`,
+`.codex`) actually exist in this repo, so missing setups surface.
+
+## 2. Verify OpenSpec is callable
+
+OpenSpec is a spec-driven workflow that MUST be used to plan any change
+beyond a trivial single-file edit (typo, comment, one-liner). Verify it:
+
+- Run `openspec --version` (or the equivalent agent-shell command) and
+  report the version.
+- Confirm an `openspec/` directory exists at the repo root with
+  `specs/` and `changes/` subdirs.
+- Confirm your agent's OpenSpec command is registered — name the slash
+  command you would use to start a proposal in this shell.
+
+If OpenSpec is missing or not callable, report it. Do not proceed to
+implementation work without it for any non-trivial change.
+
+## 3. Map the instruction tree
+
+The root `AGENTS.md` is the canonical instruction file. More `AGENTS.md`
+files MAY exist in submodules or subdirectories.
+
+- Run `find . -name AGENTS.md -not -path './node_modules/*'` (or platform
+  equivalent) and list every match.
+- For Claude Code: open `.claude/CLAUDE.md` and list every `@`-imported
+  path. Diff that list against the `find` output. Any `AGENTS.md` not
+  imported is drift — flag it.
+
+## 4. Fill the AGENTS.md stubs (core deliverable)
+
+The `AGENTS.md.example` template ships with intentionally empty sections
+that every project must fill. This is the WHOLE POINT of the bootstrap —
+do not skip it and do not treat it as a side note.
+
+Open the root `AGENTS.md` and look for empty sections or HTML-comment
+placeholders (e.g. `<!-- Describe your project here -->`). At minimum:
+
+- `## What This Repo Is` — one short paragraph: what the project does,
+  who uses it, what stack. Derive from `package.json` / `pom.xml` /
+  `pyproject.toml` / `Cargo.toml` / `go.mod` + the top-level file tree.
+  Do not invent purpose; if the repo's purpose is unclear from evidence,
+  say so and ask the user.
+- `## Architecture` — bullet list: framework + version, key patterns
+  in use (e.g. "App Router", "hexagonal", "BLoC"), deploy target,
+  notable constraints (monorepo, SSR-only, offline-first, etc.).
+  Derive from config files, folder structure, and any existing ADRs
+  under `docs/` or `openspec/specs/`.
+
+Filling these stubs is low-risk (editing an existing file the user
+just imported and expects to fill). DO IT — write the drafted content
+straight into root `AGENTS.md` as part of this bootstrap pass. Show
+the diff in your report so the user can review and revise after.
+Do NOT stop and ask for approval before this edit.
+
+## 5. Decide if subdir AGENTS.md files are needed
+
+Create an `AGENTS.md` in a subdir ONLY when that subdir has:
+
+- its own toolchain or build system, OR
+- its own deploy target / runtime, OR
+- conventions that meaningfully differ from the root.
+
+Single-app repos almost never need this. Three near-empty files are
+worse than one good root file. If nothing qualifies, that is a ✅ —
+not a warning.
+
+## 6. Report — then wait
+
+End your bootstrap with this checklist (✅ pass / ❌ broken — needs fixing).
+"Considered and not needed" is ✅, not a warning. Use ❌ only for things
+that are actually broken or missing wiring.
+
+- [ ] Skills readable through my agent's symlink (quote the heading line)
+- [ ] Agent dirs present: .claude / .kilocode / .opencode / .codex
+- [ ] OpenSpec callable (version + slash command name)
+- [ ] AGENTS.md inventory (paths found)
+- [ ] CLAUDE.md @ imports match inventory (list any drift)
+- [ ] Root AGENTS.md stubs filled (show the diff that was just applied)
+- [ ] Subdir AGENTS.md needed? (yes + paths, or ✅ "no — single-app repo")
+- [ ] CLAUDE.md @ imports needed? (yes + paths, or ✅ "no drift")
+
+Auto-apply (no approval needed) — already done as part of this pass:
+- Filling empty stub sections in root `AGENTS.md`.
+
+Wait for approval before:
+- Creating any NEW `AGENTS.md` files in subdirs.
+- Adding NEW `@` imports to `.claude/CLAUDE.md`.
+
+After approval, apply those changes and re-run the inventory diff to
+confirm. If user pushes back on the stub fill, revise the root
+`AGENTS.md` content based on their feedback.
+
+## Operating rules from here on
+
+- Any change beyond a trivial edit MUST start with an OpenSpec proposal.
+- Skills are invoked via slash syntax (`/code-reviewer`, `/security-review`,
+  `/coding-standards`, etc.) — use them instead of reinventing guidance.
+- Treat `AGENTS.md` as the source of truth for project conventions.
+````
+
+---
+
 ### Working With AI Coding Agents
 
 > Copy-paste-friendly section. Drop this into any target repo's README after importing `agent-standards` to document agent usage for your team.
