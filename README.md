@@ -1,10 +1,165 @@
 ## Agent Standards
 
+![Skills](https://img.shields.io/badge/skills-73-blue)
+![Agents](https://img.shields.io/badge/agents-Claude%20Code%20%7C%20Kilo%20%7C%20OpenCode%20%7C%20Codex-purple)
+![OpenSpec](https://img.shields.io/badge/openspec-ready-green)
+![License](https://img.shields.io/badge/license-MIT-lightgrey)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-success)
+
+Drop-in template that ships an opinionated agent-coding setup (skills, openspec, MCP-ready scaffolds) into any project via git selective checkout.
+
+![Folder structure](docs/folder-structure.png)
+
 ---
 
-### Overview
+### Who this is for
 
-This repository is a centralized source of truth for AI coding agent instructions and skills. It supports Claude Code, Kilo Code, OpenCode, and Codex CLI. By importing it into your projects, all agents follow the same standards and workflows across your organization.
+Teams onboarding AI coding agents who want one source of truth instead of per-project drift — same skills, same prompts, same MCP setup across every repo.
+
+---
+
+### Why
+
+I use this across every project to keep AI coding standards consistent — same skills, same prompts, same MCP setup.
+
+---
+
+### Quickstart (TL;DR)
+
+```bash
+git config core.symlinks true
+git remote add agent-standards https://github.com/Lukk17/agent-standards
+git remote set-url --push agent-standards no_push
+git fetch agent-standards
+git checkout agent-standards/master -- .agents .claude .kilocode .opencode .codex AGENTS.md.example kilo.jsonc.example opencode.json.example
+cp AGENTS.md.example AGENTS.md && git commit -am "Import agent-standards"
+```
+
+That's it — open the project in Claude Code, Kilo Code, OpenCode, or Codex and skills are live. Full walkthrough below.
+
+---
+
+### Architecture
+
+```mermaid
+graph LR
+    AS[agent-standards repo]
+    AS -->|git checkout| P[Your project]
+    P --> SK[.agents/skills/<br/>73 SKILL.md files]
+    P --> AG[AGENTS.md]
+    SK -.symlink.-> CL[.claude/skills/]
+    SK -.symlink.-> KL[.kilocode/skills/]
+    SK -.symlink.-> OC[.opencode/skills/]
+    SK -.symlink.-> CX[.codex/skills/]
+    CL --> Claude[Claude Code]
+    KL --> Kilo[Kilo Code]
+    OC --> OpenCode[OpenCode]
+    CX --> Codex[Codex CLI]
+    AG --> Claude
+    AG --> Kilo
+    AG --> OpenCode
+    AG --> Codex
+```
+
+One canonical `.agents/skills/` directory, four agents, zero duplication.
+
+---
+
+### What's in the box
+
+- **`.agents/skills/`** — 73 canonical `SKILL.md` files (the source of truth, shared by every agent).
+- **`.claude/`** — Claude Code bridge: `CLAUDE.md` that imports `AGENTS.md`, plus a `skills/` symlink.
+- **`openspec/` scaffold** — spec-driven workflow (`openspec init` lands skills in `.agents/skills/` via the existing symlinks; commands go to each tool's native dir).
+- **`AGENTS.md`** — shared instructions auto-read by Kilo Code, OpenCode, and Codex CLI; `AGENTS.md.example` is the template you copy into a new project.
+- **MCP-ready scaffolds** — `.kilocode/`, `.opencode/`, `.codex/` directories with `skills/` symlinks pointing back to `.agents/skills/`, plus `kilo.jsonc.example` and `opencode.json.example` configs.
+
+<details>
+<summary><b>📚 Skills catalog (73 skills)</b></summary>
+
+**Backend & languages**
+`backend-patterns` · `python-patterns` · `python-testing` · `golang-patterns` · `golang-testing` · `java-coding-standards` · `springboot-patterns` · `springboot-security` · `springboot-tdd` · `springboot-verification` · `jpa-patterns` · `bash` · `powershell` · `embedded-c-arduino`
+
+**Frontend & mobile**
+`frontend-patterns` · `frontend-design` · `design-system` · `angular` · `nextjs-app-router-patterns` · `nextjs-best-practices` · `nextjs-turbopack` · `dart-flutter-patterns` · `flutter-architecture` · `flutter-layout` · `flutter-routing-and-navigation` · `flutter-forms` · `flutter-animation` · `flutter-accessibility` · `flutter-localization` · `flutter-caching` · `flutter-concurrency` · `flutter-databases` · `flutter-http-and-json` · `flutter-native-interop` · `flutter-platform-views` · `flutter-testing-apps` · `flutter-app-size` · `flutter-environment-setup-linux` · `flutter-environment-setup-macos` · `flutter-environment-setup-windows`
+
+**Data & databases**
+`postgres-patterns` · `mongodb-connection` · `mongodb-schema-design` · `mongodb-query-optimizer` · `mongodb-search-and-ai` · `database-migrations` · `pytorch-patterns`
+
+**Architecture & APIs**
+`api-design` · `hexagonal-architecture` · `architecture-decision-records` · `soap-webservices` · `keycloak-administration` · `keycloak-auth-services`
+
+**Testing & quality**
+`tdd-workflow` · `e2e-testing` · `ai-regression-testing` · `code-reviewer` · `review-duplication` · `coding-standards` · `security-review`
+
+**DevOps & ops**
+`docker-patterns` · `deployment-patterns` · `git-workflow` · `github-ops` · `ansible` · `jira-integration` · `automation-audit-ops` · `finance-billing-ops` · `agentic-engineering`
+
+**Specialized domains**
+`home-assistant` · `unity` · `kicad` · `g-code-3d-printing` · `seo`
+
+</details>
+
+---
+
+### How to use
+
+To import the central AI standards into this project without overwriting existing files, we use Git Selective Checkout.
+
+This approach extracts only the required AI folders and template files directly into the project root.
+
+To protect the central repository, we configure the remote as a read-only source in your local workspace by setting the push URL to an invalid address.
+
+This ensures you can pull updates from the central repository, but Git will block any accidental pushes of your project-specific changes back to the global standards.
+
+#### Step 1: Initial Setup
+
+Enable symlink support in Git:
+Globally
+```shell
+git config --global core.symlinks true
+```
+Locally for this repository only
+```shell
+git config core.symlinks true
+```
+
+Run these commands in the root of this project to add the remote, disable pushing, and extract the specific payload files into your workspace.
+
+```bash
+git remote add agent-standards https://github.com/Lukk17/agent-standards
+```
+
+```bash
+git remote set-url --push agent-standards no_push
+```
+
+```bash
+git fetch agent-standards
+```
+
+```bash
+git checkout agent-standards/master -- .agents .claude .kilocode .opencode .codex AGENTS.md.example kilo.jsonc.example opencode.json.example
+```
+
+```bash
+git commit -m "Import central agent-standards (.agents and .claude)"
+```
+
+#### Step 2: Pulling Future Updates
+
+When the central standards repository is updated, pull the latest files into this project by running the following commands.
+
+```bash
+git fetch agent-standards
+```
+
+```bash
+git checkout agent-standards/master -- .agents .claude
+```
+
+```bash
+git commit -m "Update AI standards from central repository"
+```
 
 ---
 
@@ -106,38 +261,12 @@ Codex has no project-level config file. Global settings live in `~/.codex/config
 
 ---
 
-### Project Integration via Git Selective Checkout
+### Activating the imported files
 
-Import these standards into a new project without overwriting existing files using Git Selective Checkout.
-
-#### Step 1: Initial Setup in a New Project
-
-Enable symlink support in Git (required for Windows):
-
-```shell
-# Globally
-git config --global core.symlinks true
-
-# Or locally for this repository only
-git config core.symlinks true
-```
-
-Add the remote, disable pushing, and extract the payload files:
+After Step 1, recreate the symlinks if your platform stripped them, then copy the example configs:
 
 ```bash
-git remote add agent-standards https://github.com/Lukk17/agent-standards
-git remote set-url --push agent-standards no_push
-git fetch agent-standards
-git checkout agent-standards/master -- .agents .claude .kilocode .opencode .codex AGENTS.md.example kilo.jsonc.example opencode.json.example
-git commit -m "Import central agent-standards"
-```
-
-Create the symlinks for agent tool compatibility (required once after cloning, Windows requires `core.symlinks true`).
-
-Run these from the **project root**. The symlink target path (`../.agents/skills`) is relative to the symlink's own location (e.g. `.kilocode/`), so `../` steps up from `.kilocode/` back to the project root before entering `.agents/skills`.
-
-```bash
-# Linux/macOS — run from project root
+# Linux/macOS — run from project root (only if symlinks didn't survive the checkout)
 mkdir -p .kilocode .opencode .codex
 ln -s ../.agents/skills .kilocode/skills
 ln -s ../.agents/skills .opencode/skills
@@ -150,25 +279,10 @@ mklink /D .opencode\skills ..\.agents\skills
 mklink /D .codex\skills ..\.agents\skills
 ```
 
-Then copy the example files to activate them:
-
 ```bash
-# Copy the AGENTS.md template and fill in your project details
 cp AGENTS.md.example AGENTS.md
-
-# Kilo Code config (optional — Kilo reads .agents/skills/ natively)
-cp kilo.jsonc.example kilo.jsonc
-
-# OpenCode config (optional — OpenCode reads .agents/skills/ natively)
-cp opencode.json.example opencode.json
-```
-
-#### Step 2: Pulling Future Updates
-
-```bash
-git fetch agent-standards
-git checkout agent-standards/master -- .agents .claude .kilocode .opencode .codex
-git commit -m "Update AI standards from central repository"
+cp kilo.jsonc.example kilo.jsonc        # optional
+cp opencode.json.example opencode.json  # optional
 ```
 
 ---
