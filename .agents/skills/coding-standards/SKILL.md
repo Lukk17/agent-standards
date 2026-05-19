@@ -5,7 +5,7 @@ origin: ECC
 ---
 
 # Coding Standards & Best Practices
-
+. 
 Baseline coding conventions applicable across projects.
 
 This skill is the shared floor, not the detailed framework playbook.
@@ -61,6 +61,105 @@ Do not use this skill as the primary source for:
 - Avoid speculative generality
 - Add complexity only when required
 - Start simple, refactor when needed
+
+### 5. Functional Pipelines Over Imperative Cascades
+
+When transforming a collection — filter, then map, then aggregate —
+prefer a *pipeline* (one operation per step, top-down) over an
+imperative `for` loop with `if`-`else` cascading and an explicit
+accumulator. The pipeline reads as "what we're doing to the data";
+the cascade reads as "how the bookkeeping goes."
+
+This is a code-shape rule, not a syntax-level formatting one. The
+sibling `code-formatter` skill says "one chain step per line"; this
+skill says "*reach* for the chain in the first place."
+
+#### Dart
+
+```dart
+// BAD — imperative cascade
+final activeNames = <String>[];
+for (final e in exercises) {
+  if (e.isActive) {
+    activeNames.add(e.name);
+  }
+}
+
+// GOOD — pipeline
+final activeNames = exercises
+    .where((e) => e.isActive)
+    .map((e) => e.name)
+    .toList();
+```
+
+#### Java
+
+Java's `Stream` API and `Optional` are explicitly designed for this.
+A `for` + `if` + `list.add` block where a stream would do is a code
+smell in modern Java.
+
+```java
+// BAD
+List<String> activeNames = new ArrayList<>();
+for (Exercise e : exercises) {
+    if (e.isActive()) {
+        activeNames.add(e.name());
+    }
+}
+
+// GOOD
+List<String> activeNames = exercises.stream()
+    .filter(Exercise::isActive)
+    .map(Exercise::name)
+    .toList();
+
+// Same principle for nullable values: reach for Optional, not if-null
+// BAD
+Exercise e = repository.findById(id);
+if (e != null) {
+    return e.name();
+} else {
+    return "unknown";
+}
+
+// GOOD
+return repository.findById(id)
+    .map(Exercise::name)
+    .orElse("unknown");
+```
+
+#### Python
+
+Python's idiomatic equivalent is a comprehension (or, for lazy
+streams, a generator expression). Reach for them before you reach
+for an explicit `for` + `if` + `list.append`.
+
+```python
+# BAD
+active_names = []
+for e in exercises:
+    if e.is_active:
+        active_names.append(e.name)
+
+# GOOD
+active_names = [e.name for e in exercises if e.is_active]
+
+# When the transformation is heavier than a single expression, a
+# generator + sum/max/min/any/all keeps the pipeline shape:
+total_reps = sum(s.reps for s in series if s.reps > 0)
+```
+
+#### When NOT to convert
+
+- Side effects inside the loop body (writing to disk, calling an API
+  with an index-dependent argument, mutating an outside variable)
+  belong in an explicit `for` — pipelines should be pure.
+- Early termination on a complex condition that doesn't map to
+  `takeWhile`/`first` cleanly.
+- Cases where the cascade is genuinely clearer to a reader unfamiliar
+  with the codebase's style — *clarity outranks compactness*.
+
+The point is *prefer*, not *always*.
 
 ## TypeScript/JavaScript Standards
 
