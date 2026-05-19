@@ -13,6 +13,24 @@ This project includes agent skills in `.agents/skills/`. Invoke relevant skills 
 
 Slash commands may appear as `/name` or `/name.md` in your agent's autocomplete — use whichever your agent shows.
 
+## Subagents
+
+This project ships 26 specialised subagents — narrow-scope agents the main session delegates to. Claude Code reads `.claude/agents/`; OpenCode and Kilo Code both read `.opencode/agents/`. Codex CLI has no per-agent file mechanism — it sees `AGENTS.md` plus skills only.
+
+These files are generated artifacts pulled from agent-standards. Do **not** hand-edit them — changes will be overwritten on the next pull. To modify a subagent permanently, edit its canonical source in the agent-standards repo (`subagents/<name>.md`), regenerate there, and re-import.
+
+A few of the most-used:
+
+- `code-reviewer` — security-aware diff review before merge
+- `test-automator` — write missing tests and fix failures without weakening assertions
+- `security-auditor` — threat modelling, secure-coding review, compliance gap analysis
+- `backend-architect` — contract-first service and API design
+- `database-expert` — schema design and query / index optimisation
+- `debugger` — root-cause analysis for a single failing test or runtime error
+- `devops-troubleshooter` — live incident response with postmortem
+
+Full catalogue: see the agent-standards README's "Subagents catalog" section, or list `.claude/agents/*.md` (or `.opencode/agents/*.md`) in this project.
+
 ## Working With Agents
 
 All supported agents read this `AGENTS.md` from the project root and auto-discover skills from `.agents/skills/`. Start your agent from the project root:
@@ -21,6 +39,56 @@ All supported agents read this `AGENTS.md` from the project root and auto-discov
 - **Kilo Code** — reads `AGENTS.md` automatically. Optional `kilo.jsonc` for extra config.
 - **OpenCode** — reads `AGENTS.md` automatically. Optional `opencode.json` at project root.
 - **Codex CLI** — run `codex`. Reads `AGENTS.md` automatically. Global settings in `~/.codex/config.toml`.
+
+## Working Principles
+
+Apply these to every task, in order. They govern *how* you work; the `coding-standards` skill governs *what the code should look like*.
+
+### 1. Think Before Coding
+
+State assumptions explicitly. When the prompt is ambiguous, surface the interpretations and ask — do not pick one silently and run with it. If a simpler approach exists, propose it before writing code. Stop and ask when genuinely unsure — a clarifying question costs less than a wrong implementation.
+
+### 2. Simplicity First
+
+Write the minimum code that solves the problem.
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for scenarios that cannot happen.
+- If 200 lines could be 50, rewrite it.
+
+Test: would a senior engineer call this overcomplicated? If yes, simplify.
+
+### 3. Surgical Changes
+
+Touch only what the task requires.
+
+- Do not "improve" adjacent code, comments, or formatting.
+- Do not refactor code that is not broken.
+- Match existing style, even if you would write it differently.
+- If you notice unrelated dead code, mention it — do not delete it.
+- Remove imports, variables, and helpers that *your* changes orphan. Leave pre-existing dead code alone unless asked.
+
+Test: every changed line should trace directly to the request.
+
+### 4. Goal-Driven Execution
+
+Define success before starting. Convert vague asks into verifiable goals:
+
+| Instead of...       | Transform to...                                                       |
+| ------------------- | --------------------------------------------------------------------- |
+| "Add validation"    | "Write tests for invalid inputs, then make them pass"                 |
+| "Fix the bug"       | "Write a failing test that reproduces it, then make it pass"          |
+| "Refactor X"        | "Ensure tests pass before and after, behavior unchanged"              |
+
+For multi-step work, state the plan first:
+
+1. `<step>` → verify: `<check>`
+2. `<step>` → verify: `<check>`
+3. `<step>` → verify: `<check>`
+
+Then loop until each check passes. Do not claim a task is done without running the verification.
 
 ## OpenSpec Workflow
 
