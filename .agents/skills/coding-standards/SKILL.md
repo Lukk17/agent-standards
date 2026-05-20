@@ -5,7 +5,7 @@ origin: ECC
 ---
 
 # Coding Standards & Best Practices
-. 
+
 Baseline coding conventions applicable across projects.
 
 This skill is the shared floor, not the detailed framework playbook.
