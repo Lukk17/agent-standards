@@ -1,10 +1,13 @@
 # AGENTS.md
 
-This file provides shared instructions to all AI coding agents working in this repository (Claude Code, Kilo Code, OpenCode, Codex CLI). Standards and skills are imported from [agent-standards](https://github.com/Lukk17/agent-standards).
+This file provides shared instructions to all AI coding agents working in this repository (Claude Code, Kilo Code,
+OpenCode, Codex CLI). Standards and skills are imported from
+[agent-standards](https://github.com/Lukk17/agent-standards).
 
 ## Skills
 
-This project includes agent skills in `.agents/skills/`. Invoke relevant skills before starting implementation work. Examples:
+This project includes agent skills in `.agents/skills/`. Invoke relevant skills before starting implementation work.
+Examples:
 
 - `/code-reviewer` before reviewing code
 - `/security-review` before auditing for vulnerabilities
@@ -15,9 +18,13 @@ Slash commands may appear as `/name` or `/name.md` in your agent's autocomplete 
 
 ## Subagents
 
-This project ships 26 specialised subagents — narrow-scope agents the main session delegates to. Claude Code reads `.claude/agents/`; OpenCode and Kilo Code both read `.opencode/agents/`. Codex CLI has no per-agent file mechanism — it sees `AGENTS.md` plus skills only.
+This project ships 26 specialised subagents — narrow-scope agents the main session delegates to. Claude Code reads
+`.claude/agents/`; OpenCode and Kilo Code both read `.opencode/agents/`. Codex CLI has no per-agent file mechanism — it
+sees `AGENTS.md` plus skills only.
 
-These files are generated artifacts pulled from agent-standards. Do **not** hand-edit them — changes will be overwritten on the next pull. To modify a subagent permanently, edit its canonical source in the agent-standards repo (`subagents/<name>.md`), regenerate there, and re-import.
+These files are generated artifacts pulled from agent-standards. Do **not** hand-edit them — changes will be
+overwritten on the next pull. To modify a subagent permanently, edit its canonical source in the agent-standards repo
+(`subagents/<name>.md`), regenerate there, and re-import.
 
 A few of the most-used:
 
@@ -29,11 +36,19 @@ A few of the most-used:
 - `debugger` — root-cause analysis for a single failing test or runtime error
 - `devops-troubleshooter` — live incident response with postmortem
 
-Full catalogue: see the agent-standards README's "Subagents catalog" section, or list `.claude/agents/*.md` (or `.opencode/agents/*.md`) in this project.
+Full catalogue: see the agent-standards README's "Subagents catalog" section, or list `.claude/agents/*.md` (or
+`.opencode/agents/*.md`) in this project.
+
+## MCP servers
+
+This project may expose MCP tools (Context7 docs, MongoDB introspection, Grafana, Playwright, Chrome DevTools, Redis,
+SonarQube, n8n). Check your tool list at startup and use them when they're a better fit than re-deriving the answer
+from local files. Human-side setup lives in [`docs/MCP_SETUP.md`](docs/MCP_SETUP.md).
 
 ## Working With Agents
 
-All supported agents read this `AGENTS.md` from the project root and auto-discover skills from `.agents/skills/`. Start your agent from the project root:
+All supported agents read this `AGENTS.md` from the project root and auto-discover skills from `.agents/skills/`.
+Start your agent from the project root:
 
 - **Claude Code** — run `claude`. Reads `.claude/CLAUDE.md`, which imports this file.
 - **Kilo Code** — reads `AGENTS.md` automatically. Optional `kilo.jsonc` for extra config.
@@ -42,11 +57,14 @@ All supported agents read this `AGENTS.md` from the project root and auto-discov
 
 ## Working Principles
 
-Apply these to every task, in order. They govern *how* you work; the `coding-standards` skill governs *what the code should look like*.
+Apply these to every task, in order. They govern *how* you work; the `coding-standards` skill governs *what the code
+should look like*.
 
 ### 1. Think Before Coding
 
-State assumptions explicitly. When the prompt is ambiguous, surface the interpretations and ask — do not pick one silently and run with it. If a simpler approach exists, propose it before writing code. Stop and ask when genuinely unsure — a clarifying question costs less than a wrong implementation.
+State assumptions explicitly. When the prompt is ambiguous, surface the interpretations and ask — do not pick one
+silently and run with it. If a simpler approach exists, propose it before writing code. Stop and ask when genuinely
+unsure — a clarifying question costs less than a wrong implementation.
 
 ### 2. Simplicity First
 
@@ -92,7 +110,8 @@ Then loop until each check passes. Do not claim a task is done without running t
 
 ## OpenSpec Workflow
 
-This project uses [OpenSpec](https://github.com/Fission-AI/OpenSpec) for spec-driven development. Specs and changes live under `openspec/`.
+This project uses [OpenSpec](https://github.com/Fission-AI/OpenSpec) for spec-driven development. Specs and changes
+live under `openspec/`.
 
 The full lifecycle (run inside your agent shell):
 
@@ -113,7 +132,8 @@ The full lifecycle (run inside your agent shell):
    /opsx:archive
    ```
 
-Some agents render commands as `/opsx-propose.md` instead of `/opsx:propose` — both work; use what appears in your autocomplete.
+Some agents render commands as `/opsx-propose.md` instead of `/opsx:propose` — both work; use what appears in your
+autocomplete.
 
 Use multiline prompts when you need to include logs or detailed context with a command.
 

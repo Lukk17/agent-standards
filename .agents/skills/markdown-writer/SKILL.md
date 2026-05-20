@@ -58,6 +58,14 @@ I write like a tired senior engineer, not a marketing intern.
 - Every shell snippet ships in two fences: one bash, one PowerShell.
 - **Links use plain text**, not code-styled text: `[docs/X.md](./docs/X.md)`, not `` [`docs/X.md`](./docs/X.md) ``. The double styling (link + code) is valid GFM but reads as visual noise — it screams "I am both a link and a path" when one of those is already obvious from context. Reserve backticks for inline references that are NOT also links (a function name in prose, a file path mentioned without anchoring).
 - **Never use Roman numerals for list ordering.** No `i.` / `ii.` / `iii.` / `iv.` and no `(i)` / `(ii)` / `(iii)` for nested or top-level steps. Reasons: nobody parses Roman numerals fluently past `iv`, sort order breaks in tools that don't know them, and they're a tired academic-paper affectation that doesn't survive a code diff. Use Arabic digits (`1.`, `2.`, `3.`) for ordered lists. For sub-steps inside a numbered item, use lowercase letters with closing paren (`a)`, `b)`, `c)`) or just nest with another `1.` / `2.` — both render correctly in GFM. Reserve `I`, `V`, `X`, `L` only for actual proper nouns or version names that already contain them.
+- **Soft-wrap prose at ~120 characters.** Hard rule: 120 max for plain prose lines. Code blocks stay at the
+  language's own width (commonly 100-120). Tables stay on one line per row — don't break a table cell. Long URLs in a
+  link don't trigger a re-wrap; the surrounding text does. Reasons: side-by-side diffs stay readable, terminal
+  `less` / `view` doesn't horizontally scroll, code review comments anchor to a meaningful line. The 120 target gives
+  you ~30 chars of headroom over code's typical 80-100 to keep prose flowing without making the file look like a
+  typewriter draft. Lists, headings, and `> ` blockquote prose all follow the same 120 cap. The exception is a
+  single-line lead under a heading where breaking would split a noun phrase awkwardly — keep it on one line and move
+  on. Re-wrap existing files when you touch a paragraph; don't reformat lines you didn't edit (it pollutes the diff).
 
 Bash example:
 
@@ -103,6 +111,7 @@ When polishing an existing README I walk this list:
 - ❌ Unexplained jargon in the first 200 words
 - ❌ Code blocks with comments doing the teaching instead of prose
 - ❌ Roman-numeral list markers (`i.`, `ii.`, `iii.`, `(i)`, `(ii)`...) — replace with Arabic digits or lowercase letters with `)`
+- ❌ Prose paragraphs as single multi-hundred-character lines (no soft-wraps) — re-wrap at ~120
 - ✅ One canonical install path (not five "you could also...")
 - ✅ Architecture diagram present and matches reality
 - ✅ Honest comparison section, not a strawman

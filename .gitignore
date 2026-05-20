@@ -31,6 +31,14 @@ CLAUDE.local.md
 *.local.json
 *.local.md
 
+### MCP & agent configs (real files, not the .example templates)
+# These are produced by copying the committed .example files. Consumer projects
+# may choose to commit them (env-var values only) or keep them local (inlined
+# secrets). For this repo, never commit them — only the .example versions ship.
+.mcp.json
+opencode.json
+kilo.jsonc
+
 ### Conversion Script Artifacts
 # If you run the conversion scripts locally inside this repo,
 # you might want to ignore temporary build or output folders if they are generated.

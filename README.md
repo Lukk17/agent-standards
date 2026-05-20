@@ -7,7 +7,8 @@
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-success)
 
-Drop-in template that ships an opinionated agent-coding setup (skills, openspec, MCP-ready scaffolds) into any project via git selective checkout.
+Drop-in template that ships an opinionated agent-coding setup (skills, openspec, MCP-ready scaffolds) into any project
+via git selective checkout.
 
 ![Folder structure](docs/folder-structure.png)
 
@@ -15,7 +16,8 @@ Drop-in template that ships an opinionated agent-coding setup (skills, openspec,
 
 ### Who this is for
 
-Teams onboarding AI coding agents who want one source of truth instead of per-project drift — same skills, same prompts, same MCP setup across every repo.
+Teams onboarding AI coding agents who want one source of truth instead of per-project drift — same skills, same
+prompts, same MCP setup across every repo.
 
 ---
 
@@ -32,13 +34,17 @@ git config core.symlinks true
 git remote add agent-standards https://github.com/Lukk17/agent-standards
 git remote set-url --push agent-standards no_push
 git fetch agent-standards
-git checkout agent-standards/master -- .agents .claude .opencode .codex docs/AGENT_TOOLING.md AGENTS.md.example kilo.jsonc.example opencode.json.example
+git checkout agent-standards/master -- .agents .claude .opencode .codex docs/AGENT_TOOLING.md docs/MCP_SETUP.md AGENTS.md.example kilo.jsonc.example opencode.json.example .mcp.json.example
 cp AGENTS.md.example AGENTS.md && git commit -am "Import agent-standards"
 ```
 
-That's it — open the project in Claude Code, Kilo Code, OpenCode, or Codex and skills are live. Full walkthrough in [`docs/AGENT_TOOLING.md`](docs/AGENT_TOOLING.md).
+That's it — open the project in Claude Code, Kilo Code, OpenCode, or Codex and skills are live. Optional next step: copy
+`.mcp.json.example` → `.mcp.json` and `opencode.json.example` → `opencode.json` to enable the shared MCP server set
+(human-side setup in [`docs/MCP_SETUP.md`](docs/MCP_SETUP.md)). Full walkthrough in
+[`docs/AGENT_TOOLING.md`](docs/AGENT_TOOLING.md).
 
-Consumer projects pull only production-ready content: skills, generated subagent files, the tooling doc, and config templates. The canonical `subagents/` source and `tools/` generator live in this repo only.
+Consumer projects pull only production-ready content: skills, generated subagent files, the tooling doc, and config
+templates. The canonical `subagents/` source and `tools/` generator live in this repo only.
 
 ---
 
@@ -73,40 +79,64 @@ graph LR
     AG --> Codex
 ```
 
-Two canonical sources in this repo — `.agents/skills/` and `subagents/`. Consumer projects receive only the production-ready dirs: `.agents/skills/`, generated `.claude/agents/`, and generated `.opencode/agents/` (which Kilo Code reads natively, so no separate Kilo directory). The `subagents/` source and the `tools/` generator never ship to consumers.
+Two canonical sources in this repo — `.agents/skills/` and `subagents/`. Consumer projects receive only the
+production-ready dirs: `.agents/skills/`, generated `.claude/agents/`, and generated `.opencode/agents/` (which Kilo
+Code reads natively, so no separate Kilo directory). The `subagents/` source and the `tools/` generator never ship to
+consumers.
 
 ---
 
 ### What's in the box
 
-- **`.agents/skills/`** — 73 canonical `SKILL.md` files (the source of truth, shared by every agent and shipped to consumer projects).
-- **`subagents/`** *(this repo only)* — 26 canonical subagent templates. Never shipped to consumer projects; only the generated tool-specific copies are.
-- **`tools/`** *(this repo only)* — `gen-subagents.py` generator + `pyproject.toml`. Emits `.claude/agents/*.md` and `.opencode/agents/*.md` from `subagents/`. Run after editing any canonical file.
-- **`.claude/`** — Claude Code bridge: `CLAUDE.md` that imports `AGENTS.md`, a `skills/` symlink, and generated `agents/` (26 files, shipped to consumers).
-- **`openspec/` scaffold** — spec-driven workflow (`openspec init` lands skills in `.agents/skills/` via the existing symlinks; commands go to each tool's native dir).
-- **`AGENTS.md`** — shared instructions auto-read by Kilo Code, OpenCode, and Codex CLI; `AGENTS.md.example` is the template you copy into a new project.
-- **MCP-ready scaffolds** — `.opencode/` and `.codex/` directories with `skills/` symlinks pointing back to `.agents/skills/`, plus `.opencode/agents/` (generated, also read by Kilo Code), `kilo.jsonc.example`, and `opencode.json.example` configs.
+- **`.agents/skills/`** — 73 canonical `SKILL.md` files (the source of truth, shared by every agent and shipped to
+  consumer projects).
+- **`subagents/`** *(this repo only)* — 26 canonical subagent templates. Never shipped to consumer projects; only the
+  generated tool-specific copies are.
+- **`tools/`** *(this repo only)* — `gen-subagents.py` generator + `pyproject.toml`. Emits `.claude/agents/*.md` and
+  `.opencode/agents/*.md` from `subagents/`. Run after editing any canonical file.
+- **`.claude/`** — Claude Code bridge: `CLAUDE.md` that imports `AGENTS.md`, a `skills/` symlink, and generated
+  `agents/` (26 files, shipped to consumers).
+- **`openspec/` scaffold** — spec-driven workflow (`openspec init` lands skills in `.agents/skills/` via the existing
+  symlinks; commands go to each tool's native dir).
+- **`AGENTS.md`** — shared instructions auto-read by Kilo Code, OpenCode, and Codex CLI; `AGENTS.md.example` is the
+  template you copy into a new project.
+- **MCP scaffolds** — `.opencode/` and `.codex/` directories with `skills/` symlinks back to `.agents/skills/`,
+  generated `.opencode/agents/` (also read by Kilo Code), and four config templates: `kilo.jsonc.example`,
+  `opencode.json.example`, `.mcp.json.example`, plus `docs/MCP_SETUP.md` with the human setup steps. The two MCP
+  templates ship 8 default servers (`context7`, `mongodb`, `grafana`, `playwright`, `chrome-devtools`, `redis`,
+  `sonarqube`, `n8n`) with `${VAR}` / `{env:VAR}` env-var substitution.
 
 <details>
 <summary><b>📚 Skills catalog (73 skills)</b></summary>
 
 **Backend & languages**
-`backend-patterns` · `python-patterns` · `python-testing` · `golang-patterns` · `golang-testing` · `java-coding-standards` · `springboot-patterns` · `springboot-security` · `springboot-tdd` · `springboot-verification` · `jpa-patterns` · `bash` · `powershell` · `embedded-c-arduino`
+`backend-patterns` · `python-patterns` · `python-testing` · `golang-patterns` · `golang-testing` ·
+`java-coding-standards` · `springboot-patterns` · `springboot-security` · `springboot-tdd` ·
+`springboot-verification` · `jpa-patterns` · `bash` · `powershell` · `embedded-c-arduino`
 
 **Frontend & mobile**
-`frontend-patterns` · `frontend-design` · `design-system` · `angular` · `nextjs-app-router-patterns` · `nextjs-best-practices` · `nextjs-turbopack` · `dart-flutter-patterns` · `flutter-architecture` · `flutter-layout` · `flutter-routing-and-navigation` · `flutter-forms` · `flutter-animation` · `flutter-accessibility` · `flutter-localization` · `flutter-caching` · `flutter-concurrency` · `flutter-databases` · `flutter-http-and-json` · `flutter-native-interop` · `flutter-platform-views` · `flutter-testing-apps` · `flutter-app-size` · `flutter-environment-setup-linux` · `flutter-environment-setup-macos` · `flutter-environment-setup-windows`
+`frontend-patterns` · `frontend-design` · `design-system` · `angular` · `nextjs-app-router-patterns` ·
+`nextjs-best-practices` · `nextjs-turbopack` · `dart-flutter-patterns` · `flutter-architecture` · `flutter-layout` ·
+`flutter-routing-and-navigation` · `flutter-forms` · `flutter-animation` · `flutter-accessibility` ·
+`flutter-localization` · `flutter-caching` · `flutter-concurrency` · `flutter-databases` · `flutter-http-and-json` ·
+`flutter-native-interop` · `flutter-platform-views` · `flutter-testing-apps` · `flutter-app-size` ·
+`flutter-environment-setup-linux` · `flutter-environment-setup-macos` · `flutter-environment-setup-windows`
 
 **Data & databases**
-`postgres-patterns` · `mongodb-connection` · `mongodb-schema-design` · `mongodb-query-optimizer` · `mongodb-search-and-ai` · `database-migrations` · `pytorch-patterns`
+`postgres-patterns` · `mongodb-connection` · `mongodb-schema-design` · `mongodb-query-optimizer` ·
+`mongodb-search-and-ai` · `database-migrations` · `pytorch-patterns`
 
 **Architecture & APIs**
-`api-design` · `hexagonal-architecture` · `architecture-decision-records` · `soap-webservices` · `keycloak-administration` · `keycloak-auth-services`
+`api-design` · `hexagonal-architecture` · `architecture-decision-records` · `soap-webservices` ·
+`keycloak-administration` · `keycloak-auth-services`
 
 **Testing & quality**
-`tdd-workflow` · `e2e-testing` · `ai-regression-testing` · `code-reviewer` · `review-duplication` · `coding-standards` · `security-review`
+`tdd-workflow` · `e2e-testing` · `ai-regression-testing` · `code-reviewer` · `review-duplication` ·
+`coding-standards` · `security-review`
 
 **DevOps & ops**
-`docker-patterns` · `deployment-patterns` · `git-workflow` · `github-ops` · `ansible` · `jira-integration` · `automation-audit-ops` · `finance-billing-ops` · `agentic-engineering`
+`docker-patterns` · `deployment-patterns` · `git-workflow` · `github-ops` · `ansible` · `jira-integration` ·
+`automation-audit-ops` · `finance-billing-ops` · `agentic-engineering`
 
 **Specialized domains**
 `home-assistant` · `unity` · `kicad` · `g-code-3d-printing` · `seo`
@@ -116,10 +146,13 @@ Two canonical sources in this repo — `.agents/skills/` and `subagents/`. Consu
 <details>
 <summary><b>🤖 Subagents catalog (26 subagents)</b></summary>
 
-Specialised agents that the main session delegates to. Each lives in `subagents/<name>.md` as the canonical source in this repo, and is emitted to `.claude/agents/` and `.opencode/agents/` by `tools/gen-subagents.py`. Consumer projects pull only the generated trees.
+Specialised agents that the main session delegates to. Each lives in `subagents/<name>.md` as the canonical source in
+this repo, and is emitted to `.claude/agents/` and `.opencode/agents/` by `tools/gen-subagents.py`. Consumer projects
+pull only the generated trees.
 
 **Core engineering**
-`code-reviewer` · `backend-architect` · `debugger` · `error-detective` · `code-archaeologist` · `test-automator` · `performance-engineer` · `legacy-modernizer`
+`code-reviewer` · `backend-architect` · `debugger` · `error-detective` · `code-archaeologist` · `test-automator` ·
+`performance-engineer` · `legacy-modernizer`
 
 **Stack experts**
 `java-pro` · `python-pro` · `flutter-expert` · `angular-expert` · `react-nextjs-expert`
@@ -142,7 +175,8 @@ Specialised agents that the main session delegates to. Each lives in `subagents/
 
 ### Working with subagents
 
-The 26 specialised subagents live as one canonical Markdown file each in `subagents/` (this repo's root, *not* shipped to consumer projects). A generator emits the two tool-specific copies that *are* shipped:
+The 26 specialised subagents live as one canonical Markdown file each in `subagents/` (this repo's root, *not* shipped
+to consumer projects). A generator emits the two tool-specific copies that *are* shipped:
 
 ```bash
 # After editing any canonical file
@@ -162,19 +196,22 @@ Rules:
 - **Run the generator after any canonical change** and commit both the source and the generated output.
 - **Consumer projects pull only the generated trees.** They never see `subagents/` or `tools/`.
 
-Adding a new subagent: drop a frontmatter-headed Markdown file in `subagents/` and re-run the generator. Removing one: delete the canonical file and re-run — orphaned outputs are pruned automatically.
+Adding a new subagent: drop a frontmatter-headed Markdown file in `subagents/` and re-run the generator. Removing one:
+delete the canonical file and re-run — orphaned outputs are pruned automatically.
 
 ---
 
 ### How to use
 
-Full setup walkthrough (initial import, pulling updates, OpenSpec integration, command syntax) lives in [`docs/AGENT_TOOLING.md`](docs/AGENT_TOOLING.md). That file is itself part of what consumer projects import, so it stays in sync with the central repo automatically.
+Full setup walkthrough (initial import, pulling updates, OpenSpec integration, command syntax) lives in
+[`docs/AGENT_TOOLING.md`](docs/AGENT_TOOLING.md). That file is itself part of what consumer projects import, so it
+stays in sync with the central repo automatically.
 
 In short:
 
 ```bash
 git fetch agent-standards
-git checkout agent-standards/master -- .agents .claude .opencode .codex docs/AGENT_TOOLING.md AGENTS.md.example kilo.jsonc.example opencode.json.example
+git checkout agent-standards/master -- .agents .claude .opencode .codex docs/AGENT_TOOLING.md docs/MCP_SETUP.md AGENTS.md.example kilo.jsonc.example opencode.json.example .mcp.json.example
 ```
 
 Then copy the templates into place (`cp AGENTS.md.example AGENTS.md` etc.) and commit.
@@ -206,6 +243,10 @@ agent-standards/
   AGENTS.md.example              # Template for target project AGENTS.md
   kilo.jsonc.example             # Kilo Code config template
   opencode.json.example          # OpenCode config template (must stay at root)
+  .mcp.json.example              # Claude Code MCP config template (project scope)
+  docs/
+    AGENT_TOOLING.md             # Setup walkthrough shipped to consumers
+    MCP_SETUP.md                 # Human MCP setup (env vars, keys, OS commands)
 ```
 
 Consumer-project layout after import (the `subagents/` source and `tools/` are intentionally absent):
@@ -220,6 +261,8 @@ your-project/
   .opencode/agents/              # 26 generated subagent files (Kilo reads from here too)
   .codex/skills/                 # symlink
   AGENTS.md                      # renamed from AGENTS.md.example
+  .mcp.json                      # optional, renamed from .mcp.json.example (Claude Code MCP)
+  opencode.json                  # optional, renamed from opencode.json.example (OpenCode/Kilo, includes MCP)
 ```
 
 ---
@@ -244,7 +287,8 @@ your-project/
 | OpenCode | `.opencode/agents/` | Generated by `tools/gen-subagents.py` |
 | Codex CLI | (no per-agent files) | Codex reads `AGENTS.md` + skills only — no subagent mechanism |
 
-Canonical source: `subagents/*.md` (only in the agent-standards repo). Never hand-edit the generated trees — re-run the generator and let it propagate.
+Canonical source: `subagents/*.md` (only in the agent-standards repo). Never hand-edit the generated trees — re-run
+the generator and let it propagate.
 
 #### Instructions Discovery
 
@@ -294,7 +338,8 @@ Canonical source: `subagents/*.md` (only in the agent-standards repo). Never han
 7. Managed config files (system directories)
 ```
 
-Note: `opencode.json` must be at the project root, not inside `.opencode/`. The `.opencode/` directory holds subdirectories (skills/, commands/, agents/).
+Note: `opencode.json` must be at the project root, not inside `.opencode/`. The `.opencode/` directory holds
+subdirectories (skills/, commands/, agents/).
 
 #### Codex CLI
 
@@ -306,7 +351,8 @@ Note: `opencode.json` must be at the project root, not inside `.opencode/`. The 
 5. Skills from .agents/skills/ (primary), walking up from cwd to repo root
 ```
 
-Codex has no project-level config file. Global settings live in `~/.codex/config.toml`. Skills are scanned from `.agents/skills/` at every directory level up to the repo root.
+Codex has no project-level config file. Global settings live in `~/.codex/config.toml`. Skills are scanned from
+`.agents/skills/` at every directory level up to the repo root.
 
 ---
 
@@ -332,14 +378,19 @@ Kilo Code does not need its own `skills/` directory — it reads `.agents/skills
 cp AGENTS.md.example AGENTS.md
 cp kilo.jsonc.example kilo.jsonc        # optional
 cp opencode.json.example opencode.json  # optional
+cp .mcp.json.example .mcp.json          # optional, enables shared MCP servers
 ```
+
+For MCP, follow [`docs/MCP_SETUP.md`](docs/MCP_SETUP.md) to install prerequisites, acquire keys, and export the env
+vars so the `${VAR}` / `{env:VAR}` placeholders resolve at agent startup.
 
 ---
 
 ### Bootstrap prompt (first run)
 
-Paste this into the agent on its very first run in a freshly-imported project. 
-It forces the agent to verify the wiring works (instead of just claiming it does), discover the instruction tree, and patch any gaps before it writes a single line of code.
+Paste this into the agent on its very first run in a freshly-imported project. It forces the agent to verify the
+wiring works (instead of just claiming it does), discover the instruction tree, and patch any gaps before it writes a
+single line of code.
 
 
 ````text
@@ -472,13 +523,17 @@ confirm. If user pushes back on the stub fill, revise the root
 
 ### Working With AI Coding Agents
 
-> Copy-paste-friendly section. Drop this into any target repo's README after importing `agent-standards` to document agent usage for your team.
+> Copy-paste-friendly section. Drop this into any target repo's README after importing `agent-standards` to document
+> agent usage for your team.
 
-This project follows shared standards imported from [agent-standards](https://github.com/Lukk17/agent-standards). All supported agents read `AGENTS.md` from the project root and discover skills from `.agents/skills/` automatically. Pick whichever agent you prefer — they all share the same instructions and skills.
+This project follows shared standards imported from [agent-standards](https://github.com/Lukk17/agent-standards). All
+supported agents read `AGENTS.md` from the project root and discover skills from `.agents/skills/` automatically. Pick
+whichever agent you prefer — they all share the same instructions and skills.
 
 #### Claude Code
 
-Claude Code reads `.claude/CLAUDE.md`, which imports `AGENTS.md` via `@../AGENTS.md`. Skills in `.claude/skills/` (symlinked to `.agents/skills/`) are auto-discovered. No additional config required.
+Claude Code reads `.claude/CLAUDE.md`, which imports `AGENTS.md` via `@../AGENTS.md`. Skills in `.claude/skills/`
+(symlinked to `.agents/skills/`) are auto-discovered. No additional config required.
 
 Start it from the project root:
 
@@ -515,7 +570,8 @@ Optionally copy `opencode.json.example` to `opencode.json` for additional config
 
 #### Codex CLI
 
-Codex reads `AGENTS.md` from the project root and discovers skills from `.agents/skills/` automatically. No project-level config file is required.
+Codex reads `AGENTS.md` from the project root and discovers skills from `.agents/skills/` automatically. No
+project-level config file is required.
 
 Start it from the project root:
 
@@ -540,13 +596,15 @@ Skills are invoked from inside the agent shell using slash syntax. Examples:
 /coding-standards
 ```
 
-Depending on the agent UI, slash commands may appear as `/name` or `/name.md` in the autocomplete menu — use whichever your agent shows.
+Depending on the agent UI, slash commands may appear as `/name` or `/name.md` in the autocomplete menu — use whichever
+your agent shows.
 
 ---
 
 ### OpenSpec Integration
 
-[OpenSpec](https://github.com/Fission-AI/OpenSpec) is a spec-driven development framework that installs skills and commands into each agent's native directories.
+[OpenSpec](https://github.com/Fission-AI/OpenSpec) is a spec-driven development framework that installs skills and
+commands into each agent's native directories.
 
 #### How the symlinks work with OpenSpec
 
@@ -555,9 +613,12 @@ Make sure to enable symlinks in git:
 git config core.symlinks true
 ```
 
-The `.claude/skills/`, `.opencode/skills/`, and `.codex/skills/` directories are all symlinked to `.agents/skills/`. Kilo Code reads `.agents/skills/` natively without a symlink. When `openspec init` writes skills to any of the symlinked directories, they land in `.agents/skills/` — the canonical location already read by all agents.
+The `.claude/skills/`, `.opencode/skills/`, and `.codex/skills/` directories are all symlinked to `.agents/skills/`.
+Kilo Code reads `.agents/skills/` natively without a symlink. When `openspec init` writes skills to any of the
+symlinked directories, they land in `.agents/skills/` — the canonical location already read by all agents.
 
-Commands are tool-specific (different formats per agent) and cannot be centralized. OpenSpec creates them in each tool's native commands directory, which is expected and correct.
+Commands are tool-specific (different formats per agent) and cannot be centralized. OpenSpec creates them in each
+tool's native commands directory, which is expected and correct.
 #### Using OpenSpec in a project that imports agent-standards
 
 After running Step 1 above, initialize OpenSpec in your project:
@@ -572,7 +633,10 @@ npm install -g @fission-ai/openspec@latest
 openspec init --tools "claude,opencode,codex"
 ```
 
-Kilo Code users: if you want OpenSpec slash-workflows specifically for Kilo, run `openspec init --tools kilocode` as a separate step. It will create a `.kilocode/workflows/` directory in your project. The agent-standards repo itself does not ship a `.kilocode/` directory — Kilo Code reads skills from `.agents/skills/` and subagents from `.opencode/agents/` natively.
+Kilo Code users: if you want OpenSpec slash-workflows specifically for Kilo, run `openspec init --tools kilocode` as a
+separate step. It will create a `.kilocode/workflows/` directory in your project. The agent-standards repo itself does
+not ship a `.kilocode/` directory — Kilo Code reads skills from `.agents/skills/` and subagents from
+`.opencode/agents/` natively.
 
 What `openspec init` creates:
 
@@ -605,9 +669,13 @@ Restart IDE and terminal after openspec initialization.
 
 #### Command Syntax Variations
 
-Because the AI coding landscape is fragmented, OpenSpec generates files for two different architectures. Depending on your specific agent UI, your commands will appear in one of two ways:
-* Standalone Markdown Commands: Agents that read flat files will show commands with extensions in their dropdowns (e.g., /opsx-propose.md).
-* Agent Skills: Agents that parse semantic SKILL.md metadata or have native integration will use standard slash syntax (e.g., /opsx:propose).
+Because the AI coding landscape is fragmented, OpenSpec generates files for two different architectures. Depending on
+your specific agent UI, your commands will appear in one of two ways:
+
+* Standalone Markdown Commands: Agents that read flat files will show commands with extensions in their dropdowns
+  (e.g., /opsx-propose.md).
+* Agent Skills: Agents that parse semantic SKILL.md metadata or have native integration will use standard slash syntax
+  (e.g., /opsx:propose).
 
 Use the syntax that appears in your agent's autocomplete menu.
 
