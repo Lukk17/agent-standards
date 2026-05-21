@@ -404,17 +404,47 @@ public class ReportService {
 
 ## Startup readiness log
 
-Full convention (ANSI Shadow banner, URL + profile + dependency + observability sections, 2-second probe timeouts, `<url> [Connected|Warning|FAILED]` result format, and the **canonical output layout**) lives in [coding-standards](../coding-standards/SKILL.md#startup-readiness-log). The full multi-section example block there is what your Spring Boot app must print verbatim, with sections omitted only when they don't apply.
+Spring Boot apps emit the banner **twice**, on purpose:
 
-The banner must be the **ANSI Shadow FIGlet font**, 6 lines tall using Unicode box-drawing (`█▀▄╔╗╚╝═║`). Generate once with `figlet -f 'ANSI Shadow' 'YOURAPP'` or via <https://patorjk.com/software/taag/#p=display&f=ANSI%20Shadow>, then paste into the source as a string constant. Do not let the agent freehand it; it will silently pick Standard FIGlet (3 lines tall, `/ \ _ |` ASCII slashes) and the log will be wrong.
+1. **At process boot**, via Spring's native `banner.txt` resource. Tells "the JVM is up, the framework is loading, here's the version metadata". Useful for diagnosing crashes that happen before traffic ever flows.
+2. **At accepting-traffic time**, again above the full readiness log block (URL / profile / dependency / observability sections from [coding-standards](../coding-standards/SKILL.md#startup-readiness-log)). Tells "we are actually serving requests". This is the entry on-call looks at first when paging.
 
-Disable Spring Boot's built-in banner so it does not race with yours:
+Same banner shape both times. ANSI Shadow FIGlet font, 6 lines tall, Unicode box-drawing (`█▀▄╔╗╚╝═║`). Generate once with `figlet -f 'ANSI Shadow' 'YOURAPP'` or via <https://patorjk.com/software/taag/#p=display&f=ANSI%20Shadow>, paste into both places (the resource file and the readiness-log builder) as a constant. Do not let the agent freehand it; it will silently pick Standard FIGlet (3 lines tall, `/ \ _ |` ASCII slashes) and the log will be wrong.
 
-```properties
-spring.main.banner-mode=off
+### Banner #1: replace Spring's default at boot
+
+Drop the banner into `src/main/resources/banner.txt`. Spring picks it up automatically. Use Spring's `${AnsiColor.X}` and property tokens for color and version metadata. Example contents (replace the `EXAMPLE` art with your own app name in ANSI Shadow):
+
+```text
+${AnsiColor.BRIGHT_CYAN}
+███████╗██╗  ██╗ █████╗ ███╗   ███╗██████╗ ██╗     ███████╗
+██╔════╝╚██╗██╔╝██╔══██╗████╗ ████║██╔══██╗██║     ██╔════╝
+█████╗   ╚███╔╝ ███████║██╔████╔██║██████╔╝██║     █████╗
+██╔══╝   ██╔██╗ ██╔══██║██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝
+███████╗██╔╝ ██╗██║  ██║██║ ╚═╝ ██║██║     ███████╗███████╗
+╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝
+${AnsiColor.BRIGHT_YELLOW}  :: Example     ::  ${AnsiColor.BRIGHT_BLACK}${application.formatted-version}${AnsiColor.DEFAULT}
+${AnsiColor.BRIGHT_BLACK}  :: Spring Boot ::  ${spring-boot.formatted-version}
+${AnsiColor.BRIGHT_BLACK}  :: Java        ::  ${java.version}
+${AnsiColor.DEFAULT}
 ```
 
-**Spring Boot hook:** `@EventListener` on `AvailabilityChangeEvent<ReadinessState>` filtered to `ACCEPTING_TRAFFIC`. This is the truly last startup signal — fires after `ApplicationReadyEvent` and after every `CommandLineRunner` / `ApplicationRunner` bean.
+Available property tokens (Spring auto-replaces):
+
+- `${application.version}` / `${application.formatted-version}` — your app's version from `Implementation-Version` in the manifest (set by Spring Boot Maven/Gradle plugin).
+- `${spring-boot.version}` / `${spring-boot.formatted-version}` — Spring Boot version.
+- `${java.version}` — JVM version.
+- `${application.title}` / `${application.formatted-title}` — manifest `Implementation-Title`.
+
+Color tokens (`${AnsiColor.BRIGHT_CYAN}`, `BRIGHT_YELLOW`, `BRIGHT_BLACK`, `DEFAULT`, etc.) work on terminals that support ANSI; degrade gracefully elsewhere. Keep the **last** line `${AnsiColor.DEFAULT}` so the terminal returns to normal after the banner.
+
+Leave Spring's banner mechanism **enabled** for this path (do not set `spring.main.banner-mode=off`). The default is `console`, which prints to stdout; that is what you want.
+
+### Banner #2: emit again above the readiness log
+
+When the readiness event fires, prepend the **same** banner (without `${AnsiColor.X}` tokens this time, since the log framework does not interpret them) to the multi-section URL / profile / dependency / observability block.
+
+**Hook:** `@EventListener` on `AvailabilityChangeEvent<ReadinessState>` filtered to `ACCEPTING_TRAFFIC`. This is the truly last startup signal; it fires after `ApplicationReadyEvent` and after every `CommandLineRunner` / `ApplicationRunner` bean.
 
 ```java
 @Component
@@ -429,10 +459,67 @@ public class StartupLogConfig {
     if (event.getState() != ReadinessState.ACCEPTING_TRAFFIC) {
       return;
     }
+    // One log call, leading `\n`. The placeholder substitutes the whole multi-line
+    // banner + readiness block. Per-line `log.info` would stamp a timestamp / level /
+    // logger prefix on every line and shred the banner art. See canonical rule in
+    // coding-standards "Emit the whole block in ONE log call with a leading `\n`".
     log.info("\n{}", buildStartupLog());
   }
 }
 ```
+
+**Critical: `buildStartupLog()` must return ONE multi-line String, not call the logger itself.** This is where Spring Boot apps usually get the bug. The temptation is to "just call `log.info` for each line of the block"; that produces exactly the broken output: every line stamped with `[timestamp] INFO ... StartupLogConfig [App] :`, and any background thread (Axon `Coordinator`, scheduled job, connection pool) can interleave its own log in the middle and rip the block in half.
+
+**Wrong: per-line emission inside the builder.**
+
+```java
+private void emit() {
+    log.info("----------------------------------------------------------");
+    log.info("    Application '{}' is running!", appName);
+    log.info("");
+    log.info("    Access URLs:");
+    log.info("      Local:     {}", localUrl);
+    log.info("      Hostname:  {}", hostnameUrl);
+    // ...continues per line. Each is a separate atomic event,
+    // and other threads can log between any two of these.
+}
+```
+
+**Right: build one String, return it, log it once.**
+
+```java
+private String buildStartupLog() {
+    String localUrl     = "http://localhost:" + port + contextPath;
+    String hostnameUrl  = "http://" + hostname() + ":" + port + contextPath;
+    String jwkSetStatus = probeJwkSet();
+    String dbStatus     = probeDatabase();
+
+    return String.join("\n",
+        BANNER,  // pre-rendered ANSI Shadow art as a static final String constant
+        "----------------------------------------------------------",
+        "    Application '" + appName + "' is running!",
+        "",
+        "    Access URLs:",
+        "      Local:     " + localUrl,
+        "      Hostname:  " + hostnameUrl,
+        "",
+        "    Profile(s): " + String.join(",", env.getActiveProfiles()),
+        "",
+        "    Auth (OAuth2 Resource Server):",
+        "      Issuer:   " + issuer,
+        "      JWK Set:  " + jwkSetUrl + " " + jwkSetStatus,
+        "",
+        "    Event Store (PostgreSQL):",
+        "      URL:      " + jdbcUrl + " " + dbStatus,
+        // ...rest of sections
+        "----------------------------------------------------------"
+    );
+}
+```
+
+Probe results (`jwkSetStatus`, `dbStatus`) are computed BEFORE the `String.join`, so the final emission is atomic; the readiness probes finishing in different orders do not produce interleaved output.
+
+For the multi-line banner constant, paste the ANSI Shadow art into a `private static final String BANNER = """ ... """;` text block (Java 15+) or a `String.join("\n", ...)` of literal lines for older Java.
 
 **Probe timeouts:** use `RestClient` backed by `SimpleClientHttpRequestFactory` with `Duration.ofSeconds(2)` for connect + read. Catch `Exception` broadly, `log.debug(...)` the detail, surface only the `[FAILED]` marker in the banner.
 

@@ -642,6 +642,9 @@ See [coding-standards](../coding-standards/SKILL.md) → "Startup readiness log"
 
 ```typescript
 const server = app.listen(config.PORT, () => {
+  // One log call, leading '\n'. Pino / Winston stamp a timestamp + level per call;
+  // splitting the banner across many log calls would shred the art. See canonical
+  // rule in coding-standards "Emit the whole block in ONE log call with a leading \n".
   logger.info('\n' + buildStartupLog())
 })
 ```

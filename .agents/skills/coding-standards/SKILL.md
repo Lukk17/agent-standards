@@ -668,18 +668,18 @@ The log block contains, in order:
 
    Generate the banner once at build time, paste it into a string constant. Do NOT compute it at runtime, do NOT have the agent "draw" it freehand (the agent will silently pick a different FIGlet font, usually Standard, every time). Use one of:
 
-   - CLI: `figlet -f 'ANSI Shadow' 'MYAPP'`
-   - Web: <https://patorjk.com/software/taag/#p=display&f=ANSI%20Shadow&t=MYAPP>
+   - CLI: `figlet -f 'ANSI Shadow' 'EXAMPLE'`
+   - Web: <https://patorjk.com/software/taag/#p=display&f=ANSI%20Shadow&t=EXAMPLE>
 
-   This is the canonical look for the app name `MYAPP`:
+   This is the canonical look for the app name `EXAMPLE`:
 
    ```text
-   ███╗   ███╗██╗   ██╗ █████╗ ██████╗ ██████╗
-   ████╗ ████║╚██╗ ██╔╝██╔══██╗██╔══██╗██╔══██╗
-   ██╔████╔██║ ╚████╔╝ ███████║██████╔╝██████╔╝
-   ██║╚██╔╝██║  ╚██╔╝  ██╔══██║██╔═══╝ ██╔═══╝
-   ██║ ╚═╝ ██║   ██║   ██║  ██║██║     ██║
-   ╚═╝     ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═╝     ╚═╝
+   ███████╗██╗  ██╗ █████╗ ███╗   ███╗██████╗ ██╗     ███████╗
+   ██╔════╝╚██╗██╔╝██╔══██╗████╗ ████║██╔══██╗██║     ██╔════╝
+   █████╗   ╚███╔╝ ███████║██╔████╔██║██████╔╝██║     █████╗
+   ██╔══╝   ██╔██╗ ██╔══██║██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝
+   ███████╗██╔╝ ██╗██║  ██║██║ ╚═╝ ██║██║     ███████╗███████╗
+   ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝
    ```
 
    Tells that the wrong font was used: the banner is ~3 lines tall instead of 6, uses `/ \ _ |` ASCII slashes instead of Unicode box-drawing, looks like `_ _____ _____ ____ ____` patterns, or fits inside a single 80-column line. Regenerate with the FIGlet font explicitly set to `ANSI Shadow`.
@@ -691,18 +691,18 @@ The log block contains, in order:
 Canonical full output, what a real service should print when it accepts traffic. Match this layout precisely; omit sections that don't apply (e.g. no `Auth` section if the service is unauthenticated), but keep the ones that do in this order:
 
 ```text
-███╗   ███╗██╗   ██╗ █████╗ ██████╗ ██████╗
-████╗ ████║╚██╗ ██╔╝██╔══██╗██╔══██╗██╔══██╗
-██╔████╔██║ ╚████╔╝ ███████║██████╔╝██████╔╝
-██║╚██╔╝██║  ╚██╔╝  ██╔══██║██╔═══╝ ██╔═══╝
-██║ ╚═╝ ██║   ██║   ██║  ██║██║     ██║
-╚═╝     ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═╝     ╚═╝
+███████╗██╗  ██╗ █████╗ ███╗   ███╗██████╗ ██╗     ███████╗
+██╔════╝╚██╗██╔╝██╔══██╗████╗ ████║██╔══██╗██║     ██╔════╝
+█████╗   ╚███╔╝ ███████║██╔████╔██║██████╔╝██║     █████╗
+██╔══╝   ██╔██╗ ██╔══██║██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝
+███████╗██╔╝ ██╗██║  ██║██║ ╚═╝ ██║██║     ███████╗███████╗
+╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝
 ----------------------------------------------------------
-    Application 'myapp' is running!
+    Application 'example' is running!
 
     Access URLs:
-      Local:     http://localhost:8080/myapp
-      Hostname:  http://hostname:8080/myapp
+      Local:     http://localhost:8080/example
+      Hostname:  http://hostname:8080/example
 
     Profile(s): local
 
@@ -715,17 +715,17 @@ Canonical full output, what a real service should print when it accepts traffic.
       Eureka:   [Disabled] (spring.cloud.discovery.enabled=false)
 
     Database:
-      Postgres: jdbc:postgresql://db.example:5432/myapp [Connected]
+      Postgres: jdbc:postgresql://db.internal:5432/example [Connected]
 
     Actuator:
-      Health:     http://localhost:8080/myapp/actuator/health
-      Readiness:  http://localhost:8080/myapp/actuator/health/readiness
-      Prometheus: http://localhost:8080/myapp/actuator/prometheus
-      Metrics:    http://localhost:8080/myapp/actuator/metrics
+      Health:     http://localhost:8080/example/actuator/health
+      Readiness:  http://localhost:8080/example/actuator/health/readiness
+      Prometheus: http://localhost:8080/example/actuator/prometheus
+      Metrics:    http://localhost:8080/example/actuator/metrics
 
     API documentation:
-      OpenAPI:    http://localhost:8080/myapp/openapi/v3/api-docs
-      Swagger UI: http://localhost:8080/myapp/openapi/swagger-ui.html
+      OpenAPI:    http://localhost:8080/example/openapi/v3/api-docs
+      Swagger UI: http://localhost:8080/example/openapi/swagger-ui.html
 
     Observability:
       Tracing:  OTel bridge enabled, no OTLP endpoint set (sampling=1.0)
@@ -740,6 +740,81 @@ Format rules:
 - Key column inside each section right-padded to 10-12 characters so values align vertically (`Local:     `, `Hostname:  `).
 - Status markers in brackets at end of line: `[Connected]`, `[Warning (status=N)]`, `[FAILED]`, `[Disabled]`. Never include the exception detail in the banner; log it at DEBUG.
 - Blank line between every section, no blank line inside a section.
+
+### Emit the whole block in ONE log call with a leading `\n`
+
+The banner plus the readiness body must be a single log statement whose message starts with `\n`. The leading newline pushes the first line of the banner (and every line after it) below the framework's prefix, so the banner art renders cleanly from column 0.
+
+**Bad: one log call per line of the banner.** Every line gets its own timestamp / level / logger prefix, which destroys the art:
+
+```text
+2026-05-22 09:28:36.586 INFO  c.l.s.i.config.StartupLogConfig [Example] : ███████╗██╗  ██╗ █████╗ ███╗   ███╗██████╗ ██╗     ███████╗
+2026-05-22 09:28:36.587 INFO  c.l.s.i.config.StartupLogConfig [Example] : ██╔════╝╚██╗██╔╝██╔══██╗████╗ ████║██╔══██╗██║     ██╔════╝
+2026-05-22 09:28:36.587 INFO  c.l.s.i.config.StartupLogConfig [Example] : █████╗   ╚███╔╝ ███████║██╔████╔██║██████╔╝██║     █████╗
+2026-05-22 09:28:36.587 INFO  c.l.s.i.config.StartupLogConfig [Example] : ██╔══╝   ██╔██╗ ██╔══██║██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝
+2026-05-22 09:28:36.587 INFO  c.l.s.i.config.StartupLogConfig [Example] : ███████╗██╔╝ ██╗██║  ██║██║ ╚═╝ ██║██║     ███████╗███████╗
+2026-05-22 09:28:36.587 INFO  c.l.s.i.config.StartupLogConfig [Example] : ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝
+```
+
+**Good: one log call, leading `\n`, banner art rendered cleanly underneath the single prefix line:**
+
+```text
+2026-05-22 09:28:36.586 INFO  c.l.s.i.config.StartupLogConfig [Example] :
+███████╗██╗  ██╗ █████╗ ███╗   ███╗██████╗ ██╗     ███████╗
+██╔════╝╚██╗██╔╝██╔══██╗████╗ ████║██╔══██╗██║     ██╔════╝
+█████╗   ╚███╔╝ ███████║██╔████╔██║██████╔╝██║     █████╗
+██╔══╝   ██╔██╗ ██╔══██║██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝
+███████╗██╔╝ ██╗██║  ██║██║ ╚═╝ ██║██║     ███████╗███████╗
+╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝
+----------------------------------------------------------
+    Application 'example' is running!
+...
+```
+
+Stack-by-stack:
+
+- **Java / SLF4J:** `log.info("\n{}", buildStartupLog());` (placeholder substitutes the entire string).
+- **Node / Pino / Winston:** `logger.info('\n' + buildStartupLog())`.
+- **Python / `logging`:** `logger.info("\n" + build_startup_log())`.
+- **Go / `slog`:** `logger.Info("\n" + buildStartupLog())`.
+- **Bash / PowerShell:** no framework prefix at all; `cat <<'EOF'` / `Write-Host` print directly to stdout.
+
+Never split the banner across multiple log calls. Never call `println` / `fmt.Print` / `Write-Host` from inside a log handler that adds a prefix per call.
+
+Equally important: the **builder** must return one multi-line String. Building it via repeated `log.info(line)` calls is the same bug from a different angle. Per-call emission is non-atomic, so other threads' logs (background pools, Axon coordinators, scheduled jobs) can interleave between your readiness lines and rip the block apart visually.
+
+**Wrong (Java, per-line emission):**
+
+```java
+log.info("----------------------------------------------------------");
+log.info("    Application '{}' is running!", appName);
+log.info("");
+log.info("    Access URLs:");
+log.info("      Local:     {}", localUrl);
+log.info("      Hostname:  {}", hostnameUrl);
+// ...one log call per line, each gets its own timestamp + level + logger prefix,
+// and a Coordinator / scheduler / pool thread can log between any two of these.
+```
+
+**Right (Java, build then emit once):**
+
+```java
+String block = String.join("\n",
+    "----------------------------------------------------------",
+    "    Application '" + appName + "' is running!",
+    "",
+    "    Access URLs:",
+    "      Local:     " + localUrl,
+    "      Hostname:  " + hostnameUrl,
+    // ... rest of sections
+    "----------------------------------------------------------"
+);
+log.info("\n{}", block);
+// One prefix line, the rest of the block flows under it at column 0. Atomic;
+// nothing can interleave between sections.
+```
+
+Same shape for every framework: build the whole block first (StringBuilder, `String.join`, template literal, Python f-string, Go `strings.Builder`), then emit once. If the builder needs to probe dependencies asynchronously, do that work first, collect the results, then assemble the string, then log.
 
 Pick the framework's "we're really up" hook from its own skill: [springboot-patterns](../springboot-patterns/SKILL.md), [backend-patterns](../backend-patterns/SKILL.md), [python-patterns](../python-patterns/SKILL.md), [golang-patterns](../golang-patterns/SKILL.md), [bash](../bash/SKILL.md), [powershell](../powershell/SKILL.md). The hook differs per stack; the convention above is identical.
 

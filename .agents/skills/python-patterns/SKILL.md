@@ -909,6 +909,10 @@ from fastapi import FastAPI
 async def lifespan(app: FastAPI):
     # pre-readiness setup
     await probe_dependencies()
+    # One logger.info call, leading "\n". The stdlib `logging` module stamps a
+    # timestamp / level / logger name per call; per-line emission would shred the
+    # banner. See canonical rule in coding-standards "Emit the whole block in ONE
+    # log call with a leading `\n`".
     logger.info("\n" + build_startup_log())
     yield
     # post-shutdown cleanup

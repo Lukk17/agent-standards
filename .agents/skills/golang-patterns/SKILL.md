@@ -644,7 +644,10 @@ See [coding-standards](../coding-standards/SKILL.md) → "Startup readiness log"
 ```go
 srv := &http.Server{Addr: ":8080", Handler: mux}
 
-logger.Info(buildStartupLog())
+// One log call, leading newline. Without `\n`, slog stamps a timestamp + level
+// before the first line of the banner, then per-line splits in `buildStartupLog`
+// each get their own prefix, which destroys the art. See coding-standards canonical.
+logger.Info("\n" + buildStartupLog())
 if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
     logger.Fatal("server failed", "error", err)
 }
