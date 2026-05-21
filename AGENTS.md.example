@@ -15,6 +15,7 @@ implementation work. Examples:
 - `/security-review` before auditing for vulnerabilities
 - `/coding-standards` before writing new code
 - `/tdd-workflow` before adding features or fixing bugs
+- `/e2e-runbooks` before adding or running an end-to-end capability test against the live stack
 
 Slash commands may appear as `/name` or `/name.md` in your agent's autocomplete; use whichever your agent shows.
 
@@ -85,6 +86,20 @@ Codex, do the work in-session and lean harder on skills.
 This project may expose MCP tools (Context7 docs, MongoDB introspection, Grafana, Playwright, Chrome DevTools, Redis,
 SonarQube, n8n). Check your tool list at startup and use them when they're a better fit than re-deriving the answer
 from local files. Human-side setup lives in [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
+
+---
+
+## End-to-end capability tests
+
+If this project has an `e2e/` directory with `e2e/testing/*-test.md` files, those are spec-driven capability tests
+following the methodology in the `/e2e-runbooks` skill. Before adding a new one, run the skill. Each
+capability test is a triple: immutable `e2e/testing/{N}-{capability}-test.md` spec, immutable
+`e2e/testing/{N}-{capability}-tasks.template.md` checklist, and one timestamped run record per execution under
+`e2e/testing/runs/`. Assertions are observable behaviour only (HTTP status, response body, persisted state); never log
+substrings.
+
+Projects on OpenSpec can install the matching schema for slash-command lifecycle integration. See
+[openspec-schemas/e2e-runbooks](https://github.com/Lukk17/openspec-schemas/tree/master/e2e-runbooks).
 
 ---
 

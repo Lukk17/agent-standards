@@ -239,6 +239,57 @@ openspec/
 
 Restart your IDE and terminal after initialisation.
 
+#### Optional: install a custom schema for e2e capability tests
+
+For projects that want spec-driven end-to-end capability tests through OpenSpec's lifecycle (`/opsx:new` → `/opsx:continue`
+→ `/opsx:apply`), install the
+[`e2e-runbooks`](https://github.com/Lukk17/openspec-schemas/tree/master/e2e-runbooks) schema from the
+companion repo. OpenSpec has no schema-install CLI yet, so copy the bundle into the project's `openspec/schemas/`
+directory.
+
+Linux / macOS:
+
+```bash
+git clone --depth 1 https://github.com/Lukk17/openspec-schemas /tmp/lukk17-schemas
+```
+
+```bash
+cp -r /tmp/lukk17-schemas/e2e-runbooks openspec/schemas/
+```
+
+```bash
+rm -rf /tmp/lukk17-schemas
+```
+
+Windows (PowerShell 7+):
+
+```powershell
+git clone --depth 1 https://github.com/Lukk17/openspec-schemas $env:TEMP\lukk17-schemas
+```
+
+```powershell
+Copy-Item -Recurse $env:TEMP\lukk17-schemas\e2e-runbooks openspec\schemas\
+```
+
+```powershell
+Remove-Item -Recurse -Force $env:TEMP\lukk17-schemas
+```
+
+Use it per-change:
+
+```bash
+openspec new --schema e2e-runbooks "add weather-mcp capability test"
+```
+
+Or set as the project default in `openspec/config.yaml`:
+
+```yaml
+default_schema: e2e-runbooks
+```
+
+The methodology behind the schema is documented in the [`e2e-runbooks` skill](../.agents/skills/e2e-runbooks/SKILL.md);
+the schema operationalises the same methodology for OpenSpec users. Either works alone, both reinforce each other.
+
 #### Tool directories reference
 
 | Tool        | Skills written to                                          | Commands written to                                                         |

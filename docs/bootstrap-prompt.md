@@ -83,6 +83,17 @@ comment, one-liner). Verify it:
 If OpenSpec is missing or not callable, report it. Do not proceed to implementation work without it for any
 non-trivial change.
 
+## 5b. Check for e2e capability tests
+
+If the repo has an `e2e/` directory with `e2e/testing/*-test.md` files, list them and confirm at least one runner
+tool is callable (Bruno CLI via `bru --version`, hurl via `hurl --version`, or fall back to plain `curl`). If the
+directory is absent, that's ✅ (not every project ships e2e capability tests). If it exists but no runner is
+installed, flag it.
+
+If the project ships an `openspec/schemas/e2e-runbooks/` directory, also confirm the schema validates
+(`openspec schema validate e2e-runbooks`). If the schema is missing but `e2e/` exists, the project is using
+the methodology without the OpenSpec lifecycle integration; that is fine.
+
 ## 6. Map the instruction tree
 
 The root `AGENTS.md` is the canonical instruction file. More `AGENTS.md` files MAY exist in submodules or
@@ -151,6 +162,8 @@ warning. Use ❌ only for things that are actually broken or missing wiring.
 - [ ] MCP runtime checked (list names, or "none active")
 - [ ] docs/MCP_SETUP.md trimmed to active servers (show diff, or "no trim needed")
 - [ ] OpenSpec callable (slash command name; version if available)
+- [ ] E2E capability tests checked (list spec files in `e2e/testing/`, name the API client tool found, or ✅ "no
+      e2e directory")
 - [ ] AGENTS.md inventory (paths found)
 - [ ] CLAUDE.md `@` imports vs inventory (list drift, or ✅ "no drift")
 - [ ] Root AGENTS.md stubs filled (show the diff that was just applied)
