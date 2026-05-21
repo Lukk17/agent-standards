@@ -664,11 +664,82 @@ Every long-running service emits one canonical multi-line INFO log entry the mom
 
 The log block contains, in order:
 
-1. **ASCII banner** with the application name in **ANSI Shadow** FIGlet font (Unicode box-drawing: `█▀▄╔╗╚╝═║`). Width ~120 chars, 6 lines. Modern terminals, container stdout, Loki, JsonEncoder-escaped JSON logs all render it. The bold weight makes "we're up" unmistakable when scrolling startup output. Do not use Standard / Big / Slant ASCII FIGlet — they pack too tightly to scan from a `kubectl logs` flood. Plain-ASCII fallback is acceptable only when the deployment target is a known UTF-8-hostile environment (legacy `cmd.exe`, embedded serial console).
+1. **ASCII banner** with the application name in **ANSI Shadow** FIGlet font (Unicode box-drawing: `█▀▄╔╗╚╝═║`). Width ~120 chars, 6 lines. Modern terminals, container stdout, Loki, JsonEncoder-escaped JSON logs all render it. The bold weight makes "we're up" unmistakable when scrolling startup output. Do not use Standard / Big / Slant / Small / Block ASCII FIGlet — they pack too tightly to scan from a `kubectl logs` flood, and look indistinguishable from any other log line. Plain-ASCII fallback is acceptable only when the deployment target is a known UTF-8-hostile environment (legacy `cmd.exe`, embedded serial console).
+
+   Generate the banner once at build time, paste it into a string constant. Do NOT compute it at runtime, do NOT have the agent "draw" it freehand (the agent will silently pick a different FIGlet font, usually Standard, every time). Use one of:
+
+   - CLI: `figlet -f 'ANSI Shadow' 'MYAPP'`
+   - Web: <https://patorjk.com/software/taag/#p=display&f=ANSI%20Shadow&t=MYAPP>
+
+   This is the canonical look for the app name `MYAPP`:
+
+   ```text
+   ███╗   ███╗██╗   ██╗ █████╗ ██████╗ ██████╗
+   ████╗ ████║╚██╗ ██╔╝██╔══██╗██╔══██╗██╔══██╗
+   ██╔████╔██║ ╚████╔╝ ███████║██████╔╝██████╔╝
+   ██║╚██╔╝██║  ╚██╔╝  ██╔══██║██╔═══╝ ██╔═══╝
+   ██║ ╚═╝ ██║   ██║   ██║  ██║██║     ██║
+   ╚═╝     ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═╝     ╚═╝
+   ```
+
+   Tells that the wrong font was used: the banner is ~3 lines tall instead of 6, uses `/ \ _ |` ASCII slashes instead of Unicode box-drawing, looks like `_ _____ _____ ____ ____` patterns, or fits inside a single 80-column line. Regenerate with the FIGlet font explicitly set to `ANSI Shadow`.
 2. **Access URLs** — `Local: http://localhost:port/...` and `Hostname: http://<resolved-hostname>:port/...`. Both are diagnostic: in Kubernetes the real external URL comes from ingress / service definitions, not the app's self-report.
 3. **Active profile / environment** — whatever the framework exposes (`local`, `docker`, `prod`, `staging`).
 4. **External dependencies** — each one probed with a **2-second connect + read timeout** so an unreachable dependency cannot stall the banner. Result format: `<url> [Connected | Warning (status=N) | FAILED]` — URL first, status marker last. Never include the exception detail in the banner; log it at `DEBUG` for diagnostics.
 5. **Observability endpoints** — one URL per line: health / readiness / liveness / metrics / prometheus, plus OpenAPI / Swagger UI / tracing endpoint + sampling, plus the logging encoder mode by profile.
+
+Canonical full output, what a real service should print when it accepts traffic. Match this layout precisely; omit sections that don't apply (e.g. no `Auth` section if the service is unauthenticated), but keep the ones that do in this order:
+
+```text
+███╗   ███╗██╗   ██╗ █████╗ ██████╗ ██████╗
+████╗ ████║╚██╗ ██╔╝██╔══██╗██╔══██╗██╔══██╗
+██╔████╔██║ ╚████╔╝ ███████║██████╔╝██████╔╝
+██║╚██╔╝██║  ╚██╔╝  ██╔══██║██╔═══╝ ██╔═══╝
+██║ ╚═╝ ██║   ██║   ██║  ██║██║     ██║
+╚═╝     ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═╝     ╚═╝
+----------------------------------------------------------
+    Application 'myapp' is running!
+
+    Access URLs:
+      Local:     http://localhost:8080/myapp
+      Hostname:  http://hostname:8080/myapp
+
+    Profile(s): local
+
+    Auth (OAuth2 Resource Server):
+      Issuer:   https://keycloak.example/realms/main
+      JWK Set:  https://keycloak.example/realms/main/protocol/openid-connect/certs [Connected]
+      Roles:    @MainUser → hasAnyRole('USER','ADMIN')
+
+    Service Discovery:
+      Eureka:   [Disabled] (spring.cloud.discovery.enabled=false)
+
+    Database:
+      Postgres: jdbc:postgresql://db.example:5432/myapp [Connected]
+
+    Actuator:
+      Health:     http://localhost:8080/myapp/actuator/health
+      Readiness:  http://localhost:8080/myapp/actuator/health/readiness
+      Prometheus: http://localhost:8080/myapp/actuator/prometheus
+      Metrics:    http://localhost:8080/myapp/actuator/metrics
+
+    API documentation:
+      OpenAPI:    http://localhost:8080/myapp/openapi/v3/api-docs
+      Swagger UI: http://localhost:8080/myapp/openapi/swagger-ui.html
+
+    Observability:
+      Tracing:  OTel bridge enabled, no OTLP endpoint set (sampling=1.0)
+      Logging:  text pattern [traceId,spanId,jwt] (local/test profile)
+----------------------------------------------------------
+```
+
+Format rules:
+
+- Top and bottom separator: 58 dashes (`-` repeated). Same character, same count.
+- 4-space indent for every line inside the block. Section labels are 1-indented (`    Section name:`), keys inside a section are 3-indented (`      Key: value`).
+- Key column inside each section right-padded to 10-12 characters so values align vertically (`Local:     `, `Hostname:  `).
+- Status markers in brackets at end of line: `[Connected]`, `[Warning (status=N)]`, `[FAILED]`, `[Disabled]`. Never include the exception detail in the banner; log it at DEBUG.
+- Blank line between every section, no blank line inside a section.
 
 Pick the framework's "we're really up" hook from its own skill: [springboot-patterns](../springboot-patterns/SKILL.md), [backend-patterns](../backend-patterns/SKILL.md), [python-patterns](../python-patterns/SKILL.md), [golang-patterns](../golang-patterns/SKILL.md), [bash](../bash/SKILL.md), [powershell](../powershell/SKILL.md). The hook differs per stack; the convention above is identical.
 

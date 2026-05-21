@@ -404,7 +404,15 @@ public class ReportService {
 
 ## Startup readiness log
 
-See [coding-standards](../coding-standards/SKILL.md) → "Startup readiness log" for the universal convention (ANSI Shadow banner, URL + profile + dependency + observability sections, 2-second probe timeouts, `<url> [Connected|Warning|FAILED]` result format).
+Full convention (ANSI Shadow banner, URL + profile + dependency + observability sections, 2-second probe timeouts, `<url> [Connected|Warning|FAILED]` result format, and the **canonical output layout**) lives in [coding-standards](../coding-standards/SKILL.md#startup-readiness-log). The full multi-section example block there is what your Spring Boot app must print verbatim, with sections omitted only when they don't apply.
+
+The banner must be the **ANSI Shadow FIGlet font**, 6 lines tall using Unicode box-drawing (`█▀▄╔╗╚╝═║`). Generate once with `figlet -f 'ANSI Shadow' 'YOURAPP'` or via <https://patorjk.com/software/taag/#p=display&f=ANSI%20Shadow>, then paste into the source as a string constant. Do not let the agent freehand it; it will silently pick Standard FIGlet (3 lines tall, `/ \ _ |` ASCII slashes) and the log will be wrong.
+
+Disable Spring Boot's built-in banner so it does not race with yours:
+
+```properties
+spring.main.banner-mode=off
+```
 
 **Spring Boot hook:** `@EventListener` on `AvailabilityChangeEvent<ReadinessState>` filtered to `ACCEPTING_TRAFFIC`. This is the truly last startup signal — fires after `ApplicationReadyEvent` and after every `CommandLineRunner` / `ApplicationRunner` bean.
 
