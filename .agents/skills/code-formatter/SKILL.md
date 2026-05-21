@@ -1,6 +1,6 @@
 ---
 name: code-formatter
-description: Universal source-code formatting patterns the project owner expects, opinionated about visual hierarchy and reading flow rather than line length. Triggers on any new code, code review, or refactor across Dart, Java, Python, Kotlin, TypeScript, and Go. Apply these whenever you write or modify a function body so the next reader can locate control-flow exits and async phase transitions in one scan. Intentionally diverges from default auto-formatters (gofmt, dart format, black, google-java-format) in specific places — see each rule.
+description: Universal source-code formatting patterns the project owner expects, opinionated about visual hierarchy and reading flow rather than line length. Triggers on any new code, code review, or refactor across Dart, Java, Python, Kotlin, TypeScript, and Go. Apply these whenever you write or modify a function body so the next reader can locate control-flow exits and async phase transitions in one scan. Intentionally diverges from default auto-formatters (gofmt, dart format, black, google-java-format) in specific places; see each rule.
 origin: workout_log
 ---
 
@@ -9,30 +9,28 @@ origin: workout_log
 ## When to activate
 
 - Writing new source files in any language listed in the description.
-- Editing existing files — apply these rules when the file is already in this style; don't silently auto-format an unrelated file.
+- Editing existing files: apply these rules when the file is already in this style; don't silently auto-format an
+  unrelated file.
 - Reviewing a PR or a teammate's branch and flagging readability issues.
 
-These rules are about *visual hierarchy* — how a reader's eyes find the
-landmarks of a function — not about line length or column alignment.
-Default tooling tends to optimise for line length and consistency; this
-skill optimises for "the next person reading this can locate the
-control-flow exits and async phase transitions in one scan."
+These rules are about *visual hierarchy*: how a reader's eyes find the landmarks of a function, not about line length
+or column alignment. Default tooling tends to optimise for line length and consistency; this skill optimises for "the
+next person reading this can locate the control-flow exits and async phase transitions in one scan."
 
 ## Rules
 
 ### Brace every inline `if (x) return y;` / `if (x) throw z;`
 
-A control-flow exit should never share a line with its condition. The
-reader's eye should land on a `return` or `throw` *as a line*, not as
-the tail of an `if`. Multi-line, braced, body indented.
+A control-flow exit should never share a line with its condition. The reader's eye should land on a `return` or
+`throw` *as a line*, not as the tail of an `if`. Multi-line, braced, body indented.
 
-**Java — wrong**
+**Java (wrong)**
 
 ```java
 if (rows.isEmpty()) return null;
 ```
 
-**Java — right**
+**Java (right)**
 
 ```java
 if (rows.isEmpty()) {
@@ -40,26 +38,26 @@ if (rows.isEmpty()) {
 }
 ```
 
-**Python — wrong**
+**Python (wrong)**
 
 ```python
 if not rows: return None
 ```
 
-**Python — right**
+**Python (right)**
 
 ```python
 if not rows:
     return None
 ```
 
-**Dart — wrong**
+**Dart (wrong)**
 
 ```dart
 if (rows.isEmpty) return null;
 ```
 
-**Dart — right**
+**Dart (right)**
 
 ```dart
 if (rows.isEmpty) {
@@ -69,10 +67,8 @@ if (rows.isEmpty) {
 
 ### Empty lines around `try` / `catch` / `finally`
 
-A `try` block is a control-flow landmark — it tells the reader "things
-can go wrong here." Give it room to breathe before and after so the
-eye treats it as a phase, not buried text. Same for each `catch` /
-`finally` clause's body.
+A `try` block is a control-flow landmark: it tells the reader "things can go wrong here." Give it room to breathe
+before and after so the eye treats it as a phase, not buried text. Same for each `catch` / `finally` clause's body.
 
 **Java**
 
@@ -125,11 +121,9 @@ try {
 
 ### Empty line above significant standalone `await` / async I/O
 
-When an async call marks a phase transition in a function (setup →
-I/O → cleanup), give it a blank line above. The reader's eye should
-register "now we hand off to the network/disk" as a distinct beat.
-This applies to **standalone** awaits, not awaits embedded in an
-assignment expression.
+When an async call marks a phase transition in a function (setup, then I/O, then cleanup), give it a blank line
+above. The reader's eye should register "now we hand off to the network/disk" as a distinct beat. This applies to
+**standalone** awaits, not awaits embedded in an assignment expression.
 
 **Java**
 
@@ -163,11 +157,9 @@ logFine('alarm fired', name: _tag);
 
 ### Empty line above `return` when it ends a multi-statement block
 
-When a function does several things and then returns, the `return`
-gets a blank line above so it reads as "and now hand back the result"
-rather than blending into the last statement. Doesn't apply to
-single-statement bodies, arrow functions, or one-line `def`s — the
-blank-line rules apply to *blocks*.
+When a function does several things and then returns, the `return` gets a blank line above so it reads as "and now
+hand back the result" rather than blending into the last statement. Doesn't apply to single-statement bodies, arrow
+functions, or one-line `def`s; the blank-line rules apply to *blocks*.
 
 **Java**
 
@@ -222,13 +214,11 @@ Future<void> _addWorkLog(Exercise e, DateTime date) async {
 
 ### Blank line below `return` inside a `try` that has `catch` / `finally`
 
-When a `try` block ends with `return X;` and is followed by a
-`catch` or `finally` clause, leave a blank line between the `return`
-and the closing `}` of the try. The blank line marks the
-hand-off from the happy-path body to the failure / cleanup
-clauses, so the reader's eye can see the seam.
+When a `try` block ends with `return X;` and is followed by a `catch` or `finally` clause, leave a blank line between
+the `return` and the closing `}` of the try. The blank line marks the hand-off from the happy-path body to the
+failure / cleanup clauses, so the reader's eye can see the seam.
 
-**Java — wrong**
+**Java (wrong)**
 
 ```java
 try {
@@ -245,7 +235,7 @@ try {
 }
 ```
 
-**Java — right**
+**Java (right)**
 
 ```java
 try {
@@ -263,18 +253,17 @@ try {
 }
 ```
 
-The same rule applies to a `throw` that ends a `try` body
-when a `catch` / `finally` follows it.
+The same rule applies to a `throw` that ends a `try` body when a `catch` / `finally` follows it.
 
 ### Empty line above operation-terminating calls
 
-Calls that *end* a phase get a blank line above. The eye should see
-"the act" separated from the local-var arithmetic that prepared for
-it. Examples of operation-terminators in each language:
+Calls that *end* a phase get a blank line above. The eye should see "the act" separated from the local-var arithmetic
+that prepared for it. Examples of operation-terminators in each language:
 
 - **Java**: `dialog.dismiss()`, `httpClient.send(...)`, `logger.info("phase done", ...)`, `eventBus.publish(...)`
 - **Python**: `dialog.dismiss()`, `requests.post(...)`, `logger.info("phase done")`, `sys.exit(0)`
-- **Dart / Flutter**: `Navigator.pop(context)`, `messenger.showSnackBar(...)`, `state = state.copyWith(...)`, `_ticker?.cancel()`, `logFine('phase done')`
+- **Dart / Flutter**: `Navigator.pop(context)`, `messenger.showSnackBar(...)`, `state = state.copyWith(...)`,
+  `_ticker?.cancel()`, `logFine('phase done')`
 
 **Java**
 
@@ -308,58 +297,55 @@ Navigator.of(context).pop();
 
 ### Comments above the line they describe, never trailing
 
-Trailing comments get truncated by long lines and force horizontal
-scrolling. A comment is a sentence about the next thing the reader is
-about to see — write it on its own line, above.
+Trailing comments get truncated by long lines and force horizontal scrolling. A comment is a sentence about the next
+thing the reader is about to see; write it on its own line, above.
 
-Java — wrong:
+**Java (wrong)**
 
 ```java
 var delay = computeBackoff(retryCount); // exponential, max 30s
 ```
 
-Java — right:
+**Java (right)**
 
 ```java
 // Exponential backoff, capped at 30s to avoid hammering the server.
 var delay = computeBackoff(retryCount);
 ```
 
-Python — wrong:
+**Python (wrong)**
 
 ```python
 delay = compute_backoff(retry_count)  # exponential, max 30s
 ```
 
-Python — right:
+**Python (right)**
 
 ```python
 # Exponential backoff, capped at 30s to avoid hammering the server.
 delay = compute_backoff(retry_count)
 ```
 
-Dart — wrong:
+**Dart (wrong)**
 
 ```dart
 final delay = computeBackoff(retryCount); // exponential, max 30s
 ```
 
-Dart — right:
+**Dart (right)**
 
 ```dart
 // Exponential backoff, capped at 30s to avoid hammering the server.
 final delay = computeBackoff(retryCount);
 ```
 
-Exception: throwaway tag comments tied to an issue tracker (e.g.
-`// TODO(ABC-123): drop after Q3`) sometimes trail by team convention.
-Even then, prefer the comment above when there's room.
+Exception: throwaway tag comments tied to an issue tracker (e.g. `// TODO(ABC-123): drop after Q3`) sometimes trail by
+team convention. Even then, prefer the comment above when there's room.
 
 ### One concept per blank-line-separated paragraph
 
-Inside a function body, related lines stick together with no blank
-between them; a topic transition gets one blank. Two blank lines
-anywhere inside a function body is a smell — extract a method.
+Inside a function body, related lines stick together with no blank between them; a topic transition gets one blank.
+Two blank lines anywhere inside a function body is a smell; extract a method.
 
 **Java**
 
@@ -429,14 +415,12 @@ Future<void> save() async {
 }
 ```
 
-Each paragraph reads as a phase: capture context, build + persist,
-mounted-guard, invalidate dependents, exit.
+Each paragraph reads as a phase: capture context, build and persist, mounted-guard, invalidate dependents, exit.
 
 ### Method chains: line-break before each `.`
 
-Fluent / functional pipelines (filter, map, reduce, take, toList,
-collect) read top-down, one transformation per line. Easier to diff,
-easier to insert or remove a step.
+Fluent / functional pipelines (filter, map, reduce, take, toList, collect) read top-down, one transformation per
+line. Easier to diff, easier to insert or remove a step.
 
 **Java**
 
@@ -449,9 +433,8 @@ var activeNames = exercises.stream()
 
 **Python**
 
-Python's idiomatic equivalent is a comprehension; reach for that
-first. When you do chain (e.g. with a `pipe` helper or pandas), keep
-one step per line:
+Python's idiomatic equivalent is a comprehension; reach for that first. When you do chain (e.g. with a `pipe` helper
+or pandas), keep one step per line:
 
 ```python
 active_names = [e.name for e in exercises if e.is_active]
@@ -472,16 +455,13 @@ final activeNames = exercises
     .toList();
 ```
 
-The *prefer chains over loops* part is a coding-standards rule, not a
-formatter one. The formatter point here is: *when* you do chain, one
-step per line.
+The *prefer chains over loops* part is a coding-standards rule, not a formatter one. The formatter point here is:
+*when* you do chain, one step per line.
 
 ### Single-expression bodies stay on one line
 
-The blank-line rules apply to *blocks*, not arrow functions or
-one-line `def`s. Don't expand a pure transformation into a multi-line
-body just to satisfy a "blank line above return" rule that doesn't
-apply.
+The blank-line rules apply to *blocks*, not arrow functions or one-line `def`s. Don't expand a pure transformation
+into a multi-line body just to satisfy a "blank line above return" rule that doesn't apply.
 
 **Java**
 
@@ -510,12 +490,8 @@ DateTime startOfDay(DateTime d) => DateTime(d.year, d.month, d.day);
 
 ## What this skill does not cover
 
-- Naming conventions, class-member ordering, import ordering — those
-  vary per language. See language-specific style guides (PEP 8,
-  Google Java Style, Effective Dart) and the `coding-standards`
-  skill.
-- Line length caps — kept readable by extracting locals rather than
-  wrapping. Each project sets its own column budget.
-- Trailing commas, brace placement, indent width — handled by the
-  default formatter for each language; this skill doesn't override
-  those.
+- Naming conventions, class-member ordering, import ordering: those vary per language. See language-specific style
+  guides (PEP 8, Google Java Style, Effective Dart) and the `coding-standards` skill.
+- Line length caps: kept readable by extracting locals rather than wrapping. Each project sets its own column budget.
+- Trailing commas, brace placement, indent width: handled by the default formatter for each language; this skill
+  doesn't override those.
