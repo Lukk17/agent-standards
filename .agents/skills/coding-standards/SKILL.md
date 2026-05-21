@@ -465,6 +465,10 @@ types/market.types.ts         # camelCase with .types suffix
 
 ### When to Comment
 
+Default to **no comments**. Identifiers and structure already say what the code does. Add a comment only when the *why* is non-obvious — a hidden invariant, a workaround for a specific defect with a stable external reference (CVE, RFC section), or behavior that would surprise a future reader.
+
+**Do not** write comments that reference ticket numbers, PR numbers, or review section numbers (`// PHA-270 fix`, `// per review §4.4`, `// Regression guard for §1.1`). Nobody remembers what `§1.1` means six months later; the PR description and commit message already carry that context. The one exception is a TODO tied to an open ticket: `// TODO(PHA-265): <what's missing>`.
+
 ```typescript
 // PASS: GOOD: Explain WHY, not WHAT
 // Use exponential backoff to avoid overwhelming the API during outages
@@ -479,6 +483,11 @@ count++
 
 // Set name to user's name
 name = user.name
+
+// FAIL: BAD: Ticket / review-section references
+// PHA-270 §4.4 — switch to ArrayList
+// PR #15 review comment fix
+// added for the cleanup pass
 ```
 
 ### JSDoc for Public APIs
@@ -646,6 +655,22 @@ setTimeout(callback, DEBOUNCE_DELAY_MS)
 ```
 
 **Remember**: Code quality is not negotiable. Clear, maintainable code enables rapid development and confident refactoring.
+
+---
+
+## Startup readiness log
+
+Every long-running service emits one canonical multi-line INFO log entry the moment it starts **accepting traffic** — not the moment the process boots. Use the latest-possible startup hook for the framework. This single line is the most-read log entry in any service: first thing on-call sees when paging, first thing CI inspects when smoke-testing, first thing a new contributor sees when running locally. Investing in its clarity pays back every shift.
+
+The log block contains, in order:
+
+1. **ASCII banner** with the application name in **ANSI Shadow** FIGlet font (Unicode box-drawing: `█▀▄╔╗╚╝═║`). Width ~120 chars, 6 lines. Modern terminals, container stdout, Loki, JsonEncoder-escaped JSON logs all render it. The bold weight makes "we're up" unmistakable when scrolling startup output. Do not use Standard / Big / Slant ASCII FIGlet — they pack too tightly to scan from a `kubectl logs` flood. Plain-ASCII fallback is acceptable only when the deployment target is a known UTF-8-hostile environment (legacy `cmd.exe`, embedded serial console).
+2. **Access URLs** — `Local: http://localhost:port/...` and `Hostname: http://<resolved-hostname>:port/...`. Both are diagnostic: in Kubernetes the real external URL comes from ingress / service definitions, not the app's self-report.
+3. **Active profile / environment** — whatever the framework exposes (`local`, `docker`, `prod`, `staging`).
+4. **External dependencies** — each one probed with a **2-second connect + read timeout** so an unreachable dependency cannot stall the banner. Result format: `<url> [Connected | Warning (status=N) | FAILED]` — URL first, status marker last. Never include the exception detail in the banner; log it at `DEBUG` for diagnostics.
+5. **Observability endpoints** — one URL per line: health / readiness / liveness / metrics / prometheus, plus OpenAPI / Swagger UI / tracing endpoint + sampling, plus the logging encoder mode by profile.
+
+Pick the framework's "we're really up" hook from its own skill: [springboot-patterns](../springboot-patterns/SKILL.md), [backend-patterns](../backend-patterns/SKILL.md), [python-patterns](../python-patterns/SKILL.md), [golang-patterns](../golang-patterns/SKILL.md), [bash](../bash/SKILL.md), [powershell](../powershell/SKILL.md). The hook differs per stack; the convention above is identical.
 
 ---
 

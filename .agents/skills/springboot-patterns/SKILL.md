@@ -402,6 +402,41 @@ public class ReportService {
 }
 ```
 
+## Startup readiness log
+
+See [coding-standards](../coding-standards/SKILL.md) → "Startup readiness log" for the universal convention (ANSI Shadow banner, URL + profile + dependency + observability sections, 2-second probe timeouts, `<url> [Connected|Warning|FAILED]` result format).
+
+**Spring Boot hook:** `@EventListener` on `AvailabilityChangeEvent<ReadinessState>` filtered to `ACCEPTING_TRAFFIC`. This is the truly last startup signal — fires after `ApplicationReadyEvent` and after every `CommandLineRunner` / `ApplicationRunner` bean.
+
+```java
+@Component
+@RequiredArgsConstructor
+@Slf4j
+public class StartupLogConfig {
+
+  private final Environment env;
+
+  @EventListener
+  public void onAcceptingTraffic(AvailabilityChangeEvent<ReadinessState> event) {
+    if (event.getState() != ReadinessState.ACCEPTING_TRAFFIC) {
+      return;
+    }
+    log.info("\n{}", buildStartupLog());
+  }
+}
+```
+
+**Probe timeouts:** use `RestClient` backed by `SimpleClientHttpRequestFactory` with `Duration.ofSeconds(2)` for connect + read. Catch `Exception` broadly, `log.debug(...)` the detail, surface only the `[FAILED]` marker in the banner.
+
+```java
+private RestClient timedRestClient() {
+    SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+    factory.setConnectTimeout(Duration.ofSeconds(2));
+    factory.setReadTimeout(Duration.ofSeconds(2));
+    return RestClient.builder().requestFactory(factory).build();
+}
+```
+
 ## Middleware / Filters
 
 ```java

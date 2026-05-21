@@ -131,3 +131,41 @@ main "$@"
 - Flag Bash-only features (arrays, `[[ ]]`, `declare`) with a comment if the script might be sourced in a POSIX `sh` context.
 - Run **ShellCheck** on every script in CI with zero warnings/errors policy. Suppress individual rules only with an inline `# shellcheck disable=SCxxxx` comment that includes a justification.
   - Ref: https://www.shellcheck.net/
+
+---
+
+## Startup readiness log
+
+See [coding-standards](../coding-standards/SKILL.md) → "Startup readiness log" for the universal convention (ANSI Shadow banner, URL + profile + dependency + observability sections, 2-second probe timeouts, `<url> [Connected|Warning|FAILED]` result format).
+
+For shell-implemented long-running services (log aggregators, polling daemons, init wrappers around a child process), `cat` the banner immediately before `exec` or the main loop:
+
+```bash
+cat <<'EOF'
+███████╗██╗   ██╗██████╗ ██████╗ ██╗     ██╗███████╗██████╗
+██╔════╝██║   ██║██╔══██╗██╔══██╗██║     ██║██╔════╝██╔══██╗
+███████╗██║   ██║██████╔╝██████╔╝██║     ██║█████╗  ██████╔╝
+╚════██║██║   ██║██╔═══╝ ██╔═══╝ ██║     ██║██╔══╝  ██╔══██╗
+███████║╚██████╔╝██║     ██║     ███████╗██║███████╗██║  ██║
+╚══════╝ ╚═════╝ ╚═╝     ╚═╝     ╚══════╝╚═╝╚══════╝╚═╝  ╚═╝
+EOF
+```
+
+Then the readiness lines (profile, hostname, dependencies, observability), then the `exec`:
+
+```bash
+exec /usr/local/bin/my-daemon
+```
+
+**Probe timeouts:** `curl --max-time 2 --connect-timeout 2 <url>` for each dependency check. Capture the exit code, redirect probe stderr to a debug log file, surface only `[Connected]` / `[FAILED]` in the banner:
+
+```bash
+probe() {
+  local url="$1"
+  if curl --silent --output /dev/null --max-time 2 --connect-timeout 2 "$url"; then
+    printf '%s [Connected]\n' "$url"
+  else
+    printf '%s [FAILED]\n' "$url"
+  fi
+}
+```

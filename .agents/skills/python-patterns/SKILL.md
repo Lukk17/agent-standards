@@ -890,3 +890,43 @@ pyproject.toml
 ```
 
 Always use absolute imports: `from src.myapp.domain.user import User`
+
+## Startup readiness log
+
+See [coding-standards](../coding-standards/SKILL.md) → "Startup readiness log" for the universal convention (ANSI Shadow banner, URL + profile + dependency + observability sections, 2-second probe timeouts, `<url> [Connected|Warning|FAILED]` result format).
+
+**Hooks by framework:**
+
+- **FastAPI** — `lifespan` async context manager on the app; emit after the dependencies are probed but before `yield` so the line appears at the moment the app is ready to serve.
+- **Flask** — explicit `init_app()` invoked from the entry point right before `app.run()`. `@app.before_first_request` was removed in Flask 2.3.
+- **Django** — `AppConfig.ready()` runs at app-registry-ready time; close enough to "we're up" for sync deployments. For ASGI, hook into the lifespan startup event.
+
+```python
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # pre-readiness setup
+    await probe_dependencies()
+    logger.info("\n" + build_startup_log())
+    yield
+    # post-shutdown cleanup
+
+app = FastAPI(lifespan=lifespan)
+```
+
+**Probe timeouts:** `httpx.AsyncClient(timeout=2.0)` (or `requests.get(..., timeout=2)` for sync code). Log detail at debug, surface only `[FAILED]` in the banner.
+
+```python
+async def probe(url: str) -> str:
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            r = await client.get(url)
+            if r.is_success:
+                return f"{url} [Connected]"
+            return f"{url} [Warning] (status={r.status_code})"
+    except httpx.HTTPError as exc:
+        logger.debug("startup probe failed: %s (%s)", url, exc)
+        return f"{url} [FAILED]"
+```

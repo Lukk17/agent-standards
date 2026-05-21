@@ -634,6 +634,32 @@ export const config = schema.parse(process.env)
 // Throws at startup if env vars are missing or invalid — fail fast
 ```
 
+## Startup readiness log
+
+See [coding-standards](../coding-standards/SKILL.md) → "Startup readiness log" for the universal convention (ANSI Shadow banner, URL + profile + dependency + observability sections, 2-second probe timeouts, `<url> [Connected|Warning|FAILED]` result format).
+
+**Node / Express hook:** `server.on('listening', ...)` after `app.listen()`. For NestJS, the post-`app.listen()` line in `bootstrap()`. For Next.js custom server, the post-bind callback.
+
+```typescript
+const server = app.listen(config.PORT, () => {
+  logger.info('\n' + buildStartupLog())
+})
+```
+
+**Probe timeouts:** `fetch(url, { signal: AbortSignal.timeout(2000) })` so unreachable dependencies don't stall the banner. Catch with `.catch(...)`, log the detail at debug, surface only `[FAILED]`.
+
+```typescript
+async function probe(url: string): Promise<string> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(2000) })
+    return res.ok ? `${url} [Connected]` : `${url} [Warning] (status=${res.status})`
+  } catch (err) {
+    logger.debug({ url, err }, 'startup probe failed')
+    return `${url} [FAILED]`
+  }
+}
+```
+
 ## Graceful Shutdown
 
 ```typescript

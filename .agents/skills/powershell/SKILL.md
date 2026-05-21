@@ -149,3 +149,43 @@ if ($IsWindows) { ... } elseif ($IsLinux) { ... } elseif ($IsMacOS) { ... }
 ```
 
 - Use `[System.IO.Path]::Combine()` or `Join-Path` for all path construction to ensure cross-platform path separators.
+
+---
+
+## Startup readiness log
+
+See [coding-standards](../coding-standards/SKILL.md) → "Startup readiness log" for the universal convention (ANSI Shadow banner, URL + profile + dependency + observability sections, 2-second probe timeouts, `<url> [Connected|Warning|FAILED]` result format).
+
+For PowerShell-orchestrated long-running services (Windows scheduled tasks, service wrappers, polling daemons), `Write-Host` the banner with a here-string right before the main loop or `Start-Process`:
+
+```powershell
+@'
+███████╗██╗   ██╗██████╗ ██████╗ ██╗     ██╗███████╗██████╗
+██╔════╝██║   ██║██╔══██╗██╔══██╗██║     ██║██╔════╝██╔══██╗
+███████╗██║   ██║██████╔╝██████╔╝██║     ██║█████╗  ██████╔╝
+╚════██║██║   ██║██╔═══╝ ██╔═══╝ ██║     ██║██╔══╝  ██╔══██╗
+███████║╚██████╔╝██║     ██║     ███████╗██║███████╗██║  ██║
+╚══════╝ ╚═════╝ ╚═╝     ╚═╝     ╚══════╝╚═╝╚══════╝╚═╝  ╚═╝
+'@ | Write-Host
+```
+
+The console host on PowerShell 7+ defaults to UTF-8; the box-drawing characters render natively. Legacy `powershell.exe` (Windows PowerShell 5.1) needs `[Console]::OutputEncoding = [Text.Encoding]::UTF8` set once before printing.
+
+**Probe timeouts:** `Invoke-WebRequest -Uri <url> -TimeoutSec 2`, wrapped in `try { ... } catch { ... }` so an unreachable dependency doesn't bubble:
+
+```powershell
+function Test-StartupProbe {
+    param([string]$Url)
+    try {
+        $response = Invoke-WebRequest -Uri $Url -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop
+        if ($response.StatusCode -lt 400) {
+            "$Url [Connected]"
+        } else {
+            "$Url [Warning] (status=$($response.StatusCode))"
+        }
+    } catch {
+        Write-Debug "Startup probe failed: $Url ($($_.Exception.Message))"
+        "$Url [FAILED]"
+    }
+}
+```

@@ -635,6 +635,39 @@ issues:
 | gofmt is no one's favorite but everyone's friend | Always format with gofmt/goimports |
 | Return early | Handle errors first, keep happy path unindented |
 
+## Startup readiness log
+
+See [coding-standards](../coding-standards/SKILL.md) → "Startup readiness log" for the universal convention (ANSI Shadow banner, URL + profile + dependency + observability sections, 2-second probe timeouts, `<url> [Connected|Warning|FAILED]` result format).
+
+**Hook:** emit the log immediately *before* `srv.ListenAndServe()` (the listener binds the moment that call begins blocking). For graceful-shutdown patterns where `ListenAndServe` runs in a goroutine, emit from inside the goroutine right after the call returns from binding.
+
+```go
+srv := &http.Server{Addr: ":8080", Handler: mux}
+
+logger.Info(buildStartupLog())
+if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+    logger.Fatal("server failed", "error", err)
+}
+```
+
+**Probe timeouts:** `http.Client{Timeout: 2 * time.Second}` so unreachable dependencies don't stall the banner. Wrap errors with context, log detail at debug, surface only `[FAILED]`.
+
+```go
+func probe(url string) string {
+    client := &http.Client{Timeout: 2 * time.Second}
+    resp, err := client.Get(url)
+    if err != nil {
+        slog.Debug("startup probe failed", "url", url, "err", err)
+        return fmt.Sprintf("%s [FAILED]", url)
+    }
+    defer resp.Body.Close()
+    if resp.StatusCode < 400 {
+        return fmt.Sprintf("%s [Connected]", url)
+    }
+    return fmt.Sprintf("%s [Warning] (status=%d)", url, resp.StatusCode)
+}
+```
+
 ## Anti-Patterns to Avoid
 
 ```go
