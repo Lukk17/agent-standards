@@ -64,18 +64,24 @@ them. If you keep `${VAR}` / `{env:VAR}` placeholders and never inline secrets, 
 
 ---
 
-## Step 3 — Acquire keys
+## Step 3 — Acquire keys (only for servers you actually use)
 
-| Key                              | Where to get it                                                                  | Required? |
-| -------------------------------- | -------------------------------------------------------------------------------- | --------- |
-| `CONTEXT7_API_KEY`               | <https://context7.com/dashboard>                                                 | optional  |
-| `GRAFANA_SERVICE_ACCOUNT_TOKEN`  | Grafana UI → Administration → Service accounts → Add service account → token     | yes       |
-| `SONARQUBE_TOKEN`                | SonarQube UI → My Account → Security → Generate Token                            | yes       |
-| `N8N_API_KEY`                    | n8n UI → Settings → API → Create API key                                         | optional  |
+Nothing is strictly required for the config files to parse. Both templates have safe defaults — without any env vars
+set, `.mcp.json` parses and every MCP starts. Tokens only matter for the server they belong to:
+
+| Key                              | Where to get it                                                                  | Needed when                       |
+| -------------------------------- | -------------------------------------------------------------------------------- | --------------------------------- |
+| `CONTEXT7_API_KEY`               | <https://context7.com/dashboard>                                                 | you want paid tier / higher limits |
+| `GRAFANA_SERVICE_ACCOUNT_TOKEN`  | Grafana UI → Administration → Service accounts → Add service account → token     | you actually use the grafana MCP   |
+| `SONARQUBE_TOKEN`                | SonarQube UI → My Account → Security → Generate Token                            | you actually use the sonarqube MCP |
+| `N8N_API_KEY`                    | n8n UI → Settings → API → Create API key                                         | you want n8n workflow management   |
 
 Use read-only or least-privilege tokens. The Grafana account just needs `Viewer` for dashboards and `Editor` only if
 you want the MCP to create alerts. The SonarQube token needs `Execute Analysis` only if you also write code-quality
 results back; otherwise read-only.
+
+If you don't use a server, the cleanest move is to delete its block from `.mcp.json` and set `"enabled": false` on it
+in `opencode.json` — that way it never spawns and you don't see auth-failure noise in logs.
 
 ---
 
@@ -144,23 +150,34 @@ quit (system-tray icon) and relaunched.
 
 ---
 
-## Step 5 — Variables to set
+## Step 5 — Variables you can override
 
-| Variable                          | Used by      | Default if unset                  |
-| --------------------------------- | ------------ | --------------------------------- |
-| `CONTEXT7_API_KEY`                | `context7`   | none (free tier works without it) |
-| `MONGODB_URL`                     | `mongodb`    | `mongodb://localhost:27017`       |
-| `GRAFANA_URL`                     | `grafana`    | `http://localhost:3000`           |
-| `GRAFANA_SERVICE_ACCOUNT_TOKEN`   | `grafana`    | none — server will fail to start  |
-| `REDIS_URL`                       | `redis`      | `redis://localhost:6379/0`        |
-| `SONARQUBE_TOKEN`                 | `sonarqube`  | none — server will fail to start  |
-| `SONARQUBE_URL`                   | `sonarqube`  | `http://localhost:9000`           |
-| `N8N_API_URL`                     | `n8n`        | `http://localhost:5678`           |
-| `N8N_API_KEY`                     | `n8n`        | empty (n8n MCP runs docs-only)    |
+Every variable in the table is optional. The defaults are baked into the template files — either via `${VAR:-default}`
+in `.mcp.json` or as hardcoded literals in `opencode.json`. Set a variable only when you need to point at a non-default
+host or supply a real token.
 
-`.mcp.json.example` uses `${VAR:-default}` so unset optional variables resolve to the listed defaults.
-`opencode.json.example` uses `{env:VAR}` with no default — if you skip a server, set `"enabled": false` on it rather
-than leaving its env vars empty.
+| Variable                          | Used by      | Effect when unset                                |
+| --------------------------------- | ------------ | ------------------------------------------------ |
+| `CONTEXT7_API_KEY`                | `context7`   | header sent empty (Context7 free tier)           |
+| `MONGODB_URL`                     | `mongodb`    | falls back to `mongodb://localhost:27017`        |
+| `GRAFANA_URL`                     | `grafana`    | falls back to `http://localhost:3000`            |
+| `GRAFANA_SERVICE_ACCOUNT_TOKEN`   | `grafana`    | token sent empty (Grafana MCP will fail to auth) |
+| `REDIS_URL`                       | `redis`      | falls back to `redis://localhost:6379/0`         |
+| `SONARQUBE_TOKEN`                 | `sonarqube`  | token sent empty (SonarQube MCP will fail)       |
+| `SONARQUBE_URL`                   | `sonarqube`  | falls back to `http://localhost:9000`            |
+| `N8N_API_URL`                     | `n8n`        | falls back to `http://localhost:5678`            |
+| `N8N_API_KEY`                     | `n8n`        | n8n MCP runs in docs-only mode                   |
+
+Important asymmetry between the two files:
+
+- `.mcp.json.example` (Claude Code) uses `${VAR:-default}`, so every env var has a resolvable fallback. Files parse
+  with no env set.
+- `opencode.json.example` (OpenCode + Kilo) uses `{env:VAR}` for tokens and **hardcodes the URL defaults** because
+  OpenCode's substitution syntax has no `:-default` fallback. To point OpenCode at a non-default URL, edit the literal
+  string in your local `opencode.json` (or set `OPENCODE_CONFIG_CONTENT` for a session-scoped override).
+
+If a token-style variable is unset, the MCP starts but the upstream service rejects the empty token. That's a noisy
+but local failure — your other MCPs still work. Disable the server entirely if you don't plan to use it.
 
 ---
 

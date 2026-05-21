@@ -4,6 +4,7 @@
     "AGENTS.md"
   ],
   "mcp": {
+    
     "context7": {
       "type": "remote",
       "url": "https://mcp.context7.com/mcp",
@@ -12,6 +13,7 @@
       },
       "enabled": true
     },
+    
     "mongodb": {
       "type": "local",
       "command": [
@@ -20,29 +22,43 @@
         "mongodb-mcp-server@latest",
         "--readOnly",
         "--connectionString",
-        "{env:MONGODB_URL}"
+        "mongodb://localhost:27017"
       ],
       "enabled": true
     },
+    
     "grafana": {
       "type": "local",
-      "command": ["uvx", "mcp-grafana"],
+      "command": [
+        "uvx",
+        "mcp-grafana"
+      ],
       "environment": {
-        "GRAFANA_URL": "{env:GRAFANA_URL}",
+        "GRAFANA_URL": "http://localhost:3000",
         "GRAFANA_SERVICE_ACCOUNT_TOKEN": "{env:GRAFANA_SERVICE_ACCOUNT_TOKEN}"
       },
       "enabled": true
     },
+    
     "playwright": {
       "type": "local",
-      "command": ["npx", "@playwright/mcp@latest"],
+      "command": [
+        "npx",
+        "@playwright/mcp@latest"
+      ],
       "enabled": true
     },
+    
     "chrome-devtools": {
       "type": "local",
-      "command": ["npx", "-y", "chrome-devtools-mcp@latest"],
+      "command": [
+        "npx",
+        "-y",
+        "chrome-devtools-mcp@latest"
+      ],
       "enabled": true
     },
+    
     "redis": {
       "type": "local",
       "command": [
@@ -51,10 +67,11 @@
         "redis-mcp-server@latest",
         "redis-mcp-server",
         "--url",
-        "{env:REDIS_URL}"
+        "redis://localhost:6379/0"
       ],
       "enabled": true
     },
+    
     "sonarqube": {
       "type": "local",
       "command": [
@@ -72,15 +89,19 @@
       ],
       "environment": {
         "SONARQUBE_TOKEN": "{env:SONARQUBE_TOKEN}",
-        "SONARQUBE_URL": "{env:SONARQUBE_URL}"
+        "SONARQUBE_URL": "http://localhost:9000"
       },
       "enabled": true
     },
+    
     "n8n": {
       "type": "local",
-      "command": ["npx", "n8n-mcp"],
+      "command": [
+        "npx",
+        "n8n-mcp"
+      ],
       "environment": {
-        "N8N_API_URL": "{env:N8N_API_URL}",
+        "N8N_API_URL": "http://localhost:5678",
         "N8N_API_KEY": "{env:N8N_API_KEY}"
       },
       "enabled": true
