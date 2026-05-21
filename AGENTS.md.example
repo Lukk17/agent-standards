@@ -4,37 +4,41 @@ This file provides shared instructions to all AI coding agents working in this r
 OpenCode, Codex CLI). Standards and skills are imported from
 [agent-standards](https://github.com/Lukk17/agent-standards).
 
+---
+
 ## Skills
 
-This project includes agent skills in `.agents/skills/`. Invoke relevant skills before starting implementation work.
-Examples:
+This project includes agent skills in [.agents/skills/](.agents/skills/). Invoke relevant skills before starting
+implementation work. Examples:
 
 - `/code-reviewer` before reviewing code
 - `/security-review` before auditing for vulnerabilities
 - `/coding-standards` before writing new code
 - `/tdd-workflow` before adding features or fixing bugs
 
-Slash commands may appear as `/name` or `/name.md` in your agent's autocomplete — use whichever your agent shows.
+Slash commands may appear as `/name` or `/name.md` in your agent's autocomplete; use whichever your agent shows.
+
+---
 
 ## Subagents
 
-This project ships 26 specialised subagents — narrow-scope agents the main session delegates to. Claude Code reads
-`.claude/agents/`; OpenCode and Kilo Code both read `.opencode/agents/`. Codex CLI has no per-agent file mechanism — it
-sees `AGENTS.md` plus skills only.
+This project ships a catalogue of specialised subagents: narrow-scope agents the main session delegates to. Claude
+Code reads [.claude/agents/](.claude/agents/); OpenCode and Kilo Code both read [.opencode/agents/](.opencode/agents/).
+Codex CLI has no per-agent file mechanism; it sees [AGENTS.md](AGENTS.md) plus skills only.
 
-These files are generated artifacts pulled from agent-standards. Do **not** hand-edit them — changes will be
+These files are generated artifacts pulled from agent-standards. Do **not** hand-edit them; changes will be
 overwritten on the next pull. To modify a subagent permanently, edit its canonical source in the agent-standards repo
 (`subagents/<name>.md`), regenerate there, and re-import.
 
 A few of the most-used:
 
-- `code-reviewer` — security-aware diff review before merge
-- `test-automator` — write missing tests and fix failures without weakening assertions
-- `security-auditor` — threat modelling, secure-coding review, compliance gap analysis
-- `backend-architect` — contract-first service and API design
-- `database-expert` — schema design and query / index optimisation
-- `debugger` — root-cause analysis for a single failing test or runtime error
-- `devops-troubleshooter` — live incident response with postmortem
+- `code-reviewer`: security-aware diff review before merge
+- `test-automator`: write missing tests and fix failures without weakening assertions
+- `security-auditor`: threat modelling, secure-coding review, compliance gap analysis
+- `backend-architect`: contract-first service and API design
+- `database-expert`: schema design and query / index optimisation
+- `debugger`: root-cause analysis for a single failing test or runtime error
+- `devops-troubleshooter`: live incident response with postmortem
 
 Full catalogue: see the agent-standards README's "Subagents catalog" section, or list `.claude/agents/*.md` (or
 `.opencode/agents/*.md`) in this project.
@@ -42,53 +46,59 @@ Full catalogue: see the agent-standards README's "Subagents catalog" section, or
 ### When to use them
 
 **Use subagents proactively, not reactively.** If a task has a subagent that fits, spawn it. Do not try to do the
-specialist's work yourself from the main session — a short main-session reply that delegates correctly beats a long
-main-session reply that reinvented the specialist's checklist. The 26 subagents exist so the main session can stay
+specialist's work yourself from the main session; a short main-session reply that delegates correctly beats a long
+main-session reply that reinvented the specialist's checklist. The catalogue exists so the main session can stay
 high-level.
 
-**Spawn them in parallel when the work is independent.** Multiple subagents running concurrently is the point — review
+**Spawn them in parallel when the work is independent.** Multiple subagents running concurrently is the point. Review
 breadth, multi-stack coverage, and fast turnaround all depend on it. Send one message with multiple `Agent` tool calls
 when nothing blocks anything else.
 
 Concrete patterns:
 
-- **Reviewing code** — always spawn `code-reviewer`, AND every stack/concern-relevant specialist in parallel:
+- **Reviewing code**: always spawn `code-reviewer`, AND every stack or concern-relevant specialist in parallel.
   `security-auditor` for auth, payments, secrets, or PII handling; `database-expert` for schema or query changes;
   `accessibility-expert` for UI work; `performance-engineer` after a hot-path edit; `api-tester` after an API surface
-  change; `legal-advisor` for anything touching ToS / privacy / consent. Default to *more* reviewers, not fewer.
-- **Adding a feature** — `backend-architect` for the contract first; the relevant stack expert
-  (`java-pro`, `python-pro`, `flutter-expert`, `angular-expert`, `react-nextjs-expert`) for the implementation;
-  `test-automator` for the test plan.
-- **Debugging** — `debugger` for a single failing test; `error-detective` for cross-service log correlation;
+  change; `legal-advisor` for anything touching ToS, privacy, or consent. Default to *more* reviewers, not fewer.
+- **Adding a feature**: `backend-architect` for the contract first; the relevant stack expert (`java-pro`,
+  `python-pro`, `flutter-expert`, `angular-expert`, `react-nextjs-expert`) for the implementation; `test-automator`
+  for the test plan.
+- **Debugging**: `debugger` for a single failing test; `error-detective` for cross-service log correlation;
   `devops-troubleshooter` for a live incident.
-- **Migrations and dependency bumps** — `code-archaeologist` first when the legacy area is unfamiliar; then
+- **Migrations and dependency bumps**: `code-archaeologist` first when the legacy area is unfamiliar; then
   `legacy-modernizer` for the phased plan.
-- **Docs and content** — `docs-architect` for long-form technical writing; `seo-content-marketer` for anything
+- **Docs and content**: `docs-architect` for long-form technical writing; `seo-content-marketer` for anything
   externally facing; `api-documenter` for API reference work.
 
 **You may direct subagents to invoke specific skills.** When you spawn a subagent, tell it which skills to use as part
-of its work — e.g. "review this diff, invoke `/security-review` and `/coding-standards` while you do". The subagent
+of its work, e.g. "review this diff, invoke `/security-review` and `/coding-standards` while you do". The subagent
 loads those skills the same way the main session does. This is the recommended way to bias a generalist subagent
 toward a specific quality bar.
 
 **Codex CLI exception.** Codex has no per-agent file mechanism, so subagent delegation is not available there. From
 Codex, do the work in-session and lean harder on skills.
 
+---
+
 ## MCP servers
 
 This project may expose MCP tools (Context7 docs, MongoDB introspection, Grafana, Playwright, Chrome DevTools, Redis,
 SonarQube, n8n). Check your tool list at startup and use them when they're a better fit than re-deriving the answer
-from local files. Human-side setup lives in [`docs/MCP_SETUP.md`](docs/MCP_SETUP.md).
+from local files. Human-side setup lives in [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
+
+---
 
 ## Working With Agents
 
-All supported agents read this `AGENTS.md` from the project root and auto-discover skills from `.agents/skills/`.
-Start your agent from the project root:
+All supported agents read this `AGENTS.md` from the project root and auto-discover skills from
+[.agents/skills/](.agents/skills/). Start your agent from the project root:
 
-- **Claude Code** — run `claude`. Reads `.claude/CLAUDE.md`, which imports this file.
-- **Kilo Code** — reads `AGENTS.md` automatically. Optional `kilo.jsonc` for extra config.
-- **OpenCode** — reads `AGENTS.md` automatically. Optional `opencode.json` at project root.
-- **Codex CLI** — run `codex`. Reads `AGENTS.md` automatically. Global settings in `~/.codex/config.toml`.
+- **Claude Code**: run `claude`. Reads [.claude/CLAUDE.md](.claude/CLAUDE.md), which imports this file.
+- **Kilo Code**: reads `AGENTS.md` automatically. Optional [kilo.jsonc](kilo.jsonc.example) for extra config.
+- **OpenCode**: reads `AGENTS.md` automatically. Optional [opencode.json](opencode.json.example) at project root.
+- **Codex CLI**: run `codex`. Reads `AGENTS.md` automatically. Global settings in `~/.codex/config.toml`.
+
+---
 
 ## Working Principles
 
@@ -97,9 +107,9 @@ should look like*.
 
 ### 1. Think Before Coding
 
-State assumptions explicitly. When the prompt is ambiguous, surface the interpretations and ask — do not pick one
+State assumptions explicitly. When the prompt is ambiguous, surface the interpretations and ask. Do not pick one
 silently and run with it. If a simpler approach exists, propose it before writing code. Stop and ask when genuinely
-unsure — a clarifying question costs less than a wrong implementation.
+unsure. A clarifying question costs less than a wrong implementation.
 
 ### 2. Simplicity First
 
@@ -120,7 +130,7 @@ Touch only what the task requires.
 - Do not "improve" adjacent code, comments, or formatting.
 - Do not refactor code that is not broken.
 - Match existing style, even if you would write it differently.
-- If you notice unrelated dead code, mention it — do not delete it.
+- If you notice unrelated dead code, mention it; do not delete it.
 - Remove imports, variables, and helpers that *your* changes orphan. Leave pre-existing dead code alone unless asked.
 
 Test: every changed line should trace directly to the request.
@@ -137,11 +147,13 @@ Define success before starting. Convert vague asks into verifiable goals:
 
 For multi-step work, state the plan first:
 
-1. `<step>` → verify: `<check>`
-2. `<step>` → verify: `<check>`
-3. `<step>` → verify: `<check>`
+1. `<step>` then verify: `<check>`
+2. `<step>` then verify: `<check>`
+3. `<step>` then verify: `<check>`
 
 Then loop until each check passes. Do not claim a task is done without running the verification.
+
+---
 
 ## OpenSpec Workflow
 
@@ -150,31 +162,35 @@ live under `openspec/`.
 
 The full lifecycle (run inside your agent shell):
 
-1. **Propose a change** — agent generates proposal, design, and `tasks.md` under `openspec/changes/`:
+1. **Propose a change**: agent generates proposal, design, and `tasks.md` under `openspec/changes/`:
    ```text
    /opsx:propose add dark mode support
    ```
-2. **Apply the code** — after reviewing/editing `tasks.md`, agent implements and checks off tasks:
+2. **Apply the code**: after reviewing/editing `tasks.md`, agent implements and checks off tasks:
    ```text
    /opsx:apply
    ```
-3. **Verify and refine** — pass back logs or bug reports to refine:
+3. **Verify and refine**: pass back logs or bug reports to refine:
    ```text
    /opsx:verify The toggle button is invisible on mobile. Fix it.
    ```
-4. **Archive** — once tested, merge delta specs into `openspec/specs/` and archive the change folder:
+4. **Archive**: once tested, merge delta specs into `openspec/specs/` and archive the change folder:
    ```text
    /opsx:archive
    ```
 
-Some agents render commands as `/opsx-propose.md` instead of `/opsx:propose` — both work; use what appears in your
+Some agents render commands as `/opsx-propose.md` instead of `/opsx:propose`; both work. Use what appears in your
 autocomplete.
 
 Use multiline prompts when you need to include logs or detailed context with a command.
 
+---
+
 ## What This Repo Is
 
 <!-- Describe your project here -->
+
+---
 
 ## Architecture
 
