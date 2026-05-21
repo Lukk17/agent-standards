@@ -39,6 +39,41 @@ A few of the most-used:
 Full catalogue: see the agent-standards README's "Subagents catalog" section, or list `.claude/agents/*.md` (or
 `.opencode/agents/*.md`) in this project.
 
+### When to use them
+
+**Use subagents proactively, not reactively.** If a task has a subagent that fits, spawn it. Do not try to do the
+specialist's work yourself from the main session — a short main-session reply that delegates correctly beats a long
+main-session reply that reinvented the specialist's checklist. The 26 subagents exist so the main session can stay
+high-level.
+
+**Spawn them in parallel when the work is independent.** Multiple subagents running concurrently is the point — review
+breadth, multi-stack coverage, and fast turnaround all depend on it. Send one message with multiple `Agent` tool calls
+when nothing blocks anything else.
+
+Concrete patterns:
+
+- **Reviewing code** — always spawn `code-reviewer`, AND every stack/concern-relevant specialist in parallel:
+  `security-auditor` for auth, payments, secrets, or PII handling; `database-expert` for schema or query changes;
+  `accessibility-expert` for UI work; `performance-engineer` after a hot-path edit; `api-tester` after an API surface
+  change; `legal-advisor` for anything touching ToS / privacy / consent. Default to *more* reviewers, not fewer.
+- **Adding a feature** — `backend-architect` for the contract first; the relevant stack expert
+  (`java-pro`, `python-pro`, `flutter-expert`, `angular-expert`, `react-nextjs-expert`) for the implementation;
+  `test-automator` for the test plan.
+- **Debugging** — `debugger` for a single failing test; `error-detective` for cross-service log correlation;
+  `devops-troubleshooter` for a live incident.
+- **Migrations and dependency bumps** — `code-archaeologist` first when the legacy area is unfamiliar; then
+  `legacy-modernizer` for the phased plan.
+- **Docs and content** — `docs-architect` for long-form technical writing; `seo-content-marketer` for anything
+  externally facing; `api-documenter` for API reference work.
+
+**You may direct subagents to invoke specific skills.** When you spawn a subagent, tell it which skills to use as part
+of its work — e.g. "review this diff, invoke `/security-review` and `/coding-standards` while you do". The subagent
+loads those skills the same way the main session does. This is the recommended way to bias a generalist subagent
+toward a specific quality bar.
+
+**Codex CLI exception.** Codex has no per-agent file mechanism, so subagent delegation is not available there. From
+Codex, do the work in-session and lean harder on skills.
+
 ## MCP servers
 
 This project may expose MCP tools (Context7 docs, MongoDB introspection, Grafana, Playwright, Chrome DevTools, Redis,
