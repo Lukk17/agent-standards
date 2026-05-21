@@ -220,6 +220,52 @@ Future<void> _addWorkLog(Exercise e, DateTime date) async {
 }
 ```
 
+### Blank line below `return` inside a `try` that has `catch` / `finally`
+
+When a `try` block ends with `return X;` and is followed by a
+`catch` or `finally` clause, leave a blank line between the `return`
+and the closing `}` of the try. The blank line marks the
+hand-off from the happy-path body to the failure / cleanup
+clauses, so the reader's eye can see the seam.
+
+**Java — wrong**
+
+```java
+try {
+    String xml = xmlGenerationService.generateXml(documents);
+
+    log.info("audit xml.generation success documentType={} bytes={}",
+            documentType, subject, xml.length());
+
+    return xml;
+} catch (XmlMappingException ex) {
+    ...
+} finally {
+    ...
+}
+```
+
+**Java — right**
+
+```java
+try {
+    String xml = xmlGenerationService.generateXml(documents);
+
+    log.info("audit xml.generation success documentType={} bytes={}",
+            documentType, subject, xml.length());
+
+    return xml;
+
+} catch (XmlMappingException ex) {
+    ...
+} finally {
+    ...
+}
+```
+
+The same rule applies to a `throw` that ends a `try` body
+when a `catch` / `finally` follows it.
+
 ### Empty line above operation-terminating calls
 
 Calls that *end* a phase get a blank line above. The eye should see
