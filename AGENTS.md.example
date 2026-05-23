@@ -70,6 +70,14 @@ Concrete patterns:
   `legacy-modernizer` for the phased plan.
 - **Docs and content**: `docs-architect` for long-form technical writing; `seo-content-marketer` for anything
   externally facing; `api-documenter` for API reference work.
+- **Running e2e capability tests**: fan out one `e2e-runner` subagent per test spec, default cap 5 concurrent.
+  Before fanning out, build a conflict graph from each spec's `Concurrency` section: tests with disjoint `Mutates:`
+  resources parallelise; tests with overlapping resources serialise; tests marked `Serial: true` run alone. The cap
+  is a ceiling, the graph is a lower bound (orchestrator may run fewer than 5 when conflicts demand it, never more).
+  Main session orders specs by their numeric prefix, picks one UTC sweep timestamp shared across all runners,
+  aggregates the per-test Verdict + token + duration reports into a sweep summary. Never execute API client
+  invocations from the main session during a sweep; always through `e2e-runner`. See the `e2e-runbooks` skill's
+  Orchestration and Concurrency-constraints sections for the full flow.
 
 **You may direct subagents to invoke specific skills.** When you spawn a subagent, tell it which skills to use as part
 of its work, e.g. "review this diff, invoke `/security-review` and `/coding-standards` while you do". The subagent

@@ -100,6 +100,9 @@ Every spec file has these six sections, in this order, every time:
    verifies each one after each Run step.
 6. **Fixtures.** Paths to local files the test reads. Each fixture must have distinctive canary content (see Fixtures
    section below). Use "None." if none.
+7. **Concurrency.** The backing-service resources this test mutates plus a `Serial:` flag. Used by the orchestrator
+   to decide which tests can run in parallel and which must wait. See the "Concurrency constraints" section below
+   for the field format. Use `Mutates: none` and `Serial: false` for read-only tests.
 
 ---
 
@@ -300,6 +303,12 @@ The HTTP status code written by `-w` is `200`.
 ## Fixtures
 
 None.
+
+## Concurrency
+
+- **Mutates:** none (read-only endpoint).
+- **Conflicts with:** none.
+- **Serial:** false
 ```
 
 #### Example 2: MCP tool round-trip (`2-mcp-tool-test.md`)
@@ -354,6 +363,13 @@ data" (which would mean the MCP tool was not invoked).
 ## Fixtures
 
 None.
+
+## Concurrency
+
+- **Mutates:** none (the MCP tool call doesn't write to the agent's persistent state for this prompt; weather is
+  read-through).
+- **Conflicts with:** none.
+- **Serial:** false
 ```
 
 #### Example 3: fixture upload + retrieval (`5-rag-canary-test.md`)
@@ -414,6 +430,13 @@ The retrieval response's `content` field references the canary phrase from the f
 
 - `e2e/fixtures/markdown-canary.md` — single-line canary phrase with HELENA-DEDUP-CANARY village + invented festival
   date.
+
+## Concurrency
+
+- **Mutates:** Qdrant collection `documents` (filter `userId=canary`), MinIO bucket `local/uploads/canary/`,
+  Postgres `int_metadata_store` rows where `user_id='canary'`.
+- **Conflicts with:** any other test that ingests, retrieves, or wipes data for `userId=canary` across these stores.
+- **Serial:** false (parallelisable against tests using a different `userId`).
 ```
 
 ---
@@ -465,6 +488,133 @@ The runner, whether AI agent or human, follows this sequence for every run:
 8. Write the Result summary paragraph and the Verdict (PASS or FAIL).
 9. Log anything done outside the spec under "Additional tasks I did" (extra diagnostics, retries, manual log
    inspection).
+
+---
+
+### Orchestration: one subagent per test, parallel with a cap
+
+---
+
+When running a sweep of more than one test, the main session does **not** execute the tests itself. It delegates each
+spec to one [`e2e-runner`](../../../subagents/e2e-runner.md) subagent and fans them out in parallel. Each runner takes
+one spec, follows the Runner contract above, and reports back a one-screen structured result. The main session
+aggregates.
+
+**Why per-test subagents:**
+
+- Isolated context per test. No cross-contamination of "I already saw endpoint X" reasoning across unrelated specs.
+- Per-test token accounting. Each runner reports its own Input/Output token estimate; the sweep aggregator sums.
+- Failure isolation. One test crashing or going off-spec doesn't taint other tests' verdicts.
+- Real parallelism. Multiple tests run concurrently against the live stack rather than serially.
+- The main session stays high-level: it picks specs, watches for completion, aggregates. It never executes a Bruno
+  request itself.
+
+**Concurrency cap: default N = 5.**
+
+Spawn up to 5 `e2e-runner` subagents at once. As each one returns a Verdict, dispatch the next pending spec.
+Reasoning for 5:
+
+- Most LLM provider rate limits comfortably handle 5 concurrent sessions per API key; 10+ starts hitting RPM caps
+  mid-sweep when every runner is making multiple calls.
+- Typical dev stacks (Postgres, Redis, Qdrant, MinIO, MCP servers) handle 5 concurrent test cells without contention.
+  Past that you start fighting your own infrastructure.
+- 5 parallel children is mentally manageable for a main session aggregating reports. 10+ produces a wall of
+  intermediate replies that the main session has to sift before it can summarise.
+- Most capability suites are 5-20 tests; 5 parallel means 1-4 batches, total wall-clock close to single-batch.
+
+Drop the cap to 3 when the test environment is shared with other developers or your API budget is tight. Raise it to
+8-10 only with a dedicated test env and a provider tier that supports the concurrent load. Project-specific override:
+add `e2e_runner_max_parallel: <N>` to the project's AGENTS.md or to whatever convention the project uses for
+team-level knobs.
+
+**Sweep flow:**
+
+1. Main session reads `e2e/testing/*-test.md` and orders them by their numeric `{N}` prefix.
+2. Main session picks a single UTC sweep timestamp (one timestamp = one full sweep, so all run records share a
+   prefix). Format: ISO-8601 with colons replaced by hyphens, e.g. `2026-05-21T17-23-36`.
+3. Main session spawns up to N `e2e-runner` subagents in parallel, each given one spec path and the sweep timestamp.
+4. As each runner returns its structured report, main session records the Verdict and tokens, then dispatches the
+   next pending spec to keep the in-flight count at N.
+5. After all specs are dispatched and all runners returned, main session compiles a sweep summary: PASS / FAIL count,
+   total tokens (sum of all runners), total wall-clock (max of End - sweep Start, not the sum), list of failures
+   with one-line cause from each failing runner.
+6. Main session reports the sweep summary to the user. Run records remain in `e2e/testing/runs/` per the runs
+   contract.
+
+**What the main session never does:**
+
+- Read prerequisite check output and tick boxes itself. That's the runner's job.
+- Invoke API clients (Bruno, hurl, curl) directly during a sweep. Always through a runner.
+- Edit specs or tasks-templates mid-sweep, even on failure. Specs are immutable per the existing rule.
+- Spawn more than N runners "because we're in a hurry". The cap is intentional; queue overflow.
+
+**Single-test runs:** when running just one test (debugging a specific failure, iterating on a new spec), the main
+session can either spawn one `e2e-runner` or run the spec inline itself. The subagent layer is for fan-out; one test
+doesn't need it. Both paths follow the same Runner contract.
+
+---
+
+### Concurrency constraints: when tests must serialise
+
+---
+
+The 5-parallel cap is a **ceiling**, not a target. Real e2e tests against shared infrastructure (Postgres, Redis,
+Qdrant, MinIO, MCP servers, external APIs) frequently cannot run side by side because they mutate the same state.
+Two tests that both wipe `chat_history` for user `canary` will corrupt each other's Reset / Run / Expected cycle if
+they overlap by even a second. The orchestrator MUST analyse what each test mutates before deciding parallelism.
+
+Every spec declares its concurrency profile in a dedicated section, right after `Fixtures`:
+
+```markdown
+## Concurrency
+
+- **Mutates:** Postgres `chat_history` (user_id=canary), Redis `chat:canary:*`, Qdrant collection `documents`
+  (filter user_id=canary), MinIO bucket `local/uploads/canary/`.
+- **Conflicts with:** any other test that mutates the same resources for the same user / partition.
+- **Serial:** false
+```
+
+Field semantics:
+
+- **`Mutates:`** — every backing-service resource the test writes, deletes, or invalidates. Be specific: name the
+  collection / table / bucket / key prefix, and the partition (user id, tenant id) where applicable. Read-only
+  probes do not count; only state-mutating operations.
+- **`Conflicts with:`** — usually computed from `Mutates:` overlap, but specs can name explicit conflicts when the
+  conflict isn't obvious from resources alone (e.g. "any test that triggers a process restart"). Most specs leave
+  this as "any other test that mutates the same resources".
+- **`Serial:`** — set `true` when the test cannot run alongside ANY other test. Examples: schema migrations,
+  full-stack restarts, license-server interactions, anything that touches global config.
+
+### How the orchestrator schedules
+
+1. Read each spec's `Mutates:` set and `Serial:` flag.
+2. Build a conflict graph: two tests conflict if their `Mutates:` sets intersect, or if either marks the other under
+   `Conflicts with:`, or if either is `Serial: true`.
+3. Schedule:
+   - Tests with no edges to currently-running tests run immediately, up to N=5.
+   - Tests with edges queue until their conflicting tests finish.
+   - `Serial: true` tests drain all in-flight runners first, run alone, then the orchestrator resumes parallel
+     scheduling.
+4. Aggregate normally once all complete.
+
+The default 5-parallel cap still applies as a ceiling. **Conflict analysis is a lower bound**: the orchestrator may
+run fewer than 5 at once when constraints demand it, never more.
+
+### When in doubt, mark conservatively
+
+False-positive serialisation slows the sweep by minutes. False-negative parallelism corrupts results and forces a
+re-run, plus opens a debugging session to figure out which test wrote the wrong byte. Cost asymmetry favours
+over-declaring `Mutates:` and accepting the occasional unnecessary wait.
+
+A common smell: a test that "passed locally but fails in the sweep" is usually a missing `Mutates:` declaration in
+that test or in a neighbour scheduled concurrently with it. The fix is to add the resource to the spec's
+`Concurrency` section, not to add a sleep to the test.
+
+### Reset still belongs to the test
+
+The `Concurrency` section declares what state the test touches; the `Reset state` section still owns clearing that
+state before the Run step. Declaring `Mutates:` does NOT relieve the test of its own reset responsibility — it tells
+the orchestrator how to schedule, not what to clean.
 
 ---
 
