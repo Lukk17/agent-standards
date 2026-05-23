@@ -241,8 +241,8 @@ Restart your IDE and terminal after initialisation.
 
 #### Optional: install a custom schema for e2e capability tests
 
-For projects that want spec-driven end-to-end capability tests through OpenSpec's lifecycle (`/opsx:new` → `/opsx:continue`
-→ `/opsx:apply`), install the
+For projects that want spec-driven end-to-end capability tests through OpenSpec's lifecycle
+(`/opsx:new` → `/opsx:continue` → `/opsx:apply`), install the
 [`e2e-runbooks`](https://github.com/Lukk17/openspec-schemas/tree/master/e2e-runbooks) schema from the
 companion repo. OpenSpec has no schema-install CLI yet, so copy the bundle into the project's `openspec/schemas/`
 directory.

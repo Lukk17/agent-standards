@@ -155,8 +155,9 @@ quit (system-tray icon) and relaunched.
 ### Step 5, variables you can override
 
 Every variable in the table is optional. The defaults are baked into the template files, either via `${VAR:-default}`
-in [.mcp.json.example](../.mcp.json.example) or as hardcoded literals in [opencode.json.example](../opencode.json.example).
-Set a variable only when you need to point at a non-default host or supply a real token.
+in [.mcp.json.example](../.mcp.json.example) or as hardcoded literals in
+[opencode.json.example](../opencode.json.example). Set a variable only when you need to point at a non-default host
+or supply a real token.
 
 | Variable                          | Used by      | Effect when unset                                |
 | --------------------------------- | ------------ | ------------------------------------------------ |

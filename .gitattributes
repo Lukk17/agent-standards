@@ -1,0 +1,31 @@
+# Normalise line endings to LF on commit so the markdown lint checker
+# does not count trailing CR characters as line-length, and so cross-platform
+# checkouts produce identical files.
+
+* text=auto eol=lf
+
+*.md text eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.jsonc text eol=lf
+*.toml text eol=lf
+*.txt text eol=lf
+*.sh text eol=lf
+
+# Binary fixtures stay binary.
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.wav binary
+*.mp3 binary
+*.docx binary
+*.xlsx binary
+*.pptx binary
+*.zip binary
+*.tar binary
+*.gz binary

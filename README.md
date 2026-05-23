@@ -10,6 +10,7 @@ project.**
 [![Subagents](https://img.shields.io/badge/subagents-26-blueviolet)](subagents/)
 [![MCP](https://img.shields.io/badge/mcp_servers-8-blueviolet)](docs/MCP_SETUP.md)
 [![OpenSpec](https://img.shields.io/badge/openspec-ready-blueviolet)](docs/AGENT_TOOLING.md#openspec-integration)
+[![CI](https://github.com/Lukk17/agent-standards/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/Lukk17/agent-standards/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-success)](docs/repository-layout.md)
 
@@ -104,9 +105,10 @@ graph LR
 ```
 
 Two canonical sources in this repo: [.agents/skills/](.agents/skills/) and [subagents/](subagents/). Consumer projects
-receive only the production-ready dirs: [.agents/skills/](.agents/skills/), generated [.claude/agents/](.claude/agents/),
-and generated [.opencode/agents/](.opencode/agents/) (which Kilo Code reads natively, so no separate Kilo directory).
-The [subagents/](subagents/) source and the [tools/](tools/) generator never ship to consumers.
+receive only the production-ready dirs: [.agents/skills/](.agents/skills/), generated
+[.claude/agents/](.claude/agents/), and generated [.opencode/agents/](.opencode/agents/) (which Kilo Code reads
+natively, so no separate Kilo directory). The [subagents/](subagents/) source and the [tools/](tools/) generator never
+ship to consumers.
 
 Full repository layout, agent compatibility matrix, and per-agent instruction precedence:
 [docs/repository-layout.md](docs/repository-layout.md).
