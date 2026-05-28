@@ -44,3 +44,9 @@ kilo.jsonc
 # you might want to ignore temporary build or output folders if they are generated.
 node_modules/
 __pycache__/
+
+### Python build artifacts
+# Produced by `pip install ./tools`. Never commit.
+tools/*.egg-info/
+tools/build/
+tools/dist/

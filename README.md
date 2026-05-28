@@ -6,8 +6,8 @@
 project.**
 
 [![Agents](https://img.shields.io/badge/agents-Claude%20Code%20%7C%20Kilo%20%7C%20OpenCode%20%7C%20Codex-blueviolet)](https://github.com/Lukk17/agent-standards)
-[![Skills](https://img.shields.io/badge/skills-73-blueviolet)](.agents/skills/)
-[![Subagents](https://img.shields.io/badge/subagents-26-blueviolet)](subagents/)
+[![Skills](https://img.shields.io/badge/skills-80-blueviolet)](.agents/skills/)
+[![Subagents](https://img.shields.io/badge/subagents-27-blueviolet)](subagents/)
 [![MCP](https://img.shields.io/badge/mcp_servers-8-blueviolet)](docs/MCP_SETUP.md)
 [![OpenSpec](https://img.shields.io/badge/openspec-ready-blueviolet)](docs/AGENT_TOOLING.md#openspec-integration)
 [![CI](https://github.com/Lukk17/agent-standards/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/Lukk17/agent-standards/actions/workflows/ci.yml)
@@ -73,7 +73,7 @@ graph LR
     subgraph AS[agent-standards repo]
       ASK[.agents/skills/<br/>canonical SKILL.md files]
       SU[subagents/<br/>canonical templates]
-      GEN[tools/gen-subagents.py]
+      GEN[tools/gen_subagents.py]
       SU --> GEN
     end
     AS -->|git checkout production-ready dirs only| P[Your project]
@@ -120,20 +120,25 @@ Full repository layout, agent compatibility matrix, and per-agent instruction pr
 - **[.agents/skills/](.agents/skills/)**: canonical `SKILL.md` files. Source of truth, shared by every agent, shipped
   to consumers. Browse the catalogue to see what's available.
 - **[subagents/](subagents/)** *(this repo only)*: canonical subagent templates. Generator emits per-tool copies.
-- **[tools/](tools/)** *(this repo only)*: `gen-subagents.py` and `pyproject.toml`. Emits
+- **[tools/](tools/)** *(this repo only)*: `gen_subagents.py` and `pyproject.toml`. Emits
   [.claude/agents/](.claude/agents/) and [.opencode/agents/](.opencode/agents/).
 - **[.claude/](.claude/)**: Claude Code bridge. [.claude/CLAUDE.md](.claude/CLAUDE.md) imports
   [AGENTS.md](AGENTS.md.example), a `skills/` symlink, generated `agents/`.
-- **[openspec/](openspec/) scaffold**: spec-driven workflow. `openspec init` lands skills via existing symlinks;
-  commands go to each tool's native dir.
+- **OpenSpec scaffold**: spec-driven workflow. `openspec init` creates the `openspec/` directory in the consumer
+  project; commands land in each tool's native dir.
+  See [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md#openspec-integration) for the full workflow.
+- **Companion OpenSpec schema** *(optional)*:
+  [Lukk17/openspec-schemas](https://github.com/Lukk17/openspec-schemas) ships an `e2e-runbooks` schema for
+  spec-driven end-to-end capability tests through OpenSpec's lifecycle
+  (`/opsx:new --schema e2e-runbooks`). Install steps live in
+  [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md#optional-install-a-custom-schema-for-e2e-capability-tests).
 - **[AGENTS.md](AGENTS.md.example)**: shared instructions auto-read by Kilo, OpenCode, Codex.
   [AGENTS.md.example](AGENTS.md.example) is the template you copy into a new project.
 - **MCP scaffolds**: [kilo.jsonc.example](kilo.jsonc.example), [opencode.json.example](opencode.json.example),
   [.mcp.json.example](.mcp.json.example), and [docs/MCP_SETUP.md](docs/MCP_SETUP.md) for the human setup.
 
-Default MCP servers: `context7`, `mongodb`, `grafana`, `playwright`, `chrome-devtools`, `redis`, `sonarqube`, `n8n`.
-
-All use `${VAR}` or `{env:VAR}` substitution with defaults baked in.
+Server list and configuration live in [docs/MCP_SETUP.md](docs/MCP_SETUP.md). All entries use `${VAR}` or `{env:VAR}`
+substitution with defaults baked in.
 
 ---
 
@@ -162,13 +167,13 @@ The specialised subagents live as one canonical Markdown file each in [subagents
 After editing any canonical file:
 
 ```bash
-python tools/gen-subagents.py
+python tools/gen_subagents.py
 ```
 
 CI gate (fails if generated tree is stale relative to canonical):
 
 ```bash
-python tools/gen-subagents.py --check
+python tools/gen_subagents.py --check
 ```
 
 Rules:

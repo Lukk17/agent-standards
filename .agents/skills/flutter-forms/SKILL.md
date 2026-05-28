@@ -1,5 +1,5 @@
 ---
-name: flutter-building-forms
+name: flutter-forms
 description: Builds Flutter forms with validation and user input handling. Use when creating login screens, data entry forms, or any multi-field user input.
 metadata:
   model: models/gemini-3.1-pro-preview

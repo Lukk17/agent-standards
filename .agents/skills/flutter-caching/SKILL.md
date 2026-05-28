@@ -1,5 +1,5 @@
 ---
-name: flutter-caching-data
+name: flutter-caching
 description: Implements caching strategies for Flutter apps to improve performance and offline support. Use when retaining app data locally to reduce network requests or speed up startup.
 metadata:
   model: models/gemini-3.1-pro-preview

@@ -41,8 +41,10 @@ A few of the most-used:
 - `debugger`: root-cause analysis for a single failing test or runtime error
 - `devops-troubleshooter`: live incident response with postmortem
 
-Full catalogue: see the agent-standards README's "Subagents catalog" section, or list `.claude/agents/*.md` (or
-`.opencode/agents/*.md`) in this project.
+Full catalogue: list `.claude/agents/*.md` (or `.opencode/agents/*.md`) in this project for the names available to
+your agent. Browse the
+[agent-standards subagents directory](https://github.com/Lukk17/agent-standards/tree/master/subagents) for the
+canonical sources.
 
 ### When to use them
 
@@ -70,10 +72,13 @@ Concrete patterns:
   `legacy-modernizer` for the phased plan.
 - **Docs and content**: `docs-architect` for long-form technical writing; `seo-content-marketer` for anything
   externally facing; `api-documenter` for API reference work.
-- **Running e2e capability tests**: fan out one `e2e-runner` subagent per test spec, default cap 5 concurrent.
-  Before fanning out, build a conflict graph from each spec's `Concurrency` section: tests with disjoint `Mutates:`
-  resources parallelise; tests with overlapping resources serialise; tests marked `Serial: true` run alone. The cap
-  is a ceiling, the graph is a lower bound (orchestrator may run fewer than 5 when conflicts demand it, never more).
+- **Running e2e capability tests**: fan out one `e2e-runner` subagent per test spec. **Before fanning out, confirm the
+  parallel cap with the user**: default 5; drop to 3 if the test env is shared or the API budget is tight; raise to
+  8-10 only with a dedicated test env and a provider tier that supports the concurrent load. If
+  `e2e-runner-max-parallel: <N>` is set in this AGENTS.md, use that and skip the question.
+  Then build a conflict graph from each spec's `Concurrency` section: tests with disjoint `Mutates:` resources
+  parallelise; tests with overlapping resources serialise; tests marked `Serial: true` run alone. The confirmed cap
+  is a ceiling, the graph is a lower bound (orchestrator may run fewer than N when conflicts demand it, never more).
   Main session orders specs by their numeric prefix, picks one UTC sweep timestamp shared across all runners,
   aggregates the per-test Verdict + token + duration reports into a sweep summary. Never execute API client
   invocations from the main session during a sweep; always through `e2e-runner`. See the `e2e-runbooks` skill's
@@ -91,9 +96,9 @@ Codex, do the work in-session and lean harder on skills.
 
 ## MCP servers
 
-This project may expose MCP tools (Context7 docs, MongoDB introspection, Grafana, Playwright, Chrome DevTools, Redis,
-SonarQube, n8n). Check your tool list at startup and use them when they're a better fit than re-deriving the answer
-from local files. Human-side setup lives in [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
+This project may expose MCP tools. Check your tool list at startup and use them when they're a better fit than
+re-deriving the answer from local files. The full server list and human-side setup live in
+[docs/MCP_SETUP.md](docs/MCP_SETUP.md).
 
 ---
 

@@ -1,5 +1,5 @@
 ---
-name: flutter-working-with-databases
+name: flutter-databases
 description: Manages local data persistence using SQLite or other database solutions. Use when a Flutter app needs to store, query, or synchronize large amounts of structured data on the device.
 metadata:
   model: models/gemini-3.1-pro-preview

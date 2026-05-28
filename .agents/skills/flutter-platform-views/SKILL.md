@@ -1,5 +1,5 @@
 ---
-name: flutter-embedding-native-views
+name: flutter-platform-views
 description: Embeds native Android, iOS, or macOS views into a Flutter app. Use when integrating complex native components like maps or web views.
 metadata:
   model: models/gemini-3.1-pro-preview

@@ -1,5 +1,5 @@
 ---
-name: flutter-interoperating-with-native-apis
+name: flutter-native-interop
 description: Interoperates with native platform APIs on Android, iOS, and the web. Use when accessing device-specific features not available in Dart or calling existing native code.
 metadata:
   model: models/gemini-3.1-pro-preview

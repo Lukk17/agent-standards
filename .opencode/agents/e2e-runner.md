@@ -1,5 +1,5 @@
 ---
-description: Use to execute ONE end-to-end capability test against a live stack and return its Verdict plus Result summary. Triggers when a main session needs to fan out an e2e sweep across many tests in parallel — the main session spawns one e2e-runner per test (default cap 5 concurrent, queue the rest), each runner takes one spec path and reports back independently. Do NOT use for adding or editing tests; use the `e2e-runbooks` skill in the main session for authoring. Do NOT use for Playwright UI tests; the `e2e-testing` skill / runner covers those.
+description: Use to execute ONE end-to-end capability test against a live stack and return its Verdict plus Result summary. Triggers when a main session needs to fan out an e2e sweep across many tests in parallel — the main session spawns one e2e-runner per test (default cap 5 concurrent, confirmed with the user before fan-out and typically 3-10 depending on the test environment; queue the rest), each runner takes one spec path and reports back independently. Do NOT use for adding or editing tests; use the `e2e-runbooks` skill in the main session for authoring. Do NOT use for Playwright UI tests; the `e2e-testing` skill / runner covers those.
 mode: subagent
 model: anthropic/claude-sonnet-4-6
 tools:

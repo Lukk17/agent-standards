@@ -1,5 +1,5 @@
 ---
-name: flutter-architecting-apps
+name: flutter-architecture
 description: Architects a Flutter application using the recommended layered approach (UI, Logic, Data). Use when structuring a new project or refactoring for scalability.
 metadata:
   model: models/gemini-3.1-pro-preview

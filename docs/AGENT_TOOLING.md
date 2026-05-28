@@ -127,7 +127,7 @@ OpenCode and Kilo share the same directory. Codex CLI has no per-agent file mech
 
 These files are **generated artifacts**. Do not hand-edit them. Your changes will be overwritten on the next pull. To
 modify a subagent permanently, change its canonical source in the agent-standards repo (`subagents/<name>.md`), run
-`python tools/gen-subagents.py` there, and re-import via Step 2.
+`python tools/gen_subagents.py` there, and re-import via Step 2.
 
 The catalogue covers code review, architecture, debugging, stack experts (Java, Python, Flutter, Angular,
 React/Next.js), DevOps, databases, APIs, security, design, accessibility, docs, content, and legal. List the active
@@ -175,10 +175,8 @@ cp opencode.json.example opencode.json
 ```
 
 Full human setup (prerequisites, key acquisition, environment-variable export per OS, Claude Desktop and Codex CLI
-global configs, verification) lives in [MCP_SETUP.md](MCP_SETUP.md). The AI agent does not run that setup; a person
-configures the machine once.
-
-Default servers: `context7`, `mongodb`, `grafana`, `playwright`, `chrome-devtools`, `redis`, `sonarqube`, `n8n`.
+global configs, verification, and the full default-server list) lives in [MCP_SETUP.md](MCP_SETUP.md). The AI agent
+does not run that setup; a person configures the machine once.
 
 ---
 

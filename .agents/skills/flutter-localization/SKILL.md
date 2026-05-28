@@ -1,5 +1,5 @@
 ---
-name: flutter-localizing-apps
+name: flutter-localization
 description: Configures a Flutter app to support multiple languages and regions. Use when preparing an application for international markets and diverse user locales.
 metadata:
   model: models/gemini-3.1-pro-preview

@@ -1,5 +1,5 @@
 ---
-name: flutter-implementing-navigation-and-routing
+name: flutter-routing-and-navigation
 description: Handles routing, navigation, and deep linking in a Flutter application. Use when moving between screens or setting up URL-based navigation.
 metadata:
   model: models/gemini-3.1-pro-preview

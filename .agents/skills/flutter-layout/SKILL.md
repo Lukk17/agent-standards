@@ -1,5 +1,5 @@
 ---
-name: flutter-building-layouts
+name: flutter-layout
 description: Builds Flutter layouts using the constraint system and layout widgets. Use when creating or refining the UI structure of a Flutter application.
 metadata:
   model: models/gemini-3.1-pro-preview

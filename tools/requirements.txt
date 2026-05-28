@@ -1,0 +1,17 @@
+# Hash-pinned runtime dependencies for tools/gen_subagents.py.
+#
+# CI installs this with `pip install --require-hashes -r tools/requirements.txt`
+# so an upload to PyPI under the same name with different bytes is rejected.
+#
+# Refresh by:
+#   1. Bump the version below.
+#   2. Re-fetch hashes from https://pypi.org/pypi/<pkg>/<version>/json (one per wheel
+#      Linux x86_64 manylinux + sdist is enough for ubuntu-latest CI).
+#   3. Update both the version and the --hash lines below.
+
+pyyaml==6.0.2 \
+    --hash=sha256:80bab7bfc629882493af4aa31a4cfa43a4c57c83813253626916b8c7ada83476 \
+    --hash=sha256:ec031d5d2feb36d1d1a24380e4db6d43695f3748343d99434e6f5f9156aaa2ed \
+    --hash=sha256:3ad2a3decf9aaba3d29c8f537ac4b243e36bef957511b4766cb0057d32b0be85 \
+    --hash=sha256:70b189594dbe54f75ab3a1acec5f1e3faa7e8cf2f1e08d9b561cb41b845f69d5 \
+    --hash=sha256:d584d9ec91ad65861cc08d42e834324ef890a082e591037abe114850ff7bbc3e

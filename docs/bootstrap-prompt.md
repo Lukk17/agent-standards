@@ -91,9 +91,14 @@ directory is absent, that's ✅ (not every project ships e2e runbook tests). If 
 installed, flag it.
 
 If the project ships an `e2e-runner` subagent (look in `.claude/agents/` or `.opencode/agents/`), the orchestration
-contract is one subagent per test with a parallel cap (default 5) governed by each spec's `Concurrency` section.
-That's a sweep-time concern, not a bootstrap concern; just confirm the subagent exists so the orchestrator pattern
-is available.
+contract is one subagent per test with a parallel cap (default 5, confirmed with the user before each sweep and
+typically 3-10 depending on the test environment) governed by each spec's `Concurrency` section. That's a sweep-time
+concern, not a bootstrap concern; just confirm the subagent exists so the orchestrator pattern is available.
+
+Restate the conflict-graph rule in one sentence so you commit to it before any sweep: tests with overlapping
+`Mutates:` resources cannot run in parallel, tests marked `Serial: true` must run alone, and the confirmed cap is the
+ceiling, never raised by missing edges. If you cannot restate this rule, re-read the `e2e-runbooks` skill's
+Concurrency-constraints section before running anything.
 
 If the project ships an `openspec/schemas/e2e-runbooks/` directory, also confirm the schema validates
 (`openspec schema validate e2e-runbooks`). If the schema is missing but `e2e/` exists, the project is using

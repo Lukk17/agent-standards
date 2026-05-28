@@ -1,5 +1,5 @@
 ---
-name: flutter-handling-concurrency
+name: flutter-concurrency
 description: Executes long-running tasks in background isolates to keep the UI responsive. Use when performing heavy computations or parsing large datasets.
 metadata:
   model: models/gemini-3.1-pro-preview

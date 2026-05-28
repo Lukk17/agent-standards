@@ -64,7 +64,7 @@ are the source to copy from.
 
 Three files per capability test:
 
-- **`e2e/testing/{N}-{capability}-test.md`** — the **immutable spec**. Six fixed sections. Never edited between runs;
+- **`e2e/testing/{N}-{capability}-test.md`** — the **immutable spec**. Seven fixed sections. Never edited between runs;
   if behaviour changes, write a new spec with a new N.
 - **`e2e/testing/{N}-{capability}-tasks.template.md`** — the **immutable checklist template**. Mirrors the spec's
   Prerequisites / Reset / Run / Expected sections as checkboxes. Never edited between runs.
@@ -86,7 +86,7 @@ a pass criterion.
 
 ---
 
-Every spec file has these six sections, in this order, every time:
+Every spec file has these seven sections, in this order, every time:
 
 1. **What this verifies.** Bullet list of behaviours. Concrete and observable.
 2. **Prerequisites.** Concrete check commands (curl on a health endpoint, `docker exec redis redis-cli ping`,
@@ -509,9 +509,9 @@ aggregates.
 - The main session stays high-level: it picks specs, watches for completion, aggregates. It never executes a Bruno
   request itself.
 
-**Concurrency cap: default N = 5.**
+**Concurrency cap: default N = 5, confirmed with the user before each sweep.**
 
-Spawn up to 5 `e2e-runner` subagents at once. As each one returns a Verdict, dispatch the next pending spec.
+Spawn up to 5 `e2e-runner` subagents at once by default. As each one returns a Verdict, dispatch the next pending spec.
 Reasoning for 5:
 
 - Most LLM provider rate limits comfortably handle 5 concurrent sessions per API key; 10+ starts hitting RPM caps
@@ -522,10 +522,16 @@ Reasoning for 5:
   intermediate replies that the main session has to sift before it can summarise.
 - Most capability suites are 5-20 tests; 5 parallel means 1-4 batches, total wall-clock close to single-batch.
 
-Drop the cap to 3 when the test environment is shared with other developers or your API budget is tight. Raise it to
-8-10 only with a dedicated test env and a provider tier that supports the concurrent load. Project-specific override:
-add `e2e_runner_max_parallel: <N>` to the project's AGENTS.md or to whatever convention the project uses for
-team-level knobs.
+The default fits most situations but not all. **Before fan-out, the main session asks the user to confirm the cap**,
+naming the default and the situational adjustments:
+
+- **3** when the test environment is shared with other developers or the API budget is tight.
+- **5** (the default) for a typical dedicated-ish dev stack on a normal provider tier.
+- **8-10** only with a dedicated test env and a provider tier that supports the concurrent load.
+
+The user's answer wins. If the project has already saved an override as `e2e-runner-max-parallel: <N>` in its
+AGENTS.md (or whatever convention the project uses for team-level knobs), use that value and skip the question; the
+saved value is itself the user's prior answer.
 
 **Sweep flow:**
 
@@ -558,7 +564,7 @@ doesn't need it. Both paths follow the same Runner contract.
 
 ---
 
-The 5-parallel cap is a **ceiling**, not a target. Real e2e tests against shared infrastructure (Postgres, Redis,
+The confirmed parallel cap is a **ceiling**, not a target. Real e2e tests against shared infrastructure (Postgres, Redis,
 Qdrant, MinIO, MCP servers, external APIs) frequently cannot run side by side because they mutate the same state.
 Two tests that both wipe `chat_history` for user `canary` will corrupt each other's Reset / Run / Expected cycle if
 they overlap by even a second. The orchestrator MUST analyse what each test mutates before deciding parallelism.
@@ -591,14 +597,14 @@ Field semantics:
 2. Build a conflict graph: two tests conflict if their `Mutates:` sets intersect, or if either marks the other under
    `Conflicts with:`, or if either is `Serial: true`.
 3. Schedule:
-   - Tests with no edges to currently-running tests run immediately, up to N=5.
+   - Tests with no edges to currently-running tests run immediately, up to the confirmed cap N.
    - Tests with edges queue until their conflicting tests finish.
    - `Serial: true` tests drain all in-flight runners first, run alone, then the orchestrator resumes parallel
      scheduling.
 4. Aggregate normally once all complete.
 
-The default 5-parallel cap still applies as a ceiling. **Conflict analysis is a lower bound**: the orchestrator may
-run fewer than 5 at once when constraints demand it, never more.
+The confirmed parallel cap still applies as a ceiling. **Conflict analysis is a lower bound**: the orchestrator may
+run fewer than N at once when constraints demand it, never more.
 
 ### When in doubt, mark conservatively
 

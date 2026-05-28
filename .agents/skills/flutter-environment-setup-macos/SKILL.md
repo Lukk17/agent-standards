@@ -1,5 +1,5 @@
 ---
-name: flutter-setting-up-on-macos
+name: flutter-environment-setup-macos
 description: Sets up a macOS environment for Flutter development. Use when configuring a macOS machine to run, build, or deploy Flutter applications for iOS or macOS.
 metadata:
   model: models/gemini-3.1-pro-preview

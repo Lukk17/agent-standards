@@ -1,5 +1,5 @@
 ---
-name: flutter-improving-accessibility
+name: flutter-accessibility
 description: Configures a Flutter app to support assistive technologies like Screen Readers. Use when ensuring an application is usable for people with disabilities.
 metadata:
   model: models/gemini-3.1-pro-preview

@@ -12,8 +12,8 @@ Consumer repos pull only the generated trees plus skills — they never see the
 canonical subagents/ source or this generator.
 
 Usage:
-  python tools/gen-subagents.py            # generate all targets
-  python tools/gen-subagents.py --check    # exit 1 if any output is stale
+  python tools/gen_subagents.py            # generate all targets
+  python tools/gen_subagents.py --check    # exit 1 if any output is stale
 """
 from __future__ import annotations
 
@@ -67,6 +67,16 @@ def parse(path: pathlib.Path) -> tuple[dict, str]:
     for req in ("name", "description"):
         if req not in fm:
             sys.exit(f"ERROR {path} missing required field '{req}'")
+    model = fm.get("model", "sonnet")
+    if model not in MODEL["claude"]:
+        valid = ", ".join(sorted(MODEL["claude"]))
+        sys.exit(f"ERROR {path}: unknown model {model!r}. Valid: {valid}")
+    unknown_tools = [t for t in fm.get("tools", []) if t not in CLAUDE_TOOLS]
+    if unknown_tools:
+        valid = ", ".join(sorted(CLAUDE_TOOLS))
+        sys.exit(
+            f"ERROR {path}: unknown tool(s) {unknown_tools!r}. Valid: {valid}"
+        )
     return fm, m.group(2).lstrip("\n")
 
 
@@ -143,12 +153,12 @@ def main() -> None:
         for tool, outdir in TARGETS.items():
             outdir.mkdir(parents=True, exist_ok=True)
             target = outdir / f"{fm['name']}.md"
-            new = render(tool, fm, body)
-            old = target.read_text(encoding="utf-8") if target.exists() else None
+            new = render(tool, fm, body).encode("utf-8")
+            old = target.read_bytes() if target.exists() else None
             if old != new:
                 stale_paths.append(target)
                 if not check:
-                    target.write_text(new, encoding="utf-8")
+                    target.write_bytes(new)
                     written += 1
 
     orphans: list[pathlib.Path] = []
@@ -167,7 +177,7 @@ def main() -> None:
                 print(f"STALE: {p.relative_to(ROOT)}")
             for p in orphans:
                 print(f"ORPHAN: {p.relative_to(ROOT)}")
-            sys.exit("STALE: run `python tools/gen-subagents.py` and commit")
+            sys.exit("STALE: run `python tools/gen_subagents.py` and commit")
         print(f"ok: {len(canonical_names)} agents x {len(TARGETS)} targets up to date")
         return
 

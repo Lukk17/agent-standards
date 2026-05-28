@@ -1,5 +1,5 @@
 ---
-name: flutter-handling-http-and-json
+name: flutter-http-and-json
 description: Executes HTTP requests and handles JSON serialization in a Flutter app. Use when integrating with REST APIs or parsing structured data from external sources.
 metadata:
   model: models/gemini-3.1-pro-preview

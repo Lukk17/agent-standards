@@ -31,7 +31,7 @@ import sys
 from pathlib import Path
 
 EM_OR_EN_DASH = re.compile(r"[–—]")
-FENCE_OPEN = re.compile(r"^(\s*)(`{3,}|~{3,})(.*)$")
+FENCE_OPEN = re.compile(r"^( {0,3})(`{3,}|~{3,})(.*)$")
 TABLE_ROW = re.compile(r"^\s*\|")
 SUMMARY_TAG = re.compile(r"^\s*<summary[\s>]", re.IGNORECASE)
 BADGE_LINE = re.compile(r"^\s*\[!\[")
