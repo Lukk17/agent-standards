@@ -94,27 +94,29 @@ configuration.
 
 #### Step 2, pulling future updates
 
-```bash
-git fetch agent-standards
-```
+This project's `docs/agents-update.md` contains the per-OS update commands. The bootstrap prompt wrote that file into
+the project on its first run (step 7b).
 
-```bash
-git checkout agent-standards/master -- .agents .claude .opencode .codex docs/AGENT_TOOLING.md docs/MCP_SETUP.md .mcp.json.example opencode.json.example
-```
+Open [docs/agents-update.md](agents-update.md) and run the commands for your shell (Unix bash/zsh or PowerShell).
+They:
 
-Commit the refreshed files.
+- Refresh [AGENT_TOOLING.md](AGENT_TOOLING.md) and [MCP_SETUP.md](MCP_SETUP.md).
+- Enumerate the skills already in [.agents/skills/](../.agents/skills/) and pull only those.
+- Enumerate the subagents already in [.claude/agents/](../.claude/agents/) and
+  [.opencode/agents/](../.opencode/agents/) and pull only those.
 
-This refreshes:
+Commit the refreshed files when ready.
 
-- The skill catalogue in [.agents/skills/](../.agents/skills/).
-- The regenerated subagent files in [.claude/agents/](../.claude/agents/) and [.opencode/agents/](../.opencode/agents/)
-  (Kilo Code reads from the OpenCode directory natively).
-- This tooling document and [docs/MCP_SETUP.md](MCP_SETUP.md).
-- The MCP templates [.mcp.json.example](../.mcp.json.example) and [opencode.json.example](../opencode.json.example) so
-  new servers and schema changes flow downstream.
+Files intentionally NOT touched by the update: the symlinked skill directories
+([.claude/skills/](../.claude/skills/), [.opencode/skills/](../.opencode/skills/), [.codex/skills/](../.codex/skills/)),
+[.claude/CLAUDE.md](../.claude/CLAUDE.md), [AGENTS.md.example](../AGENTS.md.example),
+[kilo.jsonc.example](../kilo.jsonc.example), [.mcp.json.example](../.mcp.json.example),
+[opencode.json.example](../opencode.json.example), and your customised `AGENTS.md`. These are templates and personal
+config set once at initial setup.
 
-The [AGENTS.md.example](../AGENTS.md.example) and [kilo.jsonc.example](../kilo.jsonc.example) templates and your local
-`AGENTS.md` are intentionally not touched by updates. They belong to your project once copied.
+If `docs/agents-update.md` does not exist in your project (the project was imported before this feature shipped), ask
+your AI agent to follow step 7b of `docs/bootstrap-prompt.md` to generate the file, or copy it by hand from another
+project.
 
 ---
 

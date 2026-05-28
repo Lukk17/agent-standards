@@ -194,18 +194,20 @@ Removing one: delete the canonical file and re-run. Orphaned outputs are pruned 
 
 ### Pulling updates
 
-After the initial Quickstart, refresh standards with:
+Updates are driven from a per-consumer file `docs/agents-update.md` that the bootstrap prompt writes into each
+project on its first run (step 7b). It contains bash and PowerShell commands that:
 
-```bash
-git fetch agent-standards
-```
+- Refresh the two shipped docs (`docs/AGENT_TOOLING.md` and `docs/MCP_SETUP.md`).
+- Enumerate the skills already in the consumer's `.agents/skills/` and pull only those (no surprise additions).
+- Enumerate the subagents already in `.claude/agents/` and `.opencode/agents/` and pull only those.
 
-```bash
-git checkout agent-standards/master -- .agents .claude .opencode .codex docs/AGENT_TOOLING.md docs/MCP_SETUP.md .mcp.json.example opencode.json.example
-```
+Files intentionally NOT touched by the update: the symlinked skill directories
+(`.claude/skills/`, `.opencode/skills/`, `.codex/skills/`), `.claude/CLAUDE.md`, `AGENTS.md.example`,
+`kilo.jsonc.example`, `opencode.json.example`, `.mcp.json.example`, and the consumer's customised `AGENTS.md`.
 
-The [AGENTS.md.example](AGENTS.md.example) and [kilo.jsonc.example](kilo.jsonc.example) templates and your local
-`AGENTS.md` are intentionally not touched by updates. They belong to your project once copied.
+If your project was imported before this feature shipped and has no `docs/agents-update.md`, ask your AI agent to
+follow step 7b of [docs/bootstrap-prompt.md](docs/bootstrap-prompt.md) to generate the file, or copy it by hand from
+a project that has it.
 
 Full walkthrough lives in [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md).
 

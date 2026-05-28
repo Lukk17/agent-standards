@@ -134,6 +134,63 @@ Filling these stubs is low-risk (editing an existing file the user just imported
 the drafted content straight into root `AGENTS.md` as part of this bootstrap pass. Show the diff in your report so
 the user can review and revise after. Do NOT stop and ask for approval before this edit.
 
+## 7b. Create docs/agents-update.md
+
+Write a new file at `docs/agents-update.md` in this consumer project. The file documents how this project refreshes
+agent-standards content **selectively** (enumerating skills and subagents already present locally and pulling only
+those paths, instead of a blanket pull that surprises the consumer with new upstream additions).
+
+If `docs/agents-update.md` already exists, leave it alone (an earlier bootstrap pass or the user already authored it).
+Otherwise, apply this without asking.
+
+The file must contain a short intro paragraph, a Unix shell section with the four bash blocks below in order, a
+PowerShell section with the four PowerShell blocks below in order (works on both Windows PowerShell 5.1 and
+PowerShell 7+ — no `&&`, no `()` subexpression wrappers), and a "What this skips intentionally" list.
+
+Unix shell commands, in this order:
+
+```bash
+git fetch agent-standards
+```
+
+```bash
+git checkout agent-standards/master -- docs/AGENT_TOOLING.md docs/MCP_SETUP.md
+```
+
+```bash
+for d in .agents/skills/*/; do git checkout agent-standards/master -- "$d" 2>/dev/null || true; done
+```
+
+```bash
+for f in .claude/agents/*.md .opencode/agents/*.md; do git checkout agent-standards/master -- "$f" 2>/dev/null || true; done
+```
+
+PowerShell commands, in this order:
+
+```powershell
+git fetch agent-standards
+```
+
+```powershell
+git checkout agent-standards/master -- docs/AGENT_TOOLING.md docs/MCP_SETUP.md
+```
+
+```powershell
+foreach ($d in Get-ChildItem -Directory .agents/skills) { git checkout agent-standards/master -- ".agents/skills/$($d.Name)/" 2>$null }
+```
+
+```powershell
+foreach ($base in '.claude/agents', '.opencode/agents') { foreach ($f in Get-ChildItem $base -Filter *.md) { git checkout agent-standards/master -- "$base/$($f.Name)" 2>$null } }
+```
+
+"What this skips intentionally" list must call out: `.codex/skills/`, `.claude/skills/`, `.opencode/skills/` (all
+symlinks pointing at `.agents/skills/`); `.claude/CLAUDE.md`; `AGENTS.md.example`, `kilo.jsonc.example`,
+`opencode.json.example`, `.mcp.json.example` (config and template files set at initial setup); and the consumer's
+customised `AGENTS.md`.
+
+Add a one-sentence maintenance note acknowledging that this file is a snapshot — if the agent-standards layout
+changes, the consumer updates this file by hand.
+
 ## 8. Confirm the subagent strategy
 
 Open `AGENTS.md` (or `AGENTS.md.example` if it has not been copied yet) and read the `## Subagents` section,
@@ -177,12 +234,14 @@ warning. Use ❌ only for things that are actually broken or missing wiring.
 - [ ] AGENTS.md inventory (paths found)
 - [ ] CLAUDE.md `@` imports vs inventory (list drift, or ✅ "no drift")
 - [ ] Root AGENTS.md stubs filled (show the diff that was just applied)
+- [ ] `docs/agents-update.md` created (or ✅ "already existed")
 - [ ] Subagent strategy restated (or "N/A, no subagent mechanism in this agent")
 - [ ] Subdirectory AGENTS.md needed? (yes plus paths, or ✅ "no, single-app repo")
 
 Auto-apply (no approval needed), already done as part of this pass:
 
 - Filling empty stub sections in root `AGENTS.md`.
+- Creating `docs/agents-update.md` from the embedded specification.
 - Trimming `docs/MCP_SETUP.md` to only the MCPs this project actually uses.
 
 Wait for approval before:
