@@ -34,12 +34,13 @@ e2e/
 ├── fixtures/
 │   └── README.md                        # canary content conventions per fixture file
 └── testing/
-    ├── README.md                        # spec / template format reference
-    ├── 1-<capability>-test.md           # one immutable spec per test
-    ├── 1-<capability>-tasks.template.md # one immutable tasks-template per test
+    ├── README.md                            # spec / template format reference
+    ├── 1-<capability>-test.md               # one immutable spec per test (stays at testing/ root)
+    ├── templates/
+    │   └── 1-<capability>-tasks.template.md # one immutable tasks-template per test
     └── runs/
-        ├── README.md                    # runner contract, kept tracked
-        └── <ts>_<N>-<capability>-tasks.md  # gitignored, one per execution
+        ├── README.md                        # runner contract, kept tracked
+        └── <ts>_<N>-<capability>-tasks.md   # gitignored, one per execution
 ```
 
 Add this snippet to the project root `.gitignore` (ignores run files but keeps the runs README tracked):
@@ -66,7 +67,7 @@ Three files per capability test:
 
 - **`e2e/testing/{N}-{capability}-test.md`** — the **immutable spec**. Seven fixed sections. Never edited between runs;
   if behaviour changes, write a new spec with a new N.
-- **`e2e/testing/{N}-{capability}-tasks.template.md`** — the **immutable checklist template**. Mirrors the spec's
+- **`e2e/testing/templates/{N}-{capability}-tasks.template.md`** — the **immutable checklist template**. Mirrors the spec's
   Prerequisites / Reset / Run / Expected sections as checkboxes. Never edited between runs.
 - **`e2e/testing/runs/{utc-timestamp}_{N}-{capability}-tasks.md`** — the **execution record**. One per run. Copied from
   the tasks-template at run start, ticked off as the run progresses, filled with Result summary + Verdict + token
@@ -475,7 +476,8 @@ the team needs traceability.
 The runner, whether AI agent or human, follows this sequence for every run:
 
 1. Read the spec `e2e/testing/{N}-{capability}-test.md`.
-2. Copy the matching tasks-template to `e2e/testing/runs/<UTC-timestamp>_{N}-{capability}-tasks.md`.
+2. Copy the matching tasks-template from `e2e/testing/templates/{N}-{capability}-tasks.template.md` to
+   `e2e/testing/runs/<UTC-timestamp>_{N}-{capability}-tasks.md`.
 3. **Record `Start (UTC)` as the very first action.** Wall-clock instant before the prerequisite checks begin.
 4. Execute each task in spec order. Tick the box on success; record what went wrong on failure under "Additional tasks
    I did".

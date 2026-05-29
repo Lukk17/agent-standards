@@ -23,7 +23,7 @@ If any of those are missing, ask the caller before doing anything else. Do not i
 ## Execution contract
 
 1. Read the spec at the path the caller gave you. Quote the **What this verifies** bullet list back in your first sentence so the caller can confirm you opened the right spec.
-2. Locate the paired tasks template at `e2e/testing/{N}-{capability}-tasks.template.md`. If it doesn't exist, abort and report; do not invent a template.
+2. Locate the paired tasks template at `e2e/testing/templates/{N}-{capability}-tasks.template.md`. If it doesn't exist, abort and report; do not invent a template.
 3. Copy the template to `e2e/testing/runs/<sweep-timestamp>_{N}-{capability}-tasks.md`. Use the caller's sweep timestamp verbatim; never generate your own.
 4. **Record `Start (UTC)` as the very first action**, before any prerequisite check. This is wall-clock time the moment you begin work, not the moment you finish opening files.
 5. Execute the spec in order: Prerequisites → Reset state → Run → Expected. Tick each checkbox in the run file as you complete the step on success. On failure, leave the box unticked and record the concrete failure under **Additional tasks I did**.
