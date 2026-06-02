@@ -45,7 +45,7 @@ git fetch agent-standards
 ```
 
 ```bash
-git checkout agent-standards/master -- .agents .claude .opencode .codex docs/AGENT_TOOLING.md docs/MCP_SETUP.md AGENTS.md.example kilo.jsonc.example opencode.json.example .mcp.json.example
+git checkout agent-standards/master -- .agents .claude .opencode .codex docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/AGENTS-UPDATE.md AGENTS.md.example kilo.jsonc.example opencode.json.example .mcp.json.example
 ```
 
 Commit the imported files when you're ready.
@@ -60,6 +60,8 @@ What this pulls:
 - [.codex/skills/](../.codex/skills/) (symlink): Codex skill discovery path.
 - [docs/AGENT_TOOLING.md](AGENT_TOOLING.md): this document, kept in sync with the central repo.
 - [docs/MCP_SETUP.md](MCP_SETUP.md): human-side MCP setup guide (env vars, keys, OS-specific commands).
+- [docs/AGENTS-UPDATE.md](AGENTS-UPDATE.md): the per-OS selective update procedure, kept in sync with the central
+  repo (it refreshes itself).
 - [AGENTS.md.example](../AGENTS.md.example), [kilo.jsonc.example](../kilo.jsonc.example),
   [opencode.json.example](../opencode.json.example), [.mcp.json.example](../.mcp.json.example): templates you rename
   and customise.
@@ -94,13 +96,14 @@ configuration.
 
 #### Step 2, pulling future updates
 
-This project's `docs/agents-update.md` contains the per-OS update commands. The bootstrap prompt wrote that file into
-the project on its first run (step 7b).
+This project ships [docs/AGENTS-UPDATE.md](AGENTS-UPDATE.md) from upstream. It holds the per-OS update commands and
+refreshes itself on every run, so it stays current with the central repo.
 
-Open [docs/agents-update.md](agents-update.md) and run the commands for your shell (Unix bash/zsh or PowerShell).
+Open [docs/AGENTS-UPDATE.md](AGENTS-UPDATE.md) and run the commands for your shell (Unix bash/zsh or PowerShell).
 They:
 
-- Refresh [AGENT_TOOLING.md](AGENT_TOOLING.md) and [MCP_SETUP.md](MCP_SETUP.md).
+- Refresh the shipped docs: [AGENT_TOOLING.md](AGENT_TOOLING.md), [MCP_SETUP.md](MCP_SETUP.md), and
+  [AGENTS-UPDATE.md](AGENTS-UPDATE.md) itself.
 - Enumerate the skills already in [.agents/skills/](../.agents/skills/) and pull only those.
 - Enumerate the subagents already in [.claude/agents/](../.claude/agents/) and
   [.opencode/agents/](../.opencode/agents/) and pull only those.
@@ -114,9 +117,8 @@ Files intentionally NOT touched by the update: the symlinked skill directories
 [opencode.json.example](../opencode.json.example), and your customised `AGENTS.md`. These are templates and personal
 config set once at initial setup.
 
-If `docs/agents-update.md` does not exist in your project (the project was imported before this feature shipped), ask
-your AI agent to follow step 7b of `docs/bootstrap-prompt.md` to generate the file, or copy it by hand from another
-project.
+If [docs/AGENTS-UPDATE.md](AGENTS-UPDATE.md) is missing (the project was imported before this doc shipped), pull it
+with a one-off `git checkout agent-standards/master -- docs/AGENTS-UPDATE.md`, then use it for every later refresh.
 
 ---
 

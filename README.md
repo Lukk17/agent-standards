@@ -194,10 +194,10 @@ Removing one: delete the canonical file and re-run. Orphaned outputs are pruned 
 
 ### Pulling updates
 
-Updates are driven from a per-consumer file `docs/agents-update.md` that the bootstrap prompt writes into each
-project on its first run (step 7b). It contains bash and PowerShell commands that:
+Updates are driven from [docs/AGENTS-UPDATE.md](docs/AGENTS-UPDATE.md), a doc shipped from upstream that refreshes
+itself on every run. It contains bash and PowerShell commands that:
 
-- Refresh the two shipped docs (`docs/AGENT_TOOLING.md` and `docs/MCP_SETUP.md`).
+- Refresh the shipped docs (`docs/AGENT_TOOLING.md`, `docs/MCP_SETUP.md`, and `docs/AGENTS-UPDATE.md` itself).
 - Enumerate the skills already in the consumer's `.agents/skills/` and pull only those (no surprise additions).
 - Enumerate the subagents already in `.claude/agents/` and `.opencode/agents/` and pull only those.
 
@@ -205,9 +205,8 @@ Files intentionally NOT touched by the update: the symlinked skill directories
 (`.claude/skills/`, `.opencode/skills/`, `.codex/skills/`), `.claude/CLAUDE.md`, `AGENTS.md.example`,
 `kilo.jsonc.example`, `opencode.json.example`, `.mcp.json.example`, and the consumer's customised `AGENTS.md`.
 
-If your project was imported before this feature shipped and has no `docs/agents-update.md`, ask your AI agent to
-follow step 7b of [docs/bootstrap-prompt.md](docs/bootstrap-prompt.md) to generate the file, or copy it by hand from
-a project that has it.
+If your project was imported before this doc shipped and has no `docs/AGENTS-UPDATE.md`, pull it with a one-off
+`git checkout agent-standards/master -- docs/AGENTS-UPDATE.md`, then use it for every later refresh.
 
 Full walkthrough lives in [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md).
 
@@ -224,6 +223,7 @@ filenames stay in this repo only.
 | --- | --- |
 | [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md) | Initial import flow, future updates, subagents, MCP overview, full OpenSpec integration and workflow. |
 | [docs/MCP_SETUP.md](docs/MCP_SETUP.md) | Prerequisites, key acquisition, env-var export per OS, Claude Desktop and Codex CLI global configs, verification. |
+| [docs/AGENTS-UPDATE.md](docs/AGENTS-UPDATE.md) | Per-OS selective update commands. Refreshes the shipped docs, plus the skills and subagents already present, and itself. |
 
 **This repo only:**
 

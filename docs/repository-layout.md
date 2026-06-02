@@ -35,6 +35,7 @@ agent-standards/
   docs/
     AGENT_TOOLING.md             # Setup walkthrough shipped to consumers
     MCP_SETUP.md                 # Human MCP setup (env vars, keys, OS commands)
+    AGENTS-UPDATE.md             # Selective update commands shipped to consumers (self-refreshing)
     repository-layout.md         # This file, project-only reference
     manual-setup.md              # Project-only manual fallback + per-agent commands
     bootstrap-prompt.md          # Project-only first-run verification prompt
