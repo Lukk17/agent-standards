@@ -37,7 +37,7 @@ git fetch agent-standards
 ```
 
 ```bash
-git checkout agent-standards/master -- .agents .claude .opencode .codex docs/AGENT_TOOLING.md docs/MCP_SETUP.md AGENTS.md.example kilo.jsonc.example opencode.json.example .mcp.json.example
+git checkout agent-standards/master -- .agents .claude .opencode .codex .kilocode docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/AGENTS-UPDATE.md AGENTS.md.example opencode.json.example .mcp.json.example
 ```
 
 ```bash
@@ -46,8 +46,10 @@ cp AGENTS.md.example AGENTS.md
 
 That's it. Open the project in Claude Code, Kilo Code, OpenCode, or Codex and skills are live.
 
-Optional next step: copy [.mcp.json.example](.mcp.json.example) to `.mcp.json` and
-[opencode.json.example](opencode.json.example) to `opencode.json` to enable the shared MCP server set.
+Optional next step: copy [.mcp.json.example](.mcp.json.example) to `.mcp.json` (Claude Code),
+[opencode.json.example](opencode.json.example) to `opencode.json` (OpenCode), and
+[.kilocode/mcp.json.example](.kilocode/mcp.json.example) to `.kilocode/mcp.json` (Kilo Code VS Code extension) to
+enable the shared MCP server set.
 
 Human-side MCP setup lives in [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
 
@@ -134,8 +136,9 @@ Full repository layout, agent compatibility matrix, and per-agent instruction pr
   [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md#optional-install-a-custom-schema-for-e2e-capability-tests).
 - **[AGENTS.md](AGENTS.md.example)**: shared instructions auto-read by Kilo, OpenCode, Codex.
   [AGENTS.md.example](AGENTS.md.example) is the template you copy into a new project.
-- **MCP scaffolds**: [kilo.jsonc.example](kilo.jsonc.example), [opencode.json.example](opencode.json.example),
-  [.mcp.json.example](.mcp.json.example), and [docs/MCP_SETUP.md](docs/MCP_SETUP.md) for the human setup.
+- **MCP scaffolds**: [.mcp.json.example](.mcp.json.example), [opencode.json.example](opencode.json.example),
+  [.kilocode/mcp.json.example](.kilocode/mcp.json.example), and [docs/MCP_SETUP.md](docs/MCP_SETUP.md) for the human
+  setup.
 
 Server list and configuration live in [docs/MCP_SETUP.md](docs/MCP_SETUP.md). All entries use `${VAR}` or `{env:VAR}`
 substitution with defaults baked in.
@@ -202,8 +205,9 @@ itself on every run. It contains bash and PowerShell commands that:
 - Enumerate the subagents already in `.claude/agents/` and `.opencode/agents/` and pull only those.
 
 Files intentionally NOT touched by the update: the symlinked skill directories
-(`.claude/skills/`, `.opencode/skills/`, `.codex/skills/`), `.claude/CLAUDE.md`, `AGENTS.md.example`,
-`kilo.jsonc.example`, `opencode.json.example`, `.mcp.json.example`, and the consumer's customised `AGENTS.md`.
+(`.claude/skills/`, `.opencode/skills/`, `.codex/skills/`), `.claude/CLAUDE.md`, `AGENTS.md.example`, the
+`.kilocode/*.example` templates, `opencode.json.example`, `.mcp.json.example`, and the consumer's customised
+`AGENTS.md`.
 
 If your project was imported before this doc shipped and has no `docs/AGENTS-UPDATE.md`, pull it with a one-off
 `git checkout agent-standards/master -- docs/AGENTS-UPDATE.md`, then use it for every later refresh.

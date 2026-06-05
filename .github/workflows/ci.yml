@@ -46,6 +46,8 @@ jobs:
         run: |
           python -c "import json; json.load(open('.mcp.json.example'))"
           python -c "import json; json.load(open('opencode.json.example'))"
+          python -c "import json; json.load(open('.kilocode/mcp.json.example'))"
+          python -c "import json; json.load(open('.claude/settings.json'))"
 
       - name: Check subagent generator output is in sync with canonical sources
         run: python tools/gen_subagents.py --check

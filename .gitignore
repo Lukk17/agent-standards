@@ -38,6 +38,7 @@ CLAUDE.local.md
 .mcp.json
 opencode.json
 kilo.jsonc
+.kilocode/mcp.json
 
 ### Conversion Script Artifacts
 # If you run the conversion scripts locally inside this repo,

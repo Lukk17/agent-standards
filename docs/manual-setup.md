@@ -60,7 +60,7 @@ cp AGENTS.md.example AGENTS.md
 ```
 
 ```bash
-cp kilo.jsonc.example kilo.jsonc
+cp .kilocode/kilo.jsonc.example .kilocode/kilo.jsonc
 ```
 
 ```bash
@@ -100,8 +100,8 @@ claude
 Kilo Code reads [AGENTS.md](../AGENTS.md.example) from the project root automatically and discovers skills from
 [.agents/skills/](../.agents/skills/) natively.
 
-Optionally copy [kilo.jsonc.example](../kilo.jsonc.example) to `kilo.jsonc` at the project root to enable additional
-instruction globs:
+Optionally copy [.kilocode/kilo.jsonc.example](../.kilocode/kilo.jsonc.example) to `.kilocode/kilo.jsonc` to enable
+additional instruction globs (Kilo CLI):
 
 ```json
 {

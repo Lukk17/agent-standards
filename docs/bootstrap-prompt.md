@@ -50,8 +50,10 @@ see none, say "no MCP servers active in this session" and note that this is fine
 have them disabled, or may not have copied `.mcp.json.example` and `opencode.json.example` yet. Do not assume specific
 servers should be present; just report what is there.
 
-If the project ships `.mcp.json.example` or `opencode.json.example` but the corresponding `.mcp.json` or
-`opencode.json` does not exist, mention it. The user may want to copy the templates.
+If the project ships `.mcp.json.example`, `opencode.json.example`, or `.kilocode/mcp.json.example` but the
+corresponding `.mcp.json`, `opencode.json`, or `.kilocode/mcp.json` does not exist, mention it. The user may want to
+copy the templates. Note the Kilo Code VS Code extension reads MCP from `.kilocode/mcp.json` (key `mcpServers`,
+`streamable-http` HTTP servers), not from `opencode.json`.
 
 ## 4. Trim docs/MCP_SETUP.md to what this project actually uses
 

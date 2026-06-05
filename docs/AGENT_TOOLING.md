@@ -45,7 +45,7 @@ git fetch agent-standards
 ```
 
 ```bash
-git checkout agent-standards/master -- .agents .claude .opencode .codex docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/AGENTS-UPDATE.md AGENTS.md.example kilo.jsonc.example opencode.json.example .mcp.json.example
+git checkout agent-standards/master -- .agents .claude .opencode .codex .kilocode docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/AGENTS-UPDATE.md AGENTS.md.example opencode.json.example .mcp.json.example
 ```
 
 Commit the imported files when you're ready.
@@ -55,16 +55,19 @@ What this pulls:
 - [.agents/skills/](../.agents/skills/): canonical skill files.
 - [.claude/CLAUDE.md](../.claude/CLAUDE.md), [.claude/skills/](../.claude/skills/) (symlink),
   [.claude/agents/](../.claude/agents/): Claude Code wiring plus generated subagent files.
+  [.claude/settings.json](../.claude/settings.json): the `UserPromptSubmit` preflight hook.
 - [.opencode/skills/](../.opencode/skills/) (symlink), [.opencode/agents/](../.opencode/agents/): OpenCode subagent
-  files, also read natively by Kilo Code.
+  files, also read natively by Kilo Code. [.opencode/plugin/](../.opencode/plugin/): the preflight plugin.
 - [.codex/skills/](../.codex/skills/) (symlink): Codex skill discovery path.
+- `.kilocode/`: the Kilo Code preflight rule (`rules/00-preflight.md`, the extension has no hook surface) plus the
+  Kilo config templates (`kilo.jsonc.example` for the CLI, `mcp.json.example` for the extension's MCP).
 - [docs/AGENT_TOOLING.md](AGENT_TOOLING.md): this document, kept in sync with the central repo.
 - [docs/MCP_SETUP.md](MCP_SETUP.md): human-side MCP setup guide (env vars, keys, OS-specific commands).
 - [docs/AGENTS-UPDATE.md](AGENTS-UPDATE.md): the per-OS selective update procedure, kept in sync with the central
   repo (it refreshes itself).
-- [AGENTS.md.example](../AGENTS.md.example), [kilo.jsonc.example](../kilo.jsonc.example),
-  [opencode.json.example](../opencode.json.example), [.mcp.json.example](../.mcp.json.example): templates you rename
-  and customise.
+- [AGENTS.md.example](../AGENTS.md.example), [opencode.json.example](../opencode.json.example),
+  [.mcp.json.example](../.mcp.json.example), and the `.kilocode/*.example` templates
+  (`.kilocode/kilo.jsonc.example`, `.kilocode/mcp.json.example`): templates you rename and customise.
 
 What this does **not** pull:
 
@@ -78,7 +81,7 @@ cp AGENTS.md.example AGENTS.md
 ```
 
 ```bash
-cp kilo.jsonc.example kilo.jsonc
+cp .kilocode/kilo.jsonc.example .kilocode/kilo.jsonc
 ```
 
 ```bash
@@ -89,7 +92,14 @@ cp opencode.json.example opencode.json
 cp .mcp.json.example .mcp.json
 ```
 
-The `kilo.jsonc`, `opencode.json`, and `.mcp.json` copies are optional. Only `AGENTS.md` is required.
+For the Kilo Code VS Code extension, MCP servers go in `.kilocode/mcp.json`:
+
+```bash
+cp .kilocode/mcp.json.example .kilocode/mcp.json
+```
+
+The `.kilocode/kilo.jsonc`, `opencode.json`, `.mcp.json`, and `.kilocode/mcp.json` copies are optional. Only
+`AGENTS.md` is required.
 
 Copy the optional templates when you want shared MCP servers (see [MCP servers](#mcp-servers) below) or agent-specific
 configuration.
@@ -113,7 +123,7 @@ Commit the refreshed files when ready.
 Files intentionally NOT touched by the update: the symlinked skill directories
 ([.claude/skills/](../.claude/skills/), [.opencode/skills/](../.opencode/skills/), [.codex/skills/](../.codex/skills/)),
 [.claude/CLAUDE.md](../.claude/CLAUDE.md), [AGENTS.md.example](../AGENTS.md.example),
-[kilo.jsonc.example](../kilo.jsonc.example), [.mcp.json.example](../.mcp.json.example),
+the `.kilocode/*.example` templates, [.mcp.json.example](../.mcp.json.example),
 [opencode.json.example](../opencode.json.example), and your customised `AGENTS.md`. These are templates and personal
 config set once at initial setup.
 
@@ -136,6 +146,26 @@ modify a subagent permanently, change its canonical source in the agent-standard
 The catalogue covers code review, architecture, debugging, stack experts (Java, Python, Flutter, Angular,
 React/Next.js), DevOps, databases, APIs, security, design, accessibility, docs, content, and legal. List the active
 set with `ls .claude/agents/` or browse the canonical sources in the agent-standards repo.
+
+---
+
+### Preflight enforcement adapters
+
+The `## Required opening move` section in [AGENTS.md](../AGENTS.md) is the canonical rule: name and invoke the
+owning skill(s) and subagent(s) before code work, or state none apply. A rule read once at session start loses
+salience over a long session, so the gate is re-injected per turn wherever the runtime supports it:
+
+| Agent | Adapter | Mechanism |
+| ----- | ------- | --------- |
+| Claude Code | [.claude/settings.json](../.claude/settings.json) | `UserPromptSubmit` hook, fires every turn |
+| OpenCode | [.opencode/plugin/preflight.js](../.opencode/plugin/preflight.js) | `chat.system.transform` plugin hook |
+| Kilo Code | `.kilocode/rules/00-preflight.md` | rule file loaded into context per task |
+| Codex CLI | (none) | relies on the `AGENTS.md` section alone |
+
+Kilo Code and Codex CLI have no event-hook surface, so they rely on file content loaded into context (the rule file
+and `AGENTS.md`). Keep the four wordings in sync; the canonical text is the `AGENTS.md` section. The Claude
+`settings.json` ships the hook only; if you add project-local permissions there, the update flow leaves your file
+untouched (it is not in the refresh list), so merge hook changes by hand on a major update.
 
 ---
 
@@ -165,8 +195,10 @@ The full catalogue lives in [.agents/skills/](../.agents/skills/) (one directory
 
 ### MCP servers
 
-Two committed templates ship the default MCP servers: [.mcp.json.example](../.mcp.json.example) (Claude Code) and the
-`mcp` block in [opencode.json.example](../opencode.json.example) (OpenCode plus Kilo Code).
+Three committed templates ship the same default MCP servers, one per schema: [.mcp.json.example](../.mcp.json.example)
+(Claude Code), the `mcp` block in [opencode.json.example](../opencode.json.example) (OpenCode), and
+[.kilocode/mcp.json.example](../.kilocode/mcp.json.example) (Kilo Code VS Code extension). Kilo does not share
+`opencode.json`; its extension reads `.kilocode/mcp.json` with the `mcpServers` key and `streamable-http` HTTP servers.
 
 Copy them into place when you want the shared server set:
 
@@ -176,6 +208,10 @@ cp .mcp.json.example .mcp.json
 
 ```bash
 cp opencode.json.example opencode.json
+```
+
+```bash
+cp .kilocode/mcp.json.example .kilocode/mcp.json
 ```
 
 Full human setup (prerequisites, key acquisition, environment-variable export per OS, Claude Desktop and Codex CLI

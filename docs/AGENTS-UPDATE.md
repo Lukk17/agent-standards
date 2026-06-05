@@ -3,7 +3,8 @@
 ---
 
 [agent-standards](https://github.com/Lukk17/agent-standards) is upstream for [.agents/skills/](../.agents/skills/),
-[.claude/agents/](../.claude/agents/), [.opencode/agents/](../.opencode/agents/), [AGENT_TOOLING.md](AGENT_TOOLING.md),
+[.claude/agents/](../.claude/agents/), [.opencode/agents/](../.opencode/agents/), the preflight adapters
+([.opencode/plugin/](../.opencode/plugin/) and `.kilocode/rules/`), [AGENT_TOOLING.md](AGENT_TOOLING.md),
 [MCP_SETUP.md](MCP_SETUP.md), and [AGENTS-UPDATE.md](AGENTS-UPDATE.md) (this file).
 
 The bootstrap import in [AGENT_TOOLING.md](AGENT_TOOLING.md) pulls everything from upstream. That is fine the first
@@ -35,6 +36,13 @@ Refresh the shipped docs (including this file).
 git checkout agent-standards/master -- docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
+Refresh the preflight enforcement adapters (OpenCode plugin and Kilo rule). The Claude hook in
+`.claude/settings.json` is deliberately excluded so per-project permissions there survive.
+
+```bash
+git checkout agent-standards/master -- .opencode/plugin .kilocode/rules
+```
+
 Iterate every skill currently present and pull its upstream copy. Missing-upstream errors are swallowed.
 
 ```bash
@@ -63,6 +71,13 @@ Refresh the shipped docs (including this file).
 git checkout agent-standards/master -- docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
+Refresh the preflight enforcement adapters (OpenCode plugin and Kilo rule). The Claude hook in
+`.claude/settings.json` is deliberately excluded so per-project permissions there survive.
+
+```powershell
+git checkout agent-standards/master -- .opencode/plugin .kilocode/rules
+```
+
 Iterate every skill currently present and pull its upstream copy.
 
 ```powershell
@@ -86,9 +101,12 @@ These paths are deliberately not refreshed:
   does.
 - [.claude/CLAUDE.md](../.claude/CLAUDE.md): consumer-owned entry point. It imports `AGENTS.md` files and stays under
   your control.
-- [AGENTS.md.example](../AGENTS.md.example), [kilo.jsonc.example](../kilo.jsonc.example),
-  [opencode.json.example](../opencode.json.example), [.mcp.json.example](../.mcp.json.example): template files
-  consumed once at initial setup. Refreshing them silently would clobber per-project customisation.
+- [.claude/settings.json](../.claude/settings.json): ships the preflight hook on initial import, then becomes
+  consumer-owned (this is where per-project permissions live). Not refreshed, so your settings survive.
+- [AGENTS.md.example](../AGENTS.md.example), [opencode.json.example](../opencode.json.example),
+  [.mcp.json.example](../.mcp.json.example), and the `.kilocode/*.example` templates
+  (`.kilocode/kilo.jsonc.example`, `.kilocode/mcp.json.example`): template files consumed once at initial setup.
+  The adapter refresh above pulls `.kilocode/rules` only, so these `.example` files are never clobbered.
 - The customised [AGENTS.md](../AGENTS.md) at the repo root: source of truth for project conventions. Owned by this
   consumer, not by upstream.
 

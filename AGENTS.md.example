@@ -6,6 +6,25 @@ OpenCode, Codex CLI). Standards and skills are imported from
 
 ---
 
+## Required opening move
+
+Before any code work on a task, in one line, name the skill(s) and subagent(s) that own it and invoke them, or
+state "none apply" and why. State this as the first line of your reply: it is a required output you produce, not a
+passive banner to skim past. This is a hard gate, not a suggestion.
+
+Investigation, review, and bounded implementation are delegated by default. Doing a specialist's work inline from
+the main session is the failure mode this gate prevents. Re-run the check at the start of every task, not just the
+first one, because a passive instruction read once at session start loses salience over a long session.
+
+This gate is reinforced per-agent where the runtime allows it: Claude Code re-injects it every turn via a
+`UserPromptSubmit` hook ([.claude/settings.json](.claude/settings.json)), OpenCode via a plugin
+([.opencode/plugin/preflight.js](.opencode/plugin/preflight.js)), and Kilo Code via a rule
+([.kilocode/rules/00-preflight.md](.kilocode/rules/00-preflight.md)). Codex CLI has no hook surface and relies on
+this section alone. The `## Skills` and `## Subagents` sections below say *which* to reach for; this gate makes
+reaching for them the first move.
+
+---
+
 ## Skills
 
 This project includes agent skills in [.agents/skills/](.agents/skills/). Invoke relevant skills before starting
@@ -108,8 +127,8 @@ If this project has an `e2e/` directory with `e2e/testing/*-test.md` files, thos
 following the methodology in the `/e2e-runbooks` skill. Before adding a new one, run the skill. Each
 capability test is a triple: immutable `e2e/testing/{N}-{capability}-test.md` spec, immutable
 `e2e/testing/templates/{N}-{capability}-tasks.template.md` checklist, and one timestamped run record per execution
-under `e2e/testing/runs/`. Assertions are observable behaviour only (HTTP status, response body, persisted state); never log
-substrings.
+under `e2e/testing/runs/`. Assertions are observable behaviour only (HTTP status, response body, persisted state);
+never log substrings.
 
 Projects on OpenSpec can install the matching schema for slash-command lifecycle integration. See
 [openspec-schemas/e2e-runbooks](https://github.com/Lukk17/openspec-schemas/tree/master/e2e-runbooks).
@@ -122,7 +141,10 @@ All supported agents read this `AGENTS.md` from the project root and auto-discov
 [.agents/skills/](.agents/skills/). Start your agent from the project root:
 
 - **Claude Code**: run `claude`. Reads [.claude/CLAUDE.md](.claude/CLAUDE.md), which imports this file.
-- **Kilo Code**: reads `AGENTS.md` automatically. Optional [kilo.jsonc](kilo.jsonc.example) for extra config.
+- **Kilo Code**: reads `AGENTS.md` and `.kilocode/rules/` automatically. Optional
+  [.kilocode/kilo.jsonc.example](.kilocode/kilo.jsonc.example) for the Kilo CLI; the VS Code extension takes MCP
+  servers from `.kilocode/mcp.json` (template [.kilocode/mcp.json.example](.kilocode/mcp.json.example)), not from
+  `opencode.json`.
 - **OpenCode**: reads `AGENTS.md` automatically. Optional [opencode.json](opencode.json.example) at project root.
 - **Codex CLI**: run `codex`. Reads `AGENTS.md` automatically. Global settings in `~/.codex/config.toml`.
 

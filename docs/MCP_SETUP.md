@@ -10,12 +10,22 @@ whatever MCP tools the running agent exposes; it doesn't need this document.
 
 ### What ships
 
-Two committed templates in the repo root:
+Three committed templates in the repo root, one per MCP schema:
 
-- [.mcp.json.example](../.mcp.json.example): Claude Code project scope. Schema key `mcpServers`. Env-var syntax:
-  `${VAR}` and `${VAR:-default}`.
-- [opencode.json.example](../opencode.json.example): OpenCode plus Kilo Code project scope (they share the file).
-  Schema key `mcp` alongside `instructions`. Env-var syntax: `{env:VAR}` (no `$`).
+- [.mcp.json.example](../.mcp.json.example): Claude Code project scope. Schema key `mcpServers`. HTTP servers use
+  `"type": "http"`. Env-var syntax: `${VAR}` and `${VAR:-default}`.
+- [opencode.json.example](../opencode.json.example): OpenCode project scope. Schema key `mcp` alongside
+  `instructions`. HTTP servers use `"type": "remote"`. Env-var syntax: `{env:VAR}` (no `$`, no default fallback).
+- [.kilocode/mcp.json.example](../.kilocode/mcp.json.example): Kilo Code VS Code extension project scope. Copy to
+  `.kilocode/mcp.json` (same directory). Schema key `mcpServers` (same as Claude), but HTTP servers use
+  `"type": "streamable-http"` and env-var syntax is `{env:VAR}` (same as OpenCode). Kilo is a hybrid; it shares
+  neither file.
+
+Kilo Code does **not** read `opencode.json` for MCP. That file is OpenCode only (and the Kilo CLI, a separate
+product from the VS Code extension most users run). The extension reads `.kilocode/mcp.json` (project) or
+`mcp_settings.json` (global), both keyed `mcpServers`. Putting a `"type": "http"` block there triggers
+`Invalid MCP settings format: mcpServers.<name>: Invalid input`, because the extension only accepts
+`streamable-http`, `sse`, or stdio (no `type`).
 
 Default servers, in order:
 
@@ -30,8 +40,8 @@ Default servers, in order:
 | `sonarqube`       | Code-quality issues lookup                  | Docker plus a SonarQube instance and token       |
 | `n8n`             | n8n workflow node docs plus optional control| none for docs-only; n8n instance plus key for full |
 
-Disable a server you don't use. In `opencode.json` set `"enabled": false` on the block. In `.mcp.json` delete the
-block; Claude Code's schema has no `enabled` flag.
+Disable a server you don't use. In `opencode.json` set `"enabled": false` on the block. In `.kilocode/mcp.json` set
+`"disabled": true` on the block. In `.mcp.json` delete the block; Claude Code's schema has no `enabled` flag.
 
 ---
 
@@ -47,8 +57,15 @@ cp .mcp.json.example .mcp.json
 cp opencode.json.example opencode.json
 ```
 
-Both files are gitignored at the agent-standards repo level. In your consumer project, decide per-team whether to
-commit them. If you keep `${VAR}` or `{env:VAR}` placeholders and never inline secrets, the files are commit-safe.
+For the Kilo Code VS Code extension, copy the Kilo template into the `.kilocode/` directory instead:
+
+```bash
+cp .kilocode/mcp.json.example .kilocode/mcp.json
+```
+
+All three files are gitignored at the agent-standards repo level. In your consumer project, decide per-team whether
+to commit them. If you keep `${VAR}` or `{env:VAR}` placeholders and never inline secrets, the files are
+commit-safe.
 
 ---
 
@@ -80,8 +97,9 @@ Use read-only or least-privilege tokens. The Grafana account just needs `Viewer`
 you want the MCP to create alerts. The SonarQube token needs `Execute Analysis` only if you also write code-quality
 results back; otherwise read-only.
 
-If you don't use a server, the cleanest move is to delete its block from `.mcp.json` and set `"enabled": false` on it
-in `opencode.json`. That way it never spawns and you don't see auth-failure noise in logs.
+If you don't use a server, the cleanest move is to delete its block from `.mcp.json`, set `"enabled": false` on it
+in `opencode.json`, and `"disabled": true` on it in `.kilocode/mcp.json`. That way it never spawns and you don't see
+auth-failure noise in logs.
 
 ---
 
@@ -171,14 +189,15 @@ or supply a real token.
 | `N8N_API_URL`                     | `n8n`        | falls back to `http://localhost:5678`            |
 | `N8N_API_KEY`                     | `n8n`        | n8n MCP runs in docs-only mode                   |
 
-Important asymmetry between the two files:
+Important asymmetry between the templates:
 
 - [.mcp.json.example](../.mcp.json.example) (Claude Code) uses `${VAR:-default}`, so every env var has a resolvable
   fallback. Files parse with no env set.
-- [opencode.json.example](../opencode.json.example) (OpenCode plus Kilo) uses `{env:VAR}` for tokens and **hardcodes
-  the URL defaults** because OpenCode's substitution syntax has no `:-default` fallback. To point OpenCode at a
-  non-default URL, edit the literal string in your local `opencode.json` (or set `OPENCODE_CONFIG_CONTENT` for a
-  session-scoped override).
+- [opencode.json.example](../opencode.json.example) (OpenCode) and
+  [.kilocode/mcp.json.example](../.kilocode/mcp.json.example) (Kilo extension) use `{env:VAR}` for tokens and
+  **hardcode the URL defaults**, because that substitution syntax has no `:-default` fallback. To point them at a
+  non-default URL, edit the literal string in your local `opencode.json` or `.kilocode/mcp.json` (OpenCode also
+  accepts `OPENCODE_CONFIG_CONTENT` for a session-scoped override).
 
 If a token-style variable is unset, the MCP starts but the upstream service rejects the empty token. That's a noisy
 but local failure; your other MCPs still work. Disable the server entirely if you don't plan to use it.
@@ -263,7 +282,8 @@ Useful when debugging why a variable isn't being picked up.
 | Tool / config file                              | Substitution syntax            | Supported fields                              |
 | ----------------------------------------------- | ------------------------------ | --------------------------------------------- |
 | Claude Code, `.mcp.json` and `~/.claude.json`   | `${VAR}`, `${VAR:-default}`    | `command`, `args`, `env`, `url`, `headers`    |
-| OpenCode / Kilo Code, `opencode.json`           | `{env:VAR}`                    | string values in any MCP field                |
+| OpenCode, `opencode.json`                       | `{env:VAR}`                    | string values in any MCP field                |
+| Kilo Code extension, `.kilocode/mcp.json`       | `{env:VAR}`                    | string values in any MCP field                |
 | Claude Desktop, `claude_desktop_config.json`    | **not supported**              | inline literal values                         |
 | Codex CLI, `~/.codex/config.toml`               | TOML; no built-in substitution | inline literal values                         |
 
@@ -274,8 +294,9 @@ Useful when debugging why a variable isn't being picked up.
 After editing the configs and exporting env vars, restart the agent. Then:
 
 - **Claude Code**: run `claude mcp list` to see which servers loaded.
-- **OpenCode / Kilo Code**: start the agent and check the startup log for MCP connection lines, or run `/mcp` inside
-  the shell.
+- **OpenCode**: start the agent and check the startup log for MCP connection lines, or run `/mcp` inside the shell.
+- **Kilo Code (VS Code extension)**: open the MCP Servers panel (Settings, Agent Behaviour, MCP Servers); each
+  configured server shows a connected / error indicator.
 - **Claude Desktop**: open the Developer panel; the MCP indicator in the input box shows connected servers.
 - **Codex CLI**: start `codex` and check `/mcp` (Codex 0.20+).
 
@@ -289,9 +310,11 @@ If a server fails to connect:
 
 ### Adding or changing a server
 
-Edit [.mcp.json.example](../.mcp.json.example) and [opencode.json.example](../opencode.json.example) in the
-agent-standards repo, commit, and consumer projects pull via the Step 2 update flow in
-[AGENT_TOOLING.md](AGENT_TOOLING.md).
+Edit all three templates in the agent-standards repo: [.mcp.json.example](../.mcp.json.example),
+[opencode.json.example](../opencode.json.example), and [.kilocode/mcp.json.example](../.kilocode/mcp.json.example).
+Commit, and
+consumer projects pull via the Step 2 update flow in [AGENT_TOOLING.md](AGENT_TOOLING.md). Keep the server set in sync
+across all three; only the per-schema syntax (`type` value, env-var form) differs.
 
-To customise per-project without affecting upstream, edit the copied `.mcp.json` and `opencode.json` directly. Those
-are local to each consumer.
+To customise per-project without affecting upstream, edit the copied `.mcp.json`, `opencode.json`, and
+`.kilocode/mcp.json` directly. Those are local to each consumer.
