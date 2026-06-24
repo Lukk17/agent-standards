@@ -1,24 +1,28 @@
 # High Availability & Scalability
 
-## Clustering
+---
 
-### Requirements
+### Clustering
+
+#### Requirements
 
 - Shared database (PostgreSQL recommended)
 - Distributed cache (Infinispan, built-in)
 - Load balancer (HAProxy, NGINX, AWS ALB)
 - Consistent configuration across all nodes
 
-### Load Balancer Configuration
+#### Load Balancer Configuration
 
-- **Sticky sessions**: recommended for performance
-- **Health checks**: `/health/ready` endpoint
-- **SSL termination**: at load balancer or Keycloak
-- **Connection timeouts**: 60+ seconds for admin operations
+- Sticky sessions: recommended for performance
+- Health checks: `/health/ready` endpoint
+- SSL termination: at load balancer or Keycloak
+- Connection timeouts: 60+ seconds for admin operations
 
-## Database Performance
+---
 
-### Connection Pool
+### Database Performance
+
+#### Connection Pool
 
 ```properties
 KC_DB_POOL_INITIAL_SIZE=10
@@ -26,14 +30,16 @@ KC_DB_POOL_MIN_SIZE=10
 KC_DB_POOL_MAX_SIZE=50
 ```
 
-### Optimization
+#### Optimization
 
 - Index on `username`, `email` columns
 - Regular vacuum (PostgreSQL)
 - Monitor slow queries
 - Database replication for read scaling
 
-## Caching
+---
+
+### Caching
 
 | Cache | Content |
 |-------|---------|
@@ -44,9 +50,11 @@ KC_DB_POOL_MAX_SIZE=50
 
 Configure: max entries, lifespan, eviction policy (LRU). In clustered mode, caches use distributed invalidation.
 
-## Monitoring
+---
 
-### Health Endpoints
+### Monitoring
+
+#### Health Endpoints
 
 ```
 GET /health/live     — liveness probe (is Keycloak running)
@@ -54,7 +62,7 @@ GET /health/ready    — readiness probe (ready to serve)
 GET /metrics         — Prometheus metrics
 ```
 
-### Key Metrics
+#### Key Metrics
 
 - Active sessions count
 - Token issuance rate
@@ -63,7 +71,7 @@ GET /metrics         — Prometheus metrics
 - Cache hit/miss ratio
 - JVM memory and GC pressure
 
-### Alerting Triggers
+#### Alerting Triggers
 
 - High failed login rate
 - Database connection pool exhaustion
@@ -71,9 +79,11 @@ GET /metrics         — Prometheus metrics
 - Increased response times
 - SSL certificate expiration
 
-## Backup & Disaster Recovery
+---
 
-- **Database**: daily automated backups, point-in-time recovery, test restores regularly
-- **Configuration**: export realm configs (`bin/kc.sh export`), store in version control
-- **Keys**: back up realm signing keys separately (needed for token validation continuity)
-- **Recovery plan**: document restore steps, target RTO/RPO, test failover procedures
+### Backup & Disaster Recovery
+
+- Database: daily automated backups, point-in-time recovery, test restores regularly
+- Configuration: export realm configs (`bin/kc.sh export`), store in version control
+- Keys: back up realm signing keys separately (needed for token validation continuity)
+- Recovery plan: document restore steps, target RTO/RPO, test failover procedures

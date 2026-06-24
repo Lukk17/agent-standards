@@ -8,7 +8,9 @@ metadata:
 ---
 # Architecting the Data Layer
 
-## Contents
+---
+
+### Contents
 - [Core Architecture](#core-architecture)
 - [Services Implementation](#services-implementation)
 - [Repository Implementation](#repository-implementation)
@@ -16,26 +18,31 @@ metadata:
 - [Workflows](#workflows)
 - [Examples](#examples)
 
-## Core Architecture
+---
 
-Construct the data layer as the Single Source of Truth (SSOT) for all application data. In an MVVM architecture, the data layer represents the Model. Never update application data outside of this layer. 
+### Core Architecture
 
-Separate the data layer into two distinct components: **Repositories** and **Services**.
+Construct the data layer as the Single Source of Truth (SSOT) for all application data. In an MVVM architecture, the
+data layer represents the Model. Never update application data outside of this layer.
 
-### Repositories
+Separate the data layer into two distinct components: Repositories and Services.
+
+#### Repositories
 *   Act as the SSOT for a specific domain entity.
 *   Contain business logic for data mutation, polling, caching, and offline synchronization.
 *   Transform raw data models (API/DB models) into Domain Models (clean data classes containing only what the UI needs).
 *   Inject Services as private members to prevent the UI layer from bypassing the repository.
 
-### Services
+#### Services
 *   Act as stateless wrappers around external data sources (HTTP clients, SQLite databases, platform plugins).
 *   Perform no business logic or data transformation beyond basic JSON serialization.
 *   Return raw data models or `Result` wrappers to the calling repository.
 
-## Services Implementation
+---
 
-### Database Services (SQLite)
+### Services Implementation
+
+#### Database Services (SQLite)
 Use databases to persist and query large amounts of structured data locally. 
 *   Add `sqflite` and `path` packages to `pubspec.yaml`.
 *   Use the `path` package to define the storage location on disk safely across platforms.
@@ -43,38 +50,48 @@ Use databases to persist and query large amounts of structured data locally.
 *   Use `id` as the primary key with `AUTOINCREMENT` to improve query and update times.
 *   Always use `whereArgs` in SQL queries to prevent SQL injection (e.g., `where: 'id = ?', whereArgs: [id]`).
 
-### API Services
+#### API Services
 *   Wrap HTTP calls (e.g., using the `http` package) in dedicated client classes.
 *   Return asynchronous response objects (`Future` or `Stream`).
 *   Handle raw JSON serialization at this level, returning API-specific data models.
 
-## Repository Implementation
+---
 
-### Domain Models
+### Repository Implementation
+
+#### Domain Models
 *   Define immutable data classes (using `freezed` or `built_value`) for Domain Models.
 *   Strip out backend-specific fields (like metadata or pagination tokens) that the UI does not need.
 
-### Offline-First Synchronization
+#### Offline-First Synchronization
 Combine local and remote data sources within the repository to provide seamless offline support.
 
-*   **If reading data:** Return a `Stream` that immediately yields the cached local data from the Database Service, performs the network request via the API Service, updates the Database Service, and then yields the fresh data.
-*   **If writing data (Online-only):** Attempt the API Service mutation first. If successful, update the Database Service.
-*   **If writing data (Offline-first):** Update the Database Service immediately. Attempt the API Service mutation. If the network fails, flag the local database record as `synchronized: false` and queue a background synchronization task.
+*   If reading data: Return a `Stream` that immediately yields the cached local data from the Database Service, performs
+    the network request via the API Service, updates the Database Service, and then yields the fresh data.
+*   If writing data (Online-only): Attempt the API Service mutation first. If successful, update the Database Service.
+*   If writing data (Offline-first): Update the Database Service immediately. Attempt the API Service mutation. If the
+    network fails, flag the local database record as `synchronized: false` and queue a background synchronization task.
 
-## Caching Strategies
+---
+
+### Caching Strategies
 
 Select the appropriate caching strategy based on the data payload:
-*   **Small Key-Value Data:** Use `shared_preferences` for simple app configurations, theme settings, or user preferences.
-*   **Large Datasets:** Use relational (`sqflite`, `drift`) or non-relational (`hive_ce`, `isar_community`) on-device databases.
-*   **Images:** Use the `cached_network_image` package to automatically cache remote images to the device's file system.
-*   **API Responses:** Implement lightweight remote caching within the API Service or Repository using in-memory maps or temporary file storage.
+*   Small Key-Value Data: Use `shared_preferences` for simple app configurations, theme settings, or user preferences.
+*   Large Datasets: Use relational (`sqflite`, `drift`) or non-relational (`hive_ce`, `isar_community`) on-device
+    databases.
+*   Images: Use the `cached_network_image` package to automatically cache remote images to the device's file system.
+*   API Responses: Implement lightweight remote caching within the API Service or Repository using in-memory maps or
+    temporary file storage.
 
-## Workflows
+---
 
-### Workflow: Implementing a New Data Feature
+### Workflows
+
+#### Workflow: Implementing a New Data Feature
 Copy and track this checklist when adding a new data entity to the application.
 
-- [ ] **Task Progress**
+- [ ] Task Progress
   - [ ] Define the Domain Model (immutable, UI-focused).
   - [ ] Define the API/DB Models (raw data structures).
   - [ ] Create or update the Service(s) to handle raw data fetching/storage.
@@ -84,10 +101,10 @@ Copy and track this checklist when adding a new data entity to the application.
   - [ ] Expose Repository methods to the View Model.
   - [ ] Run validator -> review errors -> fix.
 
-### Workflow: Implementing SQLite Persistence
+#### Workflow: Implementing SQLite Persistence
 Follow this sequence to add a new SQLite table and integrate it.
 
-- [ ] **Task Progress**
+- [ ] Task Progress
   - [ ] Add `sqflite` and `path` dependencies.
   - [ ] Define table name and column constants.
   - [ ] Update the `onCreate` or `onUpgrade` method in the Database Service to execute the `CREATE TABLE` statement.
@@ -95,10 +112,13 @@ Follow this sequence to add a new SQLite table and integrate it.
   - [ ] Inject the Database Service into the target Repository.
   - [ ] Ensure the Repository calls `database.open()` before executing queries.
 
-## Examples
+---
 
-### Offline-First Repository Implementation
-This example demonstrates a Repository coordinating between a Database Service and an API Service using a Stream for offline-first reads.
+### Examples
+
+#### Offline-First Repository Implementation
+This example demonstrates a Repository coordinating between a Database Service and an API Service using a Stream for
+offline-first reads.
 
 ```dart
 import 'dart:async';
@@ -158,7 +178,7 @@ class TodoRepository {
 }
 ```
 
-### SQLite Database Service Implementation
+#### SQLite Database Service Implementation
 Demonstrates safe query construction using `whereArgs`.
 
 ```dart
@@ -189,7 +209,12 @@ class DatabaseService {
   }
 
   Future<void> updateTodo(TodoDbModel todo) async {
-    await _database!.update(
+    // Guard the nullable handle instead of force-unwrapping with `!`:
+    // open on demand, then operate on the non-null local.
+    await open();
+    final db = _database;
+    if (db == null) return;
+    await db.update(
       _tableName,
       todo.toMap(),
       where: '$_colId = ?',

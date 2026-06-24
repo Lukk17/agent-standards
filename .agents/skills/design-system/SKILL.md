@@ -4,19 +4,23 @@ description: Use this skill to generate or audit design systems, check visual co
 origin: ECC
 ---
 
-# Design System — Generate & Audit Visual Systems
+# Design System, Generate & Audit Visual Systems
 
-## When to Use
+---
+
+### When to Use
 
 - Starting a new project that needs a design system
 - Auditing an existing codebase for visual consistency
-- Before a redesign — understand what you have
+- Before a redesign: understand what you have
 - When the UI looks "off" but you can't pinpoint why
 - Reviewing PRs that touch styling
 
-## How It Works
+---
 
-### Mode 1: Generate Design System
+### How It Works
+
+#### Mode 1: Generate Design System
 
 Analyzes your codebase and generates a cohesive design system:
 
@@ -31,7 +35,7 @@ Analyzes your codebase and generates a cohesive design system:
 
 Output: `DESIGN.md` + `design-tokens.json` + `design-preview.html`
 
-### Mode 2: Visual Audit
+#### Mode 2: Visual Audit
 
 Scores your UI across 10 dimensions (0-10 each):
 
@@ -50,7 +54,7 @@ Scores your UI across 10 dimensions (0-10 each):
 
 Each dimension gets a score, specific examples, and a fix with exact file:line.
 
-### Mode 3: AI Slop Detection
+#### Mode 3: AI Slop Detection
 
 Identifies generic AI-generated design patterns:
 
@@ -64,28 +68,30 @@ Identifies generic AI-generated design patterns:
 - Sans-serif font stack with no personality
 ```
 
-## Examples
+---
 
-**Generate for a SaaS app:**
+### Examples
+
+Generate for a SaaS app:
 ```
 /design-system generate --style minimal --palette earth-tones
 ```
 
-**Audit existing UI:**
+Audit existing UI:
 ```
 /design-system audit --url http://localhost:3000 --pages / /pricing /docs
 ```
 
-**Check for AI slop:**
+Check for AI slop:
 ```
 /design-system slop-check
 ```
 
 ---
 
-## Styling Architecture
+### Styling Architecture
 
-### SCSS 7-1 Architecture
+#### SCSS 7-1 Architecture
 
 Organise stylesheets into seven folders plus one main entry file:
 
@@ -102,11 +108,11 @@ styles/
 ```
 
 Rules:
-- `abstracts/` contains only SCSS logic — no output CSS
+- `abstracts/` contains only SCSS logic: no output CSS
 - Never import `components/` into `abstracts/`
 - BEM naming in `components/`: `.block__element--modifier`
 
-### Tailwind v4 — CSS-First Configuration
+#### Tailwind v4, CSS-First Configuration
 
 Tailwind v4 removes `tailwind.config.js`. Use the `@theme` block in your CSS:
 
@@ -130,11 +136,11 @@ Tailwind v4 removes `tailwind.config.js`. Use the `@theme` block in your CSS:
 }
 ```
 
-- No `tailwind.config.js` — all configuration lives in `@theme`
+- No `tailwind.config.js`: all configuration lives in `@theme`
 - Use CSS custom properties from `@theme` via `var(--token)` or the bracket shorthand `[--token]`
 - Design tokens defined in `@theme` are automatically available as Tailwind utilities
 
-### Design Token Naming Convention
+#### Design Token Naming Convention
 
 ```
 --{category}-{variant}-{scale}

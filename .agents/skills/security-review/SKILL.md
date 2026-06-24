@@ -8,7 +8,9 @@ origin: ECC
 
 This skill ensures all code follows security best practices and identifies potential vulnerabilities.
 
-## When to Activate
+---
+
+### When to Activate
 
 - Implementing authentication or authorization
 - Handling user input or file uploads
@@ -18,17 +20,19 @@ This skill ensures all code follows security best practices and identifies poten
 - Storing or transmitting sensitive data
 - Integrating third-party APIs
 
-## Security Checklist
+---
 
-### 1. Secrets Management
+### Security Checklist
 
-#### FAIL: NEVER Do This
+#### 1. Secrets Management
+
+##### FAIL: NEVER Do This
 ```typescript
 const apiKey = "sk-proj-xxxxx"  // Hardcoded secret
 const dbPassword = "password123" // In source code
 ```
 
-#### PASS: ALWAYS Do This
+##### PASS: ALWAYS Do This
 ```typescript
 const apiKey = process.env.OPENAI_API_KEY
 const dbUrl = process.env.DATABASE_URL
@@ -39,16 +43,16 @@ if (!apiKey) {
 }
 ```
 
-#### Verification Steps
+##### Verification Steps
 - [ ] No hardcoded API keys, tokens, or passwords
 - [ ] All secrets in environment variables
 - [ ] `.env.local` in .gitignore
 - [ ] No secrets in git history
 - [ ] Production secrets in hosting platform (Vercel, Railway)
 
-### 2. Input Validation
+#### 2. Input Validation
 
-#### Always Validate User Input
+##### Always Validate User Input
 ```typescript
 import { z } from 'zod'
 
@@ -73,7 +77,7 @@ export async function createUser(input: unknown) {
 }
 ```
 
-#### File Upload Validation
+##### File Upload Validation
 ```typescript
 function validateFileUpload(file: File) {
   // Size check (5MB max)
@@ -99,7 +103,7 @@ function validateFileUpload(file: File) {
 }
 ```
 
-**Always validate magic bytes (binary signature) — not just extension or MIME header:**
+Always validate magic bytes (binary signature), not just extension or MIME header:
 
 ```python
 import magic
@@ -110,23 +114,23 @@ def validate_upload(file_bytes: bytes, allowed_types: list[str]) -> bool:
     return detected in allowed_types
 ```
 
-#### Verification Steps
+##### Verification Steps
 - [ ] All user inputs validated with schemas
 - [ ] File uploads restricted (size, type, extension)
 - [ ] No direct use of user input in queries
 - [ ] Whitelist validation (not blacklist)
 - [ ] Error messages don't leak sensitive info
 
-### 3. SQL Injection Prevention
+#### 3. SQL Injection Prevention
 
-#### FAIL: NEVER Concatenate SQL
+##### FAIL: NEVER Concatenate SQL
 ```typescript
 // DANGEROUS - SQL Injection vulnerability
 const query = `SELECT * FROM users WHERE email = '${userEmail}'`
 await db.query(query)
 ```
 
-#### PASS: ALWAYS Use Parameterized Queries
+##### PASS: ALWAYS Use Parameterized Queries
 ```typescript
 // Safe - parameterized query
 const { data } = await supabase
@@ -141,15 +145,15 @@ await db.query(
 )
 ```
 
-#### Verification Steps
+##### Verification Steps
 - [ ] All database queries use parameterized queries
 - [ ] No string concatenation in SQL
 - [ ] ORM/query builder used correctly
 - [ ] Supabase queries properly sanitized
 
-### 4. Authentication & Authorization
+#### 4. Authentication & Authorization
 
-#### JWT Token Handling
+##### JWT Token Handling
 ```typescript
 // FAIL: WRONG: localStorage (vulnerable to XSS)
 localStorage.setItem('token', token)
@@ -159,7 +163,7 @@ res.setHeader('Set-Cookie',
   `token=${token}; HttpOnly; Secure; SameSite=Strict; Max-Age=3600`)
 ```
 
-#### Authorization Checks
+##### Authorization Checks
 ```typescript
 export async function deleteUser(userId: string, requesterId: string) {
   // ALWAYS verify authorization first
@@ -179,11 +183,11 @@ export async function deleteUser(userId: string, requesterId: string) {
 }
 ```
 
-#### Password Hashing
+##### Password Hashing
 
-- **Primary (recommended):** Argon2id — `argon2-cffi` (Python) / `Argon2PasswordEncoder` (Spring)
-- **Acceptable fallback:** BCrypt with cost factor >= 12
-- **Prohibited:** MD5, SHA-1, SHA-256 (unsalted), PBKDF2 with < 100,000 iterations
+- Primary (recommended): Argon2id: `argon2-cffi` (Python) / `Argon2PasswordEncoder` (Spring)
+- Acceptable fallback: BCrypt with cost factor >= 12
+- Prohibited: MD5, SHA-1, SHA-256 (unsalted), PBKDF2 with < 100,000 iterations
 
 ```python
 # Python — argon2-cffi
@@ -201,7 +205,7 @@ String hash = encoder.encode(rawPassword);
 encoder.matches(rawPassword, hash);
 ```
 
-#### Row Level Security (Supabase)
+##### Row Level Security (Supabase)
 ```sql
 -- Enable RLS on all tables
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
@@ -217,16 +221,16 @@ CREATE POLICY "Users update own data"
   USING (auth.uid() = id);
 ```
 
-#### Verification Steps
+##### Verification Steps
 - [ ] Tokens stored in httpOnly cookies (not localStorage)
 - [ ] Authorization checks before sensitive operations
 - [ ] Row Level Security enabled in Supabase
 - [ ] Role-based access control implemented
 - [ ] Session management secure
 
-### 5. XSS Prevention
+#### 5. XSS Prevention
 
-#### Sanitize HTML
+##### Sanitize HTML
 ```typescript
 import DOMPurify from 'isomorphic-dompurify'
 
@@ -240,9 +244,9 @@ function renderUserContent(html: string) {
 }
 ```
 
-#### Content Security Policy
+##### Content Security Policy
 
-**Rule: No `unsafe-inline` or `unsafe-eval` in Content Security Policy. Use nonces for inline scripts/styles if necessary.**
+Rule: No `unsafe-inline` or `unsafe-eval` in Content Security Policy. Use nonces for inline scripts/styles if necessary.
 
 ```typescript
 // next.config.js
@@ -269,15 +273,15 @@ Full recommended CSP header:
 Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{random}'; style-src 'self' 'nonce-{random}'; img-src 'self' data:; font-src 'self'; frame-ancestors 'none'; base-uri 'self'
 ```
 
-#### Verification Steps
+##### Verification Steps
 - [ ] User-provided HTML sanitized
-- [ ] CSP headers configured with nonces — no `unsafe-inline` or `unsafe-eval`
+- [ ] CSP headers configured with nonces: no `unsafe-inline` or `unsafe-eval`
 - [ ] No unvalidated dynamic content rendering
 - [ ] React's built-in XSS protection used
 
-### 6. CSRF Protection
+#### 6. CSRF Protection
 
-#### CSRF Tokens
+##### CSRF Tokens
 ```typescript
 import { csrf } from '@/lib/csrf'
 
@@ -295,20 +299,20 @@ export async function POST(request: Request) {
 }
 ```
 
-#### SameSite Cookies
+##### SameSite Cookies
 ```typescript
 res.setHeader('Set-Cookie',
   `session=${sessionId}; HttpOnly; Secure; SameSite=Strict`)
 ```
 
-#### Verification Steps
+##### Verification Steps
 - [ ] CSRF tokens on state-changing operations
 - [ ] SameSite=Strict on all cookies
 - [ ] Double-submit cookie pattern implemented
 
-### 7. Rate Limiting
+#### 7. Rate Limiting
 
-#### API Rate Limiting
+##### API Rate Limiting
 ```typescript
 import rateLimit from 'express-rate-limit'
 
@@ -322,7 +326,7 @@ const limiter = rateLimit({
 app.use('/api/', limiter)
 ```
 
-#### Expensive Operations
+##### Expensive Operations
 ```typescript
 // Aggressive rate limiting for searches
 const searchLimiter = rateLimit({
@@ -334,15 +338,15 @@ const searchLimiter = rateLimit({
 app.use('/api/search', searchLimiter)
 ```
 
-#### Verification Steps
+##### Verification Steps
 - [ ] Rate limiting on all API endpoints
 - [ ] Stricter limits on expensive operations
 - [ ] IP-based rate limiting
 - [ ] User-based rate limiting (authenticated)
 
-### 8. Sensitive Data Exposure
+#### 8. Sensitive Data Exposure
 
-#### Logging
+##### Logging
 ```typescript
 // FAIL: WRONG: Logging sensitive data
 console.log('User login:', { email, password })
@@ -353,7 +357,7 @@ console.log('User login:', { email, userId })
 console.log('Payment:', { last4: card.last4, userId })
 ```
 
-#### Error Messages
+##### Error Messages
 ```typescript
 // FAIL: WRONG: Exposing internal details
 catch (error) {
@@ -373,15 +377,15 @@ catch (error) {
 }
 ```
 
-#### Verification Steps
+##### Verification Steps
 - [ ] No passwords, tokens, or secrets in logs
 - [ ] Error messages generic for users
 - [ ] Detailed errors only in server logs
 - [ ] No stack traces exposed to users
 
-### 9. Blockchain Security (Solana)
+#### 9. Blockchain Security (Solana)
 
-#### Wallet Verification
+##### Wallet Verification
 ```typescript
 import { verify } from '@solana/web3.js'
 
@@ -403,7 +407,7 @@ async function verifyWalletOwnership(
 }
 ```
 
-#### Transaction Verification
+##### Transaction Verification
 ```typescript
 async function verifyTransaction(transaction: Transaction) {
   // Verify recipient
@@ -426,20 +430,20 @@ async function verifyTransaction(transaction: Transaction) {
 }
 ```
 
-#### Verification Steps
+##### Verification Steps
 - [ ] Wallet signatures verified
 - [ ] Transaction details validated
 - [ ] Balance checks before transactions
 - [ ] No blind transaction signing
 
-### 10. Dependency Security
+#### 10. Dependency Security
 
-#### Regular Updates
+##### Regular Updates
 ```bash
 # Check for vulnerabilities
 npm audit
 
-# Fix automatically fixable issues
+# Fix automatically fixable issues (mutates the lockfile — review the diff before committing)
 npm audit fix
 
 # Update dependencies
@@ -449,7 +453,7 @@ npm update
 npm outdated
 ```
 
-#### Lock Files
+##### Lock Files
 ```bash
 # ALWAYS commit lock files
 git add package-lock.json
@@ -458,16 +462,19 @@ git add package-lock.json
 npm ci  # Instead of npm install
 ```
 
-#### Verification Steps
+##### Verification Steps
 - [ ] Dependencies up to date
 - [ ] No known vulnerabilities (npm audit clean)
 - [ ] Lock files committed
-- [ ] Dependabot enabled on GitHub
+- [ ] Scheduled dependency review with a vulnerability scan (npm audit / pip-audit in CI); enabling Dependabot is an
+  approval-gated decision, not an automatic default
 - [ ] Regular security updates
 
-## Security Testing
+---
 
-### Automated Security Tests
+### Security Testing
+
+#### Automated Security Tests
 ```typescript
 // Test authentication
 test('requires authentication', async () => {
@@ -505,29 +512,33 @@ test('enforces rate limits', async () => {
 })
 ```
 
-## Pre-Deployment Security Checklist
+---
+
+### Pre-Deployment Security Checklist
 
 Before ANY production deployment:
 
-- [ ] **Secrets**: No hardcoded secrets, all in env vars
-- [ ] **Input Validation**: All user inputs validated
-- [ ] **SQL Injection**: All queries parameterized
-- [ ] **XSS**: User content sanitized
-- [ ] **CSRF**: Protection enabled
-- [ ] **Authentication**: Proper token handling
-- [ ] **Authorization**: Role checks in place
-- [ ] **Rate Limiting**: Enabled on all endpoints
-- [ ] **HTTPS**: Enforced in production
-- [ ] **Security Headers**: CSP, X-Frame-Options configured
-- [ ] **Error Handling**: No sensitive data in errors
-- [ ] **Logging**: No sensitive data logged
-- [ ] **Dependencies**: Up to date, no vulnerabilities
-- [ ] **Row Level Security**: Enabled in Supabase
-- [ ] **CORS**: Properly configured
-- [ ] **File Uploads**: Validated (size, type)
-- [ ] **Wallet Signatures**: Verified (if blockchain)
+- [ ] Secrets: No hardcoded secrets, all in env vars
+- [ ] Input Validation: All user inputs validated
+- [ ] SQL Injection: All queries parameterized
+- [ ] XSS: User content sanitized
+- [ ] CSRF: Protection enabled
+- [ ] Authentication: Proper token handling
+- [ ] Authorization: Role checks in place
+- [ ] Rate Limiting: Enabled on all endpoints
+- [ ] HTTPS: Enforced in production
+- [ ] Security Headers: CSP, X-Frame-Options configured
+- [ ] Error Handling: No sensitive data in errors
+- [ ] Logging: No sensitive data logged
+- [ ] Dependencies: Up to date, no vulnerabilities
+- [ ] Row Level Security: Enabled in Supabase
+- [ ] CORS: Properly configured
+- [ ] File Uploads: Validated (size, type)
+- [ ] Wallet Signatures: Verified (if blockchain)
 
-## Resources
+---
+
+### Resources
 
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
 - [Next.js Security](https://nextjs.org/docs/security)
@@ -536,22 +547,25 @@ Before ANY production deployment:
 
 ---
 
-**Remember**: Security is not optional. One vulnerability can compromise the entire platform. When in doubt, err on the side of caution.
+Remember: Security is not optional. One vulnerability can compromise the entire platform. When in doubt, err on the side
+of caution.
 
 ---
 
-## OAuth 2.1 / PKCE
+### OAuth 2.1 / PKCE
 
-- **Mandate PKCE** for all authorization code flows (S256 code challenge)
-- **Prohibit Implicit Grant** — removed in OAuth 2.1; use authorization code + PKCE instead
-- **Prohibit ROPC** (Resource Owner Password Credentials) — no exceptions
-- **Refresh Token Rotation:** issue a new refresh token on every use; invalidate the old one immediately
-- **Access token lifetime:** maximum **15 minutes**
+- Mandate PKCE for all authorization code flows (S256 code challenge)
+- Prohibit Implicit Grant: removed in OAuth 2.1; use authorization code + PKCE instead
+- Prohibit ROPC (Resource Owner Password Credentials): no exceptions
+- Refresh Token Rotation: issue a new refresh token on every use; invalidate the old one immediately
+- Access token lifetime: maximum 15 minutes
 
-## JWT Validation Checklist
+---
+
+### JWT Validation Checklist
 
 Always validate:
-- `alg` claim: **explicitly reject `none` algorithm** — configure allowed algorithms allowlist
+- `alg` claim: explicitly reject `none` algorithm: configure allowed algorithms allowlist
 - `exp`: token must not be expired
 - `iss`: must match expected issuer exactly
 - `aud`: must match expected audience
@@ -570,14 +584,18 @@ def decode_token(token: str) -> dict:
     )
 ```
 
-## mTLS — Service-to-Service
+---
+
+### mTLS, Service-to-Service
 
 For internal microservice communication, enforce mutual TLS:
 - Both client and server present certificates
 - Use a private CA for internal service certificates
 - Short certificate lifetimes (< 24h) via cert-manager or Vault PKI
 
-## Required Security Headers
+---
+
+### Required Security Headers
 
 ```http
 Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
@@ -588,23 +606,29 @@ X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
 ```
 
-## Zero Trust Architecture
+---
+
+### Zero Trust Architecture
 
 Principles:
-- **Never trust, always verify** — no implicit trust based on network location
+- Never trust, always verify: no implicit trust based on network location
 - Every request must be authenticated and authorized, even between internal services
-- **Network policies:** default-deny; explicit allow rules for required communication paths
-- **Short-lived credentials:** rotate tokens, certificates, and secrets automatically
-- **Least privilege:** service accounts have only the permissions they need
+- Network policies: default-deny; explicit allow rules for required communication paths
+- Short-lived credentials: rotate tokens, certificates, and secrets automatically
+- Least privilege: service accounts have only the permissions they need
 
-## Supply Chain Security
+---
 
-- Generate **SBOM** (Software Bill of Materials) for every release (CycloneDX or SPDX format)
-- **Sign container images** with cosign (Sigstore) on every production push
-- **Pin all dependencies** to exact versions in lock files; prohibit unpinned ranges in production
-- Block CI on **CRITICAL/HIGH CVEs** with available fixes (Trivy, Grype, `npm audit`)
+### Supply Chain Security
 
-## Audit Logging Requirements
+- Generate SBOM (Software Bill of Materials) for every release (CycloneDX or SPDX format)
+- Sign container images with cosign (Sigstore) on every production push
+- Pin all dependencies to exact versions in lock files; prohibit unpinned ranges in production
+- Block CI on CRITICAL/HIGH CVEs with available fixes (Trivy, Grype, `npm audit`)
+
+---
+
+### Audit Logging Requirements
 
 Every security-relevant event must produce an immutable audit log entry with:
 - `timestamp` (UTC ISO 8601)
@@ -615,27 +639,34 @@ Every security-relevant event must produce an immutable audit log entry with:
 - `ip_address` and `user_agent` for user-initiated actions
 
 Rules:
-- Write to a **write-only log sink** (append-only storage, separate account)
-- Retain for **minimum 12 months**
+- Write to a write-only log sink (append-only storage, separate account)
+- Retain for minimum 12 months
 - Never expose raw audit logs to end users
 
-## Privacy by Design
+---
 
-- **Data minimization:** collect only what is strictly necessary
-- **Legal basis:** document the legal basis (consent, legitimate interest, etc.) for each data category
-- **Right to erasure:** implement within **30 days** of request
-- **DPIA (Data Protection Impact Assessment):** required before introducing a feature that processes sensitive personal data at scale
-- **Pseudonymization in non-production:** never use real PII in dev/staging environments
+### Privacy by Design
 
-## Encryption at Rest
+- Data minimization: collect only what is strictly necessary
+- Legal basis: document the legal basis (consent, legitimate interest, etc.) for each data category
+- Right to erasure: implement within 30 days of request
+- DPIA (Data Protection Impact Assessment): required before introducing a feature that processes sensitive personal data
+  at scale
+- Pseudonymization in non-production: never use real PII in dev/staging environments
 
-- Symmetric encryption: **AES-256-GCM** for field-level encryption
-- Asymmetric: **RSA-4096** or **ECDSA P-384** for key wrapping
-- **KMS/HSM** for cryptographic key management — never store master keys in application config
+---
+
+### Encryption at Rest
+
+- Symmetric encryption: AES-256-GCM for field-level encryption
+- Asymmetric: RSA-4096 or ECDSA P-384 for key wrapping
+- KMS/HSM for cryptographic key management: never store master keys in application config
 - Rotate encryption keys annually or after suspected compromise
 
-## SAST / DAST Pipeline
+---
 
-- **SAST:** run on every PR (Semgrep, SonarQube, or Bandit for Python)
-- **DAST:** run weekly or before every major release using **OWASP ZAP** against a staging environment
-- **Dependency scanning:** `npm audit`, `pip-audit`, `trivy fs` on every PR
+### SAST / DAST Pipeline
+
+- SAST: run on every PR (Semgrep, SonarQube, or Bandit for Python)
+- DAST: run weekly or before every major release using OWASP ZAP against a staging environment
+- Dependency scanning: `npm audit`, `pip-audit`, `trivy fs` on every PR

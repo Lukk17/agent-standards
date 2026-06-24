@@ -5,21 +5,29 @@ impactDescription: "Reduces document count and can align storage with applicatio
 tags: schema, patterns, bucket, grouping, pagination, arrays
 ---
 
-## Use Bucket Pattern to Group Related Data
+### Use Bucket Pattern to Group Related Data
 
-**Group a series of related items into bounded arrays within a single document.** The bucket pattern separates long series of data into distinct objects, reducing document count and aligning storage with how data is actually consumed. This is especially useful when an application accesses data in fixed-size groups (e.g. pages).
+Group a series of related items into bounded arrays within a single document. The bucket pattern separates long series
+of data into distinct objects, reducing document count and aligning storage with how data is actually consumed. This is
+especially useful when an application accesses data in fixed-size groups (e.g. pages).
 
-> **For time-series data**, prefer [Time Series Collections](https://www.mongodb.com/docs/manual/core/timeseries-collections/), which apply bucketing automatically with built-in compression and indexing optimizations.
+> For time-series data, prefer
+> [Time Series Collections](https://www.mongodb.com/docs/manual/core/timeseries-collections/), which apply bucketing
+> automatically with built-in compression and indexing optimizations.
 
-**Incorrect (one document per event):**
+Incorrect (one document per event):
 
-Storing one document per stock trade (e.g. `{ ticker, customerId, type, quantity, date }`) means the application pages through trades using skip/limit, which degrades as offset grows. Each trade is a separate document and index entry.
+Storing one document per stock trade (e.g. `{ ticker, customerId, type, quantity, date }`) means the application pages
+through trades using skip/limit, which degrades as offset grows. Each trade is a separate document and index entry.
 
-**Correct (bucket pattern - group by customer, bounded per page):**
+Correct (bucket pattern - group by customer, bounded per page):
 
-Each document holds up to N trades for one customer (e.g. 10 trades = one page). The `_id` encodes customer ID and the first trade’s epoch seconds (e.g. `"123_1698349623"`), with a `count` field and a `history` array of trade objects. One bucket equals one page of data — a regex on `_id` uses the default `_id` index with no extra index needed, and document count drops by up to the bucket-size factor.
+Each document holds up to N trades for one customer (e.g. 10 trades = one page). The `_id` encodes customer ID and the
+first trade’s epoch seconds (e.g. `"123_1698349623"`), with a `count` field and a `history` array of trade objects. One
+bucket equals one page of data, a regex on `_id` uses the default `_id` index with no extra index needed, and document
+count drops by up to the bucket-size factor.
 
-**Insert with atomic upsert:**
+Insert with atomic upsert:
 
 ```javascript
 // Insert a new trade into the correct bucket
@@ -50,7 +58,7 @@ db.trades.findOneAndUpdate(
 // Array is bounded — never exceeds 10 elements
 ```
 
-**Query patterns:**
+Query patterns:
 
 ```javascript
 // Page 1 of trades for customer 123
@@ -62,7 +70,7 @@ db.trades.find({ _id: /^123_/ }).sort({ _id: 1 }).skip(9).limit(1)
 // Each returned document IS a page — no per-trade skip/limit needed
 ```
 
-**Choosing bucket boundaries:**
+Choosing bucket boundaries:
 
 | Bucketing Strategy | Good For | Example |
 |-------------------|----------|---------|
@@ -70,14 +78,19 @@ db.trades.find({ _id: /^123_/ }).sort({ _id: 1 }).skip(9).limit(1)
 | Time window | Log/event grouping (when not using Time Series Collections) | 1 hour of events per bucket |
 | Logical grouping | Domain-driven partitioning | All line items in one order |
 
-**When NOT to use this pattern:**
+When NOT to use this pattern:
 
-- **Time-series workloads**: Use [Time Series Collections](https://www.mongodb.com/docs/manual/core/timeseries-collections/) instead — they handle bucketing, compression, and indexing automatically.
-- **Random single-item access**: If you frequently query individual items by their own ID, buckets add unnecessary indirection.
-- **Low volume**: If the total series per entity is small, the added complexity isn't worth it.
-- **Highly variable item sizes**: Bucketing works best when items are roughly uniform in size so bucket documents stay predictable.
+- Time-series workloads: Use [Time Series Collections](https://www.mongodb.com/docs/manual/core/timeseries-collections/)
+  instead: they handle bucketing, compression, and indexing automatically.
+- Random single-item access: If you frequently query individual items by their own ID, buckets add unnecessary
+  indirection.
+- Low volume: If the total series per entity is small, the added complexity isn't worth it.
+- Highly variable item sizes: Bucketing works best when items are roughly uniform in size so bucket documents stay
+  predictable.
 
-## Verify with
+---
+
+### Verify with
 
 ```javascript
 // Check that bucket size matches expectations
@@ -99,4 +112,5 @@ db.trades.aggregate([
 ])
 ```
 
-Reference: [Group Data with the Bucket Pattern](https://www.mongodb.com/docs/manual/data-modeling/design-patterns/group-data/bucket-pattern/)
+Reference:
+[Group Data with the Bucket Pattern](https://www.mongodb.com/docs/manual/data-modeling/design-patterns/group-data/bucket-pattern/)

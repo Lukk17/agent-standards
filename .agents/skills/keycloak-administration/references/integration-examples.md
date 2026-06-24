@@ -1,8 +1,10 @@
 # Integration Examples
 
-## .NET (Keycloak.AuthServices)
+---
 
-### JWT Bearer Authentication (Web API)
+### .NET (Keycloak.AuthServices)
+
+#### JWT Bearer Authentication (Web API)
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
@@ -30,13 +32,13 @@ app.Run();
 }
 ```
 
-### OIDC Authentication (Web App)
+#### OIDC Authentication (Web App)
 
 ```csharp
 builder.Services.AddKeycloakWebAppAuthentication(builder.Configuration);
 ```
 
-### Authorization with Roles
+#### Authorization with Roles
 
 ```csharp
 builder.Services.AddKeycloakAuthorization(builder.Configuration)
@@ -45,7 +47,7 @@ builder.Services.AddKeycloakAuthorization(builder.Configuration)
     .AddPolicy("EditorOnly", policy => policy.RequireResourceRoles("editor"));
 ```
 
-### Resource Protection (Authorization Server)
+#### Resource Protection (Authorization Server)
 
 ```csharp
 builder.Services.AddAuthorizationServer(builder.Configuration);
@@ -55,7 +57,7 @@ builder.Services.AddAuthorizationServer(builder.Configuration);
 public class DocumentsController : ControllerBase { }
 ```
 
-### Admin SDK
+#### Admin SDK
 
 ```csharp
 builder.Services.AddKeycloakAdminHttpClient(builder.Configuration);
@@ -65,7 +67,9 @@ app.MapGet("/users", async (IKeycloakUserClient client) =>
     await client.GetUsers("my-realm"));
 ```
 
-## Spring Boot
+---
+
+### Spring Boot
 
 ```yaml
 spring:
@@ -91,7 +95,9 @@ public class SecurityConfig {
 }
 ```
 
-## Node.js / Express
+---
+
+### Node.js / Express
 
 ```javascript
 const { Issuer, Strategy } = require('openid-client');
@@ -112,9 +118,11 @@ passport.use('oidc', new Strategy({ client }, (tokenSet, userinfo, done) => {
 }));
 ```
 
-## Token Validation (Any Platform)
+---
 
-### JWKS Endpoint
+### Token Validation (Any Platform)
+
+#### JWKS Endpoint
 
 All platforms can validate tokens using the JWKS endpoint:
 
@@ -122,7 +130,7 @@ All platforms can validate tokens using the JWKS endpoint:
 GET {AuthServerUrl}/realms/{realm}/protocol/openid-connect/certs
 ```
 
-### Discovery Endpoint
+#### Discovery Endpoint
 
 Get all endpoints and configuration:
 
@@ -130,7 +138,7 @@ Get all endpoints and configuration:
 GET {AuthServerUrl}/realms/{realm}/.well-known/openid-configuration
 ```
 
-### Manual Token Validation Steps
+#### Manual Token Validation Steps
 
 1. Fetch JWKS from realm
 2. Decode JWT header to get `kid` (key ID)

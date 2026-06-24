@@ -5,9 +5,12 @@ description: Master Next.js 14+ App Router with Server Components, streaming, pa
 
 # Next.js App Router Patterns
 
-Comprehensive patterns for Next.js 14+ App Router architecture, Server Components, and modern full-stack React development.
+Comprehensive patterns for Next.js 14+ App Router architecture, Server Components, and modern full-stack React
+development.
 
-## When to Use This Skill
+---
+
+### When to Use This Skill
 
 - Building new Next.js applications with App Router
 - Migrating from Pages Router to App Router
@@ -16,19 +19,21 @@ Comprehensive patterns for Next.js 14+ App Router architecture, Server Component
 - Optimizing data fetching and caching
 - Building full-stack features with Server Actions
 
-## Core Concepts
+---
 
-### 1. Rendering Modes
+### Core Concepts
+
+#### 1. Rendering Modes
 
 | Mode                  | Where        | When to Use                               |
 | --------------------- | ------------ | ----------------------------------------- |
-| **Server Components** | Server only  | Data fetching, heavy computation, secrets |
-| **Client Components** | Browser      | Interactivity, hooks, browser APIs        |
-| **Static**            | Build time   | Content that rarely changes               |
-| **Dynamic**           | Request time | Personalized or real-time data            |
-| **Streaming**         | Progressive  | Large pages, slow data sources            |
+| Server Components | Server only  | Data fetching, heavy computation, secrets |
+| Client Components | Browser      | Interactivity, hooks, browser APIs        |
+| Static            | Build time   | Content that rarely changes               |
+| Dynamic           | Request time | Personalized or real-time data            |
+| Streaming         | Progressive  | Large pages, slow data sources            |
 
-### 2. File Conventions
+#### 2. File Conventions
 
 ```
 app/
@@ -43,7 +48,9 @@ app/
 └── opengraph-image.tsx  # OG image generation
 ```
 
-## Quick Start
+---
+
+### Quick Start
 
 ```typescript
 // app/layout.tsx
@@ -91,9 +98,11 @@ export default async function HomePage() {
 }
 ```
 
-## Patterns
+---
 
-### Pattern 1: Server Components with Data Fetching
+### Patterns
+
+#### Pattern 1: Server Components with Data Fetching
 
 ```typescript
 // app/products/page.tsx
@@ -157,7 +166,7 @@ export async function ProductList({ category, sort, page }: ProductFilters) {
 }
 ```
 
-### Pattern 2: Client Components with 'use client'
+#### Pattern 2: Client Components with 'use client'
 
 ```typescript
 // components/products/AddToCartButton.tsx
@@ -195,7 +204,7 @@ export function AddToCartButton({ productId }: { productId: string }) {
 }
 ```
 
-### Pattern 3: Server Actions
+#### Pattern 3: Server Actions
 
 ```typescript
 // app/actions/cart.ts
@@ -244,7 +253,7 @@ export async function checkout(formData: FormData) {
 }
 ```
 
-### Pattern 4: Parallel Routes
+#### Pattern 4: Parallel Routes
 
 ```typescript
 // app/dashboard/layout.tsx
@@ -284,7 +293,7 @@ export default async function TeamSlot() {
 }
 ```
 
-### Pattern 5: Intercepting Routes (Modal Pattern)
+#### Pattern 5: Intercepting Routes (Modal Pattern)
 
 ```typescript
 // File structure for photo modal
@@ -351,7 +360,7 @@ export default function RootLayout({
 }
 ```
 
-### Pattern 6: Streaming with Suspense
+#### Pattern 6: Streaming with Suspense
 
 ```typescript
 // app/product/[id]/page.tsx
@@ -397,7 +406,7 @@ async function Recommendations({ productId }: { productId: string }) {
 }
 ```
 
-### Pattern 7: Route Handlers (API Routes)
+#### Pattern 7: Route Handlers (API Routes)
 
 ```typescript
 // app/api/products/route.ts
@@ -441,7 +450,7 @@ export async function GET(
 }
 ```
 
-### Pattern 8: Metadata and SEO
+#### Pattern 8: Metadata and SEO
 
 ```typescript
 // app/products/[slug]/page.tsx
@@ -490,9 +499,11 @@ export default async function ProductPage({ params }: Props) {
 }
 ```
 
-## Caching Strategies
+---
 
-### Data Cache
+### Caching Strategies
+
+#### Data Cache
 
 ```typescript
 // No cache (always fresh)
@@ -518,20 +529,22 @@ export async function updateProduct(id: string, data: ProductData) {
 }
 ```
 
-## Best Practices
+---
 
-### Do's
+### Best Practices
 
-- **Start with Server Components** - Add 'use client' only when needed
-- **Colocate data fetching** - Fetch data where it's used
-- **Use Suspense boundaries** - Enable streaming for slow data
-- **Leverage parallel routes** - Independent loading states
-- **Use Server Actions** - For mutations with progressive enhancement
+#### Do's
 
-### Don'ts
+- Start with Server Components - Add 'use client' only when needed
+- Colocate data fetching - Fetch data where it's used
+- Use Suspense boundaries - Enable streaming for slow data
+- Leverage parallel routes - Independent loading states
+- Use Server Actions - For mutations with progressive enhancement
 
-- **Don't pass serializable data** - Server → Client boundary limitations
-- **Don't use hooks in Server Components** - No useState, useEffect
-- **Don't fetch in Client Components** - Use Server Components or React Query
-- **Don't over-nest layouts** - Each layout adds to the component tree
-- **Don't ignore loading states** - Always provide loading.tsx or Suspense
+#### Don'ts
+
+- Don't pass serializable data - Server → Client boundary limitations
+- Don't use hooks in Server Components - No useState, useEffect
+- Don't fetch in Client Components - Use Server Components or React Query
+- Don't over-nest layouts - Each layout adds to the component tree
+- Don't ignore loading states - Always provide loading.tsx or Suspense

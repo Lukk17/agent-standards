@@ -2,9 +2,12 @@
 
 This guide covers how to configure MongoDB Vector Search indexes and construct queries for semantic similarity search.
 
-**Scope**: This guide covers pure vector search indexes. For hybrid search (combining lexical and vector search), see hybrid-search.md.
+Scope: This guide covers pure vector search indexes. For hybrid search (combining lexical and vector search), see
+hybrid-search.md.
 
-## Table of Contents
+---
+
+### Table of Contents
 
 - [Vector Search Index Definition](#vector-search-index-definition)
 - [Index Configuration Parameters](#index-configuration-parameters)
@@ -14,9 +17,9 @@ This guide covers how to configure MongoDB Vector Search indexes and construct q
 
 ---
 
-## Vector Search Index Definition
+### Vector Search Index Definition
 
-### Syntax
+#### Syntax
 
 MongoDB Vector Search index definitions have the following structure:
 
@@ -42,9 +45,10 @@ MongoDB Vector Search index definitions have the following structure:
 }
 ```
 
-**Note**: The exact syntax for creating indexes varies by driver/interface. The above shows the core index definition structure that applies across all methods.
+Note: The exact syntax for creating indexes varies by driver/interface. The above shows the core index definition
+structure that applies across all methods.
 
-### Basic Definition
+#### Basic Definition
 
 Most vector search indexes only need the vector field:
 
@@ -63,60 +67,60 @@ Most vector search indexes only need the vector field:
 
 ---
 
-## Index Configuration Parameters
+### Index Configuration Parameters
 
-### Required: numDimensions
+#### Required: numDimensions
 
-**Definition**: Number of dimensions in your vector embeddings. MongoDB enforces this at both index-time and query-time.
+Definition: Number of dimensions in your vector embeddings. MongoDB enforces this at both index-time and query-time.
 
-**Constraints**:
+Constraints:
 - Must be less than or equal to 8192
 - For int1 (binary) vectors: MUST be a multiple of 8
 - For int8 vectors: 1 to 8192
 - For float32 vectors: 1 to 8192
 
-**How to Determine**:
+How to Determine:
 - The embedding model determines this value
 - It MUST match the actual dimension count of your vectors
 - Cannot be changed after index creation (requires dropping and recreating index)
 
-**Example - Voyage AI Models**:
+Example - Voyage AI Models:
 - voyage-3-large: 2048 dimensions
 - voyage-4: Configurable output dimensions (256, 512, 1024, 2048, 4096)
 
 ---
 
-### Required: similarity
+#### Required: similarity
 
-**Definition**: The similarity function used to compare vectors and rank results.
+Definition: The similarity function used to compare vectors and rank results.
 
-**Available Options**:
+Available Options:
 
 | Similarity | Score Formula | Score Range | Best For | Requirements |
 |-----------|---------------|-------------|----------|--------------|
 | `cosine` | `(1 + cosine(v1,v2)) / 2` | [0, 1] | Most embedding models, normalized vectors | Cannot use zero-magnitude vectors |
-| `dotProduct` | `(1 + dotProduct(v1,v2)) / 2` | [0, 1] | **Most efficient** - angle + magnitude | Vectors MUST be normalized to unit length |
-| `euclidean` | `1 / (1 + euclidean(v1,v2))` | [0, 1] | Spatial/geometric similarity | **REQUIRED** for int1 (binary) quantized vectors |
+| `dotProduct` | `(1 + dotProduct(v1,v2)) / 2` | [0, 1] | Most efficient - angle + magnitude | Vectors MUST be normalized to unit length |
+| `euclidean` | `1 / (1 + euclidean(v1,v2))` | [0, 1] | Spatial/geometric similarity | REQUIRED for int1 (binary) quantized vectors |
 
-**Decision Process**:
+Decision Process:
 1. Check your embedding model documentation for recommended similarity function
 2. If model produces normalized vectors -> use `dotProduct` (fastest)
 3. If model does NOT normalize vectors -> use `cosine`
 4. If using binary quantization (int1) -> MUST use `euclidean`
 5. When uncertain -> start with `dotProduct` and normalize your vectors
 
-**Notes**:
+Notes:
 - All functions return scores in range [0, 1] where 1 = most similar
 - `dotProduct` is most efficient but requires normalized vectors
 - Check embedding model documentation for recommendations
 
 ---
 
-### Optional: quantization
+#### Optional: quantization
 
-**Definition**: Automatic vector compression to reduce storage and improve query speed at the cost of some accuracy.
+Definition: Automatic vector compression to reduce storage and improve query speed at the cost of some accuracy.
 
-**Syntax**:
+Syntax:
 ```javascript
 {
   "type": "vector",
@@ -127,7 +131,7 @@ Most vector search indexes only need the vector field:
 }
 ```
 
-**Options**:
+Options:
 
 | Type | Compression | Accuracy | Storage | Use Case |
 |------|-------------|----------|---------|----------|
@@ -135,14 +139,14 @@ Most vector search indexes only need the vector field:
 | `scalar` | 4x | High | 4x smaller | Good balance for most cases (1M-10M+ vectors) |
 | `binary` | 4-8x | Good | Maximum compression | Large datasets (10M+ vectors), speed priority |
 
-**Important Rules**:
+Important Rules:
 - `none`: Default if omitted. Use for pre-quantized vectors (int1, int8)
 - `scalar`: Transforms float32/double values to 1-byte integers
 - `binary`: Transforms values to single bit. numDimensions MUST be multiple of 8
 - Binary quantization REQUIRES `euclidean` similarity
 - Only use with float32 or double vectors (NOT with pre-quantized int1/int8)
 
-**Example**:
+Example:
 ```javascript
 {
   "type": "vector",
@@ -157,13 +161,13 @@ Most vector search indexes only need the vector field:
 
 ---
 
-### Optional: hnswOptions (Preview Feature)
+#### Optional: hnswOptions (Preview Feature)
 
-**Definition**: Parameters for the Hierarchical Navigable Small Worlds graph construction algorithm.
+Definition: Parameters for the Hierarchical Navigable Small Worlds graph construction algorithm.
 
-**Warning**: Modifying default values might negatively impact your index and queries. Use with caution.
+Warning: Modifying default values might negatively impact your index and queries. Use with caution.
 
-**Syntax**:
+Syntax:
 ```javascript
 {
   "type": "vector",
@@ -177,9 +181,9 @@ Most vector search indexes only need the vector field:
 }
 ```
 
-**Parameters**:
+Parameters:
 
-**maxEdges** (16-64, default: 16):
+maxEdges (16-64, default: 16):
 - Maximum number of connections per node in the graph
 - Higher values:
   - Better recall (finds more relevant results)
@@ -187,31 +191,32 @@ Most vector search indexes only need the vector field:
   - More memory usage (more connections stored)
   - Slower indexing (more neighbors to adjust)
 
-**numEdgeCandidates** (100-3200, default: 100):
+numEdgeCandidates (100-3200, default: 100):
 - Maximum nodes evaluated to find best connections for new nodes
 - Higher values:
   - Better graph quality (improves search accuracy)
   - Can negatively affect query latency
 
-**Recommendation**: Leave at defaults unless you have specific performance requirements and understand the trade-offs.
+Recommendation: Leave at defaults unless you have specific performance requirements and understand the trade-offs.
 
 ---
 
-## Filter Fields (Pre-filtering)
+### Filter Fields (Pre-filtering)
 
-### About Filter Fields
+#### About Filter Fields
 
-**Definition**: Additional fields indexed to enable pre-filtering before vector similarity computation. This narrows the search scope and improves performance.
+Definition: Additional fields indexed to enable pre-filtering before vector similarity computation. This narrows the
+search scope and improves performance.
 
-**Use Case**: Filter by specific criteria (e.g., category, date range, user ID) BEFORE computing vector similarity.
+Use Case: Filter by specific criteria (e.g., category, date range, user ID) BEFORE computing vector similarity.
 
-**Performance**: Filtering before similarity computation is much faster than post-filtering with `$match`.
+Performance: Filtering before similarity computation is much faster than post-filtering with `$match`.
 
-**Supported Field Types**: boolean, date, objectId, numeric (int32, int64, double), string, UUID, and arrays of these types.
+Supported Field Types: boolean, date, objectId, numeric (int32, int64, double), string, UUID, and arrays of these types.
 
 ---
 
-### Syntax
+#### Syntax
 
 ```javascript
 {
@@ -236,16 +241,16 @@ Most vector search indexes only need the vector field:
 
 ---
 
-### When to Use Filter Fields
+#### When to Use Filter Fields
 
-**Use filter fields when**:
+Use filter fields when:
 - You need to filter by exact values (category = "Action")
 - You need range filtering (year >= 2020)
 - Filter criteria are known at query time
 - You want maximum query performance (filters before computing similarity)
 - You have multi-tenant data that needs isolation
 
-**Use post-filtering ($match) when**:
+Use post-filtering ($match) when:
 - Filters are ad-hoc and change frequently
 - Complex aggregation logic is needed
 - Fields are not worth indexing (rarely used)
@@ -253,7 +258,7 @@ Most vector search indexes only need the vector field:
 
 ---
 
-### Supported Filter Operators
+#### Supported Filter Operators
 
 MongoDB Vector Search supports the following MQL operators in the `filter` option:
 
@@ -265,13 +270,14 @@ MongoDB Vector Search supports the following MQL operators in the `filter` optio
 | Existence | `$exists` |
 | Logical | `$not`, `$nor`, `$and`, `$or` |
 
-**Note**: Other query operators, aggregation pipeline operators, and MongoDB Search operators are NOT supported in the filter option.
+Note: Other query operators, aggregation pipeline operators, and MongoDB Search operators are NOT supported in the
+filter option.
 
 ---
 
-### Filter Examples
+#### Filter Examples
 
-**Index with filter fields**:
+Index with filter fields:
 ```javascript
 {
   "fields": [
@@ -293,7 +299,7 @@ MongoDB Vector Search supports the following MQL operators in the `filter` optio
 }
 ```
 
-**Query with single filter**:
+Query with single filter:
 ```javascript
 {
   $vectorSearch: {
@@ -308,7 +314,7 @@ MongoDB Vector Search supports the following MQL operators in the `filter` optio
 }
 ```
 
-**Query with multiple filters using $and**:
+Query with multiple filters using $and:
 ```javascript
 {
   $vectorSearch: {
@@ -326,7 +332,7 @@ MongoDB Vector Search supports the following MQL operators in the `filter` optio
 }
 ```
 
-**Short form of $eq** (recommended):
+Short form of $eq (recommended):
 ```javascript
 {
   $vectorSearch: {
@@ -344,30 +350,33 @@ MongoDB Vector Search supports the following MQL operators in the `filter` optio
 
 ---
 
-### Important Notes
+#### Important Notes
 
-**Pre-filtering does NOT affect scores**: The vectorSearchScore returned for documents is based only on vector similarity, not on how well they matched the filter criteria.
+Pre-filtering does NOT affect scores: The vectorSearchScore returned for documents is based only on vector similarity,
+not on how well they matched the filter criteria.
 
-**Filter fields must be indexed**: You must add fields as type "filter" in your index definition to use them in the filter option. Fields not indexed cannot be used for pre-filtering.
+Filter fields must be indexed: You must add fields as type "filter" in your index definition to use them in the filter
+option. Fields not indexed cannot be used for pre-filtering.
 
-**Arrays are supported**: You can filter on fields that contain arrays. MongoDB automatically handles array matching.
+Arrays are supported: You can filter on fields that contain arrays. MongoDB automatically handles array matching.
 
 ---
 
-## Query Construction
+### Query Construction
 
-### $vectorSearch Stage
+#### $vectorSearch Stage
 
-**Definition**: The `$vectorSearch` stage performs semantic search for a query vector on indexed vector fields. It must be the first stage in an aggregation pipeline.
+Definition: The `$vectorSearch` stage performs semantic search for a query vector on indexed vector fields. It must be
+the first stage in an aggregation pipeline.
 
-**Requirements**:
+Requirements:
 - Atlas cluster running MongoDB v6.0.11, v7.0.2, or later
 - A vector search index on the collection with vector-type fields
 - `$vectorSearch` MUST be the first stage in the pipeline
 
 ---
 
-### Basic Query Syntax
+#### Basic Query Syntax
 
 ```javascript
 {
@@ -385,41 +394,41 @@ MongoDB Vector Search supports the following MQL operators in the `filter` optio
 
 ---
 
-### Required Fields
+#### Required Fields
 
-**index** (String, Required):
+index (String, Required):
 - Name of the MongoDB Vector Search index to use
 - MongoDB returns no results if the index name is misspelled or doesn't exist
 - Must match the name specified when creating the index
 
-**path** (String, Required):
+path (String, Required):
 - Name of the indexed vector field to search
 - Must be a field indexed as type "vector" in your index definition
 - Use dot notation for nested fields (e.g., "metadata.embedding")
 
-**queryVector** (Array of Numbers, Required):
+queryVector (Array of Numbers, Required):
 - Array of numbers representing your query vector
 - Can be float32, BSON BinData float32, or BSON BinData int1/int8
 - Array size MUST match numDimensions specified in the index
 - You must use the same embedding model that generated the indexed vectors
 
-**limit** (Integer, Required):
+limit (Integer, Required):
 - Number of documents to return in results
 - Must be an integer value
 - Cannot exceed numCandidates if numCandidates is specified
 
 ---
 
-### Conditional Fields
+#### Conditional Fields
 
-**numCandidates** (Integer, Conditional):
+numCandidates (Integer, Conditional):
 - Number of nearest neighbors to use during ANN search
 - Required if `exact` is false or omitted
 - Must be less than or equal to 10000
 - Cannot be less than `limit`
 - Recommended: Set to at least 20x the `limit` value for good recall
 
-**Example**:
+Example:
 ```javascript
 {
   $vectorSearch: {
@@ -433,28 +442,29 @@ MongoDB Vector Search supports the following MQL operators in the `filter` optio
 
 ---
 
-### Optional Fields
+#### Optional Fields
 
-**filter** (Object, Optional):
+filter (Object, Optional):
 - MQL expression to pre-filter documents before vector search
 - Only works with fields indexed as type "filter"
 - Supported operators: $eq, $ne, $gt, $lt, $gte, $lte, $in, $nin, $exists, $and, $or, $not, $nor
 - See Filter Fields section for details and examples
 
-**exact** (Boolean, Optional):
+exact (Boolean, Optional):
 - Set to `true` for ENN (Exact Nearest Neighbor) search
 - Set to `false` or omit for ANN (Approximate Nearest Neighbor) search
 - Default: false
 
-**ENN vs ANN**:
-- **ANN (default)**: Faster, uses HNSW algorithm, good for large datasets, 90-95% recall
-- **ENN**: Exhaustive search, guaranteed exact matches, slower, use for small datasets (less than 10K docs) or measuring accuracy baseline
+ENN vs ANN:
+- ANN (default): Faster, uses HNSW algorithm, good for large datasets, 90-95% recall
+- ENN: Exhaustive search, guaranteed exact matches, slower, use for small datasets (less than 10K docs) or measuring
+  accuracy baseline
 
 ---
 
-### Complete Query Examples
+#### Complete Query Examples
 
-**Basic ANN query**:
+Basic ANN query:
 ```javascript
 db.collection.aggregate([
   {
@@ -477,7 +487,7 @@ db.collection.aggregate([
 ])
 ```
 
-**ANN query with pre-filtering**:
+ANN query with pre-filtering:
 ```javascript
 db.collection.aggregate([
   {
@@ -506,7 +516,7 @@ db.collection.aggregate([
 ])
 ```
 
-**ENN query (exact search)**:
+ENN query (exact search):
 ```javascript
 db.collection.aggregate([
   {
@@ -530,7 +540,7 @@ db.collection.aggregate([
 
 ---
 
-### Retrieving Vector Search Scores
+#### Retrieving Vector Search Scores
 
 Use `$meta: "vectorSearchScore"` in a `$project` stage to include similarity scores:
 
@@ -543,14 +553,14 @@ Use `$meta: "vectorSearchScore"` in a `$project` stage to include similarity sco
 }
 ```
 
-**Important**:
+Important:
 - Scores are in range [0, 1] where 1 = most similar
 - You can ONLY use `vectorSearchScore` after a `$vectorSearch` stage
 - Pre-filtering does NOT affect the score (only vector similarity affects score)
 
 ---
 
-### Post-filtering with $match
+#### Post-filtering with $match
 
 For ad-hoc filters or complex logic not indexed as filter fields, use `$match` after `$vectorSearch`:
 
@@ -575,19 +585,21 @@ db.collection.aggregate([
 ])
 ```
 
-**Performance Note**: Post-filtering is slower than pre-filtering because it computes similarity for all candidates first.
+Performance Note: Post-filtering is slower than pre-filtering because it computes similarity for all candidates first.
 
 ---
 
-## Query Optimization
+### Query Optimization
 
-### numCandidates Tuning
+#### numCandidates Tuning
 
-**Definition**: The `numCandidates` parameter controls the trade-off between recall (finding relevant results) and query performance in ANN searches.
+Definition: The `numCandidates` parameter controls the trade-off between recall (finding relevant results) and query
+performance in ANN searches.
 
-**Rule of Thumb**: A good starting point is 20x your `limit` value. You can adjust between 10-20x (or higher) based on your recall and performance requirements.
+Rule of Thumb: A good starting point is 20x your `limit` value. You can adjust between 10-20x (or higher) based on your
+recall and performance requirements.
 
-**Example**:
+Example:
 ```javascript
 {
   $vectorSearch: {
@@ -601,22 +613,23 @@ db.collection.aggregate([
 
 ---
 
-### When to Adjust numCandidates
+#### When to Adjust numCandidates
 
-**Increase when**:
+Increase when:
 - Search results miss relevant documents
 - Large dataset (millions of vectors)
 - Using quantized vectors (int8 or int1)
 - Heavy pre-filtering is applied
 
-**Decrease when**:
+Decrease when:
 - Queries are too slow and results are already good
 - Small dataset (thousands of vectors)
 - Speed is more important than perfect recall
 
-**Note on low limit values**: A very low limit (e.g., 5) may need proportionally higher numCandidates (e.g., 40x) to maintain recall.
+Note on low limit values: A very low limit (e.g., 5) may need proportionally higher numCandidates (e.g., 40x) to
+maintain recall.
 
-### Test and Measure
+#### Test and Measure
 
 - Start with 20x limit and run sample queries
 - Check result quality and query latency
@@ -624,22 +637,22 @@ db.collection.aggregate([
 
 ---
 
-### ANN vs ENN Search
+#### ANN vs ENN Search
 
-**ANN (Approximate Nearest Neighbor)**:
+ANN (Approximate Nearest Neighbor):
 - Default search method
 - Uses HNSW algorithm for fast approximate search
 - Typically 90-95% recall (finds 90-95% of exact matches)
 - Much faster than ENN for large datasets
 - Requires `numCandidates` parameter
 
-**Use ANN when**:
+Use ANN when:
 - You have production queries
 - Dataset is large (more than 10K documents)
 - 90-95% recall is acceptable
 - Query speed is important
 
-**ENN (Exact Nearest Neighbor)**:
+ENN (Exact Nearest Neighbor):
 - Exhaustive search of all indexed vectors
 - Guaranteed to find exact best matches
 - Much slower than ANN
@@ -647,7 +660,7 @@ db.collection.aggregate([
 - Does NOT require `numCandidates` parameter
 - Uses full-fidelity vectors even when quantization is enabled
 
-**Use ENN when**:
+Use ENN when:
 - Measuring accuracy baseline (ground truth for testing)
 - Collection has less than 10K documents
 - Very selective filters (less than 5% of data matches)
@@ -655,56 +668,59 @@ db.collection.aggregate([
 
 ---
 
-### Pre-filtering vs Post-filtering Performance
+#### Pre-filtering vs Post-filtering Performance
 
-**Pre-filtering (filter option)**:
+Pre-filtering (filter option):
 - Fastest: Filters BEFORE computing similarity
 - Use for exact matches, range queries, known criteria
 - Requires fields indexed as type "filter"
 - Limited to supported MQL operators ($eq, $ne, $gt, $lt, $gte, $lte, $in, $nin, $exists, $and, $or, $not, $nor)
 
-**Post-filtering ($match stage)**:
+Post-filtering ($match stage):
 - Slower: Computes similarity for all candidates first
 - Use for ad-hoc filters, complex logic, unindexed fields
 - Full MQL operator support
 - Can combine with other aggregation stages
 
-**Recommendation**: Use pre-filtering whenever possible for best performance. Reserve post-filtering for complex or ad-hoc queries.
+Recommendation: Use pre-filtering whenever possible for best performance. Reserve post-filtering for complex or ad-hoc
+queries.
 
 ---
 
-### Parallel Query Execution
+#### Parallel Query Execution
 
-MongoDB Vector Search parallelizes query execution across segments when running on dedicated search nodes, which can improve response time for queries on large datasets.
+MongoDB Vector Search parallelizes query execution across segments when running on dedicated search nodes, which can
+improve response time for queries on large datasets.
 
-**Notes**:
+Notes:
 - Works automatically on dedicated search nodes
 - High-CPU systems provide more performance improvement
 - Not guaranteed for every query (e.g., when too many concurrent queries are queued)
 - May cause slight inconsistencies in results for successive identical queries
 
-**If you see inconsistent results**: Increase `numCandidates` to improve consistency.
+If you see inconsistent results: Increase `numCandidates` to improve consistency.
 
 ---
 
-### Best Practices Summary
+#### Best Practices Summary
 
-1. **Start with numCandidates = 20x limit**: Provides good balance of recall and performance
-2. **Use pre-filtering when possible**: Index filter fields for known filtering criteria
-3. **Choose appropriate similarity function**: Match your embedding model's recommendations
-4. **Consider quantization for large datasets**: Use scalar or binary quantization for 10M+ vectors
-5. **Use ANN for production**: Reserve ENN for testing/small datasets
-6. **Test with your data**: Run sample queries and measure recall vs latency
-7. **Monitor and adjust**: Use query performance metrics to tune numCandidates
-8. **Match query vectors to index**: Use the same embedding model and dimensions
+1. Start with numCandidates = 20x limit: Provides good balance of recall and performance
+2. Use pre-filtering when possible: Index filter fields for known filtering criteria
+3. Choose appropriate similarity function: Match your embedding model's recommendations
+4. Consider quantization for large datasets: Use scalar or binary quantization for 10M+ vectors
+5. Use ANN for production: Reserve ENN for testing/small datasets
+6. Test with your data: Run sample queries and measure recall vs latency
+7. Monitor and adjust: Use query performance metrics to tune numCandidates
+8. Match query vectors to index: Use the same embedding model and dimensions
 
 ---
 
-## Vector Search on Views
+### Vector Search on Views
 
-Version requirements, supported stages, limitations, and troubleshooting are identical to Atlas Search on Views — see `lexical-search-indexing.md`. The difference is using a `vectorSearch`-type index and querying with `$vectorSearch`.
+Version requirements, supported stages, limitations, and troubleshooting are identical to Atlas Search on Views, see
+`lexical-search-indexing.md`. The difference is using a `vectorSearch`-type index and querying with `$vectorSearch`.
 
-**Example: partial index (exclude documents without embeddings)**
+Example: partial index (exclude documents without embeddings)
 ```javascript
 db.createView("moviesWithEmbeddings", "embedded_movies", [
   {

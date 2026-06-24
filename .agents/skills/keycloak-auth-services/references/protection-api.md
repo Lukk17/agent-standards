@@ -2,11 +2,13 @@
 
 The Protection API provides UMA-compliant endpoints for:
 
-- **Resource Management** — CRUD operations on protected resources
-- **Permission Management** — create permission tickets, manage permission state
-- **Policy API** — manage permissions on behalf of users
+- Resource Management: CRUD operations on protected resources
+- Permission Management: create permission tickets, manage permission state
+- Policy API: manage permissions on behalf of users
 
-## Setup
+---
+
+### Setup
 
 ```bash
 dotnet add package Keycloak.AuthServices.Sdk
@@ -26,9 +28,11 @@ builder.Services
     .AddStandardResilienceHandler();
 ```
 
-## Access Token
+---
 
-Protection API is protected — requires authentication. Use the same token management approach as Admin SDK:
+### Access Token
+
+Protection API is protected, requires authentication. Use the same token management approach as Admin SDK:
 
 ```csharp
 builder.Services
@@ -36,9 +40,11 @@ builder.Services
     .AddClientCredentialsTokenHandler("keycloak");
 ```
 
-## Available Operations
+---
 
-### Resource Management
+### Available Operations
+
+#### Resource Management
 
 ```csharp
 // List resources
@@ -56,7 +62,7 @@ await protectionClient.CreateResourceAsync("my-realm", new Resource
 });
 ```
 
-### Policy Management
+#### Policy Management
 
 ```csharp
 // List policies
@@ -66,7 +72,9 @@ var policies = await protectionClient.GetPoliciesAsync("my-realm");
 var policy = await protectionClient.GetPolicyAsync("my-realm", policyId);
 ```
 
-## Distinction: Protection API vs Authorization Server
+---
+
+### Distinction: Protection API vs Authorization Server
 
 | Feature | Protection API (`IKeycloakProtectionClient`) | Authorization Server (`IAuthorizationServerClient`) |
 |---------|----------------------------------------------|-----------------------------------------------------|

@@ -4,16 +4,18 @@ Two client options for the Keycloak Admin REST API:
 
 | Package | Description |
 |---------|-------------|
-| `Keycloak.AuthServices.Sdk` | Hand-written typed clients — high quality, partial API coverage |
-| `Keycloak.AuthServices.Sdk.Kiota` | Kiota-generated client — full API coverage |
+| `Keycloak.AuthServices.Sdk` | Hand-written typed clients, high quality, partial API coverage |
+| `Keycloak.AuthServices.Sdk.Kiota` | Kiota-generated client, full API coverage |
 
-## Hand-Written SDK
+---
+
+### Hand-Written SDK
 
 ```bash
 dotnet add package Keycloak.AuthServices.Sdk
 ```
 
-### Registration
+#### Registration
 
 ```csharp
 builder.Services.AddKeycloakAdminHttpClient(builder.Configuration);
@@ -30,14 +32,14 @@ builder.Services
     .AddHttpMessageHandler<TimingHandler>();
 ```
 
-### Available Clients
+#### Available Clients
 
-- `IKeycloakRealmClient` — realm CRUD, export
-- `IKeycloakUserClient` — user CRUD, roles, groups, credentials, sessions
-- `IKeycloakGroupClient` — group CRUD, members
-- `IKeycloakClient` — umbrella interface combining all above
+- `IKeycloakRealmClient`: realm CRUD, export
+- `IKeycloakUserClient`: user CRUD, roles, groups, credentials, sessions
+- `IKeycloakGroupClient`: group CRUD, members
+- `IKeycloakClient`: umbrella interface combining all above
 
-### Usage
+#### Usage
 
 ```csharp
 app.MapGet("/users", async (IKeycloakUserClient client) =>
@@ -47,7 +49,7 @@ app.MapGet("/realm", async (IKeycloakRealmClient client) =>
     await client.GetRealmAsync("my-realm"));
 ```
 
-### Console App
+#### Console App
 
 ```csharp
 var services = new ServiceCollection();
@@ -65,21 +67,23 @@ var client = sp.GetRequiredService<IKeycloakClient>();
 var realm = await client.GetRealmAsync("Test");
 ```
 
-## Kiota-Generated Client
+---
+
+### Kiota-Generated Client
 
 ```bash
 dotnet add package Keycloak.AuthServices.Sdk.Kiota
 ```
 
-### Registration
+#### Registration
 
 ```csharp
 builder.Services.AddKeycloakAdminHttpClient(builder.Configuration);
 ```
 
-Registers `KeycloakAdminApiClient` — a fluent, fully-typed client generated from OpenAPI spec.
+Registers `KeycloakAdminApiClient`, a fluent, fully-typed client generated from OpenAPI spec.
 
-### Usage
+#### Usage
 
 ```csharp
 var client = sp.GetRequiredService<KeycloakAdminApiClient>();
@@ -87,7 +91,9 @@ var realm = await client.Admin.Realms["Test"].GetAsync();
 var users = await client.Admin.Realms["Test"].Users.GetAsync();
 ```
 
-## Access Token Management
+---
+
+### Access Token Management
 
 Admin API requires authentication. Use `Duende.AccessTokenManagement` for service account tokens:
 
@@ -95,13 +101,13 @@ Admin API requires authentication. Use `Duende.AccessTokenManagement` for servic
 dotnet add package Duende.AccessTokenManagement
 ```
 
-### Service Account Setup
+#### Service Account Setup
 
-1. Create client `"admin-api"` in **master** realm with Client Authentication + Service Account Roles enabled
+1. Create client `"admin-api"` in master realm with Client Authentication + Service Account Roles enabled
 2. Add Audience Mapper for `"security-admin-console"`
 3. Assign Service Account Role: `"admin"`
 
-### Configuration
+#### Configuration
 
 ```json
 {
@@ -117,7 +123,7 @@ dotnet add package Duende.AccessTokenManagement
 }
 ```
 
-### Token Management Integration
+#### Token Management Integration
 
 ```csharp
 builder.Services.AddDistributedMemoryCache();

@@ -8,7 +8,9 @@ metadata:
 ---
 # Implementing Flutter Accessibility
 
-## Contents
+---
+
+### Contents
 - [UI Design and Styling](#ui-design-and-styling)
 - [Accessibility Widgets](#accessibility-widgets)
 - [Web Accessibility](#web-accessibility)
@@ -16,36 +18,61 @@ metadata:
 - [Workflows](#workflows)
 - [Examples](#examples)
 
-## UI Design and Styling
-Design layouts to accommodate dynamic scaling and high visibility. Flutter automatically calculates font sizes based on OS-level accessibility settings.
+---
 
-*   **Font Scaling:** Ensure layouts provide sufficient room to render all contents when font sizes are increased to their maximum OS settings. Avoid hardcoding fixed heights on text containers.
-*   **Color Contrast:** Maintain a contrast ratio of at least 4.5:1 for small text and 3.0:1 for large text (18pt+ regular or 14pt+ bold) to meet W3C standards.
-*   **Tap Targets:** Enforce a minimum tap target size of 48x48 logical pixels to accommodate users with limited dexterity.
+### UI Design and Styling
+Design layouts to accommodate dynamic scaling and high visibility. Flutter automatically calculates font sizes based on
+OS-level accessibility settings.
 
-## Accessibility Widgets
-Utilize Flutter's catalog of accessibility widgets to manipulate the semantics tree exposed to assistive technologies (like TalkBack or VoiceOver).
+*   Font Scaling: Ensure layouts provide sufficient room to render all contents when font sizes are increased to their
+    maximum OS settings. Avoid hardcoding fixed heights on text containers.
+*   Color Contrast: Maintain a contrast ratio of at least 4.5:1 for small text and 3.0:1 for large text (18pt+ regular
+    or 14pt+ bold) to meet W3C standards.
+*   Tap Targets: Enforce a minimum tap target size of 48x48 logical pixels to accommodate users with limited dexterity.
 
-*   **`Semantics`**: Use this to annotate the widget tree with a description of the meaning of the widgets. Assign specific roles using the `SemanticsRole` enum (e.g., button, link, heading) when building custom components.
-*   **`MergeSemantics`**: Wrap composite widgets to merge the semantics of all descendants into a single selectable node for screen readers.
-*   **`ExcludeSemantics`**: Use this to drop the semantics of all descendants, hiding redundant or purely decorative sub-widgets from accessibility tools.
+---
 
-## Web Accessibility
+### Accessibility Widgets
+Utilize Flutter's catalog of accessibility widgets to manipulate the semantics tree exposed to assistive technologies
+(like TalkBack or VoiceOver).
+
+*   `Semantics`: Use this to annotate the widget tree with a description of the meaning of the widgets. Assign specific
+    roles using the `SemanticsRole` enum (e.g., button, link, heading) when building custom components.
+*   `MergeSemantics`: Wrap composite widgets to merge the semantics of all descendants into a single selectable node for
+    screen readers.
+*   `ExcludeSemantics`: Use this to drop the semantics of all descendants, hiding redundant or purely decorative
+    sub-widgets from accessibility tools.
+
+---
+
+### Web Accessibility
 Flutter web renders UI on a single canvas, requiring a specialized DOM layer to expose structure to browsers.
 
-*   **Enable Semantics:** Web accessibility is disabled by default for performance. Users can enable it via an invisible button (`aria-label="Enable accessibility"`). 
-*   **Programmatic Enablement:** If building a web-first application requiring default accessibility, force the semantics tree generation at startup.
-*   **Semantic Roles:** Rely on standard widgets (`TabBar`, `MenuAnchor`, `Table`) for automatic ARIA role mapping. For custom components, explicitly assign `SemanticsRole` values to ensure screen readers interpret the elements correctly.
+*   Enable Semantics (default for all web targets): Flutter web leaves the semantics tree off by default and exposes an
+    invisible button (`aria-label="Enable accessibility"`) so users can turn it on. Do not rely on that opt-in. To honor
+    accessible-by-default, force semantics generation at startup for every web target using the `ensureSemantics()`
+    pattern below. Treat the invisible-button fallback as a backstop, not the norm.
+*   Programmatic Enablement: Call `SemanticsBinding.instance.ensureSemantics()` in `main()` (guarded by `kIsWeb`) on all
+    web builds, not only web-first apps. See the example below.
+*   Semantic Roles: Rely on standard widgets (`TabBar`, `MenuAnchor`, `Table`) for automatic ARIA role mapping. For
+    custom components, explicitly assign `SemanticsRole` values to ensure screen readers interpret the elements
+    correctly.
 
-## Adaptive and Responsive Design
+---
+
+### Adaptive and Responsive Design
 Differentiate between adaptive and responsive paradigms to build universal applications.
 
-*   **Responsive Design:** Adjust the placement, sizing, and reflowing of design elements to fit the available screen space.
-*   **Adaptive Design:** Select appropriate layouts (e.g., bottom navigation vs. side panel) and input mechanisms (e.g., touch vs. mouse/keyboard) to make the UI usable within the current device context. Design to the strengths of each form factor.
+*   Responsive Design: Adjust the placement, sizing, and reflowing of design elements to fit the available screen space.
+*   Adaptive Design: Select appropriate layouts (e.g., bottom navigation vs. side panel) and input mechanisms (e.g.,
+    touch vs. mouse/keyboard) to make the UI usable within the current device context. Design to the strengths of each
+    form factor.
 
-## Workflows
+---
 
-### Task Progress: Accessibility Implementation
+### Workflows
+
+#### Task Progress: Accessibility Implementation
 Copy this checklist to track accessibility compliance during UI development:
 
 - [ ] Verify all interactive elements have a minimum tap target of 48x48 pixels.
@@ -54,18 +81,22 @@ Copy this checklist to track accessibility compliance during UI development:
 - [ ] Wrap custom interactive widgets in `Semantics` and assign the appropriate `SemanticsRole`.
 - [ ] Group complex composite widgets using `MergeSemantics` to prevent screen reader fatigue.
 - [ ] Hide decorative elements from screen readers using `ExcludeSemantics`.
-- [ ] If targeting web, verify ARIA roles are correctly mapped and consider programmatic enablement of the semantics tree.
+- [ ] If targeting web, verify ARIA roles are correctly mapped and enable the semantics tree programmatically via
+  `ensureSemantics()` (the default for all web targets, not just web-first apps).
 
-### Feedback Loop: Accessibility Validation
+#### Feedback Loop: Accessibility Validation
 Run this loop when finalizing a view or component:
-1. **Run validator:** Execute accessibility tests or use OS-level screen readers (VoiceOver/TalkBack) to navigate the view.
-2. **Review errors:** Identify unannounced interactive elements, trapped focus, or clipped text.
-3. **Fix:** Apply `Semantics`, adjust constraints, or modify colors. Repeat until the screen reader provides a clear, logical traversal of the UI.
+1. Run validator: Execute accessibility tests or use OS-level screen readers (VoiceOver/TalkBack) to navigate the view.
+2. Review errors: Identify unannounced interactive elements, trapped focus, or clipped text.
+3. Fix: Apply `Semantics`, adjust constraints, or modify colors. Repeat until the screen reader provides a clear,
+   logical traversal of the UI.
 
-## Examples
+---
 
-### Programmatic Web Accessibility Enablement
-If targeting web and requiring accessibility by default, initialize the semantics binding before running the app.
+### Examples
+
+#### Programmatic Web Accessibility Enablement
+On every web target, initialize the semantics binding before running the app so accessibility is on by default.
 
 ```dart
 import 'package:flutter/material.dart';
@@ -80,8 +111,13 @@ void main() {
 }
 ```
 
-### Custom Component Semantics
-If building a custom widget that acts as a list item, explicitly define its semantic role so assistive technologies and web ARIA mappings interpret it correctly.
+#### Custom Component Semantics
+If building a custom widget that acts as a list item, explicitly define its semantic role so assistive technologies and
+web ARIA mappings interpret it correctly.
+
+Semantic labels are user-facing strings: source them from localized strings via `AppLocalizations`, never hardcoded
+literals. Pass the already-localized value into the widget (as `text` is here), so the `Semantics(label: ...)` reads
+from the translation rather than a literal.
 
 ```dart
 import 'package:flutter/material.dart';

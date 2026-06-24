@@ -1,14 +1,16 @@
 # User Federation
 
-## LDAP / Active Directory
+---
 
-### Setup
+### LDAP / Active Directory
+
+#### Setup
 
 1. User Federation → Add Provider → LDAP
 2. Edit mode: `READ_ONLY`, `WRITABLE`, or `UNSYNCED`
 3. Vendor: Active Directory, Red Hat Directory Server, or Other
 
-### Connection
+#### Connection
 
 | Setting | Example |
 |---------|---------|
@@ -17,7 +19,7 @@
 | Bind credential | LDAP admin password |
 | Enable StartTLS | For secure connection on port 389 |
 
-### Search Settings
+#### Search Settings
 
 | Setting | Generic LDAP | Active Directory |
 |---------|-------------|-----------------|
@@ -26,14 +28,14 @@
 | UUID attribute | `entryUUID` | `objectGUID` |
 | User object classes | `inetOrgPerson` | `person, organizationalPerson, user` |
 
-### Sync
+#### Sync
 
-- **Full sync**: scheduled periodic synchronization of all users
-- **Changed users sync**: incremental sync of modified users
-- **Import on login**: fetch user from LDAP on first authentication
-- **Sync registrations**: allow Keycloak-created users to write back to LDAP
+- Full sync: scheduled periodic synchronization of all users
+- Changed users sync: incremental sync of modified users
+- Import on login: fetch user from LDAP on first authentication
+- Sync registrations: allow Keycloak-created users to write back to LDAP
 
-### LDAP Mappers
+#### LDAP Mappers
 
 | Mapper | Purpose |
 |--------|---------|
@@ -42,7 +44,9 @@
 | Group | Import LDAP groups into Keycloak |
 | Role | Map LDAP groups to Keycloak roles |
 
-## Custom User Storage (SPI)
+---
+
+### Custom User Storage (SPI)
 
 For integrating with custom user databases or APIs:
 
@@ -52,10 +56,12 @@ For integrating with custom user databases or APIs:
 
 Use cases: legacy databases, external user APIs, custom authentication logic.
 
-## Best Practices
+---
+
+### Best Practices
 
 - Use `READ_ONLY` mode unless password writeback is required
-- Always use LDAPS or StartTLS — never plain LDAP in production
+- Always use LDAPS or StartTLS: never plain LDAP in production
 - Map only required attributes to minimize sync overhead
 - Test connection before enabling in production
 - Monitor sync errors in server logs

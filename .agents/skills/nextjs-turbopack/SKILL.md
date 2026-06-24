@@ -1,44 +1,72 @@
 ---
 name: nextjs-turbopack
-description: Next.js 16+ and Turbopack — incremental bundling, FS caching, dev speed, and when to use Turbopack vs webpack.
+description: Next.js 16+ and Turbopack: incremental bundling, FS caching, dev speed, and when to use Turbopack vs webpack.
 origin: ECC
 ---
 
-# Next.js ve Turbopack
+# Next.js and Turbopack
 
-Next.js 16+ yerel geliştirme için varsayılan olarak Turbopack kullanır: geliştirme başlatma ve hot update'leri önemli ölçüde hızlandıran Rust ile yazılmış artımlı bir bundler.
+Next.js 16+ uses Turbopack by default for local development: an incremental bundler written in Rust that significantly
+speeds up dev startup and hot updates.
 
-## Ne Zaman Kullanılır
+---
 
-- **Turbopack (varsayılan dev)**: Günlük geliştirme için kullanın. Özellikle büyük uygulamalarda daha hızlı soğuk başlatma ve HMR.
-- **Webpack (legacy dev)**: Sadece bir Turbopack bug'ına denk gelirseniz veya dev'de webpack'e özgü bir plugin'e güveniyorsanız kullanın. `--webpack` ile devre dışı bırakın (veya Next.js sürümünüze bağlı olarak `--no-turbopack`; sürümünüz için dokümanlara bakın).
-- **Production**: Production build davranışı (`next build`) Next.js sürümüne bağlı olarak Turbopack veya webpack kullanabilir; sürümünüz için resmi Next.js dokümantasyonunu kontrol edin.
+### When to use
 
-Şu durumlarda kullanın: Next.js 16+ uygulamalarını geliştirme veya debug etme, yavaş dev başlatma veya HMR'yi teşhis etme veya production bundle'larını optimize etme.
+- Turbopack (default dev): Use for day-to-day development. Faster cold starts and HMR, especially in large applications.
+- Webpack (legacy dev): Use only if you hit a Turbopack bug or rely on a webpack-specific plugin in dev. Disable it with
+  `--webpack` (or `--no-turbopack` depending on your Next.js version; check the docs for your version).
+- Production: Production build behavior (`next build`) may use Turbopack or webpack depending on the Next.js version;
+  check the official Next.js documentation for your version.
 
-## Nasıl Çalışır
+Use this when developing or debugging Next.js 16+ applications, diagnosing slow dev startup or HMR, or optimizing
+production bundles.
 
-- **Turbopack**: Next.js dev için artımlı bundler. Dosya sistemi önbelleği kullanır, böylece yeniden başlatmalar çok daha hızlıdır (örn. büyük projelerde 5-14x).
-- **Dev'de varsayılan**: Next.js 16'dan itibaren, `next dev` devre dışı bırakılmadıkça Turbopack ile çalışır.
-- **Dosya sistemi önbelleği**: Yeniden başlatmalar önceki çalışmayı yeniden kullanır; önbellek genellikle `.next` altındadır; temel kullanım için ekstra yapılandırma gerekmez.
-- **Bundle Analyzer (Next.js 16.1+)**: Çıktıyı incelemek ve ağır bağımlılıkları bulmak için deneysel Bundle Analyzer; config veya deneysel bayrak ile etkinleştirin (sürümünüz için Next.js dokümantasyonuna bakın).
+---
 
-## Örnekler
+### How it works
 
-### Komutlar
+- Turbopack: The incremental bundler for Next.js dev. It uses a file system cache, so restarts are much faster (for
+  example, 5-14x in large projects).
+- Default in dev: From Next.js 16 onward, `next dev` runs with Turbopack unless it is disabled.
+- File system cache: Restarts reuse previous work; the cache is usually under `.next`, and no extra configuration is
+  needed for basic use.
+- Bundle Analyzer (Next.js 16.1+): An experimental Bundle Analyzer for inspecting the output and finding heavy
+  dependencies; enable it via config or an experimental flag (see the Next.js documentation for your version).
+
+---
+
+### Examples
+
+#### Commands
+
+To run local development with Turbopack:
 
 ```bash
 next dev
+```
+
+To create a production build:
+
+```bash
 next build
+```
+
+To start the production server after building:
+
+```bash
 next start
 ```
 
-### Kullanım
+#### Usage
 
-Turbopack ile yerel geliştirme için `next dev` çalıştırın. Code-splitting'i optimize etmek ve büyük bağımlılıkları kırpmak için Bundle Analyzer'ı kullanın (Next.js dokümantasyonuna bakın). Mümkün olduğunda App Router ve server component'leri tercih edin.
+Run `next dev` for local development with Turbopack. Use the Bundle Analyzer to optimize code-splitting and trim large
+dependencies (see the Next.js documentation). Prefer the App Router and server components where possible.
 
-## En İyi Uygulamalar
+---
 
-- Kararlı Turbopack ve önbellekleme davranışı için güncel bir Next.js 16.x sürümünde kalın.
-- Dev yavaşsa, Turbopack'te (varsayılan) olduğunuzdan ve önbelleğin gereksiz yere temizlenmediğinden emin olun.
-- Production bundle boyutu sorunları için, sürümünüz için resmi Next.js bundle analiz araçlarını kullanın.
+### Best practices
+
+- Stay on a current Next.js 16.x version for stable Turbopack and caching behavior.
+- If dev is slow, make sure you are on Turbopack (the default) and that the cache is not being cleared unnecessarily.
+- For production bundle size issues, use the official Next.js bundle analysis tools for your version.

@@ -5,15 +5,19 @@ impactDescription: "Prevents invalid data at database level, catches bugs before
 tags: schema, validation, json-schema, data-integrity, fundamentals
 ---
 
-## Use Schema Validation
+### Use Schema Validation
 
-**Enforce document structure with MongoDB's built-in JSON Schema validation.** Catch invalid data before it corrupts your database, not after you've shipped 10,000 malformed documents to production. Schema validation is your last line of defense when application bugs slip through.
+Enforce document structure with MongoDB's built-in JSON Schema validation. Catch invalid data before it corrupts your
+database, not after you've shipped 10,000 malformed documents to production. Schema validation is your last line of
+defense when application bugs slip through.
 
-**Incorrect (no validation):**
+Incorrect (no validation):
 
-Without validation, any document shape is accepted: an `email` field can contain a non-email string, an `age` field can hold a string instead of a number, and required fields like `email` can be omitted entirely. These invalid documents are discovered only when downstream consumers crash or return wrong data — often months later.
+Without validation, any document shape is accepted: an `email` field can contain a non-email string, an `age` field can
+hold a string instead of a number, and required fields like `email` can be omitted entirely. These invalid documents are
+discovered only when downstream consumers crash or return wrong data, often months later.
 
-**Correct (schema validation):**
+Correct (schema validation):
 
 ```javascript
 // Create collection with validation rules
@@ -70,7 +74,7 @@ db.users.insertOne({ email: "not-an-email" })
 // "email" does not match pattern, "name" is required
 ```
 
-**Validation levels and actions:**
+Validation levels and actions:
 
 | validationLevel | Behavior |
 |-----------------|----------|
@@ -82,7 +86,7 @@ db.users.insertOne({ email: "not-an-email" })
 | `error` | Reject invalid documents (default, recommended) |
 | `warn` | Allow but log warning (use during migration only) |
 
-**Add validation to existing collection:**
+Add validation to existing collection:
 
 ```javascript
 // Start with moderate + warn to discover violations
@@ -106,13 +110,15 @@ db.runCommand({
 })
 ```
 
-**When NOT to use this pattern:**
+When NOT to use this pattern:
 
-- **Rapid prototyping**: Skip validation during early development, add before production.
-- **Schema-per-document designs**: Some collections intentionally store varied document shapes.
-- **Log/event collections**: High-write collections where validation overhead matters.
+- Rapid prototyping: Skip validation during early development, add before production.
+- Schema-per-document designs: Some collections intentionally store varied document shapes.
+- Log/event collections: High-write collections where validation overhead matters.
 
-## Verify with
+---
+
+### Verify with
 
 ```javascript
 // Read current validator and validation settings

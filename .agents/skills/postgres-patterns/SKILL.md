@@ -8,7 +8,9 @@ origin: ECC
 
 Quick reference for PostgreSQL best practices. For detailed guidance, use the `database-reviewer` agent.
 
-## When to Activate
+---
+
+### When to Activate
 
 - Writing SQL queries or migrations
 - Designing database schemas
@@ -16,9 +18,11 @@ Quick reference for PostgreSQL best practices. For detailed guidance, use the `d
 - Implementing Row Level Security
 - Setting up connection pooling
 
-## Quick Reference
+---
 
-### Index Cheat Sheet
+### Quick Reference
+
+#### Index Cheat Sheet
 
 | Query Pattern | Index Type | Example |
 |--------------|------------|---------|
@@ -29,7 +33,7 @@ Quick reference for PostgreSQL best practices. For detailed guidance, use the `d
 | `WHERE tsv @@ query` | GIN | `CREATE INDEX idx ON t USING gin (col)` |
 | Time-series ranges | BRIN | `CREATE INDEX idx ON t USING brin (col)` |
 
-### Data Type Quick Reference
+#### Data Type Quick Reference
 
 | Use Case | Correct Type | Avoid |
 |----------|-------------|-------|
@@ -39,34 +43,34 @@ Quick reference for PostgreSQL best practices. For detailed guidance, use the `d
 | Money | `numeric(10,2)` | `float` |
 | Flags | `boolean` | `varchar`, `int` |
 
-### Common Patterns
+#### Common Patterns
 
-**Composite Index Order:**
+Composite Index Order:
 ```sql
 -- Equality columns first, then range columns
 CREATE INDEX idx ON orders (status, created_at);
 -- Works for: WHERE status = 'pending' AND created_at > '2024-01-01'
 ```
 
-**Covering Index:**
+Covering Index:
 ```sql
 CREATE INDEX idx ON users (email) INCLUDE (name, created_at);
 -- Avoids table lookup for SELECT email, name, created_at
 ```
 
-**Partial Index:**
+Partial Index:
 ```sql
 CREATE INDEX idx ON users (email) WHERE deleted_at IS NULL;
 -- Smaller index, only includes active users
 ```
 
-**RLS Policy (Optimized):**
+RLS Policy (Optimized):
 ```sql
 CREATE POLICY policy ON orders
   USING ((SELECT auth.uid()) = user_id);  -- Wrap in SELECT!
 ```
 
-**UPSERT:**
+UPSERT:
 ```sql
 INSERT INTO settings (user_id, key, value)
 VALUES (123, 'theme', 'dark')
@@ -74,13 +78,13 @@ ON CONFLICT (user_id, key)
 DO UPDATE SET value = EXCLUDED.value;
 ```
 
-**Cursor Pagination:**
+Cursor Pagination:
 ```sql
 SELECT * FROM products WHERE id > $last_id ORDER BY id LIMIT 20;
 -- O(1) vs OFFSET which is O(n)
 ```
 
-**Queue Processing:**
+Queue Processing:
 ```sql
 UPDATE jobs SET status = 'processing'
 WHERE id = (
@@ -90,7 +94,7 @@ WHERE id = (
 ) RETURNING *;
 ```
 
-### Anti-Pattern Detection
+#### Anti-Pattern Detection
 
 ```sql
 -- Find unindexed foreign keys
@@ -116,7 +120,7 @@ WHERE n_dead_tup > 1000
 ORDER BY n_dead_tup DESC;
 ```
 
-### Configuration Template
+#### Configuration Template
 
 ```sql
 -- Connection limits (adjust for RAM)
@@ -136,7 +140,9 @@ REVOKE ALL ON SCHEMA public FROM public;
 SELECT pg_reload_conf();
 ```
 
-## Related
+---
+
+### Related
 
 - Agent: `database-reviewer` - Full database review workflow
 - Skill: `clickhouse-io` - ClickHouse analytics patterns
@@ -144,18 +150,20 @@ SELECT pg_reload_conf();
 
 ---
 
-*Based on Supabase Agent Skills (credit: Supabase team) (MIT License)*
+Based on Supabase Agent Skills (credit: Supabase team) (MIT License)
 
 ---
 
-## Read Replica Routing
+### Read Replica Routing
 
 Route queries based on consistency requirements:
-- **Writes** → primary only
-- **Reads** → replica (acceptable eventual consistency)
-- **Post-write reads within the same request** → primary (to avoid read-your-own-writes issues)
+- Writes → primary only
+- Reads → replica (acceptable eventual consistency)
+- Post-write reads within the same request → primary (to avoid read-your-own-writes issues)
 
-## Monitoring Alert Thresholds
+---
+
+### Monitoring Alert Thresholds
 
 Configure alerts for:
 | Metric | Alert threshold |
@@ -167,22 +175,29 @@ Configure alerts for:
 
 Use `pg_stat_statements` for slow query analysis.
 
-## EXPLAIN ANALYZE Rule
+---
 
-Before merging any query that touches more than **10,000 rows**, run `EXPLAIN ANALYZE` and include the output in the PR description.
+### EXPLAIN ANALYZE Rule
 
-## Backup Requirements
+Before merging any query that touches more than 10,000 rows, run `EXPLAIN ANALYZE` and include the output in the PR
+description.
+
+---
+
+### Backup Requirements
 
 - Daily full backup + hourly WAL archiving
-- Backups stored in a **separate cloud account** (not the application account)
+- Backups stored in a separate cloud account (not the application account)
 - AES-256 encryption at rest
-- **Quarterly restore drills** — verify RTO and RPO targets
+- Quarterly restore drills: verify RTO and RPO targets
 - Document RTO (Recovery Time Objective) and RPO (Recovery Point Objective) in the runbook
 
-## GDPR — Right to Erasure
+---
 
-Implement within **30 days** of erasure request. Options:
-1. **Soft-delete + background purge**: set `deleted_at`, purge after 30-day window
-2. **Pseudonymization**: replace PII with a non-reversible hash in-place
+### GDPR, Right to Erasure
+
+Implement within 30 days of erasure request. Options:
+1. Soft-delete + background purge: set `deleted_at`, purge after 30-day window
+2. Pseudonymization: replace PII with a non-reversible hash in-place
 
 Never hard-delete without first checking cascade requirements and audit log retention.

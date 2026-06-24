@@ -5,15 +5,19 @@ impactDescription: "Aligns schema to aggregate access patterns and minimizes avo
 tags: schema, document-model, fundamentals, sql-migration
 ---
 
-## Embrace the Document Model
+### Embrace the Document Model
 
-**Don't recreate SQL tables one-to-one in MongoDB.** The document model is designed to store related data together when it is read and updated together. Naively copying relational boundaries often increases application-side joins and coordination logic.
+Don't recreate SQL tables one-to-one in MongoDB. The document model is designed to store related data together when it
+is read and updated together. Naively copying relational boundaries often increases application-side joins and
+coordination logic.
 
-**Incorrect (SQL patterns in MongoDB):**
+Incorrect (SQL patterns in MongoDB):
 
-Mirroring a relational schema 1:1 — e.g. separate `customers`, `addresses`, `phones`, and `preferences` collections linked by `customerId` — requires four queries and four index lookups to load one customer profile, plus application-side joining. Updates may require cross-collection coordination or transactions.
+Mirroring a relational schema 1:1, e.g. separate `customers`, `addresses`, `phones`, and `preferences` collections
+linked by `customerId`, requires four queries and four index lookups to load one customer profile, plus application-side
+joining. Updates may require cross-collection coordination or transactions.
 
-**Correct (rich document model):**
+Correct (rich document model):
 
 ```javascript
 // Customer document contains everything about the customer
@@ -48,7 +52,7 @@ db.customers.updateOne(
 )
 ```
 
-**Common tradeoffs:**
+Common tradeoffs:
 
 | Aspect | SQL-style mapping in MongoDB | Document-first mapping |
 |--------|----------------------------|------------------------|
@@ -57,20 +61,22 @@ db.customers.updateOne(
 | Schema evolution | More migration/coordination between collections | Often localized changes per document shape |
 | Application logic | More join/merge logic in app | Simpler read model for common operations |
 
-**When migrating from SQL:**
+When migrating from SQL:
 
 1. Don't convert tables 1:1 to collections
 2. Identify which tables are always joined together
 3. Denormalize those joins into single documents
 4. Keep separate only what's accessed separately
 
-**When NOT to use this pattern:**
+When NOT to use this pattern:
 
-- **Genuinely independent data**: If addresses are shared across users or accessed independently, keep them separate.
-- **Unbounded relationships**: User with 10,000 orders should NOT embed all orders.
-- **Regulatory requirements**: Some compliance rules require normalized audit trails.
+- Genuinely independent data: If addresses are shared across users or accessed independently, keep them separate.
+- Unbounded relationships: User with 10,000 orders should NOT embed all orders.
+- Regulatory requirements: Some compliance rules require normalized audit trails.
 
-## Verify with
+---
+
+### Verify with
 
 ```javascript
 // Count your collections vs expected entities

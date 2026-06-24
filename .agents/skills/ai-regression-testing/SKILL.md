@@ -6,25 +6,34 @@ origin: ECC
 
 # AI Regression Testing
 
-Testing patterns specifically designed for AI-assisted development, where the same model writes code and reviews it — creating systematic blind spots that only automated tests can catch.
+Testing patterns specifically designed for AI-assisted development, where the same model writes code and reviews it,
+creating systematic blind spots that only automated tests can catch.
 
-## When to Activate
+Follow the `coding-standards` hub for baseline conventions and `tdd-workflow` for the core testing discipline; this
+skill adds the AI-specific regression patterns on top.
+
+---
+
+### When to Activate
 
 - AI agent (Claude Code, Cursor, Codex) has modified API routes or backend logic
-- A bug was found and fixed — need to prevent re-introduction
+- A bug was found and fixed: need to prevent re-introduction
 - Project has a sandbox/mock mode that can be leveraged for DB-free testing
 - Running `/bug-check` or similar review commands after code changes
 - Multiple code paths exist (sandbox vs production, feature flags, etc.)
 
-## The Core Problem
+---
 
-When an AI writes code and then reviews its own work, it carries the same assumptions into both steps. This creates a predictable failure pattern:
+### The Core Problem
+
+When an AI writes code and then reviews its own work, it carries the same assumptions into both steps. This creates a
+predictable failure pattern:
 
 ```
 AI writes fix → AI reviews fix → AI says "looks correct" → Bug still exists
 ```
 
-**Real-world example** (observed in production):
+Real-world example (observed in production):
 
 ```
 Fix 1: Added notification_settings to API response
@@ -42,13 +51,15 @@ Fix 3: Changed to SELECT *
 Fix 4: Test caught it instantly on first run PASS:
 ```
 
-The pattern: **sandbox/production path inconsistency** is the #1 AI-introduced regression.
+The pattern: sandbox/production path inconsistency is the #1 AI-introduced regression.
 
-## Sandbox-Mode API Testing
+---
+
+### Sandbox-Mode API Testing
 
 Most projects with AI-friendly architecture have a sandbox/mock mode. This is the key to fast, DB-free API testing.
 
-### Setup (Vitest + Next.js App Router)
+#### Setup (Vitest + Next.js App Router)
 
 ```typescript
 // vitest.config.ts
@@ -78,7 +89,7 @@ process.env.NEXT_PUBLIC_SUPABASE_URL = "";
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "";
 ```
 
-### Test Helper for Next.js API Routes
+#### Test Helper for Next.js API Routes
 
 ```typescript
 // __tests__/helpers.ts
@@ -120,9 +131,9 @@ export async function parseResponse(response: Response) {
 }
 ```
 
-### Writing Regression Tests
+#### Writing Regression Tests
 
-The key principle: **write tests for bugs that were found, not for code that works**.
+The key principle: write tests for bugs that were found, not for code that works.
 
 ```typescript
 // __tests__/api/user/profile.test.ts
@@ -167,7 +178,7 @@ describe("GET /api/user/profile", () => {
 });
 ```
 
-### Testing Sandbox/Production Parity
+#### Testing Sandbox/Production Parity
 
 The most common AI regression: fixing production path but forgetting sandbox path (or vice versa).
 
@@ -192,9 +203,11 @@ describe("GET /api/user/messages (conversation list)", () => {
 });
 ```
 
-## Integrating Tests into Bug-Check Workflow
+---
 
-### Custom Command Definition
+### Integrating Tests into Bug-Check Workflow
+
+#### Custom Command Definition
 
 ```markdown
 <!-- .claude/commands/bug-check.md -->
@@ -222,7 +235,7 @@ Run these commands FIRST before any code review:
 ## Step 3: For each bug fixed, propose a regression test
 ```
 
-### The Workflow
+#### The Workflow
 
 ```
 User: "バグチェックして" (or "/bug-check")
@@ -242,11 +255,13 @@ User: "バグチェックして" (or "/bug-check")
       └─ Next bug-check catches if fix breaks
 ```
 
-## Common AI Regression Patterns
+---
 
-### Pattern 1: Sandbox/Production Path Mismatch
+### Common AI Regression Patterns
 
-**Frequency**: Most common (observed in 3 out of 4 regressions)
+#### Pattern 1: Sandbox/Production Path Mismatch
+
+Frequency: Most common (observed in 3 out of 4 regressions)
 
 ```typescript
 // FAIL: AI adds field to production path only
@@ -263,7 +278,7 @@ if (isSandboxMode()) {
 return { data: { id, email, name, notification_settings } };
 ```
 
-**Test to catch it**:
+Test to catch it:
 
 ```typescript
 it("sandbox and production return same fields", async () => {
@@ -277,9 +292,9 @@ it("sandbox and production return same fields", async () => {
 });
 ```
 
-### Pattern 2: SELECT Clause Omission
+#### Pattern 2: SELECT Clause Omission
 
-**Frequency**: Common with Supabase/Prisma when adding new columns
+Frequency: Common with Supabase/Prisma when adding new columns
 
 ```typescript
 // FAIL: New column added to response but not to SELECT
@@ -291,16 +306,16 @@ const { data } = await supabase
 return { data: { ...data, notification_settings: data.notification_settings } };
 // → notification_settings is always undefined
 
-// PASS: Use SELECT * or explicitly include new columns
+// PASS: Explicitly list the needed columns, including the new one
 const { data } = await supabase
   .from("users")
-  .select("*")
+  .select("id, email, name, notification_settings")
   .single();
 ```
 
-### Pattern 3: Error State Leakage
+#### Pattern 3: Error State Leakage
 
-**Frequency**: Moderate — when adding error handling to existing components
+Frequency: Moderate, when adding error handling to existing components
 
 ```typescript
 // FAIL: Error state set but old data not cleared
@@ -309,14 +324,15 @@ catch (err) {
   // reservations still shows data from previous tab!
 }
 
-// PASS: Clear related state on error
+// PASS: Log the error, then clear related state
 catch (err) {
+  console.error("Failed to load reservations", err);  // Preserve cause
   setReservations([]);  // Clear stale data
   setError("Failed to load");
 }
 ```
 
-### Pattern 4: Optimistic Update Without Proper Rollback
+#### Pattern 4: Optimistic Update Without Proper Rollback
 
 ```typescript
 // FAIL: No rollback on failure
@@ -333,14 +349,17 @@ const handleRemove = async (id: string) => {
   try {
     const res = await fetch(`/api/items/${id}`, { method: "DELETE" });
     if (!res.ok) throw new Error("API error");
-  } catch {
+  } catch (err) {
+    console.error("Failed to remove item, rolling back", err);  // Preserve cause
     setItems(prevItems);  // Rollback
-    alert("削除に失敗しました");
+    alert("Failed to delete item");
   }
 };
 ```
 
-## Strategy: Test Where Bugs Were Found
+---
+
+### Strategy: Test Where Bugs Were Found
 
 Don't aim for 100% coverage. Instead:
 
@@ -351,14 +370,16 @@ Bug found in /api/user/favorites   → Write test for favorites API
 No bug in /api/user/notifications  → Don't write test (yet)
 ```
 
-**Why this works with AI development:**
+Why this works with AI development:
 
-1. AI tends to make the **same category of mistake** repeatedly
+1. AI tends to make the same category of mistake repeatedly
 2. Bugs cluster in complex areas (auth, multi-path logic, state management)
-3. Once tested, that exact regression **cannot happen again**
-4. Test count grows organically with bug fixes — no wasted effort
+3. Once tested, that exact regression cannot happen again
+4. Test count grows organically with bug fixes: no wasted effort
 
-## Quick Reference
+---
+
+### Quick Reference
 
 | AI Regression Pattern | Test Strategy | Priority |
 |---|---|---|
@@ -368,18 +389,20 @@ No bug in /api/user/notifications  → Don't write test (yet)
 | Missing rollback | Assert state restored on API failure |  Medium |
 | Type cast masking null | Assert field is not undefined |  Medium |
 
-## DO / DON'T
+---
 
-**DO:**
+### DO / DON'T
+
+DO:
 - Write tests immediately after finding a bug (before fixing it if possible)
 - Test the API response shape, not the implementation
 - Run tests as the first step of every bug-check
 - Keep tests fast (< 1 second total with sandbox mode)
 - Name tests after the bug they prevent (e.g., "BUG-R1 regression")
 
-**DON'T:**
+DON'T:
 - Write tests for code that has never had a bug
 - Trust AI self-review as a substitute for automated tests
 - Skip sandbox path testing because "it's just mock data"
 - Write integration tests when unit tests suffice
-- Aim for coverage percentage — aim for regression prevention
+- Aim for coverage percentage: aim for regression prevention

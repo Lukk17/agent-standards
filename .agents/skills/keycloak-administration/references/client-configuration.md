@@ -1,8 +1,10 @@
 # Client Configuration
 
-## Client Types
+---
 
-### OIDC Clients (Recommended)
+### Client Types
+
+#### OIDC Clients (Recommended)
 
 | Flow | Use Case |
 |------|----------|
@@ -11,44 +13,48 @@
 | Client Credentials | Machine-to-machine, service accounts |
 | Device Authorization | Limited-input devices (TVs, CLIs) |
 
-**Avoid**: Implicit flow (deprecated), Direct Access Grants (resource owner password — use sparingly).
+Avoid: Implicit flow (deprecated), Direct Access Grants (resource owner password, use sparingly).
 
-### SAML Clients
+#### SAML Clients
 
 For legacy enterprise apps requiring SAML 2.0. Supports SSO and Single Logout (SLO).
 
-## Creating an OIDC Client
+---
+
+### Creating an OIDC Client
 
 1. Clients → Create Client
 2. Client type: OpenID Connect
 3. Client ID: unique identifier (e.g., `my-web-app`)
 
-### Key Settings
+#### Key Settings
 
 | Setting | Confidential (Server) | Public (SPA/Mobile) |
 |---------|----------------------|---------------------|
 | Client Authentication | On | Off |
 | Standard flow | Enabled | Enabled |
 | Service accounts | Optional | N/A |
-| PKCE | Optional | **Required** |
+| PKCE | Optional | Required |
 
-### URLs
+#### URLs
 
-- **Root URL**: Base app URL
-- **Valid Redirect URIs**: Exact callback URLs (e.g., `https://app.example.com/callback`)
-- **Valid Post Logout Redirect URIs**: Where to go after logout
-- **Web Origins**: CORS allowed origins
+- Root URL: Base app URL
+- Valid Redirect URIs: Exact callback URLs (e.g., `https://app.example.com/callback`)
+- Valid Post Logout Redirect URIs: Where to go after logout
+- Web Origins: CORS allowed origins
 
-**Important**: Never use wildcards (`*`) in redirect URIs in production.
+Important: Never use wildcards (`*`) in redirect URIs in production.
 
-### Advanced Settings
+#### Advanced Settings
 
 - Access token lifespan override
 - Proof Key for Code Exchange (PKCE): S256 method
 - Consent required: prompt user to approve scopes
 - Full scope allowed: inherit all realm role mappings (disable for least privilege)
 
-## Service Account Clients
+---
+
+### Service Account Clients
 
 For machine-to-machine (no user interaction):
 
@@ -58,11 +64,13 @@ For machine-to-machine (no user interaction):
 4. Assign roles in Service Account Roles tab
 5. Authenticate with `client_credentials` grant
 
-## Client Scopes
+---
+
+### Client Scopes
 
 Control what claims appear in tokens.
 
-### Built-in Scopes
+#### Built-in Scopes
 
 | Scope | Claims |
 |-------|--------|
@@ -72,13 +80,15 @@ Control what claims appear in tokens.
 | `roles` | `realm_access`, `resource_access` |
 | `web-origins` | Allowed CORS origins |
 
-### Custom Scopes
+#### Custom Scopes
 
 1. Client Scopes → Create
 2. Add protocol mappers for custom claims
 3. Assign to clients as Default (always included) or Optional (requested via `scope` param)
 
-## Protocol Mappers
+---
+
+### Protocol Mappers
 
 Transform user/client data into token claims.
 
@@ -92,14 +102,16 @@ Transform user/client data into token claims.
 | Hardcoded Claim | Static value in token |
 | Script | Custom JavaScript logic |
 
-### Common Mapper Config
+#### Common Mapper Config
 
-- **Token Claim Name**: JSON path in token (e.g., `realm_access.roles`)
-- **Add to ID token**: Include in identity token
-- **Add to access token**: Include in access token
-- **Add to userinfo**: Include in userinfo endpoint response
+- Token Claim Name: JSON path in token (e.g., `realm_access.roles`)
+- Add to ID token: Include in identity token
+- Add to access token: Include in access token
+- Add to userinfo: Include in userinfo endpoint response
 
-## Client Authentication Methods
+---
+
+### Client Authentication Methods
 
 | Method | Description |
 |--------|-------------|
@@ -107,7 +119,9 @@ Transform user/client data into token claims.
 | Signed JWT | Client authenticates with signed JWT (`private_key_jwt`) |
 | X509 Certificate | Mutual TLS client authentication |
 
-## Discovery Endpoint
+---
+
+### Discovery Endpoint
 
 All client configuration details available at:
 

@@ -2,7 +2,9 @@
 
 This guide covers query patterns and optimization techniques for MongoDB Atlas Search.
 
-## Table of Contents
+---
+
+### Table of Contents
 
 - [$search vs $searchMeta](#search-vs-searchmeta)
 - [Query Patterns](#query-patterns)
@@ -11,22 +13,24 @@ This guide covers query patterns and optimization techniques for MongoDB Atlas S
 
 ---
 
-## $search vs $searchMeta
+### $search vs $searchMeta
 
-Both stages must be the **first stage** in an aggregation pipeline.
+Both stages must be the first stage in an aggregation pipeline.
 
 | Stage | Use When |
 |---|---|
 | `$search` | You need matching documents, with or without metadata |
-| `$searchMeta` | You only need metadata (count, facets) — no documents returned |
+| `$searchMeta` | You only need metadata (count, facets), no documents returned |
 
-`$searchMeta` shares the following fields with `$search`: `index`, all operator names (e.g. `text`, `range`, `compound`), `concurrent` (parallelizes search across segments on dedicated search nodes only — ignored otherwise), and `returnStoredSource`.
+`$searchMeta` shares the following fields with `$search`: `index`, all operator names (e.g. `text`, `range`,
+`compound`), `concurrent` (parallelizes search across segments on dedicated search nodes only, ignored otherwise), and
+`returnStoredSource`.
 
 ---
 
-## Query Patterns
+### Query Patterns
 
-### Operator Reference
+#### Operator Reference
 
 | Operator | Description |
 |---|---|
@@ -52,9 +56,10 @@ Both stages must be the **first stage** in an aggregation pipeline.
 
 ---
 
-### Count Results
+#### Count Results
 
-Use the `count` option in `$searchMeta` to count matching documents without fetching them. Also works in `$search` via the `$SEARCH_META` aggregation variable when you need both results and count.
+Use the `count` option in `$searchMeta` to count matching documents without fetching them. Also works in `$search` via
+the `$SEARCH_META` aggregation variable when you need both results and count.
 
 ```javascript
 // Count only (recommended)
@@ -88,15 +93,15 @@ db.movies.aggregate([
 | `lowerBound` | Approximate. Exact up to `threshold` (default 1000), rough above it. |
 | `total` | Exact count. Slower on large result sets. |
 
-**Note:** Count affects performance — use only when needed (e.g., first page of paginated results).
+Note: Count affects performance, use only when needed (e.g., first page of paginated results).
 
 ---
 
-### Pagination with searchSequenceToken
+#### Pagination with searchSequenceToken
 
 Cursor-based pagination using tokens. More efficient than `$skip` alone for deep pagination.
 
-**Step 1 — Get tokens from the initial query:**
+Step 1, Get tokens from the initial query:
 ```javascript
 db.movies.aggregate([
   {
@@ -116,7 +121,7 @@ db.movies.aggregate([
 ])
 ```
 
-**Step 2 — Next page using searchAfter:**
+Step 2, Next page using searchAfter:
 ```javascript
 db.movies.aggregate([
   {
@@ -132,22 +137,25 @@ db.movies.aggregate([
 ])
 ```
 
-Use `searchBefore` with the first document's token on the current page to go to the previous page — results are returned in reverse order. Combine `searchAfter` with `$skip` to jump pages.
+Use `searchBefore` with the first document's token on the current page to go to the previous page, results are returned
+in reverse order. Combine `searchAfter` with `$skip` to jump pages.
 
-**Key constraint:** Query semantics (operator, path, query value, sort) must be identical between the initial query and any `searchAfter`/`searchBefore` query.
+Key constraint: Query semantics (operator, path, query value, sort) must be identical between the initial query and any
+`searchAfter`/`searchBefore` query.
 
 ---
 
-### Retrieve Arrays of Objects with returnScope
+#### Retrieve Arrays of Objects with returnScope
 
-Return each element of an embedded document array as an individually scored document. Works in both `$search` and `$searchMeta`.
+Return each element of an embedded document array as an individually scored document. Works in both `$search` and
+`$searchMeta`.
 
-**Requirements:**
+Requirements:
 - Array field indexed as `embeddedDocuments` type with `storedSource` defined on the fields to return
 - `returnStoredSource: true` in the query
 - All operator paths must be nested under `returnScope.path` (use `hasAncestor` or `hasRoot` to query outside it)
 
-**Index:**
+Index:
 ```javascript
 {
   "mappings": {
@@ -165,7 +173,7 @@ Return each element of an embedded document array as an individually scored docu
 }
 ```
 
-**Query:**
+Query:
 ```javascript
 db.companies.aggregate([
   {
@@ -179,15 +187,16 @@ db.companies.aggregate([
 ])
 ```
 
-Only fields defined in `storedSource` within the embedded document are returned — root-level fields are excluded. When `returnScope` is specified, all query paths must start with `returnScope.path`.
+Only fields defined in `storedSource` within the embedded document are returned, root-level fields are excluded. When
+`returnScope` is specified, all query paths must start with `returnScope.path`.
 
 ---
 
-### Advanced Query Syntax (queryString)
+#### Advanced Query Syntax (queryString)
 
-**Use case:** Complex search with boolean operators, wildcards, and field-specific queries.
+Use case: Complex search with boolean operators, wildcards, and field-specific queries.
 
-**Fields configuration:**
+Fields configuration:
 ```javascript
 // Add to mappings.fields in your index:
 {
@@ -197,7 +206,7 @@ Only fields defined in `storedSource` within the embedded document are returned 
 }
 ```
 
-**Query patterns:**
+Query patterns:
 ```javascript
 // Boolean operators
 db.collection.aggregate([
@@ -239,25 +248,26 @@ db.collection.aggregate([
 ])
 ```
 
-**Supported syntax:**
+Supported syntax:
 - Boolean: `AND`, `OR`, `NOT`
 - Grouping: `(term1 OR term2)`
 - Wildcards: `*` (0+ chars), `?` (single char)
 - Ranges: `[min TO max]` for numbers/dates
 - Field-specific: `fieldName:value`
 
-**Key considerations:**
+Key considerations:
 - Great for building search UIs with advanced options
 - Users can construct complex queries without API changes
 - Validate/sanitize user input to prevent injection
 
 ---
 
-### Searching Nested Arrays (embeddedDocument)
+#### Searching Nested Arrays (embeddedDocument)
 
-**Use case:** Search within arrays of objects where element-wise comparisons are required (similar to $elemMatch), or each element must be scored independently.
+Use case: Search within arrays of objects where element-wise comparisons are required (similar to $elemMatch), or each
+element must be scored independently.
 
-**Fields configuration:**
+Fields configuration:
 ```javascript
 // Add to mappings.fields in your index:
 {
@@ -273,7 +283,7 @@ db.collection.aggregate([
 }
 ```
 
-**Query pattern:**
+Query pattern:
 ```javascript
 db.collection.aggregate([
   {
@@ -298,13 +308,13 @@ db.collection.aggregate([
 ])
 ```
 
-**Score aggregation options:**
+Score aggregation options:
 - `sum`: Add scores from all matching array elements
 - `maximum`: Use highest score from array elements
 - `minimum`: Use lowest score from array elements
 - `mean`: Average scores from array elements
 
-**Key considerations:**
+Key considerations:
 - Each array element is indexed as a separate document
 - Use `embeddedDocuments` field type, not regular `document`
 - Score aggregation controls how array matches affect overall document score
@@ -312,11 +322,11 @@ db.collection.aggregate([
 
 ---
 
-### Search Highlighting
+#### Search Highlighting
 
-**Use case:** Show users which parts of documents matched their query.
+Use case: Show users which parts of documents matched their query.
 
-**Fields configuration:**
+Fields configuration:
 ```javascript
 // Add to mappings.fields in your index:
 {
@@ -325,7 +335,7 @@ db.collection.aggregate([
 }
 ```
 
-**Query pattern:**
+Query pattern:
 ```javascript
 db.collection.aggregate([
   {
@@ -353,7 +363,7 @@ db.collection.aggregate([
 ])
 ```
 
-**Highlight result structure:**
+Highlight result structure:
 ```javascript
 {
   "highlights": [
@@ -372,7 +382,7 @@ db.collection.aggregate([
 }
 ```
 
-**Key considerations:**
+Key considerations:
 - `type: "hit"` indicates matched terms
 - `type: "text"` is surrounding context
 - Multiple passages returned for long documents
@@ -380,9 +390,9 @@ db.collection.aggregate([
 
 ---
 
-### Compound Queries
+#### Compound Queries
 
-**Compound queries** combine multiple operators efficiently:
+Compound queries combine multiple operators efficiently:
 
 ```javascript
 db.collection.aggregate([
@@ -408,20 +418,20 @@ db.collection.aggregate([
 ])
 ```
 
-**Clause types:**
+Clause types:
 - `must`: Required matches that affect scoring
 - `should`: Optional matches that boost scores
 - `filter`: Required matches that don't affect scoring (faster)
 - `mustNot`: Exclusions
 
-**Performance tips:**
+Performance tips:
 - Use `filter` instead of `must` for criteria that shouldn't affect scoring (faster)
 - Put most selective criteria in `must` or `filter` first
 - Limit `should` clauses to 3-5 for best performance
 
 ---
 
-### Query with Synonyms
+#### Query with Synonyms
 
 When your index is configured with synonyms, specify the synonym mapping name in your query:
 
@@ -440,11 +450,12 @@ db.collection.aggregate([
 ])
 ```
 
-**Note:** When you specify a synonym mapping name, MongoDB Search automatically searches for the query terms AND all their synonyms (e.g., "car" also matches "automobile", "vehicle").
+Note: When you specify a synonym mapping name, MongoDB Search automatically searches for the query terms AND all their
+synonyms (e.g., "car" also matches "automobile", "vehicle").
 
 ---
 
-### Using Multi Analyzers
+#### Using Multi Analyzers
 
 Query specific analyzer variants of a field:
 
@@ -476,11 +487,11 @@ db.collection.aggregate([
 ])
 ```
 
-**Use case:** Support both fuzzy and exact matching on the same field without duplicating data.
+Use case: Support both fuzzy and exact matching on the same field without duplicating data.
 
 ---
 
-### Autocomplete
+#### Autocomplete
 
 Search-as-you-type on fields indexed as `autocomplete` type (see lexical-search-indexing.md).
 
@@ -495,9 +506,10 @@ To score exact matches higher, index the field as both `autocomplete` and `strin
 
 ---
 
-### Facet
+#### Facet
 
-Groups results into buckets by field values or ranges. Use with `$searchMeta` for metadata only, or with `$search` + `$SEARCH_META` variable for results and metadata.
+Groups results into buckets by field values or ranges. Use with `$searchMeta` for metadata only, or with `$search` +
+`$SEARCH_META` variable for results and metadata.
 
 ```javascript
 { "$searchMeta": { "facet": {
@@ -516,9 +528,10 @@ Groups results into buckets by field values or ranges. Use with `$searchMeta` fo
 
 ---
 
-### geoShape
+#### geoShape
 
-Query shapes by spatial relation. Field must be indexed as `geo` type with `indexShapes: true`. Required fields: `geometry` (GeoJSON Polygon, MultiPolygon, or LineString), `path`, and `relation`:
+Query shapes by spatial relation. Field must be indexed as `geo` type with `indexShapes: true`. Required fields:
+`geometry` (GeoJSON Polygon, MultiPolygon, or LineString), `path`, and `relation`:
 
 | relation | Meaning |
 |---|---|
@@ -529,22 +542,25 @@ Query shapes by spatial relation. Field must be indexed as `geo` type with `inde
 
 ---
 
-### geoWithin
+#### geoWithin
 
 Query geographic points within a region. Field must be indexed as `geo` type. Specify one of:
 - `box`: `{ bottomLeft: <GeoJSON Point>, topRight: <GeoJSON Point> }`
 - `circle`: `{ center: <GeoJSON Point>, radius: <meters> }`
 - `geometry`: GeoJSON Polygon or MultiPolygon
 
-**For both geo operators:** longitude must be specified before latitude; longitude range [-180, 180], latitude range [-90, 90].
+For both geo operators: longitude must be specified before latitude; longitude range [-180, 180], latitude range [-90,
+90].
 
 ---
 
-## Query Optimization
+### Query Optimization
 
-### Sorting Search Results
+#### Sorting Search Results
 
-Use the `sort` option inside `$search` to sort at the mongot level (more efficient than a `$sort` stage after). Supports: `boolean`, `date`, `number`, `objectId`, `uuid`, and `string` (must be indexed as `token` type). Cannot sort on `embeddedDocuments` type fields.
+Use the `sort` option inside `$search` to sort at the mongot level (more efficient than a `$sort` stage after).
+Supports: `boolean`, `date`, `number`, `objectId`, `uuid`, and `string` (must be indexed as `token` type). Cannot sort
+on `embeddedDocuments` type fields.
 
 ```javascript
 db.collection.aggregate([
@@ -558,23 +574,23 @@ db.collection.aggregate([
 ])
 ```
 
-**Sort by score:**
+Sort by score:
 ```javascript
 sort: { score: { $meta: "searchScore", order: 1 } }  // ascending (lowest score first)
 sort: { score: { $meta: "searchScore" } }             // descending (default)
 ```
 
-**Null/missing values:** Appear first in ascending sort by default. Use `noData: "highest"` to push them last:
+Null/missing values: Appear first in ascending sort by default. Use `noData: "highest"` to push them last:
 ```javascript
 sort: { "field": { order: 1, noData: "highest" } }
 ```
 
-**Key rules:**
-- `sort` inside `$search` only works on indexed fields — use `$sort` after for non-indexed or computed fields
+Key rules:
+- `sort` inside `$search` only works on indexed fields: use `$sort` after for non-indexed or computed fields
 - For `searchSequenceToken` pagination, sort must include a unique field (e.g., `_id`) to avoid tie-ordering
 - Arrays: ascending uses smallest element, descending uses largest
 
-### Using Stored Source
+#### Using Stored Source
 
 Retrieve frequently accessed fields directly from the search index instead of the database:
 
@@ -592,18 +608,20 @@ db.collection.aggregate([
 ])
 ```
 
-**Requirements:**
+Requirements:
 - Fields must be configured in `storedSource` in your index definition
 - Dramatically improves performance by avoiding database lookups
 - Especially beneficial when filtering or sorting after $search
 
 ---
 
-### $match After $search
+#### $match After $search
 
-Minimize blocking stages after `$search` — prefer encapsulating filter logic inside the `$search` stage itself using `compound.filter`. This avoids additional mongod operations and makes full use of the Atlas Search index.
+Minimize blocking stages after `$search`, prefer encapsulating filter logic inside the `$search` stage itself using
+`compound.filter`. This avoids additional mongod operations and makes full use of the Atlas Search index.
 
-**Prefer `compound.filter` over `$match`** for fields indexed in the search index (string, token, number, date, boolean, objectId, uuid, geo):
+Prefer `compound.filter` over `$match` for fields indexed in the search index (string, token, number, date, boolean,
+objectId, uuid, geo):
 
 ```javascript
 // Prefer this
@@ -614,7 +632,8 @@ Minimize blocking stages after `$search` — prefer encapsulating filter logic i
 { $match: { year: { $gte: 2000 } } }
 ```
 
-**If you must use `$match`** (e.g., for non-indexed or computed fields), use `storedSource` + `returnStoredSource` to avoid a full document lookup in mongod:
+If you must use `$match` (e.g., for non-indexed or computed fields), use `storedSource` + `returnStoredSource` to avoid
+a full document lookup in mongod:
 
 ```javascript
 { $search: { text: { ... }, returnStoredSource: true } },
@@ -623,7 +642,7 @@ Minimize blocking stages after `$search` — prefer encapsulating filter logic i
 
 ---
 
-## Query Performance Analysis
+### Query Performance Analysis
 
 Use `explain` to analyze query performance:
 
@@ -633,4 +652,5 @@ db.collection.explain("executionStats").aggregate([
 ])
 ```
 
-**Important:** Atlas Search explain output differs from standard MongoDB explain. It shows execution on the search engine (mongot) side with Lucene-specific statistics, not standard MongoDB execution plans.
+Important: Atlas Search explain output differs from standard MongoDB explain. It shows execution on the search engine
+(mongot) side with Lucene-specific statistics, not standard MongoDB execution plans.

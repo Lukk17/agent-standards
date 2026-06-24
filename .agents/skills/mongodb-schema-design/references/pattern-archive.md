@@ -5,15 +5,19 @@ impactDescription: "Reduces active collection size, improves query performance, 
 tags: schema, patterns, archive, data-lifecycle, merge, ttl, online-archive
 ---
 
-## Use Archive Pattern for Historical Data
+### Use Archive Pattern for Historical Data
 
-**Storing old data alongside recent data degrades performance.** As collections grow with historical data that's rarely accessed, queries slow down, indexes bloat, and working set exceeds RAM. The archive pattern moves old data to separate storage while keeping your active collection fast.
+Storing old data alongside recent data degrades performance. As collections grow with historical data that's rarely
+accessed, queries slow down, indexes bloat, and working set exceeds RAM. The archive pattern moves old data to separate
+storage while keeping your active collection fast.
 
-**Incorrect (all data in one collection):**
+Incorrect (all data in one collection):
 
-A sales collection with 5 years of data (50M documents) where only the recent 6 months are actively queried suffers from: indexes covering the full 50M documents when only ~1M are relevant, working set including old data pages, backups including rarely-accessed history, and hot-tier storage costs for data that could be cold.
+A sales collection with 5 years of data (50M documents) where only the recent 6 months are actively queried suffers
+from: indexes covering the full 50M documents when only ~1M are relevant, working set including old data pages, backups
+including rarely-accessed history, and hot-tier storage costs for data that could be cold.
 
-**Correct (archive old data separately):**
+Correct (archive old data separately):
 
 ```javascript
 // Step 1: Define archive threshold (older than 6 months)
@@ -40,14 +44,18 @@ db.sales.deleteMany({ date: { $lt: sixMonthsAgo } })
 // - sales_archive: Historical data, rarely queried
 ```
 
-**Archive storage options (best to worst for cost/performance):**
+Archive storage options (best to worst for cost/performance):
 
-1. **External file storage (S3, cloud object storage)** — Best for compliance and long-term retention at lowest cost. Export to JSON/BSON, store in S3, query via Atlas Data Federation when needed.
-2. **Separate, cheaper cluster** — Best for occasional historical queries. Replicate to a lower-tier Atlas cluster at reduced cost.
-3. **Separate collection on same cluster** — Best for simple implementation with frequent historical access. As shown above with `sales_archive`, but still uses the same storage tier.
-4. **Atlas Online Archive (Atlas only)** — MongoDB manages automatic movement to cloud object storage; query via Federated Database Instance.
+1. External file storage (S3, cloud object storage): Best for compliance and long-term retention at lowest cost. Export
+   to JSON/BSON, store in S3, query via Atlas Data Federation when needed.
+2. Separate, cheaper cluster: Best for occasional historical queries. Replicate to a lower-tier Atlas cluster at reduced
+   cost.
+3. Separate collection on same cluster: Best for simple implementation with frequent historical access. As shown above
+   with `sales_archive`, but still uses the same storage tier.
+4. Atlas Online Archive (Atlas only): MongoDB manages automatic movement to cloud object storage; query via Federated
+   Database Instance.
 
-**Design tips for archivable schemas:**
+Design tips for archivable schemas:
 
 ```javascript
 // TIP 1: Use embedded data model for archives
@@ -99,28 +107,34 @@ db.sales.aggregate([
 ])
 ```
 
-**Automated archival with scheduling:**
+Automated archival with scheduling:
 
 Create a script (run via cron, Atlas Triggers, or an application scheduler) that:
 
 1. Counts documents older than the cutoff date (excluding those with `retentionPolicy: "permanent"`).
-2. Processes in batches (e.g. 10,000 IDs at a time) to avoid long-running operations: fetch a batch of `_id` values, pipe them through an aggregation with `$match` and `$merge` into the archive collection, then `deleteMany` the batch from the active collection.
+2. Processes in batches (e.g. 10,000 IDs at a time) to avoid long-running operations: fetch a batch of `_id` values,
+   pipe them through an aggregation with `$match` and `$merge` into the archive collection, then `deleteMany` the batch
+   from the active collection.
 3. Logs progress after each batch.
 
 This reuses the same `$merge`-based archival shown above but throttles work to avoid overloading the cluster.
 
-**Atlas Online Archive (Atlas only):**
+Atlas Online Archive (Atlas only):
 
-Atlas Online Archive automatically tiers data to MongoDB-managed cloud object storage based on a date-field rule (e.g. archive after 365 days). Archived data is queried transparently via a Federated Database Instance — slightly slower but much cheaper. No application code changes are required.
+Atlas Online Archive automatically tiers data to MongoDB-managed cloud object storage based on a date-field rule (e.g.
+archive after 365 days). Archived data is queried transparently via a Federated Database Instance, slightly slower but
+much cheaper. No application code changes are required.
 
-**When NOT to use archive pattern:**
+When NOT to use archive pattern:
 
-- **Small datasets**: If total data fits comfortably in RAM, archiving adds complexity without benefit.
-- **Uniform access patterns**: If old and new data are queried equally.
-- **Compliance requires instant access**: If regulations require sub-second queries on all historical data.
-- **Already using TTL**: If data should be deleted, not archived, use TTL indexes.
+- Small datasets: If total data fits comfortably in RAM, archiving adds complexity without benefit.
+- Uniform access patterns: If old and new data are queried equally.
+- Compliance requires instant access: If regulations require sub-second queries on all historical data.
+- Already using TTL: If data should be deleted, not archived, use TTL indexes.
 
-## Verify with
+---
+
+### Verify with
 
 ```javascript
 // Analyze archive candidates

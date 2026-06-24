@@ -8,7 +8,9 @@ origin: ECC
 
 Best practices for Git version control, branching strategies, and collaborative development.
 
-## When to Activate
+---
+
+### When to Activate
 
 - Setting up Git workflow for a new project
 - Deciding on branching strategy (GitFlow, trunk-based, GitHub flow)
@@ -17,9 +19,11 @@ Best practices for Git version control, branching strategies, and collaborative 
 - Managing releases and version tags
 - Onboarding new team members to Git practices
 
-## Branching Strategies
+---
 
-### GitHub Flow (Simple, Recommended for Most)
+### Branching Strategies
+
+#### GitHub Flow (Simple, Recommended for Most)
 
 Best for continuous deployment and small-to-medium teams.
 
@@ -31,14 +35,14 @@ main (protected, always deployable)
   └── fix/login-bug          → PR → merge to main
 ```
 
-**Rules:**
+Rules:
 - `main` is always deployable
 - Create feature branches from `main`
 - Open Pull Request when ready for review
 - After approval and CI passes, merge to `main`
 - Deploy immediately after merge
 
-### Trunk-Based Development (High-Velocity Teams)
+#### Trunk-Based Development (High-Velocity Teams)
 
 Best for teams with strong CI/CD and feature flags.
 
@@ -50,13 +54,13 @@ main (trunk)
   └── short-lived feature
 ```
 
-**Rules:**
+Rules:
 - Everyone commits to `main` or very short-lived branches
 - Feature flags hide incomplete work
 - CI must pass before merge
 - Deploy multiple times per day
 
-### GitFlow (Complex, Release-Cycle Driven)
+#### GitFlow (Complex, Release-Cycle Driven)
 
 Best for scheduled releases and enterprise projects.
 
@@ -73,14 +77,14 @@ main (production releases)
         └── hotfix/critical  → merge to main and develop
 ```
 
-**Rules:**
+Rules:
 - `main` contains production-ready code only
 - `develop` is the integration branch
 - Feature branches from `develop`, merge back to `develop`
 - Release branches from `develop`, merge to `main` and `develop`
 - Hotfix branches from `main`, merge to both `main` and `develop`
 
-### When to Use Which
+#### When to Use Which
 
 | Strategy | Team Size | Release Cadence | Best For |
 |----------|-----------|-----------------|----------|
@@ -88,9 +92,11 @@ main (production releases)
 | Trunk-Based | 5+ experienced | Multiple/day | High-velocity teams, feature flags |
 | GitFlow | 10+ | Scheduled | Enterprise, regulated industries |
 
-## Commit Messages
+---
 
-### Conventional Commits Format
+### Commit Messages
+
+#### Conventional Commits Format
 
 ```
 <type>(<scope>): <subject>
@@ -100,7 +106,7 @@ main (production releases)
 [optional footer(s)]
 ```
 
-### Types
+#### Types
 
 | Type | Use For | Example |
 |------|---------|---------|
@@ -115,7 +121,7 @@ main (production releases)
 | `ci` | CI/CD changes | `ci: add PostgreSQL service to test workflow` |
 | `revert` | Revert previous commit | `revert: revert "feat(auth): add OAuth2 login"` |
 
-### Good vs Bad Examples
+#### Good vs Bad Examples
 
 ```
 # BAD: Vague, no context
@@ -132,7 +138,7 @@ Added exponential backoff retry logic with max 3 attempts.
 Closes #123"
 ```
 
-### Commit Message Template
+#### Commit Message Template
 
 Create `.gitmessage` in repo root:
 
@@ -148,9 +154,11 @@ Create `.gitmessage` in repo root:
 
 Enable with: `git config commit.template .gitmessage`
 
-## Merge vs Rebase
+---
 
-### Merge (Preserves History)
+### Merge vs Rebase
+
+#### Merge (Preserves History)
 
 ```bash
 # Creates a merge commit
@@ -165,13 +173,13 @@ git merge feature/user-auth
 # * main commits
 ```
 
-**Use when:**
+Use when:
 - Merging feature branches into `main`
 - You want to preserve exact history
 - Multiple people worked on the branch
 - The branch has been pushed and others may have based work on it
 
-### Rebase (Linear History)
+#### Rebase (Linear History)
 
 ```bash
 # Rewrites feature commits onto target branch
@@ -183,13 +191,13 @@ git rebase main
 # * main commits
 ```
 
-**Use when:**
+Use when:
 - Updating your local feature branch with latest `main`
 - You want a linear, clean history
 - The branch is local-only (not pushed)
 - You're the only one working on the branch
 
-### Rebase Workflow
+#### Rebase Workflow
 
 ```bash
 # Update feature branch with latest main (before PR)
@@ -204,7 +212,11 @@ git rebase origin/main
 git push --force-with-lease origin feature/user-auth
 ```
 
-### When NOT to Rebase
+Any push, including `--force-with-lease`, happens only on explicit user instruction. Prefer `--force-with-lease` over
+`--force` so you never clobber commits you have not seen; on shared or public branches, revert instead of rewriting (see
+When NOT to Rebase).
+
+#### When NOT to Rebase
 
 ```
 # NEVER rebase branches that:
@@ -216,9 +228,11 @@ git push --force-with-lease origin feature/user-auth
 # Why: Rebase rewrites history, breaking others' work
 ```
 
-## Pull Request Workflow
+---
 
-### PR Title Format
+### Pull Request Workflow
+
+#### PR Title Format
 
 ```
 <type>(<scope>): <description>
@@ -229,7 +243,7 @@ fix(api): resolve race condition in order processing
 docs(api): add OpenAPI specification for v2 endpoints
 ```
 
-### PR Description Template
+#### PR Description Template
 
 ```markdown
 ## What
@@ -267,9 +281,9 @@ Before/after screenshots for UI changes.
 Closes #123
 ```
 
-### Code Review Checklist
+#### Code Review Checklist
 
-**For Reviewers:**
+For Reviewers:
 
 - [ ] Does the code solve the stated problem?
 - [ ] Are there any edge cases not handled?
@@ -278,7 +292,7 @@ Closes #123
 - [ ] Are there security concerns?
 - [ ] Is the commit history clean (squashed if needed)?
 
-**For Authors:**
+For Authors:
 
 - [ ] Self-review completed before requesting review
 - [ ] CI passes (tests, lint, typecheck)
@@ -286,9 +300,11 @@ Closes #123
 - [ ] Related to a single feature/fix
 - [ ] Description clearly explains the change
 
-## Conflict Resolution
+---
 
-### Identify Conflicts
+### Conflict Resolution
+
+#### Identify Conflicts
 
 ```bash
 # Check for conflicts before merge
@@ -300,7 +316,7 @@ git merge feature/user-auth --no-commit --no-ff
 # Automatic merge failed; fix conflicts and then commit the result.
 ```
 
-### Resolve Conflicts
+#### Resolve Conflicts
 
 ```bash
 # See conflicted files
@@ -328,7 +344,7 @@ git add src/auth/login.ts
 git commit
 ```
 
-### Conflict Prevention Strategies
+#### Conflict Prevention Strategies
 
 ```bash
 # 1. Keep feature branches small and short-lived
@@ -342,9 +358,11 @@ git rebase origin/main
 # 5. Review and merge PRs promptly
 ```
 
-## Branch Management
+---
 
-### Naming Conventions
+### Branch Management
+
+#### Naming Conventions
 
 ```
 # Feature branches
@@ -368,7 +386,7 @@ experiment/new-caching-strategy
 poc/graphql-migration
 ```
 
-### Branch Cleanup
+#### Branch Cleanup
 
 ```bash
 # Delete local branches that are merged
@@ -385,7 +403,7 @@ git branch -D feature/user-auth  # Force delete
 git push origin --delete feature/user-auth
 ```
 
-### Stash Workflow
+#### Stash Workflow
 
 ```bash
 # Save work in progress
@@ -404,9 +422,11 @@ git stash apply stash@{2}
 git stash drop stash@{0}
 ```
 
-## Release Management
+---
 
-### Semantic Versioning
+### Release Management
+
+#### Semantic Versioning
 
 ```
 MAJOR.MINOR.PATCH
@@ -421,7 +441,7 @@ Examples:
 1.1.0 → 2.0.0 (major: breaking change)
 ```
 
-### Creating Releases
+#### Creating Releases
 
 ```bash
 # Create annotated tag
@@ -448,7 +468,7 @@ git tag -d v1.2.0
 git push origin --delete v1.2.0
 ```
 
-### Changelog Generation
+#### Changelog Generation
 
 ```bash
 # Generate changelog from commits
@@ -458,9 +478,11 @@ git log v1.1.0..v1.2.0 --oneline --no-merges
 npx conventional-changelog -i CHANGELOG.md -s
 ```
 
-## Git Configuration
+---
 
-### Essential Configs
+### Git Configuration
+
+#### Essential Configs
 
 ```bash
 # User identity
@@ -486,7 +508,7 @@ git config --global diff.algorithm histogram
 git config --global color.ui auto
 ```
 
-### Useful Aliases
+#### Useful Aliases
 
 ```bash
 # Add to ~/.gitconfig
@@ -504,7 +526,7 @@ git config --global color.ui auto
     contributors = shortlog -sn
 ```
 
-### Gitignore Patterns
+#### Gitignore Patterns
 
 ```gitignore
 # Dependencies
@@ -544,9 +566,11 @@ coverage/
 *.tsbuildinfo
 ```
 
-## Common Workflows
+---
 
-### Starting a New Feature
+### Common Workflows
+
+#### Starting a New Feature
 
 ```bash
 # 1. Update main branch
@@ -556,28 +580,37 @@ git pull origin main
 # 2. Create feature branch
 git checkout -b feature/user-auth
 
-# 3. Make changes and commit
-git add .
+# 3. Make changes and commit (stage explicit paths, not the whole tree)
+git add src/auth/oauth.ts src/auth/oauth.test.ts
 git commit -m "feat(auth): implement OAuth2 login"
-
-# 4. Push to remote
-git push -u origin feature/user-auth
-
-# 5. Create Pull Request on GitHub/GitLab
 ```
 
-### Updating a PR with New Changes
+Commits stay local until you decide to share them. When you are ready, and only on explicit instruction, push the
+branch and open the PR as separate deliberate steps:
 
 ```bash
-# 1. Make additional changes
-git add .
-git commit -m "feat(auth): add error handling"
+git push -u origin feature/user-auth
+```
 
-# 2. Push updates
+Then create the Pull Request on GitHub/GitLab.
+
+#### Updating a PR with New Changes
+
+```bash
+git add src/auth/oauth.ts
+```
+
+```bash
+git commit -m "feat(auth): add error handling"
+```
+
+Pushing the update to the PR is a separate step, done only on explicit user instruction:
+
+```bash
 git push origin feature/user-auth
 ```
 
-### Syncing Fork with Upstream
+#### Syncing Fork with Upstream
 
 ```bash
 # 1. Add upstream remote (once)
@@ -589,12 +622,15 @@ git fetch upstream
 # 3. Merge upstream/main into your main
 git checkout main
 git merge upstream/main
+```
 
-# 4. Push to your fork
+Push the synced main to your fork only when you choose to, on explicit instruction:
+
+```bash
 git push origin main
 ```
 
-### Undoing Mistakes
+#### Undoing Mistakes
 
 ```bash
 # Undo last commit (keep changes)
@@ -618,9 +654,11 @@ git add forgotten-file
 git commit --amend --no-edit
 ```
 
-## Git Hooks
+---
 
-### Pre-Commit Hook
+### Git Hooks
+
+#### Pre-Commit Hook
 
 ```bash
 #!/bin/bash
@@ -639,7 +677,7 @@ if git diff --cached | grep -E '(password|api_key|secret)'; then
 fi
 ```
 
-### Pre-Push Hook
+#### Pre-Push Hook
 
 ```bash
 #!/bin/bash
@@ -655,7 +693,9 @@ if git diff origin/main | grep -E 'console\.log'; then
 fi
 ```
 
-## Anti-Patterns
+---
+
+### Anti-Patterns
 
 ```
 # BAD: Committing directly to main
@@ -682,7 +722,7 @@ git commit -m "fix(auth): resolve redirect loop after login"
 # BAD: Rewriting public history
 git push --force origin main
 
-# GOOD: Use revert for public branches
+# GOOD: Use revert for public branches (and any push happens only on explicit user instruction)
 git revert HEAD
 
 # BAD: Long-lived feature branches (weeks/months)
@@ -695,7 +735,9 @@ git add node_modules/
 # GOOD: Add to .gitignore
 ```
 
-## Quick Reference
+---
+
+### Quick Reference
 
 | Task | Command |
 |------|---------|
@@ -706,7 +748,7 @@ git add node_modules/
 | Rebase branch | `git rebase main` |
 | View history | `git log --oneline --graph` |
 | View changes | `git diff` |
-| Stage changes | `git add .` or `git add -p` |
+| Stage changes | `git add -p` or explicit paths (`git add .` only after verifying every file) |
 | Commit | `git commit -m "message"` |
 | Push | `git push origin branch-name` |
 | Pull | `git pull origin branch-name` |
@@ -716,7 +758,7 @@ git add node_modules/
 
 ---
 
-## Commit Signing
+### Commit Signing
 
 All commits and tags must be cryptographically signed. SSH keys are preferred over GPG:
 
@@ -727,7 +769,9 @@ git config --global user.signingkey ~/.ssh/id_ed25519.pub
 # Verify: git log --show-signature
 ```
 
-## Secret Scanning Pre-commit Hook
+---
+
+### Secret Scanning Pre-commit Hook
 
 Install `git-secrets` and configure it as a pre-commit hook to prevent credentials from being committed:
 
@@ -736,7 +780,9 @@ git secrets --install
 git secrets --register-aws  # or custom patterns
 ```
 
-## Pull Request Template
+---
+
+### Pull Request Template
 
 Every repository must have `.github/PULL_REQUEST_TEMPLATE.md`:
 
@@ -760,30 +806,36 @@ Every repository must have `.github/PULL_REQUEST_TEMPLATE.md`:
 - [ ] Migration scripts reviewed (if DB changes)
 ```
 
-## Code Review Standards
+---
 
-**SLA:** Reviewers must respond within **1 business day** of review request.
+### Code Review Standards
 
-**Comment prefixes** (enforce consistent semantics):
-- `blocking:` — must be resolved before merge
-- `nit:` — optional style preference; author may ignore
-- `question:` — seeking understanding; no action required unless author chooses
+SLA: Reviewers must respond within 1 business day of review request.
 
-**Branch protection (required settings):**
-- Minimum **2 approving reviews** before merge
+Comment prefixes (enforce consistent semantics):
+- `blocking:`: must be resolved before merge
+- `nit:`: optional style preference; author may ignore
+- `question:`: seeking understanding; no action required unless author chooses
+
+Branch protection (required settings):
+- Minimum 2 approving reviews before merge
 - Dismiss stale reviews when new commits are pushed
 - Require branch to be up-to-date with base before merge
 
-## Merge Strategy by Scenario
+---
+
+### Merge Strategy by Scenario
 
 | Scenario | Strategy |
 |---|---|
-| Feature branch → main | **Squash merge** — clean history, one commit per feature |
-| Hotfix → main | **Merge commit (no-FF)** — preserves hotfix context |
-| Release branch → main | **Merge commit (no-FF)** — preserves release history |
-| Rebase | Only on local, un-pushed commits — never rewrite shared history |
+| Feature branch → main | Squash merge, clean history, one commit per feature |
+| Hotfix → main | Merge commit (no-FF), preserves hotfix context |
+| Release branch → main | Merge commit (no-FF), preserves release history |
+| Rebase | Only on local, un-pushed commits, never rewrite shared history |
 
-## Automated Changelog
+---
+
+### Automated Changelog
 
 Use `git-cliff` or `conventional-changelog` on every release:
 
@@ -793,7 +845,9 @@ git-cliff --tag v1.2.0 -o CHANGELOG.md
 
 Requires [Conventional Commits](https://www.conventionalcommits.org/) format: `feat:`, `fix:`, `chore:`, `docs:`, etc.
 
-## Git LFS
+---
+
+### Git LFS
 
 Track binary assets in Git LFS:
 
@@ -802,18 +856,22 @@ git lfs track "*.png" "*.jpg" "*.gif" "*.mp4" "*.pdf" "*.zip" "*.jar" "*.wasm" "
 git add .gitattributes
 ```
 
-## Branch Lifecycle Policy
+---
 
-- **Auto-delete** merged branches immediately after merge (enable in GitHub/GitLab settings)
-- **Stale branch review**: any unmerged branch older than **30 days** must be reviewed — either rebased and merged, or deleted
+### Branch Lifecycle Policy
+
+- Auto-delete merged branches immediately after merge (enable in GitHub/GitLab settings)
+- Stale branch review: any unmerged branch older than 30 days must be reviewed: either rebased and merged, or deleted
 - Never leave `WIP`/`draft` branches open indefinitely
 
-## Monorepo Configuration
+---
+
+### Monorepo Configuration
 
 For monorepos:
-- Use **CODEOWNERS** with path-based ownership: `.github/CODEOWNERS`
+- Use CODEOWNERS with path-based ownership: `.github/CODEOWNERS`
 - Configure path-based CI triggers so only affected packages re-run
-- Consider **Turborepo**, **Pants**, or **Bazel** for incremental build graphs
+- Consider Turborepo, Pants, or Bazel for incremental build graphs
 
 ```
 # .github/CODEOWNERS

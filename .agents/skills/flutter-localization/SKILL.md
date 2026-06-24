@@ -8,7 +8,9 @@ metadata:
 ---
 # Localizing Flutter Applications
 
-## Contents
+---
+
+### Contents
 - [Core Configuration](#core-configuration)
 - [Defining ARB Resources](#defining-arb-resources)
 - [App Integration](#app-integration)
@@ -16,7 +18,9 @@ metadata:
 - [Workflows](#workflows)
 - [Troubleshooting & Gotchas](#troubleshooting--gotchas)
 
-## Core Configuration
+---
+
+### Core Configuration
 
 Configure the project to support code generation for localizations.
 
@@ -42,7 +46,9 @@ output-localization-file: app_localizations.dart
 # synthetic-package: false 
 ```
 
-## Defining ARB Resources
+---
+
+### Defining ARB Resources
 
 Store localized strings in Application Resource Bundle (`.arb`) files within the configured `arb-dir`.
 
@@ -63,7 +69,9 @@ Create translation files (e.g., `lib/l10n/app_es.arb`):
 }
 ```
 
-## App Integration
+---
+
+### App Integration
 
 Initialize the `Localizations` widget by configuring the root `MaterialApp` or `CupertinoApp`.
 
@@ -92,13 +100,15 @@ Access localized values in the widget tree using the generated `AppLocalizations
 Text(AppLocalizations.of(context)!.helloWorld)
 ```
 
-*Note: If using `WidgetsApp` instead of `MaterialApp`, omit `GlobalMaterialLocalizations.delegate`.*
+Note: If using `WidgetsApp` instead of `MaterialApp`, omit `GlobalMaterialLocalizations.delegate`.
 
-## Advanced Formatting
+---
+
+### Advanced Formatting
 
 Use placeholders, plurals, and selects for dynamic content. Define parameters in the `@key` metadata.
 
-### Placeholders
+#### Placeholders
 ```json
 "hello": "Hello {userName}",
 "@hello": {
@@ -112,7 +122,7 @@ Use placeholders, plurals, and selects for dynamic content. Define parameters in
 }
 ```
 
-### Plurals
+#### Plurals
 ```json
 "nWombats": "{count, plural, =0{no wombats} =1{1 wombat} other{{count} wombats}}",
 "@nWombats": {
@@ -125,7 +135,7 @@ Use placeholders, plurals, and selects for dynamic content. Define parameters in
 }
 ```
 
-### Selects (Gender/Enums)
+#### Selects (Gender/Enums)
 ```json
 "pronoun": "{gender, select, male{he} female{she} other{they}}",
 "@pronoun": {
@@ -137,7 +147,7 @@ Use placeholders, plurals, and selects for dynamic content. Define parameters in
 }
 ```
 
-### Dates and Numbers
+#### Dates and Numbers
 Use `format` and `optionalParameters` to leverage `intl` formatting.
 ```json
 "dateMessage": "Date: {date}",
@@ -151,9 +161,11 @@ Use `format` and `optionalParameters` to leverage `intl` formatting.
 }
 ```
 
-## Workflows
+---
 
-### Task Progress: Adding a New Language
+### Workflows
+
+#### Task Progress: Adding a New Language
 Copy this checklist to track progress when introducing a new locale.
 
 - [ ] Create a new `.arb` file in the `arb-dir` (e.g., `app_fr.arb`).
@@ -163,23 +175,27 @@ Copy this checklist to track progress when introducing a new locale.
 - [ ] Review errors -> Fix any missing placeholders or malformed plural/select statements.
 - [ ] If targeting iOS, complete the "Configuring iOS App Bundle" workflow.
 
-### Task Progress: Configuring iOS App Bundle
+#### Task Progress: Configuring iOS App Bundle
 Flutter handles runtime localization, but iOS requires bundle-level configuration for the App Store and system settings.
 
 - [ ] Open `ios/Runner.xcodeproj` in Xcode.
 - [ ] Select the `Runner` project in the Project Navigator.
 - [ ] Navigate to the `Info` tab.
-- [ ] Under the **Localizations** section, click the `+` button.
+- [ ] Under the Localizations section, click the `+` button.
 - [ ] Add the newly supported languages/regions.
 - [ ] Run validator -> Build the iOS app to ensure `project.pbxproj` is correctly updated.
 
-## Troubleshooting & Gotchas
+---
 
-### Missing Localizations Ancestor
-Widgets like `TextField` and `CupertinoTabBar` require a `Localizations` ancestor with specific delegates (`MaterialLocalizations` or `CupertinoLocalizations`). 
+### Troubleshooting & Gotchas
 
-**Error:** `No MaterialLocalizations found.` or `CupertinoTabBar requires a Localizations parent...`
-**Fix:** Ensure the widget is a descendant of `MaterialApp`/`CupertinoApp`. If building a standalone widget tree (e.g., in tests or a custom `WidgetsApp`), wrap the widget in a `Localizations` widget:
+#### Missing Localizations Ancestor
+Widgets like `TextField` and `CupertinoTabBar` require a `Localizations` ancestor with specific delegates
+(`MaterialLocalizations` or `CupertinoLocalizations`).
+
+Error: `No MaterialLocalizations found.` or `CupertinoTabBar requires a Localizations parent...`
+Fix: Ensure the widget is a descendant of `MaterialApp`/`CupertinoApp`. If building a standalone widget tree (e.g., in
+tests or a custom `WidgetsApp`), wrap the widget in a `Localizations` widget:
 
 ```dart
 Localizations(
@@ -193,8 +209,9 @@ Localizations(
 )
 ```
 
-### Advanced Locale Definition
-If supporting languages with multiple scripts (e.g., Chinese), use `Locale.fromSubtags` to explicitly define the `scriptCode` and `countryCode` to prevent Flutter from resolving to an unexpected variant.
+#### Advanced Locale Definition
+If supporting languages with multiple scripts (e.g., Chinese), use `Locale.fromSubtags` to explicitly define the
+`scriptCode` and `countryCode` to prevent Flutter from resolving to an unexpected variant.
 
 ```dart
 supportedLocales: const [

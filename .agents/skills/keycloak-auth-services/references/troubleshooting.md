@@ -1,33 +1,37 @@
 # Troubleshooting & Recipes
 
-## Common Issues
+---
 
-### 401 Unauthorized
+### Common Issues
+
+#### 401 Unauthorized
 
 1. Enable debug logging: `"Keycloak.AuthServices": "Debug"`
 2. Verify access token is in the `Authorization: Bearer <token>` header
-3. Check audience mapper — token `aud` must include your `resource` (client ID). Either:
+3. Check audience mapper: token `aud` must include your `resource` (client ID). Either:
    - Add Audience Mapper in Keycloak (Client → Client Scopes → `{client_id}-dedicated` → Mappers → Audience)
    - Or set `"verify-token-audience": false`
 4. For dev: ensure `"ssl-required": "none"` and HTTPS metadata is not required
 
-### 403 Forbidden
+#### 403 Forbidden
 
 1. Enable trace logging: `"Keycloak.AuthServices.Authorization": "Trace"`
 2. For RBAC: verify `ClaimsPrincipal` has `realm_access` and `resource_access` claims
 3. For Authorization Server: ensure Keycloak is accessible and client has Authorization enabled
 4. Check policy evaluation in Keycloak admin → Authorization → Evaluate tab
 
-### Keycloak Slow to Respond
+#### Keycloak Slow to Respond
 
 - Keycloak becomes bottleneck in Authorization Server scenarios
 - Add resilience handlers: `.AddStandardResilienceHandler()`
 - Consider cluster setup for production
 - Use OpenTelemetry to identify bottlenecks
 
-## Recipes
+---
 
-### Debug Logging
+### Recipes
+
+#### Debug Logging
 
 ```json
 {
@@ -38,7 +42,7 @@
 }
 ```
 
-### Get Options from DI
+#### Get Options from DI
 
 ```csharp
 // Authentication (named options, per scheme)
@@ -50,7 +54,7 @@ var authzOptions = sp.GetRequiredService<IOptionsMonitor<KeycloakAuthorizationOp
     .CurrentValue;
 ```
 
-### Get Options Before DI Is Built
+#### Get Options Before DI Is Built
 
 ```csharp
 using Keycloak.AuthServices.Common;
@@ -58,7 +62,7 @@ using Keycloak.AuthServices.Common;
 var options = configuration.GetKeycloakOptions<KeycloakAuthenticationOptions>()!;
 ```
 
-### Swagger UI with Keycloak
+#### Swagger UI with Keycloak
 
 Using NSwag:
 
@@ -96,7 +100,7 @@ app.UseSwaggerUi(ui =>
 });
 ```
 
-### HTTP Client Resilience
+#### HTTP Client Resilience
 
 Globally (all HTTP clients):
 

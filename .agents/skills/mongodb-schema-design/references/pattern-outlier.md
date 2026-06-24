@@ -5,19 +5,26 @@ impactDescription: "Isolates unusually large documents so hot-path queries stay 
 tags: schema, patterns, outlier, arrays, performance, edge-cases
 ---
 
-## Use Outlier Pattern for Exceptional Documents
+### Use Outlier Pattern for Exceptional Documents
 
-**Isolate atypical documents with large arrays to prevent them from degrading performance for typical queries.** When a small subset of documents is much larger than the rest, those outliers can dominate memory, index, and query costs. Split overflow data into a separate collection and flag the document.
+Isolate atypical documents with large arrays to prevent them from degrading performance for typical queries. When a
+small subset of documents is much larger than the rest, those outliers can dominate memory, index, and query costs.
+Split overflow data into a separate collection and flag the document.
 
-**Problem scenario:**
+Problem scenario:
 
-A typical book might have 50 customers in an embedded array, while a bestseller like Harry Potter accumulates 50,000 (~2.5MB). Queries return the full document, so the outlier dominates memory and network cost. A multikey index on that array produces 50,000 entries for a single document.
+A typical book might have 50 customers in an embedded array, while a bestseller like Harry Potter accumulates 50,000
+(~2.5MB). Queries return the full document, so the outlier dominates memory and network cost. A multikey index on that
+array produces 50,000 entries for a single document.
 
-**Correct (outlier pattern):**
+Correct (outlier pattern):
 
-Typical documents keep their full embedded array and set `hasExtras: false`. Outlier documents cap the embedded array at a threshold (e.g. 50), set `hasExtras: true`, store a denormalized `customerCount`, and overflow remaining items into a separate collection in batched documents (e.g. `{ bookId, customers: [...], batch: 1, count: 950 }`). Application code checks the `hasExtras` flag to decide whether to load overflow batches.
+Typical documents keep their full embedded array and set `hasExtras: false`. Outlier documents cap the embedded array at
+a threshold (e.g. 50), set `hasExtras: true`, store a denormalized `customerCount`, and overflow remaining items into a
+separate collection in batched documents (e.g. `{ bookId, customers: [...], batch: 1, count: 950 }`). Application code
+checks the `hasExtras` flag to decide whether to load overflow batches.
 
-**Implementation with threshold (example; tune per workload):**
+Implementation with threshold (example; tune per workload):
 
 ```javascript
 const CUSTOMER_THRESHOLD = 50
@@ -99,7 +106,7 @@ async function addCustomer(bookId, customerId) {
 }
 ```
 
-**Index strategy:**
+Index strategy:
 
 ```javascript
 // Index on main collection - only 50 entries per outlier doc
@@ -110,7 +117,7 @@ db.book_customers_extra.createIndex({ bookId: 1 })
 db.book_customers_extra.createIndex({ customers: 1 })
 ```
 
-**When to use outlier pattern:**
+When to use outlier pattern:
 
 | Scenario | What to measure | Example |
 |----------|-----------------|---------|
@@ -119,14 +126,16 @@ db.book_customers_extra.createIndex({ customers: 1 })
 | Product reviews | Index fan-out and read locality | Viral products vs. typical |
 | Event attendees | Outlier frequency vs. implementation complexity | Major events vs. small meetups |
 
-**When NOT to use this pattern:**
+When NOT to use this pattern:
 
-- **Uniform distribution**: If all documents have similar array sizes, no outliers to isolate.
-- **Always need full data**: If you always display all 50,000 customers, pattern doesn't help.
-- **Write-heavy outliers**: Complex update logic may not be worth the read optimization.
-- **Small outliers**: If outliers are 200 vs typical 50, just use larger threshold.
+- Uniform distribution: If all documents have similar array sizes, no outliers to isolate.
+- Always need full data: If you always display all 50,000 customers, pattern doesn't help.
+- Write-heavy outliers: Complex update logic may not be worth the read optimization.
+- Small outliers: If outliers are 200 vs typical 50, just use larger threshold.
 
-## Verify with
+---
+
+### Verify with
 
 ```javascript
 // Find outlier documents

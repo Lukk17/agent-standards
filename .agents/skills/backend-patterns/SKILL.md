@@ -8,7 +8,9 @@ origin: ECC
 
 Backend architecture patterns and best practices for scalable server-side applications.
 
-## When to Activate
+---
+
+### When to Activate
 
 - Designing REST or GraphQL API endpoints
 - Implementing repository, service, or controller layers
@@ -18,9 +20,11 @@ Backend architecture patterns and best practices for scalable server-side applic
 - Structuring error handling and validation for APIs
 - Building middleware (auth, logging, rate limiting)
 
-## API Design Patterns
+---
 
-### RESTful API Structure
+### API Design Patterns
+
+#### RESTful API Structure
 
 ```typescript
 // PASS: Resource-based URLs
@@ -32,10 +36,17 @@ PATCH  /api/markets/:id             # Update resource
 DELETE /api/markets/:id             # Delete resource
 
 // PASS: Query parameters for filtering, sorting, pagination
+// Offset pagination shown here is for small, fixed-size sets only.
 GET /api/markets?status=active&sort=volume&limit=20&offset=0
 ```
 
-### Repository Pattern
+Pagination default (section 12): unbounded or large lists default to cursor pagination
+(a stable, opaque cursor over an indexed sort key), not offset. Use offset only for small,
+fixed sets where the total stays bounded and deep paging is not a concern; offset degrades
+on large tables (the database must scan and discard skipped rows) and can skip or duplicate
+rows when the underlying data changes between page requests.
+
+#### Repository Pattern
 
 ```typescript
 // Abstract data access logic
@@ -69,7 +80,7 @@ class SupabaseMarketRepository implements MarketRepository {
 }
 ```
 
-### Service Layer Pattern
+#### Service Layer Pattern
 
 ```typescript
 // Business logic separated from data access
@@ -98,7 +109,7 @@ class MarketService {
 }
 ```
 
-### Middleware Pattern
+#### Middleware Pattern
 
 ```typescript
 // Request/response processing pipeline
@@ -106,8 +117,16 @@ export function withAuth(handler: NextApiHandler): NextApiHandler {
   return async (req, res) => {
     const token = req.headers.authorization?.replace('Bearer ', '')
 
+    // RFC 7807 problem+json bodies for auth failures (matches api-design)
     if (!token) {
-      return res.status(401).json({ error: 'Unauthorized' })
+      return res.status(401)
+        .setHeader('Content-Type', 'application/problem+json')
+        .json({
+          type: 'https://example.com/errors/unauthorized',
+          title: 'Unauthorized',
+          status: 401,
+          detail: 'Missing authorization token',
+        })
     }
 
     try {
@@ -115,7 +134,14 @@ export function withAuth(handler: NextApiHandler): NextApiHandler {
       req.user = user
       return handler(req, res)
     } catch (error) {
-      return res.status(401).json({ error: 'Invalid token' })
+      return res.status(401)
+        .setHeader('Content-Type', 'application/problem+json')
+        .json({
+          type: 'https://example.com/errors/unauthorized',
+          title: 'Unauthorized',
+          status: 401,
+          detail: 'Invalid token',
+        })
     }
   }
 }
@@ -126,9 +152,11 @@ export default withAuth(async (req, res) => {
 })
 ```
 
-## Database Patterns
+---
 
-### Query Optimization
+### Database Patterns
+
+#### Query Optimization
 
 ```typescript
 // PASS: GOOD: Select only needed columns
@@ -145,7 +173,7 @@ const { data } = await supabase
   .select('*')
 ```
 
-### N+1 Query Prevention
+#### N+1 Query Prevention
 
 ```typescript
 // FAIL: BAD: N+1 query problem
@@ -165,7 +193,7 @@ markets.forEach(market => {
 })
 ```
 
-### Transaction Pattern
+#### Transaction Pattern
 
 ```typescript
 async function createMarketWithPosition(
@@ -203,9 +231,11 @@ END;
 $$;
 ```
 
-## Caching Strategies
+---
 
-### Redis Caching Layer
+### Caching Strategies
+
+#### Redis Caching Layer
 
 ```typescript
 class CachedMarketRepository implements MarketRepository {
@@ -239,7 +269,7 @@ class CachedMarketRepository implements MarketRepository {
 }
 ```
 
-### Cache-Aside Pattern
+#### Cache-Aside Pattern
 
 ```typescript
 async function getMarketWithCache(id: string): Promise<Market> {
@@ -261,9 +291,11 @@ async function getMarketWithCache(id: string): Promise<Market> {
 }
 ```
 
-## Error Handling Patterns
+---
 
-### Centralized Error Handler
+### Error Handling Patterns
+
+#### Centralized Error Handler
 
 ```typescript
 class ApiError extends Error {
@@ -277,29 +309,48 @@ class ApiError extends Error {
   }
 }
 
+// All error responses use RFC 7807 application/problem+json (matches the
+// api-design skill). Shape: type, title, status, detail, instance, and an
+// errors[] of { field, message, code } for field-level validation failures.
+const PROBLEM_JSON = 'application/problem+json'
+
 export function errorHandler(error: unknown, req: Request): Response {
   if (error instanceof ApiError) {
     return NextResponse.json({
-      success: false,
-      error: error.message
-    }, { status: error.statusCode })
+      type: `https://example.com/errors/${error.statusCode}`,
+      title: error.message,
+      status: error.statusCode,
+      detail: error.message,
+      instance: new URL(req.url).pathname,
+    }, { status: error.statusCode, headers: { 'Content-Type': PROBLEM_JSON } })
   }
 
   if (error instanceof z.ZodError) {
+    // Map each Zod issue to a field-level error object, return 422
     return NextResponse.json({
-      success: false,
-      error: 'Validation failed',
-      details: error.errors
-    }, { status: 400 })
+      type: 'https://example.com/errors/validation',
+      title: 'Validation Failed',
+      status: 422,
+      detail: `${error.errors.length} field(s) failed validation`,
+      instance: new URL(req.url).pathname,
+      errors: error.errors.map(e => ({
+        field: e.path.join('.'),
+        message: e.message,
+        code: e.code,
+      })),
+    }, { status: 422, headers: { 'Content-Type': PROBLEM_JSON } })
   }
 
-  // Log unexpected errors
-  console.error('Unexpected error:', error)
+  // Log unexpected errors via pino (never console.error in production)
+  logger.error({ err: error }, 'Unexpected error')
 
   return NextResponse.json({
-    success: false,
-    error: 'Internal server error'
-  }, { status: 500 })
+    type: 'https://example.com/errors/internal',
+    title: 'Internal Server Error',
+    status: 500,
+    detail: 'An unexpected error occurred',
+    instance: new URL(req.url).pathname,
+  }, { status: 500, headers: { 'Content-Type': PROBLEM_JSON } })
 }
 
 // Usage
@@ -313,9 +364,12 @@ export async function GET(request: Request) {
 }
 ```
 
-### Retry with Exponential Backoff
+#### Retry with Exponential Backoff
 
 ```typescript
+const BACKOFF_BASE_MS = 1000  // first retry waits 1s, then doubles
+const BACKOFF_CAP_MS = 30_000  // upper bound on any single backoff delay
+
 async function fetchWithRetry<T>(
   fn: () => Promise<T>,
   maxRetries = 3
@@ -329,8 +383,8 @@ async function fetchWithRetry<T>(
       lastError = error as Error
 
       if (i < maxRetries - 1) {
-        // Exponential backoff: 1s, 2s, 4s
-        const delay = Math.pow(2, i) * 1000
+        // Exponential backoff: 1s, 2s, 4s, capped at BACKOFF_CAP_MS
+        const delay = Math.min(Math.pow(2, i) * BACKOFF_BASE_MS, BACKOFF_CAP_MS)
         await new Promise(resolve => setTimeout(resolve, delay))
       }
     }
@@ -343,9 +397,23 @@ async function fetchWithRetry<T>(
 const data = await fetchWithRetry(() => fetchFromAPI())
 ```
 
-## Authentication & Authorization
+Concurrency (section 23): independent input and output work runs concurrently, not in
+sequence. When two awaited calls have no data dependency (for example, fetching a record
+and loading the caller's permissions), start both and await together with `Promise.all`
+rather than awaiting one then the other.
 
-### JWT Token Validation
+```typescript
+const [market, permissions] = await Promise.all([
+  marketRepo.findById(id),
+  authService.loadPermissions(userId),
+])
+```
+
+---
+
+### Authentication & Authorization
+
+#### JWT Token Validation
 
 ```typescript
 import jwt from 'jsonwebtoken'
@@ -385,7 +453,7 @@ export async function GET(request: Request) {
 }
 ```
 
-### Role-Based Access Control
+#### Role-Based Access Control
 
 ```typescript
 type Permission = 'read' | 'write' | 'delete' | 'admin'
@@ -428,9 +496,11 @@ export const DELETE = requirePermission('delete')(
 )
 ```
 
-## Rate Limiting
+---
 
-### Simple In-Memory Rate Limiter
+### Rate Limiting
+
+#### Simple In-Memory Rate Limiter
 
 ```typescript
 class RateLimiter {
@@ -457,6 +527,13 @@ class RateLimiter {
 
     return true
   }
+
+  // Requests still allowed in the current window, for X-RateLimit-Remaining
+  remaining(identifier: string, maxRequests: number, windowMs: number): number {
+    const now = Date.now()
+    const recent = (this.requests.get(identifier) || []).filter(time => now - time < windowMs)
+    return Math.max(0, maxRequests - recent.length)
+  }
 }
 
 const limiter = new RateLimiter()
@@ -464,21 +541,45 @@ const limiter = new RateLimiter()
 export async function GET(request: Request) {
   const ip = request.headers.get('x-forwarded-for') || 'unknown'
 
-  const allowed = await limiter.checkLimit(ip, 100, 60000)  // 100 req/min
+  const limit = 100
+  const windowMs = 60_000  // 100 req/min
+  const allowed = await limiter.checkLimit(ip, limit, windowMs)
+  const remaining = await limiter.remaining(ip, limit, windowMs)
+  const resetSeconds = Math.ceil(windowMs / 1000)
+
+  // Always advertise the standard rate-limit headers; on 429 add Retry-After
+  // and return an RFC 7807 problem+json body (matches api-design)
+  const rateLimitHeaders = {
+    'X-RateLimit-Limit': String(limit),
+    'X-RateLimit-Remaining': String(remaining),
+    'X-RateLimit-Reset': String(resetSeconds),
+  }
 
   if (!allowed) {
     return NextResponse.json({
-      error: 'Rate limit exceeded'
-    }, { status: 429 })
+      type: 'https://example.com/errors/rate-limit',
+      title: 'Too Many Requests',
+      status: 429,
+      detail: 'Rate limit exceeded',
+    }, {
+      status: 429,
+      headers: {
+        ...rateLimitHeaders,
+        'Content-Type': 'application/problem+json',
+        'Retry-After': String(resetSeconds),
+      },
+    })
   }
 
-  // Continue with request
+  // Continue with request, echoing rate-limit headers on the success path
 }
 ```
 
-## Background Jobs & Queues
+---
 
-### Simple Queue Pattern
+### Background Jobs & Queues
+
+#### Simple Queue Pattern
 
 ```typescript
 class JobQueue<T> {
@@ -531,11 +632,13 @@ export async function POST(request: Request) {
 }
 ```
 
-## Logging & Monitoring
+---
 
-### Structured Logging with pino
+### Logging & Monitoring
 
-Use **pino** for structured JSON logging — never use `console.log` in production code.
+#### Structured Logging with pino
+
+Use pino for structured JSON logging, never use `console.log` in production code.
 Every log entry on a request path must include `correlationId` and `requestId`.
 
 ```typescript
@@ -576,13 +679,13 @@ export async function GET(request: Request) {
 }
 ```
 
-**Rules:**
-- Never use `console.log`, `console.error`, or `console.warn` in production code — use pino
-- Never access `process.env` directly in business logic — use a validated typed config object
+Rules:
+- Never use `console.log`, `console.error`, or `console.warn` in production code: use pino
+- Never access `process.env` directly in business logic: use a validated typed config object
 - Every log entry on a request path must carry `correlationId` and `requestId`
 ```
 
-**Remember**: Backend patterns enable scalable, maintainable server-side applications. Choose patterns that fit your complexity level.
+Remember: Backend patterns enable scalable, maintainable server-side applications. Choose patterns that fit your complexity level.
 
 ---
 
@@ -616,7 +719,9 @@ switch (state.status) {
 }
 ```
 
-## Environment & Configuration
+---
+
+### Environment & Configuration
 
 Never access `process.env` directly in business logic. Always use a validated typed config object:
 
@@ -634,11 +739,17 @@ export const config = schema.parse(process.env)
 // Throws at startup if env vars are missing or invalid — fail fast
 ```
 
-## Startup readiness log
+---
 
-See [coding-standards](../coding-standards/SKILL.md) → "Startup readiness log" for the universal convention (ANSI Shadow banner, URL + profile + dependency + observability sections, 2-second probe timeouts, `<url> [Connected|Warning|FAILED]` result format).
+### Startup readiness log
 
-**Node / Express hook:** `server.on('listening', ...)` after `app.listen()`. For NestJS, the post-`app.listen()` line in `bootstrap()`. For Next.js custom server, the post-bind callback.
+See [observability-and-logging](../observability-and-logging/SKILL.md) → "Startup readiness log" for the universal
+convention (ANSI Shadow
+banner, URL + profile + dependency + observability sections, 2-second probe timeouts, `<url> [Connected|Warning|FAILED]`
+result format).
+
+Node / Express hook: `server.on('listening', ...)` after `app.listen()`. For NestJS, the post-`app.listen()` line in
+`bootstrap()`. For Next.js custom server, the post-bind callback.
 
 ```typescript
 const server = app.listen(config.PORT, () => {
@@ -649,7 +760,8 @@ const server = app.listen(config.PORT, () => {
 })
 ```
 
-**Probe timeouts:** `fetch(url, { signal: AbortSignal.timeout(2000) })` so unreachable dependencies don't stall the banner. Catch with `.catch(...)`, log the detail at debug, surface only `[FAILED]`.
+Probe timeouts: `fetch(url, { signal: AbortSignal.timeout(2000) })` so unreachable dependencies don't stall the banner.
+Catch with `.catch(...)`, log the detail at debug, surface only `[FAILED]`.
 
 ```typescript
 async function probe(url: string): Promise<string> {
@@ -663,7 +775,9 @@ async function probe(url: string): Promise<string> {
 }
 ```
 
-## Graceful Shutdown
+---
+
+### Graceful Shutdown
 
 ```typescript
 const shutdown = async (signal: string) => {

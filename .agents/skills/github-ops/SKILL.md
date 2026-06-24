@@ -8,7 +8,17 @@ origin: ECC
 
 Manage GitHub repositories with a focus on community health, CI reliability, and contributor experience.
 
-## When to Activate
+---
+
+### Approval Posture
+
+This skill performs read-only and proposal actions by default. Any state-changing or CI-triggering action (merging,
+closing issues or PRs, creating releases, re-running workflows, or enabling automation) requires explicit per-action
+user approval before you run it. Prepare the exact command and stop for the user to run or approve it.
+
+---
+
+### When to Activate
 
 - Triaging issues (classifying, labeling, responding, deduplicating)
 - Managing PRs (review status, CI checks, stale PRs, merge readiness)
@@ -18,20 +28,24 @@ Manage GitHub repositories with a focus on community health, CI reliability, and
 - Managing contributor experience on open-source projects
 - User says "check GitHub", "triage issues", "review PRs", "merge", "release", "CI is broken"
 
-## Tool Requirements
+---
 
-- **gh CLI** for all GitHub API operations
+### Tool Requirements
+
+- gh CLI for all GitHub API operations
 - Repository access configured via `gh auth login`
 
-## Issue Triage
+---
+
+### Issue Triage
 
 Classify each issue by type and priority:
 
-**Types:** bug, feature-request, question, documentation, enhancement, duplicate, invalid, good-first-issue
+Types: bug, feature-request, question, documentation, enhancement, duplicate, invalid, good-first-issue
 
-**Priority:** critical (breaking/security), high (significant impact), medium (nice to have), low (cosmetic)
+Priority: critical (breaking/security), high (significant impact), medium (nice to have), low (cosmetic)
 
-### Triage Workflow
+#### Triage Workflow
 
 1. Read the issue title, body, and comments
 2. Check if it duplicates an existing issue (search by keywords)
@@ -52,9 +66,11 @@ gh issue edit <number> --add-label "bug,high-priority"
 gh issue comment <number> --body "Thanks for reporting. Could you share reproduction steps?"
 ```
 
-## PR Management
+---
 
-### Review Checklist
+### PR Management
+
+#### Review Checklist
 
 1. Check CI status: `gh pr checks <number>`
 2. Check if mergeable: `gh pr view <number> --json mergeable`
@@ -62,11 +78,12 @@ gh issue comment <number> --body "Thanks for reporting. Could you share reproduc
 4. Flag PRs >5 days with no review
 5. For community PRs: ensure they have tests and follow conventions
 
-### Stale Policy
+#### Stale Policy
 
 - Issues with no activity in 14+ days: add `stale` label, comment asking for update
 - PRs with no activity in 7+ days: comment asking if still active
-- Auto-close stale issues after 30 days with no response (add `closed-stale` label)
+- Issues stale for 30+ days with no response: flag for the user and propose closing; only close on explicit
+  instruction, or when the user has pre-approved a specific stale label (then add `closed-stale` label)
 
 ```bash
 # Find stale issues (no activity in 14+ days)
@@ -76,7 +93,9 @@ gh issue list --label "stale" --state open
 gh pr list --json number,title,updatedAt --jq '.[] | select(.updatedAt < "2026-03-01")'
 ```
 
-## CI/CD Operations
+---
+
+### CI/CD Operations
 
 When CI fails:
 
@@ -93,18 +112,21 @@ gh run list --status failure --limit 10
 # View failed run logs
 gh run view <run-id> --log-failed
 
-# Re-run a failed workflow
+# Re-run a failed workflow (ask for approval first: re-running dispatches CI)
 gh run rerun <run-id> --failed
 ```
 
-## Release Management
+---
+
+### Release Management
 
 When preparing a release:
 
 1. Check all CI is green on main
 2. Review unreleased changes: `gh pr list --state merged --base main`
 3. Generate changelog from PR titles
-4. Create release: `gh release create`
+4. Prepare the changelog and the exact `gh release create` command, then stop for the user to run or approve it.
+   Creating a release is a publish action and is approval-gated; do not run it autonomously.
 
 ```bash
 # List merged PRs since last release
@@ -117,7 +139,9 @@ gh release create v1.2.0 --title "v1.2.0" --generate-notes
 gh release create v1.3.0-rc1 --prerelease --title "v1.3.0 Release Candidate 1"
 ```
 
-## Security Monitoring
+---
+
+### Security Monitoring
 
 ```bash
 # Check Dependabot alerts
@@ -126,15 +150,19 @@ gh api repos/{owner}/{repo}/dependabot/alerts --jq '.[].security_advisory.summar
 # Check secret scanning alerts
 gh api repos/{owner}/{repo}/secret-scanning/alerts --jq '.[].state'
 
-# Review and auto-merge safe dependency bumps
+# List safe dependency bumps and propose them for the user to approve (never auto-merge)
 gh pr list --label "dependencies" --json number,title
 ```
 
-- Review and auto-merge safe dependency bumps
+- List safe dependency bumps and propose them for the user to approve; never auto-merge
 - Flag any critical/high severity alerts immediately
 - Check for new Dependabot alerts weekly at minimum
+- Reading alerts is read-only and fine. Enabling Dependabot or any self-scanning automation is a state-changing,
+  CI-triggering action and requires explicit user approval before you enable it
 
-## Quality Gate
+---
+
+### Quality Gate
 
 Before completing any GitHub operations task:
 - all issues triaged have appropriate labels

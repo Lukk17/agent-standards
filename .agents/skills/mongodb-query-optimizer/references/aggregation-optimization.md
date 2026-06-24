@@ -7,11 +7,14 @@ Aggregation pipelines process documents through sequential stages. Focus on:
 - Leveraging indexes where possible
 - Managing memory usage
 
-## Memory limits and disk spilling
+---
 
-Blocking stages (such as in-memory `$sort` and `$group`) have a 100MB memory limit per stage. Default behavior when this limit is exceeded is to spill to disk automatically (`allowDiskUse` defaults to `true`).
+### Memory limits and disk spilling
 
-**Better solutions:**
+Blocking stages (such as in-memory `$sort` and `$group`) have a 100MB memory limit per stage. Default behavior when this
+limit is exceeded is to spill to disk automatically (`allowDiskUse` defaults to `true`).
+
+Better solutions:
 
 - Filter more aggressively early in pipeline
 - Add indexes to enable `$sort` to use index order
@@ -22,9 +25,11 @@ Blocking stages (such as in-memory `$sort` and `$group`) have a 100MB memory lim
 
 These examples are not exhaustive but representative of some common optimization patterns.
 
-## Unindexed $lookup vs. Indexed $lookup
+---
 
-**Bad** — No index on the foreign collection's join field:
+### Unindexed $lookup vs. Indexed $lookup
+
+Bad: No index on the foreign collection's join field:
 
 ```javascript
 db.orders.aggregate([
@@ -37,7 +42,7 @@ db.orders.aggregate([
 ])
 ```
 
-**Good** — Index on `foreignField` in the foreign collection:
+Good: Index on `foreignField` in the foreign collection:
 
 ```javascript
 db.products.createIndex({ sku: 1 })
@@ -52,11 +57,15 @@ db.orders.aggregate([
 ])
 ```
 
-**Why:** Each `$lookup` executes a find on the `from` collection. Without an index on `foreignField`, every join does a full collection scan. This is the single most critical $lookup optimization.
+Why: Each `$lookup` executes a find on the `from` collection. Without an index on `foreignField`, every join does a full
+collection scan. This is the single most critical $lookup optimization.
 
-## Early $project Defeating Optimization vs. Late $project
+---
 
-**Bad** — Early `$project` prevents the optimizer from pruning unused fields, forgets to exclude `_id` which is unneeded, and includes `name` which is not used:
+### Early $project Defeating Optimization vs. Late $project
+
+Bad: Early `$project` prevents the optimizer from pruning unused fields, forgets to exclude `_id` which is unneeded, and
+includes `name` which is not used:
 
 ```javascript
 db.collection.aggregate([
@@ -66,7 +75,7 @@ db.collection.aggregate([
 ])
 ```
 
-**Good** — Let the optimizer handle field pruning; use `$project` only at the end for reshaping:
+Good: Let the optimizer handle field pruning; use `$project` only at the end for reshaping:
 
 ```javascript
 db.collection.aggregate([
@@ -76,11 +85,14 @@ db.collection.aggregate([
 ])
 ```
 
-**Why:** MongoDB's pipeline optimizer automatically analyzes which fields are used and avoids fetching unused ones. An early `$project` defeats this optimization, and can inadvertently request the wrong fields.
+Why: MongoDB's pipeline optimizer automatically analyzes which fields are used and avoids fetching unused ones. An early
+`$project` defeats this optimization, and can inadvertently request the wrong fields.
 
-## $facet for Divergent Processing vs. $unionWith
+---
 
-**Bad** — `$facet` sends all documents to every branch, even if branches need very different subsets:
+### $facet for Divergent Processing vs. $unionWith
+
+Bad: `$facet` sends all documents to every branch, even if branches need very different subsets:
 
 ```javascript
 db.collection.aggregate([
@@ -91,7 +103,7 @@ db.collection.aggregate([
 ])
 ```
 
-**Good** — Separate pipelines via `$unionWith` let each branch optimize independently:
+Good: Separate pipelines via `$unionWith` let each branch optimize independently:
 
 ```javascript
 db.collection.aggregate([
@@ -103,11 +115,14 @@ db.collection.aggregate([
 ])
 ```
 
-**Why:** `$facet` funnels every document into every branch. `$unionWith` runs independent pipelines that each benefit from their own index usage and optimization.
+Why: `$facet` funnels every document into every branch. `$unionWith` runs independent pipelines that each benefit from
+their own index usage and optimization.
 
-## $sort \+ $limit as Separate Concerns vs. Top-N Sort
+---
 
-**Bad** — Large sort, then limit (MongoDB may sort entire dataset):
+### $sort \+ $limit as Separate Concerns vs. Top-N Sort
+
+Bad: Large sort, then limit (MongoDB may sort entire dataset):
 
 ```javascript
 db.collection.aggregate([
@@ -118,7 +133,7 @@ db.collection.aggregate([
 ])
 ```
 
-**Good** — Place `$limit` immediately after `$sort`:
+Good: Place `$limit` immediately after `$sort`:
 
 ```javascript
 db.collection.aggregate([
@@ -128,11 +143,14 @@ db.collection.aggregate([
 ])
 ```
 
-**Why:** When `$sort` is immediately followed by `$limit`, MongoDB performs a *top-N sort* — it only tracks the top N values instead of sorting the full dataset. Far less memory.
+Why: When `$sort` is immediately followed by `$limit`, MongoDB performs a top-N sort, it only tracks the top N values
+instead of sorting the full dataset. Far less memory.
 
-## $unwind Best Practices
+---
 
-**When $unwind is needed**, filter before unwinding so that the $match stage allows index usage:
+### $unwind Best Practices
+
+When $unwind is needed, filter before unwinding so that the $match stage allows index usage:
 
 ```javascript
 [
@@ -142,17 +160,20 @@ db.collection.aggregate([
 ]
 ```
 
-**Never $unwind to re-group by `_id`:** If you are using `$unwind` followed by `$group` with `_id:` you can replace it with an array operator like `$filter`, `$map` or `$reduce` to match or transform array elements without unwinding.
+Never $unwind to re-group by `_id`: If you are using `$unwind` followed by `$group` with `_id:` you can replace it with
+an array operator like `$filter`, `$map` or `$reduce` to match or transform array elements without unwinding.
 
-## Optimize $lookup operations
+---
+
+### Optimize $lookup operations
 
 `$lookup` performs collection joins and can be expensive. Strategies to improve performance:
 
-1. **Filter before lookup** to reduce left-side documents
-2. **Use indexed fields** in the lookup `localField`/`foreignField`
-3. **Add $match in the lookup pipeline** to reduce right-side documents early
-4. **Add $project last in the lookup pipeline** to keep only the fields you need
-5. **$unwind immediately after lookup** when you need `as` result flattened
+1. Filter before lookup to reduce left-side documents
+2. Use indexed fields in the lookup `localField`/`foreignField`
+3. Add $match in the lookup pipeline to reduce right-side documents early
+4. Add $project last in the lookup pipeline to keep only the fields you need
+5. $unwind immediately after lookup when you need `as` result flattened
 
 ```javascript
 [
@@ -171,16 +192,20 @@ db.collection.aggregate([
 ]
 ```
 
-**Schema consideration:** Excessive `$lookup` usage may indicate over-normalization. Consider embedding frequently-joined data.
+Schema consideration: Excessive `$lookup` usage may indicate over-normalization. Consider embedding frequently-joined
+data.
 
-## $group efficiency
+---
+
+### $group efficiency
 
 Group operations require accumulating result documents in memory. Keys to efficiency:
 
-1. **Include only needed fields within the $group stage** \- reference only the fields you need in accumulators
-2. **Be mindful of unbounded accumulators** \- `$push` and `$addToSet` grow as group size increases and can cause memory issues
+1. Include only needed fields within the $group stage \- reference only the fields you need in accumulators
+2. Be mindful of unbounded accumulators \- `$push` and `$addToSet` grow as group size increases and can cause memory
+   issues
 
-**Bad** \- do not add $project before $group to "reduce fields":
+Bad \- do not add $project before $group to "reduce fields":
 
 ```javascript
 [
@@ -194,7 +219,7 @@ Group operations require accumulating result documents in memory. Keys to effici
 ]
 ```
 
-**Good** \- reference only needed fields directly in $group:
+Good \- reference only needed fields directly in $group:
 
 ```javascript
 [
@@ -207,4 +232,5 @@ Group operations require accumulating result documents in memory. Keys to effici
 ]
 ```
 
-**Why:** The $group stage only processes the fields referenced in its expressions. Adding a $project before it does not save memory.
+Why: The $group stage only processes the fields referenced in its expressions. Adding a $project before it does not save
+memory.

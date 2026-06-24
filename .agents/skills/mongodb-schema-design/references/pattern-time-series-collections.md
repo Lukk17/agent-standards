@@ -5,13 +5,17 @@ impactDescription: "10-100× lower storage and index overhead with automatic buc
 tags: schema, patterns, time-series, collections, bucketing, ttl, granularity, compression
 ---
 
-## Use Time Series Collections for Time Series Data
+### Use Time Series Collections for Time Series Data
 
-**Time series collections are purpose-built for append-only measurements.** MongoDB automatically buckets, compresses, and indexes time series data so you get high ingest rates with far less storage and index overhead than a standard collection. Use them for IoT sensor data, application metrics, financial data, and event logs.
+Time series collections are purpose-built for append-only measurements. MongoDB automatically buckets, compresses, and
+indexes time series data so you get high ingest rates with far less storage and index overhead than a standard
+collection. Use them for IoT sensor data, application metrics, financial data, and event logs.
 
-**MongoDB 8.0 Performance:** Block processing introduced in MongoDB 8.0 can significantly improve eligible analytical pipelines (for example, `$match` + `$sort` on the time field + `$group`). In some cases, throughput improves by more than 200%. This is automatic for eligible queries.
+MongoDB 8.0 Performance: Block processing introduced in MongoDB 8.0 can significantly improve eligible analytical
+pipelines (for example, `$match` + `$sort` on the time field + `$group`). In some cases, throughput improves by more
+than 200%. This is automatic for eligible queries.
 
-**Incorrect (regular collection for measurements):**
+Incorrect (regular collection for measurements):
 
 ```javascript
 // Regular collection: one document per reading
@@ -32,7 +36,7 @@ tags: schema, patterns, time-series, collections, bucketing, ttl, granularity, c
 db.sensor_data.createIndex({ sensorId: 1, ts: 1 })
 ```
 
-**Correct (time series collection with optimized settings):**
+Correct (time series collection with optimized settings):
 
 ```javascript
 // Create time series collection with careful configuration
@@ -60,7 +64,7 @@ db.sensor_data.insertOne({
 // - Optimized for time-range queries
 ```
 
-**Choose the right metaField:**
+Choose the right metaField:
 
 ```javascript
 // metaField groups measurements into buckets
@@ -92,7 +96,7 @@ db.sensor_data.insertOne({
 // metaField should be static for the time series
 ```
 
-**Select appropriate granularity:**
+Select appropriate granularity:
 
 ```javascript
 // Granularity determines bucket time span
@@ -124,7 +128,7 @@ db.createCollection("custom_metrics", {
 })
 ```
 
-**Optimize insert performance:**
+Optimize insert performance:
 
 ```javascript
 // Batch inserts with insertMany
@@ -140,7 +144,7 @@ db.sensor_data.insertMany(batch, { ordered: false })
 // Use consistent field order and omit empty values for better compression
 ```
 
-**Secondary indexes on time series:**
+Secondary indexes on time series:
 
 ```javascript
 // MongoDB 6.3+: time series auto-creates index on { metaField, timeField } for new collections
@@ -161,15 +165,17 @@ db.sensor_data.createIndex(
 )
 ```
 
-**When NOT to use time series collections:**
+When NOT to use time series collections:
 
-- **Not time-based data**: Primary access isn't time range queries.
-- **Frequent updates/deletes**: Time series optimized for append-only; updates to old data are slow.
-- **Very low volume**: A few hundred events don't benefit from bucketing.
-- **Need transactional writes**: Time series collections don't support writes in transactions (reads are supported).
-- **Complex queries on measurements**: If you mostly query by non-time fields, regular collections may be better.
+- Not time-based data: Primary access isn't time range queries.
+- Frequent updates/deletes: Time series optimized for append-only; updates to old data are slow.
+- Very low volume: A few hundred events don't benefit from bucketing.
+- Need transactional writes: Time series collections don't support writes in transactions (reads are supported).
+- Complex queries on measurements: If you mostly query by non-time fields, regular collections may be better.
 
-## Verify with
+---
+
+### Verify with
 
 ```javascript
 // Get collection info

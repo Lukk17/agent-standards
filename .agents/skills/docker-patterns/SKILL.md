@@ -8,7 +8,9 @@ origin: ECC
 
 Docker and Docker Compose best practices for containerized development.
 
-## When to Activate
+---
+
+### When to Activate
 
 - Setting up Docker Compose for local development
 - Designing multi-container architectures
@@ -16,17 +18,19 @@ Docker and Docker Compose best practices for containerized development.
 - Reviewing Dockerfiles for security and size
 - Migrating from local dev to containerized workflow
 
-## Docker Compose for Local Development
+---
 
-### Standard Web App Stack
+### Docker Compose for Local Development
 
-> **Rule: Named volumes only.** Never use anonymous volumes (e.g., `- /app/node_modules`).
+#### Standard Web App Stack
+
+> Rule: Named volumes only. Never use anonymous volumes (e.g., `- /app/node_modules`).
 > Why:
-> 1. **Unidentifiable** — no name; cannot be targeted by backup scripts or `docker volume inspect`
-> 2. **Orphaned silently** — persist as dangling volumes after `docker-compose down`; accumulate disk usage invisibly
-> 3. **Not shareable** — cannot be referenced between services or compose files
-> 4. **Breaks reproducibility** — volume names become random hashes; nothing can reliably reference them
-> 5. **Production foot-gun** — data is tied to container lifecycle rather than a managed named resource
+> 1. Unidentifiable, no name; cannot be targeted by backup scripts or `docker volume inspect`
+> 2. Orphaned silently, persist as dangling volumes after `docker-compose down`; accumulate disk usage invisibly
+> 3. Not shareable, cannot be referenced between services or compose files
+> 4. Breaks reproducibility, volume names become random hashes; nothing can reliably reference them
+> 5. Production foot-gun, data is tied to container lifecycle rather than a managed named resource
 
 ```yaml
 # docker-compose.yml
@@ -87,7 +91,7 @@ volumes:
   node_modules:
 ```
 
-### Development vs Production Dockerfile
+#### Development vs Production Dockerfile
 
 ```dockerfile
 # Stage: dependencies
@@ -125,7 +129,7 @@ HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://localhost:3000/heal
 CMD ["node", "dist/server.js"]
 ```
 
-### Override Files
+#### Override Files
 
 ```yaml
 # docker-compose.override.yml (auto-loaded, dev-only settings)
@@ -158,9 +162,11 @@ docker compose up
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
-## Networking
+---
 
-### Service Discovery
+### Networking
+
+#### Service Discovery
 
 Services in the same Compose network resolve by service name:
 ```
@@ -169,7 +175,7 @@ postgres://postgres:postgres@db:5432/app_dev    # "db" resolves to the db contai
 redis://redis:6379/0                             # "redis" resolves to the redis container
 ```
 
-### Custom Networks
+#### Custom Networks
 
 ```yaml
 services:
@@ -191,7 +197,7 @@ networks:
   backend-net:
 ```
 
-### Exposing Only What's Needed
+#### Exposing Only What's Needed
 
 ```yaml
 services:
@@ -201,7 +207,9 @@ services:
     # Omit ports entirely in production -- accessible only within Docker network
 ```
 
-## Volume Strategies
+---
+
+### Volume Strategies
 
 ```yaml
 volumes:
@@ -215,7 +223,7 @@ volumes:
   # node_modules:/app/node_modules
 ```
 
-### Common Patterns
+#### Common Patterns
 
 ```yaml
 services:
@@ -236,9 +244,11 @@ volumes:
   pgdata:
 ```
 
-## Container Security
+---
 
-### Dockerfile Hardening
+### Container Security
+
+#### Dockerfile Hardening
 
 ```dockerfile
 # 1. Use specific tags (never :latest)
@@ -253,7 +263,7 @@ USER app
 # 5. No secrets in image layers
 ```
 
-### Compose Security
+#### Compose Security
 
 ```yaml
 services:
@@ -270,7 +280,7 @@ services:
       - NET_BIND_SERVICE          # Only if binding to ports < 1024
 ```
 
-### Secret Management
+#### Secret Management
 
 ```yaml
 # GOOD: Use environment variables (injected at runtime)
@@ -295,7 +305,9 @@ services:
 # ENV API_KEY=sk-proj-xxxxx      # NEVER DO THIS
 ```
 
-## .dockerignore
+---
+
+### .dockerignore
 
 Always create a `.dockerignore` at the same level as the `Dockerfile`:
 
@@ -314,7 +326,9 @@ coverage
 tests/
 ```
 
-## Base Image Policy
+---
+
+### Base Image Policy
 
 | Use case | Preferred base |
 |---|---|
@@ -323,9 +337,11 @@ tests/
 | Node.js | `node:22-alpine` |
 | Python | `python:3.12-slim` |
 
-Never use `ubuntu:latest` or `debian:latest` as a runtime base — use a specific slim or distroless image.
+Never use `ubuntu:latest` or `debian:latest` as a runtime base, use a specific slim or distroless image.
 
-## apt-get Best Practice
+---
+
+### apt-get Best Practice
 
 Always combine install + cleanup in a single RUN layer:
 
@@ -336,7 +352,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 ```
 
-## OCI Image Labels
+---
+
+### OCI Image Labels
 
 Every published Dockerfile must include standard labels:
 
@@ -347,9 +365,11 @@ LABEL org.opencontainers.image.source="https://github.com/org/repo" \
       org.opencontainers.image.version="${VERSION}"
 ```
 
-## Supply Chain Security
+---
 
-### Image Scanning (Trivy)
+### Supply Chain Security
+
+#### Image Scanning (Trivy)
 
 Scan every image in CI before pushing:
 
@@ -360,7 +380,7 @@ trivy image --exit-code 1 --severity CRITICAL,HIGH myimage:tag
 - Block the pipeline on CRITICAL/HIGH CVEs with available fixes
 - Store the scan report as a CI artifact
 
-### SBOM Generation
+#### SBOM Generation
 
 Generate a Software Bill of Materials and attach as OCI referrer:
 
@@ -368,7 +388,7 @@ Generate a Software Bill of Materials and attach as OCI referrer:
 syft myimage:tag -o cyclonedx-json > sbom.json
 ```
 
-### Container Signing (cosign / Sigstore)
+#### Container Signing (cosign / Sigstore)
 
 Sign every production image after push:
 
@@ -382,7 +402,9 @@ Verify before deploy:
 cosign verify --key cosign.pub myregistry/myimage:tag
 ```
 
-## Build-Time Secrets
+---
+
+### Build-Time Secrets
 
 Use `--mount=type=secret` instead of `ARG` / `ENV` for sensitive values:
 
@@ -395,15 +417,19 @@ RUN --mount=type=secret,id=npm_token \
 docker build --secret id=npm_token,src=.npmrc .
 ```
 
-## Registry Retention Policy
+---
 
-- Keep last **10 tagged releases** in the registry
-- Auto-delete dangling (untagged) images after **7 days**
+### Registry Retention Policy
+
+- Keep last 10 tagged releases in the registry
+- Auto-delete dangling (untagged) images after 7 days
 - Implement via registry lifecycle policies (ECR, GCR, Docker Hub retention)
 
-## Debugging
+---
 
-### Common Commands
+### Debugging
+
+#### Common Commands
 
 ```bash
 # View logs
@@ -429,7 +455,7 @@ docker compose down -v                # Also remove volumes (DESTRUCTIVE)
 docker system prune                   # Remove unused images/containers
 ```
 
-### Debugging Network Issues
+#### Debugging Network Issues
 
 ```bash
 # Check DNS resolution inside container
@@ -443,7 +469,9 @@ docker network ls
 docker network inspect <project>_default
 ```
 
-## Anti-Patterns
+---
+
+### Anti-Patterns
 
 ```
 # BAD: Using docker compose in production without orchestration

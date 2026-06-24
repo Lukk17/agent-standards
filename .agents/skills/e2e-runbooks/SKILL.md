@@ -3,7 +3,7 @@ name: e2e-runbooks
 description: Use whenever the user wants to add, run, or refine an end-to-end capability test (one feature exercised against a live stack, behaviour-only assertions, manual or AI-runnable). Triggers on phrases like "add an e2e test for X", "verify the upload flow end-to-end", "run the e2e sweep", "test that the MCP tool actually fires", "smoke test against the staging stack", "build a capability test for the auth flow". Methodology covers spec / tasks-template / runs triple, behaviour-only assertions, canary fixtures, number-by-setup-cost ordering, per-run token + duration accounting, and API client alternatives (Bruno / hurl / curl / VS Code REST Client / httpie). Distinct from the `e2e-testing` skill (Playwright UI testing); this one is for backend capability sweeps. Pairs with the `e2e-runbooks` OpenSpec schema at [Lukk17/openspec-schemas](https://github.com/Lukk17/openspec-schemas) for projects using OpenSpec.
 ---
 
-### When to use this skill
+#### When to use this skill
 
 ---
 
@@ -21,7 +21,7 @@ This skill is for: "does the deployed service actually do X when you poke it fro
 
 ---
 
-### Directory layout (scaffold once per project)
+#### Directory layout (scaffold once per project)
 
 ---
 
@@ -59,17 +59,17 @@ are the source to copy from.
 
 ---
 
-### Methodology overview
+#### Methodology overview
 
 ---
 
 Three files per capability test:
 
-- **`e2e/testing/{N}-{capability}-test.md`** — the **immutable spec**. Seven fixed sections. Never edited between runs;
+- `e2e/testing/{N}-{capability}-test.md`: the immutable spec. Seven fixed sections. Never edited between runs;
   if behaviour changes, write a new spec with a new N.
-- **`e2e/testing/templates/{N}-{capability}-tasks.template.md`** — the **immutable checklist template**. Mirrors the spec's
+- `e2e/testing/templates/{N}-{capability}-tasks.template.md`: the immutable checklist template. Mirrors the spec's
   Prerequisites / Reset / Run / Expected sections as checkboxes. Never edited between runs.
-- **`e2e/testing/runs/{utc-timestamp}_{N}-{capability}-tasks.md`** — the **execution record**. One per run. Copied from
+- `e2e/testing/runs/{utc-timestamp}_{N}-{capability}-tasks.md`: the execution record. One per run. Copied from
   the tasks-template at run start, ticked off as the run progresses, filled with Result summary + Verdict + token
   counts at the end. Default-gitignored.
 
@@ -83,31 +83,31 @@ a pass criterion.
 
 ---
 
-### Spec sections (fixed, in order)
+#### Spec sections (fixed, in order)
 
 ---
 
 Every spec file has these seven sections, in this order, every time:
 
-1. **What this verifies.** Bullet list of behaviours. Concrete and observable.
-2. **Prerequisites.** Concrete check commands (curl on a health endpoint, `docker exec redis redis-cli ping`,
+1. What this verifies. Bullet list of behaviours. Concrete and observable.
+2. Prerequisites. Concrete check commands (curl on a health endpoint, `docker exec redis redis-cli ping`,
    `bru --version`, etc.). Each command in its own fenced code block; prose around the block states the success
    criterion. The runner executes each one before starting and aborts on failure.
-3. **Reset state.** One command per code block, in execution order. Wipes whatever the test will write so the run is
+3. Reset state. One command per code block, in execution order. Wipes whatever the test will write so the run is
    reproducible. Use "None. This test does not write persisted state." if applicable.
-4. **Run.** One or more numbered API-client CLI invocations. Multi-step tests tell the runner to wait for a success
+4. Run. One or more numbered API-client CLI invocations. Multi-step tests tell the runner to wait for a success
    response before continuing to the next step.
-5. **Expected.** Observable assertions only. HTTP status, response-body shape and content, persisted state. The runner
+5. Expected. Observable assertions only. HTTP status, response-body shape and content, persisted state. The runner
    verifies each one after each Run step.
-6. **Fixtures.** Paths to local files the test reads. Each fixture must have distinctive canary content (see Fixtures
+6. Fixtures. Paths to local files the test reads. Each fixture must have distinctive canary content (see Fixtures
    section below). Use "None." if none.
-7. **Concurrency.** The backing-service resources this test mutates plus a `Serial:` flag. Used by the orchestrator
+7. Concurrency. The backing-service resources this test mutates plus a `Serial:` flag. Used by the orchestrator
    to decide which tests can run in parallel and which must wait. See the "Concurrency constraints" section below
    for the field format. Use `Mutates: none` and `Serial: false` for read-only tests.
 
 ---
 
-### Tasks-template sections (fixed)
+#### Tasks-template sections (fixed)
 
 ---
 
@@ -154,7 +154,7 @@ Duration:
 
 ---
 
-### Number-by-setup-cost ordering
+#### Number-by-setup-cost ordering
 
 ---
 
@@ -173,20 +173,20 @@ across classes if isolation allows.
 
 ---
 
-### Behaviour-only assertions
+#### Behaviour-only assertions
 
 ---
 
 The Expected section asserts only what the user-facing API or persisted state shows. Examples by category:
 
-**HTTP status.**
+HTTP status.
 
 ```text
 The output shows HTTP 200.
 The output shows HTTP 422 with a `validation_errors[]` array of length 1.
 ```
 
-**Response body content (concrete, not "should be valid").**
+Response body content (concrete, not "should be valid").
 
 ```text
 The response body's `content` field contains a numeric temperature value for the requested city.
@@ -194,7 +194,7 @@ The response body's `content` field does NOT contain the phrase "I cannot access
 The response body's `sources[]` array has length 2, one entry per fixture file.
 ```
 
-**Persisted state (queried directly).**
+Persisted state (queried directly).
 
 ```text
 A `docker exec postgres psql ... -c "SELECT count(*) FROM chat_history WHERE user_id='canary'"` returns 2.
@@ -203,7 +203,7 @@ A Qdrant `scroll` on the `documents` collection filtered by `userId=canary` retu
 A MinIO `mc ls local/uploads/canary/` shows the uploaded file with non-zero size.
 ```
 
-**Never logs.**
+Never logs.
 
 ```text
 WRONG: The AscendAgent log contains "MCP tool invoked: getCurrentWeather".
@@ -212,7 +212,7 @@ RIGHT: The response body contains a temperature value (which is only possible if
 
 ---
 
-### Canary fixtures
+#### Canary fixtures
 
 ---
 
@@ -242,7 +242,7 @@ Keep fixtures small. A test should be able to upload them in under 2 seconds.
 
 ---
 
-### API client alternatives
+#### API client alternatives
 
 ---
 
@@ -261,11 +261,11 @@ discovery and routing, not just MCP-protocol mechanics.
 
 ---
 
-### Generic examples
+#### Generic examples
 
 ---
 
-#### Example 1: pure curl (`1-hello-api-test.md`)
+##### Example 1: pure curl (`1-hello-api-test.md`)
 
 ```markdown
 # Hello API: e2e test
@@ -285,31 +285,41 @@ curl -fsS http://localhost:8080/actuator/health
 
 Expect HTTP 200 with `{"status":"UP"}`.
 
-## Reset state
+---
+
+### Reset state
 
 None. This test does not write persisted state.
 
-## Run
+---
+
+### Run
 
 ```bash
 curl -sS -o /tmp/hello.json -w "%{http_code}" http://localhost:8080/hello?name=canary
 ```
 
-## Expected
+---
+
+### Expected
 
 The exit body `/tmp/hello.json` contains `{"greeting":"Hello, canary!"}`.
 
 The HTTP status code written by `-w` is `200`.
 
-## Fixtures
+---
+
+### Fixtures
 
 None.
 
-## Concurrency
+---
 
-- **Mutates:** none (read-only endpoint).
-- **Conflicts with:** none.
-- **Serial:** false
+### Concurrency
+
+- Mutates: none (read-only endpoint).
+- Conflicts with: none.
+- Serial: false
 ```
 
 #### Example 2: MCP tool round-trip (`2-mcp-tool-test.md`)
@@ -340,11 +350,15 @@ curl -fsS http://localhost:9998/actuator/health
 
 Expect HTTP 200 with `{"status":"UP"}`.
 
-## Reset state
+---
+
+### Reset state
 
 None.
 
-## Run
+---
+
+### Run
 
 Send the weather prompt and wait for the response.
 
@@ -352,7 +366,9 @@ Send the weather prompt and wait for the response.
 bru run "ascend-agent/testing/weather-mcp-prompt.yml" --env ascend-local
 ```
 
-## Expected
+---
+
+### Expected
 
 The Bruno output shows HTTP 200.
 
@@ -361,16 +377,20 @@ The response body's `content` field contains a numeric temperature value.
 The response body's `content` does NOT contain the phrases "I cannot access live data" or "I don't have real-time
 data" (which would mean the MCP tool was not invoked).
 
-## Fixtures
+---
+
+### Fixtures
 
 None.
 
-## Concurrency
+---
 
-- **Mutates:** none (the MCP tool call doesn't write to the agent's persistent state for this prompt; weather is
+### Concurrency
+
+- Mutates: none (the MCP tool call doesn't write to the agent's persistent state for this prompt; weather is
   read-through).
-- **Conflicts with:** none.
-- **Serial:** false
+- Conflicts with: none.
+- Serial: false
 ```
 
 #### Example 3: fixture upload + retrieval (`5-rag-canary-test.md`)
@@ -401,7 +421,9 @@ Drop the canary user's MinIO objects.
 mc rm --recursive --force local/uploads/canary/
 ```
 
-## Run
+---
+
+### Run
 
 1. Upload the canary fixture.
 
@@ -417,7 +439,9 @@ bru run "ascend-agent/testing/rag-upload-canary.yml" --env ascend-local
 bru run "ascend-agent/testing/rag-retrieve-canary.yml" --env ascend-local
 ```
 
-## Expected
+---
+
+### Expected
 
 The upload response shows HTTP 200 with a non-empty `documentId`.
 
@@ -427,17 +451,21 @@ The retrieval response body's `sources[]` array contains exactly 1 entry whose `
 
 The retrieval response's `content` field references the canary phrase from the fixture.
 
-## Fixtures
+---
 
-- `e2e/fixtures/markdown-canary.md` — single-line canary phrase with HELENA-DEDUP-CANARY village + invented festival
+### Fixtures
+
+- `e2e/fixtures/markdown-canary.md`: single-line canary phrase with HELENA-DEDUP-CANARY village + invented festival
   date.
 
-## Concurrency
+---
 
-- **Mutates:** Qdrant collection `documents` (filter `userId=canary`), MinIO bucket `local/uploads/canary/`,
+### Concurrency
+
+- Mutates: Qdrant collection `documents` (filter `userId=canary`), MinIO bucket `local/uploads/canary/`,
   Postgres `int_metadata_store` rows where `user_id='canary'`.
-- **Conflicts with:** any other test that ingests, retrieves, or wipes data for `userId=canary` across these stores.
-- **Serial:** false (parallelisable against tests using a different `userId`).
+- Conflicts with: any other test that ingests, retrieves, or wipes data for `userId=canary` across these stores.
+- Serial: false (parallelisable against tests using a different `userId`).
 ```
 
 ---
@@ -469,7 +497,7 @@ the team needs traceability.
 
 ---
 
-### Runner contract (AI or human)
+#### Runner contract (AI or human)
 
 ---
 
@@ -478,31 +506,31 @@ The runner, whether AI agent or human, follows this sequence for every run:
 1. Read the spec `e2e/testing/{N}-{capability}-test.md`.
 2. Copy the matching tasks-template from `e2e/testing/templates/{N}-{capability}-tasks.template.md` to
    `e2e/testing/runs/<UTC-timestamp>_{N}-{capability}-tasks.md`.
-3. **Record `Start (UTC)` as the very first action.** Wall-clock instant before the prerequisite checks begin.
+3. Record `Start (UTC)` as the very first action. Wall-clock instant before the prerequisite checks begin.
 4. Execute each task in spec order. Tick the box on success; record what went wrong on failure under "Additional tasks
    I did".
-5. After the Verdict line is decided, **record `End (UTC)`.** Wall-clock instant after the last verification step.
-6. Compute `Duration = End - Start` as `HH:MM:SS`. **Wall-clock for the whole test** (prereqs + reset + run + verify),
+5. After the Verdict line is decided, record `End (UTC)`. Wall-clock instant after the last verification step.
+6. Compute `Duration = End - Start` as `HH:MM:SS`. Wall-clock for the whole test (prereqs + reset + run + verify),
    NOT just the API client invocation. A Bruno call may take 5 s while the full test takes 2 minutes; the field
    captures the latter.
 7. Fill `Input tokens` and `Output tokens` with best estimate of LLM tokens consumed. Leave blank if exact numbers
-   aren't available. **Do not invent.**
+   aren't available. Do not invent.
 8. Write the Result summary paragraph and the Verdict (PASS or FAIL).
 9. Log anything done outside the spec under "Additional tasks I did" (extra diagnostics, retries, manual log
    inspection).
 
 ---
 
-### Orchestration: one subagent per test, parallel with a cap
+#### Orchestration: one subagent per test, parallel with a cap
 
 ---
 
-When running a sweep of more than one test, the main session does **not** execute the tests itself. It delegates each
+When running a sweep of more than one test, the main session does not execute the tests itself. It delegates each
 spec to one [`e2e-runner`](../../../subagents/e2e-runner.md) subagent and fans them out in parallel. Each runner takes
 one spec, follows the Runner contract above, and reports back a one-screen structured result. The main session
 aggregates.
 
-**Why per-test subagents:**
+Why per-test subagents:
 
 - Isolated context per test. No cross-contamination of "I already saw endpoint X" reasoning across unrelated specs.
 - Per-test token accounting. Each runner reports its own Input/Output token estimate; the sweep aggregator sums.
@@ -511,7 +539,7 @@ aggregates.
 - The main session stays high-level: it picks specs, watches for completion, aggregates. It never executes a Bruno
   request itself.
 
-**Concurrency cap: default N = 5, confirmed with the user before each sweep.**
+Concurrency cap: default N = 5, confirmed with the user before each sweep.
 
 Spawn up to 5 `e2e-runner` subagents at once by default. As each one returns a Verdict, dispatch the next pending spec.
 Reasoning for 5:
@@ -524,18 +552,18 @@ Reasoning for 5:
   intermediate replies that the main session has to sift before it can summarise.
 - Most capability suites are 5-20 tests; 5 parallel means 1-4 batches, total wall-clock close to single-batch.
 
-The default fits most situations but not all. **Before fan-out, the main session asks the user to confirm the cap**,
+The default fits most situations but not all. Before fan-out, the main session asks the user to confirm the cap,
 naming the default and the situational adjustments:
 
-- **3** when the test environment is shared with other developers or the API budget is tight.
-- **5** (the default) for a typical dedicated-ish dev stack on a normal provider tier.
-- **8-10** only with a dedicated test env and a provider tier that supports the concurrent load.
+- 3 when the test environment is shared with other developers or the API budget is tight.
+- 5 (the default) for a typical dedicated-ish dev stack on a normal provider tier.
+- 8-10 only with a dedicated test env and a provider tier that supports the concurrent load.
 
 The user's answer wins. If the project has already saved an override as `e2e-runner-max-parallel: <N>` in its
 AGENTS.md (or whatever convention the project uses for team-level knobs), use that value and skip the question; the
 saved value is itself the user's prior answer.
 
-**Sweep flow:**
+Sweep flow:
 
 1. Main session reads `e2e/testing/*-test.md` and orders them by their numeric `{N}` prefix.
 2. Main session picks a single UTC sweep timestamp (one timestamp = one full sweep, so all run records share a
@@ -549,24 +577,24 @@ saved value is itself the user's prior answer.
 6. Main session reports the sweep summary to the user. Run records remain in `e2e/testing/runs/` per the runs
    contract.
 
-**What the main session never does:**
+What the main session never does:
 
 - Read prerequisite check output and tick boxes itself. That's the runner's job.
 - Invoke API clients (Bruno, hurl, curl) directly during a sweep. Always through a runner.
 - Edit specs or tasks-templates mid-sweep, even on failure. Specs are immutable per the existing rule.
 - Spawn more than N runners "because we're in a hurry". The cap is intentional; queue overflow.
 
-**Single-test runs:** when running just one test (debugging a specific failure, iterating on a new spec), the main
+Single-test runs: when running just one test (debugging a specific failure, iterating on a new spec), the main
 session can either spawn one `e2e-runner` or run the spec inline itself. The subagent layer is for fan-out; one test
 doesn't need it. Both paths follow the same Runner contract.
 
 ---
 
-### Concurrency constraints: when tests must serialise
+#### Concurrency constraints: when tests must serialise
 
 ---
 
-The confirmed parallel cap is a **ceiling**, not a target. Real e2e tests against shared infrastructure (Postgres, Redis,
+The confirmed parallel cap is a ceiling, not a target. Real e2e tests against shared infrastructure (Postgres, Redis,
 Qdrant, MinIO, MCP servers, external APIs) frequently cannot run side by side because they mutate the same state.
 Two tests that both wipe `chat_history` for user `canary` will corrupt each other's Reset / Run / Expected cycle if
 they overlap by even a second. The orchestrator MUST analyse what each test mutates before deciding parallelism.
@@ -584,16 +612,16 @@ Every spec declares its concurrency profile in a dedicated section, right after 
 
 Field semantics:
 
-- **`Mutates:`** — every backing-service resource the test writes, deletes, or invalidates. Be specific: name the
+- `Mutates:`: every backing-service resource the test writes, deletes, or invalidates. Be specific: name the
   collection / table / bucket / key prefix, and the partition (user id, tenant id) where applicable. Read-only
   probes do not count; only state-mutating operations.
-- **`Conflicts with:`** — usually computed from `Mutates:` overlap, but specs can name explicit conflicts when the
+- `Conflicts with:`: usually computed from `Mutates:` overlap, but specs can name explicit conflicts when the
   conflict isn't obvious from resources alone (e.g. "any test that triggers a process restart"). Most specs leave
   this as "any other test that mutates the same resources".
-- **`Serial:`** — set `true` when the test cannot run alongside ANY other test. Examples: schema migrations,
+- `Serial:`: set `true` when the test cannot run alongside ANY other test. Examples: schema migrations,
   full-stack restarts, license-server interactions, anything that touches global config.
 
-### How the orchestrator schedules
+#### How the orchestrator schedules
 
 1. Read each spec's `Mutates:` set and `Serial:` flag.
 2. Build a conflict graph: two tests conflict if their `Mutates:` sets intersect, or if either marks the other under
@@ -605,10 +633,10 @@ Field semantics:
      scheduling.
 4. Aggregate normally once all complete.
 
-The confirmed parallel cap still applies as a ceiling. **Conflict analysis is a lower bound**: the orchestrator may
+The confirmed parallel cap still applies as a ceiling. Conflict analysis is a lower bound: the orchestrator may
 run fewer than N at once when constraints demand it, never more.
 
-### When in doubt, mark conservatively
+#### When in doubt, mark conservatively
 
 False-positive serialisation slows the sweep by minutes. False-negative parallelism corrupts results and forces a
 re-run, plus opens a debugging session to figure out which test wrote the wrong byte. Cost asymmetry favours
@@ -618,19 +646,20 @@ A common smell: a test that "passed locally but fails in the sweep" is usually a
 that test or in a neighbour scheduled concurrently with it. The fix is to add the resource to the spec's
 `Concurrency` section, not to add a sleep to the test.
 
-### Reset still belongs to the test
+#### Reset still belongs to the test
 
 The `Concurrency` section declares what state the test touches; the `Reset state` section still owns clearing that
-state before the Run step. Declaring `Mutates:` does NOT relieve the test of its own reset responsibility — it tells
+state before the Run step. Declaring `Mutates:` does NOT relieve the test of its own reset responsibility, it tells
 the orchestrator how to schedule, not what to clean.
 
 ---
 
-### Integration with the startup-readiness banner
+#### Integration with the startup-readiness banner
 
 ---
 
-If your service uses the startup-readiness banner from the [coding-standards](../coding-standards/SKILL.md) skill,
+If your service uses the startup-readiness banner from the
+[observability-and-logging](../observability-and-logging/SKILL.md) skill,
 the banner's `External dependencies` section is the first stop when an e2e prereq fails. A `[FAILED]` row tells you
 which dependency to fix before re-running.
 
@@ -639,7 +668,7 @@ don't bother running tests against a half-up stack.
 
 ---
 
-### Companion OpenSpec schema
+#### Companion OpenSpec schema
 
 ---
 
@@ -682,13 +711,13 @@ same methodology.
 
 ---
 
-### What this skill is NOT for
+#### What this skill is NOT for
 
 ---
 
-- **UI / browser tests.** Use [e2e-testing](../e2e-testing/SKILL.md) (Playwright).
-- **Unit tests.** Use [tdd-workflow](../tdd-workflow/SKILL.md), [python-testing](../python-testing/SKILL.md),
+- UI / browser tests. Use [e2e-testing](../e2e-testing/SKILL.md) (Playwright).
+- Unit tests. Use [tdd-workflow](../tdd-workflow/SKILL.md), [python-testing](../python-testing/SKILL.md),
   [golang-testing](../golang-testing/SKILL.md), [springboot-tdd](../springboot-tdd/SKILL.md).
-- **Sandbox-mode API regression tests** without DB dependencies. Use
+- Sandbox-mode API regression tests without DB dependencies. Use
   [ai-regression-testing](../ai-regression-testing/SKILL.md).
-- **Load / soak / chaos testing.** Out of scope; this skill is about correctness, not capacity or resilience.
+- Load / soak / chaos testing. Out of scope; this skill is about correctness, not capacity or resilience.

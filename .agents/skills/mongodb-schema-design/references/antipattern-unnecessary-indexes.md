@@ -5,11 +5,13 @@ impactDescription: "Reduces write overhead and WiredTiger cache pressure from un
 tags: schema, antipattern, indexes, performance, atlas-suggestion
 ---
 
-## Avoid Unnecessary Indexes
+### Avoid Unnecessary Indexes
 
-**Every index has a write cost.** On insert, update, and delete, MongoDB must update ALL indexes on the collection. Unused or redundant indexes slow down writes with no query benefit, and consume RAM in the WiredTiger cache competing with working set data. Atlas Performance Advisor specifically flags "Redundant Index" and "Unused Index".
+Every index has a write cost. On insert, update, and delete, MongoDB must update ALL indexes on the collection. Unused
+or redundant indexes slow down writes with no query benefit, and consume RAM in the WiredTiger cache competing with
+working set data. Atlas Performance Advisor specifically flags "Redundant Index" and "Unused Index".
 
-**Incorrect (indexes created "just in case"):**
+Incorrect (indexes created "just in case"):
 
 ```javascript
 // Creating indexes speculatively without query evidence
@@ -24,7 +26,7 @@ db.orders.createIndex({ region: 1 })           // added during development, neve
 // 4. Atlas Performance Advisor flags these but they're never cleaned up
 ```
 
-**Correct (audit-driven index management):**
+Correct (audit-driven index management):
 
 ```javascript
 // Only create indexes that serve real query patterns
@@ -44,7 +46,7 @@ db.col.createIndex({ a: 1, b: 1 })
 db.col.createIndex({ b: 1 })         // NOT covered by above — keep
 ```
 
-**Safe removal process (hide → monitor → drop):**
+Safe removal process (hide → monitor → drop):
 
 ```javascript
 // Never drop an index directly in production
@@ -61,16 +63,19 @@ db.orders.dropIndexes(["status_1"])
 ```
 
 Atlas automatically flags:
-- **"Redundant Index"** — a prefix of an existing compound index
-- **"Unused Index"** — zero query usage in the observed window
+- "Redundant Index": a prefix of an existing compound index
+- "Unused Index": zero query usage in the observed window
 
-**When NOT to use this pattern:**
+When NOT to use this pattern:
 
-- **New collections with planned queries**: If you know queries are coming, pre-creating indexes is fine.
-- **Indexes for rare but critical operations**: A backup or compliance query that runs monthly may show low usage but is still needed.
-- **TTL indexes**: These serve data lifecycle purposes even if not used for queries.
+- New collections with planned queries: If you know queries are coming, pre-creating indexes is fine.
+- Indexes for rare but critical operations: A backup or compliance query that runs monthly may show low usage but is
+  still needed.
+- TTL indexes: These serve data lifecycle purposes even if not used for queries.
 
-## Verify with
+---
+
+### Verify with
 
 ```javascript
 // Find indexes with zero query usage since last restart
@@ -92,4 +97,5 @@ for (const idx of db.orders.getIndexes()) {
 // Compare index key prefixes — if {a:1} exists alongside {a:1,b:1}, the former is redundant
 ```
 
-Reference: [Remove Unnecessary Indexes](https://mongodb.com/docs/manual/data-modeling/design-antipatterns/unnecessary-indexes/)
+Reference:
+[Remove Unnecessary Indexes](https://mongodb.com/docs/manual/data-modeling/design-antipatterns/unnecessary-indexes/)

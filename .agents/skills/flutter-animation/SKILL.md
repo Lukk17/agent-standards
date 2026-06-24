@@ -8,7 +8,9 @@ metadata:
 ---
 # Implementing Flutter Animations
 
-## Contents
+---
+
+### Contents
 - [Core Concepts](#core-concepts)
 - [Animation Strategies](#animation-strategies)
 - [Workflows](#workflows)
@@ -18,32 +20,48 @@ metadata:
   - [Implementing Physics-Based Animations](#implementing-physics-based-animations)
 - [Examples](#examples)
 
-## Core Concepts
+---
 
-Manage Flutter animations using the core typed `Animation` system. Do not manually calculate frames; rely on the framework's ticker and interpolation classes.
+### Core Concepts
 
-*   **`Animation<T>`**: Treat this as an abstract representation of a value that changes over time. It holds state (completed, dismissed) and notifies listeners, but knows nothing about the UI.
-*   **`AnimationController`**: Instantiate this to drive the animation. It generates values (typically 0.0 to 1.0) tied to the screen refresh rate. Always provide a `vsync` (usually via `SingleTickerProviderStateMixin`) to prevent offscreen resource consumption. Always `dispose()` controllers to prevent memory leaks.
-*   **`Tween<T>`**: Define a stateless mapping from an input range (usually 0.0-1.0) to an output type (e.g., `Color`, `Offset`, `double`). Chain tweens with curves using `.animate()`.
-*   **`Curve`**: Apply non-linear timing (e.g., `Curves.easeIn`, `Curves.bounceOut`) to an animation using a `CurvedAnimation` or `CurveTween`.
+Manage Flutter animations using the core typed `Animation` system. Do not manually calculate frames; rely on the
+framework's ticker and interpolation classes.
 
-## Animation Strategies
+*   `Animation<T>`: Treat this as an abstract representation of a value that changes over time. It holds state
+    (completed, dismissed) and notifies listeners, but knows nothing about the UI.
+*   `AnimationController`: Instantiate this to drive the animation. It generates values (typically 0.0 to 1.0) tied to
+    the screen refresh rate. Always provide a `vsync` (usually via `SingleTickerProviderStateMixin`) to prevent
+    offscreen resource consumption. Always `dispose()` controllers to prevent memory leaks.
+*   `Tween<T>`: Define a stateless mapping from an input range (usually 0.0-1.0) to an output type (e.g., `Color`,
+    `Offset`, `double`). Chain tweens with curves using `.animate()`.
+*   `Curve`: Apply non-linear timing (e.g., `Curves.easeIn`, `Curves.bounceOut`) to an animation using a
+    `CurvedAnimation` or `CurveTween`.
+
+---
+
+### Animation Strategies
 
 Apply conditional logic to select the correct animation approach:
 
-*   **If animating simple property changes (size, color, opacity) without playback control:** Use **Implicit Animations** (e.g., `AnimatedContainer`, `AnimatedOpacity`, `TweenAnimationBuilder`).
-*   **If requiring playback control (play, pause, reverse, loop) or coordinating multiple properties:** Use **Explicit Animations** (e.g., `AnimationController` with `AnimatedBuilder` or `AnimatedWidget`).
-*   **If animating elements between two distinct routes:** Use **Hero Animations** (Shared Element Transitions).
-*   **If modeling real-world motion (e.g., snapping back after a drag):** Use **Physics-Based Animations** (e.g., `SpringSimulation`).
-*   **If animating a sequence of overlapping or delayed motions:** Use **Staggered Animations** (multiple `Tween`s driven by a single `AnimationController` using `Interval` curves).
+*   If animating simple property changes (size, color, opacity) without playback control: Use Implicit Animations (e.g.,
+    `AnimatedContainer`, `AnimatedOpacity`, `TweenAnimationBuilder`).
+*   If requiring playback control (play, pause, reverse, loop) or coordinating multiple properties: Use Explicit
+    Animations (e.g., `AnimationController` with `AnimatedBuilder` or `AnimatedWidget`).
+*   If animating elements between two distinct routes: Use Hero Animations (Shared Element Transitions).
+*   If modeling real-world motion (e.g., snapping back after a drag): Use Physics-Based Animations (e.g.,
+    `SpringSimulation`).
+*   If animating a sequence of overlapping or delayed motions: Use Staggered Animations (multiple `Tween`s driven by a
+    single `AnimationController` using `Interval` curves).
 
-## Workflows
+---
 
-### Implementing Implicit Animations
+### Workflows
+
+#### Implementing Implicit Animations
 
 Use this workflow for "fire-and-forget" state-driven animations.
 
-- [ ] **Task Progress:**
+- [ ] Task Progress:
   - [ ] Identify the target properties to animate (e.g., width, color).
   - [ ] Replace the static widget (e.g., `Container`) with its animated counterpart (e.g., `AnimatedContainer`).
   - [ ] Define the `duration` property.
@@ -51,12 +69,13 @@ Use this workflow for "fire-and-forget" state-driven animations.
   - [ ] Trigger the animation by updating the properties inside a `setState()` call.
   - [ ] Run validator -> review UI for jank -> adjust duration/curve if necessary.
 
-### Implementing Explicit Animations
+#### Implementing Explicit Animations
 
 Use this workflow when you need granular control over the animation lifecycle.
 
-- [ ] **Task Progress:**
-  - [ ] Add `SingleTickerProviderStateMixin` (or `TickerProviderStateMixin` for multiple controllers) to the `State` class.
+- [ ] Task Progress:
+  - [ ] Add `SingleTickerProviderStateMixin` (or `TickerProviderStateMixin` for multiple controllers) to the `State`
+    class.
   - [ ] Initialize an `AnimationController` in `initState()`, providing `vsync: this` and a `duration`.
   - [ ] Define a `Tween` and chain it to the controller using `.animate()`.
   - [ ] Wrap the target UI in an `AnimatedBuilder` (preferred for complex trees) or subclass `AnimatedWidget`.
@@ -65,36 +84,40 @@ Use this workflow when you need granular control over the animation lifecycle.
   - [ ] Call `controller.dispose()` in the `dispose()` method.
   - [ ] Run validator -> check for memory leaks -> ensure `dispose()` is called.
 
-### Implementing Hero Transitions
+#### Implementing Hero Transitions
 
 Use this workflow to fly a widget between two routes.
 
-- [ ] **Task Progress:**
+- [ ] Task Progress:
   - [ ] Wrap the source widget in a `Hero` widget.
   - [ ] Assign a unique, data-driven `tag` to the source `Hero`.
   - [ ] Wrap the destination widget in a `Hero` widget.
-  - [ ] Assign the *exact same* `tag` to the destination `Hero`.
+  - [ ] Assign the exact same `tag` to the destination `Hero`.
   - [ ] Ensure the widget trees inside both `Hero` widgets are visually similar to prevent jarring jumps.
   - [ ] Trigger the transition by pushing the destination route via `Navigator`.
 
-### Implementing Physics-Based Animations
+#### Implementing Physics-Based Animations
 
 Use this workflow for gesture-driven, natural motion.
 
-- [ ] **Task Progress:**
+- [ ] Task Progress:
   - [ ] Set up an `AnimationController` (do not set a fixed duration).
   - [ ] Capture gesture velocity using a `GestureDetector` (e.g., `onPanEnd` providing `DragEndDetails`).
   - [ ] Convert the pixel velocity to the coordinate space of the animating property.
   - [ ] Instantiate a `SpringSimulation` with mass, stiffness, damping, and the calculated velocity.
   - [ ] Drive the controller using `controller.animateWith(simulation)`.
 
-## Examples
+---
+
+### Examples
 
 <details>
 <summary><b>Example: Explicit Animation (Staggered with AnimatedBuilder)</b></summary>
 
 ```dart
 class StaggeredAnimationDemo extends StatefulWidget {
+  const StaggeredAnimationDemo({super.key});
+
   @override
   State<StaggeredAnimationDemo> createState() => _StaggeredAnimationDemoState();
 }
@@ -180,3 +203,11 @@ Route createCustomRoute(Widget destination) {
 // Usage: Navigator.of(context).push(createCustomRoute(const NextPage()));
 ```
 </details>
+
+---
+
+### Testing Animation-Driven State
+
+In widget tests, never `pumpAndSettle` blindly when an animation never settles (e.g., a `repeat()` loop). Advance the
+clock explicitly with `await tester.pump(duration)` to step to a known frame, or `await tester.pumpAndSettle()` for
+finite animations, then assert the intermediate or final widget state. See the flutter-testing-apps skill.

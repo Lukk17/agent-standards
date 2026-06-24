@@ -6,11 +6,15 @@ origin: ECC
 
 # Automation Audit Ops
 
-Use this when the user asks what automations are live, which jobs are broken, where overlap exists, or what tooling and connectors are actually doing useful work right now.
+Use this when the user asks what automations are live, which jobs are broken, where overlap exists, or what tooling and
+connectors are actually doing useful work right now.
 
-This is an audit-first operator skill. The job is to produce an evidence-backed inventory and a keep / merge / cut / fix-next recommendation set before rewriting anything.
+This is an audit-first operator skill. The job is to produce an evidence-backed inventory and a keep / merge / cut /
+fix-next recommendation set before rewriting anything.
 
-## Skill Stack
+---
+
+### Skill Stack
 
 Pull these ECC-native skills into the workflow when relevant:
 
@@ -21,14 +25,18 @@ Pull these ECC-native skills into the workflow when relevant:
 - `research-ops` when local inventory must be compared against current platform support or public docs
 - `verification-loop` for proving post-fix state instead of relying on assumed recovery
 
-## When to Use
+---
+
+### When to Use
 
 - user asks "what automations do I have", "what is live", "what is broken", or "what overlaps"
 - the task spans cron jobs, GitHub Actions, local hooks, MCP servers, connectors, wrappers, or app integrations
 - the user wants to know what was ported from another agent system and what still needs to be rebuilt inside ECC
 - the workspace has accumulated multiple ways to do the same thing and the user wants one canonical lane
 
-## Guardrails
+---
+
+### Guardrails
 
 - start read-only unless the user explicitly asked for fixes
 - separate:
@@ -40,9 +48,11 @@ Pull these ECC-native skills into the workflow when relevant:
 - do not claim a tool is live just because a skill or config references it
 - do not merge or delete overlapping surfaces until the evidence table exists
 
-## Workflow
+---
 
-### 1. Inventory the real surface
+### Workflow
+
+#### 1. Inventory the real surface
 
 Read the current live surface before theorizing:
 
@@ -61,7 +71,7 @@ Group them by surface:
 - billing / customer operations
 - research / monitoring
 
-### 2. Classify each item by live state
+#### 2. Classify each item by live state
 
 For every surfaced automation, mark:
 
@@ -79,7 +89,7 @@ Then classify the problem type:
 - overlap or redundancy
 - missing capability
 
-### 3. Trace the proof path
+#### 3. Trace the proof path
 
 Back every important claim with a concrete source:
 
@@ -92,7 +102,7 @@ Back every important claim with a concrete source:
 
 If the current state is ambiguous, say so directly instead of pretending the audit is complete.
 
-### 4. End with keep / merge / cut / fix-next
+#### 4. End with keep / merge / cut / fix-next
 
 For each overlapping or suspect surface, return one call:
 
@@ -103,7 +113,9 @@ For each overlapping or suspect surface, return one call:
 
 The value is in collapsing noisy automation into one canonical ECC lane, not in preserving every historical path.
 
-## Output Format
+---
+
+### Output Format
 
 ```text
 CURRENT SURFACE
@@ -128,14 +140,18 @@ NEXT ECC MOVE
 - exact skill / hook / workflow / app lane to strengthen
 ```
 
-## Pitfalls
+---
+
+### Pitfalls
 
 - do not answer from memory when the live inventory can be read
 - do not treat "present in config" as "working"
 - do not fix lower-value redundancy before naming the broken high-signal path
 - do not widen the task into a repo rewrite if the user asked for inventory first
 
-## Verification
+---
+
+### Verification
 
 - important claims cite a live proof path
 - each surfaced automation is labeled with a clear live-state category

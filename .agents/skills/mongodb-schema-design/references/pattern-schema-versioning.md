@@ -5,15 +5,18 @@ impactDescription: "Prevents application errors from inconsistent schemas and en
 tags: schema, patterns, versioning, migration, evolution, backward-compatibility, backfill, anti-pattern, validation, consistency, data-quality, atlas-suggestion
 ---
 
-## Schema Evolution and Preventing Drift
+### Schema Evolution and Preventing Drift
 
-**Schema changes are inevitable, but uncontrolled changes cause schema drift** — documents in the same collection with inconsistent structures, leading to application errors and query failures. Use `schemaVersion` fields for safe migration and schema validation to prevent unexpected drift.
+Schema changes are inevitable, but uncontrolled changes cause schema drift, documents in the same collection with
+inconsistent structures, leading to application errors and query failures. Use `schemaVersion` fields for safe migration
+and schema validation to prevent unexpected drift.
 
-### The problem: schema drift
+#### The problem: schema drift
 
-MongoDB's flexibility is a feature, but undisciplined field additions lead to code that must handle many document shapes.
+MongoDB's flexibility is a feature, but undisciplined field additions lead to code that must handle many document
+shapes.
 
-**Incorrect (uncontrolled drift over time):**
+Incorrect (uncontrolled drift over time):
 
 ```javascript
 // Over time, different versions of "user" documents accumulate
@@ -32,11 +35,13 @@ function getUserEmail(user) {
 db.users.find({ email: "test@ex.com" })  // Misses users with emails[] array
 ```
 
-### Solution: versioned documents with migration path
+#### Solution: versioned documents with migration path
 
-Add a `schemaVersion` field to every document. Application code checks version and handles both formats. This allows old and new documents to coexist, new code to deploy before data migration, gradual migration during low-traffic periods, and easy rollback.
+Add a `schemaVersion` field to every document. Application code checks version and handles both formats. This allows old
+and new documents to coexist, new code to deploy before data migration, gradual migration during low-traffic periods,
+and easy rollback.
 
-**Correct (versioned with validation):**
+Correct (versioned with validation):
 
 ```javascript
 // Define and enforce consistent schema
@@ -73,7 +78,7 @@ db.createCollection("users", {
 })
 ```
 
-### Online migration strategies
+#### Online migration strategies
 
 ```javascript
 // Strategy 1: Background batch migration
@@ -161,7 +166,7 @@ function getUser(userId) {
 }
 ```
 
-### Handling multiple version jumps
+#### Handling multiple version jumps
 
 ```javascript
 // v1 → v2 → v3: define transformation functions for each step
@@ -196,20 +201,20 @@ function migrateToLatest(doc, targetVersion = 3) {
 }
 ```
 
-### When a version bump is (and isn't) needed
+#### When a version bump is (and isn't) needed
 
-**No version bump needed (backward-compatible):**
+No version bump needed (backward-compatible):
 - Adding new optional fields (old code ignores them)
 - Adding new indexes (transparent to application)
 - Relaxing validation (making a required field optional)
 
-**Version bump required (breaking):**
+Version bump required (breaking):
 - Renaming fields (`address` → `shippingAddress`)
 - Changing field types (`price: "19.99"` → `price: 19.99`)
 - Restructuring (flat `firstName`/`lastName` → nested `name: { first, last }`)
 - Removing fields that old code reads
 
-### Detecting existing schema drift
+#### Detecting existing schema drift
 
 ```javascript
 // Find all unique field combinations
@@ -236,15 +241,18 @@ db.users.find({
 })
 ```
 
-### When NOT to strictly enforce schema or use versioning
+#### When NOT to strictly enforce schema or use versioning
 
-- **Truly polymorphic data**: Event logs with different event types may need flexible schemas — use `pattern-polymorphic` instead.
-- **Early prototyping**: Skip validation during exploration, add before production.
-- **User-defined fields**: Some applications allow custom metadata fields.
-- **Small datasets with downtime window**: If you can migrate all data in minutes during maintenance.
-- **Additive-only changes**: If you only add optional fields, versioning is overkill.
+- Truly polymorphic data: Event logs with different event types may need flexible schemas: use `pattern-polymorphic`
+  instead.
+- Early prototyping: Skip validation during exploration, add before production.
+- User-defined fields: Some applications allow custom metadata fields.
+- Small datasets with downtime window: If you can migrate all data in minutes during maintenance.
+- Additive-only changes: If you only add optional fields, versioning is overkill.
 
-## Verify with
+---
+
+### Verify with
 
 ```javascript
 // Track version distribution

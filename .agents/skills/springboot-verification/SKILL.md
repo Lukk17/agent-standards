@@ -8,15 +8,19 @@ origin: ECC
 
 Run before PRs, after major changes, and pre-deploy.
 
-## When to Activate
+---
+
+### When to Activate
 
 - Before opening a pull request for a Spring Boot service
 - After major refactoring or dependency upgrades
 - Pre-deployment verification for staging or production
 - Running full build → lint → test → security scan pipeline
-- Validating test coverage meets thresholds
+- Validating test coverage meets thresholds (around 90% of real logic)
 
-## Phase 1: Build
+---
+
+### Phase 1: Build
 
 ```bash
 mvn -T 4 clean verify -DskipTests
@@ -26,7 +30,9 @@ mvn -T 4 clean verify -DskipTests
 
 If build fails, stop and fix.
 
-## Phase 2: Static Analysis
+---
+
+### Phase 2: Static Analysis
 
 Maven (common plugins):
 ```bash
@@ -38,11 +44,13 @@ Gradle (if configured):
 ./gradlew checkstyleMain pmdMain spotbugsMain
 ```
 
-## Phase 3: Tests + Coverage
+---
+
+### Phase 3: Tests + Coverage
 
 ```bash
 mvn -T 4 test
-mvn jacoco:report   # verify 80%+ coverage
+mvn jacoco:report   # verify ~90% coverage of real logic
 # or
 ./gradlew test jacocoTestReport
 ```
@@ -51,7 +59,7 @@ Report:
 - Total tests, passed/failed
 - Coverage % (lines/branches)
 
-### Unit Tests
+#### Unit Tests
 
 Test service logic in isolation with mocked dependencies:
 
@@ -85,7 +93,7 @@ class UserServiceTest {
 }
 ```
 
-### Integration Tests with Testcontainers
+#### Integration Tests with Testcontainers
 
 Test against a real database instead of H2:
 
@@ -119,7 +127,7 @@ class UserRepositoryIntegrationTest {
 }
 ```
 
-### API Tests with MockMvc
+#### API Tests with MockMvc
 
 Test controller layer with full Spring context:
 
@@ -128,7 +136,7 @@ Test controller layer with full Spring context:
 class UserControllerTest {
 
   @Autowired private MockMvc mockMvc;
-  @MockBean private UserService userService;
+  @MockitoBean private UserService userService;
 
   @Test
   void createUser_validInput_returns201() throws Exception {
@@ -156,7 +164,9 @@ class UserControllerTest {
 }
 ```
 
-## Phase 4: Security Scan
+---
+
+### Phase 4: Security Scan
 
 ```bash
 # Dependency CVEs
@@ -172,7 +182,7 @@ grep -rn "sk-\|api_key\|secret" src/ --include="*.java" --include="*.yml"
 git secrets --scan  # if configured
 ```
 
-### Common Security Findings
+#### Common Security Findings
 
 ```
 # Check for System.out.println (use logger instead)
@@ -185,14 +195,18 @@ grep -rn "e\.getMessage()" src/main/ --include="*.java"
 grep -rn "allowedOrigins.*\*" src/main/ --include="*.java"
 ```
 
-## Phase 5: Lint/Format (optional gate)
+---
+
+### Phase 5: Lint/Format (optional gate)
 
 ```bash
 mvn spotless:apply   # if using Spotless plugin
 ./gradlew spotlessApply
 ```
 
-## Phase 6: Diff Review
+---
+
+### Phase 6: Diff Review
 
 ```bash
 git diff --stat
@@ -205,7 +219,9 @@ Checklist:
 - Transactions and validation present where needed
 - Config changes documented
 
-## Output Template
+---
+
+### Output Template
 
 ```
 VERIFICATION REPORT
@@ -223,9 +239,11 @@ Issues to Fix:
 2. ...
 ```
 
-## Continuous Mode
+---
 
-- Re-run phases on significant changes or every 30–60 minutes in long sessions
+### Continuous Mode
+
+- Re-run phases on significant changes or every 30-60 minutes in long sessions
 - Keep a short loop: `mvn -T 4 test` + spotbugs for quick feedback
 
-**Remember**: Fast feedback beats late surprises. Keep the gate strict—treat warnings as defects in production systems.
+Remember: Fast feedback beats late surprises. Keep the gate strict-treat warnings as defects in production systems.

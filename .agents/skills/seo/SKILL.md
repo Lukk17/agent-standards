@@ -8,7 +8,9 @@ origin: ECC
 
 Improve search visibility through technical correctness, performance, and content relevance, not gimmicks.
 
-## When to Use
+---
+
+### When to Use
 
 Use this skill when:
 - auditing crawlability, indexability, canonicals, or redirects
@@ -18,9 +20,11 @@ Use this skill when:
 - doing keyword research and mapping keywords to URLs
 - planning internal linking or sitemap / robots changes
 
-## How It Works
+---
 
-### Principles
+### How It Works
+
+#### Principles
 
 1. Fix technical blockers before content optimization.
 2. One page should have one clear primary search intent.
@@ -28,9 +32,9 @@ Use this skill when:
 4. Mobile-first assumptions matter because indexing is mobile-first.
 5. Recommendations should be page-specific and implementable.
 
-### Technical SEO checklist
+#### Technical SEO checklist
 
-#### Crawlability
+##### Crawlability
 
 - `robots.txt` should allow important pages and block low-value surfaces
 - no important page should be unintentionally `noindex`
@@ -38,21 +42,21 @@ Use this skill when:
 - avoid redirect chains longer than two hops
 - canonical tags should be self-consistent and non-looping
 
-#### Indexability
+##### Indexability
 
 - preferred URL format should be consistent
 - multilingual pages need correct hreflang if used
 - sitemaps should reflect the intended public surface
 - no duplicate URLs should compete without canonical control
 
-#### Performance
+##### Performance
 
 - LCP < 2.5s
 - INP < 200ms
 - CLS < 0.1
 - common fixes: preload hero assets, reduce render-blocking work, reserve layout space, trim heavy JS
 
-#### Structured data
+##### Structured data
 
 - homepage: organization or business schema where appropriate
 - editorial pages: `Article` / `BlogPosting`
@@ -60,27 +64,27 @@ Use this skill when:
 - interior pages: `BreadcrumbList`
 - Q&A sections: `FAQPage` only when the content truly matches
 
-### On-page rules
+#### On-page rules
 
-#### Title tags
+##### Title tags
 
 - aim for roughly 50-60 characters
 - put the primary keyword or concept near the front
 - make the title legible to humans, not stuffed for bots
 
-#### Meta descriptions
+##### Meta descriptions
 
 - aim for roughly 120-160 characters
 - describe the page honestly
 - include the main topic naturally
 
-#### Heading structure
+##### Heading structure
 
 - one clear `H1`
 - `H2` and `H3` should reflect actual content hierarchy
 - do not skip structure just for visual styling
 
-### Keyword mapping
+#### Keyword mapping
 
 1. define the search intent
 2. gather realistic keyword variants
@@ -88,28 +92,30 @@ Use this skill when:
 4. map one primary keyword/theme to one URL
 5. detect and avoid cannibalization
 
-### Internal linking
+#### Internal linking
 
 - link from strong pages to pages you want to rank
 - use descriptive anchor text
 - avoid generic anchors when a more specific one is possible
 - backfill links from new pages to relevant existing ones
 
-## Examples
+---
 
-### Title formula
+### Examples
+
+#### Title formula
 
 ```text
 Primary Topic - Specific Modifier | Brand
 ```
 
-### Meta description formula
+#### Meta description formula
 
 ```text
 Action + topic + value proposition + one supporting detail
 ```
 
-### JSON-LD example
+#### JSON-LD example
 
 ```json
 {
@@ -127,7 +133,7 @@ Action + topic + value proposition + one supporting detail
 }
 ```
 
-### Audit output shape
+#### Audit output shape
 
 ```text
 [HIGH] Duplicate title tags on product pages
@@ -136,7 +142,9 @@ Issue: Dynamic titles collapse to the same default string, which weakens relevan
 Fix: Generate a unique title per product using the product name and primary category.
 ```
 
-## Anti-Patterns
+---
+
+### Anti-Patterns
 
 | Anti-pattern | Fix |
 | --- | --- |
@@ -146,7 +154,9 @@ Fix: Generate a unique title per product using the product name and primary cate
 | content advice without checking the actual page | read the real page first |
 | generic “improve SEO” outputs | tie every recommendation to a page or asset |
 
-## Related Skills
+---
+
+### Related Skills
 
 - `seo-specialist`
 - `frontend-patterns`

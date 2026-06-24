@@ -6,9 +6,12 @@ origin: ECC
 
 # Jira Integration Skill
 
-Retrieve, analyze, and update Jira tickets directly from your AI coding workflow. Supports both **MCP-based** (recommended) and **direct REST API** approaches.
+Retrieve, analyze, and update Jira tickets directly from your AI coding workflow. Supports both MCP-based (recommended)
+and direct REST API approaches.
 
-## When to Activate
+---
+
+### When to Activate
 
 - Fetching a Jira ticket to understand requirements
 - Extracting testable acceptance criteria from a ticket
@@ -17,17 +20,19 @@ Retrieve, analyze, and update Jira tickets directly from your AI coding workflow
 - Linking merge requests or branches to a Jira issue
 - Searching for issues by JQL query
 
-## Prerequisites
+---
 
-### Option A: MCP Server (Recommended)
+### Prerequisites
+
+#### Option A: MCP Server (Recommended)
 
 Install the `mcp-atlassian` MCP server. This exposes Jira tools directly to your AI agent.
 
-**Requirements:**
+Requirements:
 - Python 3.10+
 - `uvx` (from `uv`), installed via your package manager or the official `uv` installation documentation
 
-**Add to your MCP config** (e.g., `~/.claude.json` → `mcpServers`):
+Add to your MCP config (e.g., `~/.claude.json` → `mcpServers`):
 
 ```json
 {
@@ -44,18 +49,19 @@ Install the `mcp-atlassian` MCP server. This exposes Jira tools directly to your
 }
 ```
 
-> **Security:** Never hardcode secrets. Prefer setting `JIRA_URL`, `JIRA_EMAIL`, and `JIRA_API_TOKEN` in your system environment (or a secrets manager). Only use the MCP `env` block for local, uncommitted config files.
+> Security: Never hardcode secrets. Prefer setting `JIRA_URL`, `JIRA_EMAIL`, and `JIRA_API_TOKEN` in your system
+> environment (or a secrets manager). Only use the MCP `env` block for local, uncommitted config files.
 
-**To get a Jira API token:**
+To get a Jira API token:
 1. Go to <https://id.atlassian.com/manage-profile/security/api-tokens>
-2. Click **Create API token**
-3. Copy the token — store it in your environment, never in source code
+2. Click Create API token
+3. Copy the token: store it in your environment, never in source code
 
-### Option B: Direct REST API
+#### Option B: Direct REST API
 
 If MCP is not available, use the Jira REST API v3 directly via `curl` or a helper script.
 
-**Required environment variables:**
+Required environment variables:
 
 | Variable | Description |
 |----------|-------------|
@@ -65,7 +71,9 @@ If MCP is not available, use the Jira REST API v3 directly via `curl` or a helpe
 
 Store these in your shell environment, secrets manager, or an untracked local env file. Do not commit them to the repo.
 
-## MCP Tools Reference
+---
+
+### MCP Tools Reference
 
 When the `mcp-atlassian` MCP server is configured, these tools are available:
 
@@ -81,11 +89,16 @@ When the `mcp-atlassian` MCP server is configured, these tools are available:
 | `jira_create_issue_link` | Link issues (Blocks, Relates to) | Dependency tracking |
 | `jira_get_issue_development_info` | See linked PRs, branches, commits | Dev context |
 
-> **Tip:** Always call `jira_get_transitions` before transitioning — transition IDs vary per project workflow.
+> Tip: Always call `jira_get_transitions` before transitioning, transition IDs vary per project workflow.
 
-## Direct REST API Reference
+> Guardrail: Create or modify tickets (`jira_create_issue`, `jira_update_issue`) only on explicit user request. Set
+> only the fields the user named; do not add labels, components, priority, or sprint on your own.
 
-### Fetch a Ticket
+---
+
+### Direct REST API Reference
+
+#### Fetch a Ticket
 
 ```bash
 curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
@@ -102,7 +115,7 @@ curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
   }'
 ```
 
-### Fetch Comments
+#### Fetch Comments
 
 ```bash
 curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
@@ -114,7 +127,7 @@ curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
   }'
 ```
 
-### Add a Comment
+#### Add a Comment
 
 ```bash
 curl -s -X POST -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
@@ -132,7 +145,7 @@ curl -s -X POST -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
   "$JIRA_URL/rest/api/3/issue/PROJ-1234/comment"
 ```
 
-### Transition a Ticket
+#### Transition a Ticket
 
 ```bash
 # 1. Get available transitions
@@ -146,7 +159,7 @@ curl -s -X POST -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
   "$JIRA_URL/rest/api/3/issue/PROJ-1234/transitions"
 ```
 
-### Search with JQL
+#### Search with JQL
 
 ```bash
 curl -s -G -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
@@ -154,25 +167,27 @@ curl -s -G -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
   "$JIRA_URL/rest/api/3/search"
 ```
 
-## Analyzing a Ticket
+---
+
+### Analyzing a Ticket
 
 When retrieving a ticket for development or test automation, extract:
 
-### 1. Testable Requirements
-- **Functional requirements** — What the feature does
-- **Acceptance criteria** — Conditions that must be met
-- **Testable behaviors** — Specific actions and expected outcomes
-- **User roles** — Who uses this feature and their permissions
-- **Data requirements** — What data is needed
-- **Integration points** — APIs, services, or systems involved
+#### 1. Testable Requirements
+- Functional requirements: What the feature does
+- Acceptance criteria: Conditions that must be met
+- Testable behaviors: Specific actions and expected outcomes
+- User roles: Who uses this feature and their permissions
+- Data requirements: What data is needed
+- Integration points: APIs, services, or systems involved
 
-### 2. Test Types Needed
-- **Unit tests** — Individual functions and utilities
-- **Integration tests** — API endpoints and service interactions
-- **E2E tests** — User-facing UI flows
-- **API tests** — Endpoint contracts and error handling
+#### 2. Test Types Needed
+- Unit tests: Individual functions and utilities
+- Integration tests: API endpoints and service interactions
+- E2E tests: User-facing UI flows
+- API tests: Endpoint contracts and error handling
 
-### 3. Edge Cases & Error Scenarios
+#### 3. Edge Cases & Error Scenarios
 - Invalid inputs (empty, too long, special characters)
 - Unauthorized access
 - Network failures or timeouts
@@ -181,7 +196,7 @@ When retrieving a ticket for development or test automation, extract:
 - Missing or null data
 - State transitions (back navigation, refresh, etc.)
 
-### 4. Structured Analysis Output
+#### 4. Structured Analysis Output
 
 ```
 Ticket: PROJ-1234
@@ -212,9 +227,11 @@ Dependencies:
 - [dependency 2]
 ```
 
-## Updating Tickets
+---
 
-### When to Update
+### Updating Tickets
+
+#### When to Update
 
 | Workflow Step | Jira Update |
 |---|---|
@@ -225,15 +242,15 @@ Dependencies:
 | Tests passing | Comment with results summary |
 | PR/MR merged | Transition to "Done" or "In Review" |
 
-### Comment Templates
+#### Comment Templates
 
-**Starting Work:**
+Starting Work:
 ```
 Starting implementation for this ticket.
 Branch: feat/PROJ-1234-feature-name
 ```
 
-**Tests Implemented:**
+Tests Implemented:
 ```
 Automated tests implemented:
 
@@ -247,7 +264,7 @@ Integration Tests:
 All tests passing locally. Coverage: XX%
 ```
 
-**PR Created:**
+PR Created:
 ```
 Pull request created:
 [PR Title](https://github.com/org/repo/pull/XXX)
@@ -255,7 +272,7 @@ Pull request created:
 Ready for review.
 ```
 
-**Work Complete:**
+Work Complete:
 ```
 Implementation complete.
 
@@ -264,16 +281,20 @@ Test results: All passing (X/Y)
 Coverage: XX%
 ```
 
-## Security Guidelines
+---
 
-- **Never hardcode** Jira API tokens in source code or skill files
-- **Always use** environment variables or a secrets manager
-- **Add `.env`** to `.gitignore` in every project
-- **Rotate tokens** immediately if exposed in git history
-- **Use least-privilege** API tokens scoped to required projects
-- **Validate** that credentials are set before making API calls — fail fast with a clear message
+### Security Guidelines
 
-## Troubleshooting
+- Never hardcode Jira API tokens in source code or skill files
+- Always use environment variables or a secrets manager
+- Add `.env` to `.gitignore` in every project
+- Rotate tokens immediately if exposed in git history
+- Use least-privilege API tokens scoped to required projects
+- Validate that credentials are set before making API calls: fail fast with a clear message
+
+---
+
+### Troubleshooting
 
 | Error | Cause | Fix |
 |---|---|---|
@@ -283,11 +304,13 @@ Coverage: XX%
 | `spawn uvx ENOENT` | IDE cannot find `uvx` on PATH | Use full path (e.g., `~/.local/bin/uvx`) or set PATH in `~/.zprofile` |
 | Connection timeout | Network/VPN issue | Check VPN connection and firewall rules |
 
-## Best Practices
+---
+
+### Best Practices
 
 - Update Jira as you go, not all at once at the end
 - Keep comments concise but informative
-- Link rather than copy — point to PRs, test reports, and dashboards
+- Link rather than copy: point to PRs, test reports, and dashboards
 - Use @mentions if you need input from others
 - Check linked issues to understand full feature scope before starting
 - If acceptance criteria are vague, ask for clarification before writing code

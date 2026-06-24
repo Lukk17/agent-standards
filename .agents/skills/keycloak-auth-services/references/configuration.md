@@ -1,10 +1,15 @@
 # Configuration Reference
 
-## Configuration Section
+---
 
-All Keycloak.AuthServices packages bind to a `"Keycloak"` config section by default. Override with the `configSectionName` parameter.
+### Configuration Section
 
-## KeycloakAuthenticationOptions
+All Keycloak.AuthServices packages bind to a `"Keycloak"` config section by default. Override with the
+`configSectionName` parameter.
+
+---
+
+### KeycloakAuthenticationOptions
 
 Used by `Keycloak.AuthServices.Authentication`:
 
@@ -34,7 +39,9 @@ Used by `Keycloak.AuthServices.Authentication`:
 | `credentials.secret` | string | Client secret for confidential clients |
 | `confidential-port` | int | HTTPS port (rarely needed) |
 
-## KeycloakAuthorizationOptions
+---
+
+### KeycloakAuthorizationOptions
 
 Used by `Keycloak.AuthServices.Authorization`:
 
@@ -56,7 +63,9 @@ Used by `Keycloak.AuthServices.Authorization`:
 | `RolesResource` | string | Override client for resource role mapping |
 | `RoleClaimType` | string | Target claim type for mapped roles (default: `"role"`) |
 
-## KeycloakAdminClientOptions
+---
+
+### KeycloakAdminClientOptions
 
 Used by `Keycloak.AuthServices.Sdk` (Admin API):
 
@@ -73,7 +82,9 @@ Used by `Keycloak.AuthServices.Sdk` (Admin API):
 }
 ```
 
-## KeycloakProtectionClientOptions
+---
+
+### KeycloakProtectionClientOptions
 
 Used by `Keycloak.AuthServices.Sdk` (Protection API):
 
@@ -90,7 +101,9 @@ Used by `Keycloak.AuthServices.Sdk` (Protection API):
 }
 ```
 
-## Naming Conventions
+---
+
+### Naming Conventions
 
 Both kebab-case (Keycloak adapter format) and PascalCase are supported:
 
@@ -117,7 +130,9 @@ Both kebab-case (Keycloak adapter format) and PascalCase are supported:
 
 Default format is kebab-case (matching Keycloak's adapter config download).
 
-## Adapter File
+---
+
+### Adapter File
 
 Instead of `appsettings.json`, use a standalone `keycloak.json`:
 
@@ -125,7 +140,9 @@ Instead of `appsettings.json`, use a standalone `keycloak.json`:
 builder.Host.ConfigureKeycloakConfigurationSource("keycloak.json");
 ```
 
-## Resolving Options
+---
+
+### Resolving Options
 
 From DI:
 

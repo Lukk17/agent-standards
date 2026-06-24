@@ -1,6 +1,8 @@
 # Authentication
 
-## JWT Bearer (Web API)
+---
+
+### JWT Bearer (Web API)
 
 `AddKeycloakWebApiAuthentication` configures JWT Bearer authentication from the `"Keycloak"` config section.
 
@@ -8,7 +10,7 @@ What it does:
 - Adds and configures `AddJwtBearer` based on Keycloak config
 - Registers `IOptions<KeycloakAuthenticationOptions>` and `IOptions<JwtBearerOptions>`
 
-### ServiceCollection Extensions
+#### ServiceCollection Extensions
 
 From configuration (default `"Keycloak"` section):
 
@@ -46,7 +48,7 @@ builder.Services.AddKeycloakWebApiAuthentication(
 );
 ```
 
-### AuthenticationBuilder Extensions
+#### AuthenticationBuilder Extensions
 
 For custom authentication scheme or more verbose setup:
 
@@ -76,9 +78,10 @@ builder.Services
     );
 ```
 
-### Configuration Precedence
+#### Configuration Precedence
 
-`KeycloakAuthenticationOptions` (`"Keycloak"` section) takes precedence over `Authentication:Schemes:{SchemeName}` (`"Bearer"` — `JwtBearerOptions`) in default config.
+`KeycloakAuthenticationOptions` (`"Keycloak"` section) takes precedence over `Authentication:Schemes:{SchemeName}`
+(`"Bearer"`, `JwtBearerOptions`) in default config.
 
 You can also use ASP.NET Core's standard config:
 
@@ -106,21 +109,25 @@ You can also use ASP.NET Core's standard config:
 }
 ```
 
-## OpenID Connect (Web App)
+---
 
-`AddKeycloakWebAppAuthentication` configures OIDC + Cookie authentication for server-rendered web apps (MVC, Razor Pages).
+### OpenID Connect (Web App)
+
+`AddKeycloakWebAppAuthentication` configures OIDC + Cookie authentication for server-rendered web apps (MVC, Razor
+Pages).
 
 What it does:
 - Adds and configures `OpenIdConnect` based on Keycloak config
-- Registers `IOptions<KeycloakAuthenticationOptions>`, `IOptions<OpenIdConnectOptions>`, `IOptions<CookieAuthenticationOptions>`
+- Registers `IOptions<KeycloakAuthenticationOptions>`, `IOptions<OpenIdConnectOptions>`,
+  `IOptions<CookieAuthenticationOptions>`
 
-### ServiceCollection Extensions
+#### ServiceCollection Extensions
 
 ```csharp
 builder.Services.AddKeycloakWebAppAuthentication(builder.Configuration);
 ```
 
-### AuthenticationBuilder Extensions
+#### AuthenticationBuilder Extensions
 
 ```csharp
 builder.Services
@@ -147,7 +154,9 @@ builder.Services
     );
 ```
 
-## Adapter File Configuration Provider
+---
+
+### Adapter File Configuration Provider
 
 Use a standalone `keycloak.json` file instead of `appsettings.json`:
 
@@ -170,9 +179,12 @@ builder.Services.AddKeycloakWebApiAuthentication(builder.Configuration);
 }
 ```
 
-## Server Metadata Discovery (RFC 8414)
+---
 
-By default, the library uses OIDC discovery (`.well-known/openid-configuration`). For pure OAuth 2.0 scenarios, switch to RFC 8414 metadata:
+### Server Metadata Discovery (RFC 8414)
+
+By default, the library uses OIDC discovery (`.well-known/openid-configuration`). For pure OAuth 2.0 scenarios, switch
+to RFC 8414 metadata:
 
 ```csharp
 using Keycloak.AuthServices.Common;
@@ -185,17 +197,21 @@ builder.Services.AddKeycloakWebApiAuthentication(options =>
 
 The constant resolves to `.well-known/oauth-authorization-server`.
 
-**When to use RFC 8414:**
+When to use RFC 8414:
 - Machine-to-machine flows (client credentials) with no OIDC/ID token involved
 - MCP (Model Context Protocol) authorization server support
 - OAuth 2.0-only clients that look for RFC 8414 metadata, not OIDC
 - Protocol correctness when the consumer is a pure OAuth 2.0 resource server
 
-For most use cases, the default OIDC discovery works fine — only switch to RFC 8414 when you have a specific reason.
+For most use cases, the default OIDC discovery works fine, only switch to RFC 8414 when you have a specific reason.
 
-## Audience Mapper
+---
 
-By default, `Keycloak.AuthServices.Authentication` validates that the token audience matches the `resource` (client ID). If you get **401 Unauthorized**, either:
+### Audience Mapper
 
-1. Configure an Audience Mapper in Keycloak (Client → Client Scopes → `{client_id}-dedicated` → Mappers → Add "Audience" mapper)
+By default, `Keycloak.AuthServices.Authentication` validates that the token audience matches the `resource` (client ID).
+If you get 401 Unauthorized, either:
+
+1. Configure an Audience Mapper in Keycloak (Client → Client Scopes → `{client_id}-dedicated` → Mappers → Add "Audience"
+   mapper)
 2. Or disable audience validation: `verify-token-audience: false`

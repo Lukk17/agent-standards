@@ -8,7 +8,9 @@ origin: ECC
 
 Safe, reversible database schema changes for production systems.
 
-## When to Activate
+---
+
+### When to Activate
 
 - Creating or altering database tables
 - Adding/removing columns or indexes
@@ -16,15 +18,19 @@ Safe, reversible database schema changes for production systems.
 - Planning zero-downtime schema changes
 - Setting up migration tooling for a new project
 
-## Core Principles
+---
 
-1. **Every change is a migration** — never alter production databases manually
-2. **Migrations are forward-only in production** — rollbacks use new forward migrations
-3. **Schema and data migrations are separate** — never mix DDL and DML in one migration
-4. **Test migrations against production-sized data** — a migration that works on 100 rows may lock on 10M
-5. **Migrations are immutable once deployed** — never edit a migration that has run in production
+### Core Principles
 
-## Migration Safety Checklist
+1. Every change is a migration: never alter production databases manually
+2. Migrations are forward-only in production: rollbacks use new forward migrations
+3. Schema and data migrations are separate: never mix DDL and DML in one migration
+4. Test migrations against production-sized data: a migration that works on 100 rows may lock on 10M
+5. Migrations are immutable once deployed: never edit a migration that has run in production
+
+---
+
+### Migration Safety Checklist
 
 Before applying any migration:
 
@@ -36,9 +42,11 @@ Before applying any migration:
 - [ ] Tested against a copy of production data
 - [ ] Rollback plan documented
 
-## PostgreSQL Patterns
+---
 
-### Adding a Column Safely
+### PostgreSQL Patterns
+
+#### Adding a Column Safely
 
 ```sql
 -- GOOD: Nullable column, no lock
@@ -52,7 +60,7 @@ ALTER TABLE users ADD COLUMN role TEXT NOT NULL;
 -- This locks the table and rewrites every row
 ```
 
-### Adding an Index Without Downtime
+#### Adding an Index Without Downtime
 
 ```sql
 -- BAD: Blocks writes on large tables
@@ -65,7 +73,7 @@ CREATE INDEX CONCURRENTLY idx_users_email ON users (email);
 -- Most migration tools need special handling for this
 ```
 
-### Renaming a Column (Zero-Downtime)
+#### Renaming a Column (Zero-Downtime)
 
 Never rename directly in production. Use the expand-contract pattern:
 
@@ -83,7 +91,7 @@ UPDATE users SET display_name = username WHERE display_name IS NULL;
 ALTER TABLE users DROP COLUMN username;
 ```
 
-### Removing a Column Safely
+#### Removing a Column Safely
 
 ```sql
 -- Step 1: Remove all application references to the column
@@ -95,7 +103,7 @@ ALTER TABLE orders DROP COLUMN legacy_status;
 -- without generating DROP COLUMN (then drop in next migration)
 ```
 
-### Large Data Migrations
+#### Large Data Migrations
 
 ```sql
 -- BAD: Updates all rows in one transaction (locks table)
@@ -124,9 +132,11 @@ BEGIN
 END $$;
 ```
 
-## Prisma (TypeScript/Node.js)
+---
 
-### Workflow
+### Prisma (TypeScript/Node.js)
+
+#### Workflow
 
 ```bash
 # Create migration from schema changes
@@ -142,7 +152,7 @@ npx prisma migrate reset
 npx prisma generate
 ```
 
-### Schema Example
+#### Schema Example
 
 ```prisma
 model User {
@@ -159,7 +169,7 @@ model User {
 }
 ```
 
-### Custom SQL Migration
+#### Custom SQL Migration
 
 For operations Prisma cannot express (concurrent indexes, data backfills):
 
@@ -174,9 +184,11 @@ npx prisma migrate dev --create-only --name add_email_index
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_email ON users (email);
 ```
 
-## Drizzle (TypeScript/Node.js)
+---
 
-### Workflow
+### Drizzle (TypeScript/Node.js)
+
+#### Workflow
 
 ```bash
 # Generate migration from schema changes
@@ -189,7 +201,7 @@ npx drizzle-kit migrate
 npx drizzle-kit push
 ```
 
-### Schema Example
+#### Schema Example
 
 ```typescript
 import { pgTable, text, timestamp, uuid, boolean } from "drizzle-orm/pg-core";
@@ -204,9 +216,11 @@ export const users = pgTable("users", {
 });
 ```
 
-## Kysely (TypeScript/Node.js)
+---
 
-### Workflow (kysely-ctl)
+### Kysely (TypeScript/Node.js)
+
+#### Workflow (kysely-ctl)
 
 ```bash
 # Initialize config file (kysely.config.ts)
@@ -225,7 +239,7 @@ kysely migrate down
 kysely migrate list
 ```
 
-### Migration File
+#### Migration File
 
 ```typescript
 // migrations/2024_01_15_001_create_user_profile.ts
@@ -256,7 +270,7 @@ export async function down(db: Kysely<any>): Promise<void> {
 }
 ```
 
-### Programmatic Migrator
+#### Programmatic Migrator
 
 ```typescript
 import { Migrator, FileMigrationProvider } from 'kysely'
@@ -298,9 +312,11 @@ if (error) {
 }
 ```
 
-## Django (Python)
+---
 
-### Workflow
+### Django (Python)
+
+#### Workflow
 
 ```bash
 # Generate migration from model changes
@@ -316,7 +332,7 @@ python manage.py showmigrations
 python manage.py makemigrations --empty app_name -n description
 ```
 
-### Data Migration
+#### Data Migration
 
 ```python
 from django.db import migrations
@@ -342,7 +358,7 @@ class Migration(migrations.Migration):
     ]
 ```
 
-### SeparateDatabaseAndState
+#### SeparateDatabaseAndState
 
 Remove a column from the Django model without dropping it from the database immediately:
 
@@ -358,9 +374,11 @@ class Migration(migrations.Migration):
     ]
 ```
 
-## golang-migrate (Go)
+---
 
-### Workflow
+### golang-migrate (Go)
+
+#### Workflow
 
 ```bash
 # Create migration pair
@@ -376,7 +394,7 @@ migrate -path migrations -database "$DATABASE_URL" down 1
 migrate -path migrations -database "$DATABASE_URL" force VERSION
 ```
 
-### Migration Files
+#### Migration Files
 
 ```sql
 -- migrations/000003_add_user_avatar.up.sql
@@ -388,7 +406,9 @@ DROP INDEX IF EXISTS idx_users_avatar;
 ALTER TABLE users DROP COLUMN IF EXISTS avatar_url;
 ```
 
-## Zero-Downtime Migration Strategy
+---
+
+### Zero-Downtime Migration Strategy
 
 For critical production changes, follow the expand-contract pattern:
 
@@ -407,7 +427,7 @@ Phase 3: CONTRACT
   - Drop old column/table in separate migration
 ```
 
-### Timeline Example
+#### Timeline Example
 
 ```
 Day 1: Migration adds new_status column (nullable)
@@ -417,7 +437,9 @@ Day 3: Deploy app v3 — reads from new_status only
 Day 7: Migration drops old status column
 ```
 
-## Anti-Patterns
+---
+
+### Anti-Patterns
 
 | Anti-Pattern | Why It Fails | Better Approach |
 |-------------|-------------|-----------------|
@@ -430,7 +452,7 @@ Day 7: Migration drops old status column
 
 ---
 
-## Explicit Constraint Naming
+### Explicit Constraint Naming
 
 Never rely on auto-generated constraint names. Always provide explicit names:
 
@@ -451,7 +473,9 @@ CREATE INDEX ix_orders_status ON orders (status) WHERE status != 'completed';
 
 This enables unambiguous `ALTER TABLE ... DROP CONSTRAINT <name>` in future migrations.
 
-## Liquibase — Required Rollback Blocks
+---
+
+### Liquibase, Required Rollback Blocks
 
 Every Liquibase changeset must include a `<rollback>` block:
 
@@ -468,14 +492,16 @@ Every Liquibase changeset must include a `<rollback>` block:
 </changeSet>
 ```
 
-Use **contexts** and **labels** for environment-specific changesets:
+Use contexts and labels for environment-specific changesets:
 ```xml
 <changeSet id="20240101-seed-dev-data" author="dev" context="dev,test">
     <!-- Only runs in dev and test environments -->
 </changeSet>
 ```
 
-## Pre-Production Dry Run
+---
+
+### Pre-Production Dry Run
 
 For production deployments, generate the SQL preview for DBA review before execution:
 
@@ -489,7 +515,9 @@ liquibase --changeLogFile=changelog.xml updateSQL > migration_preview.sql
 
 Store `migration_preview.sql` as a CI artifact and require DBA sign-off for migrations that touch tables with > 1M rows.
 
-## EXPLAIN ANALYZE Gate
+---
+
+### EXPLAIN ANALYZE Gate
 
 For any migration that touches data in existing tables, include `EXPLAIN ANALYZE` output in the PR description:
 ```sql

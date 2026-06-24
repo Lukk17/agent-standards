@@ -8,62 +8,79 @@ metadata:
 ---
 # Handling HTTP and JSON
 
-## Contents
+---
+
+### Contents
 - [Core Guidelines](#core-guidelines)
 - [Workflow: Executing HTTP Operations](#workflow-executing-http-operations)
 - [Workflow: Implementing JSON Serialization](#workflow-implementing-json-serialization)
 - [Workflow: Parsing Large JSON in the Background](#workflow-parsing-large-json-in-the-background)
 - [Examples](#examples)
 
-## Core Guidelines
+---
 
-- **Enforce HTTPS:** iOS and Android disable cleartext (HTTP) connections by default. Always use HTTPS endpoints. If HTTP is strictly required for debugging, configure `network_security_config.xml` (Android) and `NSAppTransportSecurity` (iOS).
-- **Construct URIs Safely:** Always use `Uri.https(authority, unencodedPath, [queryParameters])` to safely build URLs. This handles encoding and formatting reliably, preventing string concatenation errors.
-- **Handle Status Codes:** Always validate the `http.Response.statusCode`. Treat `200` (OK) and `201` (Created) as success. Throw explicit exceptions for other codes (do not return `null`).
-- **Prevent UI Jank:** Move expensive JSON parsing operations (taking >16ms) to a background isolate using the `compute()` function.
-- **Structured AI Output:** When integrating LLMs, enforce reliable JSON output by specifying a strict JSON schema in the system prompt and setting the response MIME type to `application/json`.
+### Core Guidelines
 
-## Workflow: Executing HTTP Operations
+- Enforce HTTPS: iOS and Android disable cleartext (HTTP) connections by default. Always use HTTPS endpoints. If HTTP is
+  strictly required for debugging, configure `network_security_config.xml` (Android) and `NSAppTransportSecurity` (iOS).
+- Construct URIs Safely: Always use `Uri.https(authority, unencodedPath, [queryParameters])` to safely build URLs. This
+  handles encoding and formatting reliably, preventing string concatenation errors.
+- Handle Status Codes: Always validate the `http.Response.statusCode`. Treat `200` (OK) and `201` (Created) as success.
+  Throw explicit exceptions for other codes (do not return `null`).
+- Prevent UI Jank: Move expensive JSON parsing operations (taking >16ms) to a background isolate using the `compute()`
+  function.
+- Structured AI Output: When integrating LLMs, enforce reliable JSON output by specifying a strict JSON schema in the
+  system prompt and setting the response MIME type to `application/json`.
+
+---
+
+### Workflow: Executing HTTP Operations
 
 Use this workflow to implement network requests using the `http` package.
 
-**Task Progress:**
+Task Progress:
 - [ ] Add the `http` package to `pubspec.yaml`.
 - [ ] Configure platform permissions (Internet permission in `AndroidManifest.xml` and macOS `.entitlements`).
 - [ ] Construct the target `Uri`.
 - [ ] Execute the HTTP method.
 - [ ] Validate the response and parse the JSON payload.
 
-**Conditional Implementation:**
-- **If fetching data (GET):** Use `http.get(uri)`.
-- **If sending new data (POST):** Use `http.post(uri, headers: {...}, body: jsonEncode(data))`. Ensure `Content-Type` is `application/json; charset=UTF-8`.
-- **If updating data (PUT):** Use `http.put(uri, headers: {...}, body: jsonEncode(data))`.
-- **If deleting data (DELETE):** Use `http.delete(uri, headers: {...})`.
+Conditional Implementation:
+- If fetching data (GET): Use `http.get(uri)`.
+- If sending new data (POST): Use `http.post(uri, headers: {...}, body: jsonEncode(data))`. Ensure `Content-Type` is
+  `application/json; charset=UTF-8`.
+- If updating data (PUT): Use `http.put(uri, headers: {...}, body: jsonEncode(data))`.
+- If deleting data (DELETE): Use `http.delete(uri, headers: {...})`.
 
-**Feedback Loop: Validation & Error Handling**
+Feedback Loop: Validation & Error Handling
 1. Run the HTTP request.
 2. Check `response.statusCode`.
 3. If `200` or `201`, call `jsonDecode(response.body)` and map to a Dart object.
 4. If any other code, throw an `Exception('Failed to load/update/delete resource')`.
 5. Review errors -> fix endpoint, headers, or payload structure.
 
-## Workflow: Implementing JSON Serialization
+---
+
+### Workflow: Implementing JSON Serialization
 
 Choose the serialization strategy based on project complexity.
 
-**Conditional Implementation:**
-- **If building a small prototype or simple models:** Use manual serialization with `dart:convert`.
-- **If building a production app with complex/nested models:** Use code generation with `json_serializable`.
+Conditional Implementation:
+- Default for any model you keep: Use code generation with `json_serializable` (or Freezed, which wraps it) for
+  immutable models. This is the recommended path because the generator keeps `fromJson`, `toJson`, and equality in sync
+  as fields change.
+- Escape hatch only: Use manual serialization with `dart:convert` solely for a trivial, throwaway model in a quick
+  prototype. Promote it to `json_serializable` the moment the model is kept or grows nested fields.
 
-### Manual Serialization Setup
-**Task Progress:**
+#### Manual Serialization Setup
+Task Progress:
 - [ ] Import `dart:convert`.
 - [ ] Define the Model class with `final` properties.
 - [ ] Implement a `factory Model.fromJson(Map<String, dynamic> json)` constructor.
 - [ ] Implement a `Map<String, dynamic> toJson()` method.
 
-### Code Generation Setup (`json_serializable`)
-**Task Progress:**
+#### Code Generation Setup (`json_serializable`)
+Task Progress:
 - [ ] Add dependencies: `flutter pub add json_annotation` and `flutter pub add -d build_runner json_serializable`.
 - [ ] Import `json_annotation.dart` in the model file.
 - [ ] Add the `part 'model_name.g.dart';` directive.
@@ -71,18 +88,28 @@ Choose the serialization strategy based on project complexity.
 - [ ] Define the `fromJson` factory and `toJson` method delegating to the generated functions.
 - [ ] Run the generator: `dart run build_runner build --delete-conflicting-outputs`.
 
-## Workflow: Parsing Large JSON in the Background
+---
+
+### Workflow: Parsing Large JSON in the Background
 
 Use this workflow to prevent frame drops when parsing large JSON payloads (e.g., lists of 1000+ items).
 
-**Task Progress:**
-- [ ] Create a top-level or static function that takes a `String` (the response body) and returns the parsed Dart object (e.g., `List<Model>`).
+Task Progress:
+- [ ] Create a top-level or static function that takes a `String` (the response body) and returns the parsed Dart object
+  (e.g., `List<Model>`).
 - [ ] Inside the function, call `jsonDecode` and map the results to the Model class.
-- [ ] In the HTTP fetch method, pass the top-level parsing function and the `response.body` to Flutter's `compute()` function.
+- [ ] In the HTTP fetch method, pass the top-level parsing function and the `response.body` to Flutter's `compute()`
+  function.
 
-## Examples
+---
 
-### Example 1: HTTP GET with Manual Serialization
+### Examples
+
+#### Example 1: HTTP GET with Manual Serialization (escape hatch only)
+
+This hand-written model is the throwaway-prototype escape hatch. For any model you keep, generate it with
+`json_serializable` or Freezed (Example 4) instead of writing `fromJson` by hand.
+
 ```dart
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -113,7 +140,7 @@ Future<Album> fetchAlbum() async {
 }
 ```
 
-### Example 2: HTTP POST Request
+#### Example 2: HTTP POST Request
 ```dart
 Future<Album> createAlbum(String title) async {
   final uri = Uri.https('jsonplaceholder.typicode.com', '/albums');
@@ -133,7 +160,7 @@ Future<Album> createAlbum(String title) async {
 }
 ```
 
-### Example 3: Background Parsing with `compute`
+#### Example 3: Background Parsing with `compute`
 ```dart
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
@@ -160,7 +187,7 @@ Future<List<Photo>> fetchPhotos(http.Client client) async {
 }
 ```
 
-### Example 4: Code Generation (`json_serializable`)
+#### Example 4: Code Generation (`json_serializable`)
 ```dart
 import 'package:json_annotation/json_annotation.dart';
 
@@ -170,6 +197,8 @@ part 'user.g.dart';
 class User {
   final String name;
   
+  // Store and transmit timestamps in UTC; render in local time only at the UI
+  // edge. registrationDateMillis is epoch milliseconds in UTC.
   @JsonKey(name: 'registration_date_millis')
   final int registrationDateMillis;
 

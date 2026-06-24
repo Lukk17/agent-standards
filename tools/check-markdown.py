@@ -5,10 +5,15 @@ Enforces a subset of the `markdown-writer` skill rules:
 
 - No em-dashes (U+2014) or en-dashes (U+2013) in body text.
 - Prose lines kept under 120 chars.
+- Section headings start at level 3; level 2 is never used (level 1 is
+  reserved for the document title).
 
-Scope: README.md, AGENTS.md.example, docs/*.md. The catalogue dirs
-(.agents/skills/, subagents/, .claude/agents/, .opencode/agents/) are
-NOT checked; they're machine-facing per the skill's own exemption.
+Scope: README.md, AGENTS.md.example, docs/*.md, and .agents/skills/**/*.md.
+The generated subagent dirs (.claude/agents/, .opencode/agents/) and the
+canonical subagents/ source are NOT checked.
+
+Pass explicit file paths as arguments to lint only those files; with no
+arguments the default target set above is linted.
 
 Exemptions inside checked files:
 
@@ -31,11 +36,43 @@ import sys
 from pathlib import Path
 
 EM_OR_EN_DASH = re.compile(r"[–—]")
+HEADING = re.compile(r"^(#{1,6})\s")
 FENCE_OPEN = re.compile(r"^( {0,3})(`{3,}|~{3,})(.*)$")
 TABLE_ROW = re.compile(r"^\s*\|")
 SUMMARY_TAG = re.compile(r"^\s*<summary[\s>]", re.IGNORECASE)
 BADGE_LINE = re.compile(r"^\s*\[!\[")
+ATOMIC = re.compile(r"!?\[[^\]]*\]\([^)]*\)|`[^`]+`")
 MAX_LINE = 120
+
+
+def _unsplittable(line: str) -> bool:
+    """True when no wrapping can bring the line under MAX_LINE.
+
+    A markdown link or inline-code span has no internal break point, so a
+    single such token longer than the limit (plus its indent) is exempt;
+    genuinely long prose with breakable words is not.
+    """
+    indent = len(line) - len(line.lstrip(" "))
+    s = line.strip()
+    i = 0
+    longest = 0
+    cur = ""
+    while i < len(s):
+        if s[i] in " \t":
+            longest = max(longest, len(cur))
+            cur = ""
+            i += 1
+            continue
+        m = ATOMIC.match(s, i)
+        if m:
+            cur += m.group(0)
+            i = m.end()
+            continue
+        cur += s[i]
+        i += 1
+    longest = max(longest, len(cur))
+
+    return indent + longest > MAX_LINE
 
 
 def check_lines(lines: list[str], path: Path) -> int:
@@ -49,7 +86,18 @@ def check_lines(lines: list[str], path: Path) -> int:
     fence_marker_len = 0
     failures = 0
 
+    # Skip a leading YAML frontmatter block; it is metadata, not prose.
+    fm_end = -1
+    if lines and lines[0].strip() == "---":
+        for i in range(1, len(lines)):
+            if lines[i].strip() == "---":
+                fm_end = i
+                break
+
     for line_no, line in enumerate(lines, start=1):
+        if line_no - 1 <= fm_end:
+            continue
+
         m = FENCE_OPEN.match(line)
 
         if m:
@@ -89,6 +137,15 @@ def check_lines(lines: list[str], path: Path) -> int:
         if BADGE_LINE.match(line):
             continue
 
+        heading = HEADING.match(line)
+        if heading and len(heading.group(1)) == 2:
+            preview = line[:80].rstrip()
+            print(
+                f"::error file={path},line={line_no}::"
+                f"level-2 heading; sections start at level 3, level 1 is the title only: {preview}"
+            )
+            failures += 1
+
         if EM_OR_EN_DASH.search(line):
             preview = line[:80].rstrip()
             print(
@@ -97,7 +154,7 @@ def check_lines(lines: list[str], path: Path) -> int:
             )
             failures += 1
 
-        if len(line) > MAX_LINE:
+        if len(line) > MAX_LINE and not _unsplittable(line):
             print(
                 f"::error file={path},line={line_no}::"
                 f"prose line over {MAX_LINE} chars ({len(line)} chars)"
@@ -127,11 +184,16 @@ def check_file(path: Path) -> int:
 
 def main() -> int:
     repo_root = Path(__file__).resolve().parent.parent
-    targets: list[Path] = [
-        repo_root / "README.md",
-        repo_root / "AGENTS.md.example",
-    ]
-    targets.extend(sorted((repo_root / "docs").glob("*.md")))
+
+    if len(sys.argv) > 1:
+        targets = [Path(arg) for arg in sys.argv[1:]]
+    else:
+        targets = [
+            repo_root / "README.md",
+            repo_root / "AGENTS.md.example",
+        ]
+        targets.extend(sorted((repo_root / "docs").glob("*.md")))
+        targets.extend(sorted((repo_root / ".agents" / "skills").glob("**/*.md")))
 
     total = 0
     checked = 0

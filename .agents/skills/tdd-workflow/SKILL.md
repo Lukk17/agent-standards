@@ -1,6 +1,6 @@
 ---
 name: tdd-workflow
-description: Use this skill when writing new features, fixing bugs, or refactoring code. Enforces test-driven development with 80%+ coverage including unit, integration, and E2E tests.
+description: Use this skill when writing new features, fixing bugs, or refactoring code. Enforces test-driven development with around 90% line coverage of real logic including unit, integration, and E2E tests.
 origin: ECC
 ---
 
@@ -8,7 +8,9 @@ origin: ECC
 
 This skill ensures all code development follows TDD principles with comprehensive test coverage.
 
-## When to Activate
+---
+
+### When to Activate
 
 - Writing new features or functionality
 - Fixing bugs or issues
@@ -16,40 +18,46 @@ This skill ensures all code development follows TDD principles with comprehensiv
 - Adding API endpoints
 - Creating new components
 
-## Core Principles
+---
 
-### 1. Tests BEFORE Code
+### Core Principles
+
+#### 1. Tests BEFORE Code
 ALWAYS write tests first, then implement code to make tests pass.
 
-### 2. Coverage Requirements
-- Minimum 80% coverage (unit + integration + E2E)
+#### 2. Coverage Requirements
+- Around 90% line coverage of real logic (unit + integration + E2E); branch coverage may stay at 70 to 80%
+- 100% for critical logic where it genuinely adds value
+- No exclusion patterns to dodge meaningful tests
 - All edge cases covered
 - Error scenarios tested
 - Boundary conditions verified
 
-### 3. Test Types
+#### 3. Test Types
 
-#### Unit Tests
+##### Unit Tests
 - Individual functions and utilities
 - Component logic
 - Pure functions
 - Helpers and utilities
 
-#### Integration Tests
+##### Integration Tests
 - API endpoints
 - Database operations
 - Service interactions
 - External API calls
 
-#### E2E Tests (Playwright)
+##### E2E Tests (Playwright)
 - Critical user flows
 - Complete workflows
 - Browser automation
 - UI interactions
 
-## TDD Workflow Steps
+---
 
-### Step 1: Write User Journeys
+### TDD Workflow Steps
+
+#### Step 1: Write User Journeys
 ```
 As a [role], I want to [action], so that [benefit]
 
@@ -58,7 +66,7 @@ As a user, I want to search for markets semantically,
 so that I can find relevant markets even without exact keywords.
 ```
 
-### Step 2: Generate Test Cases
+#### Step 2: Generate Test Cases
 For each user journey, create comprehensive test cases:
 
 ```typescript
@@ -81,7 +89,7 @@ describe('Semantic Search', () => {
 })
 ```
 
-### Step 3: Run Tests (They Should Fail)
+#### Step 3: Run Tests (They Should Fail)
 ```bash
 npm test
 # Tests should fail - we haven't implemented yet
@@ -97,14 +105,16 @@ Before modifying business logic or other production code, you must verify a vali
 - Compile-time RED:
   - The new test newly instantiates, references, or exercises the buggy code path
   - The compile failure is itself the intended RED signal
-- In either case, the failure is caused by the intended business-logic bug, undefined behavior, or missing implementation
-- The failure is not caused only by unrelated syntax errors, broken test setup, missing dependencies, or unrelated regressions
+- In either case, the failure is caused by the intended business-logic bug, undefined behavior, or missing
+  implementation
+- The failure is not caused only by unrelated syntax errors, broken test setup, missing dependencies, or unrelated
+  regressions
 
 A test that was only written but not compiled and executed does not count as RED.
 
 Do not edit production code until this RED state is confirmed.
 
-### Step 4: Implement Code
+#### Step 4: Implement Code
 Write minimal code to make tests pass:
 
 ```typescript
@@ -114,7 +124,7 @@ export async function searchMarkets(query: string) {
 }
 ```
 
-### Step 5: Run Tests Again
+#### Step 5: Run Tests Again
 ```bash
 npm test
 # Tests should now pass
@@ -124,22 +134,24 @@ Rerun the same relevant test target after the fix and confirm the previously fai
 
 Only after a valid GREEN result may you proceed to refactor.
 
-### Step 6: Refactor
+#### Step 6: Refactor
 Improve code quality while keeping tests green:
 - Remove duplication
 - Improve naming
 - Optimize performance
 - Enhance readability
 
-### Step 7: Verify Coverage
+#### Step 7: Verify Coverage
 ```bash
 npm run test:coverage
-# Verify 80%+ coverage achieved
+# Verify ~90% line coverage of real logic achieved
 ```
 
-## Testing Patterns
+---
 
-### Unit Test Pattern (Jest/Vitest)
+### Testing Patterns
+
+#### Unit Test Pattern (Jest/Vitest)
 ```typescript
 import { render, screen, fireEvent } from '@testing-library/react'
 import { Button } from './Button'
@@ -166,7 +178,7 @@ describe('Button Component', () => {
 })
 ```
 
-### API Integration Test Pattern
+#### API Integration Test Pattern
 ```typescript
 import { NextRequest } from 'next/server'
 import { GET } from './route'
@@ -197,7 +209,7 @@ describe('GET /api/markets', () => {
 })
 ```
 
-### E2E Test Pattern (Playwright)
+#### E2E Test Pattern (Playwright)
 ```typescript
 import { test, expect } from '@playwright/test'
 
@@ -250,7 +262,9 @@ test('user can create a new market', async ({ page }) => {
 })
 ```
 
-## Test File Organization
+---
+
+### Test File Organization
 
 ```
 src/
@@ -273,9 +287,16 @@ src/
     └── auth.spec.ts
 ```
 
-## Mocking External Services
+---
 
-### Supabase Mock
+### Mocking External Services
+
+The mocks below are for fast unit tests only. Do not mock the database when you can exercise it: integration
+tests must use Testcontainers or a real engine, as mandated in the "Testcontainers Mandate" and "Do not mock
+what you do not own" sections later in this skill. The Supabase and Redis mocks here stand in for an external
+boundary in a unit test; they are not a substitute for exercising the real datastore in integration tests.
+
+#### Supabase Mock (unit tests only)
 ```typescript
 jest.mock('@/lib/supabase', () => ({
   supabase: {
@@ -291,7 +312,7 @@ jest.mock('@/lib/supabase', () => ({
 }))
 ```
 
-### Redis Mock
+#### Redis Mock
 ```typescript
 jest.mock('@/lib/redis', () => ({
   searchMarketsByVector: jest.fn(() => Promise.resolve([
@@ -301,7 +322,7 @@ jest.mock('@/lib/redis', () => ({
 }))
 ```
 
-### OpenAI Mock
+#### OpenAI Mock
 ```typescript
 jest.mock('@/lib/openai', () => ({
   generateEmbedding: jest.fn(() => Promise.resolve(
@@ -310,64 +331,68 @@ jest.mock('@/lib/openai', () => ({
 }))
 ```
 
-## Test Coverage Verification
+---
 
-### Run Coverage Report
+### Test Coverage Verification
+
+#### Run Coverage Report
 ```bash
 npm run test:coverage
 ```
 
-### Coverage Thresholds
+#### Coverage Thresholds
 ```json
 {
   "jest": {
     "coverageThresholds": {
       "global": {
-        "branches": 80,
-        "functions": 80,
-        "lines": 80,
-        "statements": 80
+        "branches": 70,
+        "functions": 90,
+        "lines": 90,
+        "statements": 90
       }
     }
   }
 }
 ```
 
-## Common Testing Mistakes to Avoid
+---
 
-### FAIL: WRONG: Testing Implementation Details
+### Common Testing Mistakes to Avoid
+
+#### FAIL: WRONG: Testing Implementation Details
 ```typescript
 // Don't test internal state
 expect(component.state.count).toBe(5)
 ```
 
-### PASS: CORRECT: Test User-Visible Behavior
+#### PASS: CORRECT: Test User-Visible Behavior
 ```typescript
 // Test what users see
 expect(screen.getByText('Count: 5')).toBeInTheDocument()
 ```
 
-### FAIL: WRONG: Brittle Selectors
+#### FAIL: WRONG: Brittle Selectors
 ```typescript
 // Breaks easily
 await page.click('.css-class-xyz')
 ```
 
-### PASS: CORRECT: Semantic Selectors
+#### PASS: CORRECT: Semantic Selectors
 ```typescript
 // Resilient to changes
 await page.click('button:has-text("Submit")')
 await page.click('[data-testid="submit-button"]')
 ```
 
-### FAIL: WRONG: No Test Isolation
+#### FAIL: WRONG: No Test Isolation
 ```typescript
 // Tests depend on each other
 test('creates user', () => { /* ... */ })
 test('updates same user', () => { /* depends on previous test */ })
 ```
 
-### PASS: CORRECT: Independent Tests
+#### PASS: CORRECT: Independent Tests
 ```typescript
 // Each test sets up its own data
 test('creates user', () => {
@@ -381,21 +406,23 @@ test('updates user', () => {
 })
 ```
 
-## Continuous Testing
+---
 
-### Watch Mode During Development
+### Continuous Testing
+
+#### Watch Mode During Development
 ```bash
 npm test -- --watch
 # Tests run automatically on file changes
 ```
 
-### Pre-Commit Hook
+#### Pre-Commit Hook
 ```bash
 # Runs before every commit
 npm test && npm run lint
 ```
 
-### CI/CD Integration
+#### CI/CD Integration
 ```yaml
 # GitHub Actions
 - name: Run Tests
@@ -404,22 +431,28 @@ npm test && npm run lint
   uses: codecov/codecov-action@v3
 ```
 
-## Best Practices
+---
 
-1. **Write Tests First** - Always TDD
-2. **One Assert Per Test** - Focus on single behavior
-3. **Descriptive Test Names** - Explain what's tested
-4. **Arrange-Act-Assert** - Clear test structure
-5. **Mock External Dependencies** - Isolate unit tests
-6. **Test Edge Cases** - Null, undefined, empty, large
-7. **Test Error Paths** - Not just happy paths
-8. **Keep Tests Fast** - Unit tests < 50ms each
-9. **Clean Up After Tests** - No side effects
-10. **Review Coverage Reports** - Identify gaps
+### Best Practices
 
-## Success Metrics
+1. Write a failing test first - Always TDD
+2. One behavior per test - Focus on a single outcome; multiple assertions are fine when they all verify that one outcome
+3. Descriptive Test Names - Explain what's tested
+4. Given / When / Then - Split every test body into three labelled sections with `// Given`, `// When`, and `// Then`
+   comments (Given sets up state, When runs the single action, Then asserts the observable outcome)
+5. Mock only external dependencies - Isolate unit tests; do not mock the database when you can exercise it
+6. Test Edge Cases - Null, undefined, empty, large
+7. Test Error Paths - Not just happy paths
+8. Never weaken an assertion - Fix the code or the test setup; do not loosen a check to make a test pass
+9. Keep Tests Fast - Unit tests < 50ms each
+10. Clean Up After Tests - No side effects
+11. Review Coverage Reports - Identify gaps
 
-- 80%+ code coverage achieved
+---
+
+### Success Metrics
+
+- Around 90% line coverage of real logic achieved (100% for critical logic where it adds value)
 - All tests passing (green)
 - No skipped or disabled tests
 - Fast test execution (< 30s for unit tests)
@@ -428,13 +461,14 @@ npm test && npm run lint
 
 ---
 
-**Remember**: Tests are not optional. They are the safety net that enables confident refactoring, rapid development, and production reliability.
+Remember: Tests are not optional. They are the safety net that enables confident refactoring, rapid development, and
+production reliability.
 
 ---
 
-## Advanced Testing Standards
+### Advanced Testing Standards
 
-### Test Naming Convention
+#### Test Naming Convention
 
 Use the `<methodName>_<scenario>_<expectedResult>` pattern:
 
@@ -455,7 +489,7 @@ test('processPayment_whenCardDeclined_throwsPaymentException', () => { })
 
 Never use vague names like `test1`, `works`, or `happyPath`.
 
-### TestDataFactory Pattern
+#### TestDataFactory Pattern
 
 Never repeat object construction inline across tests. Extract to a shared factory:
 
@@ -490,7 +524,7 @@ export const OrderFactory = {
 }
 ```
 
-### Test Pyramid
+#### Test Pyramid
 
 Maintain these proportions across the test suite:
 
@@ -501,7 +535,7 @@ Maintain these proportions across the test suite:
 | Contract | ~5% | Pact, Spring Cloud Contract |
 | E2E | ~5% | Playwright, Cypress, Selenium |
 
-### Contract Testing (Required for External HTTP APIs)
+#### Contract Testing (Required for External HTTP APIs)
 
 Every HTTP API consumed by an external service must have consumer-driven contract tests:
 
@@ -520,14 +554,14 @@ Contract.make {
 }
 ```
 
-Use **Pact** for polyglot environments; **Spring Cloud Contract** for Java-to-Java service contracts.
+Use Pact for polyglot environments; Spring Cloud Contract for Java-to-Java service contracts.
 
-### Mutation Testing
+#### Mutation Testing
 
 Run mutation testing on all critical business logic:
 
-- **Java:** PIT (`pitest`) — minimum **70% mutation score** as CI gate
-- **TypeScript/JavaScript:** Stryker — minimum **70% mutation score** as CI gate
+- Java: PIT (`pitest`): minimum 70% mutation score as CI gate
+- TypeScript/JavaScript: Stryker: minimum 70% mutation score as CI gate
 
 ```xml
 <!-- Java pom.xml -->
@@ -541,13 +575,13 @@ Run mutation testing on all critical business logic:
 </plugin>
 ```
 
-### Performance Testing
+#### Performance Testing
 
 Required before major releases and for any change to a hot path:
 
-- **k6** (HTTP load testing) or **Gatling** (JVM) for service endpoints
-- **pytest-benchmark** for Python critical paths
-- Alert on **p99 regression > 20%** versus the previous release baseline
+- k6 (HTTP load testing) or Gatling (JVM) for service endpoints
+- pytest-benchmark for Python critical paths
+- Alert on p99 regression > 20% versus the previous release baseline
 
 ```javascript
 // k6 example
@@ -559,9 +593,9 @@ export const options = {
 }
 ```
 
-### Flaky Test Policy
+#### Flaky Test Policy
 
-Flaky tests are classified as **blocking defects**:
+Flaky tests are classified as blocking defects:
 
 | Rule | Value |
 |---|---|
@@ -571,12 +605,12 @@ Flaky tests are classified as **blocking defects**:
 | Prohibited patterns | `Thread.sleep()`, `time.sleep()`, `setTimeout` in test assertions |
 | Allowed retry | `@RetryingTest` (JUnit) only for inherently non-deterministic integration tests |
 
-### Coverage Thresholds
+#### Coverage Thresholds
 
-Enforced as a CI gate — PRs that drop coverage below threshold are **blocked**:
+Enforced as a CI gate, PRs that drop coverage below threshold are blocked:
 
-- Line coverage: minimum **80%**
-- Branch coverage: minimum **70%**
+- Line coverage: minimum 90% of real logic (100% for critical logic where it genuinely adds value)
+- Branch coverage: minimum 70% (70 to 80% is acceptable)
 
 ```xml
 <!-- JaCoCo Maven config -->
@@ -586,7 +620,7 @@ Enforced as a CI gate — PRs that drop coverage below threshold are **blocked**
     <limit>
       <counter>LINE</counter>
       <value>COVEREDRATIO</value>
-      <minimum>0.80</minimum>
+      <minimum>0.90</minimum>
     </limit>
     <limit>
       <counter>BRANCH</counter>
@@ -597,20 +631,21 @@ Enforced as a CI gate — PRs that drop coverage below threshold are **blocked**
 </rule>
 ```
 
-### Key Rules
+#### Key Rules
 
-**Do not mock what you do not own.**
+Do not mock what you do not own.
 Only mock types you define. For third-party libraries (HTTP clients, ORMs, cloud SDKs), use:
 - Real instances via Testcontainers
 - Official test doubles provided by the library
 - WireMock / MSW for HTTP boundaries
 
-**Run the full test suite — never run a single test in isolation to verify a fix.**
+Run the full test suite, never run a single test in isolation to verify a fix.
 A fix that makes one test pass but breaks another is not a fix.
 
-### Testcontainers Mandate
+#### Testcontainers Mandate
 
-All integration tests that touch external systems (databases, message queues, caches, cloud services) must use **Testcontainers**:
+All integration tests that touch external systems (databases, message queues, caches, cloud services) must use
+Testcontainers:
 
 ```java
 @Testcontainers
@@ -625,4 +660,4 @@ class OrderRepositoryTest {
 }
 ```
 
-**Never** use a shared staging database for automated tests — tests must be hermetic and reproducible.
+Never use a shared staging database for automated tests, tests must be hermetic and reproducible.

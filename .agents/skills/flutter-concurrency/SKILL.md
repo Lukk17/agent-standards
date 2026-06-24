@@ -8,7 +8,9 @@ metadata:
 ---
 # Managing Dart Concurrency and Isolates
 
-## Contents
+---
+
+### Contents
 - [Core Concepts](#core-concepts)
 - [Decision Matrix: Async vs. Isolates](#decision-matrix-async-vs-isolates)
 - [Workflows](#workflows)
@@ -17,31 +19,44 @@ metadata:
   - [Establishing Long-Lived Worker Isolates](#establishing-long-lived-worker-isolates)
 - [Examples](#examples)
 
-## Core Concepts
+---
 
-Dart utilizes a single-threaded execution model driven by an Event Loop (comparable to the iOS main loop). By default, all Flutter application code runs on the Main Isolate. 
+### Core Concepts
 
-*   **Asynchronous Operations (`async`/`await`):** Use for non-blocking I/O tasks (network requests, file access). The Event Loop continues processing other events while waiting for the `Future` to complete.
-*   **Isolates:** Dart's implementation of lightweight threads. Isolates possess their own isolated memory and do not share state. They communicate exclusively via message passing.
-*   **Main Isolate:** The default thread where UI rendering and event handling occur. Blocking this isolate causes UI freezing (jank).
-*   **Worker Isolate:** A spawned isolate used to offload CPU-bound tasks (e.g., decoding large JSON blobs) to prevent Main Isolate blockage.
+Dart utilizes a single-threaded execution model driven by an Event Loop (comparable to the iOS main loop). By default,
+all Flutter application code runs on the Main Isolate.
 
-## Decision Matrix: Async vs. Isolates
+*   Asynchronous Operations (`async`/`await`): Use for non-blocking I/O tasks (network requests, file access). The Event
+    Loop continues processing other events while waiting for the `Future` to complete.
+*   Isolates: Dart's implementation of lightweight threads. Isolates possess their own isolated memory and do not share
+    state. They communicate exclusively via message passing.
+*   Main Isolate: The default thread where UI rendering and event handling occur. Blocking this isolate causes UI
+    freezing (jank).
+*   Worker Isolate: A spawned isolate used to offload CPU-bound tasks (e.g., decoding large JSON blobs) to prevent Main
+    Isolate blockage.
+
+---
+
+### Decision Matrix: Async vs. Isolates
 
 Apply the following conditional logic to determine the correct concurrency approach:
 
-*   **If** the task is I/O bound (e.g., HTTP request, database read) -> **Use `async`/`await`** on the Main Isolate.
-*   **If** the task is CPU-bound but executes quickly (< 16ms) -> **Use `async`/`await`** on the Main Isolate.
-*   **If** the task is CPU-bound, takes significant time, and runs once (e.g., parsing a massive JSON payload) -> **Use `Isolate.run()`**.
-*   **If** the task requires continuous or repeated background processing with multiple messages passed over time -> **Use `Isolate.spawn()` with `ReceivePort` and `SendPort`**.
+*   If the task is I/O bound (e.g., HTTP request, database read) -> Use `async`/`await` on the Main Isolate.
+*   If the task is CPU-bound but executes quickly (< 16ms) -> Use `async`/`await` on the Main Isolate.
+*   If the task is CPU-bound, takes significant time, and runs once (e.g., parsing a massive JSON payload) -> Use
+    `Isolate.run()`.
+*   If the task requires continuous or repeated background processing with multiple messages passed over time -> Use
+    `Isolate.spawn()` with `ReceivePort` and `SendPort`.
 
-## Workflows
+---
 
-### Implementing Standard Asynchronous UI
+### Workflows
+
+#### Implementing Standard Asynchronous UI
 
 Use this workflow to fetch and display non-blocking asynchronous data.
 
-**Task Progress:**
+Task Progress:
 - [ ] Mark the data-fetching function with the `async` keyword.
 - [ ] Return a `Future<T>` from the function.
 - [ ] Use the `await` keyword to yield execution until the operation completes.
@@ -49,23 +64,24 @@ Use this workflow to fetch and display non-blocking asynchronous data.
 - [ ] Handle `ConnectionState.waiting`, `hasError`, and `hasData` states within the builder.
 - [ ] Run validator -> review UI for loading indicators -> fix missing states.
 
-### Offloading Short-Lived Heavy Computation
+#### Offloading Short-Lived Heavy Computation
 
 Use this workflow for one-off, CPU-intensive tasks using Dart 2.19+.
 
-**Task Progress:**
+Task Progress:
 - [ ] Identify the CPU-bound operation blocking the Main Isolate.
 - [ ] Extract the computation into a standalone callback function.
-- [ ] Ensure the callback function signature accepts exactly one required, unnamed argument (as per specific architectural constraints).
+- [ ] Ensure the callback function signature accepts exactly one required, unnamed argument (as per specific
+  architectural constraints).
 - [ ] Invoke `Isolate.run()` passing the callback.
 - [ ] `await` the result of `Isolate.run()` in the Main Isolate.
 - [ ] Assign the returned value to the application state.
 
-### Establishing Long-Lived Worker Isolates
+#### Establishing Long-Lived Worker Isolates
 
 Use this workflow for persistent background processes requiring continuous bidirectional communication.
 
-**Task Progress:**
+Task Progress:
 - [ ] Instantiate a `ReceivePort` on the Main Isolate to listen for messages.
 - [ ] Spawn the worker isolate using `Isolate.spawn()`, passing the `ReceivePort.sendPort` as the initial message.
 - [ ] In the worker isolate, instantiate its own `ReceivePort`.
@@ -74,9 +90,11 @@ Use this workflow for persistent background processes requiring continuous bidir
 - [ ] Implement listeners on both `ReceivePort` instances to handle incoming messages.
 - [ ] Run validator -> review memory leaks -> ensure ports are closed when the isolate is no longer needed.
 
-## Examples
+---
 
-### Example 1: Asynchronous UI with FutureBuilder
+### Examples
+
+#### Example 1: Asynchronous UI with FutureBuilder
 
 ```dart
 // 1. Define the async operation
@@ -102,7 +120,7 @@ Widget build(BuildContext context) {
 }
 ```
 
-### Example 2: Short-Lived Isolate (`Isolate.run`)
+#### Example 2: Short-Lived Isolate (`Isolate.run`)
 
 ```dart
 import 'dart:isolate';
@@ -122,7 +140,7 @@ Future<List<dynamic>> processDataInBackground(String rawJson) async {
 }
 ```
 
-### Example 3: Long-Lived Isolate (`ReceivePort` / `SendPort`)
+#### Example 3: Long-Lived Isolate (`ReceivePort` / `SendPort`)
 
 ```dart
 import 'dart:isolate';

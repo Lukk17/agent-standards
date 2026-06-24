@@ -6,18 +6,22 @@ origin: project-standards
 
 # Ansible Standards
 
-## Core Execution Directives
+---
+
+### Core Execution Directives
 
 - Treat all LLM generated Ansible modules, collections, and parameters as potentially hallucinated.
 - Enforce the Zero-Trust Prompt Engineering protocol for every Ansible task generation.
-- Append a Zero-Trust directive demanding mandatory web searches for current Ansible module documentation and live configuration schemas.
-- Implement a Fail-Fast directive forcing the agent to halt execution and refuse to answer if official Ansible documentation cannot be retrieved via live search.
+- Append a Zero-Trust directive demanding mandatory web searches for current Ansible module documentation and live
+  configuration schemas.
+- Implement a Fail-Fast directive forcing the agent to halt execution and refuse to answer if official Ansible
+  documentation cannot be retrieved via live search.
 - Require exact confidence percentage scores for every module parameter and configuration detail provided.
 - Mandate that the agent provides direct, working links to the official Ansible documentation used to ground the code.
 
 ---
 
-## Playbook and Role Architecture
+### Playbook and Role Architecture
 
 - Structure all code into Ansible Roles instead of monolithic playbooks.
 - Require the agent to generate `meta/main.yml` for every role with explicitly defined dependencies.
@@ -27,7 +31,7 @@ origin: project-standards
 
 ---
 
-## Variable and Secret Management
+### Variable and Secret Management
 
 - Never hardcode secrets, passwords, API keys, or tokens in plain text.
 - Require the agent to use Ansible Vault for all sensitive variables.
@@ -37,7 +41,7 @@ origin: project-standards
 
 ---
 
-## State and Idempotency
+### State and Idempotency
 
 - Ensure every generated task is strictly idempotent.
 - Restrict the use of the `command` or `shell` modules strictly to scenarios where no dedicated module exists.
@@ -46,17 +50,18 @@ origin: project-standards
 
 ---
 
-## Security Standards
+### Security Standards
 
 - Execute tasks with the least privilege required.
 - Apply `become` explicitly only on tasks that require root privileges.
 - Do not apply `become` at the playbook level unless completely unavoidable.
 - Explicitly define `become_user` when switching to non-root system accounts.
-- Defend against injection attacks by enforcing parameterized inputs and quoting variables properly when passed to shell tasks.
+- Defend against injection attacks by enforcing parameterized inputs and quoting variables properly when passed to shell
+  tasks.
 
 ---
 
-## Linting and Validation
+### Linting and Validation
 
 - Mandate the use of `ansible-lint` for all generated code to ensure compliance.
 - Require strict adherence to YAML formatting standards.
@@ -65,7 +70,7 @@ origin: project-standards
 
 ---
 
-## Git and Version Control
+### Git and Version Control
 
 - Configure central standards repositories as read-only.
 - Use `git checkout remote/master -- path/to/files` to extract specific Ansible AI configuration files into projects.
@@ -74,25 +79,27 @@ origin: project-standards
 
 ---
 
-## Multi-OS Provisioning Architecture
+### Multi-OS Provisioning Architecture
 
-- Use the `ansible_os_family` or `ansible_distribution` gathered facts to dynamically route execution to OS-specific task files.
-- Abstract all system packages into OS-specific variable files loaded via the `include_vars` module. Never hardcode package names directly in task files.
+- Use the `ansible_os_family` or `ansible_distribution` gathered facts to dynamically route execution to OS-specific
+  task files.
+- Abstract all system packages into OS-specific variable files loaded via the `include_vars` module. Never hardcode
+  package names directly in task files.
 - Explicitly invoke the exact package manager module for the target OS:
-  - **Debian/Ubuntu**: Use `ansible.builtin.apt`
+  - Debian/Ubuntu: Use `ansible.builtin.apt`
     - Ref: https://docs.ansible.com/projects/ansible/latest/collections/ansible/builtin/apt_module.html
-  - **Arch Linux**: Use `community.general.pacman`
+  - Arch Linux: Use `community.general.pacman`
     - Ref: https://docs.ansible.com/projects/ansible/latest/collections/community/general/pacman_module.html
-  - **Fedora/RHEL**: Use `ansible.builtin.dnf`
+  - Fedora/RHEL: Use `ansible.builtin.dnf`
     - Ref: https://docs.ansible.com/projects/ansible/latest/collections/ansible/builtin/dnf_module.html
-  - **Windows**: Use `chocolatey.chocolatey.win_chocolatey`. Do not use `ansible.windows.win_chocolatey`.
+  - Windows: Use `chocolatey.chocolatey.win_chocolatey`. Do not use `ansible.windows.win_chocolatey`.
     - Ref: https://docs.ansible.com/projects/ansible/latest/collections/chocolatey/chocolatey/win_chocolatey_module.html
-  - **macOS**: Use `community.general.homebrew`
+  - macOS: Use `community.general.homebrew`
     - Ref: https://docs.ansible.com/projects/ansible/latest/collections/community/general/homebrew_module.html
 
 ---
 
-## Error Recovery
+### Error Recovery
 
 Use `block` / `rescue` / `always` for any task group that modifies system state and may need rollback:
 
@@ -113,9 +120,10 @@ Use `block` / `rescue` / `always` for any task group that modifies system state 
 
 ---
 
-## Performance Optimisation
+### Performance Optimisation
 
-- Enable SSH pipelining in `ansible.cfg` (`pipelining = True`) to reduce SSH connection overhead for multi-task playbooks.
+- Enable SSH pipelining in `ansible.cfg` (`pipelining = True`) to reduce SSH connection overhead for multi-task
+  playbooks.
 - Enable ControlPersist via SSH multiplexing in `ansible.cfg` to reuse SSH connections:
 
 ```ini
@@ -124,32 +132,34 @@ pipelining = True
 ssh_args = -o ControlMaster=auto -o ControlPersist=60s
 ```
 
-- Use `async` with `poll: 0` for long-running tasks (package installs, service restarts), then use `async_status` to wait for completion, allowing other tasks to run in parallel.
+- Use `async` with `poll: 0` for long-running tasks (package installs, service restarts), then use `async_status` to
+  wait for completion, allowing other tasks to run in parallel.
 - Enable fact caching (`fact_caching = jsonfile`) for large inventories to avoid re-gathering facts on every run.
 
 ---
 
-## Dynamic Inventory
+### Dynamic Inventory
 
 - Use the official cloud provider inventory plugins (not deprecated scripts) for dynamic inventory:
-  - **AWS**: `amazon.aws.aws_ec2`
-  - **GCP**: `google.cloud.gcp_compute`
-  - **Azure**: `azure.azcollection.azure_rm`
+  - AWS: `amazon.aws.aws_ec2`
+  - GCP: `google.cloud.gcp_compute`
+  - Azure: `azure.azcollection.azure_rm`
 - Store inventory plugin configuration in the `inventory/` directory as YAML files committed to the repository.
 - Filter dynamic inventory using `filters` and `keyed_groups` to create logical host groups without hardcoding IPs.
 
 ---
 
-## AWX / Ansible Automation Platform (AAP)
+### AWX / Ansible Automation Platform (AAP)
 
 - Define all automation as reusable Job Templates in AWX/AAP; do not run ad-hoc playbooks against production.
-- Use **Survey Variables** in Job Templates for operator-supplied runtime parameters; define allowed values and defaults.
-- Use **Credentials** objects in AWX/AAP for all secrets; never pass secrets as extra variables.
-- Name Job Templates using the convention: `[Environment] Role/Action Description` (e.g., `[Prod] Deploy Web Application`).
+- Use Survey Variables in Job Templates for operator-supplied runtime parameters; define allowed values and defaults.
+- Use Credentials objects in AWX/AAP for all secrets; never pass secrets as extra variables.
+- Name Job Templates using the convention: `[Environment] Role/Action Description` (e.g.,
+  `[Prod] Deploy Web Application`).
 
 ---
 
-## Collection Dependency Pinning
+### Collection Dependency Pinning
 
 - Pin all Ansible Galaxy collections to exact versions in `requirements.yml`:
 
@@ -166,13 +176,15 @@ collections:
 
 ---
 
-## Testing Pipeline Stages
+### Testing Pipeline Stages
 
 Run automation through the following gate sequence in CI before any production execution:
 
-1. **Lint**: `ansible-lint` — zero violations.
-2. **Syntax check**: `ansible-playbook --syntax-check` — zero errors.
-3. **Dry run**: `ansible-playbook --check --diff` against a staging inventory — review diff output.
-4. **Molecule test**: Full role execution + idempotency check in an isolated container/VM.
-5. **Verify**: Run `verify.yml` assertions to confirm the expected infrastructure state.
-6. **Promote**: Merge to main triggers execution against production inventory.
+1. Lint: `ansible-lint`: zero violations.
+2. Syntax check: `ansible-playbook --syntax-check`: zero errors.
+3. Dry run: `ansible-playbook --check --diff` against a staging inventory: review diff output.
+4. Molecule test: Full role execution + idempotency check in an isolated container/VM.
+5. Verify: Run `verify.yml` assertions to confirm the expected infrastructure state.
+6. Promote: Merge to main produces a release artifact or a ready-to-run AWX/AAP Job Template; it does not execute
+   against production by itself. Production execution requires an explicit approval gate, such as an AWX/AAP Job
+   Template with an approval node, or a manually triggered `workflow_dispatch` run.

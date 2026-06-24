@@ -2,7 +2,9 @@
 
 Role-Based Access Control using Keycloak realm roles and client (resource) roles.
 
-## Setup
+---
+
+### Setup
 
 ```bash
 dotnet add package Keycloak.AuthServices.Authorization
@@ -12,7 +14,9 @@ dotnet add package Keycloak.AuthServices.Authorization
 builder.Services.AddKeycloakAuthorization(builder.Configuration);
 ```
 
-## Require Realm Roles
+---
+
+### Require Realm Roles
 
 Realm roles are global roles that apply to the entire Keycloak realm.
 
@@ -22,7 +26,9 @@ builder.Services.AddKeycloakAuthorization(builder.Configuration)
     .AddPolicy("AdminOnly", policy => policy.RequireRealmRoles("admin"));
 ```
 
-## Require Resource (Client) Roles
+---
+
+### Require Resource (Client) Roles
 
 Resource roles are scoped to a specific client.
 
@@ -54,9 +60,11 @@ builder.Services.AddKeycloakAuthorization(options =>
 });
 ```
 
-## Keycloak Role Claims Transformation
+---
 
-Map Keycloak roles to standard ASP.NET Core role claims. **Disabled by default.**
+### Keycloak Role Claims Transformation
+
+Map Keycloak roles to standard ASP.NET Core role claims. Disabled by default.
 
 Enable via configuration:
 
@@ -78,7 +86,7 @@ builder.Services.AddKeycloakAuthorization(options =>
 });
 ```
 
-### Mapping Sources
+#### Mapping Sources
 
 | `EnableRolesMapping` | `RolesResource` | Source |
 |---------------------|-----------------|--------|
@@ -93,7 +101,7 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy("AdminOnly", policy => policy.RequireRole("admin"));
 ```
 
-### Target Claim Type
+#### Target Claim Type
 
 The target claim type defaults to `"role"`. Override with:
 
@@ -101,7 +109,9 @@ The target claim type defaults to `"role"`. Override with:
 options.RoleClaimType = ClaimTypes.Role;
 ```
 
-## JWT Token Structure
+---
+
+### JWT Token Structure
 
 Keycloak JWT tokens contain roles in two locations:
 
@@ -120,9 +130,12 @@ Keycloak JWT tokens contain roles in two locations:
 
 `RequireRealmRoles` checks `realm_access.roles`, `RequireResourceRoles` checks `resource_access.{client}.roles`.
 
-## Token Introspection (Lightweight Access Tokens)
+---
 
-Keycloak 24+ lightweight access tokens lack `realm_access`/`resource_access` claims. Use `AddKeycloakTokenIntrospection()` to resolve them via the introspection endpoint.
+### Token Introspection (Lightweight Access Tokens)
+
+Keycloak 24+ lightweight access tokens lack `realm_access`/`resource_access` claims. Use
+`AddKeycloakTokenIntrospection()` to resolve them via the introspection endpoint.
 
 ```csharp
 builder.Services.AddKeycloakTokenIntrospection(builder.Configuration);
@@ -139,17 +152,18 @@ Requirements: confidential client with `credentials.secret` in config.
 Features:
 - `HybridCache`-based caching per token (`jti` or SHA256 hash), configurable `CacheDuration` (default 60s)
 - Returns `IHttpClientBuilder` for resilience policy chaining (e.g. `.AddStandardResilienceHandler()`)
-- Startup validation — fails fast if client credentials missing
+- Startup validation: fails fast if client credentials missing
 - `OnTokenIntrospected` delegate for custom claim processing after default enrichment
 - Skips introspection if `realm_access`/`resource_access` already present (not a lightweight token)
 
-### Default Claim Mapping
+#### Default Claim Mapping
 
-Skipped claims (infrastructure): `active`, `iat`, `exp`, `nbf`, `iss`, `sub`, `aud`, `jti`, `typ`, `azp`, `auth_time`, `session_state`, `acr`, `sid`
+Skipped claims (infrastructure): `active`, `iat`, `exp`, `nbf`, `iss`, `sub`, `aud`, `jti`, `typ`, `azp`, `auth_time`,
+`session_state`, `acr`, `sid`
 
 JSON claims (stored as `ValueType="JSON"`): `resource_access`, `realm_access`, `organization`
 
-### Extending Introspection
+#### Extending Introspection
 
 ```csharp
 builder.Services.AddKeycloakTokenIntrospection(options =>

@@ -1,8 +1,11 @@
 # Organization Authorization (Multi-Tenancy)
 
-Keycloak 26+ Organizations provide built-in multi-tenancy. The library offers declarative and imperative authorization based on organization membership claims.
+Keycloak 26+ Organizations provide built-in multi-tenancy. The library offers declarative and imperative authorization
+based on organization membership claims.
 
-## Setup
+---
+
+### Setup
 
 ```csharp
 builder.Services.AddKeycloakWebApiAuthentication(builder.Configuration);
@@ -19,14 +22,17 @@ app.UseAuthorization();
 - `RouteParameterResolver`, `HeaderParameterResolver`, `QueryParameterResolver`
 - Default `$OrganizationPolicy` policy
 
-## Token Claim Formats
+---
 
-**Vanilla format** — multiple string-valued claims:
+### Token Claim Formats
+
+Vanilla format: multiple string-valued claims:
 ```json
 { "organization": ["acme-corp", "startup-co"] }
 ```
 
-**Rich JSON format** — single JSON claim with optional id/attributes (requires "Add organization id" / "Add organization attributes" mapper options):
+Rich JSON format: single JSON claim with optional id/attributes (requires "Add organization id" / "Add organization
+attributes" mapper options):
 ```json
 {
   "organization": {
@@ -36,9 +42,11 @@ app.UseAuthorization();
 }
 ```
 
-The library auto-detects which format is in use — transparent to the developer.
+The library auto-detects which format is in use, transparent to the developer.
 
-## OrganizationMembership Model
+---
+
+### OrganizationMembership Model
 
 ```csharp
 public class OrganizationMembership
@@ -49,7 +57,9 @@ public class OrganizationMembership
 }
 ```
 
-## ClaimsPrincipal Extension Methods
+---
+
+### ClaimsPrincipal Extension Methods
 
 ```csharp
 using Keycloak.AuthServices.Common.Claims;
@@ -64,9 +74,11 @@ bool isMemberById = user.IsMemberOfById("a56bea03-...");
 bool isMemberById = user.IsMemberOfById("a56bea03-...", claimType: "custom");
 ```
 
-## Declarative Authorization (Endpoint Extensions)
+---
 
-**Any organization membership:**
+### Declarative Authorization (Endpoint Extensions)
+
+Any organization membership:
 ```csharp
 app.MapGet("/orgs", (ClaimsPrincipal user) =>
 {
@@ -76,13 +88,13 @@ app.MapGet("/orgs", (ClaimsPrincipal user) =>
 .RequireOrganizationMembership();
 ```
 
-**Static organization:**
+Static organization:
 ```csharp
 app.MapGet("/acme/settings", () => Results.Ok(new { Theme = "dark" }))
     .RequireOrganizationMembership("acme-corp");
 ```
 
-**Route-based (dynamic):**
+Route-based (dynamic):
 ```csharp
 app.MapGet("/orgs/{orgId}/projects", (string orgId) =>
     Results.Ok(new { Organization = orgId, Projects = new[] { "project-alpha" } })
@@ -90,7 +102,7 @@ app.MapGet("/orgs/{orgId}/projects", (string orgId) =>
 .RequireOrganizationMembership("{orgId}");
 ```
 
-**Header-based (custom resolver):**
+Header-based (custom resolver):
 ```csharp
 app.MapGet("/tenant/projects", () =>
     Results.Ok(new { Projects = new[] { "tenant-project" } })
@@ -101,7 +113,9 @@ app.MapGet("/tenant/projects", () =>
 .RequireOrganizationMembership("{X-Organization}", typeof(HeaderParameterResolver));
 ```
 
-## Policy Builder API
+---
+
+### Policy Builder API
 
 Combine organization requirements with other requirements:
 
@@ -118,9 +132,11 @@ app.MapGet("/acme/admin", () => Results.Ok(new { Message = "Acme admin area" }))
     .RequireAuthorization("AcmeAdmin");
 ```
 
-## Imperative Authorization
+---
 
-**Single check:**
+### Imperative Authorization
+
+Single check:
 ```csharp
 app.MapGet("/check/{orgId}", async (
     string orgId,
@@ -134,7 +150,7 @@ app.MapGet("/check/{orgId}", async (
 });
 ```
 
-**Resource filtering:**
+Resource filtering:
 ```csharp
 app.MapGet("/workspaces", async (
     ClaimsPrincipal user,
@@ -159,7 +175,9 @@ app.MapGet("/workspaces", async (
 });
 ```
 
-## Configuration
+---
+
+### Configuration
 
 ```csharp
 builder.Services.AddKeycloakAuthorization(options =>
@@ -168,11 +186,14 @@ builder.Services.AddKeycloakAuthorization(options =>
 });
 ```
 
-## Pluggable Parameter Resolvers
+---
 
-The `{parameter}` syntax in `RequireOrganizationMembership("{param}")` and `RequireProtectedResource("resource/{param}", ...)` is resolved by `IParameterResolver` implementations.
+### Pluggable Parameter Resolvers
 
-**Built-in resolvers:**
+The `{parameter}` syntax in `RequireOrganizationMembership("{param}")` and
+`RequireProtectedResource("resource/{param}", ...)` is resolved by `IParameterResolver` implementations.
+
+Built-in resolvers:
 
 | Resolver | Source | Example |
 |----------|--------|---------|
@@ -180,7 +201,7 @@ The `{parameter}` syntax in `RequireOrganizationMembership("{param}")` and `Requ
 | `HeaderParameterResolver` | HTTP headers | `{X-Organization}` from header |
 | `QueryParameterResolver` | Query string | `{tenant}` from `?tenant=acme` |
 
-**Custom resolver:**
+Custom resolver:
 ```csharp
 public interface IParameterResolver
 {
@@ -197,7 +218,9 @@ public class CustomResolver : IParameterResolver
 }
 ```
 
-## Keycloak Setup
+---
+
+### Keycloak Setup
 
 - Keycloak 26+ required
 - Enable organizations: `organizationsEnabled: true` in realm config
@@ -205,15 +228,19 @@ public class CustomResolver : IParameterResolver
 - Request `organization:*` scope in token requests
 - Create organizations and assign users via Admin API or UI
 
-## Multi-Tenancy Patterns
+---
+
+### Multi-Tenancy Patterns
 
 | Concern | Handler |
 |---------|---------|
-| User belongs to tenant? | **Library** (`RequireOrganizationMembership`) |
-| Which tenant is this request for? | **App** (from route, header, claim) |
-| Isolate data per tenant | **App** (EF Core filters, DB schemas) |
-| Tenant-specific configuration | **App** (`IOptionsSnapshot` per org) |
+| User belongs to tenant? | Library (`RequireOrganizationMembership`) |
+| Which tenant is this request for? | App (from route, header, claim) |
+| Isolate data per tenant | App (EF Core filters, DB schemas) |
+| Tenant-specific configuration | App (`IOptionsSnapshot` per org) |
 
-**Tenant switching:** Users with multiple organizations can request org-specific tokens using `organization:<alias>` scope for single-tenant context.
+Tenant switching: Users with multiple organizations can request org-specific tokens using `organization:<alias>` scope
+for single-tenant context.
 
-**B2B identity federation:** Each organization can link to an external identity provider for automatic federation without app changes.
+B2B identity federation: Each organization can link to an external identity provider for automatic federation without
+app changes.

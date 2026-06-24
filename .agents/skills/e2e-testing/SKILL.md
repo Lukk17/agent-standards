@@ -8,7 +8,9 @@ origin: ECC
 
 Comprehensive Playwright patterns for building stable, fast, and maintainable E2E test suites.
 
-## Test File Organization
+---
+
+### Test File Organization
 
 ```
 tests/
@@ -29,7 +31,9 @@ tests/
 └── playwright.config.ts
 ```
 
-## Page Object Model (POM)
+---
+
+### Page Object Model (POM)
 
 ```typescript
 import { Page, Locator } from '@playwright/test'
@@ -64,7 +68,9 @@ export class ItemsPage {
 }
 ```
 
-## Test Structure
+---
+
+### Test Structure
 
 ```typescript
 import { test, expect } from '@playwright/test'
@@ -97,7 +103,9 @@ test.describe('Item Search', () => {
 })
 ```
 
-## Playwright Configuration
+---
+
+### Playwright Configuration
 
 ```typescript
 import { defineConfig, devices } from '@playwright/test'
@@ -136,9 +144,11 @@ export default defineConfig({
 })
 ```
 
-## Flaky Test Patterns
+---
 
-### Quarantine
+### Flaky Test Patterns
+
+#### Quarantine
 
 ```typescript
 test('flaky: complex search', async ({ page }) => {
@@ -152,16 +162,16 @@ test('conditional skip', async ({ page }) => {
 })
 ```
 
-### Identify Flakiness
+#### Identify Flakiness
 
 ```bash
 npx playwright test tests/search.spec.ts --repeat-each=10
 npx playwright test tests/search.spec.ts --retries=3
 ```
 
-### Common Causes & Fixes
+#### Common Causes & Fixes
 
-**Race conditions:**
+Race conditions:
 ```typescript
 // Bad: assumes element is ready
 await page.click('[data-testid="button"]')
@@ -170,7 +180,7 @@ await page.click('[data-testid="button"]')
 await page.locator('[data-testid="button"]').click()
 ```
 
-**Network timing:**
+Network timing:
 ```typescript
 // Bad: arbitrary timeout
 await page.waitForTimeout(5000)
@@ -179,7 +189,7 @@ await page.waitForTimeout(5000)
 await page.waitForResponse(resp => resp.url().includes('/api/data'))
 ```
 
-**Animation timing:**
+Animation timing:
 ```typescript
 // Bad: click during animation
 await page.click('[data-testid="menu-item"]')
@@ -190,9 +200,11 @@ await page.waitForLoadState('networkidle')
 await page.locator('[data-testid="menu-item"]').click()
 ```
 
-## Artifact Management
+---
 
-### Screenshots
+### Artifact Management
+
+#### Screenshots
 
 ```typescript
 await page.screenshot({ path: 'artifacts/after-login.png' })
@@ -200,7 +212,7 @@ await page.screenshot({ path: 'artifacts/full-page.png', fullPage: true })
 await page.locator('[data-testid="chart"]').screenshot({ path: 'artifacts/chart.png' })
 ```
 
-### Traces
+#### Traces
 
 ```typescript
 await browser.startTracing(page, {
@@ -212,7 +224,7 @@ await browser.startTracing(page, {
 await browser.stopTracing()
 ```
 
-### Video
+#### Video
 
 ```typescript
 // In playwright.config.ts
@@ -222,7 +234,9 @@ use: {
 }
 ```
 
-## CI/CD Integration
+---
+
+### CI/CD Integration
 
 ```yaml
 # .github/workflows/e2e.yml
@@ -250,7 +264,9 @@ jobs:
           retention-days: 30
 ```
 
-## Test Report Template
+---
+
+### Test Report Template
 
 ```markdown
 # E2E Test Report
@@ -277,7 +293,9 @@ jobs:
 - Traces: artifacts/*.zip
 ```
 
-## Wallet / Web3 Testing
+---
+
+### Wallet / Web3 Testing
 
 ```typescript
 test('wallet connection', async ({ page, context }) => {
@@ -299,7 +317,9 @@ test('wallet connection', async ({ page, context }) => {
 })
 ```
 
-## Financial / Critical Flow Testing
+---
+
+### Financial / Critical Flow Testing
 
 ```typescript
 test('trade execution', async ({ page }) => {

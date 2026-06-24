@@ -8,7 +8,9 @@ origin: ECC
 
 Comprehensive Go testing patterns for writing reliable, maintainable tests following TDD methodology.
 
-## When to Activate
+---
+
+### When to Activate
 
 - Writing new Go functions or methods
 - Adding test coverage to existing code
@@ -16,9 +18,11 @@ Comprehensive Go testing patterns for writing reliable, maintainable tests follo
 - Implementing fuzz tests for input validation
 - Following TDD workflow in Go projects
 
-## TDD Workflow for Go
+---
 
-### The RED-GREEN-REFACTOR Cycle
+### TDD Workflow for Go
+
+#### The RED-GREEN-REFACTOR Cycle
 
 ```
 RED     → Write a failing test first
@@ -27,7 +31,7 @@ REFACTOR → Improve code while keeping tests green
 REPEAT  → Continue with next requirement
 ```
 
-### Step-by-Step TDD in Go
+#### Step-by-Step TDD in Go
 
 ```go
 // Step 1: Define the interface/signature
@@ -45,8 +49,14 @@ package calculator
 import "testing"
 
 func TestAdd(t *testing.T) {
-    got := Add(2, 3)
+    // Arrange
+    a, b := 2, 3
     want := 5
+
+    // Act
+    got := Add(a, b)
+
+    // Assert
     if got != want {
         t.Errorf("Add(2, 3) = %d; want %d", got, want)
     }
@@ -69,7 +79,9 @@ func Add(a, b int) int {
 // Step 6: Refactor if needed, verify tests still pass
 ```
 
-## Table-Driven Tests
+---
+
+### Table-Driven Tests
 
 The standard pattern for Go tests. Enables comprehensive coverage with minimal code.
 
@@ -99,7 +111,7 @@ func TestAdd(t *testing.T) {
 }
 ```
 
-### Table-Driven Tests with Error Cases
+#### Table-Driven Tests with Error Cases
 
 ```go
 func TestParseConfig(t *testing.T) {
@@ -154,9 +166,11 @@ func TestParseConfig(t *testing.T) {
 }
 ```
 
-## Subtests and Sub-benchmarks
+---
 
-### Organizing Related Tests
+### Subtests and Sub-benchmarks
+
+#### Organizing Related Tests
 
 ```go
 func TestUser(t *testing.T) {
@@ -194,7 +208,7 @@ func TestUser(t *testing.T) {
 }
 ```
 
-### Parallel Subtests
+#### Parallel Subtests
 
 ```go
 func TestParallel(t *testing.T) {
@@ -219,9 +233,11 @@ func TestParallel(t *testing.T) {
 }
 ```
 
-## Test Helpers
+---
 
-### Helper Functions
+### Test Helpers
+
+#### Helper Functions
 
 ```go
 func setupTestDB(t *testing.T) *sql.DB {
@@ -260,7 +276,7 @@ func assertEqual[T comparable](t *testing.T, got, want T) {
 }
 ```
 
-### Temporary Files and Directories
+#### Temporary Files and Directories
 
 ```go
 func TestFileProcessing(t *testing.T) {
@@ -285,7 +301,9 @@ func TestFileProcessing(t *testing.T) {
 }
 ```
 
-## Golden Files
+---
+
+### Golden Files
 
 Testing against expected output files stored in `testdata/`.
 
@@ -328,9 +346,11 @@ func TestRender(t *testing.T) {
 }
 ```
 
-## Mocking with Interfaces
+---
 
-### Interface-Based Mocking
+### Mocking with Interfaces
+
+#### Interface-Based Mocking
 
 ```go
 // Define interface for dependencies
@@ -385,9 +405,11 @@ func TestUserService(t *testing.T) {
 }
 ```
 
-## Benchmarks
+---
 
-### Basic Benchmarks
+### Benchmarks
+
+#### Basic Benchmarks
 
 ```go
 func BenchmarkProcess(b *testing.B) {
@@ -403,7 +425,7 @@ func BenchmarkProcess(b *testing.B) {
 // Output: BenchmarkProcess-8   10000   105234 ns/op   4096 B/op   10 allocs/op
 ```
 
-### Benchmark with Different Sizes
+#### Benchmark with Different Sizes
 
 ```go
 func BenchmarkSort(b *testing.B) {
@@ -425,7 +447,7 @@ func BenchmarkSort(b *testing.B) {
 }
 ```
 
-### Memory Allocation Benchmarks
+#### Memory Allocation Benchmarks
 
 ```go
 func BenchmarkStringConcat(b *testing.B) {
@@ -459,9 +481,11 @@ func BenchmarkStringConcat(b *testing.B) {
 }
 ```
 
-## Fuzzing (Go 1.18+)
+---
 
-### Basic Fuzz Test
+### Fuzzing (Go 1.18+)
+
+#### Basic Fuzz Test
 
 ```go
 func FuzzParseJSON(f *testing.F) {
@@ -491,7 +515,7 @@ func FuzzParseJSON(f *testing.F) {
 // Run: go test -fuzz=FuzzParseJSON -fuzztime=30s
 ```
 
-### Fuzz Test with Multiple Inputs
+#### Fuzz Test with Multiple Inputs
 
 ```go
 func FuzzCompare(f *testing.F) {
@@ -519,9 +543,11 @@ func FuzzCompare(f *testing.F) {
 }
 ```
 
-## Test Coverage
+---
 
-### Running Coverage
+### Test Coverage
+
+#### Running Coverage
 
 ```bash
 # Basic coverage
@@ -540,16 +566,20 @@ go tool cover -func=coverage.out
 go test -race -coverprofile=coverage.out ./...
 ```
 
-### Coverage Targets
+#### Coverage Targets
 
 | Code Type | Target |
 |-----------|--------|
 | Critical business logic | 100% |
 | Public APIs | 90%+ |
-| General code | 80%+ |
-| Generated code | Exclude |
+| General code | around 90% of real logic |
+| Generated code | Exclude (generated output only) |
 
-### Excluding Generated Code from Coverage
+#### Excluding Generated Code from Coverage
+
+Excluding code from coverage is ONLY for generated output such as mockgen mocks and protobuf stubs, never
+for hand-written logic. Do not read this as license to drop coverage on real code: if you wrote it by hand,
+it must be tested. The general target stays around 90% of real logic.
 
 ```go
 //go:generate mockgen -source=interface.go -destination=mock_interface.go
@@ -558,7 +588,9 @@ go test -race -coverprofile=coverage.out ./...
 // go test -cover -tags=!generate ./...
 ```
 
-## HTTP Handler Testing
+---
+
+### HTTP Handler Testing
 
 ```go
 func TestHealthHandler(t *testing.T) {
@@ -641,7 +673,9 @@ func TestAPIHandler(t *testing.T) {
 }
 ```
 
-## Testing Commands
+---
+
+### Testing Commands
 
 ```bash
 # Run all tests
@@ -678,25 +712,32 @@ go test -fuzz=FuzzParse -fuzztime=30s ./...
 go test -count=10 ./...
 ```
 
-## Best Practices
+---
 
-**DO:**
+### Best Practices
+
+DO:
 - Write tests FIRST (TDD)
 - Use table-driven tests for comprehensive coverage
+- Cover happy, error, and edge paths, not just the happy path
 - Test behavior, not implementation
 - Use `t.Helper()` in helper functions
 - Use `t.Parallel()` for independent tests
 - Clean up resources with `t.Cleanup()`
 - Use meaningful test names that describe the scenario
+- Split each test body into Arrange, Act, and Assert sections with `// Arrange`, `// Act`, and `// Assert` comments.
+  This is Go's idiomatic equivalent of the Given / When / Then convention used elsewhere
 
-**DON'T:**
+DON'T:
 - Test private functions directly (test through public API)
 - Use `time.Sleep()` in tests (use channels or conditions)
 - Ignore flaky tests (fix or remove them)
 - Mock everything (prefer integration tests when possible)
 - Skip error path testing
 
-## Integration with CI/CD
+---
+
+### Integration with CI/CD
 
 ```yaml
 # GitHub Actions example
@@ -714,7 +755,8 @@ test:
     - name: Check coverage
       run: |
         go tool cover -func=coverage.out | grep total | awk '{print $3}' | \
-        awk -F'%' '{if ($1 < 80) exit 1}'
+        awk -F'%' '{if ($1 < 90) exit 1}'
 ```
 
-**Remember**: Tests are documentation. They show how your code is meant to be used. Write them clearly and keep them up to date.
+Remember: Tests are documentation. They show how your code is meant to be used. Write them clearly and keep them up to
+date.

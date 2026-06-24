@@ -8,7 +8,9 @@ origin: ECC
 
 Production deployment workflows and CI/CD best practices.
 
-## When to Activate
+---
+
+### When to Activate
 
 - Setting up CI/CD pipelines
 - Dockerizing an application
@@ -17,11 +19,13 @@ Production deployment workflows and CI/CD best practices.
 - Preparing for a production release
 - Configuring environment-specific settings
 
-## Deployment Strategies
+---
 
-### Rolling Deployment (Default)
+### Deployment Strategies
 
-Replace instances gradually — old and new versions run simultaneously during rollout.
+#### Rolling Deployment (Default)
+
+Replace instances gradually, old and new versions run simultaneously during rollout.
 
 ```
 Instance 1: v1 → v2  (update first)
@@ -37,11 +41,11 @@ Instance 2: v2
 Instance 3: v1 → v2  (update last)
 ```
 
-**Pros:** Zero downtime, gradual rollout
-**Cons:** Two versions run simultaneously — requires backward-compatible changes
-**Use when:** Standard deployments, backward-compatible changes
+Pros: Zero downtime, gradual rollout
+Cons: Two versions run simultaneously, requires backward-compatible changes
+Use when: Standard deployments, backward-compatible changes
 
-### Blue-Green Deployment
+#### Blue-Green Deployment
 
 Run two identical environments. Switch traffic atomically.
 
@@ -54,11 +58,11 @@ Blue  (v1)   idle (becomes standby)
 Green (v2) ← traffic
 ```
 
-**Pros:** Instant rollback (switch back to blue), clean cutover
-**Cons:** Requires 2x infrastructure during deployment
-**Use when:** Critical services, zero-tolerance for issues
+Pros: Instant rollback (switch back to blue), clean cutover
+Cons: Requires 2x infrastructure during deployment
+Use when: Critical services, zero-tolerance for issues
 
-### Canary Deployment
+#### Canary Deployment
 
 Route a small percentage of traffic to the new version first.
 
@@ -74,13 +78,15 @@ v2: 50% of traffic
 v2: 100% of traffic
 ```
 
-**Pros:** Catches issues with real traffic before full rollout
-**Cons:** Requires traffic splitting infrastructure, monitoring
-**Use when:** High-traffic services, risky changes, feature flags
+Pros: Catches issues with real traffic before full rollout
+Cons: Requires traffic splitting infrastructure, monitoring
+Use when: High-traffic services, risky changes, feature flags
 
-## Docker
+---
 
-### Multi-Stage Dockerfile (Node.js)
+### Docker
+
+#### Multi-Stage Dockerfile (Node.js)
 
 ```dockerfile
 # Stage 1: Install dependencies
@@ -117,7 +123,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 CMD ["node", "dist/server.js"]
 ```
 
-### Multi-Stage Dockerfile (Go)
+#### Multi-Stage Dockerfile (Go)
 
 ```dockerfile
 FROM golang:1.22-alpine AS builder
@@ -139,7 +145,7 @@ HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://localhost:8080/heal
 CMD ["/server"]
 ```
 
-### Multi-Stage Dockerfile (Python/Django)
+#### Multi-Stage Dockerfile (Python/Django)
 
 ```dockerfile
 FROM python:3.12-slim AS builder
@@ -165,7 +171,7 @@ HEALTHCHECK --interval=30s --timeout=3s CMD python -c "import urllib.request; ur
 CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "4"]
 ```
 
-### Docker Best Practices
+#### Docker Best Practices
 
 ```
 # GOOD practices
@@ -185,9 +191,11 @@ CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers
 - Storing secrets in image (use env vars or secrets manager)
 ```
 
-## CI/CD Pipeline
+---
 
-### GitHub Actions (Standard Pipeline)
+### CI/CD Pipeline
+
+#### GitHub Actions (Standard Pipeline)
 
 ```yaml
 name: CI/CD
@@ -240,6 +248,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
+    # The "production" environment must have a GitHub environment protection rule
+    # with required reviewers, so this job pauses for an explicit human approval
+    # before it runs. Merge to main must never auto-deploy to prod without that gate.
     environment: production
     steps:
       - name: Deploy to production
@@ -251,19 +262,31 @@ jobs:
           echo "Deploying ${{ github.sha }}"
 ```
 
-### Pipeline Stages
+Gate the production deploy behind an explicit approval. Either protect the `production` GitHub environment with
+required reviewers (as above), or move production promotion to a separate `workflow_dispatch` trigger that a human runs
+on demand. Merging to main may build the image and deploy to staging automatically, but it must not promote to
+production without that explicit gate.
+
+#### Pipeline Stages
 
 ```
 PR opened:
   lint → typecheck → unit tests → integration tests → preview deploy
 
 Merged to main:
-  lint → typecheck → unit tests → integration tests → build image → deploy staging → smoke tests → deploy production
+  lint → typecheck → unit tests → integration tests → build image → deploy staging → smoke tests
+  → [explicit manual approval gate] → deploy production
 ```
 
-## Health Checks
+Everything up to and including the staging smoke tests runs automatically on merge. The final deploy-production step
+is a separate, explicitly approved gate (an environment protection rule with required reviewers, or a manually
+triggered workflow), not an automatic link in the merge chain.
 
-### Health Check Endpoint
+---
+
+### Health Checks
+
+#### Health Check Endpoint
 
 ```typescript
 // Simple health check
@@ -300,7 +323,7 @@ async function checkDatabase(): Promise<HealthCheck> {
 }
 ```
 
-### Kubernetes Probes
+#### Kubernetes Probes
 
 ```yaml
 livenessProbe:
@@ -328,9 +351,11 @@ startupProbe:
   failureThreshold: 30    # 30 * 5s = 150s max startup time
 ```
 
-## Environment Configuration
+---
 
-### Twelve-Factor App Pattern
+### Environment Configuration
+
+#### Twelve-Factor App Pattern
 
 ```bash
 # All config via environment variables — never in code
@@ -345,7 +370,7 @@ NODE_ENV=production          # or staging, development
 APP_ENV=production           # explicit app environment
 ```
 
-### Configuration Validation
+#### Configuration Validation
 
 ```typescript
 import { z } from "zod";
@@ -363,9 +388,11 @@ const envSchema = z.object({
 export const env = envSchema.parse(process.env);
 ```
 
-## Rollback Strategy
+---
 
-### Instant Rollback
+### Rollback Strategy
+
+#### Instant Rollback
 
 ```bash
 # Docker/Kubernetes: point to previous image
@@ -381,7 +408,7 @@ railway up --commit <previous-sha>
 npx prisma migrate resolve --rolled-back <migration-name>
 ```
 
-### Rollback Checklist
+#### Rollback Checklist
 
 - [ ] Previous image/artifact is available and tagged
 - [ ] Database migrations are backward-compatible (no destructive changes)
@@ -389,38 +416,40 @@ npx prisma migrate resolve --rolled-back <migration-name>
 - [ ] Monitoring alerts configured for error rate spikes
 - [ ] Rollback tested in staging before production release
 
-## Production Readiness Checklist
+---
+
+### Production Readiness Checklist
 
 Before any production deployment:
 
-### Application
+#### Application
 - [ ] All tests pass (unit, integration, E2E)
 - [ ] No hardcoded secrets in code or config files
 - [ ] Error handling covers all edge cases
 - [ ] Logging is structured (JSON) and does not contain PII
 - [ ] Health check endpoint returns meaningful status
 
-### Infrastructure
+#### Infrastructure
 - [ ] Docker image builds reproducibly (pinned versions)
 - [ ] Environment variables documented and validated at startup
 - [ ] Resource limits set (CPU, memory)
 - [ ] Horizontal scaling configured (min/max instances)
 - [ ] SSL/TLS enabled on all endpoints
 
-### Monitoring
+#### Monitoring
 - [ ] Application metrics exported (request rate, latency, errors)
 - [ ] Alerts configured for error rate > threshold
 - [ ] Log aggregation set up (structured logs, searchable)
 - [ ] Uptime monitoring on health endpoint
 
-### Security
+#### Security
 - [ ] Dependencies scanned for CVEs
 - [ ] CORS configured for allowed origins only
 - [ ] Rate limiting enabled on public endpoints
 - [ ] Authentication and authorization verified
 - [ ] Security headers set (CSP, HSTS, X-Frame-Options)
 
-### Operations
+#### Operations
 - [ ] Rollback plan documented and tested
 - [ ] Database migration tested against production-sized data
 - [ ] Runbook for common failure scenarios
@@ -428,11 +457,11 @@ Before any production deployment:
 
 ---
 
-## GitHub Actions Standards
+### GitHub Actions Standards
 
-### OIDC Authentication (No Static Credentials)
+#### OIDC Authentication (No Static Credentials)
 
-Use OIDC to authenticate to cloud providers — never store long-lived credentials in CI secrets:
+Use OIDC to authenticate to cloud providers, never store long-lived credentials in CI secrets:
 
 ```yaml
 jobs:
@@ -447,7 +476,7 @@ jobs:
           aws-region: eu-west-1
 ```
 
-### Job-Level Permissions Block (Required)
+#### Job-Level Permissions Block (Required)
 
 Every job must declare minimum required permissions explicitly:
 
@@ -463,7 +492,7 @@ jobs:
 
 Never use `permissions: write-all` at workflow or job level.
 
-### Pipeline Linting
+#### Pipeline Linting
 
 Add `actionlint` as a required CI check on all workflow changes:
 
@@ -472,7 +501,7 @@ Add `actionlint` as a required CI check on all workflow changes:
   uses: rhysd/actionlint@v1
 ```
 
-### Failure Notifications
+#### Failure Notifications
 
 On any pipeline failure, notify the PR author and a shared Slack channel:
 
@@ -494,7 +523,7 @@ On any pipeline failure, notify the PR author and a shared Slack channel:
       }
 ```
 
-### Matrix Build Configuration
+#### Matrix Build Configuration
 
 ```yaml
 strategy:
@@ -507,17 +536,17 @@ strategy:
 
 Use `fail-fast: true` for PR builds; disable for release validation matrices.
 
-### Pipeline SLA
+#### Pipeline SLA
 
-- CI (lint + test + build): <= **15 minutes**
-- Deployment pipeline (staging + production): <= **10 minutes**
+- CI (lint + test + build): <= 15 minutes
+- Deployment pipeline (staging + production): <= 10 minutes
 - If a pipeline exceeds SLA, raise it as a tech-debt issue within 2 business days
 
 ---
 
-## Canary Deployment
+### Canary Deployment
 
-### Traffic Rollout Schedule
+#### Traffic Rollout Schedule
 
 Increment canary traffic in three steps with a health gate between each:
 
@@ -525,13 +554,18 @@ Increment canary traffic in three steps with a health gate between each:
 |---|---|---|
 | 1 | 5% | 10 minutes |
 | 2 | 25% | 10 minutes |
-| 3 | 100% | — |
+| 3 | 100% |, |
 
-Abort and roll back automatically if error rate exceeds baseline by > 1% or p99 latency increases > 20% during any soak period.
+Abort and roll back automatically if error rate exceeds baseline by > 1% or p99 latency increases > 20% during any soak
+period.
 
-### Automated Rollback
+#### Automated Rollback
 
-Configure an automated rollback job triggered on health check failure or error rate spike detected within 60 seconds of traffic shift:
+Automated rollback is a safety reflex and is acceptable even while production promotion stays a manual, approved gate:
+rolling back returns the system to the last known-good state, it does not push a new untested release forward.
+
+Configure an automated rollback job triggered on health check failure or error rate spike detected within 60 seconds of
+traffic shift:
 
 ```yaml
 - name: Check canary health
@@ -544,13 +578,14 @@ Configure an automated rollback job triggered on health check failure or error r
     fi
 ```
 
-> `kubectl rollout undo` is a **last-resort manual fallback** only. Rollbacks in production must be triggered by the automated pipeline, not manually by engineers.
+> `kubectl rollout undo` is a last-resort manual fallback only. Rollbacks in production must be triggered by the
+> automated pipeline, not manually by engineers.
 
 ---
 
-## Kubernetes Cluster Standards
+### Kubernetes Cluster Standards
 
-### Pod Security Context (Required on Every Deployment)
+#### Pod Security Context (Required on Every Deployment)
 
 ```yaml
 securityContext:
@@ -562,7 +597,7 @@ securityContext:
     drop: [ALL]
 ```
 
-### PodDisruptionBudget (Required for All Production Deployments)
+#### PodDisruptionBudget (Required for All Production Deployments)
 
 ```yaml
 apiVersion: policy/v1
@@ -576,7 +611,7 @@ spec:
       app: my-app
 ```
 
-### NetworkPolicy — Default Deny
+#### NetworkPolicy, Default Deny
 
 Every namespace must have a default-deny NetworkPolicy. Allowances are explicit:
 
@@ -607,7 +642,7 @@ spec:
           port: 8080
 ```
 
-### Autoscaling
+#### Autoscaling
 
 ```yaml
 # HPA for request-driven scaling
@@ -625,9 +660,10 @@ spec:
           averageUtilization: 70
 ```
 
-Use **KEDA** for event-driven workloads (queue depth, Kafka lag). Use **VPA** for resource right-sizing in non-production environments.
+Use KEDA for event-driven workloads (queue depth, Kafka lag). Use VPA for resource right-sizing in non-production
+environments.
 
-### Resource Governance
+#### Resource Governance
 
 Every namespace must have `ResourceQuota` and `LimitRange`:
 
@@ -658,7 +694,7 @@ spec:
         memory: 128Mi
 ```
 
-### Observability
+#### Observability
 
 Every service must expose Prometheus metrics via a `ServiceMonitor`:
 
@@ -677,15 +713,15 @@ spec:
       interval: 15s
 ```
 
-### Policy Enforcement
+#### Policy Enforcement
 
-Use **Kyverno** (preferred) or **OPA Gatekeeper** to enforce cluster policies:
+Use Kyverno (preferred) or OPA Gatekeeper to enforce cluster policies:
 - Require `securityContext.runAsNonRoot: true`
 - Require resource requests/limits on all containers
 - Block images without a digest or from non-approved registries
 - Require `PodDisruptionBudget` for Deployments with `replicas > 1`
 
-### Stateful Workload Protection
+#### Stateful Workload Protection
 
 ```yaml
 # VolumeSnapshot before any stateful upgrade
@@ -703,17 +739,17 @@ Set `reclaimPolicy: Retain` on all production PersistentVolumes to prevent accid
 
 ---
 
-## Helm Chart Standards
+### Helm Chart Standards
 
-### Required Files
+#### Required Files
 
 Every Helm chart must contain:
-- `Chart.yaml` — name, version, appVersion, description, maintainers
-- `values.yaml` — all configurable values with inline comments
-- `templates/_helpers.tpl` — shared named templates
-- `NOTES.txt` — post-install instructions
+- `Chart.yaml`: name, version, appVersion, description, maintainers
+- `values.yaml`: all configurable values with inline comments
+- `templates/_helpers.tpl`: shared named templates
+- `NOTES.txt`: post-install instructions
 
-### Value Validation
+#### Value Validation
 
 Use `required` and `fail` functions to validate critical values at render time:
 
@@ -724,35 +760,35 @@ image:
   tag: {{ required "image.tag is required" .Values.image.tag }}
 ```
 
-### Distribution & Deployment
+#### Distribution & Deployment
 
-- Distribute charts via an **OCI registry** (`helm push`, `helm pull oci://`)
+- Distribute charts via an OCI registry (`helm push`, `helm pull oci://`)
 - Commit `Chart.lock` to VCS
 - Deploy with `--atomic` flag (auto-rollback on failure)
-- Never store secrets as plaintext in chart YAML — use External Secrets Operator or Sealed Secrets
-- Security scan charts with **Trivy** + **Checkov** before publishing
+- Never store secrets as plaintext in chart YAML: use External Secrets Operator or Sealed Secrets
+- Security scan charts with Trivy + Checkov before publishing
 
 ---
 
-## Cloud Provider Standards
+### Cloud Provider Standards
 
-### IAM — Least Privilege
+#### IAM, Least Privilege
 
 - No wildcard permissions (`*`) on any resource
-- One service account per workload — never share between services
+- One service account per workload: never share between services
 - Rotate service account keys every 90 days (or use Workload Identity / OIDC instead)
 
-### Network Isolation
+#### Network Isolation
 
-- All databases and internal services in **private subnets** — no public endpoints
+- All databases and internal services in private subnets: no public endpoints
 - Bastion/jump host or VPN required for admin access
 
-### Infrastructure as Code
+#### Infrastructure as Code
 
-- Remote Terraform state with locking: **S3 + DynamoDB** (AWS) or **GCS** (GCP)
+- Remote Terraform state with locking: S3 + DynamoDB (AWS) or GCS (GCP)
 - Never commit `.tfstate` files to VCS
 
-### Resource Tagging (Required)
+#### Resource Tagging (Required)
 
 Every cloud resource must have these tags:
 
@@ -763,19 +799,19 @@ Every cloud resource must have these tags:
 | `service` | `auth-api` |
 | `cost-center` | `engineering` |
 
-### Cost Controls
+#### Cost Controls
 
-- Budget alerts at **80%** and **100%** of monthly budget
+- Budget alerts at 80% and 100% of monthly budget
 - Quota monitoring with alerts before hitting service limits
 
-### Audit & Security Posture
+#### Audit & Security Posture
 
-- **CloudTrail** (AWS) / **Cloud Audit Logs** (GCP) enabled in all accounts
-- **GuardDuty** (AWS) / **Security Command Center** (GCP) enabled
+- CloudTrail (AWS) / Cloud Audit Logs (GCP) enabled in all accounts
+- GuardDuty (AWS) / Security Command Center (GCP) enabled
 - CDN configuration for all static assets
 
-### Disaster Recovery
+#### Disaster Recovery
 
-- Multi-region DR with documented **RTO** and **RPO** targets
+- Multi-region DR with documented RTO and RPO targets
 - Annual DR drill with documented results
 - Automated failover for RTO < 1 hour; manual runbook for RTO >= 1 hour

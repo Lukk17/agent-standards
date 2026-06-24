@@ -5,11 +5,14 @@ impactDescription: "Enables reproducing exact historical document state for audi
 tags: schema, patterns, versioning, audit, compliance
 ---
 
-## Document Versioning Pattern
+### Document Versioning Pattern
 
-**Store full document history in a separate `revisions` collection to enable reproducing historical state.** This is different from schema versioning (which handles field migration)—document versioning stores complete snapshots of each change. Use it for insurance policies, legal documents, compliance audit trails, and any data where you must reproduce exact historical state.
+Store full document history in a separate `revisions` collection to enable reproducing historical state. This is
+different from schema versioning (which handles field migration)-document versioning stores complete snapshots of each
+change. Use it for insurance policies, legal documents, compliance audit trails, and any data where you must reproduce
+exact historical state.
 
-**Incorrect (overwrite history with no trail):**
+Incorrect (overwrite history with no trail):
 
 ```javascript
 // Policy document — only current state exists
@@ -31,7 +34,7 @@ db.policies.updateOne(
 // Compliance audit fails: "show me the policy as of Q1"
 ```
 
-**Correct (current collection + revisions collection):**
+Correct (current collection + revisions collection):
 
 ```javascript
 // currentPolicies collection — current state only (fast reads)
@@ -58,7 +61,7 @@ db.policies.updateOne(
 }
 ```
 
-**Implementation:**
+Implementation:
 
 ```javascript
 async function updatePolicy(policyId, newData, session) {
@@ -87,9 +90,12 @@ async function getPolicyAtVersion(policyId, version) {
 }
 ```
 
-**Using Transactions for Atomicity:**
+Using Transactions for Atomicity:
 
-The `updatePolicy` function writes to two collections (inserting a revision **and** updating the current document). It may or may not be prudent to wrap the call in a [multi-document transaction](https://mongodb.com/docs/manual/core/transactions/) to guarantee both writes succeed or fail together, depending on the use case:
+The `updatePolicy` function writes to two collections (inserting a revision and updating the current document). It may
+or may not be prudent to wrap the call in a
+[multi-document transaction](https://mongodb.com/docs/manual/core/transactions/) to guarantee both writes succeed or
+fail together, depending on the use case:
 
 ```javascript
 const session = client.startSession()
@@ -102,7 +108,7 @@ try {
 }
 ```
 
-**Indexes:**
+Indexes:
 
 ```javascript
 db.policyRevisions.createIndex({ policyId: 1, v: -1 })
@@ -110,20 +116,22 @@ db.policyRevisions.createIndex({ policyId: 1, v: -1 })
 db.policyRevisions.createIndex({ changedAt: 1 }, { expireAfterSeconds: 220752000 })
 ```
 
-**Difference from Schema Versioning:**
+Difference from Schema Versioning:
 
 | Pattern | Purpose | Stores |
 |---------|---------|--------|
 | Schema Versioning | Handle field structure migration | `schemaVersion` field on each doc |
 | Document Versioning | Reproduce complete historical state | Full snapshots in revisions collection |
 
-**When NOT to use this pattern:**
+When NOT to use this pattern:
 
-- **High-frequency updates**: If documents change many times per second, use event sourcing instead.
-- **Approximate history is sufficient**: If you only need to know "what changed" but not reproduce exact state.
-- **Unbounded revision growth without retention**: Ensure you have a TTL or archival policy for the revisions collection.
+- High-frequency updates: If documents change many times per second, use event sourcing instead.
+- Approximate history is sufficient: If you only need to know "what changed" but not reproduce exact state.
+- Unbounded revision growth without retention: Ensure you have a TTL or archival policy for the revisions collection.
 
-## Verify with
+---
+
+### Verify with
 
 ```javascript
 // Check revision collection growth
@@ -163,4 +171,5 @@ db.currentPolicies.aggregate([
 // Finds documents where revision history has gaps
 ```
 
-Reference: [Keep a History of Document Versions](https://mongodb.com/docs/manual/data-modeling/design-patterns/data-versioning/document-versioning/)
+Reference:
+[Keep a History of Document Versions](https://mongodb.com/docs/manual/data-modeling/design-patterns/data-versioning/document-versioning/)

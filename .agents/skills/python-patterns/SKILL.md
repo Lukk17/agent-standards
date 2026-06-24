@@ -8,16 +8,20 @@ origin: ECC
 
 Idiomatic Python patterns and best practices for building robust, efficient, and maintainable applications.
 
-## When to Activate
+---
+
+### When to Activate
 
 - Writing new Python code
 - Reviewing Python code
 - Refactoring existing Python code
 - Designing Python packages/modules
 
-## Core Principles
+---
 
-### 1. Readability Counts
+### Core Principles
+
+#### 1. Readability Counts
 
 Python prioritizes readability. Code should be obvious and easy to understand.
 
@@ -33,7 +37,7 @@ def get_active_users(u):
     return [x for x in u if x.a]
 ```
 
-### 2. Explicit is Better Than Implicit
+#### 2. Explicit is Better Than Implicit
 
 Avoid magic; be clear about what your code does.
 
@@ -51,7 +55,7 @@ import some_module
 some_module.setup()  # What does this do?
 ```
 
-### 3. EAFP - Easier to Ask Forgiveness Than Permission
+#### 3. EAFP - Easier to Ask Forgiveness Than Permission
 
 Python prefers exception handling over checking conditions.
 
@@ -71,9 +75,11 @@ def get_value(dictionary: dict, key: str) -> Any:
         return default_value
 ```
 
-## Type Hints
+---
 
-### Basic Type Annotations
+### Type Hints
+
+#### Basic Type Annotations
 
 ```python
 from typing import Optional, List, Dict, Any
@@ -89,7 +95,7 @@ def process_user(
     return User(user_id, data)
 ```
 
-### Modern Type Hints (Python 3.9+)
+#### Modern Type Hints (Python 3.9+)
 
 ```python
 # Python 3.9+ - Use built-in types
@@ -103,7 +109,7 @@ def process_items(items: List[str]) -> Dict[str, int]:
     return {item: len(item) for item in items}
 ```
 
-### Type Aliases and TypeVar
+#### Type Aliases and TypeVar
 
 ```python
 from typing import TypeVar, Union
@@ -122,7 +128,7 @@ def first(items: list[T]) -> T | None:
     return items[0] if items else None
 ```
 
-### Protocol-Based Duck Typing
+#### Protocol-Based Duck Typing
 
 ```python
 from typing import Protocol
@@ -136,9 +142,11 @@ def render_all(items: list[Renderable]) -> str:
     return "\n".join(item.render() for item in items)
 ```
 
-## Error Handling Patterns
+---
 
-### Specific Exception Handling
+### Error Handling Patterns
+
+#### Specific Exception Handling
 
 ```python
 # Good: Catch specific exceptions
@@ -160,7 +168,7 @@ def load_config(path: str) -> Config:
         return None  # Silent failure!
 ```
 
-### Exception Chaining
+#### Exception Chaining
 
 ```python
 def process_data(data: str) -> Result:
@@ -171,7 +179,7 @@ def process_data(data: str) -> Result:
         raise ValueError(f"Failed to parse data: {data}") from e
 ```
 
-### Custom Exception Hierarchy
+#### Custom Exception Hierarchy
 
 ```python
 class AppError(Exception):
@@ -194,9 +202,11 @@ def get_user(user_id: str) -> User:
     return user
 ```
 
-## Context Managers
+---
 
-### Resource Management
+### Context Managers
+
+#### Resource Management
 
 ```python
 # Good: Using context managers
@@ -213,7 +223,7 @@ def process_file(path: str) -> str:
         f.close()
 ```
 
-### Custom Context Managers
+#### Custom Context Managers
 
 ```python
 from contextlib import contextmanager
@@ -231,7 +241,7 @@ with timer("data processing"):
     process_large_dataset()
 ```
 
-### Context Manager Classes
+#### Context Manager Classes
 
 ```python
 class DatabaseTransaction:
@@ -255,9 +265,11 @@ with DatabaseTransaction(conn):
     conn.create_profile(user.id, profile_data)
 ```
 
-## Comprehensions and Generators
+---
 
-### List Comprehensions
+### Comprehensions and Generators
+
+#### List Comprehensions
 
 ```python
 # Good: List comprehension for simple transformations
@@ -282,7 +294,7 @@ def filter_and_transform(items: Iterable[int]) -> list[int]:
     return result
 ```
 
-### Generator Expressions
+#### Generator Expressions
 
 ```python
 # Good: Generator for lazy evaluation
@@ -292,7 +304,7 @@ total = sum(x * x for x in range(1_000_000))
 total = sum([x * x for x in range(1_000_000)])
 ```
 
-### Generator Functions
+#### Generator Functions
 
 ```python
 def read_large_file(path: str) -> Iterator[str]:
@@ -306,9 +318,11 @@ for line in read_large_file("huge.txt"):
     process(line)
 ```
 
-## Data Classes and Named Tuples
+---
 
-### Data Classes
+### Data Classes and Named Tuples
+
+#### Data Classes
 
 ```python
 from dataclasses import dataclass, field
@@ -331,7 +345,7 @@ user = User(
 )
 ```
 
-### Data Classes with Validation
+#### Data Classes with Validation
 
 ```python
 @dataclass
@@ -348,7 +362,7 @@ class User:
             raise ValueError(f"Invalid age: {self.age}")
 ```
 
-### Named Tuples
+#### Named Tuples
 
 ```python
 from typing import NamedTuple
@@ -367,9 +381,11 @@ p2 = Point(3, 4)
 print(p1.distance(p2))  # 5.0
 ```
 
-## Decorators
+---
 
-### Function Decorators
+### Decorators
+
+#### Function Decorators
 
 ```python
 import functools
@@ -393,7 +409,7 @@ def slow_function():
 # slow_function() prints: slow_function took 1.0012s
 ```
 
-### Parameterized Decorators
+#### Parameterized Decorators
 
 ```python
 def repeat(times: int):
@@ -415,7 +431,7 @@ def greet(name: str) -> str:
 # greet("Alice") returns ["Hello, Alice!", "Hello, Alice!", "Hello, Alice!"]
 ```
 
-### Class-Based Decorators
+#### Class-Based Decorators
 
 ```python
 class CountCalls:
@@ -437,9 +453,11 @@ def process():
 # Each call to process() prints the call count
 ```
 
-## Concurrency Patterns
+---
 
-### Threading for I/O-Bound Tasks
+### Concurrency Patterns
+
+#### Threading for I/O-Bound Tasks
 
 ```python
 import concurrent.futures
@@ -465,7 +483,7 @@ def fetch_all_urls(urls: list[str]) -> dict[str, str]:
     return results
 ```
 
-### Multiprocessing for CPU-Bound Tasks
+#### Multiprocessing for CPU-Bound Tasks
 
 ```python
 def process_data(data: list[int]) -> int:
@@ -479,7 +497,7 @@ def process_all(datasets: list[list[int]]) -> list[int]:
     return results
 ```
 
-### Async/Await for Concurrent I/O
+#### Async/Await for Concurrent I/O
 
 ```python
 import asyncio
@@ -498,9 +516,11 @@ async def fetch_all(urls: list[str]) -> dict[str, str]:
     return dict(zip(urls, results))
 ```
 
-## Package Organization
+---
 
-### Standard Project Layout
+### Package Organization
+
+#### Standard Project Layout
 
 ```
 myproject/
@@ -527,7 +547,7 @@ myproject/
 └── .gitignore
 ```
 
-### Import Conventions
+#### Import Conventions
 
 ```python
 # Good: Import order - stdlib, third-party, local
@@ -545,7 +565,7 @@ from mypackage.utils import format_name
 # ruff check --select I --fix .
 ```
 
-### __init__.py for Package Exports
+#### __init__.py for Package Exports
 
 ```python
 # mypackage/__init__.py
@@ -560,9 +580,11 @@ from mypackage.utils import format_name
 __all__ = ["User", "Post", "format_name"]
 ```
 
-## Memory and Performance
+---
 
-### Using __slots__ for Memory Efficiency
+### Memory and Performance
+
+#### Using __slots__ for Memory Efficiency
 
 ```python
 # Bad: Regular class uses __dict__ (more memory)
@@ -580,7 +602,7 @@ class Point:
         self.y = y
 ```
 
-### Generator for Large Data
+#### Generator for Large Data
 
 ```python
 # Bad: Returns full list in memory
@@ -595,7 +617,7 @@ def read_lines(path: str) -> Iterator[str]:
             yield line.strip()
 ```
 
-### Avoid String Concatenation in Loops
+#### Avoid String Concatenation in Loops
 
 ```python
 # Bad: O(n²) due to string immutability
@@ -615,9 +637,11 @@ for item in items:
 result = buffer.getvalue()
 ```
 
-## Python Tooling Integration
+---
 
-### Package Manager: uv
+### Python Tooling Integration
+
+#### Package Manager: uv
 
 Use `uv` as the default package manager (replaces pip + virtualenv):
 
@@ -628,7 +652,7 @@ uv pip compile requirements.in -o requirements.txt   # pin all dependencies
 uv audit                                              # CVE scan in CI
 ```
 
-### Essential Commands
+#### Essential Commands
 
 ```bash
 # Linting + formatting (ruff replaces black, isort, flake8, pylint — one tool)
@@ -646,7 +670,7 @@ bandit -r .
 uv audit
 ```
 
-### pyproject.toml Configuration
+#### pyproject.toml Configuration
 
 ```toml
 [project]
@@ -685,7 +709,7 @@ asyncio_mode = "auto"
 addopts = "--cov=mypackage --cov-report=term-missing"
 ```
 
-### Pre-commit Hooks
+#### Pre-commit Hooks
 
 Commit `.pre-commit-config.yaml` to the repository:
 
@@ -703,7 +727,9 @@ repos:
         args: [--strict]
 ```
 
-## Quick Reference: Python Idioms
+---
+
+### Quick Reference: Python Idioms
 
 | Idiom | Description |
 |-------|-------------|
@@ -718,7 +744,9 @@ repos:
 | `pathlib.Path` | For path operations (Python 3.4+) |
 | `enumerate` | For index-element pairs in loops |
 
-## Anti-Patterns to Avoid
+---
+
+### Anti-Patterns to Avoid
 
 ```python
 # Bad: Mutable default arguments
@@ -768,18 +796,19 @@ except SpecificError as e:
     logger.error(f"Operation failed: {e}")
 ```
 
-__Remember__: Python code should be readable, explicit, and follow the principle of least surprise. When in doubt, prioritize clarity over cleverness.
+__Remember__: Python code should be readable, explicit, and follow the principle of least surprise. When in doubt,
+prioritize clarity over cleverness.
 
 ---
 
-## Project-Specific Rules (FastAPI / FastMCP Stack)
+### Project-Specific Rules (FastAPI / FastMCP Stack)
 
-### Framework Mandate
+#### Framework Mandate
 
-- HTTP APIs: use **FastAPI** — do not use Flask or Django for new projects
-- MCP servers: use **FastMCP**
+- HTTP APIs: use FastAPI: do not use Flask or Django for new projects
+- MCP servers: use FastMCP
 
-### `Any` Type Policy
+#### `Any` Type Policy
 
 Never use `Any` in domain code. Use `Any` only at system boundaries:
 
@@ -794,7 +823,7 @@ def process(data: object) -> str: ...   # Good
 def process(data: Any) -> str: ...     # Bad — avoid in domain code
 ```
 
-### Error Handling (Hybrid Approach)
+#### Error Handling (Hybrid Approach)
 
 ```python
 # Centralized: map domain exceptions → HTTP responses at the boundary
@@ -813,7 +842,7 @@ async def load_user(user_id: str) -> User:
 # Prohibited: bare except: pass
 ```
 
-### Configuration (pydantic-settings)
+#### Configuration (pydantic-settings)
 
 ```python
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -828,9 +857,9 @@ class Settings(BaseSettings):
 settings = Settings()
 ```
 
-### FastAPI Lifespan
+#### FastAPI Lifespan
 
-Use `lifespan` context manager — do NOT use deprecated `@app.on_event`:
+Use `lifespan` context manager, do NOT use deprecated `@app.on_event`:
 
 ```python
 from contextlib import asynccontextmanager
@@ -844,7 +873,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 ```
 
-### Database Access
+#### Database Access
 
 ```python
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -854,7 +883,7 @@ engine = create_async_engine(settings.database_url)
 # Never execute raw SQL strings — use SQLAlchemy Core expressions or ORM
 ```
 
-### Singleton Services
+#### Singleton Services
 
 ```python
 # Initialize once at module level with a descriptive name
@@ -862,7 +891,7 @@ user_service = UserService()
 email_service = EmailService(settings.smtp_host)
 ```
 
-### Logging
+#### Logging
 
 ```python
 import logging
@@ -875,7 +904,7 @@ logger = logging.getLogger(__name__)
 # Do not use print() for operational output
 ```
 
-### Project Layout
+#### Project Layout
 
 ```
 src/
@@ -891,15 +920,23 @@ pyproject.toml
 
 Always use absolute imports: `from src.myapp.domain.user import User`
 
-## Startup readiness log
+---
 
-See [coding-standards](../coding-standards/SKILL.md) → "Startup readiness log" for the universal convention (ANSI Shadow banner, URL + profile + dependency + observability sections, 2-second probe timeouts, `<url> [Connected|Warning|FAILED]` result format).
+### Startup readiness log
 
-**Hooks by framework:**
+See [observability-and-logging](../observability-and-logging/SKILL.md) → "Startup readiness log" for the universal
+convention (ANSI Shadow
+banner, URL + profile + dependency + observability sections, 2-second probe timeouts, `<url> [Connected|Warning|FAILED]`
+result format).
 
-- **FastAPI** — `lifespan` async context manager on the app; emit after the dependencies are probed but before `yield` so the line appears at the moment the app is ready to serve.
-- **Flask** — explicit `init_app()` invoked from the entry point right before `app.run()`. `@app.before_first_request` was removed in Flask 2.3.
-- **Django** — `AppConfig.ready()` runs at app-registry-ready time; close enough to "we're up" for sync deployments. For ASGI, hook into the lifespan startup event.
+Hooks by framework:
+
+- FastAPI: `lifespan` async context manager on the app; emit after the dependencies are probed but before `yield` so the
+  line appears at the moment the app is ready to serve.
+- Flask: explicit `init_app()` invoked from the entry point right before `app.run()`. `@app.before_first_request` was
+  removed in Flask 2.3.
+- Django: `AppConfig.ready()` runs at app-registry-ready time; close enough to "we're up" for sync deployments. For
+  ASGI, hook into the lifespan startup event.
 
 ```python
 from contextlib import asynccontextmanager
@@ -920,7 +957,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 ```
 
-**Probe timeouts:** `httpx.AsyncClient(timeout=2.0)` (or `requests.get(..., timeout=2)` for sync code). Log detail at debug, surface only `[FAILED]` in the banner.
+Probe timeouts: `httpx.AsyncClient(timeout=2.0)` (or `requests.get(..., timeout=2)` for sync code). Log detail at debug,
+surface only `[FAILED]` in the banner.
 
 ```python
 async def probe(url: str) -> str:

@@ -8,7 +8,9 @@ origin: ECC
 
 Conventions and best practices for designing consistent, developer-friendly REST APIs and GraphQL APIs.
 
-## When to Activate
+---
+
+### When to Activate
 
 - Designing new API endpoints
 - Reviewing existing API contracts
@@ -17,9 +19,11 @@ Conventions and best practices for designing consistent, developer-friendly REST
 - Planning API versioning strategy
 - Building public or partner-facing APIs
 
-## Resource Design
+---
 
-### URL Structure
+### Resource Design
+
+#### URL Structure
 
 ```
 # Resources are nouns, plural, lowercase, kebab-case
@@ -40,7 +44,7 @@ POST   /api/v1/auth/login
 POST   /api/v1/auth/refresh
 ```
 
-### Naming Rules
+#### Naming Rules
 
 ```
 # GOOD
@@ -55,9 +59,11 @@ POST   /api/v1/auth/refresh
 /api/v1/users/123/getOrders   # verb in nested resource
 ```
 
-## HTTP Methods and Status Codes
+---
 
-### Method Semantics
+### HTTP Methods and Status Codes
+
+#### Method Semantics
 
 | Method | Idempotent | Safe | Use For |
 |--------|-----------|------|---------|
@@ -69,7 +75,7 @@ POST   /api/v1/auth/refresh
 
 *PATCH can be made idempotent with proper implementation
 
-### Status Code Reference
+#### Status Code Reference
 
 ```
 # Success
@@ -94,7 +100,7 @@ POST   /api/v1/auth/refresh
 503 Service Unavailable   — Temporary overload, include Retry-After
 ```
 
-### Common Mistakes
+#### Common Mistakes
 
 ```
 # BAD: 200 for everything
@@ -114,9 +120,11 @@ HTTP/1.1 201 Created
 Location: /api/v1/users/abc-123
 ```
 
-## Response Format
+---
 
-### Success Response
+### Response Format
+
+#### Success Response
 
 ```json
 {
@@ -129,7 +137,7 @@ Location: /api/v1/users/abc-123
 }
 ```
 
-### Collection Response (with Pagination)
+#### Collection Response (with Pagination)
 
 ```json
 {
@@ -151,7 +159,7 @@ Location: /api/v1/users/abc-123
 }
 ```
 
-### Error Response (RFC 7807 Problem Details)
+#### Error Response (RFC 7807 Problem Details)
 
 Use `Content-Type: application/problem+json` for all error responses.
 
@@ -177,7 +185,7 @@ Use `Content-Type: application/problem+json` for all error responses.
 | `instance` | No | URI reference to the specific occurrence |
 | `errors` | No | Extension: field-level validation errors |
 
-### Response Envelope Variants
+#### Response Envelope Variants
 
 ```typescript
 // Option A: Envelope with data wrapper (recommended for public APIs)
@@ -203,9 +211,11 @@ interface ProblemDetails {
 // Distinguish by HTTP status code
 ```
 
-## Pagination
+---
 
-### Offset-Based (Simple)
+### Pagination
+
+#### Offset-Based (Simple)
 
 ```
 GET /api/v1/users?page=2&per_page=20
@@ -216,10 +226,10 @@ ORDER BY created_at DESC
 LIMIT 20 OFFSET 20;
 ```
 
-**Pros:** Easy to implement, supports "jump to page N"
-**Cons:** Slow on large offsets (OFFSET 100000), inconsistent with concurrent inserts
+Pros: Easy to implement, supports "jump to page N"
+Cons: Slow on large offsets (OFFSET 100000), inconsistent with concurrent inserts
 
-### Cursor-Based (Default for Unbounded Data)
+#### Cursor-Based (Default for Unbounded Data)
 
 ```
 GET /api/v1/users?cursor=eyJpZCI6MTIzfQ&limit=20
@@ -241,12 +251,13 @@ LIMIT 21;  -- fetch one extra to determine has_next
 }
 ```
 
-**Pros:** Consistent performance regardless of position, stable with concurrent inserts
-**Cons:** Cannot jump to arbitrary page, cursor is opaque
+Pros: Consistent performance regardless of position, stable with concurrent inserts
+Cons: Cannot jump to arbitrary page, cursor is opaque
 
-### When to Use Which
+#### When to Use Which
 
-Cursor pagination is the **default** for datasets that grow unboundedly; use offset pagination only for fixed/small datasets.
+Cursor pagination is the default for datasets that grow unboundedly; use offset pagination only for fixed/small
+datasets.
 
 | Use Case | Pagination Type |
 |----------|----------------|
@@ -255,9 +266,11 @@ Cursor pagination is the **default** for datasets that grow unboundedly; use off
 | Public APIs | Cursor (default) with offset (optional) |
 | Search results | Offset (users expect page numbers) |
 
-## Filtering, Sorting, and Search
+---
 
-### Filtering
+### Filtering, Sorting, and Search
+
+#### Filtering
 
 ```
 # Simple equality (flat notation)
@@ -274,7 +287,7 @@ GET /api/v1/products?category=electronics,clothing
 GET /api/v1/orders?customer.country=US
 ```
 
-### Sorting
+#### Sorting
 
 ```
 # Single field (prefix - for descending)
@@ -284,7 +297,7 @@ GET /api/v1/products?sort=-created_at
 GET /api/v1/products?sort=-featured,price,-created_at
 ```
 
-### Full-Text Search
+#### Full-Text Search
 
 ```
 # Search query parameter
@@ -294,7 +307,7 @@ GET /api/v1/products?q=wireless+headphones
 GET /api/v1/users?email=alice
 ```
 
-### Sparse Fieldsets
+#### Sparse Fieldsets
 
 ```
 # Return only specified fields (reduces payload)
@@ -302,9 +315,11 @@ GET /api/v1/users?fields=id,name,email
 GET /api/v1/orders?fields=id,total,status&include=customer.name
 ```
 
-## Authentication and Authorization
+---
 
-### Token-Based Auth
+### Authentication and Authorization
+
+#### Token-Based Auth
 
 ```
 # Bearer token in Authorization header
@@ -316,7 +331,7 @@ GET /api/v1/data
 X-API-Key: sk_live_abc123
 ```
 
-### Authorization Patterns
+#### Authorization Patterns
 
 ```typescript
 // Resource-level: check ownership
@@ -334,10 +349,14 @@ app.delete("/api/v1/users/:id", requireRole("admin"), async (req, res) => {
 });
 ```
 
-## Idempotency
+---
+
+### Idempotency
 
 For all non-idempotent POST/PATCH operations, require `Idempotency-Key: <UUID v4>` header.
 - Cache the response for 24 hours keyed by Idempotency-Key
+- Reusing the same key with the same request body within the cache window replays the stored response without
+  re-executing the operation
 - Return 422 if the same key is reused with a different request body
 
 ```
@@ -345,7 +364,9 @@ POST /api/v1/orders
 Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000
 ```
 
-## Conditional Requests (Caching)
+---
+
+### Conditional Requests (Caching)
 
 For cacheable GETs, return `ETag` and `Last-Modified` headers.
 Clients use `If-None-Match` / `If-Modified-Since` to skip re-fetching unchanged resources.
@@ -365,7 +386,9 @@ If-None-Match: "33a64df551425fcc55e4d42a148795d9f25f89d4"
 HTTP/1.1 304 Not Modified
 ```
 
-## Bulk Operations
+---
+
+### Bulk Operations
 
 Use `POST /resources/batch` for bulk create/update.
 Return `207 Multi-Status` with per-item results:
@@ -382,11 +405,13 @@ Return `207 Multi-Status` with per-item results:
 - Limit bulk request body size; return 413 Payload Too Large if exceeded
 - Process atomically where possible; if partial success is allowed, always return 207
 
-## Health Endpoints
+---
 
-Two distinct endpoints — do NOT merge them:
-- `GET /health` — **liveness**: always returns 200 if the process is alive; never checks dependencies
-- `GET /ready` — **readiness**: checks DB, cache, external deps; returns 503 if any are degraded
+### Health Endpoints
+
+Two distinct endpoints, do NOT merge them:
+- `GET /health`: liveness: always returns 200 if the process is alive; never checks dependencies
+- `GET /ready`: readiness: checks DB, cache, external deps; returns 503 if any are degraded
 
 These endpoints are outside the versioned API path (no `/v1/` prefix).
 
@@ -395,9 +420,11 @@ These endpoints are outside the versioned API path (no `/v1/` prefix).
 { "status": "degraded", "checks": { "db": "ok", "redis": "timeout" } }
 ```
 
-## Rate Limiting
+---
 
-### Rate Limiting Headers
+### Rate Limiting
+
+#### Rate Limiting Headers
 
 Include on all rate-limited responses:
 - `X-RateLimit-Limit: 100`
@@ -428,7 +455,7 @@ Content-Type: application/problem+json
 }
 ```
 
-### Rate Limit Tiers
+#### Rate Limit Tiers
 
 | Tier | Limit | Window | Use Case |
 |------|-------|--------|----------|
@@ -437,32 +464,34 @@ Content-Type: application/problem+json
 | Premium | 1000/min | Per API key | Paid API plans |
 | Internal | 10000/min | Per service | Service-to-service |
 
-## Versioning
+---
 
-### URL Path Versioning (Recommended)
+### Versioning
+
+#### URL Path Versioning (Recommended)
 
 ```
 /api/v1/users
 /api/v2/users
 ```
 
-**Pros:** Explicit, easy to route, cacheable
-**Cons:** URL changes between versions
+Pros: Explicit, easy to route, cacheable
+Cons: URL changes between versions
 
-### Header Versioning
+#### Header Versioning
 
 ```
 GET /api/users
 Accept: application/vnd.myapp.v2+json
 ```
 
-**Pros:** Clean URLs
-**Cons:** Harder to test, easy to forget
+Pros: Clean URLs
+Cons: Harder to test, easy to forget
 
-### Version Lifecycle
+#### Version Lifecycle
 
-- Maintain the deprecated version in production for a minimum of **6 months** after a new version is released
-- Maximum **2 active API versions** at any time
+- Maintain the deprecated version in production for a minimum of 6 months after a new version is released
+- Maximum 2 active API versions at any time
 - Announce deprecation via `Deprecation` and `Sunset` response headers:
 
 ```
@@ -481,9 +510,11 @@ Sunset: Sat, 01 Jan 2026 00:00:00 GMT
   - Changing authentication method
 - Return 410 Gone after the sunset date
 
-## Implementation Patterns
+---
 
-### TypeScript (Next.js API Route)
+### Implementation Patterns
+
+#### TypeScript (Next.js API Route)
 
 ```typescript
 import { z } from "zod";
@@ -529,7 +560,7 @@ export async function POST(req: NextRequest) {
 }
 ```
 
-### Python (Django REST Framework)
+#### Python (Django REST Framework)
 
 ```python
 from rest_framework import serializers, viewsets, status
@@ -564,7 +595,7 @@ class UserViewSet(viewsets.ModelViewSet):
         )
 ```
 
-### Go (net/http)
+#### Go (net/http)
 
 ```go
 func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
@@ -596,7 +627,9 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-## API Design Checklist
+---
+
+### API Design Checklist
 
 Before shipping a new endpoint:
 
@@ -619,17 +652,17 @@ Before shipping a new endpoint:
 
 ---
 
-## GraphQL API Standards
+### GraphQL API Standards
 
-### Schema Design
-- Types: `PascalCase` — `UserProfile`, `OrderItem`
-- Fields: `camelCase` — `createdAt`, `totalAmount`
-- Enum values: `UPPER_SNAKE_CASE` — `ORDER_STATUS_PENDING`
-- **Every field must have a description** — enforced by schema linting
+#### Schema Design
+- Types: `PascalCase`: `UserProfile`, `OrderItem`
+- Fields: `camelCase`: `createdAt`, `totalAmount`
+- Enum values: `UPPER_SNAKE_CASE`: `ORDER_STATUS_PENDING`
+- Every field must have a description: enforced by schema linting
 - Input types suffixed `Input`: `CreateOrderInput`
 - Mutation payload types suffixed `Payload`: `CreateOrderPayload`
 
-### Mutation Payload Structure
+#### Mutation Payload Structure
 
 All mutations return a consistent payload:
 
@@ -647,7 +680,7 @@ type UserError {
 }
 ```
 
-### N+1 Prevention — DataLoader
+#### N+1 Prevention, DataLoader
 
 Always use DataLoader for batching related-object fetches:
 
@@ -658,28 +691,28 @@ const userLoader = new DataLoader(async (ids: readonly string[]) => {
 })
 ```
 
-### Authorization
-- Implement field-level authorization — return explicit errors, never silent null
+#### Authorization
+- Implement field-level authorization: return explicit errors, never silent null
 - Use a shield or directive pattern; do not inline auth logic in resolvers
 
-### Production Security
-- **Disable introspection** in production
-- Enforce query **depth limit** (max 10 levels)
-- Enforce query **complexity limits** (assign cost per field; reject above threshold)
-- Use **Automatic Persisted Queries (APQ)** to reduce payload size and allow CDN caching
+#### Production Security
+- Disable introspection in production
+- Enforce query depth limit (max 10 levels)
+- Enforce query complexity limits (assign cost per field; reject above threshold)
+- Use Automatic Persisted Queries (APQ) to reduce payload size and allow CDN caching
 
-### Subscriptions
+#### Subscriptions
 
 Use `graphql-ws` protocol (not the deprecated `subscriptions-transport-ws`).
 
-### Schema Evolution
-- **Additive only** — never remove or rename fields/types without a deprecation cycle
+#### Schema Evolution
+- Additive only: never remove or rename fields/types without a deprecation cycle
 - Mark deprecated fields with `@deprecated(reason: "Use X instead")`
 - Run schema diffing in CI with `graphql-inspector`; block breaking changes
 
-### Pagination
+#### Pagination
 
-Follow the **Relay Cursor Connections Specification** for all paginated fields:
+Follow the Relay Cursor Connections Specification for all paginated fields:
 
 ```graphql
 type UserConnection {

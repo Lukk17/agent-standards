@@ -8,22 +8,26 @@ origin: ECC
 
 Comprehensive testing strategies for Python applications using pytest, TDD methodology, and best practices.
 
-## When to Activate
+---
+
+### When to Activate
 
 - Writing new Python code (follow TDD: red, green, refactor)
 - Designing test suites for Python projects
 - Reviewing Python test coverage
 - Setting up testing infrastructure
 
-## Core Testing Philosophy
+---
 
-### Test-Driven Development (TDD)
+### Core Testing Philosophy
+
+#### Test-Driven Development (TDD)
 
 Always follow the TDD cycle:
 
-1. **RED**: Write a failing test for the desired behavior
-2. **GREEN**: Write minimal code to make the test pass
-3. **REFACTOR**: Improve code while keeping tests green
+1. RED: Write a failing test for the desired behavior
+2. GREEN: Write minimal code to make the test pass
+3. REFACTOR: Improve code while keeping tests green
 
 ```python
 # Step 1: Write failing test (RED)
@@ -38,19 +42,42 @@ def add(a, b):
 # Step 3: Refactor if needed (REFACTOR)
 ```
 
-### Coverage Requirements
+#### Test Structure: Given / When / Then
 
-- **Target**: 80%+ code coverage
-- **Critical paths**: 100% coverage required
+House rule: every test body is split into three labelled sections with `# Given`, `# When`, and
+`# Then` comments. Given sets up the inputs and state, When performs the single action under test, and
+Then asserts the observable outcome. This keeps each test readable and makes it obvious when a test is
+trying to verify more than one behaviour.
+
+```python
+def test_apply_discount_reduces_total():
+    # Given
+    cart = Cart(items=[Item("book", 20.0), Item("pen", 5.0)])
+    coupon = Coupon(percent=10)
+
+    # When
+    total = cart.apply(coupon)
+
+    # Then
+    assert total == 22.5
+```
+
+#### Coverage Requirements
+
+- Target: around 90% coverage of the real logic in the codebase
+- Critical paths: 100% coverage where it genuinely adds value
+- Do not add exclusion patterns to dodge meaningful tests; coverage measures real logic, not padding
 - Use `pytest --cov` to measure coverage
 
 ```bash
 pytest --cov=mypackage --cov-report=term-missing --cov-report=html
 ```
 
-## pytest Fundamentals
+---
 
-### Basic Test Structure
+### pytest Fundamentals
+
+#### Basic Test Structure
 
 ```python
 import pytest
@@ -72,7 +99,7 @@ def test_list_append():
     assert len(items) == 4
 ```
 
-### Assertions
+#### Assertions
 
 ```python
 # Equality
@@ -113,9 +140,11 @@ with pytest.raises(ValueError) as exc_info:
 assert str(exc_info.value) == "error message"
 ```
 
-## Fixtures
+---
 
-### Basic Fixture Usage
+### Fixtures
+
+#### Basic Fixture Usage
 
 ```python
 import pytest
@@ -131,7 +160,7 @@ def test_sample_data(sample_data):
     assert sample_data["age"] == 30
 ```
 
-### Fixture with Setup/Teardown
+#### Fixture with Setup/Teardown
 
 ```python
 @pytest.fixture
@@ -153,7 +182,7 @@ def test_database_query(database):
     assert len(result) > 0
 ```
 
-### Fixture Scopes
+#### Fixture Scopes
 
 ```python
 # Function scope (default) - runs for each test
@@ -179,7 +208,7 @@ def shared_resource():
     resource.cleanup()
 ```
 
-### Fixture with Parameters
+#### Fixture with Parameters
 
 ```python
 @pytest.fixture(params=[1, 2, 3])
@@ -192,7 +221,7 @@ def test_numbers(number):
     assert number > 0
 ```
 
-### Using Multiple Fixtures
+#### Using Multiple Fixtures
 
 ```python
 @pytest.fixture
@@ -208,7 +237,7 @@ def test_user_admin_interaction(user, admin):
     assert admin.can_manage(user)
 ```
 
-### Autouse Fixtures
+#### Autouse Fixtures
 
 ```python
 @pytest.fixture(autouse=True)
@@ -223,7 +252,7 @@ def test_without_fixture_call():
     assert Config.get_setting("debug") is False
 ```
 
-### Conftest.py for Shared Fixtures
+#### Conftest.py for Shared Fixtures
 
 ```python
 # tests/conftest.py
@@ -247,9 +276,11 @@ def auth_headers(client):
     return {"Authorization": f"Bearer {token}"}
 ```
 
-## Parametrization
+---
 
-### Basic Parametrization
+### Parametrization
+
+#### Basic Parametrization
 
 ```python
 @pytest.mark.parametrize("input,expected", [
@@ -262,7 +293,7 @@ def test_uppercase(input, expected):
     assert input.upper() == expected
 ```
 
-### Multiple Parameters
+#### Multiple Parameters
 
 ```python
 @pytest.mark.parametrize("a,b,expected", [
@@ -276,7 +307,7 @@ def test_add(a, b, expected):
     assert add(a, b) == expected
 ```
 
-### Parametrize with IDs
+#### Parametrize with IDs
 
 ```python
 @pytest.mark.parametrize("input,expected", [
@@ -289,7 +320,7 @@ def test_email_validation(input, expected):
     assert is_valid_email(input) is expected
 ```
 
-### Parametrized Fixtures
+#### Parametrized Fixtures
 
 ```python
 @pytest.fixture(params=["sqlite", "postgresql", "mysql"])
@@ -308,9 +339,11 @@ def test_database_operations(db):
     assert result is not None
 ```
 
-## Markers and Test Selection
+---
 
-### Custom Markers
+### Markers and Test Selection
+
+#### Custom Markers
 
 ```python
 # Mark slow tests
@@ -330,7 +363,7 @@ def test_unit_logic():
     assert calculate(2, 3) == 5
 ```
 
-### Run Specific Tests
+#### Run Specific Tests
 
 ```bash
 # Run only fast tests
@@ -346,7 +379,7 @@ pytest -m "integration or slow"
 pytest -m "unit and not slow"
 ```
 
-### Configure Markers in pytest.ini
+#### Configure Markers in pytest.ini
 
 ```ini
 [pytest]
@@ -357,9 +390,11 @@ markers =
     django: marks tests as requiring Django
 ```
 
-## Mocking and Patching
+---
 
-### Mocking Functions
+### Mocking and Patching
+
+#### Mocking Functions
 
 ```python
 from unittest.mock import patch, Mock
@@ -375,21 +410,31 @@ def test_with_mock(api_call_mock):
     assert result["status"] == "success"
 ```
 
-### Mocking Return Values
+#### Mocking Return Values
+
+Mock only truly external services that you cannot run locally, such as a third-party payment API or an
+email gateway. Do not mock the database when you can exercise it: prefer the in-memory `Database(":memory:")`
+fixture (see "Fixture with Setup/Teardown" above) or the transactional `db_session` fixture (see "Testing
+Database Operations" below). Mocking `Database.connect` only proves the mock was called, not that the query
+logic works against a real engine.
 
 ```python
-@patch("mypackage.Database.connect")
-def test_database_connection(connect_mock):
-    """Test with mocked database connection."""
-    connect_mock.return_value = MockConnection()
+@patch("mypackage.payment_gateway.charge")
+def test_checkout_calls_gateway(charge_mock):
+    """Test with a mocked external payment gateway."""
+    # Given
+    charge_mock.return_value = {"status": "approved"}
+    order = Order(total=42.0)
 
-    db = Database()
-    db.connect()
+    # When
+    result = checkout(order)
 
-    connect_mock.assert_called_once_with("localhost")
+    # Then
+    assert result.paid is True
+    charge_mock.assert_called_once_with(amount=42.0)
 ```
 
-### Mocking Exceptions
+#### Mocking Exceptions
 
 ```python
 @patch("mypackage.api_call")
@@ -403,7 +448,7 @@ def test_api_error_handling(api_call_mock):
     api_call_mock.assert_called_once()
 ```
 
-### Mocking Context Managers
+#### Mocking Context Managers
 
 ```python
 @patch("builtins.open", new_callable=mock_open)
@@ -417,7 +462,7 @@ def test_file_reading(mock_file):
     assert result == "file content"
 ```
 
-### Using Autospec
+#### Using Autospec
 
 ```python
 @patch("mypackage.DBConnection", autospec=True)
@@ -430,7 +475,7 @@ def test_autospec(db_mock):
     db_mock.assert_called_once()
 ```
 
-### Mock Class Instances
+#### Mock Class Instances
 
 ```python
 class TestUserService:
@@ -446,7 +491,7 @@ class TestUserService:
         repo_mock.return_value.save.assert_called_once()
 ```
 
-### Mock Property
+#### Mock Property
 
 ```python
 @pytest.fixture
@@ -463,9 +508,11 @@ def test_with_mock_config(mock_config):
     assert mock_config.api_key == "test-key"
 ```
 
-## Testing Async Code
+---
 
-### Async Tests with pytest-asyncio
+### Testing Async Code
+
+#### Async Tests with pytest-asyncio
 
 ```python
 import pytest
@@ -483,7 +530,7 @@ async def test_async_with_fixture(async_client):
     assert response.status_code == 200
 ```
 
-### Async Fixture
+#### Async Fixture
 
 ```python
 @pytest.fixture
@@ -500,7 +547,7 @@ async def test_api_endpoint(async_client):
     assert response.status_code == 200
 ```
 
-### Mocking Async Functions
+#### Mocking Async Functions
 
 ```python
 @pytest.mark.asyncio
@@ -515,9 +562,11 @@ async def test_async_mock(api_call_mock):
     assert result["status"] == "ok"
 ```
 
-## Testing Exceptions
+---
 
-### Testing Expected Exceptions
+### Testing Exceptions
+
+#### Testing Expected Exceptions
 
 ```python
 def test_divide_by_zero():
@@ -531,7 +580,7 @@ def test_custom_exception():
         validate_input("invalid")
 ```
 
-### Testing Exception Attributes
+#### Testing Exception Attributes
 
 ```python
 def test_exception_with_details():
@@ -543,9 +592,11 @@ def test_exception_with_details():
     assert "error" in str(exc_info.value)
 ```
 
-## Testing Side Effects
+---
 
-### Testing File Operations
+### Testing Side Effects
+
+#### Testing File Operations
 
 ```python
 import tempfile
@@ -564,7 +615,7 @@ def test_file_processing():
         os.unlink(temp_path)
 ```
 
-### Testing with pytest's tmp_path Fixture
+#### Testing with pytest's tmp_path Fixture
 
 ```python
 def test_with_tmp_path(tmp_path):
@@ -577,7 +628,7 @@ def test_with_tmp_path(tmp_path):
     # tmp_path automatically cleaned up
 ```
 
-### Testing with tmpdir Fixture
+#### Testing with tmpdir Fixture
 
 ```python
 def test_with_tmpdir(tmpdir):
@@ -589,9 +640,11 @@ def test_with_tmpdir(tmpdir):
     assert result == "data"
 ```
 
-## Test Organization
+---
 
-### Directory Structure
+### Test Organization
+
+#### Directory Structure
 
 ```
 tests/
@@ -611,7 +664,7 @@ tests/
     └── test_user_flow.py
 ```
 
-### Test Classes
+#### Test Classes
 
 ```python
 class TestUserService:
@@ -634,33 +687,39 @@ class TestUserService:
         assert not self.service.user_exists(1)
 ```
 
-## Best Practices
+---
 
-### DO
+### Best Practices
 
-- **Follow TDD**: Write tests before code (red-green-refactor)
-- **Test one thing**: Each test should verify a single behavior
-- **Use descriptive names**: `test_user_login_with_invalid_credentials_fails`
-- **Use fixtures**: Eliminate duplication with fixtures
-- **Mock external dependencies**: Don't depend on external services
-- **Test edge cases**: Empty inputs, None values, boundary conditions
-- **Aim for 80%+ coverage**: Focus on critical paths
-- **Keep tests fast**: Use marks to separate slow tests
+#### DO
 
-### DON'T
+- Follow TDD: Write tests before code (red-green-refactor)
+- Test one thing: Each test should verify a single behavior
+- Use descriptive names: `test_user_login_with_invalid_credentials_fails`
+- Use fixtures: Eliminate duplication with fixtures
+- Mock only external dependencies: Don't depend on external services; do not mock the database when you can exercise it
+  with an in-memory or `db_session` fixture
+- Cover happy, error, and edge paths: Empty inputs, None values, boundary conditions, and the failure cases
+- Aim for about 90% coverage of real logic: 100% where it genuinely adds value, with no exclusion patterns to dodge
+  meaningful tests
+- Keep tests fast: Use marks to separate slow tests
 
-- **Don't test implementation**: Test behavior, not internals
-- **Don't use complex conditionals in tests**: Keep tests simple
-- **Don't ignore test failures**: All tests must pass
-- **Don't test third-party code**: Trust libraries to work
-- **Don't share state between tests**: Tests should be independent
-- **Don't catch exceptions in tests**: Use `pytest.raises`
-- **Don't use print statements**: Use assertions and pytest output
-- **Don't write tests that are too brittle**: Avoid over-specific mocks
+#### DON'T
 
-## Common Patterns
+- Don't test implementation: Test behavior, not internals
+- Don't use complex conditionals in tests: Keep tests simple
+- Don't ignore test failures: All tests must pass
+- Don't test third-party code: Trust libraries to work
+- Don't share state between tests: Tests should be independent
+- Don't catch exceptions in tests: Use `pytest.raises`
+- Don't use print statements: Use assertions and pytest output
+- Don't write tests that are too brittle: Avoid over-specific mocks
 
-### Testing API Endpoints (FastAPI/Flask)
+---
+
+### Common Patterns
+
+#### Testing API Endpoints (FastAPI/Flask)
 
 ```python
 @pytest.fixture
@@ -682,7 +741,7 @@ def test_create_user(client):
     assert response.json["name"] == "Alice"
 ```
 
-### Testing Database Operations
+#### Testing Database Operations
 
 ```python
 @pytest.fixture
@@ -703,7 +762,7 @@ def test_create_user(db_session):
     assert retrieved.email == "alice@example.com"
 ```
 
-### Testing Class Methods
+#### Testing Class Methods
 
 ```python
 class TestCalculator:
@@ -719,9 +778,11 @@ class TestCalculator:
             calculator.divide(10, 0)
 ```
 
-## pytest Configuration
+---
 
-### pytest.ini
+### pytest Configuration
+
+#### pytest.ini
 
 ```ini
 [pytest]
@@ -741,7 +802,7 @@ markers =
     unit: marks tests as unit tests
 ```
 
-### pyproject.toml
+#### pyproject.toml
 
 ```toml
 [tool.pytest.ini_options]
@@ -762,7 +823,9 @@ markers = [
 ]
 ```
 
-## Running Tests
+---
+
+### Running Tests
 
 ```bash
 # Run all tests
@@ -799,7 +862,9 @@ pytest -k "test_user"
 pytest --pdb
 ```
 
-## Quick Reference
+---
+
+### Quick Reference
 
 | Pattern | Usage |
 |---------|-------|
@@ -813,13 +878,14 @@ pytest --pdb
 | `pytest --cov` | Generate coverage report |
 | `assert` | Simple and readable assertions |
 
-**Remember**: Tests are code too. Keep them clean, readable, and maintainable. Good tests catch bugs; great tests prevent them.
+Remember: Tests are code too. Keep them clean, readable, and maintainable. Good tests catch bugs; great tests prevent
+them.
 
 ---
 
-## Testing FastAPI Endpoints (httpx + ASGITransport)
+### Testing FastAPI Endpoints (httpx + ASGITransport)
 
-For async FastAPI apps, use `httpx.AsyncClient` with `ASGITransport` — no running server needed:
+For async FastAPI apps, use `httpx.AsyncClient` with `ASGITransport`, no running server needed:
 
 ```python
 import pytest
@@ -848,4 +914,5 @@ Configure `pytest-asyncio` in `pyproject.toml`:
 asyncio_mode = "auto"   # all async test functions run automatically
 ```
 
-**Rule**: Always use `pytest` from the project root — never run single test files to validate a fix (`pytest` runs all; `pytest tests/test_x.py` only if explicitly scoping a suite).
+Rule: Always use `pytest` from the project root, never run single test files to validate a fix (`pytest` runs all;
+`pytest tests/test_x.py` only if explicitly scoping a suite).

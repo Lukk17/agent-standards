@@ -6,9 +6,12 @@ origin: ECC
 
 # PyTorch Development Patterns
 
-Idiomatic PyTorch patterns and best practices for building robust, efficient, and reproducible deep learning applications.
+Idiomatic PyTorch patterns and best practices for building robust, efficient, and reproducible deep learning
+applications.
 
-## When to Activate
+---
+
+### When to Activate
 
 - Writing new PyTorch models or training scripts
 - Reviewing deep learning code
@@ -16,9 +19,11 @@ Idiomatic PyTorch patterns and best practices for building robust, efficient, an
 - Optimizing GPU memory usage or training speed
 - Setting up reproducible experiments
 
-## Core Principles
+---
 
-### 1. Device-Agnostic Code
+### Core Principles
+
+#### 1. Device-Agnostic Code
 
 Always write code that works on both CPU and GPU without hardcoding devices.
 
@@ -33,7 +38,7 @@ model = MyModel().cuda()  # Crashes if no GPU
 data = data.cuda()
 ```
 
-### 2. Reproducibility First
+#### 2. Reproducibility First
 
 Set all random seeds for reproducible results.
 
@@ -51,7 +56,7 @@ def set_seed(seed: int = 42) -> None:
 model = MyModel()  # Different weights every run
 ```
 
-### 3. Explicit Shape Management
+#### 3. Explicit Shape Management
 
 Always document and verify tensor shapes.
 
@@ -72,9 +77,11 @@ def forward(self, x):
     return self.fc(x)           # Will this even work?
 ```
 
-## Model Architecture Patterns
+---
 
-### Clean nn.Module Structure
+### Model Architecture Patterns
+
+#### Clean nn.Module Structure
 
 ```python
 # Good: Well-organized module
@@ -107,7 +114,7 @@ class ImageClassifier(nn.Module):
         return x
 ```
 
-### Proper Weight Initialization
+#### Proper Weight Initialization
 
 ```python
 # Good: Explicit initialization
@@ -126,9 +133,11 @@ model = MyModel()
 model.apply(model._init_weights)
 ```
 
-## Training Loop Patterns
+---
 
-### Standard Training Loop
+### Training Loop Patterns
+
+#### Standard Training Loop
 
 ```python
 # Good: Complete training loop with best practices
@@ -169,7 +178,7 @@ def train_one_epoch(
     return total_loss / len(dataloader)
 ```
 
-### Validation Loop
+#### Validation Loop
 
 ```python
 # Good: Proper evaluation
@@ -195,9 +204,11 @@ def evaluate(
     return total_loss / len(dataloader), correct / total
 ```
 
-## Data Pipeline Patterns
+---
 
-### Custom Dataset
+### Data Pipeline Patterns
+
+#### Custom Dataset
 
 ```python
 # Good: Clean Dataset with type hints
@@ -225,7 +236,7 @@ class ImageDataset(Dataset):
         return img, label
 ```
 
-### Efficient DataLoader Configuration
+#### Efficient DataLoader Configuration
 
 ```python
 # Good: Optimized DataLoader
@@ -243,7 +254,7 @@ dataloader = DataLoader(
 dataloader = DataLoader(dataset, batch_size=32)  # num_workers=0, no pin_memory
 ```
 
-### Custom Collate for Variable-Length Data
+#### Custom Collate for Variable-Length Data
 
 ```python
 # Good: Pad sequences in collate_fn
@@ -256,9 +267,11 @@ def collate_fn(batch: list[tuple[torch.Tensor, int]]) -> tuple[torch.Tensor, tor
 dataloader = DataLoader(dataset, batch_size=32, collate_fn=collate_fn)
 ```
 
-## Checkpointing Patterns
+---
 
-### Save and Load Checkpoints
+### Checkpointing Patterns
+
+#### Save and Load Checkpoints
 
 ```python
 # Good: Complete checkpoint with all training state
@@ -291,9 +304,11 @@ def load_checkpoint(
 torch.save(model.state_dict(), "model.pt")
 ```
 
-## Performance Optimization
+---
 
-### Mixed Precision Training
+### Performance Optimization
+
+#### Mixed Precision Training
 
 ```python
 # Good: AMP with GradScaler
@@ -308,7 +323,7 @@ for data, target in dataloader:
     optimizer.zero_grad(set_to_none=True)
 ```
 
-### Gradient Checkpointing for Large Models
+#### Gradient Checkpointing for Large Models
 
 ```python
 # Good: Trade compute for memory
@@ -322,7 +337,7 @@ class LargeModel(nn.Module):
         return self.head(x)
 ```
 
-### torch.compile for Speed
+#### torch.compile for Speed
 
 ```python
 # Good: Compile the model for faster execution (PyTorch 2.0+)
@@ -332,7 +347,9 @@ model = torch.compile(model, mode="reduce-overhead")
 # Modes: "default" (safe), "reduce-overhead" (faster), "max-autotune" (fastest)
 ```
 
-## Quick Reference: PyTorch Idioms
+---
+
+### Quick Reference: PyTorch Idioms
 
 | Idiom | Description |
 |-------|-------------|
@@ -347,7 +364,9 @@ model = torch.compile(model, mode="reduce-overhead")
 | `torch.manual_seed` | Reproducible experiments |
 | `gradient_checkpointing` | Trade compute for memory |
 
-## Anti-Patterns to Avoid
+---
+
+### Anti-Patterns to Avoid
 
 ```python
 # Bad: Forgetting model.eval() during validation
@@ -393,4 +412,5 @@ torch.save(model, "model.pt")  # Saves entire model (fragile, not portable)
 torch.save(model.state_dict(), "model.pt")
 ```
 
-__Remember__: PyTorch code should be device-agnostic, reproducible, and memory-conscious. When in doubt, profile with `torch.profiler` and check GPU memory with `torch.cuda.memory_summary()`.
+__Remember__: PyTorch code should be device-agnostic, reproducible, and memory-conscious. When in doubt, profile with
+`torch.profiler` and check GPU memory with `torch.cuda.memory_summary()`.

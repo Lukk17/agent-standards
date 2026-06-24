@@ -1,8 +1,11 @@
 # Lexical Search - Indexing
 
-This guide covers how to configure MongoDB Atlas Search indexes. Use this reference to build index definitions with proper field types, analyzers, mappings, and optimization settings.
+This guide covers how to configure MongoDB Atlas Search indexes. Use this reference to build index definitions with
+proper field types, analyzers, mappings, and optimization settings.
 
-## Table of Contents
+---
+
+### Table of Contents
 
 - [Atlas Search Index Definition](#atlas-search-index-definition)
 - [Analyzer Selection](#analyzer-selection)
@@ -13,9 +16,9 @@ This guide covers how to configure MongoDB Atlas Search indexes. Use this refere
 
 ---
 
-## Atlas Search Index Definition
+### Atlas Search Index Definition
 
-### Syntax
+#### Syntax
 
 ```javascript
 {
@@ -49,14 +52,14 @@ This guide covers how to configure MongoDB Atlas Search indexes. Use this refere
 }
 ```
 
-### Options
+#### Options
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `analyzer` | String | Optional | Specifies the analyzer to apply to string fields when indexing. If set only at the top level and not specified for individual fields, applies to all fields. If omitted, defaults to Standard Analyzer. |
 | `searchAnalyzer` | String | Optional | Specifies the analyzer to apply to query text before searching. If omitted, defaults to the `analyzer` option. If both omitted, defaults to Standard Analyzer. |
 | `mappings` | Object | Required | Specifies how to index fields at different paths for this index. |
-| `mappings.dynamic` | Boolean or Object | Optional | Enables dynamic mapping of field types or configures fields individually. Set to `true` to recursively index all indexable field types, `false` to only index fields specified in `mappings.fields`, or specify a `typeSet` for configurable dynamic indexing. If omitted, defaults to `false`. **Note:** Dynamic indexing automatically and recursively indexes all nested documents unless explicitly disabled. |
+| `mappings.dynamic` | Boolean or Object | Optional | Enables dynamic mapping of field types or configures fields individually. Set to `true` to recursively index all indexable field types, `false` to only index fields specified in `mappings.fields`, or specify a `typeSet` for configurable dynamic indexing. If omitted, defaults to `false`. Note: Dynamic indexing automatically and recursively indexes all nested documents unless explicitly disabled. |
 | `mappings.dynamic.typeSet` | String | Optional | References the name of the `typeSets` object that contains the list of field types to automatically and recursively index. Mutually exclusive with `mappings.dynamic` boolean flag. |
 | `mappings.fields` | Object | Conditional | Specifies the fields that you want to index. Required only if `dynamic` is `false`. You can't index fields that contain the dollar ($) sign at the start of the field name. |
 | `numPartitions` | Integer | Optional | Specifies the number of sub-indexes to create if the document count exceeds two billion. Valid values: 1, 2, 4. If omitted, defaults to 1. Requires search nodes deployed in your cluster. |
@@ -68,7 +71,7 @@ This guide covers how to configure MongoDB Atlas Search indexes. Use this refere
 | `typeSets.[n].types` | Array of Objects | Required | Specifies the field types to index automatically using dynamic mappings. |
 | `typeSets.[n].types.[n].type` | String | Required | Specifies the field type to automatically index (e.g., "string", "number", "date"). |
 
-### Basic Definition
+#### Basic Definition
 
 Most indexes only need the mappings configuration:
 
@@ -83,16 +86,16 @@ Most indexes only need the mappings configuration:
 
 ---
 
-## Analyzer Selection
+### Analyzer Selection
 
 The analyzer determines how text is processed for indexing and searching.
 
-**Default behavior:** Most queries don't specify an analyzer and use MongoDB's default **standard analyzer**, which:
+Default behavior: Most queries don't specify an analyzer and use MongoDB's default standard analyzer, which:
 - Divides text into terms based on word boundaries (language-neutral)
 - Converts terms to lowercase and removes punctuation
 - Recognizes email addresses, acronyms, CJK characters, alphanumerics, and more
 
-**Common built-in analyzers:**
+Common built-in analyzers:
 
 | Analyzer | Use Case | Example |
 |----------|----------|---------|
@@ -104,7 +107,7 @@ The analyzer determines how text is processed for indexing and searching.
 
 ---
 
-### Index Analyzer (Applied at Index Time)
+#### Index Analyzer (Applied at Index Time)
 
 Specify per-field or top-level for all fields:
 
@@ -133,7 +136,7 @@ Specify per-field or top-level for all fields:
 
 ---
 
-### Search Analyzer (Applied at Query Time)
+#### Search Analyzer (Applied at Query Time)
 
 Apply different analysis to queries than to indexed content:
 
@@ -152,13 +155,13 @@ Apply different analysis to queries than to indexed content:
 }
 ```
 
-**Use case:** Index with standard analysis, but search with simpler/synonym-aware analyzer.
+Use case: Index with standard analysis, but search with simpler/synonym-aware analyzer.
 
 If omitted, uses the index `analyzer`. If both omitted, defaults to `lucene.standard`.
 
 ---
 
-### Multi Analyzer (Alternate Analyzers for Same Field)
+#### Multi Analyzer (Alternate Analyzers for Same Field)
 
 Index the same field with multiple analyzers:
 
@@ -178,13 +181,14 @@ Index the same field with multiple analyzers:
 }
 ```
 
-**Use case:** Support both fuzzy matching and exact matching on the same field.
+Use case: Support both fuzzy matching and exact matching on the same field.
 
-To query using the alternate analyzer, specify the path as `fieldName.alternateAnalyzerName` (e.g., `title.keywordAnalyzer`).
+To query using the alternate analyzer, specify the path as `fieldName.alternateAnalyzerName` (e.g.,
+`title.keywordAnalyzer`).
 
 ---
 
-### Custom Analyzers
+#### Custom Analyzers
 
 Define custom tokenization and filtering:
 
@@ -215,11 +219,11 @@ Define custom tokenization and filtering:
 }
 ```
 
-**Use case:** Need specific tokenization or filtering not provided by built-in analyzers.
+Use case: Need specific tokenization or filtering not provided by built-in analyzers.
 
 ---
 
-### Normalizers (Token Type Only)
+#### Normalizers (Token Type Only)
 
 Normalizers produce a single token (used with `token` field type):
 
@@ -233,48 +237,48 @@ Normalizers produce a single token (used with `token` field type):
 }
 ```
 
-**Normalizers:**
+Normalizers:
 - `lowercase`: Transforms to lowercase, creates single token
 - `none`: No transformation, creates single token
 
-**Use case:** Exact matching with case normalization for token fields.
+Use case: Exact matching with case normalization for token fields.
 
 ---
 
-### Decision Guide
+#### Decision Guide
 
-- **lucene.standard** (or omit): Default for most text fields
-- **lucene.keyword**: Categories, tags
-- **Language-specific**: When you know the content language
-- **searchAnalyzer**: Different analysis for queries vs indexed content (e.g., synonyms)
-- **multi**: Support multiple search patterns on same field
-- **Custom**: Need specific tokenization/filtering logic
-- **Normalizers**: Token fields requiring case normalization
+- lucene.standard (or omit): Default for most text fields
+- lucene.keyword: Categories, tags
+- Language-specific: When you know the content language
+- searchAnalyzer: Different analysis for queries vs indexed content (e.g., synonyms)
+- multi: Support multiple search patterns on same field
+- Custom: Need specific tokenization/filtering logic
+- Normalizers: Token fields requiring case normalization
 
 ---
 
-## Field Types
+### Field Types
 
-**Dynamic mapping includes:** boolean, date, number, objectId, string, uuid
-**Must configure explicitly:** autocomplete, token, geo, embeddedDocuments, vector
+Dynamic mapping includes: boolean, date, number, objectId, string, uuid
+Must configure explicitly: autocomplete, token, geo, embeddedDocuments, vector
 
-### Quick Reference
+#### Quick Reference
 
 | Type | When to Use | Required Fields | Optional Fields (with valid values) | Notes |
 |------|-------------|-----------------|-------------------------------------|-------|
-| **string** | Full-text search, phrase matching, fuzzy search | type | analyzer, searchAnalyzer, indexOptions: "docs" or "freqs" or "positions" or "offsets", store: true or false, multi | Default for text. For sorting use token instead. |
-| **token** | Sort/facet on text, exact matching | type | normalizer: "lowercase" or "none" (default: "none") | Required for sorting or faceting strings. Max 8181 chars. |
-| **autocomplete** | Search-as-you-type, typeahead, partial or substring matching | type | analyzer, tokenization: "edgeGram" or "rightEdgeGram" or "nGram" (default: "edgeGram"), minGrams (default: 2), maxGrams (default: 15), foldDiacritics: true or false | Not included in "dynamic: true". Recommend maxGrams ≤ 15. |
-| **boolean** | True/false filters | type | None | Included in "dynamic: true". |
-| **date** | Date ranges, timestamps | type | None | Included in "dynamic: true". |
-| **number** | Numeric queries, ranges, sorting | type | representation: "int64" or "double" (default: "double"), indexIntegers: true or false, indexDoubles: true or false | Included in "dynamic: true". Use int64 for large integers. |
-| **objectId** | Query by _id | type | None | Included in "dynamic: true". Standard MongoDB ObjectIds. |
-| **uuid** | UUID identifiers | type | None | Included in "dynamic: true". BSON Binary Subtype 4. |
-| **geo** | Location search, geographic queries | type | indexShapes: true or false (default: false) | Included in "dynamic: true". Requires GeoJSON. Set indexShapes=true for polygons. |
-| **embeddedDocuments** | Search in arrays of objects, independent scoring | type | dynamic: true or false or {typeSet: "name"} (default: false), fields, storedSource: true or false or {include/exclude} | Not included in "dynamic: true". Max 5 nesting levels. Each nested document counts toward 2.1B limit. |
-| **vector** | Lexical prefilters for semantic search | type, numDimensions (1-8192), similarity: "cosine" or "dotProduct" or "euclidean" | quantization: "none" or "scalar" or "binary" (default: "none"), hnswOptions.maxEdges: 16-64, hnswOptions.numEdgeCandidates: 100-3200 | Not included in "dynamic: true". For hybrid search. See vector-search.md and hybrid-search.md. |
+| string | Full-text search, phrase matching, fuzzy search | type | analyzer, searchAnalyzer, indexOptions: "docs" or "freqs" or "positions" or "offsets", store: true or false, multi | Default for text. For sorting use token instead. |
+| token | Sort/facet on text, exact matching | type | normalizer: "lowercase" or "none" (default: "none") | Required for sorting or faceting strings. Max 8181 chars. |
+| autocomplete | Search-as-you-type, typeahead, partial or substring matching | type | analyzer, tokenization: "edgeGram" or "rightEdgeGram" or "nGram" (default: "edgeGram"), minGrams (default: 2), maxGrams (default: 15), foldDiacritics: true or false | Not included in "dynamic: true". Recommend maxGrams ≤ 15. |
+| boolean | True/false filters | type | None | Included in "dynamic: true". |
+| date | Date ranges, timestamps | type | None | Included in "dynamic: true". |
+| number | Numeric queries, ranges, sorting | type | representation: "int64" or "double" (default: "double"), indexIntegers: true or false, indexDoubles: true or false | Included in "dynamic: true". Use int64 for large integers. |
+| objectId | Query by _id | type | None | Included in "dynamic: true". Standard MongoDB ObjectIds. |
+| uuid | UUID identifiers | type | None | Included in "dynamic: true". BSON Binary Subtype 4. |
+| geo | Location search, geographic queries | type | indexShapes: true or false (default: false) | Included in "dynamic: true". Requires GeoJSON. Set indexShapes=true for polygons. |
+| embeddedDocuments | Search in arrays of objects, independent scoring | type | dynamic: true or false or {typeSet: "name"} (default: false), fields, storedSource: true or false or {include/exclude} | Not included in "dynamic: true". Max 5 nesting levels. Each nested document counts toward 2.1B limit. |
+| vector | Lexical prefilters for semantic search | type, numDimensions (1-8192), similarity: "cosine" or "dotProduct" or "euclidean" | quantization: "none" or "scalar" or "binary" (default: "none"), hnswOptions.maxEdges: 16-64, hnswOptions.numEdgeCandidates: 100-3200 | Not included in "dynamic: true". For hybrid search. See vector-search.md and hybrid-search.md. |
 
-**Field definition structure:**
+Field definition structure:
 ```javascript
 {
   "mappings": {
@@ -288,7 +292,7 @@ Normalizers produce a single token (used with `token` field type):
 }
 ```
 
-**Multiple types on same field:**
+Multiple types on same field:
 ```javascript
 "<field-name>": [
   { "type": "string" },
@@ -296,27 +300,28 @@ Normalizers produce a single token (used with `token` field type):
 ]
 ```
 
-**Arrays:** MongoDB Search automatically flattens arrays during indexing. Specify only the element type, not that it's an array.
+Arrays: MongoDB Search automatically flattens arrays during indexing. Specify only the element type, not that it's an
+array.
 
 ---
 
-## Dynamic vs Explicit Mappings
+### Dynamic vs Explicit Mappings
 
-**Choose based on user's needs:**
+Choose based on user's needs:
 
-**Use dynamic (true)** when:
+Use dynamic (true) when:
 - User is prototyping or exploring data with unknown schema
 - Need to get started quickly without defining all fields
 - All or most fields need to be searchable
 - Accept larger index size and slower performance for convenience
 
-**Use explicit (dynamic: false)** (recommended for production) when:
+Use explicit (dynamic: false) (recommended for production) when:
 - User has completed early stages of prototyping and knows exactly which fields to search
 - Performance and index size are priorities
 - Schema is stable and well-defined
 - Only a subset of fields need to be searchable
 
-**Use typeSets (recommended for production)** when:
+Use typeSets (recommended for production) when:
 - User wants automatic indexing but with control over which types
 - Document schema is dynamic and new fields need to be indexed automatically without an index rebuild
 - Want different indexing strategies for different nested documents
@@ -324,7 +329,7 @@ Normalizers produce a single token (used with `token` field type):
 
 ---
 
-**Dynamic mappings** automatically index all fields:
+Dynamic mappings automatically index all fields:
 ```javascript
 {
   "mappings": {
@@ -332,10 +337,10 @@ Normalizers produce a single token (used with `token` field type):
   }
 }
 ```
-- **Pros**: Quick setup, works immediately
-- **Cons**: Larger index, slower queries, wastes resources on unused fields
+- Pros: Quick setup, works immediately
+- Cons: Larger index, slower queries, wastes resources on unused fields
 
-**Explicit mappings** define exactly what to index:
+Explicit mappings define exactly what to index:
 ```javascript
 {
   "mappings": {
@@ -347,10 +352,10 @@ Normalizers produce a single token (used with `token` field type):
   }
 }
 ```
-- **Pros**: Smaller index, faster queries, precise control
-- **Cons**: Requires knowing your schema
+- Pros: Smaller index, faster queries, precise control
+- Cons: Requires knowing your schema
 
-**Configurable dynamic with typeSets** (recommended middle ground):
+Configurable dynamic with typeSets (recommended middle ground):
 ```javascript
 {
   "mappings": {
@@ -386,23 +391,26 @@ Normalizers produce a single token (used with `token` field type):
   ]
 }
 ```
-- **Pros**: Automatically indexes specified field types, more control than full dynamic, can configure different typeSets for sub-documents
-- **Cons**: Still indexes all fields of specified types
+- Pros: Automatically indexes specified field types, more control than full dynamic, can configure different typeSets
+  for sub-documents
+- Cons: Still indexes all fields of specified types
 
-**Recommendation:** Use static mappings or a dynamic typeSet (within a specific path, not at the root document level) in production for optimized index size and performance.
+Recommendation: Use static mappings or a dynamic typeSet (within a specific path, not at the root document level) in
+production for optimized index size and performance.
 
 ---
 
-## Stored Source
+### Stored Source
 
-Store frequently accessed fields directly in the search index (mongot) to avoid full document lookups from the database. This dramatically improves query performance, especially when filtering or sorting.
+Store frequently accessed fields directly in the search index (mongot) to avoid full document lookups from the database.
+This dramatically improves query performance, especially when filtering or sorting.
 
-**Requirements:**
+Requirements:
 - Available on clusters running MongoDB 7.0+
 - Stored fields must still be indexed separately to query them
 - Retrieve stored fields at query time using returnStoredSource: true (see lexical-search-querying.md)
 
-**Syntax:**
+Syntax:
 ```javascript
 {
   "storedSource": true | false | {
@@ -411,19 +419,21 @@ Store frequently accessed fields directly in the search index (mongot) to avoid 
 }
 ```
 
-**Options:**
+Options:
 
-true - Store all fields in documents. Not supported if index contains vector type field. Can significantly impact performance.
+true - Store all fields in documents. Not supported if index contains vector type field. Can significantly impact
+performance.
 
 false - Don't store any fields (default behavior).
 
-{ "include": [...] } - Store only specified fields. MongoDB Search also stores _id by default. List field names or dot-separated paths.
+{ "include": [...] } - Store only specified fields. MongoDB Search also stores _id by default. List field names or
+dot-separated paths.
 
 { "exclude": [...] } - Store all fields except specified ones.
 
-**Examples:**
+Examples:
 
-**Store specific fields:**
+Store specific fields:
 ```javascript
 {
   "mappings": {
@@ -441,7 +451,7 @@ false - Don't store any fields (default behavior).
 }
 ```
 
-**Exclude specific fields:**
+Exclude specific fields:
 ```javascript
 {
   "storedSource": {
@@ -450,38 +460,39 @@ false - Don't store any fields (default behavior).
 }
 ```
 
-**Store all fields:**
+Store all fields:
 ```javascript
 {
   "storedSource": true
 }
 ```
 
-**When to use:**
+When to use:
 - Fields used for filtering, sorting, or projection after $search
 - Frequently accessed fields in search results
 - When avoiding database lookups is critical for performance
 
-**When NOT to use:**
+When NOT to use:
 - Very large text fields (increases index size significantly)
 - Fields rarely used in queries
 - When index size is a concern
 
-**Note:** For using stored source at query time, see lexical-search-querying.md. For vector field storage considerations, see vector-search.md.
+Note: For using stored source at query time, see lexical-search-querying.md. For vector field storage considerations,
+see vector-search.md.
 
 ---
 
-## Synonyms
+### Synonyms
 
 Use when user wants query expansion with equivalent terms (e.g., "car" also finds "automobile", "vehicle").
 
-**Agent Workflow:**
+Agent Workflow:
 
-1. **Ask user to create synonym collection** in the same database as their indexed collection.
+1. Ask user to create synonym collection in the same database as their indexed collection.
 
-2. **Provide synonym document format** based on user's needs:
+2. Provide synonym document format based on user's needs:
 
-**For bidirectional synonyms** (all terms interchangeable):
+For bidirectional synonyms (all terms interchangeable):
 ```javascript
 db.synonyms.insertMany([
   {
@@ -495,7 +506,7 @@ db.synonyms.insertMany([
 ])
 ```
 
-**For one-way synonyms** (input maps to synonyms only):
+For one-way synonyms (input maps to synonyms only):
 ```javascript
 db.synonyms.insertMany([
   {
@@ -506,7 +517,7 @@ db.synonyms.insertMany([
 ])
 ```
 
-3. **Add synonym mapping to index definition:**
+3. Add synonym mapping to index definition:
 
 ```javascript
 {
@@ -530,34 +541,37 @@ db.synonyms.insertMany([
 }
 ```
 
-**Critical Rules:**
+Critical Rules:
 - Synonym mapping analyzer MUST match the field analyzer being queried
 - Only one synonym mapping allowed per index
 - Changes to synonym collection auto-update (no reindex needed)
 - Works only with text and phrase operators
 
-**Example:**
+Example:
 If user wants "car" to also find "vehicle" and "automobile":
-1. Tell user to create collection: db.synonyms.insertOne({ "mappingType": "equivalent", "synonyms": ["car", "vehicle", "automobile"] })
+1. Tell user to create collection: db.synonyms.insertOne({ "mappingType": "equivalent", "synonyms": ["car", "vehicle",
+   "automobile"] })
 2. Add to index with analyzer matching the field being searched
 3. Queries automatically expand (user searches "car", MongoDB Search searches: car OR vehicle OR automobile)
 
 ---
 
-## Searching on Views
+### Searching on Views
 
-**Requires MongoDB 8.0+.** Create Atlas Search indexes on Views to partially index a collection, transform documents, or support incompatible data types.
+Requires MongoDB 8.0+. Create Atlas Search indexes on Views to partially index a collection, transform documents, or
+support incompatible data types.
 
-**Note**: Programmatic index creation via `mongosh`/driver methods requires **8.1+**. On 8.0, also note that queries must run against the **source collection** referencing the view's index name. On 8.1+, you can query the view directly.
+Note: Programmatic index creation via `mongosh`/driver methods requires 8.1+. On 8.0, also note that queries must run
+against the source collection referencing the view's index name. On 8.1+, you can query the view directly.
 
-**Supported view stages**: `$addFields`, `$set`, `$match` with `$expr` only.
+Supported view stages: `$addFields`, `$set`, `$match` with `$expr` only.
 
-**Key limitations**:
+Key limitations:
 - Index names must be unique across source collection and all its views
 - No operators producing dynamic results (e.g., `$USER_ROLES`, `$rand`)
 - Queries return original source documents. Use `storedSource` to retrieve transformed fields
 
-**Example: partial index (filter documents)**
+Example: partial index (filter documents)
 ```javascript
 db.createView("movies_After2000", "movies", [
   { $match: { $expr: { $gt: ["$released", ISODate("2000-01-01")] } } }
@@ -574,11 +588,14 @@ db.movies_After2000.aggregate([
 ])
 ```
 
-**Editing a view**: Use `collMod`. MongoDB Search auto-reindexes on view definition changes with no downtime.
+Editing a view: Use `collMod`. MongoDB Search auto-reindexes on view definition changes with no downtime.
 
-**Performance**: Complex transformations slow performance. For heavy transformations consider a materialized view, or query the source collection directly.
+Performance: Complex transformations slow performance. For heavy transformations consider a materialized view, or query
+the source collection directly.
 
-**Troubleshooting**:
-- Index goes **FAILED**: view is incompatible with Search, or source collection was removed/changed
-- Index goes **STALE**: view's pipeline fails on a document. Index remains queryable while STALE; returns to READY after fixing the document or view definition
-- **`$search is only valid as first stage`** error: you're on MongoDB 8.0 querying the view directly. Query the source collection instead, or upgrade to 8.1+
+Troubleshooting:
+- Index goes FAILED: view is incompatible with Search, or source collection was removed/changed
+- Index goes STALE: view's pipeline fails on a document. Index remains queryable while STALE; returns to READY after
+  fixing the document or view definition
+- `$search is only valid as first stage` error: you're on MongoDB 8.0 querying the view directly. Query the source
+  collection instead, or upgrade to 8.1+

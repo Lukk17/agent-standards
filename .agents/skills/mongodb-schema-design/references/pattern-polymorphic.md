@@ -5,19 +5,28 @@ impactDescription: "Keeps related entities in one collection while preserving ty
 tags: schema, patterns, polymorphic, discriminator, flexible-schema, indexing, single-collection
 ---
 
-## Use Polymorphic Pattern for Heterogeneous Documents
+### Use Polymorphic Pattern for Heterogeneous Documents
 
-**Store related but different document shapes in one collection with a type discriminator.** This keeps shared queries and indexes simple while allowing type-specific fields. Common use cases: product catalogs with different product types, content management systems, event stores, and any domain with inheritance.
+Store related but different document shapes in one collection with a type discriminator. This keeps shared queries and
+indexes simple while allowing type-specific fields. Common use cases: product catalogs with different product types,
+content management systems, event stores, and any domain with inheritance.
 
-**Incorrect (separate collections per subtype):**
+Incorrect (separate collections per subtype):
 
-Using a separate collection per product type (e.g. `products_books`, `products_electronics`, `products_clothing`) means querying across all products requires multiple calls or `$unionWith`, shared indexes must be duplicated, adding new types requires new collections, and application code must branch on collection names.
+Using a separate collection per product type (e.g. `products_books`, `products_electronics`, `products_clothing`) means
+querying across all products requires multiple calls or `$unionWith`, shared indexes must be duplicated, adding new
+types requires new collections, and application code must branch on collection names.
 
-**Correct (single collection using optional fields):**
+Correct (single collection using optional fields):
 
-Store all product types in one `products` collection. All documents share common fields (`name`, `price`, `inStock`); each type adds its own specific fields (books: `author`, `isbn`, `pages`; electronics: `brand`, `wattage`, `batteryHours`, `warranty`; clothing: `size`, `color`, `material`). If the categories are always fully disjoint, use a `type` discriminator field (e.g. `"book"`, `"electronics"`, `"clothing"`). Cross-type queries use shared fields; type-specific queries filter by `type` plus type-specific fields. If there is potential overlap (e.g. between different categories of users), you can omit this field and rely entirely on optional fields.
+Store all product types in one `products` collection. All documents share common fields (`name`, `price`, `inStock`);
+each type adds its own specific fields (books: `author`, `isbn`, `pages`; electronics: `brand`, `wattage`,
+`batteryHours`, `warranty`; clothing: `size`, `color`, `material`). If the categories are always fully disjoint, use a
+`type` discriminator field (e.g. `"book"`, `"electronics"`, `"clothing"`). Cross-type queries use shared fields;
+type-specific queries filter by `type` plus type-specific fields. If there is potential overlap (e.g. between different
+categories of users), you can omit this field and rely entirely on optional fields.
 
-**Index strategies for polymorphic collections:**
+Index strategies for polymorphic collections:
 
 ```javascript
 // Strategy 1: Compound index with type first
@@ -56,7 +65,7 @@ db.products.createIndex({ "specs.$**": 1 })
 { type: "electronics", specs: { brand: "...", wattage: 20 } }
 ```
 
-**Query patterns across types:**
+Query patterns across types:
 
 ```javascript
 // Pattern 1: Query all types with shared fields
@@ -99,7 +108,7 @@ db.products.aggregate([
 ])
 ```
 
-**Validation per type:**
+Validation per type:
 
 ```javascript
 // Use JSON Schema with discriminator-based validation
@@ -134,19 +143,24 @@ db.runCommand({
 })
 ```
 
-**Adding new types:**
+Adding new types:
 
-The polymorphic pattern makes adding types straightforward — no schema migration needed. Insert documents with the new `type` value and any type-specific fields. Add partial indexes for type-specific queries as needed, and update schema validation to include the new type if using strict validation.
+The polymorphic pattern makes adding types straightforward, no schema migration needed. Insert documents with the new
+`type` value and any type-specific fields. Add partial indexes for type-specific queries as needed, and update schema
+validation to include the new type if using strict validation.
 
-**When NOT to use polymorphic pattern:**
+When NOT to use polymorphic pattern:
 
-- **Completely different access patterns**: If each type is queried independently with no cross-type queries, separate collections may be cleaner.
-- **Conflicting index requirements**: If types need many different indexes, the index overhead may outweigh benefits.
-- **Strict type separation required**: Regulatory or security requirements may mandate separate collections.
-- **Vastly different document sizes**: If one type has 100-byte docs and another has 100KB docs, working set suffers.
-- **Type-specific sharding needs**: Different types may need different shard keys.
+- Completely different access patterns: If each type is queried independently with no cross-type queries, separate
+  collections may be cleaner.
+- Conflicting index requirements: If types need many different indexes, the index overhead may outweigh benefits.
+- Strict type separation required: Regulatory or security requirements may mandate separate collections.
+- Vastly different document sizes: If one type has 100-byte docs and another has 100KB docs, working set suffers.
+- Type-specific sharding needs: Different types may need different shard keys.
 
-## Verify with
+---
+
+### Verify with
 
 ```javascript
 // Get type distribution
@@ -164,4 +178,5 @@ db.products.aggregate([
 db.products.countDocuments({ type: { $exists: false } })
 ```
 
-Reference: [Polymorphic Schema Pattern](https://mongodb.com/docs/manual/data-modeling/design-patterns/polymorphic-data/polymorphic-schema-pattern/)
+Reference:
+[Polymorphic Schema Pattern](https://mongodb.com/docs/manual/data-modeling/design-patterns/polymorphic-data/polymorphic-schema-pattern/)

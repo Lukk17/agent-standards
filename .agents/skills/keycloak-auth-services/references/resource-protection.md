@@ -1,17 +1,22 @@
 # Resource Protection & Authorization Server
 
-Fine-grained access control using Keycloak Authorization Server. Delegates authorization decisions to Keycloak (PDP) while your app acts as PEP.
+Fine-grained access control using Keycloak Authorization Server. Delegates authorization decisions to Keycloak (PDP)
+while your app acts as PEP.
 
-## Concepts
+---
 
-- **Resource**: entity to protect (e.g., "my-workspace")
-- **Scope**: action on resource (e.g., "workspace:read", "workspace:write")
-- **Permission**: rule linking resource + scope + policy
-- **Policy**: condition evaluated by Keycloak (role-based, time-based, etc.)
-- **PEP** (Policy Enforcement Point): your app — intercepts requests, checks authorization
-- **PDP** (Policy Decision Point): Keycloak Authorization Server — evaluates policies
+### Concepts
 
-## Setup
+- Resource: entity to protect (e.g., "my-workspace")
+- Scope: action on resource (e.g., "workspace:read", "workspace:write")
+- Permission: rule linking resource + scope + policy
+- Policy: condition evaluated by Keycloak (role-based, time-based, etc.)
+- PEP (Policy Enforcement Point): your app: intercepts requests, checks authorization
+- PDP (Policy Decision Point): Keycloak Authorization Server: evaluates policies
+
+---
+
+### Setup
 
 ```bash
 dotnet add package Keycloak.AuthServices.Authorization
@@ -28,11 +33,13 @@ builder.Services
     .AddAuthorizationServer(builder.Configuration);
 ```
 
-Authorization Server calls are made on behalf of the user via header propagation. `AddAuthorizationServer` adds `AccessTokenPropagationHandler` that uses `IKeycloakAccessTokenProvider` to obtain the user's token.
+Authorization Server calls are made on behalf of the user via header propagation. `AddAuthorizationServer` adds
+`AccessTokenPropagationHandler` that uses `IKeycloakAccessTokenProvider` to obtain the user's token.
 
-### IKeycloakAccessTokenProvider
+#### IKeycloakAccessTokenProvider
 
-The default `HttpContextAccessTokenProvider` reads the JWT from the current `HttpContext`. Override it for custom token sourcing (e.g., SignalR, long-lived connections):
+The default `HttpContextAccessTokenProvider` reads the JWT from the current `HttpContext`. Override it for custom token
+sourcing (e.g., SignalR, long-lived connections):
 
 ```csharp
 public interface IKeycloakAccessTokenProvider
@@ -48,21 +55,23 @@ services.AddScoped<IKeycloakAccessTokenProvider, MyCustomTokenProvider>();
 ```
 
 Configuration options on `KeycloakAuthorizationServerOptions`:
-- `SourceAuthenticationScheme` — auth scheme for token extraction (default: `"Bearer"`)
-- `SourceTokenName` — token name (default: `"access_token"`)
+- `SourceAuthenticationScheme`: auth scheme for token extraction (default: `"Bearer"`)
+- `SourceTokenName`: token name (default: `"access_token"`)
 
-## Protected Resource Builder
+---
 
-Simplest way to protect endpoints — no manual policy registration:
+### Protected Resource Builder
+
+Simplest way to protect endpoints, no manual policy registration:
 
 ```csharp
 app.MapGet("/workspaces", () => "Hello World!")
     .RequireProtectedResource("workspaces", "workspace:read");
 ```
 
-`RequireProtectedResource` is an extension on `IEndpointConventionBuilder` — works with Minimal APIs, MVC, RazorPages.
+`RequireProtectedResource` is an extension on `IEndpointConventionBuilder`, works with Minimal APIs, MVC, RazorPages.
 
-### Dynamic Resources
+#### Dynamic Resources
 
 Use path parameters in resource names:
 
@@ -73,14 +82,14 @@ app.MapGet("/workspaces/{id}", (string id) => $"Workspace {id}")
 
 The `{id}` placeholder is resolved from the route parameter at runtime.
 
-### Multiple Scopes
+#### Multiple Scopes
 
 ```csharp
 app.MapDelete("/workspaces/{id}", (string id) => Results.NoContent())
     .RequireProtectedResource("workspaces/{id}", "workspace:read", "workspace:delete");
 ```
 
-### Endpoint Hierarchy (Group-level + Endpoint-level)
+#### Endpoint Hierarchy (Group-level + Endpoint-level)
 
 ```csharp
 var workspaces = app.MapGroup("/workspaces")
@@ -91,7 +100,7 @@ workspaces.MapDelete("/{id}", (string id) => Results.NoContent())
     .RequireProtectedResource("workspaces/{id}", "workspace:delete");
 ```
 
-### Multiple Resources
+#### Multiple Resources
 
 ```csharp
 app.MapGet("/dashboard", () => "Dashboard")
@@ -99,7 +108,7 @@ app.MapGet("/dashboard", () => "Dashboard")
     .RequireProtectedResource("reports", "report:view");
 ```
 
-### Ignore Protected Resources
+#### Ignore Protected Resources
 
 Similar to `AllowAnonymous`:
 
@@ -111,7 +120,9 @@ group.MapGet("/public", () => "Public")
     .IgnoreProtectedResources();
 ```
 
-## Policy-Based Approach
+---
+
+### Policy-Based Approach
 
 Instead of Protected Resource Builder, use standard ASP.NET policies:
 
@@ -130,7 +141,9 @@ builder.Services
 app.MapGet("/workspaces", () => "Hello").RequireAuthorization("WorkspaceRead");
 ```
 
-## Policy Provider (Convention-Based)
+---
+
+### Policy Provider (Convention-Based)
 
 Auto-register policies from naming convention `<resource>#<scope1>,<scope2>`:
 
@@ -145,9 +158,10 @@ app.MapGet("/", () => "Hello")
     .RequireAuthorization("my-workspace#workspaces:read");
 ```
 
-### IProtectedResourcePolicyBuilder (Extensible Policy Construction)
+#### IProtectedResourcePolicyBuilder (Extensible Policy Construction)
 
-The `ProtectedResourcePolicyProvider` delegates policy construction to `IProtectedResourcePolicyBuilder`. The default implementation parses the `<resource>#<scope1>,<scope2>` format:
+The `ProtectedResourcePolicyProvider` delegates policy construction to `IProtectedResourcePolicyBuilder`. The default
+implementation parses the `<resource>#<scope1>,<scope2>` format:
 
 ```csharp
 public interface IProtectedResourcePolicyBuilder
@@ -172,9 +186,12 @@ public class CachingPolicyBuilder : IProtectedResourcePolicyBuilder
 services.AddSingleton<IProtectedResourcePolicyBuilder, CachingPolicyBuilder>();
 ```
 
-## Pluggable Parameter Resolvers
+---
 
-The `{parameter}` syntax in `RequireProtectedResource("resource/{id}", ...)` is resolved by `IParameterResolver` implementations. All three built-in resolvers are registered automatically by `AddKeycloakAuthorization()`.
+### Pluggable Parameter Resolvers
+
+The `{parameter}` syntax in `RequireProtectedResource("resource/{id}", ...)` is resolved by `IParameterResolver`
+implementations. All three built-in resolvers are registered automatically by `AddKeycloakAuthorization()`.
 
 ```csharp
 public interface IParameterResolver
@@ -183,7 +200,7 @@ public interface IParameterResolver
 }
 ```
 
-**Built-in resolvers:**
+Built-in resolvers:
 
 | Resolver | Source | Example |
 |----------|--------|---------|
@@ -191,7 +208,7 @@ public interface IParameterResolver
 | `HeaderParameterResolver` | HTTP headers | `{X-Tenant}` from request header |
 | `QueryParameterResolver` | Query string | `{tenant}` from `?tenant=acme` |
 
-**Custom resolver:**
+Custom resolver:
 
 ```csharp
 public class ServiceResolver : IParameterResolver
@@ -204,9 +221,13 @@ public class ServiceResolver : IParameterResolver
 }
 ```
 
-Resolvers are used by both resource protection (`RequireProtectedResource`) and organization authorization (`RequireOrganizationMembership`). See [organization-authorization.md](organization-authorization.md) for resolver usage with organizations.
+Resolvers are used by both resource protection (`RequireProtectedResource`) and organization authorization
+(`RequireOrganizationMembership`). See [organization-authorization.md](organization-authorization.md) for resolver usage
+with organizations.
 
-## ProtectedResource Attribute (Controllers)
+---
+
+### ProtectedResource Attribute (Controllers)
 
 ```csharp
 [ProtectedResource("documents", "read")]
@@ -221,13 +242,16 @@ public class DocumentsController : ControllerBase
 }
 ```
 
-## Keycloak Configuration
+---
+
+### Keycloak Configuration
 
 1. Enable Authorization on the client in Keycloak admin console
 2. Create Resources (e.g., "workspaces" with type "urn:workspaces")
 3. Create Scopes (e.g., "workspace:read", "workspace:write")
-4. Create Policies (e.g., "Require Admin Role" — role-based policy)
+4. Create Policies (e.g., "Require Admin Role": role-based policy)
 5. Create Permissions linking resources + scopes + policies
 6. Use Keycloak's "Evaluate" tab to test permissions
 
-See realm export files in `tests/Keycloak.AuthServices.IntegrationTests/KeycloakConfiguration/` for complete working examples.
+See realm export files in `tests/Keycloak.AuthServices.IntegrationTests/KeycloakConfiguration/` for complete working
+examples.

@@ -1,10 +1,15 @@
 # Hybrid Search
 
-This guide covers hybrid search patterns in MongoDB Atlas: combining vector and lexical search using `$rankFusion` and `$scoreFusion`, and using lexical prefilters with the `vectorSearch` operator inside `$search`.
+This guide covers hybrid search patterns in MongoDB Atlas: combining vector and lexical search using `$rankFusion` and
+`$scoreFusion`, and using lexical prefilters with the `vectorSearch` operator inside `$search`.
 
-**Scope**: This guide covers hybrid pipelines. For pure vector search indexes and `$vectorSearch` query construction, see vector-search.md. For lexical index definitions and query patterns, see lexical-search-indexing.md and lexical-search-querying.md.
+Scope: This guide covers hybrid pipelines. For pure vector search indexes and `$vectorSearch` query construction, see
+vector-search.md. For lexical index definitions and query patterns, see lexical-search-indexing.md and
+lexical-search-querying.md.
 
-## Table of Contents
+---
+
+### Table of Contents
 
 - [Overview](#overview)
 - [Choosing the Right Approach](#choosing-the-right-approach)
@@ -16,11 +21,12 @@ This guide covers hybrid search patterns in MongoDB Atlas: combining vector and 
 
 ---
 
-## Overview
+### Overview
 
-Hybrid search combines multiple search methods on the same collection and merges the results into a single ranked or scored list.
+Hybrid search combines multiple search methods on the same collection and merges the results into a single ranked or
+scored list.
 
-**Three patterns covered in this guide:**
+Three patterns covered in this guide:
 
 | Pattern | Stage / Operator | Use When |
 |---|---|---|
@@ -28,13 +34,16 @@ Hybrid search combines multiple search methods on the same collection and merges
 | Score-based fusion | `$scoreFusion` | Score magnitude matters; need custom math or normalization |
 | Lexical prefilter | `$search` + `vectorSearch` operator | Need fuzzy/phrase/wildcard/compound pre-filtering before vector search |
 
-**$rankFusion vs $scoreFusion:**
-- `$rankFusion` ranks by position in each input pipeline using the Reciprocal Rank Fusion (RRF) algorithm. A document ranked #1 in multiple pipelines scores much higher than one ranked #1 in only one. Weights influence how much each pipeline's rank contributes.
-- `$scoreFusion` ranks by the actual score values from each pipeline. Supports normalization (sigmoid, minMaxScaler) and custom combination expressions. Use when score magnitude, not just ordering, matters.
+$rankFusion vs $scoreFusion:
+- `$rankFusion` ranks by position in each input pipeline using the Reciprocal Rank Fusion (RRF) algorithm. A document
+  ranked #1 in multiple pipelines scores much higher than one ranked #1 in only one. Weights influence how much each
+  pipeline's rank contributes.
+- `$scoreFusion` ranks by the actual score values from each pipeline. Supports normalization (sigmoid, minMaxScaler) and
+  custom combination expressions. Use when score magnitude, not just ordering, matters.
 
 ---
 
-## Choosing the Right Approach
+### Choosing the Right Approach
 
 | Scenario | Recommended Approach |
 |---|---|
@@ -45,17 +54,19 @@ Hybrid search combines multiple search methods on the same collection and merges
 | Pre-filter vector search with simple equality or range | `filter` fields in `$vectorSearch` (see vector-search.md) |
 | Cross-collection hybrid search | `$unionWith` + `$vectorSearch` (not `$rankFusion`/`$scoreFusion`) |
 
-**Version requirements**: `$rankFusion` requires MongoDB 8.0+. `$scoreFusion` requires MongoDB 8.2+. Only proceed with this guide if the use case is lexical prefilters, or if the cluster meets the version requirement for the fusion stage of interest. Otherwise do not proceed.
+Version requirements: `$rankFusion` requires MongoDB 8.0+. `$scoreFusion` requires MongoDB 8.2+. Only proceed with this
+guide if the use case is lexical prefilters, or if the cluster meets the version requirement for the fusion stage of
+interest. Otherwise do not proceed.
 
 ---
 
-## Indexing for Hybrid Search
+### Indexing for Hybrid Search
 
-### For $rankFusion and $scoreFusion
+#### For $rankFusion and $scoreFusion
 
 You need two separate indexes on the collection:
 
-**1. A vectorSearch-type index** for the `$vectorSearch` input pipeline:
+1. A vectorSearch-type index for the `$vectorSearch` input pipeline:
 ```javascript
 db.collection.createSearchIndex(
   "<vector-index-name>",
@@ -73,7 +84,7 @@ db.collection.createSearchIndex(
 )
 ```
 
-**2. A search-type index** for the `$search` input pipeline:
+2. A search-type index for the `$search` input pipeline:
 ```javascript
 db.collection.createSearchIndex(
   "<search-index-name>",
@@ -85,9 +96,11 @@ db.collection.createSearchIndex(
 
 ---
 
-### For Lexical Prefilters (vectorSearch Operator)
+#### For Lexical Prefilters (vectorSearch Operator)
 
-The `vectorSearch` operator runs inside `$search`, so you need a **single search-type index** that includes a `vector` field type. This is different from a vectorSearch-type index — you cannot use the `$vectorSearch` stage to query fields indexed this way.
+The `vectorSearch` operator runs inside `$search`, so you need a single search-type index that includes a `vector` field
+type. This is different from a vectorSearch-type index, you cannot use the `$vectorSearch` stage to query fields indexed
+this way.
 
 ```javascript
 db.collection.createSearchIndex(
@@ -108,25 +121,29 @@ db.collection.createSearchIndex(
 )
 ```
 
-**Note**: `storedSource: true` is not supported on indexes that contain a `vector` field type. Use `include` or `exclude` to specify stored fields explicitly.
+Note: `storedSource: true` is not supported on indexes that contain a `vector` field type. Use `include` or `exclude` to
+specify stored fields explicitly.
 
 ---
 
-## Common Rules for Fusion Stages
+### Common Rules for Fusion Stages
 
 The following rules apply to both `$rankFusion` and `$scoreFusion`.
 
-**Pipeline naming restrictions**: Pipeline names must not be empty, start with `$`, contain the null character `\0`, or contain `.`
+Pipeline naming restrictions: Pipeline names must not be empty, start with `$`, contain the null character `\0`, or
+contain `.`
 
-**Not allowed inside input pipelines**: `$project` or `storedSource` fields. Apply modifications (`$project`, `$addFields`, `$set`) in stages after the fusion stage.
+Not allowed inside input pipelines: `$project` or `storedSource` fields. Apply modifications (`$project`, `$addFields`,
+`$set`) in stages after the fusion stage.
 
 ---
 
-## $rankFusion
+### $rankFusion
 
-`$rankFusion` executes all input pipelines independently, de-duplicates results, and ranks them using the Reciprocal Rank Fusion (RRF) algorithm. Documents appearing highly ranked in multiple pipelines score highest.
+`$rankFusion` executes all input pipelines independently, de-duplicates results, and ranks them using the Reciprocal
+Rank Fusion (RRF) algorithm. Documents appearing highly ranked in multiple pipelines score highest.
 
-### Syntax
+#### Syntax
 
 ```javascript
 {
@@ -149,7 +166,7 @@ The following rules apply to both `$rankFusion` and `$scoreFusion`.
 }
 ```
 
-### Fields
+#### Fields
 
 | Field | Type | Description |
 |---|---|---|
@@ -157,7 +174,7 @@ The following rules apply to both `$rankFusion` and `$scoreFusion`.
 | `combination.weights` | Object | Optional. Per-pipeline weights (non-negative numbers). Default weight is 1. |
 | `scoreDetails` | Boolean | Optional. If true, populates `$meta: "scoreDetails"` per document. Default false. |
 
-### RRF Formula
+#### RRF Formula
 
 For each document, the RRF score is:
 
@@ -165,17 +182,20 @@ For each document, the RRF score is:
 RRFscore(d) = sum over all pipelines of: weight * (1 / (60 + rank_of_d_in_pipeline))
 ```
 
-The constant 60 is a sensitivity parameter set by MongoDB and cannot be changed. Documents not present in a pipeline do not contribute a term for that pipeline.
+The constant 60 is a sensitivity parameter set by MongoDB and cannot be changed. Documents not present in a pipeline do
+not contribute a term for that pipeline.
 
-### Input Pipeline Restrictions
+#### Input Pipeline Restrictions
 
-See [Common Rules](#common-rules-for-fusion-stages) for naming and modification restrictions. Allowed stages: `$search`, `$vectorSearch`, `$match`, `$geoNear`, `$sample`, `$sort`, `$skip`, `$limit`.
+See [Common Rules](#common-rules-for-fusion-stages) for naming and modification restrictions. Allowed stages: `$search`,
+`$vectorSearch`, `$match`, `$geoNear`, `$sample`, `$sort`, `$skip`, `$limit`.
 
-The ordering requirement is satisfied if the pipeline begins with `$search`, `$vectorSearch`, or `$geoNear`, or contains an explicit `$sort`.
+The ordering requirement is satisfied if the pipeline begins with `$search`, `$vectorSearch`, or `$geoNear`, or contains
+an explicit `$sort`.
 
 ---
 
-### Example 1: Basic Hybrid (Vector + Lexical, Equal Weights)
+#### Example 1: Basic Hybrid (Vector + Lexical, Equal Weights)
 
 ```javascript
 db.embedded_movies.aggregate([
@@ -214,11 +234,11 @@ db.embedded_movies.aggregate([
 ])
 ```
 
-**Note**: `$search` does not auto-limit results — always add `$limit` inside the `$search` input pipeline.
+Note: `$search` does not auto-limit results, always add `$limit` inside the `$search` input pipeline.
 
 ---
 
-### Example 2: Weighted Hybrid (Boosting One Pipeline)
+#### Example 2: Weighted Hybrid (Boosting One Pipeline)
 
 Assign higher weight to the pipeline whose ranking should contribute more to the final score:
 
@@ -265,11 +285,12 @@ db.embedded_movies.aggregate([
 ])
 ```
 
-**Recommendation**: Set weights per-query based on which method is more appropriate for that query, rather than using static weights for all queries.
+Recommendation: Set weights per-query based on which method is more appropriate for that query, rather than using static
+weights for all queries.
 
 ---
 
-### Example 3: Multiple $vectorSearch Pipelines
+#### Example 3: Multiple $vectorSearch Pipelines
 
 Use multiple vector pipelines to search different fields, different query vectors, or different embedding models:
 
@@ -317,17 +338,22 @@ db.embedded_movies.aggregate([
 
 ---
 
-### Surfacing scoreDetails
+#### Surfacing scoreDetails
 
-Set `scoreDetails: true` on the stage, then project via `$meta: "scoreDetails"`. The output includes a `value` (final RRF score), `description`, and a `details` array — one entry per input pipeline — containing `inputPipelineName`, `rank`, `weight`, and optionally `value` (raw pipeline score). See the `$scoreFusion` scoreDetails section below for a concrete structure example; `$rankFusion` follows the same pattern with `rank` instead of `inputPipelineRawScore`.
+Set `scoreDetails: true` on the stage, then project via `$meta: "scoreDetails"`. The output includes a `value` (final
+RRF score), `description`, and a `details` array, one entry per input pipeline, containing `inputPipelineName`, `rank`,
+`weight`, and optionally `value` (raw pipeline score). See the `$scoreFusion` scoreDetails section below for a concrete
+structure example; `$rankFusion` follows the same pattern with `rank` instead of `inputPipelineRawScore`.
 
 ---
 
-## $scoreFusion
+### $scoreFusion
 
-`$scoreFusion` executes all input pipelines independently, de-duplicates results, and combines them using the actual score values from each pipeline. Supports normalization and custom combination expressions for fine-grained control over how scores are merged.
+`$scoreFusion` executes all input pipelines independently, de-duplicates results, and combines them using the actual
+score values from each pipeline. Supports normalization and custom combination expressions for fine-grained control over
+how scores are merged.
 
-### Syntax
+#### Syntax
 
 ```javascript
 {
@@ -353,7 +379,7 @@ Set `scoreDetails: true` on the stage, then project via `$meta: "scoreDetails"`.
 }
 ```
 
-### Fields
+#### Fields
 
 | Field | Type | Description |
 |---|---|---|
@@ -364,23 +390,26 @@ Set `scoreDetails: true` on the stage, then project via `$meta: "scoreDetails"`.
 | `combination.expression` | Expression | Custom arithmetic expression. Use pipeline names as variables representing each pipeline's score. Mutually exclusive with `combination.weights`. |
 | `scoreDetails` | Boolean | Optional. If true, populates `$meta: "scoreDetails"` per document. Default false. |
 
-### Normalization Options
+#### Normalization Options
 
 | Option | Effect |
 |---|---|
-| `none` | No normalization — raw scores combined as-is |
+| `none` | No normalization, raw scores combined as-is |
 | `sigmoid` | Applies the sigmoid expression, mapping scores to (0, 1) |
 | `minMaxScaler` | Applies the minMaxScaler window operator, scaling scores to [0, 1] |
 
-### Input Pipeline Restrictions
+#### Input Pipeline Restrictions
 
-See [Common Rules](#common-rules-for-fusion-stages) for naming and modification restrictions. Allowed stages: `$search`, `$vectorSearch`, `$match`, `$geoNear`, `$sort`, `$skip`, `$limit`. Note: unlike `$rankFusion`, `$sample` is not permitted.
+See [Common Rules](#common-rules-for-fusion-stages) for naming and modification restrictions. Allowed stages: `$search`,
+`$vectorSearch`, `$match`, `$geoNear`, `$sort`, `$skip`, `$limit`. Note: unlike `$rankFusion`, `$sample` is not
+permitted.
 
-The scoring requirement is satisfied if the pipeline begins with `$search`, `$vectorSearch`, `$match` with legacy text search, or `$geoNear`. Otherwise, include an explicit `$score` stage.
+The scoring requirement is satisfied if the pipeline begins with `$search`, `$vectorSearch`, `$match` with legacy text
+search, or `$geoNear`. Otherwise, include an explicit `$score` stage.
 
 ---
 
-### Example 1: avg Method with Weights
+#### Example 1: avg Method with Weights
 
 ```javascript
 db.embedded_movies.aggregate([
@@ -429,9 +458,10 @@ db.embedded_movies.aggregate([
 
 ---
 
-### Example 2: expression Method with Custom Score Math
+#### Example 2: expression Method with Custom Score Math
 
-Use `expression` when you need full control over how pipeline scores are combined. Reference pipeline names as variables in the expression:
+Use `expression` when you need full control over how pipeline scores are combined. Reference pipeline names as variables
+in the expression:
 
 ```javascript
 db.embedded_movies.aggregate([
@@ -489,11 +519,12 @@ db.embedded_movies.aggregate([
 ])
 ```
 
-**Note**: `combination.expression` and `combination.weights` are mutually exclusive. When using `expression`, embed weights directly via `$multiply` as shown above.
+Note: `combination.expression` and `combination.weights` are mutually exclusive. When using `expression`, embed weights
+directly via `$multiply` as shown above.
 
 ---
 
-### Surfacing scoreDetails
+#### Surfacing scoreDetails
 
 Set `scoreDetails: true`, then use `$meta: "scoreDetails"` in `$project`, `$addFields`, or `$set`:
 
@@ -506,7 +537,7 @@ Set `scoreDetails: true`, then use `$meta: "scoreDetails"` in `$project`, `$addF
 }
 ```
 
-**scoreDetails structure:**
+scoreDetails structure:
 ```javascript
 {
   value: 7.847,
@@ -537,15 +568,18 @@ Set `scoreDetails: true`, then use `$meta: "scoreDetails"` in `$project`, `$addF
 
 ---
 
-## Lexical Prefilters (vectorSearch Operator)
+### Lexical Prefilters (vectorSearch Operator)
 
-The `vectorSearch` operator runs inside a `$search` stage and performs ANN or ENN vector search with the ability to pre-filter using any Atlas Search operator — including `text` with fuzzy matching, `phrase`, `wildcard`, `queryString`, and `compound`. This is more expressive than the MQL-only `filter` option in the `$vectorSearch` stage.
+The `vectorSearch` operator runs inside a `$search` stage and performs ANN or ENN vector search with the ability to
+pre-filter using any Atlas Search operator, including `text` with fuzzy matching, `phrase`, `wildcard`, `queryString`,
+and `compound`. This is more expressive than the MQL-only `filter` option in the `$vectorSearch` stage.
 
-**Requires**: A `search`-type index (not vectorSearch-type) with the embedding field configured as `vector` type. See [Indexing for Hybrid Search](#indexing-for-hybrid-search).
+Requires: A `search`-type index (not vectorSearch-type) with the embedding field configured as `vector` type. See
+[Indexing for Hybrid Search](#indexing-for-hybrid-search).
 
-**Cannot be used**: Inside `embeddedDocument`, `compound`, or `facet` operators.
+Cannot be used: Inside `embeddedDocument`, `compound`, or `facet` operators.
 
-### Syntax
+#### Syntax
 
 ```javascript
 {
@@ -565,7 +599,7 @@ The `vectorSearch` operator runs inside a `$search` stage and performs ANN or EN
 }
 ```
 
-### Key Fields
+#### Key Fields
 
 | Field | Required | Description |
 |---|---|---|
@@ -579,7 +613,7 @@ The `vectorSearch` operator runs inside a `$search` stage and performs ANN or EN
 
 ---
 
-### Example 1: compound Prefilter (queryString + range)
+#### Example 1: compound Prefilter (queryString + range)
 
 Filter by text match OR date range before running vector search:
 
@@ -629,7 +663,7 @@ db.embedded_movies.aggregate([
 
 ---
 
-### Example 2: text Prefilter with Fuzzy Matching
+#### Example 2: text Prefilter with Fuzzy Matching
 
 Filter by fuzzy text match before running ANN vector search:
 
@@ -667,11 +701,12 @@ db.embedded_movies.aggregate([
 
 ---
 
-## Best Practices and Limitations
+### Best Practices and Limitations
 
-### Best Practices
+#### Best Practices
 
-**Set limits inside $search sub-pipelines**: `$search` does not limit results by default. Always add `$limit` inside the input pipeline, or `$rankFusion`/`$scoreFusion` evaluates all search results.
+Set limits inside $search sub-pipelines: `$search` does not limit results by default. Always add `$limit` inside the
+input pipeline, or `$rankFusion`/`$scoreFusion` evaluates all search results.
 
 ```javascript
 textPipeline: [
@@ -680,18 +715,25 @@ textPipeline: [
 ]
 ```
 
-**Set weights per-query**: Tune weights based on which search method is most appropriate for a given query rather than using fixed weights for all queries. This improves relevance and resource utilization.
+Set weights per-query: Tune weights based on which search method is most appropriate for a given query rather than using
+fixed weights for all queries. This improves relevance and resource utilization.
 
-**Handle disjoint results**: If most results come from one pipeline and not the other, the two methods are returning largely different documents. Increase per-pipeline limits to improve overlap.
+Handle disjoint results: If most results come from one pipeline and not the other, the two methods are returning largely
+different documents. Increase per-pipeline limits to improve overlap.
 
-**Use `$match` for non-search filtering**: To filter on specific fields without a search pipeline (e.g., boost on a flag field), add a `$match` pipeline inside `input.pipelines`. It must contain an explicit `$sort` to qualify as a ranked pipeline.
+Use `$match` for non-search filtering: To filter on specific fields without a search pipeline (e.g., boost on a flag
+field), add a `$match` pipeline inside `input.pipelines`. It must contain an explicit `$sort` to qualify as a ranked
+pipeline.
 
-### Limitations
+#### Limitations
 
-**Single collection only**: `$rankFusion` and `$scoreFusion` cannot span multiple collections. For cross-collection hybrid search, use `$unionWith` with `$vectorSearch`.
+Single collection only: `$rankFusion` and `$scoreFusion` cannot span multiple collections. For cross-collection hybrid
+search, use `$unionWith` with `$vectorSearch`.
 
-**Pipelines run serially**: Input pipelines do not execute in parallel.
+Pipelines run serially: Input pipelines do not execute in parallel.
 
-**No pagination inside sub-pipelines**: `$rankFusion` and `$scoreFusion` do not support pagination within input pipelines.
+No pagination inside sub-pipelines: `$rankFusion` and `$scoreFusion` do not support pagination within input pipelines.
 
-**vectorSearch operator restrictions**: Cannot be used inside `embeddedDocument`, `compound`, or `facet` operators. Cannot use `highlight`, `sort`, or `searchSequenceToken` with the `vectorSearch` operator — use `$skip` and `$limit` after `$search` instead.
+vectorSearch operator restrictions: Cannot be used inside `embeddedDocument`, `compound`, or `facet` operators. Cannot
+use `highlight`, `sort`, or `searchSequenceToken` with the `vectorSearch` operator, use `$skip` and `$limit` after
+`$search` instead.

@@ -6,7 +6,9 @@ origin: ECC
 
 # Dart/Flutter Patterns
 
-## When to Use
+---
+
+### When to Use
 
 Use this skill when:
 - Starting a new Flutter feature and need idiomatic patterns for state management, navigation, or data access
@@ -16,20 +18,24 @@ Use this skill when:
 - Writing tests for Flutter widgets, Cubits, or Riverpod providers
 - Wiring up GoRouter with authentication guards
 
-## How It Works
+---
+
+### How It Works
 
 This skill provides copy-paste-ready Dart/Flutter code patterns organized by concern:
-1. **Null safety** — avoid `!`, prefer `?.`/`??`/pattern matching
-2. **Immutable state** — sealed classes, `freezed`, `copyWith`
-3. **Async composition** — concurrent `Future.wait`, safe `BuildContext` after `await`
-4. **Widget architecture** — extract to classes (not methods), `const` propagation, scoped rebuilds
-5. **State management** — BLoC/Cubit events, Riverpod notifiers and derived providers
-6. **Navigation** — GoRouter with reactive auth guards via `refreshListenable`
-7. **Networking** — Dio with interceptors, token refresh with one-time retry guard
-8. **Error handling** — global capture, `ErrorWidget.builder`, crashlytics wiring
-9. **Testing** — unit (BLoC test), widget (ProviderScope overrides), fakes over mocks
+1. Null safety: avoid `!`, prefer `?.`/`??`/pattern matching
+2. Immutable state: sealed classes, `freezed`, `copyWith`
+3. Async composition: concurrent `Future.wait`, safe `BuildContext` after `await`
+4. Widget architecture: extract to classes (not methods), `const` propagation, scoped rebuilds
+5. State management: BLoC/Cubit events, Riverpod notifiers and derived providers
+6. Navigation: GoRouter with reactive auth guards via `refreshListenable`
+7. Networking: Dio with interceptors, token refresh with one-time retry guard
+8. Error handling: global capture, `ErrorWidget.builder`, crashlytics wiring
+9. Testing: unit (BLoC test), widget (ProviderScope overrides), fakes over mocks
 
-## Examples
+---
+
+### Examples
 
 ```dart
 // Sealed state — prevents impossible states
@@ -63,13 +69,14 @@ double cartTotal(Ref ref) {
 
 ---
 
-Practical, production-ready patterns for Dart and Flutter applications. Library-agnostic where possible, with explicit coverage of the most common ecosystem packages.
+Practical, production-ready patterns for Dart and Flutter applications. Library-agnostic where possible, with explicit
+coverage of the most common ecosystem packages.
 
 ---
 
-## 1. Null Safety Fundamentals
+### 1. Null Safety Fundamentals
 
-### Prefer Patterns Over Bang Operator
+#### Prefer Patterns Over Bang Operator
 
 ```dart
 // BAD — crashes at runtime if null
@@ -91,7 +98,7 @@ String getUserName(User? user) {
 }
 ```
 
-### Avoid `late` Overuse
+#### Avoid `late` Overuse
 
 ```dart
 // BAD — defers null error to runtime
@@ -113,9 +120,9 @@ void initState() {
 
 ---
 
-## 2. Immutable State
+### 2. Immutable State
 
-### Sealed Classes for State Hierarchies
+#### Sealed Classes for State Hierarchies
 
 ```dart
 sealed class UserState {}
@@ -143,7 +150,7 @@ Widget buildFrom(UserState state) => switch (state) {
 };
 ```
 
-### Freezed for Boilerplate-Free Immutability
+#### Freezed for Boilerplate-Free Immutability
 
 ```dart
 import 'package:freezed_annotation/freezed_annotation.dart';
@@ -172,9 +179,9 @@ final fromJson = User.fromJson(json);
 
 ---
 
-## 3. Async Composition
+### 3. Async Composition
 
-### Structured Concurrency with Future.wait
+#### Structured Concurrency with Future.wait
 
 ```dart
 Future<DashboardData> loadDashboard(UserRepository users, OrderRepository orders) async {
@@ -188,7 +195,7 @@ Future<DashboardData> loadDashboard(UserRepository users, OrderRepository orders
 }
 ```
 
-### Stream Patterns
+#### Stream Patterns
 
 ```dart
 // Repository exposes reactive streams for live data
@@ -209,7 +216,7 @@ StreamBuilder<List<Item>>(
 )
 ```
 
-### BuildContext After Await
+#### BuildContext After Await
 
 ```dart
 // CRITICAL — always check mounted after any await in StatefulWidget
@@ -230,9 +237,9 @@ Future<void> _handleSubmit() async {
 
 ---
 
-## 4. Widget Architecture
+### 4. Widget Architecture
 
-### Extract to Classes, Not Methods
+#### Extract to Classes, Not Methods
 
 ```dart
 // BAD — private method returning widget, prevents optimization
@@ -258,7 +265,7 @@ class _PageHeader extends StatelessWidget {
 }
 ```
 
-### const Propagation
+#### const Propagation
 
 ```dart
 // BAD — new instances every rebuild
@@ -274,7 +281,7 @@ child: const Padding(
 )
 ```
 
-### Scoped Rebuilds
+#### Scoped Rebuilds
 
 ```dart
 // BAD — entire page rebuilds on every counter change
@@ -321,7 +328,7 @@ class _CounterDisplay extends ConsumerWidget {
 
 ---
 
-## 5. State Management: BLoC/Cubit
+### 5. State Management: BLoC/Cubit
 
 ```dart
 // Cubit — synchronous or simple async state
@@ -358,7 +365,7 @@ BlocBuilder<AuthCubit, AuthState>(
 
 ---
 
-## 6. State Management: Riverpod
+### 6. State Management: Riverpod
 
 ```dart
 // Auto-dispose async provider
@@ -411,7 +418,7 @@ double cartTotal(Ref ref) {
 
 ---
 
-## 7. Navigation with GoRouter
+### 7. Navigation with GoRouter
 
 ```dart
 final router = GoRouter(
@@ -444,7 +451,7 @@ final router = GoRouter(
 
 ---
 
-## 8. HTTP with Dio
+### 8. HTTP with Dio
 
 ```dart
 final dio = Dio(BaseOptions(
@@ -489,7 +496,7 @@ class UserApiDataSource {
 
 ---
 
-## 9. Error Handling Architecture
+### 9. Error Handling Architecture
 
 ```dart
 // Global error capture — set up in main()
@@ -519,9 +526,9 @@ class App extends StatelessWidget {
 
 ---
 
-## 10. Testing Quick Reference
+### 10. Testing Quick Reference
 
-- Use `mocktail` for mocking in Dart tests — NOT `mockito`
+- Use `mocktail` for mocking in Dart tests: NOT `mockito`
 - For Riverpod unit tests, use `ProviderContainer` with `overrides`:
 
 ```dart
@@ -532,44 +539,69 @@ addTearDown(container.dispose);
 ```
 
 ```dart
-// Unit test — use case
+// Unit test — use case (error path)
 test('GetUserUseCase returns null for missing user', () async {
+  // Given a repository with no matching user
   final repo = FakeUserRepository();
   final useCase = GetUserUseCase(repo);
-  expect(await useCase('missing-id'), isNull);
+  // When the use case is invoked with an unknown id
+  final result = await useCase('missing-id');
+  // Then it resolves to null
+  expect(result, isNull);
 });
 
-// BLoC test
+// Unit test — use case (edge path: empty result set)
+test('GetActiveUsersUseCase returns an empty list when none are active', () async {
+  // Given a repository seeded only with inactive users
+  final repo = FakeUserRepository()..seed([inactiveUser]);
+  final useCase = GetActiveUsersUseCase(repo);
+  // When fetching active users
+  final result = await useCase();
+  // Then the result is empty, not null, and has length zero
+  expect(result, isEmpty);
+  expect(result, hasLength(0));
+});
+
+// BLoC test (error path)
 blocTest<AuthCubit, AuthState>(
   'emits loading then error on failed login',
+  // Given an auth service that throws on login
   build: () => AuthCubit(FakeAuthService(throwsOn: 'login')),
+  // When a login is attempted with wrong credentials
   act: (cubit) => cubit.login('user@test.com', 'wrong'),
+  // Then it emits loading then an error state
   expect: () => [const AuthState.loading(), isA<AuthError>()],
 );
 
-// Widget test
+// Widget test (happy path)
 testWidgets('CartBadge shows item count', (tester) async {
+  // Given a cart notifier reporting 3 items
+  // When the badge is pumped
   await tester.pumpWidget(
     ProviderScope(
       overrides: [cartNotifierProvider.overrideWith(() => FakeCartNotifier(count: 3))],
       child: const MaterialApp(home: CartBadge()),
     ),
   );
+  // Then the badge renders the exact count
   expect(find.text('3'), findsOneWidget);
 });
 ```
 
+Cover happy, error, and edge paths for each unit. Target around 90% line coverage of real logic, measured with
+`flutter test --coverage`. Never weaken an assertion to make a test green.
+
 ---
 
-## Dependency Injection Policy
-- Use **Riverpod providers** as the DI container for all Riverpod-based features
-- Do NOT use `get_it` alongside Riverpod — pick one DI strategy per feature
+### Dependency Injection Policy
+- Use Riverpod providers as the DI container for all Riverpod-based features
+- Do NOT use `get_it` alongside Riverpod: pick one DI strategy per feature
 - If using BLoC WITHOUT Riverpod: use `get_it` + `injectable`
 - Never mix Riverpod and BLoC within the same feature
 
 ---
 
-## Analysis Options
+### Analysis Options
 Enable strict Dart analysis in `analysis_options.yaml`:
 ```yaml
 analyzer:
@@ -581,7 +613,7 @@ analyzer:
 
 ---
 
-## Environment Flavors
+### Environment Flavors
 Use three flavors: `dev`, `staging`, `prod`.
 - Entry points: `lib/main_dev.dart`, `lib/main_staging.dart`, `lib/main_prod.dart`
 - Pass config via `--dart-define=FLAVOR=dev`
@@ -589,20 +621,20 @@ Use three flavors: `dev`, `staging`, `prod`.
 
 ---
 
-## Deep Linking
+### Deep Linking
 - Use GoRouter path parameters for universal links and app links
 - Register URL schemes in `Info.plist` (iOS) and `AndroidManifest.xml` (Android)
 - Test both cold start (app not running) and warm start (app in background)
 
 ---
 
-## Platform-Specific Code
-Use **Pigeon** for type-safe method channel communication between Flutter and native code.
+### Platform-Specific Code
+Use Pigeon for type-safe method channel communication between Flutter and native code.
 Define the API in a `.dart` Pigeon definition file; generate host and Flutter implementations.
 
 ---
 
-## CI/CD
+### CI/CD
 - GitHub Actions matrix build covering Android and iOS
 - Pin Flutter SDK version with FVM (`fvm use` in CI)
 - Required PR checks: `flutter analyze` (zero issues) + `flutter test` (all pass)
@@ -610,15 +642,15 @@ Define the API in a `.dart` Pigeon definition file; generate host and Flutter im
 
 ---
 
-## Performance
+### Performance
 - Use Flutter DevTools Performance view to identify jank
 - Wrap independently-repainting widgets in `RepaintBoundary`
 - Enable "Highlight Repaints" overlay during development to detect unnecessary rebuilds
-- Enforce `const` constructors via `flutter analyze` — missing `const` is a lint error
+- Enforce `const` constructors via `flutter analyze`: missing `const` is a lint error
 
 ---
 
-## References
+### References
 
 - [Effective Dart: Design](https://dart.dev/effective-dart/design)
 - [Flutter Performance Best Practices](https://docs.flutter.dev/perf/best-practices)
@@ -626,5 +658,5 @@ Define the API in a `.dart` Pigeon definition file; generate host and Flutter im
 - [BLoC Library](https://bloclibrary.dev/)
 - [GoRouter](https://pub.dev/packages/go_router)
 - [Freezed](https://pub.dev/packages/freezed)
-- Skill: `flutter-dart-code-review` — comprehensive review checklist
-- Rules: `rules/dart/` — coding style, patterns, security, testing, hooks
+- Skill: `flutter-dart-code-review`: comprehensive review checklist
+- Rules: `rules/dart/`: coding style, patterns, security, testing, hooks

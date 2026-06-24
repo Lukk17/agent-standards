@@ -8,7 +8,9 @@ origin: ECC
 
 Use for data modeling, repositories, and performance tuning in Spring Boot.
 
-## When to Activate
+---
+
+### When to Activate
 
 - Designing JPA entities and table mappings
 - Defining relationships (@OneToMany, @ManyToOne, @ManyToMany)
@@ -17,7 +19,9 @@ Use for data modeling, repositories, and performance tuning in Spring Boot.
 - Setting up pagination, sorting, or custom repository methods
 - Tuning connection pooling (HikariCP) or second-level caching
 
-## Entity Design
+---
+
+### Entity Design
 
 ```java
 @Entity
@@ -50,7 +54,9 @@ Enable auditing:
 class JpaConfig {}
 ```
 
-## Relationships and N+1 Prevention
+---
+
+### Relationships and N+1 Prevention
 
 ```java
 @OneToMany(mappedBy = "market", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -65,7 +71,9 @@ private List<PositionEntity> positions = new ArrayList<>();
 Optional<MarketEntity> findWithPositions(@Param("id") Long id);
 ```
 
-## Repository Patterns
+---
+
+### Repository Patterns
 
 ```java
 public interface MarketRepository extends JpaRepository<MarketEntity, Long> {
@@ -86,11 +94,18 @@ public interface MarketSummary {
 Page<MarketSummary> findAllBy(Pageable pageable);
 ```
 
-## Transactions
+Repositories may return `Page`, but the public API must wrap it in a project DTO (for example the `PageResponse<T>` used
+in the springboot-patterns skill) rather than serializing Spring Data's `Page` directly.
+
+---
+
+### Transactions
 
 - Annotate service methods with `@Transactional`
 - Use `@Transactional(readOnly = true)` for read paths to optimize
 - Choose propagation carefully; avoid long-running transactions
+- A multi-step write sequence (multiple save or update calls) must share one `@Transactional` boundary so the steps
+  commit or roll back together
 
 ```java
 @Transactional
@@ -102,7 +117,9 @@ public Market updateStatus(Long id, MarketStatus status) {
 }
 ```
 
-## Pagination
+---
+
+### Pagination
 
 ```java
 PageRequest page = PageRequest.of(pageNumber, pageSize, Sort.by("createdAt").descending());
@@ -111,14 +128,18 @@ Page<MarketEntity> markets = repo.findByStatus(MarketStatus.ACTIVE, page);
 
 For cursor-like pagination, include `id > :lastId` in JPQL with ordering.
 
-## Indexing and Performance
+---
+
+### Indexing and Performance
 
 - Add indexes for common filters (`status`, `slug`, foreign keys)
 - Use composite indexes matching query patterns (`status, created_at`)
 - Avoid `select *`; project only needed columns
 - Batch writes with `saveAll` and `hibernate.jdbc.batch_size`
 
-## Connection Pooling (HikariCP)
+---
+
+### Connection Pooling (HikariCP)
 
 Recommended properties:
 ```
@@ -133,33 +154,43 @@ For PostgreSQL LOB handling, add:
 spring.jpa.properties.hibernate.jdbc.lob.non_contextual_creation=true
 ```
 
-## Caching
+---
+
+### Caching
 
 - 1st-level cache is per EntityManager; avoid keeping entities across transactions
 - For read-heavy entities, consider second-level cache cautiously; validate eviction strategy
 
-## Migrations
+---
+
+### Migrations
 
 - Use Flyway or Liquibase; never rely on Hibernate auto DDL in production
 - Keep migrations idempotent and additive; avoid dropping columns without plan
 
-## Testing Data Access
+---
+
+### Testing Data Access
 
 - Prefer `@DataJpaTest` with Testcontainers to mirror production
-- Assert SQL efficiency using logs: set `logging.level.org.hibernate.SQL=DEBUG` and `logging.level.org.hibernate.orm.jdbc.bind=TRACE` for parameter values
+- Assert SQL efficiency using logs: set `logging.level.org.hibernate.SQL=DEBUG` and
+  `logging.level.org.hibernate.orm.jdbc.bind=TRACE` for parameter values
 
-**Remember**: Keep entities lean, queries intentional, and transactions short. Prevent N+1 with fetch strategies and projections, and index for your read/write paths.
+Remember: Keep entities lean, queries intentional, and transactions short. Prevent N+1 with fetch strategies and
+projections, and index for your read/write paths.
 
 ---
 
-## N+1 Detection via APM
+### N+1 Detection via APM
 
 Do not rely solely on Hibernate SQL logging for N+1 detection in production. Use:
-- **Hibernate Statistics** (`spring.jpa.properties.hibernate.generate_statistics=true`) in CI tests
-- **Datadog APM** or equivalent APM tool in production
-- **Classify detected N+1s as blocking defects** — they must be resolved before merge
+- Hibernate Statistics (`spring.jpa.properties.hibernate.generate_statistics=true`) in CI tests
+- Datadog APM or equivalent APM tool in production
+- Classify detected N+1s as blocking defects: they must be resolved before merge
 
-## Connection Pool Sizing
+---
+
+### Connection Pool Sizing
 
 Use the formula to calculate `maximumPoolSize`:
 
@@ -186,9 +217,11 @@ spring:
       max-lifetime: 1800000
 ```
 
-## Connection Pool Monitoring
+---
 
-Alert when pool utilization exceeds **80% for more than 30 seconds**. With Micrometer:
+### Connection Pool Monitoring
+
+Alert when pool utilization exceeds 80% for more than 30 seconds. With Micrometer:
 ```yaml
 management:
   metrics:

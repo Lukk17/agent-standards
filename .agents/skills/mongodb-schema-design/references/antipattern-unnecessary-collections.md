@@ -5,15 +5,21 @@ impactDescription: "Reduces avoidable joins when related data is repeatedly quer
 tags: schema, collections, anti-pattern, embedding, normalization, atlas-suggestion
 ---
 
-## Reduce Unnecessary Collections
+### Reduce Unnecessary Collections
 
-**Collection count alone is not the anti-pattern.** The anti-pattern is using collections as a substitute for indexes — creating one collection per category, time period, or partition key instead of indexing a single collection. Every collection carries a default `_id` index that consumes storage and strains the replica set, and cross-collection queries require `$lookup` or `$unionWith`, adding complexity and overhead.
+Collection count alone is not the anti-pattern. The anti-pattern is using collections as a substitute for indexes,
+creating one collection per category, time period, or partition key instead of indexing a single collection. Every
+collection carries a default `_id` index that consumes storage and strains the replica set, and cross-collection queries
+require `$lookup` or `$unionWith`, adding complexity and overhead.
 
-**Incorrect (one collection per day as partitioning strategy):**
+Incorrect (one collection per day as partitioning strategy):
 
-Creating one collection per time period (e.g. `temperatures_2024_05_10`, `temperatures_2024_05_11`, …) means each collection carries its own default `_id` index (365 collections/year = 365 extra indexes), cross-day queries require `$unionWith` across many collections, schema validation / indexes / TTL must be duplicated on every collection, and application code must dynamically resolve the collection name for each query.
+Creating one collection per time period (e.g. `temperatures_2024_05_10`, `temperatures_2024_05_11`, …) means each
+collection carries its own default `_id` index (365 collections/year = 365 extra indexes), cross-day queries require
+`$unionWith` across many collections, schema validation / indexes / TTL must be duplicated on every collection, and
+application code must dynamically resolve the collection name for each query.
 
-**Correct (single collection with an index):**
+Correct (single collection with an index):
 
 ```javascript
 // All readings in one collection — the index does the partitioning work
@@ -32,9 +38,10 @@ db.temperatures.find({
 db.temperatures.createIndex({ timestamp: 1 }, { expireAfterSeconds: 7776000 })
 ```
 
-**Even better (bucket pattern or time series collection):**
+Even better (bucket pattern or time series collection):
 
-For high-volume time-stamped data, group readings into buckets or use a native time series collection, which is optimized for this workload:
+For high-volume time-stamped data, group readings into buckets or use a native time series collection, which is
+optimized for this workload:
 
 ```javascript
 // Bucket pattern — one document per day
@@ -54,7 +61,7 @@ db.createCollection("temperatures", {
 })
 ```
 
-**When to use separate collections:**
+When to use separate collections:
 
 | Scenario | Separate Collection | Why |
 |----------|--------------------|----|
@@ -63,14 +70,16 @@ db.createCollection("temperatures", {
 | Many-to-many | Yes | Students ↔ Courses |
 | 1:1 always together | No (embed) | User and profile |
 
-**When NOT to use this pattern:**
+When NOT to use this pattern:
 
-- **Data is genuinely independent**: Products exist separately from orders; don't embed full product catalog in every order.
-- **Frequent independent updates**: If customer email changes shouldn't update all historical orders (it shouldn't).
-- **Data is accessed in different contexts**: Same address entity used for shipping, billing, user profile—keep it separate.
-- **Regulatory requirements**: Some industries require normalized data for audit trails.
+- Data is genuinely independent: Products exist separately from orders; don't embed full product catalog in every order.
+- Frequent independent updates: If customer email changes shouldn't update all historical orders (it shouldn't).
+- Data is accessed in different contexts: Same address entity used for shipping, billing, user profile-keep it separate.
+- Regulatory requirements: Some industries require normalized data for audit trails.
 
-## Verify with
+---
+
+### Verify with
 
 ```javascript
 // Count your collections
@@ -93,4 +102,5 @@ db.system.profile.aggregate([
 
 Atlas Schema Suggestions flags: "Reduce number of collections"
 
-Reference: [Reduce the Number of Collections](https://mongodb.com/docs/manual/data-modeling/design-antipatterns/reduce-collections/)
+Reference:
+[Reduce the Number of Collections](https://mongodb.com/docs/manual/data-modeling/design-antipatterns/reduce-collections/)

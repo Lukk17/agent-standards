@@ -8,7 +8,9 @@ origin: ECC
 
 Modern frontend patterns for React, Next.js, and performant user interfaces.
 
-## When to Activate
+---
+
+### When to Activate
 
 - Building React components (composition, props, rendering)
 - Managing state (useState, useReducer, Zustand, Context)
@@ -18,9 +20,15 @@ Modern frontend patterns for React, Next.js, and performant user interfaces.
 - Handling client-side routing and navigation
 - Building accessible, responsive UI patterns
 
-## Component Patterns
+---
 
-### Composition Over Inheritance
+### Component Patterns
+
+Define top-level components as named function declarations (`function Card(...) {}`). Reserve arrow
+functions for callbacks and inline handlers. Named declarations hoist, give clearer stack traces
+and component names in DevTools, and read consistently across a file.
+
+#### Composition Over Inheritance
 
 ```typescript
 // PASS: GOOD: Component composition
@@ -48,7 +56,7 @@ export function CardBody({ children }: { children: React.ReactNode }) {
 </Card>
 ```
 
-### Compound Components
+#### Compound Components
 
 ```typescript
 interface TabsContextValue {
@@ -98,43 +106,64 @@ export function Tab({ id, children }: { id: string, children: React.ReactNode })
 </Tabs>
 ```
 
-### Render Props Pattern
+#### Render Props Pattern
+
+Async state is one value, not three loose flags. Model it as a discriminated union so impossible
+combinations (loading and error and data all set at once) cannot be represented, and switch on
+`state.status` when rendering.
+
+```typescript
+type AsyncState<T> =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'success'; data: T }
+  | { status: 'error'; reason: Error }
+```
+
+Data is fetched through the typed API client (see API Client below), never `fetch` directly.
 
 ```typescript
 interface DataLoaderProps<T> {
-  url: string
-  children: (data: T | null, loading: boolean, error: Error | null) => React.ReactNode
+  load: () => Promise<T>
+  children: (state: AsyncState<T>) => React.ReactNode
 }
 
-export function DataLoader<T>({ url, children }: DataLoaderProps<T>) {
-  const [data, setData] = useState<T | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<Error | null>(null)
+export function DataLoader<T>({ load, children }: DataLoaderProps<T>) {
+  const [state, setState] = useState<AsyncState<T>>({ status: 'loading' })
 
   useEffect(() => {
-    fetch(url)
-      .then(res => res.json())
-      .then(setData)
-      .catch(setError)
-      .finally(() => setLoading(false))
-  }, [url])
+    let active = true
+    load()
+      .then(data => active && setState({ status: 'success', data }))
+      .catch((reason: Error) => active && setState({ status: 'error', reason }))
+    return () => { active = false }
+  }, [load])
 
-  return <>{children(data, loading, error)}</>
+  return <>{children(state)}</>
 }
 
-// Usage
-<DataLoader<Market[]> url="/api/markets">
-  {(markets, loading, error) => {
-    if (loading) return <Spinner />
-    if (error) return <Error error={error} />
-    return <MarketList markets={markets!} />
+// Usage: the loader calls the API client, never fetch
+<DataLoader<Market[]> load={() => api.markets.list()}>
+  {state => {
+    switch (state.status) {
+      case 'loading':
+        return <Spinner />
+      case 'error':
+        return <Error error={state.reason} />
+      case 'success':
+        return <MarketList markets={state.data} />
+      default:
+        return null
+    }
   }}
 </DataLoader>
 ```
 
-## Custom Hooks Patterns
+---
 
-### State Management Hook
+### Custom Hooks Patterns
+
+#### State Management Hook
 
 ```typescript
 export function useToggle(initialValue = false): [boolean, () => void] {
@@ -151,7 +180,11 @@ export function useToggle(initialValue = false): [boolean, () => void] {
 const [isOpen, toggleOpen] = useToggle()
 ```
 
-### Async Data Fetching Hook
+#### Async Data Fetching Hook
+
+The hook exposes one `state` value of the `AsyncState<T>` discriminated union (see Render Props
+above), not separate `data` / `loading` / `error` flags. Callers switch on `state.status`. The
+fetcher is the typed API client (see API Client below), never a raw `fetch`.
 
 ```typescript
 interface UseQueryOptions<T> {
@@ -165,24 +198,19 @@ export function useQuery<T>(
   fetcher: () => Promise<T>,
   options?: UseQueryOptions<T>
 ) {
-  const [data, setData] = useState<T | null>(null)
-  const [error, setError] = useState<Error | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [state, setState] = useState<AsyncState<T>>({ status: 'idle' })
 
   const refetch = useCallback(async () => {
-    setLoading(true)
-    setError(null)
+    setState({ status: 'loading' })
 
     try {
-      const result = await fetcher()
-      setData(result)
-      options?.onSuccess?.(result)
+      const data = await fetcher()
+      setState({ status: 'success', data })
+      options?.onSuccess?.(data)
     } catch (err) {
-      const error = err as Error
-      setError(error)
-      options?.onError?.(error)
-    } finally {
-      setLoading(false)
+      const reason = err as Error
+      setState({ status: 'error', reason })
+      options?.onError?.(reason)
     }
   }, [fetcher, options])
 
@@ -192,13 +220,13 @@ export function useQuery<T>(
     }
   }, [key, refetch, options?.enabled])
 
-  return { data, error, loading, refetch }
+  return { state, refetch }
 }
 
-// Usage
-const { data: markets, loading, error, refetch } = useQuery(
+// Usage: the fetcher is the API client, and rendering switches on state.status
+const { state, refetch } = useQuery(
   'markets',
-  () => fetch('/api/markets').then(r => r.json()),
+  () => api.markets.list(),
   {
     onSuccess: data => console.log('Fetched', data.length, 'markets'),
     onError: err => console.error('Failed:', err)
@@ -206,7 +234,7 @@ const { data: markets, loading, error, refetch } = useQuery(
 )
 ```
 
-### Debounce Hook
+#### Debounce Hook
 
 ```typescript
 export function useDebounce<T>(value: T, delay: number): T {
@@ -234,9 +262,38 @@ useEffect(() => {
 }, [debouncedQuery])
 ```
 
-## State Management Patterns
+---
 
-### Context + Reducer Pattern
+### API Client
+
+All network calls go through one typed API client module. Components and hooks call the client;
+they never call `fetch` directly. This keeps the base URL, headers, auth, and response typing in
+one place and keeps endpoint URLs out of the UI.
+
+```typescript
+// lib/api/client.ts
+async function request<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`)
+  if (!res.ok) throw new Error(`Request failed: ${res.status}`)
+  return res.json() as Promise<T>
+}
+
+export const api = {
+  markets: {
+    list: () => request<Market[]>('/markets'),
+    get: (id: string) => request<Market>(`/markets/${id}`)
+  }
+}
+
+// Usage: hooks and components call the client, never fetch
+const markets = await api.markets.list()
+```
+
+---
+
+### State Management Patterns
+
+#### Context + Reducer Pattern
 
 ```typescript
 interface State {
@@ -289,33 +346,49 @@ export function useMarkets() {
 }
 ```
 
-## Performance Optimization
+---
 
-### Memoization
+### Performance Optimization
+
+#### Memoization
+
+Reserve `useMemo`, `useCallback`, and `React.memo` for hotspots you have measured. Each one adds
+a dependency array to maintain and a cache to hold in memory, and a wrong dependency list is its
+own class of bug. Reaching for them reflexively on cheap work costs more than it saves. Memoize
+only after a profile shows the work is expensive or the re-renders are the actual bottleneck.
+
+Sorting and other transforms must not mutate their input. `Array.prototype.sort` sorts in place,
+so copy first with `[...markets]` before sorting; otherwise the source array (often a prop) is
+mutated.
 
 ```typescript
-// PASS: useMemo for expensive computations
+// PASS: useMemo for a measured expensive computation, copy before sorting
 const sortedMarkets = useMemo(() => {
-  return markets.sort((a, b) => b.volume - a.volume)
+  return [...markets].sort((a, b) => b.volume - a.volume)
 }, [markets])
 
 // PASS: useCallback for functions passed to children
 const handleSearch = useCallback((query: string) => {
   setSearchQuery(query)
 }, [])
+```
 
-// PASS: React.memo for pure components
-export const MarketCard = React.memo<MarketCardProps>(({ market }) => {
+`MarketCard` below is a trivial presentational component, so it is a plain function and is not
+wrapped in `React.memo`. Add `React.memo` only when a profile shows this component re-renders in a
+hot path with stable props.
+
+```typescript
+export function MarketCard({ market }: MarketCardProps) {
   return (
     <div className="market-card">
       <h3>{market.name}</h3>
       <p>{market.description}</p>
     </div>
   )
-})
+}
 ```
 
-### Code Splitting & Lazy Loading
+#### Code Splitting & Lazy Loading
 
 ```typescript
 import { lazy, Suspense } from 'react'
@@ -339,7 +412,7 @@ export function Dashboard() {
 }
 ```
 
-### Virtualization for Long Lists
+#### Virtualization for Long Lists
 
 ```typescript
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -383,9 +456,11 @@ export function VirtualMarketList({ markets }: { markets: Market[] }) {
 }
 ```
 
-## Form Handling Patterns
+---
 
-### Controlled Form with Validation
+### Form Handling Patterns
+
+#### Controlled Form with Validation
 
 ```typescript
 interface FormData {
@@ -448,19 +523,39 @@ export function CreateMarketForm() {
       <input
         value={formData.name}
         onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
-        placeholder="Market name"
+        placeholder={t('markets.form.namePlaceholder')}
       />
       {errors.name && <span className="error">{errors.name}</span>}
 
       {/* Other fields */}
 
-      <button type="submit">Create Market</button>
+      <button type="submit">{t('markets.form.submit')}</button>
     </form>
   )
 }
 ```
 
-## Error Boundary Pattern
+---
+
+### Internationalization
+
+User-facing text never lives as a literal in JSX. Every label, placeholder, button, and message
+goes through one i18n layer, looked up by key with `t('...')`, so copy lives in translation
+catalogues and the UI stays translatable. The examples above use this: `t('markets.form.submit')`,
+`t('errors.generic')`, `t('errors.retry')`.
+
+```typescript
+import { useTranslation } from 'react-i18next'
+
+export function SaveButton() {
+  const { t } = useTranslation()
+  return <button type="submit">{t('common.save')}</button>
+}
+```
+
+---
+
+### Error Boundary Pattern
 
 ```typescript
 interface ErrorBoundaryState {
@@ -489,10 +584,10 @@ export class ErrorBoundary extends React.Component<
     if (this.state.hasError) {
       return (
         <div className="error-fallback">
-          <h2>Something went wrong</h2>
+          <h2>{t('errors.generic')}</h2>
           <p>{this.state.error?.message}</p>
           <button onClick={() => this.setState({ hasError: false })}>
-            Try again
+            {t('errors.retry')}
           </button>
         </div>
       )
@@ -508,9 +603,11 @@ export class ErrorBoundary extends React.Component<
 </ErrorBoundary>
 ```
 
-## Animation Patterns
+---
 
-### Framer Motion Animations
+### Animation Patterns
+
+#### Framer Motion Animations
 
 ```typescript
 import { motion, AnimatePresence } from 'framer-motion'
@@ -562,9 +659,11 @@ export function Modal({ isOpen, onClose, children }: ModalProps) {
 }
 ```
 
-## Accessibility Patterns
+---
 
-### Keyboard Navigation
+### Accessibility Patterns
+
+#### Keyboard Navigation
 
 ```typescript
 export function Dropdown({ options, onSelect }: DropdownProps) {
@@ -605,7 +704,7 @@ export function Dropdown({ options, onSelect }: DropdownProps) {
 }
 ```
 
-### Focus Management
+#### Focus Management
 
 ```typescript
 export function Modal({ isOpen, onClose, children }: ModalProps) {
@@ -639,15 +738,16 @@ export function Modal({ isOpen, onClose, children }: ModalProps) {
 }
 ```
 
-**Remember**: Modern frontend patterns enable maintainable, performant user interfaces. Choose patterns that fit your project complexity.
+Remember: Modern frontend patterns enable maintainable, performant user interfaces. Choose patterns that fit your
+project complexity.
 
 ---
 
-## Motion & Animation Standards
+### Motion & Animation Standards
 
-### prefers-reduced-motion (Required on ALL Animations)
+#### prefers-reduced-motion (Required on ALL Animations)
 
-Every animation or transition — whether CSS, JS, or a library — must respect the user's motion preference:
+Every animation or transition, whether CSS, JS, or a library, must respect the user's motion preference:
 
 ```tsx
 // PASS: GOOD — CSS approach
@@ -693,15 +793,15 @@ export function AnimatedCard({ children }) {
 }
 ```
 
-**Timing guidelines:**
+Timing guidelines:
 | Type | Duration |
 |---|---|
-| Micro-interactions (hover, focus) | 100–150ms |
-| Component transitions (modal, drawer) | 200–300ms |
-| Page/route transitions | 300–500ms |
+| Micro-interactions (hover, focus) | 100-150ms |
+| Component transitions (modal, drawer) | 200-300ms |
+| Page/route transitions | 300-500ms |
 | Maximum allowed | 500ms |
 
-### CSS Custom Property Animations
+#### CSS Custom Property Animations
 
 ```css
 /* PASS: GOOD — token-driven, motion-safe */

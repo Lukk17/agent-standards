@@ -5,11 +5,12 @@ impactDescription: "Reduces sparse indexes and enables efficient search across m
 tags: schema, patterns, attribute, sparse-fields, indexing, flexible-schema
 ---
 
-## Use Attribute Pattern for Sparse or Variable Fields
+### Use Attribute Pattern for Sparse or Variable Fields
 
-**If documents have many optional fields, move them into a key-value array.** This avoids dozens of sparse indexes and lets you query across attributes with a single multikey index.
+If documents have many optional fields, move them into a key-value array. This avoids dozens of sparse indexes and lets
+you query across attributes with a single multikey index.
 
-**Incorrect (separate field and index per optional attribute):**
+Incorrect (separate field and index per optional attribute):
 
 ```javascript
 // Many optional fields - most are missing on any given document
@@ -30,7 +31,7 @@ db.items.createIndex({ material: 1 }, { partialFilterExpression: { material: { $
 // … repeated for every new attribute
 ```
 
-**Correct (attribute pattern):**
+Correct (attribute pattern):
 
 ```javascript
 // Store optional fields as key-value pairs
@@ -55,16 +56,18 @@ db.items.find({
 })
 ```
 
-**When NOT to use this pattern:**
+When NOT to use this pattern:
 
-- **Fixed schema**: If fields are stable and always present.
-- **Type-specific validation**: If each field needs strict schema rules.
-- **Single-field queries only**: A normal field may be simpler and faster.
-- **Atlas Search workloads**: The `{ k, v }` key-value structure cannot be mapped as
+- Fixed schema: If fields are stable and always present.
+- Type-specific validation: If each field needs strict schema rules.
+- Single-field queries only: A normal field may be simpler and faster.
+- Atlas Search workloads: The `{ k, v }` key-value structure cannot be mapped as
   named fields in Atlas Search indexes. If you need full-text search on attribute
   values by key name, use static named fields instead.
 
-## Verify with
+---
+
+### Verify with
 
 ```javascript
 // Ensure queries use the multikey index
@@ -74,4 +77,5 @@ db.items.find({
 }).explain("executionStats")
 ```
 
-Reference: [Attribute Pattern](https://mongodb.com/docs/manual/data-modeling/design-patterns/group-data/attribute-pattern/)
+Reference:
+[Attribute Pattern](https://mongodb.com/docs/manual/data-modeling/design-patterns/group-data/attribute-pattern/)

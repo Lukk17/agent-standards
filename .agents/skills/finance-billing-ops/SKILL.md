@@ -6,11 +6,15 @@ origin: ECC
 
 # Finance Billing Ops
 
-Use this when the user wants to understand money, pricing, refunds, team-seat logic, or whether the product actually behaves the way the website and sales copy imply.
+Use this when the user wants to understand money, pricing, refunds, team-seat logic, or whether the product actually
+behaves the way the website and sales copy imply.
 
-This is broader than `customer-billing-ops`. That skill is for customer remediation. This skill is for operator truth: revenue state, pricing decisions, team billing, and code-backed billing behavior.
+This is broader than `customer-billing-ops`. That skill is for customer remediation. This skill is for operator truth:
+revenue state, pricing decisions, team billing, and code-backed billing behavior.
 
-## Skill Stack
+---
+
+### Skill Stack
 
 Pull these ECC-native skills into the workflow when relevant:
 
@@ -20,14 +24,18 @@ Pull these ECC-native skills into the workflow when relevant:
 - `github-ops` when the billing truth depends on code, backlog, or release state in sibling repos
 - `verification-loop` when the answer depends on proving checkout, seat handling, or entitlement behavior
 
-## When to Use
+---
+
+### When to Use
 
 - user asks for Stripe sales, refunds, MRR, or recent customer activity
 - user asks whether team billing, per-seat billing, or quota stacking is real in code
 - user wants competitor pricing comparisons or pricing-model benchmarks
 - the question mixes revenue facts with product implementation truth
 
-## Guardrails
+---
+
+### Guardrails
 
 - distinguish live data from saved snapshots
 - separate:
@@ -38,9 +46,11 @@ Pull these ECC-native skills into the workflow when relevant:
 - do not say "per seat" unless the actual entitlement path enforces it
 - do not assume duplicate subscriptions imply duplicate value
 
-## Workflow
+---
 
-### 1. Start from the freshest billing evidence
+### Workflow
+
+#### 1. Start from the freshest billing evidence
 
 Prefer live billing data. If the data is not live, state the snapshot timestamp explicitly.
 
@@ -53,7 +63,7 @@ Normalize the picture:
 - disputes
 - duplicate subscriptions
 
-### 2. Separate customer incidents from product truth
+#### 2. Separate customer incidents from product truth
 
 If the question is customer-specific, classify first:
 
@@ -70,7 +80,7 @@ Then separate that from the broader product question:
 - does checkout quantity change entitlement?
 - does the site overstate current behavior?
 
-### 3. Inspect code-backed billing behavior
+#### 3. Inspect code-backed billing behavior
 
 If the answer depends on implementation truth, inspect the code path:
 
@@ -81,7 +91,7 @@ If the answer depends on implementation truth, inspect the code path:
 - installation vs user usage logic
 - billing portal or self-serve management support
 
-### 4. End with a decision and product gap
+#### 4. End with a decision and product gap
 
 Report:
 
@@ -91,7 +101,9 @@ Report:
 - recommended operator action
 - product or backlog gap
 
-## Output Format
+---
+
+### Output Format
 
 ```text
 SNAPSHOT
@@ -113,14 +125,18 @@ PRODUCT GAP
 - exact follow-up item to build or fix
 ```
 
-## Pitfalls
+---
+
+### Pitfalls
 
 - do not conflate failed attempts with net revenue
 - do not infer team billing from marketing language alone
 - do not compare competitor pricing from memory when current evidence is available
 - do not jump from diagnosis straight to refund without classifying the issue
 
-## Verification
+---
+
+### Verification
 
 - the answer includes a live-data statement or snapshot timestamp
 - product-truth claims are code-backed

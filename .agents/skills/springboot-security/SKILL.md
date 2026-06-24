@@ -8,7 +8,9 @@ origin: ECC
 
 Use when adding auth, handling input, creating endpoints, or dealing with secrets.
 
-## When to Activate
+---
+
+### When to Activate
 
 - Adding authentication (JWT, OAuth2, session-based)
 - Implementing authorization (@PreAuthorize, role-based access)
@@ -18,7 +20,9 @@ Use when adding auth, handling input, creating endpoints, or dealing with secret
 - Adding rate limiting or brute-force protection
 - Scanning dependencies for CVEs
 
-## Authentication
+---
+
+### Authentication
 
 - Prefer stateless JWT or opaque tokens with revocation list
 - Use `httpOnly`, `Secure`, `SameSite=Strict` cookies for sessions
@@ -47,18 +51,22 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 }
 ```
 
-## OAuth 2.1 Requirements
+---
+
+### OAuth 2.1 Requirements
 
 - Mandate PKCE for all authorization code flows
 - Prohibit Implicit Grant (removed in OAuth 2.1)
 - Prohibit Resource Owner Password Credentials (ROPC)
 - Implement Refresh Token Rotation: issue new refresh token on each use; invalidate old one
-- Access token lifetime: **15 minutes maximum**
+- Access token lifetime: 15 minutes maximum
 
-## JWT Validation
+---
+
+### JWT Validation
 
 Always validate:
-- `alg` claim: **explicitly reject `none` algorithm**
+- `alg` claim: explicitly reject `none` algorithm
 - `exp`: token must not be expired
 - `iss`: must match expected issuer
 - `aud`: must match expected audience
@@ -72,7 +80,9 @@ OAuth2TokenValidator<Jwt> audienceValidator = new JwtClaimValidator<List<String>
     AUD, aud -> aud.contains("my-api"));
 ```
 
-## Authorization
+---
+
+### Authorization
 
 - Enable method security: `@EnableMethodSecurity`
 - Use `@PreAuthorize("hasRole('ADMIN')")` or `@PreAuthorize("@authz.canEdit(#id)")`
@@ -98,7 +108,9 @@ public class AdminController {
 }
 ```
 
-## Input Validation
+---
+
+### Input Validation
 
 - Use Bean Validation with `@Valid` on controllers
 - Apply constraints on DTOs: `@NotBlank`, `@Email`, `@Size`, custom validators
@@ -125,7 +137,9 @@ public ResponseEntity<UserDto> createUser(@Valid @RequestBody CreateUserDto dto)
 }
 ```
 
-## SQL Injection Prevention
+---
+
+### SQL Injection Prevention
 
 - Use Spring Data repositories or parameterized queries
 - For native queries, use `:param` bindings; never concatenate strings
@@ -142,11 +156,13 @@ List<User> findByName(@Param("name") String name);
 List<User> findByEmailAndActiveTrue(String email);
 ```
 
-## Password Hashing
+---
 
-- **Primary (recommended):** Argon2id — `new Argon2PasswordEncoder(16, 32, 1, 65536, 3)` (Spring Security 5.8+)
-- **Acceptable fallback:** BCrypt with work factor >= 12 — `new BCryptPasswordEncoder(12)`
-- **Prohibited:** MD5, SHA-*, unsalted hashes, PBKDF2 with < 100,000 iterations
+### Password Hashing
+
+- Primary (recommended): Argon2id: `new Argon2PasswordEncoder(16, 32, 1, 65536, 3)` (Spring Security 5.8+)
+- Acceptable fallback: BCrypt with work factor >= 12: `new BCryptPasswordEncoder(12)`
+- Prohibited: MD5, SHA-*, unsalted hashes, PBKDF2 with < 100,000 iterations
 
 ```java
 @Bean
@@ -162,7 +178,9 @@ public User register(CreateUserDto dto) {
 }
 ```
 
-## CSRF Protection
+---
+
+### CSRF Protection
 
 - For browser session apps, keep CSRF enabled; include token in forms/headers
 - For pure APIs with Bearer tokens, disable CSRF and rely on stateless auth
@@ -175,7 +193,9 @@ http.csrf(csrf -> csrf.disable()); // Stateless JWT API — no CSRF risk
 http.sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 ```
 
-## Secrets Management
+---
+
+### Secrets Management
 
 - No secrets in source; load from env or vault
 - Keep `application.yml` free of credentials; use placeholders
@@ -200,7 +220,9 @@ spring:
       token: ${VAULT_TOKEN}
 ```
 
-## Security Headers
+---
+
+### Security Headers
 
 No `unsafe-inline` or `unsafe-eval` in CSP. Use nonces for inline scripts/styles if absolutely necessary.
 
@@ -220,7 +242,9 @@ http.headers(headers -> headers
         .policy("camera=(), microphone=(), geolocation=()")));
 ```
 
-## Service-to-Service: mTLS
+---
+
+### Service-to-Service: mTLS
 
 For internal service communication, enforce mutual TLS:
 
@@ -232,10 +256,12 @@ server:
     trust-store: classpath:trusted-cas.p12
 ```
 
-## CORS Configuration
+---
+
+### CORS Configuration
 
 - Configure CORS at the security filter level, not per-controller
-- Restrict allowed origins — never use `*` in production
+- Restrict allowed origins: never use `*` in production
 
 ```java
 @Bean
@@ -256,7 +282,9 @@ public CorsConfigurationSource corsConfigurationSource() {
 http.cors(cors -> cors.configurationSource(corsConfigurationSource()));
 ```
 
-## Rate Limiting
+---
+
+### Rate Limiting
 
 - Apply Bucket4j or gateway-level limits on expensive endpoints
 - Log and alert on bursts; return 429 with retry hints
@@ -289,23 +317,31 @@ public class RateLimitFilter extends OncePerRequestFilter {
 }
 ```
 
-## Dependency Security
+---
+
+### Dependency Security
 
 - Run OWASP Dependency Check / Snyk in CI
 - Keep Spring Boot and Spring Security on supported versions
 - Fail builds on known CVEs
 
-## Logging and PII
+---
+
+### Logging and PII
 
 - Never log secrets, tokens, passwords, or full PAN data
 - Redact sensitive fields; use structured JSON logging
 
-## File Uploads
+---
+
+### File Uploads
 
 - Validate size, content type, and extension
 - Store outside web root; scan if required
 
-## Checklist Before Release
+---
+
+### Checklist Before Release
 
 - [ ] Auth tokens validated and expired correctly
 - [ ] Authorization guards on every sensitive path
@@ -321,4 +357,4 @@ public class RateLimitFilter extends OncePerRequestFilter {
 - [ ] JWT validates alg (rejects none), exp, iss, aud
 - [ ] Password hashing uses Argon2id or BCrypt (work factor >= 12)
 
-**Remember**: Deny by default, validate inputs, least privilege, and secure-by-configuration first.
+Remember: Deny by default, validate inputs, least privilege, and secure-by-configuration first.

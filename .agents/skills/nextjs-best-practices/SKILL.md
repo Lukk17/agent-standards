@@ -12,9 +12,9 @@ date_added: "2026-02-27"
 
 ---
 
-## 1. Server vs Client Components
+### 1. Server vs Client Components
 
-### Decision Tree
+#### Decision Tree
 
 ```
 Does it need...?
@@ -29,26 +29,26 @@ Does it need...?
     └── Split: Server parent + Client child
 ```
 
-### By Default
+#### By Default
 
 | Type | Use |
 |------|-----|
-| **Server** | Data fetching, layout, static content |
-| **Client** | Forms, buttons, interactive UI |
+| Server | Data fetching, layout, static content |
+| Client | Forms, buttons, interactive UI |
 
 ---
 
-## 2. Data Fetching Patterns
+### 2. Data Fetching Patterns
 
-### Fetch Strategy
+#### Fetch Strategy
 
 | Pattern | Use |
 |---------|-----|
-| **Default** | Static (cached at build) |
-| **Revalidate** | ISR (time-based refresh) |
-| **No-store** | Dynamic (every request) |
+| Default | Static (cached at build) |
+| Revalidate | ISR (time-based refresh) |
+| No-store | Dynamic (every request) |
 
-### Data Flow
+#### Data Flow
 
 | Source | Pattern |
 |--------|---------|
@@ -58,9 +58,9 @@ Does it need...?
 
 ---
 
-## 3. Routing Principles
+### 3. Routing Principles
 
-### File Conventions
+#### File Conventions
 
 | File | Purpose |
 |------|---------|
@@ -70,7 +70,7 @@ Does it need...?
 | `error.tsx` | Error boundary |
 | `not-found.tsx` | 404 page |
 
-### Route Organization
+#### Route Organization
 
 | Pattern | Use |
 |---------|-----|
@@ -80,9 +80,9 @@ Does it need...?
 
 ---
 
-## 4. API Routes
+### 4. API Routes
 
-### Route Handlers
+#### Route Handlers
 
 | Method | Use |
 |--------|-----|
@@ -91,7 +91,7 @@ Does it need...?
 | PUT/PATCH | Update data |
 | DELETE | Remove data |
 
-### Best Practices
+#### Best Practices
 
 - Validate input with Zod
 - Return proper status codes
@@ -100,16 +100,16 @@ Does it need...?
 
 ---
 
-## 5. Performance Principles
+### 5. Performance Principles
 
-### Image Optimization
+#### Image Optimization
 
 - Use next/image component
 - Set priority for above-fold
 - Provide blur placeholder
 - Use responsive sizes
 
-### Bundle Optimization
+#### Bundle Optimization
 
 - Dynamic imports for heavy components
 - Route-based code splitting (automatic)
@@ -117,16 +117,16 @@ Does it need...?
 
 ---
 
-## 6. Metadata
+### 6. Metadata
 
-### Static vs Dynamic
+#### Static vs Dynamic
 
 | Type | Use |
 |------|-----|
 | Static export | Fixed metadata |
 | generateMetadata | Dynamic per-route |
 
-### Essential Tags
+#### Essential Tags
 
 - title (50-60 chars)
 - description (150-160 chars)
@@ -135,9 +135,9 @@ Does it need...?
 
 ---
 
-## 7. Caching Strategy
+### 7. Caching Strategy
 
-### Cache Layers
+#### Cache Layers
 
 | Layer | Control |
 |-------|---------|
@@ -145,7 +145,7 @@ Does it need...?
 | Data | revalidate/tags |
 | Full route | route config |
 
-### Revalidation
+#### Revalidation
 
 | Method | Use |
 |--------|-----|
@@ -155,15 +155,15 @@ Does it need...?
 
 ---
 
-## 8. Server Actions
+### 8. Server Actions
 
-### Use Cases
+#### Use Cases
 
 - Form submissions
 - Data mutations
 - Revalidation triggers
 
-### Best Practices
+#### Best Practices
 
 - Mark with 'use server'
 - Validate all inputs
@@ -172,7 +172,7 @@ Does it need...?
 
 ---
 
-## 9. Anti-Patterns
+### 9. Anti-Patterns
 
 | ❌ Don't | ✅ Do |
 |----------|-------|
@@ -184,7 +184,7 @@ Does it need...?
 
 ---
 
-## 10. Project Structure
+### 10. Project Structure
 
 ```
 app/
@@ -202,12 +202,16 @@ app/
 
 ---
 
-> **Remember:** Server Components are the default for a reason. Start there, add client only when needed.
+> Remember: Server Components are the default for a reason. Start there, add client only when needed.
 
-## When to Use
+---
+
+### When to Use
 This skill is applicable to execute the workflow or actions described in the overview.
 
-## Limitations
+---
+
+### Limitations
 - Use this skill only when the task clearly matches the scope described above.
 - Do not treat the output as a substitute for environment-specific validation, testing, or expert review.
 - Stop and ask for clarification if required inputs, permissions, safety boundaries, or success criteria are missing.

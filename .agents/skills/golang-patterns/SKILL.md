@@ -8,16 +8,20 @@ origin: ECC
 
 Idiomatic Go patterns and best practices for building robust, efficient, and maintainable applications.
 
-## When to Activate
+---
+
+### When to Activate
 
 - Writing new Go code
 - Reviewing Go code
 - Refactoring existing Go code
 - Designing Go packages/modules
 
-## Core Principles
+---
 
-### 1. Simplicity and Clarity
+### Core Principles
+
+#### 1. Simplicity and Clarity
 
 Go favors simplicity over cleverness. Code should be obvious and easy to read.
 
@@ -43,7 +47,7 @@ func GetUser(id string) (*User, error) {
 }
 ```
 
-### 2. Make the Zero Value Useful
+#### 2. Make the Zero Value Useful
 
 Design types so their zero value is immediately usable without initialization.
 
@@ -70,7 +74,7 @@ type BadCounter struct {
 }
 ```
 
-### 3. Accept Interfaces, Return Structs
+#### 3. Accept Interfaces, Return Structs
 
 Functions should accept interface parameters and return concrete types.
 
@@ -90,9 +94,11 @@ func ProcessData(r io.Reader) (io.Reader, error) {
 }
 ```
 
-## Error Handling Patterns
+---
 
-### Error Wrapping with Context
+### Error Handling Patterns
+
+#### Error Wrapping with Context
 
 ```go
 // Good: Wrap errors with context
@@ -111,7 +117,7 @@ func LoadConfig(path string) (*Config, error) {
 }
 ```
 
-### Custom Error Types
+#### Custom Error Types
 
 ```go
 // Define domain-specific errors
@@ -132,7 +138,7 @@ var (
 )
 ```
 
-### Error Checking with errors.Is and errors.As
+#### Error Checking with errors.Is and errors.As
 
 ```go
 func HandleError(err error) {
@@ -155,7 +161,7 @@ func HandleError(err error) {
 }
 ```
 
-### Never Ignore Errors
+#### Never Ignore Errors
 
 ```go
 // Bad: Ignoring error with blank identifier
@@ -171,9 +177,11 @@ if err != nil {
 _ = writer.Close() // Best-effort cleanup, error logged elsewhere
 ```
 
-## Concurrency Patterns
+---
 
-### Worker Pool
+### Concurrency Patterns
+
+#### Worker Pool
 
 ```go
 func WorkerPool(jobs <-chan Job, results chan<- Result, numWorkers int) {
@@ -194,7 +202,7 @@ func WorkerPool(jobs <-chan Job, results chan<- Result, numWorkers int) {
 }
 ```
 
-### Context for Cancellation and Timeouts
+#### Context for Cancellation and Timeouts
 
 ```go
 func FetchWithTimeout(ctx context.Context, url string) ([]byte, error) {
@@ -216,7 +224,7 @@ func FetchWithTimeout(ctx context.Context, url string) ([]byte, error) {
 }
 ```
 
-### Graceful Shutdown
+#### Graceful Shutdown
 
 ```go
 func GracefulShutdown(server *http.Server) {
@@ -237,7 +245,7 @@ func GracefulShutdown(server *http.Server) {
 }
 ```
 
-### errgroup for Coordinated Goroutines
+#### errgroup for Coordinated Goroutines
 
 ```go
 import "golang.org/x/sync/errgroup"
@@ -265,7 +273,7 @@ func FetchAll(ctx context.Context, urls []string) ([][]byte, error) {
 }
 ```
 
-### Avoiding Goroutine Leaks
+#### Avoiding Goroutine Leaks
 
 ```go
 // Bad: Goroutine leak if context is cancelled
@@ -295,9 +303,11 @@ func safeFetch(ctx context.Context, url string) <-chan []byte {
 }
 ```
 
-## Interface Design
+---
 
-### Small, Focused Interfaces
+### Interface Design
+
+#### Small, Focused Interfaces
 
 ```go
 // Good: Single-method interfaces
@@ -321,7 +331,7 @@ type ReadWriteCloser interface {
 }
 ```
 
-### Define Interfaces Where They're Used
+#### Define Interfaces Where They're Used
 
 ```go
 // In the consumer package, not the provider
@@ -341,7 +351,7 @@ type Service struct {
 // It doesn't need to know about this interface
 ```
 
-### Optional Behavior with Type Assertions
+#### Optional Behavior with Type Assertions
 
 ```go
 type Flusher interface {
@@ -361,9 +371,11 @@ func WriteAndFlush(w io.Writer, data []byte) error {
 }
 ```
 
-## Package Organization
+---
 
-### Standard Project Layout
+### Package Organization
+
+#### Standard Project Layout
 
 ```text
 myproject/
@@ -385,7 +397,7 @@ myproject/
 └── Makefile
 ```
 
-### Package Naming
+#### Package Naming
 
 ```go
 // Good: Short, lowercase, no underscores
@@ -399,7 +411,7 @@ package json_parser
 package userService // Redundant 'Service' suffix
 ```
 
-### Avoid Package-Level State
+#### Avoid Package-Level State
 
 ```go
 // Bad: Global mutable state
@@ -419,9 +431,11 @@ func NewServer(db *sql.DB) *Server {
 }
 ```
 
-## Struct Design
+---
 
-### Functional Options Pattern
+### Struct Design
+
+#### Functional Options Pattern
 
 ```go
 type Server struct {
@@ -463,7 +477,7 @@ server := NewServer(":8080",
 )
 ```
 
-### Embedding for Composition
+#### Embedding for Composition
 
 ```go
 type Logger struct {
@@ -491,9 +505,11 @@ s := NewServer(":8080")
 s.Log("Starting...") // Calls embedded Logger.Log
 ```
 
-## Memory and Performance
+---
 
-### Preallocate Slices When Size is Known
+### Memory and Performance
+
+#### Preallocate Slices When Size is Known
 
 ```go
 // Bad: Grows slice multiple times
@@ -515,7 +531,7 @@ func processItems(items []Item) []Result {
 }
 ```
 
-### Use sync.Pool for Frequent Allocations
+#### Use sync.Pool for Frequent Allocations
 
 ```go
 var bufferPool = sync.Pool{
@@ -537,7 +553,7 @@ func ProcessRequest(data []byte) []byte {
 }
 ```
 
-### Avoid String Concatenation in Loops
+#### Avoid String Concatenation in Loops
 
 ```go
 // Bad: Creates many string allocations
@@ -567,9 +583,11 @@ func join(parts []string) string {
 }
 ```
 
-## Go Tooling Integration
+---
 
-### Essential Commands
+### Go Tooling Integration
+
+#### Essential Commands
 
 ```bash
 # Build and run
@@ -595,7 +613,7 @@ gofmt -w .
 goimports -w .
 ```
 
-### Recommended Linter Configuration (.golangci.yml)
+#### Recommended Linter Configuration (.golangci.yml)
 
 ```yaml
 linters:
@@ -622,7 +640,9 @@ issues:
   exclude-use-default: false
 ```
 
-## Quick Reference: Go Idioms
+---
+
+### Quick Reference: Go Idioms
 
 | Idiom | Description |
 |-------|-------------|
@@ -635,11 +655,18 @@ issues:
 | gofmt is no one's favorite but everyone's friend | Always format with gofmt/goimports |
 | Return early | Handle errors first, keep happy path unindented |
 
-## Startup readiness log
+---
 
-See [coding-standards](../coding-standards/SKILL.md) → "Startup readiness log" for the universal convention (ANSI Shadow banner, URL + profile + dependency + observability sections, 2-second probe timeouts, `<url> [Connected|Warning|FAILED]` result format).
+### Startup readiness log
 
-**Hook:** emit the log immediately *before* `srv.ListenAndServe()` (the listener binds the moment that call begins blocking). For graceful-shutdown patterns where `ListenAndServe` runs in a goroutine, emit from inside the goroutine right after the call returns from binding.
+See [observability-and-logging](../observability-and-logging/SKILL.md) → "Startup readiness log" for the universal
+convention (ANSI Shadow
+banner, URL + profile + dependency + observability sections, 2-second probe timeouts, `<url> [Connected|Warning|FAILED]`
+result format).
+
+Hook: emit the log immediately before `srv.ListenAndServe()` (the listener binds the moment that call begins
+blocking). For graceful-shutdown patterns where `ListenAndServe` runs in a goroutine, emit from inside the goroutine
+right after the call returns from binding.
 
 ```go
 srv := &http.Server{Addr: ":8080", Handler: mux}
@@ -653,7 +680,8 @@ if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClos
 }
 ```
 
-**Probe timeouts:** `http.Client{Timeout: 2 * time.Second}` so unreachable dependencies don't stall the banner. Wrap errors with context, log detail at debug, surface only `[FAILED]`.
+Probe timeouts: `http.Client{Timeout: 2 * time.Second}` so unreachable dependencies don't stall the banner. Wrap errors
+with context, log detail at debug, surface only `[FAILED]`.
 
 ```go
 func probe(url string) string {
@@ -671,7 +699,9 @@ func probe(url string) string {
 }
 ```
 
-## Anti-Patterns to Avoid
+---
+
+### Anti-Patterns to Avoid
 
 ```go
 // Bad: Naked returns in long functions
@@ -707,4 +737,5 @@ func (c *Counter) Increment() { c.n++ }        // Pointer receiver
 // Pick one style and be consistent
 ```
 
-**Remember**: Go code should be boring in the best way - predictable, consistent, and easy to understand. When in doubt, keep it simple.
+Remember: Go code should be boring in the best way - predictable, consistent, and easy to understand. When in doubt,
+keep it simple.

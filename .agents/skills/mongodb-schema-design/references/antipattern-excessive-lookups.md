@@ -5,11 +5,13 @@ impactDescription: "Can reduce query cost on hot paths by avoiding repeated cros
 tags: schema, lookup, anti-pattern, joins, denormalization, atlas-suggestion
 ---
 
-## Reduce Excessive $lookup Usage
+### Reduce Excessive $lookup Usage
 
-**Frequent $lookup operations on hot paths can indicate over-normalization.** `$lookup` is useful, but repeated joins can be slower and more resource-intensive than querying a single collection, especially when supporting indexes or match selectivity are weak. If the same related fields are read together often, consider embedding or extended references.
+Frequent $lookup operations on hot paths can indicate over-normalization. `$lookup` is useful, but repeated joins can be
+slower and more resource-intensive than querying a single collection, especially when supporting indexes or match
+selectivity are weak. If the same related fields are read together often, consider embedding or extended references.
 
-**Incorrect (constant $lookup for common operations):**
+Incorrect (constant $lookup for common operations):
 
 ```javascript
 // Every product page requires repeated joins across collections
@@ -35,22 +37,28 @@ db.products.aggregate([
 
 Join cost depends on cardinality, stage order, index support, and result size. Measure before deciding to embed.
 
-**Correct (denormalize frequently-joined data):**
+Correct (denormalize frequently-joined data):
 
-Embed data that is always displayed alongside the product directly in the product document: include category fields (`_id`, `name`, `path`) and brand fields (`_id`, `name`, `logo`) as subdocuments. A single indexed query returns complete product data without `$lookup`. Listing queries (e.g. by category) also run against a single collection.
+Embed data that is always displayed alongside the product directly in the product document: include category fields
+(`_id`, `name`, `path`) and brand fields (`_id`, `name`, `logo`) as subdocuments. A single indexed query returns
+complete product data without `$lookup`. Listing queries (e.g. by category) also run against a single collection.
 
-**Managing denormalized data updates:**
+Managing denormalized data updates:
 
-When category data changes (a rare event), use `updateMany` to update all products matching that category’s `_id` with the new field values. For frequently-changing data, keep both a reference ID (`brandId`) and a cache subdocument (`brandCache`) with a `cachedAt` timestamp; refresh the cache when it exceeds a staleness threshold.
+When category data changes (a rare event), use `updateMany` to update all products matching that category’s `_id` with
+the new field values. For frequently-changing data, keep both a reference ID (`brandId`) and a cache subdocument
+(`brandCache`) with a `cachedAt` timestamp; refresh the cache when it exceeds a staleness threshold.
 
-**When NOT to use this pattern:**
+When NOT to use this pattern:
 
-- **Data changes frequently and independently**: If brand logos change daily, denormalization creates update overhead.
-- **Rarely-accessed data**: Don't embed review details if only a small fraction of product views load reviews.
-- **Many-to-many with high cardinality**: Avoid embedding large or fast-growing relationship sets.
-- **Analytics queries**: Batch jobs can afford $lookup latency; real-time queries cannot.
+- Data changes frequently and independently: If brand logos change daily, denormalization creates update overhead.
+- Rarely-accessed data: Don't embed review details if only a small fraction of product views load reviews.
+- Many-to-many with high cardinality: Avoid embedding large or fast-growing relationship sets.
+- Analytics queries: Batch jobs can afford $lookup latency; real-time queries cannot.
 
-## Verify with
+---
+
+### Verify with
 
 ```javascript
 // Find pipelines with multiple $lookup stages
@@ -78,4 +86,5 @@ db.products.aggregate([
 
 Atlas Schema Suggestions flags: "Reduce $lookup operations"
 
-Reference: [Reduce Lookup Operations](https://mongodb.com/docs/manual/data-modeling/design-antipatterns/reduce-lookup-operations/)
+Reference:
+[Reduce Lookup Operations](https://mongodb.com/docs/manual/data-modeling/design-antipatterns/reduce-lookup-operations/)
