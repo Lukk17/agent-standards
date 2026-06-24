@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Generate per-tool subagent files from canonical subagents/*.md
 
-Source of truth:  subagents/<name>.md          (this repo only; not shipped to consumers)
-Generated:        .claude/agents/<name>.md     (Claude Code)
-                  .opencode/agents/<name>.md   (OpenCode + Kilo Code, shared)
+Source of truth:  subagents/<name>.md             (this repo only; not shipped to consumers)
+Generated:        .claude/agents/<name>.md        (Claude Code)
+                  .opencode/agents/<name>.md      (OpenCode + Kilo Code, shared)
+                  .github/agents/<name>.agent.md  (GitHub Copilot, VS Code + CLI)
 
 Kilo Code reads .opencode/agents/*.md natively per its current docs, so there is
-no separate .kilo/agents/ output.
+no separate .kilo/agents/ output. GitHub Copilot auto-detects .agent.md files in
+.github/agents/ (VS Code and the Copilot CLI; JetBrains custom-agent support is
+in public preview).
 
 Consumer repos pull only the generated trees plus skills — they never see the
 canonical subagents/ source or this generator.
@@ -27,8 +30,9 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 SRC = ROOT / "subagents"
 
 TARGETS = {
-    "claude": ROOT / ".claude" / "agents",
-    "opencode": ROOT / ".opencode" / "agents",
+    "claude": (ROOT / ".claude" / "agents", ".md"),
+    "opencode": (ROOT / ".opencode" / "agents", ".md"),
+    "copilot": (ROOT / ".github" / "agents", ".agent.md"),
 }
 
 CLAUDE_TOOLS = {
@@ -129,9 +133,23 @@ def emit_opencode(fm: dict, body: str) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def emit_copilot(fm: dict, body: str) -> str:
+    lines = [
+        "---",
+        f"name: {fm['name']}",
+        f"description: {fm['description'].strip()}",
+        "---",
+        "",
+        body.rstrip() + skills_block(fm.get("skills")),
+    ]
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def render(tool: str, fm: dict, body: str) -> str:
     if tool == "claude":
         return emit_claude(fm, body)
+    if tool == "copilot":
+        return emit_copilot(fm, body)
     return emit_opencode(fm, body)
 
 
@@ -150,9 +168,9 @@ def main() -> None:
             sys.exit(f"ERROR duplicate agent name: {fm['name']}")
         canonical_names.add(fm["name"])
 
-        for tool, outdir in TARGETS.items():
+        for tool, (outdir, ext) in TARGETS.items():
             outdir.mkdir(parents=True, exist_ok=True)
-            target = outdir / f"{fm['name']}.md"
+            target = outdir / f"{fm['name']}{ext}"
             new = render(tool, fm, body).encode("utf-8")
             old = target.read_bytes() if target.exists() else None
             if old != new:
@@ -162,11 +180,12 @@ def main() -> None:
                     written += 1
 
     orphans: list[pathlib.Path] = []
-    for tool, outdir in TARGETS.items():
+    for tool, (outdir, ext) in TARGETS.items():
         if not outdir.is_dir():
             continue
-        for f in outdir.glob("*.md"):
-            if f.stem not in canonical_names:
+        for f in outdir.glob(f"*{ext}"):
+            name = f.name[: -len(ext)]
+            if name not in canonical_names:
                 orphans.append(f)
                 if not check:
                     f.unlink()

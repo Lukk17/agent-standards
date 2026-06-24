@@ -1,12 +1,12 @@
 # AGENTS.md
 
 This file provides shared instructions to all AI coding agents working in this repository (Claude Code, Kilo Code,
-OpenCode, Codex CLI). Standards and skills are imported from
+OpenCode, Codex CLI, GitHub Copilot). Standards and skills are imported from
 [agent-standards](https://github.com/Lukk17/agent-standards).
 
 ---
 
-## Required opening move
+### Required opening move
 
 Before any code work on a task, in one line, name the skill(s) and subagent(s) that own it and invoke them, or
 state "none apply" and why. State this as the first line of your reply: it is a required output you produce, not a
@@ -25,7 +25,7 @@ reaching for them the first move.
 
 ---
 
-## Skills
+### Skills
 
 This project includes agent skills in [.agents/skills/](.agents/skills/). Invoke relevant skills before starting
 implementation work. Examples:
@@ -40,10 +40,11 @@ Slash commands may appear as `/name` or `/name.md` in your agent's autocomplete;
 
 ---
 
-## Subagents
+### Subagents
 
 This project ships a catalogue of specialised subagents: narrow-scope agents the main session delegates to. Claude
-Code reads [.claude/agents/](.claude/agents/); OpenCode and Kilo Code both read [.opencode/agents/](.opencode/agents/).
+Code reads [.claude/agents/](.claude/agents/); OpenCode and Kilo Code both read [.opencode/agents/](.opencode/agents/);
+GitHub Copilot reads [.github/agents/](.github/agents/) (`*.agent.md` files) in VS Code and the Copilot CLI.
 Codex CLI has no per-agent file mechanism; it sees [AGENTS.md](AGENTS.md) plus skills only.
 
 These files are generated artifacts pulled from agent-standards. Do **not** hand-edit them; changes will be
@@ -65,7 +66,7 @@ your agent. Browse the
 [agent-standards subagents directory](https://github.com/Lukk17/agent-standards/tree/master/subagents) for the
 canonical sources.
 
-### When to use them
+#### When to use them
 
 **Use subagents proactively, not reactively.** If a task has a subagent that fits, spawn it. Do not try to do the
 specialist's work yourself from the main session; a short main-session reply that delegates correctly beats a long
@@ -113,7 +114,7 @@ Codex, do the work in-session and lean harder on skills.
 
 ---
 
-## MCP servers
+### MCP servers
 
 This project may expose MCP tools. Check your tool list at startup and use them when they're a better fit than
 re-deriving the answer from local files. The full server list and human-side setup live in
@@ -121,7 +122,7 @@ re-deriving the answer from local files. The full server list and human-side set
 
 ---
 
-## End-to-end capability tests
+### End-to-end capability tests
 
 If this project has an `e2e/` directory with `e2e/testing/*-test.md` files, those are spec-driven capability tests
 following the methodology in the `/e2e-runbooks` skill. Before adding a new one, run the skill. Each
@@ -135,7 +136,7 @@ Projects on OpenSpec can install the matching schema for slash-command lifecycle
 
 ---
 
-## Working With Agents
+### Working With Agents
 
 All supported agents read this `AGENTS.md` from the project root and auto-discover skills from
 [.agents/skills/](.agents/skills/). Start your agent from the project root:
@@ -147,21 +148,25 @@ All supported agents read this `AGENTS.md` from the project root and auto-discov
   `opencode.json`.
 - **OpenCode**: reads `AGENTS.md` automatically. Optional [opencode.json](opencode.json.example) at project root.
 - **Codex CLI**: run `codex`. Reads `AGENTS.md` automatically. Global settings in `~/.codex/config.toml`.
+- **GitHub Copilot**: the Copilot CLI and VS Code chat read `AGENTS.md`; local IntelliJ and VS Code chat also read
+  [.github/copilot-instructions.md](.github/copilot-instructions.md) (copy it from the `.example`). Subagents come
+  from [.github/agents/](.github/agents/) and MCP servers from `.vscode/mcp.json` (template
+  [.vscode/mcp.json.example](.vscode/mcp.json.example)).
 
 ---
 
-## Working Principles
+### Working Principles
 
 Apply these to every task, in order. They govern *how* you work; the `coding-standards` skill governs *what the code
 should look like*.
 
-### 1. Think Before Coding
+#### 1. Think Before Coding
 
 State assumptions explicitly. When the prompt is ambiguous, surface the interpretations and ask. Do not pick one
 silently and run with it. If a simpler approach exists, propose it before writing code. Stop and ask when genuinely
 unsure. A clarifying question costs less than a wrong implementation.
 
-### 2. Simplicity First
+#### 2. Simplicity First
 
 Write the minimum code that solves the problem.
 
@@ -173,7 +178,7 @@ Write the minimum code that solves the problem.
 
 Test: would a senior engineer call this overcomplicated? If yes, simplify.
 
-### 3. Surgical Changes
+#### 3. Surgical Changes
 
 Touch only what the task requires.
 
@@ -185,7 +190,7 @@ Touch only what the task requires.
 
 Test: every changed line should trace directly to the request.
 
-### 4. Goal-Driven Execution
+#### 4. Goal-Driven Execution
 
 Define success before starting. Convert vague asks into verifiable goals:
 
@@ -205,7 +210,7 @@ Then loop until each check passes. Do not claim a task is done without running t
 
 ---
 
-## OpenSpec Workflow
+### OpenSpec Workflow
 
 This project uses [OpenSpec](https://github.com/Fission-AI/OpenSpec) for spec-driven development. Specs and changes
 live under `openspec/`.
@@ -236,12 +241,12 @@ Use multiline prompts when you need to include logs or detailed context with a c
 
 ---
 
-## What This Repo Is
+### What This Repo Is
 
 <!-- Describe your project here -->
 
 ---
 
-## Architecture
+### Architecture
 
 <!-- Describe key architectural decisions, patterns, and constraints here -->

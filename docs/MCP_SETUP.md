@@ -10,7 +10,7 @@ whatever MCP tools the running agent exposes; it doesn't need this document.
 
 ### What ships
 
-Three committed templates in the repo root, one per MCP schema:
+Four committed templates, one per MCP schema:
 
 - [.mcp.json.example](../.mcp.json.example): Claude Code project scope. Schema key `mcpServers`. HTTP servers use
   `"type": "http"`. Env-var syntax: `${VAR}` and `${VAR:-default}`.
@@ -20,6 +20,9 @@ Three committed templates in the repo root, one per MCP schema:
   `.kilocode/mcp.json` (same directory). Schema key `mcpServers` (same as Claude), but HTTP servers use
   `"type": "streamable-http"` and env-var syntax is `{env:VAR}` (same as OpenCode). Kilo is a hybrid; it shares
   neither file.
+- [.vscode/mcp.json.example](../.vscode/mcp.json.example): GitHub Copilot in VS Code project scope. Copy to
+  `.vscode/mcp.json`. Schema key `servers` (not `mcpServers`). HTTP servers use `"type": "http"`. Env-var syntax:
+  `${env:VAR}` (no default fallback, so URL defaults are hardcoded like the OpenCode and Kilo templates).
 
 Kilo Code does **not** read `opencode.json` for MCP. That file is OpenCode only (and the Kilo CLI, a separate
 product from the VS Code extension most users run). The extension reads `.kilocode/mcp.json` (project) or
@@ -63,7 +66,13 @@ For the Kilo Code VS Code extension, copy the Kilo template into the `.kilocode/
 cp .kilocode/mcp.json.example .kilocode/mcp.json
 ```
 
-All three files are gitignored at the agent-standards repo level. In your consumer project, decide per-team whether
+For GitHub Copilot in VS Code, copy the VS Code template into the `.vscode/` directory:
+
+```bash
+cp .vscode/mcp.json.example .vscode/mcp.json
+```
+
+All four files are gitignored at the agent-standards repo level. In your consumer project, decide per-team whether
 to commit them. If you keep `${VAR}` or `{env:VAR}` placeholders and never inline secrets, the files are
 commit-safe.
 
@@ -193,11 +202,12 @@ Important asymmetry between the templates:
 
 - [.mcp.json.example](../.mcp.json.example) (Claude Code) uses `${VAR:-default}`, so every env var has a resolvable
   fallback. Files parse with no env set.
-- [opencode.json.example](../opencode.json.example) (OpenCode) and
-  [.kilocode/mcp.json.example](../.kilocode/mcp.json.example) (Kilo extension) use `{env:VAR}` for tokens and
-  **hardcode the URL defaults**, because that substitution syntax has no `:-default` fallback. To point them at a
-  non-default URL, edit the literal string in your local `opencode.json` or `.kilocode/mcp.json` (OpenCode also
-  accepts `OPENCODE_CONFIG_CONTENT` for a session-scoped override).
+- [opencode.json.example](../opencode.json.example) (OpenCode),
+  [.kilocode/mcp.json.example](../.kilocode/mcp.json.example) (Kilo extension), and
+  [.vscode/mcp.json.example](../.vscode/mcp.json.example) (GitHub Copilot) use `{env:VAR}` or `${env:VAR}` for tokens
+  and **hardcode the URL defaults**, because those substitution syntaxes have no `:-default` fallback. To point them
+  at a non-default URL, edit the literal string in your local `opencode.json`, `.kilocode/mcp.json`, or
+  `.vscode/mcp.json` (OpenCode also accepts `OPENCODE_CONFIG_CONTENT` for a session-scoped override).
 
 If a token-style variable is unset, the MCP starts but the upstream service rejects the empty token. That's a noisy
 but local failure; your other MCPs still work. Disable the server entirely if you don't plan to use it.
@@ -284,6 +294,7 @@ Useful when debugging why a variable isn't being picked up.
 | Claude Code, `.mcp.json` and `~/.claude.json`   | `${VAR}`, `${VAR:-default}`    | `command`, `args`, `env`, `url`, `headers`    |
 | OpenCode, `opencode.json`                       | `{env:VAR}`                    | string values in any MCP field                |
 | Kilo Code extension, `.kilocode/mcp.json`       | `{env:VAR}`                    | string values in any MCP field                |
+| GitHub Copilot, `.vscode/mcp.json`              | `${env:VAR}`, `${input:NAME}`  | string values in any MCP field                |
 | Claude Desktop, `claude_desktop_config.json`    | **not supported**              | inline literal values                         |
 | Codex CLI, `~/.codex/config.toml`               | TOML; no built-in substitution | inline literal values                         |
 
@@ -297,6 +308,8 @@ After editing the configs and exporting env vars, restart the agent. Then:
 - **OpenCode**: start the agent and check the startup log for MCP connection lines, or run `/mcp` inside the shell.
 - **Kilo Code (VS Code extension)**: open the MCP Servers panel (Settings, Agent Behaviour, MCP Servers); each
   configured server shows a connected / error indicator.
+- **GitHub Copilot (VS Code)**: open the Chat view, switch to Agent mode, and open the tools picker; each server in
+  `.vscode/mcp.json` shows its tools with a start / stop control.
 - **Claude Desktop**: open the Developer panel; the MCP indicator in the input box shows connected servers.
 - **Codex CLI**: start `codex` and check `/mcp` (Codex 0.20+).
 
@@ -310,11 +323,12 @@ If a server fails to connect:
 
 ### Adding or changing a server
 
-Edit all three templates in the agent-standards repo: [.mcp.json.example](../.mcp.json.example),
-[opencode.json.example](../opencode.json.example), and [.kilocode/mcp.json.example](../.kilocode/mcp.json.example).
+Edit all four templates in the agent-standards repo: [.mcp.json.example](../.mcp.json.example),
+[opencode.json.example](../opencode.json.example), [.kilocode/mcp.json.example](../.kilocode/mcp.json.example), and
+[.vscode/mcp.json.example](../.vscode/mcp.json.example).
 Commit, and
 consumer projects pull via the Step 2 update flow in [AGENT_TOOLING.md](AGENT_TOOLING.md). Keep the server set in sync
-across all three; only the per-schema syntax (`type` value, env-var form) differs.
+across all four; only the per-schema syntax (top-level key, `type` value, env-var form) differs.
 
-To customise per-project without affecting upstream, edit the copied `.mcp.json`, `opencode.json`, and
-`.kilocode/mcp.json` directly. Those are local to each consumer.
+To customise per-project without affecting upstream, edit the copied `.mcp.json`, `opencode.json`,
+`.kilocode/mcp.json`, and `.vscode/mcp.json` directly. Those are local to each consumer.

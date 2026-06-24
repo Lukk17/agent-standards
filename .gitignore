@@ -6,7 +6,8 @@ Thumbs.db
 *.bak
 
 ### IDEs & Editors
-.vscode/
+.vscode/*
+!.vscode/mcp.json.example
 .idea/
 *.suo
 *.ntvs*
@@ -39,6 +40,7 @@ CLAUDE.local.md
 opencode.json
 kilo.jsonc
 .kilocode/mcp.json
+.vscode/mcp.json
 
 ### Conversion Script Artifacts
 # If you run the conversion scripts locally inside this repo,

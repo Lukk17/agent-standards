@@ -1,0 +1,25 @@
+# GitHub Copilot instructions
+
+Copy this file to `.github/copilot-instructions.md` so Copilot picks up the shared standards. The Copilot CLI and
+VS Code chat read your project's [AGENTS.md](../AGENTS.md) directly; this bridge file exists so local IntelliJ chat
+and other surfaces that do not auto-read `AGENTS.md` still load the standards, and so the preflight gate is always
+present even where `AGENTS.md` is not.
+
+Read [AGENTS.md](../AGENTS.md) first for the full instructions: skills, subagents, MCP servers, and working
+principles. This file only restates the preflight gate, because Copilot has no hook mechanism to re-inject it per
+turn the way Claude Code, OpenCode, and Kilo Code do. The agent must self-apply the gate below on every task.
+
+---
+
+### Required opening move
+
+Before any code work on a task, in one line, name the skill(s) and subagent(s) that own it and invoke them, or
+state "none apply" and why. State this as the first line of your reply: it is a required output you produce, not a
+passive banner to skim past. This is a hard gate, not a suggestion.
+
+Investigation, review, and bounded implementation are delegated by default. Doing a specialist's work inline from
+the main session is the failure mode this gate prevents. Re-run the check at the start of every task, not just the
+first one, because a passive instruction read once at session start loses salience over a long session.
+
+The `## Skills` and `## Subagents` sections in [AGENTS.md](../AGENTS.md) say which to reach for; this gate makes
+reaching for them the first move.

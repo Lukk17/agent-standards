@@ -40,7 +40,7 @@ script and must never be hand-edited.
 | Tree | Status | How to edit |
 | --- | --- | --- |
 | `subagents/*.md` | canonical | edit directly, then regenerate |
-| `.claude/agents/`, `.opencode/agents/` | generated from `subagents/` | never hand-edit; run the generator |
+| `.claude/agents/`, `.opencode/agents/`, `.github/agents/` | generated from `subagents/` | never hand-edit; run the generator |
 | `.agents/skills/*/SKILL.md` | canonical | edit directly |
 | `.claude/skills`, `.opencode/skills`, `.codex/skills` | symlinks to `.agents/skills/` | never edit through the link |
 | `AGENTS.md.example`, `*.example`, `docs/*.md` | canonical | edit directly |
@@ -66,14 +66,17 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
   prose line over 120 characters. This real `AGENTS.md` is not in the lint scope, but match the style anyway.
 - **One runnable command per fenced code block** in any doc a human copies, with the matching language tag and no
   `#` comment lines inside the block (global rule).
-- **Three MCP templates, one server set.** [.mcp.json.example](.mcp.json.example) (Claude Code),
-  [opencode.json.example](opencode.json.example) (OpenCode), and
-  [.kilocode/mcp.json.example](.kilocode/mcp.json.example) (Kilo
-  Code VS Code extension) ship the same servers in three schemas. Change all three together; only the `type` value and
-  the env-var syntax differ. Details in [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
-- **Four preflight wordings, one gate.** The canonical text is the Required opening move above. Its three adapters
-  ([.claude/settings.json](.claude/settings.json), [.opencode/plugin/preflight.js](.opencode/plugin/preflight.js),
-  [.kilocode/rules/00-preflight.md](.kilocode/rules/00-preflight.md)) repeat it. Keep them in sync.
+- **Four MCP templates, one server set.** [.mcp.json.example](.mcp.json.example) (Claude Code),
+  [opencode.json.example](opencode.json.example) (OpenCode), [.kilocode/mcp.json.example](.kilocode/mcp.json.example)
+  (Kilo Code VS Code extension), and [.vscode/mcp.json.example](.vscode/mcp.json.example) (GitHub Copilot in VS Code)
+  ship the same servers in four schemas. Change all four together; only the top-level key, the `type` value, and the
+  env-var syntax differ. Details in [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
+- **Four preflight wordings, one gate.** The canonical text is the Required opening move above. Three enforced
+  adapters repeat it ([.claude/settings.json](.claude/settings.json),
+  [.opencode/plugin/preflight.js](.opencode/plugin/preflight.js),
+  [.kilocode/rules/00-preflight.md](.kilocode/rules/00-preflight.md)), and the GitHub Copilot copy in
+  [.github/copilot-instructions.md](.github/copilot-instructions.md) states it as instruction text, since Copilot has
+  no hook to enforce it. Keep all four in sync.
 - **CI is manual.** Workflows run on `workflow_dispatch` / `workflow_call` only, so nothing runs on push. Verify
   locally before declaring work done.
 
@@ -88,7 +91,7 @@ python tools/check-markdown.py
 ```
 
 ```bash
-python -c "import json; json.load(open('.mcp.json.example')); json.load(open('opencode.json.example')); json.load(open('.kilocode/mcp.json.example')); json.load(open('.claude/settings.json'))"
+python -c "import json; json.load(open('.mcp.json.example')); json.load(open('opencode.json.example')); json.load(open('.kilocode/mcp.json.example')); json.load(open('.vscode/mcp.json.example')); json.load(open('.claude/settings.json'))"
 ```
 
 ---
@@ -99,7 +102,7 @@ python -c "import json; json.load(open('.mcp.json.example')); json.load(open('op
   expose it to every agent automatically. Bump the skill-count badge in [README.md](README.md).
 - **A subagent:** add or edit `subagents/<name>.md`, run the generator, and commit the canonical source and the
   generated trees together. Bump the subagent-count badge.
-- **An MCP server:** add the block to all three MCP templates, document it in [docs/MCP_SETUP.md](docs/MCP_SETUP.md),
+- **An MCP server:** add the block to all four MCP templates, document it in [docs/MCP_SETUP.md](docs/MCP_SETUP.md),
   and bump the MCP-count badge.
 
 ---

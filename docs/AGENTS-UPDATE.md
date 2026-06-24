@@ -3,7 +3,8 @@
 ---
 
 [agent-standards](https://github.com/Lukk17/agent-standards) is upstream for [.agents/skills/](../.agents/skills/),
-[.claude/agents/](../.claude/agents/), [.opencode/agents/](../.opencode/agents/), the preflight adapters
+[.claude/agents/](../.claude/agents/), [.opencode/agents/](../.opencode/agents/),
+[.github/agents/](../.github/agents/), the preflight adapters
 ([.opencode/plugin/](../.opencode/plugin/) and `.kilocode/rules/`), [AGENT_TOOLING.md](AGENT_TOOLING.md),
 [MCP_SETUP.md](MCP_SETUP.md), and [AGENTS-UPDATE.md](AGENTS-UPDATE.md) (this file).
 
@@ -52,7 +53,7 @@ for d in .agents/skills/*/; do git checkout agent-standards/master -- "$d" 2>/de
 Iterate every subagent currently present in either agent dir and pull its upstream copy.
 
 ```bash
-for f in .claude/agents/*.md .opencode/agents/*.md; do git checkout agent-standards/master -- "$f" 2>/dev/null || true; done
+for f in .claude/agents/*.md .opencode/agents/*.md .github/agents/*.agent.md; do git checkout agent-standards/master -- "$f" 2>/dev/null || true; done
 ```
 
 ---
@@ -87,7 +88,7 @@ foreach ($d in Get-ChildItem -Directory .agents/skills) { git checkout agent-sta
 Iterate every subagent currently present in either agent dir and pull its upstream copy.
 
 ```powershell
-foreach ($base in '.claude/agents', '.opencode/agents') { foreach ($f in Get-ChildItem $base -Filter *.md) { git checkout agent-standards/master -- "$base/$($f.Name)" 2>$null } }
+foreach ($base in '.claude/agents', '.opencode/agents', '.github/agents') { foreach ($f in Get-ChildItem $base -Filter *.md) { git checkout agent-standards/master -- "$base/$($f.Name)" 2>$null } }
 ```
 
 ---
@@ -104,8 +105,10 @@ These paths are deliberately not refreshed:
 - [.claude/settings.json](../.claude/settings.json): ships the preflight hook on initial import, then becomes
   consumer-owned (this is where per-project permissions live). Not refreshed, so your settings survive.
 - [AGENTS.md.example](../AGENTS.md.example), [opencode.json.example](../opencode.json.example),
-  [.mcp.json.example](../.mcp.json.example), and the `.kilocode/*.example` templates
-  (`.kilocode/kilo.jsonc.example`, `.kilocode/mcp.json.example`): template files consumed once at initial setup.
+  [.mcp.json.example](../.mcp.json.example), the `.kilocode/*.example` templates
+  (`.kilocode/kilo.jsonc.example`, `.kilocode/mcp.json.example`),
+  [.github/copilot-instructions.md.example](../.github/copilot-instructions.md.example), and
+  [.vscode/mcp.json.example](../.vscode/mcp.json.example): template files consumed once at initial setup.
   The adapter refresh above pulls `.kilocode/rules` only, so these `.example` files are never clobbered.
 - The customised [AGENTS.md](../AGENTS.md) at the repo root: source of truth for project conventions. Owned by this
   consumer, not by upstream.
