@@ -5,9 +5,9 @@
 **One `git checkout` drops a shared AI coding setup (skills, subagents, MCP servers, OpenSpec scaffolding) into any
 project.**
 
-[![Agents](https://img.shields.io/badge/agents-Claude%20Code%20%7C%20Kilo%20%7C%20OpenCode%20%7C%20Codex-blueviolet)](https://github.com/Lukk17/agent-standards)
-[![Skills](https://img.shields.io/badge/skills-80-blueviolet)](.agents/skills/)
-[![Subagents](https://img.shields.io/badge/subagents-27-blueviolet)](subagents/)
+[![Agents](https://img.shields.io/badge/agents-Claude%20Code%20%7C%20Kilo%20%7C%20OpenCode%20%7C%20Codex%20%7C%20Copilot-blueviolet)](https://github.com/Lukk17/agent-standards)
+[![Skills](https://img.shields.io/badge/skills-84-blueviolet)](.agents/skills/)
+[![Subagents](https://img.shields.io/badge/subagents-30-blueviolet)](subagents/)
 [![MCP](https://img.shields.io/badge/mcp_servers-8-blueviolet)](docs/MCP_SETUP.md)
 [![OpenSpec](https://img.shields.io/badge/openspec-ready-blueviolet)](docs/AGENT_TOOLING.md#openspec-integration)
 [![CI](https://github.com/Lukk17/agent-standards/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/Lukk17/agent-standards/actions/workflows/ci.yml)
@@ -37,19 +37,20 @@ git fetch agent-standards
 ```
 
 ```bash
-git checkout agent-standards/master -- .agents .claude .opencode .codex .kilocode docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/AGENTS-UPDATE.md AGENTS.md.example opencode.json.example .mcp.json.example
+git checkout agent-standards/master -- .agents .claude .opencode .codex .kilocode .github/agents .github/copilot-instructions.md.example .vscode/mcp.json.example docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/AGENTS-UPDATE.md AGENTS.md.example opencode.json.example .mcp.json.example
 ```
 
 ```bash
 cp AGENTS.md.example AGENTS.md
 ```
 
-That's it. Open the project in Claude Code, Kilo Code, OpenCode, or Codex and skills are live.
+That's it. Open the project in Claude Code, Kilo Code, OpenCode, Codex, or GitHub Copilot and skills are live.
 
 Optional next step: copy [.mcp.json.example](.mcp.json.example) to `.mcp.json` (Claude Code),
-[opencode.json.example](opencode.json.example) to `opencode.json` (OpenCode), and
-[.kilocode/mcp.json.example](.kilocode/mcp.json.example) to `.kilocode/mcp.json` (Kilo Code VS Code extension) to
-enable the shared MCP server set.
+[opencode.json.example](opencode.json.example) to `opencode.json` (OpenCode),
+[.kilocode/mcp.json.example](.kilocode/mcp.json.example) to `.kilocode/mcp.json` (Kilo Code VS Code extension), and
+[.vscode/mcp.json.example](.vscode/mcp.json.example) to `.vscode/mcp.json` (GitHub Copilot in VS Code) to enable the
+shared MCP server set.
 
 Human-side MCP setup lives in [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
 
@@ -65,6 +66,10 @@ updates with one `git fetch`. Used across every project in the portfolio.
 
 Consumer projects pull only production-ready content: skills, generated subagent files, the tooling doc, and config
 templates. The canonical [subagents/](subagents/) source and [tools/](tools/) generator stay here.
+
+The canonical source is [.agents/skills/](.agents/skills/), the same directory GitHub Copilot and Cursor read natively
+for agent skills. The layout follows the cross-tool AGENTS.md and SKILL.md conventions, so the setup stays portable
+across the supported agents rather than tied to one tool.
 
 ---
 
@@ -97,20 +102,24 @@ graph LR
     AG --> Kilo
     AG --> OpenCode
     AG --> Codex
+    P --> GH[.github/agents/<br/>generated]
+    GH --> Copilot[GitHub Copilot]
+    SK --> Copilot
+    AG --> Copilot
 
     classDef src fill:#ede0ff,stroke:#7c3aed,color:#1a1033
     classDef consumer fill:#fff7e0,stroke:#d97706,color:#1a1033
     classDef tool fill:#e0f2fe,stroke:#0284c7,color:#1a1033
     class AS,ASK,SU,GEN src
-    class P,SK,CA,OA,AG,CL,OC,CX consumer
-    class Claude,Kilo,OpenCode,Codex tool
+    class P,SK,CA,OA,AG,CL,OC,CX,GH consumer
+    class Claude,Kilo,OpenCode,Codex,Copilot tool
 ```
 
 Two canonical sources in this repo: [.agents/skills/](.agents/skills/) and [subagents/](subagents/). Consumer projects
 receive only the production-ready dirs: [.agents/skills/](.agents/skills/), generated
-[.claude/agents/](.claude/agents/), and generated [.opencode/agents/](.opencode/agents/) (which Kilo Code reads
-natively, so no separate Kilo directory). The [subagents/](subagents/) source and the [tools/](tools/) generator never
-ship to consumers.
+[.claude/agents/](.claude/agents/), generated [.opencode/agents/](.opencode/agents/) (which Kilo Code reads natively,
+so no separate Kilo directory), and generated [.github/agents/](.github/agents/) for GitHub Copilot. The
+[subagents/](subagents/) source and the [tools/](tools/) generator never ship to consumers.
 
 Full repository layout, agent compatibility matrix, and per-agent instruction precedence:
 [docs/repository-layout.md](docs/repository-layout.md).
@@ -123,7 +132,7 @@ Full repository layout, agent compatibility matrix, and per-agent instruction pr
   to consumers. Browse the catalogue to see what's available.
 - **[subagents/](subagents/)** *(this repo only)*: canonical subagent templates. Generator emits per-tool copies.
 - **[tools/](tools/)** *(this repo only)*: `gen_subagents.py` and `pyproject.toml`. Emits
-  [.claude/agents/](.claude/agents/) and [.opencode/agents/](.opencode/agents/).
+  [.claude/agents/](.claude/agents/), [.opencode/agents/](.opencode/agents/), and [.github/agents/](.github/agents/).
 - **[.claude/](.claude/)**: Claude Code bridge. [.claude/CLAUDE.md](.claude/CLAUDE.md) imports
   [AGENTS.md](AGENTS.md.example), a `skills/` symlink, generated `agents/`.
 - **OpenSpec scaffold**: spec-driven workflow. `openspec init` creates the `openspec/` directory in the consumer
@@ -134,11 +143,14 @@ Full repository layout, agent compatibility matrix, and per-agent instruction pr
   spec-driven end-to-end capability tests through OpenSpec's lifecycle
   (`/opsx:new --schema e2e-runbooks`). Install steps live in
   [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md#optional-install-a-custom-schema-for-e2e-capability-tests).
-- **[AGENTS.md](AGENTS.md.example)**: shared instructions auto-read by Kilo, OpenCode, Codex.
+- **[AGENTS.md](AGENTS.md.example)**: shared instructions auto-read by Kilo, OpenCode, Codex, and the Copilot CLI.
   [AGENTS.md.example](AGENTS.md.example) is the template you copy into a new project.
+- **GitHub Copilot bridge**: [.github/agents/](.github/agents/) holds generated `*.agent.md` subagents, and
+  [.github/copilot-instructions.md.example](.github/copilot-instructions.md.example) is the template you copy to
+  `.github/copilot-instructions.md` so local VS Code and IntelliJ chat pick up the standards.
 - **MCP scaffolds**: [.mcp.json.example](.mcp.json.example), [opencode.json.example](opencode.json.example),
-  [.kilocode/mcp.json.example](.kilocode/mcp.json.example), and [docs/MCP_SETUP.md](docs/MCP_SETUP.md) for the human
-  setup.
+  [.kilocode/mcp.json.example](.kilocode/mcp.json.example), [.vscode/mcp.json.example](.vscode/mcp.json.example), and
+  [docs/MCP_SETUP.md](docs/MCP_SETUP.md) for the human setup.
 
 Server list and configuration live in [docs/MCP_SETUP.md](docs/MCP_SETUP.md). All entries use `${VAR}` or `{env:VAR}`
 substitution with defaults baked in.
