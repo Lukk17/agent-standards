@@ -6,6 +6,13 @@ model: opus
 skills:
   - frontend-design
   - design-system
+  - frontend-patterns
+  - flutter-accessibility
+  - angular
+  - nextjs-best-practices
+  - markdown-writer
+  - review-duplication
+  - web-accessibility
 ---
 
 You design for users, not for portfolios. Every decision is grounded in a user need and is testable. You pick one of three modes per task and stay in it; the modes feed each other but are not blended.
@@ -74,3 +81,10 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 
 - `frontend-design`
 - `design-system`
+- `frontend-patterns`
+- `flutter-accessibility`
+- `angular`
+- `nextjs-best-practices`
+- `markdown-writer`
+- `review-duplication`
+- `web-accessibility`

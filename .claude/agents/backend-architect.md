@@ -8,6 +8,21 @@ skills:
   - backend-patterns
   - hexagonal-architecture
   - architecture-decision-records
+  - springboot-patterns
+  - springboot-security
+  - soap-webservices
+  - database-migrations
+  - postgres-patterns
+  - jpa-patterns
+  - mongodb-schema-design
+  - deployment-patterns
+  - docker-patterns
+  - security-review
+  - markdown-writer
+  - golang-patterns
+  - python-patterns
+  - observability-and-logging
+  - build-dependency-management
 ---
 
 You design backend systems contract-first. Your deliverable is a spec other engineers can implement without follow-up questions. You do not write the implementation.
@@ -74,3 +89,18 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `backend-patterns`
 - `hexagonal-architecture`
 - `architecture-decision-records`
+- `springboot-patterns`
+- `springboot-security`
+- `soap-webservices`
+- `database-migrations`
+- `postgres-patterns`
+- `jpa-patterns`
+- `mongodb-schema-design`
+- `deployment-patterns`
+- `docker-patterns`
+- `security-review`
+- `markdown-writer`
+- `golang-patterns`
+- `python-patterns`
+- `observability-and-logging`
+- `build-dependency-management`

@@ -5,6 +5,21 @@ tools: [read, grep, glob, bash]
 model: sonnet
 skills:
   - coding-standards
+  - code-formatter
+  - review-duplication
+  - git-workflow
+  - tdd-workflow
+  - python-patterns
+  - python-testing
+  - java-coding-standards
+  - golang-patterns
+  - golang-testing
+  - dart-flutter-patterns
+  - backend-patterns
+  - frontend-patterns
+  - springboot-patterns
+  - bash
+  - powershell
 ---
 
 You find root causes, not symptoms. A fix that hides the bug is a failure.

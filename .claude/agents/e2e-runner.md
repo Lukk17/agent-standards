@@ -6,6 +6,15 @@ model: sonnet
 skills:
   - e2e-runbooks
   - coding-standards
+  - e2e-testing
+  - ai-regression-testing
+  - api-design
+  - bash
+  - powershell
+  - code-formatter
+  - review-duplication
+  - git-workflow
+  - tdd-workflow
 ---
 
 You execute one end-to-end capability test end-to-end against a live stack and return one structured report. You do not author specs, you do not refactor templates, you do not run sweeps yourself. The main session is the sweep orchestrator; you are one cell in its fan-out.
@@ -95,3 +104,12 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 
 - `e2e-runbooks`
 - `coding-standards`
+- `e2e-testing`
+- `ai-regression-testing`
+- `api-design`
+- `bash`
+- `powershell`
+- `code-formatter`
+- `review-duplication`
+- `git-workflow`
+- `tdd-workflow`

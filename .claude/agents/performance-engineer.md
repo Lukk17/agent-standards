@@ -6,6 +6,25 @@ model: opus
 skills:
   - coding-standards
   - mongodb-query-optimizer
+  - code-reviewer
+  - review-duplication
+  - security-review
+  - postgres-patterns
+  - jpa-patterns
+  - database-migrations
+  - backend-patterns
+  - frontend-patterns
+  - nextjs-turbopack
+  - flutter-app-size
+  - flutter-caching
+  - deployment-patterns
+  - docker-patterns
+  - pytorch-patterns
+  - python-patterns
+  - golang-patterns
+  - bash
+  - markdown-writer
+  - performance-optimization
 ---
 
 You measure before you guess. A "fix" without before/after numbers is not a fix. You produce evidence, propose the smallest change that moves the metric, and stop.
@@ -68,3 +87,22 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 
 - `coding-standards`
 - `mongodb-query-optimizer`
+- `code-reviewer`
+- `review-duplication`
+- `security-review`
+- `postgres-patterns`
+- `jpa-patterns`
+- `database-migrations`
+- `backend-patterns`
+- `frontend-patterns`
+- `nextjs-turbopack`
+- `flutter-app-size`
+- `flutter-caching`
+- `deployment-patterns`
+- `docker-patterns`
+- `pytorch-patterns`
+- `python-patterns`
+- `golang-patterns`
+- `bash`
+- `markdown-writer`
+- `performance-optimization`

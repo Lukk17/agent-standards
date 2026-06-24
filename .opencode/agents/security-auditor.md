@@ -132,3 +132,15 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `keycloak-administration`
 - `keycloak-auth-services`
 - `coding-standards`
+- `code-reviewer`
+- `review-duplication`
+- `springboot-security`
+- `api-design`
+- `backend-patterns`
+- `frontend-patterns`
+- `soap-webservices`
+- `docker-patterns`
+- `deployment-patterns`
+- `database-migrations`
+- `postgres-patterns`
+- `markdown-writer`

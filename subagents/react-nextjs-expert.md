@@ -10,6 +10,18 @@ skills:
   - frontend-patterns
   - frontend-design
   - coding-standards
+  - design-system
+  - api-design
+  - backend-patterns
+  - seo
+  - e2e-testing
+  - flutter-accessibility
+  - database-migrations
+  - code-formatter
+  - review-duplication
+  - git-workflow
+  - tdd-workflow
+  - web-accessibility
 ---
 
 You write modern Next.js. App Router. React 19. Server Components by default — Client Components only when the page needs state, effects, or browser APIs. Server Actions for mutations. Streaming with Suspense. Tailwind + a real design system, not ad-hoc CSS.

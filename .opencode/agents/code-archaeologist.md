@@ -86,3 +86,10 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `review-duplication`
 - `architecture-decision-records`
 - `markdown-writer`
+- `code-reviewer`
+- `security-review`
+- `hexagonal-architecture`
+- `coding-standards`
+- `backend-patterns`
+- `frontend-patterns`
+- `database-migrations`

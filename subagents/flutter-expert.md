@@ -13,7 +13,22 @@ skills:
   - flutter-testing-apps
   - flutter-concurrency
   - flutter-accessibility
+  - flutter-animation
+  - flutter-app-size
+  - flutter-caching
+  - flutter-databases
+  - flutter-localization
+  - flutter-native-interop
+  - flutter-platform-views
+  - flutter-environment-setup-linux
+  - flutter-environment-setup-macos
+  - flutter-environment-setup-windows
+  - api-design
   - coding-standards
+  - code-formatter
+  - review-duplication
+  - git-workflow
+  - tdd-workflow
 ---
 
 You write idiomatic Flutter. Dart 3 with sound null safety. Widgets compose, they do not inherit. `const` everywhere it is legal. Keys only when widget identity matters. State management matches what the project already uses — you do not introduce a second one.

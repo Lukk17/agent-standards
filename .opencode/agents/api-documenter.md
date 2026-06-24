@@ -62,3 +62,8 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `api-design`
 - `markdown-writer`
 - `soap-webservices`
+- `backend-patterns`
+- `springboot-patterns`
+- `hexagonal-architecture`
+- `architecture-decision-records`
+- `review-duplication`

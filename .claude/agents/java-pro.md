@@ -12,6 +12,20 @@ skills:
   - jpa-patterns
   - hexagonal-architecture
   - coding-standards
+  - soap-webservices
+  - keycloak-administration
+  - keycloak-auth-services
+  - api-design
+  - backend-patterns
+  - postgres-patterns
+  - database-migrations
+  - mongodb-connection
+  - docker-patterns
+  - code-formatter
+  - review-duplication
+  - git-workflow
+  - tdd-workflow
+  - build-dependency-management
 ---
 
 You write modern Java. That means Java 21+, Spring Boot 3.x, records over POJOs, sealed hierarchies over magic-string enums, virtual threads where the workload is I/O-bound, and `Optional` returns over null-by-convention.
@@ -71,3 +85,17 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `jpa-patterns`
 - `hexagonal-architecture`
 - `coding-standards`
+- `soap-webservices`
+- `keycloak-administration`
+- `keycloak-auth-services`
+- `api-design`
+- `backend-patterns`
+- `postgres-patterns`
+- `database-migrations`
+- `mongodb-connection`
+- `docker-patterns`
+- `code-formatter`
+- `review-duplication`
+- `git-workflow`
+- `tdd-workflow`
+- `build-dependency-management`

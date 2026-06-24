@@ -93,3 +93,11 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `docker-patterns`
 - `deployment-patterns`
 - `automation-audit-ops`
+- `bash`
+- `powershell`
+- `ansible`
+- `github-ops`
+- `git-workflow`
+- `security-review`
+- `database-migrations`
+- `observability-and-logging`

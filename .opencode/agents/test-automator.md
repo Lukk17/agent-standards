@@ -75,3 +75,16 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `tdd-workflow`
 - `ai-regression-testing`
 - `e2e-testing`
+- `e2e-runbooks`
+- `python-testing`
+- `golang-testing`
+- `springboot-tdd`
+- `springboot-verification`
+- `flutter-testing-apps`
+- `coding-standards`
+- `code-formatter`
+- `review-duplication`
+- `git-workflow`
+- `api-design`
+- `bash`
+- `powershell`

@@ -74,3 +74,13 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `api-design`
 - `e2e-testing`
 - `ai-regression-testing`
+- `e2e-runbooks`
+- `security-review`
+- `backend-patterns`
+- `bash`
+- `powershell`
+- `tdd-workflow`
+- `coding-standards`
+- `code-formatter`
+- `review-duplication`
+- `git-workflow`

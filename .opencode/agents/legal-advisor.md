@@ -99,3 +99,4 @@ The draft covers every required disclosure for the named jurisdictions, lawyer-r
 Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns; this prompt only defines persona and scope.
 
 - `markdown-writer`
+- `security-review`

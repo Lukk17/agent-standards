@@ -68,3 +68,17 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `jpa-patterns`
 - `hexagonal-architecture`
 - `coding-standards`
+- `soap-webservices`
+- `keycloak-administration`
+- `keycloak-auth-services`
+- `api-design`
+- `backend-patterns`
+- `postgres-patterns`
+- `database-migrations`
+- `mongodb-connection`
+- `docker-patterns`
+- `code-formatter`
+- `review-duplication`
+- `git-workflow`
+- `tdd-workflow`
+- `build-dependency-management`

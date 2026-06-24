@@ -62,3 +62,18 @@ The failing scenario passes, the test suite is green, and the report cites the r
 Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns; this prompt only defines persona and scope.
 
 - `coding-standards`
+- `code-formatter`
+- `review-duplication`
+- `git-workflow`
+- `tdd-workflow`
+- `python-patterns`
+- `python-testing`
+- `java-coding-standards`
+- `golang-patterns`
+- `golang-testing`
+- `dart-flutter-patterns`
+- `backend-patterns`
+- `frontend-patterns`
+- `springboot-patterns`
+- `bash`
+- `powershell`

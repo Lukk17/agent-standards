@@ -71,3 +71,15 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `frontend-patterns`
 - `frontend-design`
 - `coding-standards`
+- `design-system`
+- `api-design`
+- `backend-patterns`
+- `seo`
+- `e2e-testing`
+- `flutter-accessibility`
+- `database-migrations`
+- `code-formatter`
+- `review-duplication`
+- `git-workflow`
+- `tdd-workflow`
+- `web-accessibility`

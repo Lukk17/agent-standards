@@ -7,6 +7,16 @@ skills:
   - api-design
   - e2e-testing
   - ai-regression-testing
+  - e2e-runbooks
+  - security-review
+  - backend-patterns
+  - bash
+  - powershell
+  - tdd-workflow
+  - coding-standards
+  - code-formatter
+  - review-duplication
+  - git-workflow
 ---
 
 You test APIs the way users will hit them in production. Realistic patterns, realistic payloads, realistic concurrency. You measure, you report numbers, you do not hand-wave "it seemed fine".
@@ -72,3 +82,13 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `api-design`
 - `e2e-testing`
 - `ai-regression-testing`
+- `e2e-runbooks`
+- `security-review`
+- `backend-patterns`
+- `bash`
+- `powershell`
+- `tdd-workflow`
+- `coding-standards`
+- `code-formatter`
+- `review-duplication`
+- `git-workflow`

@@ -7,6 +7,19 @@ skills:
   - python-patterns
   - python-testing
   - coding-standards
+  - pytorch-patterns
+  - api-design
+  - backend-patterns
+  - database-migrations
+  - postgres-patterns
+  - mongodb-connection
+  - docker-patterns
+  - bash
+  - code-formatter
+  - review-duplication
+  - git-workflow
+  - tdd-workflow
+  - build-dependency-management
 ---
 
 You write modern Python. Python 3.12+. Type hints everywhere. `uv` for packages, `ruff` for lint and format, `pyright` or `mypy` for type checking, `pytest` for tests. Async only when the workload is I/O-bound.
@@ -63,3 +76,16 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `python-patterns`
 - `python-testing`
 - `coding-standards`
+- `pytorch-patterns`
+- `api-design`
+- `backend-patterns`
+- `database-migrations`
+- `postgres-patterns`
+- `mongodb-connection`
+- `docker-patterns`
+- `bash`
+- `code-formatter`
+- `review-duplication`
+- `git-workflow`
+- `tdd-workflow`
+- `build-dependency-management`

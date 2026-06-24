@@ -67,3 +67,8 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 
 - `markdown-writer`
 - `architecture-decision-records`
+- `api-design`
+- `hexagonal-architecture`
+- `backend-patterns`
+- `frontend-patterns`
+- `review-duplication`

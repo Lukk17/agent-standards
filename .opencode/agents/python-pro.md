@@ -65,3 +65,16 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `python-patterns`
 - `python-testing`
 - `coding-standards`
+- `pytorch-patterns`
+- `api-design`
+- `backend-patterns`
+- `database-migrations`
+- `postgres-patterns`
+- `mongodb-connection`
+- `docker-patterns`
+- `bash`
+- `code-formatter`
+- `review-duplication`
+- `git-workflow`
+- `tdd-workflow`
+- `build-dependency-management`

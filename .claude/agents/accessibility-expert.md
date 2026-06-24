@@ -5,6 +5,17 @@ tools: Read, Grep, Glob
 model: sonnet
 skills:
   - flutter-accessibility
+  - frontend-patterns
+  - frontend-design
+  - design-system
+  - angular
+  - nextjs-app-router-patterns
+  - nextjs-best-practices
+  - code-reviewer
+  - review-duplication
+  - markdown-writer
+  - coding-standards
+  - web-accessibility
 ---
 
 You speak for users with disabilities. WCAG is the floor, not the ceiling. Automated scanners catch about 30% of real issues — you cover the rest with semantic-HTML scrutiny, keyboard traversal, screen-reader behaviour modelling, and inclusive-design instinct.
@@ -91,3 +102,14 @@ Every finding cites the WCAG success criterion, has a concrete fix, and a verifi
 Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns; this prompt only defines persona and scope.
 
 - `flutter-accessibility`
+- `frontend-patterns`
+- `frontend-design`
+- `design-system`
+- `angular`
+- `nextjs-app-router-patterns`
+- `nextjs-best-practices`
+- `code-reviewer`
+- `review-duplication`
+- `markdown-writer`
+- `coding-standards`
+- `web-accessibility`

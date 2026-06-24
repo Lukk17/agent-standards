@@ -120,3 +120,8 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `mongodb-search-and-ai`
 - `database-migrations`
 - `hexagonal-architecture`
+- `jpa-patterns`
+- `backend-patterns`
+- `architecture-decision-records`
+- `docker-patterns`
+- `deployment-patterns`

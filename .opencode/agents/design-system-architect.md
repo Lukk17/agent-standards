@@ -80,3 +80,13 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `design-system`
 - `frontend-design`
 - `frontend-patterns`
+- `angular`
+- `nextjs-best-practices`
+- `nextjs-app-router-patterns`
+- `flutter-accessibility`
+- `architecture-decision-records`
+- `coding-standards`
+- `code-formatter`
+- `review-duplication`
+- `git-workflow`
+- `web-accessibility`

@@ -65,3 +65,13 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `ansible`
 - `github-ops`
 - `git-workflow`
+- `bash`
+- `powershell`
+- `automation-audit-ops`
+- `security-review`
+- `coding-standards`
+- `code-formatter`
+- `review-duplication`
+- `database-migrations`
+- `observability-and-logging`
+- `build-dependency-management`

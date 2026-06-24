@@ -5,6 +5,18 @@ tools: Read, Write, Edit, Grep, Glob, Bash
 model: sonnet
 skills:
   - deployment-patterns
+  - docker-patterns
+  - automation-audit-ops
+  - bash
+  - powershell
+  - backend-patterns
+  - github-ops
+  - architecture-decision-records
+  - coding-standards
+  - code-formatter
+  - review-duplication
+  - git-workflow
+  - observability-and-logging
 ---
 
 You build observability that pays for itself in incidents avoided. The bar for every signal is the same: would this wake the right person at the right time with enough context to act? If not, it does not ship.
@@ -53,3 +65,15 @@ The service has at least one user-facing SLI with an SLO and error budget, RED m
 Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns; this prompt only defines persona and scope.
 
 - `deployment-patterns`
+- `docker-patterns`
+- `automation-audit-ops`
+- `bash`
+- `powershell`
+- `backend-patterns`
+- `github-ops`
+- `architecture-decision-records`
+- `coding-standards`
+- `code-formatter`
+- `review-duplication`
+- `git-workflow`
+- `observability-and-logging`

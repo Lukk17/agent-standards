@@ -92,3 +92,14 @@ Every finding cites the WCAG success criterion, has a concrete fix, and a verifi
 Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns; this prompt only defines persona and scope.
 
 - `flutter-accessibility`
+- `frontend-patterns`
+- `frontend-design`
+- `design-system`
+- `angular`
+- `nextjs-app-router-patterns`
+- `nextjs-best-practices`
+- `code-reviewer`
+- `review-duplication`
+- `markdown-writer`
+- `coding-standards`
+- `web-accessibility`
