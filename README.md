@@ -14,7 +14,24 @@ project.**
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-success)](docs/repository-layout.md)
 
+![agent-standards quickstart demo](docs/assets/demo.gif)
+
 </div>
+
+---
+
+### Why it exists
+
+For developers and teams running multiple AI coding agents across multiple repos. Every project drifts (different
+prompt files, skill versions, MCP configs, subagent definitions). This repo is the single source: import once, pull
+updates with one `git fetch`. Used across every project in the portfolio.
+
+Consumer projects pull only production-ready content: skills, generated subagent files, the tooling doc, and config
+templates. The canonical [subagents/](subagents/) source and [tools/](tools/) generator stay here.
+
+The canonical source is [.agents/skills/](.agents/skills/), the same directory GitHub Copilot and Cursor read natively
+for agent skills. The layout follows the cross-tool AGENTS.md and SKILL.md conventions, so the setup stays portable
+across the supported agents rather than tied to one tool.
 
 ---
 
@@ -55,21 +72,6 @@ shared MCP server set.
 Human-side MCP setup lives in [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
 
 Full walkthrough lives in [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md).
-
----
-
-### Why it exists
-
-For developers and teams running multiple AI coding agents across multiple repos. Every project drifts (different
-prompt files, skill versions, MCP configs, subagent definitions). This repo is the single source: import once, pull
-updates with one `git fetch`. Used across every project in the portfolio.
-
-Consumer projects pull only production-ready content: skills, generated subagent files, the tooling doc, and config
-templates. The canonical [subagents/](subagents/) source and [tools/](tools/) generator stay here.
-
-The canonical source is [.agents/skills/](.agents/skills/), the same directory GitHub Copilot and Cursor read natively
-for agent skills. The layout follows the cross-tool AGENTS.md and SKILL.md conventions, so the setup stays portable
-across the supported agents rather than tied to one tool.
 
 ---
 
