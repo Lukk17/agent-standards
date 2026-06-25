@@ -41,19 +41,19 @@ Refresh the preflight enforcement adapters (OpenCode plugin and Kilo rule). The 
 `.claude/settings.json` is deliberately excluded so per-project permissions there survive.
 
 ```bash
-git checkout agent-standards/master -- .opencode/plugin .kilocode/rules
+for p in .opencode/plugin .kilocode/rules; do [ -e "$p" ] && git checkout agent-standards/master -- "$p" 2>/dev/null || true; done
 ```
 
 Iterate every skill currently present and pull its upstream copy. Missing-upstream errors are swallowed.
 
 ```bash
-for d in .agents/skills/*/; do git checkout agent-standards/master -- "$d" 2>/dev/null || true; done
+for d in .agents/skills/*/; do [ -d "$d" ] || continue; git checkout agent-standards/master -- "$d" 2>/dev/null || true; done
 ```
 
 Iterate every subagent currently present in either agent dir and pull its upstream copy.
 
 ```bash
-for f in .claude/agents/*.md .opencode/agents/*.md .github/agents/*.agent.md; do git checkout agent-standards/master -- "$f" 2>/dev/null || true; done
+for f in .claude/agents/*.md .opencode/agents/*.md .github/agents/*.agent.md; do [ -e "$f" ] || continue; git checkout agent-standards/master -- "$f" 2>/dev/null || true; done
 ```
 
 ---
@@ -76,19 +76,19 @@ Refresh the preflight enforcement adapters (OpenCode plugin and Kilo rule). The 
 `.claude/settings.json` is deliberately excluded so per-project permissions there survive.
 
 ```powershell
-git checkout agent-standards/master -- .opencode/plugin .kilocode/rules
+foreach ($p in '.opencode/plugin', '.kilocode/rules') { if (Test-Path $p) { git checkout agent-standards/master -- $p 2>$null } }
 ```
 
 Iterate every skill currently present and pull its upstream copy.
 
 ```powershell
-foreach ($d in Get-ChildItem -Directory .agents/skills) { git checkout agent-standards/master -- ".agents/skills/$($d.Name)/" 2>$null }
+if (Test-Path .agents/skills) { foreach ($d in Get-ChildItem -Directory .agents/skills) { git checkout agent-standards/master -- ".agents/skills/$($d.Name)/" 2>$null } }
 ```
 
 Iterate every subagent currently present in either agent dir and pull its upstream copy.
 
 ```powershell
-foreach ($base in '.claude/agents', '.opencode/agents', '.github/agents') { foreach ($f in Get-ChildItem $base -Filter *.md) { git checkout agent-standards/master -- "$base/$($f.Name)" 2>$null } }
+foreach ($base in '.claude/agents', '.opencode/agents', '.github/agents') { if (Test-Path $base) { foreach ($f in Get-ChildItem $base -Filter *.md) { git checkout agent-standards/master -- "$base/$($f.Name)" 2>$null } } }
 ```
 
 ---
