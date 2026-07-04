@@ -3,13 +3,15 @@
 
 Source of truth:  subagents/<name>.md             (this repo only; not shipped to consumers)
 Generated:        .claude/agents/<name>.md        (Claude Code)
-                  .opencode/agents/<name>.md      (OpenCode + Kilo Code, shared)
-                  .github/agents/<name>.agent.md  (GitHub Copilot, VS Code + CLI)
+                  .opencode/agents/<name>.md      (OpenCode)
+                  .kilocode/agents/<name>.md      (Kilo Code, OpenCode-format markdown)
+                  .codex/agents/<name>.toml       (Codex CLI + IDE custom agents)
+                  .github/agents/<name>.agent.md  (GitHub Copilot, VS Code + JetBrains + CLI)
 
-Kilo Code reads .opencode/agents/*.md natively per its current docs, so there is
-no separate .kilo/agents/ output. GitHub Copilot auto-detects .agent.md files in
-.github/agents/ (VS Code and the Copilot CLI; JetBrains custom-agent support is
-in public preview).
+Kilo Code reads .kilocode/agents/*.md natively per its current docs (the format is
+identical to OpenCode's, so the emitter is shared). Codex reads TOML custom agents
+from .codex/agents/. GitHub Copilot auto-detects .agent.md files in .github/agents/
+(VS Code, the JetBrains plugin, and the Copilot CLI).
 
 Consumer repos pull only the generated trees plus skills — they never see the
 canonical subagents/ source or this generator.
@@ -32,6 +34,8 @@ SRC = ROOT / "subagents"
 TARGETS = {
     "claude": (ROOT / ".claude" / "agents", ".md"),
     "opencode": (ROOT / ".opencode" / "agents", ".md"),
+    "kilo": (ROOT / ".kilocode" / "agents", ".md"),
+    "codex": (ROOT / ".codex" / "agents", ".toml"),
     "copilot": (ROOT / ".github" / "agents", ".agent.md"),
 }
 
@@ -145,9 +149,30 @@ def emit_copilot(fm: dict, body: str) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def _toml_basic(s: str) -> str:
+    esc = s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\t", "\\t").replace("\r", "")
+    return f'"{esc}"'
+
+
+def emit_codex(fm: dict, body: str) -> str:
+    content = body.rstrip() + skills_block(fm.get("skills"))
+    if "'''" in content:
+        sys.exit(f"ERROR {fm['name']}: body contains ''' which breaks the Codex TOML literal string")
+    lines = [
+        f"name = {_toml_basic(fm['name'])}",
+        f"description = {_toml_basic(fm['description'].strip())}",
+        "developer_instructions = '''",
+        content,
+        "'''",
+    ]
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def render(tool: str, fm: dict, body: str) -> str:
     if tool == "claude":
         return emit_claude(fm, body)
+    if tool == "codex":
+        return emit_codex(fm, body)
     if tool == "copilot":
         return emit_copilot(fm, body)
     return emit_opencode(fm, body)

@@ -2,12 +2,13 @@
 
 This project imports a central set of AI agent standards from a shared repo:
 
-- **Skills** in [.agents/skills/](../.agents/skills/): reusable procedural guidance loaded by all four supported
-  agents.
-- **Subagents** in [.claude/agents/](../.claude/agents/) and [.opencode/agents/](../.opencode/agents/): specialised
-  agent definitions the main session delegates to.
-- **Instructions** in [AGENTS.md](../AGENTS.md): shared rules auto-read by Kilo Code, OpenCode, and Codex CLI;
-  imported into Claude Code via [.claude/CLAUDE.md](../.claude/CLAUDE.md).
+- **Skills** in [.agents/skills/](../.agents/skills/): reusable procedural guidance every supported agent reads
+  natively, except Claude Code which reaches them through a symlink.
+- **Subagents** generated per tool into [.claude/agents/](../.claude/agents/),
+  [.opencode/agents/](../.opencode/agents/), `.kilocode/agents/`, `.codex/agents/` (TOML), and
+  [.github/agents/](../.github/agents/) (`*.agent.md`): specialised agent definitions the main session delegates to.
+- **Instructions** in [AGENTS.md](../AGENTS.md): shared rules auto-read by Kilo Code, OpenCode, Codex, and GitHub
+  Copilot (JetBrains, VS Code, and CLI); imported into Claude Code via [.claude/CLAUDE.md](../.claude/CLAUDE.md).
 - **OpenSpec** scaffold for spec-driven feature work.
 
 ---
@@ -45,7 +46,7 @@ git fetch agent-standards
 ```
 
 ```bash
-git checkout agent-standards/master -- .agents .claude .opencode .codex .kilocode .github/agents .github/copilot-instructions.md.example .vscode/mcp.json.example docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/AGENTS-UPDATE.md AGENTS.md.example opencode.json.example .mcp.json.example
+git checkout agent-standards/master -- .agents .claude .opencode .codex .kilocode .github/agents .github/hooks .vscode/mcp.json.example docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/AGENTS-UPDATE.md AGENTS.md.example opencode.json.example .mcp.json.example
 ```
 
 Commit the imported files when you're ready.
@@ -56,15 +57,16 @@ What this pulls:
 - [.claude/CLAUDE.md](../.claude/CLAUDE.md), [.claude/skills/](../.claude/skills/) (symlink),
   [.claude/agents/](../.claude/agents/): Claude Code wiring plus generated subagent files.
   [.claude/settings.json](../.claude/settings.json): the `UserPromptSubmit` preflight hook.
-- [.opencode/skills/](../.opencode/skills/) (symlink), [.opencode/agents/](../.opencode/agents/): OpenCode subagent
-  files, also read natively by Kilo Code. [.opencode/plugin/](../.opencode/plugin/): the preflight plugin.
-- [.codex/skills/](../.codex/skills/) (symlink): Codex skill discovery path.
-- `.kilocode/`: the Kilo Code preflight rule (`rules/00-preflight.md`, the extension has no hook surface) plus the
-  Kilo config templates (`kilo.jsonc.example` for the CLI, `mcp.json.example` for the extension's MCP).
-- `.github/agents/`: generated GitHub Copilot subagent files (`*.agent.md`), read by Copilot in VS Code and the
-  Copilot CLI.
-- [.github/copilot-instructions.md.example](../.github/copilot-instructions.md.example): the Copilot bridge template
-  you copy to `.github/copilot-instructions.md` so local VS Code and IntelliJ chat load the standards.
+- [.opencode/agents/](../.opencode/agents/): OpenCode subagent files. [.opencode/plugin/](../.opencode/plugin/): the
+  preflight plugin. OpenCode reads skills from [.agents/skills/](../.agents/skills/) natively, so there is no symlink.
+- `.codex/`: generated Codex custom agents (`agents/*.toml`), the preflight hook (`hooks.json`), and the project MCP
+  template (`config.toml.example`). Codex reads skills from [.agents/skills/](../.agents/skills/) natively.
+- `.kilocode/`: generated Kilo subagents (`agents/*.md`, OpenCode format), the Kilo preflight rule
+  (`rules/00-preflight.md`, the extension has no hook surface), and the Kilo config templates (`kilo.jsonc.example`,
+  carrying instructions plus MCP for the CLI, and `mcp.json.example` for the extension's MCP).
+- `.github/agents/`: generated GitHub Copilot subagent files (`*.agent.md`), read by Copilot in VS Code, the JetBrains
+  plugin, and the Copilot CLI. `.github/hooks/preflight.json`: the Copilot `sessionStart` preflight hook. Copilot reads
+  `AGENTS.md` and `.agents/skills/` natively, so no bridge instruction file ships.
 - [.vscode/mcp.json.example](../.vscode/mcp.json.example): the GitHub Copilot MCP template you copy to
   `.vscode/mcp.json`.
 - [docs/AGENT_TOOLING.md](AGENT_TOOLING.md): this document, kept in sync with the central repo.
@@ -73,8 +75,7 @@ What this pulls:
   repo (it refreshes itself).
 - [AGENTS.md.example](../AGENTS.md.example), [opencode.json.example](../opencode.json.example),
   [.mcp.json.example](../.mcp.json.example), the `.kilocode/*.example` templates
-  (`.kilocode/kilo.jsonc.example`, `.kilocode/mcp.json.example`),
-  [.github/copilot-instructions.md.example](../.github/copilot-instructions.md.example), and
+  (`.kilocode/kilo.jsonc.example`, `.kilocode/mcp.json.example`), `.codex/config.toml.example`, and
   [.vscode/mcp.json.example](../.vscode/mcp.json.example): templates you rename and customise.
 
 What this does **not** pull:
@@ -106,19 +107,19 @@ For the Kilo Code VS Code extension, MCP servers go in `.kilocode/mcp.json`:
 cp .kilocode/mcp.json.example .kilocode/mcp.json
 ```
 
-For GitHub Copilot, copy the bridge instructions so local VS Code and IntelliJ chat load the standards:
-
-```bash
-cp .github/copilot-instructions.md.example .github/copilot-instructions.md
-```
-
 For GitHub Copilot in VS Code, MCP servers go in `.vscode/mcp.json`:
 
 ```bash
 cp .vscode/mcp.json.example .vscode/mcp.json
 ```
 
-The `.kilocode/kilo.jsonc`, `opencode.json`, `.mcp.json`, `.kilocode/mcp.json`, `.github/copilot-instructions.md`, and
+For Codex, project MCP servers go in `.codex/config.toml`:
+
+```bash
+cp .codex/config.toml.example .codex/config.toml
+```
+
+The `.kilocode/kilo.jsonc`, `opencode.json`, `.mcp.json`, `.kilocode/mcp.json`, `.codex/config.toml`, and
 `.vscode/mcp.json` copies are optional. Only `AGENTS.md` is required.
 
 Copy the optional templates when you want shared MCP servers (see [MCP servers](#mcp-servers) below) or agent-specific
@@ -135,13 +136,14 @@ They:
 - Refresh the shipped docs: [AGENT_TOOLING.md](AGENT_TOOLING.md), [MCP_SETUP.md](MCP_SETUP.md), and
   [AGENTS-UPDATE.md](AGENTS-UPDATE.md) itself.
 - Enumerate the skills already in [.agents/skills/](../.agents/skills/) and pull only those.
-- Enumerate the subagents already in [.claude/agents/](../.claude/agents/) and
-  [.opencode/agents/](../.opencode/agents/) and pull only those.
+- Enumerate the subagents already in the generated trees ([.claude/agents/](../.claude/agents/),
+  [.opencode/agents/](../.opencode/agents/), `.kilocode/agents/`, `.codex/agents/`, and
+  [.github/agents/](../.github/agents/)) and pull only those.
 
 Commit the refreshed files when ready.
 
-Files intentionally NOT touched by the update: the symlinked skill directories
-([.claude/skills/](../.claude/skills/), [.opencode/skills/](../.opencode/skills/), [.codex/skills/](../.codex/skills/)),
+Files intentionally NOT touched by the update: the [.claude/skills/](../.claude/skills/) symlink (the only skill
+symlink left, since every other agent reads [.agents/skills/](../.agents/skills/) natively),
 [.claude/CLAUDE.md](../.claude/CLAUDE.md), [AGENTS.md.example](../AGENTS.md.example),
 the `.kilocode/*.example` templates, [.mcp.json.example](../.mcp.json.example),
 [opencode.json.example](../opencode.json.example), and your customised `AGENTS.md`. These are templates and personal
@@ -154,11 +156,11 @@ with a one-off `git checkout agent-standards/master -- docs/AGENTS-UPDATE.md`, t
 
 ### Subagents
 
-Subagents are specialised agents the main session delegates to. They live in [.claude/agents/](../.claude/agents/),
-[.opencode/agents/](../.opencode/agents/), and [.github/agents/](../.github/agents/). Kilo Code reads
-[.opencode/agents/](../.opencode/agents/) natively, so OpenCode and Kilo share the same directory. GitHub Copilot
-reads [.github/agents/](../.github/agents/) (`*.agent.md` files) in VS Code and the Copilot CLI. Codex CLI has no
-per-agent file mechanism; it sees [AGENTS.md](../AGENTS.md) plus skills only.
+Subagents are specialised agents the main session delegates to. One canonical file per agent fans out to five
+per-tool trees: [.claude/agents/](../.claude/agents/), [.opencode/agents/](../.opencode/agents/), `.kilocode/agents/`
+(OpenCode-format markdown, read natively by Kilo Code), `.codex/agents/` (TOML custom agents read by Codex), and
+[.github/agents/](../.github/agents/) (`*.agent.md`, read by GitHub Copilot in VS Code, the JetBrains plugin, and the
+Copilot CLI). No shared subagent format exists across the tools, which is why the generator emits five trees.
 
 These files are **generated artifacts**. Do not hand-edit them. Your changes will be overwritten on the next pull. To
 modify a subagent permanently, change its canonical source in the agent-standards repo (`subagents/<name>.md`), run
@@ -179,37 +181,41 @@ salience over a long session, so the gate is re-injected per turn wherever the r
 | Agent | Adapter | Mechanism |
 | ----- | ------- | --------- |
 | Claude Code | [.claude/settings.json](../.claude/settings.json) | `UserPromptSubmit` hook, fires every turn |
+| Codex | `.codex/hooks.json` | `UserPromptSubmit` hook, injects `additionalContext` every turn |
 | OpenCode | [.opencode/plugin/preflight.js](../.opencode/plugin/preflight.js) | `chat.system.transform` plugin hook |
 | Kilo Code | `.kilocode/rules/00-preflight.md` | rule file loaded into context per task |
-| Codex CLI | (none) | relies on the `AGENTS.md` section alone |
-| GitHub Copilot | `.github/copilot-instructions.md` | instruction file loaded into context, no hook |
+| GitHub Copilot | `.github/hooks/preflight.json` | `sessionStart` hook (once per session), gate otherwise in `AGENTS.md` |
 
-Kilo Code, Codex CLI, and GitHub Copilot have no event-hook surface, so they rely on file content loaded into context
-(the rule file, `AGENTS.md`, and the Copilot bridge instructions). Keep the wordings in sync; the canonical text is
-the `AGENTS.md` section. The Claude `settings.json` ships the hook only; if you add project-local permissions there,
-the update flow leaves your file untouched (it is not in the refresh list), so merge hook changes by hand on a major
-update.
+Claude Code, Codex, and OpenCode re-inject the gate every turn through a hook or plugin. Kilo Code loads it as a rule
+per task. GitHub Copilot cannot re-inject per turn, because its `userPromptSubmitted` hook output is discarded, so it
+fires a `sessionStart` hook once per session and otherwise relies on the gate in `AGENTS.md`, which it reads natively.
+Keep every wording in sync; the canonical text is the `AGENTS.md` section. The Claude `settings.json` ships the hook
+only; if you add project-local permissions there, the update flow leaves your file untouched (it is not in the refresh
+list), so merge hook changes by hand on a major update.
 
 ---
 
 ### GitHub Copilot
 
-GitHub Copilot reads most of this setup natively, with one bridge file to cover its blind spots.
+GitHub Copilot reads this setup natively across surfaces, so it needs no bridge instruction file.
 
-- Skills: Copilot reads [.agents/skills/](../.agents/skills/) natively in VS Code and the Copilot CLI, the same
-  canonical directory every other agent uses. No symlink or copy needed.
-- Subagents: generated to [.github/agents/](../.github/agents/) as `*.agent.md` files, read by Copilot in VS Code and
-  the Copilot CLI. They come from the same canonical `subagents/*.md` sources as the Claude and OpenCode trees.
-- Instructions: the Copilot CLI and VS Code chat read [AGENTS.md](../AGENTS.md) directly. In JetBrains and IntelliJ,
-  however, only the Cloud Agent reads `AGENTS.md`; local IntelliJ chat does not. Local IntelliJ and VS Code chat read
-  [.github/copilot-instructions.md](../.github/copilot-instructions.md). Copy it from
-  [.github/copilot-instructions.md.example](../.github/copilot-instructions.md.example); it is a short bridge that
-  points at `AGENTS.md` and restates the preflight gate so the standards load everywhere.
+- Skills: Copilot reads [.agents/skills/](../.agents/skills/) natively in VS Code, the JetBrains plugin, and the
+  Copilot CLI (skills went GA in JetBrains plugin 1.10.0, June 2026), the same canonical directory every other agent
+  uses. No symlink or copy needed.
+- Subagents: generated to [.github/agents/](../.github/agents/) as `*.agent.md` files, read by Copilot in VS Code, the
+  JetBrains plugin (custom agents GA since plugin 1.6.1, March 2026), and the Copilot CLI. They come from the same
+  canonical `subagents/*.md` sources as the other trees.
+- Instructions: the JetBrains plugin (since 1.6.1), VS Code, and the CLI all read [AGENTS.md](../AGENTS.md) natively,
+  so no `.github/copilot-instructions.md` ships. The only surfaces that would still need one are Copilot code review
+  (the GitHub pull-request bot) and the IDEs that read only it (Visual Studio, Xcode, Eclipse); add one yourself if you
+  target those.
 - MCP: Copilot in VS Code reads `.vscode/mcp.json` with the top-level `servers` key. Copy it from
-  [.vscode/mcp.json.example](../.vscode/mcp.json.example).
-- Limitation: Copilot has no hook mechanism, so the preflight gate cannot be enforced per turn the way Claude Code,
-  OpenCode, and Kilo Code enforce it. The gate lives in `AGENTS.md` and the bridge instructions as text only, and the
-  agent must self-apply it.
+  [.vscode/mcp.json.example](../.vscode/mcp.json.example). The JetBrains plugin reads MCP only from the global file
+  `~/.config/github-copilot/intellij/mcp.json` (no per-project file exists, and GitHub documents only the in-IDE UI,
+  not the path), so no JetBrains template ships; see [MCP_SETUP.md](MCP_SETUP.md).
+- Preflight gate: Copilot cannot re-inject per turn (its `userPromptSubmitted` hook output is discarded), so the gate
+  ships as a `sessionStart` hook in `.github/hooks/preflight.json` (injected once per session) and otherwise rides in
+  `AGENTS.md`, which Copilot reads natively. Per-turn enforcement is not yet possible on Copilot.
 
 ---
 
@@ -239,12 +245,16 @@ The full catalogue lives in [.agents/skills/](../.agents/skills/) (one directory
 
 ### MCP servers
 
-Three committed templates ship the same default MCP servers, one per schema: [.mcp.json.example](../.mcp.json.example)
-(Claude Code), the `mcp` block in [opencode.json.example](../opencode.json.example) (OpenCode), and
-[.kilocode/mcp.json.example](../.kilocode/mcp.json.example) (Kilo Code VS Code extension). Kilo does not share
-`opencode.json`; its extension reads `.kilocode/mcp.json` with the `mcpServers` key and `streamable-http` HTTP servers.
+The committed templates ship the same default MCP servers, one per agent surface:
+[.mcp.json.example](../.mcp.json.example) (Claude Code), the `mcp` block in
+[opencode.json.example](../opencode.json.example) (OpenCode),
+[.kilocode/mcp.json.example](../.kilocode/mcp.json.example) (Kilo Code VS Code extension), the `mcp` block in
+[.kilocode/kilo.jsonc.example](../.kilocode/kilo.jsonc.example) (Kilo CLI),
+[.vscode/mcp.json.example](../.vscode/mcp.json.example) (GitHub Copilot in VS Code), and the `[mcp_servers]` tables in
+[.codex/config.toml.example](../.codex/config.toml.example) (Codex). Only the top-level key, the `type` value, and the
+env-var syntax differ per surface.
 
-Copy them into place when you want the shared server set:
+Copy the ones you use into place:
 
 ```bash
 cp .mcp.json.example .mcp.json
@@ -258,9 +268,17 @@ cp opencode.json.example opencode.json
 cp .kilocode/mcp.json.example .kilocode/mcp.json
 ```
 
-Full human setup (prerequisites, key acquisition, environment-variable export per OS, Claude Desktop and Codex CLI
-global configs, verification, and the full default-server list) lives in [MCP_SETUP.md](MCP_SETUP.md). The AI agent
-does not run that setup; a person configures the machine once.
+```bash
+cp .vscode/mcp.json.example .vscode/mcp.json
+```
+
+```bash
+cp .codex/config.toml.example .codex/config.toml
+```
+
+Full human setup (prerequisites, key acquisition, environment-variable export per OS, Claude Desktop and Codex global
+configs, the JetBrains Copilot MCP path, verification, and the full default-server list) lives in
+[MCP_SETUP.md](MCP_SETUP.md). The AI agent does not run that setup; a person configures the machine once.
 
 ---
 
@@ -268,13 +286,13 @@ does not run that setup; a person configures the machine once.
 
 OpenSpec installs skills and commands into each agent's native directories.
 
-#### How symlinks work with OpenSpec
+#### How skills land with OpenSpec
 
-The [.claude/skills/](../.claude/skills/), [.opencode/skills/](../.opencode/skills/), and
-[.codex/skills/](../.codex/skills/) directories are symlinked to [.agents/skills/](../.agents/skills/). Kilo Code
-reads [.agents/skills/](../.agents/skills/) natively without a symlink. When `openspec init` writes skills to any of
-the symlinked directories, they land in [.agents/skills/](../.agents/skills/), the canonical location read by every
-agent.
+Only [.claude/skills/](../.claude/skills/) is symlinked to [.agents/skills/](../.agents/skills/), because Claude Code
+is the one agent that does not read the canonical directory natively. OpenCode, Kilo Code, Codex, and GitHub Copilot
+all read [.agents/skills/](../.agents/skills/) directly. When `openspec init` writes skills through the Claude symlink
+they land in [.agents/skills/](../.agents/skills/); for the other tools OpenSpec writes into that tool's own skills
+directory, which the tool still reads natively.
 
 Commands are tool-specific (different formats per agent) and cannot be centralised. OpenSpec writes them into each
 tool's native commands directory, which is expected.
@@ -297,9 +315,9 @@ Kilo Code users who want OpenSpec slash-workflows specifically for Kilo can run 
 openspec init --tools kilocode
 ```
 
-That will create a `.kilocode/workflows/` directory in your project. The agent-standards repo itself does not ship a
-`.kilocode/` directory; Kilo Code reads skills from [.agents/skills/](../.agents/skills/) and subagents from
-[.opencode/agents/](../.opencode/agents/) natively.
+That will create a `.kilocode/workflows/` directory in your project. The agent-standards repo already ships a
+`.kilocode/` directory (the preflight rule, config templates, and the generated `.kilocode/agents/` subagents); Kilo
+Code reads skills from [.agents/skills/](../.agents/skills/) natively and its subagents from `.kilocode/agents/`.
 
 What `openspec init` creates:
 
@@ -378,8 +396,8 @@ the schema operationalises the same methodology for OpenSpec users. Either works
 | ----------- | ---------------------------------------------------------- | --------------------------------------------------------------------------- |
 | Claude Code | `.claude/skills/openspec-*/` → `.agents/skills/`           | `.claude/commands/opsx/*.md`                                                |
 | Kilo Code   | reads `.agents/skills/` natively (no symlink needed)       | `.kilocode/workflows/opsx-*.md` (only if you ran `--tools kilocode`)        |
-| OpenCode    | `.opencode/skills/openspec-*/` → `.agents/skills/`         | `.opencode/commands/opsx-*.md`                                              |
-| Codex       | `.codex/skills/openspec-*/` → `.agents/skills/`            | `$CODEX_HOME/prompts/opsx-*.md`                                             |
+| OpenCode    | `.opencode/skills/openspec-*/` (read natively)            | `.opencode/commands/opsx-*.md`                                              |
+| Codex       | reads `.agents/skills/` natively (no symlink needed)       | `$CODEX_HOME/prompts/opsx-*.md`                                             |
 
 #### Command syntax variations
 

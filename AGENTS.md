@@ -20,10 +20,14 @@ main session is the failure mode this gate prevents. Re-run the check at the sta
 repo is documentation and the Python generator, so `markdown-writer`, `python-patterns`, and `python-testing` are the
 usual owners, with `code-reviewer` before any merge.
 
-The same gate is enforced per agent: Claude Code re-injects it every turn via a `UserPromptSubmit` hook
-([.claude/settings.json](.claude/settings.json)), OpenCode via a plugin
+The same gate is enforced per agent. Claude Code re-injects it every turn via a `UserPromptSubmit` hook
+([.claude/settings.json](.claude/settings.json)), Codex the same way via its own `UserPromptSubmit` hook
+([.codex/hooks.json](.codex/hooks.json)), OpenCode via a plugin
 ([.opencode/plugin/preflight.js](.opencode/plugin/preflight.js)), and Kilo Code via a rule
-([.kilocode/rules/00-preflight.md](.kilocode/rules/00-preflight.md)).
+([.kilocode/rules/00-preflight.md](.kilocode/rules/00-preflight.md)). GitHub Copilot has no per-turn channel (its
+`userPromptSubmitted` hook output is discarded), so it gets a once-per-session `sessionStart` hook
+([.github/hooks/preflight.json](.github/hooks/preflight.json)) on top of the gate it already reads natively from
+`AGENTS.md`.
 
 ---
 
@@ -40,10 +44,14 @@ script and must never be hand-edited.
 | Tree | Status | How to edit |
 | --- | --- | --- |
 | `subagents/*.md` | canonical | edit directly, then regenerate |
-| `.claude/agents/`, `.opencode/agents/`, `.github/agents/` | generated from `subagents/` | never hand-edit; run the generator |
+| `.claude/agents/`, `.opencode/agents/`, `.kilocode/agents/`, `.codex/agents/`, `.github/agents/` | generated from `subagents/` | never hand-edit; run the generator |
 | `.agents/skills/*/SKILL.md` | canonical | edit directly |
-| `.claude/skills`, `.opencode/skills`, `.codex/skills` | symlinks to `.agents/skills/` | never edit through the link |
+| `.claude/skills` | symlink to `.agents/skills/` | never edit through the link |
 | `AGENTS.md.example`, `*.example`, `docs/*.md` | canonical | edit directly |
+
+OpenCode, Kilo Code, Codex, and GitHub Copilot all read `.agents/skills/` natively, so only Claude Code needs the
+symlink. The generated subagent trees are per tool because no shared subagent format exists: OpenCode and Kilo take
+OpenCode-format markdown (in separate directories), Codex takes TOML, Copilot takes `*.agent.md`.
 
 Regenerate the subagent trees after any `subagents/*.md` change:
 
@@ -66,17 +74,18 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
   prose line over 120 characters. This real `AGENTS.md` is not in the lint scope, but match the style anyway.
 - **One runnable command per fenced code block** in any doc a human copies, with the matching language tag and no
   `#` comment lines inside the block (global rule).
-- **Four MCP templates, one server set.** [.mcp.json.example](.mcp.json.example) (Claude Code),
+- **One server set, one schema per agent surface.** [.mcp.json.example](.mcp.json.example) (Claude Code),
   [opencode.json.example](opencode.json.example) (OpenCode), [.kilocode/mcp.json.example](.kilocode/mcp.json.example)
-  (Kilo Code VS Code extension), and [.vscode/mcp.json.example](.vscode/mcp.json.example) (GitHub Copilot in VS Code)
-  ship the same servers in four schemas. Change all four together; only the top-level key, the `type` value, and the
-  env-var syntax differ. Details in [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
-- **Four preflight wordings, one gate.** The canonical text is the Required opening move above. Three enforced
-  adapters repeat it ([.claude/settings.json](.claude/settings.json),
-  [.opencode/plugin/preflight.js](.opencode/plugin/preflight.js),
-  [.kilocode/rules/00-preflight.md](.kilocode/rules/00-preflight.md)), and the GitHub Copilot copy in
-  [.github/copilot-instructions.md](.github/copilot-instructions.md) states it as instruction text, since Copilot has
-  no hook to enforce it. Keep all four in sync.
+  (Kilo Code VS Code extension), the `mcp` block in [.kilocode/kilo.jsonc.example](.kilocode/kilo.jsonc.example) (Kilo
+  CLI), [.vscode/mcp.json.example](.vscode/mcp.json.example) (GitHub Copilot in VS Code), and the `[mcp_servers]` tables
+  in [.codex/config.toml.example](.codex/config.toml.example) (Codex) ship the same servers. Change them together; only
+  the top-level key, the `type` value, and the env-var syntax differ. Details in [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
+- **One gate, one wording per adapter.** The canonical text is the Required opening move above. Per-turn hooks enforce
+  it for Claude Code ([.claude/settings.json](.claude/settings.json)) and Codex ([.codex/hooks.json](.codex/hooks.json));
+  an OpenCode plugin ([.opencode/plugin/preflight.js](.opencode/plugin/preflight.js)) and a Kilo Code rule
+  ([.kilocode/rules/00-preflight.md](.kilocode/rules/00-preflight.md)) carry it too. GitHub Copilot cannot re-inject per
+  turn, so it gets a once-per-session `sessionStart` hook ([.github/hooks/preflight.json](.github/hooks/preflight.json))
+  on top of the gate in `AGENTS.md`, which it reads natively. Keep every wording in sync.
 - **CI is manual.** Workflows run on `workflow_dispatch` / `workflow_call` only, so nothing runs on push. Verify
   locally before declaring work done.
 
@@ -91,7 +100,11 @@ python tools/check-markdown.py
 ```
 
 ```bash
-python -c "import json; json.load(open('.mcp.json.example')); json.load(open('opencode.json.example')); json.load(open('.kilocode/mcp.json.example')); json.load(open('.vscode/mcp.json.example')); json.load(open('.claude/settings.json'))"
+python -c "import json; [json.load(open(f)) for f in ['.mcp.json.example','opencode.json.example','.kilocode/mcp.json.example','.kilocode/kilo.jsonc.example','.vscode/mcp.json.example','.claude/settings.json','.codex/hooks.json','.github/hooks/preflight.json']]"
+```
+
+```bash
+python -c "import tomllib; tomllib.load(open('.codex/config.toml.example','rb'))"
 ```
 
 ---
@@ -102,8 +115,8 @@ python -c "import json; json.load(open('.mcp.json.example')); json.load(open('op
   expose it to every agent automatically. Bump the skill-count badge in [README.md](README.md).
 - **A subagent:** add or edit `subagents/<name>.md`, run the generator, and commit the canonical source and the
   generated trees together. Bump the subagent-count badge.
-- **An MCP server:** add the block to all four MCP templates, document it in [docs/MCP_SETUP.md](docs/MCP_SETUP.md),
-  and bump the MCP-count badge.
+- **An MCP server:** add the block to every MCP template (the six listed under Repo conventions), document it in
+  [docs/MCP_SETUP.md](docs/MCP_SETUP.md), and bump the MCP-count badge.
 
 ---
 
@@ -141,3 +154,18 @@ should look like.
   uses `experimental.chat.system.transform`. Periodically check whether OpenCode has stabilised or renamed it
   (`https://opencode.ai/docs/plugins/`). When it leaves experimental, drop the `experimental.` prefix or update the
   key, refresh the docs, and remove this note. This is tracked in project memory so it resurfaces each session.
+- **Kilo Code subagents are emitted to `.kilocode/agents/`.** Current Kilo docs (`https://kilo.ai/docs`) list
+  `.kilocode/agents/` (OpenCode-format markdown) as the project location and no longer mention reading
+  `.opencode/agents/`. If a future Kilo release drops the `.kilocode/agents/` path or unifies on another, adjust the
+  `kilo` target in [tools/gen_subagents.py](tools/gen_subagents.py). Kilo now also supports OpenCode-compatible plugins,
+  so the preflight rule could migrate to an enforced plugin once the underlying `chat.system.transform` hook leaves
+  experimental.
+- **GitHub Copilot cannot re-inject the gate per turn.** Its `userPromptSubmitted` hook output is discarded; the
+  `sessionStart` hook injects once per session only. Recheck the GitHub hooks reference
+  (`https://docs.github.com/en/copilot/reference/hooks-reference`) for a per-turn injection channel; adopt it in
+  [.github/hooks/preflight.json](.github/hooks/preflight.json) if one lands.
+- **JetBrains Copilot MCP is global-only and officially undocumented.** The plugin reads MCP from
+  `~/.config/github-copilot/intellij/mcp.json`; there is no per-project MCP file, and GitHub documents only the in-IDE
+  UI, not the path, so no JetBrains MCP template ships. Recheck whether GitHub adds a documented per-project path
+  (`https://docs.github.com/en/copilot/how-tos/provide-context/use-mcp/extend-copilot-chat-with-mcp`) and ship a
+  template if one lands.

@@ -10,7 +10,7 @@ whatever MCP tools the running agent exposes; it doesn't need this document.
 
 ### What ships
 
-Four committed templates, one per MCP schema:
+The committed templates, one per agent surface:
 
 - [.mcp.json.example](../.mcp.json.example): Claude Code project scope. Schema key `mcpServers`. HTTP servers use
   `"type": "http"`. Env-var syntax: `${VAR}` and `${VAR:-default}`.
@@ -18,11 +18,25 @@ Four committed templates, one per MCP schema:
   `instructions`. HTTP servers use `"type": "remote"`. Env-var syntax: `{env:VAR}` (no `$`, no default fallback).
 - [.kilocode/mcp.json.example](../.kilocode/mcp.json.example): Kilo Code VS Code extension project scope. Copy to
   `.kilocode/mcp.json` (same directory). Schema key `mcpServers` (same as Claude), but HTTP servers use
-  `"type": "streamable-http"` and env-var syntax is `{env:VAR}` (same as OpenCode). Kilo is a hybrid; it shares
-  neither file.
+  `"type": "streamable-http"` and env-var syntax is `{env:VAR}` (same as OpenCode).
+- [.kilocode/kilo.jsonc.example](../.kilocode/kilo.jsonc.example): Kilo CLI project scope (the CLI is an OpenCode
+  fork). The `mcp` key carries the servers in the OpenCode schema (`"type": "local"` / `"remote"`, `{env:VAR}`),
+  alongside `instructions`. Copy to `.kilocode/kilo.jsonc`. The extension and the CLI read different files, which is
+  why both Kilo templates ship.
 - [.vscode/mcp.json.example](../.vscode/mcp.json.example): GitHub Copilot in VS Code project scope. Copy to
   `.vscode/mcp.json`. Schema key `servers` (not `mcpServers`). HTTP servers use `"type": "http"`. Env-var syntax:
   `${env:VAR}` (no default fallback, so URL defaults are hardcoded like the OpenCode and Kilo templates).
+- [.codex/config.toml.example](../.codex/config.toml.example): Codex project scope (trusted projects only). TOML,
+  not JSON. Tables `[mcp_servers.<name>]`. No env-var substitution, so tokens are pasted literally and URL defaults
+  are hardcoded. Copy to `.codex/config.toml`.
+
+The JetBrains GitHub Copilot plugin does not get a committed template: it reads MCP only from the global file
+`~/.config/github-copilot/intellij/mcp.json` (`%USERPROFILE%\.config\github-copilot\intellij\mcp.json` on Windows).
+Schema key `servers`, like the VS Code template, but remote servers nest auth under `requestInit.headers` and use a PAT
+(OAuth is not supported in JetBrains yet), and placeholder substitution is unconfirmed. There is no per-project MCP
+file for the JetBrains plugin, and GitHub documents only the in-IDE UI (Settings > Tools > GitHub Copilot > Model
+Context Protocol), not the file path, so treat the path as community-known rather than officially documented. That is
+why no JetBrains template ships.
 
 Kilo Code does **not** read `opencode.json` for MCP. That file is OpenCode only (and the Kilo CLI, a separate
 product from the VS Code extension most users run). The extension reads `.kilocode/mcp.json` (project) or
@@ -262,7 +276,8 @@ Example:
 
 #### Codex CLI
 
-Path: `~/.codex/config.toml`. Different format (TOML, not JSON). Global-only, no project scope.
+Path: `~/.codex/config.toml` for global scope, or `.codex/config.toml` per project (trusted projects only; ship it
+from [.codex/config.toml.example](../.codex/config.toml.example)). Different format (TOML, not JSON).
 
 ```toml
 [mcp_servers.context7]
@@ -294,9 +309,11 @@ Useful when debugging why a variable isn't being picked up.
 | Claude Code, `.mcp.json` and `~/.claude.json`   | `${VAR}`, `${VAR:-default}`    | `command`, `args`, `env`, `url`, `headers`    |
 | OpenCode, `opencode.json`                       | `{env:VAR}`                    | string values in any MCP field                |
 | Kilo Code extension, `.kilocode/mcp.json`       | `{env:VAR}`                    | string values in any MCP field                |
-| GitHub Copilot, `.vscode/mcp.json`              | `${env:VAR}`, `${input:NAME}`  | string values in any MCP field                |
+| Kilo CLI, `.kilocode/kilo.jsonc`                | `{env:VAR}`                    | string values in any MCP field                |
+| GitHub Copilot VS Code, `.vscode/mcp.json`      | `${env:VAR}`, `${input:NAME}`  | string values in any MCP field                |
+| GitHub Copilot JetBrains, global `mcp.json`     | none documented                | inline literal values, PAT header for remote  |
 | Claude Desktop, `claude_desktop_config.json`    | **not supported**              | inline literal values                         |
-| Codex CLI, `~/.codex/config.toml`               | TOML; no built-in substitution | inline literal values                         |
+| Codex, `~/.codex/config.toml` and `.codex/config.toml` | TOML; no built-in substitution | inline literal values                 |
 
 ---
 
@@ -323,12 +340,14 @@ If a server fails to connect:
 
 ### Adding or changing a server
 
-Edit all four templates in the agent-standards repo: [.mcp.json.example](../.mcp.json.example),
-[opencode.json.example](../opencode.json.example), [.kilocode/mcp.json.example](../.kilocode/mcp.json.example), and
-[.vscode/mcp.json.example](../.vscode/mcp.json.example).
-Commit, and
-consumer projects pull via the Step 2 update flow in [AGENT_TOOLING.md](AGENT_TOOLING.md). Keep the server set in sync
-across all four; only the per-schema syntax (top-level key, `type` value, env-var form) differs.
+Edit every template in the agent-standards repo: [.mcp.json.example](../.mcp.json.example),
+[opencode.json.example](../opencode.json.example), [.kilocode/mcp.json.example](../.kilocode/mcp.json.example), the
+`mcp` block in [.kilocode/kilo.jsonc.example](../.kilocode/kilo.jsonc.example),
+[.vscode/mcp.json.example](../.vscode/mcp.json.example), and the `[mcp_servers]` tables in
+[.codex/config.toml.example](../.codex/config.toml.example). Commit, and consumer projects pull via the Step 2 update
+flow in [AGENT_TOOLING.md](AGENT_TOOLING.md). Keep the server set in sync across all of them; only the per-schema
+syntax (top-level key, `type` value, env-var form) differs.
 
 To customise per-project without affecting upstream, edit the copied `.mcp.json`, `opencode.json`,
-`.kilocode/mcp.json`, and `.vscode/mcp.json` directly. Those are local to each consumer.
+`.kilocode/mcp.json`, `.kilocode/kilo.jsonc`, `.vscode/mcp.json`, and `.codex/config.toml` directly. Those are local
+to each consumer.

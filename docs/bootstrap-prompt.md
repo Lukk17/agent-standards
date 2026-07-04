@@ -21,27 +21,24 @@ and wiring pass and report back as a checklist.
 
 ## 1. Verify skills wiring
 
-Skills live canonically in `.agents/skills/`. The `.claude/skills/`, `.opencode/skills/`, and `.codex/skills/`
-directories are symlinks pointing there. Kilo Code reads `.agents/skills/` natively without a symlink. Symlinks
-frequently break on Windows checkouts, so do not trust a directory listing.
+Skills live canonically in `.agents/skills/`. Only `.claude/skills/` is a symlink pointing there, for Claude Code.
+OpenCode, Kilo Code, Codex, and GitHub Copilot read `.agents/skills/` natively without a symlink. Symlinks frequently
+break on Windows checkouts, so do not trust a directory listing.
 
-For your own agent's skills directory, open ONE skill through the symlink path (e.g.
-`.claude/skills/coding-standards/SKILL.md` for Claude Code, or the equivalent for your agent) and quote the first
-heading line back. If the read fails, the symlink is broken. Report it and stop; do not silently fall back to
-`.agents/skills/`.
+For Claude Code, open ONE skill through the symlink path (`.claude/skills/coding-standards/SKILL.md`) and quote the
+first heading line back. If the read fails, the symlink is broken. Report it and stop; do not silently fall back to
+`.agents/skills/`. For every other agent, open one skill directly from `.agents/skills/` and quote its heading.
 
-Then list which of the agent directories (`.claude`, `.opencode`, `.codex`) actually exist in this repo so missing
-setups surface.
+Then list which of the agent directories (`.claude`, `.opencode`, `.codex`, `.kilocode`, `.github`) actually exist in
+this repo so missing setups surface.
 
 ## 2. Verify subagent files exist
 
-Subagent definitions ship as plain files (not symlinks) in `.claude/agents/` and `.opencode/agents/`. The latter is
-shared by OpenCode and Kilo Code. Confirm that the directory your tool reads is non-empty and lists several `.md`
-files (cross-check against the subagent badge count on the agent-standards README if you want a target). If it is
-empty or missing, the agent-standards import pulled an incomplete subset. Flag it and ask the user to re-run the
-checkout.
-
-Codex CLI has no per-agent file mechanism. From Codex this step is N/A. Report "no subagent mechanism" and move on.
+Subagent definitions ship as plain files (not symlinks) generated into five trees: `.claude/agents/` (`*.md`),
+`.opencode/agents/` (`*.md`), `.kilocode/agents/` (`*.md`), `.codex/agents/` (`*.toml`), and `.github/agents/`
+(`*.agent.md`). Confirm that the directory your tool reads is non-empty and lists several files (cross-check against
+the subagent badge count on the agent-standards README if you want a target). If it is empty or missing, the
+agent-standards import pulled an incomplete subset. Flag it and ask the user to re-run the checkout.
 
 ## 3. Verify MCP runtime
 
@@ -50,10 +47,10 @@ see none, say "no MCP servers active in this session" and note that this is fine
 have them disabled, or may not have copied `.mcp.json.example` and `opencode.json.example` yet. Do not assume specific
 servers should be present; just report what is there.
 
-If the project ships `.mcp.json.example`, `opencode.json.example`, or `.kilocode/mcp.json.example` but the
-corresponding `.mcp.json`, `opencode.json`, or `.kilocode/mcp.json` does not exist, mention it. The user may want to
-copy the templates. Note the Kilo Code VS Code extension reads MCP from `.kilocode/mcp.json` (key `mcpServers`,
-`streamable-http` HTTP servers), not from `opencode.json`.
+If the project ships any MCP template (`.mcp.json.example`, `opencode.json.example`, `.kilocode/mcp.json.example`,
+`.kilocode/kilo.jsonc.example`, `.vscode/mcp.json.example`, or `.codex/config.toml.example`) but the corresponding
+active file does not exist, mention it. The user may want to copy the templates. Note the Kilo Code VS Code extension
+reads MCP from `.kilocode/mcp.json` (key `mcpServers`, `streamable-http` HTTP servers), not from `opencode.json`.
 
 ## 4. Trim docs/MCP_SETUP.md to what this project actually uses
 
@@ -158,8 +155,8 @@ Restate in your own words, in three or four sentences:
 - How you will direct them to invoke specific skills.
 - Which work patterns trigger which subagents (reviewing, adding a feature, debugging, migrations, docs).
 
-This is a posture check. The user needs to know you understood the delegation rules before you start work. If your
-agent has no subagent mechanism (Codex CLI), say so and confirm you will lean on skills instead.
+This is a posture check. The user needs to know you understood the delegation rules before you start work. Every
+supported agent now has a subagent mechanism, so restate the strategy regardless of which one you are running.
 
 ## 9. Decide if subdir AGENTS.md files are needed
 
@@ -177,10 +174,10 @@ qualifies, that is a ✅, not a warning.
 End your bootstrap with this checklist (✅ pass / ❌ broken, needs fixing). "Considered and not needed" is ✅, not a
 warning. Use ❌ only for things that are actually broken or missing wiring.
 
-- [ ] Skills readable through my agent's symlink (quote the heading line)
-- [ ] Agent directories present (`.claude`, `.opencode`, `.codex`; Kilo Code reads `.agents/` and `.opencode/`
-      natively)
-- [ ] Subagent files present (Claude Code: `.claude/agents/`; OpenCode / Kilo: `.opencode/agents/`; Codex: N/A)
+- [ ] Skills readable (Claude Code through the `.claude/skills/` symlink; other agents directly from `.agents/skills/`)
+- [ ] Agent directories present (`.claude`, `.opencode`, `.codex`, `.kilocode`, `.github`)
+- [ ] Subagent files present (Claude: `.claude/agents/`; OpenCode: `.opencode/agents/`; Kilo: `.kilocode/agents/`;
+      Codex: `.codex/agents/`; Copilot: `.github/agents/`)
 - [ ] MCP runtime checked (list names, or "none active")
 - [ ] docs/MCP_SETUP.md trimmed to active servers (show diff, or "no trim needed")
 - [ ] OpenSpec callable (slash command name; version if available)
@@ -190,7 +187,7 @@ warning. Use ❌ only for things that are actually broken or missing wiring.
 - [ ] CLAUDE.md `@` imports vs inventory (list drift, or ✅ "no drift")
 - [ ] Root AGENTS.md stubs filled (show the diff that was just applied)
 - [ ] `docs/AGENTS-UPDATE.md` present (shipped via Step 1 checkout)
-- [ ] Subagent strategy restated (or "N/A, no subagent mechanism in this agent")
+- [ ] Subagent strategy restated
 - [ ] Subdirectory AGENTS.md needed? (yes plus paths, or ✅ "no, single-app repo")
 
 Auto-apply (no approval needed), already done as part of this pass:

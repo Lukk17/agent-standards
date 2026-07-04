@@ -17,39 +17,24 @@ This file stays in the agent-standards repo only. It is not shipped to consumer 
 If the standard checkout worked, skip to the per-agent commands below. If symlinks did not survive (most often on
 Windows), recreate them, then copy the example configs.
 
-#### Linux or macOS, recreate symlinks
+Only [.claude/skills/](../.claude/skills/) is a symlink now. OpenCode, Kilo Code, Codex, and GitHub Copilot all read
+[.agents/skills/](../.agents/skills/) natively, so they need no symlink to recreate.
 
-Run from the project root, only if symlinks did not survive the checkout:
+#### Linux or macOS, recreate the symlink
 
-```bash
-mkdir -p .opencode .codex
-```
-
-```bash
-ln -s ../.agents/skills .opencode/skills
-```
+Run from the project root, only if the symlink did not survive the checkout:
 
 ```bash
-ln -s ../.agents/skills .codex/skills
+ln -s ../.agents/skills .claude/skills
 ```
 
-#### Windows, recreate symlinks
+#### Windows, recreate the symlink
 
 Run from the project root, as Administrator or with Developer Mode enabled:
 
 ```cmd
-mkdir .opencode .codex
+mklink /D .claude\skills ..\.agents\skills
 ```
-
-```cmd
-mklink /D .opencode\skills ..\.agents\skills
-```
-
-```cmd
-mklink /D .codex\skills ..\.agents\skills
-```
-
-Kilo Code does not need its own `skills/` directory. It reads [.agents/skills/](../.agents/skills/) natively.
 
 #### Copy the example configs
 
@@ -78,10 +63,10 @@ the `${VAR}` and `{env:VAR}` placeholders resolve at agent startup.
 
 ### Per-agent start reference
 
-Quick reference for the four supported agents. How each one loads instructions and skills, plus the command to start
-it from the project root. All four read [AGENTS.md](../AGENTS.md.example) and discover skills from
-[.agents/skills/](../.agents/skills/) automatically. Pick whichever agent you prefer; they share the same instructions
-and skills.
+Quick reference for the five supported agents. How each one loads instructions and skills, plus the command to start
+it from the project root. All of them read [AGENTS.md](../AGENTS.md.example) (Claude Code through the `@` import) and
+discover skills from [.agents/skills/](../.agents/skills/) automatically. Pick whichever agent you prefer; they share
+the same instructions and skills.
 
 #### Claude Code
 
@@ -128,7 +113,9 @@ Optionally copy [opencode.json.example](../opencode.json.example) to `opencode.j
 #### Codex CLI
 
 Codex reads [AGENTS.md](../AGENTS.md.example) from the project root and discovers skills from
-[.agents/skills/](../.agents/skills/) automatically. No project-level config file is required.
+[.agents/skills/](../.agents/skills/) automatically. This repo ships Codex custom agents in `.codex/agents/` (`*.toml`),
+the preflight hook `.codex/hooks.json`, and the project MCP template `.codex/config.toml.example`. No project-level
+config file is strictly required.
 
 Start it from the project root:
 
@@ -141,6 +128,14 @@ For global Codex settings, edit `~/.codex/config.toml`:
 ```toml
 project_doc_max_bytes = 65536
 ```
+
+#### GitHub Copilot
+
+GitHub Copilot reads [AGENTS.md](../AGENTS.md.example) natively in the JetBrains plugin, VS Code, and the CLI, and
+discovers skills from [.agents/skills/](../.agents/skills/) natively. Subagents live in `.github/agents/`
+(`*.agent.md`) and the preflight gate ships as a `sessionStart` hook in `.github/hooks/preflight.json`. No bridge
+instruction file is needed; add your own `.github/copilot-instructions.md` only if you target Copilot code review or
+the IDEs that read only it (Visual Studio, Xcode, Eclipse). Start it inside your IDE or via the `copilot` CLI.
 
 #### Invoking skills
 

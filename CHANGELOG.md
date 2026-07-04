@@ -4,6 +4,36 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Codex custom agents generated to `.codex/agents/*.toml` and Kilo Code subagents to `.kilocode/agents/*.md`. All five
+  supported agents now receive native subagent files from the one canonical `subagents/` source.
+- Codex preflight enforcement via a `UserPromptSubmit` hook (`.codex/hooks.json`, injecting the gate every turn) and
+  GitHub Copilot via a `sessionStart` hook (`.github/hooks/preflight.json`, once per session, since Copilot discards
+  `userPromptSubmitted` hook output).
+- Kilo CLI MCP servers in the `mcp` block of `.kilocode/kilo.jsonc.example`, and Codex project MCP servers in
+  `.codex/config.toml.example`.
+
+### Changed
+
+- The subagent generator emits five per-tool trees instead of three. Kilo Code now reads `.kilocode/agents/` (its
+  documented path) rather than relying on a shared `.opencode/agents/` directory.
+- Documentation updated to the verified mid-2026 state: GitHub Copilot, including the JetBrains plugin, reads
+  `AGENTS.md` and `.agents/skills/` natively, and Codex gained custom agents, hooks, and project-level config.
+- CI now validates the `.vscode/mcp.json.example`, `.kilocode/kilo.jsonc.example`, `.codex/config.toml.example`, and
+  the two new hook files alongside the existing templates.
+
+### Removed
+
+- The `.opencode/skills` and `.codex/skills` symlinks. OpenCode and Codex read `.agents/skills/` natively, leaving
+  `.claude/skills` as the only skill symlink.
+- The `.github/copilot-instructions.md` bridge and its `.example`. GitHub Copilot reads `AGENTS.md` natively in the
+  JetBrains plugin, VS Code, and the CLI, so the bridge only duplicated it. Copilot code review and the IDEs that read
+  only that file (Visual Studio, Xcode, Eclipse) are now out of scope; add a bridge back per project if you target
+  them.
+
 ## [1.0.0] - 2026-06-25
 
 First tagged release. A consumer pins this tag and pulls updates with one `git fetch`.

@@ -42,12 +42,10 @@ jobs:
       - name: Install generator dependencies
         run: pip install --require-hashes -r tools/requirements.txt
 
-      - name: Validate JSON example files
+      - name: Validate JSON example and config files
         run: |
-          python -c "import json; json.load(open('.mcp.json.example'))"
-          python -c "import json; json.load(open('opencode.json.example'))"
-          python -c "import json; json.load(open('.kilocode/mcp.json.example'))"
-          python -c "import json; json.load(open('.claude/settings.json'))"
+          python -c "import json; [json.load(open(f)) for f in ['.mcp.json.example','opencode.json.example','.kilocode/mcp.json.example','.kilocode/kilo.jsonc.example','.vscode/mcp.json.example','.claude/settings.json','.codex/hooks.json','.github/hooks/preflight.json']]"
+          python -c "import tomllib; tomllib.load(open('.codex/config.toml.example','rb'))"
 
       - name: Check subagent generator output is in sync with canonical sources
         run: python tools/gen_subagents.py --check
