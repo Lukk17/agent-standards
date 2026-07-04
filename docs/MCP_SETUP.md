@@ -16,19 +16,19 @@ The committed templates, one per agent surface:
   `"type": "http"`. Env-var syntax: `${VAR}` and `${VAR:-default}`.
 - [opencode.json.example](../opencode.json.example): OpenCode project scope. Schema key `mcp` alongside
   `instructions`. HTTP servers use `"type": "remote"`. Env-var syntax: `{env:VAR}` (no `$`, no default fallback).
-- [.kilocode/mcp.json.example](../.kilocode/mcp.json.example): Kilo Code VS Code extension project scope. Copy to
+- [.kilocode/mcp.json.example](../.kilocode/mcp.json.example): Kilo Code VS Code extension project scope. Rename to
   `.kilocode/mcp.json` (same directory). Schema key `mcpServers` (same as Claude), but HTTP servers use
   `"type": "streamable-http"` and env-var syntax is `{env:VAR}` (same as OpenCode).
 - [.kilocode/kilo.jsonc.example](../.kilocode/kilo.jsonc.example): Kilo CLI project scope (the CLI is an OpenCode
   fork). The `mcp` key carries the servers in the OpenCode schema (`"type": "local"` / `"remote"`, `{env:VAR}`),
-  alongside `instructions`. Copy to `.kilocode/kilo.jsonc`. The extension and the CLI read different files, which is
+  alongside `instructions`. Rename to `.kilocode/kilo.jsonc`. The extension and the CLI read different files, which is
   why both Kilo templates ship.
 - [.vscode/mcp.json.example](../.vscode/mcp.json.example): GitHub Copilot in VS Code project scope. Copy to
   `.vscode/mcp.json`. Schema key `servers` (not `mcpServers`). HTTP servers use `"type": "http"`. Env-var syntax:
   `${env:VAR}` (no default fallback, so URL defaults are hardcoded like the OpenCode and Kilo templates).
 - [.codex/config.toml.example](../.codex/config.toml.example): Codex project scope (trusted projects only). TOML,
   not JSON. Tables `[mcp_servers.<name>]`. No env-var substitution, so tokens are pasted literally and URL defaults
-  are hardcoded. Copy to `.codex/config.toml`.
+  are hardcoded. Rename to `.codex/config.toml`.
 
 The JetBrains GitHub Copilot plugin does not get a committed template: it reads MCP only from the global file
 `~/.config/github-copilot/intellij/mcp.json` (`%USERPROFILE%\.config\github-copilot\intellij\mcp.json` on Windows).
@@ -62,33 +62,34 @@ Disable a server you don't use. In `opencode.json` set `"enabled": false` on the
 
 ---
 
-### Step 1, copy the templates
+### Step 1, activate the templates
 
-From the project root:
+From the project root, rename each template you use to its real name (dropping `.example`):
 
 ```bash
-cp .mcp.json.example .mcp.json
+mv .mcp.json.example .mcp.json
 ```
 
 ```bash
-cp opencode.json.example opencode.json
+mv opencode.json.example opencode.json
 ```
 
-For the Kilo Code VS Code extension, copy the Kilo template into the `.kilocode/` directory instead:
+For the Kilo Code VS Code extension, rename the Kilo template inside the `.kilocode/` directory:
 
 ```bash
-cp .kilocode/mcp.json.example .kilocode/mcp.json
+mv .kilocode/mcp.json.example .kilocode/mcp.json
 ```
 
-For GitHub Copilot in VS Code, copy the VS Code template into the `.vscode/` directory:
+For GitHub Copilot in VS Code, rename the VS Code template inside the `.vscode/` directory:
 
 ```bash
-cp .vscode/mcp.json.example .vscode/mcp.json
+mv .vscode/mcp.json.example .vscode/mcp.json
 ```
 
-All four files are gitignored at the agent-standards repo level. In your consumer project, decide per-team whether
-to commit them. If you keep `${VAR}` or `{env:VAR}` placeholders and never inline secrets, the files are
-commit-safe.
+Renaming keeps the consumer tidy: no dead `.example` twin, and any template still named `.example` is one you have
+not activated. One exception: if you inline real secrets into a config and gitignore it, `cp` that file instead of
+renaming, so the committed `.example` survives as the tracked template. With `${VAR}` or `{env:VAR}` placeholders and
+no inlined secrets, the files are commit-safe and renaming is fine.
 
 ---
 

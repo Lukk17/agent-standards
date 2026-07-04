@@ -58,12 +58,12 @@ git checkout agent-standards/master -- .agents .claude .opencode .codex .kilocod
 ```
 
 ```bash
-cp AGENTS.md.example AGENTS.md
+mv AGENTS.md.example AGENTS.md
 ```
 
 That's it. Open the project in Claude Code, Kilo Code, OpenCode, Codex, or GitHub Copilot and skills are live.
 
-Optional next step: copy [.mcp.json.example](.mcp.json.example) to `.mcp.json` (Claude Code),
+Optional next step: rename [.mcp.json.example](.mcp.json.example) to `.mcp.json` (Claude Code),
 [opencode.json.example](opencode.json.example) to `opencode.json` (OpenCode),
 [.kilocode/mcp.json.example](.kilocode/mcp.json.example) to `.kilocode/mcp.json` (Kilo Code VS Code extension),
 [.vscode/mcp.json.example](.vscode/mcp.json.example) to `.vscode/mcp.json` (GitHub Copilot in VS Code), and
@@ -165,7 +165,7 @@ across the tools. Full detail with precedence rules lives in [docs/repository-la
   (`/opsx:new --schema e2e-runbooks`). Install steps live in
   [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md#optional-install-a-custom-schema-for-e2e-capability-tests).
 - **[AGENTS.md](AGENTS.md.example)**: shared instructions auto-read by Kilo, OpenCode, Codex, and GitHub Copilot
-  (JetBrains, VS Code, and CLI). [AGENTS.md.example](AGENTS.md.example) is the template you copy into a new project.
+  (JetBrains, VS Code, and CLI). [AGENTS.md.example](AGENTS.md.example) is the template you rename to `AGENTS.md`.
 - **GitHub Copilot**: [.github/agents/](.github/agents/) holds generated `*.agent.md` subagents, and
   `.github/hooks/preflight.json` is the `sessionStart` gate hook. Copilot reads `AGENTS.md` and `.agents/skills/`
   natively (JetBrains plugin, VS Code, CLI), so no bridge instruction file is needed.
@@ -277,7 +277,7 @@ filenames stay in this repo only.
 
 | File | What's in it |
 | --- | --- |
-| [AGENTS.md.example](AGENTS.md.example) | Source instructions template. Copy to `AGENTS.md` after import; consumer projects fill the project-specific sections. |
+| [AGENTS.md.example](AGENTS.md.example) | Source instructions template. Rename to `AGENTS.md` after import; consumer projects fill the project-specific sections. |
 
 ---
 

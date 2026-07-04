@@ -15,7 +15,7 @@ This file stays in the agent-standards repo only. It is not shipped to consumer 
 ### Activating the imported files manually
 
 If the standard checkout worked, skip to the per-agent commands below. If symlinks did not survive (most often on
-Windows), recreate them, then copy the example configs.
+Windows), recreate them, then activate the example configs.
 
 Only [.claude/skills/](../.claude/skills/) is a symlink now. OpenCode, Kilo Code, Codex, and GitHub Copilot all read
 [.agents/skills/](../.agents/skills/) natively, so they need no symlink to recreate.
@@ -36,24 +36,25 @@ Run from the project root, as Administrator or with Developer Mode enabled:
 mklink /D .claude\skills ..\.agents\skills
 ```
 
-#### Copy the example configs
+#### Activate the example configs
 
-[AGENTS.md](../AGENTS.md.example) is required. The other three are optional.
+Rename each template you use to its real name (dropping `.example`). `AGENTS.md` is required; the rest are optional.
+If you inline secrets into a config and gitignore it, `cp` that one instead so the committed `.example` stays tracked.
 
 ```bash
-cp AGENTS.md.example AGENTS.md
+mv AGENTS.md.example AGENTS.md
 ```
 
 ```bash
-cp .kilocode/kilo.jsonc.example .kilocode/kilo.jsonc
+mv .kilocode/kilo.jsonc.example .kilocode/kilo.jsonc
 ```
 
 ```bash
-cp opencode.json.example opencode.json
+mv opencode.json.example opencode.json
 ```
 
 ```bash
-cp .mcp.json.example .mcp.json
+mv .mcp.json.example .mcp.json
 ```
 
 For MCP, follow [docs/MCP_SETUP.md](MCP_SETUP.md) to install prerequisites, acquire keys, and export the env vars so
@@ -85,7 +86,7 @@ claude
 Kilo Code reads [AGENTS.md](../AGENTS.md.example) from the project root automatically and discovers skills from
 [.agents/skills/](../.agents/skills/) natively.
 
-Optionally copy [.kilocode/kilo.jsonc.example](../.kilocode/kilo.jsonc.example) to `.kilocode/kilo.jsonc` to enable
+Optionally rename [.kilocode/kilo.jsonc.example](../.kilocode/kilo.jsonc.example) to `.kilocode/kilo.jsonc` to enable
 additional instruction globs (Kilo CLI):
 
 ```json
@@ -99,7 +100,7 @@ additional instruction globs (Kilo CLI):
 OpenCode reads [AGENTS.md](../AGENTS.md.example) automatically and discovers skills from
 [.agents/skills/](../.agents/skills/) natively.
 
-Optionally copy [opencode.json.example](../opencode.json.example) to `opencode.json` for additional configuration:
+Optionally rename [opencode.json.example](../opencode.json.example) to `opencode.json` for additional configuration:
 
 ```json
 {

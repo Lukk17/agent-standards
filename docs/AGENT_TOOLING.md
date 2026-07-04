@@ -83,47 +83,51 @@ What this does **not** pull:
 - `subagents/` (canonical templates) and `tools/` (generator) live only in the agent-standards repo and are never
   imported into consumer projects.
 
-Then copy the templates into place:
+Then rename each template you activate to its real name, dropping the `.example` suffix. The `.example` suffix is only
+meaningful upstream; in your project a rename leaves a clean active file, and any template still named `.example` marks
+one you have not activated yet. Stage and commit with `git add -A` afterwards so the renames are recorded.
+
+`AGENTS.md` is required:
 
 ```bash
-cp AGENTS.md.example AGENTS.md
+mv AGENTS.md.example AGENTS.md
 ```
 
 ```bash
-cp .kilocode/kilo.jsonc.example .kilocode/kilo.jsonc
+mv .kilocode/kilo.jsonc.example .kilocode/kilo.jsonc
 ```
 
 ```bash
-cp opencode.json.example opencode.json
+mv opencode.json.example opencode.json
 ```
 
 ```bash
-cp .mcp.json.example .mcp.json
+mv .mcp.json.example .mcp.json
 ```
 
 For the Kilo Code VS Code extension, MCP servers go in `.kilocode/mcp.json`:
 
 ```bash
-cp .kilocode/mcp.json.example .kilocode/mcp.json
+mv .kilocode/mcp.json.example .kilocode/mcp.json
 ```
 
 For GitHub Copilot in VS Code, MCP servers go in `.vscode/mcp.json`:
 
 ```bash
-cp .vscode/mcp.json.example .vscode/mcp.json
+mv .vscode/mcp.json.example .vscode/mcp.json
 ```
 
 For Codex, project MCP servers go in `.codex/config.toml`:
 
 ```bash
-cp .codex/config.toml.example .codex/config.toml
+mv .codex/config.toml.example .codex/config.toml
 ```
 
 The `.kilocode/kilo.jsonc`, `opencode.json`, `.mcp.json`, `.kilocode/mcp.json`, `.codex/config.toml`, and
-`.vscode/mcp.json` copies are optional. Only `AGENTS.md` is required.
-
-Copy the optional templates when you want shared MCP servers (see [MCP servers](#mcp-servers) below) or agent-specific
-configuration.
+`.vscode/mcp.json` renames are optional; only `AGENTS.md` is required. Rename the optional templates when you want
+shared MCP servers (see [MCP servers](#mcp-servers) below) or agent-specific configuration. One exception: if your team
+keeps real secrets in an MCP config and gitignores it, `cp` that one template instead of renaming, so the committed
+`.example` stays as the tracked reference.
 
 #### Step 2, pulling future updates
 
@@ -254,26 +258,26 @@ The committed templates ship the same default MCP servers, one per agent surface
 [.codex/config.toml.example](../.codex/config.toml.example) (Codex). Only the top-level key, the `type` value, and the
 env-var syntax differ per surface.
 
-Copy the ones you use into place:
+Rename the ones you use into place (or `cp` instead for any config you gitignore, so the template stays committed):
 
 ```bash
-cp .mcp.json.example .mcp.json
+mv .mcp.json.example .mcp.json
 ```
 
 ```bash
-cp opencode.json.example opencode.json
+mv opencode.json.example opencode.json
 ```
 
 ```bash
-cp .kilocode/mcp.json.example .kilocode/mcp.json
+mv .kilocode/mcp.json.example .kilocode/mcp.json
 ```
 
 ```bash
-cp .vscode/mcp.json.example .vscode/mcp.json
+mv .vscode/mcp.json.example .vscode/mcp.json
 ```
 
 ```bash
-cp .codex/config.toml.example .codex/config.toml
+mv .codex/config.toml.example .codex/config.toml
 ```
 
 Full human setup (prerequisites, key acquisition, environment-variable export per OS, Claude Desktop and Codex global

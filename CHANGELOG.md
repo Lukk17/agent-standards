@@ -24,6 +24,9 @@ All notable changes to this project are documented here. The format follows
   `AGENTS.md` and `.agents/skills/` natively, and Codex gained custom agents, hooks, and project-level config.
 - CI now validates the `.vscode/mcp.json.example`, `.kilocode/kilo.jsonc.example`, `.codex/config.toml.example`, and
   the two new hook files alongside the existing templates.
+- The import flow renames each activated template to its real name (`mv`) instead of copying it, so a consumer keeps
+  no dead `.example` twin and a remaining `.example` marks a template not yet activated. Configs that hold inlined
+  secrets and are gitignored keep the `cp` path so the template stays tracked.
 
 ### Removed
 
