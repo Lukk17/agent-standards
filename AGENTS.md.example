@@ -143,15 +143,14 @@ All supported agents read this `AGENTS.md` from the project root and auto-discov
 
 - **Claude Code**: run `claude`. Reads [.claude/CLAUDE.md](.claude/CLAUDE.md), which imports this file.
 - **Kilo Code**: reads `AGENTS.md` and `.kilocode/rules/` automatically. Optional
-  [.kilocode/kilo.jsonc.example](.kilocode/kilo.jsonc.example) for the Kilo CLI; the VS Code extension takes MCP
-  servers from `.kilocode/mcp.json` (template [.kilocode/mcp.json.example](.kilocode/mcp.json.example)), not from
-  `opencode.json`.
+  [.kilocode/kilo.jsonc.example](.kilocode/kilo.jsonc.example) carries MCP servers under the `mcp` key, read by the VS
+  Code extension, the JetBrains plugin, and the CLI alike, not from `opencode.json`.
 - **OpenCode**: reads `AGENTS.md` automatically. Optional [opencode.json](opencode.json.example) at project root.
 - **Codex CLI**: run `codex`. Reads `AGENTS.md` automatically. Global settings in `~/.codex/config.toml`.
 - **GitHub Copilot**: the Copilot CLI and VS Code chat read `AGENTS.md`; local IntelliJ and VS Code chat also read
   [.github/copilot-instructions.md](.github/copilot-instructions.md) (copy it from the `.example`). Subagents come
-  from [.github/agents/](.github/agents/) and MCP servers from `.vscode/mcp.json` (template
-  [.vscode/mcp.json.example](.vscode/mcp.json.example)).
+  from [.github/agents/](.github/agents/) and MCP servers from `.vscode/mcp.json` in VS Code (template
+  [.vscode/mcp.json.example](.vscode/mcp.json.example)); the JetBrains plugin and the CLI read MCP from global files.
 
 ---
 

@@ -75,11 +75,13 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
 - **One runnable command per fenced code block** in any doc a human copies, with the matching language tag and no
   `#` comment lines inside the block (global rule).
 - **One server set, one schema per agent surface.** [.mcp.json.example](.mcp.json.example) (Claude Code),
-  [opencode.json.example](opencode.json.example) (OpenCode), [.kilocode/mcp.json.example](.kilocode/mcp.json.example)
-  (Kilo Code VS Code extension), the `mcp` block in [.kilocode/kilo.jsonc.example](.kilocode/kilo.jsonc.example) (Kilo
-  CLI), [.vscode/mcp.json.example](.vscode/mcp.json.example) (GitHub Copilot in VS Code), and the `[mcp_servers]` tables
-  in [.codex/config.toml.example](.codex/config.toml.example) (Codex) ship the same servers. Change them together; only
-  the top-level key, the `type` value, and the env-var syntax differ. Details in [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
+  [opencode.json.example](opencode.json.example) (OpenCode), the `mcp` block in
+  [.kilocode/kilo.jsonc.example](.kilocode/kilo.jsonc.example) (Kilo Code, extension and CLI),
+  [.vscode/mcp.json.example](.vscode/mcp.json.example) (GitHub Copilot in VS Code), and the `[mcp_servers]` tables in
+  [.codex/config.toml.example](.codex/config.toml.example) (Codex) ship the same servers. Change them together; only the
+  top-level key, the `type` value, and the env-var syntax differ. The two global-only Copilot surfaces (JetBrains and
+  CLI) get no template; their blocks are documented in [docs/MCP_SETUP.md](docs/MCP_SETUP.md), alongside the full human
+  setup. Per-surface matrix in [docs/agent-compatibility.md](docs/agent-compatibility.md).
 - **One gate, one wording per adapter.** The canonical text is the Required opening move above. Per-turn hooks enforce
   it for Claude Code ([.claude/settings.json](.claude/settings.json)) and Codex ([.codex/hooks.json](.codex/hooks.json));
   an OpenCode plugin ([.opencode/plugin/preflight.js](.opencode/plugin/preflight.js)) and a Kilo Code rule
@@ -100,7 +102,7 @@ python tools/check-markdown.py
 ```
 
 ```bash
-python -c "import json; [json.load(open(f)) for f in ['.mcp.json.example','opencode.json.example','.kilocode/mcp.json.example','.kilocode/kilo.jsonc.example','.vscode/mcp.json.example','.claude/settings.json','.codex/hooks.json','.github/hooks/preflight.json']]"
+python -c "import json; [json.load(open(f)) for f in ['.mcp.json.example','opencode.json.example','.kilocode/kilo.jsonc.example','.vscode/mcp.json.example','.claude/settings.json','.codex/hooks.json','.github/hooks/preflight.json']]"
 ```
 
 ```bash

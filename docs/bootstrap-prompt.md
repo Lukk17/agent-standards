@@ -47,10 +47,10 @@ see none, say "no MCP servers active in this session" and note that this is fine
 have them disabled, or may not have copied `.mcp.json.example` and `opencode.json.example` yet. Do not assume specific
 servers should be present; just report what is there.
 
-If the project ships any MCP template (`.mcp.json.example`, `opencode.json.example`, `.kilocode/mcp.json.example`,
-`.kilocode/kilo.jsonc.example`, `.vscode/mcp.json.example`, or `.codex/config.toml.example`) but the corresponding
-active file does not exist, mention it. The user may want to copy the templates. Note the Kilo Code VS Code extension
-reads MCP from `.kilocode/mcp.json` (key `mcpServers`, `streamable-http` HTTP servers), not from `opencode.json`.
+If the project ships any MCP template (`.mcp.json.example`, `opencode.json.example`, `.kilocode/kilo.jsonc.example`,
+`.vscode/mcp.json.example`, or `.codex/config.toml.example`) but the corresponding active file does not exist, mention
+it. The user may want to copy the templates. Note that Kilo Code (VS Code extension, JetBrains plugin, and CLI) reads
+MCP from `.kilocode/kilo.jsonc` (key `mcp`), not from `opencode.json`.
 
 ## 4. Trim docs/MCP_SETUP.md to what this project actually uses
 

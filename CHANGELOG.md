@@ -15,6 +15,8 @@ All notable changes to this project are documented here. The format follows
   `userPromptSubmitted` hook output).
 - Kilo CLI MCP servers in the `mcp` block of `.kilocode/kilo.jsonc.example`, and Codex project MCP servers in
   `.codex/config.toml.example`.
+- `docs/agent-compatibility.md`: a per-surface matrix of what each agent reads (skills, instructions, subagents,
+  preflight, MCP), with GitHub Copilot split by client, linked from the README and from `repository-layout.md`.
 
 ### Changed
 
@@ -24,12 +26,17 @@ All notable changes to this project are documented here. The format follows
   `AGENTS.md` and `.agents/skills/` natively, and Codex gained custom agents, hooks, and project-level config.
 - CI now validates the `.vscode/mcp.json.example`, `.kilocode/kilo.jsonc.example`, `.codex/config.toml.example`, and
   the two new hook files alongside the existing templates.
+- Kilo Code MCP consolidated onto `.kilocode/kilo.jsonc` (`mcp` key), which the VS Code extension, the JetBrains
+  plugin, and the CLI now all read. The MCP docs also document the two global-only GitHub Copilot surfaces (the
+  JetBrains plugin and the CLI's `~/.copilot/mcp-config.json`), which read no per-project file and ship no template.
 - The import flow renames each activated template to its real name (`mv`) instead of copying it, so a consumer keeps
   no dead `.example` twin and a remaining `.example` marks a template not yet activated. Configs that hold inlined
   secrets and are gitignored keep the `cp` path so the template stays tracked.
 
 ### Removed
 
+- The `.kilocode/mcp.json.example` template. Kilo unified MCP config onto `kilo.jsonc` (`mcp` key) across all clients,
+  so the separate extension template (keyed `mcpServers`, `streamable-http`) was redundant.
 - The `.opencode/skills` and `.codex/skills` symlinks. OpenCode and Codex read `.agents/skills/` natively, leaving
   `.claude/skills` as the only skill symlink.
 - The `.github/copilot-instructions.md` bridge and its `.example`. GitHub Copilot reads `AGENTS.md` natively in the

@@ -44,7 +44,7 @@ jobs:
 
       - name: Validate JSON example and config files
         run: |
-          python -c "import json; [json.load(open(f)) for f in ['.mcp.json.example','opencode.json.example','.kilocode/mcp.json.example','.kilocode/kilo.jsonc.example','.vscode/mcp.json.example','.claude/settings.json','.codex/hooks.json','.github/hooks/preflight.json']]"
+          python -c "import json; [json.load(open(f)) for f in ['.mcp.json.example','opencode.json.example','.kilocode/kilo.jsonc.example','.vscode/mcp.json.example','.claude/settings.json','.codex/hooks.json','.github/hooks/preflight.json']]"
           python -c "import tomllib; tomllib.load(open('.codex/config.toml.example','rb'))"
 
       - name: Check subagent generator output is in sync with canonical sources

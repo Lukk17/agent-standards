@@ -65,7 +65,7 @@ That's it. Open the project in Claude Code, Kilo Code, OpenCode, Codex, or GitHu
 
 Optional next step: rename [.mcp.json.example](.mcp.json.example) to `.mcp.json` (Claude Code),
 [opencode.json.example](opencode.json.example) to `opencode.json` (OpenCode),
-[.kilocode/mcp.json.example](.kilocode/mcp.json.example) to `.kilocode/mcp.json` (Kilo Code VS Code extension),
+[.kilocode/kilo.jsonc.example](.kilocode/kilo.jsonc.example) to `.kilocode/kilo.jsonc` (Kilo Code),
 [.vscode/mcp.json.example](.vscode/mcp.json.example) to `.vscode/mcp.json` (GitHub Copilot in VS Code), and
 [.codex/config.toml.example](.codex/config.toml.example) to `.codex/config.toml` (Codex) to enable the shared MCP
 server set.
@@ -125,8 +125,9 @@ receive only the production-ready dirs: [.agents/skills/](.agents/skills/) plus 
 [.github/agents/](.github/agents/)). The [subagents/](subagents/) source and the [tools/](tools/) generator never ship
 to consumers.
 
-Full repository layout, agent compatibility matrix, and per-agent instruction precedence:
-[docs/repository-layout.md](docs/repository-layout.md).
+Full agent compatibility matrix (what each agent reads and where):
+[docs/agent-compatibility.md](docs/agent-compatibility.md). Full repository layout and per-agent instruction
+precedence: [docs/repository-layout.md](docs/repository-layout.md).
 
 ---
 
@@ -134,13 +135,13 @@ Full repository layout, agent compatibility matrix, and per-agent instruction pr
 
 Every agent reads the same [AGENTS.md](AGENTS.md.example) and [.agents/skills/](.agents/skills/); only Claude Code
 needs a skills symlink. Subagents, preflight hooks, and MCP each use per-tool files because no shared format exists
-across the tools. Full detail with precedence rules lives in [docs/repository-layout.md](docs/repository-layout.md).
+across the tools. Full per-surface detail lives in [docs/agent-compatibility.md](docs/agent-compatibility.md).
 
 | Agent | Instructions | Skills | Subagents | Preflight | MCP config |
 | --- | --- | --- | --- | --- | --- |
 | Claude Code | `CLAUDE.md` imports `AGENTS.md` | `.claude/skills/` (symlink) | `.claude/agents/` | `UserPromptSubmit` hook, per turn | `.mcp.json` |
 | OpenCode | `AGENTS.md` (native) | `.agents/skills/` (native) | `.opencode/agents/` | plugin, per turn | `opencode.json` |
-| Kilo Code | `AGENTS.md` (native) | `.agents/skills/` (native) | `.kilocode/agents/` | rule, per task | `.kilocode/mcp.json`, `kilo.jsonc` |
+| Kilo Code | `AGENTS.md` (native) | `.agents/skills/` (native) | `.kilocode/agents/` | rule, per task | `.kilocode/kilo.jsonc` |
 | Codex | `AGENTS.md` (native) | `.agents/skills/` (native) | `.codex/agents/` (TOML) | `UserPromptSubmit` hook, per turn | `.codex/config.toml` |
 | GitHub Copilot | `AGENTS.md` (native) | `.agents/skills/` (native) | `.github/agents/` (`*.agent.md`) | `sessionStart` hook, per session | `.vscode/mcp.json` |
 
@@ -169,11 +170,10 @@ across the tools. Full detail with precedence rules lives in [docs/repository-la
 - **GitHub Copilot**: [.github/agents/](.github/agents/) holds generated `*.agent.md` subagents, and
   `.github/hooks/preflight.json` is the `sessionStart` gate hook. Copilot reads `AGENTS.md` and `.agents/skills/`
   natively (JetBrains plugin, VS Code, CLI), so no bridge instruction file is needed.
-- **MCP scaffolds**: [.mcp.json.example](.mcp.json.example), [opencode.json.example](opencode.json.example),
-  [.kilocode/mcp.json.example](.kilocode/mcp.json.example), the `mcp` block in
-  [.kilocode/kilo.jsonc.example](.kilocode/kilo.jsonc.example), [.vscode/mcp.json.example](.vscode/mcp.json.example),
-  [.codex/config.toml.example](.codex/config.toml.example), and [docs/MCP_SETUP.md](docs/MCP_SETUP.md) for the human
-  setup.
+- **MCP scaffolds**: [.mcp.json.example](.mcp.json.example), [opencode.json.example](opencode.json.example), the
+  `mcp` block in [.kilocode/kilo.jsonc.example](.kilocode/kilo.jsonc.example) (Kilo Code),
+  [.vscode/mcp.json.example](.vscode/mcp.json.example), [.codex/config.toml.example](.codex/config.toml.example), and
+  [docs/MCP_SETUP.md](docs/MCP_SETUP.md) for the human setup.
 
 Server list and configuration live in [docs/MCP_SETUP.md](docs/MCP_SETUP.md). All entries use `${VAR}` or `{env:VAR}`
 substitution with defaults baked in.
@@ -269,7 +269,8 @@ filenames stay in this repo only.
 
 | File | What's in it |
 | --- | --- |
-| [docs/repository-layout.md](docs/repository-layout.md) | Repo structure, agent compatibility matrix, instruction precedence per agent. |
+| [docs/agent-compatibility.md](docs/agent-compatibility.md) | Per-surface matrix of what each agent reads (skills, instructions, subagents, preflight, MCP) and why Claude Code needs a symlink. |
+| [docs/repository-layout.md](docs/repository-layout.md) | Repo structure and instruction precedence per agent. |
 | [docs/manual-setup.md](docs/manual-setup.md) | Fallback steps when the standard `git checkout` flow needs manual help (symlink recreation per OS) plus per-agent start commands. |
 | [docs/bootstrap-prompt.md](docs/bootstrap-prompt.md) | First-run verification prompt to paste into the agent after import. Checks skills, subagents, MCP runtime, OpenSpec, instruction tree. |
 

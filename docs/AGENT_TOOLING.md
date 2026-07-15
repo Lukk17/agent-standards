@@ -62,8 +62,8 @@ What this pulls:
 - `.codex/`: generated Codex custom agents (`agents/*.toml`), the preflight hook (`hooks.json`), and the project MCP
   template (`config.toml.example`). Codex reads skills from [.agents/skills/](../.agents/skills/) natively.
 - `.kilocode/`: generated Kilo subagents (`agents/*.md`, OpenCode format), the Kilo preflight rule
-  (`rules/00-preflight.md`, the extension has no hook surface), and the Kilo config templates (`kilo.jsonc.example`,
-  carrying instructions plus MCP for the CLI, and `mcp.json.example` for the extension's MCP).
+  (`rules/00-preflight.md`, the extension has no hook surface), and the Kilo config template (`kilo.jsonc.example`,
+  carrying instructions plus MCP, read by the VS Code extension, the JetBrains plugin, and the CLI alike).
 - `.github/agents/`: generated GitHub Copilot subagent files (`*.agent.md`), read by Copilot in VS Code, the JetBrains
   plugin, and the Copilot CLI. `.github/hooks/preflight.json`: the Copilot `sessionStart` preflight hook. Copilot reads
   `AGENTS.md` and `.agents/skills/` natively, so no bridge instruction file ships.
@@ -74,8 +74,8 @@ What this pulls:
 - [docs/AGENTS-UPDATE.md](AGENTS-UPDATE.md): the per-OS selective update procedure, kept in sync with the central
   repo (it refreshes itself).
 - [AGENTS.md.example](../AGENTS.md.example), [opencode.json.example](../opencode.json.example),
-  [.mcp.json.example](../.mcp.json.example), the `.kilocode/*.example` templates
-  (`.kilocode/kilo.jsonc.example`, `.kilocode/mcp.json.example`), `.codex/config.toml.example`, and
+  [.mcp.json.example](../.mcp.json.example), the Kilo config template
+  [.kilocode/kilo.jsonc.example](../.kilocode/kilo.jsonc.example), `.codex/config.toml.example`, and
   [.vscode/mcp.json.example](../.vscode/mcp.json.example): templates you rename and customise.
 
 What this does **not** pull:
@@ -105,12 +105,6 @@ mv opencode.json.example opencode.json
 mv .mcp.json.example .mcp.json
 ```
 
-For the Kilo Code VS Code extension, MCP servers go in `.kilocode/mcp.json`:
-
-```bash
-mv .kilocode/mcp.json.example .kilocode/mcp.json
-```
-
 For GitHub Copilot in VS Code, MCP servers go in `.vscode/mcp.json`:
 
 ```bash
@@ -123,8 +117,8 @@ For Codex, project MCP servers go in `.codex/config.toml`:
 mv .codex/config.toml.example .codex/config.toml
 ```
 
-The `.kilocode/kilo.jsonc`, `opencode.json`, `.mcp.json`, `.kilocode/mcp.json`, `.codex/config.toml`, and
-`.vscode/mcp.json` renames are optional; only `AGENTS.md` is required. Rename the optional templates when you want
+The `.kilocode/kilo.jsonc`, `opencode.json`, `.mcp.json`, `.codex/config.toml`, and `.vscode/mcp.json` renames are
+optional; only `AGENTS.md` is required. Rename the optional templates when you want
 shared MCP servers (see [MCP servers](#mcp-servers) below) or agent-specific configuration. One exception: if your team
 keeps real secrets in an MCP config and gitignores it, `cp` that one template instead of renaming, so the committed
 `.example` stays as the tracked reference.
@@ -214,9 +208,9 @@ GitHub Copilot reads this setup natively across surfaces, so it needs no bridge 
   (the GitHub pull-request bot) and the IDEs that read only it (Visual Studio, Xcode, Eclipse); add one yourself if you
   target those.
 - MCP: Copilot in VS Code reads `.vscode/mcp.json` with the top-level `servers` key. Copy it from
-  [.vscode/mcp.json.example](../.vscode/mcp.json.example). The JetBrains plugin reads MCP only from the global file
-  `~/.config/github-copilot/intellij/mcp.json` (no per-project file exists, and GitHub documents only the in-IDE UI,
-  not the path), so no JetBrains template ships; see [MCP_SETUP.md](MCP_SETUP.md).
+  [.vscode/mcp.json.example](../.vscode/mcp.json.example). The JetBrains plugin and the Copilot CLI both read MCP only
+  from global files (`~/.config/github-copilot/intellij/mcp.json` and `~/.copilot/mcp-config.json` respectively), with
+  no per-project file, so neither gets a shipped template; the blocks are in [MCP_SETUP.md](MCP_SETUP.md).
 - Preflight gate: Copilot cannot re-inject per turn (its `userPromptSubmitted` hook output is discarded), so the gate
   ships as a `sessionStart` hook in `.github/hooks/preflight.json` (injected once per session) and otherwise rides in
   `AGENTS.md`, which Copilot reads natively. Per-turn enforcement is not yet possible on Copilot.
@@ -251,12 +245,12 @@ The full catalogue lives in [.agents/skills/](../.agents/skills/) (one directory
 
 The committed templates ship the same default MCP servers, one per agent surface:
 [.mcp.json.example](../.mcp.json.example) (Claude Code), the `mcp` block in
-[opencode.json.example](../opencode.json.example) (OpenCode),
-[.kilocode/mcp.json.example](../.kilocode/mcp.json.example) (Kilo Code VS Code extension), the `mcp` block in
-[.kilocode/kilo.jsonc.example](../.kilocode/kilo.jsonc.example) (Kilo CLI),
+[opencode.json.example](../opencode.json.example) (OpenCode), the `mcp` block in
+[.kilocode/kilo.jsonc.example](../.kilocode/kilo.jsonc.example) (Kilo Code, extension and CLI),
 [.vscode/mcp.json.example](../.vscode/mcp.json.example) (GitHub Copilot in VS Code), and the `[mcp_servers]` tables in
 [.codex/config.toml.example](../.codex/config.toml.example) (Codex). Only the top-level key, the `type` value, and the
-env-var syntax differ per surface.
+env-var syntax differ per surface. The JetBrains Copilot plugin and the Copilot CLI are global-only and ship no
+template; see [MCP_SETUP.md](MCP_SETUP.md).
 
 Rename the ones you use into place (or `cp` instead for any config you gitignore, so the template stays committed):
 
@@ -269,7 +263,7 @@ mv opencode.json.example opencode.json
 ```
 
 ```bash
-mv .kilocode/mcp.json.example .kilocode/mcp.json
+mv .kilocode/kilo.jsonc.example .kilocode/kilo.jsonc
 ```
 
 ```bash

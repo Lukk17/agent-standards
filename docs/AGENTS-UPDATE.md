@@ -106,8 +106,8 @@ These paths are deliberately not refreshed:
 - [.claude/settings.json](../.claude/settings.json): ships the preflight hook on initial import, then becomes
   consumer-owned (this is where per-project permissions live). Not refreshed, so your settings survive.
 - [AGENTS.md.example](../AGENTS.md.example), [opencode.json.example](../opencode.json.example),
-  [.mcp.json.example](../.mcp.json.example), the `.kilocode/*.example` templates
-  (`.kilocode/kilo.jsonc.example`, `.kilocode/mcp.json.example`), `.codex/config.toml.example`, and
+  [.mcp.json.example](../.mcp.json.example), the Kilo config template
+  [.kilocode/kilo.jsonc.example](../.kilocode/kilo.jsonc.example), `.codex/config.toml.example`, and
   [.vscode/mcp.json.example](../.vscode/mcp.json.example): template files consumed once at initial setup.
   The adapter refresh above pulls the plugin, rule, and hook files by exact path, so these `.example` templates are
   never clobbered.
