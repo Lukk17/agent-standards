@@ -285,9 +285,16 @@ git checkout agent-standards/master -- .agents/skills .agents/agents .agents/hoo
 Kilo Code works like OpenCode. It reads [AGENTS.md](AGENTS.md.example) and [.agents/skills/](.agents/skills/)
 natively, takes its subagents through the `.kilo/agents` symlink into [.agents/agents/](.agents/agents/), and accepts
 the root [opencode.json](opencode.json) as a project config file, so it picks up the gate plugin and the MCP block
-from the same file OpenCode uses. Kilo does not expand `{env:VAR}` in project-level config, so a token written that
-way stays literal: paste the real values into your local copy of `opencode.json` and keep that copy out of version
-control.
+from the same file OpenCode uses.
+
+Kilo is stricter than OpenCode about substitution. A `{env:VAR}` anywhere in a project config file is a fatal error
+for Kilo, and it rejects that entire file rather than leaving the token literal, which would cost it the MCP servers
+and the gate plugin in one go. The shipped `opencode.json` therefore carries no tokens at all. Local servers still get
+their secrets, because both tools start them with the environment of the process that started the agent, so exporting
+the variable is enough. The single value that cannot be inherited is the Context7 API key, which travels in an HTTP
+header: OpenCode reads it from [.opencode/opencode.json](.opencode/opencode.json), a file Kilo never looks at, and a
+Kilo user who wants an authenticated Context7 puts the same server block in the global `~/.config/kilo/kilo.jsonc`,
+where environment references are allowed.
 
 `.kilo/agents` is a symlink, so Windows needs Developer Mode on (Settings, System, For developers) and git told to
 honour symlinks, or Kilo Code ends up with no subagents. PowerShell:
@@ -526,11 +533,13 @@ including what each hook surface can actually block, lives in
   matrix still omits it.
 - **MCP config**: [.mcp.json](.mcp.json) (Claude Code and the Copilot CLI), [opencode.json](opencode.json) (OpenCode
   and Kilo Code), [.codex/config.toml](.codex/config.toml) (Codex), [.vscode/mcp.json](.vscode/mcp.json) (Copilot in
-  VS Code). Real files, not templates.
+  VS Code), plus [.opencode/opencode.json](.opencode/opencode.json), a one-server OpenCode overlay that holds the only
+  environment reference left in the tree. Real files, not templates.
 
 Server list and configuration live in [docs/MCP_SETUP.md](docs/MCP_SETUP.md). Claude Code's file uses `${VAR}` with
-defaults. The others hardcode their URLs because their substitution syntax has no fallback, and Kilo Code does not
-expand `{env:VAR}` in project config at all.
+defaults. The others hardcode their URLs because their substitution syntax has no fallback, and the shared OpenCode
+and Kilo file carries no substitution tokens at all, because Kilo Code rejects a whole project config file that
+contains one.
 
 ---
 
@@ -622,8 +631,9 @@ filenames stay in this repo only.
 | File | What's in it |
 | --- | --- |
 | [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md) | Initial import flow, future updates, subagents, MCP overview, full OpenSpec integration and workflow. |
-| [docs/MCP_SETUP.md](docs/MCP_SETUP.md) | The four real MCP config files, prerequisites, keys, env-var export per OS, the manual JetBrains and cloud-agent blocks, verification. |
+| [docs/MCP_SETUP.md](docs/MCP_SETUP.md) | The real MCP config files, prerequisites, keys, env-var export per OS, the manual JetBrains and cloud-agent blocks, verification. |
 | [docs/AGENTS-UPDATE.md](docs/AGENTS-UPDATE.md) | Per-shell selective update commands, the Windows symlink prerequisite, and the OpenSpec init and update guidance. Refreshes itself. |
+| [docs/global-setup.md](docs/global-setup.md) | Installing the same skills, subagents and gate into the user home so every project on the machine inherits them, per agent and per shell. |
 
 **This repo only:**
 
@@ -633,6 +643,7 @@ filenames stay in this repo only.
 | [docs/repository-layout.md](docs/repository-layout.md) | Canonical versus generated versus symlink, the full tree, and instruction precedence per agent. |
 | [docs/manual-setup.md](docs/manual-setup.md) | Fallback steps when the standard `git checkout` flow needs manual help (symlink recreation per OS) plus per-agent start commands. |
 | [docs/bootstrap-prompt.md](docs/bootstrap-prompt.md) | First-run verification prompt to paste into the agent after import. Checks skills, subagents, symlinks, the gate, MCP, and OpenSpec. |
+| [test-harness/README.md](test-harness/README.md) | Containerised end-to-end harness. Installs all five agent CLIs, imports the standards into a throwaway project, and asserts each agent discovers them. |
 
 **Template:**
 

@@ -1,0 +1,1 @@
+{"tool_name": "Bash", "tool_input": {"command": "echo canary > src/e2e_canary_app.py"}}

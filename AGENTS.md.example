@@ -157,10 +157,12 @@ four read that directory natively. Start your agent from the project root:
 - **Claude Code**: run `claude`. Reads [.claude/CLAUDE.md](.claude/CLAUDE.md), which imports this file. MCP servers
   come from [.mcp.json](.mcp.json).
 - **Kilo Code**: reads `AGENTS.md` and `.agents/skills/` automatically. Its configuration root is `.kilo/`, and it
-  accepts the root [opencode.json](opencode.json) for both MCP servers and the preflight plugin. Kilo does not expand
-  `{env:VAR}` in project-level configuration, so fill those values in literally if Kilo is your main agent.
+  accepts the root [opencode.json](opencode.json) for both MCP servers and the preflight plugin. Never put a
+  `{env:VAR}` in that file. Kilo does not leave the placeholder standing, it rejects the whole file, which costs it
+  every MCP server and the preflight plugin at once. Run `kilocode config check` after editing it.
 - **OpenCode**: reads `AGENTS.md` automatically. Configuration lives in [opencode.json](opencode.json) at the project
-  root.
+  root, and OpenCode alone also reads [.opencode/opencode.json](.opencode/opencode.json), merged over it, which is
+  where the one environment reference in the tree lives.
 - **Codex**: run `codex`. Reads `AGENTS.md` automatically. Project MCP servers and preflight hooks live in
   [.codex/config.toml](.codex/config.toml), and global settings in `~/.codex/config.toml`.
 - **GitHub Copilot**: the CLI, VS Code, and the JetBrains plugin all read `AGENTS.md` and `.agents/skills/` natively.

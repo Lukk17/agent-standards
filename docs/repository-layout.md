@@ -14,7 +14,7 @@ Three categories, and mixing them up is the one mistake that breaks a rebuild.
 | Category | Paths | How to change it |
 | --- | --- | --- |
 | Canonical | `subagents/*.md`, `.agents/skills/*/SKILL.md`, `.agents/hooks/*.py`, `.agents/plugin/hooks.js`, `docs/*.md` | edit directly |
-| Canonical config | `.mcp.json`, `opencode.json`, `.codex/config.toml`, `.vscode/mcp.json`, `.claude/settings.json`, `.github/hooks/preflight.json` | edit directly, keep the server set and the gate wording in sync |
+| Canonical config | `.mcp.json`, `opencode.json`, `.opencode/opencode.json`, `.codex/config.toml`, `.vscode/mcp.json`, `.claude/settings.json`, `.github/hooks/preflight.json` | edit directly, keep the server set and the gate wording in sync |
 | Generated | `.claude/agents/*.md`, `.agents/agents/*.md`, `.codex/agents/*.toml`, `.github/agents/*.agent.md` | never hand-edit, run `python tools/gen_subagents.py` |
 | Symlink | `.opencode/agents`, `.kilo/agents`, `.claude/skills` | never edit through the link, fix the link itself |
 
@@ -52,6 +52,7 @@ agent-standards/
     agents/                      # GENERATED, Claude-format subagents
   .opencode/
     agents -> ../.agents/agents  # SYMLINK maintained by the generator
+    opencode.json                # OpenCode-only overlay, the Context7 API key header
   .kilo/
     agents -> ../.agents/agents  # SYMLINK maintained by the generator
   .codex/
@@ -64,7 +65,7 @@ agent-standards/
     mcp.json                     # GitHub Copilot in VS Code, key "servers"
   AGENTS.md                      # This repo's own instructions, never shipped downstream
   AGENTS.md.example              # The template consumers rename to AGENTS.md
-  opencode.json                  # OpenCode and Kilo Code, MCP plus the plugin declaration, must stay at the root
+  opencode.json                  # OpenCode and Kilo Code, MCP plus the plugin declaration, no substitution tokens
   .mcp.json                      # Claude Code and the GitHub Copilot CLI, key "mcpServers"
   docs/
     AGENT_TOOLING.md             # Setup walkthrough shipped to consumers
@@ -93,6 +94,7 @@ your-project/
   .claude/skills                 # symlink to ../.agents/skills
   .claude/agents/                # generated Claude-format subagents
   .opencode/agents               # symlink to ../.agents/agents
+  .opencode/opencode.json        # OpenCode-only overlay, the Context7 API key header
   .kilo/agents                   # symlink to ../.agents/agents
   .codex/agents/                 # generated Codex custom agents (*.toml)
   .codex/config.toml             # Codex MCP servers plus the inline gate hooks
@@ -155,15 +157,17 @@ contains nothing but `@../AGENTS.md` plus a comment, so the shared instructions 
 1. Remote config (.well-known/opencode), organizational defaults
 2. Global config (~/.config/opencode/opencode.json)
 3. Custom config (OPENCODE_CONFIG environment variable)
-4. Project config (opencode.json at the project root)
+4. Project config (opencode.json at the project root, or .opencode/opencode.json)
 5. .opencode/ directories (agents/, commands/, plugins/)
 6. Inline config (OPENCODE_CONFIG_CONTENT environment variable)
 7. Managed config files (system directories)
 ```
 
-`opencode.json` must sit at the project root, not inside [.opencode/](../.opencode/). The
-[.opencode/](../.opencode/) directory holds only the `agents` symlink here. `AGENTS.md` is auto-read from the project
-root, falling back to `CLAUDE.md` when no `AGENTS.md` exists.
+The main `opencode.json` sits at the project root, because that is also the only place Kilo Code will look for it.
+OpenCode alone reads a second project file at [.opencode/opencode.json](../.opencode/opencode.json) and deep-merges it
+over the root one, which is where the single MCP value that has to be substituted from an environment variable lives.
+Alongside it, [.opencode/](../.opencode/) holds the `agents` symlink. `AGENTS.md` is auto-read from the project root,
+falling back to `CLAUDE.md` when no `AGENTS.md` exists.
 
 #### Kilo Code
 
@@ -180,8 +184,11 @@ instructions in this order, higher overrides lower:
 ```
 
 Kilo accepts `opencode.json` as a valid project config filename, which is why this repo ships one file for both Kilo
-and OpenCode instead of a Kilo-specific twin. The catch is that Kilo does not expand `{env:VAR}` in project-level
-config, so a Kilo user reading that file gets the placeholder literally. Details in [MCP_SETUP.md](MCP_SETUP.md).
+and OpenCode instead of a Kilo-specific twin. The catch is what Kilo does with an environment reference in that file.
+It does not leave `{env:VAR}` literal, it rejects the entire file, which would cost Kilo both the MCP servers and the
+`plugin` array that declares the preflight gate. Only the rejected file is dropped, the rest of Kilo's config chain
+still loads. That is why the shared file carries no references, and why no `.kilo/kilo.jsonc` needs to exist. Details
+in [MCP_SETUP.md](MCP_SETUP.md).
 
 #### Codex
 

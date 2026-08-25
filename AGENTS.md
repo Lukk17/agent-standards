@@ -138,10 +138,20 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
   (key `servers`) serves GitHub Copilot in VS Code. Change all four together. Only the top-level key, the `type` value,
   and the environment-variable syntax differ. Copilot in JetBrains reads only a global
   `~/.config/github-copilot/intellij/mcp.json`, so no project file exists for it, and the Copilot cloud agent is
-  configured on a repository settings page rather than in a file. Kilo Code does not expand `{env:VAR}` in
-  project-level configuration, so those tokens stay literal for Kilo users. That is a Kilo limitation, not a defect in
-  `opencode.json`. Full human setup in [docs/MCP_SETUP.md](docs/MCP_SETUP.md), per-surface matrix in
+  configured on a repository settings page rather than in a file. Full human setup in
+  [docs/MCP_SETUP.md](docs/MCP_SETUP.md), per-surface matrix in
   [docs/agent-compatibility.md](docs/agent-compatibility.md).
+- **No substitution token may appear in [opencode.json](opencode.json).** Kilo Code does not leave `{env:VAR}` literal
+  the way this repo used to claim. It treats any `{env:VAR}` in a project config file as a fatal error, rejects that
+  entire file, and carries on with the rest of its config chain. For `opencode.json` that would drop the MCP block and
+  the `plugin` array that declares the preflight gate, so a single token would leave Kilo Code running ungated. A
+  `{env:VAR}` or `{file:...}` inside an MCP `headers` block is milder, Kilo drops only that server, but
+  `kilocode config check` still exits 1 on the warning. Local servers need no token in the file: both tools spawn them
+  with the environment of the process that started the agent and merge any `environment` block on top of it, so
+  exporting the variable is enough. The one value that cannot be inherited is the Context7 header on a remote server,
+  which is why [.opencode/opencode.json](.opencode/opencode.json) exists. OpenCode reads that path and deep-merges it
+  over the root file, Kilo Code never reads it, so the `{env:CONTEXT7_API_KEY}` header lives there and nowhere else.
+  It is the only server declared twice. Change both blocks together, and add no other server to it.
 - **One gate, one rule, one wording.** The canonical text is the Required opening move above and the canonical rule is
   [.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py). Every adapter calls that one script, so a
   behaviour change is a change to the script plus a case in
@@ -228,8 +238,9 @@ should look like.
 - **Kilo Code is settled, no action outstanding.** Kilo reads `.agents/skills/` natively, so it needs no skill symlink.
   Its subagent tree is the `.kilo/agents` symlink to `../.agents/agents`, which the generator creates and repairs, so
   there is nothing per-Kilo to generate. It accepts the root `opencode.json` for MCP servers and for the plugin
-  declaration, and `.kilocode/` is deleted. The one live constraint is that Kilo does not expand `{env:VAR}` in
-  project-level configuration, which is recorded under Repo conventions rather than here.
+  declaration, and `.kilocode/` is deleted. No `.kilo/kilo.jsonc` ships, because Kilo needs no per-tool copy of
+  anything once the shared file carries no substitution tokens. The one live constraint, that a `{env:VAR}` anywhere
+  in project config makes Kilo reject the whole file, is recorded under Repo conventions rather than here.
 - **GitHub Copilot per-turn injection is available and not yet adopted.** Copilot now exposes a `userPromptTransformed`
   event on the CLI and on the cloud agent, so the old claim that it cannot re-inject per turn is wrong.
   [.github/hooks/preflight.json](.github/hooks/preflight.json) still injects only at `sessionStart` and

@@ -18,9 +18,12 @@ Four real config files, committed and ready to use. They are not templates any m
 | [opencode.json](../opencode.json) | `mcp` | OpenCode and Kilo Code | `"type": "remote"` or `"type": "local"`, sits at the project root |
 | [.codex/config.toml](../.codex/config.toml) | `[mcp_servers.*]` | Codex | TOML, also carries the preflight hook tables |
 | [.vscode/mcp.json](../.vscode/mcp.json) | `servers` | GitHub Copilot in VS Code | key is `servers`, not `mcpServers` |
+| [.opencode/opencode.json](../.opencode/opencode.json) | `mcp` | OpenCode only, Kilo Code never reads it | one server, the Context7 API key header |
 
-All four carry the same eight servers. Only the file name, the schema key, the `type` value, and the
-environment-variable syntax change between them.
+The first four carry the same eight servers. Only the file name, the schema key, the `type` value, and the
+environment-variable syntax change between them. The fifth is an overlay rather than a server set: OpenCode
+deep-merges it over the root `opencode.json`, and it exists only to hold the one value that has to be substituted
+from the environment. The reason is in the next paragraph but one.
 
 Two surfaces get no shipped file, because there is nothing a repository could ship that they would read:
 
@@ -35,9 +38,29 @@ Of Copilot's four surfaces, only the CLI can use the shared [.mcp.json](../.mcp.
 [.vscode/mcp.json](../.vscode/mcp.json), and the other two are manual.
 
 One catch with the shared OpenCode and Kilo file. Kilo Code accepts `opencode.json` as a valid project config
-filename, which is why one file serves both. Kilo does **not** expand `{env:VAR}` in project-level config, so a Kilo
-user sees the placeholder as a literal string. Either paste real values into your local copy, or stick to the servers
-that need no token.
+filename, which is why one file serves both. Kilo does **not** merely leave `{env:VAR}` literal, which is what this
+guide used to say. It treats an environment reference in project-level config as a fatal error and throws the whole
+file away:
+
+```text
+Configuration is invalid at ./opencode.json: environment references are not allowed in project config: "{env:GRAFANA_SERVICE_ACCOUNT_TOKEN}"
+```
+
+After that message Kilo lists no MCP servers from the file at all, and it also loses the `plugin` array in the same
+file, which is what declares the preflight gate. One token would leave Kilo running with no servers and no gate. Kilo
+discards only the offending file and keeps the rest of its configuration chain, so nothing else breaks with it.
+
+An environment or file reference inside an MCP `headers` block is treated more gently. Kilo drops just that one server
+and reports it as a skip, but `kilocode config check` still exits non-zero, so it is not a state worth shipping
+either.
+
+The shipped [opencode.json](../opencode.json) therefore contains no `{env:VAR}` tokens. Nothing is lost for a local
+server, because OpenCode and Kilo both start it with the environment of the process that started the agent, and an
+`environment` block in the config is merged on top of that rather than replacing it. Exporting the variable is enough.
+The only value that cannot arrive that way is the Context7 API key, which is an HTTP header on a remote server, so it
+lives in [.opencode/opencode.json](../.opencode/opencode.json) where only OpenCode reads it. To give Kilo the same
+key, put the whole `context7` block in your global `~/.config/kilo/kilo.jsonc`, which is trusted config and does
+expand `{env:VAR}`. Without it Kilo talks to Context7 on the free tier.
 
 ---
 
@@ -203,7 +226,7 @@ or a real token.
 
 | Variable | Used by | Effect when unset |
 | --- | --- | --- |
-| `CONTEXT7_API_KEY` | `context7` | header sent empty, Context7 free tier |
+| `CONTEXT7_API_KEY` | `context7`, read by OpenCode from `.opencode/opencode.json` and by Kilo only from your global config | no header sent, Context7 free tier |
 | `MONGODB_URL` | `mongodb` | falls back to `mongodb://localhost:27017` |
 | `GRAFANA_URL` | `grafana` | falls back to `http://localhost:3000` |
 | `GRAFANA_SERVICE_ACCOUNT_TOKEN` | `grafana` | token sent empty, Grafana rejects the connection |
@@ -219,6 +242,10 @@ fallback, so only it resolves cleanly with nothing set. [opencode.json](../openc
 `{env:VAR}` and `${env:VAR}` have no fallback syntax and TOML has no substitution at all. To point one of those at a
 different host, edit the literal string in your local copy. OpenCode also accepts `OPENCODE_CONFIG_CONTENT` for a
 session-scoped override.
+
+`opencode.json` goes one step further and carries no references at all, not even ones without a fallback, because a
+single `{env:VAR}` makes Kilo Code reject the file. Every token it used to name is now read from the environment by
+the server process itself.
 
 An unset token variable is a local, noisy failure and nothing worse: that one server fails to authenticate and the
 rest keep working.
@@ -340,8 +367,10 @@ Useful when a variable is stubbornly not being picked up.
 | --- | --- | --- |
 | `.mcp.json` and `~/.claude.json`, Claude Code | `${VAR}`, `${VAR:-default}` | `command`, `args`, `env`, `url`, `headers` |
 | `.mcp.json`, GitHub Copilot CLI | none, literal only | inline literals |
-| `opencode.json`, OpenCode | `{env:VAR}` | any string value in an MCP block |
-| `opencode.json`, Kilo Code | none at project level, literal only | inline literals |
+| `opencode.json`, OpenCode | `{env:VAR}` | any string value in an MCP block, though the shipped file uses none |
+| `opencode.json`, Kilo Code | none at project level, and one token invalidates the whole file | inline literals only |
+| `.opencode/opencode.json`, OpenCode only | `{env:VAR}` | the Context7 header, the only reference the tree ships |
+| `~/.config/kilo/kilo.jsonc`, Kilo Code global | `{env:VAR}` | any string value, global config is trusted |
 | `.vscode/mcp.json`, Copilot in VS Code | `${env:VAR}`, `${input:NAME}` | any string value in a server block |
 | JetBrains global `mcp.json` | none documented | inline literals, token in `requestInit.headers` |
 | Copilot cloud agent, settings page | none | inline literals plus Copilot secrets |
@@ -356,7 +385,9 @@ Restart the agent after editing configs or exporting variables, then check.
 
 - **Claude Code**: run `claude mcp list` and read which servers loaded.
 - **OpenCode**: start it and run `/mcp`, or read the connection lines in the startup log.
-- **Kilo Code**: open the MCP Servers panel in settings, under agent behaviour. Each server shows connected or error.
+- **Kilo Code**: run `kilocode config check` first, which prints nothing but `No config warnings.` when the project
+  config is accepted, then open the MCP Servers panel in settings, under agent behaviour, where each server shows
+  connected or error. `kilocode mcp list` answers the same question from a terminal.
 - **Codex**: start `codex` and run `/mcp`. Remember the project layer loads only after you trust the project.
 - **Copilot in VS Code**: open Chat, switch to agent mode, open the tools picker. Every server in
   [.vscode/mcp.json](../.vscode/mcp.json) appears with its tools and a start or stop control.

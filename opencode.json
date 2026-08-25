@@ -11,9 +11,6 @@
     "context7": {
       "type": "remote",
       "url": "https://mcp.context7.com/mcp",
-      "headers": {
-        "CONTEXT7_API_KEY": "{env:CONTEXT7_API_KEY}"
-      },
       "enabled": true
     },
     
@@ -37,8 +34,7 @@
         "mcp-grafana"
       ],
       "environment": {
-        "GRAFANA_URL": "http://localhost:3000",
-        "GRAFANA_SERVICE_ACCOUNT_TOKEN": "{env:GRAFANA_SERVICE_ACCOUNT_TOKEN}"
+        "GRAFANA_URL": "http://localhost:3000"
       },
       "enabled": true
     },
@@ -91,7 +87,6 @@
         "mcp/sonarqube"
       ],
       "environment": {
-        "SONARQUBE_TOKEN": "{env:SONARQUBE_TOKEN}",
         "SONARQUBE_URL": "http://localhost:9000"
       },
       "enabled": true
@@ -104,8 +99,7 @@
         "n8n-mcp"
       ],
       "environment": {
-        "N8N_API_URL": "http://localhost:5678",
-        "N8N_API_KEY": "{env:N8N_API_KEY}"
+        "N8N_API_URL": "http://localhost:5678"
       },
       "enabled": true
     }

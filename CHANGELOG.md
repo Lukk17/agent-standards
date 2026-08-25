@@ -8,6 +8,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- A containerised end-to-end harness in `test-harness/`. It installs all five agent CLIs, updates them to the latest
+  release on container start, imports the shared configuration into a throwaway project, and asserts what each agent
+  actually discovers. The repository is mounted read-only and the host home is never touched.
+- Two capability test suites in `e2e/`, authored against the `e2e-runbooks` OpenSpec schema. Specs 1 to 5 cover the
+  per-project import, specs 6 to 9 cover a global user-home install and refuse to run unless the working directory is
+  free of per-project files, so a global result cannot be attributed to the wrong layer.
+- [docs/global-setup.md](docs/global-setup.md), covering installation of the same skills, subagents and gate into the
+  user home, per agent and per shell, with an honest list of what cannot be installed globally.
 - One shared preflight rule at `.agents/hooks/preflight_gate.py`, called by every agent surface. The gate is now
   enforcing rather than advisory: it denies a source-file edit made from the main thread and tells it to delegate, and
   denies an edit from a subagent whose own definition declares no skills. Markdown, configuration, and documentation
@@ -40,8 +48,9 @@ All notable changes to this project are documented here. The format follows
 - MCP mapped one row per file: `.mcp.json` (key `mcpServers`) serves Claude Code and the GitHub Copilot CLI, which
   reads a repo-root `.mcp.json` with the same schema. `opencode.json` (key `mcp`) serves OpenCode and Kilo Code, which
   accepts `opencode.json` as a valid config filename. `.codex/config.toml` (`[mcp_servers.*]` tables) serves Codex, and
-  `.vscode/mcp.json` (key `servers`) serves Copilot in VS Code. Kilo does not expand `{env:VAR}` in project-level
-  configuration, so those tokens stay literal for Kilo users.
+  `.vscode/mcp.json` (key `servers`) serves Copilot in VS Code. Kilo rejects a project-level config file outright when
+  it contains an `{env:VAR}` reference, so the shared `opencode.json` carries none, and the one value that cannot be
+  inherited from the process environment lives in an `.opencode/opencode.json` overlay that only OpenCode reads.
 - Kilo Code moved its configuration root to `.kilo/` and reads `.agents/skills/` natively, so its subagent tree is now
   a symlink to the shared `.agents/agents/` rather than a generated copy of its own.
 - Codex preflight hooks moved into inline `[[hooks.*]]` tables in `.codex/config.toml`. Codex supports both that form

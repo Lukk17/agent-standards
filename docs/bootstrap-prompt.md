@@ -63,12 +63,13 @@ Look at your current tool list. Report the names of any MCP servers actively exp
 are none, say "no MCP servers active in this session" and note that this is fine: the project may not need any, may
 have disabled them, or may not have the keys set yet.
 
-The four project MCP files are real files, not templates, so there is nothing to rename:
+The project MCP files are real files, not templates, so there is nothing to rename:
 
 - `.mcp.json` (key `mcpServers`) for Claude Code and the GitHub Copilot CLI
 - `opencode.json` (key `mcp`) for OpenCode and Kilo Code
 - `.codex/config.toml` (`[mcp_servers.*]` tables) for Codex
 - `.vscode/mcp.json` (key `servers`) for GitHub Copilot in VS Code
+- `.opencode/opencode.json` (key `mcp`), an OpenCode-only overlay holding one server, the Context7 API key header
 
 Report which of those exist. Do not assume any particular server should be present, just report what is there.
 

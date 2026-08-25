@@ -89,6 +89,8 @@ What you just pulled:
 - [.claude/](../.claude/): the `CLAUDE.md` bridge, the `skills` symlink, the generated `agents/` tree, and
   `settings.json` carrying the Claude Code hooks.
 - `.opencode/agents` and `.kilo/agents`: symlinks into [.agents/agents/](../.agents/agents/). One tree, two agents.
+  [.opencode/opencode.json](../.opencode/opencode.json) rides along in the same directory, an OpenCode-only overlay
+  holding the single MCP value that has to come from an environment variable.
 - [.codex/](../.codex/): the generated TOML custom agents and `config.toml`, which holds both the Codex MCP servers
   and the Codex gate hooks inline.
 - [.github/agents/](../.github/agents/) and [.github/hooks/preflight.json](../.github/hooks/preflight.json): Copilot
@@ -239,7 +241,7 @@ catalogue is [.agents/skills/](../.agents/skills/), one directory per skill, eac
 
 ### MCP servers
 
-Four real config files ship the same eight servers, one per agent surface:
+Four real config files ship the same eight servers, one per agent surface, plus a one-server OpenCode overlay:
 
 | File | Schema key | Serves |
 | --- | --- | --- |
@@ -247,14 +249,20 @@ Four real config files ship the same eight servers, one per agent surface:
 | [opencode.json](../opencode.json) | `mcp` | OpenCode and Kilo Code |
 | [.codex/config.toml](../.codex/config.toml) | `[mcp_servers.*]` | Codex |
 | [.vscode/mcp.json](../.vscode/mcp.json) | `servers` | GitHub Copilot in VS Code |
+| [.opencode/opencode.json](../.opencode/opencode.json) | `mcp` | OpenCode only, one server, holds the Context7 key |
 
-Only the file name, the schema key, the `type` value, and the environment-variable syntax differ. Nothing needs
-renaming, they arrive ready to use. Two Copilot surfaces get no file at all, the JetBrains plugin because it reads a
-global path only, and the cloud agent because its configuration lives in a repository settings page.
+Between the first four, only the file name, the schema key, the `type` value, and the environment-variable syntax
+differ. The last one is an overlay rather than a mirror. Nothing needs renaming, they arrive ready to use. Two Copilot
+surfaces get no file at all, the JetBrains plugin because it reads a global path only, and the cloud agent because its
+configuration lives in a repository settings page.
 
 Kilo Code accepts `opencode.json` as a project config filename, which is how one file serves both it and OpenCode.
-Kilo does not expand `{env:VAR}` in project-level config, though, so Kilo users see the placeholder literally and have
-to paste real values into their local copy.
+Kilo is unforgiving about substitution in that file. A `{env:VAR}` anywhere in project-level config makes it reject
+the file outright, taking the MCP servers and the `plugin` array that declares the preflight gate with it, so the
+shipped file carries no references at all. Local servers inherit their tokens from the environment that started the
+agent. The Context7 API key cannot be inherited, since it is an HTTP header, so it lives in
+[.opencode/opencode.json](../.opencode/opencode.json), which only OpenCode reads. Details in
+[MCP_SETUP.md](MCP_SETUP.md).
 
 The full human setup, prerequisites, key acquisition, environment variables per operating system, the two manual
 Copilot blocks, and verification, lives in [MCP_SETUP.md](MCP_SETUP.md). A person does that once per machine, not the

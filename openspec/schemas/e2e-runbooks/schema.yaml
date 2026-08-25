@@ -1,0 +1,212 @@
+name: e2e-runbooks
+version: 1
+description: >-
+  Capability-level e2e test suite. Each capability gets an immutable spec plus
+  an immutable tasks-template; each execution generates a timestamped run record
+  with assertions ticked, tokens, and wall-clock duration. Behaviour-only
+  assertions: HTTP status, response content, persisted state. Never log
+  substrings.
+
+# Lifecycle note: OpenSpec drafts every artifact inside the change directory
+# (openspec/changes/<change-id>/). For this schema, three of the four artifacts
+# also have a permanent home outside the change tree:
+#
+#   - test-spec.md      ──►  e2e/testing/{N}-{capability}-test.md
+#   - tasks-template.md ──►  e2e/testing/templates/{N}-{capability}-tasks.template.md
+#   - run.md            ──►  e2e/testing/runs/{utc-timestamp}_{N}-{capability}-tasks.md
+#
+# OpenSpec's archive command only auto-promotes openspec/specs/ content, so
+# each instruction below tells the agent to write the file in BOTH locations:
+# the change dir copy is the proposal's audit trail; the e2e/testing/ copy is
+# the working test asset future runs consume.
+
+artifacts:
+  - id: proposal
+    generates: proposal.md
+    description: >-
+      Proposes a new capability test. Names the behaviour to assert, the setup
+      cost class, fixtures needed, the API client invocation, and the chosen N
+      prefix. On first invocation in a project, also scaffolds the e2e/
+      directory tree.
+    template: proposal.md
+    instruction: |
+      Write the proposal to `proposal.md` in the current change directory
+      (OpenSpec resolves the absolute path for you).
+
+      BEFORE filling the proposal, check whether the consumer project's e2e/
+      directory has been scaffolded. If `e2e/README.md` does NOT exist, run
+      the scaffold step first (skip it silently when the file already
+      exists; the scaffold is idempotent and one-time):
+
+        1. Create directories: `e2e/`, `e2e/fixtures/`, `e2e/testing/`,
+           `e2e/testing/templates/`, `e2e/testing/runs/`.
+        2. Copy `templates/scaffold/e2e-readme.md` to `e2e/README.md`.
+        3. Copy `templates/scaffold/fixtures-readme.md` to
+           `e2e/fixtures/README.md`.
+        4. Copy `templates/scaffold/testing-readme.md` to
+           `e2e/testing/README.md`.
+        5. Copy `templates/scaffold/templates-readme.md` to
+           `e2e/testing/templates/README.md`.
+        6. Copy `templates/scaffold/runs-readme.md` to
+           `e2e/testing/runs/README.md`.
+        7. Append the contents of `templates/scaffold/gitignore-snippet.txt`
+           to the consumer project's root `.gitignore` (create the file if
+           missing). The snippet must ignore `e2e/testing/runs/*.md` but
+           keep `e2e/testing/runs/README.md` tracked, so use a negation
+           pattern.
+        8. Stage all scaffolded files and the .gitignore change so the
+           user can review.
+
+      Then fill the proposal. Behaviour-only assertions: HTTP status codes,
+      response body content, persisted state in backing services. Never
+      assert on log substrings; logs drift across versions. Setup cost
+      class determines the {N} prefix in the spec filename and the
+      execution order in a sweep. Lower N = lower setup cost = runs first.
+      The companion skill at `.agents/skills/e2e-runbooks/SKILL.md`
+      (shipped by Lukk17/agent-standards) explains the methodology in
+      full.
+
+      The proposal MUST declare a Concurrency profile, with three fields:
+
+        - Mutates: the resources this test writes to, deletes from, or
+          invalidates. Name the store and the collection / table / bucket;
+          add a partition (user id, tenant id) when the test only touches
+          one. Read-only probes do not count — write `none`.
+        - Conflicts with: tests this one cannot run alongside even when the
+          Mutates lists do not overlap. Typical entries: "any test that
+          restarts the stack", "any test that talks to the license server".
+          Leave blank if the only conflicts are obvious from Mutates.
+        - Serial: literal `true` or `false`. `true` means this test must run
+          alone — schema migrations, full-stack restarts, anything that
+          touches global config. Default `false`.
+
+      The main agent driving the sweep reads these three fields from every
+      spec before spawning runners. Two specs whose Mutates lists do not
+      overlap can run at the same time; overlapping specs run one after
+      the other; a `Serial: true` spec waits for the in-flight runners to
+      finish, then runs alone. Before spawning, the main agent asks the
+      user how many runners to spawn in parallel (there is no preset
+      ceiling — the user picks based on the test environment). When in
+      doubt about what to put in Mutates, over-declare: an extra entry
+      costs minutes of extra serialisation, a missing entry costs a
+      corrupted run and a forced re-execution.
+
+      The e2e-runner subagent is available in agent-standards at
+      `.claude/agents/e2e-runner.md` and `.opencode/agents/e2e-runner.md`.
+      Use it as the sweep delegate; it owns the runner contract and the
+      dual-write into `e2e/testing/runs/`.
+
+      The proposal itself stays inside the change directory; no e2e/
+      mirror needed.
+    requires: []
+
+  - id: test-spec
+    generates: test-spec.md
+    description: >-
+      The immutable spec for one capability test. Seven fixed sections: What
+      this verifies, Prerequisites, Reset state, Run, Expected, Fixtures,
+      Concurrency.
+    template: test-spec.md
+    instruction: |
+      Generate the immutable spec from the proposal. Seven fixed sections in
+      this order: What this verifies, Prerequisites, Reset state, Run,
+      Expected, Fixtures, Concurrency. Each prerequisite check is its own fenced code
+      block with prose stating the success criterion. Each Reset command is
+      its own fenced code block, in execution order. Each Run step is a
+      single API client invocation; multi-step tests instruct the runner to
+      wait for a success response before the next step. Expected assertions
+      are observable behaviour only.
+
+      Write the file in TWO locations with identical content:
+
+        1. `test-spec.md` in the current change directory (OpenSpec resolves
+           the absolute path).
+        2. `e2e/testing/{N}-{capability}-test.md` at the consumer project
+           root, substituting {N} and {capability} from the proposal.
+
+      The change-dir copy is the proposal's audit trail. The e2e/testing/
+      copy is the working asset future runs consume.
+
+      Include the Concurrency section verbatim from the proposal so the
+      spec carries the scheduling metadata the orchestrator needs at
+      sweep time.
+    requires: [proposal]
+
+  - id: tasks-template
+    generates: tasks-template.md
+    description: >-
+      The immutable checklist template mirroring the spec, copied at each
+      execution. Contains Result summary fields and an Additional tasks I did
+      section.
+    template: tasks-template.md
+    instruction: |
+      Generate the tasks-template by mirroring each Prerequisites, Reset,
+      Run, and Expected item from the spec as a checkbox. Append a Verdict
+      checkbox, a Result summary block with fields Input tokens, Output
+      tokens, Start (UTC), End (UTC), Duration, and an Additional tasks I did
+      section for off-spec runner actions.
+
+      Write the file in TWO locations with identical content:
+
+        1. `tasks-template.md` in the current change directory.
+        2. `e2e/testing/templates/{N}-{capability}-tasks.template.md` at the
+           consumer project root, substituting {N} and {capability} to match
+           the spec. The `templates/` subdirectory holds only these run-record
+           templates; the `{N}-{capability}-test.md` specs stay directly under
+           `e2e/testing/`.
+    requires: [test-spec]
+
+  - id: run
+    generates: run.md
+    description: >-
+      The filled-in execution record. Created by copying the tasks-template
+      and filling in actual results, ticks, tokens, and durations.
+    template: run.md
+    instruction: |
+      The run artifact IS the execution. Drive the test against a live stack
+      via the API client named in the proposal, tick boxes as you go, record
+      results.
+
+      File handling:
+
+        1. Copy the tasks-template content into `run.md` in the current
+           change directory. This is the artifact OpenSpec tracks. When
+           re-running an existing test in a sweep (no fresh change), the
+           template source is
+           `e2e/testing/templates/{N}-{capability}-tasks.template.md`.
+        2. The canonical timestamped record lives at
+           `e2e/testing/runs/<UTC-timestamp>_{N}-{capability}-tasks.md`
+           at the consumer project root. UTC timestamp uses ISO-8601 with
+           colons replaced by hyphens (`2026-05-12T17-23-36`) so the
+           filename is filesystem-safe. Write the same filled-in content
+           there. Both files end up identical; the change-dir copy is the
+           proposal record, the runs/ copy is the test-execution log.
+
+      Runner contract:
+
+        1. Record `Start (UTC)` as the very first action, before prerequisite
+           checks.
+        2. Execute each task in spec order. Tick the box on success; record
+           what went wrong on failure.
+        3. After the Verdict line is decided, record `End (UTC)`.
+        4. Compute Duration = End - Start as HH:MM:SS. Wall-clock for the
+           whole test (prereqs + reset + run + verify), NOT just the API
+           client call.
+        5. Fill Input / Output tokens with the best LLM-token estimate. Leave
+           blank if exact numbers aren't available. Do not invent.
+        6. Write the Result summary paragraph and the Verdict (PASS or FAIL).
+        7. Log anything done outside the spec under "Additional tasks I did".
+
+      The e2e-runner subagent is available in agent-standards at
+      `.claude/agents/e2e-runner.md` and `.opencode/agents/e2e-runner.md`.
+      Use it as the sweep delegate; it owns the runner contract and the
+      dual-write into `e2e/testing/runs/`.
+    requires: [tasks-template]
+
+apply:
+  requires: [run]
+  tracks: run.md
+  instruction: |
+    The apply phase for a capability test IS the run record. The run
+    artifact is the executable artifact; there is no separate apply step.
+    Treat any `/opsx:apply` invocation as "execute the next pending run".

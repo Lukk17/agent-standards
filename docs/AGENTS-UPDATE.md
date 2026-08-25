@@ -134,7 +134,9 @@ Nothing below is refreshed. Each one is either derived or yours.
   *and* a piece of gate wiring: `opencode.json` declares the plugin path, `.codex/config.toml` holds the Codex hook
   tables inline. Refreshing either would wipe your MCP edits, so when upstream changes that wiring you merge it by
   hand. The release notes will say so.
-- **[.mcp.json](../.mcp.json) and [.vscode/mcp.json](../.vscode/mcp.json)**, your MCP server sets.
+- **[.mcp.json](../.mcp.json), [.vscode/mcp.json](../.vscode/mcp.json), and
+  [.opencode/opencode.json](../.opencode/opencode.json)**, your MCP server sets. The last one is the small
+  OpenCode-only overlay carrying the Context7 API key header.
 - **[AGENTS.md.example](../AGENTS.md.example)** and your own `AGENTS.md`. The first is consumed once at setup, the
   second is the source of truth for your project's conventions.
 
