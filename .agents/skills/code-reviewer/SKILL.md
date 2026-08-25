@@ -50,8 +50,16 @@ Analyze the code changes based on the following pillars:
 *   Correctness: Does the code achieve its stated purpose without bugs or logical errors?
 *   Maintainability: Is the code clean, well-structured, and easy to understand and modify in the future? Consider
     factors like code clarity, modularity, and adherence to established design patterns.
-*   Readability: Is the code well-commented (where necessary) and consistently formatted according to our project's
-    coding style guidelines?
+*   Readability: Is the code consistently formatted according to our project's coding style guidelines, and does it
+    read on its own without a comment propping it up?
+*   Doc comments: Javadoc, docstrings, JSDoc, `///` and Go doc comments default to none, because code should explain
+    itself through extraction and precise naming. Flag every doc comment that a well-named function or a tighter type
+    would have made unnecessary, and flag any that merely restates the signature. Where one is genuinely needed the
+    prose caps at five lines and is usually one, `@param` earns its place only for units, nullability, a valid range,
+    or who owns the argument afterwards, `@return` only when non-obvious, and `@throws` is required for every
+    exception a caller can act on because unchecked exceptions never appear in the signature. Every tag line is
+    capped at one physical line, so a `@param` that wraps onto a second line is itself a finding: shorten it or
+    delete it.
 *   Efficiency: Are there any obvious performance bottlenecks or resource inefficiencies introduced by the changes?
 *   Security: Are there any potential security vulnerabilities or insecure coding practices?
 *   Edge Cases and Error Handling: Does the code appropriately handle edge cases and potential errors?

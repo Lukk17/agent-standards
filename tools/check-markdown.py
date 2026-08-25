@@ -20,6 +20,9 @@ Exemptions inside checked files:
 - Fenced code blocks. Handles both backtick (```) and tilde (~~~) fences,
   including nested fences via backtick-count matching plus an empty
   info-string requirement on the closer (CommonMark spec).
+- Inline code spans, for the dash check only. A document that teaches the
+  no-dash rule has to name the characters it bans, and `-` wrapped in
+  backticks is a specimen rather than prose.
 - Table rows (lines starting with `|`).
 - HTML `<summary>` lines (cannot wrap inside a `<details>` block).
 - Badge lines (`[![Name](url)](url)` style).
@@ -42,6 +45,7 @@ TABLE_ROW = re.compile(r"^\s*\|")
 SUMMARY_TAG = re.compile(r"^\s*<summary[\s>]", re.IGNORECASE)
 BADGE_LINE = re.compile(r"^\s*\[!\[")
 ATOMIC = re.compile(r"!?\[[^\]]*\]\([^)]*\)|`[^`]+`")
+INLINE_CODE = re.compile(r"``.*?``|`[^`]*`")
 MAX_LINE = 120
 
 
@@ -146,7 +150,7 @@ def check_lines(lines: list[str], path: Path) -> int:
             )
             failures += 1
 
-        if EM_OR_EN_DASH.search(line):
+        if EM_OR_EN_DASH.search(INLINE_CODE.sub("", line)):
             preview = line[:80].rstrip()
             print(
                 f"::error file={path},line={line_no}::"

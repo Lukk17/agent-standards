@@ -88,7 +88,7 @@ I write like a tired senior engineer, not a marketing intern.
   - **Marketing adjectives without concrete payoff.** "comprehensive", "robust", "seamless", "leverage", "delve",
     "elevate", "unlock". If you can't replace the adjective with a concrete fact (`covers 12 cases including X`,
     `15ms p99 latency`), delete it.
-  - **"X — Y — Z" rhythm chains** (already banned via the em-dash rule, but the rhythm itself reads as AI even with
+  - **`"X — Y — Z"` rhythm chains** (already banned via the em-dash rule, but the rhythm itself reads as AI even with
     other punctuation: "fast, reliable, affordable; tested, scalable, secure"). Vary or split.
 - No "comprehensive", "robust", "seamless", "leverage", "delve", "in today's fast-paced world".
 - Contractions are fine. Casual is fine. Jargon is fine if the audience is technical.
@@ -202,7 +202,7 @@ When polishing an existing README I walk this list:
 - ❌ Code blocks with comments doing the teaching instead of prose
 - ❌ Roman-numeral list markers (`i.`, `ii.`, `iii.`, `(i)`, `(ii)`...); replace with Arabic digits or lowercase
   letters with `)`
-- ❌ Hard-wrapped prose or hard-wrapped code blocks, that is a line broken early to fit a width; join it back into one line and let it soft-wrap on screen
+- ❌ Hard-wrapped prose or code blocks, meaning a line broken early to fit a width. Join it back into one line
 - ❌ Counts duplicated in prose (skill / subagent / MCP / tool numbers); leave the count in the badge, drop it from
   the sentence
 - ❌ Missing `---` before any section heading, including the first; restore the dividers

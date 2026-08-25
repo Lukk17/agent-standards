@@ -378,27 +378,61 @@ name = user.name
 // added for the cleanup pass
 ```
 
-#### JSDoc for Public APIs
+#### Doc Comments
+
+Default to none. A doc comment is usually a sign that the code failed to explain itself. Before writing one, extract
+the unclear block into a well-named function, rename the parameters so they carry their own meaning, and tighten the
+types. Do that first and most doc comments have nothing left to say, which is the outcome you want. Code that explains
+itself cannot go stale, a comment can.
+
+When one is still genuinely needed, the prose is capped at five lines and is usually one. Every tag line is capped at
+one line, `@param` and `@returns` and `@throws` alike, and only appears when it genuinely adds something: if the note
+does not fit on a single line, shorten it or drop the tag. Four rules decide what goes in.
+
+1. Prose. One sentence saying what it does, then only what a caller cannot infer from the signature. Nothing more.
+2. `@param` only when the name and the type do not already convey it, meaning units, nullability, a valid range, or
+   who owns the argument afterwards. `@param userId - The user identifier` is noise, delete it, and never restate a
+   type TypeScript already declares.
+3. `@returns` only when it is non-obvious.
+4. `@throws` always, for every error a caller can act on. TypeScript keeps throws out of the signature, so this one is
+   genuinely contract rather than decoration.
+
+Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
+example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you
+justify in review, not a budget to spend. The one-line cap on a tag line has no exception at all: shorten it or delete
+it.
 
 ```typescript
+// PASS: GOOD: One sentence, then only what the signature cannot say
 /**
  * Searches markets using semantic similarity.
  *
+ * @param limit upper bound on results, values above 50 are clamped
+ * @returns matches ordered by descending similarity
+ * @throws {ServiceUnavailableError} when the embedding backend is unreachable
+ */
+export async function searchMarkets(query: string, limit: number = 10): Promise<Market[]> {
+  // Implementation
+}
+
+// FAIL: BAD: Restates the signature, wraps a tag onto a second line, pads with an example nobody maintains
+/**
+ * Searches markets.
+ *
  * @param query - Natural language search query
- * @param limit - Maximum number of results (default: 10)
- * @returns Array of markets sorted by similarity score
- * @throws {Error} If OpenAI API fails or Redis unavailable
+ * @param limit - Maximum number of results, defaults to 10 and is passed
+ *                straight through to the vector store
+ * @returns Array of markets
  *
  * @example
- * ```typescript
  * const results = await searchMarkets('election', 5)
- * console.log(results[0].name) // "Trump vs Biden"
- * ```
  */
-export async function searchMarkets(
-  query: string,
-  limit: number = 10
-): Promise<Market[]> {
+export async function searchMarkets(query: string, limit: number = 10): Promise<Market[]> {
+  // Implementation
+}
+
+// PASS: BEST: Extraction and naming removed the need for a doc comment entirely
+export async function searchMarketsBySimilarity(query: string, maxResults = 10): Promise<Market[]> {
   // Implementation
 }
 ```

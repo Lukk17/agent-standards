@@ -133,6 +133,49 @@ private void Update()
 
 ---
 
+### Doc Comments
+
+Default to none. A doc comment is usually a sign that the code failed to explain itself. Before writing one, extract
+the unclear block into a well-named method, rename the parameters so they carry their own meaning, and tighten the
+types. Do that first and most doc comments have nothing left to say, which is the outcome you want. Code that explains
+itself cannot go stale, a comment can.
+
+When one is still genuinely needed, the prose is capped at five lines and is usually one. Every tag line is capped at
+one line, `<param>` and `<returns>` and `<exception>` alike, and only appears when it genuinely adds something: if the
+note does not fit on a single line, shorten it or drop the tag. Four rules decide what goes in. Keep `<summary>` on
+one physical line, the expanded three-line form says no more and reads as filler.
+
+1. Prose. One sentence saying what it does, then only what a caller cannot infer from the signature. Nothing more.
+2. `<param>` only when the name and the type do not already convey it, meaning units, nullability, a valid range, or
+   who owns the object afterwards (whether the caller must return it to the pool is exactly that). `<param
+   name="speed">The speed.</param>` is noise, delete it.
+3. `<returns>` only when it is non-obvious.
+4. `<exception>` always, for every exception a caller can act on. C# keeps throwing out of the signature, so this one
+   is genuinely contract rather than decoration.
+
+Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
+example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you
+justify in review, not a budget to spend. The one-line cap on a tag line has no exception at all: shorten it or delete
+it.
+
+```csharp
+// GOOD: single-line summary, then only what the signature cannot say
+/// <summary>Spawns a pooled projectile at the muzzle and arms it.</summary>
+/// <param name="speed">Metres per second, clamped to the weapon maximum.</param>
+/// <exception cref="InvalidOperationException">Thrown when the pool is exhausted.</exception>
+public Projectile Fire(float speed) { ... }
+
+// BAD: three lines to say what the method name already said
+/// <summary>
+/// Fires a projectile.
+/// </summary>
+/// <param name="speed">The speed.</param>
+/// <returns>A projectile.</returns>
+public Projectile Fire(float speed) { ... }
+```
+
+---
+
 ### Architecture, ScriptableObject-Based Design
 
 - Use ScriptableObjects as data containers for configuration (weapon stats, level parameters, audio clips, difficulty

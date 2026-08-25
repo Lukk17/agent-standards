@@ -118,6 +118,59 @@ MyModule/
 
 ---
 
+### Comment-Based Help
+
+Default to none. A comment-based help block is usually a sign that the code failed to explain itself. Before writing
+one, extract the unclear block into a well-named function, rename the parameters so they carry their own meaning, and
+tighten the types. Do that first and most help blocks have nothing left to say, which is the outcome you want. Code
+that explains itself cannot go stale, a comment can.
+
+One exception to the default, and only one. Comment-based help on a function exported from a module is machine
+consumed: `Get-Help` renders it, so an exported function carries `.SYNOPSIS`, one `.PARAMETER` per parameter, and one
+`.EXAMPLE`, even where the names already say it, because a missing entry reads as a bug in the module. One
+`.EXAMPLE` showing the common invocation is enough, a second needs a reason and a third is padding. Everything not
+exported, meaning private helpers and script-local functions, follows the default of none. Inside the block every
+entry is capped at one line and the four rules below still decide what it says.
+
+1. Prose. One sentence saying what it does, then only what a caller cannot infer from the signature. Nothing more.
+2. `.PARAMETER` on an exported function is required by the help system, so make it earn the line anyway: units,
+   nullability, a valid range, or who owns the argument afterwards. `The vault name` under `-VaultName` is noise even
+   when the help system demands the entry exists.
+3. `.OUTPUTS` only when the emitted type is non-obvious, which on a pipeline-producing function it usually is.
+4. Document every terminating error a caller can catch, always, under `.NOTES` or in the synopsis line that names
+   the failure. PowerShell puts nothing about throwing in the signature, so this one is genuinely contract.
+
+Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
+example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you
+justify in review, not a budget to spend. The one-line cap on an entry line has no exception at all: shorten it or
+delete it.
+
+```powershell
+# Good: exported function, one line per entry, nothing restated twice
+function Get-BackupSet {
+    <#
+    .SYNOPSIS
+        Returns the backup sets kept for a vault, newest first.
+    .PARAMETER RetentionDays
+        Age cut-off in days, values above 3650 are rejected.
+    .EXAMPLE
+        Get-BackupSet -VaultName prod -RetentionDays 30
+    #>
+}
+
+# Bad: an internal helper carrying help that nothing will ever render
+function Get-BackupSetInternal {
+    <#
+    .SYNOPSIS
+        Gets the backup set internal.
+    .PARAMETER VaultName
+        The vault name.
+    #>
+}
+```
+
+---
+
 ### Logging Pattern
 
 - Use `Write-Verbose` for diagnostic messages (visible with `-Verbose`).

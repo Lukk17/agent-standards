@@ -96,6 +96,49 @@ func ProcessData(r io.Reader) (io.Reader, error) {
 
 ---
 
+### Doc Comments
+
+Default to none. A doc comment is usually a sign that the code failed to explain itself. Before writing one, extract
+the unclear block into a well-named function, rename the parameters so they carry their own meaning, and tighten the
+types. Do that first and most doc comments have nothing left to say, which is the outcome you want. Code that explains
+itself cannot go stale, a comment can.
+
+When one is still genuinely needed, the prose is capped at five lines and is usually one. Every note you add about a
+parameter, the result, or an error is capped at one line and only appears when it genuinely adds something: if the
+note does not fit on a single line, shorten it or drop it. Four rules decide what goes in. Exported identifiers are
+not an automatic exception: `golint` wanting a comment on every exported name is not a reason to write a sentence that
+adds nothing.
+
+1. Prose. One sentence, starting with the identifier name, saying what it does, then only what a caller cannot infer
+   from the signature. Nothing more.
+2. Describe a parameter only when the name and the type do not already convey it, meaning units, nullability, a valid
+   range, or who owns it afterwards. `orderID is the order identifier` is noise, delete it.
+3. Describe the result only when it is non-obvious.
+4. Describe the error conditions always, every one a caller can act on, and name the sentinel errors it can match with
+   `errors.Is`. The signature says only `error`, so this one is genuinely contract rather than decoration.
+
+Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
+example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you
+justify in review, not a budget to spend. The one-line cap on a note line has no exception at all: shorten it or
+delete it.
+
+```go
+// Good: one sentence, then only what the signature cannot say, one line per note.
+
+// Reserve holds stock for an order until the payment window closes.
+// holdFor is capped at 15 minutes.
+// Returns ErrInsufficientStock when the warehouse cannot cover the order.
+func (w *Warehouse) Reserve(orderID OrderID, holdFor time.Duration) (Reservation, error)
+
+// Bad: restates the signature and says nothing about the error.
+
+// Reserve reserves stock. It takes an order ID and a hold duration and
+// returns a reservation and an error.
+func (w *Warehouse) Reserve(orderID OrderID, holdFor time.Duration) (Reservation, error)
+```
+
+---
+
 ### Error Handling Patterns
 
 #### Error Wrapping with Context

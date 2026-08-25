@@ -100,6 +100,47 @@ main "$@"
 
 ---
 
+### Doc Comments
+
+Default to none. A comment block above a function is usually a sign that the code failed to explain itself. Before
+writing one, extract the unclear block into a well-named function, rename the arguments so they carry their own
+meaning, and tighten the types. Do that first and most comment blocks have nothing left to say, which is the outcome
+you want. Code that explains itself cannot go stale, a comment can.
+
+When one is still genuinely needed, the prose is capped at five lines and is usually one. Every note you add about an
+argument, the output, or an exit status is capped at one line and only appears when it genuinely adds something: if
+the note does not fit on a single line, shorten it or drop it. Four rules decide what goes in. Shell has no signature
+at all, no types and no named parameters, so the little that is worth saying is worth saying precisely.
+
+1. Prose. One sentence saying what it does, then only what a caller cannot infer from the signature. Nothing more.
+2. Describe an argument only when the name at the call site does not already convey it, meaning units, a valid range,
+   whether it may be empty, or who removes it afterwards. `$1 - the vault` is noise, delete it.
+3. Describe what the function writes to stdout only when it is non-obvious, and say so explicitly when it writes
+   nothing but sets a global.
+4. Describe every non-zero exit status a caller can act on, always. Nothing in shell declares them, so this one is
+   genuinely contract rather than decoration.
+
+Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
+example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you
+justify in review, not a budget to spend. The one-line cap on a note line has no exception at all: shorten it or
+delete it.
+
+```bash
+# Good: one line, then only what the call site cannot show
+# Rotates the vault backups and prints the paths it removed.
+# $2 is an age in days, values above 3650 are rejected.
+# Exits 3 when the vault directory is missing.
+rotate_backups() { :; }
+
+# Bad: restates the function name and numbers the arguments for no gain
+# This function rotates backups.
+# $1 - the vault
+# $2 - the days
+rotate_backups() { :; }
+```
+
+---
+
 ### Argument Parsing
 
 - Use `getopts` for single-character flags; use a manual `case` statement for long options (`--flag`).

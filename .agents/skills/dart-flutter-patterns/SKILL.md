@@ -593,6 +593,52 @@ Cover happy, error, and edge paths for each unit. Target around 90% line coverag
 
 ---
 
+### Doc Comments
+
+Default to none. A `///` block is usually a sign that the code failed to explain itself. Before writing one, extract
+the unclear block into a well-named method or widget class, rename the parameters so they carry their own meaning, and
+tighten the types. Do that first and most doc comments have nothing left to say, which is the outcome you want. Code
+that explains itself cannot go stale, a comment can.
+
+When one is still genuinely needed, the prose is capped at five lines and is usually one. Every note you add about a
+parameter, the return, or a thrown exception is capped at one line and only appears when it genuinely adds something:
+if the note does not fit on a single line, shorten it or drop it. Four rules decide what goes in.
+`public_member_api_docs` demanding a comment on every public member is not a reason to write a sentence that adds
+nothing.
+
+1. Prose. One sentence saying what it does, then only what a caller cannot infer from the signature. Nothing more.
+2. Describe a parameter, referenced as `[holdFor]`, only when the name and the type do not already convey it, meaning
+   units, nullability, a valid range, or who owns it afterwards. `[orderId] the order identifier` is noise, delete it.
+3. Describe the return only when it is non-obvious.
+4. Describe every exception a caller can act on, always. Dart has no checked exceptions and puts nothing about
+   throwing in the signature, so this one is genuinely contract rather than decoration.
+
+Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
+example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you
+justify in review, not a budget to spend. The one-line cap on a note line has no exception at all: shorten it or
+delete it.
+
+```dart
+// Good: one sentence, then only what the signature cannot say, one line per note.
+
+/// Reserves stock for an order and holds it until the payment window closes.
+///
+/// [holdFor] is capped at 15 minutes.
+/// Throws [InsufficientStockException] when the warehouse cannot cover it.
+Future<Reservation> reserve(OrderId orderId, Duration holdFor);
+
+// Bad: restates the signature and says nothing about the failure mode.
+
+/// Reserves stock.
+///
+/// [orderId] the order identifier.
+/// [holdFor] the hold duration.
+/// Returns a reservation.
+Future<Reservation> reserve(OrderId orderId, Duration holdFor);
+```
+
+---
+
 ### Dependency Injection Policy
 - Use Riverpod providers as the DI container for all Riverpod-based features
 - Do NOT use `get_it` alongside Riverpod: pick one DI strategy per feature

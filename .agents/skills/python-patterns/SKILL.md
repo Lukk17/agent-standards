@@ -77,6 +77,62 @@ def get_value(dictionary: dict, key: str) -> Any:
 
 ---
 
+### Docstrings
+
+Default to none. A docstring is usually a sign that the code failed to explain itself. Before writing one, extract the
+unclear block into a well-named function, rename the arguments so they carry their own meaning, and tighten the types.
+Do that first and most docstrings have nothing left to say, which is the outcome you want. Code that explains itself
+cannot go stale, a comment can.
+
+When one is still genuinely needed, the prose is capped at five lines and is usually one. Every entry under `Args:`,
+`Returns:` or `Raises:` is capped at one line and only appears when it genuinely adds something: if the entry does not
+fit on a single line, shorten it or drop it. Four rules decide what goes in.
+
+1. Prose. One sentence saying what it does, then only what a caller cannot infer from the signature. Nothing more.
+2. `Args:` only when the name and the annotation do not already convey it, meaning units, nullability, a valid range,
+   or who owns the argument afterwards. `user_id: The user identifier` is noise, delete it, and never restate a type
+   the annotation already declares.
+3. `Returns:` only when it is non-obvious.
+4. `Raises:` always, for every exception a caller can act on. Python puts nothing about raising in the signature, so
+   this one is genuinely contract rather than decoration.
+
+Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
+example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you
+justify in review, not a budget to spend. The one-line cap on an entry line has no exception at all: shorten it or
+delete it.
+
+```python
+# Good: one sentence, then only what the signature cannot say
+def reserve_stock(order_id: OrderId, hold_for: timedelta) -> Reservation:
+    """Reserve stock for an order and hold it until the payment window closes.
+
+    Args:
+        hold_for: how long the reservation survives, capped at 15 minutes.
+
+    Raises:
+        InsufficientStockError: when the warehouse cannot cover the order.
+    """
+
+
+# Bad: every entry restates the signature
+def reserve_stock(order_id: OrderId, hold_for: timedelta) -> Reservation:
+    """Reserve stock.
+
+    Args:
+        order_id (OrderId): The order identifier.
+        hold_for (timedelta): The hold duration.
+
+    Returns:
+        Reservation: The reservation.
+    """
+
+
+# Best: naming and annotations carry it, no docstring needed
+def reserve_stock_until_payment_window_closes(order_id: OrderId, hold_for: timedelta) -> Reservation: ...
+```
+
+---
+
 ### Type Hints
 
 #### Basic Type Annotations

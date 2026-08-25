@@ -66,6 +66,53 @@ origin: project-standards
 
 ---
 
+### Doc Comments
+
+Default to none. A Doxygen block is usually a sign that the code failed to explain itself. Before writing one, extract
+the unclear block into a well-named function, rename the parameters so they carry their own meaning, and tighten the
+types. Do that first and most Doxygen blocks have nothing left to say, which is the outcome you want. Code that
+explains itself cannot go stale, a comment can.
+
+When one is still genuinely needed, the prose is capped at five lines and is usually one. Every tag line is capped at
+one line, `@brief` and `@param` and `@return` alike, and only appears when it genuinely adds something: if the note
+does not fit on a single line, shorten it or drop the tag. Four rules decide what goes in. On a constrained target the
+header is often the only contract a caller reads, which raises the bar for the prose, not the line count.
+
+1. Prose. One `@brief` line saying what it does, then only what a caller cannot infer from the signature. Nothing
+   more.
+2. `@param` only when the name and the type do not already convey it, meaning units, a valid range, whether a pointer
+   may be null, and who owns the buffer afterwards. Always mark the direction, `@param[in]` or `@param[out]`, because
+   a bare pointer type does not say it.
+3. `@return` only when it is non-obvious. Naming the status codes a caller can branch on counts as non-obvious.
+4. Document every error path always, every status code or errno a caller can act on. C has no exceptions and the
+   return type alone rarely names them, so this one is genuinely contract rather than decoration.
+
+Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
+example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you
+justify in review, not a budget to spend. The one-line cap on a tag line has no exception at all: shorten it or delete
+it.
+
+```c
+// GOOD: one line of brief, then only what the signature cannot say
+/**
+ * @brief Reads one temperature sample from the sensor.
+ * @param[out] out_celsius Written only when the call returns SENSOR_OK.
+ * @return SENSOR_TIMEOUT when the bus does not answer within 50 ms.
+ */
+sensor_status_t sensor_read(sensor_handle_t *handle, float *out_celsius);
+
+// BAD: every tag restates the signature
+/**
+ * @brief Reads the sensor.
+ * @param handle The handle.
+ * @param out_celsius The output.
+ * @return The status.
+ */
+sensor_status_t sensor_read(sensor_handle_t *handle, float *out_celsius);
+```
+
+---
+
 ### Arduino API Design
 
 - Structure public API functions around the data and functionality the end user expects, abstracting low-level register
