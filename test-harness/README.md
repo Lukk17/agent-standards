@@ -107,13 +107,54 @@ docker compose -f test-harness\docker-compose.yml run --rm --entrypoint shellche
 
 ---
 
+### Running it on a Windows host
+
+Two things behave differently when the host is Windows with Docker Desktop. Both were hit by every runner, and the
+first one is now handled by the harness itself.
+
+Git refuses to read the mounted repository. Docker Desktop presents a bind mount as owned by root, the container runs
+as the unprivileged `harness` user, and git's dubious-ownership check then refuses any command that reads `/repo`. A
+clone from the mount fails with exit 128 and this message:
+
+```text
+fatal: detected dubious ownership in repository at '/repo/.git'
+```
+
+Nothing downstream runs after that. [entrypoint.sh](entrypoint.sh) now marks both `/repo` and `/repo/.git` as git safe
+directories for the container user before anything else happens, so every container is already correct when its
+command starts. Two entries are needed rather than one, because git keys the check on the exact path it resolved. The
+working-tree entry covers a command run inside the checkout, and a clone whose source is a path is checked against
+that path's `.git` directory instead. The specs under [e2e/testing](../e2e/testing) mark only `/repo`, which is why
+the global install used to fail on its very first clone while the per-project suite passed.
+
+A broader entry, the `*` wildcard that trusts every repository, would also work and is defensible here. The container
+is disposable, the mount is read-only, and no repository from an untrusted source ever reaches it, so the ownership
+check is protecting nothing in this setting. The two explicit entries are still the better choice, because they say
+out loud which paths are trusted and why. A wildcard would silently swallow the next path that trips the check, and
+that path is precisely the signal worth seeing.
+
+Git Bash rewrites arguments that look like Unix paths. MSYS, the environment Git Bash runs on, converts any argument
+starting with a forward slash into a Windows path before the program ever sees it, so `/bin/bash` reaches Docker as
+something like `C:/Program Files/Git/usr/bin/bash` and the container dies with exit 127 and a "no such file or
+directory" from the runtime. Prefix the run with `MSYS_NO_PATHCONV=1`.
+
+Git Bash:
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose -f test-harness/docker-compose.yml run --rm harness /bin/bash
+```
+
+PowerShell and cmd do no such rewriting, so the PowerShell commands above need nothing extra.
+
+---
+
 ### What each file does
 
 | File | What it does |
 | --- | --- |
 | [Dockerfile](Dockerfile) | Debian image with Node, Python, git, jq and ShellCheck, plus a baseline install of the five agent tools under a non-root user. |
-| [entrypoint.sh](entrypoint.sh) | Updates every agent tool to its newest release, prints the resolved versions, then runs the container command. |
-| [setup-project.sh](setup-project.sh) | Creates the empty project, runs the documented selective checkout against the mounted repository, and repairs and verifies the three symlinks. |
+| [entrypoint.sh](entrypoint.sh) | Marks `/repo` and `/repo/.git` as git safe directories, updates every agent tool to its newest release, prints the resolved versions, then runs the container command. |
+| [setup-project.sh](setup-project.sh) | Creates the empty project, marks the same two paths plus the project itself as safe, runs the documented selective checkout against the mounted repository, and repairs and verifies the three symlinks. |
 | [verify.sh](verify.sh) | Every assertion, one `PASS` or `FAIL` line each, exit 1 if any failed. Calls `setup-project.sh` first unless `HARNESS_SKIP_SETUP=1`. |
 | [docker-compose.yml](docker-compose.yml) | Mounts the repository read-only at `/repo` and runs `verify.sh`. |
 

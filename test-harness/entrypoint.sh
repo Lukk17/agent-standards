@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # -----------------------------------------------------------------------------
 # Script: entrypoint.sh
-# Description: Updates every agent CLI to its newest published release, records
-#              the resolved versions, then runs the container command.
+# Description: Marks the mounted repository as a git safe directory, updates
+#              every agent CLI to its newest published release, records the
+#              resolved versions, then runs the container command.
 # Usage: entrypoint.sh [COMMAND [ARGS...]]
 # Environment:
+#   AGENT_STANDARDS_REPO Mounted upstream repository. Default /repo.
 #   HARNESS_SKIP_UPDATE  Set to 1 to keep the versions baked into the image.
 # Exit codes:
 #   0    The container command succeeded.
+#   2    The git safe.directory entries could not be written.
 #   >0   Whatever the container command returned.
 # -----------------------------------------------------------------------------
 set -euo pipefail
@@ -31,8 +34,46 @@ readonly BINARIES=(
 
 readonly VERSION_TIMEOUT=90
 
+readonly REPO="${AGENT_STANDARDS_REPO:-/repo}"
+
+# Both entries are needed. Git checks the working tree it discovered and the
+# repository directory it resolved, and a clone whose source is a path is keyed
+# on that path's .git directory, so trusting only the working tree is not enough.
+readonly SAFE_DIRECTORIES=(
+  "$REPO"
+  "${REPO}/.git"
+)
+
 log_info()  { echo "[INFO]  $(date -u '+%Y-%m-%dT%H:%M:%SZ') $*" >&2; }
 log_warn()  { echo "[WARN]  $(date -u '+%Y-%m-%dT%H:%M:%SZ') $*" >&2; }
+log_error() { echo "[ERROR] $(date -u '+%Y-%m-%dT%H:%M:%SZ') $*" >&2; }
+
+# True when git already trusts the given directory for this container user.
+already_trusted() {
+  local directory="$1"
+
+  git config --global --get-all safe.directory 2>/dev/null | grep -qxF "$directory"
+}
+
+# Lets git read the bind-mounted repository, which a Docker Desktop host on
+# Windows presents as owned by root while the container runs as harness.
+trust_mounted_repo() {
+  local directory
+
+  for directory in "${SAFE_DIRECTORIES[@]}"; do
+    if already_trusted "$directory"; then
+      log_info "git already trusts ${directory}"
+      continue
+    fi
+
+    if ! git config --global --add safe.directory "$directory"; then
+      log_error "could not mark ${directory} as a git safe directory"
+      return 1
+    fi
+
+    log_info "marked ${directory} as a git safe directory"
+  done
+}
 
 # Version npm currently has installed for a package, or "not-installed".
 installed_version() {
@@ -102,6 +143,10 @@ report_versions() {
 }
 
 main() {
+  if ! trust_mounted_repo; then
+    exit 2
+  fi
+
   update_agents
   report_versions
 
