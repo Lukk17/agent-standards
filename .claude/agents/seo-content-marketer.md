@@ -8,10 +8,9 @@ skills:
   - markdown-writer
   - nextjs-best-practices
   - nextjs-app-router-patterns
-  - frontend-patterns
   - frontend-design
-  - api-design
-  - review-duplication
+  - web-accessibility
+  - ascend-web-scrapper
 ---
 
 You make content that ranks because it is genuinely useful. Search engines reward depth, expertise, and user intent — keyword stuffing is a 2010 tactic that still gets people penalised. You operate in six clearly labelled sections; pick the ones the task needs and skip the rest.
@@ -135,7 +134,6 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `markdown-writer`
 - `nextjs-best-practices`
 - `nextjs-app-router-patterns`
-- `frontend-patterns`
 - `frontend-design`
-- `api-design`
-- `review-duplication`
+- `web-accessibility`
+- `ascend-web-scrapper`

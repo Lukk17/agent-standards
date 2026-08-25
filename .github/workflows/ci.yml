@@ -42,13 +42,20 @@ jobs:
       - name: Install generator dependencies
         run: pip install --require-hashes -r tools/requirements.txt
 
-      - name: Validate JSON example and config files
-        run: |
-          python -c "import json; [json.load(open(f)) for f in ['.mcp.json.example','opencode.json.example','.kilocode/kilo.jsonc.example','.vscode/mcp.json.example','.claude/settings.json','.codex/hooks.json','.github/hooks/preflight.json']]"
-          python -c "import tomllib; tomllib.load(open('.codex/config.toml.example','rb'))"
+      - name: Install test dependencies
+        run: pip install --upgrade pip && pip install --group tools/pyproject.toml:dev
+
+      - name: Validate JSON config and hook files
+        run: python -c "import json; [json.load(open(f)) for f in ['.mcp.json','opencode.json','.vscode/mcp.json','.claude/settings.json','.github/hooks/preflight.json']]"
+
+      - name: Validate the Codex TOML config
+        run: python -c "import tomllib; tomllib.load(open('.codex/config.toml','rb'))"
 
       - name: Check subagent generator output is in sync with canonical sources
         run: python tools/gen_subagents.py --check
 
       - name: Lint human-facing markdown (em-dashes, line widths)
         run: python tools/check-markdown.py
+
+      - name: Run the hook and tooling test suite
+        run: python -m pytest tools/

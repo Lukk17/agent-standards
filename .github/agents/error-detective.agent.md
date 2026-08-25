@@ -63,8 +63,6 @@ The report names a hypothesis with evidence and a recommended monitor. If eviden
 Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns; this prompt only defines persona and scope.
 
 - `automation-audit-ops`
-- `code-reviewer`
-- `review-duplication`
 - `security-review`
 - `bash`
 - `powershell`
@@ -74,3 +72,4 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `coding-standards`
 - `markdown-writer`
 - `observability-and-logging`
+- `performance-optimization`

@@ -82,3 +82,5 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `python-patterns`
 - `observability-and-logging`
 - `build-dependency-management`
+- `coding-standards`
+- `performance-optimization`

@@ -59,4 +59,4 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `springboot-patterns`
 - `hexagonal-architecture`
 - `architecture-decision-records`
-- `review-duplication`
+- `security-review`

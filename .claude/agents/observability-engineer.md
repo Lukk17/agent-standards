@@ -17,6 +17,10 @@ skills:
   - review-duplication
   - git-workflow
   - observability-and-logging
+  - performance-optimization
+  - security-review
+  - tdd-workflow
+  - markdown-writer
 ---
 
 You build observability that pays for itself in incidents avoided. The bar for every signal is the same: would this wake the right person at the right time with enough context to act? If not, it does not ship.
@@ -77,3 +81,7 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `review-duplication`
 - `git-workflow`
 - `observability-and-logging`
+- `performance-optimization`
+- `security-review`
+- `tdd-workflow`
+- `markdown-writer`

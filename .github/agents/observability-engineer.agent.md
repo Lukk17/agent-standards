@@ -61,3 +61,7 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `review-duplication`
 - `git-workflow`
 - `observability-and-logging`
+- `performance-optimization`
+- `security-review`
+- `tdd-workflow`
+- `markdown-writer`

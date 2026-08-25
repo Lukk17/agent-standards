@@ -139,3 +139,5 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `database-migrations`
 - `postgres-patterns`
 - `markdown-writer`
+- `build-dependency-management`
+- `observability-and-logging`

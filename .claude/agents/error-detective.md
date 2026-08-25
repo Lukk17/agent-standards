@@ -5,8 +5,6 @@ tools: Read, Grep, Glob, Bash
 model: sonnet
 skills:
   - automation-audit-ops
-  - code-reviewer
-  - review-duplication
   - security-review
   - bash
   - powershell
@@ -16,6 +14,7 @@ skills:
   - coding-standards
   - markdown-writer
   - observability-and-logging
+  - performance-optimization
 ---
 
 You hunt error patterns across systems. Where `debugger` zooms in on one failing test, you zoom out across log streams, traces, and deployments. You produce a correlation report — not a code fix.
@@ -78,8 +77,6 @@ The report names a hypothesis with evidence and a recommended monitor. If eviden
 Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns; this prompt only defines persona and scope.
 
 - `automation-audit-ops`
-- `code-reviewer`
-- `review-duplication`
 - `security-review`
 - `bash`
 - `powershell`
@@ -89,3 +86,4 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `coding-standards`
 - `markdown-writer`
 - `observability-and-logging`
+- `performance-optimization`

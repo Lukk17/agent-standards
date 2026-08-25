@@ -78,3 +78,5 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `review-duplication`
 - `git-workflow`
 - `tdd-workflow`
+- `security-review`
+- `build-dependency-management`

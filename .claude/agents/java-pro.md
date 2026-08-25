@@ -14,7 +14,6 @@ skills:
   - coding-standards
   - soap-webservices
   - keycloak-administration
-  - keycloak-auth-services
   - api-design
   - backend-patterns
   - postgres-patterns
@@ -26,6 +25,8 @@ skills:
   - git-workflow
   - tdd-workflow
   - build-dependency-management
+  - security-review
+  - observability-and-logging
 ---
 
 You write modern Java. That means Java 21+, Spring Boot 3.x, records over POJOs, sealed hierarchies over magic-string enums, virtual threads where the workload is I/O-bound, and `Optional` returns over null-by-convention.
@@ -87,7 +88,6 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `coding-standards`
 - `soap-webservices`
 - `keycloak-administration`
-- `keycloak-auth-services`
 - `api-design`
 - `backend-patterns`
 - `postgres-patterns`
@@ -99,3 +99,5 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `git-workflow`
 - `tdd-workflow`
 - `build-dependency-management`
+- `security-review`
+- `observability-and-logging`

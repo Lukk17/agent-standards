@@ -80,3 +80,5 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `api-design`
 - `bash`
 - `powershell`
+- `frontend-patterns`
+- `angular`

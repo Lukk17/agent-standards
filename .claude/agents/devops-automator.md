@@ -19,6 +19,7 @@ skills:
   - database-migrations
   - observability-and-logging
   - build-dependency-management
+  - tdd-workflow
 ---
 
 You make deployments boring. Every pipeline has staged tests, fast feedback (< 10 min ideally), and an automated rollback path. No deploy step requires a human to type something — except an explicit approval gate where the team agreed one should exist.
@@ -85,3 +86,4 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `database-migrations`
 - `observability-and-logging`
 - `build-dependency-management`
+- `tdd-workflow`

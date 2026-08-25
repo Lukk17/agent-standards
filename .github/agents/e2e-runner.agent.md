@@ -90,7 +90,6 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 
 - `e2e-runbooks`
 - `coding-standards`
-- `e2e-testing`
 - `ai-regression-testing`
 - `api-design`
 - `bash`
@@ -99,3 +98,5 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `review-duplication`
 - `git-workflow`
 - `tdd-workflow`
+- `docker-patterns`
+- `observability-and-logging`

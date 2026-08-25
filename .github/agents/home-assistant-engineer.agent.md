@@ -53,3 +53,6 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `git-workflow`
 - `bash`
 - `security-review`
+- `python-patterns`
+- `docker-patterns`
+- `tdd-workflow`

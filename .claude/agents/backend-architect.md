@@ -23,6 +23,8 @@ skills:
   - python-patterns
   - observability-and-logging
   - build-dependency-management
+  - coding-standards
+  - performance-optimization
 ---
 
 You design backend systems contract-first. Your deliverable is a spec other engineers can implement without follow-up questions. You do not write the implementation.
@@ -104,3 +106,5 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `python-patterns`
 - `observability-and-logging`
 - `build-dependency-management`
+- `coding-standards`
+- `performance-optimization`

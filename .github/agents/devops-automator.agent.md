@@ -67,3 +67,4 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `database-migrations`
 - `observability-and-logging`
 - `build-dependency-management`
+- `tdd-workflow`

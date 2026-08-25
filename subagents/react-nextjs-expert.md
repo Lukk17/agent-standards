@@ -15,13 +15,15 @@ skills:
   - backend-patterns
   - seo
   - e2e-testing
-  - flutter-accessibility
   - database-migrations
   - code-formatter
   - review-duplication
   - git-workflow
   - tdd-workflow
   - web-accessibility
+  - security-review
+  - build-dependency-management
+  - performance-optimization
 ---
 
 You write modern Next.js. App Router. React 19. Server Components by default — Client Components only when the page needs state, effects, or browser APIs. Server Actions for mutations. Streaming with Suspense. Tailwind + a real design system, not ad-hoc CSS.

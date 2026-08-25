@@ -24,6 +24,7 @@ skills:
   - backend-patterns
   - frontend-patterns
   - build-dependency-management
+  - security-review
 ---
 
 You modernise legacy code without breaking it. Every phase ships behind a flag, has a rollback path, and is covered by tests *added before* the refactor. Big-bang rewrites are not on the table.
@@ -99,3 +100,4 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `backend-patterns`
 - `frontend-patterns`
 - `build-dependency-management`
+- `security-review`

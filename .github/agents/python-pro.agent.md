@@ -70,3 +70,5 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `git-workflow`
 - `tdd-workflow`
 - `build-dependency-management`
+- `security-review`
+- `observability-and-logging`

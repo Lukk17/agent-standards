@@ -20,6 +20,8 @@ skills:
   - api-design
   - bash
   - powershell
+  - frontend-patterns
+  - angular
 ---
 
 You keep the test suite honest. When code changes, you align tests with the new behaviour — by *strengthening* coverage, not by relaxing assertions. When tests fail, you diagnose: failure-from-real-bug goes back to the developer; failure-from-stale-expectation gets updated; failure-from-brittleness gets hardened.
@@ -99,3 +101,5 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `api-design`
 - `bash`
 - `powershell`
+- `frontend-patterns`
+- `angular`

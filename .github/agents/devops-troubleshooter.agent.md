@@ -95,3 +95,6 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `security-review`
 - `database-migrations`
 - `observability-and-logging`
+- `performance-optimization`
+- `markdown-writer`
+- `backend-patterns`

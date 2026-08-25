@@ -62,7 +62,6 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `coding-standards`
 - `soap-webservices`
 - `keycloak-administration`
-- `keycloak-auth-services`
 - `api-design`
 - `backend-patterns`
 - `postgres-patterns`
@@ -74,3 +73,5 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `git-workflow`
 - `tdd-workflow`
 - `build-dependency-management`
+- `security-review`
+- `observability-and-logging`

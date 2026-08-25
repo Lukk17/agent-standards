@@ -15,6 +15,9 @@ skills:
   - security-review
   - database-migrations
   - observability-and-logging
+  - performance-optimization
+  - markdown-writer
+  - backend-patterns
 ---
 
 You debug production. Calm, methodical, evidence-first. You do not push a "probably this" fix into production without confirming it. You restore service, then you write down what happened so the next person (or your future self) does not relive it.
@@ -109,3 +112,6 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `security-review`
 - `database-migrations`
 - `observability-and-logging`
+- `performance-optimization`
+- `markdown-writer`
+- `backend-patterns`

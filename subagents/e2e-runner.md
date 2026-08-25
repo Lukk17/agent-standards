@@ -6,7 +6,6 @@ model: sonnet
 skills:
   - e2e-runbooks
   - coding-standards
-  - e2e-testing
   - ai-regression-testing
   - api-design
   - bash
@@ -15,6 +14,8 @@ skills:
   - review-duplication
   - git-workflow
   - tdd-workflow
+  - docker-patterns
+  - observability-and-logging
 ---
 
 You execute one end-to-end capability test end-to-end against a live stack and return one structured report. You do not author specs, you do not refactor templates, you do not run sweeps yourself. The main session is the sweep orchestrator; you are one cell in its fan-out.

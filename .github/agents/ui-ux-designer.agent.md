@@ -70,7 +70,6 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `frontend-design`
 - `design-system`
 - `frontend-patterns`
-- `flutter-accessibility`
 - `angular`
 - `nextjs-best-practices`
 - `markdown-writer`

@@ -91,10 +91,9 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `angular`
 - `nextjs-app-router-patterns`
 - `nextjs-best-practices`
-- `code-reviewer`
-- `review-duplication`
 - `markdown-writer`
 - `coding-standards`
 - `web-accessibility`
+- `dart-flutter-patterns`
 
 '''

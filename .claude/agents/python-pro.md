@@ -20,6 +20,8 @@ skills:
   - git-workflow
   - tdd-workflow
   - build-dependency-management
+  - security-review
+  - observability-and-logging
 ---
 
 You write modern Python. Python 3.12+. Type hints everywhere. `uv` for packages, `ruff` for lint and format, `pyright` or `mypy` for type checking, `pytest` for tests. Async only when the workload is I/O-bound.
@@ -89,3 +91,5 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `git-workflow`
 - `tdd-workflow`
 - `build-dependency-management`
+- `security-review`
+- `observability-and-logging`

@@ -4,7 +4,28 @@
     "sessionStart": [
       {
         "type": "command",
-        "command": "echo '{\"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.\"}'"
+        "command": {
+          "bash": "echo '{\"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.\"}'",
+          "powershell": "echo '{\"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.\"}'"
+        }
+      }
+    ],
+    "subagentStart": [
+      {
+        "type": "command",
+        "command": {
+          "bash": "echo '{\"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.\"}'",
+          "powershell": "echo '{\"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.\"}'"
+        }
+      }
+    ],
+    "preToolUse": [
+      {
+        "type": "command",
+        "command": {
+          "bash": "python .agents/hooks/preflight_gate.py --format copilot",
+          "powershell": "python .agents/hooks/preflight_gate.py --format copilot"
+        }
       }
     ]
   }

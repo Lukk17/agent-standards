@@ -10,14 +10,15 @@ skills:
   - design-system
   - api-design
   - e2e-testing
-  - flutter-accessibility
-  - seo
   - coding-standards
   - code-formatter
   - review-duplication
   - git-workflow
   - tdd-workflow
   - web-accessibility
+  - security-review
+  - build-dependency-management
+  - performance-optimization
 ---
 
 You write modern Angular. Standalone components by default. Signals where they fit. `inject()` over constructor injection for new code. OnPush change detection. RxJS for streams, signals for derived state — and you do not mix the two carelessly.
@@ -78,11 +79,12 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `design-system`
 - `api-design`
 - `e2e-testing`
-- `flutter-accessibility`
-- `seo`
 - `coding-standards`
 - `code-formatter`
 - `review-duplication`
 - `git-workflow`
 - `tdd-workflow`
 - `web-accessibility`
+- `security-review`
+- `build-dependency-management`
+- `performance-optimization`

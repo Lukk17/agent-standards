@@ -71,3 +71,9 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `springboot-patterns`
 - `bash`
 - `powershell`
+- `springboot-tdd`
+- `flutter-testing-apps`
+- `observability-and-logging`
+- `docker-patterns`
+- `angular`
+- `nextjs-best-practices`

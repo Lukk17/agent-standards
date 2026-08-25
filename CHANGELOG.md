@@ -8,6 +8,19 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- One shared preflight rule at `.agents/hooks/preflight_gate.py`, called by every agent surface. The gate is now
+  enforcing rather than advisory: it denies a source-file edit made from the main thread and tells it to delegate, and
+  denies an edit from a subagent whose own definition declares no skills. Markdown, configuration, and documentation
+  edits from the main thread are allowed, and any error inside the gate fails open.
+- `.agents/hooks/no_ai_markers_check.py`, wired as the Claude Code `Stop` hook.
+- One preflight plugin at `.agents/plugin/hooks.js`, a thin shim over the shared rule, declared once by path in the
+  `plugin` array of the root `opencode.json`, which both OpenCode and Kilo Code read.
+- `subagentStart` and `preToolUse` hooks for GitHub Copilot in `.github/hooks/preflight.json`, alongside the existing
+  `sessionStart`. Event names are camelCase and each command is an object with a `bash` key and a `powershell` key.
+- Symlinks `.opencode/agents` and `.kilo/agents`, both pointing at `../.agents/agents`, created and repaired by the
+  generator. On Windows they need `git config core.symlinks true` and Developer Mode, or Git checks them out as plain
+  text files holding their target path.
+- A pytest suite under `tools/` covering both shared hook scripts, run locally and in CI with `python -m pytest tools/`.
 - Codex custom agents generated to `.codex/agents/*.toml` and Kilo Code subagents to `.kilocode/agents/*.md`. All five
   supported agents now receive native subagent files from the one canonical `subagents/` source.
 - Codex preflight enforcement via a `UserPromptSubmit` hook (`.codex/hooks.json`, injecting the gate every turn) and
@@ -20,6 +33,27 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Configuration files are no longer templates. `.mcp.json`, `opencode.json`, `.codex/config.toml`, and
+  `.vscode/mcp.json` are committed as real files that a consumer pulls and uses unchanged. `AGENTS.md.example` is the
+  only `.example` file left in the repo, because only `AGENTS.md` carries repo-specific content while hooks, MCP,
+  skills, and subagents are universal.
+- MCP mapped one row per file: `.mcp.json` (key `mcpServers`) serves Claude Code and the GitHub Copilot CLI, which
+  reads a repo-root `.mcp.json` with the same schema. `opencode.json` (key `mcp`) serves OpenCode and Kilo Code, which
+  accepts `opencode.json` as a valid config filename. `.codex/config.toml` (`[mcp_servers.*]` tables) serves Codex, and
+  `.vscode/mcp.json` (key `servers`) serves Copilot in VS Code. Kilo does not expand `{env:VAR}` in project-level
+  configuration, so those tokens stay literal for Kilo users.
+- Kilo Code moved its configuration root to `.kilo/` and reads `.agents/skills/` natively, so its subagent tree is now
+  a symlink to the shared `.agents/agents/` rather than a generated copy of its own.
+- Codex preflight hooks moved into inline `[[hooks.*]]` tables in `.codex/config.toml`. Codex supports both that form
+  and a separate `hooks.json`, and warns when a single configuration layer carries both.
+- The subagent generator emits four trees (`.claude/agents/`, `.agents/agents/`, `.codex/agents/`, `.github/agents/`)
+  and maintains the two agent symlinks, instead of writing five independent copies.
+- Corrected the GitHub Copilot claims. Copilot does have a per-turn injection channel, `userPromptTransformed`, on the
+  CLI and on the cloud agent. Copilot hooks are no longer CLI-only and run in VS Code and JetBrains from the same
+  `.github/hooks/` path. The Copilot CLI additionally reads hooks from `.claude/settings.json`, while the JetBrains
+  plugin does not: it hardcodes `.github/hooks/**/*.json` and rejects PascalCase event names. The JetBrains plugin also
+  scans `.claude/agents` but understands only its own `*.agent.md` format, so subagent definitions are not shareable.
+- CI validates the real configuration files instead of the deleted templates, and runs the new pytest suite.
 - The subagent generator emits five per-tool trees instead of three. Kilo Code now reads `.kilocode/agents/` (its
   documented path) rather than relying on a shared `.opencode/agents/` directory.
 - Documentation updated to the verified mid-2026 state: GitHub Copilot, including the JetBrains plugin, reads
@@ -35,6 +69,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Removed
 
+- The `.kilocode/` directory in full: the generated subagent tree, the `rules/00-preflight.md` gate rule, and the
+  `kilo.jsonc.example` MCP template. Kilo Code moved its configuration root to `.kilo/` and accepts `opencode.json`.
+- `.codex/hooks.json`, replaced by the inline `[[hooks.*]]` tables in `.codex/config.toml`.
+- `.opencode/plugin/preflight.js`, superseded by the shared `.agents/plugin/hooks.js` that both OpenCode and Kilo
+  Code load from the root `opencode.json`.
+- Every `.example` template except `AGENTS.md.example`, now that the configuration files ship as real committed files.
 - The `.kilocode/mcp.json.example` template. Kilo unified MCP config onto `kilo.jsonc` (`mcp` key) across all clients,
   so the separate extension template (keyed `mcpServers`, `streamable-http`) was redundant.
 - The `.opencode/skills` and `.codex/skills` symlinks. OpenCode and Codex read `.agents/skills/` natively, leaving

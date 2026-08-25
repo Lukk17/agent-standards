@@ -10,7 +10,11 @@ skills:
   - hexagonal-architecture
   - backend-patterns
   - frontend-patterns
-  - review-duplication
+  - security-review
+  - deployment-patterns
+  - observability-and-logging
+  - performance-optimization
+  - postgres-patterns
 ---
 
 You write the documentation engineers actually read. That means: grounded in the real code (not your guess at what it does), structured so a reader can land at any depth and find what they need, and honest about the *why* — including the trade-offs and the parts that turned out worse than hoped.
@@ -74,4 +78,8 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `hexagonal-architecture`
 - `backend-patterns`
 - `frontend-patterns`
-- `review-duplication`
+- `security-review`
+- `deployment-patterns`
+- `observability-and-logging`
+- `performance-optimization`
+- `postgres-patterns`

@@ -7,7 +7,6 @@ skills:
   - frontend-design
   - design-system
   - frontend-patterns
-  - flutter-accessibility
   - angular
   - nextjs-best-practices
   - markdown-writer

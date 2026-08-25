@@ -1,144 +1,186 @@
 # Manual setup
 
-Fallback steps when the standard import flow needs manual help, plus per-agent start commands. The standard
-[docs/AGENT_TOOLING.md](AGENT_TOOLING.md) Quickstart usually handles everything via `git checkout`. Reach for this
-file only when:
+Fallback steps for when the standard import needs a hand, plus a per-agent start reference. The Step 1 checkout in
+[AGENT_TOOLING.md](AGENT_TOOLING.md) normally does everything. Reach for this file when:
 
-- Symlinks did not survive the checkout (common on Windows without Developer Mode).
-- You want a reference of which command starts which agent.
-- You are setting up a project without the `git remote add` flow.
+- Symlinks did not survive the checkout, which is the usual Windows failure.
+- You want to know which command starts which agent.
+- You are wiring a project up without the `git remote add` flow.
 
 This file stays in the agent-standards repo only. It is not shipped to consumer projects.
 
 ---
 
-### Activating the imported files manually
+### Repairing the symlinks
 
-If the standard checkout worked, skip to the per-agent commands below. If symlinks did not survive (most often on
-Windows), recreate them, then activate the example configs.
+Three paths are symlinks, and all three are load-bearing:
 
-Only [.claude/skills/](../.claude/skills/) is a symlink now. OpenCode, Kilo Code, Codex, and GitHub Copilot all read
-[.agents/skills/](../.agents/skills/) natively, so they need no symlink to recreate.
+| Link | Points at | Who breaks without it |
+| --- | --- | --- |
+| `.claude/skills` | `../.agents/skills` | Claude Code, which reads no other skills path |
+| `.opencode/agents` | `../.agents/agents` | OpenCode, which then has no subagents |
+| `.kilo/agents` | `../.agents/agents` | Kilo Code, same |
 
-#### Linux or macOS, recreate the symlink
+Check what you actually have before repairing anything. PowerShell:
 
-Run from the project root, only if the symlink did not survive the checkout:
+```powershell
+Get-Item .claude/skills, .opencode/agents, .kilo/agents | Select-Object Name, LinkType, Target
+```
+
+Unix shell:
+
+```bash
+ls -l .claude/skills .opencode/agents .kilo/agents
+```
+
+A healthy result shows three links. A broken checkout leaves small text files containing the target path instead. If
+that is what you see, delete them and recreate the links.
+
+#### Windows
+
+Enable Developer Mode first (Settings, System, For developers), or run the shell as Administrator. Then, from the
+project root:
+
+```powershell
+New-Item -ItemType SymbolicLink -Path .claude\skills -Target ..\.agents\skills
+```
+
+```powershell
+New-Item -ItemType SymbolicLink -Path .opencode\agents -Target ..\.agents\agents
+```
+
+```powershell
+New-Item -ItemType SymbolicLink -Path .kilo\agents -Target ..\.agents\agents
+```
+
+Then tell git to honour symlinks so the next checkout does not undo this:
+
+```powershell
+git config core.symlinks true
+```
+
+#### Linux or macOS
+
+From the project root:
 
 ```bash
 ln -s ../.agents/skills .claude/skills
 ```
 
-#### Windows, recreate the symlink
-
-Run from the project root, as Administrator or with Developer Mode enabled:
-
-```cmd
-mklink /D .claude\skills ..\.agents\skills
+```bash
+ln -s ../.agents/agents .opencode/agents
 ```
 
-#### Activate the example configs
+```bash
+ln -s ../.agents/agents .kilo/agents
+```
 
-Rename each template you use to its real name (dropping `.example`). `AGENTS.md` is required; the rest are optional.
-If you inline secrets into a config and gitignore it, `cp` that one instead so the committed `.example` stays tracked.
+Inside this repository there is a shortcut for the two agent links, because the generator owns them:
+
+```bash
+python tools/gen_subagents.py
+```
+
+That recreates `.opencode/agents` and `.kilo/agents` if they are missing or pointing at the wrong place. It does not
+touch `.claude/skills`, which has nothing to do with subagent generation.
+
+---
+
+### Activating the imported files
+
+There is only one rename left. Config files ship as real files now.
+
+PowerShell:
+
+```powershell
+Rename-Item AGENTS.md.example AGENTS.md
+```
+
+Unix shell:
 
 ```bash
 mv AGENTS.md.example AGENTS.md
 ```
 
-```bash
-mv .kilocode/kilo.jsonc.example .kilocode/kilo.jsonc
-```
-
-```bash
-mv opencode.json.example opencode.json
-```
-
-```bash
-mv .mcp.json.example .mcp.json
-```
-
-For MCP, follow [docs/MCP_SETUP.md](MCP_SETUP.md) to install prerequisites, acquire keys, and export the env vars so
-the `${VAR}` and `{env:VAR}` placeholders resolve at agent startup.
+[.mcp.json](../.mcp.json), [opencode.json](../opencode.json), [.codex/config.toml](../.codex/config.toml), and
+[.vscode/mcp.json](../.vscode/mcp.json) arrive ready to use. Follow [MCP_SETUP.md](MCP_SETUP.md) to install the
+prerequisites, acquire the keys, and export the environment variables so the `${VAR}` and `{env:VAR}` placeholders
+resolve when the agent starts.
 
 ---
 
 ### Per-agent start reference
 
-Quick reference for the five supported agents. How each one loads instructions and skills, plus the command to start
-it from the project root. All of them read [AGENTS.md](../AGENTS.md.example) (Claude Code through the `@` import) and
-discover skills from [.agents/skills/](../.agents/skills/) automatically. Pick whichever agent you prefer; they share
-the same instructions and skills.
+All five agents share the same instructions and the same skills. Pick whichever you prefer.
 
 #### Claude Code
 
-Claude Code reads [.claude/CLAUDE.md](../.claude/CLAUDE.md), which imports [AGENTS.md](../AGENTS.md.example) via
-`@../AGENTS.md`. Skills in [.claude/skills/](../.claude/skills/) (symlinked to [.agents/skills/](../.agents/skills/))
-are auto-discovered. No additional config required.
-
-Start it from the project root:
+Reads [.claude/CLAUDE.md](../.claude/CLAUDE.md), which is nothing but `@../AGENTS.md` plus a comment, so the shared
+instructions arrive inline. Skills come through the `.claude/skills` symlink, subagents from
+[.claude/agents/](../.claude/agents/), hooks from [.claude/settings.json](../.claude/settings.json). No further
+configuration.
 
 ```shell
 claude
 ```
 
-#### Kilo Code
+#### Codex
 
-Kilo Code reads [AGENTS.md](../AGENTS.md.example) from the project root automatically and discovers skills from
-[.agents/skills/](../.agents/skills/) natively.
-
-Optionally rename [.kilocode/kilo.jsonc.example](../.kilocode/kilo.jsonc.example) to `.kilocode/kilo.jsonc` to enable
-additional instruction globs (Kilo CLI):
-
-```json
-{
-  "instructions": ["AGENTS.md"]
-}
-```
-
-#### OpenCode
-
-OpenCode reads [AGENTS.md](../AGENTS.md.example) automatically and discovers skills from
-[.agents/skills/](../.agents/skills/) natively.
-
-Optionally rename [opencode.json.example](../opencode.json.example) to `opencode.json` for additional configuration:
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "instructions": ["AGENTS.md"]
-}
-```
-
-`opencode.json` must remain at the project root, not inside [.opencode/](../.opencode/).
-
-#### Codex CLI
-
-Codex reads [AGENTS.md](../AGENTS.md.example) from the project root and discovers skills from
-[.agents/skills/](../.agents/skills/) automatically. This repo ships Codex custom agents in `.codex/agents/` (`*.toml`),
-the preflight hook `.codex/hooks.json`, and the project MCP template `.codex/config.toml.example`. No project-level
-config file is strictly required.
-
-Start it from the project root:
+Reads [AGENTS.md](../AGENTS.md) and [.agents/skills/](../.agents/skills/) natively. Custom agents come from
+[.codex/agents/](../.codex/agents/) as TOML, and [.codex/config.toml](../.codex/config.toml) carries both the MCP
+servers and the gate hooks.
 
 ```shell
 codex
 ```
 
-For global Codex settings, edit `~/.codex/config.toml`:
+Codex loads that whole project layer only after you trust the project once, so approve it on first run or nothing in
+`.codex/` applies. Global settings stay in `~/.codex/config.toml`:
 
 ```toml
 project_doc_max_bytes = 65536
 ```
 
+#### OpenCode
+
+Reads [AGENTS.md](../AGENTS.md) and [.agents/skills/](../.agents/skills/) natively, subagents through the
+`.opencode/agents` symlink. [opencode.json](../opencode.json) at the project root carries the MCP servers and declares
+the gate plugin by path.
+
+```shell
+opencode
+```
+
+`opencode.json` has to stay at the project root. Inside [.opencode/](../.opencode/) it is ignored.
+
+#### Kilo Code
+
+Reads [AGENTS.md](../AGENTS.md) and [.agents/skills/](../.agents/skills/) natively, subagents through the
+`.kilo/agents` symlink. Kilo accepts [opencode.json](../opencode.json) as a project config filename, so it picks up
+the same MCP block and the same plugin declaration as OpenCode. Its own configuration root is `.kilo/`, not the old
+`.kilocode/`.
+
+Kilo does not expand `{env:VAR}` in project-level config. If you need a token there, paste the real value into your
+local copy of `opencode.json` and keep that copy out of version control.
+
 #### GitHub Copilot
 
-GitHub Copilot reads [AGENTS.md](../AGENTS.md.example) natively in the JetBrains plugin, VS Code, and the CLI, and
-discovers skills from [.agents/skills/](../.agents/skills/) natively. Subagents live in `.github/agents/`
-(`*.agent.md`) and the preflight gate ships as a `sessionStart` hook in `.github/hooks/preflight.json`. No bridge
-instruction file is needed; add your own `.github/copilot-instructions.md` only if you target Copilot code review or
-the IDEs that read only it (Visual Studio, Xcode, Eclipse). Start it inside your IDE or via the `copilot` CLI.
+Reads [AGENTS.md](../AGENTS.md) and [.agents/skills/](../.agents/skills/) natively across VS Code, the JetBrains
+plugin, the CLI, and the cloud agent. Subagents live in [.github/agents/](../.github/agents/) as `*.agent.md`, and the
+gate ships as [.github/hooks/preflight.json](../.github/hooks/preflight.json). No bridge instruction file is needed.
+Start it inside your editor, or from a terminal:
 
-#### Invoking skills
+```shell
+copilot
+```
 
-Slash-syntax reference lives in [docs/AGENT_TOOLING.md](AGENT_TOOLING.md#invoking-skills) so consumer projects get it
-via the shipped doc. Same content, one source.
+MCP differs per surface: VS Code reads [.vscode/mcp.json](../.vscode/mcp.json), the CLI reads the project
+[.mcp.json](../.mcp.json), the JetBrains plugin reads a global file only, and the cloud agent takes JSON pasted into
+a repository settings page. See [MCP_SETUP.md](MCP_SETUP.md).
+
+---
+
+### Invoking skills
+
+The slash-syntax reference lives in [AGENT_TOOLING.md](AGENT_TOOLING.md#invoking-skills), so consumer projects get it
+through the shipped document. Same content, one source.

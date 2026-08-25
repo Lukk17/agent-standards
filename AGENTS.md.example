@@ -16,12 +16,23 @@ Investigation, review, and bounded implementation are delegated by default. Doin
 the main session is the failure mode this gate prevents. Re-run the check at the start of every task, not just the
 first one, because a passive instruction read once at session start loses salience over a long session.
 
-This gate is reinforced per-agent where the runtime allows it: Claude Code re-injects it every turn via a
-`UserPromptSubmit` hook ([.claude/settings.json](.claude/settings.json)), OpenCode via a plugin
-([.opencode/plugin/preflight.js](.opencode/plugin/preflight.js)), and Kilo Code via a rule
-([.kilocode/rules/00-preflight.md](.kilocode/rules/00-preflight.md)). Codex CLI has no hook surface and relies on
-this section alone. The `## Skills` and `## Subagents` sections below say *which* to reach for; this gate makes
-reaching for them the first move.
+The gate is enforced, not merely stated. One shared rule in
+[.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) denies a source-file edit made from the main thread
+and tells it to delegate, and denies an edit from a subagent whose own definition declares no skills. Markdown,
+configuration, and documentation edits from the main thread are allowed, and any error inside the gate fails open so a
+broken hook can never break a session. Each agent wires that one rule to its own hook surface:
+
+- **Claude Code**: [.claude/settings.json](.claude/settings.json), on `UserPromptSubmit`, `SessionStart`, `PreToolUse`,
+  and `Stop`.
+- **Codex**: inline `[[hooks.*]]` tables in [.codex/config.toml](.codex/config.toml), on `UserPromptSubmit`,
+  `SubagentStart`, and `PreToolUse`.
+- **OpenCode and Kilo Code**: [.agents/plugin/hooks.js](.agents/plugin/hooks.js), declared once by path in the
+  `plugin` array of [opencode.json](opencode.json), which both tools read.
+- **GitHub Copilot**: [.github/hooks/preflight.json](.github/hooks/preflight.json), on `sessionStart`,
+  `subagentStart`, and `preToolUse`.
+
+The Skills and Subagents sections below say which specialist to reach for. This gate makes reaching for one the first
+move.
 
 ---
 
@@ -43,9 +54,10 @@ Slash commands may appear as `/name` or `/name.md` in your agent's autocomplete;
 ### Subagents
 
 This project ships a catalogue of specialised subagents: narrow-scope agents the main session delegates to. Claude
-Code reads [.claude/agents/](.claude/agents/); OpenCode and Kilo Code both read [.opencode/agents/](.opencode/agents/);
-GitHub Copilot reads [.github/agents/](.github/agents/) (`*.agent.md` files) in VS Code and the Copilot CLI.
-Codex CLI has no per-agent file mechanism; it sees [AGENTS.md](AGENTS.md) plus skills only.
+Code reads [.claude/agents/](.claude/agents/). OpenCode reads [.opencode/agents/](.opencode/agents/) and Kilo Code
+reads `.kilo/agents/`, both of which are symlinks to the one shared [.agents/agents/](.agents/agents/) tree. Codex
+reads [.codex/agents/](.codex/agents/) (`*.toml` files). GitHub Copilot reads [.github/agents/](.github/agents/)
+(`*.agent.md` files) in VS Code, in the JetBrains plugin, and in the Copilot CLI.
 
 These files are generated artifacts pulled from agent-standards. Do **not** hand-edit them; changes will be
 overwritten on the next pull. To modify a subagent permanently, edit its canonical source in the agent-standards repo
@@ -61,7 +73,7 @@ A few of the most-used:
 - `debugger`: root-cause analysis for a single failing test or runtime error
 - `devops-troubleshooter`: live incident response with postmortem
 
-Full catalogue: list `.claude/agents/*.md` (or `.opencode/agents/*.md`) in this project for the names available to
+Full catalogue: list `.claude/agents/*.md` (or `.agents/agents/*.md`) in this project for the names available to
 your agent. Browse the
 [agent-standards subagents directory](https://github.com/Lukk17/agent-standards/tree/master/subagents) for the
 canonical sources.
@@ -109,8 +121,8 @@ of its work, e.g. "review this diff, invoke `/security-review` and `/coding-stan
 loads those skills the same way the main session does. This is the recommended way to bias a generalist subagent
 toward a specific quality bar.
 
-**Codex CLI exception.** Codex has no per-agent file mechanism, so subagent delegation is not available there. From
-Codex, do the work in-session and lean harder on skills.
+**Codex.** Codex reads TOML custom agents from [.codex/agents/](.codex/agents/), generated from the same canonical
+sources as every other tree, so delegation works there the same way it does everywhere else.
 
 ---
 
@@ -139,18 +151,32 @@ Projects on OpenSpec can install the matching schema for slash-command lifecycle
 ### Working With Agents
 
 All supported agents read this `AGENTS.md` from the project root and auto-discover skills from
-[.agents/skills/](.agents/skills/). Start your agent from the project root:
+[.agents/skills/](.agents/skills/). Claude Code reaches the skills through the `.claude/skills` symlink, and the other
+four read that directory natively. Start your agent from the project root:
 
-- **Claude Code**: run `claude`. Reads [.claude/CLAUDE.md](.claude/CLAUDE.md), which imports this file.
-- **Kilo Code**: reads `AGENTS.md` and `.kilocode/rules/` automatically. Optional
-  [.kilocode/kilo.jsonc.example](.kilocode/kilo.jsonc.example) carries MCP servers under the `mcp` key, read by the VS
-  Code extension, the JetBrains plugin, and the CLI alike, not from `opencode.json`.
-- **OpenCode**: reads `AGENTS.md` automatically. Optional [opencode.json](opencode.json.example) at project root.
-- **Codex CLI**: run `codex`. Reads `AGENTS.md` automatically. Global settings in `~/.codex/config.toml`.
-- **GitHub Copilot**: the Copilot CLI and VS Code chat read `AGENTS.md`; local IntelliJ and VS Code chat also read
-  [.github/copilot-instructions.md](.github/copilot-instructions.md) (copy it from the `.example`). Subagents come
-  from [.github/agents/](.github/agents/) and MCP servers from `.vscode/mcp.json` in VS Code (template
-  [.vscode/mcp.json.example](.vscode/mcp.json.example)); the JetBrains plugin and the CLI read MCP from global files.
+- **Claude Code**: run `claude`. Reads [.claude/CLAUDE.md](.claude/CLAUDE.md), which imports this file. MCP servers
+  come from [.mcp.json](.mcp.json).
+- **Kilo Code**: reads `AGENTS.md` and `.agents/skills/` automatically. Its configuration root is `.kilo/`, and it
+  accepts the root [opencode.json](opencode.json) for both MCP servers and the preflight plugin. Kilo does not expand
+  `{env:VAR}` in project-level configuration, so fill those values in literally if Kilo is your main agent.
+- **OpenCode**: reads `AGENTS.md` automatically. Configuration lives in [opencode.json](opencode.json) at the project
+  root.
+- **Codex**: run `codex`. Reads `AGENTS.md` automatically. Project MCP servers and preflight hooks live in
+  [.codex/config.toml](.codex/config.toml), and global settings in `~/.codex/config.toml`.
+- **GitHub Copilot**: the CLI, VS Code, and the JetBrains plugin all read `AGENTS.md` and `.agents/skills/` natively.
+  Subagents come from [.github/agents/](.github/agents/) and hooks from [.github/hooks/](.github/hooks/). MCP comes
+  from [.vscode/mcp.json](.vscode/mcp.json) in VS Code and from [.mcp.json](.mcp.json) in the CLI, which reads a
+  repo-root `.mcp.json` with the same schema Claude Code uses. The JetBrains plugin reads MCP only from a global
+  `~/.config/github-copilot/intellij/mcp.json`.
+
+Windows prerequisite: this project ships symlinks (`.claude/skills`, `.opencode/agents`, `.kilo/agents`). Git creates
+them only when it is allowed to, so turn on Windows Developer Mode and set the option below before cloning. Otherwise
+Git writes each link out as a plain text file holding its target path, and every agent that follows the link finds
+nothing.
+
+```powershell
+git config --global core.symlinks true
+```
 
 ---
 

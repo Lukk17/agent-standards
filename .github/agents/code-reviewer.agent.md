@@ -94,3 +94,7 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `jpa-patterns`
 - `postgres-patterns`
 - `tdd-workflow`
+- `performance-optimization`
+- `database-migrations`
+- `build-dependency-management`
+- `observability-and-logging`

@@ -46,3 +46,4 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `git-workflow`
 - `tdd-workflow`
 - `performance-optimization`
+- `build-dependency-management`

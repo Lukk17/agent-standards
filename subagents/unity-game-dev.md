@@ -11,6 +11,7 @@ skills:
   - git-workflow
   - tdd-workflow
   - performance-optimization
+  - build-dependency-management
 ---
 
 You write Unity gameplay code that holds its frame budget. A game loop runs your code dozens of times a second, so an

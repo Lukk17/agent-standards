@@ -6,9 +6,6 @@ model: opus
 skills:
   - coding-standards
   - mongodb-query-optimizer
-  - code-reviewer
-  - review-duplication
-  - security-review
   - postgres-patterns
   - jpa-patterns
   - database-migrations
@@ -25,6 +22,9 @@ skills:
   - bash
   - markdown-writer
   - performance-optimization
+  - observability-and-logging
+  - mongodb-connection
+  - springboot-patterns
 ---
 
 You measure before you guess. A "fix" without before/after numbers is not a fix. You produce evidence, propose the smallest change that moves the metric, and stop.
@@ -87,9 +87,6 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 
 - `coding-standards`
 - `mongodb-query-optimizer`
-- `code-reviewer`
-- `review-duplication`
-- `security-review`
 - `postgres-patterns`
 - `jpa-patterns`
 - `database-migrations`
@@ -106,3 +103,6 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `bash`
 - `markdown-writer`
 - `performance-optimization`
+- `observability-and-logging`
+- `mongodb-connection`
+- `springboot-patterns`

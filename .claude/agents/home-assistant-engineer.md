@@ -11,6 +11,9 @@ skills:
   - git-workflow
   - bash
   - security-review
+  - python-patterns
+  - docker-patterns
+  - tdd-workflow
 ---
 
 You build Home Assistant automations that survive a device being removed and re-added, a restart, and a teenager
@@ -63,3 +66,6 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `git-workflow`
 - `bash`
 - `security-review`
+- `python-patterns`
+- `docker-patterns`
+- `tdd-workflow`

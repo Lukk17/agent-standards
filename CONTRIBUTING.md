@@ -31,18 +31,47 @@ workflow. Maintainers only. The version string (e.g. `v0.2.0`) goes in the workf
 
 ### Things to watch for in your PR
 
-- **No em-dashes** or en-dashes in human-facing markdown (`README.md`, `AGENTS.md.example`, `docs/*.md`).
-  CI lint will flag them. The `markdown-writer` skill explains why.
+- **No em-dashes** or en-dashes in human-facing markdown (`README.md`, `AGENTS.md.example`, `docs/*.md`,
+  `.agents/skills/**/*.md`). CI lint will flag them. The `markdown-writer` skill explains why.
 - **Prose lines under 120 characters** in the same files. Tables, fenced code blocks, badge lines, and
   `<summary>` tags are exempt.
 - **Generator output in sync.** If you edit any canonical subagent under `subagents/`, re-run
-  `python tools/gen_subagents.py` and commit the regenerated copies under `.claude/agents/` and `.opencode/agents/`.
-  CI runs `--check` and fails on drift.
-- **JSON validity** for `.mcp.json.example` and `opencode.json.example` if you touch those.
+  `python tools/gen_subagents.py` and commit the regenerated copies under `.claude/agents/`, `.agents/agents/`,
+  `.codex/agents/`, and `.github/agents/`. CI runs `--check` and fails on drift.
+- **JSON validity** for `.mcp.json`, `opencode.json`, `.vscode/mcp.json`, `.claude/settings.json`, and
+  `.github/hooks/preflight.json` if you touch those, and TOML validity for `.codex/config.toml`.
+- **Tests for the shared hooks.** If you change `.agents/hooks/preflight_gate.py` or
+  `.agents/hooks/no_ai_markers_check.py`, add or update the matching case in `tools/`. CI runs the suite.
 - **Run the markdown linter locally** to catch issues before pushing:
 
 ```bash
 python tools/check-markdown.py
+```
+
+- **Run the test suite locally** as well:
+
+```bash
+python -m pytest tools/
+```
+
+---
+
+### Cloning on Windows
+
+The repo ships symlinks: `.claude/skills` points at `.agents/skills`, and `.opencode/agents` and `.kilo/agents` both
+point at `.agents/agents`. Git only creates them when it is allowed to. Turn on Windows Developer Mode and set the
+option below before cloning, otherwise Git writes each link out as a plain text file holding its target path and every
+agent that follows the link finds nothing.
+
+```powershell
+git config --global core.symlinks true
+```
+
+If you already cloned without it, fix the setting and then run the generator, which recreates and repairs the agent
+symlinks:
+
+```powershell
+python tools/gen_subagents.py
 ```
 
 ---
@@ -62,7 +91,9 @@ reference for a tool or stack, the voice rules relax; just stay consistent with 
 ### Adding a new subagent
 
 Add a frontmatter-headed Markdown file under `subagents/<name>.md`. Run `python tools/gen_subagents.py` to emit
-per-tool copies in `.claude/agents/` and `.opencode/agents/`. Commit the canonical source AND the generated outputs.
+per-tool copies in `.claude/agents/`, `.agents/agents/`, `.codex/agents/`, and `.github/agents/`. The same run repairs
+the `.opencode/agents` and `.kilo/agents` symlinks, which point at `.agents/agents` rather than holding their own copy.
+Commit the canonical source AND the generated outputs.
 
 ---
 

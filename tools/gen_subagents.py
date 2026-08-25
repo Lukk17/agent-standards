@@ -3,15 +3,19 @@
 
 Source of truth:  subagents/<name>.md             (this repo only; not shipped to consumers)
 Generated:        .claude/agents/<name>.md        (Claude Code)
-                  .opencode/agents/<name>.md      (OpenCode)
-                  .kilocode/agents/<name>.md      (Kilo Code, OpenCode-format markdown)
+                  .agents/agents/<name>.md        (OpenCode format, shared)
                   .codex/agents/<name>.toml       (Codex CLI + IDE custom agents)
                   .github/agents/<name>.agent.md  (GitHub Copilot, VS Code + JetBrains + CLI)
 
-Kilo Code reads .kilocode/agents/*.md natively per its current docs (the format is
-identical to OpenCode's, so the emitter is shared). Codex reads TOML custom agents
-from .codex/agents/. GitHub Copilot auto-detects .agent.md files in .github/agents/
-(VS Code, the JetBrains plugin, and the Copilot CLI).
+Symlinked, not generated:
+                  .opencode/agents -> ../.agents/agents
+                  .kilo/agents     -> ../.agents/agents
+
+OpenCode and Kilo Code share one format and both follow symlinks when scanning
+agent directories, so a single tree serves both. Neither tool has a config key
+naming an agent directory, which is why this is a symlink rather than a setting.
+Codex reads TOML custom agents from .codex/agents/. GitHub Copilot needs its own
+.agent.md format in .github/agents/ and cannot read either of the others.
 
 Consumer repos pull only the generated trees plus skills — they never see the
 canonical subagents/ source or this generator.
@@ -22,8 +26,10 @@ Usage:
 """
 from __future__ import annotations
 
+import os
 import pathlib
 import re
+import shutil
 import sys
 
 import yaml
@@ -33,10 +39,14 @@ SRC = ROOT / "subagents"
 
 TARGETS = {
     "claude": (ROOT / ".claude" / "agents", ".md"),
-    "opencode": (ROOT / ".opencode" / "agents", ".md"),
-    "kilo": (ROOT / ".kilocode" / "agents", ".md"),
+    "agents": (ROOT / ".agents" / "agents", ".md"),
     "codex": (ROOT / ".codex" / "agents", ".toml"),
     "copilot": (ROOT / ".github" / "agents", ".agent.md"),
+}
+
+SYMLINKS = {
+    ROOT / ".opencode" / "agents": "../.agents/agents",
+    ROOT / ".kilo" / "agents": "../.agents/agents",
 }
 
 CLAUDE_TOOLS = {
@@ -178,6 +188,38 @@ def render(tool: str, fm: dict, body: str) -> str:
     return emit_opencode(fm, body)
 
 
+def ensure_symlinks(check: bool) -> list[str]:
+    """Point the OpenCode and Kilo agent dirs at the shared tree."""
+    problems: list[str] = []
+    for link, target in SYMLINKS.items():
+        if link.is_symlink():
+            if os.readlink(link).replace(os.sep, "/") == target:
+                continue
+            problems.append(f"WRONG TARGET: {link.relative_to(ROOT)}")
+            if not check:
+                link.unlink()
+            else:
+                continue
+        elif link.exists():
+            problems.append(f"NOT A SYMLINK: {link.relative_to(ROOT)}")
+            if not check:
+                shutil.rmtree(link)
+            else:
+                continue
+        else:
+            problems.append(f"MISSING: {link.relative_to(ROOT)}")
+        if not check:
+            link.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                link.symlink_to(target.replace("/", os.sep), target_is_directory=True)
+            except OSError as exc:
+                sys.exit(
+                    f"ERROR cannot create symlink {link.relative_to(ROOT)} -> {target}: {exc}. "
+                    "On Windows this needs Developer Mode or an elevated shell."
+                )
+    return problems
+
+
 def main() -> None:
     check = "--check" in sys.argv
     if not SRC.is_dir():
@@ -215,8 +257,12 @@ def main() -> None:
                 if not check:
                     f.unlink()
 
+    link_problems = ensure_symlinks(check)
+
     if check:
-        if stale_paths or orphans:
+        if stale_paths or orphans or link_problems:
+            for msg in link_problems:
+                print(f"SYMLINK {msg}")
             for p in stale_paths:
                 print(f"STALE: {p.relative_to(ROOT)}")
             for p in orphans:
@@ -228,6 +274,8 @@ def main() -> None:
     if orphans:
         for p in orphans:
             print(f"removed orphan: {p.relative_to(ROOT)}")
+    for msg in link_problems:
+        print(f"symlink fixed: {msg}")
     print(
         f"done: {len(canonical_names)} agents -> {len(TARGETS)} targets "
         f"({written} written, {len(orphans)} orphans removed)"

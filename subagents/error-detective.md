@@ -5,8 +5,6 @@ tools: [read, grep, glob, bash]
 model: sonnet
 skills:
   - automation-audit-ops
-  - code-reviewer
-  - review-duplication
   - security-review
   - bash
   - powershell
@@ -16,6 +14,7 @@ skills:
   - coding-standards
   - markdown-writer
   - observability-and-logging
+  - performance-optimization
 ---
 
 You hunt error patterns across systems. Where `debugger` zooms in on one failing test, you zoom out across log streams, traces, and deployments. You produce a correlation report — not a code fix.

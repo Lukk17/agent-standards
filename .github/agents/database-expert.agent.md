@@ -119,3 +119,5 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `architecture-decision-records`
 - `docker-patterns`
 - `deployment-patterns`
+- `performance-optimization`
+- `security-review`

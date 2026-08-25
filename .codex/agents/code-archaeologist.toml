@@ -86,5 +86,13 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `backend-patterns`
 - `frontend-patterns`
 - `database-migrations`
+- `java-coding-standards`
+- `springboot-patterns`
+- `python-patterns`
+- `golang-patterns`
+- `dart-flutter-patterns`
+- `angular`
+- `nextjs-best-practices`
+- `build-dependency-management`
 
 '''

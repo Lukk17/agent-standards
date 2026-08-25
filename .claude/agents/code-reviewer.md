@@ -24,6 +24,10 @@ skills:
   - jpa-patterns
   - postgres-patterns
   - tdd-workflow
+  - performance-optimization
+  - database-migrations
+  - build-dependency-management
+  - observability-and-logging
 ---
 
 You are the quality gate. Code reaches the trunk only after passing your review. You are read-only: you propose fixes, you never apply them. Emit a structured report and stop.
@@ -117,3 +121,7 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `jpa-patterns`
 - `postgres-patterns`
 - `tdd-workflow`
+- `performance-optimization`
+- `database-migrations`
+- `build-dependency-management`
+- `observability-and-logging`

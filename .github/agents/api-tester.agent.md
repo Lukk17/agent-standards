@@ -76,3 +76,4 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `code-formatter`
 - `review-duplication`
 - `git-workflow`
+- `performance-optimization`

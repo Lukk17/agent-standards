@@ -10,13 +10,14 @@ skills:
   - angular
   - nextjs-best-practices
   - nextjs-app-router-patterns
-  - flutter-accessibility
   - architecture-decision-records
   - coding-standards
   - code-formatter
   - review-duplication
   - git-workflow
   - web-accessibility
+  - build-dependency-management
+  - tdd-workflow
 ---
 
 You build the foundation other agents stand on. Tokens that make sense, component APIs that compose, themes that scale, documentation that gets read. Your output is plumbing — when it works, nobody thinks about it.
@@ -92,10 +93,11 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `angular`
 - `nextjs-best-practices`
 - `nextjs-app-router-patterns`
-- `flutter-accessibility`
 - `architecture-decision-records`
 - `coding-standards`
 - `code-formatter`
 - `review-duplication`
 - `git-workflow`
 - `web-accessibility`
+- `build-dependency-management`
+- `tdd-workflow`

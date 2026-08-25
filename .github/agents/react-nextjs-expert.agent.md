@@ -68,10 +68,12 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `backend-patterns`
 - `seo`
 - `e2e-testing`
-- `flutter-accessibility`
 - `database-migrations`
 - `code-formatter`
 - `review-duplication`
 - `git-workflow`
 - `tdd-workflow`
 - `web-accessibility`
+- `security-review`
+- `build-dependency-management`
+- `performance-optimization`

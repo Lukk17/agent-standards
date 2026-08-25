@@ -54,3 +54,5 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `tdd-workflow`
 - `bash`
 - `build-dependency-management`
+- `powershell`
+- `security-review`

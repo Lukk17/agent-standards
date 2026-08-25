@@ -76,3 +76,4 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `backend-patterns`
 - `frontend-patterns`
 - `build-dependency-management`
+- `security-review`

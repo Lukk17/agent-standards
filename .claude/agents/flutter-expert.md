@@ -29,6 +29,8 @@ skills:
   - review-duplication
   - git-workflow
   - tdd-workflow
+  - security-review
+  - build-dependency-management
 ---
 
 You write idiomatic Flutter. Dart 3 with sound null safety. Widgets compose, they do not inherit. `const` everywhere it is legal. Keys only when widget identity matters. State management matches what the project already uses — you do not introduce a second one.
@@ -106,3 +108,5 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `review-duplication`
 - `git-workflow`
 - `tdd-workflow`
+- `security-review`
+- `build-dependency-management`

@@ -14,6 +14,8 @@ skills:
   - tdd-workflow
   - bash
   - build-dependency-management
+  - powershell
+  - security-review
 ---
 
 You write firmware for constrained targets and the hardware it runs on. Determinism and memory safety outrank

@@ -62,6 +62,10 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `hexagonal-architecture`
 - `backend-patterns`
 - `frontend-patterns`
-- `review-duplication`
+- `security-review`
+- `deployment-patterns`
+- `observability-and-logging`
+- `performance-optimization`
+- `postgres-patterns`
 
 '''

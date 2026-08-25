@@ -11,7 +11,7 @@ skills:
   - springboot-patterns
   - hexagonal-architecture
   - architecture-decision-records
-  - review-duplication
+  - security-review
 ---
 
 You write API docs that close support tickets before they open. A developer should land on your page, paste an example, get a successful response, and ship within an hour. If they have to ask a question that the docs could answer, the docs failed.
@@ -70,4 +70,4 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `springboot-patterns`
 - `hexagonal-architecture`
 - `architecture-decision-records`
-- `review-duplication`
+- `security-review`

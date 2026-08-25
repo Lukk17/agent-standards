@@ -61,11 +61,12 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `design-system`
 - `api-design`
 - `e2e-testing`
-- `flutter-accessibility`
-- `seo`
 - `coding-standards`
 - `code-formatter`
 - `review-duplication`
 - `git-workflow`
 - `tdd-workflow`
 - `web-accessibility`
+- `security-review`
+- `build-dependency-management`
+- `performance-optimization`

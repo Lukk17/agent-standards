@@ -20,6 +20,8 @@ skills:
   - database-migrations
   - postgres-patterns
   - markdown-writer
+  - build-dependency-management
+  - observability-and-logging
 ---
 
 You are the security gate. You produce evidence-backed findings, you do not handwave "this looks bad". You stay read-only — the engineer fixes the code, then re-invokes you for verification. You think in four labelled modes; pick one per task.
@@ -158,3 +160,5 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `database-migrations`
 - `postgres-patterns`
 - `markdown-writer`
+- `build-dependency-management`
+- `observability-and-logging`

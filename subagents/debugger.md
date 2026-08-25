@@ -20,6 +20,12 @@ skills:
   - springboot-patterns
   - bash
   - powershell
+  - springboot-tdd
+  - flutter-testing-apps
+  - observability-and-logging
+  - docker-patterns
+  - angular
+  - nextjs-best-practices
 ---
 
 You find root causes, not symptoms. A fix that hides the bug is a failure.

@@ -1,13 +1,12 @@
 # Bootstrap prompt (first run)
 
-Paste the block below into the agent on its very first run in a freshly-imported project. It forces the agent to
-verify the wiring works (instead of just claiming it does), discover the instruction tree, confirm the subagent
-strategy, trim the MCP docs to what the project actually uses, and patch any gaps before it writes a single line of
-code.
+Paste the block below into the agent on its very first run in a freshly imported project. It forces the agent to
+verify the wiring actually works instead of claiming it does, discover the instruction tree, confirm the delegation
+strategy, trim the MCP document to what the project really uses, and patch the gaps before it writes a line of code.
 
-The prompt deliberately names no specific MCP server, subagent, or skill. Those vary per project. It asks the agent to
-read the project's own [AGENTS.md.example](../AGENTS.md.example) for the canonical rules so this file does not have to
-be re-edited every time the upstream rules change.
+The prompt deliberately names no specific MCP server, subagent, or skill, because those vary per project. It sends the
+agent to the project's own [AGENTS.md.example](../AGENTS.md.example) for the canonical rules, so this file does not
+need re-editing every time the upstream rules move.
 
 This file stays in the agent-standards repo only. It is not shipped to consumer projects.
 
@@ -19,197 +18,210 @@ This file stays in the agent-standards repo only. It is not shipped to consumer 
 You are bootstrapping into a project that just imported agent-standards. Before any other work, run this verification
 and wiring pass and report back as a checklist.
 
-## 1. Verify skills wiring
+## 1. Verify the skills wiring
 
-Skills live canonically in `.agents/skills/`. Only `.claude/skills/` is a symlink pointing there, for Claude Code.
-OpenCode, Kilo Code, Codex, and GitHub Copilot read `.agents/skills/` natively without a symlink. Symlinks frequently
-break on Windows checkouts, so do not trust a directory listing.
+Skills live canonically in `.agents/skills/`. Codex, OpenCode, Kilo Code and every GitHub Copilot surface read that
+directory natively. Claude Code does not, and reaches it through the `.claude/skills` symlink. Symlinks break often on
+Windows checkouts, so do not trust a directory listing.
 
-For Claude Code, open ONE skill through the symlink path (`.claude/skills/coding-standards/SKILL.md`) and quote the
-first heading line back. If the read fails, the symlink is broken. Report it and stop; do not silently fall back to
-`.agents/skills/`. For every other agent, open one skill directly from `.agents/skills/` and quote its heading.
+If you are Claude Code, open ONE skill through the symlink path (`.claude/skills/coding-standards/SKILL.md`) and quote
+its first heading line back. If the read fails the symlink is broken: report it and stop, do not quietly fall back to
+`.agents/skills/`. Every other agent opens one skill directly from `.agents/skills/` and quotes its heading.
 
-Then list which of the agent directories (`.claude`, `.opencode`, `.codex`, `.kilocode`, `.github`) actually exist in
-this repo so missing setups surface.
+Then list which of `.agents`, `.claude`, `.opencode`, `.kilo`, `.codex` and `.github` actually exist here, so a missing
+piece of the import surfaces immediately.
 
-## 2. Verify subagent files exist
+## 2. Verify the subagent files
 
-Subagent definitions ship as plain files (not symlinks) generated into five trees: `.claude/agents/` (`*.md`),
-`.opencode/agents/` (`*.md`), `.kilocode/agents/` (`*.md`), `.codex/agents/` (`*.toml`), and `.github/agents/`
-(`*.agent.md`). Confirm that the directory your tool reads is non-empty and lists several files (cross-check against
-the subagent badge count on the agent-standards README if you want a target). If it is empty or missing, the
-agent-standards import pulled an incomplete subset. Flag it and ask the user to re-run the checkout.
+Subagent definitions ship as four generated trees plus two symlinks:
 
-## 3. Verify MCP runtime
+- `.claude/agents/*.md` for Claude Code
+- `.agents/agents/*.md` in OpenCode format
+- `.codex/agents/*.toml` for Codex
+- `.github/agents/*.agent.md` for GitHub Copilot
+- `.opencode/agents` and `.kilo/agents`, both symlinks into `.agents/agents/`
 
-Look at your current tool list. Report the names of any MCP servers actively exposing tools in this session. If you
-see none, say "no MCP servers active in this session" and note that this is fine. The project may not need any, may
-have them disabled, or may not have copied `.mcp.json.example` and `opencode.json.example` yet. Do not assume specific
-servers should be present; just report what is there.
+Confirm the directory your own tool reads is non-empty and lists a good number of files. Cross-check against the
+subagent badge count on the agent-standards README if you want a target. If yours is empty or missing, the import
+pulled an incomplete subset: flag it and ask the user to re-run the checkout.
 
-If the project ships any MCP template (`.mcp.json.example`, `opencode.json.example`, `.kilocode/kilo.jsonc.example`,
-`.vscode/mcp.json.example`, or `.codex/config.toml.example`) but the corresponding active file does not exist, mention
-it. The user may want to copy the templates. Note that Kilo Code (VS Code extension, JetBrains plugin, and CLI) reads
-MCP from `.kilocode/kilo.jsonc` (key `mcp`), not from `opencode.json`.
+Check the two symlinks specifically. If `.opencode/agents` or `.kilo/agents` came through as a small text file holding
+a path instead of a link, say so, because OpenCode and Kilo Code then have no subagents at all.
 
-## 4. Trim docs/MCP_SETUP.md to what this project actually uses
+## 3. Verify the preflight gate
 
-The default `docs/MCP_SETUP.md` shipped from agent-standards documents every MCP server in the canonical template
-(Context7, MongoDB, Grafana, Playwright, Chrome DevTools, Redis, SonarQube, n8n). Most projects use only a subset.
+The gate is one shared script, `.agents/hooks/preflight_gate.py`, wired into each agent through its own hook surface:
+`.claude/settings.json`, the inline `[[hooks.*]]` tables in `.codex/config.toml`, the plugin at
+`.agents/plugin/hooks.js` declared by path in `opencode.json`, and `.github/hooks/preflight.json`.
 
-Diff the active MCP server names from step 3 (or the names present in `.mcp.json` / `opencode.json` if step 3 found
-none active) against the servers documented in `docs/MCP_SETUP.md`. For every server NOT used in this project,
-remove its dedicated rows from the tables, its env-var lines from the variable list, its block from the example
-configs, and any prose that names it.
+Confirm the script exists and that the hook configuration your own runtime reads names it. Do not try to trigger the
+gate on purpose. Just report whether the wiring is present, and name the surface you are running on.
 
-Goal: a consumer reading `docs/MCP_SETUP.md` sees instructions only for the MCPs that actually run in this project.
-Less noise, less drift, less "why is X documented if I don't have it".
+## 4. Verify the MCP runtime
 
-Show the diff in your report. Do not delete the file itself; only trim its content. If the project uses every
-default MCP, say so and leave the file alone.
+Look at your current tool list. Report the names of any MCP servers actively exposing tools in this session. If there
+are none, say "no MCP servers active in this session" and note that this is fine: the project may not need any, may
+have disabled them, or may not have the keys set yet.
 
-## 5. Verify OpenSpec is callable
+The four project MCP files are real files, not templates, so there is nothing to rename:
 
-OpenSpec is a spec-driven workflow that MUST be used to plan any change beyond a trivial single-file edit (typo,
-comment, one-liner). Verify it:
+- `.mcp.json` (key `mcpServers`) for Claude Code and the GitHub Copilot CLI
+- `opencode.json` (key `mcp`) for OpenCode and Kilo Code
+- `.codex/config.toml` (`[mcp_servers.*]` tables) for Codex
+- `.vscode/mcp.json` (key `servers`) for GitHub Copilot in VS Code
 
-- Confirm an `openspec/` directory exists at the repo root with `specs/` and `changes/` subdirectories.
-- Confirm your agent's OpenSpec command is registered. Name the slash command you would use to start a proposal in
-  this shell.
-- If your agent shell allows running binaries, optionally run `openspec --version` and report it. If your shell is
-  sandboxed and the binary is unreachable, the directory and slash-command checks above are sufficient.
+Report which of those exist. Do not assume any particular server should be present, just report what is there.
 
-If OpenSpec is missing or not callable, report it. Do not proceed to implementation work without it for any
-non-trivial change.
+## 5. Trim docs/MCP_SETUP.md to what this project actually uses
 
-## 5b. Check for e2e runbook tests
+The shipped `docs/MCP_SETUP.md` documents every server in the canonical set (Context7, MongoDB, Grafana, Playwright,
+Chrome DevTools, Redis, SonarQube, n8n). Most projects use a subset.
 
-If the repo has an `e2e/` directory with `e2e/testing/*-test.md` files, list them and confirm at least one runner
-tool is callable (Bruno CLI via `bru --version`, hurl via `hurl --version`, or fall back to plain `curl`). If the
-directory is absent, that's ✅ (not every project ships e2e runbook tests). If it exists but no runner is
-installed, flag it.
+Diff the active server names from step 4, or the names present in the config files if none were active, against the
+servers documented in `docs/MCP_SETUP.md`. For every server this project does not use, remove its table rows, its
+environment-variable lines, and any prose that names it.
 
-If the project ships an `e2e-runner` subagent (look in `.claude/agents/` or `.opencode/agents/`), the orchestration
-contract is one subagent per test with a parallel cap (default 5, confirmed with the user before each sweep and
-typically 3-10 depending on the test environment) governed by each spec's `Concurrency` section. That's a sweep-time
-concern, not a bootstrap concern; just confirm the subagent exists so the orchestrator pattern is available.
+Goal: a reader of `docs/MCP_SETUP.md` sees instructions only for the servers that actually run here. Show the diff in
+your report. Do not delete the file, only trim it. If the project uses every default server, say so and leave it
+alone.
 
-Restate the conflict-graph rule in one sentence so you commit to it before any sweep: tests with overlapping
-`Mutates:` resources cannot run in parallel, tests marked `Serial: true` must run alone, and the confirmed cap is the
-ceiling, never raised by missing edges. If you cannot restate this rule, re-read the `e2e-runbooks` skill's
-Concurrency-constraints section before running anything.
+## 6. Verify OpenSpec is callable
 
-If the project ships an `openspec/schemas/e2e-runbooks/` directory, also confirm the schema validates
-(`openspec schema validate e2e-runbooks`). If the schema is missing but `e2e/` exists, the project is using
-the methodology without the OpenSpec lifecycle integration; that is fine.
+OpenSpec is a spec-driven workflow that MUST be used to plan any change beyond a trivial single-file edit (a typo, a
+comment, a one-liner). Verify it:
 
-## 6. Map the instruction tree
+- Confirm an `openspec/` directory exists at the repository root with `specs/` and `changes/` inside.
+- Confirm your agent's OpenSpec command is registered, and name the slash command you would use to open a proposal.
+- If your shell can run binaries, run `openspec --version` and report it. If it is sandboxed, the two checks above are
+  enough.
 
-The root `AGENTS.md` is the canonical instruction file. More `AGENTS.md` files MAY exist in submodules or
-subdirectories.
+If OpenSpec is missing, report it, and note that the correct way to initialise it here is `openspec init --tools
+agents`. That vendor-neutral target writes skills into `.agents/skills/` and creates no per-tool directories, which is
+what this layout expects. Per-tool targets fragment it, and the `kilocode` target in particular still writes to the
+old `.kilocode` directory that Kilo Code no longer uses.
+
+Do not start implementation work on a non-trivial change without OpenSpec.
+
+## 6b. Check for end-to-end runbook tests
+
+If the repository has an `e2e/` directory with `e2e/testing/*-test.md` files, list them and confirm at least one
+runner is callable (`bru --version`, `hurl --version`, or plain `curl` as the fallback). If the directory is absent
+that is a pass, not every project ships runbook tests. If it exists but no runner is installed, flag it.
+
+If the project ships an `e2e-runner` subagent (look in `.agents/agents/` or `.claude/agents/`), the orchestration
+contract is one subagent per test with a parallel cap, default 5, confirmed with the user before each sweep and
+typically 3 to 10 depending on the environment, governed by each spec's Concurrency section. That is a sweep-time
+concern, not a bootstrap concern. Just confirm the subagent exists so the pattern is available.
+
+Restate the conflict-graph rule in one sentence before any sweep: tests with overlapping `Mutates:` resources cannot
+run in parallel, tests marked `Serial: true` run alone, and the confirmed cap is a ceiling that a missing edge never
+raises. If you cannot restate it, re-read the Concurrency-constraints section of the `e2e-runbooks` skill first.
+
+If `openspec/schemas/e2e-runbooks/` exists, confirm the schema validates with
+`openspec schema validate e2e-runbooks`. If the schema is missing but `e2e/` exists, the project uses the methodology
+without the OpenSpec lifecycle integration, which is fine.
+
+## 7. Map the instruction tree
+
+The root `AGENTS.md` is canonical. More `AGENTS.md` files MAY exist in subdirectories or submodules.
 
 - Linux or macOS: `find . -name AGENTS.md -not -path './node_modules/*'`
 - Windows PowerShell:
   `Get-ChildItem -Recurse -Filter AGENTS.md | Where-Object { $_.FullName -notmatch 'node_modules' }`
-- For Claude Code: open `.claude/CLAUDE.md` and list every `@`-imported path. Diff that list against the find output.
-  Any `AGENTS.md` not imported is drift. Flag it.
+- Claude Code only: open `.claude/CLAUDE.md`, list every `@`-imported path, and diff that against the find output.
+  Any `AGENTS.md` that is not imported is drift. Flag it.
 
-## 7. Fill the AGENTS.md stubs
+## 8. Fill the AGENTS.md stubs
 
-The `AGENTS.md.example` template ships with intentionally empty sections that every project must fill. This is the
-WHOLE POINT of the bootstrap. Do not skip it and do not treat it as a side note.
+The `AGENTS.md.example` template ships with intentionally empty sections that every project has to fill. This is the
+WHOLE POINT of the bootstrap. Do not skip it and do not treat it as a footnote.
 
-Open the root `AGENTS.md` and look for empty sections or HTML-comment placeholders (e.g.
-`<!-- Describe your project here -->`). At minimum:
+Open the root `AGENTS.md` and find the empty sections and HTML-comment placeholders. At minimum:
 
-- `## What This Repo Is`: one short paragraph. What the project does, who uses it, what stack. Derive from
-  `package.json`, `pom.xml`, `pyproject.toml`, `Cargo.toml`, `go.mod`, plus the top-level file tree. Do not invent
-  purpose; if the repo's purpose is unclear from evidence, say so and ask the user.
-- `## Architecture`: bullet list. Framework plus version, key patterns in use (e.g. "App Router", "hexagonal",
-  "BLoC"), deploy target, notable constraints (monorepo, SSR-only, offline-first, etc.). Derive from config files,
-  folder structure, and any existing ADRs under `docs/` or `openspec/specs/`.
+- `## What This Repo Is`: one short paragraph on what the project does, who uses it, and what stack it runs. Derive it
+  from `package.json`, `pom.xml`, `pyproject.toml`, `Cargo.toml`, `go.mod`, and the top-level file tree. Do not invent
+  a purpose. If the evidence does not support one, say so and ask.
+- `## Architecture`: a bullet list. Framework and version, the patterns actually in use, the deploy target, and the
+  notable constraints (monorepo, server-rendered only, offline-first, and so on). Derive it from config files, folder
+  structure, and any decision records under `docs/` or `openspec/specs/`.
 
-Filling these stubs is low-risk (editing an existing file the user just imported and expects to fill). DO IT. Write
-the drafted content straight into root `AGENTS.md` as part of this bootstrap pass. Show the diff in your report so
-the user can review and revise after. Do NOT stop and ask for approval before this edit.
+This is low-risk: you are filling a file the user just imported and expects to fill. DO IT. Write the drafted content
+straight into the root `AGENTS.md` as part of this pass and show the diff in your report. Do NOT stop and ask for
+approval first.
 
-## 7b. Verify docs/AGENTS-UPDATE.md shipped
+## 8b. Verify docs/AGENTS-UPDATE.md shipped
 
-`docs/AGENTS-UPDATE.md` ships from upstream as part of the Step 1 checkout. It documents how this project refreshes
-agent-standards content selectively (enumerating skills and subagents already present locally and pulling only those
-paths, instead of a blanket pull that surprises the consumer with new upstream additions) and it refreshes itself on
-every run.
+`docs/AGENTS-UPDATE.md` arrives with the Step 1 checkout. It documents how this project refreshes agent-standards
+content selectively, enumerating the skills and subagents already present and pulling only those, and it refreshes
+itself on every run.
 
-Confirm the file exists. If it is missing (the project was imported before this doc shipped), pull it with a one-off
-`git checkout agent-standards/master -- docs/AGENTS-UPDATE.md` and flag it in your report.
+Confirm it exists. If it is missing, the project was imported before it shipped: pull it with a one-off
+`git checkout agent-standards/master -- docs/AGENTS-UPDATE.md` and flag it.
 
-## 8. Confirm the subagent strategy
+## 9. Confirm the delegation strategy
 
-Open `AGENTS.md` (or `AGENTS.md.example` if it has not been copied yet) and read the `## Subagents` section,
-including the `### When to use them` subsection.
+Open `AGENTS.md` (or `AGENTS.md.example` if it has not been renamed yet) and read the `## Subagents` section including
+its `### When to use them` subsection.
 
 Restate in your own words, in three or four sentences:
 
-- When you will spawn subagents (proactively, not reactively).
-- How you will run them in parallel when work is independent.
+- When you will spawn subagents, proactively rather than reactively.
+- How you will run them in parallel when the work is independent.
 - How you will direct them to invoke specific skills.
-- Which work patterns trigger which subagents (reviewing, adding a feature, debugging, migrations, docs).
+- Which work patterns trigger which subagents (reviewing, adding a feature, debugging, migrating, documenting).
 
-This is a posture check. The user needs to know you understood the delegation rules before you start work. Every
-supported agent now has a subagent mechanism, so restate the strategy regardless of which one you are running.
+This is a posture check. The user needs to know you understood the delegation rules before you start, and the
+preflight gate will block a main-thread source edit anyway, so getting this right is not optional.
 
-## 9. Decide if subdir AGENTS.md files are needed
+## 10. Decide whether subdirectory AGENTS.md files are needed
 
-Create an `AGENTS.md` in a subdirectory ONLY when that subdirectory has:
+Create an `AGENTS.md` in a subdirectory ONLY when that subdirectory has its own toolchain or build system, its own
+deploy target or runtime, or conventions that meaningfully differ from the root. Single-application repositories
+almost never need one. Three near-empty files are worse than one good root file. If nothing qualifies, that is a pass,
+not a warning.
 
-- its own toolchain or build system, OR
-- its own deploy target or runtime, OR
-- conventions that meaningfully differ from the root.
+## 11. Report, then wait
 
-Single-app repos almost never need this. Three near-empty files are worse than one good root file. If nothing
-qualifies, that is a ✅, not a warning.
+End with this checklist. Pass or "broken, needs fixing". "Considered and not needed" counts as a pass. Reserve the
+failure mark for wiring that is genuinely broken or missing.
 
-## 10. Report, then wait
-
-End your bootstrap with this checklist (✅ pass / ❌ broken, needs fixing). "Considered and not needed" is ✅, not a
-warning. Use ❌ only for things that are actually broken or missing wiring.
-
-- [ ] Skills readable (Claude Code through the `.claude/skills/` symlink; other agents directly from `.agents/skills/`)
-- [ ] Agent directories present (`.claude`, `.opencode`, `.codex`, `.kilocode`, `.github`)
-- [ ] Subagent files present (Claude: `.claude/agents/`; OpenCode: `.opencode/agents/`; Kilo: `.kilocode/agents/`;
-      Codex: `.codex/agents/`; Copilot: `.github/agents/`)
-- [ ] MCP runtime checked (list names, or "none active")
-- [ ] docs/MCP_SETUP.md trimmed to active servers (show diff, or "no trim needed")
-- [ ] OpenSpec callable (slash command name; version if available)
-- [ ] E2E runbook tests checked (list spec files in `e2e/testing/`, name the API client tool found and whether the
-      `e2e-runner` subagent is present, or ✅ "no e2e directory")
+- [ ] Skills readable (Claude Code through `.claude/skills`, every other agent directly from `.agents/skills/`)
+- [ ] Agent directories present (`.agents`, `.claude`, `.opencode`, `.kilo`, `.codex`, `.github`)
+- [ ] Subagent trees present (`.claude/agents/`, `.agents/agents/`, `.codex/agents/`, `.github/agents/`) and the
+      `.opencode/agents` and `.kilo/agents` symlinks intact
+- [ ] Preflight gate wired (`.agents/hooks/preflight_gate.py` plus the hook config your runtime reads)
+- [ ] MCP runtime checked (names, or "none active") and the four config files accounted for
+- [ ] docs/MCP_SETUP.md trimmed to the active servers (show the diff, or "no trim needed")
+- [ ] OpenSpec callable (slash command name, version if available)
+- [ ] End-to-end runbook tests checked (spec files, runner tool, `e2e-runner` subagent present, or "no e2e directory")
 - [ ] AGENTS.md inventory (paths found)
-- [ ] CLAUDE.md `@` imports vs inventory (list drift, or ✅ "no drift")
-- [ ] Root AGENTS.md stubs filled (show the diff that was just applied)
-- [ ] `docs/AGENTS-UPDATE.md` present (shipped via Step 1 checkout)
-- [ ] Subagent strategy restated
-- [ ] Subdirectory AGENTS.md needed? (yes plus paths, or ✅ "no, single-app repo")
+- [ ] CLAUDE.md imports versus that inventory (drift listed, or "no drift")
+- [ ] Root AGENTS.md stubs filled (show the diff you just applied)
+- [ ] docs/AGENTS-UPDATE.md present
+- [ ] Delegation strategy restated
+- [ ] Subdirectory AGENTS.md needed? (yes plus paths, or "no, single-application repo")
 
-Auto-apply (no approval needed), already done as part of this pass:
+Apply without asking, as part of this pass:
 
-- Filling empty stub sections in root `AGENTS.md`.
-- Trimming `docs/MCP_SETUP.md` to only the MCPs this project actually uses.
+- Filling the empty stub sections in the root `AGENTS.md`.
+- Trimming `docs/MCP_SETUP.md` to the servers this project actually uses.
 
 Wait for approval before:
 
-- Creating any NEW `AGENTS.md` files in subdirectories.
+- Creating any NEW `AGENTS.md` file in a subdirectory.
 - Adding NEW `@` imports to `.claude/CLAUDE.md`.
 
-After approval, apply those changes and re-run the inventory diff to confirm. If the user pushes back on the stub fill
-or MCP_SETUP trim, revise based on their feedback.
+After approval, apply those and re-run the inventory diff to confirm. If the user pushes back on the stub fill or the
+MCP trim, revise from their feedback.
 
 ## Operating rules from here on
 
 - Any change beyond a trivial edit MUST start with an OpenSpec proposal.
-- Skills are invoked via slash syntax. Use them instead of reinventing guidance. Check `.agents/skills/` for the full
-  catalogue.
-- Subagents are spawned proactively and in parallel where work is independent. See the `## Subagents` section in
-  `AGENTS.md` for the full strategy.
-- MCP tools that are active in the session take precedence over re-deriving the same answer from local files.
-- Treat `AGENTS.md` as the source of truth for project conventions.
+- Skills are invoked with slash syntax. Use them instead of reinventing the guidance. The catalogue is
+  `.agents/skills/`.
+- Subagents are spawned proactively and in parallel where the work is independent. The full strategy is the
+  `## Subagents` section of `AGENTS.md`.
+- The main thread delegates source edits. The preflight gate enforces it on every surface that can tell who is asking.
+- MCP tools active in this session beat re-deriving the same answer from local files.
+- `AGENTS.md` is the source of truth for this project's conventions.
 ````
