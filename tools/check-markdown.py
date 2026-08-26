@@ -9,8 +9,10 @@ Enforces a subset of the `markdown-writer` skill rules:
   reserved for the document title).
 
 Scope: README.md, AGENTS.md.example, docs/*.md, and .agents/skills/**/*.md.
-The generated subagent dirs (.claude/agents/, .opencode/agents/) and the
-canonical subagents/ source are NOT checked.
+The four generated subagent trees (.claude/agents/, .agents/agents/,
+.codex/agents/, .github/agents/), the .opencode/agents and .kilo/agents
+symlinks into .agents/agents/, and the canonical subagents/ source are NOT
+checked.
 
 Pass explicit file paths as arguments to lint only those files; with no
 arguments the default target set above is linted.

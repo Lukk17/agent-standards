@@ -64,7 +64,7 @@ git fetch agent-standards
 Pull the production-ready paths:
 
 ```bash
-git checkout agent-standards/master -- .agents .claude .opencode .kilo .codex .github/agents .github/hooks .vscode/mcp.json .mcp.json opencode.json docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/AGENTS-UPDATE.md AGENTS.md.example
+git checkout agent-standards/master -- .agents .claude .opencode .kilo .codex .github/agents .github/hooks .vscode/mcp.json .mcp.json opencode.json docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md AGENTS.md.example
 ```
 
 Rename the one template. PowerShell:
@@ -95,7 +95,9 @@ What you just pulled:
   subagents and its hook configuration.
 - [.mcp.json](../.mcp.json), [opencode.json](../opencode.json), and [.vscode/mcp.json](../.vscode/mcp.json): the
   remaining MCP config files. These are real files, ready to use, not templates.
-- The three shipped documents, and [AGENTS.md.example](../AGENTS.md.example) to rename.
+- The shipped documents: [AGENT_TOOLING.md](AGENT_TOOLING.md), [MCP_SETUP.md](MCP_SETUP.md),
+  [GLOBAL_SETUP.md](GLOBAL_SETUP.md), and [AGENTS-UPDATE.md](AGENTS-UPDATE.md), plus
+  [AGENTS.md.example](../AGENTS.md.example) to rename.
 
 What you did not pull, and never will: the `subagents/` canonical source and the `tools/` generator. Both stay
 upstream.
@@ -153,6 +155,14 @@ Each agent wires that same script through its own hook surface:
 | OpenCode | plugin [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), declared in [opencode.json](../opencode.json) | blocks the tool call |
 | Kilo Code | the same plugin, the same declaration | blocks the tool call |
 | GitHub Copilot | [.github/hooks/preflight.json](../.github/hooks/preflight.json) | blocks the tool call, injects the gate once per session and on subagent start |
+
+Every one of those wirings anchors the gate at the project root before calling it. A session started in a subdirectory
+used to resolve the relative script path to nothing, and Python exits 2 when it cannot open the file it was handed,
+which is the deny code, so the gate blocked every tool call instead of allowing them. Claude Code uses
+`${CLAUDE_PROJECT_DIR}`, Codex resolves the git root, Copilot sets `"cwd": "."`, and the plugin takes the runtime's
+`worktree`. A missing or broken script now allows: the three JSON formats deny with exit 0 on stdout and never use a
+non-zero exit, so any non-zero exit is an error and is thrown away, and the plugin reads each hook file before spawning
+it.
 
 Two limits are worth knowing before you trust the gate too far. GitHub Copilot's pre-tool payload carries no agent
 identifier, so it cannot tell a subagent from the main thread and the delegation rule cannot be applied selectively

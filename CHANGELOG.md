@@ -14,15 +14,17 @@ All notable changes to this project are documented here. The format follows
 - Two capability test suites in `e2e/`, authored against the `e2e-runbooks` OpenSpec schema. Specs 1 to 5 cover the
   per-project import, specs 6 to 9 cover a global user-home install and refuse to run unless the working directory is
   free of per-project files, so a global result cannot be attributed to the wrong layer.
-- [docs/global-setup.md](docs/global-setup.md), covering installation of the same skills, subagents and gate into the
+- [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md), covering installation of the same skills, subagents and gate into the
   user home, per agent and per shell, with an honest list of what cannot be installed globally.
 - One shared preflight rule at `.agents/hooks/preflight_gate.py`, called by every agent surface. The gate is now
   enforcing rather than advisory: it denies a source-file edit made from the main thread and tells it to delegate, and
   denies an edit from a subagent whose own definition declares no skills. Markdown, configuration, and documentation
   edits from the main thread are allowed, and any error inside the gate fails open.
 - `.agents/hooks/no_ai_markers_check.py`, wired as the Claude Code `Stop` hook.
-- One preflight plugin at `.agents/plugin/hooks.js`, a thin shim over the shared rule, declared once by path in the
-  `plugin` array of the root `opencode.json`, which both OpenCode and Kilo Code read.
+- One preflight plugin at `.agents/plugin/hooks.js`, declared once by path in the `plugin` array of the root
+  `opencode.json`, which both OpenCode and Kilo Code read. It carries no rules of its own: it discovers every hook in
+  `.agents/hooks/`, runs them in the order each hook declares, and speaks the versioned JSON envelope documented in
+  `docs/hooks-contract.md`.
 - GitHub Copilot hook configuration at `.github/hooks/preflight.json`, on `sessionStart`, `subagentStart`, and
   `preToolUse`. Event names are camelCase and each command is an object with a `bash` key and a `powershell` key.
 - Symlinks `.opencode/agents` and `.kilo/agents`, both pointing at `../.agents/agents`, created and repaired by the
@@ -39,6 +41,10 @@ All notable changes to this project are documented here. The format follows
 - Diff-first configuration-file commands at the end of each shell section in `docs/AGENTS-UPDATE.md`, covering the
   five files the routine refresh never touches, plus an ownership table in the section on what the refresh skips,
   naming which half of each file is the consumer's and which should track upstream.
+- A `sandbox` job in the CI workflow. It builds the sandbox image once and then runs the container suite three times:
+  the per-project import assertions, a global install run twice against the container's own home to prove it is
+  idempotent, and a scoped single-agent install that proves only that agent's paths were written. It runs alongside
+  `actionlint` and `validate` rather than behind them, and it never touches a runner's real home directory.
 
 ### Changed
 
@@ -70,6 +76,13 @@ All notable changes to this project are documented here. The format follows
 - The import flow renames the one remaining template to its real name (`mv AGENTS.md.example AGENTS.md`) instead of
   copying it, so a consumer keeps no dead `.example` twin and a remaining `.example` marks a template not yet
   activated.
+- CI is no longer manual. `.github/workflows/ci.yml` runs on every pull request and on every push to `master`, and
+  keeps `workflow_dispatch` so it can still be started by hand and `workflow_call` so the release workflow goes on
+  calling it. Nothing fires without a push or a pull request. `AGENTS.md` and `CONTRIBUTING.md` no longer claim
+  otherwise.
+- The sandbox job checks out full history and puts the commit under test on a `master` branch before starting the
+  container. The import inside the container reads `agent-standards/master`, and a pull request checkout is a detached
+  HEAD with no branch for it to find.
 
 ### Fixed
 
@@ -78,10 +91,12 @@ All notable changes to this project are documented here. The format follows
   required `change` subcommand. It now fetches `openspec/schemas/e2e-runbooks` straight into the matching path. The
   links pointing at the old root-level directory were returning 404 and now resolve.
 - Documentation that still described the deleted `.opencode/opencode.json` overlay, the pre-move `tools/` test paths,
-  and a `docs/global-setup.md` listed as shipped to consumers although no import command ever pulled it.
+  and a `docs/GLOBAL_SETUP.md` listed as shipped to consumers although no import command ever pulled it.
 
 ### Removed
 
+- `.github/dependabot.yml`, and with it Dependabot itself. Nothing opens automated dependency pull requests here any
+  more. The exact pins in `tools/pyproject.toml` and the SHA-pinned actions in the workflows are bumped by hand.
 - The `.kilocode/` directory in full: the generated subagent tree, the `rules/00-preflight.md` gate rule, and its MCP
   templates. Kilo Code moved its configuration root to `.kilo/` and accepts `opencode.json`.
 - `.codex/hooks.json`, replaced by the inline `[[hooks.*]]` tables in `.codex/config.toml`.

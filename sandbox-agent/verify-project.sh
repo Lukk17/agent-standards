@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # -----------------------------------------------------------------------------
-# Script: verify.sh
+# Script: verify-project.sh
 # Description: Asserts that every supported agent discovers the shared skills,
 #              its own subagent tree, its preflight wiring and its MCP servers
 #              in the imported throwaway project, and that the preflight gate
 #              really denies what it claims to deny.
-# Usage: verify.sh
+# Usage: verify-project.sh
 # Environment:
 #   SANDBOX_PROJECT     Throwaway project directory. Default /work/project.
 #   SANDBOX_SKIP_SETUP  Set to 1 to assert against an existing project.
@@ -342,9 +342,9 @@ verify_copilot() {
   assert_glob_count "subagents are discoverable in Copilot agent format" \
     ".github/agents/*.agent.md" "${#SUBAGENTS[@]}"
   assert_json "the gate is wired into preToolUse" ".github/hooks/preflight.json" \
-    '[.hooks.preToolUse[].command.bash] | any(contains("preflight_gate.py --format copilot"))'
+    '[.hooks.preToolUse[].bash] | any(contains("preflight_gate.py --format copilot"))'
   assert_json "the gate text is injected on session start" ".github/hooks/preflight.json" \
-    '[.hooks.sessionStart[].command.bash] | any(contains("PREFLIGHT"))'
+    '[.hooks.sessionStart[].bash] | any(contains("PREFLIGHT"))'
   assert_json "MCP servers are present in the file Copilot in VS Code reads" ".vscode/mcp.json" \
     '(.servers | length) > 0'
 

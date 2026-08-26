@@ -93,8 +93,9 @@ docker compose run --rm sandbox /bin/bash
 ```
 
 Then perform the whole global installation by running every command in the Reset state and Run sections of
-[6-global-install-shape-test.md](6-global-install-shape-test.md), in order, ending in `/work/bare`. That command list
-is not repeated here, so there is one copy of it to keep correct. Do not continue until it has finished.
+[6-global-install-shape-test.md](6-global-install-shape-test.md), in order, ending in `/work/bare`. That is two
+invocations of [setup-global.sh](../../sandbox-agent/setup-global.sh) with the reset around them, and it is not
+repeated here so there is one copy to keep correct. Do not continue until it has finished.
 
 Confirm where you are, because every assertion in this spec depends on it.
 
@@ -227,10 +228,10 @@ Expect exit 1, meaning no such line appears. Exit 0 here is a failure of the tes
 
 ### Fixtures
 
-- `e2e/fixtures/global/opencode.json`: global OpenCode configuration, copied into place by the install this spec
-  inherits from [6-global-install-shape-test.md](6-global-install-shape-test.md).
-- `e2e/fixtures/global/kilo.jsonc`: global Kilo Code configuration, the file `kilocode config check` judges and the
-  one that carries `skills.paths`.
+None. The global Kilo Code configuration that `kilocode config check` judges, the one carrying `skills.paths`, is
+written by [setup-global.sh](../../sandbox-agent/setup-global.sh) during the install this spec inherits from
+[6-global-install-shape-test.md](6-global-install-shape-test.md). Nothing here is copied from a fixture, so what the
+tools read is what a reader's own machine would get.
 
 ---
 

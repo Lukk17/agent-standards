@@ -31,6 +31,9 @@ broken hook can never break a session. Each agent wires that one rule to its own
 - **GitHub Copilot**: [.github/hooks/preflight.json](.github/hooks/preflight.json), on `sessionStart`,
   `subagentStart`, and `preToolUse`.
 
+Each wiring anchors the gate at the project root before calling it, so a session started in a subdirectory still finds
+the script, and a missing script allows rather than denies.
+
 The Skills and Subagents sections below say which specialist to reach for. This gate makes reaching for one the first
 move.
 

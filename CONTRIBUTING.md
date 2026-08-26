@@ -19,14 +19,27 @@ you spend time writing.
 
 ### Pipeline triggers
 
-CI is manual-only. There is no automatic build on push or PR. To validate a change:
+CI runs on every pull request and on every push to `master`. The workflow keeps its `workflow_dispatch` trigger too,
+so you can still start it by hand from the
+[Actions tab](https://github.com/Lukk17/agent-standards/actions/workflows/ci.yml) against any branch.
 
-1. Open the [Actions tab](https://github.com/Lukk17/agent-standards/actions/workflows/ci.yml).
-2. Pick the CI workflow.
-3. Click Run workflow against your branch.
+Three jobs run in parallel, and none of them waits on another:
 
-Releases are also manual via the [Release](https://github.com/Lukk17/agent-standards/actions/workflows/release.yml)
-workflow. Maintainers only. The version string (e.g. `v0.2.0`) goes in the workflow's input field.
+- `actionlint` lints the workflow YAML, including a ShellCheck pass over every `run:` block.
+- `validate` runs the JSON and TOML checks, the generator drift check, the markdown linter, and the pytest suite. Every
+  one of those is a command you can run locally, listed further down this page.
+- `sandbox` builds the container image once and then runs the containerised suite three times over: the per-project
+  import assertions, a global install run twice against the container's own home to prove it is idempotent, and a
+  scoped single-agent install to prove it writes only that agent's paths. This is the slow job, several minutes against
+  the other two, which is why it runs alongside them rather than behind them.
+
+The scoped check names the individual files the installer writes rather than asserting that `~/.claude` and its
+siblings are absent. Asking each agent command-line tool for its version, which the container does on startup, already
+creates some of those directories, so their absence would be the wrong thing to measure.
+
+Releases stay manual via the [Release](https://github.com/Lukk17/agent-standards/actions/workflows/release.yml)
+workflow. Maintainers only. The version string (e.g. `v0.2.0`) goes in the workflow's input field. That workflow calls
+the same CI workflow first, so a release runs the container suite as well.
 
 ---
 
@@ -134,7 +147,8 @@ The gate lives in one shared script, and each agent wires that script to its own
 how a tool call is judged, or how any agent reaches the script, the unit tests are not the whole story. Run the
 containerised sandbox in [sandbox-agent/](sandbox-agent/README.md), which installs all five agent command-line tools,
 imports this repository into a throwaway project, and asserts what each agent actually discovers. The specs it runs
-are documented in [e2e/README.md](e2e/README.md).
+are documented in [e2e/README.md](e2e/README.md). CI runs the same suite on your pull request, so running it locally
+first is about getting the answer sooner, not about whether it gets checked.
 
 ---
 

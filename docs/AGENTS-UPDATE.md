@@ -13,8 +13,8 @@
 - [.agents/hooks/](../.agents/hooks/), the shared preflight gate and the formatting checker, and
   [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), the OpenCode and Kilo Code adapter for that gate.
 - [.github/hooks/preflight.json](../.github/hooks/preflight.json), the GitHub Copilot hook configuration.
-- [AGENT_TOOLING.md](AGENT_TOOLING.md), [MCP_SETUP.md](MCP_SETUP.md), and [AGENTS-UPDATE.md](AGENTS-UPDATE.md), this
-  file, which refreshes itself.
+- [AGENT_TOOLING.md](AGENT_TOOLING.md), [MCP_SETUP.md](MCP_SETUP.md), [GLOBAL_SETUP.md](GLOBAL_SETUP.md), and
+  [AGENTS-UPDATE.md](AGENTS-UPDATE.md), this file, which refreshes itself.
 
 The first-time import in [AGENT_TOOLING.md](AGENT_TOOLING.md) pulls all of it at once. That is right the first time
 and wrong every time after, because it re-adds skills and subagents you removed on purpose.
@@ -66,7 +66,7 @@ git fetch agent-standards
 Refresh the shipped documents, including this one.
 
 ```bash
-git checkout agent-standards/master -- docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 Refresh the shared gate script, the formatting checker, the OpenCode and Kilo plugin, and the Copilot hook file.
@@ -87,6 +87,18 @@ Pull the upstream copy of every subagent you currently have, across the four gen
 for f in .agents/agents/*.md .claude/agents/*.md .codex/agents/*.toml .github/agents/*.agent.md; do [ -e "$f" ] || continue; git checkout agent-standards/master -- "$f" 2>/dev/null || true; done
 ```
 
+---
+
+#### ⚠️ Stop here before the destructive part
+
+The last command in this section overwrites all five configuration files with the upstream copies. What you lose:
+
+- API tokens you inlined.
+- Servers you disabled or repointed.
+- Permissions you granted.
+
+Diff first, and run the checkout only once you are sure nothing of yours is in them.
+
 Your five configuration files are kept out of the loops above, for the reasons under
 [what this skips](#what-this-skips-and-why). See what upstream would change in them.
 
@@ -95,11 +107,6 @@ git diff agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .cod
 ```
 
 Take upstream's copy of all five once the diff has shown you nothing of yours is in them.
-
-> [!WARNING]
-> This replaces all five files with the upstream copies, and anything of yours in them is lost. That includes API
-> tokens, servers you disabled or repointed, and permissions you granted. These files are part of your project's own
-> setup rather than ours, so run the diff above first and only run this when you are sure.
 
 ```bash
 git checkout agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .codex/config.toml .claude/settings.json
@@ -118,7 +125,7 @@ git fetch agent-standards
 Refresh the shipped documents, including this one.
 
 ```powershell
-git checkout agent-standards/master -- docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 Refresh the shared gate script, the formatting checker, the OpenCode and Kilo plugin, and the Copilot hook file.
@@ -139,6 +146,18 @@ Pull the upstream copy of every subagent you currently have, across the four gen
 foreach ($base in '.agents/agents', '.claude/agents', '.codex/agents', '.github/agents') { if (Test-Path $base) { foreach ($f in Get-ChildItem $base -File) { git checkout agent-standards/master -- "$base/$($f.Name)" 2>$null } } }
 ```
 
+---
+
+#### ⚠️ Stop here before the destructive part
+
+The last command in this section overwrites all five configuration files with the upstream copies. What you lose:
+
+- API tokens you inlined.
+- Servers you disabled or repointed.
+- Permissions you granted.
+
+Diff first, and run the checkout only once you are sure nothing of yours is in them.
+
 Your five configuration files are kept out of the loops above, for the reasons under
 [what this skips](#what-this-skips-and-why). See what upstream would change in them.
 
@@ -147,11 +166,6 @@ git diff agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .cod
 ```
 
 Take upstream's copy of all five once the diff has shown you nothing of yours is in them.
-
-> [!WARNING]
-> This replaces all five files with the upstream copies, and anything of yours in them is lost. That includes API
-> tokens, servers you disabled or repointed, and permissions you granted. These files are part of your project's own
-> setup rather than ours, so run the diff above first and only run this when you are sure.
 
 ```powershell
 git checkout agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .codex/config.toml .claude/settings.json

@@ -5,18 +5,24 @@ Strips fenced code blocks, inline code, and link targets, then blocks when what
 is left contains an em dash (U+2014), an en dash (U+2013), a semicolon, or a
 bold marker.
 
-Two modes over the same detection:
+Three modes over the same detection:
 
 Stop hook (default). Reads the Stop payload as JSON on stdin and pulls the last
 assistant message out of the transcript. Blocking prints
 {"decision": "block", "reason": "..."} on stdout and exits 0, a clean reply
 prints nothing. `stop_hook_active` short-circuits the check so one forced
-rewrite cannot loop.
+rewrite cannot loop. This is how Claude Code calls it.
 
-Text (--text). Reads raw UTF-8 prose on stdin. Blocking prints the reason on
-stderr and exits 2, a clean reply prints nothing and exits 0. This is the mode
-the OpenCode and Kilo Code plugin uses, where the only blocking channel is a
-failed tool call.
+Runner (--format plain). The contract at
+https://github.com/Lukk17/agent-standards/blob/master/docs/hooks-contract.md
+defines one envelope as JSON on stdin, prose taken from its `assistant_text`
+field. Blocking prints the reason on stderr and exits 2. This is how the
+OpenCode and Kilo Code plugin calls it, where the only blocking channel is a
+failed tool call. The runner delivers each distinct text once per session, so
+this mode does no de-duplication of its own.
+
+Text (--text). Reads raw UTF-8 prose on stdin, same output shape as the runner
+mode. For calling the check by hand.
 
 Every failure path allows: a broken hook must never break a session.
 """
@@ -26,6 +32,11 @@ import re
 import sys
 from pathlib import Path
 from typing import Any, List, Tuple
+
+# Runner order. Formatting runs after the preflight gate, because a policy
+# denial about the action being attempted outranks a note about prose that has
+# already been sent.
+HOOK_ORDER = 20
 
 EM_DASH = "\u2014"
 EN_DASH = "\u2013"
@@ -176,23 +187,49 @@ def build_reason(violations: List[str]) -> str:
     return REASON_HEAD + ", ".join(violations) + REASON_TAIL
 
 
+def _report(text: str) -> int:
+    """Write the reason on stderr and deny, or stay silent and allow."""
+    if not text.strip():
+        return 0
+
+    violations = find_violations(strip_code(text))
+
+    if not violations:
+        return 0
+
+    sys.stderr.buffer.write(build_reason(violations).encode("utf-8"))
+    sys.stderr.buffer.flush()
+
+    return 2
+
+
+def _stdin_text() -> str:
+    """Decode stdin as UTF-8 explicitly, never through the system code page."""
+    return sys.stdin.buffer.read().decode("utf-8", errors="replace")
+
+
 def _text_mode() -> int:
     """Check raw prose from stdin, reporting on stderr with exit code 2."""
     try:
-        text = sys.stdin.buffer.read().decode("utf-8", errors="replace")
+        return _report(_stdin_text())
+    except Exception:
+        return 0
 
-        if not text.strip():
+
+def _runner_mode() -> int:
+    """Check the envelope's assistant prose, reporting on stderr with exit 2."""
+    try:
+        payload = json.loads(_stdin_text() or "{}")
+
+        if not isinstance(payload, dict):
             return 0
 
-        violations = find_violations(strip_code(text))
+        text = payload.get("assistant_text")
 
-        if not violations:
+        if not isinstance(text, str):
             return 0
 
-        sys.stderr.buffer.write(build_reason(violations).encode("utf-8"))
-        sys.stderr.buffer.flush()
-
-        return 2
+        return _report(text)
     except Exception:
         return 0
 
@@ -201,8 +238,11 @@ def main(argv: List[str]) -> int:
     if "--text" in argv:
         return _text_mode()
 
+    if "--format" in argv:
+        return _runner_mode()
+
     try:
-        payload = json.loads(sys.stdin.read() or "{}")
+        payload = json.loads(_stdin_text() or "{}")
 
         if not isinstance(payload, dict):
             return 0

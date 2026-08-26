@@ -84,4 +84,5 @@ commandWindows = "echo {\"hookSpecificOutput\": {\"hookEventName\": \"SubagentSt
 type = "command"
 statusMessage = "Preflight gate"
 timeout = 10
-command = "python .agents/hooks/preflight_gate.py --format codex"
+command = "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" && python .agents/hooks/preflight_gate.py --format codex 2>/dev/null || exit 0"
+commandWindows = "for /f delims^= %r in ('git rev-parse --show-toplevel 2^>nul') do @cd /d %r && python .agents/hooks/preflight_gate.py --format codex 2>nul || exit 0"

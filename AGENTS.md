@@ -44,18 +44,29 @@ Per-surface details worth knowing before you touch any of them:
 
 - Claude Code detects a subagent by the presence of `agent_id` in the hook payload, which it documents as present only
   inside a subagent.
+- Every wiring anchors the gate at the project root, and a missing gate script allows. A session started in a
+  subdirectory resolved the relative script path to nothing, and Python exits 2 when it cannot open the file it was
+  handed, which is the deny code on Claude Code and Codex and denies on Copilot too. Each wiring therefore moves to the
+  project root first: `${CLAUDE_PROJECT_DIR}` on Claude Code, `git rev-parse --show-toplevel` on Codex, `"cwd": "."` on
+  Copilot, the runtime's `worktree` in the plugin. The claude, codex and copilot formats deny with exit 0 and JSON on
+  stdout and never use a non-zero exit, so `|| exit 0` on those three turns any error back into an allow. The plugin
+  cannot do the same, because its plain format does use exit 2 as the denial, so it reads each hook file before
+  spawning it and drops the ones it cannot open.
 - Codex supports both inline `[[hooks.*]]` tables and a separate `hooks.json`, and warns when a single configuration
   layer carries both. The tables therefore live in `.codex/config.toml` and `.codex/hooks.json` no longer exists.
 - Copilot hooks are no longer CLI-only. They run in VS Code and in JetBrains as well, from the same `.github/hooks/`
-  path. Event names are camelCase, and each command is an object with a `bash` key and a `powershell` key.
+  path. Event names are camelCase, and a hook entry carries `bash` and `powershell` as sibling string fields next to
+  `type`, not a nested `command` object. A nested one is silently ignored, which leaves that surface ungated.
 - The Copilot CLI additionally reads hooks from `.claude/settings.json`. The JetBrains plugin does not: its bundled
   agent hardcodes `.github/hooks/**/*.json` and rejects PascalCase event names.
 - The JetBrains plugin scans `.claude/agents`, but it only understands its own `*.agent.md` format, so subagent
   definitions cannot be shared between Copilot and Claude Code or OpenCode.
-- OpenCode and Kilo Code have no event that can block a finished reply, so their plugin runs both checks at
-  `tool.execute.before`. It calls the gate first, then feeds the latest assistant text to
-  [.agents/hooks/no_ai_markers_check.py](.agents/hooks/no_ai_markers_check.py) in its `--text` mode and throws when the
-  prose carries an em dash, an en dash, a clause-joining semicolon, or bold. Each message is checked once per session.
+- OpenCode and Kilo Code have no event that can block a finished reply, so their plugin does everything at
+  `tool.execute.before`. It is a runner rather than a fixed wiring: on every tool call it discovers every hook in
+  [.agents/hooks/](.agents/hooks/), runs them in the order each hook declares, and hands each one a versioned JSON
+  envelope on standard input with `--format plain`. Adding a hook file is the whole registration step. The contract,
+  including the envelope fields, the ordering rule, the deny exit code, and the fail-open rules, is written up in
+  [docs/hooks-contract.md](docs/hooks-contract.md).
 
 Verified against Claude Code 2.1.245, Codex 0.149.1, OpenCode 1.18.23, and Kilo Code 7.4.23.
 
@@ -116,8 +127,8 @@ The OpenSpec sections in the `.example` are for consumers.
   through the `.opencode/agents` and `.kilo/agents` symlinks. Claude Code, Codex, and Copilot each read their own
   generated tree instead, because none of the three formats is interchangeable.
 - [.agents/hooks/](.agents/hooks/) and [.agents/plugin/](.agents/plugin/) are invoked by every adapter. The two Python
-  scripts hold the only copy of the gate logic and of the response formatting check, and the plugin is a thin shim with
-  no rules of its own that hands OpenCode and Kilo tool calls to the same Python script.
+  scripts hold the only copy of the gate logic and of the response formatting check, and the plugin is a thin runner
+  with no rules of its own that hands every OpenCode and Kilo Code tool call to every hook in that directory.
 
 ---
 
@@ -125,6 +136,12 @@ The OpenSpec sections in the `.example` are for consumers.
 
 On top of the global rules in `~/.claude/CLAUDE.md`:
 
+- **The consumer boundary is the filename case.** A consumer receives exactly two kinds of thing: the agent
+  configuration files the import pulls, and the UPPERCASE-named markdown documents under `docs/`. Every lowercase
+  document under `docs/` is ours and never ships. [README.md](README.md) is the one uppercase file that stays here.
+  [e2e/](e2e/), [sandbox-agent/](sandbox-agent/), [subagents/](subagents/), and [tools/](tools/) are test and build
+  material and never reach a consumer, so no shipped document may link into them. A shipped document linking to a
+  lowercase one is the same defect: the link resolves here and 404s there.
 - **Never hand-edit generated subagent files.** Edit `subagents/<name>.md`, then run the generator. CI fails if the
   generated trees drift from canonical.
 - **Markdown lint.** `README.md`, `AGENTS.md.example`, `docs/*.md`, and `.agents/skills/**/*.md` must contain no
@@ -159,7 +176,7 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
   behaviour change is a change to the script plus a case in
   [tools/tests/test_preflight_gate.py](tools/tests/test_preflight_gate.py), never a second copy of the logic. Keep the
   injected wording identical in every wiring file that injects it. The OpenCode and Kilo Code plugin injects nothing,
-  because neither tool has a stable per-turn injection hook, so it only calls the script.
+  because neither tool has a stable per-turn injection hook, so it only runs the hooks.
 - **The tooling is a package under [tools/](tools/).** Sources sit at the top ([tools/gen_subagents.py](tools/gen_subagents.py),
   [tools/check-markdown.py](tools/check-markdown.py)), tests sit in [tools/tests/](tools/tests/) with an `__init__.py`
   and a `conftest.py`. [tools/pyproject.toml](tools/pyproject.toml) is the only place a dependency or a version is
@@ -169,8 +186,11 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
   `[project.dependencies]`, test dependencies in the `dev` dependency group, and the build backend in `[build-system]`.
   CI installs the project and the `dev` group in one command, and pins pip first because `--group` needs pip 25.1 or
   newer.
-- **CI is manual.** Workflows run on `workflow_dispatch` / `workflow_call` only, so nothing runs on push. Verify
-  locally before declaring work done.
+- **CI runs on every pull request and on every push to `master`,** and `workflow_dispatch` still starts it by hand.
+  Three jobs run in parallel and none gates another: `actionlint` on the workflow YAML, `validate` for the local
+  checks listed below, and `sandbox` for the containerised suite, which builds the image once and then runs the
+  per-project import assertions, a global install run twice, and a scoped single-agent global install. The sandbox job
+  is the long one. Verify locally before you push, because the pipeline is the second opinion rather than the first.
 
 Local verification (the same checks CI runs). Install the pinned dependencies first, with pip 25.1 or newer:
 
@@ -209,10 +229,16 @@ python -c "import tomllib; tomllib.load(open('.codex/config.toml','rb'))"
   generated trees together. Bump the subagent-count badge.
 - **An MCP server:** add the block to all four MCP files (the ones listed under Repo conventions), document it in
   [docs/MCP_SETUP.md](docs/MCP_SETUP.md), and bump the MCP-count badge.
+- **A shipped document:** name it in UPPERCASE under `docs/`, add its path to every
+  `git checkout agent-standards/master --` pathspec that delivers documents (the Quickstart and all five per-agent
+  blocks in [README.md](README.md), the import in [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md), and both shell
+  sections of [docs/AGENTS-UPDATE.md](docs/AGENTS-UPDATE.md)), and list it under Shipped in the README docs map. A
+  document a consumer cannot pull is not shipped, whatever its name says.
 - **A gate rule:** edit [.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py), add the case to
   [tools/tests/test_preflight_gate.py](tools/tests/test_preflight_gate.py), and leave the wiring files alone unless the
   hook surface itself changed. When the wiring does change, the unit tests are not enough: run the containerised
-  sandbox in [sandbox-agent/](sandbox-agent/README.md), which asserts what each agent actually discovers.
+  sandbox in [sandbox-agent/](sandbox-agent/README.md), which asserts what each agent actually discovers. CI runs the
+  same suite on every pull request, so a wiring change that breaks discovery fails the build either way.
 
 ---
 

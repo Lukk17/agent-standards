@@ -95,8 +95,9 @@ docker compose run --rm sandbox /bin/bash
 ```
 
 Then perform the whole global installation by running every command in the Reset state and Run sections of
-[6-global-install-shape-test.md](6-global-install-shape-test.md), in order, ending in `/work/bare`. That command list
-is not repeated here, so there is one copy of it to keep correct. Do not continue until it has finished.
+[6-global-install-shape-test.md](6-global-install-shape-test.md), in order, ending in `/work/bare`. That is two
+invocations of [setup-global.sh](../../sandbox-agent/setup-global.sh) with the reset around them, and it is not
+repeated here so there is one copy to keep correct. Do not continue until it has finished.
 
 Remove any probe left behind by an interrupted earlier run, so the baseline step below means something.
 

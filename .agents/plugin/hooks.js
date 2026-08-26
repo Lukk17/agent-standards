@@ -1,43 +1,103 @@
-// Preflight and response-formatting adapter for OpenCode and Kilo Code.
+// Generic hook runner for OpenCode and Kilo Code.
 //
-// Neither runtime can block a reply from completing, so both checks ride the
+// Neither runtime can block a reply from completing, so every check rides the
 // only blocking channel they have: throwing from tool.execute.before aborts the
-// tool call and surfaces the message to the model. Every tool call runs the
-// preflight gate first, then the formatting check against the newest assistant
-// text in the session. Exit code 2 from either Python script becomes a thrown
-// Error. Everything else allows the call.
+// tool call and surfaces the message to the model.
 //
-// Thin shim with no rules of its own. Imports nothing from @opencode-ai/plugin
-// or @kilocode/plugin so one file serves both runtimes.
+// This file holds no rules. It discovers every hook in .agents/hooks/, runs them
+// in declared order against one envelope, and turns the first exit code 2 into a
+// thrown Error. Adding a hook needs no edit here. The contract a hook must
+// follow is documented at
+// https://github.com/Lukk17/agent-standards/blob/master/docs/hooks-contract.md.
+//
+// Imports nothing from @opencode-ai/plugin or @kilocode/plugin so one file
+// serves both runtimes.
 
 import { spawnSync } from "node:child_process"
-import { existsSync } from "node:fs"
+import { readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 
 const PYTHON = process.platform === "win32" ? "python" : "python3"
-const GATE = join(".agents", "hooks", "preflight_gate.py")
-const MARKERS = join(".agents", "hooks", "no_ai_markers_check.py")
+const HOOKS_DIR = join(".agents", "hooks")
 
+const CONTRACT = 1
+const EVENT = "tool.execute.before"
+
+const DEFAULT_ORDER = 100
+const ORDER_RE = /^HOOK_ORDER\s*=\s*(\d+)\s*$/m
+const HEAD_CHARS = 4096
+
+const TIMEOUT_MS = 10000
 const SESSION_CAP = 64
 
-// The existence check is load bearing: Python itself exits 2 when it cannot
-// open the script, which would otherwise read as a denial.
-const run = (root, script, args, input) => {
+// Reading the file is load bearing twice over. It yields the declared order,
+// and it proves the file can be opened at all: Python exits 2 when it cannot
+// open the script it was handed, which would otherwise read as a denial. A hook
+// that cannot be read here is dropped rather than run.
+const inspect = (name, path) => {
+  let head = ""
+
   try {
-    const path = join(root, script)
+    head = readFileSync(path, "utf8").slice(0, HEAD_CHARS)
+  } catch {
+    return null
+  }
 
-    if (!existsSync(path)) return null
+  const match = ORDER_RE.exec(head)
 
-    return spawnSync(PYTHON, [path, ...args], { cwd: root, input, encoding: "utf8" })
+  return { name, path, order: match ? Number(match[1]) : DEFAULT_ORDER }
+}
+
+// Re-read on every call so a hook dropped into the directory mid-session is
+// picked up without a restart. An unreadable directory yields no hooks, which
+// allows the call.
+//
+// Order is declared by the hook, never taken from the filesystem. A hook that
+// declares nothing sorts at DEFAULT_ORDER, and equal orders fall back to the
+// file name so the sequence stays stable.
+const discover = (root) => {
+  const dir = join(root, HOOKS_DIR)
+  let entries = []
+
+  try {
+    entries = readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return []
+  }
+
+  const hooks = entries
+    .filter((entry) => !entry.isDirectory())
+    .map((entry) => entry.name)
+    .filter((name) => name.endsWith(".py") && !name.startsWith("_") && !name.startsWith("."))
+    .map((name) => inspect(name, join(dir, name)))
+    .filter(Boolean)
+
+  hooks.sort((a, b) => a.order - b.order || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+
+  return hooks
+}
+
+// Hooks are always run through the interpreter, so neither the executable bit
+// nor the shebang matters. Any failure to spawn is an allow.
+const run = (root, hook, input) => {
+  try {
+    return spawnSync(PYTHON, [hook.path, "--format", "plain"], {
+      cwd: root,
+      input,
+      encoding: "utf8",
+      timeout: TIMEOUT_MS,
+    })
   } catch {
     return null
   }
 }
 
-const denial = (result, fallback) => {
+// Exit code 2 is the only denial. Everything else, including a crash, a signal
+// or a timeout, allows.
+const denial = (result, name) => {
   if (result?.status !== 2) return ""
 
-  return result.stderr?.trim() || fallback
+  return result.stderr?.trim() || "Blocked by " + name + "."
 }
 
 // Newest assistant prose in the session, or "" when there is none yet.
@@ -69,54 +129,55 @@ const lastAssistantText = async (client, sessionID) => {
   return ""
 }
 
-export const Preflight = async ({ directory, client } = {}) => {
-  const root = directory || process.cwd()
+// Each distinct text is delivered to the hooks once per session, so a run of
+// tool calls after one message does not block twice on prose the model cannot
+// change mid-turn.
+const freshAssistantText = async (client, seen, sessionID) => {
+  if (!sessionID) return ""
+
+  const text = await lastAssistantText(client, sessionID)
+
+  if (!text || seen.get(sessionID) === text) return ""
+
+  if (seen.size >= SESSION_CAP) seen.clear()
+  seen.set(sessionID, text)
+
+  return text
+}
+
+// `worktree` is the project root; `directory` is only the session's working
+// directory, which is a subdirectory whenever the runtime was started deeper in
+// the tree. Anchoring on the root is what keeps .agents/hooks/ findable.
+export const Preflight = async ({ directory, worktree, client } = {}) => {
+  const root = worktree || directory || process.cwd()
   const seen = new Map()
 
-  const gate = (input, output) => {
-    const agent = typeof input?.agent === "string" ? input.agent : ""
-
-    const payload = JSON.stringify({
-      tool_name: input?.tool ?? "",
-      tool_input: output?.args ?? {},
-      agent_type: agent,
-    })
-
-    const args = ["--format", "plain"]
-    if (agent) args.push("--subagent")
-
-    const message = denial(
-      run(root, GATE, args, payload),
-      "Preflight gate denied this call.",
-    )
-
-    if (message) throw new Error(message)
-  }
-
-  // Checked once per distinct text, so a run of tool calls after one message
-  // does not throw again on prose the model cannot change mid-turn.
-  const formatting = async (sessionID) => {
-    if (!sessionID) return
-
-    const text = await lastAssistantText(client, sessionID)
-
-    if (!text || seen.get(sessionID) === text) return
-
-    if (seen.size >= SESSION_CAP) seen.clear()
-    seen.set(sessionID, text)
-
-    const message = denial(
-      run(root, MARKERS, ["--text"], text),
-      "Rewrite your last reply without banned formatting.",
-    )
-
-    if (message) throw new Error(message)
-  }
-
   return {
-    "tool.execute.before": async (input, output) => {
-      gate(input, output)
-      await formatting(input?.sessionID)
+    [EVENT]: async (input, output) => {
+      const hooks = discover(root)
+
+      // Nothing to ask, so nothing to build. This also keeps the session round
+      // trip for the assistant text out of a project that checked out no hooks.
+      if (hooks.length === 0) return
+
+      const agent = typeof input?.agent === "string" ? input.agent : ""
+
+      const envelope = JSON.stringify({
+        contract: CONTRACT,
+        event: EVENT,
+        tool_name: input?.tool ?? "",
+        tool_input: output?.args ?? {},
+        agent_type: agent,
+        is_subagent: Boolean(agent),
+        assistant_text: await freshAssistantText(client, seen, input?.sessionID),
+        cwd: root,
+      })
+
+      for (const hook of hooks) {
+        const message = denial(run(root, hook, envelope), hook.name)
+
+        if (message) throw new Error(message)
+      }
     },
   }
 }

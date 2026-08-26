@@ -7,8 +7,9 @@ decision the preflight gate actually returns. Logs are diagnostic, never a pass 
 The live stack here is the container built by [sandbox-agent/](../sandbox-agent/README.md). It installs the five
 supported agent command-line tools, mounts this repository read-only at `/repo`, and lets a runner build a consumer
 project inside itself. The suites below drive that container. They do not replace
-[verify.sh](../sandbox-agent/verify.sh), they restate the same behaviours as separately runnable, separately numbered
-specs so a sweep reports a verdict per capability instead of one pass or fail for everything.
+[verify-project.sh](../sandbox-agent/verify-project.sh) and [verify-global.sh](../sandbox-agent/verify-global.sh),
+they restate the same behaviours as separately runnable, separately numbered specs so a sweep reports a verdict per
+capability instead of one pass or fail for everything.
 
 ---
 
@@ -53,7 +54,7 @@ shared configuration is seen correctly by every agent: skills discoverable, suba
 agent's own format, the preflight gate wired into the file that agent reads, MCP servers visible, and the gate
 actually denying a main-thread source edit.
 
-Suite B, specs 6 to 9, covers the global setup from [docs/global-setup.md](../docs/global-setup.md). It proves the
+Suite B, specs 6 to 9, covers the global setup from [docs/GLOBAL_SETUP.md](../docs/GLOBAL_SETUP.md). It proves the
 same four things for an installation into the container user's home directory.
 
 Suite B has one design constraint that shapes every spec in it. A global install only counts as proven when the

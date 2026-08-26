@@ -11,10 +11,11 @@ services:
     environment:
       AGENT_STANDARDS_REPO: /repo
       SANDBOX_PROJECT: /work/project
+      SANDBOX_BARE: /work/bare
       SANDBOX_CLI_TIMEOUT: "300"
     volumes:
       - type: bind
         source: ..
         target: /repo
         read_only: true
-    command: ["/sandbox/verify.sh"]
+    command: ["/sandbox/verify-project.sh"]

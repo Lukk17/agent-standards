@@ -93,15 +93,33 @@ docker compose run --rm sandbox /bin/bash
 ```
 
 Then perform the whole global installation by running every command in the Reset state and Run sections of
-[6-global-install-shape-test.md](6-global-install-shape-test.md), in order, ending in `/work/bare`. That command list
-is not repeated here, so there is one copy of it to keep correct. Do not continue until it has finished. It already
-puts the OpenCode and Kilo Code server blocks in place, so the commands below add only what it does not cover.
+[6-global-install-shape-test.md](6-global-install-shape-test.md), in order, ending in `/work/bare`. That is two
+invocations of [setup-global.sh](../../sandbox-agent/setup-global.sh) with the reset around them, and it is not
+repeated here so there is one copy to keep correct. Do not continue until it has finished.
+
+The installer writes no MCP configuration for any agent, deliberately, because which servers are machine-wide is a
+per-machine judgement rather than something an install can decide. Every server this spec asserts on is therefore
+placed by the commands below.
 
 Give Codex its user-scope server tables and the trust record for the bare directory. Without the trust record Codex
 reports nothing at all and the assertion would be measuring the trust prompt rather than the configuration.
 
 ```bash
 cp /repo/e2e/fixtures/global/codex-config.toml "$HOME/.codex/config.toml"
+```
+
+Give OpenCode its global configuration. The installer creates none, so this file is the whole of what OpenCode reads
+at user scope here.
+
+```bash
+cp /repo/e2e/fixtures/global/opencode.json "$HOME/.config/opencode/opencode.json"
+```
+
+Give Kilo Code the same two servers. This overwrites the `kilo.jsonc` the installer wrote, and the fixture carries the
+`skills.paths` and `instructions` keys as well, so nothing the installer put there is lost.
+
+```bash
+cp /repo/e2e/fixtures/global/kilo.jsonc "$HOME/.config/kilo/kilo.jsonc"
 ```
 
 Give the Copilot command-line tool its user-scope server file.
@@ -274,8 +292,9 @@ Expect exit 1, meaning the name appears nowhere. Exit 0 here is a failure of the
 
 - `e2e/fixtures/global/codex-config.toml`: two `[mcp_servers]` tables plus the trust record for `/work/bare`.
 - `e2e/fixtures/global/copilot-mcp-config.json`: Copilot command-line MCP configuration, keyed `mcpServers`.
-- `e2e/fixtures/global/opencode.json`: global OpenCode configuration, copied into place by the inherited install.
-- `e2e/fixtures/global/kilo.jsonc`: global Kilo Code configuration, copied into place by the inherited install.
+- `e2e/fixtures/global/opencode.json`: global OpenCode configuration, copied into place by this spec.
+- `e2e/fixtures/global/kilo.jsonc`: global Kilo Code configuration, copied into place by this spec over the one the
+  installer wrote, carrying `skills.paths` and `instructions` as well as the two servers.
 
 All four carry literal values and no variable references, so no assertion here can fail because a variable was unset
 in the container.
@@ -286,7 +305,8 @@ in the container.
 
 - Mutates: the container's home directory, through the install this spec inherits from
   [6-global-install-shape-test.md](6-global-install-shape-test.md), plus `$HOME/.codex/config.toml`,
-  `$HOME/.copilot/mcp-config.json`, and `$HOME/.claude.json`, which `claude mcp add` writes. Nothing outside the
+  `$HOME/.config/opencode/opencode.json`, `$HOME/.config/kilo/kilo.jsonc`, `$HOME/.copilot/mcp-config.json`, and
+  `$HOME/.claude.json`, which `claude mcp add` writes. Nothing outside the
   container: `/repo` is mounted read-only and the container is discarded on exit.
 - Conflicts with: every other spec in either suite when they share a container shell. In particular
   [4-project-mcp-visibility-test.md](4-project-mcp-visibility-test.md) writes its Codex trust record into the same

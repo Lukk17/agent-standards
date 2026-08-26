@@ -62,8 +62,10 @@ which suite the spec belongs to.
 | 9 | global | 5 | Global install plus a probe subagent written into the global agent directory |
 
 Each spec is self-contained: any one of them can be run on its own in a fresh container. Suite B specs 7, 8, and 9
-reuse the install command list from spec 6 by reference rather than repeating it, so there is one copy of it to keep
-correct.
+reuse the install procedure from spec 6 by reference rather than repeating it, so there is one copy of it to keep
+correct. That procedure is one script, [setup-global.sh](../../sandbox-agent/setup-global.sh), the container's
+counterpart of what [docs/GLOBAL_SETUP.md](../../docs/GLOBAL_SETUP.md) describes a reader doing on their own
+machine.
 
 ---
 

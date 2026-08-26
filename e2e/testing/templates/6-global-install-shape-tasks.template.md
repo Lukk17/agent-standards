@@ -20,43 +20,18 @@ go. Add anything you did beyond the spec under Additional tasks I did.
 - [ ] Container shell started, version table copied into Additional tasks I did
 - [ ] Every global directory the install writes to cleared
 - [ ] `/work/bare` cleared and recreated
-- [ ] `/repo` added as a git safe directory
+- [ ] `/repo` and `/repo/.git` added as git safe directories
 
 #### Run
 
-- [ ] 1. Shared checkout cloned into the home directory
-- [ ] 2. Sparse checkout directories selected
-- [ ] 3. Push URL set to `no_push`
-- [ ] 4. `$HOME/.agents` created
-- [ ] 5. Canonical content copied into it
-- [ ] 6. Machine-wide instruction file placed
-- [ ] 7. `$HOME/.claude` created
-- [ ] 8. Claude Code skills symlink created
-- [ ] 9. Claude Code subagents copied
-- [ ] 10. Claude Code instruction import placed
-- [ ] 11. Claude Code user settings placed
-- [ ] 12. `$HOME/.codex` created
-- [ ] 13. Codex TOML subagents copied
-- [ ] 14. Codex instruction symlink created
-- [ ] 15. Codex user hooks placed
-- [ ] 16. OpenCode configuration directories created
-- [ ] 17. OpenCode subagents copied
-- [ ] 18. OpenCode plugin installed
-- [ ] 19. OpenCode instruction symlink created
-- [ ] 20. OpenCode global configuration placed
-- [ ] 21. Kilo Code configuration directories created
-- [ ] 22. Kilo Code subagents copied
-- [ ] 23. Kilo Code plugin installed
-- [ ] 24. Kilo Code global configuration placed
-- [ ] 25. Copilot configuration directories created
-- [ ] 26. Copilot subagents copied
-- [ ] 27. Copilot hooks file copied
-- [ ] 28. Gate call in that copy rewritten to an absolute path
-- [ ] 29. Copilot instruction symlink created
-- [ ] 30. Moved into `/work/bare`
+- [ ] 1. Installer run for all five agents, exit status read
+- [ ] 2. Installer run a second time, unchanged, exit status read
+- [ ] 3. Moved into `/work/bare`
 
 #### Expected
 
+- [ ] The first install exited 0
+- [ ] The second install exited 0
 - [ ] `/work/bare` holds none of the per-project files
 - [ ] The shared skills tree holds every canonical skill
 - [ ] `~/.claude/skills` is a symlink that resolves to a directory
@@ -67,8 +42,9 @@ go. Add anything you did beyond the spec under Additional tasks I did.
 - [ ] OpenCode subagent count matches canonical
 - [ ] Kilo Code subagent count matches canonical
 - [ ] Copilot subagent count matches canonical
+- [ ] The second install nested no subagent tree inside another
 - [ ] There is one shared instruction file
-- [ ] Claude Code points at it with an import line
+- [ ] Claude Code points at it with exactly one import line
 - [ ] Codex points at it with a resolving symlink
 - [ ] OpenCode points at it with a resolving symlink
 - [ ] Copilot points at it with a resolving symlink

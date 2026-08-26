@@ -30,7 +30,8 @@ ENV HOME=/home/sandbox \
     NPM_CONFIG_AUDIT=false \
     PATH=/home/sandbox/.npm-global/bin:/usr/local/bin:/usr/bin:/bin \
     AGENT_STANDARDS_REPO=/repo \
-    SANDBOX_PROJECT=/work/project
+    SANDBOX_PROJECT=/work/project \
+    SANDBOX_BARE=/work/bare
 
 RUN npm install --global --loglevel=error \
         @anthropic-ai/claude-code \
@@ -39,11 +40,11 @@ RUN npm install --global --loglevel=error \
         @kilocode/cli \
         @github/copilot
 
-COPY --chown=sandbox:sandbox entrypoint.sh setup-project.sh verify.sh /sandbox/
+COPY --chown=sandbox:sandbox entrypoint.sh setup-project.sh setup-global.sh verify-project.sh verify-global.sh /sandbox/
 
 RUN chmod +x /sandbox/*.sh
 
 WORKDIR /work
 
 ENTRYPOINT ["/sandbox/entrypoint.sh"]
-CMD ["/sandbox/verify.sh"]
+CMD ["/sandbox/verify-project.sh"]

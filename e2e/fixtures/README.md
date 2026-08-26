@@ -17,11 +17,13 @@ show which definition the gate refused, and so a stray copy left behind in a rea
 1. Fixtures are read-only inputs. A spec copies a fixture into place, it never edits one.
 2. Every fixture a spec writes into an agent directory is deleted again in the same spec, and the spec says so under
    Reset state.
-3. The global fixtures hard-code the container paths `/home/sandbox` and `/work/bare`. They are container inputs, not
-   templates for a real machine. The real per-machine instructions are in
-   [docs/global-setup.md](../../docs/global-setup.md).
+3. The global fixtures hard-code the container path `/work/bare`. They are container inputs, not templates for a real
+   machine. The container install is [setup-global.sh](../../sandbox-agent/setup-global.sh), the counterpart of the
+   per-machine procedure in [docs/GLOBAL_SETUP.md](../../docs/GLOBAL_SETUP.md). Nothing the installer itself writes
+   is fixtured, because it derives every absolute path from `$HOME` at run time, and a fixture copy of those files
+   would be a second copy of the install that drifts.
 4. The global MCP fixtures carry only the two servers that are genuinely machine-wide, Context7 and Playwright, which
-   is what [docs/global-setup.md](../../docs/global-setup.md) tells a reader to keep at user scope. They also use
+   is what [docs/GLOBAL_SETUP.md](../../docs/GLOBAL_SETUP.md) tells a reader to keep at user scope. They also use
    literal values rather than `{env:VAR}` or `${VAR}` references, so no assertion can fail because a variable was
    unset in the container.
 
@@ -38,10 +40,7 @@ show which definition the gate refused, and so a stray copy left behind in a rea
 | `gate-payloads/subagent-with-skills.json` | tests 5 and 9 | Subagent payload naming `code-reviewer`, which declares skills |
 | `gate-payloads/subagent-without-skills.json` | tests 5 and 9 | Subagent payload naming `e2e-no-skills-probe` |
 | `gate-payloads/malformed.txt` | test 1 | Not JSON, so the gate has to fail open |
-| `global/claude-settings.json` | tests 6 and 9 | User-scope Claude Code hooks calling the gate at `/home/sandbox/.agents/hooks/` |
-| `global/claude-CLAUDE.md` | test 6 | The single `@~/.agents/AGENTS.md` import line |
-| `global/codex-hooks.json` | test 6 | User-scope Codex hooks calling the gate by absolute path |
 | `global/codex-config.toml` | test 8 | Two `[mcp_servers]` tables plus the trust record for `/work/bare` |
-| `global/opencode.json` | tests 7 and 8 | Global OpenCode config with the two machine-wide servers |
-| `global/kilo.jsonc` | tests 7 and 8 | Global Kilo config with `skills.paths`, `instructions`, and the same two servers |
+| `global/opencode.json` | test 8 | Global OpenCode config with the two machine-wide servers |
+| `global/kilo.jsonc` | test 8 | Global Kilo config with `skills.paths`, `instructions`, and the same two servers |
 | `global/copilot-mcp-config.json` | test 8 | Copilot command-line MCP config keyed `mcpServers` |

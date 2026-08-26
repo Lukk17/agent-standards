@@ -3,12 +3,12 @@
 Install the shared agent configuration once into your home directory so every project on the machine gets it, even the
 ones that never ran the per-project import.
 
-This is the counterpart to the per-project flow in [README.md](../README.md). The two are additive rather than
-exclusive: an agent reads both scopes and merges them, so a project that also ran the per-project import keeps winning
-on the paths where both scopes define the same thing.
+This is the counterpart to the per-project import in [AGENT_TOOLING.md](AGENT_TOOLING.md). The two are additive rather
+than exclusive: an agent reads both scopes and merges them, so a project that also ran the per-project import keeps
+winning on the paths where both scopes define the same thing.
 
-This file stays in the agent-standards repo only. A global install is a per-machine job you do once, so nothing here
-is copied into a consumer project. Read it from upstream and run the commands against your home directory.
+Everything below is a command you run yourself, per agent, with a PowerShell version and a Unix-shell version of each
+one. Take only the sections for the agents you actually run.
 
 ---
 
@@ -32,18 +32,20 @@ Belongs globally, because it is the same for you in every repository:
 
 Stays per project, because a global copy would be wrong or actively harmful:
 
-- MCP servers. A connection string, a Grafana URL, or a SonarQube token belongs to one project. Servers that really are
-  machine-wide (Context7 and Playwright, for example) are the exception and are fine globally.
-- Project instructions. Build commands, module layout, and architecture decisions are the project's, not yours.
-- The blocking half of the gate. The shipped hook wiring calls `python .agents/hooks/preflight_gate.py`, a
-  project-relative path, and the gate reads the project's subagent definitions to decide. See
-  [Limitations](#limitations) for exactly how far the global half gets.
+- MCP servers that carry a connection string, a project token, or a service address. A Grafana URL or a SonarQube
+  token belongs to the one project that owns it. Servers that really are machine-wide, Context7 and Playwright for
+  example, are the exception and are fine globally.
+- Anything that describes a codebase: its build commands, its module layout, its architecture decisions.
+- The blocking half of the gate. Every shipped hook wiring calls `python .agents/hooks/preflight_gate.py`, a
+  project-relative path. Read [Limitations](#limitations) for exactly how far the global half gets.
 
 ---
 
-### Windows prerequisites
+### Prerequisites
 
-Several of the steps below create a symlink, so on Windows do both of these before you start.
+You need `git`, and Python 3 if you want the blocking half of the gate to run.
+
+Several steps below create a symlink, so on Windows do both of these before you start.
 
 Turn on Developer Mode in Settings, System, For developers. Without it, creating a symlink needs an elevated shell.
 Claude Code's own documentation says the same thing about symlinking `CLAUDE.md`
@@ -65,7 +67,20 @@ git config --global core.symlinks true
 PowerShell has no `ln`. Use `New-Item -ItemType SymbolicLink`, which is the only command that makes a real symlink.
 `New-Item -ItemType Junction` and a shortcut file are not the same thing, and the agents will not follow them.
 
-On Windows, `~` and `$HOME` both resolve to `%USERPROFILE%`, so `~/.claude` means `%USERPROFILE%\.claude`
+If you would rather run the Unix-shell blocks under Git Bash on Windows, tell the MSYS runtime to make real symlinks
+first, because that is not its default. Put this in the session before you start, or in your `~/.bashrc`:
+
+```bash
+export MSYS=winsymlinks:nativestrict
+```
+
+Without that setting `ln -s` silently copies the target, so `~/.claude/skills` becomes a stale snapshot of the skills
+tree instead of a live link to it, and an update stops reaching it.
+
+WSL works too, but read what it installs into before you pick it. Inside WSL, `$HOME` is the Linux home, so the
+install lands there and a Windows-side agent never sees it. Use WSL only if the agents you run are the ones inside it.
+
+On Windows, `~` and `$HOME` in this document both mean `%USERPROFILE%`, so `~/.claude` means `%USERPROFILE%\.claude`
 ([Claude Code settings](https://code.claude.com/docs/en/settings)).
 
 ---
@@ -204,8 +219,8 @@ ln -s ~/.agents/skills ~/.claude/skills
 
 The documentation guarantees the symlink is followed for a `<skill-name>` entry inside the skills directory, and says
 Claude Code loads a skill once even when the same target is reachable from two locations. Linking the whole `skills`
-directory in one go, which is what the command above does and what this repo does at project level, is not spelled out
-in the documentation. If it ever stops working, fall back to one symlink per skill directory, which is the documented
+directory in one go, which is what the command above does and what the per-project setup does, is not spelled out in
+the documentation. If it ever stops working, fall back to one symlink per skill directory, which is the documented
 shape.
 
 Copy the subagents. PowerShell:
@@ -293,6 +308,18 @@ Codex needs the least work of the five. It scans `$HOME/.agents/skills` for skil
 skill folders while scanning ([build skills](https://learn.chatgpt.com/codex/build-skills)), so step 2 finished the
 skills job. There is no `~/.codex/skills` in the documentation at all.
 
+Create the configuration directory. PowerShell:
+
+```powershell
+New-Item -ItemType Directory -Force $HOME\.codex
+```
+
+Unix shell:
+
+```bash
+mkdir -p ~/.codex
+```
+
 Copy the TOML subagents into `~/.codex/agents/`
 ([subagents](https://learn.chatgpt.com/codex/agent-configuration/subagents)). PowerShell:
 
@@ -359,10 +386,22 @@ want from [MCP_SETUP.md](MCP_SETUP.md).
 
 #### OpenCode
 
-OpenCode reads `~/.agents/skills/<name>/SKILL.md` natively as one of its six skill locations, so step 2 finished that
-too ([skills docs](https://opencode.ai/docs/skills/)). It also reads `~/.claude/skills`, which means the Claude Code
+OpenCode reads `~/.agents/skills/<name>/SKILL.md` natively as one of its skill locations, so step 2 finished that too
+([skills docs](https://opencode.ai/docs/skills/)). It also reads `~/.claude/skills`, which means the Claude Code
 symlink from the previous section is a second route to the same files. OpenCode loads a skill from whichever location
 it finds it in, so there is nothing to undo.
+
+Create the configuration directory. PowerShell:
+
+```powershell
+New-Item -ItemType Directory -Force $HOME\.config\opencode\plugins
+```
+
+Unix shell:
+
+```bash
+mkdir -p ~/.config/opencode/plugins
+```
 
 Copy the OpenCode-format subagents into the documented global location, `~/.config/opencode/agents/`
 ([agents docs](https://opencode.ai/docs/agents/)). PowerShell:
@@ -417,8 +456,20 @@ Kilo Code is the one agent where the shared skills tree is not automatic. Its do
 home-directory `~/.agents/skills` is not on that list, and `.agents/skills/` is documented as a project-relative
 compatibility directory only ([skills docs](https://kilo.ai/docs/customize/skills)).
 
-The documented way to add it is the `skills.paths` key, which accepts `~/` home-relative paths. Put this in
-`~/.config/kilo/kilo.jsonc`:
+Create the configuration directory. PowerShell:
+
+```powershell
+New-Item -ItemType Directory -Force $HOME\.config\kilo\plugin
+```
+
+Unix shell:
+
+```bash
+mkdir -p ~/.config/kilo/plugin
+```
+
+The documented way to add the shared tree is the `skills.paths` key, which accepts `~/` home-relative paths. Put this
+in `~/.config/kilo/kilo.jsonc`:
 
 ```jsonc
 {
@@ -496,6 +547,18 @@ Everything else on this list is CLI-only. The CLI configuration directory is `~/
 `COPILOT_HOME`
 ([CLI config dir reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference)).
 
+Create the two directories the copies land in. PowerShell:
+
+```powershell
+New-Item -ItemType Directory -Force $HOME\.copilot\agents, $HOME\.copilot\hooks
+```
+
+Unix shell:
+
+```bash
+mkdir -p ~/.copilot/agents ~/.copilot/hooks
+```
+
 Copy the `*.agent.md` subagents into `~/.copilot/agents/`. PowerShell:
 
 ```powershell
@@ -548,10 +611,22 @@ are in [MCP_SETUP.md](MCP_SETUP.md).
 
 ---
 
+### What this document deliberately leaves to you
+
+1. MCP servers, everywhere. Which servers are machine-wide is a judgement about your machine, and most servers should
+   not be global at all. Each agent's subsection above says where its user-scope MCP configuration lives, and
+   [MCP_SETUP.md](MCP_SETUP.md) has the blocks.
+2. The content of `~/.agents/AGENTS.md`. Step 2 copies the project template there once. Editing it down to the parts
+   that are about you is a job only you can do.
+3. Merging into a configuration file you already have. Nothing above tells you to overwrite one. Where a file already
+   exists, merge the block rather than replacing the file.
+
+---
+
 ### Global path map
 
-Every global location this document touches, per agent. Read it next to the project-level equivalent in
-[agent-compatibility.md](agent-compatibility.md).
+Every global location this document touches, per agent. The project-level equivalents are the paths the import
+writes into your repository, and they are unaffected by anything here.
 
 | Agent | Skills | Subagents | Hooks or plugin | MCP config | Global instructions | Config-dir env var |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -660,8 +735,7 @@ Unix shell:
 cp -R ~/.agent-standards/.github/agents/. ~/.copilot/agents/
 ```
 
-Refresh the OpenCode subagents from the shared tree you just updated, and run the same pair against
-`$HOME\.config\kilo\agents` for Kilo Code. PowerShell:
+Refresh the OpenCode subagents from the shared tree you just updated. PowerShell:
 
 ```powershell
 Copy-Item -Recurse -Force $HOME\.agents\agents\* $HOME\.config\opencode\agents\
@@ -673,6 +747,18 @@ Unix shell:
 cp -R ~/.agents/agents/. ~/.config/opencode/agents/
 ```
 
+Run the same pair against Kilo Code's directory. PowerShell:
+
+```powershell
+Copy-Item -Recurse -Force $HOME\.agents\agents\* $HOME\.config\kilo\agents\
+```
+
+Unix shell:
+
+```bash
+cp -R ~/.agents/agents/. ~/.config/kilo/agents/
+```
+
 Never refreshed by any command above, on purpose, because they become yours the moment you install them:
 `~/.claude/settings.json`, `~/.claude/CLAUDE.md`, `~/.claude.json`, `~/.codex/hooks.json`, `~/.codex/config.toml`,
 `~/.config/opencode/opencode.json`, `~/.config/kilo/kilo.jsonc`, `~/.copilot/hooks/preflight.json`,
@@ -682,6 +768,58 @@ merge it into those by hand.
 A deleted skill is the one case the copy commands get wrong: they bring back anything you removed on purpose. Once you
 start curating the set, use the selective approach in [AGENTS-UPDATE.md](AGENTS-UPDATE.md), which enumerates what is
 already on disk and refreshes only that.
+
+---
+
+### Undoing the global installation
+
+Remove it by hand, in this order, checking each directory before you delete it. Every directory the install writes into
+is a directory an agent also lets you put your own files in, so deleting a whole tree takes anything you wrote yourself
+along with the imported files.
+
+Delete the shared checkout, which nothing but this install owns. PowerShell:
+
+```powershell
+Remove-Item -Recurse -Force $HOME\.agent-standards
+```
+
+Unix shell:
+
+```bash
+rm -rf ~/.agent-standards
+```
+
+Delete the shared tree. This also removes `~/.agents/AGENTS.md`, so move that aside first if you edited it into
+something you want to keep. PowerShell:
+
+```powershell
+Remove-Item -Recurse -Force $HOME\.agents
+```
+
+Unix shell:
+
+```bash
+rm -rf ~/.agents
+```
+
+Then, per agent, remove only what you recognise: the `agents/` directory, the plugin file, the `skills` symlink, and
+the pointer at the shared instruction file. The [Global path map](#global-path-map) above lists every one of them.
+Take the gate out of `~/.claude/settings.json`, `~/.codex/hooks.json`, and `~/.copilot/hooks/preflight.json` by
+editing those files, since each may hold configuration of yours as well, and take the `@~/.agents/AGENTS.md` line out
+of `~/.claude/CLAUDE.md`.
+
+Removing `~/.claude/skills` needs one bit of care. It is a symlink, so delete the link itself and not the tree behind
+it. PowerShell:
+
+```powershell
+(Get-Item $HOME\.claude\skills).Delete()
+```
+
+Unix shell:
+
+```bash
+rm ~/.claude/skills
+```
 
 ---
 

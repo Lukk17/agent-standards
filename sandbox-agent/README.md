@@ -86,10 +86,10 @@ That rules out the other explanations:
 Only the large listing is affected. `opencode mcp list` is 1037 bytes, small enough to sit in a single pipe buffer,
 and never truncated in any run.
 
-[verify.sh](verify.sh) therefore captures every agent command-line tool into a temporary file instead of a pipe, and
-greps that file. The temporary file is removed by an exit trap. The assertion still says what it always said, that
-OpenCode lists every imported subagent, and it is now measuring that rather than measuring how much of the answer
-survived the pipe.
+[verify-project.sh](verify-project.sh) and [verify-global.sh](verify-global.sh) therefore capture every agent
+command-line tool into a temporary file instead of a pipe, and grep that file. The temporary file is removed by an
+exit trap. The assertion still says what it always said, that OpenCode lists every imported subagent, and it is now
+measuring that rather than measuring how much of the answer survived the pipe.
 
 ---
 
@@ -102,7 +102,12 @@ works in a Unix shell and in PowerShell.
 cd sandbox-agent
 ```
 
-Then run the assertions. Unix shell:
+There are two scenarios and one service. The scenario is chosen by the command, because the two differ only in which
+script runs: same image, same read-only mount, same security options. A second Compose service would duplicate the
+whole service block to express a one-word difference, and would give `docker compose up` two containers when only one
+scenario ever runs at a time.
+
+The per-project scenario is the service default, so it needs no command. Unix shell:
 
 ```bash
 docker compose run --rm --build sandbox
@@ -112,6 +117,30 @@ PowerShell:
 
 ```powershell
 docker compose run --rm --build sandbox
+```
+
+The global scenario names its script. Unix shell:
+
+```bash
+docker compose run --rm sandbox /sandbox/verify-global.sh
+```
+
+PowerShell:
+
+```powershell
+docker compose run --rm sandbox /sandbox/verify-global.sh
+```
+
+To prove that installing for one agent writes that agent's paths and no other's, Unix shell:
+
+```bash
+docker compose run --rm sandbox /sandbox/verify-global.sh --scoped codex
+```
+
+PowerShell:
+
+```powershell
+docker compose run --rm sandbox /sandbox/verify-global.sh --scoped codex
 ```
 
 A cold run takes several minutes. Most of it is the container updating the five agent tools and then waiting on MCP
@@ -144,13 +173,13 @@ docker compose run --rm sandbox /bin/bash
 The image carries ShellCheck, so it can lint its own scripts. Unix shell:
 
 ```bash
-docker compose run --rm --entrypoint shellcheck sandbox /sandbox/entrypoint.sh /sandbox/setup-project.sh /sandbox/verify.sh
+docker compose run --rm --entrypoint shellcheck sandbox /sandbox/entrypoint.sh /sandbox/setup-project.sh /sandbox/setup-global.sh /sandbox/verify-project.sh /sandbox/verify-global.sh
 ```
 
 PowerShell:
 
 ```powershell
-docker compose run --rm --entrypoint shellcheck sandbox /sandbox/entrypoint.sh /sandbox/setup-project.sh /sandbox/verify.sh
+docker compose run --rm --entrypoint shellcheck sandbox /sandbox/entrypoint.sh /sandbox/setup-project.sh /sandbox/setup-global.sh /sandbox/verify-project.sh /sandbox/verify-global.sh
 ```
 
 ---
@@ -203,8 +232,10 @@ PowerShell and cmd do no such rewriting, so the PowerShell commands above need n
 | [Dockerfile](Dockerfile) | Debian image with Node, Python, git, jq and ShellCheck, plus a baseline install of the five agent tools under a non-root user. |
 | [entrypoint.sh](entrypoint.sh) | Marks `/repo` and `/repo/.git` as git safe directories, updates every agent tool to its newest release, prints the resolved versions, then runs the container command. |
 | [setup-project.sh](setup-project.sh) | Creates the empty project, marks the same two paths plus the project itself as safe, runs the documented selective checkout against the mounted repository, and repairs and verifies the three symlinks. |
-| [verify.sh](verify.sh) | Every assertion, one `PASS` or `FAIL` line each, exit 1 if any failed. Calls `setup-project.sh` first unless `SANDBOX_SKIP_SETUP=1`. |
-| [compose.yaml](compose.yaml) | Mounts the repository read-only at `/repo`, drops every Linux capability, and runs `verify.sh`. |
+| [setup-global.sh](setup-global.sh) | Clones the mounted repository into `~/.agent-standards` and installs the shared configuration into the container's home directory, for every agent or only the ones named. Idempotent, and it never deletes or rewrites a file it did not create. |
+| [verify-project.sh](verify-project.sh) | Every per-project assertion, one `PASS` or `FAIL` line each, exit 1 if any failed. Calls `setup-project.sh` first unless `SANDBOX_SKIP_SETUP=1`. |
+| [verify-global.sh](verify-global.sh) | Every global assertion, in the same style. Calls `setup-global.sh` twice, then asserts from `/work/bare`. With `--scoped <agent>` it installs for that agent alone and asserts only its paths were written. |
+| [compose.yaml](compose.yaml) | Mounts the repository read-only at `/repo`, drops every Linux capability, and runs `verify-project.sh` unless the run names another script. |
 | [.dockerignore](.dockerignore) | Keeps the README and the Compose file out of the build context, so editing either one does not bust the image cache. |
 
 Versions are never pinned in the image. The baseline install exists only to warm the layer cache, and
@@ -226,9 +257,27 @@ renamed rather than copied. Git recreates the three symlinks from the tree, and 
 arrive as links before verifying all three resolve to directories.
 
 Codex needs one extra step that a human normally does by hand. It ignores the whole `.codex/` layer until the project
-is trusted once, so [verify.sh](verify.sh) writes a trust record into the container's own `~/.codex/config.toml`
-before asking `codex mcp list` anything. Without it Codex reports no MCP servers at all and the assertion would be
-measuring the trust prompt rather than the configuration.
+is trusted once, so [verify-project.sh](verify-project.sh) writes a trust record into the container's own
+`~/.codex/config.toml` before asking `codex mcp list` anything. Without it Codex reports no MCP servers at all and
+the assertion would be measuring the trust prompt rather than the configuration.
+
+---
+
+### How the global install is exercised
+
+[verify-project.sh](verify-project.sh) covers the per-project import only. The global install writes into a home
+directory rather than into a project, so it gets its own pair: [setup-global.sh](setup-global.sh) performs the
+install and [verify-global.sh](verify-global.sh) asserts what every agent then discovers, exactly the way
+`setup-project.sh` and `verify-project.sh` divide the per-project scenario.
+
+`verify-global.sh` runs the installer twice, because an install that is not idempotent cannot also be the update
+path, and then asserts from `/work/bare`, a directory into which nothing was ever imported. That bareness is what
+makes a passing assertion attributable to the home layer rather than to a project layer. Its assertions are those of
+suite B in [e2e/testing](../e2e/testing), specs 6 to 9, so the script and the specs say the same thing.
+
+Everything the installer copies comes from the clone it makes of `/repo`, so that part is committed state, the same
+rule the per-project suite follows. The scripts themselves are baked into the image, so a change to one of them needs
+a rebuild before a run sees it.
 
 ---
 
@@ -251,9 +300,13 @@ problem only a live run finds.
 
 1. Kilo Code rejected the shared `opencode.json` outright. An `{env:VAR}` reference is banned in project-scope
    configuration, and Kilo discards the whole file rather than leaving the token literal, which took the `plugin`
-   declaration carrying the preflight gate with it. Kilo Code had no gate at all. The shared file now carries no
-   substitution token, and the one value that cannot be inherited from the process environment sits in an
-   `.opencode/opencode.json` overlay that only OpenCode reads.
+   declaration carrying the preflight gate with it. Kilo Code had no gate at all. There is now a single project-level
+   OpenCode configuration, [opencode.json](../opencode.json) at the repository root, and it carries no environment
+   reference of any kind. Local servers need none, because both tools start them with the environment of the process
+   that started the agent. The one value that cannot arrive that way is the Context7 API key, which travels as an HTTP
+   header, so `context7` is declared unauthenticated and both tools use the free tier. A paid key goes in the reader's
+   own global configuration. It cannot go in a project file, because Kilo would reject that file whole and take the
+   gate declaration with it again.
 2. One skill had invalid YAML front matter. An unquoted colon in the `description` of
    `.agents/skills/nextjs-turbopack/SKILL.md` made GitHub Copilot skip the skill entirely. The value is quoted now,
    and a scan confirmed it was the only one of the 84 affected.

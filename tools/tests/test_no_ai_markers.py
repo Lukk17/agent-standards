@@ -3,10 +3,12 @@
 Driven as a subprocess, because the hook contract is the process contract. The
 default mode takes a Stop payload on stdin against a synthetic JSONL transcript
 and answers with a decision on stdout at exit 0. The --text mode takes raw prose
-on stdin and answers with a reason on stderr at exit 2.
+on stdin and answers with a reason on stderr at exit 2. The --format plain mode
+takes the runner envelope from docs/hooks-contract.md and answers the same way.
 """
 
 import json
+import os
 import subprocess
 import sys
 
@@ -263,3 +265,124 @@ def test_text_mode_catches_a_semicolon_outside_a_fenced_block():
 
     assert code == 2
     assert "semicolon" in err
+
+
+def run_runner(payload, env=None):
+    """Drive the hook the way the OpenCode and Kilo Code plugin does."""
+    if isinstance(payload, str):
+        stdin = payload
+    else:
+        stdin = json.dumps(payload, ensure_ascii=False)
+
+    result = subprocess.run(
+        [sys.executable, str(NO_AI_MARKERS_HOOK), "--format", "plain"],
+        input=stdin,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        env={**os.environ, **env} if env else None,
+    )
+
+    return result.returncode, result.stdout, result.stderr
+
+
+def envelope(assistant_text=""):
+    """The runner envelope described in docs/hooks-contract.md."""
+    return {
+        "contract": 1,
+        "event": "tool.execute.before",
+        "tool_name": "Edit",
+        "tool_input": {"file_path": "src/app.py"},
+        "agent_type": "",
+        "is_subagent": False,
+        "assistant_text": assistant_text,
+        "cwd": "",
+    }
+
+
+def test_runner_mode_blocks_on_the_envelope_prose():
+    # Given
+    payload = envelope("A sentence " + EM_DASH + " with a long dash.")
+
+    # When
+    code, out, err = run_runner(payload)
+
+    # Then
+    assert (code, out) == (2, "")
+    assert "em dash" in err
+
+
+def test_runner_mode_allows_clean_prose():
+    # Given
+    payload = envelope("All good here. Nothing banned, only commas.")
+
+    # When
+    code, out, err = run_runner(payload)
+
+    # Then
+    assert (code, out, err) == (0, "", "")
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"assistant_text": ""},
+        {"assistant_text": "   "},
+        {"assistant_text": None},
+        {"assistant_text": ["not", "a", "string"]},
+        {},
+        "not json at all",
+        "",
+        "[1, 2, 3]",
+    ],
+    ids=[
+        "empty",
+        "whitespace",
+        "null",
+        "wrong-type",
+        "missing-key",
+        "garbage",
+        "no-input",
+        "not-an-object",
+    ],
+)
+def test_runner_mode_allows_when_there_is_no_prose_to_check(payload):
+    # When
+    code, out, err = run_runner(payload)
+
+    # Then
+    assert (code, out, err) == (0, "", "")
+
+
+def test_runner_mode_does_not_read_the_stop_payload():
+    """The envelope is the only input in this mode.
+
+    A Stop payload happens to be a JSON object too, so the mode has to key off
+    assistant_text rather than guessing which shape it was handed.
+    """
+    # Given
+    payload = {"stop_hook_active": False, "transcript_path": "/does/not/exist"}
+
+    # When
+    code, out, err = run_runner(payload)
+
+    # Then
+    assert (code, out, err) == (0, "", "")
+
+
+def test_runner_mode_survives_a_hostile_stdin_encoding():
+    """Every marker this hook hunts for is non-ASCII or arrives beside one.
+
+    Text-mode stdin follows the locale or PYTHONIOENCODING. Decoding UTF-8 by
+    hand is what stops the check from silently allowing on a machine whose
+    console is not UTF-8.
+    """
+    # Given
+    payload = envelope("A sentence " + EM_DASH + " with a long dash.")
+
+    # When
+    code, out, err = run_runner(payload, env={"PYTHONIOENCODING": "ascii"})
+
+    # Then
+    assert (code, out) == (2, "")
+    assert "em dash" in err

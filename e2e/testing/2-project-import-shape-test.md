@@ -283,7 +283,7 @@ Expect exit 0.
 GitHub Copilot calls the gate on `preToolUse`, spelled with its own lower-case first letter, in its own format.
 
 ```bash
-jq -e '[.hooks.preToolUse[].command.bash] | any(contains("preflight_gate.py --format copilot"))' /work/project/.github/hooks/preflight.json
+jq -e '[.hooks.preToolUse[].bash] | any(contains("preflight_gate.py --format copilot"))' /work/project/.github/hooks/preflight.json
 ```
 
 Expect exit 0.
@@ -291,7 +291,7 @@ Expect exit 0.
 Copilot injects the gate text once per session, which is the only injection channel it offers.
 
 ```bash
-jq -e '[.hooks.sessionStart[].command.bash] | any(contains("PREFLIGHT"))' /work/project/.github/hooks/preflight.json
+jq -e '[.hooks.sessionStart[].bash] | any(contains("PREFLIGHT"))' /work/project/.github/hooks/preflight.json
 ```
 
 Expect exit 0.

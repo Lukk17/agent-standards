@@ -20,6 +20,8 @@ go. Add anything you did beyond the spec under Additional tasks I did.
 - [ ] Container shell started, version table copied into Additional tasks I did
 - [ ] Full global install from spec 6 performed, every command in order
 - [ ] Codex user-scope server tables and trust record placed
+- [ ] OpenCode global configuration placed
+- [ ] Kilo Code global configuration placed
 - [ ] Copilot user-scope server file placed
 - [ ] Context7 added to Claude Code at user scope
 - [ ] `pwd` reports `/work/bare`

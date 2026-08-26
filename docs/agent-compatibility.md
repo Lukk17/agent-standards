@@ -97,6 +97,10 @@ Each agent wires that one script through its own hook surface, and the surfaces 
 
 Reading the table row by row:
 
+- Every row anchors the gate at the project root before calling it, so a session started in a subdirectory still finds
+  [../.agents/hooks/preflight_gate.py](../.agents/hooks/preflight_gate.py), and a missing script allows rather than
+  denies. Python exits 2 when it cannot open the file it was handed, and 2 is the deny code, so an unanchored path used
+  to block every tool call.
 - Claude Code is the only surface with a reply-level block. Its `Stop` hook runs
   [../.agents/hooks/no_ai_markers_check.py](../.agents/hooks/no_ai_markers_check.py), which rejects a reply whose prose
   carries an em dash, an en dash, a semicolon, or a bold marker, and asks for a rewrite.

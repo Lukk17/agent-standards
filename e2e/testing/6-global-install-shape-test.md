@@ -3,28 +3,42 @@
 Suite B, global setup. Setup cost class 4: the whole documented global installation into the container's home
 directory, plus a second bare directory to assert from.
 
-This spec's Run section is the canonical global install command list for the whole suite.
+The installation is one command, [setup-global.sh](../../sandbox-agent/setup-global.sh), the container's counterpart
+of the per-agent procedure [docs/GLOBAL_SETUP.md](../../docs/GLOBAL_SETUP.md) describes a reader following on their
+own machine. It lives beside [setup-project.sh](../../sandbox-agent/setup-project.sh) and runs only inside the
+container, which is why it is a bash script with no Windows half and why it is not shipped to consumers.
+
+This spec's Reset state and Run sections are the canonical global install for the whole suite.
 [7-global-agent-discovery-test.md](7-global-agent-discovery-test.md),
 [8-global-mcp-visibility-test.md](8-global-mcp-visibility-test.md), and
-[9-global-gate-enforcement-test.md](9-global-gate-enforcement-test.md) run it by reference rather than repeating it,
-so there is one copy of it to keep correct.
+[9-global-gate-enforcement-test.md](9-global-gate-enforcement-test.md) run them by reference rather than repeating
+them, so there is one copy to keep correct.
 
 ---
 
 ### What this verifies
 
-- The installation described in [docs/global-setup.md](../../docs/global-setup.md) lands every shared tree in the
-  container's home directory: one skills tree, five per-agent subagent trees, one instruction file with a pointer
-  from each agent, the gate script, and the plugin shim.
+- The installer lands every shared tree in the container's home directory: one skills tree, five per-agent subagent
+  trees, one instruction file with a pointer from each agent, the gate script, and the plugin shim. This is the
+  procedure a reader actually follows, run against the mounted repository rather than against GitHub.
+- Running it a second time changes nothing and still exits 0. The second run performs the same two operations the
+  Updating section of [docs/GLOBAL_SETUP.md](../../docs/GLOBAL_SETUP.md) tells a reader to perform by hand, a
+  fast-forward of the shared clone followed by a copy over the top, so an install that is not idempotent would mean
+  the documented update is not safe either.
 - Every assertion runs from `/work/bare`, a directory that has had nothing imported into it. This is the point of the
   suite. A global install is only proven when the working directory contains none of the per-project files, because
   otherwise there is no way to tell which layer the agent read.
 - The gate wiring at user scope names the gate by absolute path. Every shipped wiring calls
   `python .agents/hooks/preflight_gate.py`, a project-relative path that resolves to nothing in a bare directory, so
-  the global copies have to be rewritten and this spec asserts that they were.
+  the installer rewrites it and this spec asserts that it did.
 - Out of scope, because the container is given no provider credentials: this spec starts no agent. Whether each tool
   reports what it found is [7-global-agent-discovery-test.md](7-global-agent-discovery-test.md), and whether the
   global gate copy refuses anything is [9-global-gate-enforcement-test.md](9-global-gate-enforcement-test.md).
+- Also out of scope for this suite: installing for one agent rather than all five, which the installer supports by
+  taking agent names as arguments. Every spec in suite B needs all five installed, so no spec here can end in a
+  single-agent home directory. That case is covered instead by
+  [verify-global.sh](../../sandbox-agent/verify-global.sh) run with `--scoped <agent>`, which the sandbox job in CI
+  runs as its own step.
 - Also out of scope, and worth stating because it is a real limitation rather than a gap in the test: the OpenCode
   and Kilo Code plugin resolves the gate script against the project directory it was started in and allows the call
   when the file is missing, by design. The global copy of that plugin is therefore inert in a bare directory. This
@@ -116,200 +130,45 @@ rm -rf /work/bare
 mkdir -p /work/bare
 ```
 
-Let git read the mounted repository, which it refuses by default because the checkout belongs to another user.
+Let git read the mounted repository, which it refuses by default because the checkout belongs to another user. Two
+entries are needed: git checks the working tree it discovered and the repository directory it resolved, and a clone
+whose source is a path is keyed on that path's `.git` directory.
 
 ```bash
 git config --global --add safe.directory /repo
+```
+
+```bash
+git config --global --add safe.directory /repo/.git
 ```
 
 ---
 
 ### Run
 
-The commands below are [docs/global-setup.md](../../docs/global-setup.md) step for step, with two substitutions, both
-of which are properties of the container rather than changes to the procedure. The clone source is the mounted
-repository instead of the GitHub address, so the run tests the committed state of this checkout. And the clone drops
-`--filter=blob:none`, because a partial clone needs the serving side to allow filtering and a local path has nothing
-to save anyway.
+The installer performs the same steps [docs/GLOBAL_SETUP.md](../../docs/GLOBAL_SETUP.md) describes, with one
+substitution that is a property of the container rather than a change to the procedure: it clones the mounted
+repository at `/repo` instead of the GitHub address, so the run tests the committed state of this checkout. The
+script lives in the sandbox image at `/sandbox/setup-global.sh`, alongside the per-project
+[setup-project.sh](../../sandbox-agent/setup-project.sh) it mirrors, and it is baked into the image rather than read
+from the mount, so a change to the script itself needs a rebuild before this spec sees it.
 
-1. Clone the shared checkout into the home directory.
+Everything the installer copies comes from the clone it makes, so those are committed state.
 
-```bash
-git clone --sparse /repo "$HOME/.agent-standards"
-```
-
-2. Select the directories, exactly as the document lists them.
+1. Install for all five agents. Read `echo $?` immediately after this step, before running the next one.
 
 ```bash
-git -C "$HOME/.agent-standards" sparse-checkout set .agents .claude .codex .github .kilo .opencode docs
+/sandbox/setup-global.sh
 ```
 
-3. Stop the clone pushing anywhere by accident.
+2. Install again, unchanged. This is the update path, and the assertions below check that it neither duplicated
+   anything nor failed. Read `echo $?` immediately after this step too.
 
 ```bash
-git -C "$HOME/.agent-standards" remote set-url --push origin no_push
+/sandbox/setup-global.sh
 ```
 
-4. Create the one shared tree every agent reads.
-
-```bash
-mkdir -p "$HOME/.agents"
-```
-
-5. Copy the canonical content into it: skills, the OpenCode-format subagents, the hooks, and the plugin shim.
-
-```bash
-cp -R "$HOME/.agent-standards/.agents/." "$HOME/.agents/"
-```
-
-6. Put the machine-wide instruction file where every agent's pointer can reach it.
-
-```bash
-cp "$HOME/.agent-standards/AGENTS.md.example" "$HOME/.agents/AGENTS.md"
-```
-
-7. Create Claude Code's configuration directory.
-
-```bash
-mkdir -p "$HOME/.claude"
-```
-
-8. Link Claude Code's skills location at the shared tree. This is the one agent that reads neither `AGENTS.md` nor
-   `~/.agents/skills`.
-
-```bash
-ln -s "$HOME/.agents/skills" "$HOME/.claude/skills"
-```
-
-9. Copy Claude Code's subagents, which are in a format no other agent takes.
-
-```bash
-cp -R "$HOME/.agent-standards/.claude/agents" "$HOME/.claude/"
-```
-
-10. Point Claude Code at the shared instructions with the single import line.
-
-```bash
-cp /repo/e2e/fixtures/global/claude-CLAUDE.md "$HOME/.claude/CLAUDE.md"
-```
-
-11. Wire the gate into Claude Code's user settings, with the gate named by absolute path.
-
-```bash
-cp /repo/e2e/fixtures/global/claude-settings.json "$HOME/.claude/settings.json"
-```
-
-12. Create Codex's configuration directory.
-
-```bash
-mkdir -p "$HOME/.codex"
-```
-
-13. Copy Codex's TOML subagents.
-
-```bash
-cp -R "$HOME/.agent-standards/.codex/agents" "$HOME/.codex/"
-```
-
-14. Point Codex at the shared instructions.
-
-```bash
-ln -s "$HOME/.agents/AGENTS.md" "$HOME/.codex/AGENTS.md"
-```
-
-15. Wire the gate into Codex's user-level hooks file, by absolute path.
-
-```bash
-cp /repo/e2e/fixtures/global/codex-hooks.json "$HOME/.codex/hooks.json"
-```
-
-16. Create OpenCode's configuration directories.
-
-```bash
-mkdir -p "$HOME/.config/opencode/plugins"
-```
-
-17. Copy the OpenCode-format subagents into the documented global location.
-
-```bash
-cp -R "$HOME/.agents/agents" "$HOME/.config/opencode/agents"
-```
-
-18. Install the gate plugin, which loads automatically at startup.
-
-```bash
-cp "$HOME/.agents/plugin/hooks.js" "$HOME/.config/opencode/plugins/hooks.js"
-```
-
-19. Point OpenCode at the shared instructions.
-
-```bash
-ln -s "$HOME/.agents/AGENTS.md" "$HOME/.config/opencode/AGENTS.md"
-```
-
-20. Give OpenCode its global configuration, carrying the two servers that are genuinely machine-wide.
-
-```bash
-cp /repo/e2e/fixtures/global/opencode.json "$HOME/.config/opencode/opencode.json"
-```
-
-21. Create Kilo Code's configuration directories.
-
-```bash
-mkdir -p "$HOME/.config/kilo/plugin"
-```
-
-22. Copy the same OpenCode-format subagents into Kilo Code's own global location.
-
-```bash
-cp -R "$HOME/.agents/agents" "$HOME/.config/kilo/agents"
-```
-
-23. Install the same plugin, which Kilo Code accepts unchanged.
-
-```bash
-cp "$HOME/.agents/plugin/hooks.js" "$HOME/.config/kilo/plugin/hooks.js"
-```
-
-24. Give Kilo Code its global configuration. This is the file that carries `skills.paths`, without which Kilo Code is
-    the one agent that never sees the shared skills tree from the home directory.
-
-```bash
-cp /repo/e2e/fixtures/global/kilo.jsonc "$HOME/.config/kilo/kilo.jsonc"
-```
-
-25. Create GitHub Copilot's configuration directories.
-
-```bash
-mkdir -p "$HOME/.copilot/agents" "$HOME/.copilot/hooks"
-```
-
-26. Copy Copilot's subagents.
-
-```bash
-cp -R "$HOME/.agent-standards/.github/agents/." "$HOME/.copilot/agents/"
-```
-
-27. Copy Copilot's hooks file.
-
-```bash
-cp "$HOME/.agent-standards/.github/hooks/preflight.json" "$HOME/.copilot/hooks/preflight.json"
-```
-
-28. Rewrite the gate call in that copy to an absolute path. Without this step that half of the gate works only in
-    projects that ran the per-project import, which is exactly the confusion this suite exists to rule out.
-
-```bash
-sed -i "s#python .agents/hooks/preflight_gate.py#python $HOME/.agents/hooks/preflight_gate.py#g" "$HOME/.copilot/hooks/preflight.json"
-```
-
-29. Point Copilot at the shared instructions.
-
-```bash
-ln -s "$HOME/.agents/AGENTS.md" "$HOME/.copilot/copilot-instructions.md"
-```
-
-30. Move to the bare directory. Every assertion below runs from here.
+3. Move to the bare directory. Every assertion below runs from here.
 
 ```bash
 cd /work/bare
@@ -318,6 +177,22 @@ cd /work/bare
 ---
 
 ### Expected
+
+The first install exited 0.
+
+```bash
+echo $?
+```
+
+Expect `0`, read straight after run step 1.
+
+The second install exited 0 as well, which is what makes re-running it safe as the update path.
+
+```bash
+echo $?
+```
+
+Expect `0`, read straight after run step 2.
 
 The working directory holds none of the per-project files. If any of them were here, no later assertion in this suite
 could tell which layer an agent read.
@@ -401,6 +276,16 @@ test "$(find "$HOME/.copilot/agents" -maxdepth 1 -name '*.agent.md' | wc -l)" -e
 
 Expect exit 0.
 
+The second install nested no tree inside the one the first install made. Copying a directory onto an existing
+directory of the same name is the classic way an install stops being repeatable, and it would leave the agent tree one
+level deeper than any agent looks.
+
+```bash
+test ! -e "$HOME/.config/opencode/agents/agents" -a ! -e "$HOME/.config/kilo/agents/agents" -a ! -e "$HOME/.claude/agents/agents"
+```
+
+Expect exit 0.
+
 There is one shared instruction file.
 
 ```bash
@@ -409,10 +294,10 @@ test -s "$HOME/.agents/AGENTS.md"
 
 Expect exit 0.
 
-Claude Code points at it with an import line rather than a copy.
+Claude Code points at it with an import line rather than a copy, and with exactly one such line after two installs.
 
 ```bash
-grep -qF "@~/.agents/AGENTS.md" "$HOME/.claude/CLAUDE.md"
+test "$(grep -cxF "@~/.agents/AGENTS.md" "$HOME/.claude/CLAUDE.md")" -eq 1
 ```
 
 Expect exit 0.
@@ -474,10 +359,10 @@ jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.agents/hooks/pref
 
 Expect exit 0.
 
-Copilot's user hooks file does the same, after run step 28 rewrote it.
+Copilot's user hooks file does the same, from the shipped project wiring the installer rewrote.
 
 ```bash
-jq -e '[.hooks.preToolUse[].command.bash] | any(contains("/.agents/hooks/preflight_gate.py --format copilot"))' "$HOME/.copilot/hooks/preflight.json"
+jq -e '[.hooks.preToolUse[].bash] | any(contains("/.agents/hooks/preflight_gate.py --format copilot"))' "$HOME/.copilot/hooks/preflight.json"
 ```
 
 Expect exit 0.
@@ -503,15 +388,8 @@ Expect exit 0.
 
 ### Fixtures
 
-- `e2e/fixtures/global/claude-CLAUDE.md`: the single `@~/.agents/AGENTS.md` import line.
-- `e2e/fixtures/global/claude-settings.json`: user-scope Claude Code hooks calling the gate at
-  `/home/sandbox/.agents/hooks/preflight_gate.py`.
-- `e2e/fixtures/global/codex-hooks.json`: user-scope Codex hooks calling the same absolute path.
-- `e2e/fixtures/global/opencode.json`: global OpenCode configuration with the two machine-wide servers.
-- `e2e/fixtures/global/kilo.jsonc`: global Kilo Code configuration with `skills.paths`, `instructions`, and the same
-  two servers.
-
-The global fixtures hard-code the container's home path. They are container inputs, not templates for a real machine.
+None. The installer writes every configuration file it needs, with the absolute paths taken from the container's own
+`$HOME`, so there is nothing to copy in and nothing that hard-codes a home directory.
 
 ---
 

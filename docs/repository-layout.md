@@ -66,7 +66,6 @@ agent-standards/
     agents/                      # GENERATED, GitHub Copilot subagents (*.agent.md)
     hooks/preflight.json         # Copilot hook config, camelCase events
     workflows/                   # CI and release, both manual-trigger only
-    dependabot.yml               # Dependency update configuration
   .vscode/
     mcp.json                     # GitHub Copilot in VS Code, key "servers"
   AGENTS.md                      # This repo's own instructions, never shipped downstream
@@ -81,9 +80,10 @@ agent-standards/
     AGENT_TOOLING.md             # Setup walkthrough shipped to consumers
     MCP_SETUP.md                 # Human MCP setup, keys and environment variables
     AGENTS-UPDATE.md             # Selective update commands shipped to consumers, self-refreshing
-    global-setup.md              # Project-only guide to installing the same tree into the user home
+    GLOBAL_SETUP.md              # Per-agent home-directory install, shipped to consumers
     repository-layout.md         # This file, project-only reference
     agent-compatibility.md       # Project-only per-surface matrix
+    hooks-contract.md            # Project-only hook runner contract, envelope, ordering and exit codes
     manual-setup.md              # Project-only manual fallback and per-agent start commands
     bootstrap-prompt.md          # Project-only first-run verification prompt
     assets/                      # README demo gif and social card
@@ -115,6 +115,7 @@ your-project/
   .mcp.json                      # Claude Code and Copilot CLI MCP servers
   opencode.json                  # OpenCode and Kilo Code MCP servers plus the plugin declaration
   AGENTS.md                      # renamed from AGENTS.md.example, then filled in
+  docs/                          # only the UPPERCASE docs: AGENT_TOOLING, MCP_SETUP, AGENTS-UPDATE, GLOBAL_SETUP
 ```
 
 ---
