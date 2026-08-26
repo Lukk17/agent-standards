@@ -89,7 +89,7 @@ Each agent wires that one script through its own hook surface, and the surfaces 
 
 | Agent | Hook config | Blocks a tool call | Injects context | Blocks a reply | Tells subagent from main thread |
 | --- | --- | --- | --- | --- | --- |
-| Claude Code | [.claude/settings.json](../.claude/settings.json) | yes, `PreToolUse` | yes, `SessionStart` and `UserPromptSubmit` | yes, `Stop` | yes, `agent_id` is present only inside a subagent |
+| Claude Code | [.claude/settings.json](../.claude/settings.json) | yes, `PreToolUse` | yes, `UserPromptSubmit` on every turn including the first | yes, `Stop` | yes, `agent_id` is present only inside a subagent |
 | Codex | inline `[[hooks.*]]` in [.codex/config.toml](../.codex/config.toml) | yes, `PreToolUse` | yes, `UserPromptSubmit` and `SubagentStart` | no | yes, `agent_id` is present only inside a subagent |
 | OpenCode | plugin [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), declared by path in [opencode.json](../opencode.json) | yes, throwing from `tool.execute.before` | no per-turn channel | no | yes, via the acting agent on the payload and the session `parentID` |
 | Kilo Code | the same plugin, same declaration | yes, throwing from `tool.execute.before` | no per-turn channel | no | yes, same mechanism |

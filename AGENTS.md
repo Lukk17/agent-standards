@@ -35,7 +35,7 @@ Each agent wires that one script to its own hook surface:
 
 | Agent | Wiring | Events |
 | --- | --- | --- |
-| Claude Code | [.claude/settings.json](.claude/settings.json) | `UserPromptSubmit`, `SessionStart`, `PreToolUse` (matcher `Edit`, `Write`, `NotebookEdit`, `Bash`), `Stop` for the formatting checker |
+| Claude Code | [.claude/settings.json](.claude/settings.json) | `UserPromptSubmit`, `PreToolUse` (matcher `Edit`, `Write`, `NotebookEdit`, `Bash`), `Stop` for the formatting checker |
 | Codex | inline `[[hooks.*]]` tables in [.codex/config.toml](.codex/config.toml) | `UserPromptSubmit`, `SubagentStart`, `PreToolUse` |
 | OpenCode and Kilo Code | [.agents/plugin/hooks.js](.agents/plugin/hooks.js), declared once by path in the `plugin` array of [opencode.json](opencode.json), which both tools read | `tool.execute.before` |
 | GitHub Copilot | [.github/hooks/preflight.json](.github/hooks/preflight.json) | `sessionStart`, `subagentStart`, `preToolUse` |

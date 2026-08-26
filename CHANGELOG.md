@@ -95,6 +95,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Removed
 
+- The Claude Code `SessionStart` preflight hook from `.claude/settings.json`. The `UserPromptSubmit` hook in the same
+  file injects the identical wording on every prompt, including the first, so on Claude Code the gate text appeared
+  twice a moment apart at the start of a session. `UserPromptSubmit`, `PreToolUse`, and `Stop` are unchanged. This is a
+  Claude Code change only: GitHub Copilot keeps its `sessionStart` injection, which is the only injection channel it
+  has on the surfaces without a per-turn one, and Codex keeps its `SubagentStart` table.
 - `.github/dependabot.yml`, and with it Dependabot itself. Nothing opens automated dependency pull requests here any
   more. The exact pins in `tools/pyproject.toml` and the SHA-pinned actions in the workflows are bumped by hand.
 - The `.kilocode/` directory in full: the generated subagent tree, the `rules/00-preflight.md` gate rule, and its MCP

@@ -22,8 +22,7 @@ and tells it to delegate, and denies an edit from a subagent whose own definitio
 configuration, and documentation edits from the main thread are allowed, and any error inside the gate fails open so a
 broken hook can never break a session. Each agent wires that one rule to its own hook surface:
 
-- **Claude Code**: [.claude/settings.json](.claude/settings.json), on `UserPromptSubmit`, `SessionStart`, `PreToolUse`,
-  and `Stop`.
+- **Claude Code**: [.claude/settings.json](.claude/settings.json), on `UserPromptSubmit`, `PreToolUse`, and `Stop`.
 - **Codex**: inline `[[hooks.*]]` tables in [.codex/config.toml](.codex/config.toml), on `UserPromptSubmit`,
   `SubagentStart`, and `PreToolUse`.
 - **OpenCode and Kilo Code**: [.agents/plugin/hooks.js](.agents/plugin/hooks.js), declared once by path in the

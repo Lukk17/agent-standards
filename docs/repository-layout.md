@@ -52,7 +52,7 @@ agent-standards/
   openspec/schemas/e2e-runbooks/ # Vendored companion schema, reference copy, this repo runs no OpenSpec workflow
   .claude/
     CLAUDE.md                    # imports ../AGENTS.md, the Claude Code bridge
-    settings.json                # PreToolUse, SessionStart, UserPromptSubmit and Stop hooks
+    settings.json                # PreToolUse, UserPromptSubmit and Stop hooks
     skills -> ../.agents/skills  # SYMLINK, the only way Claude Code sees the canonical skills
     agents/                      # GENERATED, Claude-format subagents
   .opencode/
