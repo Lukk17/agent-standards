@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  checks: write
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -26,8 +27,8 @@ jobs:
       - name: Run actionlint on workflow YAML
         uses: reviewdog/action-actionlint@be0761e4c1bab7cfdfca56cd03d4bb6253e39a4a # v1.72.0
         with:
-          fail_on_error: true
-          reporter: local
+          fail_level: error
+          reporter: github-check
 
   validate:
     runs-on: ubuntu-latest
