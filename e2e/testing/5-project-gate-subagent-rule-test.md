@@ -39,16 +39,16 @@ docker compose version
 
 Expect exit 0.
 
-Check the harness image exists. PowerShell:
+Check the sandbox image exists. PowerShell:
 
 ```powershell
-docker image inspect agent-standards-harness:local
+docker image inspect agent-standards-sandbox:local
 ```
 
 Unix shell:
 
 ```bash
-docker image inspect agent-standards-harness:local
+docker image inspect agent-standards-sandbox:local
 ```
 
 Expect exit 0.
@@ -71,23 +71,29 @@ Expect exit 0. Copy the short hash into the run record.
 
 ### Reset state
 
-Start the container shell from the repository root. Everything after this block is typed into that shell.
-PowerShell:
+Move into the sandbox directory, which is where Compose finds its `compose.yaml`. The same line works in
+PowerShell and in a Unix shell.
+
+```bash
+cd sandbox-agent
+```
+
+Start the container shell. Everything after this block is typed into that shell. PowerShell:
 
 ```powershell
-docker compose -f test-harness\docker-compose.yml run --rm harness /bin/bash
+docker compose run --rm sandbox /bin/bash
 ```
 
 Unix shell:
 
 ```bash
-docker compose -f test-harness/docker-compose.yml run --rm harness /bin/bash
+docker compose run --rm sandbox /bin/bash
 ```
 
 Build the clean project and run the documented import into it.
 
 ```bash
-/harness/setup-project.sh
+/sandbox/setup-project.sh
 ```
 
 Move into the imported project, which fixes the gate's first search root at the project.

@@ -7,12 +7,10 @@ contract: stdin payload, --format flag, stdout shape, exit code.
 import json
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-GATE = REPO_ROOT / ".agents" / "hooks" / "preflight_gate.py"
+from tests.conftest import PREFLIGHT_GATE, REPO_ROOT
 
 WITH_SKILLS = """---
 name: {name}
@@ -65,7 +63,7 @@ def run(payload, fmt, cwd=None, extra=()):
         stdin = json.dumps(payload)
 
     result = subprocess.run(
-        [sys.executable, str(GATE), "--format", fmt, *extra],
+        [sys.executable, str(PREFLIGHT_GATE), "--format", fmt, *extra],
         input=stdin,
         capture_output=True,
         text=True,

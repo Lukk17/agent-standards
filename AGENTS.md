@@ -78,6 +78,8 @@ script and must never be hand-edited, and some are symlinks the generator create
 | `.agents/hooks/preflight_gate.py`, `.agents/hooks/no_ai_markers_check.py` | canonical | edit directly, then run the pytest suite |
 | `.agents/plugin/hooks.js` | canonical | edit directly |
 | `AGENTS.md.example`, `docs/*.md` | canonical | edit directly |
+| `tools/*.py`, `tools/tests/*.py`, `tools/pyproject.toml` | canonical | edit directly, then run the pytest suite |
+| `tools/requirements.txt` | generated (hash-pinned lock) | never hand-edit, recompile it from `tools/pyproject.toml` |
 | `.claude/agents/*.md` | generated (Claude front matter with a `skills` key) | never hand-edit, run the generator |
 | `.agents/agents/*.md` | generated (OpenCode format) | never hand-edit, run the generator |
 | `.codex/agents/*.toml` | generated (Codex TOML) | never hand-edit, run the generator |
@@ -146,21 +148,34 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
   entire file, and carries on with the rest of its config chain. For `opencode.json` that would drop the MCP block and
   the `plugin` array that declares the preflight gate, so a single token would leave Kilo Code running ungated. A
   `{env:VAR}` or `{file:...}` inside an MCP `headers` block is milder, Kilo drops only that server, but
-  `kilocode config check` still exits 1 on the warning. Local servers need no token in the file: both tools spawn them
-  with the environment of the process that started the agent and merge any `environment` block on top of it, so
-  exporting the variable is enough. The one value that cannot be inherited is the Context7 header on a remote server,
-  which is why [.opencode/opencode.json](.opencode/opencode.json) exists. OpenCode reads that path and deep-merges it
-  over the root file, Kilo Code never reads it, so the `{env:CONTEXT7_API_KEY}` header lives there and nowhere else.
-  It is the only server declared twice. Change both blocks together, and add no other server to it.
+  `kilocode config check` still exits 1 on the warning. The file therefore carries neither form. Local servers need no
+  token in it: both tools spawn them with the environment of the process that started the agent and merge any
+  `environment` block on top of it, so exporting the variable is enough. The one value that cannot be inherited is the
+  Context7 API key, which travels as an HTTP header, so `context7` is declared here with no `headers` block at all and
+  both tools use the free tier. There is no project-level overlay to put it in: `.opencode/opencode.json` is deleted,
+  and the only place an authenticated Context7 block belongs is a user's own global config. Say that in
+  [docs/MCP_SETUP.md](docs/MCP_SETUP.md) and nowhere else.
 - **One gate, one rule, one wording.** The canonical text is the Required opening move above and the canonical rule is
   [.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py). Every adapter calls that one script, so a
   behaviour change is a change to the script plus a case in
-  [tools/test_preflight_gate.py](tools/test_preflight_gate.py), never a second copy of the logic. Keep the injected
-  wording identical across all four wiring files.
+  [tools/tests/test_preflight_gate.py](tools/tests/test_preflight_gate.py), never a second copy of the logic. Keep the
+  injected wording identical across all four wiring files.
+- **The tooling is a package under [tools/](tools/).** Sources sit at the top ([tools/gen_subagents.py](tools/gen_subagents.py),
+  [tools/check-markdown.py](tools/check-markdown.py)), tests sit in [tools/tests/](tools/tests/) with an `__init__.py`
+  and a `conftest.py`. [tools/pyproject.toml](tools/pyproject.toml) is the only place a dependency or a version is
+  written by hand, and it also holds the pytest configuration, so `testpaths` is relative to `tools/`.
+- **[tools/requirements.txt](tools/requirements.txt) is generated, never hand-edited.** It is a hash-pinned lock
+  compiled from `pyproject.toml`, and CI installs it in one step with `pip install --require-hashes`. After changing a
+  dependency, recompile it from the `tools` directory with the `uv pip compile` line recorded in the file's own header
+  and commit both files together.
 - **CI is manual.** Workflows run on `workflow_dispatch` / `workflow_call` only, so nothing runs on push. Verify
   locally before declaring work done.
 
-Local verification (the same checks CI runs):
+Local verification (the same checks CI runs). Install the locked dependencies first:
+
+```bash
+pip install --require-hashes -r tools/requirements.txt
+```
 
 ```bash
 python tools/gen_subagents.py --check
@@ -194,8 +209,8 @@ python -c "import tomllib; tomllib.load(open('.codex/config.toml','rb'))"
 - **An MCP server:** add the block to all four MCP files (the ones listed under Repo conventions), document it in
   [docs/MCP_SETUP.md](docs/MCP_SETUP.md), and bump the MCP-count badge.
 - **A gate rule:** edit [.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py), add the case to
-  [tools/test_preflight_gate.py](tools/test_preflight_gate.py), and leave the four wiring files alone unless the hook
-  surface itself changed.
+  [tools/tests/test_preflight_gate.py](tools/tests/test_preflight_gate.py), and leave the four wiring files alone
+  unless the hook surface itself changed.
 
 ---
 

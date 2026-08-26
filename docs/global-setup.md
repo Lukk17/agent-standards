@@ -7,6 +7,9 @@ This is the counterpart to the per-project flow in [README.md](../README.md). Th
 exclusive: an agent reads both scopes and merges them, so a project that also ran the per-project import keeps winning
 on the paths where both scopes define the same thing.
 
+This file stays in the agent-standards repo only. A global install is a per-machine job you do once, so nothing here
+is copied into a consumer project. Read it from upstream and run the commands against your home directory.
+
 ---
 
 ### What this is, and how it differs from the per-project setup

@@ -7,11 +7,12 @@ you spend time writing.
 
 ### Branching and commits
 
-- Branch from `master`; name branches `<type>/<short-slug>` (e.g. `feat/add-rust-skill`, `fix/markdown-line-width`).
+- Branch from `master`, and name branches `<type>/<short-slug>` (e.g. `feat/add-rust-skill`,
+  `fix/markdown-line-width`).
 - Use conventional-commit-style messages (`feat:`, `fix:`, `docs:`, `chore:`, `ci:`, etc.) with an optional scope.
   Not enforced by CI, but the release workflow uses `--generate-notes` which quotes commit subjects verbatim into
   the public changelog. Write subjects you'd be happy to see on the GitHub Releases page.
-- Squash-merge or rebase-merge; avoid merge commits unless the PR is a long-running feature branch with meaningful
+- Squash-merge or rebase-merge. Avoid merge commits unless the PR is a long-running feature branch with meaningful
   intermediate state.
 
 ---
@@ -40,18 +41,36 @@ workflow. Maintainers only. The version string (e.g. `v0.2.0`) goes in the workf
   `.codex/agents/`, and `.github/agents/`. CI runs `--check` and fails on drift.
 - **JSON validity** for `.mcp.json`, `opencode.json`, `.vscode/mcp.json`, `.claude/settings.json`, and
   `.github/hooks/preflight.json` if you touch those, and TOML validity for `.codex/config.toml`.
-- **Tests for the shared hooks.** If you change `.agents/hooks/preflight_gate.py` or
-  `.agents/hooks/no_ai_markers_check.py`, add or update the matching case in `tools/`. CI runs the suite.
-- **Run the markdown linter locally** to catch issues before pushing:
+- **Tests for the shared hooks.** If you change [.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) or
+  [.agents/hooks/no_ai_markers_check.py](.agents/hooks/no_ai_markers_check.py), add or update the matching case in
+  [tools/tests/](tools/tests/). CI runs the suite.
+- **Dependencies declared once.** [tools/pyproject.toml](tools/pyproject.toml) is the only file where a dependency or
+  a version is written by hand. [tools/requirements.txt](tools/requirements.txt) beside it is a generated hash-pinned
+  lock, so never hand-edit it: recompile it from the `tools` directory with the `uv pip compile` line recorded in its
+  own header, and commit both files in the same change.
+
+Install the locked dependencies before running anything below. PowerShell or Unix shell, same command:
+
+```bash
+pip install --require-hashes -r tools/requirements.txt
+```
+
+Run the markdown linter to catch style issues before pushing:
 
 ```bash
 python tools/check-markdown.py
 ```
 
-- **Run the test suite locally** as well:
+Run the hook test suite:
 
 ```bash
 python -m pytest tools/
+```
+
+Confirm the generated subagent trees still match their canonical sources:
+
+```bash
+python tools/gen_subagents.py --check
 ```
 
 ---
@@ -84,7 +103,10 @@ Drop a folder under `.agents/skills/<name>/` containing a `SKILL.md` with YAML f
 
 If the skill is human-facing prose, follow the [markdown-writer](.agents/skills/markdown-writer/SKILL.md) rules
 (em-dash ban, 120-char wrap, divider per section, link every file/folder mention). If the skill is machine-facing
-reference for a tool or stack, the voice rules relax; just stay consistent with the existing skills in that genre.
+reference for a tool or stack, the voice rules relax, so just stay consistent with the existing skills in that genre.
+
+Bump the skill-count badge in [README.md](README.md) in the same change. Counts live in the badges and nowhere else,
+so that one edit is the whole update.
 
 ---
 
@@ -93,7 +115,17 @@ reference for a tool or stack, the voice rules relax; just stay consistent with 
 Add a frontmatter-headed Markdown file under `subagents/<name>.md`. Run `python tools/gen_subagents.py` to emit
 per-tool copies in `.claude/agents/`, `.agents/agents/`, `.codex/agents/`, and `.github/agents/`. The same run repairs
 the `.opencode/agents` and `.kilo/agents` symlinks, which point at `.agents/agents` rather than holding their own copy.
-Commit the canonical source AND the generated outputs.
+Commit the canonical source AND the generated outputs, and bump the subagent-count badge in [README.md](README.md).
+
+---
+
+### Changing the preflight wiring
+
+The gate lives in one script and five wiring files. If your change touches how a tool call is judged, or how any agent
+reaches the script, the unit tests are not the whole story: run the containerised sandbox in
+[sandbox-agent/](sandbox-agent/README.md), which installs all five agent command-line tools, imports this repository
+into a throwaway project, and asserts what each agent actually discovers. The specs it runs are documented in
+[e2e/README.md](e2e/README.md).
 
 ---
 

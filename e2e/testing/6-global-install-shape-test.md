@@ -48,16 +48,16 @@ docker compose version
 
 Expect exit 0.
 
-Check the harness image exists. PowerShell:
+Check the sandbox image exists. PowerShell:
 
 ```powershell
-docker image inspect agent-standards-harness:local
+docker image inspect agent-standards-sandbox:local
 ```
 
 Unix shell:
 
 ```bash
-docker image inspect agent-standards-harness:local
+docker image inspect agent-standards-sandbox:local
 ```
 
 Expect exit 0.
@@ -80,17 +80,23 @@ Expect exit 0. Copy the short hash into the run record.
 
 ### Reset state
 
-Start the container shell from the repository root. Everything after this block is typed into that shell.
-PowerShell:
+Move into the sandbox directory, which is where Compose finds its `compose.yaml`. The same line works in
+PowerShell and in a Unix shell.
+
+```bash
+cd sandbox-agent
+```
+
+Start the container shell. Everything after this block is typed into that shell. PowerShell:
 
 ```powershell
-docker compose -f test-harness\docker-compose.yml run --rm harness /bin/bash
+docker compose run --rm sandbox /bin/bash
 ```
 
 Unix shell:
 
 ```bash
-docker compose -f test-harness/docker-compose.yml run --rm harness /bin/bash
+docker compose run --rm sandbox /bin/bash
 ```
 
 Clear every directory the install writes to. In a fresh container none of them exist, so this is what makes the spec
@@ -499,7 +505,7 @@ Expect exit 0.
 
 - `e2e/fixtures/global/claude-CLAUDE.md`: the single `@~/.agents/AGENTS.md` import line.
 - `e2e/fixtures/global/claude-settings.json`: user-scope Claude Code hooks calling the gate at
-  `/home/harness/.agents/hooks/preflight_gate.py`.
+  `/home/sandbox/.agents/hooks/preflight_gate.py`.
 - `e2e/fixtures/global/codex-hooks.json`: user-scope Codex hooks calling the same absolute path.
 - `e2e/fixtures/global/opencode.json`: global OpenCode configuration with the two machine-wide servers.
 - `e2e/fixtures/global/kilo.jsonc`: global Kilo Code configuration with `skills.paths`, `instructions`, and the same

@@ -102,13 +102,11 @@ Unix shell:
 mv AGENTS.md.example AGENTS.md
 ```
 
-[.mcp.json](../.mcp.json), [opencode.json](../opencode.json), [.codex/config.toml](../.codex/config.toml),
-[.vscode/mcp.json](../.vscode/mcp.json), and the small OpenCode overlay
-[.opencode/opencode.json](../.opencode/opencode.json) arrive ready to use. Follow [MCP_SETUP.md](MCP_SETUP.md) to
-install the prerequisites, acquire the keys, and export the environment variables. Two of those files resolve a
-placeholder, `${VAR}` in `.mcp.json` and `{env:VAR}` in the overlay. The rest read no placeholders at all: a local MCP
-server inherits the environment of the process that started the agent, so exporting the variable is what makes the
-token arrive.
+[.mcp.json](../.mcp.json), [opencode.json](../opencode.json), [.codex/config.toml](../.codex/config.toml), and
+[.vscode/mcp.json](../.vscode/mcp.json) arrive ready to use. Follow [MCP_SETUP.md](MCP_SETUP.md) to install the
+prerequisites, acquire the keys, and export the environment variables. Only `.mcp.json` resolves a placeholder,
+`${VAR}` with a default. The other three read no placeholders at all: a local MCP server inherits the environment of
+the process that started the agent, so exporting the variable is what makes the token arrive.
 
 ---
 
@@ -154,9 +152,9 @@ the gate plugin by path.
 opencode
 ```
 
-The main `opencode.json` stays at the project root, because that is the only place Kilo Code looks. OpenCode also
-reads [.opencode/opencode.json](../.opencode/opencode.json) and deep-merges it over the root file, which is where the
-Context7 API key header lives, since it is the one MCP value that cannot be inherited from the environment.
+`opencode.json` stays at the project root, because that is the only place Kilo Code looks. OpenCode would also read a
+second file at `.opencode/opencode.json` and merge it over the root one, but none ships: `.opencode/` holds nothing
+but the `agents` symlink.
 
 #### Kilo Code
 
@@ -169,8 +167,8 @@ Kilo does not expand `{env:VAR}` in project-level config, and it does not leave 
 treats an environment reference as a fatal error and rejects the whole file, which would leave Kilo with no MCP
 servers and no preflight gate, so `opencode.json` ships without any. Run `kilocode config check` after editing it: it
 prints `No config warnings.` when the file is accepted. Local servers get their tokens from the environment you
-exported. For an authenticated Context7, put the full `context7` block in your global `~/.config/kilo/kilo.jsonc`,
-where environment references are allowed.
+exported. Context7 therefore ships unauthenticated. For a paid key, put the full `context7` block in your global
+`~/.config/kilo/kilo.jsonc`, where environment references are allowed.
 
 #### GitHub Copilot
 

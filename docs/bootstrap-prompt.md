@@ -69,7 +69,6 @@ The project MCP files are real files, not templates, so there is nothing to rena
 - `opencode.json` (key `mcp`) for OpenCode and Kilo Code
 - `.codex/config.toml` (`[mcp_servers.*]` tables) for Codex
 - `.vscode/mcp.json` (key `servers`) for GitHub Copilot in VS Code
-- `.opencode/opencode.json` (key `mcp`), an OpenCode-only overlay holding one server, the Context7 API key header
 
 Report which of those exist. Do not assume any particular server should be present, just report what is there.
 

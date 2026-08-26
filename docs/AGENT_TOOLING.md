@@ -89,8 +89,6 @@ What you just pulled:
 - [.claude/](../.claude/): the `CLAUDE.md` bridge, the `skills` symlink, the generated `agents/` tree, and
   `settings.json` carrying the Claude Code hooks.
 - `.opencode/agents` and `.kilo/agents`: symlinks into [.agents/agents/](../.agents/agents/). One tree, two agents.
-  [.opencode/opencode.json](../.opencode/opencode.json) rides along in the same directory, an OpenCode-only overlay
-  holding the single MCP value that has to come from an environment variable.
 - [.codex/](../.codex/): the generated TOML custom agents and `config.toml`, which holds both the Codex MCP servers
   and the Codex gate hooks inline.
 - [.github/agents/](../.github/agents/) and [.github/hooks/preflight.json](../.github/hooks/preflight.json): Copilot
@@ -123,8 +121,10 @@ itself on every run. Open it and run the block for your shell. It refreshes the 
 plugin, the Copilot hook file, and only the skills and subagents already present in your tree. Nothing new appears
 behind your back.
 
-It deliberately leaves your `AGENTS.md`, your MCP config files, `.claude/settings.json`, and `.claude/CLAUDE.md`
-alone. Those are yours.
+It deliberately leaves your `AGENTS.md`, your four MCP config files, `.claude/settings.json`, and `.claude/CLAUDE.md`
+alone. Those are yours. When you do want an upstream change in one of the configuration files, the
+[configuration files](AGENTS-UPDATE.md#configuration-files) section of the same document has the diff-first commands
+and names which half of each file is yours.
 
 ---
 
@@ -241,7 +241,7 @@ catalogue is [.agents/skills/](../.agents/skills/), one directory per skill, eac
 
 ### MCP servers
 
-Four real config files ship the same eight servers, one per agent surface, plus a one-server OpenCode overlay:
+Four real config files ship the same eight servers, one per agent surface:
 
 | File | Schema key | Serves |
 | --- | --- | --- |
@@ -249,20 +249,18 @@ Four real config files ship the same eight servers, one per agent surface, plus 
 | [opencode.json](../opencode.json) | `mcp` | OpenCode and Kilo Code |
 | [.codex/config.toml](../.codex/config.toml) | `[mcp_servers.*]` | Codex |
 | [.vscode/mcp.json](../.vscode/mcp.json) | `servers` | GitHub Copilot in VS Code |
-| [.opencode/opencode.json](../.opencode/opencode.json) | `mcp` | OpenCode only, one server, holds the Context7 key |
 
-Between the first four, only the file name, the schema key, the `type` value, and the environment-variable syntax
-differ. The last one is an overlay rather than a mirror. Nothing needs renaming, they arrive ready to use. Two Copilot
-surfaces get no file at all, the JetBrains plugin because it reads a global path only, and the cloud agent because its
-configuration lives in a repository settings page.
+Only the file name, the schema key, the `type` value, and the environment-variable syntax differ between them.
+Nothing needs renaming, they arrive ready to use. Two Copilot surfaces get no file at all, the JetBrains plugin
+because it reads a global path only, and the cloud agent because its configuration lives in a repository settings
+page.
 
 Kilo Code accepts `opencode.json` as a project config filename, which is how one file serves both it and OpenCode.
 Kilo is unforgiving about substitution in that file. A `{env:VAR}` anywhere in project-level config makes it reject
 the file outright, taking the MCP servers and the `plugin` array that declares the preflight gate with it, so the
 shipped file carries no references at all. Local servers inherit their tokens from the environment that started the
-agent. The Context7 API key cannot be inherited, since it is an HTTP header, so it lives in
-[.opencode/opencode.json](../.opencode/opencode.json), which only OpenCode reads. Details in
-[MCP_SETUP.md](MCP_SETUP.md).
+agent. The Context7 API key cannot be inherited, since it is an HTTP header, so `context7` ships unauthenticated on
+the free tier and a paid key goes in your own global config. Details in [MCP_SETUP.md](MCP_SETUP.md).
 
 The full human setup, prerequisites, key acquisition, environment variables per operating system, the two manual
 Copilot blocks, and verification, lives in [MCP_SETUP.md](MCP_SETUP.md). A person does that once per machine, not the
@@ -332,44 +330,52 @@ appears in your autocomplete.
 #### Optional, a custom schema for end-to-end capability tests
 
 For projects that want spec-driven end-to-end capability tests inside the OpenSpec lifecycle, install the
-[e2e-runbooks](https://github.com/Lukk17/openspec-schemas/tree/master/e2e-runbooks) schema from the companion
-repository. OpenSpec has no schema-install command yet, so you copy the bundle into `openspec/schemas/`.
+[e2e-runbooks](https://github.com/Lukk17/openspec-schemas/tree/master/openspec/schemas/e2e-runbooks) schema from the
+companion repository. OpenSpec has no schema-install command yet, so you fetch the bundle straight into
+`openspec/schemas/`, which is the same path it occupies upstream, so nothing has to be moved afterwards. Your project
+has to be a git repository with OpenSpec already initialised, and both commands run from the project root.
+
+Fetch the schema from `master`. Its only tag, `v0.1.0`, predates the move to `openspec/schemas/` and still keeps the
+bundle at the repository root, so the tag and the path below do not line up. PowerShell:
+
+```powershell
+git fetch --depth 1 https://github.com/Lukk17/openspec-schemas master
+```
 
 Unix shell:
 
 ```bash
-git clone --depth 1 https://github.com/Lukk17/openspec-schemas /tmp/lukk17-schemas
+git fetch --depth 1 https://github.com/Lukk17/openspec-schemas master
 ```
 
-```bash
-cp -r /tmp/lukk17-schemas/e2e-runbooks openspec/schemas/
-```
-
-```bash
-rm -rf /tmp/lukk17-schemas
-```
-
-PowerShell:
+Write only the schema directory into your tree. PowerShell:
 
 ```powershell
-git clone --depth 1 https://github.com/Lukk17/openspec-schemas $env:TEMP\lukk17-schemas
+git checkout FETCH_HEAD -- openspec/schemas/e2e-runbooks
 ```
 
-```powershell
-Copy-Item -Recurse $env:TEMP\lukk17-schemas\e2e-runbooks openspec\schemas\
-```
-
-```powershell
-Remove-Item -Recurse -Force $env:TEMP\lukk17-schemas
-```
-
-Use it for one change:
+Unix shell:
 
 ```bash
-openspec new --schema e2e-runbooks "add weather-mcp capability test"
+git checkout FETCH_HEAD -- openspec/schemas/e2e-runbooks
 ```
 
-Or make it the project default in `openspec/config.yaml`:
+The 13 files land in your working tree and staged at the same time. Review with `git diff --staged`, then commit. To
+upgrade later, re-run the same pair.
+
+Use it for one change. The `change` subcommand is required and `--schema` is an option on it. PowerShell:
+
+```powershell
+openspec new change "add-weather-mcp-test" --schema e2e-runbooks
+```
+
+Unix shell:
+
+```bash
+openspec new change "add-weather-mcp-test" --schema e2e-runbooks
+```
+
+Or make it the project default in `openspec/config.yaml` and drive it with `/opsx:propose`:
 
 ```yaml
 default_schema: e2e-runbooks

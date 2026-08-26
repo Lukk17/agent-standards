@@ -7,7 +7,7 @@
 # Usage: setup-project.sh
 # Environment:
 #   AGENT_STANDARDS_REPO  Mounted upstream repository. Default /repo.
-#   HARNESS_PROJECT       Throwaway project directory. Default /work/project.
+#   SANDBOX_PROJECT       Throwaway project directory. Default /work/project.
 # Exit codes:
 #   0  The project was created and every imported path landed.
 #   1  A prerequisite was missing, the import failed, or a symlink did not
@@ -17,7 +17,7 @@ set -euo pipefail
 IFS=$'\n\t'
 
 readonly REPO="${AGENT_STANDARDS_REPO:-/repo}"
-readonly PROJECT="${HARNESS_PROJECT:-/work/project}"
+readonly PROJECT="${SANDBOX_PROJECT:-/work/project}"
 readonly REMOTE="agent-standards"
 
 readonly IMPORT_PATHS=(
@@ -71,8 +71,8 @@ create_empty_project() {
   cd "$PROJECT"
 
   git init --initial-branch=main --quiet
-  git config user.name "agent-standards harness"
-  git config user.email "harness@example.invalid"
+  git config user.name "agent-standards sandbox"
+  git config user.email "sandbox@example.invalid"
 }
 
 # Echoes the fully qualified upstream ref the import should read.

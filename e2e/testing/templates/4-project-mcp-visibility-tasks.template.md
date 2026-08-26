@@ -12,7 +12,7 @@ go. Add anything you did beyond the spec under Additional tasks I did.
 #### Prerequisites
 
 - [ ] `docker compose version` exits 0 on the host
-- [ ] `docker image inspect agent-standards-harness:local` exits 0
+- [ ] `docker image inspect agent-standards-sandbox:local` exits 0
 - [ ] `git rev-parse --short HEAD` exits 0, hash recorded below
 
 #### Reset state

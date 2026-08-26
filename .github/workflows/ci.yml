@@ -39,11 +39,8 @@ jobs:
           cache: pip
           cache-dependency-path: tools/requirements.txt
 
-      - name: Install generator dependencies
+      - name: Install the locked generator and test dependencies
         run: pip install --require-hashes -r tools/requirements.txt
-
-      - name: Install test dependencies
-        run: pip install --upgrade pip && pip install --group tools/pyproject.toml:dev
 
       - name: Validate JSON config and hook files
         run: python -c "import json; [json.load(open(f)) for f in ['.mcp.json','opencode.json','.vscode/mcp.json','.claude/settings.json','.github/hooks/preflight.json']]"
@@ -58,4 +55,5 @@ jobs:
         run: python tools/check-markdown.py
 
       - name: Run the hook and tooling test suite
-        run: python -m pytest tools/
+        working-directory: tools
+        run: python -m pytest

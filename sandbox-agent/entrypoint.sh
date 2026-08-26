@@ -7,7 +7,7 @@
 # Usage: entrypoint.sh [COMMAND [ARGS...]]
 # Environment:
 #   AGENT_STANDARDS_REPO Mounted upstream repository. Default /repo.
-#   HARNESS_SKIP_UPDATE  Set to 1 to keep the versions baked into the image.
+#   SANDBOX_SKIP_UPDATE  Set to 1 to keep the versions baked into the image.
 # Exit codes:
 #   0    The container command succeeded.
 #   2    The git safe.directory entries could not be written.
@@ -56,7 +56,7 @@ already_trusted() {
 }
 
 # Lets git read the bind-mounted repository, which a Docker Desktop host on
-# Windows presents as owned by root while the container runs as harness.
+# Windows presents as owned by root while the container runs as sandbox.
 trust_mounted_repo() {
   local directory
 
@@ -106,8 +106,8 @@ self_reported_version() {
 }
 
 update_agents() {
-  if [[ "${HARNESS_SKIP_UPDATE:-0}" == "1" ]]; then
-    log_warn "HARNESS_SKIP_UPDATE=1, keeping the versions baked into the image"
+  if [[ "${SANDBOX_SKIP_UPDATE:-0}" == "1" ]]; then
+    log_warn "SANDBOX_SKIP_UPDATE=1, keeping the versions baked into the image"
     return 0
   fi
 

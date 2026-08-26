@@ -17,7 +17,7 @@ show which definition the gate refused, and so a stray copy left behind in a rea
 1. Fixtures are read-only inputs. A spec copies a fixture into place, it never edits one.
 2. Every fixture a spec writes into an agent directory is deleted again in the same spec, and the spec says so under
    Reset state.
-3. The global fixtures hard-code the container paths `/home/harness` and `/work/bare`. They are container inputs, not
+3. The global fixtures hard-code the container paths `/home/sandbox` and `/work/bare`. They are container inputs, not
    templates for a real machine. The real per-machine instructions are in
    [docs/global-setup.md](../../docs/global-setup.md).
 4. The global MCP fixtures carry only the two servers that are genuinely machine-wide, Context7 and Playwright, which
@@ -38,7 +38,7 @@ show which definition the gate refused, and so a stray copy left behind in a rea
 | `gate-payloads/subagent-with-skills.json` | tests 5 and 9 | Subagent payload naming `code-reviewer`, which declares skills |
 | `gate-payloads/subagent-without-skills.json` | tests 5 and 9 | Subagent payload naming `e2e-no-skills-probe` |
 | `gate-payloads/malformed.txt` | test 1 | Not JSON, so the gate has to fail open |
-| `global/claude-settings.json` | tests 6 and 9 | User-scope Claude Code hooks calling the gate at `/home/harness/.agents/hooks/` |
+| `global/claude-settings.json` | tests 6 and 9 | User-scope Claude Code hooks calling the gate at `/home/sandbox/.agents/hooks/` |
 | `global/claude-CLAUDE.md` | test 6 | The single `@~/.agents/AGENTS.md` import line |
 | `global/codex-hooks.json` | test 6 | User-scope Codex hooks calling the gate by absolute path |
 | `global/codex-config.toml` | test 8 | Two `[mcp_servers]` tables plus the trust record for `/work/bare` |

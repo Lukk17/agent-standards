@@ -7,9 +7,9 @@
 #              really denies what it claims to deny.
 # Usage: verify.sh
 # Environment:
-#   HARNESS_PROJECT     Throwaway project directory. Default /work/project.
-#   HARNESS_SKIP_SETUP  Set to 1 to assert against an existing project.
-#   HARNESS_CLI_TIMEOUT Seconds allowed per agent CLI call. Default 300.
+#   SANDBOX_PROJECT     Throwaway project directory. Default /work/project.
+#   SANDBOX_SKIP_SETUP  Set to 1 to assert against an existing project.
+#   SANDBOX_CLI_TIMEOUT Seconds allowed per agent CLI call. Default 300.
 # Exit codes:
 #   0  Every assertion passed.
 #   1  At least one assertion failed.
@@ -17,12 +17,18 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-readonly PROJECT="${HARNESS_PROJECT:-/work/project}"
-readonly SETUP="/harness/setup-project.sh"
-readonly CLI_TIMEOUT="${HARNESS_CLI_TIMEOUT:-300}"
+readonly PROJECT="${SANDBOX_PROJECT:-/work/project}"
+readonly SETUP="/sandbox/setup-project.sh"
+readonly CLI_TIMEOUT="${SANDBOX_CLI_TIMEOUT:-300}"
 readonly GATE=".agents/hooks/preflight_gate.py"
-readonly PROBE_AGENT=".claude/agents/harness-no-skills-probe.md"
+readonly PROBE_AGENT=".claude/agents/sandbox-no-skills-probe.md"
 readonly SAMPLE_SKILL="python-patterns"
+
+# Every agent CLI is captured into this file rather than into a pipe. OpenCode
+# exits without draining a large stdout when stdout is a pipe, which silently
+# truncates the listing mid-line while still exiting 0. See README.md.
+CLI_OUTPUT="$(mktemp -t sandbox-cli-XXXXXXXX)"
+readonly CLI_OUTPUT
 
 PASSES=0
 FAILURES=0
@@ -30,6 +36,15 @@ SKILL_COUNT=0
 
 SUBAGENTS=()
 MCP_SERVERS=()
+
+cleanup() {
+  local exit_code=$?
+
+  rm -f "$CLI_OUTPUT"
+
+  exit "$exit_code"
+}
+trap cleanup EXIT
 
 pass() { printf 'PASS  %s\n' "$*"; PASSES=$((PASSES + 1)); }
 fail() { printf 'FAIL  %s\n' "$*"; FAILURES=$((FAILURES + 1)); }
@@ -53,6 +68,11 @@ join_commas() {
 # Collapses multi-line command output into the last few lines on one line.
 one_line() {
   printf '%s' "$1" | tail -n 3 | tr '\n' ' ' | tr -s ' '
+}
+
+# Collapses the tail of the captured CLI output onto one line.
+one_line_capture() {
+  one_line "$(tail -n 3 "$CLI_OUTPUT")"
 }
 
 assert_file() {
@@ -139,25 +159,37 @@ assert_toml() {
   fi
 }
 
+# Runs an agent CLI inside the project with stdout and stderr captured into
+# CLI_OUTPUT. Returns the exit status the CLI reported.
+capture_cli() {
+  local status=0
+
+  (cd "$PROJECT" && timeout "$CLI_TIMEOUT" "$@" </dev/null >"$CLI_OUTPUT" 2>&1) || status=$?
+
+  return "$status"
+}
+
 # Runs an agent CLI inside the project and passes when every needle appears in
-# its output. Needles arrive on stdin, one per line.
+# its output. Needles arrive on stdin, one per line, so the call must be
+# redirected rather than piped, because a pipe would run the counters in a
+# subshell and drop both the pass and the failure.
 assert_cli_lists() {
   local label="$1"
   shift
   local needles=()
-  local output="" status=0 missing=() needle=""
+  local status=0 missing=() needle=""
 
   mapfile -t needles < <(cat)
 
-  output="$(cd "$PROJECT" && timeout "$CLI_TIMEOUT" "$@" </dev/null 2>&1)" || status=$?
+  capture_cli "$@" || status=$?
 
   if [[ "$status" -ne 0 ]]; then
-    fail "${label} (${1} exited ${status}: $(one_line "$output"))"
+    fail "${label} (${1} exited ${status}: $(one_line_capture))"
     return
   fi
 
   for needle in "${needles[@]}"; do
-    if ! grep -qF -- "$needle" <<<"$output"; then
+    if ! grep -qF -- "$needle" "$CLI_OUTPUT"; then
       missing+=("$needle")
     fi
   done
@@ -173,25 +205,25 @@ assert_cli_lists() {
 assert_cli_lacks() {
   local label="$1" needle="$2"
   shift 2
-  local output="" status=0
+  local status=0
 
-  output="$(cd "$PROJECT" && timeout "$CLI_TIMEOUT" "$@" </dev/null 2>&1)" || status=$?
+  capture_cli "$@" || status=$?
 
   if [[ "$status" -ne 0 ]]; then
-    fail "${label} (${1} exited ${status}: $(one_line "$output"))"
+    fail "${label} (${1} exited ${status}: $(one_line_capture))"
     return
   fi
 
-  if grep -qF -- "$needle" <<<"$output"; then
-    fail "${label} (${1} reported: $(one_line "$(grep -m1 -A2 -F -- "$needle" <<<"$output")"))"
+  if grep -qF -- "$needle" "$CLI_OUTPUT"; then
+    fail "${label} (${1} reported: $(one_line "$(grep -m1 -A2 -F -- "$needle" "$CLI_OUTPUT")"))"
   else
     pass "${label}"
   fi
 }
 
 prepare_project() {
-  if [[ "${HARNESS_SKIP_SETUP:-0}" == "1" ]]; then
-    note "HARNESS_SKIP_SETUP=1, asserting against the existing ${PROJECT}"
+  if [[ "${SANDBOX_SKIP_SETUP:-0}" == "1" ]]; then
+    note "SANDBOX_SKIP_SETUP=1, asserting against the existing ${PROJECT}"
   else
     "$SETUP"
   fi
@@ -244,8 +276,8 @@ verify_claude() {
   assert_json "MCP servers are present in the file Claude Code reads" ".mcp.json" \
     '(.mcpServers | length) > 0'
 
-  printf '%s\n' "${MCP_SERVERS[@]}" | assert_cli_lists \
-    "Claude Code itself lists the project MCP servers" claude mcp list
+  assert_cli_lists "Claude Code itself lists the project MCP servers" claude mcp list \
+    < <(printf '%s\n' "${MCP_SERVERS[@]}")
 }
 
 verify_codex() {
@@ -264,8 +296,8 @@ verify_codex() {
   assert_toml "MCP servers are present in the file Codex reads" ".codex/config.toml" \
     '(.mcp_servers | length) > 0'
 
-  printf '%s\n' "${MCP_SERVERS[@]}" | assert_cli_lists \
-    "Codex itself lists the project MCP servers" codex mcp list
+  assert_cli_lists "Codex itself lists the project MCP servers" codex mcp list \
+    < <(printf '%s\n' "${MCP_SERVERS[@]}")
 }
 
 verify_opencode() {
@@ -280,10 +312,10 @@ verify_opencode() {
   assert_json "MCP servers are present in the file OpenCode reads" "opencode.json" \
     '(.mcp | length) > 0'
 
-  printf '%s\n' "${SUBAGENTS[@]}" | assert_cli_lists \
-    "OpenCode itself lists every imported subagent" opencode agent list
-  printf '%s\n' "${MCP_SERVERS[@]}" | assert_cli_lists \
-    "OpenCode itself lists the project MCP servers" opencode mcp list
+  assert_cli_lists "OpenCode itself lists every imported subagent" opencode agent list \
+    < <(printf '%s\n' "${SUBAGENTS[@]}")
+  assert_cli_lists "OpenCode itself lists the project MCP servers" opencode mcp list \
+    < <(printf '%s\n' "${MCP_SERVERS[@]}")
 }
 
 verify_kilo() {
@@ -294,12 +326,12 @@ verify_kilo() {
   assert_json "the gate plugin is declared in the file Kilo Code reads" "opencode.json" \
     '[.plugin[]] | any(contains(".agents/plugin/hooks.js"))'
 
-  printf '%s\n' "${SUBAGENTS[@]}" | assert_cli_lists \
-    "Kilo Code itself lists every imported subagent" kilocode agent list
+  assert_cli_lists "Kilo Code itself lists every imported subagent" kilocode agent list \
+    < <(printf '%s\n' "${SUBAGENTS[@]}")
   assert_cli_lacks "Kilo Code accepts opencode.json instead of rejecting it" \
     "Configuration is invalid" kilocode config check
-  printf '%s\n' "${MCP_SERVERS[@]}" | assert_cli_lists \
-    "Kilo Code itself lists the project MCP servers" kilocode mcp list
+  assert_cli_lists "Kilo Code itself lists the project MCP servers" kilocode mcp list \
+    < <(printf '%s\n' "${MCP_SERVERS[@]}")
 }
 
 verify_copilot() {
@@ -316,12 +348,12 @@ verify_copilot() {
   assert_json "MCP servers are present in the file Copilot in VS Code reads" ".vscode/mcp.json" \
     '(.servers | length) > 0'
 
-  printf '%s\n' "$SAMPLE_SKILL" "code-reviewer" "coding-standards" | assert_cli_lists \
-    "Copilot itself lists the imported skills" copilot skill list
+  assert_cli_lists "Copilot itself lists the imported skills" copilot skill list \
+    < <(printf '%s\n' "$SAMPLE_SKILL" "code-reviewer" "coding-standards")
   assert_cli_lacks "every imported skill parses for Copilot" \
     "failed to load" copilot skill list
-  printf '%s\n' "${MCP_SERVERS[@]}" | assert_cli_lists \
-    "Copilot itself lists the project MCP servers" copilot mcp list
+  assert_cli_lists "Copilot itself lists the project MCP servers" copilot mcp list \
+    < <(printf '%s\n' "${MCP_SERVERS[@]}")
 }
 
 # Feeds one hook payload to the gate and checks the decision it returns.
@@ -360,11 +392,11 @@ assert_gate() {
 write_probe_agent() {
   cat > "${PROJECT}/${PROBE_AGENT}" <<'AGENT'
 ---
-name: harness-no-skills-probe
+name: sandbox-no-skills-probe
 description: Fixture subagent that deliberately declares no skills.
 ---
 
-Fixture used by the container harness to exercise rule B of the preflight gate.
+Fixture used by the container sandbox to exercise rule B of the preflight gate.
 AGENT
 }
 
@@ -374,7 +406,7 @@ verify_gate_behaviour() {
   local main_doc_edit='{"tool_name":"Edit","tool_input":{"file_path":"README.md"}}'
   local main_shell_write='{"tool_name":"Bash","tool_input":{"command":"echo x > src/app.py"}}'
   local specialist='{"agent_id":"a1","agent_type":"code-reviewer","tool_name":"Edit","tool_input":{"file_path":"src/app.py"}}'
-  local generalist='{"agent_id":"a1","agent_type":"harness-no-skills-probe","tool_name":"Edit","tool_input":{"file_path":"src/app.py"}}'
+  local generalist='{"agent_id":"a1","agent_type":"sandbox-no-skills-probe","tool_name":"Edit","tool_input":{"file_path":"src/app.py"}}'
 
   section "Preflight gate behaviour"
 

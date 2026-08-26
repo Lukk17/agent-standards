@@ -1,3 +1,9 @@
+# Dependency declaration for the agent-standards tooling. This file is the only
+# place a dependency or a version is written by hand. requirements.txt beside it
+# is the generated hash-pinned lock compiled from this file for CI installs; it
+# adds integrity hashes, which this format cannot express, and never adds a
+# dependency of its own.
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
@@ -8,7 +14,7 @@ version = "0.1.0"
 description = "Generator for agent-standards subagent distribution"
 requires-python = ">=3.10"
 dependencies = [
-    "pyyaml>=6.0",
+    "pyyaml==6.0.2",
 ]
 
 [dependency-groups]
@@ -27,3 +33,13 @@ py-modules = ["gen_subagents"]
 
 [tool.uv]
 package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+]

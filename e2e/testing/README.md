@@ -1,6 +1,6 @@
 # e2e testing guide
 
-Self-contained walkthroughs that an AI agent or a human executes end-to-end against the container harness. Each
+Self-contained walkthroughs that an AI agent or a human executes end-to-end against the container sandbox. Each
 `<N>-<capability>-test.md` spec in this directory drives one capability, with explicit prerequisite checks, reset
 commands, run steps, and expected outcomes. The paired run-record templates live in [templates/](templates/README.md),
 and executed run records land in [runs/](runs/README.md).

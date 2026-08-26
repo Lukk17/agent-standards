@@ -144,7 +144,7 @@ under `e2e/testing/runs/`. Assertions are observable behaviour only (HTTP status
 never log substrings.
 
 Projects on OpenSpec can install the matching schema for slash-command lifecycle integration. See
-[openspec-schemas/e2e-runbooks](https://github.com/Lukk17/openspec-schemas/tree/master/e2e-runbooks).
+[openspec-schemas/e2e-runbooks](https://github.com/Lukk17/openspec-schemas/tree/master/openspec/schemas/e2e-runbooks).
 
 ---
 
@@ -161,8 +161,7 @@ four read that directory natively. Start your agent from the project root:
   `{env:VAR}` in that file. Kilo does not leave the placeholder standing, it rejects the whole file, which costs it
   every MCP server and the preflight plugin at once. Run `kilocode config check` after editing it.
 - **OpenCode**: reads `AGENTS.md` automatically. Configuration lives in [opencode.json](opencode.json) at the project
-  root, and OpenCode alone also reads [.opencode/opencode.json](.opencode/opencode.json), merged over it, which is
-  where the one environment reference in the tree lives.
+  root, the same file Kilo Code reads, and `.opencode/` holds nothing but the `agents` symlink.
 - **Codex**: run `codex`. Reads `AGENTS.md` automatically. Project MCP servers and preflight hooks live in
   [.codex/config.toml](.codex/config.toml), and global settings in `~/.codex/config.toml`.
 - **GitHub Copilot**: the CLI, VS Code, and the JetBrains plugin all read `AGENTS.md` and `.agents/skills/` natively.

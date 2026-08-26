@@ -9,12 +9,10 @@ on stdin and answers with a reason on stderr at exit 2.
 import json
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-HOOK = REPO_ROOT / ".agents" / "hooks" / "no_ai_markers_check.py"
+from tests.conftest import NO_AI_MARKERS_HOOK
 
 EM_DASH = "—"
 EN_DASH = "–"
@@ -38,7 +36,7 @@ def assistant(text):
 
 def run(payload):
     result = subprocess.run(
-        [sys.executable, str(HOOK)],
+        [sys.executable, str(NO_AI_MARKERS_HOOK)],
         input=json.dumps(payload) if not isinstance(payload, str) else payload,
         capture_output=True,
         text=True,
@@ -208,7 +206,7 @@ def test_transcript_without_assistant_text_passes(tmp_path):
 
 def run_text(prose):
     result = subprocess.run(
-        [sys.executable, str(HOOK), "--text"],
+        [sys.executable, str(NO_AI_MARKERS_HOOK), "--text"],
         input=prose,
         capture_output=True,
         text=True,

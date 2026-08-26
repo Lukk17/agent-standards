@@ -18,12 +18,10 @@ Four real config files, committed and ready to use. They are not templates any m
 | [opencode.json](../opencode.json) | `mcp` | OpenCode and Kilo Code | `"type": "remote"` or `"type": "local"`, sits at the project root |
 | [.codex/config.toml](../.codex/config.toml) | `[mcp_servers.*]` | Codex | TOML, also carries the preflight hook tables |
 | [.vscode/mcp.json](../.vscode/mcp.json) | `servers` | GitHub Copilot in VS Code | key is `servers`, not `mcpServers` |
-| [.opencode/opencode.json](../.opencode/opencode.json) | `mcp` | OpenCode only, Kilo Code never reads it | one server, the Context7 API key header |
 
-The first four carry the same eight servers. Only the file name, the schema key, the `type` value, and the
-environment-variable syntax change between them. The fifth is an overlay rather than a server set: OpenCode
-deep-merges it over the root `opencode.json`, and it exists only to hold the one value that has to be substituted
-from the environment. The reason is in the next paragraph but one.
+All four carry the same eight servers. Only the file name, the schema key, the `type` value, and the
+environment-variable syntax change between them. There is no fifth project file and no per-tool overlay: one file per
+agent surface, and that is the whole set.
 
 Two surfaces get no shipped file, because there is nothing a repository could ship that they would read:
 
@@ -54,13 +52,18 @@ An environment or file reference inside an MCP `headers` block is treated more g
 and reports it as a skip, but `kilocode config check` still exits non-zero, so it is not a state worth shipping
 either.
 
-The shipped [opencode.json](../opencode.json) therefore contains no `{env:VAR}` tokens. Nothing is lost for a local
-server, because OpenCode and Kilo both start it with the environment of the process that started the agent, and an
-`environment` block in the config is merged on top of that rather than replacing it. Exporting the variable is enough.
-The only value that cannot arrive that way is the Context7 API key, which is an HTTP header on a remote server, so it
-lives in [.opencode/opencode.json](../.opencode/opencode.json) where only OpenCode reads it. To give Kilo the same
-key, put the whole `context7` block in your global `~/.config/kilo/kilo.jsonc`, which is trusted config and does
-expand `{env:VAR}`. Without it Kilo talks to Context7 on the free tier.
+The shipped [opencode.json](../opencode.json) therefore contains no `{env:VAR}` and no `{file:...}` token anywhere,
+and its `context7` block carries no `headers` at all. Nothing is lost for a local server, because OpenCode and Kilo
+both start it with the environment of the process that started the agent, and an `environment` block in the config is
+merged on top of that rather than replacing it. Exporting the variable is enough.
+
+The one value that cannot arrive that way is the Context7 API key, because it travels as an HTTP header on a remote
+server rather than in the server process environment. If you have a paid Context7 key, put the whole `context7` block
+into your own global config (`~/.config/opencode/opencode.json` for OpenCode, `~/.config/kilo/kilo.jsonc` for Kilo
+Code), which is trusted config and does expand `{env:VAR}`. It cannot live in a project file: Kilo rejects any project
+file that holds an environment reference, and it would throw away the MCP block and the `plugin` array declaring the
+preflight gate along with it. Without the global block, both tools talk to Context7 on the free tier, which is the
+shipped default.
 
 ---
 
@@ -226,7 +229,7 @@ or a real token.
 
 | Variable | Used by | Effect when unset |
 | --- | --- | --- |
-| `CONTEXT7_API_KEY` | `context7`, read by OpenCode from `.opencode/opencode.json` and by Kilo only from your global config | no header sent, Context7 free tier |
+| `CONTEXT7_API_KEY` | `context7`, and only from a global OpenCode or Kilo config, never from a project file | no header sent, Context7 free tier |
 | `MONGODB_URL` | `mongodb` | falls back to `mongodb://localhost:27017` |
 | `GRAFANA_URL` | `grafana` | falls back to `http://localhost:3000` |
 | `GRAFANA_SERVICE_ACCOUNT_TOKEN` | `grafana` | token sent empty, Grafana rejects the connection |
@@ -369,7 +372,7 @@ Useful when a variable is stubbornly not being picked up.
 | `.mcp.json`, GitHub Copilot CLI | none, literal only | inline literals |
 | `opencode.json`, OpenCode | `{env:VAR}` | any string value in an MCP block, though the shipped file uses none |
 | `opencode.json`, Kilo Code | none at project level, and one token invalidates the whole file | inline literals only |
-| `.opencode/opencode.json`, OpenCode only | `{env:VAR}` | the Context7 header, the only reference the tree ships |
+| `~/.config/opencode/opencode.json`, OpenCode global | `{env:VAR}` | any string value, global config is trusted |
 | `~/.config/kilo/kilo.jsonc`, Kilo Code global | `{env:VAR}` | any string value, global config is trusted |
 | `.vscode/mcp.json`, Copilot in VS Code | `${env:VAR}`, `${input:NAME}` | any string value in a server block |
 | JetBrains global `mcp.json` | none documented | inline literals, token in `requestInit.headers` |
@@ -405,9 +408,11 @@ on Windows.
 Edit all four project files together: [.mcp.json](../.mcp.json), [opencode.json](../opencode.json), the
 `[mcp_servers]` tables in [.codex/config.toml](../.codex/config.toml), and [.vscode/mcp.json](../.vscode/mcp.json).
 Then update the two manual blocks in this document, the JetBrains one and the cloud-agent one, which ship no file.
-Commit, and consumer projects pick it up through the update flow in [AGENTS-UPDATE.md](AGENTS-UPDATE.md).
 
 Keep the server set identical across all of them. Only the per-schema syntax is allowed to differ.
 
-To customise a single project without touching upstream, edit its local copies directly. Those files are
-consumer-owned and the update flow deliberately leaves them alone.
+To customise a single project without touching upstream, edit its local copies directly. These four files are
+consumer-owned, and the routine update flow in [AGENTS-UPDATE.md](AGENTS-UPDATE.md) never overwrites them. Picking up
+an upstream server change is a deliberate, separate step: the commands are in the
+[configuration files](AGENTS-UPDATE.md#configuration-files) section of that document, and every one of them replaces
+your file wholesale, so diff before you run it.

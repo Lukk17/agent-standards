@@ -51,7 +51,7 @@ Group every test from one sweep under the same timestamp: one timestamp is one f
 
 Every container run prints the resolved version of each of the five agent command-line tools before it does anything
 else. Paste that table into the Additional tasks I did section of the run record. It is the line to quote when a
-result needs reproducing, because the harness pins no versions and re-resolves every tool to its newest release on
+result needs reproducing, because the sandbox pins no versions and re-resolves every tool to its newest release on
 container start.
 
 ---

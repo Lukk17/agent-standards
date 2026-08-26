@@ -4,10 +4,10 @@ Manual and AI-runnable e2e suite for this repository. Each test exercises one ca
 stack and asserts only observable behaviour: process exit codes, what an agent's own listing command prints, and the
 decision the preflight gate actually returns. Logs are diagnostic, never a pass criterion.
 
-The live stack here is the container built by [test-harness/](../test-harness/README.md). It installs the five
+The live stack here is the container built by [sandbox-agent/](../sandbox-agent/README.md). It installs the five
 supported agent command-line tools, mounts this repository read-only at `/repo`, and lets a runner build a consumer
 project inside itself. The suites below drive that container. They do not replace
-[verify.sh](../test-harness/verify.sh), they restate the same behaviours as separately runnable, separately numbered
+[verify.sh](../sandbox-agent/verify.sh), they restate the same behaviours as separately runnable, separately numbered
 specs so a sweep reports a verdict per capability instead of one pass or fail for everything.
 
 ---
@@ -88,17 +88,23 @@ Concretely, out of scope:
 
 ### Before a sweep
 
-Build the image once, from the repository root, so no spec pays for it and no two specs contend for the build.
-PowerShell:
+Every host command below runs from the [sandbox-agent/](../sandbox-agent/README.md) directory, which is where
+Compose finds its `compose.yaml`. The same line works in PowerShell and in a Unix shell.
+
+```bash
+cd sandbox-agent
+```
+
+Build the image once, so no spec pays for it and no two specs contend for the build. PowerShell:
 
 ```powershell
-docker compose -f test-harness\docker-compose.yml build harness
+docker compose build sandbox
 ```
 
 Unix shell:
 
 ```bash
-docker compose -f test-harness/docker-compose.yml build harness
+docker compose build sandbox
 ```
 
 Every spec then starts its own throwaway container with `run --rm` and no `--build`. A fresh container per spec is
@@ -112,13 +118,13 @@ container, and the only shared surface is the read-only `/repo` mount.
 Every spec opens one interactive container shell as its first step. PowerShell:
 
 ```powershell
-docker compose -f test-harness\docker-compose.yml run --rm harness /bin/bash
+docker compose run --rm sandbox /bin/bash
 ```
 
 Unix shell:
 
 ```bash
-docker compose -f test-harness/docker-compose.yml run --rm harness /bin/bash
+docker compose run --rm sandbox /bin/bash
 ```
 
 Every later block in that spec is typed into that container shell, which is bash. Container blocks carry no
@@ -130,7 +136,7 @@ Assertions are exit codes. After running an Expected block, read the exit status
 echo $?
 ```
 
-To skip the agent-tool update step and test the versions already baked into the image, add `-e HARNESS_SKIP_UPDATE=1`
+To skip the agent-tool update step and test the versions already baked into the image, add `-e SANDBOX_SKIP_UPDATE=1`
 to the `run` command. A cold run without it spends several minutes updating the five tools.
 
 ---
@@ -142,7 +148,7 @@ starts the container, and each agent's own command-line tool inside it. Where an
 specs use it, because it answers in the agent's own terms rather than in the filesystem's. Claude Code publishes no
 skills or subagents listing, so those two assertions fall back to path and count checks, which the specs say plainly.
 
-The listing commands that work without credentials, established by the harness:
+The listing commands that work without credentials, established by the sandbox:
 
 | Command | Notes |
 | --- | --- |
@@ -173,7 +179,7 @@ Full methodology in the [e2e-runbooks skill](../.agents/skills/e2e-runbooks/SKIL
 Each spec lists its own concrete prerequisite checks. Common to all of them:
 
 1. Docker is running on the host and `docker compose` resolves.
-2. The `agent-standards-harness:local` image exists, built by the sweep step above.
+2. The `agent-standards-sandbox:local` image exists, built by the sweep step above.
 3. The work under test is committed, because neither suite can see uncommitted edits.
 
 ---

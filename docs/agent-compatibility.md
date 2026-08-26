@@ -128,11 +128,10 @@ rather than by agent.
 | [.vscode/mcp.json](../.vscode/mcp.json) | `servers` | GitHub Copilot in VS Code | `${env:VAR}`, `${input:NAME}` |
 | `~/.config/github-copilot/intellij/mcp.json` | `servers` | GitHub Copilot in JetBrains, global only | none documented |
 | repository settings page | pasted JSON | GitHub Copilot cloud agent | none, values are literal |
-| [.opencode/opencode.json](../.opencode/opencode.json) | `mcp` | OpenCode only, deep-merged over the root file | `{env:VAR}` |
 
 The same eight servers are mirrored across the four project files. Only the file name, the schema key, the `type`
-value, and the environment-variable syntax differ. The last row is not one of those four. It is a one-server overlay
-that OpenCode merges over the root file, and it exists because of the Kilo constraint described below.
+value, and the environment-variable syntax differ. The last two rows are not project files at all, which is why they
+carry no template.
 
 Two rows ship no template and cannot. The JetBrains Copilot plugin reads MCP only from the global path above, with no
 per-project file, so a shipped file would never be read. The cloud agent takes JSON pasted into a page in the
@@ -144,9 +143,11 @@ OpenCode. What it does with an environment reference is where sharing the file c
 a literal placeholder. A `{env:VAR}` anywhere in project-level config makes Kilo reject that entire file, so the MCP
 block and the `plugin` array declaring the preflight gate both vanish at once. The rest of Kilo's configuration chain
 survives, only the rejected file is dropped. A reference confined to an MCP `headers` block costs just that server,
-but `kilocode config check` still exits non-zero. The shared file therefore ships free of references, local servers
-inherit their tokens from the environment of the process that starts the agent, and the one header that cannot be
-inherited sits in the OpenCode-only overlay listed above.
+but `kilocode config check` still exits non-zero. The shared file therefore ships free of references, and local
+servers inherit their tokens from the environment of the process that starts the agent. The one value that cannot be
+inherited that way is the Context7 API key, which is an HTTP header, so `context7` ships with no `headers` block and
+runs on the free tier. There is no project-level overlay for it: an authenticated block belongs in a user's global
+OpenCode or Kilo config, as [MCP_SETUP.md](MCP_SETUP.md) describes.
 
 ---
 

@@ -17,7 +17,7 @@
           {
             "type": "command",
             "timeout": 10,
-            "command": "python /home/harness/.agents/hooks/preflight_gate.py --format claude"
+            "command": "python /home/sandbox/.agents/hooks/preflight_gate.py --format claude"
           }
         ]
       }
@@ -28,7 +28,7 @@
           {
             "type": "command",
             "timeout": 10,
-            "command": "python /home/harness/.agents/hooks/no_ai_markers_check.py"
+            "command": "python /home/sandbox/.agents/hooks/no_ai_markers_check.py"
           }
         ]
       }

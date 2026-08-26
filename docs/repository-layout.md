@@ -14,7 +14,7 @@ Three categories, and mixing them up is the one mistake that breaks a rebuild.
 | Category | Paths | How to change it |
 | --- | --- | --- |
 | Canonical | `subagents/*.md`, `.agents/skills/*/SKILL.md`, `.agents/hooks/*.py`, `.agents/plugin/hooks.js`, `docs/*.md` | edit directly |
-| Canonical config | `.mcp.json`, `opencode.json`, `.opencode/opencode.json`, `.codex/config.toml`, `.vscode/mcp.json`, `.claude/settings.json`, `.github/hooks/preflight.json` | edit directly, keep the server set and the gate wording in sync |
+| Canonical config | `.mcp.json`, `opencode.json`, `.codex/config.toml`, `.vscode/mcp.json`, `.claude/settings.json`, `.github/hooks/preflight.json` | edit directly, keep the server set and the gate wording in sync |
 | Generated | `.claude/agents/*.md`, `.agents/agents/*.md`, `.codex/agents/*.toml`, `.github/agents/*.agent.md` | never hand-edit, run `python tools/gen_subagents.py` |
 | Symlink | `.opencode/agents`, `.kilo/agents`, `.claude/skills` | never edit through the link, fix the link itself |
 
@@ -42,9 +42,15 @@ agent-standards/
     plugin/
       hooks.js                   # CANONICAL, OpenCode and Kilo Code adapter that shells out to preflight_gate.py
   subagents/                     # CANONICAL subagent sources, this repo only
-  tools/                         # Generator and lint scripts, this repo only
+  tools/                         # Generator, linter and tests, this repo only
     gen_subagents.py             # Emits four trees plus the two agent symlinks
     check-markdown.py            # Markdown lint used by CI
+    pyproject.toml               # CANONICAL dependency and pytest configuration
+    requirements.txt             # GENERATED hash-pinned lock, compiled from pyproject.toml
+    tests/                       # CANONICAL pytest suite for the two hook scripts
+  e2e/                           # Capability test specs, templates and run records, this repo only
+  sandbox-agent/                 # Containerised sandbox that runs those specs, this repo only
+  openspec/schemas/e2e-runbooks/ # Vendored companion schema, reference copy, this repo runs no OpenSpec workflow
   .claude/
     CLAUDE.md                    # imports ../AGENTS.md, the Claude Code bridge
     settings.json                # PreToolUse, SessionStart, UserPromptSubmit and Stop hooks
@@ -52,7 +58,6 @@ agent-standards/
     agents/                      # GENERATED, Claude-format subagents
   .opencode/
     agents -> ../.agents/agents  # SYMLINK maintained by the generator
-    opencode.json                # OpenCode-only overlay, the Context7 API key header
   .kilo/
     agents -> ../.agents/agents  # SYMLINK maintained by the generator
   .codex/
@@ -61,20 +66,28 @@ agent-standards/
   .github/
     agents/                      # GENERATED, GitHub Copilot subagents (*.agent.md)
     hooks/preflight.json         # Copilot hook config, camelCase events
+    workflows/                   # CI and release, both manual-trigger only
+    dependabot.yml               # Dependency update configuration
   .vscode/
     mcp.json                     # GitHub Copilot in VS Code, key "servers"
   AGENTS.md                      # This repo's own instructions, never shipped downstream
   AGENTS.md.example              # The template consumers rename to AGENTS.md
   opencode.json                  # OpenCode and Kilo Code, MCP plus the plugin declaration, no substitution tokens
   .mcp.json                      # Claude Code and the GitHub Copilot CLI, key "mcpServers"
+  README.md                      # Project front door, this repo only
+  CONTRIBUTING.md                # Contribution rules and local checks, this repo only
+  CHANGELOG.md                   # Release history, this repo only
+  LICENSE                        # MIT
   docs/
     AGENT_TOOLING.md             # Setup walkthrough shipped to consumers
     MCP_SETUP.md                 # Human MCP setup, keys and environment variables
     AGENTS-UPDATE.md             # Selective update commands shipped to consumers, self-refreshing
+    global-setup.md              # Project-only guide to installing the same tree into the user home
     repository-layout.md         # This file, project-only reference
     agent-compatibility.md       # Project-only per-surface matrix
     manual-setup.md              # Project-only manual fallback and per-agent start commands
     bootstrap-prompt.md          # Project-only first-run verification prompt
+    assets/                      # README demo gif and social card
 ```
 
 `.kilocode/` is gone. Kilo Code moved its configuration root to `.kilo/`, so nothing in this repo writes to the old
@@ -94,7 +107,6 @@ your-project/
   .claude/skills                 # symlink to ../.agents/skills
   .claude/agents/                # generated Claude-format subagents
   .opencode/agents               # symlink to ../.agents/agents
-  .opencode/opencode.json        # OpenCode-only overlay, the Context7 API key header
   .kilo/agents                   # symlink to ../.agents/agents
   .codex/agents/                 # generated Codex custom agents (*.toml)
   .codex/config.toml             # Codex MCP servers plus the inline gate hooks
@@ -163,11 +175,12 @@ contains nothing but `@../AGENTS.md` plus a comment, so the shared instructions 
 7. Managed config files (system directories)
 ```
 
-The main `opencode.json` sits at the project root, because that is also the only place Kilo Code will look for it.
-OpenCode alone reads a second project file at [.opencode/opencode.json](../.opencode/opencode.json) and deep-merges it
-over the root one, which is where the single MCP value that has to be substituted from an environment variable lives.
-Alongside it, [.opencode/](../.opencode/) holds the `agents` symlink. `AGENTS.md` is auto-read from the project root,
-falling back to `CLAUDE.md` when no `AGENTS.md` exists.
+The one `opencode.json` sits at the project root, because that is also the only place Kilo Code will look for it.
+OpenCode would additionally read a project file at `.opencode/opencode.json` and deep-merge it over the root one, but
+this repo ships none: a second file that only one of the two tools reads is a second place for the server set to
+drift, and there is no longer any value that needs it. [.opencode/](../.opencode/) therefore holds nothing but the
+`agents` symlink. `AGENTS.md` is auto-read from the project root, falling back to `CLAUDE.md` when no `AGENTS.md`
+exists.
 
 #### Kilo Code
 

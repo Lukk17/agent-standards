@@ -1,0 +1,20 @@
+services:
+  sandbox:
+    build:
+      context: .
+    image: agent-standards-sandbox:local
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      AGENT_STANDARDS_REPO: /repo
+      SANDBOX_PROJECT: /work/project
+      SANDBOX_CLI_TIMEOUT: "300"
+    volumes:
+      - type: bind
+        source: ..
+        target: /repo
+        read_only: true
+    command: ["/sandbox/verify.sh"]

@@ -157,8 +157,8 @@ git checkout agent-standards/master -- .agents/skills .agents/hooks .claude/agen
 
 #### Codex
 
-Codex reads [AGENTS.md](AGENTS.md.example) and [.agents/skills/](.agents/skills/) natively, and it follows symlinks
-while scanning them, so nothing has to be bridged. Custom agents come from [.codex/agents/](.codex/agents/) as TOML,
+Codex reads `AGENTS.md` and [.agents/skills/](.agents/skills/) natively, and it follows symlinks while scanning
+them, so nothing has to be bridged. Custom agents come from [.codex/agents/](.codex/agents/) as TOML,
 and [.codex/config.toml](.codex/config.toml) carries both the `[mcp_servers]` tables and the preflight hooks as inline
 `[[hooks.*]]` tables. No symlink is involved in this set, so Windows needs neither Developer Mode nor
 `git config core.symlinks true`.
@@ -217,8 +217,8 @@ git checkout agent-standards/master -- .agents/skills .agents/hooks .codex/agent
 
 #### OpenCode
 
-OpenCode reads [AGENTS.md](AGENTS.md.example) and [.agents/skills/](.agents/skills/) natively. Subagents arrive
-through the `.opencode/agents` symlink into [.agents/agents/](.agents/agents/). [opencode.json](opencode.json) at the
+OpenCode reads `AGENTS.md` and [.agents/skills/](.agents/skills/) natively. Subagents arrive through the
+`.opencode/agents` symlink into [.agents/agents/](.agents/agents/). [opencode.json](opencode.json) at the
 project root declares the gate plugin by path in its `plugin` array and carries the MCP servers under its `mcp` key.
 That file has to stay at the root, because inside `.opencode/` it is ignored.
 
@@ -282,8 +282,8 @@ git checkout agent-standards/master -- .agents/skills .agents/agents .agents/hoo
 
 #### Kilo Code
 
-Kilo Code works like OpenCode. It reads [AGENTS.md](AGENTS.md.example) and [.agents/skills/](.agents/skills/)
-natively, takes its subagents through the `.kilo/agents` symlink into [.agents/agents/](.agents/agents/), and accepts
+Kilo Code works like OpenCode. It reads `AGENTS.md` and [.agents/skills/](.agents/skills/) natively, takes its
+subagents through the `.kilo/agents` symlink into [.agents/agents/](.agents/agents/), and accepts
 the root [opencode.json](opencode.json) as a project config file, so it picks up the gate plugin and the MCP block
 from the same file OpenCode uses.
 
@@ -292,9 +292,8 @@ for Kilo, and it rejects that entire file rather than leaving the token literal,
 and the gate plugin in one go. The shipped `opencode.json` therefore carries no tokens at all. Local servers still get
 their secrets, because both tools start them with the environment of the process that started the agent, so exporting
 the variable is enough. The single value that cannot be inherited is the Context7 API key, which travels in an HTTP
-header: OpenCode reads it from [.opencode/opencode.json](.opencode/opencode.json), a file Kilo never looks at, and a
-Kilo user who wants an authenticated Context7 puts the same server block in the global `~/.config/kilo/kilo.jsonc`,
-where environment references are allowed.
+header, so `context7` ships unauthenticated on the free tier. Adding a paid key is a global-config change, described
+in [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
 
 `.kilo/agents` is a symlink, so Windows needs Developer Mode on (Settings, System, For developers) and git told to
 honour symlinks, or Kilo Code ends up with no subagents. PowerShell:
@@ -355,8 +354,8 @@ git checkout agent-standards/master -- .agents/skills .agents/agents .agents/hoo
 
 #### GitHub Copilot
 
-Copilot reads [AGENTS.md](AGENTS.md.example) and [.agents/skills/](.agents/skills/) natively on every surface: VS
-Code, the JetBrains plugin, the CLI, and the cloud agent. No bridge file, and no symlink either, so Windows needs
+Copilot reads `AGENTS.md` and [.agents/skills/](.agents/skills/) natively on every surface: VS Code, the JetBrains
+plugin, the CLI, and the cloud agent. No bridge file, and no symlink either, so Windows needs
 neither Developer Mode nor `git config core.symlinks true`. Subagents have to be Copilot's own `*.agent.md` format in
 [.github/agents/](.github/agents/), and the gate rides [.github/hooks/preflight.json](.github/hooks/preflight.json)
 with camelCase event names. The JetBrains plugin reads `AGENTS.md` in agent mode too, per the March 2026 changelog,
@@ -482,9 +481,9 @@ precedence: [docs/repository-layout.md](docs/repository-layout.md).
 
 ### Agent support
 
-Four of the five agents read [AGENTS.md](AGENTS.md.example) and [.agents/skills/](.agents/skills/) natively. Claude
-Code reads neither, so it gets an `@` import for the instructions and a symlink for the skills, both patterns its own
-documentation supports. Subagents and MCP are per tool because no shared format exists. Full per-surface detail,
+Four of the five agents read `AGENTS.md` and [.agents/skills/](.agents/skills/) natively. Claude Code reads neither,
+so it gets an `@` import for the instructions and a symlink for the skills, both patterns its own documentation
+supports. Subagents and MCP are per tool because no shared format exists. Full per-surface detail,
 including what each hook surface can actually block, lives in
 [docs/agent-compatibility.md](docs/agent-compatibility.md).
 
@@ -506,11 +505,12 @@ including what each hook surface can actually block, lives in
   and `no_ai_markers_check.py`, the formatting checker Claude Code runs on a `Stop` hook.
   **[.agents/plugin/hooks.js](.agents/plugin/hooks.js)**: the OpenCode and Kilo Code adapter for that gate.
 - **[subagents/](subagents/)** *(this repo only)*: canonical subagent sources. Generator emits the per-tool copies.
-- **[tools/](tools/)** *(this repo only)*: `gen_subagents.py` and the lint scripts. Emits four subagent trees
+- **[tools/](tools/)** *(this repo only)*: the subagent generator, the markdown linter, and the pytest suite for the
+  shared hook scripts in [tools/tests/](tools/tests/). The generator emits four subagent trees
   ([.agents/agents/](.agents/agents/), [.claude/agents/](.claude/agents/), [.codex/agents/](.codex/agents/),
   [.github/agents/](.github/agents/)) and maintains the `.opencode/agents` and `.kilo/agents` symlinks.
-- **[.claude/](.claude/)**: Claude Code bridge. [.claude/CLAUDE.md](.claude/CLAUDE.md) imports
-  [AGENTS.md](AGENTS.md.example), a `skills` symlink, a generated `agents/` tree, and the hooks in `settings.json`.
+- **[.claude/](.claude/)**: Claude Code bridge. [.claude/CLAUDE.md](.claude/CLAUDE.md) imports `AGENTS.md`, plus a
+  `skills` symlink, a generated `agents/` tree, and the hooks in `settings.json`.
 - **OpenSpec scaffold** *(consumer side only, this repo ships no `openspec-*` skills of its own, because OpenSpec is a
   consumer concern)*: spec-driven workflow. Initialise it with the vendor-neutral `openspec init --tools agents`, which
   writes into `.agents/skills/` and creates no per-tool directories. That one target covers every agent, since Codex,
@@ -521,20 +521,18 @@ including what each hook surface can actually block, lives in
   [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md#openspec-integration).
 - **Companion OpenSpec schema** *(optional)*:
   [Lukk17/openspec-schemas](https://github.com/Lukk17/openspec-schemas) ships an `e2e-runbooks` schema for
-  spec-driven end-to-end capability tests through OpenSpec's lifecycle
-  (`/opsx:new --schema e2e-runbooks`). Install steps live in
-  [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md#optional-install-a-custom-schema-for-e2e-capability-tests).
-- **[AGENTS.md](AGENTS.md.example)**: shared instructions read natively by Codex, OpenCode, Kilo Code, and GitHub
-  Copilot. [AGENTS.md.example](AGENTS.md.example) is the one template left, renamed to `AGENTS.md` on import.
+  spec-driven end-to-end capability tests through OpenSpec's lifecycle. Install steps and the invocation live in
+  [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md#optional-a-custom-schema-for-end-to-end-capability-tests).
+- **AGENTS.md**: shared instructions read natively by Codex, OpenCode, Kilo Code, and GitHub Copilot.
+  [AGENTS.md.example](AGENTS.md.example) is the one template left, renamed to `AGENTS.md` on import.
 - **GitHub Copilot**: [.github/agents/](.github/agents/) holds generated `*.agent.md` subagents, and
   [.github/hooks/preflight.json](.github/hooks/preflight.json) wires the gate through camelCase hook events. Copilot
   reads `AGENTS.md` and `.agents/skills/` natively on every surface, so no bridge instruction file ships. The
   JetBrains plugin reads `AGENTS.md` in agent mode too, per the March 2026 changelog, though GitHub's own support
   matrix still omits it.
 - **MCP config**: [.mcp.json](.mcp.json) (Claude Code and the Copilot CLI), [opencode.json](opencode.json) (OpenCode
-  and Kilo Code), [.codex/config.toml](.codex/config.toml) (Codex), [.vscode/mcp.json](.vscode/mcp.json) (Copilot in
-  VS Code), plus [.opencode/opencode.json](.opencode/opencode.json), a one-server OpenCode overlay that holds the only
-  environment reference left in the tree. Real files, not templates.
+  and Kilo Code), [.codex/config.toml](.codex/config.toml) (Codex), and [.vscode/mcp.json](.vscode/mcp.json) (Copilot
+  in VS Code). Four real files, one per agent surface, not templates.
 
 Server list and configuration live in [docs/MCP_SETUP.md](docs/MCP_SETUP.md). Claude Code's file uses `${VAR}` with
 defaults. The others hardcode their URLs because their substitution syntax has no fallback, and the shared OpenCode
@@ -609,10 +607,14 @@ itself on every run. It contains bash and PowerShell commands that:
   `.github/agents/`) and pull only those.
 
 Files intentionally NOT touched by the update: the three symlinks (`.claude/skills`, `.opencode/agents`,
-`.kilo/agents`, all of which follow their canonical directories anyway), `.claude/CLAUDE.md`, `.claude/settings.json`,
-`AGENTS.md.example`, and the consumer's customised `AGENTS.md`. The MCP files are left alone too, and two of them
-(`opencode.json` and `.codex/config.toml`) also carry gate wiring, so an upstream change there is merged by hand
-rather than pulled over your servers.
+`.kilo/agents`, all of which follow their canonical directories anyway), `.claude/CLAUDE.md`, `AGENTS.md.example`, the
+consumer's customised `AGENTS.md`, and the five configuration files (`.mcp.json`, `opencode.json`,
+`.vscode/mcp.json`, `.codex/config.toml`, `.claude/settings.json`). Three of those five hold gate wiring next to
+something of yours, so a checkout would take your MCP servers or your permissions with it.
+
+When you do want an upstream change in one of the five, the
+[configuration files](docs/AGENTS-UPDATE.md#configuration-files) section of the same doc has the diff-first commands
+and says which half of each file is yours and which should track upstream.
 
 If your project was imported before this doc shipped and has no `docs/AGENTS-UPDATE.md`, pull it with a one-off
 `git checkout agent-standards/master -- docs/AGENTS-UPDATE.md`, then use it for every later refresh.
@@ -632,18 +634,22 @@ filenames stay in this repo only.
 | --- | --- |
 | [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md) | Initial import flow, future updates, subagents, MCP overview, full OpenSpec integration and workflow. |
 | [docs/MCP_SETUP.md](docs/MCP_SETUP.md) | The real MCP config files, prerequisites, keys, env-var export per OS, the manual JetBrains and cloud-agent blocks, verification. |
-| [docs/AGENTS-UPDATE.md](docs/AGENTS-UPDATE.md) | Per-shell selective update commands, the Windows symlink prerequisite, and the OpenSpec init and update guidance. Refreshes itself. |
-| [docs/global-setup.md](docs/global-setup.md) | Installing the same skills, subagents and gate into the user home so every project on the machine inherits them, per agent and per shell. |
+| [docs/AGENTS-UPDATE.md](docs/AGENTS-UPDATE.md) | Per-shell selective update commands, the diff-first configuration-file commands, the Windows symlink prerequisite, and the OpenSpec init and update guidance. Refreshes itself. |
 
 **This repo only:**
 
 | File | What's in it |
 | --- | --- |
+| [docs/global-setup.md](docs/global-setup.md) | Installing the same skills, subagents and gate into the user home so every project on the machine inherits them, per agent and per shell. Read it here, nothing is copied into a project. |
 | [docs/agent-compatibility.md](docs/agent-compatibility.md) | Per-surface matrix of what each agent reads and what its hook surface can actually block. |
 | [docs/repository-layout.md](docs/repository-layout.md) | Canonical versus generated versus symlink, the full tree, and instruction precedence per agent. |
 | [docs/manual-setup.md](docs/manual-setup.md) | Fallback steps when the standard `git checkout` flow needs manual help (symlink recreation per OS) plus per-agent start commands. |
 | [docs/bootstrap-prompt.md](docs/bootstrap-prompt.md) | First-run verification prompt to paste into the agent after import. Checks skills, subagents, symlinks, the gate, MCP, and OpenSpec. |
-| [test-harness/README.md](test-harness/README.md) | Containerised end-to-end harness. Installs all five agent CLIs, imports the standards into a throwaway project, and asserts each agent discovers them. |
+| [AGENTS.md](AGENTS.md) | How to work on the standards themselves: canonical versus generated trees, repo conventions, and the local verification commands. |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Branching, commit style, the manual pipeline triggers, and the local checks a pull request has to pass. |
+| [CHANGELOG.md](CHANGELOG.md) | Release history in Keep a Changelog form. |
+| [sandbox-agent/README.md](sandbox-agent/README.md) | Containerised end-to-end sandbox. Installs all five agent CLIs, imports the standards into a throwaway project, and asserts each agent discovers them. |
+| [e2e/README.md](e2e/README.md) | The capability test suites the sandbox runs, one spec per behaviour, plus how to run a single test or the whole sweep. |
 
 **Template:**
 
