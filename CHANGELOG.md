@@ -87,6 +87,20 @@ All notable changes to this project are documented here. The format follows
   and why widening it would be worse than leaving it alone. Copilot names its tools in lower case and compares a
   matcher anchored and case sensitively, so the PascalCase Claude pattern never matches there, and the CLI would run
   the gate twice per tool call if it did.
+- Every pinned version in the pipeline and in the sandbox container, bumped by hand now that Dependabot is gone. The
+  three actions keep their commit-hash pin with a version comment: `actions/checkout` v4.2.2 to v7.0.1,
+  `actions/setup-python` v5.3.0 to v7.0.0, and `reviewdog/action-actionlint` v1.72.0 to v1.73.2. The first two now run
+  on Node 24, which is what the deprecation warning on every run was about. The `validate` job moves from Python 3.12,
+  which has been security-fix-only since April 2025, to 3.14. `pip==26.2.1` was already the current release and is
+  unchanged.
+- The runner label, from the floating `ubuntu-latest` to the exact `ubuntu-24.04` it resolves to today. Ubuntu 26.04 is
+  in preview, and when it reaches general availability GitHub moves the `-latest` label over one to two months. With no
+  Dependabot to open a pull request, a floating label is the one version in this repo that could change under us
+  without a commit, so it now matches how everything else here is pinned.
+- The sandbox base image, from `node:24-bookworm-slim` to `node:24-trixie-slim`. Node 24 is still the active long-term
+  support line, Node 26 does not become one until October 2026, but Debian 13 (trixie) has been stable since August
+  2025 and bookworm is oldstable. The image gains the newer distribution toolchain that comes with it: python3 3.13
+  instead of 3.11, git 2.47 instead of 2.39.
 
 ### Fixed
 

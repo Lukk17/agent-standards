@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM node:24-bookworm-slim
+FROM node:24-trixie-slim
 
 LABEL org.opencontainers.image.source="https://github.com/Lukk17/agent-standards" \
       org.opencontainers.image.title="agent-standards-sandbox" \
