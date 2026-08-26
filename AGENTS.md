@@ -36,9 +36,9 @@ Each agent wires that one script to its own hook surface:
 | Agent | Wiring | Events |
 | --- | --- | --- |
 | Claude Code | [.claude/settings.json](.claude/settings.json) | `UserPromptSubmit`, `PreToolUse` (matcher `Edit`, `Write`, `NotebookEdit`, `Bash`), `Stop` for the formatting checker |
-| Codex | inline `[[hooks.*]]` tables in [.codex/config.toml](.codex/config.toml) | `UserPromptSubmit`, `SubagentStart`, `PreToolUse` |
+| Codex | inline `[[hooks.*]]` tables in [.codex/config.toml](.codex/config.toml) | `UserPromptSubmit`, `SubagentStart`, `PreToolUse` (matcher `^(Bash|shell|apply_patch|Edit|Write|NotebookEdit)$`) |
 | OpenCode and Kilo Code | [.agents/plugin/hooks.js](.agents/plugin/hooks.js), declared once by path in the `plugin` array of [opencode.json](opencode.json), which both tools read | `tool.execute.before` |
-| GitHub Copilot | [.github/hooks/preflight.json](.github/hooks/preflight.json) | `sessionStart`, `subagentStart`, `preToolUse` |
+| GitHub Copilot | [.github/hooks/preflight.json](.github/hooks/preflight.json) | `sessionStart`, `subagentStart`, `preToolUse` (matcher `bash|powershell|create|edit`) |
 
 Per-surface details worth knowing before you touch any of them:
 
@@ -49,9 +49,18 @@ Per-surface details worth knowing before you touch any of them:
   handed, which is the deny code on Claude Code and Codex and denies on Copilot too. Each wiring therefore moves to the
   project root first: `${CLAUDE_PROJECT_DIR}` on Claude Code, `git rev-parse --show-toplevel` on Codex, `"cwd": "."` on
   Copilot, the runtime's `worktree` in the plugin. The claude, codex and copilot formats deny with exit 0 and JSON on
-  stdout and never use a non-zero exit, so `|| exit 0` on those three turns any error back into an allow. The plugin
-  cannot do the same, because its plain format does use exit 2 as the denial, so it reads each hook file before
-  spawning it and drops the ones it cannot open.
+  stdout and never use a non-zero exit, so forcing a zero exit on those three turns any error back into an allow. Codex
+  and Copilot each carry a separate command field per shell, so they spell it per shell: `|| exit 0` wherever a POSIX
+  shell or cmd runs the line, `; exit 0` in Copilot's `powershell` field. Claude Code has one field and picks the shell
+  itself, so it uses `; exit 0` everywhere, which bash and PowerShell both parse. After `||` PowerShell reads `exit` as
+  a command name and errors, which is why the `||` form cannot be used there. The plugin cannot force a zero exit at
+  all, because its plain format does use exit 2 as the denial, so it reads each hook file before spawning it and drops
+  the ones it cannot open.
+- Claude Code is also the one surface whose gate call cannot redirect standard error, because no redirect token means
+  the same thing in both shells it may pick. `2>/dev/null` makes PowerShell open a literal `dev` directory and fail,
+  and `2>$null` is an ambiguous redirect in bash. Its `PreToolUse` command therefore runs the gate through a one-line
+  Python wrapper that discards the child's standard error with `subprocess.DEVNULL`, which needs no shell support at
+  all. Codex and Copilot keep the per-shell redirects their variant fields let them write.
 - Codex supports both inline `[[hooks.*]]` tables and a separate `hooks.json`, and warns when a single configuration
   layer carries both. The tables therefore live in `.codex/config.toml` and `.codex/hooks.json` no longer exists.
 - Copilot hooks are no longer CLI-only. They run in VS Code and in JetBrains as well, from the same `.github/hooks/`

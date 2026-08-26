@@ -377,7 +377,7 @@ claude_settings() {
         "hooks": [
           {
             "type": "command",
-            "command": "echo @PREFLIGHT@"
+            "command": "echo '@PREFLIGHT@'"
           }
         ]
       }
@@ -389,7 +389,7 @@ claude_settings() {
           {
             "type": "command",
             "timeout": 10,
-            "command": "python @GATE@ --format claude"
+            "command": "python -c \"import subprocess,sys;subprocess.run([sys.executable,'@GATE@','--format','claude'],stderr=subprocess.DEVNULL)\" ; exit 0"
           }
         ]
       }
@@ -411,7 +411,7 @@ JSON
 }
 
 codex_hooks() {
-  sed -e "s#@GATE@#${GATE_SCRIPT}#g" <<'JSON'
+  sed -e "s#@GATE@#${GATE_SCRIPT}#g" -e "s#@PREFLIGHT@#${PREFLIGHT_TEXT}#g" <<'JSON'
 {
   "hooks": {
     "UserPromptSubmit": [
@@ -420,13 +420,14 @@ codex_hooks() {
           {
             "type": "command",
             "statusMessage": "Preflight gate",
-            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"PREFLIGHT: name the skills and subagents that own this task and invoke them, or say none apply and why.\"}}'"
+            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"@PREFLIGHT@\"}}'"
           }
         ]
       }
     ],
     "PreToolUse": [
       {
+        "matcher": "^(Bash|shell|apply_patch|Edit|Write|NotebookEdit)$",
         "hooks": [
           {
             "type": "command",

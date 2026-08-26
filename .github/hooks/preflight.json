@@ -18,6 +18,7 @@
     "preToolUse": [
       {
         "type": "command",
+        "matcher": "bash|powershell|create|edit",
         "cwd": ".",
         "bash": "python .agents/hooks/preflight_gate.py --format copilot 2>/dev/null || exit 0",
         "powershell": "python .agents/hooks/preflight_gate.py --format copilot 2>$null; exit 0"

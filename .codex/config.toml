@@ -79,6 +79,7 @@ command = "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"SubagentStart\",
 commandWindows = "echo {\"hookSpecificOutput\": {\"hookEventName\": \"SubagentStart\", \"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.\"}}"
 
 [[hooks.PreToolUse]]
+matcher = "^(Bash|shell|apply_patch|Edit|Write|NotebookEdit)$"
 
 [[hooks.PreToolUse.hooks]]
 type = "command"

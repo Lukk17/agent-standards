@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default."
+            "command": "echo 'PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.'"
           }
         ]
       }
@@ -17,7 +17,7 @@
           {
             "type": "command",
             "timeout": 10,
-            "command": "cd \"${CLAUDE_PROJECT_DIR}\" && python .agents/hooks/preflight_gate.py --format claude || exit 0"
+            "command": "cd \"${CLAUDE_PROJECT_DIR}\" && python -c \"import subprocess,sys;subprocess.run([sys.executable,'.agents/hooks/preflight_gate.py','--format','claude'],stderr=subprocess.DEVNULL)\" ; exit 0"
           }
         ]
       }
@@ -28,7 +28,7 @@
           {
             "type": "command",
             "timeout": 10,
-            "command": "cd \"${CLAUDE_PROJECT_DIR}\" && python .agents/hooks/no_ai_markers_check.py || exit 0"
+            "command": "cd \"${CLAUDE_PROJECT_DIR}\" && python .agents/hooks/no_ai_markers_check.py ; exit 0"
           }
         ]
       }

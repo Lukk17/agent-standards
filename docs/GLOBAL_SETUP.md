@@ -254,7 +254,7 @@ Forward slashes work on Windows too and save you escaping backslashes inside JSO
         "hooks": [
           {
             "type": "command",
-            "command": "echo PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default."
+            "command": "echo 'PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.'"
           }
         ]
       }
@@ -266,7 +266,7 @@ Forward slashes work on Windows too and save you escaping backslashes inside JSO
           {
             "type": "command",
             "timeout": 10,
-            "command": "python /home/you/.agents/hooks/preflight_gate.py --format claude"
+            "command": "python -c \"import subprocess,sys;subprocess.run([sys.executable,'/home/you/.agents/hooks/preflight_gate.py','--format','claude'],stderr=subprocess.DEVNULL)\" ; exit 0"
           }
         ]
       }
@@ -359,13 +359,14 @@ and Codex asks you to pick one form per configuration layer rather than using bo
           {
             "type": "command",
             "statusMessage": "Preflight gate",
-            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"PREFLIGHT: name the skills and subagents that own this task and invoke them, or say none apply and why.\"}}'"
+            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.\"}}'"
           }
         ]
       }
     ],
     "PreToolUse": [
       {
+        "matcher": "^(Bash|shell|apply_patch|Edit|Write|NotebookEdit)$",
         "hooks": [
           {
             "type": "command",

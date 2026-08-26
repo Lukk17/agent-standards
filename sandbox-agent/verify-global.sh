@@ -513,9 +513,15 @@ verify_install_shape() {
     '[.skills.paths[]] | any(contains(".agents/skills"))'
 
   assert_json "Claude Code's user settings call the gate by absolute path" ".claude/settings.json" \
-    '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.agents/hooks/preflight_gate.py --format claude"))'
+    '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.agents/hooks/preflight_gate.py") and test("--format.,.claude"))'
+  assert_json "Claude Code's user settings discard the gate's standard error" ".claude/settings.json" \
+    '[.hooks.PreToolUse[].hooks[].command] | any(contains("stderr=subprocess.DEVNULL"))'
   assert_json "Codex's user hooks call the gate by absolute path" ".codex/hooks.json" \
     '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.agents/hooks/preflight_gate.py --format codex"))'
+  assert_json "Codex's user hooks scope the gate to the tools that can write" ".codex/hooks.json" \
+    '[.hooks.PreToolUse[].matcher] | any(type == "string" and test("Bash") and test("apply_patch"))'
+  assert_json "Codex's user hooks carry the canonical gate wording, not a shortened copy" ".codex/hooks.json" \
+    '[.hooks.UserPromptSubmit[].hooks[].command] | any(contains("Delegate investigation, review and bounded implementation by default."))'
   assert_json "Copilot's user hooks call the gate by absolute path" ".copilot/hooks/preflight.json" \
     '[.hooks.preToolUse[].bash] | any(contains("/.agents/hooks/preflight_gate.py --format copilot"))'
   assert_file_lacks "no project-relative gate call survived the rewrite" \

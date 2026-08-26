@@ -122,25 +122,25 @@ docker compose run --rm --build sandbox
 The global scenario names its script. Unix shell:
 
 ```bash
-docker compose run --rm sandbox /sandbox/verify-global.sh
+docker compose run --rm --build sandbox /sandbox/verify-global.sh
 ```
 
 PowerShell:
 
 ```powershell
-docker compose run --rm sandbox /sandbox/verify-global.sh
+docker compose run --rm --build sandbox /sandbox/verify-global.sh
 ```
 
 To prove that installing for one agent writes that agent's paths and no other's, Unix shell:
 
 ```bash
-docker compose run --rm sandbox /sandbox/verify-global.sh --scoped codex
+docker compose run --rm --build sandbox /sandbox/verify-global.sh --scoped codex
 ```
 
 PowerShell:
 
 ```powershell
-docker compose run --rm sandbox /sandbox/verify-global.sh --scoped codex
+docker compose run --rm --build sandbox /sandbox/verify-global.sh --scoped codex
 ```
 
 A cold run takes several minutes. Most of it is the container updating the five agent tools and then waiting on MCP
@@ -149,38 +149,96 @@ servers that cannot connect.
 To reuse the versions already baked into the image and skip the update step, Unix shell:
 
 ```bash
-docker compose run --rm -e SANDBOX_SKIP_UPDATE=1 sandbox
+docker compose run --rm --build -e SANDBOX_SKIP_UPDATE=1 sandbox
 ```
 
 PowerShell:
 
 ```powershell
-docker compose run --rm -e SANDBOX_SKIP_UPDATE=1 sandbox
+docker compose run --rm --build -e SANDBOX_SKIP_UPDATE=1 sandbox
 ```
 
 To poke around inside a prepared container instead of running the assertions, Unix shell:
 
 ```bash
-docker compose run --rm sandbox /bin/bash
+docker compose run --rm --build sandbox /bin/bash
 ```
 
 PowerShell:
 
 ```powershell
-docker compose run --rm sandbox /bin/bash
+docker compose run --rm --build sandbox /bin/bash
 ```
 
 The image carries ShellCheck, so it can lint its own scripts. Unix shell:
 
 ```bash
-docker compose run --rm --entrypoint shellcheck sandbox /sandbox/entrypoint.sh /sandbox/setup-project.sh /sandbox/setup-global.sh /sandbox/verify-project.sh /sandbox/verify-global.sh
+docker compose run --rm --build --entrypoint shellcheck sandbox /sandbox/entrypoint.sh /sandbox/setup-project.sh /sandbox/setup-global.sh /sandbox/verify-project.sh /sandbox/verify-global.sh
 ```
 
 PowerShell:
 
 ```powershell
-docker compose run --rm --entrypoint shellcheck sandbox /sandbox/entrypoint.sh /sandbox/setup-project.sh /sandbox/setup-global.sh /sandbox/verify-project.sh /sandbox/verify-global.sh
+docker compose run --rm --build --entrypoint shellcheck sandbox /sandbox/entrypoint.sh /sandbox/setup-project.sh /sandbox/setup-global.sh /sandbox/verify-project.sh /sandbox/verify-global.sh
 ```
+
+---
+
+### The image goes stale, and the container refuses to run when it has
+
+The scripts are copied into the image when it is built. The repository is mounted at run time, read only, at `/repo`.
+Those are two separate copies of the same files, and `docker compose run` on its own does not rebuild, so editing a
+script and running again asserts against the copy baked into the image rather than the one you just edited. That has
+already produced two false failures against a script that had been fixed hours earlier.
+
+[entrypoint.sh](entrypoint.sh) closes the gap. Before anything else it hashes every `*.sh` in `/sandbox` against the
+file of the same name in `/repo/sandbox-agent`, and refuses the run with exit code 3 when any pair differs, or when a
+script exists on only one side:
+
+```text
+==============================================================
+ STALE IMAGE, refusing to run
+==============================================================
+[ERROR] these scripts differ from the ones in /repo/sandbox-agent:
+         - verify-global.sh
+[ERROR] the image was built before those edits and 'docker compose run' does not rebuild,
+[ERROR] so this run would assert against code that no longer exists. Rebuild first:
+
+         docker compose run --rm --build sandbox
+
+[ERROR] to run the baked scripts anyway, set SANDBOX_SKIP_STALE_CHECK=1
+==============================================================
+```
+
+The file list is derived from the two directories rather than written down, so a script added to the Dockerfile's
+`COPY` line is covered without touching the check.
+
+It refuses instead of warning because a warning is exactly what got missed. A cold run prints several minutes of log,
+and one more line inside it stops nobody. Refusing costs one flag, and every command in the section above already
+carries that flag.
+
+The check only fires on evidence it can trust: both copies readable and their bytes different, or one copy missing
+entirely. Anything that makes an honest comparison impossible skips the check and says so in the log: no
+`/repo/sandbox-agent` to compare against, no `sha256sum` on `PATH`, or a file that cannot be hashed on both sides. The
+guard cannot turn a run that would have worked into a run that fails.
+
+To run the baked scripts anyway, Unix shell:
+
+```bash
+docker compose run --rm -e SANDBOX_SKIP_STALE_CHECK=1 sandbox
+```
+
+PowerShell:
+
+```powershell
+docker compose run --rm -e SANDBOX_SKIP_STALE_CHECK=1 sandbox
+```
+
+The pipeline is unaffected. [ci.yml](../.github/workflows/ci.yml) runs `docker compose build` before every scenario, so
+the two copies always match there and the check passes without printing a complaint.
+
+One documented command still escapes the guard. `--entrypoint shellcheck` replaces the entrypoint, so nothing gets
+compared and the lint runs against whatever the image holds. That is why it carries `--build` as well.
 
 ---
 
@@ -218,7 +276,7 @@ directory" from the runtime. Prefix the run with `MSYS_NO_PATHCONV=1`.
 Git Bash:
 
 ```bash
-MSYS_NO_PATHCONV=1 docker compose run --rm sandbox /bin/bash
+MSYS_NO_PATHCONV=1 docker compose run --rm --build sandbox /bin/bash
 ```
 
 PowerShell and cmd do no such rewriting, so the PowerShell commands above need nothing extra.
@@ -230,7 +288,7 @@ PowerShell and cmd do no such rewriting, so the PowerShell commands above need n
 | File | What it does |
 | --- | --- |
 | [Dockerfile](Dockerfile) | Debian image with Node, Python, git, jq and ShellCheck, plus a baseline install of the five agent tools under a non-root user. |
-| [entrypoint.sh](entrypoint.sh) | Marks `/repo` and `/repo/.git` as git safe directories, updates every agent tool to its newest release, prints the resolved versions, then runs the container command. |
+| [entrypoint.sh](entrypoint.sh) | Refuses the run when the baked scripts no longer match the mounted ones, marks `/repo` and `/repo/.git` as git safe directories, updates every agent tool to its newest release, prints the resolved versions, then runs the container command. |
 | [setup-project.sh](setup-project.sh) | Creates the empty project, marks the same two paths plus the project itself as safe, runs the documented selective checkout against the mounted repository, and repairs and verifies the three symlinks. |
 | [setup-global.sh](setup-global.sh) | Clones the mounted repository into `~/.agent-standards` and installs the shared configuration into the container's home directory, for every agent or only the ones named. Idempotent, and it never deletes or rewrites a file it did not create. |
 | [verify-project.sh](verify-project.sh) | Every per-project assertion, one `PASS` or `FAIL` line each, exit 1 if any failed. Calls `setup-project.sh` first unless `SANDBOX_SKIP_SETUP=1`. |
@@ -240,7 +298,8 @@ PowerShell and cmd do no such rewriting, so the PowerShell commands above need n
 
 Versions are never pinned in the image. The baseline install exists only to warm the layer cache, and
 [entrypoint.sh](entrypoint.sh) re-resolves every tool to `@latest` on container start, so testing against a newer
-release needs no rebuild. Each run prints the versions it actually tested against, which is the line to quote when a
+release needs no rebuild. The scripts are the opposite case: they are baked, they do not re-resolve, and a change to
+one of them does need a rebuild, which is what the staleness check above enforces. Each run prints the versions it actually tested against, which is the line to quote when a
 result needs reproducing.
 
 ---

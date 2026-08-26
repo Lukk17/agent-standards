@@ -270,7 +270,11 @@ verify_claude() {
   assert_glob_count "subagents are discoverable in Claude Code format" \
     ".claude/agents/*.md" "${#SUBAGENTS[@]}"
   assert_json "the gate is wired into PreToolUse" ".claude/settings.json" \
-    '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py --format claude"))'
+    '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py") and test("--format.,.claude"))'
+  assert_json "the gate call discards the standard error no shell redirect could hide" ".claude/settings.json" \
+    '[.hooks.PreToolUse[].hooks[].command] | any(contains("stderr=subprocess.DEVNULL"))'
+  assert_json "the gate call forces a zero exit in a form both bash and PowerShell parse" ".claude/settings.json" \
+    '[.hooks.PreToolUse[].hooks[].command] | any(endswith("; exit 0"))'
   assert_json "the gate text is injected on every prompt" ".claude/settings.json" \
     '[.hooks.UserPromptSubmit[].hooks[].command] | any(contains("PREFLIGHT"))'
   assert_json "MCP servers are present in the file Claude Code reads" ".mcp.json" \
@@ -291,6 +295,8 @@ verify_codex() {
     ".codex/agents/*.toml" "${#SUBAGENTS[@]}"
   assert_toml "the gate is wired into PreToolUse" ".codex/config.toml" \
     '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py --format codex"))'
+  assert_toml "the gate is scoped to the tools that can write" ".codex/config.toml" \
+    '[.hooks.PreToolUse[].matcher] | any(type == "string" and test("Bash") and test("apply_patch"))'
   assert_toml "the gate text is injected on every prompt" ".codex/config.toml" \
     '[.hooks.UserPromptSubmit[].hooks[].command] | any(contains("PREFLIGHT"))'
   assert_toml "MCP servers are present in the file Codex reads" ".codex/config.toml" \
@@ -345,6 +351,8 @@ verify_copilot() {
     '[.hooks.preToolUse[].bash] | any(contains("preflight_gate.py --format copilot"))'
   assert_json "the gate text is injected on session start" ".github/hooks/preflight.json" \
     '[.hooks.sessionStart[].bash] | any(contains("PREFLIGHT"))'
+  assert_json "the gate is scoped to the tools that can write" ".github/hooks/preflight.json" \
+    '[.hooks.preToolUse[].matcher] | any(type == "string" and test("bash") and test("powershell") and test("create") and test("edit"))'
   assert_json "MCP servers are present in the file Copilot in VS Code reads" ".vscode/mcp.json" \
     '(.servers | length) > 0'
 
