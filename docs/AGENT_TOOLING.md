@@ -2,17 +2,17 @@
 
 This project imports a central set of AI agent standards from a shared repository:
 
-- **Skills** in [.agents/skills/](../.agents/skills/): reusable procedural guidance. Codex, OpenCode, Kilo Code, and
+- Skills in [.agents/skills/](../.agents/skills/): reusable procedural guidance. Codex, OpenCode, Kilo Code, and
   every GitHub Copilot surface read this directory natively. Claude Code reaches it through a symlink.
-- **Subagents** generated into [.claude/agents/](../.claude/agents/) (Claude markdown),
+- Subagents generated into [.claude/agents/](../.claude/agents/) (Claude markdown),
   [.agents/agents/](../.agents/agents/) (OpenCode markdown, shared by OpenCode and Kilo Code through symlinks),
   [.codex/agents/](../.codex/agents/) (TOML), and [.github/agents/](../.github/agents/) (`*.agent.md`).
-- **Instructions** in [AGENTS.md](../AGENTS.md): shared rules read natively by Codex, OpenCode, Kilo Code, and GitHub
+- Instructions in [AGENTS.md](../AGENTS.md): shared rules read natively by Codex, OpenCode, Kilo Code, and GitHub
   Copilot, and imported into Claude Code through [.claude/CLAUDE.md](../.claude/CLAUDE.md).
-- **A preflight gate** in [.agents/hooks/preflight_gate.py](../.agents/hooks/preflight_gate.py), one shared rule wired
+- A preflight gate in [.agents/hooks/preflight_gate.py](../.agents/hooks/preflight_gate.py), one shared rule wired
   into every agent's hook surface, that actually blocks work rather than just asking for it.
-- **MCP servers** in four real config files, one per agent surface.
-- **OpenSpec**, optional, for spec-driven feature work.
+- MCP servers in four real config files, one per agent surface.
+- OpenSpec, optional, for spec-driven feature work.
 
 ---
 
@@ -122,9 +122,9 @@ plugin, the Copilot hook file, and only the skills and subagents already present
 behind your back.
 
 It deliberately leaves your `AGENTS.md`, your four MCP config files, `.claude/settings.json`, and `.claude/CLAUDE.md`
-alone. Those are yours. When you do want an upstream change in one of the configuration files, the
-[configuration files](AGENTS-UPDATE.md#configuration-files) section of the same document has the diff-first commands
-and names which half of each file is yours.
+alone. Those are yours. When you do want an upstream change in one of the configuration files, each shell section of
+that document ends with a diff command and a checkout for all five, and
+[what this skips](AGENTS-UPDATE.md#what-this-skips-and-why) names which half of each file is yours.
 
 ---
 
@@ -173,7 +173,7 @@ Kilo Code both read the OpenCode format and both follow symlinks when scanning a
 and `.kilo/agents` are symlinks into the shared tree rather than two more copies. Claude Code, Codex, and Copilot each
 need their own format, which is why the other three trees exist at all.
 
-These are **generated artifacts**. Do not hand-edit them, your changes vanish on the next pull. To change a subagent
+These are generated artifacts. Do not hand-edit them, your changes vanish on the next pull. To change a subagent
 for good, edit its canonical source in the agent-standards repository (`subagents/<name>.md`), run
 `python tools/gen_subagents.py` there, and re-import through Step 2.
 
@@ -198,20 +198,20 @@ ls .agents/agents
 
 Copilot reads this setup natively across its surfaces, so it needs no bridge instruction file.
 
-- **Skills**: read from [.agents/skills/](../.agents/skills/) natively in VS Code, the JetBrains plugin, the CLI, and
+- Skills: read from [.agents/skills/](../.agents/skills/) natively in VS Code, the JetBrains plugin, the CLI, and
   the cloud agent. No symlink, no copy.
-- **Subagents**: [.github/agents/](../.github/agents/) as `*.agent.md`, generated from the same canonical sources as
+- Subagents: [.github/agents/](../.github/agents/) as `*.agent.md`, generated from the same canonical sources as
   every other tree.
-- **Instructions**: [AGENTS.md](../AGENTS.md) is read natively by VS Code agent mode, the CLI, and the cloud agent.
+- Instructions: [AGENTS.md](../AGENTS.md) is read natively by VS Code agent mode, the CLI, and the cloud agent.
   The JetBrains plugin reads it in agent mode too, per the March 2026 JetBrains changelog, even though GitHub's own
   published support matrix still leaves JetBrains out of the `AGENTS.md` column. The behaviour is real, the
   documentation is behind. Add a `.github/copilot-instructions.md` yourself only if you target Copilot code review or
   the editors that read nothing else (Visual Studio, Xcode, Eclipse).
-- **MCP**: Copilot in VS Code reads [.vscode/mcp.json](../.vscode/mcp.json), key `servers`. The Copilot CLI reads the
+- MCP: Copilot in VS Code reads [.vscode/mcp.json](../.vscode/mcp.json), key `servers`. The Copilot CLI reads the
   project [.mcp.json](../.mcp.json), the same file Claude Code uses, and it is the only Copilot surface that can. The
   JetBrains plugin reads a global file only, and the cloud agent takes JSON pasted into a repository settings page.
   Both manual blocks are in [MCP_SETUP.md](MCP_SETUP.md).
-- **Preflight**: [.github/hooks/preflight.json](../.github/hooks/preflight.json), camelCase events, injecting the gate
+- Preflight: [.github/hooks/preflight.json](../.github/hooks/preflight.json), camelCase events, injecting the gate
   on `sessionStart` and `subagentStart` and blocking on `preToolUse`. The pre-tool payload carries no agent
   identifier, so the delegation half of the gate is weaker on Copilot than elsewhere. Copilot in JetBrains fires only
   six events, has no subagent event, and reads hook configuration only from `.github/hooks/`.

@@ -1,11 +1,5 @@
-# Dependency declaration for the agent-standards tooling. This file is the only
-# place a dependency or a version is written by hand. requirements.txt beside it
-# is the generated hash-pinned lock compiled from this file for CI installs; it
-# adds integrity hashes, which this format cannot express, and never adds a
-# dependency of its own.
-
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools==84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]

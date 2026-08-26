@@ -37,10 +37,13 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: tools/requirements.txt
+          cache-dependency-path: tools/pyproject.toml
 
-      - name: Install the locked generator and test dependencies
-        run: pip install --require-hashes -r tools/requirements.txt
+      - name: Pin pip to a version that supports dependency groups
+        run: python -m pip install --upgrade "pip==26.2.1"
+
+      - name: Install the pinned generator and test dependencies
+        run: pip install ./tools --group ./tools/pyproject.toml:dev
 
       - name: Validate JSON config and hook files
         run: python -c "import json; [json.load(open(f)) for f in ['.mcp.json','opencode.json','.vscode/mcp.json','.claude/settings.json','.github/hooks/preflight.json']]"

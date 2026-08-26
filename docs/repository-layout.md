@@ -45,8 +45,7 @@ agent-standards/
   tools/                         # Generator, linter and tests, this repo only
     gen_subagents.py             # Emits four trees plus the two agent symlinks
     check-markdown.py            # Markdown lint used by CI
-    pyproject.toml               # CANONICAL dependency and pytest configuration
-    requirements.txt             # GENERATED hash-pinned lock, compiled from pyproject.toml
+    pyproject.toml               # CANONICAL, the only pinned dependency and pytest configuration
     tests/                       # CANONICAL pytest suite for the two hook scripts
   e2e/                           # Capability test specs, templates and run records, this repo only
   sandbox-agent/                 # Containerised sandbox that runs those specs, this repo only

@@ -79,7 +79,6 @@ script and must never be hand-edited, and some are symlinks the generator create
 | `.agents/plugin/hooks.js` | canonical | edit directly |
 | `AGENTS.md.example`, `docs/*.md` | canonical | edit directly |
 | `tools/*.py`, `tools/tests/*.py`, `tools/pyproject.toml` | canonical | edit directly, then run the pytest suite |
-| `tools/requirements.txt` | generated (hash-pinned lock) | never hand-edit, recompile it from `tools/pyproject.toml` |
 | `.claude/agents/*.md` | generated (Claude front matter with a `skills` key) | never hand-edit, run the generator |
 | `.agents/agents/*.md` | generated (OpenCode format) | never hand-edit, run the generator |
 | `.codex/agents/*.toml` | generated (Codex TOML) | never hand-edit, run the generator |
@@ -159,22 +158,24 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
   [.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py). Every adapter calls that one script, so a
   behaviour change is a change to the script plus a case in
   [tools/tests/test_preflight_gate.py](tools/tests/test_preflight_gate.py), never a second copy of the logic. Keep the
-  injected wording identical across all four wiring files.
+  injected wording identical in every wiring file that injects it. The OpenCode and Kilo Code plugin injects nothing,
+  because neither tool has a stable per-turn injection hook, so it only calls the script.
 - **The tooling is a package under [tools/](tools/).** Sources sit at the top ([tools/gen_subagents.py](tools/gen_subagents.py),
   [tools/check-markdown.py](tools/check-markdown.py)), tests sit in [tools/tests/](tools/tests/) with an `__init__.py`
   and a `conftest.py`. [tools/pyproject.toml](tools/pyproject.toml) is the only place a dependency or a version is
   written by hand, and it also holds the pytest configuration, so `testpaths` is relative to `tools/`.
-- **[tools/requirements.txt](tools/requirements.txt) is generated, never hand-edited.** It is a hash-pinned lock
-  compiled from `pyproject.toml`, and CI installs it in one step with `pip install --require-hashes`. After changing a
-  dependency, recompile it from the `tools` directory with the `uv pip compile` line recorded in the file's own header
-  and commit both files together.
+- **There is no lock file.** Every version in [tools/pyproject.toml](tools/pyproject.toml) is an exact pin, which is
+  reproducible without hashes, so nothing is compiled and nothing is generated. Runtime dependencies sit in
+  `[project.dependencies]`, test dependencies in the `dev` dependency group, and the build backend in `[build-system]`.
+  CI installs the project and the `dev` group in one command, and pins pip first because `--group` needs pip 25.1 or
+  newer.
 - **CI is manual.** Workflows run on `workflow_dispatch` / `workflow_call` only, so nothing runs on push. Verify
   locally before declaring work done.
 
-Local verification (the same checks CI runs). Install the locked dependencies first:
+Local verification (the same checks CI runs). Install the pinned dependencies first, with pip 25.1 or newer:
 
 ```bash
-pip install --require-hashes -r tools/requirements.txt
+pip install ./tools --group ./tools/pyproject.toml:dev
 ```
 
 ```bash
@@ -209,8 +210,9 @@ python -c "import tomllib; tomllib.load(open('.codex/config.toml','rb'))"
 - **An MCP server:** add the block to all four MCP files (the ones listed under Repo conventions), document it in
   [docs/MCP_SETUP.md](docs/MCP_SETUP.md), and bump the MCP-count badge.
 - **A gate rule:** edit [.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py), add the case to
-  [tools/tests/test_preflight_gate.py](tools/tests/test_preflight_gate.py), and leave the four wiring files alone
-  unless the hook surface itself changed.
+  [tools/tests/test_preflight_gate.py](tools/tests/test_preflight_gate.py), and leave the wiring files alone unless the
+  hook surface itself changed. When the wiring does change, the unit tests are not enough: run the containerised
+  sandbox in [sandbox-agent/](sandbox-agent/README.md), which asserts what each agent actually discovers.
 
 ---
 

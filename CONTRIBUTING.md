@@ -22,8 +22,8 @@ you spend time writing.
 CI is manual-only. There is no automatic build on push or PR. To validate a change:
 
 1. Open the [Actions tab](https://github.com/Lukk17/agent-standards/actions/workflows/ci.yml).
-2. Pick the **CI** workflow.
-3. Click **Run workflow** against your branch.
+2. Pick the CI workflow.
+3. Click Run workflow against your branch.
 
 Releases are also manual via the [Release](https://github.com/Lukk17/agent-standards/actions/workflows/release.yml)
 workflow. Maintainers only. The version string (e.g. `v0.2.0`) goes in the workflow's input field.
@@ -32,27 +32,36 @@ workflow. Maintainers only. The version string (e.g. `v0.2.0`) goes in the workf
 
 ### Things to watch for in your PR
 
-- **No em-dashes** or en-dashes in human-facing markdown (`README.md`, `AGENTS.md.example`, `docs/*.md`,
+- No em-dashes or en-dashes in human-facing markdown (`README.md`, `AGENTS.md.example`, `docs/*.md`,
   `.agents/skills/**/*.md`). CI lint will flag them. The `markdown-writer` skill explains why.
-- **Prose lines under 120 characters** in the same files. Tables, fenced code blocks, badge lines, and
+- Prose lines under 120 characters in the same files. Tables, fenced code blocks, badge lines, and
   `<summary>` tags are exempt.
-- **Generator output in sync.** If you edit any canonical subagent under `subagents/`, re-run
+- Section headings start at level 3 in the same files. Level 1 is the document title and level 2 is never used. The
+  same lint run rejects a level-2 heading.
+- Generator output in sync. If you edit any canonical subagent under `subagents/`, re-run
   `python tools/gen_subagents.py` and commit the regenerated copies under `.claude/agents/`, `.agents/agents/`,
   `.codex/agents/`, and `.github/agents/`. CI runs `--check` and fails on drift.
-- **JSON validity** for `.mcp.json`, `opencode.json`, `.vscode/mcp.json`, `.claude/settings.json`, and
+- JSON validity for `.mcp.json`, `opencode.json`, `.vscode/mcp.json`, `.claude/settings.json`, and
   `.github/hooks/preflight.json` if you touch those, and TOML validity for `.codex/config.toml`.
-- **Tests for the shared hooks.** If you change [.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) or
+- Tests for the shared hooks. If you change [.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) or
   [.agents/hooks/no_ai_markers_check.py](.agents/hooks/no_ai_markers_check.py), add or update the matching case in
   [tools/tests/](tools/tests/). CI runs the suite.
-- **Dependencies declared once.** [tools/pyproject.toml](tools/pyproject.toml) is the only file where a dependency or
-  a version is written by hand. [tools/requirements.txt](tools/requirements.txt) beside it is a generated hash-pinned
-  lock, so never hand-edit it: recompile it from the `tools` directory with the `uv pip compile` line recorded in its
-  own header, and commit both files in the same change.
+- Dependencies declared once. [tools/pyproject.toml](tools/pyproject.toml) is the only file where a dependency or
+  a version is written by hand, and no lock file sits beside it. Every version is an exact pin: the runtime ones
+  under `[project.dependencies]`, the test ones in the `dev` dependency group, and the build backend under
+  `[build-system]`.
 
-Install the locked dependencies before running anything below. PowerShell or Unix shell, same command:
+Install the pinned dependencies before running anything below. The `--group` flag needs pip 25.1 or newer, so upgrade
+first if yours is older. PowerShell or Unix shell, same command:
 
 ```bash
-pip install --require-hashes -r tools/requirements.txt
+python -m pip install --upgrade "pip==26.2.1"
+```
+
+Then install the project together with its dev group:
+
+```bash
+pip install ./tools --group ./tools/pyproject.toml:dev
 ```
 
 Run the markdown linter to catch style issues before pushing:
@@ -121,11 +130,11 @@ Commit the canonical source AND the generated outputs, and bump the subagent-cou
 
 ### Changing the preflight wiring
 
-The gate lives in one script and five wiring files. If your change touches how a tool call is judged, or how any agent
-reaches the script, the unit tests are not the whole story: run the containerised sandbox in
-[sandbox-agent/](sandbox-agent/README.md), which installs all five agent command-line tools, imports this repository
-into a throwaway project, and asserts what each agent actually discovers. The specs it runs are documented in
-[e2e/README.md](e2e/README.md).
+The gate lives in one shared script, and each agent wires that script to its own hook surface. If your change touches
+how a tool call is judged, or how any agent reaches the script, the unit tests are not the whole story. Run the
+containerised sandbox in [sandbox-agent/](sandbox-agent/README.md), which installs all five agent command-line tools,
+imports this repository into a throwaway project, and asserts what each agent actually discovers. The specs it runs
+are documented in [e2e/README.md](e2e/README.md).
 
 ---
 

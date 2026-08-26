@@ -19,14 +19,13 @@
 The first-time import in [AGENT_TOOLING.md](AGENT_TOOLING.md) pulls all of it at once. That is right the first time
 and wrong every time after, because it re-adds skills and subagents you removed on purpose.
 
-The routine refresh, the Unix shell and PowerShell sections below, touches **only what is already in your working
-tree**. A skill you added locally that does not exist upstream is left alone. A skill you deleted stays deleted. To
+The routine refresh, the Unix shell and PowerShell sections below, touches only what is already in your working
+tree. A skill you added locally that does not exist upstream is left alone. A skill you deleted stays deleted. To
 adopt a brand-new upstream skill or subagent, run a one-off `git checkout agent-standards/master -- <path>` for it
 once, and later refreshes will keep it current.
 
-Your configuration files are outside that routine entirely. They are listed under
-[what this skips](#what-this-skips-and-why) and handled separately under
-[configuration files](#configuration-files).
+Your configuration files are outside that routine entirely. Each shell section below ends with the two commands that
+handle them, and [what this skips](#what-this-skips-and-why) says which half of each file is yours.
 
 Run everything from the repository root. Each block is one paste. Review `git diff --stat` when you have finished a
 section, then commit when you are happy.
@@ -88,6 +87,24 @@ Pull the upstream copy of every subagent you currently have, across the four gen
 for f in .agents/agents/*.md .claude/agents/*.md .codex/agents/*.toml .github/agents/*.agent.md; do [ -e "$f" ] || continue; git checkout agent-standards/master -- "$f" 2>/dev/null || true; done
 ```
 
+Your five configuration files are kept out of the loops above, for the reasons under
+[what this skips](#what-this-skips-and-why). See what upstream would change in them.
+
+```bash
+git diff agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .codex/config.toml .claude/settings.json
+```
+
+Take upstream's copy of all five once the diff has shown you nothing of yours is in them.
+
+> [!WARNING]
+> This replaces all five files with the upstream copies, and anything of yours in them is lost. That includes API
+> tokens, servers you disabled or repointed, and permissions you granted. These files are part of your project's own
+> setup rather than ours, so run the diff above first and only run this when you are sure.
+
+```bash
+git checkout agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .codex/config.toml .claude/settings.json
+```
+
 ---
 
 ### PowerShell
@@ -122,39 +139,51 @@ Pull the upstream copy of every subagent you currently have, across the four gen
 foreach ($base in '.agents/agents', '.claude/agents', '.codex/agents', '.github/agents') { if (Test-Path $base) { foreach ($f in Get-ChildItem $base -File) { git checkout agent-standards/master -- "$base/$($f.Name)" 2>$null } } }
 ```
 
+Your five configuration files are kept out of the loops above, for the reasons under
+[what this skips](#what-this-skips-and-why). See what upstream would change in them.
+
+```powershell
+git diff agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .codex/config.toml .claude/settings.json
+```
+
+Take upstream's copy of all five once the diff has shown you nothing of yours is in them.
+
+> [!WARNING]
+> This replaces all five files with the upstream copies, and anything of yours in them is lost. That includes API
+> tokens, servers you disabled or repointed, and permissions you granted. These files are part of your project's own
+> setup rather than ours, so run the diff above first and only run this when you are sure.
+
+```powershell
+git checkout agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .codex/config.toml .claude/settings.json
+```
+
 ---
 
-### What this skips, and why
+### What this skips and why
 
-Nothing below is refreshed. Each one is either derived or yours.
+Nothing in this list is refreshed. Each one is either derived or yours.
 
-- **The three symlinks**, `.claude/skills`, `.opencode/agents`, and `.kilo/agents`. They point at
+- The three symlinks, `.claude/skills`, `.opencode/agents`, and `.kilo/agents`. They point at
   [.agents/skills/](../.agents/skills/) and [.agents/agents/](../.agents/agents/), so they update the moment those
   directories do. Pulling the link itself would only risk turning it into a file.
-- **[.claude/CLAUDE.md](../.claude/CLAUDE.md)**, your Claude Code entry point. It imports `AGENTS.md` and stays under
+- [.claude/CLAUDE.md](../.claude/CLAUDE.md), your Claude Code entry point. It imports `AGENTS.md` and stays under
   your control.
-- **[.claude/settings.json](../.claude/settings.json)**, which ships the Claude Code hooks on first import and then
+- [.claude/settings.json](../.claude/settings.json), which ships the Claude Code hooks on first import and then
   becomes yours, because it is also where your project permissions live.
-- **[opencode.json](../opencode.json) and [.codex/config.toml](../.codex/config.toml)**. Both carry your MCP servers
-  and a piece of gate wiring: `opencode.json` declares the plugin path, `.codex/config.toml` holds the Codex hook
-  tables inline. Refreshing either would wipe your MCP edits, so when upstream changes that wiring you merge it by
-  hand. The release notes will say so.
-- **[.mcp.json](../.mcp.json) and [.vscode/mcp.json](../.vscode/mcp.json)**, your MCP server sets.
-- **[AGENTS.md.example](../AGENTS.md.example)** and your own `AGENTS.md`. The first is consumed once at setup, the
+- [opencode.json](../opencode.json) and [.codex/config.toml](../.codex/config.toml). Both carry your MCP servers
+  next to a piece of gate wiring: `opencode.json` declares the plugin path, `.codex/config.toml` holds the Codex hook
+  tables inline.
+- [.mcp.json](../.mcp.json) and [.vscode/mcp.json](../.vscode/mcp.json), your MCP server sets.
+- [AGENTS.md.example](../AGENTS.md.example) and your own `AGENTS.md`. The first is consumed once at setup, the
   second is the source of truth for your project's conventions.
 
-The next section covers what to do when you do want an upstream change in one of those five files.
-
----
-
-### Configuration files
-
-Five files are never touched by the routine refresh: [.mcp.json](../.mcp.json), [opencode.json](../opencode.json),
+Five of those are the configuration files: [.mcp.json](../.mcp.json), [opencode.json](../opencode.json),
 [.vscode/mcp.json](../.vscode/mcp.json), [.codex/config.toml](../.codex/config.toml), and
 [.claude/settings.json](../.claude/settings.json). Between them they carry every MCP server, your Claude Code
-settings, and three of the five pieces of preflight wiring. A `git checkout` against upstream replaces a file whole,
-and everything local in it goes with it: an inlined token, a server you disabled, a host you repointed, a permission
-you granted. Diff before you run any of the commands below.
+settings, and three of the five pieces of preflight wiring. That is why they get their own two commands at the end of
+each shell section instead of riding the loops: `git checkout` replaces a file whole, and everything local in it goes
+with it, an inlined token, a server you disabled, a host you repointed, a permission you granted. Diff first, every
+time, and run the checkout only once you are sure nothing of yours is in them.
 
 Who owns which half:
 
@@ -169,61 +198,8 @@ Who owns which half:
 The two MCP-only files become yours outright at import and never need to follow upstream again, unless you want a
 newly added server. The other three are split: the gate half should stay identical to upstream so the preflight rule
 keeps firing, and it shares a file with something of yours, so an upstream gate change is merged by hand rather than
-checked out.
-
-Fetch upstream first. PowerShell:
-
-```powershell
-git fetch agent-standards
-```
-
-Unix shell:
-
-```bash
-git fetch agent-standards
-```
-
-See what differs across all five at once. Lines marked `+` are what your tree has and upstream does not, which is
-exactly what a checkout would delete. PowerShell:
-
-```powershell
-git diff agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .codex/config.toml .claude/settings.json
-```
-
-Unix shell:
-
-```bash
-git diff agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .codex/config.toml .claude/settings.json
-```
-
-To hand-merge, read upstream's version without writing anything into your tree. Swap the path for the file you are
-merging. PowerShell:
-
-```powershell
-git show agent-standards/master:opencode.json
-```
-
-Unix shell:
-
-```bash
-git show agent-standards/master:opencode.json
-```
-
-Only when the diff shows nothing of yours, or you deliberately want a reset, take upstream's copy of one file. Swap
-the path for the file you want. PowerShell:
-
-```powershell
-git checkout agent-standards/master -- .mcp.json
-```
-
-Unix shell:
-
-```bash
-git checkout agent-standards/master -- .mcp.json
-```
-
-There is no all-five command here on purpose. Every one of the five holds something you would miss, and a single
-paste that overwrote all of them at once is the easiest way to drop a token or a permission without noticing.
+checked out. The release notes say when there is one. Read upstream's copy with
+`git show agent-standards/master:opencode.json` and paste across the block you need.
 
 ---
 

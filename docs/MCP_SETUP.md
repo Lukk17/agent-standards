@@ -3,7 +3,7 @@
 Human setup guide for the Model Context Protocol servers shipped by agent-standards. Covers what ships, what does not
 and why, prerequisites, acquiring keys, setting environment variables system-wide, and verification.
 
-This file is for the **person** configuring the machine. The agent reads [AGENTS.md](../AGENTS.md) and uses whatever
+This file is for the person configuring the machine. The agent reads [AGENTS.md](../AGENTS.md) and uses whatever
 MCP tools its runtime exposes, so it never needs this document.
 
 ---
@@ -25,18 +25,18 @@ agent surface, and that is the whole set.
 
 Two surfaces get no shipped file, because there is nothing a repository could ship that they would read:
 
-- **GitHub Copilot in JetBrains** reads MCP only from the global path `~/.config/github-copilot/intellij/mcp.json`
+- GitHub Copilot in JetBrains reads MCP only from the global path `~/.config/github-copilot/intellij/mcp.json`
   (`%USERPROFILE%\.config\github-copilot\intellij\mcp.json` on Windows). There is no per-project MCP file for that
   plugin, and GitHub documents only the in-IDE screen (Settings, Tools, GitHub Copilot, Model Context Protocol), not
   the path, so treat the path itself as community knowledge rather than official. Manual block below.
-- **The GitHub Copilot cloud agent** takes its MCP configuration as JSON pasted into a page in the repository
+- The GitHub Copilot cloud agent takes its MCP configuration as JSON pasted into a page in the repository
   settings, not from a file in the tree. Manual block below.
 
 Of Copilot's four surfaces, only the CLI can use the shared [.mcp.json](../.mcp.json). VS Code needs
 [.vscode/mcp.json](../.vscode/mcp.json), and the other two are manual.
 
 One catch with the shared OpenCode and Kilo file. Kilo Code accepts `opencode.json` as a valid project config
-filename, which is why one file serves both. Kilo does **not** merely leave `{env:VAR}` literal, which is what this
+filename, which is why one file serves both. Kilo does not merely leave `{env:VAR}` literal, which is what this
 guide used to say. It treats an environment reference in project-level config as a fatal error and throws the whole
 file away:
 
@@ -324,7 +324,7 @@ cp .mcp.json ~/.claude.json
 
 Paths: `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS,
 `%APPDATA%\Claude\claude_desktop_config.json` on Windows. There is no official Linux build. Same `mcpServers` schema,
-but **no environment-variable substitution at all**, so replace every `${VAR}` with the real value. The file is
+but no environment-variable substitution at all, so replace every `${VAR}` with the real value. The file is
 personal to the machine, so inlining is fine. Never commit it.
 
 ```json
@@ -386,16 +386,16 @@ Useful when a variable is stubbornly not being picked up.
 
 Restart the agent after editing configs or exporting variables, then check.
 
-- **Claude Code**: run `claude mcp list` and read which servers loaded.
-- **OpenCode**: start it and run `/mcp`, or read the connection lines in the startup log.
-- **Kilo Code**: run `kilocode config check` first, which prints nothing but `No config warnings.` when the project
+- Claude Code: run `claude mcp list` and read which servers loaded.
+- OpenCode: start it and run `/mcp`, or read the connection lines in the startup log.
+- Kilo Code: run `kilocode config check` first, which prints nothing but `No config warnings.` when the project
   config is accepted, then open the MCP Servers panel in settings, under agent behaviour, where each server shows
   connected or error. `kilocode mcp list` answers the same question from a terminal.
-- **Codex**: start `codex` and run `/mcp`. Remember the project layer loads only after you trust the project.
-- **Copilot in VS Code**: open Chat, switch to agent mode, open the tools picker. Every server in
+- Codex: start `codex` and run `/mcp`. Remember the project layer loads only after you trust the project.
+- Copilot in VS Code: open Chat, switch to agent mode, open the tools picker. Every server in
   [.vscode/mcp.json](../.vscode/mcp.json) appears with its tools and a start or stop control.
-- **Copilot CLI**: start `copilot` and run `/mcp`.
-- **Claude Desktop**: open the developer panel, or check the indicator in the input box.
+- Copilot CLI: start `copilot` and run `/mcp`.
+- Claude Desktop: open the developer panel, or check the indicator in the input box.
 
 When a server fails to connect, Claude Code writes the reason to its standard log, and Claude Desktop writes per-server
 standard-error output to `mcp-server-<name>.log` under `~/Library/Logs/Claude/` on macOS or `%APPDATA%\Claude\logs\`
@@ -413,6 +413,6 @@ Keep the server set identical across all of them. Only the per-schema syntax is 
 
 To customise a single project without touching upstream, edit its local copies directly. These four files are
 consumer-owned, and the routine update flow in [AGENTS-UPDATE.md](AGENTS-UPDATE.md) never overwrites them. Picking up
-an upstream server change is a deliberate, separate step: the commands are in the
-[configuration files](AGENTS-UPDATE.md#configuration-files) section of that document, and every one of them replaces
-your file wholesale, so diff before you run it.
+an upstream server change is a deliberate, separate step: the diff command and the checkout for all five sit at the end
+of each shell section of that document, and [what this skips](AGENTS-UPDATE.md#what-this-skips-and-why) says why. A
+checkout replaces your file wholesale, so diff before you run it.

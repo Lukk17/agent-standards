@@ -30,15 +30,15 @@ All notable changes to this project are documented here. The format follows
   text files holding their target path.
 - Codex custom agents generated to `.codex/agents/*.toml`, so all five supported agents now receive native subagent
   files from the one canonical `subagents/` source.
-- A pytest suite in `tools/tests/`, covering both shared hook scripts, run locally and in CI with
-  `python -m pytest tools/`.
+- A pytest suite in `tools/tests/`, covering both shared hook scripts, run locally and in CI.
 - `tools/pyproject.toml` as the single hand-written declaration of the tooling dependencies and the pytest
-  configuration, with `tools/requirements.txt` beside it as a generated hash-pinned lock compiled from it. CI installs
-  the lock in one step with `pip install --require-hashes`.
+  configuration. Every version is an exact pin and no lock file ships beside it, so CI installs the project and its
+  `dev` dependency group in one `pip install` command, after pinning pip to a version that understands `--group`.
 - `docs/agent-compatibility.md`: a per-surface matrix of what each agent reads (skills, instructions, subagents,
   preflight, MCP), with GitHub Copilot split by client, linked from the README and from `repository-layout.md`.
-- A configuration-files section in `docs/AGENTS-UPDATE.md`, giving consumers diff-first commands for the five files
-  the routine refresh never touches, and naming which half of each file is theirs and which should track upstream.
+- Diff-first configuration-file commands at the end of each shell section in `docs/AGENTS-UPDATE.md`, covering the
+  five files the routine refresh never touches, plus an ownership table in the section on what the refresh skips,
+  naming which half of each file is the consumer's and which should track upstream.
 
 ### Changed
 
