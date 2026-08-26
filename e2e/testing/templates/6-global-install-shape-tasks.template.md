@@ -18,7 +18,7 @@ go. Add anything you did beyond the spec under Additional tasks I did.
 #### Reset state
 
 - [ ] Container shell started, version table copied into Additional tasks I did
-- [ ] Every global directory the install writes to cleared
+- [ ] Every global directory the install writes to cleared, plus `~/.claude.json`
 - [ ] `/work/bare` cleared and recreated
 - [ ] `/repo` and `/repo/.git` added as git safe directories
 
@@ -50,8 +50,14 @@ go. Add anything you did beyond the spec under Additional tasks I did.
 - [ ] Copilot points at it with a resolving symlink
 - [ ] Kilo Code points at it through its `instructions` key
 - [ ] Kilo Code is told where the shared skills tree is
-- [ ] Claude Code's user settings call the gate by absolute path
+- [ ] Claude Code's user settings call the gate by absolute path, with the flag matched separately
+- [ ] Claude Code's gate call discards the gate's standard error in Python
+- [ ] Claude Code's gate call forces a zero exit
 - [ ] Codex's user hooks call the gate by absolute path
+- [ ] Codex's gate call is scoped to the tools that can write
+- [ ] Codex's gate call forces a zero exit on both the POSIX and the Windows command
+- [ ] Codex injects the canonical wording on `UserPromptSubmit` and on `SubagentStart`
+- [ ] Every Codex command has a Windows sibling
 - [ ] Copilot's user hooks call the gate by absolute path
 - [ ] No project-relative gate call survived the rewrite
 - [ ] The plugin shim landed in both global plugin locations

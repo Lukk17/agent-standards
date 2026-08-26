@@ -384,7 +384,7 @@ claude_settings() {
     ],
     "PreToolUse": [
       {
-        "matcher": "Edit|Write|NotebookEdit|Bash",
+        "matcher": "^(Edit|Write|NotebookEdit|Bash)$",
         "hooks": [
           {
             "type": "command",
@@ -400,7 +400,7 @@ claude_settings() {
           {
             "type": "command",
             "timeout": 10,
-            "command": "python @MARKERS@"
+            "command": "python @MARKERS@ ; exit 0"
           }
         ]
       }
@@ -420,7 +420,20 @@ codex_hooks() {
           {
             "type": "command",
             "statusMessage": "Preflight gate",
-            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"@PREFLIGHT@\"}}'"
+            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"@PREFLIGHT@\"}}'",
+            "commandWindows": "echo {\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"@PREFLIGHT@\"}}"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "statusMessage": "Preflight gate",
+            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"SubagentStart\", \"additionalContext\": \"@PREFLIGHT@\"}}'",
+            "commandWindows": "echo {\"hookSpecificOutput\": {\"hookEventName\": \"SubagentStart\", \"additionalContext\": \"@PREFLIGHT@\"}}"
           }
         ]
       }
@@ -433,7 +446,8 @@ codex_hooks() {
             "type": "command",
             "statusMessage": "Preflight gate",
             "timeout": 10,
-            "command": "python @GATE@ --format codex"
+            "command": "python @GATE@ --format codex 2>/dev/null || exit 0",
+            "commandWindows": "python @GATE@ --format codex 2>nul || exit 0"
           }
         ]
       }

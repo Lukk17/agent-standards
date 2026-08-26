@@ -35,10 +35,10 @@ Each agent wires that one script to its own hook surface:
 
 | Agent | Wiring | Events |
 | --- | --- | --- |
-| Claude Code | [.claude/settings.json](.claude/settings.json) | `UserPromptSubmit`, `PreToolUse` (matcher `Edit`, `Write`, `NotebookEdit`, `Bash`), `Stop` for the formatting checker |
-| Codex | inline `[[hooks.*]]` tables in [.codex/config.toml](.codex/config.toml) | `UserPromptSubmit`, `SubagentStart`, `PreToolUse` (matcher `^(Bash|shell|apply_patch|Edit|Write|NotebookEdit)$`) |
+| Claude Code | [.claude/settings.json](.claude/settings.json) | `UserPromptSubmit`, `PreToolUse` (matcher `^(Edit\|Write\|NotebookEdit\|Bash)$`), `Stop` for the formatting checker |
+| Codex | inline `[[hooks.*]]` tables in [.codex/config.toml](.codex/config.toml) | `UserPromptSubmit`, `SubagentStart`, `PreToolUse` (matcher `^(Bash\|shell\|apply_patch\|Edit\|Write\|NotebookEdit)$`) |
 | OpenCode and Kilo Code | [.agents/plugin/hooks.js](.agents/plugin/hooks.js), declared once by path in the `plugin` array of [opencode.json](opencode.json), which both tools read | `tool.execute.before` |
-| GitHub Copilot | [.github/hooks/preflight.json](.github/hooks/preflight.json) | `sessionStart`, `subagentStart`, `preToolUse` (matcher `bash|powershell|create|edit`) |
+| GitHub Copilot | [.github/hooks/preflight.json](.github/hooks/preflight.json) | `sessionStart`, `subagentStart`, `preToolUse` (matcher `bash\|powershell\|create\|edit`) |
 
 Per-surface details worth knowing before you touch any of them:
 
@@ -67,7 +67,13 @@ Per-surface details worth knowing before you touch any of them:
   path. Event names are camelCase, and a hook entry carries `bash` and `powershell` as sibling string fields next to
   `type`, not a nested `command` object. A nested one is silently ignored, which leaves that surface ungated.
 - The Copilot CLI additionally reads hooks from `.claude/settings.json`. The JetBrains plugin does not: its bundled
-  agent hardcodes `.github/hooks/**/*.json` and rejects PascalCase event names.
+  agent hardcodes `.github/hooks/**/*.json` and rejects PascalCase event names. That borrowed Claude wiring is inert on
+  the CLI, and it is meant to stay that way. Copilot names its tools in lower case, the same `bash`, `powershell`,
+  `create` and `edit` its own matcher lists, and it compares a matcher anchored and case sensitively, so the PascalCase
+  Claude pattern matches nothing there. Nothing is ungated, because
+  [.github/hooks/preflight.json](.github/hooks/preflight.json) already covers that surface. Do not widen the Claude
+  pattern to Copilot's tool names to make it fire: the CLI reads both files, so it would then run the gate twice on
+  every tool call.
 - The JetBrains plugin scans `.claude/agents`, but it only understands its own `*.agent.md` format, so subagent
   definitions cannot be shared between Copilot and Claude Code or OpenCode.
 - OpenCode and Kilo Code have no event that can block a finished reply, so their plugin does everything at

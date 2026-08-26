@@ -261,7 +261,7 @@ Forward slashes work on Windows too and save you escaping backslashes inside JSO
     ],
     "PreToolUse": [
       {
-        "matcher": "Edit|Write|NotebookEdit|Bash",
+        "matcher": "^(Edit|Write|NotebookEdit|Bash)$",
         "hooks": [
           {
             "type": "command",
@@ -277,7 +277,7 @@ Forward slashes work on Windows too and save you escaping backslashes inside JSO
           {
             "type": "command",
             "timeout": 10,
-            "command": "python /home/you/.agents/hooks/no_ai_markers_check.py"
+            "command": "python /home/you/.agents/hooks/no_ai_markers_check.py ; exit 0"
           }
         ]
       }
@@ -348,7 +348,11 @@ ln -s ~/.agents/AGENTS.md ~/.codex/AGENTS.md
 
 Wire the gate in `~/.codex/hooks.json`, which is the user-level hooks file
 ([hooks docs](https://learn.chatgpt.com/codex/hooks)). The same tables can go inline in `~/.codex/config.toml` instead,
-and Codex asks you to pick one form per configuration layer rather than using both. Replace the absolute path.
+and Codex asks you to pick one form per configuration layer rather than using both. Replace the absolute path. All
+three events matter: `UserPromptSubmit` and `SubagentStart` inject the text, on the main thread and inside a subagent,
+and `PreToolUse` is the blocking half. Leave `SubagentStart` out and a subagent gets no gate at all. The `|| exit 0`
+on the two `PreToolUse` commands is what makes a missing or broken gate script allow the call instead of denying every
+one of them.
 
 ```json
 {
@@ -359,7 +363,20 @@ and Codex asks you to pick one form per configuration layer rather than using bo
           {
             "type": "command",
             "statusMessage": "Preflight gate",
-            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.\"}}'"
+            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.\"}}'",
+            "commandWindows": "echo {\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.\"}}"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "statusMessage": "Preflight gate",
+            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"SubagentStart\", \"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.\"}}'",
+            "commandWindows": "echo {\"hookSpecificOutput\": {\"hookEventName\": \"SubagentStart\", \"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.\"}}"
           }
         ]
       }
@@ -372,7 +389,8 @@ and Codex asks you to pick one form per configuration layer rather than using bo
             "type": "command",
             "statusMessage": "Preflight gate",
             "timeout": 10,
-            "command": "python /home/you/.agents/hooks/preflight_gate.py --format codex"
+            "command": "python /home/you/.agents/hooks/preflight_gate.py --format codex 2>/dev/null || exit 0",
+            "commandWindows": "python /home/you/.agents/hooks/preflight_gate.py --format codex 2>nul || exit 0"
           }
         ]
       }

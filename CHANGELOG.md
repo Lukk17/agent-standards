@@ -83,6 +83,10 @@ All notable changes to this project are documented here. The format follows
 - The sandbox job checks out full history and puts the commit under test on a `master` branch before starting the
   container. The import inside the container reads `agent-standards/master`, and a pull request checkout is a detached
   HEAD with no branch for it to find.
+- `AGENTS.md` now records why the Claude Code hook block the GitHub Copilot CLI also reads is inert on that surface,
+  and why widening it would be worse than leaving it alone. Copilot names its tools in lower case and compares a
+  matcher anchored and case sensitively, so the PascalCase Claude pattern never matches there, and the CLI would run
+  the gate twice per tool call if it did.
 
 ### Fixed
 
@@ -92,6 +96,33 @@ All notable changes to this project are documented here. The format follows
   links pointing at the old root-level directory were returning 404 and now resolve.
 - Documentation that still described the deleted `.opencode/opencode.json` overlay, the pre-move `tools/` test paths,
   and a `docs/GLOBAL_SETUP.md` listed as shipped to consumers although no import command ever pulled it.
+- The Claude Code `PreToolUse` matcher is now anchored, `^(Edit|Write|NotebookEdit|Bash)$`, matching the shape the
+  Codex adapter already used. The unanchored `Edit|Write|NotebookEdit|Bash` was not firing on `TodoWrite`, because a
+  matcher made only of letters and pipes is evaluated as a list of exact tool names rather than as a regular
+  expression. Anchoring keeps that behaviour explicit, so adding one metacharacter to the list later cannot silently
+  flip the whole pattern onto the unanchored regular-expression path where `Write` would match `TodoWrite`.
+- The global installer's Codex hooks now carry a `commandWindows` beside every `command`, the way the project-scoped
+  `.codex/config.toml` already does, because Codex picks one of the two by platform. `sandbox-agent/verify-global.sh`
+  asserts the pairing so it cannot regress unnoticed.
+- The wiring table in `AGENTS.md` escapes the pipes inside its matcher cells. Raw pipes were splitting those rows into
+  extra columns, so the Codex and Copilot matchers rendered as broken table cells.
+- The global installer now writes Codex a `SubagentStart` hook, the third event the project-scoped `.codex/config.toml`
+  has always wired. Without it a subagent under a globally installed Codex received no preflight injection at all,
+  while the same subagent inside an imported project did.
+- The Codex gate call the global installer writes now ends in `|| exit 0` and discards standard error, on the POSIX
+  command and on its Windows sibling. It was a bare invocation, so a globally installed Codex whose gate script was
+  missing would have denied every tool call rather than allowing it, the same fail-closed break already fixed for
+  Claude Code. `sandbox-agent/verify-global.sh` asserts the forced zero exit, the third event, and the canonical
+  wording on both injecting events, so none of the three can come back silently.
+- The `Stop` hook the global installer writes for Claude Code now ends in `; exit 0`, the way the project-scoped
+  `.claude/settings.json` already does. The formatting checker signals by printing JSON and always exits 0 itself, so
+  the only way that hook returned non-zero was Python failing to open a missing script, which would have blocked the
+  end of every turn.
+- Two capability specs asserted a literal string that the Claude Code gate command can no longer contain. That command
+  runs the gate through a Python wrapper that passes `--format claude` as two separately quoted arguments, so
+  `6-global-install-shape-test.md` and `2-project-import-shape-test.md` now match the path and the flag separately,
+  the way the verification scripts already did. Both specs also gained the standard-error and zero-exit assertions the
+  scripts make, and spec 6 gained the Codex matcher, event-set, and Windows-sibling assertions it was missing.
 
 ### Removed
 

@@ -248,10 +248,21 @@ test "$(find /work/project/.github/agents -maxdepth 1 -name '*.agent.md' | wc -l
 
 Expect exit 0.
 
-Claude Code calls the gate on `PreToolUse`, in its own format.
+Claude Code calls the gate on `PreToolUse`, in its own format. Its command runs the gate through a one-line Python
+wrapper, so the flag arrives as two separately quoted arguments rather than as ` --format claude` in the command
+string. Path and flag are therefore matched separately.
 
 ```bash
-jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py --format claude"))' /work/project/.claude/settings.json
+jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py") and test("--format.,.claude"))' /work/project/.claude/settings.json
+```
+
+Expect exit 0.
+
+That wrapper is also how Claude Code discards the gate's standard error, and the command ends by forcing a zero exit
+so a broken gate allows rather than denies.
+
+```bash
+jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("stderr=subprocess.DEVNULL") and endswith("; exit 0"))' /work/project/.claude/settings.json
 ```
 
 Expect exit 0.

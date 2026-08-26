@@ -31,6 +31,10 @@ them, so there is one copy to keep correct.
 - The gate wiring at user scope names the gate by absolute path. Every shipped wiring calls
   `python .agents/hooks/preflight_gate.py`, a project-relative path that resolves to nothing in a bare directory, so
   the installer rewrites it and this spec asserts that it did.
+- The user-scope wiring keeps the shape of the project wiring it stands in for: the same event set per agent, the same
+  tool matcher, the same canonical wording, and the same forced zero exit that turns a missing or broken gate back
+  into an allow. A global install that drops an event or a zero exit gates less than the project install does, which
+  is the exact difference this spec is here to catch.
 - Out of scope, because the container is given no provider credentials: this spec starts no agent. Whether each tool
   reports what it found is [7-global-agent-discovery-test.md](7-global-agent-discovery-test.md), and whether the
   global gate copy refuses anything is [9-global-gate-enforcement-test.md](9-global-gate-enforcement-test.md).
@@ -113,11 +117,13 @@ Unix shell:
 docker compose run --rm sandbox /bin/bash
 ```
 
-Clear every directory the install writes to. In a fresh container none of them exist, so this is what makes the spec
-re-runnable in a container that has already run it once.
+Clear every directory the install writes to, plus `~/.claude.json`, which is not written by the install but by the
+`claude mcp add` in [8-global-mcp-visibility-test.md](8-global-mcp-visibility-test.md). In a fresh container none of
+them exist, so this is what makes the spec, and every spec that inherits this reset, re-runnable in a container that
+has already run it once.
 
 ```bash
-rm -rf "$HOME/.agent-standards" "$HOME/.agents" "$HOME/.claude" "$HOME/.codex" "$HOME/.config/opencode" "$HOME/.config/kilo" "$HOME/.copilot"
+rm -rf "$HOME/.agent-standards" "$HOME/.agents" "$HOME/.claude" "$HOME/.claude.json" "$HOME/.codex" "$HOME/.config/opencode" "$HOME/.config/kilo" "$HOME/.copilot"
 ```
 
 Clear and recreate the bare directory the assertions run from.
@@ -344,17 +350,74 @@ jq -e '[.skills.paths[]] | any(contains(".agents/skills"))' "$HOME/.config/kilo/
 Expect exit 0.
 
 Claude Code's user settings call the gate by absolute path, not by the project-relative path the shipped wiring uses.
+Its command runs the gate through a one-line Python wrapper, so the flag arrives as two separately quoted arguments
+rather than as ` --format claude` in the command string. Path and flag are therefore matched separately.
 
 ```bash
-jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.agents/hooks/preflight_gate.py --format claude"))' "$HOME/.claude/settings.json"
+jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.agents/hooks/preflight_gate.py") and test("--format.,.claude"))' "$HOME/.claude/settings.json"
 ```
 
 Expect exit 0.
 
-Codex's user hooks file does the same.
+That wrapper is also how Claude Code discards the gate's standard error. It is the one surface whose command cannot
+carry a shell redirect, because no redirect token means the same thing in both shells it might pick.
+
+```bash
+jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("stderr=subprocess.DEVNULL"))' "$HOME/.claude/settings.json"
+```
+
+Expect exit 0.
+
+Claude Code forces a zero exit as well, in the `; exit 0` form both bash and PowerShell parse, because it has one
+command field and picks the shell itself.
+
+```bash
+jq -e '[.hooks.PreToolUse[].hooks[].command] | any(endswith("; exit 0"))' "$HOME/.claude/settings.json"
+```
+
+Expect exit 0.
+
+Codex's user hooks file names the gate by absolute path too, and there the flag is part of the command string.
 
 ```bash
 jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.agents/hooks/preflight_gate.py --format codex"))' "$HOME/.codex/hooks.json"
+```
+
+Expect exit 0.
+
+Codex scopes the gate to the tools that can write, rather than firing it on every tool call.
+
+```bash
+jq -e '[.hooks.PreToolUse[].matcher] | any(type == "string" and test("Bash") and test("apply_patch"))' "$HOME/.codex/hooks.json"
+```
+
+Expect exit 0.
+
+Codex forces a zero exit on the gate call, on the POSIX command and on its Windows sibling both. The codex format
+denies with exit 0 and JSON on stdout and never uses a non-zero exit, so a bare invocation whose script is missing
+would deny every tool call instead of allowing it.
+
+```bash
+jq -e '[.hooks.PreToolUse[].hooks[] | .command, .commandWindows] | length > 0 and all(endswith("|| exit 0"))' "$HOME/.codex/hooks.json"
+```
+
+Expect exit 0.
+
+Codex injects the canonical gate wording on a new prompt and again at the start of a subagent, not a shortened copy of
+it. Both events are needed: without `SubagentStart` a subagent under a global Codex gets no injection at all, while the
+same subagent inside an imported project does.
+
+```bash
+jq -e '[.hooks.UserPromptSubmit[].hooks[].command, .hooks.SubagentStart[].hooks[].command] | length >= 2 and all(contains("Delegate investigation, review and bounded implementation by default."))' "$HOME/.codex/hooks.json"
+```
+
+Expect exit 0.
+
+Every Codex command has a Windows sibling, because Codex picks one of the two per platform and a command with no
+sibling is simply absent on the other.
+
+```bash
+jq -e '[.hooks[][].hooks[] | select(has("command"))] | length > 0 and all(has("commandWindows"))' "$HOME/.codex/hooks.json"
 ```
 
 Expect exit 0.
