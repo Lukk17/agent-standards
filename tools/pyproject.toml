@@ -8,12 +8,12 @@ version = "0.1.0"
 description = "Generator for agent-standards subagent distribution"
 requires-python = ">=3.10"
 dependencies = [
-    "pyyaml==6.0.2",
+    "pyyaml==6.0.3",
 ]
 
 [dependency-groups]
 dev = [
-    "pytest==9.0.3",
+    "pytest==9.1.1",
 ]
 
 [project.scripts]

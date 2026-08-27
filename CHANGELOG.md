@@ -93,6 +93,16 @@ All notable changes to this project are documented here. The format follows
   on Node 24, which is what the deprecation warning on every run was about. The `validate` job moves from Python 3.12,
   which has been security-fix-only since April 2025, to 3.14. `pip==26.2.1` was already the current release and is
   unchanged.
+- The two pinned Python dependencies in `tools/pyproject.toml`, now that CI runs on Python 3.14. `pyyaml` moves from
+  6.0.2 to 6.0.3, the release that added Python 3.14 support. 6.0.2 publishes no wheel newer than cp313, so every
+  install on 3.14 fell back to the source archive and compiled the C extension on the runner. 6.0.3 publishes a cp314
+  manylinux wheel and pip downloads that instead. `pytest` moves from 9.0.3 to 9.1.1. Nothing here uses what 9.1.0
+  deprecated or changed: the suite defines no fixtures and no custom markers, every `parametrize` argument list is a
+  literal list, and its `conftest.py` holds only path constants that the test modules import directly rather than
+  anything pytest has to discover. One 9.1.0 fix does reach it, because `--strict-markers` and `--strict-config` in
+  `addopts` had been silently ignored since 9.0 and now take effect again. 9.1.1 rather than 9.1.0 because 9.1.0 shipped
+  three regressions of its own and the patch release costs nothing. `setuptools` was checked at the same time and 84.0.0
+  is still the current release.
 - The runner label, from the floating `ubuntu-latest` to the exact `ubuntu-24.04` it resolves to today. Ubuntu 26.04 is
   in preview, and when it reaches general availability GitHub moves the `-latest` label over one to two months. With no
   Dependabot to open a pull request, a floating label is the one version in this repo that could change under us
