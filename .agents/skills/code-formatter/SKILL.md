@@ -348,7 +348,7 @@ Dart (right)
 final delay = computeBackoff(retryCount);
 ```
 
-Exception: throwaway tag comments tied to an issue tracker (e.g. `// TODO(ABC-123): drop after Q3`) sometimes trail by
+Exception: short tag comments tied to an issue tracker (e.g. `// TODO(TICKET-001): drop after Q3`) sometimes trail by
 team convention. Even then, prefer the comment above when there's room.
 
 #### Doc comments earn their place or get deleted

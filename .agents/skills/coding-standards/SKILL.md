@@ -94,7 +94,7 @@ skill says "reach for the chain in the first place."
 ##### Dart
 
 ```dart
-// BAD — imperative cascade
+// BAD: imperative cascade
 final activeNames = <String>[];
 for (final e in exercises) {
   if (e.isActive) {
@@ -102,7 +102,7 @@ for (final e in exercises) {
   }
 }
 
-// GOOD — pipeline
+// GOOD: pipeline
 final activeNames = exercises
     .where((e) => e.isActive)
     .map((e) => e.name)
@@ -355,15 +355,24 @@ Default to no comments. Identifiers and structure already say what the code does
 non-obvious, a hidden invariant, a workaround for a specific defect with a stable external reference (CVE, RFC section),
 or behavior that would surprise a future reader.
 
-Do not write comments that reference ticket numbers, PR numbers, or review section numbers (`// PHA-270 fix`,
-`// per review §4.4`, `// Regression guard for §1.1`). Nobody remembers what `§1.1` means six months later; the PR
-description and commit message already carry that context. The one exception is a TODO tied to an open ticket:
-`// TODO(PHA-265): <what's missing>`.
+A task marker tied to an open ticket is required, not merely allowed, whenever something is deliberately left
+unimplemented. If a gap is intentional, the code must say so and name where it will be closed:
+`// TODO(TICKET-001): <what's missing>`. A gap with no ticketed marker is a defect, not a style choice.
+
+What is banned is a reference that stands in place of the explanation rather than alongside it: a ticket number, a PR
+number, or a review section cited instead of the reasoning (`// TICKET-001 fix`, `// per review §4.4`,
+`// PR #15 review comment fix`). Each of those gives a number and a verb and says nothing about what constraint holds,
+so the next reader has to open a tracker to learn anything the comment should have said directly. A task marker that
+names what is missing and links where it will be done is the opposite of that, which is why it is the one form this
+rule requires rather than merely tolerates.
 
 ```typescript
 // PASS: GOOD: Explain WHY, not WHAT
 // Use exponential backoff to avoid overwhelming the API during outages
 const delay = Math.min(1000 * Math.pow(2, retryCount), 30000)
+
+// PASS: GOOD: required task marker naming what's missing and where it's tracked
+// TODO(TICKET-001): retry path for 429 responses is not handled yet
 
 // FAIL: BAD: Stating the obvious
 // Increment counter by 1
@@ -372,8 +381,8 @@ count++
 // Set name to user's name
 name = user.name
 
-// FAIL: BAD: Ticket / review-section references
-// PHA-270 §4.4 — switch to ArrayList
+// FAIL: BAD: a reference standing in for the explanation, not naming a gap
+// TICKET-001 §4.4: switch to ArrayList
 // PR #15 review comment fix
 // added for the cleanup pass
 ```
