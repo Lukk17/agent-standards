@@ -266,7 +266,7 @@ Forward slashes work on Windows too and save you escaping backslashes inside JSO
           {
             "type": "command",
             "timeout": 10,
-            "command": "python -c \"import subprocess,sys;subprocess.run([sys.executable,'/home/you/.agents/hooks/preflight_gate.py','--format','claude'],stderr=subprocess.DEVNULL)\" ; exit 0"
+            "command": "python /home/you/.agents/hooks/preflight_gate.py --format claude ; exit 0"
           }
         ]
       }

@@ -29,11 +29,12 @@ session.
 """
 
 import argparse
+import io
 import json
 import re
 import sys
 from pathlib import Path, PurePosixPath
-from typing import AbstractSet, Any, Dict, List, NamedTuple, Optional, Tuple
+from typing import AbstractSet, Any, Dict, List, NamedTuple, Optional, TextIO, Tuple
 
 # Runner order. The gate goes first: a policy denial about the action being
 # attempted outranks a note about prose that has already been sent.
@@ -1224,7 +1225,7 @@ def _decide(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Optional[
     return None
 
 
-def _emit(reason: str, fmt: str) -> int:
+def _emit(reason: str, fmt: str, real_stderr: Optional[TextIO] = None) -> int:
     if fmt in ("claude", "codex"):
         payload = {
             "hookSpecificOutput": {
@@ -1241,7 +1242,7 @@ def _emit(reason: str, fmt: str) -> int:
         sys.stdout.write(json.dumps(payload))
         return 0
 
-    sys.stderr.write(reason)
+    (real_stderr if real_stderr is not None else sys.stderr).write(reason)
     return 2
 
 
@@ -1259,22 +1260,31 @@ def _parse_args(argv: Optional[List[str]]) -> Tuple[str, bool]:
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    fmt, subagent_flag = _parse_args(argv)
+    real_stderr = sys.stderr
+    sys.stderr = io.StringIO()
 
     try:
-        raw = sys.stdin.buffer.read().decode("utf-8", errors="replace")
-        payload = _as_dict(json.loads(raw or "{}"))
-        reason = _decide(payload, fmt, subagent_flag)
-    except Exception:
-        return 0
+        try:
+            fmt, subagent_flag = _parse_args(argv)
+        except SystemExit:
+            return 0
 
-    if not reason:
-        return 0
+        try:
+            raw = sys.stdin.buffer.read().decode("utf-8", errors="replace")
+            payload = _as_dict(json.loads(raw or "{}"))
+            reason = _decide(payload, fmt, subagent_flag)
+        except Exception:
+            return 0
 
-    try:
-        return _emit(reason, fmt)
-    except Exception:
-        return 0
+        if not reason:
+            return 0
+
+        try:
+            return _emit(reason, fmt, real_stderr)
+        except Exception:
+            return 0
+    finally:
+        sys.stderr = real_stderr
 
 
 if __name__ == "__main__":

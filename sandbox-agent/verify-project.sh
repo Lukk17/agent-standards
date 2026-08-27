@@ -270,9 +270,9 @@ verify_claude() {
   assert_glob_count "subagents are discoverable in Claude Code format" \
     ".claude/agents/*.md" "${#SUBAGENTS[@]}"
   assert_json "the gate is wired into PreToolUse" ".claude/settings.json" \
-    '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py") and test("--format.,.claude"))'
-  assert_json "the gate call discards the standard error no shell redirect could hide" ".claude/settings.json" \
-    '[.hooks.PreToolUse[].hooks[].command] | any(contains("stderr=subprocess.DEVNULL"))'
+    '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py") and contains("--format claude"))'
+  assert_json "the gate call is direct, formats claude, forces a zero exit, and the DEVNULL wrapper does not return" ".claude/settings.json" \
+    '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py") and contains("--format claude") and endswith("; exit 0") and (contains("subprocess.DEVNULL") | not))'
   assert_json "the gate call forces a zero exit in a form both bash and PowerShell parse" ".claude/settings.json" \
     '[.hooks.PreToolUse[].hooks[].command] | any(endswith("; exit 0"))'
   assert_json "the gate text is injected on every prompt" ".claude/settings.json" \

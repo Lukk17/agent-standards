@@ -56,11 +56,13 @@ Per-surface details worth knowing before you touch any of them:
   a command name and errors, which is why the `||` form cannot be used there. The plugin cannot force a zero exit at
   all, because its plain format does use exit 2 as the denial, so it reads each hook file before spawning it and drops
   the ones it cannot open.
-- Claude Code is also the one surface whose gate call cannot redirect standard error, because no redirect token means
-  the same thing in both shells it may pick. `2>/dev/null` makes PowerShell open a literal `dev` directory and fail,
-  and `2>$null` is an ambiguous redirect in bash. Its `PreToolUse` command therefore runs the gate through a one-line
-  Python wrapper that discards the child's standard error with `subprocess.DEVNULL`, which needs no shell support at
-  all. Codex and Copilot keep the per-shell redirects their variant fields let them write.
+- Claude Code's `PreToolUse` command now calls the gate directly, with no wrapper. Its single command field still
+  picks the shell itself, so no redirect token means the same thing in both shells it may pick (`2>/dev/null` opens a
+  literal `dev` directory in PowerShell, `2>$null` is ambiguous in bash), which is still why the gate owns its own
+  silence rather than relying on one: `preflight_gate.py` swaps `sys.stderr` for a null sink for the call and
+  restores it in a `finally`. The `plain` format that OpenCode and Kilo Code use still writes its deny message to
+  standard error, so that deny channel is unaffected. Codex and Copilot keep the per-shell redirects their variant
+  fields let them write.
 - Codex supports both inline `[[hooks.*]]` tables and a separate `hooks.json`, and warns when a single configuration
   layer carries both. The tables therefore live in `.codex/config.toml` and `.codex/hooks.json` no longer exists.
 - Copilot hooks are no longer CLI-only. They run in VS Code and in JetBrains as well, from the same `.github/hooks/`

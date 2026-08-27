@@ -87,6 +87,12 @@ All notable changes to this project are documented here. The format follows
   and why widening it would be worse than leaving it alone. Copilot names its tools in lower case and compares a
   matcher anchored and case sensitively, so the PascalCase Claude pattern never matches there, and the CLI would run
   the gate twice per tool call if it did.
+- Claude Code's `PreToolUse` command, from a one-line Python wrapper that discarded the gate's standard error with
+  `subprocess.DEVNULL` to a direct call. `.agents/hooks/preflight_gate.py` now silences its own standard error:
+  `main()` swaps `sys.stderr` for a null sink for the duration of the call and restores it in a `finally`, so Claude
+  Code can call the script directly like every other wiring already does. The wrapper cost a measured 119 ms of a
+  290 ms gate call. The direct call now measures around 110 ms. The `plain` format that OpenCode and Kilo Code read,
+  where standard error is the deny channel, is unchanged.
 - Every pinned version in the pipeline and in the sandbox container, bumped by hand now that Dependabot is gone. The
   three actions keep their commit-hash pin with a version comment: `actions/checkout` v4.2.2 to v7.0.1,
   `actions/setup-python` v5.3.0 to v7.0.0, and `reviewdog/action-actionlint` v1.72.0 to v1.73.2. The first two now run

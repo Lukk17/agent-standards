@@ -4,6 +4,8 @@ The gate is exercised as a subprocess because its contract is the process
 contract: stdin payload, --format flag, stdout shape, exit code.
 """
 
+import importlib.util
+import io
 import json
 import os
 import subprocess
@@ -425,6 +427,91 @@ def test_plain_format_allows_quietly():
     code, out, err = run(edit("README.md"), "plain")
 
     assert (code, out, err) == (0, "", "")
+
+
+def test_claude_format_allow_path_is_silent():
+    # Given a tool call that never reaches the deny branch
+    payload = {"tool_name": "Read", "tool_input": {"file_path": "README.md"}}
+
+    # When
+    code, out, err = run(payload, "claude")
+
+    # Then no wrapper is needed to swallow stderr noise: there is none
+    assert (code, out, err) == (0, "", "")
+
+
+def test_claude_format_deny_path_carries_no_stderr():
+    # Given a main-thread edit of a source file
+    payload = edit("src/app.py")
+
+    # When
+    code, out, err = run(payload, "claude")
+
+    # Then the deny travels as JSON on stdout, exit 0, and stderr is empty
+    assert code == 0
+    assert err == ""
+
+    decision = json.loads(out)["hookSpecificOutput"]
+
+    assert decision["permissionDecision"] == "deny"
+
+
+@pytest.mark.parametrize("extra_args", [["--format", "not-a-real-format"], []])
+def test_bad_format_argument_fails_open_without_leaking_to_caller_stderr(extra_args):
+    # Given a call that gives argparse a reason to exit: an invalid choice, or a
+    # missing required flag
+    result = subprocess.run(
+        [sys.executable, str(PREFLIGHT_GATE), *extra_args],
+        input=json.dumps(edit("src/app.py")),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(REPO_ROOT),
+    )
+
+    # When/Then main() swallows the SystemExit argparse raises and fails open,
+    # so the caller sees neither a crash nor argparse's usage text
+    assert (result.returncode, result.stdout, result.stderr) == (0, "", "")
+
+
+class _FakeStdin:
+    """Stands in for sys.stdin, exposing only the .buffer.read() path main() uses."""
+
+    def __init__(self, data: bytes) -> None:
+        self.buffer = io.BytesIO(data)
+
+
+def _load_gate_module():
+    """Import preflight_gate.py in-process.
+
+    Needed only so a test can inspect whether sys.stderr survives a call to
+    main() with its own identity intact; a subprocess cannot observe that.
+    """
+    spec = importlib.util.spec_from_file_location("preflight_gate_inprocess", PREFLIGHT_GATE)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    return module
+
+
+GATE = _load_gate_module()
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [edit("README.md"), edit("src/app.py")],
+    ids=["allow", "deny"],
+)
+def test_main_restores_the_real_sys_stderr(monkeypatch, payload):
+    # Given the real sys.stderr object identity before main() runs
+    original_stderr = sys.stderr
+    monkeypatch.setattr(sys, "stdin", _FakeStdin(json.dumps(payload).encode("utf-8")))
+
+    # When
+    GATE.main(["--format", "claude"])
+
+    # Then main() must not leak its swapped-out sink past its own return
+    assert sys.stderr is original_stderr
 
 
 def envelope(tool="Edit", tool_input=None, agent="", assistant_text=""):

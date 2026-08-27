@@ -389,7 +389,7 @@ claude_settings() {
           {
             "type": "command",
             "timeout": 10,
-            "command": "python -c \"import subprocess,sys;subprocess.run([sys.executable,'@GATE@','--format','claude'],stderr=subprocess.DEVNULL)\" ; exit 0"
+            "command": "python @GATE@ --format claude ; exit 0"
           }
         ]
       }

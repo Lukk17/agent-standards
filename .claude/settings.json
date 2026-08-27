@@ -17,7 +17,7 @@
           {
             "type": "command",
             "timeout": 10,
-            "command": "cd \"${CLAUDE_PROJECT_DIR}\" && python -c \"import subprocess,sys;subprocess.run([sys.executable,'.agents/hooks/preflight_gate.py','--format','claude'],stderr=subprocess.DEVNULL)\" ; exit 0"
+            "command": "cd \"${CLAUDE_PROJECT_DIR}\" && python .agents/hooks/preflight_gate.py --format claude ; exit 0"
           }
         ]
       }

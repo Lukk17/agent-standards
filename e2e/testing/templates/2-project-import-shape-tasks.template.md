@@ -44,7 +44,7 @@ None beyond the fresh container. `setup-project.sh` rebuilds `/work/project` its
 - [ ] Codex TOML subagent count matches canonical
 - [ ] Copilot `*.agent.md` subagent count matches canonical
 - [ ] Claude Code calls the gate on `PreToolUse` in its own format, with the flag matched separately
-- [ ] Claude Code's gate call discards the standard error and forces a zero exit
+- [ ] Claude Code's gate call runs the gate script directly, with no wrapper, and forces a zero exit
 - [ ] Claude Code injects the gate text on every prompt
 - [ ] Codex calls the gate on `PreToolUse` in its own format
 - [ ] Codex injects the gate text on every prompt

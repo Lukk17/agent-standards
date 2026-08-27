@@ -248,21 +248,22 @@ test "$(find /work/project/.github/agents -maxdepth 1 -name '*.agent.md' | wc -l
 
 Expect exit 0.
 
-Claude Code calls the gate on `PreToolUse`, in its own format. Its command runs the gate through a one-line Python
-wrapper, so the flag arrives as two separately quoted arguments rather than as ` --format claude` in the command
-string. Path and flag are therefore matched separately.
+Claude Code calls the gate on `PreToolUse`, in its own format. The command runs the gate script directly, with no
+wrapper in between, so the format flag shows up as a plain ` --format claude` substring in the command string.
 
 ```bash
-jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py") and test("--format.,.claude"))' /work/project/.claude/settings.json
+jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py") and contains("--format claude"))' /work/project/.claude/settings.json
 ```
 
 Expect exit 0.
 
-That wrapper is also how Claude Code discards the gate's standard error, and the command ends by forcing a zero exit
-so a broken gate allows rather than denies.
+Claude Code's gate call runs the script directly and forces a zero exit, so a broken gate allows rather than denies.
+The command must carry no `subprocess.DEVNULL`, which would mean the old standard-error-discarding wrapper had come
+back: the gate script now silences its own standard error internally for this format, so nothing outside the script
+needs to.
 
 ```bash
-jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("stderr=subprocess.DEVNULL") and endswith("; exit 0"))' /work/project/.claude/settings.json
+jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py") and contains("--format claude") and endswith("; exit 0") and (contains("subprocess.DEVNULL") | not))' /work/project/.claude/settings.json
 ```
 
 Expect exit 0.

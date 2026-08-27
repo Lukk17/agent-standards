@@ -350,20 +350,22 @@ jq -e '[.skills.paths[]] | any(contains(".agents/skills"))' "$HOME/.config/kilo/
 Expect exit 0.
 
 Claude Code's user settings call the gate by absolute path, not by the project-relative path the shipped wiring uses.
-Its command runs the gate through a one-line Python wrapper, so the flag arrives as two separately quoted arguments
-rather than as ` --format claude` in the command string. Path and flag are therefore matched separately.
+The command runs the gate script directly, with no wrapper in between, so the format flag shows up as a plain
+` --format claude` substring in the command string.
 
 ```bash
-jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.agents/hooks/preflight_gate.py") and test("--format.,.claude"))' "$HOME/.claude/settings.json"
+jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.agents/hooks/preflight_gate.py") and contains("--format claude"))' "$HOME/.claude/settings.json"
 ```
 
 Expect exit 0.
 
-That wrapper is also how Claude Code discards the gate's standard error. It is the one surface whose command cannot
-carry a shell redirect, because no redirect token means the same thing in both shells it might pick.
+Claude Code's gate call runs the script directly here too, and it must carry no `subprocess.DEVNULL`, which would
+mean the old standard-error-discarding wrapper had come back. Claude Code is still the one surface whose command
+cannot carry a shell redirect, because no redirect token means the same thing in both shells it might pick, which is
+exactly why the gate script now silences its own standard error internally for this format instead.
 
 ```bash
-jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("stderr=subprocess.DEVNULL"))' "$HOME/.claude/settings.json"
+jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.agents/hooks/preflight_gate.py") and contains("--format claude") and endswith("; exit 0") and (contains("subprocess.DEVNULL") | not))' "$HOME/.claude/settings.json"
 ```
 
 Expect exit 0.

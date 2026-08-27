@@ -51,7 +51,7 @@ go. Add anything you did beyond the spec under Additional tasks I did.
 - [ ] Kilo Code points at it through its `instructions` key
 - [ ] Kilo Code is told where the shared skills tree is
 - [ ] Claude Code's user settings call the gate by absolute path, with the flag matched separately
-- [ ] Claude Code's gate call discards the gate's standard error in Python
+- [ ] Claude Code's gate call runs the gate script directly, with no wrapper, and carries no `subprocess.DEVNULL`
 - [ ] Claude Code's gate call forces a zero exit
 - [ ] Codex's user hooks call the gate by absolute path
 - [ ] Codex's gate call is scoped to the tools that can write
