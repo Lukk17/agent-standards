@@ -245,6 +245,14 @@ trust_project_for_codex() {
   printf '[projects."%s"]\ntrust_level = "trusted"\n' "$PROJECT" > "${HOME}/.codex/config.toml"
 }
 
+# Copilot skips every workspace MCP source, .mcp.json and .github/mcp.json
+# alike, until the directory is in its own trustedFolders list. The trust
+# record is written into the container HOME, never onto the host.
+trust_project_for_copilot() {
+  mkdir -p "${HOME}/.copilot"
+  printf '{"trustedFolders": ["%s"]}\n' "$PROJECT" > "${HOME}/.copilot/config.json"
+}
+
 verify_import() {
   section "Import, shared tree"
 
@@ -254,6 +262,7 @@ verify_import() {
   assert_absent "the generator stays upstream" "tools"
   assert_file "the shared gate script landed" "$GATE"
   assert_file "the OpenCode and Kilo Code plugin landed" ".agents/plugin/hooks.js"
+  assert_file "the GitHub Copilot CLI's own MCP configuration landed" ".github/mcp.json"
   assert_glob_count "every canonical skill landed" ".agents/skills/*/SKILL.md" "$SKILL_COUNT"
   assert_symlinked_dir "Claude Code skills symlink resolves" ".claude/skills"
   assert_symlinked_dir "OpenCode subagents symlink resolves" ".opencode/agents"
@@ -343,6 +352,8 @@ verify_kilo() {
 verify_copilot() {
   section "GitHub Copilot"
 
+  trust_project_for_copilot
+
   assert_file "skills are discoverable in the directory Copilot reads natively" \
     ".agents/skills/${SAMPLE_SKILL}/SKILL.md"
   assert_glob_count "subagents are discoverable in Copilot agent format" \
@@ -355,6 +366,8 @@ verify_copilot() {
     '[.hooks.preToolUse[].matcher] | any(type == "string" and test("bash") and test("powershell") and test("create") and test("edit"))'
   assert_json "MCP servers are present in the file Copilot in VS Code reads" ".vscode/mcp.json" \
     '(.servers | length) > 0'
+  assert_json "MCP servers are present in the GitHub Copilot CLI's own MCP configuration" ".github/mcp.json" \
+    '(.mcpServers | length) > 0'
 
   assert_cli_lists "Copilot itself lists the imported skills" copilot skill list \
     < <(printf '%s\n' "$SAMPLE_SKILL" "code-reviewer" "coding-standards")
@@ -421,11 +434,13 @@ verify_gate_behaviour() {
   note "a live agent session needs provider credentials, so it is out of scope here."
   note "the gate is driven directly with the payload each adapter would send it."
 
-  for format in claude codex copilot plain; do
+  for format in claude codex plain; do
     assert_gate "rule A denies a main-thread source edit" "$format" deny "$main_source_edit"
   done
+  assert_gate "the copilot format allows the same edit, because its payload carries no agent identifier so the gate cannot tell a subagent from the main thread" \
+    copilot allow "$main_source_edit"
 
-  assert_gate "a main-thread markdown edit is allowed" claude allow "$main_doc_edit"
+  assert_gate "rule A denies a main-thread markdown edit too, now that it covers any write inside the working tree" claude deny "$main_doc_edit"
   assert_gate "rule A denies a shell redirect into a source file" claude deny "$main_shell_write"
   assert_gate "a subagent that declares skills is allowed" claude allow "$specialist"
 

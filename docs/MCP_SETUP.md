@@ -10,18 +10,19 @@ MCP tools its runtime exposes, so it never needs this document.
 
 ### What ships
 
-Four real config files, committed and ready to use. They are not templates any more, so there is nothing to rename.
+Five real config files, committed and ready to use. They are not templates any more, so there is nothing to rename.
 
 | File | Schema key | Serves | Notes |
 | --- | --- | --- | --- |
-| [.mcp.json](../.mcp.json) | `mcpServers` | Claude Code and the GitHub Copilot CLI | `"type": "http"` for remote, `"type": "stdio"` for local |
+| [.mcp.json](../.mcp.json) | `mcpServers` | Claude Code | `"type": "http"` for remote, `"type": "stdio"` for local |
 | [opencode.json](../opencode.json) | `mcp` | OpenCode and Kilo Code | `"type": "remote"` or `"type": "local"`, sits at the project root |
 | [.codex/config.toml](../.codex/config.toml) | `[mcp_servers.*]` | Codex | TOML, also carries the preflight hook tables |
 | [.vscode/mcp.json](../.vscode/mcp.json) | `servers` | GitHub Copilot in VS Code | key is `servers`, not `mcpServers` |
+| [.github/mcp.json](../.github/mcp.json) | `mcpServers` | the GitHub Copilot CLI | `"type": "http"` for remote, `"type": "local"` for a stdio server |
 
-All four carry the same eight servers. Only the file name, the schema key, the `type` value, and the
-environment-variable syntax change between them. There is no fifth project file and no per-tool overlay: one file per
-agent surface, and that is the whole set.
+All five carry the same eight servers. Only the file name, the schema key, the `type` value, and the
+environment-variable syntax change between them. There is no per-tool overlay beyond these five: one file per agent
+surface, and that is the whole set.
 
 Two surfaces get no shipped file, because there is nothing a repository could ship that they would read:
 
@@ -32,8 +33,30 @@ Two surfaces get no shipped file, because there is nothing a repository could sh
 - The GitHub Copilot cloud agent takes its MCP configuration as JSON pasted into a page in the repository
   settings, not from a file in the tree. Manual block below.
 
-Of Copilot's four surfaces, only the CLI can use the shared [.mcp.json](../.mcp.json). VS Code needs
-[.vscode/mcp.json](../.vscode/mcp.json), and the other two are manual.
+Of Copilot's four surfaces, VS Code reads [.vscode/mcp.json](../.vscode/mcp.json), the CLI reads
+[.github/mcp.json](../.github/mcp.json), and the other two are manual.
+
+#### The CLI, `.mcp.json`, and why a fifth file exists
+
+The GitHub Copilot CLI's own documentation states it is capable of reading a project-level `.mcp.json`, in the same
+`mcpServers` schema Claude Code uses, in addition to `.github/mcp.json`. This repo does not rely on that, because
+`.mcp.json` is Claude Code's file and carries Claude Code's `${VAR:-default}` substitution syntax. The Copilot CLI
+has no substitution engine of its own for project-level files, so it would read a placeholder such as
+`${CONTEXT7_API_KEY:-}` as a literal string rather than resolving it, which is a broken header, not an empty one.
+`.github/mcp.json` exists so the CLI has a file written in its own literal-values-only schema instead.
+
+Shipping both files side by side has a real, measured consequence worth knowing before you rely on it. The Copilot
+CLI documents its own precedence rule: when `.mcp.json` and `.github/mcp.json` exist in the same directory and
+define a server with the same name, `.mcp.json` wins. All eight servers in this repo share their name across both
+files, so as things stand the CLI resolves every one of them from `.mcp.json`, not from `.github/mcp.json`. Verified
+directly against Copilot CLI 1.0.81 with both files present: `copilot mcp get context7 --json` reports
+`"sourcePath": "/work/project/.mcp.json"` and a `headers` block holding the literal, unresolved string
+`${CONTEXT7_API_KEY:-}`. Removing `.mcp.json` from the same directory made the same command report
+`"sourcePath": "/work/project/.github/mcp.json"` with no `headers` block at all, the correct unauthenticated
+default. There is no Copilot CLI flag or setting that disables one workspace source while keeping the other; the
+options that exist (`--disable-mcp-server=NAME`, `/mcp disable NAME`) disable a named server in the CLI's own
+persisted configuration, not a source file. Until `.mcp.json` and `.github/mcp.json` stop naming the same eight
+servers, `.github/mcp.json` is present, correct, and shadowed.
 
 One catch with the shared OpenCode and Kilo file. Kilo Code accepts `opencode.json` as a valid project config
 filename, which is why one file serves both. Kilo does not merely leave `{env:VAR}` literal, which is what this
@@ -81,9 +104,9 @@ shipped default.
 | `n8n` | n8n workflow node documentation, optional control | none for documentation only, instance plus key for control |
 
 Turn off a server you do not use. In [opencode.json](../opencode.json) set `"enabled": false` on its block. In
-[.mcp.json](../.mcp.json), [.vscode/mcp.json](../.vscode/mcp.json), and [.codex/config.toml](../.codex/config.toml)
-delete the block, because those schemas have no enable flag. A server you never disable still spawns and still fills
-your log with authentication failures.
+[.mcp.json](../.mcp.json), [.vscode/mcp.json](../.vscode/mcp.json), [.codex/config.toml](../.codex/config.toml), and
+[.github/mcp.json](../.github/mcp.json) delete the block, because those schemas have no enable flag. A server you
+never disable still spawns and still fills your log with authentication failures.
 
 ---
 
@@ -139,7 +162,7 @@ connect. If you do not have one, disable that server rather than leaving it to f
 ### Step 2, acquire keys
 
 Only for the servers you actually use. Nothing is required for the config files to parse: [.mcp.json](../.mcp.json)
-has a fallback for every variable, and the other three hardcode their defaults.
+has a fallback for every variable, and the other four hardcode their defaults.
 
 | Key | Where to get it | Needed when |
 | --- | --- | --- |
@@ -224,7 +247,7 @@ launchctl setenv CONTEXT7_API_KEY ctx7_xxxxxxxxxxxx
 ### Step 4, variables you can override
 
 Every variable here is optional. The defaults are already in the files, either as `${VAR:-default}` in
-[.mcp.json](../.mcp.json) or as hardcoded literals in the other three. Set one only when you need a non-default host
+[.mcp.json](../.mcp.json) or as hardcoded literals in the other four. Set one only when you need a non-default host
 or a real token.
 
 | Variable | Used by | Effect when unset |
@@ -241,14 +264,25 @@ or a real token.
 
 The asymmetry between the files matters when you are debugging. Only [.mcp.json](../.mcp.json) supports a default
 fallback, so only it resolves cleanly with nothing set. [opencode.json](../opencode.json),
-[.vscode/mcp.json](../.vscode/mcp.json), and [.codex/config.toml](../.codex/config.toml) hardcode their URLs, because
-`{env:VAR}` and `${env:VAR}` have no fallback syntax and TOML has no substitution at all. To point one of those at a
-different host, edit the literal string in your local copy. OpenCode also accepts `OPENCODE_CONFIG_CONTENT` for a
-session-scoped override.
+[.vscode/mcp.json](../.vscode/mcp.json), [.codex/config.toml](../.codex/config.toml), and
+[.github/mcp.json](../.github/mcp.json) hardcode their URLs, because `{env:VAR}` and `${env:VAR}` have no fallback
+syntax, TOML has no substitution at all, and the Copilot CLI's own project-file schema has none either. To point one
+of those at a different host, edit the literal string in your local copy. OpenCode also accepts
+`OPENCODE_CONFIG_CONTENT` for a session-scoped override.
 
 `opencode.json` goes one step further and carries no references at all, not even ones without a fallback, because a
 single `{env:VAR}` makes Kilo Code reject the file. Every token it used to name is now read from the environment by
 the server process itself.
+
+`.github/mcp.json` cannot rely on that same inheritance for a secret. A local (`"type": "local"`) server under the
+Copilot CLI only receives `PATH` from the process that started the CLI; the CLI's own documentation states that
+every other environment variable a server needs must be listed explicitly in the server's `env` object in the config
+file. Exporting `GRAFANA_SERVICE_ACCOUNT_TOKEN`, `SONARQUBE_TOKEN`, or `N8N_API_KEY` system-wide, the way Step 3
+above recommends, reaches the same server under Claude Code, OpenCode, Kilo Code, and Codex, but does not reach it
+under the Copilot CLI, because `.github/mcp.json` deliberately omits those three keys to avoid committing a secret.
+Authenticating one of those servers for the Copilot CLI specifically means adding the real value to that key in your
+own local, uncommitted copy of `.github/mcp.json`, the same way [Claude Desktop](#claude-desktop) below needs a
+literal value because it has no substitution either.
 
 An unset token variable is a local, noisy failure and nothing worse: that one server fails to authenticate and the
 rest keep working.
@@ -356,9 +390,15 @@ args = ["-y", "@upstash/context7-mcp@latest"]
 Codex has no built-in substitution. To keep a secret out of the file, wrap the command in a small script that reads it
 from your secrets manager.
 
-The Copilot CLI reads the project [.mcp.json](../.mcp.json), so it needs nothing extra inside a project. For servers
-you want available everywhere, it also reads `~/.copilot/mcp-config.json` (relocatable with `COPILOT_HOME`), keyed
-`mcpServers`, with a `tools` allowlist per server and no substitution. Keep that one out of version control too.
+The Copilot CLI reads [.github/mcp.json](../.github/mcp.json), the file this repo ships for it, plus
+[.mcp.json](../.mcp.json), the same file Claude Code reads, because its own documentation names both as valid
+per-project sources. When both name the same server, as all eight do here, the CLI's own precedence rule makes
+`.mcp.json` win, so see [What ships](#what-ships) above for what that means in practice before assuming
+`.github/mcp.json` is the file actually in effect. Project-level sources, both of them, load only once you confirm
+you trust the directory on first launch and are silently skipped otherwise; there is no flag to skip that prompt for
+`copilot mcp list` itself. For servers you want available everywhere, the CLI also reads
+`~/.copilot/mcp-config.json` (relocatable with `COPILOT_HOME`), keyed `mcpServers`, with a `tools` allowlist per
+server, no directory-trust requirement, and no substitution. Keep that one out of version control too.
 
 ---
 
@@ -369,7 +409,8 @@ Useful when a variable is stubbornly not being picked up.
 | File | Substitution syntax | Applies to |
 | --- | --- | --- |
 | `.mcp.json` and `~/.claude.json`, Claude Code | `${VAR}`, `${VAR:-default}` | `command`, `args`, `env`, `url`, `headers` |
-| `.mcp.json`, GitHub Copilot CLI | none, literal only | inline literals |
+| `.mcp.json`, GitHub Copilot CLI | none, literal only | inline literals, and this repo ships `.github/mcp.json` instead so this row should not matter, see the precedence caveat above |
+| `.github/mcp.json`, GitHub Copilot CLI | none, literal only | inline literals |
 | `opencode.json`, OpenCode | `{env:VAR}` | any string value in an MCP block, though the shipped file uses none |
 | `opencode.json`, Kilo Code | none at project level, and one token invalidates the whole file | inline literals only |
 | `~/.config/opencode/opencode.json`, OpenCode global | `{env:VAR}` | any string value, global config is trusted |
@@ -394,7 +435,9 @@ Restart the agent after editing configs or exporting variables, then check.
 - Codex: start `codex` and run `/mcp`. Remember the project layer loads only after you trust the project.
 - Copilot in VS Code: open Chat, switch to agent mode, open the tools picker. Every server in
   [.vscode/mcp.json](../.vscode/mcp.json) appears with its tools and a start or stop control.
-- Copilot CLI: start `copilot` and run `/mcp`.
+- Copilot CLI: start `copilot` and run `/mcp`, or run `copilot mcp list` from a terminal. Either way, project-level
+  sources load only after you confirm you trust the directory on first launch; an untrusted directory reports
+  `No MCP servers configured.` even with both files present and valid.
 - Claude Desktop: open the developer panel, or check the indicator in the input box.
 
 When a server fails to connect, Claude Code writes the reason to its standard log, and Claude Desktop writes per-server
@@ -405,14 +448,18 @@ on Windows.
 
 ### Adding or changing a server
 
-Edit all four project files together: [.mcp.json](../.mcp.json), [opencode.json](../opencode.json), the
-`[mcp_servers]` tables in [.codex/config.toml](../.codex/config.toml), and [.vscode/mcp.json](../.vscode/mcp.json).
-Then update the two manual blocks in this document, the JetBrains one and the cloud-agent one, which ship no file.
+Edit all five project files together: [.mcp.json](../.mcp.json), [opencode.json](../opencode.json), the
+`[mcp_servers]` tables in [.codex/config.toml](../.codex/config.toml), [.vscode/mcp.json](../.vscode/mcp.json), and
+[.github/mcp.json](../.github/mcp.json). Then update the two manual blocks in this document, the JetBrains one and the
+cloud-agent one, which ship no file.
 
 Keep the server set identical across all of them. Only the per-schema syntax is allowed to differ.
 
-To customise a single project without touching upstream, edit its local copies directly. These four files are
-consumer-owned, and the routine update flow in [AGENTS-UPDATE.md](AGENTS-UPDATE.md) never overwrites them. Picking up
-an upstream server change is a deliberate, separate step: the diff command and the checkout for all five sit at the end
-of each shell section of that document, and [what this skips](AGENTS-UPDATE.md#what-this-skips-and-why) says why. A
-checkout replaces your file wholesale, so diff before you run it.
+To customise a single project without touching upstream, edit its local copies directly. These five files are
+consumer-owned, so the routine update flow leaves every one of them alone. Picking up an upstream server change is a
+deliberate, separate step, with its own diff-and-checkout command at the end of each shell section of
+[AGENTS-UPDATE.md](AGENTS-UPDATE.md). That command covers all six configuration files together: the five MCP
+files, [.mcp.json](../.mcp.json), [opencode.json](../opencode.json), [.vscode/mcp.json](../.vscode/mcp.json),
+[.github/mcp.json](../.github/mcp.json), and [.codex/config.toml](../.codex/config.toml), plus the unrelated
+[.claude/settings.json](../.claude/settings.json). Diff before you run it, because it replaces every one of those
+files wholesale.

@@ -25,9 +25,17 @@ usual owners, with `code-reviewer` before any merge.
 The gate is enforcing, not advisory. One shared rule in
 [.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) decides every tool call, on every agent:
 
-- It denies a source-file edit made from the main thread and tells the caller to delegate the change instead.
+- It denies a main-thread write of any file resolving inside the repository working tree, with no exemption for
+  markdown, configuration, or documentation, and tells the caller to delegate the change instead. A write outside the
+  repository, a write to the null device, and git branch switching stay allowed, so the main thread keeps full use of
+  git.
 - It denies an edit from a subagent whose own definition declares no skills, because that agent is not a specialist.
-- It allows markdown, configuration, and documentation edits from the main thread.
+- It denies the main thread from running a web fetch or web search tool directly, on the one format where that
+  tool's name is confirmed (Claude Code today; Codex has no confirmed equivalent name yet, see Maintenance
+  follow-ups below). It spawns a subagent to do the research and report back instead.
+- Every rule above fires only once the caller is positively identified as the main thread. A format whose payload
+  carries nothing that could identify the caller, currently GitHub Copilot, is left ungated rather than guessed at,
+  because denying blind risks blocking a legitimate subagent as often as it blocks the main thread.
 - It fails open. Any parse error, missing key, or unexpected payload allows the call, because a broken gate must never
   break a session.
 
@@ -35,7 +43,7 @@ Each agent wires that one script to its own hook surface:
 
 | Agent | Wiring | Events |
 | --- | --- | --- |
-| Claude Code | [.claude/settings.json](.claude/settings.json) | `UserPromptSubmit`, `PreToolUse` (matcher `^(Edit\|Write\|NotebookEdit\|Bash)$`), `Stop` for the formatting checker |
+| Claude Code | [.claude/settings.json](.claude/settings.json) | `UserPromptSubmit`, `PreToolUse` (matcher `^(Edit\|Write\|NotebookEdit\|Bash\|WebFetch\|WebSearch)$`), `Stop` for the formatting checker |
 | Codex | inline `[[hooks.*]]` tables in [.codex/config.toml](.codex/config.toml) | `UserPromptSubmit`, `SubagentStart`, `PreToolUse` (matcher `^(Bash\|shell\|apply_patch\|Edit\|Write\|NotebookEdit)$`) |
 | OpenCode and Kilo Code | [.agents/plugin/hooks.js](.agents/plugin/hooks.js), declared once by path in the `plugin` array of [opencode.json](opencode.json), which both tools read | `tool.execute.before` |
 | GitHub Copilot | [.github/hooks/preflight.json](.github/hooks/preflight.json) | `sessionStart`, `subagentStart`, `preToolUse` (matcher `bash\|powershell\|create\|edit`) |
@@ -85,7 +93,8 @@ Per-surface details worth knowing before you touch any of them:
   including the envelope fields, the ordering rule, the deny exit code, and the fail-open rules, is written up in
   [docs/hooks-contract.md](docs/hooks-contract.md).
 
-Verified against Claude Code 2.1.245, Codex 0.149.1, OpenCode 1.18.23, and Kilo Code 7.4.23.
+Verified against Claude Code 2.1.250, Codex 0.150.1, OpenCode 1.18.25, Kilo Code 7.5.5, and GitHub Copilot CLI
+1.0.81.
 
 ---
 
@@ -166,16 +175,33 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
   the lint scope, but match the style anyway.
 - **One runnable command per fenced code block** in any doc a human copies, with the matching language tag and no
   `#` comment lines inside the block (global rule).
-- **One server set, one schema per file.** [.mcp.json](.mcp.json) (key `mcpServers`) serves Claude Code and the GitHub
-  Copilot CLI, which reads a repo-root `.mcp.json` with the same schema. [opencode.json](opencode.json) (key `mcp`)
-  serves OpenCode and Kilo Code, which accepts `opencode.json` as a valid config filename.
-  [.codex/config.toml](.codex/config.toml) (`[mcp_servers.*]` tables) serves Codex. [.vscode/mcp.json](.vscode/mcp.json)
-  (key `servers`) serves GitHub Copilot in VS Code. Change all four together. Only the top-level key, the `type` value,
-  and the environment-variable syntax differ. Copilot in JetBrains reads only a global
+- **One server set, one schema per file.** [.mcp.json](.mcp.json) (key `mcpServers`) serves Claude Code only.
+  [opencode.json](opencode.json) (key `mcp`) serves OpenCode and Kilo Code, which accepts `opencode.json` as a valid
+  config filename. [.codex/config.toml](.codex/config.toml) (`[mcp_servers.*]` tables) serves Codex.
+  [.vscode/mcp.json](.vscode/mcp.json) (key `servers`) serves GitHub Copilot in VS Code. [.github/mcp.json](.github/mcp.json)
+  (key `mcpServers`, `"type": "local"` for a stdio server rather than `.mcp.json`'s `"type": "stdio"`) serves the
+  GitHub Copilot CLI, per the CLI's own documented schema. Change all five together. Only the top-level key, the
+  `type` value, and the environment-variable syntax differ. Copilot in JetBrains reads only a global
   `~/.config/github-copilot/intellij/mcp.json`, so no project file exists for it, and the Copilot cloud agent is
   configured on a repository settings page rather than in a file. Full human setup in
   [docs/MCP_SETUP.md](docs/MCP_SETUP.md), per-surface matrix in
   [docs/agent-compatibility.md](docs/agent-compatibility.md).
+- **`.github/mcp.json` exists because the Copilot CLI is capable of reading `.mcp.json` but this repo does not let
+  it.** The Copilot CLI documents two project-level MCP sources, `.mcp.json` and `.github/mcp.json`, and reads both
+  when both exist. `.mcp.json` carries Claude Code's `${VAR:-default}` syntax, which the CLI has no substitution
+  engine for and would pass through as the literal, unresolved string, so the CLI needs a file of its own with plain
+  literal values, matching how every other local server in this repo ships with no token in its config and gets its
+  secret from the process environment instead. The unavoidable side effect: the CLI's own precedence rule makes
+  `.mcp.json` win over `.github/mcp.json` whenever both files live in the same directory and define the same server
+  name, which is true for all eight servers here. Measured directly (`copilot mcp get context7 --json` with both
+  files present, Copilot CLI 1.0.81): the CLI resolves `context7` from `.mcp.json`, and its `headers` block shows the
+  literal string `${CONTEXT7_API_KEY:-}` rather than a real header, exactly the failure `.github/mcp.json` exists to
+  avoid but, as things stand, does not fully avoid. Removing `.mcp.json` from the same directory (not currently an
+  option, since it is Claude Code's file) makes the CLI resolve every server from `.github/mcp.json` correctly. There
+  is no CLI flag or setting to make it skip one workspace source and honour the other, only per-server-name
+  `--disable-mcp-server` and a `/mcp disable` command that both persist to the CLI's own configuration rather than to
+  this repo's files. This is a known, documented limitation of shipping both files side by side, not a defect in
+  `.github/mcp.json` itself.
 - **No substitution token may appear in [opencode.json](opencode.json).** Kilo Code does not leave `{env:VAR}` literal
   the way this repo used to claim. It treats any `{env:VAR}` in a project config file as a fatal error, rejects that
   entire file, and carries on with the rest of its config chain. For `opencode.json` that would drop the MCP block and
@@ -224,11 +250,15 @@ python tools/check-markdown.py
 ```
 
 ```bash
+python tools/check-badges.py
+```
+
+```bash
 python -m pytest tools/
 ```
 
 ```bash
-python -c "import json; [json.load(open(f)) for f in ['.mcp.json','opencode.json','.vscode/mcp.json','.claude/settings.json','.github/hooks/preflight.json']]"
+python -c "import json; [json.load(open(f)) for f in ['.mcp.json','opencode.json','.vscode/mcp.json','.github/mcp.json','.claude/settings.json','.github/hooks/preflight.json']]"
 ```
 
 ```bash
@@ -244,7 +274,7 @@ python -c "import tomllib; tomllib.load(open('.codex/config.toml','rb'))"
   Bump the skill-count badge in [README.md](README.md).
 - **A subagent:** add or edit `subagents/<name>.md`, run the generator, and commit the canonical source and the four
   generated trees together. Bump the subagent-count badge.
-- **An MCP server:** add the block to all four MCP files (the ones listed under Repo conventions), document it in
+- **An MCP server:** add the block to all five MCP files (the ones listed under Repo conventions), document it in
   [docs/MCP_SETUP.md](docs/MCP_SETUP.md), and bump the MCP-count badge.
 - **A shipped document:** name it in UPPERCASE under `docs/`, add its path to every
   `git checkout agent-standards/master --` pathspec that delivers documents (the Quickstart and all five per-agent
@@ -307,12 +337,13 @@ should look like.
   `subagentStart`. Add a `userPromptTransformed` entry with the same wording, confirm the JetBrains plugin tolerates
   the extra event, and check `https://docs.github.com/en/copilot/reference/hooks-reference` for the exact payload
   shape before wiring it.
-- **The Copilot `preToolUse` payload carries no agent identifier.** There is no `agent_id` or equivalent field, so
+- **The Copilot `preToolUse` payload carries no agent identifier, and its wiring never passes `--subagent` either.**
+  There is no `agent_id` or equivalent field in Copilot's own payload, and
+  [.github/hooks/preflight.json](.github/hooks/preflight.json) never sets `--subagent` on the `preToolUse` call, so
   [.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) cannot tell a Copilot subagent from the Copilot
-  main thread. Rule B (deny a subagent that declares no skills) therefore never fires on Copilot, and Rule A (deny a
-  main-thread source edit) applies to Copilot subagents as well, which fails in the safe direction but is stricter
-  than intended. Recheck the hooks reference for an agent identifier and pass it through with `--subagent` when one
-  lands.
+  main thread. Caller identity resolves to unknown on every call, so neither Rule A, Rule B, nor Rule C ever fires on
+  this surface: the whole surface is unenforced, which fails in the unsafe direction rather than the safe one.
+  Recheck the hooks reference for an agent identifier and pass it through with `--subagent` when one lands.
 - **JetBrains Copilot MCP is global-only and officially undocumented.** The plugin reads MCP from
   `~/.config/github-copilot/intellij/mcp.json`. There is no per-project MCP file, and GitHub documents only the in-IDE
   UI rather than the path, so no JetBrains MCP file ships here. Recheck whether GitHub adds a documented per-project

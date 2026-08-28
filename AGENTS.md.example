@@ -17,10 +17,15 @@ the main session is the failure mode this gate prevents. Re-run the check at the
 first one, because a passive instruction read once at session start loses salience over a long session.
 
 The gate is enforced, not merely stated. One shared rule in
-[.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) denies a source-file edit made from the main thread
-and tells it to delegate, and denies an edit from a subagent whose own definition declares no skills. Markdown,
-configuration, and documentation edits from the main thread are allowed, and any error inside the gate fails open so a
-broken hook can never break a session. Each agent wires that one rule to its own hook surface:
+[.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) denies a main-thread write of any file resolving
+inside the repository, with no exemption for markdown, configuration, or documentation, and tells it to delegate the
+change instead. A write outside the repository, a write to the null device, and git branch switching stay allowed, so
+the main thread keeps full use of git. It also denies an edit from a subagent whose own definition declares no
+skills, and it denies the main thread from running a web fetch or web search tool directly, on the one format where
+that tool's name is confirmed (Claude Code today). Every rule fires only once the caller is positively identified as
+the main thread; a format whose payload carries no such field, currently GitHub Copilot, is left ungated rather than
+guessed at. Any error inside the gate fails open so a broken hook can never break a session. Each agent wires that one
+rule to its own hook surface:
 
 - **Claude Code**: [.claude/settings.json](.claude/settings.json), on `UserPromptSubmit`, `PreToolUse`, and `Stop`.
 - **Codex**: inline `[[hooks.*]]` tables in [.codex/config.toml](.codex/config.toml), on `UserPromptSubmit`,
@@ -168,8 +173,11 @@ four read that directory natively. Start your agent from the project root:
   [.codex/config.toml](.codex/config.toml), and global settings in `~/.codex/config.toml`.
 - **GitHub Copilot**: the CLI, VS Code, and the JetBrains plugin all read `AGENTS.md` and `.agents/skills/` natively.
   Subagents come from [.github/agents/](.github/agents/) and hooks from [.github/hooks/](.github/hooks/). MCP comes
-  from [.vscode/mcp.json](.vscode/mcp.json) in VS Code and from [.mcp.json](.mcp.json) in the CLI, which reads a
-  repo-root `.mcp.json` with the same schema Claude Code uses. The JetBrains plugin reads MCP only from a global
+  from [.vscode/mcp.json](.vscode/mcp.json) in VS Code and from [.github/mcp.json](.github/mcp.json) in the CLI,
+  which uses the CLI's own `mcpServers` schema (`"type": "local"` for a stdio server rather than `.mcp.json`'s
+  `"type": "stdio"`). The CLI also reads a project-root `.mcp.json` when one exists, and its own precedence rule
+  makes `.mcp.json` win over `.github/mcp.json` whenever both name the same server; see
+  [docs/MCP_SETUP.md](docs/MCP_SETUP.md) for the measured detail. The JetBrains plugin reads MCP only from a global
   `~/.config/github-copilot/intellij/mcp.json`.
 
 Windows prerequisite: this project ships symlinks (`.claude/skills`, `.opencode/agents`, `.kilo/agents`). Git creates

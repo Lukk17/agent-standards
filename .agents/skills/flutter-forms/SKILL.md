@@ -156,4 +156,4 @@ wired up, then assert the valid-submit and invalid-submit paths:
 - Invalid submit: leave the field empty (or under 4 characters), tap Submit, and assert the localized validator error
   appears and the success `SnackBar` does not.
 
-See the flutter-testing-apps skill for the Given/When/Then structure and the `pumpAndSettle` pattern.
+See the flutter-testing-apps skill for the three-phase test structure and the `pumpAndSettle` pattern.

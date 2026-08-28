@@ -7,10 +7,14 @@ invoked, no state written.
 
 ### What this verifies
 
-- The shared preflight gate denies a main-thread edit of a source file, in all four output formats the agent
-  adapters use: `claude`, `codex`, `copilot`, and `plain`.
+- The shared preflight gate denies a main-thread write of any file inside the working tree, markdown and
+  configuration included, in three of the four output formats the agent adapters use: `claude`, `codex`, and
+  `plain`.
+- On the `copilot` format the payload carries no agent identifier, so the gate cannot tell a subagent from the main
+  thread. This spec asserts that the same edit is allowed there, deliberately, rather than losing sight of it.
 - It denies a shell command that redirects into a source file, which is the obvious way around a blocked editor call.
-- It allows a main-thread edit of a documentation file, so the rule is targeted rather than a blanket block.
+- It denies a main-thread edit of a documentation file too, now that the rule covers any write inside the working
+  tree rather than exempting markdown and configuration.
 - It fails open on a payload it cannot parse, so a broken gate never breaks a session.
 - Out of scope, because the container is given no provider credentials: no agent runtime fires the hook here and no
   model is asked anything. This spec proves the gate script decides correctly for the payload each adapter would hand
@@ -132,7 +136,7 @@ python3 /repo/.agents/hooks/preflight_gate.py --format plain < /repo/e2e/fixture
 python3 /repo/.agents/hooks/preflight_gate.py --format claude < /repo/e2e/fixtures/gate-payloads/main-thread-shell-redirect.json > /tmp/gate-claude-redirect.json
 ```
 
-8. A main-thread edit of a documentation file, which the gate is meant to allow.
+8. A main-thread edit of a documentation file, which the gate now denies too.
 
 ```bash
 python3 /repo/.agents/hooks/preflight_gate.py --format claude < /repo/e2e/fixtures/gate-payloads/main-thread-markdown-edit.json > /tmp/gate-claude-markdown.json
@@ -159,7 +163,7 @@ Expect exit 0.
 The refusal is rule A rather than rule B, which the reason field distinguishes.
 
 ```bash
-jq -e '.hookSpecificOutput.permissionDecisionReason | contains("may not edit source files")' /tmp/gate-claude-source.json
+jq -e '.hookSpecificOutput.permissionDecisionReason | contains("may not write files directly")' /tmp/gate-claude-source.json
 ```
 
 Expect exit 0.
@@ -172,10 +176,12 @@ jq -e '.hookSpecificOutput.permissionDecision == "deny"' /tmp/gate-codex-source.
 
 Expect exit 0.
 
-GitHub Copilot's adapter denies it too, in its own flatter shape.
+GitHub Copilot's adapter allows it instead, because its payload carries no agent identifier and the gate cannot
+tell a subagent from the main thread on that surface. An allow prints nothing at all, so the captured file is
+empty.
 
 ```bash
-jq -e '.permissionDecision == "deny"' /tmp/gate-copilot-source.json
+test ! -s /tmp/gate-copilot-source.json
 ```
 
 Expect exit 0.
@@ -205,10 +211,10 @@ jq -e '.hookSpecificOutput.permissionDecisionReason | contains("src/e2e_canary_a
 
 Expect exit 0.
 
-The documentation edit is allowed. An allow prints nothing at all, so the captured file is empty.
+The documentation edit is denied too, now that rule A covers any write inside the working tree.
 
 ```bash
-test ! -s /tmp/gate-claude-markdown.json
+jq -e '.hookSpecificOutput.permissionDecision == "deny"' /tmp/gate-claude-markdown.json
 ```
 
 Expect exit 0.

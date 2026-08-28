@@ -65,10 +65,11 @@ have disabled them, or may not have the keys set yet.
 
 The project MCP files are real files, not templates, so there is nothing to rename:
 
-- `.mcp.json` (key `mcpServers`) for Claude Code and the GitHub Copilot CLI
+- `.mcp.json` (key `mcpServers`) for Claude Code
 - `opencode.json` (key `mcp`) for OpenCode and Kilo Code
 - `.codex/config.toml` (`[mcp_servers.*]` tables) for Codex
 - `.vscode/mcp.json` (key `servers`) for GitHub Copilot in VS Code
+- `.github/mcp.json` (key `mcpServers`) for the GitHub Copilot CLI
 
 Report which of those exist. Do not assume any particular server should be present, just report what is there.
 
@@ -190,7 +191,7 @@ failure mark for wiring that is genuinely broken or missing.
 - [ ] Subagent trees present (`.claude/agents/`, `.agents/agents/`, `.codex/agents/`, `.github/agents/`) and the
       `.opencode/agents` and `.kilo/agents` symlinks intact
 - [ ] Preflight gate wired (`.agents/hooks/preflight_gate.py` plus the hook config your runtime reads)
-- [ ] MCP runtime checked (names, or "none active") and the four config files accounted for
+- [ ] MCP runtime checked (names, or "none active") and the five config files accounted for
 - [ ] docs/MCP_SETUP.md trimmed to the active servers (show the diff, or "no trim needed")
 - [ ] OpenSpec callable (slash command name, version if available)
 - [ ] End-to-end runbook tests checked (spec files, runner tool, `e2e-runner` subagent present, or "no e2e directory")
@@ -221,7 +222,8 @@ MCP trim, revise from their feedback.
   `.agents/skills/`.
 - Subagents are spawned proactively and in parallel where the work is independent. The full strategy is the
   `## Subagents` section of `AGENTS.md`.
-- The main thread delegates source edits. The preflight gate enforces it on every surface that can tell who is asking.
+- The main thread delegates every file write inside the project, source, docs, and config alike. The preflight gate
+  enforces it on every surface that can tell who is asking.
 - MCP tools active in this session beat re-deriving the same answer from local files.
 - `AGENTS.md` is the source of truth for this project's conventions.
 ````

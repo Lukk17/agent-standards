@@ -42,23 +42,21 @@ def add(a, b):
 # Step 3: Refactor if needed (REFACTOR)
 ```
 
-#### Test Structure: Given / When / Then
+#### Test Structure
 
-House rule: every test body is split into three labelled sections with `# Given`, `# When`, and
-`# Then` comments. Given sets up the inputs and state, When performs the single action under test, and
-Then asserts the observable outcome. This keeps each test readable and makes it obvious when a test is
-trying to verify more than one behaviour.
+Every test sets up state, performs one action, then asserts the observable outcome. Which words label the three
+phases is the project's choice, not this skill's: `Given`/`When`/`Then` and `Arrange`/`Act`/`Assert` are the two
+common spellings, and a project may have its own. Read how the project's existing tests are already labelled and
+match it; only pick a convention when the project has none, and then stay consistent within it. This structure
+keeps each test readable and makes it obvious when a test is trying to verify more than one behaviour.
 
 ```python
 def test_apply_discount_reduces_total():
-    # Given
     cart = Cart(items=[Item("book", 20.0), Item("pen", 5.0)])
     coupon = Coupon(percent=10)
 
-    # When
     total = cart.apply(coupon)
 
-    # Then
     assert total == 22.5
 ```
 
@@ -422,14 +420,11 @@ logic works against a real engine.
 @patch("mypackage.payment_gateway.charge")
 def test_checkout_calls_gateway(charge_mock):
     """Test with a mocked external payment gateway."""
-    # Given
     charge_mock.return_value = {"status": "approved"}
     order = Order(total=42.0)
 
-    # When
     result = checkout(order)
 
-    # Then
     assert result.paid is True
     charge_mock.assert_called_once_with(amount=42.0)
 ```

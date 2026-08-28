@@ -458,7 +458,13 @@ treatment lives in the `performance-optimization` skill.
 
 ### Testing Standards
 
-#### Test Structure (AAA Pattern)
+#### Test Structure
+
+Every test sets up state, performs one action, then asserts the observable outcome. Which words label the three
+phases is the project's choice, not this skill's: `Arrange`, `Act`, `Assert` and `Given`, `When`, `Then` are the two
+common spellings, and a project may have its own. Read how the project's existing tests are already labelled and
+match it; only pick a convention when the project has none, and then stay consistent within it. Matching what is
+already there beats importing a preference.
 
 ```typescript
 test('calculates similarity correctly', () => {
@@ -473,6 +479,22 @@ test('calculates similarity correctly', () => {
   expect(similarity).toBe(0)
 })
 ```
+
+```typescript
+test('calculates similarity correctly', () => {
+  // Given
+  const vector1 = [1, 0, 0]
+  const vector2 = [0, 1, 0]
+
+  // When
+  const similarity = calculateCosineSimilarity(vector1, vector2)
+
+  // Then
+  expect(similarity).toBe(0)
+})
+```
+
+Same test, same assertions, only the labels differ, so the choice of spelling is the project's.
 
 #### Test Naming
 

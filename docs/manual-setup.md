@@ -102,11 +102,12 @@ Unix shell:
 mv AGENTS.md.example AGENTS.md
 ```
 
-[.mcp.json](../.mcp.json), [opencode.json](../opencode.json), [.codex/config.toml](../.codex/config.toml), and
-[.vscode/mcp.json](../.vscode/mcp.json) arrive ready to use. Follow [MCP_SETUP.md](MCP_SETUP.md) to install the
-prerequisites, acquire the keys, and export the environment variables. Only `.mcp.json` resolves a placeholder,
-`${VAR}` with a default. The other three read no placeholders at all: a local MCP server inherits the environment of
-the process that started the agent, so exporting the variable is what makes the token arrive.
+[.mcp.json](../.mcp.json), [opencode.json](../opencode.json), [.codex/config.toml](../.codex/config.toml),
+[.vscode/mcp.json](../.vscode/mcp.json), and [.github/mcp.json](../.github/mcp.json) arrive ready to use. Follow
+[MCP_SETUP.md](MCP_SETUP.md) to install the prerequisites, acquire the keys, and export the environment variables.
+Only `.mcp.json` resolves a placeholder, `${VAR}` with a default. The other four read no placeholders at all: a local
+MCP server inherits the environment of the process that started the agent, so exporting the variable is what makes
+the token arrive.
 
 ---
 
@@ -181,9 +182,10 @@ Start it inside your editor, or from a terminal:
 copilot
 ```
 
-MCP differs per surface: VS Code reads [.vscode/mcp.json](../.vscode/mcp.json), the CLI reads the project
-[.mcp.json](../.mcp.json), the JetBrains plugin reads a global file only, and the cloud agent takes JSON pasted into
-a repository settings page. See [MCP_SETUP.md](MCP_SETUP.md).
+MCP differs per surface: VS Code reads [.vscode/mcp.json](../.vscode/mcp.json), the CLI reads its own
+[.github/mcp.json](../.github/mcp.json) and also the project [.mcp.json](../.mcp.json), which wins on a name
+collision between the two, the JetBrains plugin reads a global file only, and the cloud agent takes JSON pasted into
+a repository settings page. See [MCP_SETUP.md](MCP_SETUP.md#the-cli-mcpjson-and-why-a-fifth-file-exists).
 
 ---
 

@@ -34,11 +34,11 @@ ENV HOME=/home/sandbox \
     SANDBOX_BARE=/work/bare
 
 RUN npm install --global --loglevel=error \
-        @anthropic-ai/claude-code \
-        @openai/codex \
-        opencode-ai \
-        @kilocode/cli \
-        @github/copilot
+        @anthropic-ai/claude-code@2.1.250 \
+        @openai/codex@0.150.1 \
+        opencode-ai@1.18.25 \
+        @kilocode/cli@7.5.5 \
+        @github/copilot@1.0.81
 
 COPY --chown=sandbox:sandbox entrypoint.sh setup-project.sh setup-global.sh verify-project.sh verify-global.sh /sandbox/
 

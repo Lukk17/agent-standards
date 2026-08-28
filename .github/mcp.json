@@ -1,0 +1,92 @@
+{
+  "mcpServers": {
+
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp"
+    },
+
+    "mongodb": {
+      "type": "local",
+      "command": "npx",
+      "args": [
+        "-y",
+        "mongodb-mcp-server@latest",
+        "--readOnly",
+        "--connectionString",
+        "mongodb://localhost:27017"
+      ]
+    },
+
+    "grafana": {
+      "type": "local",
+      "command": "uvx",
+      "args": [
+        "mcp-grafana"
+      ],
+      "env": {
+        "GRAFANA_URL": "http://localhost:3000"
+      }
+    },
+
+    "playwright": {
+      "type": "local",
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest"
+      ]
+    },
+
+    "chrome-devtools": {
+      "type": "local",
+      "command": "npx",
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest"
+      ]
+    },
+
+    "redis": {
+      "type": "local",
+      "command": "uvx",
+      "args": [
+        "--from",
+        "redis-mcp-server@latest",
+        "redis-mcp-server",
+        "--url",
+        "redis://localhost:6379/0"
+      ]
+    },
+
+    "sonarqube": {
+      "type": "local",
+      "command": "docker",
+      "args": [
+        "run",
+        "--init",
+        "--pull=always",
+        "-i",
+        "--rm",
+        "-e",
+        "SONARQUBE_TOKEN",
+        "-e",
+        "SONARQUBE_URL",
+        "mcp/sonarqube"
+      ],
+      "env": {
+        "SONARQUBE_URL": "http://localhost:9000"
+      }
+    },
+
+    "n8n": {
+      "type": "local",
+      "command": "npx",
+      "args": [
+        "n8n-mcp"
+      ],
+      "env": {
+        "N8N_API_URL": "http://localhost:5678"
+      }
+    }
+  }
+}

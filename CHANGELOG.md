@@ -16,10 +16,10 @@ All notable changes to this project are documented here. The format follows
   free of per-project files, so a global result cannot be attributed to the wrong layer.
 - [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md), covering installation of the same skills, subagents and gate into the
   user home, per agent and per shell, with an honest list of what cannot be installed globally.
-- One shared preflight rule at `.agents/hooks/preflight_gate.py`, called by every agent surface. The gate is now
-  enforcing rather than advisory: it denies a source-file edit made from the main thread and tells it to delegate, and
-  denies an edit from a subagent whose own definition declares no skills. Markdown, configuration, and documentation
-  edits from the main thread are allowed, and any error inside the gate fails open.
+- One shared preflight rule at `.agents/hooks/preflight_gate.py`, called by every agent surface. The gate is
+  enforcing rather than advisory: it denies an edit from a subagent whose own definition declares no skills, and any
+  error inside the gate fails open. Its main-thread write rule and its web-research rule were both widened again
+  before this release shipped; see the entries under Changed below for the state they landed in.
 - `.agents/hooks/no_ai_markers_check.py`, wired as the Claude Code `Stop` hook.
 - One preflight plugin at `.agents/plugin/hooks.js`, declared once by path in the `plugin` array of the root
   `opencode.json`, which both OpenCode and Kilo Code read. It carries no rules of its own: it discovers every hook in
@@ -45,6 +45,13 @@ All notable changes to this project are documented here. The format follows
   the per-project import assertions, a global install run twice against the container's own home to prove it is
   idempotent, and a scoped single-agent install that proves only that agent's paths were written. It runs alongside
   `actionlint` and `validate` rather than behind them, and it never touches a runner's real home directory.
+- A fifth MCP config file, `.github/mcp.json` (key `mcpServers`, `"type": "local"` for a stdio server), so the GitHub
+  Copilot CLI reads a file written in its own literal-values schema instead of Claude Code's `.mcp.json`, which
+  carries `${VAR:-default}` substitution syntax the CLI cannot resolve. The CLI's own precedence rule still makes
+  `.mcp.json` win over `.github/mcp.json` whenever both name the same server, which every server here does; measured
+  against Copilot CLI 1.0.81 and documented as an open limitation in `docs/MCP_SETUP.md`.
+- `tools/check-badges.py`, a lint step that fails when a count badge in `README.md` (skills, subagents, MCP servers)
+  no longer matches the tree, wired into the CI `validate` job.
 
 ### Changed
 
@@ -52,24 +59,36 @@ All notable changes to this project are documented here. The format follows
   `.vscode/mcp.json` are committed as real files that a consumer pulls and uses unchanged. `AGENTS.md.example` is the
   only `.example` file left in the repo, because only `AGENTS.md` carries repo-specific content while hooks, MCP,
   skills, and subagents are universal.
-- MCP mapped one row per file: `.mcp.json` (key `mcpServers`) serves Claude Code and the GitHub Copilot CLI, which
-  reads a repo-root `.mcp.json` with the same schema. `opencode.json` (key `mcp`) serves OpenCode and Kilo Code, which
-  accepts `opencode.json` as a valid config filename. `.codex/config.toml` (`[mcp_servers.*]` tables) serves Codex, and
-  `.vscode/mcp.json` (key `servers`) serves Copilot in VS Code. Kilo rejects a project-level config file outright when
-  it contains an `{env:VAR}` reference, so the shared `opencode.json` carries none and declares `context7` without a
-  `headers` block. A paid Context7 key now belongs in a user's own global OpenCode or Kilo config.
+- MCP mapped one row per file: `.mcp.json` (key `mcpServers`) serves Claude Code, `opencode.json` (key `mcp`) serves
+  OpenCode and Kilo Code, which accepts `opencode.json` as a valid config filename, `.codex/config.toml`
+  (`[mcp_servers.*]` tables) serves Codex, and `.vscode/mcp.json` (key `servers`) serves Copilot in VS Code. Kilo
+  rejects a project-level config file outright when it contains an `{env:VAR}` reference, so the shared
+  `opencode.json` carries none and declares `context7` without a `headers` block. A paid Context7 key now belongs in
+  a user's own global OpenCode or Kilo config. The GitHub Copilot CLI got its own file, `.github/mcp.json`, listed
+  separately under Added above, once the CLI's inability to resolve `.mcp.json`'s substitution syntax was measured.
 - Kilo Code moved its configuration root to `.kilo/` and reads `.agents/skills/` natively, so its subagent tree is now
   a symlink to the shared `.agents/agents/` rather than a generated copy of its own.
 - Codex preflight hooks moved into inline `[[hooks.*]]` tables in `.codex/config.toml`. Codex supports both that form
   and a separate `hooks.json`, and warns when a single configuration layer carries both.
 - The subagent generator emits four trees (`.claude/agents/`, `.agents/agents/`, `.codex/agents/`, `.github/agents/`)
   and maintains the two agent symlinks, instead of writing one independent copy per tool.
+- Widened Rule A in `.agents/hooks/preflight_gate.py` to deny a main-thread write of any file resolving inside the
+  repository working tree, removing the earlier exemption for markdown, configuration, and documentation. A write
+  that resolves outside the repository, a write to the null device, and a git branch switch stay allowed, so the
+  main thread keeps full use of git; a `git checkout` or `git restore` that overwrites a tracked file is still
+  denied.
+- Added Rule C to the same gate: it denies the main thread a direct web fetch or web search call, currently scoped
+  to the Claude Code format only, because no confirmed tool name exists yet for the equivalent call on Codex.
+- Changed caller identification in the gate from a boolean to a tri-state (subagent, main thread, unknown). GitHub
+  Copilot's `preToolUse` payload carries no field that identifies the caller, and its wiring never passes
+  `--subagent`, so its identity now resolves to unknown and none of Rule A, Rule B, or Rule C fires there; the
+  surface is left unenforced rather than denied blind.
 - Corrected the GitHub Copilot claims. Copilot does have a per-turn injection channel, `userPromptTransformed`, on the
   CLI and on the cloud agent. Copilot hooks are no longer CLI-only and run in VS Code and JetBrains from the same
   `.github/hooks/` path. The Copilot CLI additionally reads hooks from `.claude/settings.json`, while the JetBrains
   plugin does not: it hardcodes `.github/hooks/**/*.json` and rejects PascalCase event names. The JetBrains plugin also
   scans `.claude/agents` but understands only its own `*.agent.md` format, so subagent definitions are not shareable.
-- CI validates the four real configuration files and the two hook files instead of the deleted templates, and runs the
+- CI validates the five real configuration files and the two hook files instead of the deleted templates, and runs the
   new pytest suite.
 - Documentation updated to the verified mid-2026 state: GitHub Copilot, including the JetBrains plugin, reads
   `AGENTS.md` and `.agents/skills/` natively, and Codex gained custom agents, hooks, and project-level config.
@@ -109,6 +128,8 @@ All notable changes to this project are documented here. The format follows
   `addopts` had been silently ignored since 9.0 and now take effect again. 9.1.1 rather than 9.1.0 because 9.1.0 shipped
   three regressions of its own and the patch release costs nothing. `setuptools` was checked at the same time and 84.0.0
   is still the current release.
+- The pinned agent CLI versions in `sandbox-agent/Dockerfile`: Claude Code to 2.1.250, Codex to 0.150.1, OpenCode to
+  1.18.25, Kilo Code to 7.5.5, and GitHub Copilot CLI to 1.0.81.
 - The runner label, from the floating `ubuntu-latest` to the exact `ubuntu-24.04` it resolves to today. Ubuntu 26.04 is
   in preview, and when it reaches general availability GitHub moves the `-latest` label over one to two months. With no
   Dependabot to open a pull request, a floating label is the one version in this repo that could change under us

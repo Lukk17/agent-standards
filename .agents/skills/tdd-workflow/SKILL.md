@@ -438,8 +438,9 @@ npm test && npm run lint
 1. Write a failing test first - Always TDD
 2. One behavior per test - Focus on a single outcome; multiple assertions are fine when they all verify that one outcome
 3. Descriptive Test Names - Explain what's tested
-4. Given / When / Then - Split every test body into three labelled sections with `// Given`, `// When`, and `// Then`
-   comments (Given sets up state, When runs the single action, Then asserts the observable outcome)
+4. Three-phase structure - Every test sets up state, performs one action, then asserts the observable outcome; label
+   the phases the way the project's tests already do (`Arrange`/`Act`/`Assert`, `Given`/`When`/`Then`, or its own),
+   matching what's there over importing a preference
 5. Mock only external dependencies - Isolate unit tests; do not mock the database when you can exercise it
 6. Test Edge Cases - Null, undefined, empty, large
 7. Test Error Paths - Not just happy paths

@@ -49,14 +49,11 @@ package calculator
 import "testing"
 
 func TestAdd(t *testing.T) {
-    // Arrange
     a, b := 2, 3
     want := 5
 
-    // Act
     got := Add(a, b)
 
-    // Assert
     if got != want {
         t.Errorf("Add(2, 3) = %d; want %d", got, want)
     }
@@ -296,7 +293,6 @@ func TestFileProcessing(t *testing.T) {
         t.Fatalf("ProcessFile failed: %v", err)
     }
 
-    // Assert...
     _ = result
 }
 ```
@@ -725,8 +721,9 @@ DO:
 - Use `t.Parallel()` for independent tests
 - Clean up resources with `t.Cleanup()`
 - Use meaningful test names that describe the scenario
-- Split each test body into Arrange, Act, and Assert sections with `// Arrange`, `// Act`, and `// Assert` comments.
-  This is Go's idiomatic equivalent of the Given / When / Then convention used elsewhere
+- Split each test body into setup, action, and assertion; label the sections the way the project's existing tests
+  already do, not by mandate. Only pick a convention when the project has none (see `coding-standards` -> Test
+  Structure)
 
 DON'T:
 - Test private functions directly (test through public API)

@@ -10,8 +10,9 @@ own home directory so Codex will look at the project at all, and five agent comm
 - Every one of the five agents, asked in its own terms, names every MCP server the shared templates ship. The
   expected set is read from `.mcp.json` in the mounted repository at run time, so adding a server upstream never
   makes this spec stale.
-- The MCP block is present in each of the four project files the agents actually read, which is what makes the
-  listings possible: `.mcp.json`, `.codex/config.toml`, `opencode.json`, and `.vscode/mcp.json`.
+- The MCP block is present in each of the five project files the agents actually read, which is what makes the
+  listings possible: `.mcp.json`, `.codex/config.toml`, `opencode.json`, `.vscode/mcp.json`, and `.github/mcp.json`,
+  the GitHub Copilot CLI's own MCP configuration.
 - Codex only sees any of its `.codex/` layer once the project is trusted. This spec writes that trust record itself,
   so the assertion measures the configuration rather than the trust prompt.
 - Out of scope, because the container is given no provider credentials and carries neither `uvx` nor `docker`: the
@@ -187,6 +188,14 @@ The file Copilot in VS Code reads declares at least one server, under its own `s
 
 ```bash
 jq -e '(.servers | length) > 0' /work/project/.vscode/mcp.json
+```
+
+Expect exit 0.
+
+The GitHub Copilot CLI's own MCP configuration declares at least one server.
+
+```bash
+jq -e '(.mcpServers | length) > 0' /work/project/.github/mcp.json
 ```
 
 Expect exit 0.

@@ -2,14 +2,24 @@
 """Shared preflight gate for every agent surface.
 
 Reads one hook payload as JSON on stdin and decides whether a tool call may
-proceed. Two rules:
+proceed. Three rules:
 
-A. The main thread may not edit source files. It delegates the change to a
+A. The main thread may not write any file. It delegates the change to a
    subagent that owns the area. This covers the edit tools and the shell: a
    command is lexed and matched against the programs that write files, so
    reaching for sed, a redirection or a patch is not a way around the rule.
 B. A subagent whose own definition declares no skills may not act. The caller
    spawns a specialist that declares its skills instead.
+C. The main thread may not run a web fetch or web search tool directly, on
+   the formats where that tool is known by name (currently Claude Code only,
+   see RESEARCH_TOOLS). It spawns a subagent to do the research and report
+   back instead.
+
+Every rule above denies only once the caller is positively identified as the
+main thread. A format whose payload carries nothing that could identify the
+caller (currently Copilot, see _caller_identity) is left ungated rather than
+guessed at: denying blind risks blocking a legitimate subagent as often as it
+blocks the main thread, and an agent that cannot edit cannot work at all.
 
 The output shape is picked with --format:
 
@@ -25,7 +35,10 @@ deny.
 
 Allowing prints nothing and exits 0 in every format. Any parse error, missing
 key, or unexpected payload also allows: a broken gate must never break a
-session.
+session. The one deliberate exception is the repository-boundary helpers
+(_resolves_inside_repo, _path_exists_in_repo): a path they cannot resolve
+fails toward True, which denies rather than allows, because the whole point
+of those helpers is to decide what Rule A protects.
 """
 
 import argparse
@@ -54,87 +67,30 @@ EDIT_TOOLS = {
 
 SHELL_TOOLS = {"bash", "shell", "powershell", "pwsh", "terminal", "run_command"}
 
+# apply_patch carries no path key at all: Codex's own matcher in
+# .codex/config.toml names it as a distinct tool from Edit/Write, and its
+# call arguments are a patch body, not a file path (see AGENTS.md Defect 3).
+APPLY_PATCH_TOOLS = {"apply_patch", "applypatch"}
+
 PATH_KEYS = ("file_path", "filePath", "path", "notebook_path", "notebookPath")
 
 COMMAND_KEYS = ("command", "cmd", "script")
 
-NON_SOURCE_SUFFIXES = {
-    ".md",
-    ".markdown",
-    ".txt",
-    ".json",
-    ".jsonc",
-    ".yaml",
-    ".yml",
-    ".toml",
-    ".ini",
-    ".cfg",
-}
+# The two forms apply_patch's own custom diff format and a standard unified
+# diff use to name the file a hunk applies to. The exact key Codex's payload
+# uses to carry the patch body is not confirmed (see AGENTS.md Defect 3), so
+# every string value in the tool call is searched rather than one named key.
+_APPLY_PATCH_FILE_RE = re.compile(
+    r"^\*\*\* (?:Update|Add) File: (?P<named>.+?)\s*$|^\+\+\+ b/(?P<unified>.+?)\s*$",
+    re.MULTILINE,
+)
 
-NON_SOURCE_NAMES = {
-    ".env.example",
-    ".gitignore",
-    ".gitattributes",
-    "license",
-}
-
-CODE_SUFFIXES = {
-    ".py",
-    ".pyi",
-    ".ipynb",
-    ".js",
-    ".mjs",
-    ".cjs",
-    ".jsx",
-    ".ts",
-    ".tsx",
-    ".mts",
-    ".cts",
-    ".vue",
-    ".svelte",
-    ".java",
-    ".kt",
-    ".kts",
-    ".scala",
-    ".groovy",
-    ".gradle",
-    ".go",
-    ".rs",
-    ".rb",
-    ".php",
-    ".cs",
-    ".fs",
-    ".c",
-    ".h",
-    ".cc",
-    ".hh",
-    ".cpp",
-    ".hpp",
-    ".m",
-    ".mm",
-    ".swift",
-    ".dart",
-    ".lua",
-    ".pl",
-    ".r",
-    ".sql",
-    ".sh",
-    ".bash",
-    ".zsh",
-    ".ps1",
-    ".psm1",
-    ".psd1",
-    ".tf",
-    ".proto",
-    ".graphql",
-    ".gql",
-    ".html",
-    ".htm",
-    ".css",
-    ".scss",
-    ".sass",
-    ".less",
-}
+# Formats whose payload names a fetch or search tool the gate recognises.
+# Claude Code's tools are confirmed as WebFetch and WebSearch. Codex has no
+# confirmed equivalent name (see AGENTS.md), so it stays out of this set
+# until one is verified; adding it here is the whole follow-up once it is.
+RESEARCH_FORMATS = frozenset({"claude"})
+RESEARCH_TOOLS = {"webfetch", "websearch"}
 
 
 class AgentTree(NamedTuple):
@@ -156,7 +112,7 @@ SKILLS_HEADING_RE = re.compile(r"^#{1,6}[ \t]+.*\bskills\b", re.IGNORECASE)
 LIST_ITEM_RE = re.compile(r"^[ \t]*[-*][ \t]+\S")
 
 RULE_A_REASON = (
-    "PREFLIGHT: the main thread may not edit source files directly. Delegate this "
+    "PREFLIGHT: the main thread may not write files directly. Delegate this "
     "change to a subagent that owns the area, name the skills it must load, and let "
     "it make the edit. Blocked target: {target}"
 )
@@ -165,6 +121,12 @@ RULE_B_REASON = (
     "PREFLIGHT: subagent '{agent}' declares no skills in its definition, so it is not "
     "a specialist. Spawn a subagent that declares the skills the task needs and "
     "delegate the work to it."
+)
+
+RULE_C_REASON = (
+    "PREFLIGHT: the main thread may not run web research directly. Spawn a "
+    "subagent that owns the area to fetch or search and report back, then "
+    "continue from its findings. Blocked tool: {tool}"
 )
 
 
@@ -188,15 +150,35 @@ def _tool_input(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {}
 
 
-def _is_subagent(payload: Dict[str, Any], fmt: str, flag: bool) -> bool:
-    if fmt in ("claude", "codex"):
-        agent_id = payload.get("agent_id")
-        return isinstance(agent_id, str) and bool(agent_id.strip())
+# One of "subagent", "main_thread", or "unknown". "unknown" means this
+# format's payload carries nothing that could tell a subagent from the main
+# thread, so neither rule A, B nor C may fire: a positive identification is
+# required to deny, per the module docstring.
+_SUBAGENT = "subagent"
+_MAIN_THREAD = "main_thread"
+_UNKNOWN = "unknown"
 
+
+def _caller_identity(payload: Dict[str, Any], fmt: str, flag: bool) -> str:
     if flag:
-        return True
+        return _SUBAGENT
 
-    return payload.get("is_subagent") is True
+    if fmt in ("claude", "codex"):
+        # Both formats document agent_id as present only inside a subagent
+        # call (see AGENTS.md "Required opening move"), so its absence here
+        # positively identifies the main thread rather than leaving it unknown.
+        agent_id = payload.get("agent_id")
+        return _SUBAGENT if isinstance(agent_id, str) and agent_id.strip() else _MAIN_THREAD
+
+    if fmt == "copilot":
+        # Copilot's own preToolUse payload carries no agent_id equivalent,
+        # and its wiring in .github/hooks/preflight.json never passes
+        # --subagent, so this surface cannot identify the caller at all.
+        return _UNKNOWN
+
+    # "plain": the runner envelope contract (docs/hooks-contract.md) always
+    # sets is_subagent explicitly, so it is authoritative here.
+    return _SUBAGENT if payload.get("is_subagent") is True else _MAIN_THREAD
 
 
 def _agent_type(payload: Dict[str, Any]) -> str:
@@ -213,6 +195,25 @@ def _direct_target(tool_input: Dict[str, Any]) -> str:
         if isinstance(value, str) and value.strip():
             return value.strip()
     return ""
+
+
+def _apply_patch_body(tool_input: Dict[str, Any]) -> str:
+    """Every top-level string value in an apply_patch call, concatenated.
+
+    The key that carries the patch text is not confirmed (see AGENTS.md
+    Defect 3), so nothing is named; every string field is searched instead.
+    """
+    return "\n".join(value for value in tool_input.values() if isinstance(value, str))
+
+
+def _apply_patch_candidates(tool_input: Dict[str, Any]) -> List[str]:
+    """Every file path named in an apply_patch call's own file headers."""
+    body = _apply_patch_body(tool_input)
+
+    return [
+        match.group("named") or match.group("unified")
+        for match in _APPLY_PATCH_FILE_RE.finditer(body)
+    ]
 
 
 # Shell analysis. Rule A has to hold through the shell as well as through the
@@ -332,10 +333,24 @@ _PATCH_CHECK_FLAGS = {"--dry-run", "--check"}
 
 _GIT_VALUE_FLAGS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
 _GIT_TREE_SUBCOMMANDS = {"checkout", "restore"}
+# Only checkout switches branches, so only checkout is ambiguous between a
+# branch/revision and a pathspec. restore has no branch semantics at all: a
+# bare restore operand is always a file, existing or not.
+_GIT_AMBIGUOUS_SUBCOMMANDS = {"checkout"}
 _GIT_PATCH_SUBCOMMANDS = {"apply", "am"}
 _GIT_CHECKOUT_VALUE_FLAGS = {"-b", "-B", "-s", "--source", "--conflict", "--pathspec-from-file"}
 _GIT_PATCH_CHECK_FLAGS = {"--check", "--stat", "--numstat", "--summary", "--dry-run"}
 _WILDCARD_PATHSPECS = {".", "./", "*", ":/", "*.*"}
+
+# The POSIX null device. Never a write target, in any shell, unconditionally.
+_POSIX_NULL_DEVICE = "/dev/null"
+
+# Windows null-device spellings. Only meaningful inside a PowerShell (or cmd)
+# context: a POSIX shell treats "nul" or "$null" as an ordinary filename, so
+# these are gated on the invoking tool being a PowerShell tool rather than
+# always excluded. Without that gate, `rm nul` from Bash would silently
+# discard a real repository file named nul instead of writing to it.
+_WINDOWS_NULL_DEVICE_TOKENS = {"$null", "nul"}
 
 _POSIX_SHELLS = {"sh", "bash", "zsh", "dash", "ash", "ksh", "busybox"}
 _POWERSHELL_SHELLS = {"pwsh", "powershell"}
@@ -715,11 +730,11 @@ def _operands(tokens: List[str], value_flags: AbstractSet[str] = frozenset()) ->
     return operands
 
 
-def _sourced(candidates: List[str]) -> List[str]:
-    return [candidate for candidate in candidates if _is_source(candidate)]
+def _sourced(candidates: List[str], powershell: bool = False) -> List[str]:
+    return [candidate for candidate in candidates if _is_write_target(candidate, powershell)]
 
 
-def _inplace_targets(name: str, tokens: List[str]) -> List[str]:
+def _inplace_targets(name: str, tokens: List[str], powershell: bool = False) -> List[str]:
     """Files an in-place editor rewrites, in every spelling of the flag."""
     flags = tokens[1:]
 
@@ -755,7 +770,7 @@ def _inplace_targets(name: str, tokens: List[str]) -> List[str]:
     if script_is_first and operands:
         operands = operands[1:]
 
-    return _sourced(operands)
+    return _sourced(operands, powershell)
 
 
 def _inline_code(tokens: List[str]) -> str:
@@ -770,7 +785,7 @@ def _inline_code(tokens: List[str]) -> str:
     return ""
 
 
-def _inline_code_targets(tokens: List[str]) -> List[str]:
+def _inline_code_targets(tokens: List[str], powershell: bool = False) -> List[str]:
     """Paths an inline -c or -e program opens for writing."""
     code = _inline_code(tokens)
 
@@ -783,11 +798,11 @@ def _inline_code_targets(tokens: List[str]) -> List[str]:
     if not writes:
         return []
 
-    return _sourced(literals)
+    return _sourced(literals, powershell)
 
 
-def _tee_targets(tokens: List[str]) -> List[str]:
-    return _sourced(_operands(tokens[1:]))
+def _tee_targets(tokens: List[str], powershell: bool = False) -> List[str]:
+    return _sourced(_operands(tokens[1:]), powershell)
 
 
 def _copy_destinations(sources: List[str], destination: str) -> List[str]:
@@ -800,7 +815,7 @@ def _copy_destinations(sources: List[str], destination: str) -> List[str]:
     return [destination]
 
 
-def _copy_targets(tokens: List[str]) -> List[str]:
+def _copy_targets(tokens: List[str], powershell: bool = False) -> List[str]:
     directory = ""
 
     for index, token in enumerate(tokens):
@@ -812,39 +827,39 @@ def _copy_targets(tokens: List[str]) -> List[str]:
     operands = _operands(tokens[1:], _COPY_VALUE_FLAGS)
 
     if directory:
-        return _sourced(_copy_destinations(operands, directory.rstrip("/\\") + "/"))
+        return _sourced(_copy_destinations(operands, directory.rstrip("/\\") + "/"), powershell)
 
     if len(operands) < 2:
         return []
 
-    return _sourced(_copy_destinations(operands[:-1], operands[-1]))
+    return _sourced(_copy_destinations(operands[:-1], operands[-1]), powershell)
 
 
-def _truncate_targets(tokens: List[str]) -> List[str]:
-    return _sourced(_operands(tokens[1:], _TRUNCATE_VALUE_FLAGS))
+def _truncate_targets(tokens: List[str], powershell: bool = False) -> List[str]:
+    return _sourced(_operands(tokens[1:], _TRUNCATE_VALUE_FLAGS), powershell)
 
 
-def _dd_targets(tokens: List[str]) -> List[str]:
-    return _sourced([token[3:] for token in tokens[1:] if token.startswith("of=")])
+def _dd_targets(tokens: List[str], powershell: bool = False) -> List[str]:
+    return _sourced([token[3:] for token in tokens[1:] if token.startswith("of=")], powershell)
 
 
-def _remove_targets(tokens: List[str]) -> List[str]:
-    return _sourced(_operands(tokens[1:]))
+def _remove_targets(tokens: List[str], powershell: bool = False) -> List[str]:
+    return _sourced(_operands(tokens[1:]), powershell)
 
 
-def _patch_targets(tokens: List[str]) -> List[str]:
+def _patch_targets(tokens: List[str], powershell: bool = False) -> List[str]:
     """A patch writes whatever the diff says, so only a check run is allowed."""
     flags = tokens[1:]
 
     if any(flag in _PATCH_CHECK_FLAGS for flag in flags):
         return []
 
-    named = _sourced(_operands(flags, _PATCH_VALUE_FLAGS))
+    named = _sourced(_operands(flags, _PATCH_VALUE_FLAGS), powershell)
 
     return named or [_basename(tokens[0])]
 
 
-def _git_targets(tokens: List[str]) -> List[str]:
+def _git_targets(tokens: List[str], powershell: bool = False) -> List[str]:
     index = 1
 
     while index < len(tokens):
@@ -876,12 +891,45 @@ def _git_targets(tokens: List[str]) -> List[str]:
         if "--staged" in rest and "--worktree" not in rest and "-W" not in rest:
             return []
 
-        operands = _operands(rest, _GIT_CHECKOUT_VALUE_FLAGS)
-        wildcards = [operand for operand in operands if operand in _WILDCARD_PATHSPECS]
+        if subcommand in _GIT_AMBIGUOUS_SUBCOMMANDS:
+            return _checkout_targets(rest, powershell)
 
-        return _sourced(operands) + ["git " + subcommand + " " + item for item in wildcards]
+        return _sourced(_operands(rest, _GIT_CHECKOUT_VALUE_FLAGS), powershell)
 
     return []
+
+
+def _checkout_targets(rest: List[str], powershell: bool = False) -> List[str]:
+    """git checkout is ambiguous only with a single bare operand and no --:
+    the same bare word can switch to a branch or revert a file. With two or
+    more operands and no --, git's own rule removes the ambiguity instead:
+    operand zero is always a tree-ish and every operand after it is always a
+    pathspec, so `git checkout HEAD~1 tools/gen.py` writes that file
+    unconditionally even when it does not currently exist in the working
+    tree. What follows -- is unconditionally a pathspec in every case. A
+    lone bare operand (with no -- and no second operand) counts only when it
+    is a git magic pathspec (see _WILDCARD_PATHSPECS) or resolves to a path
+    that actually exists, so `git checkout master` is read as the branch it
+    is rather than a file write.
+    """
+    if "--" in rest:
+        split = rest.index("--")
+        candidates = _operands(rest[:split], _GIT_CHECKOUT_VALUE_FLAGS)
+        pathspecs = list(rest[split + 1 :])
+    else:
+        candidates = _operands(rest, _GIT_CHECKOUT_VALUE_FLAGS)
+        pathspecs = []
+
+    if not pathspecs and len(candidates) >= 2:
+        return _sourced(candidates[1:], powershell)
+
+    ambiguous = [
+        candidate
+        for candidate in candidates
+        if candidate in _WILDCARD_PATHSPECS or _path_exists_in_repo(candidate)
+    ]
+
+    return _sourced(pathspecs + ambiguous, powershell)
 
 
 def _powershell_split(tokens: List[str]) -> Tuple[List[str], List[str]]:
@@ -910,20 +958,20 @@ def _powershell_split(tokens: List[str]) -> Tuple[List[str], List[str]]:
     return paths, positional
 
 
-def _powershell_write_targets(tokens: List[str]) -> List[str]:
+def _powershell_write_targets(tokens: List[str], powershell: bool = False) -> List[str]:
     paths, positional = _powershell_split(tokens)
 
-    return _sourced(paths + positional)
+    return _sourced(paths + positional, powershell)
 
 
-def _powershell_copy_targets(tokens: List[str]) -> List[str]:
+def _powershell_copy_targets(tokens: List[str], powershell: bool = False) -> List[str]:
     paths, positional = _powershell_split(tokens)
     operands = paths + positional
 
     if len(operands) < 2:
-        return _sourced(operands)
+        return _sourced(operands, powershell)
 
-    return _sourced(_copy_destinations(operands[:-1], operands[-1]))
+    return _sourced(_copy_destinations(operands[:-1], operands[-1]), powershell)
 
 
 _WRITE_HANDLERS = {
@@ -983,7 +1031,7 @@ def _nested_shell_code(name: str, tokens: List[str]) -> Optional[str]:
     return None
 
 
-def _find_targets(tokens: List[str], depth: int) -> List[str]:
+def _find_targets(tokens: List[str], depth: int, powershell: bool = False) -> List[str]:
     """Files rewritten by find -exec, with {} standing in for the -name pattern."""
     patterns = [
         tokens[index + 1]
@@ -1008,12 +1056,12 @@ def _find_targets(tokens: List[str], depth: int) -> List[str]:
 
         for pattern in patterns or [""]:
             expanded = [pattern if item == "{}" else item for item in command]
-            targets += _segment_targets(expanded, depth + 1)
+            targets += _segment_targets(expanded, depth + 1, powershell)
 
     return targets
 
 
-def _segment_targets(tokens: List[str], depth: int) -> List[str]:
+def _segment_targets(tokens: List[str], depth: int, powershell: bool = False) -> List[str]:
     rest = _strip_wrappers(tokens)
 
     if not rest or depth > _MAX_NESTING:
@@ -1023,69 +1071,124 @@ def _segment_targets(tokens: List[str], depth: int) -> List[str]:
     nested = _nested_shell_code(name, rest)
 
     if nested is not None:
-        return _command_targets(nested, depth + 1)
+        # A nested shell invocation is judged by its own name, not inherited
+        # from the outer one: `bash -c "pwsh -Command '...'"` must switch the
+        # null-device gate on for the nested segment even though the outer
+        # tool was Bash, and the reverse must switch it back off.
+        return _command_targets(nested, depth + 1, name in _POWERSHELL_SHELLS)
 
     if name == "find":
-        return _find_targets(rest, depth)
+        return _find_targets(rest, depth, powershell)
 
     targets: List[str] = []
 
     if name in _INPLACE_TOOLS:
-        targets += _inplace_targets(name, rest)
+        targets += _inplace_targets(name, rest, powershell)
 
     if name in _INLINE_CODE_TOOLS:
-        targets += _inline_code_targets(rest)
+        targets += _inline_code_targets(rest, powershell)
 
     handler = _WRITE_HANDLERS.get(name)
 
     if handler is not None:
-        targets += handler(rest)
+        targets += handler(rest, powershell)
 
     return targets
 
 
-def _command_targets(command: str, depth: int = 0) -> List[str]:
-    """Every source path this command writes, as far as the text reveals it."""
+def _command_targets(command: str, depth: int = 0, powershell: bool = False) -> List[str]:
+    """Every write target this command touches, as far as the text reveals it."""
     if depth > _MAX_NESTING:
         return []
 
     targets: List[str] = []
 
     for segment in _lex(command):
-        targets += _sourced(list(segment.redirects))
+        targets += _sourced(list(segment.redirects), powershell)
 
         if segment.argv:
-            targets += _segment_targets(list(segment.argv), depth)
+            targets += _segment_targets(list(segment.argv), depth, powershell)
 
     return targets
 
 
-def _is_source(target: str) -> bool:
+def _is_null_device(target: str, powershell: bool = False) -> bool:
+    normalized = target.strip().lower()
+
+    if normalized == _POSIX_NULL_DEVICE:
+        return True
+
+    return powershell and normalized in _WINDOWS_NULL_DEVICE_TOKENS
+
+
+def _resolves_inside_repo(target: str) -> bool:
+    """True when target resolves inside the repository boundary.
+
+    Rule A protects this repository, not the rest of the filesystem. Every
+    wiring is supposed to cd into the project root before invoking the gate
+    (see AGENTS.md "Required opening move"), and that guarantee has broken
+    silently once before, which would turn every file above a stray working
+    directory into a writable target. A relative path is therefore resolved
+    against, and checked against, every root in _roots() (the gate's
+    invocation directory and the gate's own on-disk location two parents up,
+    the same two-root treatment _read_agent_definition already uses), and it
+    counts as inside when it resolves inside any one of them. A `cd` inside
+    the command itself is not simulated, and an unresolvable path fails
+    toward True: failing safe here means denying, not allowing.
+    """
+    path = Path(target.replace("\\", "/"))
+
+    for root in _roots():
+        try:
+            resolved = (path if path.is_absolute() else (root / path)).resolve(strict=False)
+        except (OSError, ValueError):
+            return True
+
+        if resolved.is_relative_to(root):
+            return True
+
+    return False
+
+
+def _path_exists_in_repo(candidate: str) -> bool:
+    """True when a bare git checkout/restore operand names a path that
+    actually exists in any repository root (see _roots()), the one case
+    where such an operand is unambiguously a file rather than a branch or
+    revision. An unresolvable path fails toward True for the same reason as
+    _resolves_inside_repo.
+    """
+    path = Path(candidate.replace("\\", "/"))
+
+    for root in _roots():
+        try:
+            if (path if path.is_absolute() else (root / path)).resolve(strict=False).exists():
+                return True
+        except (OSError, ValueError):
+            return True
+
+    return False
+
+
+def _is_write_target(target: str, powershell: bool = False) -> bool:
+    """True for any concrete file path inside the repository, with no
+    exemption by extension.
+
+    Rule A denies a main-thread write of any file inside this repository,
+    documentation and configuration included: see AGENTS.md "Required
+    opening move" for why the earlier per-extension exemption was removed,
+    and for why the check stops at the repository boundary and never treats
+    the null device as a write.
+    """
     if not target:
         return False
 
-    path = PurePosixPath(target.replace("\\", "/"))
-    name = path.name
-    lowered = name.lower()
-
-    if not name:
+    if _is_null_device(target, powershell):
         return False
 
-    if any(part == "docs" for part in path.parts[:-1]):
-        return False
+    if target in _WILDCARD_PATHSPECS:
+        return True
 
-    if lowered in NON_SOURCE_NAMES or lowered.startswith("license."):
-        return False
-
-    if lowered.endswith(".env.example"):
-        return False
-
-    suffix = path.suffix.lower()
-
-    if suffix in NON_SOURCE_SUFFIXES:
-        return False
-
-    return suffix in CODE_SUFFIXES
+    return _resolves_inside_repo(target)
 
 
 def _roots() -> List[Path]:
@@ -1180,9 +1283,12 @@ def _declares_skills(text: str) -> bool:
 
 def _decide(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Optional[str]:
     """Return a deny reason, or None to allow."""
-    subagent = _is_subagent(payload, fmt, subagent_flag)
+    identity = _caller_identity(payload, fmt, subagent_flag)
 
-    if subagent:
+    if identity == _UNKNOWN:
+        return None
+
+    if identity == _SUBAGENT:
         agent_type = _agent_type(payload)
         definition = _read_agent_definition(agent_type)
 
@@ -1197,9 +1303,30 @@ def _decide(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Optional[
     tool = _tool_name(payload)
     tool_input = _tool_input(payload)
 
+    if fmt in RESEARCH_FORMATS and tool in RESEARCH_TOOLS:
+        return RULE_C_REASON.format(tool=tool)
+
     if tool in EDIT_TOOLS:
         target = _direct_target(tool_input)
-        if _is_source(target):
+
+        if not target and tool in APPLY_PATCH_TOOLS:
+            candidates = _apply_patch_candidates(tool_input)
+
+            if not candidates:
+                # No path key, and no file header the gate could read out of
+                # the patch body either: deny rather than trust an edit tool
+                # whose write target the gate cannot resolve, per AGENTS.md
+                # Defect 3.
+                return RULE_A_REASON.format(target="apply_patch (unreadable patch body)")
+
+            write_targets = _sourced(candidates)
+
+            if write_targets:
+                return RULE_A_REASON.format(target=write_targets[0])
+
+            return None
+
+        if _is_write_target(target):
             return RULE_A_REASON.format(target=target)
         return None
 
@@ -1215,7 +1342,7 @@ def _decide(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Optional[
             return None
 
         try:
-            targets = _command_targets(command)
+            targets = _command_targets(command, powershell=tool in _POWERSHELL_SHELLS)
         except _ShellParseError:
             return None
 

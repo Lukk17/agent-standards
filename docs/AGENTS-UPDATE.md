@@ -91,7 +91,7 @@ for f in .agents/agents/*.md .claude/agents/*.md .codex/agents/*.toml .github/ag
 
 #### ⚠️ Stop here before the destructive part
 
-The last command in this section overwrites all five configuration files with the upstream copies. What you lose:
+The last command in this section overwrites all six configuration files with the upstream copies. What you lose:
 
 - API tokens you inlined.
 - Servers you disabled or repointed.
@@ -99,17 +99,17 @@ The last command in this section overwrites all five configuration files with th
 
 Diff first, and run the checkout only once you are sure nothing of yours is in them.
 
-Your five configuration files are kept out of the loops above, for the reasons under
+Your six configuration files are kept out of the loops above, for the reasons under
 [what this skips](#what-this-skips-and-why). See what upstream would change in them.
 
 ```bash
-git diff agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .codex/config.toml .claude/settings.json
+git diff agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .github/mcp.json .codex/config.toml .claude/settings.json
 ```
 
-Take upstream's copy of all five once the diff has shown you nothing of yours is in them.
+Take upstream's copy of all six once the diff has shown you nothing of yours is in them.
 
 ```bash
-git checkout agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .codex/config.toml .claude/settings.json
+git checkout agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .github/mcp.json .codex/config.toml .claude/settings.json
 ```
 
 ---
@@ -150,7 +150,7 @@ foreach ($base in '.agents/agents', '.claude/agents', '.codex/agents', '.github/
 
 #### ⚠️ Stop here before the destructive part
 
-The last command in this section overwrites all five configuration files with the upstream copies. What you lose:
+The last command in this section overwrites all six configuration files with the upstream copies. What you lose:
 
 - API tokens you inlined.
 - Servers you disabled or repointed.
@@ -158,17 +158,17 @@ The last command in this section overwrites all five configuration files with th
 
 Diff first, and run the checkout only once you are sure nothing of yours is in them.
 
-Your five configuration files are kept out of the loops above, for the reasons under
+Your six configuration files are kept out of the loops above, for the reasons under
 [what this skips](#what-this-skips-and-why). See what upstream would change in them.
 
 ```powershell
-git diff agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .codex/config.toml .claude/settings.json
+git diff agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .github/mcp.json .codex/config.toml .claude/settings.json
 ```
 
-Take upstream's copy of all five once the diff has shown you nothing of yours is in them.
+Take upstream's copy of all six once the diff has shown you nothing of yours is in them.
 
 ```powershell
-git checkout agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .codex/config.toml .claude/settings.json
+git checkout agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .github/mcp.json .codex/config.toml .claude/settings.json
 ```
 
 ---
@@ -187,17 +187,19 @@ Nothing in this list is refreshed. Each one is either derived or yours.
 - [opencode.json](../opencode.json) and [.codex/config.toml](../.codex/config.toml). Both carry your MCP servers
   next to a piece of gate wiring: `opencode.json` declares the plugin path, `.codex/config.toml` holds the Codex hook
   tables inline.
-- [.mcp.json](../.mcp.json) and [.vscode/mcp.json](../.vscode/mcp.json), your MCP server sets.
+- [.mcp.json](../.mcp.json), [.vscode/mcp.json](../.vscode/mcp.json), and [.github/mcp.json](../.github/mcp.json),
+  your MCP server sets.
 - [AGENTS.md.example](../AGENTS.md.example) and your own `AGENTS.md`. The first is consumed once at setup, the
   second is the source of truth for your project's conventions.
 
-Five of those are the configuration files: [.mcp.json](../.mcp.json), [opencode.json](../opencode.json),
-[.vscode/mcp.json](../.vscode/mcp.json), [.codex/config.toml](../.codex/config.toml), and
-[.claude/settings.json](../.claude/settings.json). Between them they carry every MCP server, your Claude Code
-settings, and three of the five pieces of preflight wiring. That is why they get their own two commands at the end of
-each shell section instead of riding the loops: `git checkout` replaces a file whole, and everything local in it goes
-with it, an inlined token, a server you disabled, a host you repointed, a permission you granted. Diff first, every
-time, and run the checkout only once you are sure nothing of yours is in them.
+Six of those are the configuration files: [.mcp.json](../.mcp.json), [opencode.json](../opencode.json),
+[.vscode/mcp.json](../.vscode/mcp.json), [.github/mcp.json](../.github/mcp.json),
+[.codex/config.toml](../.codex/config.toml), and [.claude/settings.json](../.claude/settings.json). Between them
+they carry every MCP server, your Claude Code settings, and three of the six pieces of preflight wiring. That is why
+they get their own two commands at the end of each shell section instead of riding the loops: `git checkout`
+replaces a file whole, and everything local in it goes with it, an inlined token, a server you disabled, a host you
+repointed, a permission you granted. Diff first, every time, and run the checkout only once you are sure nothing of
+yours is in them.
 
 Who owns which half:
 
@@ -205,11 +207,12 @@ Who owns which half:
 | --- | --- | --- |
 | [.mcp.json](../.mcp.json) | the whole file: server set, hosts, tokens | nothing |
 | [.vscode/mcp.json](../.vscode/mcp.json) | the whole file: server set, hosts, tokens | nothing |
+| [.github/mcp.json](../.github/mcp.json) | the whole file: server set, hosts, tokens | nothing |
 | [opencode.json](../opencode.json) | the `mcp` block | the `plugin` array, which declares the gate |
 | [.codex/config.toml](../.codex/config.toml) | the `[mcp_servers.*]` tables | the `[[hooks.*]]` tables, which declare the gate |
 | [.claude/settings.json](../.claude/settings.json) | anything you add beside the hooks, typically a `permissions` block | the `hooks` block, which declares the gate |
 
-The two MCP-only files become yours outright at import and never need to follow upstream again, unless you want a
+The three MCP-only files become yours outright at import and never need to follow upstream again, unless you want a
 newly added server. The other three are split: the gate half should stay identical to upstream so the preflight rule
 keeps firing, and it shares a file with something of yours, so an upstream gate change is merged by hand rather than
 checked out. The release notes say when there is one. Read upstream's copy with

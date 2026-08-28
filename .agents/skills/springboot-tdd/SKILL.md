@@ -43,25 +43,20 @@ class MarketServiceTest {
 
   @Test
   void createsMarket() {
-    // Given
     CreateMarketRequest req = new CreateMarketRequest("name", "desc", Instant.now(), List.of("cat"));
     when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-    // When
     Market result = service.create(req);
 
-    // Then
     assertThat(result.name()).isEqualTo("name");
     verify(repo).save(any());
   }
 
   @Test
   void create_whenRepositoryFails_propagatesException() {
-    // Given
     CreateMarketRequest req = new CreateMarketRequest("name", "desc", Instant.now(), List.of("cat"));
     when(repo.save(any())).thenThrow(new DataAccessResourceFailureException("db down"));
 
-    // When / Then
     assertThatThrownBy(() -> service.create(req))
         .isInstanceOf(DataAccessResourceFailureException.class);
     verify(repo).save(any());
@@ -69,21 +64,19 @@ class MarketServiceTest {
 
   @Test
   void create_withEmptyCategories_stillCreatesMarket() {
-    // Given
     CreateMarketRequest req = new CreateMarketRequest("name", "desc", Instant.now(), List.of());
     when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-    // When
     Market result = service.create(req);
 
-    // Then
     assertThat(result.categories()).isEmpty();
   }
 }
 ```
 
 Patterns:
-- Given / When / Then section comments in every test body
+- Setup, action, assertion in every test body, labelled per the project's convention if the project labels test
+  phases at all (see `coding-standards` -> Test Structure)
 - Cover the happy path plus error and edge cases (failures, empty inputs, boundaries)
 - Avoid partial mocks; prefer explicit stubbing
 - Use `@ParameterizedTest` for variants
@@ -100,10 +93,8 @@ class MarketControllerTest {
 
   @Test
   void returnsMarkets() throws Exception {
-    // Given
     when(marketService.list(any())).thenReturn(Page.empty());
 
-    // When / Then
     mockMvc.perform(get("/api/markets"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.content").isArray());

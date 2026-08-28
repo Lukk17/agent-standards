@@ -28,6 +28,7 @@ readonly IMPORT_PATHS=(
   ".codex"
   ".github/agents"
   ".github/hooks"
+  ".github/mcp.json"
   ".vscode/mcp.json"
   ".mcp.json"
   "opencode.json"

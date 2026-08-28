@@ -200,7 +200,7 @@ Expect exit 0.
 The refusal is rule A rather than rule B, which the reason field distinguishes.
 
 ```bash
-jq -e '.hookSpecificOutput.permissionDecisionReason | contains("may not edit source files")' /tmp/global-gate-source.json
+jq -e '.hookSpecificOutput.permissionDecisionReason | contains("may not write files directly")' /tmp/global-gate-source.json
 ```
 
 Expect exit 0.

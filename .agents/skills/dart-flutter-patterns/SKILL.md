@@ -541,23 +541,23 @@ addTearDown(container.dispose);
 ```dart
 // Unit test — use case (error path)
 test('GetUserUseCase returns null for missing user', () async {
-  // Given a repository with no matching user
+  // the repository has no matching user
   final repo = FakeUserRepository();
   final useCase = GetUserUseCase(repo);
-  // When the use case is invoked with an unknown id
+  // the use case is invoked with an unknown id
   final result = await useCase('missing-id');
-  // Then it resolves to null
+  // it resolves to null
   expect(result, isNull);
 });
 
 // Unit test — use case (edge path: empty result set)
 test('GetActiveUsersUseCase returns an empty list when none are active', () async {
-  // Given a repository seeded only with inactive users
+  // the repository holds only inactive users
   final repo = FakeUserRepository()..seed([inactiveUser]);
   final useCase = GetActiveUsersUseCase(repo);
-  // When fetching active users
+  // active users are fetched
   final result = await useCase();
-  // Then the result is empty, not null, and has length zero
+  // the result is empty, not null, and has length zero
   expect(result, isEmpty);
   expect(result, hasLength(0));
 });
@@ -565,25 +565,21 @@ test('GetActiveUsersUseCase returns an empty list when none are active', () asyn
 // BLoC test (error path)
 blocTest<AuthCubit, AuthState>(
   'emits loading then error on failed login',
-  // Given an auth service that throws on login
   build: () => AuthCubit(FakeAuthService(throwsOn: 'login')),
-  // When a login is attempted with wrong credentials
   act: (cubit) => cubit.login('user@test.com', 'wrong'),
-  // Then it emits loading then an error state
   expect: () => [const AuthState.loading(), isA<AuthError>()],
 );
 
 // Widget test (happy path)
 testWidgets('CartBadge shows item count', (tester) async {
-  // Given a cart notifier reporting 3 items
-  // When the badge is pumped
+  // the cart notifier reports 3 items, and the badge below is pumped with that state
   await tester.pumpWidget(
     ProviderScope(
       overrides: [cartNotifierProvider.overrideWith(() => FakeCartNotifier(count: 3))],
       child: const MaterialApp(home: CartBadge()),
     ),
   );
-  // Then the badge renders the exact count
+  // the badge renders the exact count
   expect(find.text('3'), findsOneWidget);
 });
 ```

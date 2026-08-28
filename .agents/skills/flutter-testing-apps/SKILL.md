@@ -146,16 +146,16 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('HomeViewModel tests', () {
     test('Load bookings successfully', () {
-      // Given a repository seeded with exactly one known booking
+      // the repository is seeded with exactly one known booking
       final viewModel = HomeViewModel(
         bookingRepository: FakeBookingRepository()..createBooking(kBooking),
         userRepository: FakeUserRepository(),
       );
 
-      // When reading the exposed bookings
+      // read the exposed bookings
       final bookings = viewModel.bookings;
 
-      // Then the count and the booking content match the seeded data
+      // the count and the booking content match the seeded data
       expect(bookings, hasLength(1));
       expect(bookings.single.id, kBooking.id);
       expect(bookings.single.title, kBooking.title);
@@ -185,15 +185,14 @@ void main() {
     });
 
     testWidgets('renders bookings list', (WidgetTester tester) async {
-      // Given a HomeScreen wired to a view model with one seeded booking
-      // When the widget is pumped and the first frame is built
+      // a HomeScreen wired to a view model with one seeded booking is pumped, and the first frame builds
       await tester.pumpWidget(
         MaterialApp(
           home: HomeScreen(viewModel: viewModel),
         ),
       );
 
-      // Then the list renders and the seeded booking is visible
+      // the list renders and the seeded booking is visible
       expect(find.byType(ListView), findsOneWidget);
       expect(find.text('Booking 1'), findsOneWidget);
     });
@@ -215,16 +214,16 @@ void main() {
 
   group('end-to-end test', () {
     testWidgets('tap on the floating action button, verify counter', (tester) async {
-      // Given the app loaded at its initial counter state of 0
+      // the app is loaded at its initial counter state of 0
       await tester.pumpWidget(const MyApp());
       expect(find.text('0'), findsOneWidget);
 
-      // When the increment button is tapped and the frame settles
+      // the increment button is tapped and the frame settles
       final fab = find.byKey(const ValueKey('increment'));
       await tester.tap(fab);
       await tester.pumpAndSettle();
 
-      // Then the counter advances to exactly 1
+      // the counter advances to exactly 1
       expect(find.text('1'), findsOneWidget);
     });
   });

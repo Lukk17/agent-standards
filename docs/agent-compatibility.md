@@ -1,8 +1,8 @@
 # Agent compatibility matrix
 
 What each supported agent reads, where it reads it from, what it can actually block, and the few places our layout
-has to work around a tool limitation. Checked against vendor documentation on 2026-08-25, against Claude Code 2.1.245,
-Codex 0.149.1, OpenCode 1.18.23, and Kilo Code 7.4.23. Cells that rest on something less than official documentation
+has to work around a tool limitation. Checked against vendor documentation on 2026-08-25, against Claude Code 2.1.250,
+Codex 0.150.1, OpenCode 1.18.25, and Kilo Code 7.5.5. Cells that rest on something less than official documentation
 say so.
 
 This file stays in the agent-standards repo only. For the full repository tree and each agent's instruction-merge
@@ -80,10 +80,15 @@ a generated tree.
 ### Hook enforcement, what each agent can actually block
 
 The gate is one shared rule in [../.agents/hooks/preflight_gate.py](../.agents/hooks/preflight_gate.py). It reads a
-hook payload on standard input and denies two things: a source-file edit coming from the main thread (delegate it to a
-subagent that owns the area) and any edit from a subagent whose own definition declares no skills (spawn a specialist
-instead). Markdown, configuration, and anything under `docs/` stay editable from the main thread. Every failure path
-allows the call, because a broken gate must never break a session.
+hook payload on standard input and denies three things: a write of any file resolving inside the repository working
+tree coming from the main thread, with no exemption left for markdown, configuration, or `docs/` (delegate the change
+to a subagent that owns the area instead), any edit from a subagent whose own definition declares no skills (spawn a
+specialist instead), and a web fetch or web search called straight from the main thread on the one format whose
+payload names that tool today, Claude Code. A write outside the repository, the null device, and switching a git
+branch stay allowed, and the main thread keeps full use of git otherwise. Caller identity is a tri-state, subagent,
+main thread, or unknown when a payload carries nothing that could tell the two apart, and none of the three rules
+fires on an unknown caller. Every failure path also allows the call, because a broken gate must never break a
+session.
 
 Each agent wires that one script through its own hook surface, and the surfaces differ in what they can stop.
 
@@ -93,7 +98,7 @@ Each agent wires that one script through its own hook surface, and the surfaces 
 | Codex | inline `[[hooks.*]]` in [.codex/config.toml](../.codex/config.toml) | yes, `PreToolUse` | yes, `UserPromptSubmit` and `SubagentStart` | no | yes, `agent_id` is present only inside a subagent |
 | OpenCode | plugin [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), declared by path in [opencode.json](../opencode.json) | yes, throwing from `tool.execute.before` | no per-turn channel | no | yes, via the acting agent on the payload and the session `parentID` |
 | Kilo Code | the same plugin, same declaration | yes, throwing from `tool.execute.before` | no per-turn channel | no | yes, same mechanism |
-| GitHub Copilot | [.github/hooks/preflight.json](../.github/hooks/preflight.json), camelCase events | yes, `preToolUse` | yes, `sessionStart` and `subagentStart` | no | no, the `preToolUse` payload carries no agent identifier |
+| GitHub Copilot | [.github/hooks/preflight.json](../.github/hooks/preflight.json), camelCase events | fires on `preToolUse`, but caller identity there always resolves to unknown, so the gate always allows | yes, `sessionStart` and `subagentStart` | no | no, the `preToolUse` payload carries no agent identifier |
 
 Reading the table row by row:
 
@@ -108,9 +113,10 @@ Reading the table row by row:
   separate `.codex/hooks.json` any more. Codex also loads that whole layer only after the project is trusted.
 - OpenCode and Kilo Code run one plugin file between them. Neither has an event that can block a reply, so on those two
   the enforcement is the pre-tool block plus per-agent tool permissions, and nothing after the fact.
-- GitHub Copilot can block a tool call but cannot tell who is making it, so rule A (no source edits from the main
-  thread) cannot be applied selectively there. The gate is genuinely weaker on Copilot, and the `AGENTS.md` text plus
-  the `sessionStart` injection carry more of the weight.
+- GitHub Copilot's `preToolUse` payload carries no agent identifier at all, so caller identity there resolves to
+  unknown every time and none of the gate's three rules ever fires. The hook is wired and runs, but it always allows:
+  that surface is entirely unenforced by the gate, not merely weaker, and the `AGENTS.md` text plus the
+  `sessionStart` injection carry the whole weight instead.
 - Copilot in JetBrains fires only six events, has no subagent event at all, and reads hook configuration only from
   `.github/hooks/`. A hook file anywhere else is ignored by that client.
 
@@ -126,21 +132,31 @@ rather than by agent.
 
 | File | Schema key | Serves | Environment-variable syntax |
 | --- | --- | --- | --- |
-| [.mcp.json](../.mcp.json) | `mcpServers` | Claude Code and the GitHub Copilot CLI | `${VAR}`, `${VAR:-default}` |
+| [.mcp.json](../.mcp.json) | `mcpServers` | Claude Code | `${VAR}`, `${VAR:-default}` |
 | [opencode.json](../opencode.json) at the project root | `mcp` | OpenCode and Kilo Code | none, a token here voids the file for Kilo |
 | [.codex/config.toml](../.codex/config.toml) | `[mcp_servers.*]` tables | Codex | none, values are literal |
 | [.vscode/mcp.json](../.vscode/mcp.json) | `servers` | GitHub Copilot in VS Code | `${env:VAR}`, `${input:NAME}` |
+| [.github/mcp.json](../.github/mcp.json) | `mcpServers` | the GitHub Copilot CLI | none, values are literal |
 | `~/.config/github-copilot/intellij/mcp.json` | `servers` | GitHub Copilot in JetBrains, global only | none documented |
 | repository settings page | pasted JSON | GitHub Copilot cloud agent | none, values are literal |
 
-The same eight servers are mirrored across the four project files. Only the file name, the schema key, the `type`
+The same eight servers are mirrored across the five project files. Only the file name, the schema key, the `type`
 value, and the environment-variable syntax differ. The last two rows are not project files at all, which is why they
 carry no template.
 
 Two rows ship no template and cannot. The JetBrains Copilot plugin reads MCP only from the global path above, with no
 per-project file, so a shipped file would never be read. The cloud agent takes JSON pasted into a page in the
-repository settings, so there is nothing to commit. Of the four Copilot surfaces, only the Copilot CLI can use the
-shared [.mcp.json](../.mcp.json). Both manual blocks are written out in [MCP_SETUP.md](MCP_SETUP.md).
+repository settings, so there is nothing to commit. Of the four Copilot surfaces, VS Code reads
+[.vscode/mcp.json](../.vscode/mcp.json) and the CLI reads [.github/mcp.json](../.github/mcp.json). Both manual blocks
+are written out in [MCP_SETUP.md](MCP_SETUP.md).
+
+The Copilot CLI is also documented as capable of reading a project-level `.mcp.json`, the same file and schema Claude
+Code uses, and its own precedence rule makes `.mcp.json` win over `.github/mcp.json` whenever both exist in the same
+directory and name the same server, which is true for all eight servers here. `.mcp.json` carries Claude Code's
+`${VAR:-default}` syntax, which the CLI does not evaluate, so as things stand the CLI resolves its servers from
+`.mcp.json` with every substitution left as a literal, unresolved string, not from the clean `.github/mcp.json` this
+repo ships for it. See [MCP_SETUP.md](MCP_SETUP.md#the-cli-mcpjson-and-why-a-fifth-file-exists) for the measurement
+that confirmed it and why `.github/mcp.json` still ships regardless.
 
 Kilo Code accepts `opencode.json` as a valid project config filename, which is why one file serves both it and
 OpenCode. What it does with an environment reference is where sharing the file costs something, and it is harsher than

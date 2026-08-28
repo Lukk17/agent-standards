@@ -668,7 +668,7 @@ verify_gate_enforcement() {
 
   assert_gate "the home gate denies a main-thread source edit" claude deny \
     "${PAYLOADS}/main-thread-source-edit.json"
-  assert_gate_reason "the refusal is rule A rather than rule B" claude "may not edit source files" \
+  assert_gate_reason "the refusal is rule A rather than rule B" claude "may not write files directly" \
     "${PAYLOADS}/main-thread-source-edit.json"
   assert_gate "the Codex adapter denies the same payload" codex deny \
     "${PAYLOADS}/main-thread-source-edit.json"

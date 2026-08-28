@@ -14,7 +14,7 @@ Three categories, and mixing them up is the one mistake that breaks a rebuild.
 | Category | Paths | How to change it |
 | --- | --- | --- |
 | Canonical | `subagents/*.md`, `.agents/skills/*/SKILL.md`, `.agents/hooks/*.py`, `.agents/plugin/hooks.js`, `docs/*.md` | edit directly |
-| Canonical config | `.mcp.json`, `opencode.json`, `.codex/config.toml`, `.vscode/mcp.json`, `.claude/settings.json`, `.github/hooks/preflight.json` | edit directly, keep the server set and the gate wording in sync |
+| Canonical config | `.mcp.json`, `opencode.json`, `.codex/config.toml`, `.vscode/mcp.json`, `.github/mcp.json`, `.claude/settings.json`, `.github/hooks/preflight.json` | edit directly, keep the server set and the gate wording in sync |
 | Generated | `.claude/agents/*.md`, `.agents/agents/*.md`, `.codex/agents/*.toml`, `.github/agents/*.agent.md` | never hand-edit, run `python tools/gen_subagents.py` |
 | Symlink | `.opencode/agents`, `.kilo/agents`, `.claude/skills` | never edit through the link, fix the link itself |
 
@@ -46,6 +46,7 @@ agent-standards/
     gen_subagents.py             # Emits four trees plus the two agent symlinks
     check-markdown.py            # Markdown lint used by CI
     pyproject.toml               # CANONICAL, the only pinned dependency and pytest configuration
+    check-badges.py              # Badge-count lint used by CI
     tests/                       # CANONICAL pytest suite for the two hook scripts
   e2e/                           # Capability test specs, templates and run records, this repo only
   sandbox-agent/                 # Containerised sandbox that runs those specs, this repo only
@@ -65,13 +66,14 @@ agent-standards/
   .github/
     agents/                      # GENERATED, GitHub Copilot subagents (*.agent.md)
     hooks/preflight.json         # Copilot hook config, camelCase events
+    mcp.json                     # the GitHub Copilot CLI, key "mcpServers", no substitution syntax
     workflows/                   # CI and release, both manual-trigger only
   .vscode/
     mcp.json                     # GitHub Copilot in VS Code, key "servers"
   AGENTS.md                      # This repo's own instructions, never shipped downstream
   AGENTS.md.example              # The template consumers rename to AGENTS.md
   opencode.json                  # OpenCode and Kilo Code, MCP plus the plugin declaration, no substitution tokens
-  .mcp.json                      # Claude Code and the GitHub Copilot CLI, key "mcpServers"
+  .mcp.json                      # Claude Code, key "mcpServers"
   README.md                      # Project front door, this repo only
   CONTRIBUTING.md                # Contribution rules and local checks, this repo only
   CHANGELOG.md                   # Release history, this repo only
@@ -111,8 +113,9 @@ your-project/
   .codex/config.toml             # Codex MCP servers plus the inline gate hooks
   .github/agents/                # generated Copilot subagents (*.agent.md)
   .github/hooks/preflight.json   # Copilot hook config
+  .github/mcp.json               # Copilot CLI MCP servers
   .vscode/mcp.json               # Copilot in VS Code MCP servers
-  .mcp.json                      # Claude Code and Copilot CLI MCP servers
+  .mcp.json                      # Claude Code MCP servers
   opencode.json                  # OpenCode and Kilo Code MCP servers plus the plugin declaration
   AGENTS.md                      # renamed from AGENTS.md.example, then filled in
   docs/                          # only the UPPERCASE docs: AGENT_TOOLING, MCP_SETUP, AGENTS-UPDATE, GLOBAL_SETUP

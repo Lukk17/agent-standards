@@ -51,7 +51,7 @@ jobs:
         run: pip install ./tools --group ./tools/pyproject.toml:dev
 
       - name: Validate JSON config and hook files
-        run: python -c "import json; [json.load(open(f)) for f in ['.mcp.json','opencode.json','.vscode/mcp.json','.claude/settings.json','.github/hooks/preflight.json']]"
+        run: python -c "import json; [json.load(open(f)) for f in ['.mcp.json','opencode.json','.vscode/mcp.json','.github/mcp.json','.claude/settings.json','.github/hooks/preflight.json']]"
 
       - name: Validate the Codex TOML config
         run: python -c "import tomllib; tomllib.load(open('.codex/config.toml','rb'))"
@@ -61,6 +61,9 @@ jobs:
 
       - name: Lint human-facing markdown (em-dashes, line widths)
         run: python tools/check-markdown.py
+
+      - name: Check README badge counts match the tree
+        run: python tools/check-badges.py
 
       - name: Run the hook and tooling test suite
         working-directory: tools

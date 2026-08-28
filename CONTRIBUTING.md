@@ -26,8 +26,8 @@ so you can still start it by hand from the
 Three jobs run in parallel, and none of them waits on another:
 
 - `actionlint` lints the workflow YAML, including a ShellCheck pass over every `run:` block.
-- `validate` runs the JSON and TOML checks, the generator drift check, the markdown linter, and the pytest suite. Every
-  one of those is a command you can run locally, listed further down this page.
+- `validate` runs the JSON and TOML checks, the generator drift check, the markdown linter, the badge-count check, and
+  the pytest suite. Every one of those is a command you can run locally, listed further down this page.
 - `sandbox` builds the container image once and then runs the containerised suite three times over: the per-project
   import assertions, a global install run twice against the container's own home to prove it is idempotent, and a
   scoped single-agent install to prove it writes only that agent's paths. This is the slow job, several minutes against
@@ -54,8 +54,8 @@ the same CI workflow first, so a release runs the container suite as well.
 - Generator output in sync. If you edit any canonical subagent under `subagents/`, re-run
   `python tools/gen_subagents.py` and commit the regenerated copies under `.claude/agents/`, `.agents/agents/`,
   `.codex/agents/`, and `.github/agents/`. CI runs `--check` and fails on drift.
-- JSON validity for `.mcp.json`, `opencode.json`, `.vscode/mcp.json`, `.claude/settings.json`, and
-  `.github/hooks/preflight.json` if you touch those, and TOML validity for `.codex/config.toml`.
+- JSON validity for `.mcp.json`, `opencode.json`, `.vscode/mcp.json`, `.github/mcp.json`, `.claude/settings.json`,
+  and `.github/hooks/preflight.json` if you touch those, and TOML validity for `.codex/config.toml`.
 - Tests for the shared hooks. If you change [.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) or
   [.agents/hooks/no_ai_markers_check.py](.agents/hooks/no_ai_markers_check.py), add or update the matching case in
   [tools/tests/](tools/tests/). CI runs the suite.
@@ -81,6 +81,12 @@ Run the markdown linter to catch style issues before pushing:
 
 ```bash
 python tools/check-markdown.py
+```
+
+Check that the README badge counts still match the tree:
+
+```bash
+python tools/check-badges.py
 ```
 
 Run the hook test suite:

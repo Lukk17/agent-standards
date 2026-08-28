@@ -28,11 +28,13 @@ symlinks resolve to directories, and the upstream-only `subagents/` and `tools/`
 It also proves the gate really denies. [.agents/hooks/preflight_gate.py](../.agents/hooks/preflight_gate.py) is run
 directly with the payload each adapter would hand it, once per output format, and the decision is read back:
 
-- Rule A denies a main-thread edit of a source file, in all four formats.
+- Rule A denies a main-thread write of any file inside the working tree, markdown and configuration included, in
+  three of the four formats: `claude`, `codex`, and `plain`.
+- On the `copilot` format the payload carries no agent identifier, so the gate cannot tell a subagent from the main
+  thread and allows the same edit. The sandbox asserts that allowance deliberately, rather than losing sight of it.
 - Rule A denies a shell redirect that writes into a source file.
 - Rule B denies a subagent whose definition declares no skills, using a fixture agent the sandbox writes and deletes.
-- A main-thread markdown edit is allowed, a subagent that declares skills is allowed, and a malformed payload fails
-  open rather than blocking the session.
+- A subagent that declares skills is allowed, and a malformed payload fails open rather than blocking the session.
 
 ---
 
@@ -296,11 +298,16 @@ PowerShell and cmd do no such rewriting, so the PowerShell commands above need n
 | [compose.yaml](compose.yaml) | Mounts the repository read-only at `/repo`, drops every Linux capability, and runs `verify-project.sh` unless the run names another script. |
 | [.dockerignore](.dockerignore) | Keeps the README and the Compose file out of the build context, so editing either one does not bust the image cache. |
 
-Versions are never pinned in the image. The baseline install exists only to warm the layer cache, and
-[entrypoint.sh](entrypoint.sh) re-resolves every tool to `@latest` on container start, so testing against a newer
-release needs no rebuild. The scripts are the opposite case: they are baked, they do not re-resolve, and a change to
-one of them does need a rebuild, which is what the staleness check above enforces. Each run prints the versions it actually tested against, which is the line to quote when a
-result needs reproducing.
+The [Dockerfile](Dockerfile) pins the five agent tools to exact versions, so the image it builds is reproducible.
+[entrypoint.sh](entrypoint.sh) then reaches straight past those pins on every container start: its `update_agents`
+function runs `npm install --global` for each package at `@latest`, unless `SANDBOX_SKIP_UPDATE` is set to `1`. The
+continuous integration pipeline sets that variable on every sandbox job, so continuous integration genuinely tests
+the pinned versions. A plain local run does not set it by default, so it silently re-resolves past the pins to
+whatever each registry currently serves, and two runs of the same image tag have already reported different tool
+versions minutes apart because of it. Pass `-e SANDBOX_SKIP_UPDATE=1`, as shown in Running it above, to reproduce
+the exact versions continuous integration saw. The scripts are the opposite case: they are baked, they do not
+re-resolve, and a change to one of them does need a rebuild, which is what the staleness check above enforces. Each
+run prints the versions it actually tested against, which is the line to quote when a result needs reproducing.
 
 ---
 
@@ -319,6 +326,13 @@ Codex needs one extra step that a human normally does by hand. It ignores the wh
 is trusted once, so [verify-project.sh](verify-project.sh) writes a trust record into the container's own
 `~/.codex/config.toml` before asking `codex mcp list` anything. Without it Codex reports no MCP servers at all and
 the assertion would be measuring the trust prompt rather than the configuration.
+
+GitHub Copilot needs the same kind of step. The CLI skips every workspace MCP source, `.mcp.json` and
+`.github/mcp.json` alike, until the project directory is in its own `trustedFolders` list, so
+[verify-project.sh](verify-project.sh) writes that list into the container's own `~/.copilot/config.json` before
+asking `copilot mcp list` anything, the same shape as the Codex trust record above and scoped to the one throwaway
+project rather than a blanket `--allow-all`/`COPILOT_ALLOW_ALL` bypass. Without it `copilot mcp list` reports
+`No MCP servers configured.` even though both files are present and valid.
 
 ---
 
