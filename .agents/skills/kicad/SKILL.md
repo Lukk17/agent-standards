@@ -51,9 +51,20 @@ origin: project-standards
   a low-impedance return path for all signals.
 - Avoid splitting the ground plane. If a split is required for mixed-signal designs (analog/digital), ensure no traces
   route across the split.
-- Use thermal reliefs for all pads connecting to copper pours (`GND` or `VCC` planes) to prevent heat sinking during
-  soldering, which causes cold solder joints. Use spoke-style reliefs for through-hole; optionally solid fills for
-  high-current SMD pads.
+- Decide the pad-to-pour connection per pad, not as one blanket rule for the whole board. A thermal relief connects a
+  pad to the copper pour around it through a small number of narrow copper spokes, leaving a gap around the rest of
+  the pad. Its purpose is to stop the pour from sinking heat away from a soldering iron, or from a wave-solder bath (a
+  machine that solders many through-hole joints at once by passing the underside of the board over a wave of molten
+  solder), which is what actually causes a cold solder joint on a pad sitting inside a large sheet of copper. That
+  purpose only exists for hand-soldered or wave-soldered through-hole joints. A reflow oven heats the whole board at
+  once, so there is no iron or wave losing heat into the plane to protect against, and on a reflow-soldered pad the
+  same narrow spokes that protect a hand-soldered joint cut that pad's copper cross-section down to a fraction of a
+  solid connection, throttling both the current path and the thermal path through it. Ask, for every pad: will this
+  joint be hand- or wave-soldered, and does this pad need to carry meaningful current or sink heat into the pour
+  during operation (a power-supply output pin, a high-current connector pad, a component's own thermal pad)? Use a
+  thermal relief only where the first is true. Connect solid whenever the second is true, regardless of assembly
+  method. KiCad's own zone-connection setting exposes this choice per pad and per zone: solid, thermal relief, thermal
+  relief for through-hole pads only, or no connection at all.
 - Stitch the top and bottom ground pours together with via stitching around the board perimeter and around
   high-frequency components.
 
@@ -130,16 +141,89 @@ Before sending to fabrication, export and verify all of the following layers:
 
 ### High-Speed Signal Integrity, Differential Pairs and Impedance
 
-- Route differential pairs (USB, Ethernet, LVDS, CAN) using KiCad's differential pair router (`X` then `Shift+X`).
-  Enforce length matching within ±0.1 mm.
-- Specify target impedance for high-speed traces in the board stackup and configure the trace width calculator
-  accordingly:
+- A differential pair is two tracks that carry one signal as the voltage difference between them, rather than each
+  track carrying its own signal referenced to ground. USB, Ethernet, LVDS, CAN, and RS-485 all use this technique
+  because a matched pair rejects common-mode noise (interference picked up equally by both tracks) far better than a
+  single track referenced to ground does.
+- There is no single length-matching figure that fits every differential pair. The tolerable length mismatch between
+  the two tracks of a pair, called skew, is set by the signalling rate of the interface and by how much of that
+  interface's own timing budget the board is allowed to spend. A skew that is irrelevant on a slow link (RS-485 at a
+  few megabits per second) can break a fast one (a multi-gigabit link) outright, because what matters is skew as a
+  fraction of the unit interval, the time one bit occupies at the link's data rate, never skew in millimetres copied
+  from a different project.
+- Derive the enforced number instead of quoting one from memory:
+  1. Read the interface's own specification for its data rate and, where it states one directly, its own maximum
+     intra-pair skew. Some interface specifications publish an explicit skew limit in their own electrical chapter.
+     Where one doesn't, fall back on the general relationship that timing skew between the two lines of a pair
+     converts part of the intended differential signal into unwanted common-mode noise, roughly in proportion to skew
+     divided by the signal's rise time.
+  2. Convert that time budget into a physical length using the propagation velocity of the actual stackup and layer
+     the pair runs on, not a generic PCB propagation-speed figure remembered from elsewhere. Propagation velocity
+     depends on the effective dielectric constant the trace actually sees, v = c / √(ε_eff), a single number blending
+     how much of the trace's electric field sits inside the board material versus in the air above it for a surface
+     trace with a pour underneath (microstrip), or sits entirely inside the board material for a trace buried between
+     two reference planes (stripline). IPC-2141A, Design Guide for High-Speed Controlled Impedance Circuit Boards,
+     gives the standard delay approximations used for this conversion: roughly 1.017 × √(0.475εr + 0.67) nanoseconds
+     per inch for microstrip, and roughly 1.017 × √εr nanoseconds per inch for stripline, where εr is the substrate's
+     own dielectric constant (a material property read off the laminate's datasheet).
+  3. Apply a derating factor before the number becomes the one a check actually enforces. No IPC or IEEE standard
+     publishes one universal derating percentage for this: it is settled engineering convention, not a codified spec,
+     and the convention itself varies by how much risk a project is willing to carry. Keeping skew inside roughly 10
+     percent of the available timing budget is the commonly used conservative choice. A looser budget of up to
+     roughly 25 percent shows up in practice when board area is genuinely constrained and the interface's own timing
+     margin can absorb it. Neither figure is mandated anywhere. The underlying physical justification, that skew
+     converts to common-mode noise in rough proportion to the skew-to-rise-time ratio, is discussed in Johnson and
+     Graham, High-Speed Digital Design: A Handbook of Black Magic (Prentice Hall, 1993). Whichever factor is chosen
+     belongs inside the enforced number itself, the netclass rule or the design-rule-check constraint, never only in a
+     comment or a paragraph of prose next to the tool. A margin that nothing enforces gets silently consumed the first
+     time a router pass or a hand edit nudges a track.
+- A pair with a real skew budget is either hand-routed and then locked so nothing can move it afterward, or routed by
+  an autorouter and then checked. Neither path is inherently correct. General-purpose autorouters do not implement
+  dedicated differential-pair length matching: natural skew after autorouting depends entirely on how symmetric the
+  placement is and on whichever path the router happened to find, so an autorouted pair's as-built length has to be
+  measured on the real routed copper and checked against the derived tolerance before the board is considered
+  finished, never assumed to already match because the router "should" have kept it close. KiCad's interactive router
+  includes a dedicated length-tuning mode built for exactly this problem, because a general path-finding algorithm
+  does not solve for skew on its own. Use it for the hand-routed path.
+- Specify a target impedance for every high-speed pair or single-ended trace in the board stackup, and configure the
+  trace-width calculator to hit it:
   - USB 2.0 full-speed/high-speed: 90 Ω differential
   - RF / SMA traces: 50 Ω single-ended
   - LVDS: 100 Ω differential
 - Keep high-speed signal return paths short: every signal trace must have an unbroken ground return plane immediately
   below it with no slots or cuts interrupting the return current path.
 - Add series termination resistors (33-47 Ω) at the source end of high-speed single-ended traces to damp reflections.
+
+---
+
+### Verification Is a Discipline, Not a Result
+
+- A design-rule check (DRC) reporting zero violations proves only that the rules actually switched on found nothing.
+  Before trusting a "0 errors" result, open the rule severity list itself and confirm nothing has been quietly
+  downgraded from error to warning, or excluded outright: a downgraded or excluded rule can no longer report a
+  violation at all, so the summary line reads exactly as clean as a board with no problems in it.
+- A check that silently skips an object it cannot parse produces a result indistinguishable from a genuine pass. Any
+  script or plugin that walks footprints, nets, or zones should report what it actually examined, not only what it
+  found wrong, meaning a count of footprints checked, nets checked, or zones checked next to the count of violations,
+  so a script that quietly processed 40 of 90 footprints because the other 50 had an unexpected property doesn't look
+  identical to one that checked all 90 and found them clean.
+- A check nobody has ever seen fail is not yet a check. Before trusting an automated check to catch a defect, build or
+  find a deliberately broken input carrying exactly that defect and confirm the check actually flags it. A script run
+  only against clean boards has never demonstrated it can fail at all, and an inverted condition, a wrong threshold,
+  or a pattern that matches nothing will pass every board handed to it while catching none of them, indefinitely.
+- A quantity sized by design-time arithmetic on an idealised shape has to be measured again on the routed, filled
+  board. A hand or script calculation for trace width, copper area, or clearance models a clean rectangle or a
+  straight line between two points. A real board is not that shape once it is routed and its copper pours are filled:
+  a keepout (a clearance a hole or a part must keep from copper that isn't its own net) cuts a notch out of a pour, a
+  corner pinches near a pad, a current path bends around an obstacle instead of running straight between two points.
+  The arithmetic that sized a rail is a starting point, not the final answer. Re-measure the real, as-filled geometry
+  once routing and zone fill are done, and check that measurement against the requirement, not the paper number alone.
+- A threshold nobody can trace back to a reason is itself a defect. If a check enforces a number and nobody on the
+  project can say where it came from, whether that's a component datasheet, a fabricator's published manufacturing
+  limit, a named standard, or a calculation someone can redo, the number will eventually either pass a board that
+  should fail or reject one that should pass. Once that happens often enough, the check gets ignored rather than
+  fixed. Give every enforced number a traceable origin, and record that origin next to the check, not only in
+  whoever's memory set it.
 
 ---
 
