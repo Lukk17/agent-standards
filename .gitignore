@@ -43,6 +43,7 @@ CLAUDE.local.md
 # you might want to ignore temporary build or output folders if they are generated.
 node_modules/
 __pycache__/
+.coverage*
 
 ### Python build artifacts
 # Produced by `pip install ./tools`. Never commit.
@@ -53,3 +54,8 @@ tools/dist/
 # e2e capability test run records (kept ephemeral; README stays tracked).
 e2e/testing/runs/*.md
 !e2e/testing/runs/README.md
+
+### Agent task list
+# .agents/hooks/task_list_sync.py mirrors the live session task list here so it
+# survives a compaction. It is per-session working state, never shared history.
+/tasks.md

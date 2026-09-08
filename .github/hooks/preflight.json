@@ -6,6 +6,12 @@
         "type": "command",
         "bash": "echo '{\"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.\"}'",
         "powershell": "echo '{\"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.\"}'"
+      },
+      {
+        "type": "command",
+        "cwd": ".",
+        "bash": "python -S -E .agents/hooks/task_list_sync.py --event sessionstart --format copilot 2>/dev/null || exit 0",
+        "powershell": "python -S -E .agents/hooks/task_list_sync.py --event sessionstart --format copilot 2>$null; exit 0"
       }
     ],
     "subagentStart": [
@@ -20,8 +26,8 @@
         "type": "command",
         "matcher": "bash|powershell|create|edit",
         "cwd": ".",
-        "bash": "python .agents/hooks/preflight_gate.py --format copilot 2>/dev/null || exit 0",
-        "powershell": "python .agents/hooks/preflight_gate.py --format copilot 2>$null; exit 0"
+        "bash": "python -S -E .agents/hooks/preflight_gate.py --format copilot 2>/dev/null || exit 0",
+        "powershell": "python -S -E .agents/hooks/preflight_gate.py --format copilot 2>$null; exit 0"
       }
     ]
   }

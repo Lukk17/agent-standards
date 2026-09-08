@@ -18,9 +18,13 @@ import { readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 
 const PYTHON = process.platform === "win32" ? "python" : "python3"
+// -S skips site initialisation and -E ignores the PYTHON* environment, which
+// takes a measurable slice off the interpreter start the runner pays on every
+// tool call. Every hook here is stdlib only, so neither flag costs it anything.
+const PYTHON_FLAGS = ["-S", "-E"]
 const HOOKS_DIR = join(".agents", "hooks")
 
-const CONTRACT = 1
+const CONTRACT = 2
 const EVENT = "tool.execute.before"
 
 const DEFAULT_ORDER = 100
@@ -81,7 +85,7 @@ const discover = (root) => {
 // nor the shebang matters. Any failure to spawn is an allow.
 const run = (root, hook, input) => {
   try {
-    return spawnSync(PYTHON, [hook.path, "--format", "plain"], {
+    return spawnSync(PYTHON, [...PYTHON_FLAGS, hook.path, "--format", "plain"], {
       cwd: root,
       input,
       encoding: "utf8",

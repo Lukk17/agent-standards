@@ -36,11 +36,16 @@ nothing needs `chmod +x`. This is also why the same file works unchanged on Wind
 The runner spawns each hook as:
 
 ```text
-python3 <hook path> --format plain
+python3 -S -E <hook path> --format plain
 ```
 
-with the working directory set to the project root, and one JSON object, the envelope, on standard input. There are no
-other arguments. Everything a hook needs is in the envelope.
+The interpreter is `python` on Windows and `python3` everywhere else, because Windows has no `python3` on the path from
+a standard install. `-S` skips site initialisation and `-E` ignores the `PYTHON*` environment variables, which takes a
+slice off the interpreter start the runner pays on every tool call. Both are safe here only because every hook is
+standard library only. A hook that needs an installed package does not belong in this directory.
+
+The working directory is set to the project root, and one JSON object, the envelope, arrives on standard input. There
+are no other arguments. Everything a hook needs is in the envelope.
 
 Read standard input as bytes and decode it as UTF-8 yourself. On Windows, `sys.stdin.read()` decodes with the system
 code page, which mangles the prose fields.
@@ -55,7 +60,7 @@ payload = json.loads(sys.stdin.buffer.read().decode("utf-8", errors="replace") o
 
 ```json
 {
-  "contract": 1,
+  "contract": 2,
   "event": "tool.execute.before",
   "tool_name": "Edit",
   "tool_input": {"file_path": "src/app.py"},
@@ -68,7 +73,7 @@ payload = json.loads(sys.stdin.buffer.read().decode("utf-8", errors="replace") o
 
 | Field | Meaning |
 | --- | --- |
-| `contract` | Envelope version, currently `1`. A hook that does not recognise the value must exit 0. |
+| `contract` | Envelope version, currently `2`. A hook that does not recognise the value must exit 0. |
 | `event` | The runtime event that produced the call. Only `tool.execute.before` exists today. |
 | `tool_name` | The tool about to run, or `""` when the event carries no tool. |
 | `tool_input` | The tool's arguments as an object, `{}` when the runtime gave none. |
@@ -115,7 +120,7 @@ HOOK_ORDER = 10
 ```
 
 The runner reads it out of the first 4096 characters of the file. A hook that declares nothing gets `100`, which puts
-it after the two shipped hooks and keeps a third hook working before anyone thinks about ordering.
+it after the shipped hooks and keeps a third hook working before anyone thinks about ordering.
 
 Current values:
 
@@ -123,6 +128,8 @@ Current values:
 | --- | --- | --- |
 | 10 | `preflight_gate.py` | A policy denial about the action being attempted outranks a note about prose already sent. |
 | 20 | `no_ai_markers_check.py` | Formatting, checked only when there is new prose to check. |
+| 30 | `task_list_sync.py` | Bookkeeping, and it never denies. It exits 0 immediately on the plain format. |
+| 40 | `markdown_lint_check.py` | Gated behind `--format claude` only. It exits 0 at once on the plain format. |
 
 The first denial stops the chain. Later hooks are not run.
 
@@ -167,6 +174,47 @@ the interpreter turn an I/O error into a block.
 
 An unreadable `.agents/hooks/` directory yields no hooks, which allows every call. Write your own hook the same way:
 wrap the body in `try` and return 0 on any exception.
+
+---
+
+### Events the other three agents wire directly
+
+The runner has one event. The three agents that call hooks from their own configuration have many, and the table below
+is what this repo wires today. Each cell names the event in that agent's own spelling.
+
+| Hook | Claude Code | Codex | GitHub Copilot |
+| --- | --- | --- | --- |
+| `preflight_gate.py` | `PreToolUse` | `PreToolUse` | `preToolUse` |
+| `no_ai_markers_check.py` | `Stop`, `SubagentStop` | `Stop` | not wired, no confirmed reply-formatting surface |
+| `task_list_sync.py` | `TaskCreated`, `TaskCompleted`, `SessionStart`, `PreCompact`, `Stop` | `SessionStart` | `sessionStart` |
+| `markdown_lint_check.py` | `PostToolUse` on `Edit`, `Write`, `MultiEdit` | not wired | not wired |
+
+Three limits behind that table are worth knowing before extending it.
+
+Only Claude Code has task events. `TaskCreated` and `TaskCompleted` carry `task_id` and `task_subject`, and no
+task-updated event exists on any of the three, which is why the hook writes only the open and done statuses and leaves
+in progress and blocked to the model editing the file. The task id is written between backticks in the file, for
+example ``- [open] `feat:001`: subject``, and a bare id with no backticks is still read back for a hand-written line.
+
+No agent delivers `additionalContext` from a pre-compact event. Claude Code lists the delivery points for the field and
+`PreCompact` is not among them, Codex gives `PreCompact` the common output fields only, and Copilot marks `preCompact`
+as notification only. The `PreCompact` entry above is therefore wiring against a future, and the mechanism that
+actually carries a task list through a compaction is `SessionStart` firing again with `source` set to `compact`, which
+both Claude Code and Codex document.
+
+OpenCode and Kilo Code have neither a session-start nor a pre-compact event, so nothing can be injected there at all.
+That is the same gap that keeps per-turn gate injection out of the plugin, and it is why the plugin is a tool-call
+runner and nothing more.
+
+The markdown lint is the only hook wired to a post-tool event, and it is also the only one gated behind a single
+format rather than run on the runner surface. `markdown_lint_check.py` returns 0 before it even reads standard input
+unless it is called with `--format claude`, returns 0 for any tool other than `Edit`, `Write`, or `MultiEdit`, and
+returns 0 when `tools/check-markdown.py` is missing, which every consumer checkout is, since `tools/` never ships
+downstream. On OpenCode, on Kilo Code, and in a consumer repository it therefore does nothing at all. Only here, on
+Claude Code, does it read the edited path from `tool_input.file_path`, check that path against the lint scope
+(`README.md`, `AGENTS.md.example`, `docs/`, `.agents/skills/` and `subagents/`), run `tools/check-markdown.py` over
+that one file, and hand the violations back as `additionalContext`. It reports rather than denies, so it always
+returns 0 there too.
 
 ---
 

@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
 """Blocks a reply whose prose carries banned formatting.
 
-Strips fenced code blocks, inline code, and link targets, then blocks when what
-is left contains an em dash (U+2014), an en dash (U+2013), a semicolon, or a
-bold marker.
+Strips fenced code blocks, inline code, link targets, bare URLs, table rows and
+HTML entities, then blocks when what is left contains an em dash (U+2014), an
+en dash (U+2013), a semicolon, bold, or italic. Bold and italic are matched as
+paired delimiters in both spellings, `**text**` and `__text__` for bold,
+`*text*` and `_text_` for italic, so a bullet marker, a multiplication sign and
+a snake_case identifier are not mistaken for emphasis.
 
 Three modes over the same detection:
 
-Stop hook (default). Reads the Stop payload as JSON on stdin and pulls the last
-assistant message out of the transcript. Blocking prints
-{"decision": "block", "reason": "..."} on stdout and exits 0, a clean reply
-prints nothing. `stop_hook_active` short-circuits the check so one forced
-rewrite cannot loop. This is how Claude Code calls it.
+Stop hook (default, or --format claude, or --format codex). Reads the Stop or
+SubagentStop payload as JSON on stdin and takes the reply from
+`last_assistant_message`, falling back to the transcript walk when the payload
+carries no text. Blocking prints {"decision": "block", "reason": "..."} on
+stdout and exits 0, a clean reply prints nothing. `stop_hook_active`
+short-circuits the check so one forced rewrite cannot loop. Claude Code and
+Codex both call it this way, and both document the same field on both events.
 
 Runner (--format plain). The contract at
 https://github.com/Lukk17/agent-standards/blob/master/docs/hooks-contract.md
@@ -24,6 +29,9 @@ this mode does no de-duplication of its own.
 Text (--text). Reads raw UTF-8 prose on stdin, same output shape as the runner
 mode. For calling the check by hand.
 
+Arguments are scanned by hand rather than with argparse, because argparse
+exits 2 on a usage error and 2 is the deny code in the plain format.
+
 Every failure path allows: a broken hook must never break a session.
 """
 
@@ -31,7 +39,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 # Runner order. Formatting runs after the preflight gate, because a policy
 # denial about the action being attempted outranks a note about prose that has
@@ -45,7 +53,23 @@ FENCE_RE = re.compile(r"^( {0,3})(`{3,}|~{3,})(.*)$")
 INLINE_CODE_RE = re.compile(r"``[^\n]+?``|`[^`\n]*`")
 LINK_TARGET_RE = re.compile(r"\]\([^)]*\)")
 BARE_URL_RE = re.compile(r"<?\b[a-z][a-z0-9+.-]*://[^\s>)\]]+>?", re.IGNORECASE)
-BOLD_RE = re.compile(r"\*\*")
+TABLE_ROW_RE = re.compile(r"^\s*\|")
+HTML_ENTITY_RE = re.compile(r"&(?:#[0-9]+|#[xX][0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);")
+
+# Paired delimiters, both spellings. The opener may not be preceded by a word
+# character or by another delimiter of the same kind, and the run may not start
+# or end on whitespace, which is what separates emphasis from a `* ` bullet
+# marker, an `a * b` multiplication, and a snake_case identifier.
+BOLD_RE = re.compile(
+    r"\*\*(?=\S)(?:[^*]|\*(?!\*))+?(?<=\S)\*\*|__(?=\S)(?:[^_]|_(?!_))+?(?<=\S)__"
+)
+# A run holding a slash is a path rather than emphasis, which is what keeps a
+# sentence naming two unbackticked globs, `docs/*.md and tools/*.py`, from
+# reading as one italic run between the two asterisks.
+ITALIC_RE = re.compile(
+    r"(?<![\w*])\*(?![\s*])[^*/\n]*?(?<![\s*])\*(?![\w*])"
+    r"|(?<![\w_])_(?![\s_])[^_/\n]*?(?<![\s_])_(?![\w_])"
+)
 
 EXCERPT_RADIUS = 30
 
@@ -115,10 +139,14 @@ def _content_text(content: Any) -> str:
 
 
 def strip_code(text: str) -> str:
-    """Drop fenced blocks, inline code spans, link targets, and bare URLs.
+    """Drop everything that is not prose the reader is meant to read as prose.
 
-    Fences are matched by character and length, so a four-backtick wrapper
-    around a three-backtick sample stays one block instead of splitting.
+    Fenced blocks, table rows, inline code spans, link targets, bare URLs and
+    HTML entities all go. Fences are matched by character and length, so a
+    four-backtick wrapper around a three-backtick sample stays one block
+    instead of splitting. A table row goes whole, because its cell separators
+    and its entities are markup rather than punctuation, and `&amp;` ends in a
+    semicolon that is not one.
     """
     kept: List[str] = []
     fence_char = ""
@@ -145,12 +173,16 @@ def strip_code(text: str) -> str:
         if fence_char:
             continue
 
+        if TABLE_ROW_RE.match(line):
+            continue
+
         kept.append(line)
 
     prose = "\n".join(kept)
     prose = INLINE_CODE_RE.sub(" ", prose)
     prose = LINK_TARGET_RE.sub("]( )", prose)
     prose = BARE_URL_RE.sub(" ", prose)
+    prose = HTML_ENTITY_RE.sub(" ", prose)
 
     return prose
 
@@ -176,9 +208,10 @@ def find_violations(prose: str) -> List[str]:
         if index != -1:
             found.append((label, index))
 
-    bold = BOLD_RE.search(prose)
-    if bold:
-        found.append(("bold", bold.start()))
+    for label, pattern in (("bold", BOLD_RE), ("italic", ITALIC_RE)):
+        match = pattern.search(prose)
+        if match:
+            found.append((label, match.start()))
 
     return [label + " in " + _excerpt(prose, index) for label, index in found]
 
@@ -234,13 +267,53 @@ def _runner_mode() -> int:
         return 0
 
 
-def main(argv: List[str]) -> int:
-    if "--text" in argv:
-        return _text_mode()
+def _reply_text(payload: Dict[str, Any]) -> str:
+    """The finished reply, from the payload first and the transcript second.
 
-    if "--format" in argv:
-        return _runner_mode()
+    Claude Code and Codex both carry it in `last_assistant_message` on Stop
+    and on SubagentStop, and Claude Code documents the transcript file as not
+    guaranteed to hold the final message yet when Stop fires. The walk stays
+    only as the fallback for a payload that carries the field empty or not at
+    all.
+    """
+    message = payload.get("last_assistant_message")
 
+    if isinstance(message, str) and message.strip():
+        return message
+
+    return _transcript_text(payload)
+
+
+def _transcript_text(payload: Dict[str, Any]) -> str:
+    """Newest assistant prose in whichever transcript the payload names.
+
+    On SubagentStop `transcript_path` is the parent session's file and
+    `agent_transcript_path` is the subagent's own, so the subagent's file is
+    read first whenever the payload carries one.
+    """
+    for key in ("agent_transcript_path", "transcript_path"):
+        value = payload.get(key)
+
+        if not isinstance(value, str) or not value:
+            continue
+
+        path = Path(value)
+
+        if not path.is_file():
+            continue
+
+        text = _last_assistant_text(
+            path.read_text(encoding="utf-8", errors="replace").splitlines()
+        )
+
+        if text.strip():
+            return text
+
+    return ""
+
+
+def _stop_mode() -> int:
+    """Check the finished reply, reporting as Stop JSON on stdout with exit 0."""
     try:
         payload = json.loads(_stdin_text() or "{}")
 
@@ -250,18 +323,7 @@ def main(argv: List[str]) -> int:
         if payload.get("stop_hook_active") is True:
             return 0
 
-        transcript = payload.get("transcript_path")
-
-        if not isinstance(transcript, str) or not transcript:
-            return 0
-
-        path = Path(transcript)
-
-        if not path.is_file():
-            return 0
-
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-        text = _last_assistant_text(lines)
+        text = _reply_text(payload)
 
         if not text.strip():
             return 0
@@ -278,6 +340,27 @@ def main(argv: List[str]) -> int:
         return 0
 
     return 0
+
+
+def _format(argv: List[str]) -> str:
+    for index, token in enumerate(argv):
+        if token == "--format" and index + 1 < len(argv):
+            return argv[index + 1]
+
+        if token.startswith("--format="):
+            return token.split("=", 1)[1]
+
+    return ""
+
+
+def main(argv: List[str]) -> int:
+    if "--text" in argv:
+        return _text_mode()
+
+    if _format(argv) == "plain":
+        return _runner_mode()
+
+    return _stop_mode()
 
 
 if __name__ == "__main__":

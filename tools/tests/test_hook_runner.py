@@ -19,9 +19,19 @@ from contextlib import contextmanager
 
 import pytest
 
-from tests.conftest import NO_AI_MARKERS_HOOK, PLUGIN, PREFLIGHT_GATE, RUNNER_DRIVER
+from tests.conftest import (
+    MARKDOWN_LINT_HOOK,
+    NO_AI_MARKERS_HOOK,
+    PLUGIN,
+    PREFLIGHT_GATE,
+    REPO_ROOT,
+    RUNNER_DRIVER,
+    TASK_LIST_SYNC_HOOK,
+)
 
 NODE = shutil.which("node")
+
+SHIPPED_HOOKS = (PREFLIGHT_GATE, NO_AI_MARKERS_HOOK, TASK_LIST_SYNC_HOOK, MARKDOWN_LINT_HOOK)
 
 pytestmark = pytest.mark.skipif(NODE is None, reason="node is not installed")
 
@@ -177,11 +187,11 @@ def deny_reads(path):
 
 
 def real_hooks(root):
-    """A project root holding copies of the two hooks this repo ships."""
+    """A project root holding copies of every hook this repo ships."""
     hooks = root / ".agents" / "hooks"
     hooks.mkdir(parents=True, exist_ok=True)
 
-    for source in (PREFLIGHT_GATE, NO_AI_MARKERS_HOOK):
+    for source in SHIPPED_HOOKS:
         shutil.copy(source, hooks / source.name)
 
     return root
@@ -445,7 +455,7 @@ def test_envelope_carries_the_documented_fields(tmp_path):
     # Then
     envelope = read_log(log)[0]["envelope"]
 
-    assert envelope["contract"] == 1
+    assert envelope["contract"] == 2
     assert envelope["event"] == "tool.execute.before"
     assert envelope["tool_name"] == "Write"
     assert envelope["tool_input"] == {"file_path": "src/app.py"}
@@ -545,6 +555,77 @@ def test_shipped_gate_wins_over_the_formatting_check(tmp_path):
     # Then the lower HOOK_ORDER decides
     assert results[0]["ok"] is False
     assert results[0]["error"].startswith("PREFLIGHT:")
+
+
+def test_the_reporting_hooks_never_deny_a_tool_call(tmp_path):
+    """Exit 2 from either of these would block every tool call on this surface.
+
+    Both are wired at `tool.execute.before` like the rest, both have plenty to
+    report here, and the runner throws away their stderr unless they deny, so
+    the only correct answer from either is a silent 0.
+    """
+    # Given every shipped hook, a lint script to reach for, a docs file that
+    # fails that lint, and a task list holding an unfinished item
+    real_hooks(tmp_path)
+    (tmp_path / "tools").mkdir()
+    shutil.copy(REPO_ROOT / "tools" / "check-markdown.py", tmp_path / "tools")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "GUIDE.md").write_text(
+        "### Heading\n\n" + EM_DASH_PROSE + "\n", encoding="utf-8"
+    )
+    (tmp_path / "tasks.md").write_text(
+        "- [open] `task-001`: Still running\n", encoding="utf-8"
+    )
+
+    # When a subagent edits that file, so the gate itself has nothing to say
+    step = call(tool="Edit", args={"file_path": "docs/GUIDE.md"}, agent="markdown-writer")
+    results = drive(tmp_path, [step])
+
+    # Then
+    assert results == [{"ok": True}]
+
+
+@pytest.mark.parametrize(
+    "hook",
+    [MARKDOWN_LINT_HOOK, TASK_LIST_SYNC_HOOK],
+    ids=["markdown-lint", "task-list"],
+)
+def test_a_reporting_hook_exits_zero_on_the_plain_format(tmp_path, hook):
+    # Given the envelope the runner hands every hook, on a docs path
+    real_hooks(tmp_path)
+    (tmp_path / "tools").mkdir()
+    shutil.copy(REPO_ROOT / "tools" / "check-markdown.py", tmp_path / "tools")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "GUIDE.md").write_text(
+        "### Heading\n\n" + EM_DASH_PROSE + "\n", encoding="utf-8"
+    )
+    (tmp_path / "tasks.md").write_text(
+        "- [open] `task-001`: Still running\n", encoding="utf-8"
+    )
+
+    envelope = {
+        "contract": 2,
+        "event": "tool.execute.before",
+        "tool_name": "Edit",
+        "tool_input": {"file_path": "docs/GUIDE.md"},
+        "agent_type": "",
+        "is_subagent": False,
+        "assistant_text": "",
+        "cwd": str(tmp_path),
+    }
+
+    # When
+    result = subprocess.run(
+        [sys.executable, "-S", "-E", str(hook), "--format", "plain"],
+        input=json.dumps(envelope),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(tmp_path),
+    )
+
+    # Then
+    assert (result.returncode, result.stdout) == (0, "")
 
 
 def test_a_project_with_only_the_gate_still_works(tmp_path):

@@ -1,5 +1,20 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.'"
+          },
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "cd \"${CLAUDE_PROJECT_DIR}\" && python -S -E .agents/hooks/task_list_sync.py --event sessionstart --format claude ; exit 0"
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [
@@ -17,7 +32,52 @@
           {
             "type": "command",
             "timeout": 10,
-            "command": "cd \"${CLAUDE_PROJECT_DIR}\" && python .agents/hooks/preflight_gate.py --format claude ; exit 0"
+            "command": "cd \"${CLAUDE_PROJECT_DIR}\" && python -S -E .agents/hooks/preflight_gate.py --format claude ; exit 0"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^(Edit|Write|MultiEdit)$",
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 15,
+            "command": "cd \"${CLAUDE_PROJECT_DIR}\" && python -S -E .agents/hooks/markdown_lint_check.py --format claude ; exit 0"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "cd \"${CLAUDE_PROJECT_DIR}\" && python -S -E .agents/hooks/task_list_sync.py --event precompact --format claude ; exit 0"
+          }
+        ]
+      }
+    ],
+    "TaskCreated": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "cd \"${CLAUDE_PROJECT_DIR}\" && python -S -E .agents/hooks/task_list_sync.py --event taskcreated --format claude ; exit 0"
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "cd \"${CLAUDE_PROJECT_DIR}\" && python -S -E .agents/hooks/task_list_sync.py --event taskcompleted --format claude ; exit 0"
           }
         ]
       }
@@ -28,7 +88,23 @@
           {
             "type": "command",
             "timeout": 10,
-            "command": "cd \"${CLAUDE_PROJECT_DIR}\" && python .agents/hooks/no_ai_markers_check.py ; exit 0"
+            "command": "cd \"${CLAUDE_PROJECT_DIR}\" && python -S -E .agents/hooks/no_ai_markers_check.py --format claude ; exit 0"
+          },
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "cd \"${CLAUDE_PROJECT_DIR}\" && python -S -E .agents/hooks/task_list_sync.py --event stop --format claude ; exit 0"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "cd \"${CLAUDE_PROJECT_DIR}\" && python -S -E .agents/hooks/no_ai_markers_check.py --format claude ; exit 0"
           }
         ]
       }

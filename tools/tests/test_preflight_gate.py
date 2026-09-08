@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.conftest import PREFLIGHT_GATE, REPO_ROOT
+from tests.conftest import PREFLIGHT_GATE, REPO_ROOT, TASK_LIST_SYNC_HOOK
 
 WITH_SKILLS = """---
 name: {name}
@@ -568,10 +568,14 @@ def test_claude_format_deny_path_carries_no_stderr():
     assert decision["permissionDecision"] == "deny"
 
 
-@pytest.mark.parametrize("extra_args", [["--format", "not-a-real-format"], []])
+@pytest.mark.parametrize(
+    "extra_args",
+    [["--format", "not-a-real-format"], [], ["--format"]],
+    ids=["unknown-format", "no-format", "format-without-a-value"],
+)
 def test_bad_format_argument_fails_open_without_leaking_to_caller_stderr(extra_args):
-    # Given a call that gives argparse a reason to exit: an invalid choice, or a
-    # missing required flag
+    # Given a call argparse would have exited 2 on: an unknown format, a
+    # missing flag, a flag with no value, and a flag the gate never declared
     result = subprocess.run(
         [sys.executable, str(PREFLIGHT_GATE), *extra_args],
         input=json.dumps(edit("src/app.py")),
@@ -581,8 +585,9 @@ def test_bad_format_argument_fails_open_without_leaking_to_caller_stderr(extra_a
         cwd=str(REPO_ROOT),
     )
 
-    # When/Then main() swallows the SystemExit argparse raises and fails open,
-    # so the caller sees neither a crash nor argparse's usage text
+    # When/Then the hand-rolled scan reports no format and main() allows, so
+    # the caller sees neither a crash nor a usage message. Nothing here may
+    # exit 2: that is the deny code in the plain format
     assert (result.returncode, result.stdout, result.stderr) == (0, "", "")
 
 
@@ -593,20 +598,33 @@ class _FakeStdin:
         self.buffer = io.BytesIO(data)
 
 
-def _load_gate_module():
-    """Import preflight_gate.py in-process.
+def _load_module(name, path):
+    """Import a hook script in-process.
 
-    Needed only so a test can inspect whether sys.stderr survives a call to
-    main() with its own identity intact; a subprocess cannot observe that.
+    Needed only where a subprocess cannot observe what the test is about: the
+    identity of sys.stderr after main() returns, and the value of a constant
+    two hooks have to agree on.
     """
-    spec = importlib.util.spec_from_file_location("preflight_gate_inprocess", PREFLIGHT_GATE)
+    spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
 
     return module
 
 
-GATE = _load_gate_module()
+GATE = _load_module("preflight_gate_inprocess", PREFLIGHT_GATE)
+
+TASK_LIST_SYNC = _load_module("task_list_sync_inprocess", TASK_LIST_SYNC_HOOK)
+
+
+def test_both_hooks_name_the_same_task_list():
+    """The exemption and the writer have to mean the same file.
+
+    Rule A steps aside for TASK_LIST_NAME, and task_list_sync.py writes
+    TASK_LIST_NAME. If the two ever drift apart, the gate blocks the hook that
+    keeps the list, and neither script has any way to notice.
+    """
+    assert GATE.TASK_LIST_NAME == TASK_LIST_SYNC.TASK_LIST_NAME
 
 
 @pytest.mark.parametrize(
@@ -629,7 +647,7 @@ def test_main_restores_the_real_sys_stderr(monkeypatch, payload):
 def envelope(tool="Edit", tool_input=None, agent="", assistant_text=""):
     """The runner envelope described in docs/hooks-contract.md."""
     return {
-        "contract": 1,
+        "contract": 2,
         "event": "tool.execute.before",
         "tool_name": tool,
         "tool_input": tool_input if tool_input is not None else {},
@@ -1191,3 +1209,342 @@ def test_web_research_is_not_denied_on_the_plain_format():
     code, out, err = run(payload, "plain")
 
     assert (code, out, err) == (0, "", "")
+
+
+# A leading `cd` moves the base every following relative path resolves against,
+# so the same write is allowed or denied on where the command actually landed.
+
+
+def test_shell_write_after_cd_outside_the_repository_is_allowed(tmp_path):
+    # Given a command that changes into a directory outside the repository
+    # before writing a relative path
+    outside = str(tmp_path).replace("\\", "/")
+    payload = shell("cd " + outside + " && printf abc >> MEMORY.md")
+
+    # When
+    code, out, err = run(payload, "claude")
+
+    # Then the target lands outside, so Rule A never reaches it
+    assert (code, out, err) == (0, "", "")
+
+
+def test_shell_write_after_cd_into_a_repository_subdirectory_is_denied():
+    # Given the same shape of command, landing inside the repository instead
+    payload = shell("cd tools && printf abc >> gen_subagents.py")
+
+    # When
+    code, out, _err = run(payload, "claude")
+
+    # Then
+    verdict = json.loads(out)["hookSpecificOutput"]
+
+    assert code == 0
+    assert verdict["permissionDecision"] == "deny"
+    assert "gen_subagents.py" in verdict["permissionDecisionReason"]
+
+
+def test_cd_separated_by_a_semicolon_is_followed_too(tmp_path):
+    outside = str(tmp_path).replace("\\", "/")
+    payload = shell("cd " + outside + " ; printf abc >> MEMORY.md")
+
+    code, out, err = run(payload, "claude")
+
+    assert (code, out, err) == (0, "", "")
+
+
+def test_cd_outside_then_back_inside_is_denied(tmp_path):
+    # Given a command that leaves and returns, which is what makes a single
+    # "did it cd at all" answer wrong
+    outside = str(tmp_path).replace("\\", "/")
+    inside = str(REPO_ROOT).replace("\\", "/")
+    command = "cd " + outside + " && cd " + inside + " && printf abc >> tools/gen_subagents.py"
+
+    # When/Then
+    assert decision(shell(command)) == "deny"
+
+
+def test_an_absolute_target_ignores_the_cd(tmp_path):
+    # Given a cd outside the repository, then an absolute write back into it
+    outside = str(tmp_path).replace("\\", "/")
+    inside = (REPO_ROOT / "tools" / "gen_subagents.py").as_posix()
+    payload = shell("cd " + outside + " && printf abc >> " + inside)
+
+    # When/Then an absolute path never consults the base at all
+    assert decision(payload) == "deny"
+
+
+def test_a_cd_with_no_operand_leaves_the_base_alone():
+    # Given a bare `cd`, whose destination the gate has no way to know
+    # When/Then the base is left where it was, which keeps the write denied
+    assert decision(shell("cd && printf abc >> tools/gen_subagents.py")) == "deny"
+
+
+def test_a_cd_inside_a_nested_shell_does_not_leak_out_of_it(tmp_path):
+    # Given a child shell that changes directory and then exits, which leaves
+    # the parent shell's own directory exactly where it was
+    outside = str(tmp_path).replace("\\", "/")
+    payload = shell('bash -c "cd ' + outside + '" && printf abc >> tools/gen_subagents.py')
+
+    # When/Then the write is judged against the repository, not the child's cd
+    assert decision(payload) == "deny"
+
+
+def test_a_cd_inside_a_nested_shell_still_applies_within_it(tmp_path):
+    outside = str(tmp_path).replace("\\", "/")
+    payload = shell('bash -c "cd ' + outside + ' && printf abc >> MEMORY.md"')
+
+    code, out, err = run(payload, "claude")
+
+    assert (code, out, err) == (0, "", "")
+
+
+# A subshell is a parenthesised group or one stage of a pipeline. The real
+# shell restores its own directory when either ends, so a `cd` in one may not
+# move the base for anything after it.
+
+
+def test_a_cd_inside_a_parenthesised_group_does_not_leak_out_of_it(tmp_path):
+    # Given a group that changes directory and closes again
+    outside = str(tmp_path).replace("\\", "/")
+    payload = shell("(cd " + outside + ") && printf abc >> tools/gen_subagents.py")
+
+    # When/Then the write is judged against the repository, not the group's cd
+    assert decision(payload) == "deny"
+
+
+def test_a_cd_inside_a_parenthesised_group_still_applies_within_it(tmp_path):
+    outside = str(tmp_path).replace("\\", "/")
+    payload = shell("(cd " + outside + " && printf abc >> MEMORY.md)")
+
+    code, out, err = run(payload, "claude")
+
+    assert (code, out, err) == (0, "", "")
+
+
+def test_a_cd_in_a_pipeline_stage_does_not_move_the_base(tmp_path):
+    # Given a cd piped into the write, which the shell runs in its own subshell
+    outside = str(tmp_path).replace("\\", "/")
+    payload = shell("cd " + outside + " | printf abc >> tools/gen_subagents.py")
+
+    # When/Then
+    assert decision(payload) == "deny"
+
+
+def test_a_cd_after_a_pipe_does_not_move_the_base_either(tmp_path):
+    outside = str(tmp_path).replace("\\", "/")
+    payload = shell("printf abc >> tools/gen_subagents.py | cd " + outside)
+
+    assert decision(payload) == "deny"
+
+
+def test_a_cd_before_a_pipeline_is_forgotten_after_it(tmp_path):
+    # Given a cd whose only stage is a pipeline, then a write after the pipeline
+    outside = str(tmp_path).replace("\\", "/")
+    command = "cd " + outside + " | cat && printf abc >> tools/gen_subagents.py"
+
+    # When/Then
+    assert decision(shell(command)) == "deny"
+
+
+def test_a_cd_outside_a_group_still_moves_the_base(tmp_path):
+    # Given a group that touches nothing, then a cd at the top level
+    outside = str(tmp_path).replace("\\", "/")
+    command = "(echo x) && cd " + outside + " && printf abc >> MEMORY.md"
+
+    # When/Then the restore is scoped to the group, not to every cd
+    code, out, err = run(shell(command), "claude")
+
+    assert (code, out, err) == (0, "", "")
+
+
+def test_a_cd_to_a_directory_that_does_not_exist_drops_the_base(tmp_path):
+    # Given a cd the real shell would refuse, leaving it in the repository
+    missing = (tmp_path / "no-such-directory").as_posix()
+    payload = shell("cd " + missing + " ; printf abc >> tools/gen_subagents.py")
+
+    # When/Then the write is still judged against the repository
+    assert decision(payload) == "deny"
+
+
+def test_a_relative_cd_resolves_against_every_root(tmp_path):
+    # Given a session whose working directory is not the project root, so the
+    # relative destination means one thing under the invocation directory and
+    # another under the root the gate itself sits in
+    nested = tmp_path / "nested"
+    nested.mkdir()
+    target = REPO_ROOT.name + "/tools/gen_subagents.py"
+    payload = shell("cd .. && printf abc >> " + target)
+
+    # When
+    code, out, _err = run(payload, "claude", cwd=nested)
+
+    # Then the landing that places the target inside the repository decides
+    assert code == 0
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+# The root task list is the one path Rule A steps aside for.
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["tasks.md", "./tasks.md", "tools/../tasks.md"],
+    ids=["bare", "dot-relative", "through-dotdot"],
+)
+def test_main_thread_may_write_the_root_task_list(path):
+    code, out, err = run(edit(path), "claude")
+
+    assert (code, out, err) == (0, "", "")
+
+
+def test_main_thread_may_write_the_root_task_list_by_absolute_path():
+    code, out, err = run(edit(str(REPO_ROOT / "tasks.md")), "claude")
+
+    assert (code, out, err) == (0, "", "")
+
+
+@pytest.mark.parametrize("path", ["docs/tasks.md", "tools/tasks.md", ".agents/tasks.md"])
+def test_a_task_list_in_a_subdirectory_is_an_ordinary_target(path):
+    assert decision(edit(path)) == "deny"
+
+
+def test_the_task_list_is_exempt_through_the_shell_too():
+    code, out, err = run(shell("printf abc >> tasks.md"), "claude")
+
+    assert (code, out, err) == (0, "", "")
+
+
+def test_a_wildcard_pathspec_still_denies_even_though_it_covers_the_task_list():
+    assert decision(shell("git checkout .")) == "deny"
+
+
+# A path neither boundary helper can resolve fails toward deny, because
+# deciding what Rule A protects is the whole job of those two. Which strings
+# a platform refuses to resolve is a platform detail, so the refusal itself is
+# what the test supplies.
+
+UNRESOLVABLE = "unresolvable"
+
+
+@pytest.fixture
+def resolution_fails(monkeypatch):
+    """Make Path.resolve raise for one marked path and behave for the rest."""
+    real_resolve = GATE.Path.resolve
+
+    def resolve(self, strict=False):
+        if UNRESOLVABLE in str(self):
+            raise OSError("cannot resolve this path")
+
+        return real_resolve(self, strict=strict)
+
+    monkeypatch.setattr(GATE.Path, "resolve", resolve)
+
+
+def test_an_unresolvable_path_counts_as_inside_the_repository(resolution_fails):
+    assert GATE._resolves_inside_repo(UNRESOLVABLE + "/target.py") is True
+
+
+def test_an_unresolvable_git_operand_counts_as_an_existing_path(resolution_fails):
+    # Given the lone bare operand git checkout cannot otherwise disambiguate
+    # When/Then an operand that cannot be tested is read as a file, not a branch
+    assert GATE._path_exists_in_repo(UNRESOLVABLE + "/target.py") is True
+
+
+def test_an_unresolvable_path_is_never_mistaken_for_the_task_list(resolution_fails):
+    """The exemption fails the opposite way from the boundary helpers.
+
+    A path the gate cannot resolve must not be waved through as the task list,
+    so _is_task_list answers False exactly where _resolves_inside_repo answers
+    True, and the two together still deny.
+    """
+    assert GATE._is_task_list(UNRESOLVABLE + "/tasks.md") is False
+    assert GATE._is_write_target(UNRESOLVABLE + "/tasks.md") is True
+
+
+def test_a_cd_to_a_directory_that_cannot_be_resolved_drops_the_base(resolution_fails):
+    # Given a cd the gate cannot follow, then a write to a repository path
+    # When/Then the base is dropped rather than trusted, so the roots decide
+    assert GATE._shell_targets("cd " + UNRESOLVABLE + " && rm tools/gen_subagents.py") == [
+        "tools/gen_subagents.py"
+    ]
+
+
+# Rule B reads agent_type, and a name that could walk out of the agent trees
+# is refused a lookup rather than resolved.
+
+
+@pytest.mark.parametrize(
+    "agent_type",
+    ["../drifter", "..\\drifter", "nested/drifter", "..", "sub/../drifter"],
+    ids=["dotdot-posix", "dotdot-windows", "slash", "bare-dotdot", "mixed"],
+)
+def test_a_traversing_agent_type_reads_no_definition_and_allows(tmp_path, agent_type):
+    # Given a real definition that declares no skills, which Rule B would deny
+    root = project_with_agent(tmp_path, "drifter", WITHOUT_SKILLS)
+    payload = edit("src/app.py", agent_id="sub-1", agent_type=agent_type)
+
+    # When the subagent names itself with a path rather than a plain name
+    code, out, err = run(payload, "claude", cwd=root)
+
+    # Then no lookup happens at all, so there is nothing to deny on
+    assert (code, out, err) == (0, "", "")
+
+
+# Every empty spelling of the front-matter skills key means the same thing.
+
+NULL_SKILLS_KEYS = {
+    "tilde": "skills: ~",
+    "null": "skills: null",
+    "empty-list": "skills: []",
+    "empty-single-quotes": "skills: ''",
+    "empty-double-quotes": 'skills: ""',
+    "bare": "skills:",
+    "bare-then-another-key": "skills:\nmodel: opus",
+}
+
+
+@pytest.mark.parametrize("spelling", list(NULL_SKILLS_KEYS), ids=list(NULL_SKILLS_KEYS))
+def test_every_empty_skills_key_spelling_declares_nothing(tmp_path, spelling):
+    # Given
+    template = "---\nname: {name}\n" + NULL_SKILLS_KEYS[spelling] + "\n---\n\nBody.\n"
+    root = project_with_agent(tmp_path, "hollow", template)
+    payload = edit("src/app.py", agent_id="sub-1", agent_type="hollow")
+
+    # When
+    verdict = json.loads(run(payload, "claude", cwd=root)[1])["hookSpecificOutput"]
+
+    # Then
+    assert verdict["permissionDecision"] == "deny"
+    assert "declares no skills" in verdict["permissionDecisionReason"]
+
+
+def test_a_skills_key_with_one_entry_declares_skills(tmp_path):
+    template = "---\nname: {name}\nskills:\n  - python-testing\n---\n\nBody.\n"
+    root = project_with_agent(tmp_path, "filled", template)
+    payload = edit("src/app.py", agent_id="sub-1", agent_type="filled")
+
+    code, out, err = run(payload, "claude", cwd=root)
+
+    assert (code, out, err) == (0, "", "")
+
+
+class _FailingStdout:
+    """Stands in for sys.stdout, failing exactly where _emit writes."""
+
+    def write(self, _text):
+        raise OSError("stdout is gone")
+
+    def flush(self):
+        raise OSError("stdout is gone")
+
+
+def test_a_failing_emit_still_allows(monkeypatch):
+    # Given a decision that would deny, and a stdout that cannot carry it
+    monkeypatch.setattr(sys, "stdin", _FakeStdin(json.dumps(edit("src/app.py")).encode("utf-8")))
+    monkeypatch.setattr(sys, "stdout", _FailingStdout())
+
+    # When
+    code = GATE.main(["--format", "claude"])
+
+    # Then a gate that cannot report its denial allows rather than crashing
+    assert code == 0

@@ -70,6 +70,24 @@ statusMessage = "Preflight gate"
 command = "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.\"}}'"
 commandWindows = "echo {\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.\"}}"
 
+[[hooks.SessionStart]]
+
+[[hooks.SessionStart.hooks]]
+type = "command"
+statusMessage = "Task list"
+timeout = 10
+command = "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" && python -S -E .agents/hooks/task_list_sync.py --event sessionstart --format codex 2>/dev/null || exit 0"
+commandWindows = "for /f delims^= %r in ('git rev-parse --show-toplevel 2^>nul') do @cd /d %r && python -S -E .agents/hooks/task_list_sync.py --event sessionstart --format codex 2>nul || exit 0"
+
+[[hooks.Stop]]
+
+[[hooks.Stop.hooks]]
+type = "command"
+statusMessage = "Formatting check"
+timeout = 10
+command = "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" && python -S -E .agents/hooks/no_ai_markers_check.py --format codex 2>/dev/null || exit 0"
+commandWindows = "for /f delims^= %r in ('git rev-parse --show-toplevel 2^>nul') do @cd /d %r && python -S -E .agents/hooks/no_ai_markers_check.py --format codex 2>nul || exit 0"
+
 [[hooks.SubagentStart]]
 
 [[hooks.SubagentStart.hooks]]
@@ -85,5 +103,5 @@ matcher = "^(Bash|shell|apply_patch|Edit|Write|NotebookEdit)$"
 type = "command"
 statusMessage = "Preflight gate"
 timeout = 10
-command = "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" && python .agents/hooks/preflight_gate.py --format codex 2>/dev/null || exit 0"
-commandWindows = "for /f delims^= %r in ('git rev-parse --show-toplevel 2^>nul') do @cd /d %r && python .agents/hooks/preflight_gate.py --format codex 2>nul || exit 0"
+command = "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" && python -S -E .agents/hooks/preflight_gate.py --format codex 2>/dev/null || exit 0"
+commandWindows = "for /f delims^= %r in ('git rev-parse --show-toplevel 2^>nul') do @cd /d %r && python -S -E .agents/hooks/preflight_gate.py --format codex 2>nul || exit 0"
