@@ -36,6 +36,7 @@ import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SRC = ROOT / "subagents"
+SKILLS = ROOT / ".agents" / "skills"
 
 TARGETS = {
     "claude": (ROOT / ".claude" / "agents", ".md"),
@@ -57,7 +58,28 @@ CLAUDE_TOOLS = {
     "glob": "Glob",
     "bash": "Bash",
     "webfetch": "WebFetch",
+    "websearch": "WebSearch",
     "task": "Task",
+}
+
+COPILOT_TOOLS = {
+    "read": ("read",),
+    "grep": ("search",),
+    "glob": ("search",),
+    "write": ("create",),
+    "edit": ("edit",),
+    "bash": ("bash", "powershell"),
+}
+
+READ_ONLY_TOOLS = frozenset({"read", "grep", "glob"})
+
+CLAUDE_READ_ONLY_PERMISSION_MODE = "plan"
+
+OPENCODE_MODELS = {
+    "opus": "anthropic/claude-opus-4-7",
+    "sonnet": "anthropic/claude-sonnet-4-6",
+    "haiku": "anthropic/claude-haiku-4-5",
+    "inherit": None,
 }
 
 MODEL = {
@@ -67,16 +89,18 @@ MODEL = {
         "haiku": "haiku",
         "inherit": "inherit",
     },
-    "opencode": {
-        "opus": "anthropic/claude-opus-4-7",
-        "sonnet": "anthropic/claude-sonnet-4-6",
-        "haiku": "anthropic/claude-haiku-4-5",
-        "inherit": None,
-    },
+    "opencode": OPENCODE_MODELS,
 }
 
 
-def parse(path: pathlib.Path) -> tuple[dict, str]:
+def installed_skills() -> set[str]:
+    """Every skill name that has a folder under .agents/skills/."""
+    if not SKILLS.is_dir():
+        sys.exit(f"ERROR missing skills dir {SKILLS}")
+    return {p.name for p in SKILLS.iterdir() if p.is_dir()}
+
+
+def parse(path: pathlib.Path, skills: set[str] | None = None) -> tuple[dict, str]:
     txt = path.read_text(encoding="utf-8")
     m = re.match(r"^---\n(.*?)\n---\n?(.*)$", txt, re.S)
     if not m:
@@ -95,6 +119,19 @@ def parse(path: pathlib.Path) -> tuple[dict, str]:
         sys.exit(
             f"ERROR {path}: unknown tool(s) {unknown_tools!r}. Valid: {valid}"
         )
+    declared = fm.get("skills")
+    if declared is not None and not isinstance(declared, list):
+        sys.exit(
+            f"ERROR {path}: 'skills' must be a list of skill names, got "
+            f"{type(declared).__name__}. Write 'skills:' followed by one '- name' per line."
+        )
+    known = installed_skills() if skills is None else skills
+    dangling = [s for s in declared or [] if s not in known]
+    if dangling:
+        sys.exit(
+            f"ERROR {path}: skill(s) with no folder under {SKILLS.name}/: "
+            f"{', '.join(dangling)}"
+        )
     return fm, m.group(2).lstrip("\n")
 
 
@@ -103,10 +140,10 @@ def skills_block(skills: list[str] | None) -> str:
         return ""
     items = "\n".join(f"- `{s}`" for s in skills)
     return (
-        "\n\n## Preloaded skills\n\n"
+        "\n\n### Preloaded skills\n\n"
         "Load and follow these skills from `.agents/skills/` before acting. "
-        "They contain the reusable procedure and patterns; this prompt only "
-        "defines persona and scope.\n\n"
+        "They contain the reusable procedure and patterns, and this prompt "
+        "only defines persona and scope.\n\n"
         f"{items}\n"
     )
 
@@ -121,6 +158,8 @@ def emit_claude(fm: dict, body: str) -> str:
     if tools:
         lines.append("tools: " + ", ".join(tools))
     lines.append("model: " + MODEL["claude"][fm.get("model", "sonnet")])
+    if set(fm.get("tools") or []) == READ_ONLY_TOOLS:
+        lines.append("permissionMode: " + CLAUDE_READ_ONLY_PERMISSION_MODE)
     if fm.get("skills"):
         lines.append("skills:")
         lines += [f"  - {s}" for s in fm["skills"]]
@@ -140,11 +179,24 @@ def emit_opencode(fm: dict, body: str) -> str:
     if fm.get("tools"):
         lines.append("tools:")
         lines += [f"  {t}: true" for t in fm["tools"]]
-    if fm.get("permissions"):
-        lines.append("permissions:")
-        lines += [f"  {k}: {v}" for k, v in fm["permissions"].items()]
     lines += ["---", "", body.rstrip() + skills_block(fm.get("skills"))]
     return "\n".join(lines).rstrip() + "\n"
+
+
+def copilot_tools(tools: list[str]) -> list[str]:
+    """Map canonical tool names onto Copilot's own names, in order, deduped.
+
+    A canonical tool with no entry in COPILOT_TOOLS is dropped from the output,
+    so an agent whose whole list maps to nothing comes back empty. The caller
+    still writes the key in that case: no key at all means Copilot grants the
+    full tool set, which is the opposite of what the definition asked for.
+    """
+    mapped: list[str] = []
+    for tool in tools:
+        for name in COPILOT_TOOLS.get(tool, ()):
+            if name not in mapped:
+                mapped.append(name)
+    return mapped
 
 
 def emit_copilot(fm: dict, body: str) -> str:
@@ -152,6 +204,12 @@ def emit_copilot(fm: dict, body: str) -> str:
         "---",
         f"name: {fm['name']}",
         f"description: {fm['description'].strip()}",
+    ]
+    canonical = fm.get("tools") or []
+    tools = copilot_tools(canonical)
+    if canonical:
+        lines.append("tools: [" + ", ".join(f'"{t}"' for t in tools) + "]")
+    lines += [
         "---",
         "",
         body.rstrip() + skills_block(fm.get("skills")),
@@ -229,8 +287,10 @@ def main() -> None:
     stale_paths: list[pathlib.Path] = []
     written = 0
 
+    skills = installed_skills()
+
     for f in sorted(SRC.glob("*.md")):
-        fm, body = parse(f)
+        fm, body = parse(f, skills)
         if fm["name"] in canonical_names:
             sys.exit(f"ERROR duplicate agent name: {fm['name']}")
         canonical_names.add(fm["name"])

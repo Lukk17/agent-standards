@@ -8,11 +8,12 @@ Enforces a subset of the `markdown-writer` skill rules:
 - Section headings start at level 3; level 2 is never used (level 1 is
   reserved for the document title).
 
-Scope: README.md, AGENTS.md.example, docs/*.md, and .agents/skills/**/*.md.
-The four generated subagent trees (.claude/agents/, .agents/agents/,
-.codex/agents/, .github/agents/), the .opencode/agents and .kilo/agents
-symlinks into .agents/agents/, and the canonical subagents/ source are NOT
-checked.
+Scope: README.md, AGENTS.md.example, docs/*.md, .agents/skills/**/*.md, and
+the canonical subagents/*.md source. The four generated subagent trees
+(.claude/agents/, .agents/agents/, .codex/agents/, .github/agents/) and the
+.opencode/agents and .kilo/agents symlinks into .agents/agents/ are NOT
+checked: they are rendered from the canonical source, so linting them would
+report the same violation five times.
 
 Pass explicit file paths as arguments to lint only those files; with no
 arguments the default target set above is linted.
@@ -200,6 +201,7 @@ def main() -> int:
         ]
         targets.extend(sorted((repo_root / "docs").glob("*.md")))
         targets.extend(sorted((repo_root / ".agents" / "skills").glob("**/*.md")))
+        targets.extend(sorted((repo_root / "subagents").glob("*.md")))
 
     total = 0
     checked = 0
