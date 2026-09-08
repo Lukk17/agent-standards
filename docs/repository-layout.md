@@ -13,10 +13,18 @@ Three categories, and mixing them up is the one mistake that breaks a rebuild.
 
 | Category | Paths | How to change it |
 | --- | --- | --- |
-| Canonical | `subagents/*.md`, `.agents/skills/*/SKILL.md`, `.agents/hooks/*.py`, `.agents/plugin/hooks.js`, `docs/*.md` | edit directly |
+| Canonical | `subagents/*.md`, `.agents/skills/*/SKILL.md` and their `references/*.md`, `.agents/hooks/*.py`, `.agents/plugin/hooks.js`, `docs/*.md` | edit directly |
 | Canonical config | `.mcp.json`, `opencode.json`, `.codex/config.toml`, `.vscode/mcp.json`, `.github/mcp.json`, `.claude/settings.json`, `.github/hooks/preflight.json` | edit directly, keep the server set and the gate wording in sync |
 | Generated | `.claude/agents/*.md`, `.agents/agents/*.md`, `.codex/agents/*.toml`, `.github/agents/*.agent.md` | never hand-edit, run `python tools/gen_subagents.py` |
 | Symlink | `.opencode/agents`, `.kilo/agents`, `.claude/skills` | never edit through the link, fix the link itself |
+| Runtime state | `tasks.md` at the project root | written by `task_list_sync.py` and by the model, git-ignored, never committed |
+
+A skill is a directory, not a file. `SKILL.md` is the manifest and stays short: standard front matter (`name`,
+`description`, and optionally `license` or `compatibility`) per the open
+[Agent Skills specification](https://agentskills.io/specification), a description written as the phrases that should
+trigger it, and the depth pushed down into `references/`. A family that used to be many sibling skills is one hub with
+a `references/` file per topic, which is how the eighteen Flutter skills became `dart-flutter-patterns` and the two
+Next.js ones became `nextjs-app-router-patterns`.
 
 The generator owns two of the three symlinks. `.opencode/agents` and `.kilo/agents` both point at `../.agents/agents`,
 and `python tools/gen_subagents.py` recreates them if they go missing. `.claude/skills` points at `../.agents/skills`
@@ -38,22 +46,24 @@ agent-standards/
     agents/                      # GENERATED, OpenCode-format subagents, shared by OpenCode and Kilo Code
     hooks/
       preflight_gate.py          # CANONICAL, the one shared gate rule for every agent surface
-      no_ai_markers_check.py     # CANONICAL, formatting checker run by the Claude Code Stop hook
+      no_ai_markers_check.py     # CANONICAL, reply formatting check, Stop and SubagentStop
+      markdown_lint_check.py     # CANONICAL, lints a linted file just after it was edited
+      task_list_sync.py          # CANONICAL, mirrors the session task list into tasks.md
     plugin/
-      hooks.js                   # CANONICAL, OpenCode and Kilo Code adapter that shells out to preflight_gate.py
-  subagents/                     # CANONICAL subagent sources, this repo only
+      hooks.js                   # CANONICAL, OpenCode and Kilo Code runner for every hook in hooks/
+  subagents/                     # CANONICAL subagent sources, this repo only, inside the markdown lint scope
   tools/                         # Generator, linter and tests, this repo only
-    gen_subagents.py             # Emits four trees plus the two agent symlinks
+    gen_subagents.py             # Emits four trees plus the two agent symlinks, validates skills and tools
     check-markdown.py            # Markdown lint used by CI
     pyproject.toml               # CANONICAL, the only pinned dependency and pytest configuration
     check-badges.py              # Badge-count lint used by CI
-    tests/                       # CANONICAL pytest suite for the two hook scripts
+    tests/                       # CANONICAL pytest suite for the hook scripts and the linters
   e2e/                           # Capability test specs, templates and run records, this repo only
   sandbox-agent/                 # Containerised sandbox that runs those specs, this repo only
   openspec/schemas/e2e-runbooks/ # Vendored companion schema, reference copy, this repo runs no OpenSpec workflow
   .claude/
     CLAUDE.md                    # imports ../AGENTS.md, the Claude Code bridge
-    settings.json                # PreToolUse, UserPromptSubmit and Stop hooks
+    settings.json                # gate, formatting, markdown lint and task-list hooks
     skills -> ../.agents/skills  # SYMLINK, the only way Claude Code sees the canonical skills
     agents/                      # GENERATED, Claude-format subagents
   .opencode/
@@ -77,6 +87,7 @@ agent-standards/
   README.md                      # Project front door, this repo only
   CONTRIBUTING.md                # Contribution rules and local checks, this repo only
   CHANGELOG.md                   # Release history, this repo only
+  tasks.md                       # RUNTIME STATE written by the task-list hook, git-ignored
   LICENSE                        # MIT
   docs/
     AGENT_TOOLING.md             # Setup walkthrough shipped to consumers
@@ -101,8 +112,8 @@ intentionally absent:
 your-project/
   .agents/skills/                # canonical skills, read natively by every agent except Claude Code
   .agents/agents/                # generated OpenCode-format subagents
-  .agents/hooks/                 # the shared gate script and the formatting checker
-  .agents/plugin/hooks.js        # the OpenCode and Kilo Code gate adapter
+  .agents/hooks/                 # the four shared hook scripts
+  .agents/plugin/hooks.js        # the OpenCode and Kilo Code hook runner
   .claude/CLAUDE.md              # imports ../AGENTS.md
   .claude/settings.json          # Claude Code hooks, consumer-owned after import
   .claude/skills                 # symlink to ../.agents/skills
@@ -118,6 +129,7 @@ your-project/
   .mcp.json                      # Claude Code MCP servers
   opencode.json                  # OpenCode and Kilo Code MCP servers plus the plugin declaration
   AGENTS.md                      # renamed from AGENTS.md.example, then filled in
+  tasks.md                       # written by the task-list hook, add /tasks.md to your own .gitignore
   docs/                          # only the UPPERCASE docs: AGENT_TOOLING, MCP_SETUP, AGENTS-UPDATE, GLOBAL_SETUP
 ```
 

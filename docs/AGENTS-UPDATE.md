@@ -10,8 +10,9 @@
 - [.agents/agents/](../.agents/agents/), the OpenCode-format subagents shared by OpenCode and Kilo Code, plus the
   three per-tool trees generated beside it: [.claude/agents/](../.claude/agents/), [.codex/agents/](../.codex/agents/),
   and [.github/agents/](../.github/agents/).
-- [.agents/hooks/](../.agents/hooks/), the shared preflight gate and the formatting checker, and
-  [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), the OpenCode and Kilo Code adapter for that gate.
+- [.agents/hooks/](../.agents/hooks/), the four hook scripts: the shared preflight gate, the reply formatting check,
+  the markdown lint pass that runs after an edit, and the task-list mirror. Beside them,
+  [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), the OpenCode and Kilo Code adapter that runs them all.
 - [.github/hooks/preflight.json](../.github/hooks/preflight.json), the GitHub Copilot hook configuration.
 - [AGENT_TOOLING.md](AGENT_TOOLING.md), [MCP_SETUP.md](MCP_SETUP.md), [GLOBAL_SETUP.md](GLOBAL_SETUP.md), and
   [AGENTS-UPDATE.md](AGENTS-UPDATE.md), this file, which refreshes itself.
@@ -29,6 +30,28 @@ handle them, and [what this skips](#what-this-skips-and-why) says which half of 
 
 Run everything from the repository root. Each block is one paste. Review `git diff --stat` when you have finished a
 section, then commit when you are happy.
+
+---
+
+### Prerequisites
+
+Git for the checkouts, and Python 3 for the hooks this refresh pulls. Every script in
+[.agents/hooks/](../.agents/hooks/) is Python, and every wiring discards a failed call so a broken hook can never
+break a session, which means a missing interpreter reads as an allow: the gate refreshes fine and enforces nothing.
+Confirm one answers. PowerShell:
+
+```powershell
+python --version
+```
+
+Unix shell:
+
+```bash
+python3 --version
+```
+
+While you are here, check that `/tasks.md` is in your project's `.gitignore`. The task-list hook writes it at the
+project root every session, and it is working state rather than shared history.
 
 ---
 
@@ -69,7 +92,7 @@ Refresh the shipped documents, including this one.
 git checkout agent-standards/master -- docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
-Refresh the shared gate script, the formatting checker, the OpenCode and Kilo plugin, and the Copilot hook file.
+Refresh all four hook scripts, the OpenCode and Kilo plugin, and the Copilot hook file.
 
 ```bash
 for p in .agents/hooks .agents/plugin .github/hooks; do [ -e "$p" ] && git checkout agent-standards/master -- "$p" 2>/dev/null || true; done
@@ -128,7 +151,7 @@ Refresh the shipped documents, including this one.
 git checkout agent-standards/master -- docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
-Refresh the shared gate script, the formatting checker, the OpenCode and Kilo plugin, and the Copilot hook file.
+Refresh all four hook scripts, the OpenCode and Kilo plugin, and the Copilot hook file.
 
 ```powershell
 foreach ($p in '.agents/hooks', '.agents/plugin', '.github/hooks') { if (Test-Path $p) { git checkout agent-standards/master -- $p 2>$null } }

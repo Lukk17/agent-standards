@@ -16,23 +16,40 @@ Investigation, review, and bounded implementation are delegated by default. Doin
 the main session is the failure mode this gate prevents. Re-run the check at the start of every task, not just the
 first one, because a passive instruction read once at session start loses salience over a long session.
 
-The gate is enforced, not merely stated. One shared rule in
-[.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) denies a main-thread write of any file resolving
-inside the repository, with no exemption for markdown, configuration, or documentation, and tells it to delegate the
-change instead. A write outside the repository, a write to the null device, and git branch switching stay allowed, so
-the main thread keeps full use of git. It also denies an edit from a subagent whose own definition declares no
-skills, and it denies the main thread from running a web fetch or web search tool directly, on the one format where
-that tool's name is confirmed (Claude Code today). Every rule fires only once the caller is positively identified as
-the main thread; a format whose payload carries no such field, currently GitHub Copilot, is left ungated rather than
-guessed at. Any error inside the gate fails open so a broken hook can never break a session. Each agent wires that one
-rule to its own hook surface:
+A good opening line names owners and a plan, not a category:
 
-- **Claude Code**: [.claude/settings.json](.claude/settings.json), on `UserPromptSubmit`, `PreToolUse`, and `Stop`.
-- **Codex**: inline `[[hooks.*]]` tables in [.codex/config.toml](.codex/config.toml), on `UserPromptSubmit`,
-  `SubagentStart`, and `PreToolUse`.
-- **OpenCode and Kilo Code**: [.agents/plugin/hooks.js](.agents/plugin/hooks.js), declared once by path in the
-  `plugin` array of [opencode.json](opencode.json), which both tools read.
-- **GitHub Copilot**: [.github/hooks/preflight.json](.github/hooks/preflight.json), on `sessionStart`,
+```text
+Owners: markdown-writer for the docs, python-testing for the generator test. Delegating the edit to python-pro with those two skills, code-reviewer before merge.
+```
+
+The gate is enforcing, not advisory. One shared rule in
+[.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) denies a main-thread write of any file resolving
+inside the repository, with no exemption for markdown, configuration, or documentation, and tells the caller to
+delegate the change instead. A relative path is resolved against whatever a leading `cd` in the command moved to, so
+changing directory first buys nothing. A write outside the repository, a write to the null device, a write to
+`tasks.md` at the project root, and git branch switching stay allowed, so the main thread keeps full use of git and
+keeps ownership of its own task list. It also denies any tool call, not only an edit, from a subagent whose own
+definition declares no skills, and it denies the main thread from running a web fetch or web search tool directly, on
+the one format where that tool's name is confirmed (Claude Code today). Every rule fires only once the caller is
+positively identified as the main thread. A format whose payload carries no such field, currently GitHub Copilot, is
+left ungated rather than guessed at. Any error inside the gate fails open, so a broken hook can never break a session.
+
+Three more hooks sit beside the gate in [.agents/hooks/](.agents/hooks/) and ride the same wirings: a reply
+formatting check, a markdown lint pass that runs just after a file is edited, and a task-list mirror that writes
+`tasks.md` at the project root so the session plan survives a compaction. That file is per-session working state, so
+put `/tasks.md` in this project's `.gitignore` rather than committing it. Every hook is a Python script, and every
+wiring throws a failed call away, which means the hooks are silently inert without Python 3 on the path.
+
+Each agent wires those scripts to its own hook surface:
+
+- Claude Code: [.claude/settings.json](.claude/settings.json), on `SessionStart`, `UserPromptSubmit`, `PreToolUse`,
+  `PostToolUse`, `TaskCreated`, `TaskCompleted`, `PreCompact`, `Stop`, and `SubagentStop`.
+- Codex: inline `[[hooks.*]]` tables in [.codex/config.toml](.codex/config.toml), on `UserPromptSubmit`,
+  `SubagentStart`, `SessionStart`, `PreToolUse`, and `Stop`.
+- OpenCode and Kilo Code: [.agents/plugin/hooks.js](.agents/plugin/hooks.js), declared once by path in the
+  `plugin` array of [opencode.json](opencode.json), which both tools read. It is a runner: it hands every tool call
+  to every hook in [.agents/hooks/](.agents/hooks/), so adding a hook file is the whole registration step.
+- GitHub Copilot: [.github/hooks/preflight.json](.github/hooks/preflight.json), on `sessionStart`,
   `subagentStart`, and `preToolUse`.
 
 Each wiring anchors the gate at the project root before calling it, so a session started in a subdirectory still finds
@@ -54,7 +71,12 @@ implementation work. Examples:
 - `/tdd-workflow` before adding features or fixing bugs
 - `/e2e-runbooks` before adding or running an end-to-end capability test against the live stack
 
-Slash commands may appear as `/name` or `/name.md` in your agent's autocomplete; use whichever your agent shows.
+Slash commands may appear as `/name` or `/name.md` in your agent's autocomplete. Use whichever your agent shows.
+
+Each skill is a directory holding a `SKILL.md` manifest and, where it needs depth, a `references/` subdirectory. The
+manifest carries standard front matter (`name`, `description`, and optionally `license` or `compatibility`) per the
+open [Agent Skills specification](https://agentskills.io/specification), and its description is written as the
+phrases that should trigger it, so matching a phrase to a skill is the whole selection step.
 
 ---
 
@@ -66,7 +88,7 @@ reads `.kilo/agents/`, both of which are symlinks to the one shared [.agents/age
 reads [.codex/agents/](.codex/agents/) (`*.toml` files). GitHub Copilot reads [.github/agents/](.github/agents/)
 (`*.agent.md` files) in VS Code, in the JetBrains plugin, and in the Copilot CLI.
 
-These files are generated artifacts pulled from agent-standards. Do **not** hand-edit them; changes will be
+These files are generated artifacts pulled from agent-standards. Do not hand-edit them, because changes are
 overwritten on the next pull. To modify a subagent permanently, edit its canonical source in the agent-standards repo
 (`subagents/<name>.md`), regenerate there, and re-import.
 
@@ -87,48 +109,48 @@ canonical sources.
 
 #### When to use them
 
-**Use subagents proactively, not reactively.** If a task has a subagent that fits, spawn it. Do not try to do the
-specialist's work yourself from the main session; a short main-session reply that delegates correctly beats a long
+Use subagents proactively, not reactively. If a task has a subagent that fits, spawn it. Do not try to do the
+specialist's work yourself from the main session. A short main-session reply that delegates correctly beats a long
 main-session reply that reinvented the specialist's checklist. The catalogue exists so the main session can stay
 high-level.
 
-**Spawn them in parallel when the work is independent.** Multiple subagents running concurrently is the point. Review
+Spawn them in parallel when the work is independent. Multiple subagents running concurrently is the point. Review
 breadth, multi-stack coverage, and fast turnaround all depend on it. Send one message with multiple `Agent` tool calls
 when nothing blocks anything else.
 
 Concrete patterns:
 
-- **Reviewing code**: always spawn `code-reviewer`, AND every stack or concern-relevant specialist in parallel.
-  `security-auditor` for auth, payments, secrets, or PII handling; `database-expert` for schema or query changes;
-  `accessibility-expert` for UI work; `performance-engineer` after a hot-path edit; `api-tester` after an API surface
-  change; `legal-advisor` for anything touching ToS, privacy, or consent. Default to *more* reviewers, not fewer.
-- **Adding a feature**: `backend-architect` for the contract first; the relevant stack expert (`java-pro`,
-  `python-pro`, `flutter-expert`, `angular-expert`, `react-nextjs-expert`) for the implementation; `test-automator`
+- Reviewing code: always spawn `code-reviewer`, AND every stack or concern-relevant specialist in parallel.
+  `security-auditor` for auth, payments, secrets, or PII handling, `database-expert` for schema or query changes,
+  `accessibility-expert` for UI work, `performance-engineer` after a hot-path edit, `api-tester` after an API surface
+  change, `legal-advisor` for anything touching ToS, privacy, or consent. Default to more reviewers, not fewer.
+- Adding a feature: `backend-architect` for the contract first, the relevant stack expert (`java-pro`,
+  `python-pro`, `flutter-expert`, `angular-expert`, `react-nextjs-expert`) for the implementation, `test-automator`
   for the test plan.
-- **Debugging**: `debugger` for a single failing test; `error-detective` for cross-service log correlation;
+- Debugging: `debugger` for a single failing test, `error-detective` for cross-service log correlation,
   `devops-troubleshooter` for a live incident.
-- **Migrations and dependency bumps**: `code-archaeologist` first when the legacy area is unfamiliar; then
+- Migrations and dependency bumps: `code-archaeologist` first when the legacy area is unfamiliar, then
   `legacy-modernizer` for the phased plan.
-- **Docs and content**: `docs-architect` for long-form technical writing; `seo-content-marketer` for anything
-  externally facing; `api-documenter` for API reference work.
-- **Running e2e capability tests**: fan out one `e2e-runner` subagent per test spec. **Before fanning out, confirm the
-  parallel cap with the user**: default 5; drop to 3 if the test env is shared or the API budget is tight; raise to
-  8-10 only with a dedicated test env and a provider tier that supports the concurrent load. If
-  `e2e-runner-max-parallel: <N>` is set in this AGENTS.md, use that and skip the question.
+- Docs and content: `docs-architect` for long-form technical writing, `seo-content-marketer` for anything
+  externally facing, `api-documenter` for API reference work.
+- Running e2e capability tests: fan out one `e2e-runner` subagent per test spec. Before fanning out, take the
+  parallel cap from the Settings section below. If that line is still `<N>`, confirm the cap with the user instead:
+  default 5, drop to 3 if the test environment is shared or the API budget is tight, raise to 8 or 10 only with a
+  dedicated environment and a provider tier that supports the concurrent load.
   Then build a conflict graph from each spec's `Concurrency` section: tests with disjoint `Mutates:` resources
-  parallelise; tests with overlapping resources serialise; tests marked `Serial: true` run alone. The confirmed cap
-  is a ceiling, the graph is a lower bound (orchestrator may run fewer than N when conflicts demand it, never more).
-  Main session orders specs by their numeric prefix, picks one UTC sweep timestamp shared across all runners,
-  aggregates the per-test Verdict + token + duration reports into a sweep summary. Never execute API client
-  invocations from the main session during a sweep; always through `e2e-runner`. See the `e2e-runbooks` skill's
-  Orchestration and Concurrency-constraints sections for the full flow.
+  parallelise, tests with overlapping resources serialise, and tests marked `Serial: true` run alone. The cap is a
+  ceiling and the graph is a lower bound, so the orchestrator may run fewer than the cap when conflicts demand it,
+  never more. The main session orders specs by their numeric prefix, picks one UTC sweep timestamp shared across all
+  runners, and aggregates the per-test verdict, token and duration reports into a sweep summary. Never execute API
+  client invocations from the main session during a sweep, always through `e2e-runner`. See the `e2e-runbooks`
+  skill's Orchestration and Concurrency-constraints sections for the full flow.
 
-**You may direct subagents to invoke specific skills.** When you spawn a subagent, tell it which skills to use as part
+You may direct subagents to invoke specific skills. When you spawn a subagent, tell it which skills to use as part
 of its work, e.g. "review this diff, invoke `/security-review` and `/coding-standards` while you do". The subagent
 loads those skills the same way the main session does. This is the recommended way to bias a generalist subagent
 toward a specific quality bar.
 
-**Codex.** Codex reads TOML custom agents from [.codex/agents/](.codex/agents/), generated from the same canonical
+Codex reads TOML custom agents from [.codex/agents/](.codex/agents/), generated from the same canonical
 sources as every other tree, so delegation works there the same way it does everywhere else.
 
 ---
@@ -153,6 +175,15 @@ never log substrings.
 Projects on OpenSpec can install the matching schema for slash-command lifecycle integration. See
 [openspec-schemas/e2e-runbooks](https://github.com/Lukk17/openspec-schemas/tree/master/openspec/schemas/e2e-runbooks).
 
+#### Settings
+
+Replace `<N>` with this project's sweep cap, in whole numbers, and the orchestrator stops asking before every sweep.
+Leave it as `<N>` and it asks each time.
+
+```text
+e2e-runner-max-parallel: <N>
+```
+
 ---
 
 ### Working With Agents
@@ -161,17 +192,17 @@ All supported agents read this `AGENTS.md` from the project root and auto-discov
 [.agents/skills/](.agents/skills/). Claude Code reaches the skills through the `.claude/skills` symlink, and the other
 four read that directory natively. Start your agent from the project root:
 
-- **Claude Code**: run `claude`. Reads [.claude/CLAUDE.md](.claude/CLAUDE.md), which imports this file. MCP servers
+- Claude Code: run `claude`. Reads [.claude/CLAUDE.md](.claude/CLAUDE.md), which imports this file. MCP servers
   come from [.mcp.json](.mcp.json).
-- **Kilo Code**: reads `AGENTS.md` and `.agents/skills/` automatically. Its configuration root is `.kilo/`, and it
+- Kilo Code: reads `AGENTS.md` and `.agents/skills/` automatically. Its configuration root is `.kilo/`, and it
   accepts the root [opencode.json](opencode.json) for both MCP servers and the preflight plugin. Never put a
   `{env:VAR}` in that file. Kilo does not leave the placeholder standing, it rejects the whole file, which costs it
   every MCP server and the preflight plugin at once. Run `kilocode config check` after editing it.
-- **OpenCode**: reads `AGENTS.md` automatically. Configuration lives in [opencode.json](opencode.json) at the project
+- OpenCode: reads `AGENTS.md` automatically. Configuration lives in [opencode.json](opencode.json) at the project
   root, the same file Kilo Code reads, and `.opencode/` holds nothing but the `agents` symlink.
-- **Codex**: run `codex`. Reads `AGENTS.md` automatically. Project MCP servers and preflight hooks live in
+- Codex: run `codex`. Reads `AGENTS.md` automatically. Project MCP servers and preflight hooks live in
   [.codex/config.toml](.codex/config.toml), and global settings in `~/.codex/config.toml`.
-- **GitHub Copilot**: the CLI, VS Code, and the JetBrains plugin all read `AGENTS.md` and `.agents/skills/` natively.
+- GitHub Copilot: the CLI, VS Code, and the JetBrains plugin all read `AGENTS.md` and `.agents/skills/` natively.
   Subagents come from [.github/agents/](.github/agents/) and hooks from [.github/hooks/](.github/hooks/). MCP comes
   from [.vscode/mcp.json](.vscode/mcp.json) in VS Code and from [.github/mcp.json](.github/mcp.json) in the CLI,
   which uses the CLI's own `mcpServers` schema (`"type": "local"` for a stdio server rather than `.mcp.json`'s
@@ -181,20 +212,26 @@ four read that directory natively. Start your agent from the project root:
   `~/.config/github-copilot/intellij/mcp.json`.
 
 Windows prerequisite: this project ships symlinks (`.claude/skills`, `.opencode/agents`, `.kilo/agents`). Git creates
-them only when it is allowed to, so turn on Windows Developer Mode and set the option below before cloning. Otherwise
-Git writes each link out as a plain text file holding its target path, and every agent that follows the link finds
-nothing.
+them only when it is allowed to, so turn on Windows Developer Mode and set the option below. Otherwise Git writes each
+link out as a plain text file holding its target path, and every agent that follows the link finds nothing.
 
 ```powershell
-git config --global core.symlinks true
+git config core.symlinks true
 ```
+
+That form applies to this repository. Adding `--global` sets it for every repository on the machine, including clones
+you have not made yet, which is the form to use before cloning rather than after.
+
+Python 3 is the other prerequisite. Every hook in [.agents/hooks/](.agents/hooks/) is a Python script, and every
+wiring discards a failed call so a broken hook can never break a session, so a missing interpreter reads as an allow
+and the gate is wired but disarmed.
 
 ---
 
 ### Working Principles
 
-Apply these to every task, in order. They govern *how* you work; the `coding-standards` skill governs *what the code
-should look like*.
+Apply these to every task, in order. They govern how you work, and the `coding-standards` skill governs what the
+code should look like.
 
 #### 1. Think Before Coding
 
@@ -222,7 +259,7 @@ Touch only what the task requires.
 - Do not refactor code that is not broken.
 - Match existing style, even if you would write it differently.
 - If you notice unrelated dead code, mention it; do not delete it.
-- Remove imports, variables, and helpers that *your* changes orphan. Leave pre-existing dead code alone unless asked.
+- Remove imports, variables, and helpers that your own changes orphan. Leave pre-existing dead code alone unless asked.
 
 Test: every changed line should trace directly to the request.
 
@@ -253,19 +290,19 @@ live under `openspec/`.
 
 The full lifecycle (run inside your agent shell):
 
-1. **Propose a change**: agent generates proposal, design, and `tasks.md` under `openspec/changes/`:
+1. Propose a change: the agent generates proposal, design, and `tasks.md` under `openspec/changes/`:
    ```text
    /opsx:propose add dark mode support
    ```
-2. **Apply the code**: after reviewing/editing `tasks.md`, agent implements and checks off tasks:
+2. Apply the code: after reviewing or editing `tasks.md`, agent implements and checks off tasks:
    ```text
    /opsx:apply
    ```
-3. **Verify and refine**: pass back logs or bug reports to refine:
+3. Verify and refine: pass back logs or bug reports to refine:
    ```text
    /opsx:verify The toggle button is invisible on mobile. Fix it.
    ```
-4. **Archive**: once tested, merge delta specs into `openspec/specs/` and archive the change folder:
+4. Archive: once tested, merge delta specs into `openspec/specs/` and archive the change folder:
    ```text
    /opsx:archive
    ```

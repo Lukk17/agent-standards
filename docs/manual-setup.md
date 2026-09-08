@@ -11,6 +11,25 @@ This file stays in the agent-standards repo only. It is not shipped to consumer 
 
 ---
 
+### Prerequisites
+
+Git for the checkout, Python 3 for the hooks, and Node only if you run OpenCode or Kilo Code, whose gate adapter is
+[.agents/plugin/hooks.js](../.agents/plugin/hooks.js). Every script in [.agents/hooks/](../.agents/hooks/) is Python,
+and every wiring discards a failed call so a broken hook can never break a session, so a missing interpreter reads as
+an allow rather than an error. Confirm one answers. PowerShell:
+
+```powershell
+python --version
+```
+
+Unix shell:
+
+```bash
+python3 --version
+```
+
+---
+
 ### Repairing the symlinks
 
 Three paths are symlinks, and all three are load-bearing:
@@ -109,6 +128,20 @@ Only `.mcp.json` resolves a placeholder, `${VAR}` with a default. The other four
 MCP server inherits the environment of the process that started the agent, so exporting the variable is what makes
 the token arrive.
 
+One more line belongs in the project's own `.gitignore`. `.agents/hooks/task_list_sync.py` mirrors the live session
+task list into `tasks.md` at the project root so the plan survives a compaction, and that is per-session working
+state, never shared history. PowerShell:
+
+```powershell
+Add-Content .gitignore "`n/tasks.md"
+```
+
+Unix shell:
+
+```bash
+printf '\n/tasks.md\n' >> .gitignore
+```
+
 ---
 
 ### Per-agent start reference
@@ -122,7 +155,7 @@ instructions arrive inline. Skills come through the `.claude/skills` symlink, su
 [.claude/agents/](../.claude/agents/), hooks from [.claude/settings.json](../.claude/settings.json). No further
 configuration.
 
-```shell
+```bash
 claude
 ```
 
@@ -132,7 +165,7 @@ Reads [AGENTS.md](../AGENTS.md) and [.agents/skills/](../.agents/skills/) native
 [.codex/agents/](../.codex/agents/) as TOML, and [.codex/config.toml](../.codex/config.toml) carries both the MCP
 servers and the gate hooks.
 
-```shell
+```bash
 codex
 ```
 
@@ -149,7 +182,7 @@ Reads [AGENTS.md](../AGENTS.md) and [.agents/skills/](../.agents/skills/) native
 `.opencode/agents` symlink. [opencode.json](../opencode.json) at the project root carries the MCP servers and declares
 the gate plugin by path.
 
-```shell
+```bash
 opencode
 ```
 
@@ -178,7 +211,7 @@ plugin, the CLI, and the cloud agent. Subagents live in [.github/agents/](../.gi
 gate ships as [.github/hooks/preflight.json](../.github/hooks/preflight.json). No bridge instruction file is needed.
 Start it inside your editor, or from a terminal:
 
-```shell
+```bash
 copilot
 ```
 

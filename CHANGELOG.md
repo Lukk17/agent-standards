@@ -52,6 +52,29 @@ All notable changes to this project are documented here. The format follows
   against Copilot CLI 1.0.81 and documented as an open limitation in `docs/MCP_SETUP.md`.
 - `tools/check-badges.py`, a lint step that fails when a count badge in `README.md` (skills, subagents, MCP servers)
   no longer matches the tree, wired into the CI `validate` job.
+- Five subagents: `agent-engineer`, which owns skills, subagent definitions, hooks, MCP blocks and `AGENTS.md`, and is
+  the agent the main thread hands web research to now that Rule C denies it directly; `go-pro`; `ml-engineer`;
+  `project-manager`; and `release-manager`.
+- A language-neutral `backend-patterns` skill covering idempotency keys, timeouts and capped retries, the
+  transactional outbox, cache invalidation, pagination and graceful shutdown, with the runtime-specific material left
+  to `node-backend-patterns` and `springboot-patterns`.
+- Two more hooks in `.agents/hooks/`. `markdown_lint_check.py` runs on `PostToolUse` after an edit to a linted file
+  and reports violations back as `additionalContext`. `task_list_sync.py` mirrors the Claude Code `TaskCreated` and
+  `TaskCompleted` events into `tasks.md` at the project root, injects that file at `SessionStart` including the
+  `compact` source, and blocks a `Stop` once while items are open or in progress.
+- `tasks.md`, git-ignored runtime state written by that hook and by the model. It is the one path Rule A exempts, so
+  the main thread keeps ownership of its own list. A consumer adds `/tasks.md` to their own `.gitignore`.
+- Generator validation. `tools/gen_subagents.py` now exits with an error when a canonical subagent lists a skill with
+  no folder under `.agents/skills/`, so a renamed skill fails the build rather than silently preloading nothing. It
+  also emits a per-format tools list including Copilot's own tool names, sets `permissionMode: plan` on Claude Code
+  for the five read-only agents, and accepts `model: inherit`.
+- `subagents/*.md` in the markdown lint scope, so a canonical source is held to the same style as the shipped docs.
+  The four generated trees stay out of scope, because linting them would report the same violation five times.
+- A prerequisites section, a PowerShell block beside every Quickstart command, a Configuration section, and a second
+  Mermaid diagram tracing one tool call from the agent through the hook to the gate's allow or deny, all in
+  `README.md`.
+- An `e2e-runner-max-parallel: <N>` slot in `AGENTS.md.example`, which the orchestration bullet already referred to
+  and which had nowhere to be set.
 
 ### Changed
 
@@ -134,6 +157,30 @@ All notable changes to this project are documented here. The format follows
   in preview, and when it reaches general availability GitHub moves the `-latest` label over one to two months. With no
   Dependabot to open a pull request, a floating label is the one version in this repo that could change under us
   without a commit, so it now matches how everything else here is pinned.
+- The skill catalogue, from 85 folders to 65. Eighteen `flutter-*` skills folded into `dart-flutter-patterns`, and
+  `nextjs-best-practices` and `nextjs-turbopack` into `nextjs-app-router-patterns`, each as one hub manifest with a
+  `references/` file per topic instead of a family of siblings competing to match the same phrase.
+- Every skill manifest now carries standard front matter, `name` and `description` plus an optional `license` or
+  `compatibility` and nothing else, following the open Agent Skills specification at
+  `https://agentskills.io/specification`. Descriptions are written in trigger form: what the skill covers, the
+  phrases a user would actually say, and what it is not for with the skill that owns that instead. Depth moved out of
+  the manifests and into `references/`.
+- `automation-audit-ops` renamed to `automation-inventory`, and the old `backend-patterns` renamed to
+  `node-backend-patterns` to free the name for the language-neutral skill listed under Added.
+- `ascend-web-scrapper` renamed to `ascend-web-hunter`, and the `kicad` skill expanded.
+- The comment rule in `coding-standards` now requires a ticketed task marker rather than tolerating one. A gap left
+  deliberately unimplemented must name what is missing and the ticket that closes it, and a gap with no marker is a
+  defect. The ban survives by its real criterion, a reference standing in place of the explanation, not a ticket
+  appearing at all. Placeholders across `coding-standards`, `code-formatter` and `git-workflow` moved to a generic
+  `TICKET-001` so no example carries a reader into someone else's tracker.
+- `project-tracking` rewritten to be tracker-independent. The always-loaded body is halved and the per-tracker detail
+  moved to a reference file that loads only when an agent is acting inside a named tracker.
+- Eight skills no longer mandate one test-phase comment convention. The rule is stated once in `coding-standards`,
+  which shows the same test labelled both ways so the choice is visibly the project's.
+- The sandbox grants the Copilot CLI folder trust through its own `trustedFolders` setting, scoped to the one
+  throwaway project, so the CLI's MCP assertion runs against a trusted workspace.
+- `AGENTS.md.example` carries no bold or italic markers any more, matching the style the formatting hook enforces on
+  replies, and its gate section now matches the canonical wording in `AGENTS.md` word for word.
 - The sandbox base image, from `node:24-bookworm-slim` to `node:24-trixie-slim`. Node 24 is still the active long-term
   support line, Node 26 does not become one until October 2026, but Debian 13 (trixie) has been stable since August
   2025 and bookworm is oldstable. The image gains the newer distribution toolchain that comes with it: python3 3.13
@@ -141,13 +188,25 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Every per-agent import block in `README.md` omitted `docs/AGENT_TOOLING.md`, so a project set up from one agent's
+  subsection pulled the update instructions and the MCP setup but not the walkthrough that explains them. All twenty
+  pathspecs, ten initial pulls and ten refreshes, now match the Quickstart set.
+- The skills and subagents count badges, stale at 85 and 30 against a tree holding 65 and 35.
+- Two steps of `docs/bootstrap-prompt.md` told the main thread to write `AGENTS.md` and trim `docs/MCP_SETUP.md`
+  itself, which Rule A denies, so the bootstrap ended in a refusal on every gated surface. Both now delegate to
+  `agent-engineer` with `markdown-writer` named, the gathering stays in the main thread, and the prompt no longer
+  sends a consumer's agent to a badge on this repository's README that the consumer does not have.
+- The symlink instruction, which showed the repository-local form in some documents and the `--global` form in others
+  with no explanation of the difference. Every document now leads with `git config core.symlinks true` and says in one
+  line what adding `--global` buys.
 - The `e2e-runbooks` schema install in `docs/AGENT_TOOLING.md`. It cloned the whole companion repository and copied a
   root-level `e2e-runbooks/` directory that no longer exists on `master`, and it called `openspec new` without the
   required `change` subcommand. It now fetches `openspec/schemas/e2e-runbooks` straight into the matching path. The
   links pointing at the old root-level directory were returning 404 and now resolve.
 - Documentation that still described the deleted `.opencode/opencode.json` overlay, the pre-move `tools/` test paths,
   and a `docs/GLOBAL_SETUP.md` listed as shipped to consumers although no import command ever pulled it.
-- The Claude Code `PreToolUse` matcher is now anchored, `^(Edit|Write|NotebookEdit|Bash)$`, matching the shape the
+- The Claude Code `PreToolUse` matcher is now anchored, `^(Edit|Write|NotebookEdit|Bash|WebFetch|WebSearch)$`, and it
+  carries the two research tools the gate's third rule judges. It matches the shape the
   Codex adapter already used. The unanchored `Edit|Write|NotebookEdit|Bash` was not firing on `TodoWrite`, because a
   matcher made only of letters and pipes is evaluated as a list of exact tool names rather than as a regular
   expression. Anchoring keeps that behaviour explicit, so adding one metacharacter to the list later cannot silently
@@ -169,19 +228,26 @@ All notable changes to this project are documented here. The format follows
   `.claude/settings.json` already does. The formatting checker signals by printing JSON and always exits 0 itself, so
   the only way that hook returned non-zero was Python failing to open a missing script, which would have blocked the
   end of every turn.
-- Two capability specs asserted a literal string that the Claude Code gate command can no longer contain. That command
-  runs the gate through a Python wrapper that passes `--format claude` as two separately quoted arguments, so
-  `6-global-install-shape-test.md` and `2-project-import-shape-test.md` now match the path and the flag separately,
-  the way the verification scripts already did. Both specs also gained the standard-error and zero-exit assertions the
-  scripts make, and spec 6 gained the Codex matcher, event-set, and Windows-sibling assertions it was missing.
+- Two capability specs asserted a literal string the Claude Code gate command did not contain while the Python
+  wrapper was still in the way. `6-global-install-shape-test.md` and `2-project-import-shape-test.md` now match the
+  script path and the format flag as separate substrings, the way the verification scripts already did, so they hold
+  whether or not anything sits between the shell and the gate. With the wrapper removed, both also assert that the
+  command ends in `; exit 0` and no longer mentions `subprocess.DEVNULL`. Spec 6 gained the Codex matcher, event-set,
+  and Windows-sibling assertions it was missing.
 
 ### Removed
 
-- The Claude Code `SessionStart` preflight hook from `.claude/settings.json`. The `UserPromptSubmit` hook in the same
-  file injects the identical wording on every prompt, including the first, so on Claude Code the gate text appeared
-  twice a moment apart at the start of a session. `UserPromptSubmit`, `PreToolUse`, and `Stop` are unchanged. This is a
-  Claude Code change only: GitHub Copilot keeps its `sessionStart` injection, which is the only injection channel it
-  has on the surfaces without a per-turn one, and Codex keeps its `SubagentStart` table.
+- The `finance-billing-ops` skill, which encoded one product's revenue and billing workflow and never belonged in a
+  shared catalogue.
+- `argparse` from every hook. It exits 2 on a usage error, and 2 is the deny code in the plain format, so a stray
+  flag read as a block. Each hook scans `sys.argv` by hand and treats an unknown flag as an allow. Every hook is also
+  invoked as `python -S -E` now, which is safe because all four are standard library only.
+- The Claude Code `SessionStart` preflight hook from `.claude/settings.json`, then put back before this release
+  shipped. It came out because `UserPromptSubmit` injects the identical wording on every prompt, including the first,
+  so the gate text appeared twice a moment apart at the start of a session. It went back in because `SessionStart` is
+  also where the task list is injected, including after a compaction, and one event carrying both keeps the two in
+  step. GitHub Copilot always kept its `sessionStart` injection, the only channel it has without a per-turn one, and
+  Codex always kept its `SubagentStart` table.
 - `.github/dependabot.yml`, and with it Dependabot itself. Nothing opens automated dependency pull requests here any
   more. The exact pins in `tools/pyproject.toml` and the SHA-pinned actions in the workflows are bumped by hand.
 - The `.kilocode/` directory in full: the generated subagent tree, the `rules/00-preflight.md` gate rule, and its MCP

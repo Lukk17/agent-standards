@@ -25,33 +25,53 @@ usual owners, with `code-reviewer` before any merge.
 The gate is enforcing, not advisory. One shared rule in
 [.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) decides every tool call, on every agent:
 
-- It denies a main-thread write of any file resolving inside the repository working tree, with no exemption for
-  markdown, configuration, or documentation, and tells the caller to delegate the change instead. A write outside the
-  repository, a write to the null device, and git branch switching stay allowed, so the main thread keeps full use of
-  git.
-- It denies an edit from a subagent whose own definition declares no skills, because that agent is not a specialist.
+- It denies a main-thread write of any file resolving inside the repository, with no exemption for markdown,
+  configuration, or documentation, and tells the caller to delegate the change instead. "Inside the repository" is the
+  gate's own two roots rather than a git query: the process working directory, and the gate script's own on-disk
+  location two parents up. A relative path resolves against whichever directory a leading `cd` in the command moved to,
+  and against both roots when the command never changed directory. A write outside the repository, a write to the null
+  device, a write to `tasks.md` at the project root, and git branch switching stay allowed, so the main thread keeps
+  full use of git and keeps ownership of its own task list.
+- It denies any tool call, not only an edit, from a subagent whose own definition declares no skills, because that
+  agent is not a specialist. The rule reads `agent_type` out of the payload and looks the definition up in the six
+  agent trees, so an unknown or unreadable `agent_type` allows rather than denies.
 - It denies the main thread from running a web fetch or web search tool directly, on the one format where that
   tool's name is confirmed (Claude Code today; Codex has no confirmed equivalent name yet, see Maintenance
   follow-ups below). It spawns a subagent to do the research and report back instead.
 - Every rule above fires only once the caller is positively identified as the main thread. A format whose payload
   carries nothing that could identify the caller, currently GitHub Copilot, is left ungated rather than guessed at,
   because denying blind risks blocking a legitimate subagent as often as it blocks the main thread.
-- It fails open. Any parse error, missing key, or unexpected payload allows the call, because a broken gate must never
-  break a session.
+- It fails open almost everywhere. Any parse error, missing key, unexpected payload, unknown `--format`, or
+  unlexable shell command allows the call, because a broken gate must never break a session. The deliberate exception
+  is the two repository-boundary helpers, `_resolves_inside_repo` and `_path_exists_in_repo`: a path neither can
+  resolve fails toward True, which denies. Deciding what Rule A protects is the whole job of those two, so a path the
+  gate cannot place is treated as inside rather than waved through.
 
-Each agent wires that one script to its own hook surface:
+Each agent wires that one script, and the two hooks beside it, to its own hook surface:
 
 | Agent | Wiring | Events |
 | --- | --- | --- |
-| Claude Code | [.claude/settings.json](.claude/settings.json) | `UserPromptSubmit`, `PreToolUse` (matcher `^(Edit\|Write\|NotebookEdit\|Bash\|WebFetch\|WebSearch)$`), `Stop` for the formatting checker |
-| Codex | inline `[[hooks.*]]` tables in [.codex/config.toml](.codex/config.toml) | `UserPromptSubmit`, `SubagentStart`, `PreToolUse` (matcher `^(Bash\|shell\|apply_patch\|Edit\|Write\|NotebookEdit)$`) |
+| Claude Code | [.claude/settings.json](.claude/settings.json) | `SessionStart` and `UserPromptSubmit` for the gate text, `PreToolUse` (matcher `^(Edit\|Write\|NotebookEdit\|Bash\|WebFetch\|WebSearch)$`) for the gate, `PostToolUse` (matcher `^(Edit\|Write\|MultiEdit)$`) for the markdown lint in `markdown_lint_check.py`, `Stop` and `SubagentStop` for the formatting checker, `TaskCreated`, `TaskCompleted`, `SessionStart`, `PreCompact` and `Stop` for the task list |
+| Codex | inline `[[hooks.*]]` tables in [.codex/config.toml](.codex/config.toml) | `UserPromptSubmit` and `SubagentStart` for the gate text, `PreToolUse` (matcher `^(Bash\|shell\|apply_patch\|Edit\|Write\|NotebookEdit)$`) for the gate, `Stop` for the formatting checker, `SessionStart` for the task list |
 | OpenCode and Kilo Code | [.agents/plugin/hooks.js](.agents/plugin/hooks.js), declared once by path in the `plugin` array of [opencode.json](opencode.json), which both tools read | `tool.execute.before` |
-| GitHub Copilot | [.github/hooks/preflight.json](.github/hooks/preflight.json) | `sessionStart`, `subagentStart`, `preToolUse` (matcher `bash\|powershell\|create\|edit`) |
+| GitHub Copilot | [.github/hooks/preflight.json](.github/hooks/preflight.json) | `sessionStart` for the gate text and the task list, `subagentStart` for the gate text, `preToolUse` (matcher `bash\|powershell\|create\|edit`) for the gate |
 
 Per-surface details worth knowing before you touch any of them:
 
 - Claude Code detects a subagent by the presence of `agent_id` in the hook payload, which it documents as present only
-  inside a subagent.
+  inside a subagent. The same `PreToolUse` payload also carries `agent_type`, the subagent's own name, and that is the
+  field Rule B depends on: `agent_id` decides whether a subagent is acting at all, `agent_type` names which definition
+  to read the declared skills out of. Codex spells both the same way.
+- Every hook is invoked as `python -S -E`. Both flags are safe because every hook is standard library only, and they
+  take a slice off an interpreter start that the gate pays on every single tool call.
+- No hook uses `argparse`, which exits 2 on a usage error. Two is the deny code in the plain format, so a stray flag
+  would read as a block. Each hook scans `sys.argv` by hand instead and treats an unknown flag as an allow.
+- Only Claude Code has task events, and none of the three agents has a task-updated event, so
+  [.agents/hooks/task_list_sync.py](.agents/hooks/task_list_sync.py) writes only `open` and `done`. The model sets
+  `in progress` and `blocked` by editing `tasks.md`, which is why Rule A exempts that one path.
+- No agent delivers `additionalContext` out of a pre-compact event today. The `PreCompact` wiring above is against a
+  future, and what actually carries the task list through a compaction is `SessionStart` firing again with `source`
+  set to `compact`. Per-surface detail is in [docs/hooks-contract.md](docs/hooks-contract.md).
 - Every wiring anchors the gate at the project root, and a missing gate script allows. A session started in a
   subdirectory resolved the relative script path to nothing, and Python exits 2 when it cannot open the file it was
   handed, which is the deny code on Claude Code and Codex and denies on Copilot too. Each wiring therefore moves to the
@@ -111,8 +131,9 @@ script and must never be hand-edited, and some are symlinks the generator create
 | Tree | Status | How to edit |
 | --- | --- | --- |
 | `subagents/*.md` | canonical | edit directly, then regenerate |
-| `.agents/skills/*/SKILL.md` | canonical | edit directly |
-| `.agents/hooks/preflight_gate.py`, `.agents/hooks/no_ai_markers_check.py` | canonical | edit directly, then run the pytest suite |
+| `.agents/skills/*/SKILL.md` and its `references/*.md` | canonical | edit directly, keep the manifest short and the depth in `references/` |
+| `.agents/hooks/preflight_gate.py`, `.agents/hooks/no_ai_markers_check.py`, `.agents/hooks/task_list_sync.py`, `.agents/hooks/markdown_lint_check.py` | canonical | edit directly, then run the pytest suite |
+| `tasks.md` | runtime state, git-ignored | written by the hook and by the model, never committed |
 | `.agents/plugin/hooks.js` | canonical | edit directly |
 | `AGENTS.md.example`, `docs/*.md` | canonical | edit directly |
 | `tools/*.py`, `tools/tests/*.py`, `tools/pyproject.toml` | canonical | edit directly, then run the pytest suite |
@@ -152,9 +173,10 @@ The OpenSpec sections in the `.example` are for consumers.
 - [.agents/agents/](.agents/agents/) is the OpenCode-format subagent tree, and only OpenCode and Kilo Code use it, both
   through the `.opencode/agents` and `.kilo/agents` symlinks. Claude Code, Codex, and Copilot each read their own
   generated tree instead, because none of the three formats is interchangeable.
-- [.agents/hooks/](.agents/hooks/) and [.agents/plugin/](.agents/plugin/) are invoked by every adapter. The two Python
-  scripts hold the only copy of the gate logic and of the response formatting check, and the plugin is a thin runner
-  with no rules of its own that hands every OpenCode and Kilo Code tool call to every hook in that directory.
+- [.agents/hooks/](.agents/hooks/) and [.agents/plugin/](.agents/plugin/) are invoked by every adapter. The four
+  Python scripts hold the only copy of the gate logic, of the response formatting check, of the markdown lint pass
+  that runs after an edit, and of the task-list mirror, and the plugin is a thin runner with no rules of its own that
+  hands every OpenCode and Kilo Code tool call to every hook in that directory.
 
 ---
 
@@ -170,9 +192,10 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
   lowercase one is the same defect: the link resolves here and 404s there.
 - **Never hand-edit generated subagent files.** Edit `subagents/<name>.md`, then run the generator. CI fails if the
   generated trees drift from canonical.
-- **Markdown lint.** `README.md`, `AGENTS.md.example`, `docs/*.md`, and `.agents/skills/**/*.md` must contain no
-  em-dashes or en-dashes, no prose line over 120 characters, and no level-2 heading. This real `AGENTS.md` is not in
-  the lint scope, but match the style anyway.
+- **Markdown lint.** `README.md`, `AGENTS.md.example`, `docs/*.md`, `.agents/skills/**/*.md`, and the canonical
+  `subagents/*.md` must contain no em-dashes or en-dashes, no prose line over 120 characters, and no level-2 heading.
+  The four generated subagent trees are out of scope, because linting them would report the same violation five
+  times. This real `AGENTS.md` is not in the lint scope either, but match the style anyway.
 - **One runnable command per fenced code block** in any doc a human copies, with the matching language tag and no
   `#` comment lines inside the block (global rule).
 - **One server set, one schema per file.** [.mcp.json](.mcp.json) (key `mcpServers`) serves Claude Code only.
@@ -271,9 +294,17 @@ python -c "import tomllib; tomllib.load(open('.codex/config.toml','rb'))"
 
 - **A skill:** create `.agents/skills/<name>/SKILL.md` (plus a `references/` subdir if it needs depth). Four agents
   pick it up from the directory itself and the `.claude/skills` symlink covers Claude Code, so no wiring is needed.
-  Bump the skill-count badge in [README.md](README.md).
+  The front matter carries `name` and `description` and nothing else beyond an optional `license` or `compatibility`,
+  per the open Agent Skills specification (`https://agentskills.io/specification`). Write the description in trigger
+  form: what the skill covers, then the phrases a user would actually say, then what it is not for and which skill
+  owns that instead. Keep the manifest short and push depth into `references/`, and prefer one hub with a reference
+  file per topic over a family of sibling skills. Bump the skill-count badge in [README.md](README.md).
 - **A subagent:** add or edit `subagents/<name>.md`, run the generator, and commit the canonical source and the four
-  generated trees together. Bump the subagent-count badge.
+  generated trees together. Every name in the `skills` list has to have a folder under `.agents/skills/`, or the
+  generator exits naming the dangling entries, and the same check rejects an unknown tool name or an unknown model.
+  A `tools` list of exactly `read`, `grep` and `glob` also earns `permissionMode: plan` on Claude Code, and
+  `model: inherit` leaves the agent on whatever the session already runs. `subagents/*.md` is inside the markdown
+  lint scope, so the file has to pass `python tools/check-markdown.py` too. Bump the subagent-count badge.
 - **An MCP server:** add the block to all five MCP files (the ones listed under Repo conventions), document it in
   [docs/MCP_SETUP.md](docs/MCP_SETUP.md), and bump the MCP-count badge.
 - **A shipped document:** name it in UPPERCASE under `docs/`, add its path to every
@@ -295,9 +326,12 @@ Use subagents proactively, not reactively, and spawn them in parallel when the w
 multiple `Agent` calls). Direct a generalist subagent to invoke specific skills as part of its task. Full catalogue:
 list `.claude/agents/*.md` or `.agents/agents/*.md`, and browse skills in [.agents/skills/](.agents/skills/).
 
-For this repo specifically: `markdown-writer` owns doc work, `python-patterns` and `python-testing` own the generator,
-the hook scripts, and the lint script, `code-reviewer` runs before any merge, and `bash` / `powershell` own the update
-scripts in [docs/AGENTS-UPDATE.md](docs/AGENTS-UPDATE.md).
+For this repo specifically: `agent-engineer` owns the agent configuration itself, which is every skill, every subagent
+definition, every hook wiring, every MCP server block, and this file. It is also the agent the main thread hands web
+research to, because the gate denies the main thread a web fetch or web search directly. `markdown-writer` owns doc
+work, `python-patterns` and `python-testing` own the generator, the hook scripts, and the lint scripts,
+`code-reviewer` runs before any merge, and `bash` and `powershell` own the update scripts in
+[docs/AGENTS-UPDATE.md](docs/AGENTS-UPDATE.md).
 
 ---
 
@@ -322,7 +356,7 @@ should look like.
 - **OpenCode per-turn gate injection still needs an experimental hook.** Enforcement now rides the stable
   `tool.execute.before` hook in [.agents/plugin/hooks.js](.agents/plugin/hooks.js), so the gate blocks calls
   without any experimental surface. Injecting the gate text into context every turn still requires
-  `experimental.chat.system.transform`, which is unchanged and still experimental in OpenCode 1.18.23. Periodically
+  `experimental.chat.system.transform`, which is unchanged and still experimental in OpenCode 1.18.25. Periodically
   recheck `https://opencode.ai/docs/plugins/`. When it stabilises, add per-turn injection to the plugin so OpenCode and
   Kilo Code match the other three, then remove this note. Tracked in project memory so it resurfaces each session.
 - **Kilo Code is settled, no action outstanding.** Kilo reads `.agents/skills/` natively, so it needs no skill symlink.
@@ -344,6 +378,13 @@ should look like.
   main thread. Caller identity resolves to unknown on every call, so neither Rule A, Rule B, nor Rule C ever fires on
   this surface: the whole surface is unenforced, which fails in the unsafe direction rather than the safe one.
   Recheck the hooks reference for an agent identifier and pass it through with `--subagent` when one lands.
+- **Codex now runs the formatting check, and the markdown lint has nowhere to go there.** `.codex/config.toml` wires
+  `no_ai_markers_check.py` on `Stop`, so Codex is no longer a surface where the reply goes unchecked. Whether Codex's
+  `Stop` can actually reject a reply the way Claude Code's can is not verified, so nothing in the docs claims it: they
+  say the check runs. Confirm it against the Codex hooks reference and say so plainly once it is measured. The
+  markdown lint in `markdown_lint_check.py` stays Claude-only in the meantime, because Codex exposes no post-tool
+  event to hang it on. OpenCode and Kilo Code get both hooks for free, since their plugin runs every file in
+  [.agents/hooks/](.agents/hooks/) on every tool call.
 - **JetBrains Copilot MCP is global-only and officially undocumented.** The plugin reads MCP from
   `~/.config/github-copilot/intellij/mcp.json`. There is no per-project MCP file, and GitHub documents only the in-IDE
   UI rather than the path, so no JetBrains MCP file ships here. Recheck whether GitHub adds a documented per-project

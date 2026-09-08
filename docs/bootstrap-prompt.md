@@ -41,9 +41,9 @@ Subagent definitions ship as four generated trees plus two symlinks:
 - `.github/agents/*.agent.md` for GitHub Copilot
 - `.opencode/agents` and `.kilo/agents`, both symlinks into `.agents/agents/`
 
-Confirm the directory your own tool reads is non-empty and lists a good number of files. Cross-check against the
-subagent badge count on the agent-standards README if you want a target. If yours is empty or missing, the import
-pulled an incomplete subset: flag it and ask the user to re-run the checkout.
+Confirm the directory your own tool reads is non-empty, and report how many files it holds. The four generated trees
+should hold the same number as each other, so a tree that is short of the others is the signal to look for. If yours
+is empty or missing, the import pulled an incomplete subset: flag it and ask the user to re-run the checkout.
 
 Check the two symlinks specifically. If `.opencode/agents` or `.kilo/agents` came through as a small text file holding
 a path instead of a link, say so, because OpenCode and Kilo Code then have no subagents at all.
@@ -52,10 +52,17 @@ a path instead of a link, say so, because OpenCode and Kilo Code then have no su
 
 The gate is one shared script, `.agents/hooks/preflight_gate.py`, wired into each agent through its own hook surface:
 `.claude/settings.json`, the inline `[[hooks.*]]` tables in `.codex/config.toml`, the plugin at
-`.agents/plugin/hooks.js` declared by path in `opencode.json`, and `.github/hooks/preflight.json`.
+`.agents/plugin/hooks.js` declared by path in `opencode.json`, and `.github/hooks/preflight.json`. Three more hooks
+sit beside it in `.agents/hooks/`: `no_ai_markers_check.py`, `markdown_lint_check.py`, and `task_list_sync.py`.
 
-Confirm the script exists and that the hook configuration your own runtime reads names it. Do not try to trigger the
+Confirm the scripts exist and that the hook configuration your own runtime reads names them. Do not try to trigger the
 gate on purpose. Just report whether the wiring is present, and name the surface you are running on.
+
+Then confirm a Python 3 interpreter is on the path, with `python --version` or `python3 --version`, and quote the
+version back. Every hook is a Python script and every wiring throws away a failed call so a broken hook cannot break a
+session, so a missing interpreter does not error: it allows every call the gate was meant to block. If no interpreter
+answers, report "FAIL: no Python 3 on the path, the preflight gate is wired but disarmed" and tell the user to
+install Python 3 before relying on the gate.
 
 ## 4. Verify the MCP runtime
 
@@ -73,18 +80,29 @@ The project MCP files are real files, not templates, so there is nothing to rena
 
 Report which of those exist. Do not assume any particular server should be present, just report what is there.
 
+## 4b. Ignore the agent task list
+
+`.agents/hooks/task_list_sync.py` mirrors the live session task list into `tasks.md` at the project root so the plan
+survives a compaction. That file is per-session working state and does not belong in version control.
+
+Check whether `.gitignore` already ignores it. If it does not, delegate the one-line append to a subagent, the same
+way as every other write below, and have it add `/tasks.md` under a heading that says what wrote it.
+
 ## 5. Trim docs/MCP_SETUP.md to what this project actually uses
 
 The shipped `docs/MCP_SETUP.md` documents every server in the canonical set (Context7, MongoDB, Grafana, Playwright,
 Chrome DevTools, Redis, SonarQube, n8n). Most projects use a subset.
 
 Diff the active server names from step 4, or the names present in the config files if none were active, against the
-servers documented in `docs/MCP_SETUP.md`. For every server this project does not use, remove its table rows, its
-environment-variable lines, and any prose that names it.
+servers documented in `docs/MCP_SETUP.md`. That diff is yours to work out. The edit is not: the preflight gate denies
+a main-thread write of any file inside the repository, documentation included, so delegate the trim to a subagent and
+tell it which skills to load. The owner is `agent-engineer`, which owns MCP server configuration, loading
+`markdown-writer` for the prose rules. Hand it the exact server list to keep and the exact list to remove, so it is
+editing to an instruction rather than re-deriving your diff.
 
-Goal: a reader of `docs/MCP_SETUP.md` sees instructions only for the servers that actually run here. Show the diff in
-your report. Do not delete the file, only trim it. If the project uses every default server, say so and leave it
-alone.
+Goal: a reader of `docs/MCP_SETUP.md` sees instructions only for the servers that actually run here. Show the
+subagent's diff in your report. Do not delete the file, only trim it. If the project uses every default server, say so
+and leave it alone.
 
 ## 6. Verify OpenSpec is callable
 
@@ -146,9 +164,14 @@ Open the root `AGENTS.md` and find the empty sections and HTML-comment placehold
   notable constraints (monorepo, server-rendered only, offline-first, and so on). Derive it from config files, folder
   structure, and any decision records under `docs/` or `openspec/specs/`.
 
-This is low-risk: you are filling a file the user just imported and expects to fill. DO IT. Write the drafted content
-straight into the root `AGENTS.md` as part of this pass and show the diff in your report. Do NOT stop and ask for
-approval first.
+This is expected work, not a risky change: the user just imported a file with holes in it and expects them filled. Do
+it as part of this pass, without stopping to ask for approval.
+
+Do not write it yourself. The preflight gate denies a main-thread write of any file inside the repository, `AGENTS.md`
+included, so the write goes to a subagent. Gather the evidence in the main thread, then spawn `agent-engineer`, which
+owns `AGENTS.md` work, and tell it to load `markdown-writer` for the prose rules. Give it the drafted paragraph and
+the drafted bullet list in the prompt rather than asking it to research the project again. Show its diff in your
+report.
 
 ## 8b. Verify docs/AGENTS-UPDATE.md shipped
 
@@ -190,22 +213,25 @@ failure mark for wiring that is genuinely broken or missing.
 - [ ] Agent directories present (`.agents`, `.claude`, `.opencode`, `.kilo`, `.codex`, `.github`)
 - [ ] Subagent trees present (`.claude/agents/`, `.agents/agents/`, `.codex/agents/`, `.github/agents/`) and the
       `.opencode/agents` and `.kilo/agents` symlinks intact
-- [ ] Preflight gate wired (`.agents/hooks/preflight_gate.py` plus the hook config your runtime reads)
+- [ ] Preflight gate wired (all four scripts in `.agents/hooks/` plus the hook config your runtime reads)
+- [ ] Python 3 on the path (version quoted, or "FAIL: gate wired but disarmed")
 - [ ] MCP runtime checked (names, or "none active") and the five config files accounted for
-- [ ] docs/MCP_SETUP.md trimmed to the active servers (show the diff, or "no trim needed")
+- [ ] `/tasks.md` ignored (already there, or added by a subagent)
+- [ ] docs/MCP_SETUP.md trimmed to the active servers (show the subagent's diff, or "no trim needed")
 - [ ] OpenSpec callable (slash command name, version if available)
 - [ ] End-to-end runbook tests checked (spec files, runner tool, `e2e-runner` subagent present, or "no e2e directory")
 - [ ] AGENTS.md inventory (paths found)
 - [ ] CLAUDE.md imports versus that inventory (drift listed, or "no drift")
-- [ ] Root AGENTS.md stubs filled (show the diff you just applied)
+- [ ] Root AGENTS.md stubs filled (show the diff the subagent applied)
 - [ ] docs/AGENTS-UPDATE.md present
 - [ ] Delegation strategy restated
 - [ ] Subdirectory AGENTS.md needed? (yes plus paths, or "no, single-application repo")
 
-Apply without asking, as part of this pass:
+Apply without asking, as part of this pass, each one through a subagent because the gate denies a main-thread write:
 
 - Filling the empty stub sections in the root `AGENTS.md`.
 - Trimming `docs/MCP_SETUP.md` to the servers this project actually uses.
+- Adding `/tasks.md` to `.gitignore` if it is not already ignored.
 
 Wait for approval before:
 

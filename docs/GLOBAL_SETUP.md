@@ -43,7 +43,19 @@ Stays per project, because a global copy would be wrong or actively harmful:
 
 ### Prerequisites
 
-You need `git`, and Python 3 if you want the blocking half of the gate to run.
+You need `git`, and Python 3 for the hooks. Every script under `.agents/hooks/` is Python, and every wiring throws a
+failed call away so a broken hook can never break a session, so a missing interpreter does not error: it allows every
+call the gate was meant to block. Confirm one answers before you rely on any of it. PowerShell:
+
+```powershell
+python --version
+```
+
+Unix shell:
+
+```bash
+python3 --version
+```
 
 Several steps below create a symlink, so on Windows do both of these before you start.
 
@@ -145,7 +157,8 @@ Unix shell:
 mkdir -p ~/.agents
 ```
 
-Copy the canonical content into it. This is `skills/`, the OpenCode-format `agents/` tree, the `hooks/` scripts, and
+Copy the canonical content into it. This is `skills/`, the OpenCode-format `agents/` tree, the four `hooks/`
+scripts (the preflight gate, the reply formatting check, the markdown lint pass, and the task-list mirror), and
 the `plugin/` shim, all in one move. PowerShell:
 
 ```powershell

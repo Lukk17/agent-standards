@@ -3,14 +3,19 @@
 This project imports a central set of AI agent standards from a shared repository:
 
 - Skills in [.agents/skills/](../.agents/skills/): reusable procedural guidance. Codex, OpenCode, Kilo Code, and
-  every GitHub Copilot surface read this directory natively. Claude Code reaches it through a symlink.
+  every GitHub Copilot surface read this directory natively. Claude Code reaches it through a symlink. Each skill
+  carries standard front matter (`name`, `description`, and optionally `license` or `compatibility`) per the open
+  [Agent Skills specification](https://agentskills.io/specification), and its description names the phrases that
+  should trigger it.
 - Subagents generated into [.claude/agents/](../.claude/agents/) (Claude markdown),
   [.agents/agents/](../.agents/agents/) (OpenCode markdown, shared by OpenCode and Kilo Code through symlinks),
   [.codex/agents/](../.codex/agents/) (TOML), and [.github/agents/](../.github/agents/) (`*.agent.md`).
 - Instructions in [AGENTS.md](../AGENTS.md): shared rules read natively by Codex, OpenCode, Kilo Code, and GitHub
   Copilot, and imported into Claude Code through [.claude/CLAUDE.md](../.claude/CLAUDE.md).
 - A preflight gate in [.agents/hooks/preflight_gate.py](../.agents/hooks/preflight_gate.py), one shared rule wired
-  into every agent's hook surface, that actually blocks work rather than just asking for it.
+  into every agent's hook surface, that actually blocks work rather than just asking for it, plus three hooks beside
+  it in [.agents/hooks/](../.agents/hooks/): a reply formatting check, a markdown lint pass after an edit, and a
+  task-list mirror that keeps the session plan alive across a compaction.
 - MCP servers in five real config files, one per agent surface.
 - OpenSpec, optional, for spec-driven feature work.
 
@@ -21,25 +26,42 @@ This project imports a central set of AI agent standards from a shared repositor
 The standards arrive through a Git selective checkout. Only production-ready folders and the one template file are
 pulled. The remote is read-only: its push URL is set to an invalid address, so you can pull updates but never push.
 
-#### Step 0, Windows only
+#### Step 0, prerequisites
 
-Three paths in this setup are symlinks (`.claude/skills`, `.opencode/agents`, `.kilo/agents`). Without symlink support
-git writes them as ordinary text files holding the target path, and the agents that depend on them silently see
-nothing. Turn on Developer Mode (Settings, System, For developers), then tell git to honour symlinks.
+Git pulls the files. Python 3 runs the hooks: every script in [.agents/hooks/](../.agents/hooks/) is Python, and
+every wiring throws a failed call away so a broken hook can never break a session, which means a missing interpreter
+reads as an allow. The gate is then wired and disarmed, silently. Check it before you rely on it. PowerShell:
 
-PowerShell, this repository only:
+```powershell
+python --version
+```
+
+Unix shell:
+
+```bash
+python3 --version
+```
+
+Node is needed only for OpenCode and Kilo Code, whose gate adapter is
+[.agents/plugin/hooks.js](../.agents/plugin/hooks.js), loaded by their own runtime. The other three agents need none.
+
+Windows also needs symlinks. Three paths in this setup are symlinks (`.claude/skills`, `.opencode/agents`,
+`.kilo/agents`). Without symlink support git writes them as ordinary text files holding the target path, and the
+agents that depend on them silently see nothing. Turn on Developer Mode (Settings, System, For developers), then tell
+git to honour symlinks, from inside the project you are importing into. PowerShell:
 
 ```powershell
 git config core.symlinks true
 ```
 
-PowerShell, globally:
+Unix shell:
 
-```powershell
-git config --global core.symlinks true
+```bash
+git config core.symlinks true
 ```
 
-Unix shells need nothing here.
+Adding `--global` to that command sets it for every repository on the machine, including clones you have not made
+yet, which is the form to use if you import the standards into more than one project.
 
 #### Step 1, initial import
 
@@ -79,12 +101,26 @@ Unix shell:
 mv AGENTS.md.example AGENTS.md
 ```
 
+Then ignore the agent task list. `.agents/hooks/task_list_sync.py` mirrors the live session task list into `tasks.md`
+at the project root so the plan survives a compaction, and that file is per-session working state rather than shared
+history. PowerShell:
+
+```powershell
+Add-Content .gitignore "`n/tasks.md"
+```
+
+Unix shell:
+
+```bash
+printf '\n/tasks.md\n' >> .gitignore
+```
+
 That is the whole setup. Commit when you are ready.
 
 What you just pulled:
 
 - [.agents/skills/](../.agents/skills/), the canonical skills, plus [.agents/agents/](../.agents/agents/), the shared
-  OpenCode-format subagents, [.agents/hooks/](../.agents/hooks/), the gate script and the formatting checker, and
+  OpenCode-format subagents, [.agents/hooks/](../.agents/hooks/), the four hook scripts, and
   [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), the OpenCode and Kilo adapter for the gate.
 - [.claude/](../.claude/): the `CLAUDE.md` bridge, the `skills` symlink, the generated `agents/` tree, and
   `settings.json` carrying the Claude Code hooks.
@@ -120,9 +156,9 @@ If any of them came through as a small text file instead of a link, go back to S
 #### Step 2, pulling future updates
 
 [docs/AGENTS-UPDATE.md](AGENTS-UPDATE.md) ships from upstream, holds the per-shell update commands, and refreshes
-itself on every run. Open it and run the block for your shell. It refreshes the shipped documents, the gate script and
-plugin, the Copilot hook file, and only the skills and subagents already present in your tree. Nothing new appears
-behind your back.
+itself on every run. Open it and run the block for your shell. It refreshes the shipped documents, all four hook
+scripts and the plugin, the Copilot hook file, and only the skills and subagents already present in your tree.
+Nothing new appears behind your back.
 
 It deliberately leaves your `AGENTS.md`, your five MCP config files, `.claude/settings.json`, and `.claude/CLAUDE.md`
 alone. Those are yours. When you do want an upstream change in one of the configuration files, each shell section of
@@ -142,9 +178,12 @@ the hook payload and denies three things:
 
 - A write of any file that resolves inside the repository working tree, coming straight from the main thread.
   Markdown, configuration, and the docs tree carry no exemption any more, so the main thread delegates every source,
-  doc, and config change to a subagent that owns the area. A write outside the repository, the null device, and
-  switching a git branch stay allowed, and the main thread keeps full use of git for everything else.
-- Any edit from a subagent whose own definition declares no skills. Spawn a specialist that names its skills instead.
+  doc, and config change to a subagent that owns the area. A relative path is resolved against whatever a leading
+  `cd` in the command moved to, so changing directory first does not get a write past it. A write outside the
+  repository, the null device, `tasks.md` at the project root, and switching a git branch stay allowed, so the main
+  thread keeps full use of git and keeps ownership of its own task list.
+- Any tool call, not only an edit, from a subagent whose own definition declares no skills. Spawn a specialist that
+  names its skills instead.
 - A web fetch or web search called straight from the main thread, on the one format whose payload names that tool
   today, Claude Code. Spawn a subagent to do the research and report back instead.
 
@@ -157,11 +196,15 @@ Each agent wires that same script through its own hook surface:
 
 | Agent | Where the hooks live | What it can stop |
 | --- | --- | --- |
-| Claude Code | [.claude/settings.json](../.claude/settings.json) | blocks the tool call, injects the gate every turn, and blocks a reply through a `Stop` hook |
-| Codex | inline `[[hooks.*]]` tables in [.codex/config.toml](../.codex/config.toml) | blocks the tool call, injects the gate every turn and on subagent start |
+| Claude Code | [.claude/settings.json](../.claude/settings.json) | blocks the tool call, injects the gate at session start and every turn, lints markdown after an edit, blocks a reply on `Stop` and `SubagentStop`, and mirrors the task list |
+| Codex | inline `[[hooks.*]]` tables in [.codex/config.toml](../.codex/config.toml) | blocks the tool call, injects the gate every turn and on subagent start, runs the formatting check on `Stop`, and seeds the task list at session start |
 | OpenCode | plugin [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), declared in [opencode.json](../opencode.json) | blocks the tool call |
 | Kilo Code | the same plugin, the same declaration | blocks the tool call |
 | GitHub Copilot | [.github/hooks/preflight.json](../.github/hooks/preflight.json) | fires on the tool call but always allows, caller identity is always unknown there; injects the gate once per session and on subagent start |
+
+Only Claude Code has task events, so `tasks.md` is written from them there and merely injected at session start
+elsewhere. Nothing has a task-updated event, so the hook writes only `open` and `done` and the model sets
+`in progress` and `blocked` by editing the file, which is why that one path is exempt from the write rule above.
 
 Every one of those wirings anchors the gate at the project root before calling it. A session started in a subdirectory
 used to resolve the relative script path to nothing, and Python exits 2 when it cannot open the file it was handed,
@@ -415,7 +458,7 @@ The methodology behind the schema is documented in the
 
 Start the agent:
 
-```shell
+```bash
 claude
 ```
 

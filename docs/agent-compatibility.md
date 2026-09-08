@@ -2,8 +2,8 @@
 
 What each supported agent reads, where it reads it from, what it can actually block, and the few places our layout
 has to work around a tool limitation. Checked against vendor documentation on 2026-08-25, against Claude Code 2.1.250,
-Codex 0.150.1, OpenCode 1.18.25, and Kilo Code 7.5.5. Cells that rest on something less than official documentation
-say so.
+Codex 0.150.1, OpenCode 1.18.25, Kilo Code 7.5.5, and GitHub Copilot CLI 1.0.81. Cells that rest on something less
+than official documentation say so.
 
 This file stays in the agent-standards repo only. For the full repository tree and each agent's instruction-merge
 precedence, see [repository-layout.md](repository-layout.md). For human MCP setup (keys, environment variables,
@@ -82,33 +82,55 @@ a generated tree.
 The gate is one shared rule in [../.agents/hooks/preflight_gate.py](../.agents/hooks/preflight_gate.py). It reads a
 hook payload on standard input and denies three things: a write of any file resolving inside the repository working
 tree coming from the main thread, with no exemption left for markdown, configuration, or `docs/` (delegate the change
-to a subagent that owns the area instead), any edit from a subagent whose own definition declares no skills (spawn a
-specialist instead), and a web fetch or web search called straight from the main thread on the one format whose
-payload names that tool today, Claude Code. A write outside the repository, the null device, and switching a git
-branch stay allowed, and the main thread keeps full use of git otherwise. Caller identity is a tri-state, subagent,
-main thread, or unknown when a payload carries nothing that could tell the two apart, and none of the three rules
-fires on an unknown caller. Every failure path also allows the call, because a broken gate must never break a
-session.
+to a subagent that owns the area instead), any tool call at all from a subagent whose own definition declares no
+skills (spawn a specialist instead), and a web fetch or web search called straight from the main thread on the one
+format whose payload names that tool today, Claude Code. A relative path is resolved against whatever a leading `cd`
+in the command moved to, so changing directory first buys nothing. A write outside the repository, the null device,
+`tasks.md` at the project root, and switching a git branch stay allowed, and the main thread keeps full use of git
+otherwise. Caller identity is a tri-state, subagent, main thread, or unknown when a payload carries nothing that
+could tell the two apart, and none of the three rules fires on an unknown caller. Every failure path also allows the
+call, because a broken gate must never break a session, with one deliberate exception: a path neither
+repository-boundary helper can resolve is treated as inside, which denies.
 
-Each agent wires that one script through its own hook surface, and the surfaces differ in what they can stop.
+Three more hooks live beside it in [../.agents/hooks/](../.agents/hooks/) and ride the same wirings:
+`no_ai_markers_check.py` checks the reply, `markdown_lint_check.py` lints a file just after it was edited, and
+`task_list_sync.py` mirrors the session task list into `tasks.md`. Every hook is invoked as `python -S -E`, and none
+of them uses `argparse`, because it exits 2 on a usage error and 2 is the deny code in the plain format.
+
+Each agent wires those scripts through its own hook surface, and the surfaces differ in what they can stop.
 
 | Agent | Hook config | Blocks a tool call | Injects context | Blocks a reply | Tells subagent from main thread |
 | --- | --- | --- | --- | --- | --- |
-| Claude Code | [.claude/settings.json](../.claude/settings.json) | yes, `PreToolUse` | yes, `UserPromptSubmit` on every turn including the first | yes, `Stop` | yes, `agent_id` is present only inside a subagent |
-| Codex | inline `[[hooks.*]]` in [.codex/config.toml](../.codex/config.toml) | yes, `PreToolUse` | yes, `UserPromptSubmit` and `SubagentStart` | no | yes, `agent_id` is present only inside a subagent |
+| Claude Code | [.claude/settings.json](../.claude/settings.json) | yes, `PreToolUse` | yes, `SessionStart` and `UserPromptSubmit` on every turn | yes, `Stop` and `SubagentStop` | yes, `agent_id` is present only inside a subagent |
+| Codex | inline `[[hooks.*]]` in [.codex/config.toml](../.codex/config.toml) | yes, `PreToolUse` | yes, `UserPromptSubmit` and `SubagentStart` | runs the check on `Stop` | yes, `agent_id` is present only inside a subagent |
 | OpenCode | plugin [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), declared by path in [opencode.json](../opencode.json) | yes, throwing from `tool.execute.before` | no per-turn channel | no | yes, via the acting agent on the payload and the session `parentID` |
 | Kilo Code | the same plugin, same declaration | yes, throwing from `tool.execute.before` | no per-turn channel | no | yes, same mechanism |
 | GitHub Copilot | [.github/hooks/preflight.json](../.github/hooks/preflight.json), camelCase events | fires on `preToolUse`, but caller identity there always resolves to unknown, so the gate always allows | yes, `sessionStart` and `subagentStart` | no | no, the `preToolUse` payload carries no agent identifier |
 
-Reading the table row by row:
+The full event set per surface, beyond the gate itself:
+
+| Agent | Gate | Formatting check | Markdown lint | Task list |
+| --- | --- | --- | --- | --- |
+| Claude Code | `SessionStart`, `UserPromptSubmit`, `PreToolUse` | `Stop`, `SubagentStop` | `PostToolUse`, matcher `^(Edit\|Write\|MultiEdit)$` | `TaskCreated`, `TaskCompleted`, `SessionStart`, `PreCompact`, `Stop` |
+| Codex | `UserPromptSubmit`, `SubagentStart`, `PreToolUse` | `Stop` | not wired, no matching event | `SessionStart` |
+| OpenCode and Kilo Code | `tool.execute.before` | same event, the runner passes every hook | same event | same event |
+| GitHub Copilot | `sessionStart`, `subagentStart`, `preToolUse` | not wired | not wired | `sessionStart` |
+
+Reading the tables row by row:
 
 - Every row anchors the gate at the project root before calling it, so a session started in a subdirectory still finds
   [../.agents/hooks/preflight_gate.py](../.agents/hooks/preflight_gate.py), and a missing script allows rather than
   denies. Python exits 2 when it cannot open the file it was handed, and 2 is the deny code, so an unanchored path used
   to block every tool call.
-- Claude Code is the only surface with a reply-level block. Its `Stop` hook runs
+- Claude Code is the only surface with a reply-level block. Its `Stop` and `SubagentStop` hooks run
   [../.agents/hooks/no_ai_markers_check.py](../.agents/hooks/no_ai_markers_check.py), which rejects a reply whose prose
-  carries an em dash, an en dash, a semicolon, or a bold marker, and asks for a rewrite.
+  carries an em dash, an en dash, a semicolon, or a bold or italic marker, asterisk or underscore form, and asks for a
+  rewrite. It reads `last_assistant_message` out of the payload rather than re-deriving the text.
+- Only Claude Code has task events, and no agent has a task-updated event, so `task_list_sync.py` writes `open` and
+  `done` and the model sets `in progress` and `blocked` by editing `tasks.md` itself. That is the one path Rule A
+  exempts. Elsewhere the hook only injects the file at session start, which is also how the list survives a
+  compaction, since `SessionStart` fires again with `source` set to `compact` and no agent delivers
+  `additionalContext` out of a pre-compact event today.
 - Codex carries its hooks inline in `.codex/config.toml`, the same file that holds its MCP servers. There is no
   separate `.codex/hooks.json` any more. Codex also loads that whole layer only after the project is trusted.
 - OpenCode and Kilo Code run one plugin file between them. Neither has an event that can block a reply, so on those two

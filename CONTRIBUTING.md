@@ -46,7 +46,7 @@ the same CI workflow first, so a release runs the container suite as well.
 ### Things to watch for in your PR
 
 - No em-dashes or en-dashes in human-facing markdown (`README.md`, `AGENTS.md.example`, `docs/*.md`,
-  `.agents/skills/**/*.md`). CI lint will flag them. The `markdown-writer` skill explains why.
+  `.agents/skills/**/*.md`, `subagents/*.md`). CI lint will flag them. The `markdown-writer` skill explains why.
 - Prose lines under 120 characters in the same files. Tables, fenced code blocks, badge lines, and
   `<summary>` tags are exempt.
 - Section headings start at level 3 in the same files. Level 1 is the document title and level 2 is never used. The
@@ -56,9 +56,10 @@ the same CI workflow first, so a release runs the container suite as well.
   `.codex/agents/`, and `.github/agents/`. CI runs `--check` and fails on drift.
 - JSON validity for `.mcp.json`, `opencode.json`, `.vscode/mcp.json`, `.github/mcp.json`, `.claude/settings.json`,
   and `.github/hooks/preflight.json` if you touch those, and TOML validity for `.codex/config.toml`.
-- Tests for the shared hooks. If you change [.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) or
-  [.agents/hooks/no_ai_markers_check.py](.agents/hooks/no_ai_markers_check.py), add or update the matching case in
-  [tools/tests/](tools/tests/). CI runs the suite.
+- Tests for the shared hooks. If you change any of the four scripts in [.agents/hooks/](.agents/hooks/), add or
+  update the matching case in [tools/tests/](tools/tests/). CI runs the suite. Keep every hook standard library only,
+  because they run as `python -S -E`, and keep `argparse` out of them, because it exits 2 on a usage error and 2 is
+  the deny code.
 - Dependencies declared once. [tools/pyproject.toml](tools/pyproject.toml) is the only file where a dependency or
   a version is written by hand, and no lock file sits beside it. Every version is an exact pin: the runtime ones
   under `[project.dependencies]`, the test ones in the `dev` dependency group, and the build backend under
@@ -107,12 +108,15 @@ python tools/gen_subagents.py --check
 
 The repo ships symlinks: `.claude/skills` points at `.agents/skills`, and `.opencode/agents` and `.kilo/agents` both
 point at `.agents/agents`. Git only creates them when it is allowed to. Turn on Windows Developer Mode and set the
-option below before cloning, otherwise Git writes each link out as a plain text file holding its target path and every
-agent that follows the link finds nothing.
+option below, otherwise Git writes each link out as a plain text file holding its target path and every agent that
+follows the link finds nothing.
 
 ```powershell
-git config --global core.symlinks true
+git config core.symlinks true
 ```
+
+That form applies to the repository you run it in. Adding `--global` sets it for every repository on the machine,
+including clones you have not made yet, which is the form to use before cloning rather than after.
 
 If you already cloned without it, fix the setting and then run the generator, which recreates and repairs the agent
 symlinks:
@@ -125,13 +129,23 @@ python tools/gen_subagents.py
 
 ### Adding a new skill
 
-Drop a folder under `.agents/skills/<name>/` containing a `SKILL.md` with YAML frontmatter
-(`name:`, `description:`). The folder name and the `name:` field must match. Pattern-match an existing skill
-(e.g. [coding-standards](.agents/skills/coding-standards/SKILL.md)) for shape.
+Drop a folder under `.agents/skills/<name>/` containing a `SKILL.md`. The folder name and the `name:` field must
+match. Pattern-match an existing skill (e.g. [coding-standards](.agents/skills/coding-standards/SKILL.md)) for shape.
+
+The front matter carries `name` and `description` and nothing else, beyond an optional `license` or `compatibility`,
+following the open [Agent Skills specification](https://agentskills.io/specification). Write the description in
+trigger form: what the skill covers, then the phrases a user would actually say, then what it is not for and which
+skill owns that instead. Keep the manifest short and push the depth into a `references/` subdirectory. When a topic
+grows into several near-siblings, make it one hub with a reference file per topic rather than a family of skills
+competing to match the same phrase.
 
 If the skill is human-facing prose, follow the [markdown-writer](.agents/skills/markdown-writer/SKILL.md) rules
 (em-dash ban, 120-char wrap, divider per section, link every file/folder mention). If the skill is machine-facing
 reference for a tool or stack, the voice rules relax, so just stay consistent with the existing skills in that genre.
+
+Renaming or deleting a skill is not a local change. Every canonical subagent that lists it has to be updated in the
+same commit, because [tools/gen_subagents.py](tools/gen_subagents.py) exits with an error naming any skill that has
+no folder, and CI runs it with `--check`.
 
 Bump the skill-count badge in [README.md](README.md) in the same change. Counts live in the badges and nowhere else,
 so that one edit is the whole update.
@@ -144,6 +158,12 @@ Add a frontmatter-headed Markdown file under `subagents/<name>.md`. Run `python 
 per-tool copies in `.claude/agents/`, `.agents/agents/`, `.codex/agents/`, and `.github/agents/`. The same run repairs
 the `.opencode/agents` and `.kilo/agents` symlinks, which point at `.agents/agents` rather than holding their own copy.
 Commit the canonical source AND the generated outputs, and bump the subagent-count badge in [README.md](README.md).
+
+The generator validates before it writes. Every name in the `skills` list needs a folder under `.agents/skills/`,
+every name in `tools` has to be one it knows, and `model` has to be `opus`, `sonnet`, `haiku`, or `inherit`. A
+`tools` list of exactly `read`, `grep` and `glob` also earns `permissionMode: plan` in the Claude Code output, which
+is how a read-only agent stays read-only. `subagents/*.md` is inside the markdown lint scope, so run
+`python tools/check-markdown.py` on the new file too.
 
 ---
 
