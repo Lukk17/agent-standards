@@ -1,6 +1,6 @@
 ---
 name: design-system
-description: Build and audit a design system: token architecture and naming, spacing rhythm, stylesheet organisation, Tailwind v4 CSS-first theming, dark mode, and visual-consistency review. Use when you say "set up design tokens", "audit this UI for consistency", "there are forty shades of grey in this codebase", "migrate us to Tailwind v4 @theme", or "review this PR for styling drift". Not for choosing the visual direction itself, use `frontend-design`.
+description: "Build and audit a design system: token architecture and naming, spacing rhythm, stylesheet organisation, Tailwind v4 CSS-first theming, dark mode, and visual-consistency review. Use when you say \"set up design tokens\", \"audit this UI for consistency\", \"there are forty shades of grey in this codebase\", \"migrate us to Tailwind v4 @theme\", or \"review this PR for styling drift\". Not for choosing the visual direction itself, use `frontend-design`."
 license: Apache-2.0
 ---
 

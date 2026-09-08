@@ -286,6 +286,18 @@ verify_claude() {
     '[.hooks.PreToolUse[].hooks[].command] | any(endswith("; exit 0"))'
   assert_json "the gate text is injected on every prompt" ".claude/settings.json" \
     '[.hooks.UserPromptSubmit[].hooks[].command] | any(contains("PREFLIGHT"))'
+  assert_json "every hook Claude Code calls runs on python -S -E" ".claude/settings.json" \
+    '[.hooks[][].hooks[].command] | map(select(contains(".agents/hooks/"))) | ((length > 0) and all(contains("python -S -E")))'
+  assert_json "the formatting check is wired into Stop" ".claude/settings.json" \
+    '[.hooks.Stop[].hooks[].command] | any(contains("no_ai_markers_check.py"))'
+  assert_json "the formatting check is wired into SubagentStop" ".claude/settings.json" \
+    '[.hooks.SubagentStop[].hooks[].command] | any(contains("no_ai_markers_check.py"))'
+  assert_json "the task list is wired into TaskCreated" ".claude/settings.json" \
+    '[.hooks.TaskCreated[].hooks[].command] | any(contains("task_list_sync.py"))'
+  assert_json "the task list is wired into TaskCompleted" ".claude/settings.json" \
+    '[.hooks.TaskCompleted[].hooks[].command] | any(contains("task_list_sync.py"))'
+  assert_json "the markdown lint is wired into PostToolUse" ".claude/settings.json" \
+    '[.hooks.PostToolUse[].hooks[].command] | any(contains("markdown_lint_check.py"))'
   assert_json "MCP servers are present in the file Claude Code reads" ".mcp.json" \
     '(.mcpServers | length) > 0'
 
@@ -308,6 +320,10 @@ verify_codex() {
     '[.hooks.PreToolUse[].matcher] | any(type == "string" and test("Bash") and test("apply_patch"))'
   assert_toml "the gate text is injected on every prompt" ".codex/config.toml" \
     '[.hooks.UserPromptSubmit[].hooks[].command] | any(contains("PREFLIGHT"))'
+  assert_toml "every hook Codex calls runs on python -S -E" ".codex/config.toml" \
+    '[.hooks[][].hooks[] | (.command // empty), (.commandWindows // empty)] | map(select(contains(".agents/hooks/"))) | ((length > 0) and all(contains("python -S -E")))'
+  assert_toml "the formatting check is wired into Stop" ".codex/config.toml" \
+    '[.hooks.Stop[].hooks[] | (.command // empty), (.commandWindows // empty)] | any(contains("no_ai_markers_check.py"))'
   assert_toml "MCP servers are present in the file Codex reads" ".codex/config.toml" \
     '(.mcp_servers | length) > 0'
 
@@ -364,6 +380,8 @@ verify_copilot() {
     '[.hooks.sessionStart[].bash] | any(contains("PREFLIGHT"))'
   assert_json "the gate is scoped to the tools that can write" ".github/hooks/preflight.json" \
     '[.hooks.preToolUse[].matcher] | any(type == "string" and test("bash") and test("powershell") and test("create") and test("edit"))'
+  assert_json "every hook Copilot calls runs on python -S -E" ".github/hooks/preflight.json" \
+    '[.hooks[][] | (.bash // empty), (.powershell // empty)] | map(select(contains(".agents/hooks/"))) | ((length > 0) and all(contains("python -S -E")))'
   assert_json "MCP servers are present in the file Copilot in VS Code reads" ".vscode/mcp.json" \
     '(.servers | length) > 0'
   assert_json "MCP servers are present in the GitHub Copilot CLI's own MCP configuration" ".github/mcp.json" \

@@ -216,6 +216,12 @@ Claude Code, does it read the edited path from `tool_input.file_path`, check tha
 that one file, and hand the violations back as `additionalContext`. It reports rather than denies, so it always
 returns 0 there too.
 
+The same script also validates front matter on every `.agents/skills/*/SKILL.md` and `subagents/*.md` file it lints:
+the block has to parse as YAML, `name` has to match the skill folder or the subagent file stem, and `description` has
+to be a non-empty single-line string of at most 1024 characters. A skill's front matter may carry only `name`,
+`description`, `license`, `compatibility` and `metadata`, and a description containing a colon followed by a space
+has to be double-quoted, because GitHub Copilot refuses to load a manifest that breaks that rule.
+
 ---
 
 ### A third hook, end to end

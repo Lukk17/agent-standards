@@ -367,9 +367,8 @@ a rebuild before a run sees it.
 
 ### Defects this sandbox has already caught
 
-The sandbox currently passes every assertion. Both failures it reported on its first run were real defects in the
-repository rather than sandbox bugs, and both are fixed. They are recorded here because they show the class of
-problem only a live run finds.
+Every failure the sandbox has reported so far was a real defect in the repository rather than a sandbox bug. They are
+recorded here because they show the class of problem only a live run finds. All three are fixed as this is written.
 
 1. Kilo Code rejected the shared `opencode.json` outright. An `{env:VAR}` reference is banned in project-scope
    configuration, and Kilo discards the whole file rather than leaving the token literal, which took the `plugin`
@@ -380,9 +379,18 @@ problem only a live run finds.
    header, so `context7` is declared unauthenticated and both tools use the free tier. A paid key goes in the reader's
    own global configuration. It cannot go in a project file, because Kilo would reject that file whole and take the
    gate declaration with it again.
-2. One skill had invalid YAML front matter. An unquoted colon in the `description` of
-   `.agents/skills/nextjs-turbopack/SKILL.md` made GitHub Copilot skip the skill entirely. The value is quoted now,
-   and a scan confirmed it was the only one of the 84 affected.
+2. One skill had invalid YAML front matter. An unquoted colon in the `description` of a skill manifest made
+   GitHub Copilot skip that skill entirely. The value is quoted now.
+3. The same defect came back in two more manifests. `copilot skill list` refused
+   [.agents/skills/ai-regression-testing/SKILL.md](../.agents/skills/ai-regression-testing/SKILL.md) and
+   [.agents/skills/design-system/SKILL.md](../.agents/skills/design-system/SKILL.md) with
+   `mapping values are not allowed in this context`, because each `description` carried an unquoted colon, which left
+   both skills invisible to Copilot. Both values are quoted now. Item 2 was closed with a one-off scan, which is why
+   this one got in, so the check is mechanical this time: `check_front_matter` in
+   [tools/check-markdown.py](../tools/check-markdown.py) parses the front matter of every skill manifest and every
+   canonical subagent source with a strict YAML parser, and reports an unquoted colon or a leading YAML indicator in a
+   description, a name that does not match the folder name or the file stem, a missing, empty, non-string or
+   over-length description, and any skill key outside the Agent Skills specification. CI runs it on every pull request.
 
 ---
 

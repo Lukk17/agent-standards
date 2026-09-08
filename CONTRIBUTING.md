@@ -163,7 +163,10 @@ The generator validates before it writes. Every name in the `skills` list needs 
 every name in `tools` has to be one it knows, and `model` has to be `opus`, `sonnet`, `haiku`, or `inherit`. A
 `tools` list of exactly `read`, `grep` and `glob` also earns `permissionMode: plan` in the Claude Code output, which
 is how a read-only agent stays read-only. `subagents/*.md` is inside the markdown lint scope, so run
-`python tools/check-markdown.py` on the new file too.
+`python tools/check-markdown.py` on the new file too. That check also validates the front matter: it has to parse as
+YAML, `name` has to match the file stem, `description` has to be a non-empty single-line string of at most 1024
+characters, and a description containing a colon followed by a space has to be double-quoted, or GitHub Copilot
+refuses to load it.
 
 ---
 

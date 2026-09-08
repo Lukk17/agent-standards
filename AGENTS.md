@@ -195,7 +195,11 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
 - **Markdown lint.** `README.md`, `AGENTS.md.example`, `docs/*.md`, `.agents/skills/**/*.md`, and the canonical
   `subagents/*.md` must contain no em-dashes or en-dashes, no prose line over 120 characters, and no level-2 heading.
   The four generated subagent trees are out of scope, because linting them would report the same violation five
-  times. This real `AGENTS.md` is not in the lint scope either, but match the style anyway.
+  times. This real `AGENTS.md` is not in the lint scope either, but match the style anyway. The same pass also
+  validates front matter on every `.agents/skills/<name>/SKILL.md` and every `subagents/<name>.md`: the block has to
+  parse as YAML, carry a `name` matching the folder name or the file stem, carry a non-empty string `description` of
+  at most 1024 characters that is quoted whenever it holds a colon, and, on a skill, carry no key beyond the five the
+  Agent Skills specification defines.
 - **One runnable command per fenced code block** in any doc a human copies, with the matching language tag and no
   `#` comment lines inside the block (global rule).
 - **One server set, one schema per file.** [.mcp.json](.mcp.json) (key `mcpServers`) serves Claude Code only.
