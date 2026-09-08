@@ -1,468 +1,152 @@
 ---
 name: database-migrations
-description: Database migration best practices for schema changes, data migrations, rollbacks, and zero-downtime deployments across PostgreSQL, MySQL, and common ORMs (Prisma, Drizzle, Kysely, Django, TypeORM, golang-migrate).
-origin: ECC
+description: Safe, reversible schema and data migrations for production databases, covering lock-free column and index changes, expand-contract renames, batched backfills, explicit constraint names, rollback strategy, and the review gates a migration must pass. Use when you say "add a column to this table", "create this index without downtime", "rename a column safely", "backfill ten million rows", or "how do we roll this migration back". Not for index choice and query tuning, use `postgres-patterns`.
 ---
 
-# Database Migration Patterns
+# Database Migrations
 
-Safe, reversible database schema changes for production systems.
+Rules for changing a schema that is already carrying production traffic, where the failure mode is a locked table
+rather than a compile error. The tool-specific commands live in the references. This file is the safety model every
+tool has to satisfy.
 
----
-
-### When to Activate
-
-- Creating or altering database tables
-- Adding/removing columns or indexes
-- Running data migrations (backfill, transform)
-- Planning zero-downtime schema changes
-- Setting up migration tooling for a new project
+Baseline versions, current as of September 2026: PostgreSQL 17, MySQL 8.4 LTS, and the migration tools named in the
+reference map below.
 
 ---
 
-### Core Principles
+### When to activate
 
-1. Every change is a migration: never alter production databases manually
-2. Migrations are forward-only in production: rollbacks use new forward migrations
-3. Schema and data migrations are separate: never mix DDL and DML in one migration
-4. Test migrations against production-sized data: a migration that works on 100 rows may lock on 10M
-5. Migrations are immutable once deployed: never edit a migration that has run in production
-
----
-
-### Migration Safety Checklist
-
-Before applying any migration:
-
-- [ ] Migration has both UP and DOWN (or is explicitly marked irreversible)
-- [ ] No full table locks on large tables (use concurrent operations)
-- [ ] New columns have defaults or are nullable (never add NOT NULL without default)
-- [ ] Indexes created concurrently (not inline with CREATE TABLE for existing tables)
-- [ ] Data backfill is a separate migration from schema change
-- [ ] Tested against a copy of production data
-- [ ] Rollback plan documented
+- Creating or altering a table, column, index, or constraint on a live database.
+- Backfilling or transforming existing rows.
+- Planning a schema change that must survive a rolling deploy.
+- Choosing or configuring migration tooling on a new project.
+- Reviewing a migration before it reaches a production database.
 
 ---
 
-### PostgreSQL Patterns
+### When not to activate
 
-#### Adding a Column Safely
+- Choosing an index type, reading a query plan, or tuning a slow query: use `postgres-patterns`.
+- MongoDB document model and schema versioning: use `mongodb-schema-design`.
+- JPA and Hibernate entity mapping above the schema: use `jpa-patterns`.
+- Deploy orchestration and rollback of the application itself: use `deployment-patterns`.
+- Backup, restore, and retention policy: use `postgres-patterns`.
+
+---
+
+### Reference map
+
+| Tool | Open |
+| --- | --- |
+| Prisma | [references/prisma.md](references/prisma.md) |
+| Drizzle | [references/drizzle.md](references/drizzle.md) |
+| Kysely | [references/kysely.md](references/kysely.md) |
+| Django | [references/django.md](references/django.md) |
+| golang-migrate | [references/golang-migrate.md](references/golang-migrate.md) |
+
+---
+
+### Core principles
+
+1. Every change is a migration. Never alter a production database by hand.
+2. Production is forward-only. A rollback is a new forward migration, not a re-run of a down file.
+3. Schema and data changes are separate migrations. Never mix DDL and DML in one file.
+4. Test against production-sized data. A migration that runs on 100 rows can lock on 10 million.
+5. A deployed migration is immutable. Editing one that has already run produces drift between environments.
+
+---
+
+### Add a column without rewriting the table
 
 ```sql
--- GOOD: Nullable column, no lock
+-- PASS: nullable column, metadata-only change
 ALTER TABLE users ADD COLUMN avatar_url TEXT;
 
--- GOOD: Column with default (Postgres 11+ is instant, no rewrite)
+-- PASS: PostgreSQL 15 or newer stores a constant default in the catalogue, so no rewrite happens
 ALTER TABLE users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT true;
 
--- BAD: NOT NULL without default on existing table (requires full rewrite)
+-- FAIL: NOT NULL with no default on an existing table rewrites every row under an exclusive lock
 ALTER TABLE users ADD COLUMN role TEXT NOT NULL;
--- This locks the table and rewrites every row
 ```
 
-#### Adding an Index Without Downtime
+To reach a NOT NULL column with no sensible default, take three steps: add it nullable, backfill in batches, then add
+the constraint as `NOT VALID` and `VALIDATE CONSTRAINT` separately, which takes a weaker lock.
+
+---
+
+### Build indexes concurrently
 
 ```sql
--- BAD: Blocks writes on large tables
-CREATE INDEX idx_users_email ON users (email);
-
--- GOOD: Non-blocking, allows concurrent writes
+-- PASS
 CREATE INDEX CONCURRENTLY idx_users_email ON users (email);
 
--- Note: CONCURRENTLY cannot run inside a transaction block
--- Most migration tools need special handling for this
+-- FAIL: blocks every write to the table for the duration of the build
+CREATE INDEX idx_users_email ON users (email);
 ```
 
-#### Renaming a Column (Zero-Downtime)
+`CONCURRENTLY` cannot run inside a transaction block, and most migration tools wrap each file in one, so the statement
+needs its own migration and usually a tool-specific opt-out. A concurrent build that fails leaves an invalid index
+behind: check `pg_index.indisvalid` and drop it before retrying.
 
-Never rename directly in production. Use the expand-contract pattern:
+---
+
+### Rename with expand and contract, never in place
+
+A rename is instantaneous for the database and fatal for the running application, because the old code and the new
+schema overlap during any rolling deploy.
 
 ```sql
--- Step 1: Add new column (migration 001)
+-- 001 expand: add the new column
 ALTER TABLE users ADD COLUMN display_name TEXT;
 
--- Step 2: Backfill data (migration 002, data migration)
+-- 002 backfill: separate data migration, batched
 UPDATE users SET display_name = username WHERE display_name IS NULL;
 
--- Step 3: Update application code to read/write both columns
--- Deploy application changes
+-- deploy the application version that writes both and reads the new column
 
--- Step 4: Stop writing to old column, drop it (migration 003)
+-- 003 contract: drop the old column once nothing references it
 ALTER TABLE users DROP COLUMN username;
 ```
 
-#### Removing a Column Safely
+Dropping a column follows the same order in reverse: remove every application reference, deploy, then drop.
+
+---
+
+### Backfill in bounded batches
 
 ```sql
--- Step 1: Remove all application references to the column
--- Step 2: Deploy application without the column reference
--- Step 3: Drop column in next migration
-ALTER TABLE orders DROP COLUMN legacy_status;
-
--- For Django: use SeparateDatabaseAndState to remove from model
--- without generating DROP COLUMN (then drop in next migration)
+-- FAIL: one transaction over every row, holding locks and bloating the WAL
+UPDATE users SET normalized_email = LOWER(email);
 ```
 
-#### Large Data Migrations
-
 ```sql
--- BAD: Updates all rows in one transaction (locks table)
-UPDATE users SET normalized_email = LOWER(email);
-
--- GOOD: Batch update with progress
+-- PASS: bounded batches, each committed, skipping rows another worker holds
 DO $$
 DECLARE
-  batch_size INT := 10000;
   rows_updated INT;
 BEGIN
   LOOP
-    UPDATE users
-    SET normalized_email = LOWER(email)
+    UPDATE users SET normalized_email = LOWER(email)
     WHERE id IN (
-      SELECT id FROM users
-      WHERE normalized_email IS NULL
-      LIMIT batch_size
-      FOR UPDATE SKIP LOCKED
+      SELECT id FROM users WHERE normalized_email IS NULL
+      LIMIT 10000 FOR UPDATE SKIP LOCKED
     );
     GET DIAGNOSTICS rows_updated = ROW_COUNT;
-    RAISE NOTICE 'Updated % rows', rows_updated;
     EXIT WHEN rows_updated = 0;
     COMMIT;
   END LOOP;
 END $$;
 ```
 
+Make the batch resumable by selecting on the condition the update clears, so a killed backfill can simply be restarted.
+
 ---
 
-### Prisma (TypeScript/Node.js)
+### Name every constraint explicitly
 
-#### Workflow
-
-```bash
-# Create migration from schema changes
-npx prisma migrate dev --name add_user_avatar
-
-# Apply pending migrations in production
-npx prisma migrate deploy
-
-# Reset database (dev only)
-npx prisma migrate reset
-
-# Generate client after schema changes
-npx prisma generate
-```
-
-#### Schema Example
-
-```prisma
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  avatarUrl String?  @map("avatar_url")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  orders    Order[]
-
-  @@map("users")
-  @@index([email])
-}
-```
-
-#### Custom SQL Migration
-
-For operations Prisma cannot express (concurrent indexes, data backfills):
-
-```bash
-# Create empty migration, then edit the SQL manually
-npx prisma migrate dev --create-only --name add_email_index
-```
+An auto-generated name differs between environments and cannot be dropped reliably in a later migration.
 
 ```sql
--- migrations/20240115_add_email_index/migration.sql
--- Prisma cannot generate CONCURRENTLY, so we write it manually
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_email ON users (email);
-```
-
----
-
-### Drizzle (TypeScript/Node.js)
-
-#### Workflow
-
-```bash
-# Generate migration from schema changes
-npx drizzle-kit generate
-
-# Apply migrations
-npx drizzle-kit migrate
-
-# Push schema directly (dev only, no migration file)
-npx drizzle-kit push
-```
-
-#### Schema Example
-
-```typescript
-import { pgTable, text, timestamp, uuid, boolean } from "drizzle-orm/pg-core";
-
-export const users = pgTable("users", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  email: text("email").notNull().unique(),
-  name: text("name"),
-  isActive: boolean("is_active").notNull().default(true),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
-```
-
----
-
-### Kysely (TypeScript/Node.js)
-
-#### Workflow (kysely-ctl)
-
-```bash
-# Initialize config file (kysely.config.ts)
-kysely init
-
-# Create a new migration file
-kysely migrate make add_user_avatar
-
-# Apply all pending migrations
-kysely migrate latest
-
-# Rollback last migration
-kysely migrate down
-
-# Show migration status
-kysely migrate list
-```
-
-#### Migration File
-
-```typescript
-// migrations/2024_01_15_001_create_user_profile.ts
-import { type Kysely, sql } from 'kysely'
-
-// IMPORTANT: Always use Kysely<any>, not your typed DB interface.
-// Migrations are frozen in time and must not depend on current schema types.
-export async function up(db: Kysely<any>): Promise<void> {
-  await db.schema
-    .createTable('user_profile')
-    .addColumn('id', 'serial', (col) => col.primaryKey())
-    .addColumn('email', 'varchar(255)', (col) => col.notNull().unique())
-    .addColumn('avatar_url', 'text')
-    .addColumn('created_at', 'timestamp', (col) =>
-      col.defaultTo(sql`now()`).notNull()
-    )
-    .execute()
-
-  await db.schema
-    .createIndex('idx_user_profile_avatar')
-    .on('user_profile')
-    .column('avatar_url')
-    .execute()
-}
-
-export async function down(db: Kysely<any>): Promise<void> {
-  await db.schema.dropTable('user_profile').execute()
-}
-```
-
-#### Programmatic Migrator
-
-```typescript
-import { Migrator, FileMigrationProvider } from 'kysely'
-import { promises as fs } from 'fs'
-import * as path from 'path'
-// ESM only — CJS can use __dirname directly
-import { fileURLToPath } from 'url'
-const migrationFolder = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  './migrations',
-)
-
-// `db` is your Kysely<any> database instance
-const migrator = new Migrator({
-  db,
-  provider: new FileMigrationProvider({
-    fs,
-    path,
-    migrationFolder,
-  }),
-  // WARNING: Only enable in development. Disables timestamp-ordering
-  // validation, which can cause schema drift between environments.
-  // allowUnorderedMigrations: true,
-})
-
-const { error, results } = await migrator.migrateToLatest()
-
-results?.forEach((it) => {
-  if (it.status === 'Success') {
-    console.log(`migration "${it.migrationName}" executed successfully`)
-  } else if (it.status === 'Error') {
-    console.error(`failed to execute migration "${it.migrationName}"`)
-  }
-})
-
-if (error) {
-  console.error('migration failed', error)
-  process.exit(1)
-}
-```
-
----
-
-### Django (Python)
-
-#### Workflow
-
-```bash
-# Generate migration from model changes
-python manage.py makemigrations
-
-# Apply migrations
-python manage.py migrate
-
-# Show migration status
-python manage.py showmigrations
-
-# Generate empty migration for custom SQL
-python manage.py makemigrations --empty app_name -n description
-```
-
-#### Data Migration
-
-```python
-from django.db import migrations
-
-def backfill_display_names(apps, schema_editor):
-    User = apps.get_model("accounts", "User")
-    batch_size = 5000
-    users = User.objects.filter(display_name="")
-    while users.exists():
-        batch = list(users[:batch_size])
-        for user in batch:
-            user.display_name = user.username
-        User.objects.bulk_update(batch, ["display_name"], batch_size=batch_size)
-
-def reverse_backfill(apps, schema_editor):
-    pass  # Data migration, no reverse needed
-
-class Migration(migrations.Migration):
-    dependencies = [("accounts", "0015_add_display_name")]
-
-    operations = [
-        migrations.RunPython(backfill_display_names, reverse_backfill),
-    ]
-```
-
-#### SeparateDatabaseAndState
-
-Remove a column from the Django model without dropping it from the database immediately:
-
-```python
-class Migration(migrations.Migration):
-    operations = [
-        migrations.SeparateDatabaseAndState(
-            state_operations=[
-                migrations.RemoveField(model_name="user", name="legacy_field"),
-            ],
-            database_operations=[],  # Don't touch the DB yet
-        ),
-    ]
-```
-
----
-
-### golang-migrate (Go)
-
-#### Workflow
-
-```bash
-# Create migration pair
-migrate create -ext sql -dir migrations -seq add_user_avatar
-
-# Apply all pending migrations
-migrate -path migrations -database "$DATABASE_URL" up
-
-# Rollback last migration
-migrate -path migrations -database "$DATABASE_URL" down 1
-
-# Force version (fix dirty state)
-migrate -path migrations -database "$DATABASE_URL" force VERSION
-```
-
-#### Migration Files
-
-```sql
--- migrations/000003_add_user_avatar.up.sql
-ALTER TABLE users ADD COLUMN avatar_url TEXT;
-CREATE INDEX CONCURRENTLY idx_users_avatar ON users (avatar_url) WHERE avatar_url IS NOT NULL;
-
--- migrations/000003_add_user_avatar.down.sql
-DROP INDEX IF EXISTS idx_users_avatar;
-ALTER TABLE users DROP COLUMN IF EXISTS avatar_url;
-```
-
----
-
-### Zero-Downtime Migration Strategy
-
-For critical production changes, follow the expand-contract pattern:
-
-```
-Phase 1: EXPAND
-  - Add new column/table (nullable or with default)
-  - Deploy: app writes to BOTH old and new
-  - Backfill existing data
-
-Phase 2: MIGRATE
-  - Deploy: app reads from NEW, writes to BOTH
-  - Verify data consistency
-
-Phase 3: CONTRACT
-  - Deploy: app only uses NEW
-  - Drop old column/table in separate migration
-```
-
-#### Timeline Example
-
-```
-Day 1: Migration adds new_status column (nullable)
-Day 1: Deploy app v2 — writes to both status and new_status
-Day 2: Run backfill migration for existing rows
-Day 3: Deploy app v3 — reads from new_status only
-Day 7: Migration drops old status column
-```
-
----
-
-### Anti-Patterns
-
-| Anti-Pattern | Why It Fails | Better Approach |
-|-------------|-------------|-----------------|
-| Manual SQL in production | No audit trail, unrepeatable | Always use migration files |
-| Editing deployed migrations | Causes drift between environments | Create new migration instead |
-| NOT NULL without default | Locks table, rewrites all rows | Add nullable, backfill, then add constraint |
-| Inline index on large table | Blocks writes during build | CREATE INDEX CONCURRENTLY |
-| Schema + data in one migration | Hard to rollback, long transactions | Separate migrations |
-| Dropping column before removing code | Application errors on missing column | Remove code first, drop column next deploy |
-
----
-
-### Explicit Constraint Naming
-
-Never rely on auto-generated constraint names. Always provide explicit names:
-
-```sql
--- Naming prefixes:
--- ck_ = check constraint
--- uq_ = unique constraint
--- fk_ = foreign key
--- ix_ = index
-
 ALTER TABLE orders
   ADD CONSTRAINT ck_orders_amount_positive CHECK (amount > 0),
   ADD CONSTRAINT uq_orders_reference UNIQUE (reference_number),
@@ -471,13 +155,11 @@ ALTER TABLE orders
 CREATE INDEX ix_orders_status ON orders (status) WHERE status != 'completed';
 ```
 
-This enables unambiguous `ALTER TABLE ... DROP CONSTRAINT <name>` in future migrations.
+Prefixes: `ck_` check, `uq_` unique, `fk_` foreign key, `ix_` index.
 
 ---
 
-### Liquibase, Required Rollback Blocks
-
-Every Liquibase changeset must include a `<rollback>` block:
+### Give every Liquibase changeset a rollback block
 
 ```xml
 <changeSet id="20240101-add-status-column" author="dev">
@@ -492,35 +174,82 @@ Every Liquibase changeset must include a `<rollback>` block:
 </changeSet>
 ```
 
-Use contexts and labels for environment-specific changesets:
-```xml
-<changeSet id="20240101-seed-dev-data" author="dev" context="dev,test">
-    <!-- Only runs in dev and test environments -->
-</changeSet>
-```
+Liquibase infers a rollback for some operations and silently does nothing for others, so write the block even when it
+looks redundant. Use `context` to scope a changeset to an environment, for example seed data that must never reach
+production.
 
 ---
 
-### Pre-Production Dry Run
+### Preview the SQL before a production run
 
-For production deployments, generate the SQL preview for DBA review before execution:
+Generate the statements a run will execute and attach them to the change for review.
 
 ```bash
-# Flyway
-flyway -url=jdbc:postgresql://prod/db -dryRunOutput=migration_preview.sql migrate
-
-# Liquibase
 liquibase --changeLogFile=changelog.xml updateSQL > migration_preview.sql
 ```
 
-Store `migration_preview.sql` as a CI artifact and require DBA sign-off for migrations that touch tables with > 1M rows.
+Flyway offers the same thing through `-dryRunOutput`, but that flag is part of Flyway Teams and Enterprise, not the
+community edition. On community Flyway, review the migration files themselves and rely on the staging run instead.
+
+```bash
+flyway -url=jdbc:postgresql://prod/db -dryRunOutput=migration_preview.sql migrate
+```
+
+Keep the preview as a CI artifact, and require a database owner to sign off whenever the change touches a table over a
+million rows.
 
 ---
 
-### EXPLAIN ANALYZE Gate
+### Run EXPLAIN ANALYZE before the change lands
 
-For any migration that touches data in existing tables, include `EXPLAIN ANALYZE` output in the PR description:
+Two triggers, either one of which requires the plan in the change description:
+
+- Any migration that touches data in an existing table, meaning `UPDATE`, `DELETE`, `INSERT ... SELECT`, or a
+  concurrent index build.
+- Any query expected to touch more than 10,000 rows.
+
 ```sql
 EXPLAIN ANALYZE UPDATE orders SET status = 'active' WHERE created_at > '2024-01-01';
 ```
-This gate applies to: `UPDATE`, `DELETE`, `INSERT ... SELECT`, and any migration that adds an index concurrently.
+
+This is the same gate `postgres-patterns` states for query changes, deliberately worded identically so a change that
+crosses both skills is reviewed once against one rule.
+
+---
+
+### Anti-patterns
+
+| Anti-pattern | Why it fails | Instead |
+| --- | --- | --- |
+| Manual SQL in production | No audit trail, unrepeatable | Always a migration file |
+| Editing a deployed migration | Environments drift silently | Write a new migration |
+| NOT NULL with no default | Exclusive lock, full rewrite | Nullable, backfill, then validate |
+| Inline index on a large table | Blocks writes during the build | `CREATE INDEX CONCURRENTLY` |
+| Schema and data in one file | Long transaction, hard to roll back | Separate migrations |
+| Dropping a column before removing the code | The running release errors | Remove references, deploy, then drop |
+| Migration on application startup | Concurrent replicas race each other | One migration step in the deploy pipeline |
+
+---
+
+### Related skills
+
+- `postgres-patterns` for index choice, query plans, and the matching EXPLAIN ANALYZE gate.
+- `jpa-patterns` for the entity mapping that has to move with the schema.
+- `mongodb-schema-design` for the document-model equivalent of these changes.
+- `deployment-patterns` for sequencing a migration inside a rolling deploy.
+- `backend-patterns` for keeping an application readable across an expand-contract window.
+
+---
+
+### Checklist
+
+- [ ] The migration has a down file, or is explicitly documented as irreversible.
+- [ ] No statement takes a lock that blocks writes on a large table.
+- [ ] New columns are nullable or carry a constant default.
+- [ ] Indexes on existing tables are built concurrently, in their own migration.
+- [ ] Renames and drops follow expand and contract across at least two deploys.
+- [ ] Backfills are batched, committed per batch, and resumable.
+- [ ] Every constraint and index has an explicit, prefixed name.
+- [ ] The migration was run against a copy of production-sized data.
+- [ ] `EXPLAIN ANALYZE` output is attached when either trigger above applies.
+- [ ] The rollback path is written down, not assumed.

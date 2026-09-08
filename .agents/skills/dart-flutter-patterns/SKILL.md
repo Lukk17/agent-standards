@@ -1,630 +1,274 @@
 ---
 name: dart-flutter-patterns
-description: Production-ready Dart and Flutter patterns covering null safety, immutable state, async composition, widget architecture, popular state management frameworks (BLoC, Riverpod, Provider), GoRouter navigation, Dio networking, Freezed code generation, and clean architecture.
-origin: ECC
+description: Dart 3 and Flutter patterns across architecture, layout, routing, forms, networking, persistence, concurrency, animation, accessibility, localization, native interop, app size, and testing. Use when you say "build a Flutter screen", "why does my Column overflow", "set up GoRouter with an auth guard", "parse this JSON without jank", or "write a widget test for this form". Not for language-neutral SOLID, naming, and error-handling rules, use `coding-standards`.
 ---
 
-# Dart/Flutter Patterns
+# Dart and Flutter Patterns
 
----
-
-### When to Use
-
-Use this skill when:
-- Starting a new Flutter feature and need idiomatic patterns for state management, navigation, or data access
-- Reviewing or writing Dart code and need guidance on null safety, sealed types, or async composition
-- Setting up a new Flutter project and choosing between BLoC, Riverpod, or Provider
-- Implementing secure HTTP clients, WebView integration, or local storage
-- Writing tests for Flutter widgets, Cubits, or Riverpod providers
-- Wiring up GoRouter with authentication guards
+Production patterns for Dart 3 and Flutter, from project layout down to the individual widget, with a reference
+file per topic. The hub carries the rules that apply everywhere, and each reference carries the depth for one area.
 
 ---
 
-### How It Works
+### Baseline
 
-This skill provides copy-paste-ready Dart/Flutter code patterns organized by concern:
-1. Null safety: avoid `!`, prefer `?.`/`??`/pattern matching
-2. Immutable state: sealed classes, `freezed`, `copyWith`
-3. Async composition: concurrent `Future.wait`, safe `BuildContext` after `await`
-4. Widget architecture: extract to classes (not methods), `const` propagation, scoped rebuilds
-5. State management: BLoC/Cubit events, Riverpod notifiers and derived providers
-6. Navigation: GoRouter with reactive auth guards via `refreshListenable`
-7. Networking: Dio with interceptors, token refresh with one-time retry guard
-8. Error handling: global capture, `ErrorWidget.builder`, crashlytics wiring
-9. Testing: unit (BLoC test), widget (ProviderScope overrides), fakes over mocks
+Assume Dart 3 and current stable Flutter. Verified here with `flutter --version` against Flutter 3.44.1 and Dart
+3.12.1. Four defaults follow and change how code is written:
+
+- Material 3 is the default for `ThemeData`. Do not set `useMaterial3`, it is the only behaviour left.
+- Impeller is the default renderer on iOS and Android. Profile jank against Impeller, not the retired Skia path.
+- `flutter build web --wasm` compiles to WebAssembly, where `dart:html`, `dart:js`, and `package:js` do not work.
+  Use `package:web` and `dart:js_interop`.
+- The `flutter_gen` synthetic package is removed, so localizations import as
+  `package:<your_app>/l10n/app_localizations.dart`, never `package:flutter_gen/...`.
+
+Turn the strict analyzer modes on in `analysis_options.yaml` so the rules below are enforced by tooling rather
+than by review. The exact block is in [references/architecture.md](references/architecture.md).
 
 ---
 
-### Examples
+### When to activate
+
+- Writing or reviewing any Dart or Flutter code, including plain Dart packages with no widgets.
+- Structuring a new Flutter project, or refactoring one whose layers have blurred.
+- Debugging a layout overflow, a jank frame, a rebuild storm, or a `setState() called after dispose()` crash.
+- Wiring navigation, deep links, forms, HTTP clients, local databases, or platform channels.
+- Adding tests, localization, accessibility semantics, or a size budget to an existing app.
+- Setting up a Linux, macOS, or Windows machine to build Flutter.
+
+---
+
+### When not to activate
+
+- Language-neutral design rules such as SOLID, DRY, naming, and error-handling shape. Use `coding-standards`.
+- Formatting and visual layout of source files in any language. Use `code-formatter`.
+- The red, green, refactor loop itself rather than Flutter test mechanics. Use `tdd-workflow`.
+- WCAG conformance for a web page or a non-Flutter front end. Use `web-accessibility`.
+- Reviewing a diff or a pull request for defects. Use `code-reviewer`.
+- Measuring and fixing backend or query latency behind the app. Use `performance-optimization`.
+
+---
+
+### Never force-unwrap
+
+`!` turns a compile-time question into a runtime crash. Dart already has an expression that carries the null case,
+and `late` is the same failure mode one step removed. Reserve `late` for a field initialised in `initState` before
+any read, such as an `AnimationController`, and use a nullable field everywhere else.
 
 ```dart
-// Sealed state — prevents impossible states
-sealed class AsyncState<T> {}
-final class Loading<T> extends AsyncState<T> {}
-final class Success<T> extends AsyncState<T> { final T data; const Success(this.data); }
-final class Failure<T> extends AsyncState<T> { final Object error; const Failure(this.error); }
-
-// GoRouter with reactive auth redirect
-final router = GoRouter(
-  refreshListenable: GoRouterRefreshStream(authCubit.stream),
-  redirect: (context, state) {
-    final authed = context.read<AuthCubit>().state is AuthAuthenticated;
-    if (!authed && !state.matchedLocation.startsWith('/login')) return '/login';
-    return null;
-  },
-  routes: [...],
-);
-
-// Riverpod derived provider with safe firstWhereOrNull
-@riverpod
-double cartTotal(Ref ref) {
-  final cart = ref.watch(cartNotifierProvider);
-  final products = ref.watch(productsProvider).valueOrNull ?? [];
-  return cart.fold(0.0, (total, item) {
-    final product = products.firstWhereOrNull((p) => p.id == item.productId);
-    return total + (product?.price ?? 0) * item.quantity;
-  });
-}
-```
-
----
-
-Practical, production-ready patterns for Dart and Flutter applications. Library-agnostic where possible, with explicit
-coverage of the most common ecosystem packages.
-
----
-
-### 1. Null Safety Fundamentals
-
-#### Prefer Patterns Over Bang Operator
-
-```dart
-// BAD — crashes at runtime if null
+// BAD
 final name = user!.name;
+final ok = _formKey.currentState!.validate();
 
-// GOOD — provide fallback
+// GOOD
 final name = user?.name ?? 'Unknown';
-
-// GOOD — Dart 3 pattern matching (preferred for complex cases)
-final display = switch (user) {
-  User(:final name, :final email) => '$name <$email>',
-  null => 'Guest',
-};
-
-// GOOD — guard early return
-String getUserName(User? user) {
-  if (user == null) return 'Unknown';
-  return user.name; // promoted to non-null after check
-}
-```
-
-#### Avoid `late` Overuse
-
-```dart
-// BAD — defers null error to runtime
-late String userId;
-
-// GOOD — nullable with explicit initialization
-String? userId;
-
-// OK — use late only when initialization is guaranteed before first access
-// (e.g., in initState() before any widget interaction)
-late final AnimationController _controller;
-
-@override
-void initState() {
-  super.initState();
-  _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
-}
+final ok = _formKey.currentState?.validate() ?? false;
 ```
 
 ---
 
-### 2. Immutable State
+### Model state as a sealed type, never as nullable flags
 
-#### Sealed Classes for State Hierarchies
+A bag of `isLoading`, `data`, and `error` can represent loading with an error and no data, which is not a real
+state. A sealed hierarchy makes that unrepresentable and makes `switch` exhaustive.
 
 ```dart
+// BAD
+class UserState { bool isLoading = false; User? user; String? error; }
+
+// GOOD
 sealed class UserState {}
+final class UserLoading extends UserState { const UserLoading(); }
+final class UserLoaded extends UserState { const UserLoaded(this.user); final User user; }
+final class UserFailed extends UserState { const UserFailed(this.message); final String message; }
 
-final class UserInitial extends UserState {}
-
-final class UserLoading extends UserState {}
-
-final class UserLoaded extends UserState {
-  const UserLoaded(this.user);
-  final User user;
-}
-
-final class UserError extends UserState {
-  const UserError(this.message);
-  final String message;
-}
-
-// Exhaustive switch — compiler enforces all branches
-Widget buildFrom(UserState state) => switch (state) {
-  UserInitial() => const SizedBox.shrink(),
+Widget build(BuildContext context) => switch (state) {
   UserLoading() => const CircularProgressIndicator(),
   UserLoaded(:final user) => UserCard(user: user),
-  UserError(:final message) => ErrorText(message),
+  UserFailed(:final message) => ErrorView(message: message),
 };
 ```
 
-#### Freezed for Boilerplate-Free Immutability
+Riverpod's `AsyncValue<T>` is this prebuilt. Generate data-class immutability with `freezed`, not by hand.
+
+---
+
+### Guard BuildContext across every await
+
+After an `await` the widget may be gone and the captured `context` points at a dead element. Without a `mounted`
+field, capture what you need before the await and use the captured object afterwards.
 
 ```dart
-import 'package:freezed_annotation/freezed_annotation.dart';
+// BAD
+await authService.login(email, password);
+context.go('/home');
 
-part 'user.freezed.dart';
-part 'user.g.dart';
-
-@freezed
-class User with _$User {
-  const factory User({
-    required String id,
-    required String name,
-    required String email,
-    @Default(false) bool isAdmin,
-  }) = _User;
-
-  factory User.fromJson(Map<String, dynamic> json) => _$UserFromJson(json);
-}
-
-// Usage
-final user = User(id: '1', name: 'Alice', email: 'alice@example.com');
-final updated = user.copyWith(name: 'Alice Smith'); // immutable update
-final json = user.toJson();
-final fromJson = User.fromJson(json);
+// GOOD
+await authService.login(email, password);
+if (!mounted) return;
+context.go('/home');
 ```
 
 ---
 
-### 3. Async Composition
+### Extract widgets to classes, not to builder methods
 
-#### Structured Concurrency with Future.wait
-
-```dart
-Future<DashboardData> loadDashboard(UserRepository users, OrderRepository orders) async {
-  // Run concurrently — don't await sequentially
-  final (userList, orderList) = await (
-    users.getAll(),
-    orders.getRecent(),
-  ).wait; // Dart 3 record destructuring + Future.wait extension
-
-  return DashboardData(users: userList, orders: orderList);
-}
-```
-
-#### Stream Patterns
+A `Widget _buildHeader()` returns a subtree owned by the caller's element, so it rebuilds with the caller and can
+never be `const`. A separate class gets its own element and stops a rebuild dead. Push `const` as far up the tree
+as it goes, and keep the widget that watches changing state small.
 
 ```dart
-// Repository exposes reactive streams for live data
-Stream<List<Item>> watchCartItems() => _db
-    .watchTable('cart_items')
-    .map((rows) => rows.map(Item.fromRow).toList());
+// BAD
+Widget _buildHeader() => Padding(padding: const EdgeInsets.all(16), child: Text(title));
 
-// In widget layer — declarative, no manual subscription
-StreamBuilder<List<Item>>(
-  stream: cartRepository.watchCartItems(),
-  builder: (context, snapshot) => switch (snapshot) {
-    AsyncSnapshot(connectionState: ConnectionState.waiting) =>
-        const CircularProgressIndicator(),
-    AsyncSnapshot(:final error?) => ErrorWidget(error.toString()),
-    AsyncSnapshot(:final data?) => CartList(items: data),
-    _ => const SizedBox.shrink(),
-  },
-)
-```
-
-#### BuildContext After Await
-
-```dart
-// CRITICAL — always check mounted after any await in StatefulWidget
-Future<void> _handleSubmit() async {
-  setState(() => _isLoading = true);
-  try {
-    await authService.login(_email, _password);
-    if (!mounted) return; // ← guard before using context
-    context.go('/home');
-  } on AuthException catch (e) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
-  } finally {
-    if (mounted) setState(() => _isLoading = false);
-  }
-}
-```
-
----
-
-### 4. Widget Architecture
-
-#### Extract to Classes, Not Methods
-
-```dart
-// BAD — private method returning widget, prevents optimization
-Widget _buildHeader() {
-  return Container(
-    padding: const EdgeInsets.all(16),
-    child: Text(title, style: Theme.of(context).textTheme.headlineMedium),
-  );
-}
-
-// GOOD — separate widget class, enables const, element reuse
+// GOOD
 class _PageHeader extends StatelessWidget {
   const _PageHeader(this.title);
   final String title;
-
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Text(title, style: Theme.of(context).textTheme.headlineMedium),
-    );
-  }
-}
-```
-
-#### const Propagation
-
-```dart
-// BAD — new instances every rebuild
-child: Padding(
-  padding: EdgeInsets.all(16.0),       // not const
-  child: Icon(Icons.home, size: 24.0), // not const
-)
-
-// GOOD — const stops rebuild propagation
-child: const Padding(
-  padding: EdgeInsets.all(16.0),
-  child: Icon(Icons.home, size: 24.0),
-)
-```
-
-#### Scoped Rebuilds
-
-```dart
-// BAD — entire page rebuilds on every counter change
-class CounterPage extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final count = ref.watch(counterProvider); // rebuilds everything
-    return Scaffold(
-      body: Column(children: [
-        const ExpensiveHeader(), // unnecessarily rebuilt
-        Text('$count'),
-        const ExpensiveFooter(), // unnecessarily rebuilt
-      ]),
-    );
-  }
-}
-
-// GOOD — isolate the rebuilding part
-class CounterPage extends StatelessWidget {
-  const CounterPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Column(children: [
-        ExpensiveHeader(),        // never rebuilt (const)
-        _CounterDisplay(),        // only this rebuilds
-        ExpensiveFooter(),        // never rebuilt (const)
-      ]),
-    );
-  }
-}
-
-class _CounterDisplay extends ConsumerWidget {
-  const _CounterDisplay();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final count = ref.watch(counterProvider);
-    return Text('$count');
-  }
+  Widget build(BuildContext c) => Padding(padding: const EdgeInsets.all(16), child: Text(title));
 }
 ```
 
 ---
 
-### 5. State Management: BLoC/Cubit
+### Match the project's state management
+
+Riverpod, BLoC, and `ChangeNotifier` all work. Mixing two in one feature is worse than any of them alone, so read
+the existing code first and follow it.
+
+- Riverpod fits when dependencies form a graph and most state derives from other state. It is also the DI
+  container, so do not add `get_it` beside it.
+- BLoC fits event-driven features where the event log helps debugging and the team wants one rigid shape. Pair it
+  with `get_it` and `injectable` for DI.
+- `ChangeNotifier` with `Provider` fits small apps and a single screen's local state. It is a first-class Flutter
+  class, not a deprecated one. It mutates in place, so keep the notified value immutable and replace it wholesale.
 
 ```dart
-// Cubit — synchronous or simple async state
-class AuthCubit extends Cubit<AuthState> {
-  AuthCubit(this._authService) : super(const AuthState.initial());
-  final AuthService _authService;
-
-  Future<void> login(String email, String password) async {
-    emit(const AuthState.loading());
-    try {
-      final user = await _authService.login(email, password);
-      emit(AuthState.authenticated(user));
-    } on AuthException catch (e) {
-      emit(AuthState.error(e.message));
-    }
-  }
-
-  void logout() {
-    _authService.logout();
-    emit(const AuthState.initial());
-  }
-}
-
-// In widget
-BlocBuilder<AuthCubit, AuthState>(
-  builder: (context, state) => switch (state) {
-    AuthInitial() => const LoginForm(),
-    AuthLoading() => const CircularProgressIndicator(),
-    AuthAuthenticated(:final user) => HomePage(user: user),
-    AuthError(:final message) => ErrorView(message: message),
-  },
-)
-```
-
----
-
-### 6. State Management: Riverpod
-
-```dart
-// Auto-dispose async provider
-@riverpod
-Future<List<Product>> products(Ref ref) async {
-  final repo = ref.watch(productRepositoryProvider);
-  return repo.getAll();
-}
-
-// Notifier with complex mutations
 @riverpod
 class CartNotifier extends _$CartNotifier {
   @override
-  List<CartItem> build() => [];
-
-  void add(Product product) {
-    final existing = state.where((i) => i.productId == product.id).firstOrNull;
-    if (existing != null) {
-      state = [
-        for (final item in state)
-          if (item.productId == product.id) item.copyWith(quantity: item.quantity + 1)
-          else item,
-      ];
-    } else {
-      state = [...state, CartItem(productId: product.id, quantity: 1)];
-    }
-  }
-
-  void remove(String productId) =>
-      state = state.where((i) => i.productId != productId).toList();
-
-  void clear() => state = [];
+  List<CartItem> build() => const [];
+  void clear() => state = const [];
 }
 
-// Derived provider (selector pattern)
-@riverpod
-int cartCount(Ref ref) => ref.watch(cartNotifierProvider).length;
-
-@riverpod
-double cartTotal(Ref ref) {
-  final cart = ref.watch(cartNotifierProvider);
-  final products = ref.watch(productsProvider).valueOrNull ?? [];
-  return cart.fold(0.0, (total, item) {
-    // firstWhereOrNull (from collection package) avoids StateError when product is missing
-    final product = products.firstWhereOrNull((p) => p.id == item.productId);
-    return total + (product?.price ?? 0) * item.quantity;
-  });
+class AuthCubit extends Cubit<AuthState> {
+  AuthCubit(this._service) : super(const AuthLoading());
+  final AuthService _service;
+  Future<void> login(String email, String password) async =>
+      emit(AuthLoaded(await _service.login(email, password)));
 }
+
+class CartModel extends ChangeNotifier {
+  List<CartItem> _items = const [];
+  List<CartItem> get items => _items;
+  void clear() { _items = const []; notifyListeners(); }
+}
+```
+
+Never run two of these in the same feature, and never expose a mutable collection from any of them. Worked
+examples of all three sit in [references/architecture.md](references/architecture.md).
+
+---
+
+### Match the project's HTTP client
+
+`package:http` and `package:dio` are both correct. `http` is smaller and is what the Flutter team documents. `dio`
+adds interceptors, cancellation, and typed errors, which pay off once you need token refresh or retries. Check
+`pubspec.yaml` first and use whichever is there.
+
+```dart
+// package:http
+final response = await client.get(Uri.https('api.example.com', '/users/$id'));
+if (response.statusCode != 200) throw HttpException('GET /users/$id failed');
+final user = User.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+
+// package:dio
+final response = await dio.get<Map<String, dynamic>>('/users/$id');
+final user = User.fromJson(response.data!);
+```
+
+Both get the same treatment: build URLs with `Uri.https`, check the status code and throw rather than returning
+null, and never leave a token in source.
+
+---
+
+### Keep constraints bounded
+
+Constraints go down, sizes go up, the parent sets position. A scrollable inside a flex box gets unbounded space on
+the main axis and throws. Bound it rather than hardcoding a height.
+
+```dart
+// BAD
+Column(children: [const Text('Header'), ListView(children: items)])
+
+// GOOD
+Column(children: [const Text('Header'), Expanded(child: ListView(children: items))])
 ```
 
 ---
 
-### 7. Navigation with GoRouter
+### Move CPU work off the main isolate
+
+`async` and `await` do not create a thread, so an expensive synchronous parse still blocks the frame. I/O bound
+work stays on the main isolate. Use `Isolate.run` only when a synchronous block measurably exceeds a frame budget,
+and `Isolate.spawn` only when the work is long-lived and bidirectional.
 
 ```dart
-final router = GoRouter(
-  initialLocation: '/',
-  // refreshListenable re-evaluates redirect whenever auth state changes
-  refreshListenable: GoRouterRefreshStream(authCubit.stream),
-  redirect: (context, state) {
-    final isLoggedIn = context.read<AuthCubit>().state is AuthAuthenticated;
-    final isGoingToLogin = state.matchedLocation == '/login';
-    if (!isLoggedIn && !isGoingToLogin) return '/login';
-    if (isLoggedIn && isGoingToLogin) return '/';
-    return null;
-  },
-  routes: [
-    GoRoute(path: '/login', builder: (_, __) => const LoginPage()),
-    ShellRoute(
-      builder: (context, state, child) => AppShell(child: child),
-      routes: [
-        GoRoute(path: '/', builder: (_, __) => const HomePage()),
-        GoRoute(
-          path: '/products/:id',
-          builder: (context, state) =>
-              ProductDetailPage(id: state.pathParameters['id']!),
-        ),
-      ],
-    ),
-  ],
-);
+// BAD
+final photos = parsePhotos(response.body);
+
+// GOOD
+final photos = await Isolate.run(() => parsePhotos(response.body));
 ```
 
 ---
 
-### 8. HTTP with Dio
+### Route every user-facing string through localization
+
+A literal in a widget, a validator, or a semantics label cannot be translated and cannot be tested per locale.
 
 ```dart
-final dio = Dio(BaseOptions(
-  baseUrl: const String.fromEnvironment('API_URL'),
-  connectTimeout: const Duration(seconds: 10),
-  receiveTimeout: const Duration(seconds: 30),
-  headers: {'Content-Type': 'application/json'},
-));
+// BAD
+return Semantics(label: 'Delete item', child: const Icon(Icons.delete));
 
-// Add auth interceptor
-dio.interceptors.add(InterceptorsWrapper(
-  onRequest: (options, handler) async {
-    final token = await secureStorage.read(key: 'auth_token');
-    if (token != null) options.headers['Authorization'] = 'Bearer $token';
-    handler.next(options);
-  },
-  onError: (error, handler) async {
-    // Guard against infinite retry loops: only attempt refresh once per request
-    final isRetry = error.requestOptions.extra['_isRetry'] == true;
-    if (!isRetry && error.response?.statusCode == 401) {
-      final refreshed = await attemptTokenRefresh();
-      if (refreshed) {
-        error.requestOptions.extra['_isRetry'] = true;
-        return handler.resolve(await dio.fetch(error.requestOptions));
-      }
-    }
-    handler.next(error);
-  },
-));
-
-// Repository using Dio
-class UserApiDataSource {
-  const UserApiDataSource(this._dio);
-  final Dio _dio;
-
-  Future<User> getById(String id) async {
-    final response = await _dio.get<Map<String, dynamic>>('/users/$id');
-    return User.fromJson(response.data!);
-  }
-}
+// GOOD
+return Semantics(label: AppLocalizations.of(context).deleteItem, child: const Icon(Icons.delete));
 ```
 
 ---
 
-### 9. Error Handling Architecture
+### Doc comments
 
-```dart
-// Global error capture — set up in main()
-void main() {
-  FlutterError.onError = (details) {
-    FlutterError.presentError(details);
-    crashlytics.recordFlutterFatalError(details);
-  };
-
-  PlatformDispatcher.instance.onError = (error, stack) {
-    crashlytics.recordError(error, stack, fatal: true);
-    return true;
-  };
-
-  runApp(const App());
-}
-
-// Custom ErrorWidget for production
-class App extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    ErrorWidget.builder = (details) => ProductionErrorWidget(details);
-    return MaterialApp.router(routerConfig: router);
-  }
-}
-```
-
----
-
-### 10. Testing Quick Reference
-
-- Use `mocktail` for mocking in Dart tests: NOT `mockito`
-- For Riverpod unit tests, use `ProviderContainer` with `overrides`:
-
-```dart
-final container = ProviderContainer(overrides: [
-  userRepositoryProvider.overrideWithValue(FakeUserRepository()),
-]);
-addTearDown(container.dispose);
-```
-
-```dart
-// Unit test — use case (error path)
-test('GetUserUseCase returns null for missing user', () async {
-  // the repository has no matching user
-  final repo = FakeUserRepository();
-  final useCase = GetUserUseCase(repo);
-  // the use case is invoked with an unknown id
-  final result = await useCase('missing-id');
-  // it resolves to null
-  expect(result, isNull);
-});
-
-// Unit test — use case (edge path: empty result set)
-test('GetActiveUsersUseCase returns an empty list when none are active', () async {
-  // the repository holds only inactive users
-  final repo = FakeUserRepository()..seed([inactiveUser]);
-  final useCase = GetActiveUsersUseCase(repo);
-  // active users are fetched
-  final result = await useCase();
-  // the result is empty, not null, and has length zero
-  expect(result, isEmpty);
-  expect(result, hasLength(0));
-});
-
-// BLoC test (error path)
-blocTest<AuthCubit, AuthState>(
-  'emits loading then error on failed login',
-  build: () => AuthCubit(FakeAuthService(throwsOn: 'login')),
-  act: (cubit) => cubit.login('user@test.com', 'wrong'),
-  expect: () => [const AuthState.loading(), isA<AuthError>()],
-);
-
-// Widget test (happy path)
-testWidgets('CartBadge shows item count', (tester) async {
-  // the cart notifier reports 3 items, and the badge below is pumped with that state
-  await tester.pumpWidget(
-    ProviderScope(
-      overrides: [cartNotifierProvider.overrideWith(() => FakeCartNotifier(count: 3))],
-      child: const MaterialApp(home: CartBadge()),
-    ),
-  );
-  // the badge renders the exact count
-  expect(find.text('3'), findsOneWidget);
-});
-```
-
-Cover happy, error, and edge paths for each unit. Target around 90% line coverage of real logic, measured with
-`flutter test --coverage`. Never weaken an assertion to make a test green.
-
----
-
-### Doc Comments
-
-Default to none. A `///` block is usually a sign that the code failed to explain itself. Before writing one, extract
-the unclear block into a well-named method or widget class, rename the parameters so they carry their own meaning, and
-tighten the types. Do that first and most doc comments have nothing left to say, which is the outcome you want. Code
-that explains itself cannot go stale, a comment can.
-
-When one is still genuinely needed, the prose is capped at five lines and is usually one. Every note you add about a
-parameter, the return, or a thrown exception is capped at one line and only appears when it genuinely adds something:
-if the note does not fit on a single line, shorten it or drop it. Four rules decide what goes in.
-`public_member_api_docs` demanding a comment on every public member is not a reason to write a sentence that adds
-nothing.
+Default to none. A `///` block is usually a sign that the code failed to explain itself. Extract the unclear block
+into a well-named method or widget class, rename the parameters so they carry their own meaning, and tighten the
+types. Do that first and most doc comments have nothing left to say. Code that explains itself cannot go stale, a
+comment can. When one is genuinely needed, the prose is capped at five lines and is usually one. Every note about
+a parameter, the return, or a thrown exception is capped at one line and only appears when it adds something. If
+it does not fit on one line, shorten it or drop it. `public_member_api_docs` demanding a comment on every public
+member is not a reason to write a sentence that adds nothing. Four rules decide what goes in.
 
 1. Prose. One sentence saying what it does, then only what a caller cannot infer from the signature. Nothing more.
-2. Describe a parameter, referenced as `[holdFor]`, only when the name and the type do not already convey it, meaning
-   units, nullability, a valid range, or who owns it afterwards. `[orderId] the order identifier` is noise, delete it.
+2. Describe a parameter, referenced as `[holdFor]`, only when the name and the type do not already convey it,
+   meaning units, nullability, a valid range, or who owns it afterwards. `[orderId] the order identifier` is
+   noise, delete it.
 3. Describe the return only when it is non-obvious.
 4. Describe every exception a caller can act on, always. Dart has no checked exceptions and puts nothing about
    throwing in the signature, so this one is genuinely contract rather than decoration.
 
-Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
-example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you
-justify in review, not a budget to spend. The one-line cap on a note line has no exception at all: shorten it or
-delete it.
+Going past the five-line prose cap is allowed only when the contract cannot be stated in fewer lines, for example
+a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you justify in
+review. The one-line cap on a note line has no exception: shorten it or delete it.
 
 ```dart
-// Good: one sentence, then only what the signature cannot say, one line per note.
-
+/// GOOD. One sentence, then only what the signature cannot say, one line per note.
 /// Reserves stock for an order and holds it until the payment window closes.
 ///
 /// [holdFor] is capped at 15 minutes.
 /// Throws [InsufficientStockException] when the warehouse cannot cover it.
 Future<Reservation> reserve(OrderId orderId, Duration holdFor);
 
-// Bad: restates the signature and says nothing about the failure mode.
-
+/// BAD. Restates the signature and says nothing about the failure mode.
 /// Reserves stock.
 ///
 /// [orderId] the order identifier.
@@ -635,70 +279,47 @@ Future<Reservation> reserve(OrderId orderId, Duration holdFor);
 
 ---
 
-### Dependency Injection Policy
-- Use Riverpod providers as the DI container for all Riverpod-based features
-- Do NOT use `get_it` alongside Riverpod: pick one DI strategy per feature
-- If using BLoC WITHOUT Riverpod: use `get_it` + `injectable`
-- Never mix Riverpod and BLoC within the same feature
+### Which reference to open for which task
+
+| Task | Reference |
+| --- | --- |
+| Layering a project, choosing a state manager, wiring DI, global error capture, flavors | [references/architecture.md](references/architecture.md) |
+| Overflow errors, flex boxes, `Stack`, responsive and adaptive layouts | [references/layout.md](references/layout.md) |
+| GoRouter, auth redirects, nested navigation, deep links, passing and returning data | [references/routing-and-navigation.md](references/routing-and-navigation.md) |
+| `Form` and `TextFormField`, multi-field validation, submit gating, form tests | [references/forms.md](references/forms.md) |
+| REST calls with `http` or `dio`, interceptors, JSON code generation, background parsing | [references/http-and-json.md](references/http-and-json.md) |
+| SQLite and `drift`, repositories, offline-first sync, image and scroll caching | [references/databases-and-caching.md](references/databases-and-caching.md) |
+| `Future`, `Stream`, structured concurrency, `Isolate.run`, long-lived workers | [references/concurrency.md](references/concurrency.md) |
+| Implicit and explicit animations, `Hero`, staggering, physics, custom route transitions | [references/animation.md](references/animation.md) |
+| Semantics, screen readers, tap targets, contrast, font scaling, web semantics | [references/accessibility.md](references/accessibility.md) |
+| ARB files, `gen-l10n`, plurals and selects, locale resolution, iOS bundle setup | [references/localization.md](references/localization.md) |
+| Platform channels, Pigeon, FFI, `AndroidView` and `UiKitView`, Wasm and JS interop | [references/native-interop-and-platform-views.md](references/native-interop-and-platform-views.md) |
+| Measuring bundle size, tree shaking, obfuscation, asset audits, runtime performance | [references/app-size.md](references/app-size.md) |
+| Unit, widget, and integration tests, fakes, coverage, golden and plugin tests | [references/testing.md](references/testing.md) |
+| Installing the SDK and toolchain on Linux, macOS, or Windows, plus CI and packaging | [references/environment-setup.md](references/environment-setup.md) |
 
 ---
 
-### Analysis Options
-Enable strict Dart analysis in `analysis_options.yaml`:
-```yaml
-analyzer:
-  language:
-    strict-casts: true
-    strict-inference: true
-    strict-raw-types: true
-```
+### Related skills
+
+- `coding-standards` for the cross-language engineering floor these patterns sit on.
+- `code-formatter` for source layout and reading flow in Dart and every other language here.
+- `tdd-workflow` for the red, green, refactor discipline behind [references/testing.md](references/testing.md).
+- `web-accessibility` for WCAG conformance when a Flutter web build sits inside a wider site.
+- `code-reviewer` for reviewing a Dart diff against all of the above.
+- `build-dependency-management` for pinning and admitting the packages named in these references.
 
 ---
 
-### Environment Flavors
-Use three flavors: `dev`, `staging`, `prod`.
-- Entry points: `lib/main_dev.dart`, `lib/main_staging.dart`, `lib/main_prod.dart`
-- Pass config via `--dart-define=FLAVOR=dev`
-- Use `flutter_flavorizr` to manage platform-specific flavor config
+### Checklist
 
----
-
-### Deep Linking
-- Use GoRouter path parameters for universal links and app links
-- Register URL schemes in `Info.plist` (iOS) and `AndroidManifest.xml` (Android)
-- Test both cold start (app not running) and warm start (app in background)
-
----
-
-### Platform-Specific Code
-Use Pigeon for type-safe method channel communication between Flutter and native code.
-Define the API in a `.dart` Pigeon definition file; generate host and Flutter implementations.
-
----
-
-### CI/CD
-- GitHub Actions matrix build covering Android and iOS
-- Pin Flutter SDK version with FVM (`fvm use` in CI)
-- Required PR checks: `flutter analyze` (zero issues) + `flutter test` (all pass)
-- Use Fastlane for TestFlight (iOS) and Google Play (Android) distribution
-
----
-
-### Performance
-- Use Flutter DevTools Performance view to identify jank
-- Wrap independently-repainting widgets in `RepaintBoundary`
-- Enable "Highlight Repaints" overlay during development to detect unnecessary rebuilds
-- Enforce `const` constructors via `flutter analyze`: missing `const` is a lint error
-
----
-
-### References
-
-- [Effective Dart: Design](https://dart.dev/effective-dart/design)
-- [Flutter Performance Best Practices](https://docs.flutter.dev/perf/best-practices)
-- [Riverpod Documentation](https://riverpod.dev/)
-- [BLoC Library](https://bloclibrary.dev/)
-- [GoRouter](https://pub.dev/packages/go_router)
-- [Freezed](https://pub.dev/packages/freezed)
-- Skill: `flutter-dart-code-review`: comprehensive review checklist
-- Rules: `rules/dart/`: coding style, patterns, security, testing, hooks
+- [ ] No `!` force-unwrap and no `late` that is not initialised in `initState`.
+- [ ] Async state is a sealed type or `AsyncValue`, never a bag of nullable fields.
+- [ ] Every `context` use after an `await` is guarded by `mounted` or a pre-await capture.
+- [ ] Subtrees are widget classes, not `_build...()` methods, and `const` reaches as far up as it can.
+- [ ] One state-management library per feature, matching what the project already uses.
+- [ ] One HTTP client, matching `pubspec.yaml`, with URLs built through `Uri.https`.
+- [ ] No user-facing literal anywhere, including validators and semantics labels.
+- [ ] Every disposable (`AnimationController`, `TextEditingController`, `StreamSubscription`) is disposed.
+- [ ] Doc comments follow the four rules above, and none merely restate a signature.
+- [ ] `flutter analyze` is clean and `flutter test --coverage` passes at around 90% of real logic.

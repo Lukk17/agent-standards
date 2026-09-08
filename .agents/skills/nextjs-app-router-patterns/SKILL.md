@@ -1,533 +1,204 @@
 ---
 name: nextjs-app-router-patterns
-description: Master Next.js 14+ App Router with Server Components, streaming, parallel routes, and advanced data fetching. Use when building Next.js applications, implementing SSR/SSG, or optimizing React Server Components.
+description: Next.js App Router architecture covering Server and Client Components, caching, streaming, Server Actions, route handlers, metadata, images, and Turbopack dev tuning. Use when you say "build a Next.js page", "server or client component", "revalidate this fetch", "add a server action", "parallel routes for a dashboard", or "next dev is slow". Not for framework-agnostic React state, hooks, and animation, use `frontend-patterns`.
+license: Apache-2.0
 ---
 
 # Next.js App Router Patterns
 
-Comprehensive patterns for Next.js 14+ App Router architecture, Server Components, and modern full-stack React
-development.
+Architecture rules for Next.js applications built on the App Router, from the Server and Client Component split down
+to caching, mutations, and dev-server tuning. Every rule here is about where code runs and when its output goes stale.
+
+Baseline: current stable Next.js on the App Router, meaning Next.js 16 or newer, where Turbopack is the default dev
+bundler and `params` and `searchParams` arrive as promises.
 
 ---
 
-### When to Use This Skill
+### When to activate
 
-- Building new Next.js applications with App Router
-- Migrating from Pages Router to App Router
-- Implementing Server Components and streaming
-- Setting up parallel and intercepting routes
-- Optimizing data fetching and caching
-- Building full-stack features with Server Actions
-
----
-
-### Core Concepts
-
-#### 1. Rendering Modes
-
-| Mode                  | Where        | When to Use                               |
-| --------------------- | ------------ | ----------------------------------------- |
-| Server Components | Server only  | Data fetching, heavy computation, secrets |
-| Client Components | Browser      | Interactivity, hooks, browser APIs        |
-| Static            | Build time   | Content that rarely changes               |
-| Dynamic           | Request time | Personalized or real-time data            |
-| Streaming         | Progressive  | Large pages, slow data sources            |
-
-#### 2. File Conventions
-
-```
-app/
-├── layout.tsx       # Shared UI wrapper
-├── page.tsx         # Route UI
-├── loading.tsx      # Loading UI (Suspense)
-├── error.tsx        # Error boundary
-├── not-found.tsx    # 404 UI
-├── route.ts         # API endpoint
-├── template.tsx     # Re-mounted layout
-├── default.tsx      # Parallel route fallback
-└── opengraph-image.tsx  # OG image generation
-```
+- Building or reviewing any route, layout, or component in an `app/` directory.
+- Deciding whether a component belongs on the server or the client.
+- Choosing a caching or revalidation strategy for fetched data.
+- Adding a Server Action, a route handler, or per-route metadata.
+- Migrating a Pages Router application to the App Router.
+- Diagnosing a slow `next dev` start or a slow hot update.
 
 ---
 
-### Quick Start
+### When not to activate
+
+- Framework-agnostic React work: component composition, hooks, forms, animation. Use `frontend-patterns`.
+- Visual direction, typography, and composition decisions. Use `frontend-design`.
+- Token architecture and theming. Use `design-system`.
+- Keyboard, focus, ARIA, and contrast requirements. Use `web-accessibility`.
+- Titles, meta descriptions, structured data, and keyword mapping. Use `seo`.
+- Profiling and Core Web Vitals remediation beyond the Next.js primitives. Use `performance-optimization`.
+
+---
+
+### Reference map
+
+| Task | Open |
+| --- | --- |
+| Server and Client split, streaming, caching layers | [references/rendering-and-data.md](references/rendering-and-data.md) |
+| File conventions, parallel and intercepting routes, route handlers, metadata | [references/routing.md](references/routing.md) |
+| Server Actions, form mutations, revalidation | [references/server-actions.md](references/server-actions.md) |
+| Images, bundle splitting, Turbopack, bundle analysis | [references/performance-and-tooling.md](references/performance-and-tooling.md) |
+
+---
+
+### Keep components on the server until interactivity forces otherwise
+
+A Server Component ships no JavaScript to the browser and can reach the database directly. Add `'use client'` only at
+the leaf that needs state, an effect, or a DOM event handler, then keep that leaf small.
 
 ```typescript
-// app/layout.tsx
-import { Inter } from 'next/font/google'
-import { Providers } from './providers'
-
-const inter = Inter({ subsets: ['latin'] })
-
-export const metadata = {
-  title: { default: 'My App', template: '%s | My App' },
-  description: 'Built with Next.js App Router',
+// PASS: server parent fetches, client leaf handles the click
+export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const product = await db.product.findUnique({ where: { id } })
+  return <ProductDetail product={product}><AddToCartButton productId={id} /></ProductDetail>
 }
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
-        <Providers>{children}</Providers>
-      </body>
-    </html>
-  )
-}
-
-// app/page.tsx - Server Component by default
-async function getProducts() {
-  const res = await fetch('https://api.example.com/products', {
-    next: { revalidate: 3600 }, // ISR: revalidate every hour
-  })
-  return res.json()
-}
-
-export default async function HomePage() {
-  const products = await getProducts()
-
-  return (
-    <main>
-      <h1>Products</h1>
-      <ProductGrid products={products} />
-    </main>
-  )
-}
-```
-
----
-
-### Patterns
-
-#### Pattern 1: Server Components with Data Fetching
-
-```typescript
-// app/products/page.tsx
-import { Suspense } from 'react'
-import { ProductList, ProductListSkeleton } from '@/components/products'
-import { FilterSidebar } from '@/components/filters'
-
-interface SearchParams {
-  category?: string
-  sort?: 'price' | 'name' | 'date'
-  page?: string
-}
-
-export default async function ProductsPage({
-  searchParams,
-}: {
-  searchParams: Promise<SearchParams>
-}) {
-  const params = await searchParams
-
-  return (
-    <div className="flex gap-8">
-      <FilterSidebar />
-      <Suspense
-        key={JSON.stringify(params)}
-        fallback={<ProductListSkeleton />}
-      >
-        <ProductList
-          category={params.category}
-          sort={params.sort}
-          page={Number(params.page) || 1}
-        />
-      </Suspense>
-    </div>
-  )
-}
-
-// components/products/ProductList.tsx - Server Component
-async function getProducts(filters: ProductFilters) {
-  const res = await fetch(
-    `${process.env.API_URL}/products?${new URLSearchParams(filters)}`,
-    { next: { tags: ['products'] } }
-  )
-  if (!res.ok) throw new Error('Failed to fetch products')
-  return res.json()
-}
-
-export async function ProductList({ category, sort, page }: ProductFilters) {
-  const { products, totalPages } = await getProducts({ category, sort, page })
-
-  return (
-    <div>
-      <div className="grid grid-cols-3 gap-4">
-        {products.map((product) => (
-          <ProductCard key={product.id} product={product} />
-        ))}
-      </div>
-      <Pagination currentPage={page} totalPages={totalPages} />
-    </div>
-  )
-}
-```
-
-#### Pattern 2: Client Components with 'use client'
-
-```typescript
-// components/products/AddToCartButton.tsx
+// FAIL: the whole page becomes a client bundle for one button
 'use client'
-
-import { useState, useTransition } from 'react'
-import { addToCart } from '@/app/actions/cart'
-
-export function AddToCartButton({ productId }: { productId: string }) {
-  const [isPending, startTransition] = useTransition()
-  const [error, setError] = useState<string | null>(null)
-
-  const handleClick = () => {
-    setError(null)
-    startTransition(async () => {
-      const result = await addToCart(productId)
-      if (result.error) {
-        setError(result.error)
-      }
-    })
-  }
-
-  return (
-    <div>
-      <button
-        onClick={handleClick}
-        disabled={isPending}
-        className="btn-primary"
-      >
-        {isPending ? 'Adding...' : 'Add to Cart'}
-      </button>
-      {error && <p className="text-red-500 text-sm">{error}</p>}
-    </div>
-  )
-}
-```
-
-#### Pattern 3: Server Actions
-
-```typescript
-// app/actions/cart.ts
-"use server";
-
-import { revalidateTag } from "next/cache";
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-
-export async function addToCart(productId: string) {
-  const cookieStore = await cookies();
-  const sessionId = cookieStore.get("session")?.value;
-
-  if (!sessionId) {
-    redirect("/login");
-  }
-
-  try {
-    await db.cart.upsert({
-      where: { sessionId_productId: { sessionId, productId } },
-      update: { quantity: { increment: 1 } },
-      create: { sessionId, productId, quantity: 1 },
-    });
-
-    revalidateTag("cart");
-    return { success: true };
-  } catch (error) {
-    return { error: "Failed to add item to cart" };
-  }
-}
-
-export async function checkout(formData: FormData) {
-  const address = formData.get("address") as string;
-  const payment = formData.get("payment") as string;
-
-  // Validate
-  if (!address || !payment) {
-    return { error: "Missing required fields" };
-  }
-
-  // Process order
-  const order = await processOrder({ address, payment });
-
-  // Redirect to confirmation
-  redirect(`/orders/${order.id}/confirmation`);
-}
-```
-
-#### Pattern 4: Parallel Routes
-
-```typescript
-// app/dashboard/layout.tsx
-export default function DashboardLayout({
-  children,
-  analytics,
-  team,
-}: {
-  children: React.ReactNode
-  analytics: React.ReactNode
-  team: React.ReactNode
-}) {
-  return (
-    <div className="dashboard-grid">
-      <main>{children}</main>
-      <aside className="analytics-panel">{analytics}</aside>
-      <aside className="team-panel">{team}</aside>
-    </div>
-  )
-}
-
-// app/dashboard/@analytics/page.tsx
-export default async function AnalyticsSlot() {
-  const stats = await getAnalytics()
-  return <AnalyticsChart data={stats} />
-}
-
-// app/dashboard/@analytics/loading.tsx
-export default function AnalyticsLoading() {
-  return <ChartSkeleton />
-}
-
-// app/dashboard/@team/page.tsx
-export default async function TeamSlot() {
-  const members = await getTeamMembers()
-  return <TeamList members={members} />
-}
-```
-
-#### Pattern 5: Intercepting Routes (Modal Pattern)
-
-```typescript
-// File structure for photo modal
-// app/
-// ├── @modal/
-// │   ├── (.)photos/[id]/page.tsx  # Intercept
-// │   └── default.tsx
-// ├── photos/
-// │   └── [id]/page.tsx            # Full page
-// └── layout.tsx
-
-// app/@modal/(.)photos/[id]/page.tsx
-import { Modal } from '@/components/Modal'
-import { PhotoDetail } from '@/components/PhotoDetail'
-
-export default async function PhotoModal({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
-  const { id } = await params
-  const photo = await getPhoto(id)
-
-  return (
-    <Modal>
-      <PhotoDetail photo={photo} />
-    </Modal>
-  )
-}
-
-// app/photos/[id]/page.tsx - Full page version
-export default async function PhotoPage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
-  const { id } = await params
-  const photo = await getPhoto(id)
-
-  return (
-    <div className="photo-page">
-      <PhotoDetail photo={photo} />
-      <RelatedPhotos photoId={id} />
-    </div>
-  )
-}
-
-// app/layout.tsx
-export default function RootLayout({
-  children,
-  modal,
-}: {
-  children: React.ReactNode
-  modal: React.ReactNode
-}) {
-  return (
-    <html>
-      <body>
-        {children}
-        {modal}
-      </body>
-    </html>
-  )
-}
-```
-
-#### Pattern 6: Streaming with Suspense
-
-```typescript
-// app/product/[id]/page.tsx
-import { Suspense } from 'react'
-
-export default async function ProductPage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
-  const { id } = await params
-
-  // This data loads first (blocking)
-  const product = await getProduct(id)
-
-  return (
-    <div>
-      {/* Immediate render */}
-      <ProductHeader product={product} />
-
-      {/* Stream in reviews */}
-      <Suspense fallback={<ReviewsSkeleton />}>
-        <Reviews productId={id} />
-      </Suspense>
-
-      {/* Stream in recommendations */}
-      <Suspense fallback={<RecommendationsSkeleton />}>
-        <Recommendations productId={id} />
-      </Suspense>
-    </div>
-  )
-}
-
-// These components fetch their own data
-async function Reviews({ productId }: { productId: string }) {
-  const reviews = await getReviews(productId) // Slow API
-  return <ReviewList reviews={reviews} />
-}
-
-async function Recommendations({ productId }: { productId: string }) {
-  const products = await getRecommendations(productId) // ML-based, slow
-  return <ProductCarousel products={products} />
-}
-```
-
-#### Pattern 7: Route Handlers (API Routes)
-
-```typescript
-// app/api/products/route.ts
-import { NextRequest, NextResponse } from "next/server";
-
-export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const category = searchParams.get("category");
-
-  const products = await db.product.findMany({
-    where: category ? { category } : undefined,
-    take: 20,
-  });
-
-  return NextResponse.json(products);
-}
-
-export async function POST(request: NextRequest) {
-  const body = await request.json();
-
-  const product = await db.product.create({
-    data: body,
-  });
-
-  return NextResponse.json(product, { status: 201 });
-}
-
-// app/api/products/[id]/route.ts
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params;
-  const product = await db.product.findUnique({ where: { id } });
-
-  if (!product) {
-    return NextResponse.json({ error: "Product not found" }, { status: 404 });
-  }
-
-  return NextResponse.json(product);
-}
-```
-
-#### Pattern 8: Metadata and SEO
-
-```typescript
-// app/products/[slug]/page.tsx
-import { Metadata } from 'next'
-import { notFound } from 'next/navigation'
-
-type Props = {
-  params: Promise<{ slug: string }>
-}
-
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { slug } = await params
-  const product = await getProduct(slug)
-
-  if (!product) return {}
-
-  return {
-    title: product.name,
-    description: product.description,
-    openGraph: {
-      title: product.name,
-      description: product.description,
-      images: [{ url: product.image, width: 1200, height: 630 }],
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: product.name,
-      description: product.description,
-      images: [product.image],
-    },
-  }
-}
-
-export async function generateStaticParams() {
-  const products = await db.product.findMany({ select: { slug: true } })
-  return products.map((p) => ({ slug: p.slug }))
-}
-
-export default async function ProductPage({ params }: Props) {
-  const { slug } = await params
-  const product = await getProduct(slug)
-
-  if (!product) notFound()
-
+export default function ProductPage({ id }: { id: string }) {
+  const [product, setProduct] = useState<Product | null>(null)
+  useEffect(() => { fetch(`/api/products/${id}`).then(r => r.json()).then(setProduct) }, [id])
   return <ProductDetail product={product} />
 }
 ```
 
 ---
 
-### Caching Strategies
+### State the cache behaviour on every fetch
 
-#### Data Cache
+An unannotated fetch leaves the freshness of the page to a default that shifts between versions. Say what you mean: a
+revalidate window, a cache tag you can invalidate, or no store at all.
 
 ```typescript
-// No cache (always fresh)
-fetch(url, { cache: "no-store" });
+// PASS: the intent is readable at the call site
+const res = await fetch(`${process.env.API_URL}/products`, { next: { revalidate: 3600, tags: ['products'] } })
 
-// Cache forever (static)
-fetch(url, { cache: "force-cache" });
+// FAIL: nothing here says whether this page is static, ISR, or dynamic
+const res = await fetch(`${process.env.API_URL}/products`)
+```
 
-// ISR - revalidate after 60 seconds
-fetch(url, { next: { revalidate: 60 } });
+---
 
-// Tag-based invalidation
-fetch(url, { next: { tags: ["products"] } });
+### Stream slow regions behind their own Suspense boundary
 
-// Invalidate via Server Action
-("use server");
-import { revalidateTag, revalidatePath } from "next/cache";
+Blocking a whole route on its slowest query wastes the fast data. Render what you have, and let each slow region
+arrive on its own with a real skeleton.
 
-export async function updateProduct(id: string, data: ProductData) {
-  await db.product.update({ where: { id }, data });
-  revalidateTag("products");
-  revalidatePath("/products");
+```typescript
+// PASS: header renders immediately, reviews stream in
+<ProductHeader product={product} />
+<Suspense fallback={<ReviewsSkeleton />}>
+  <Reviews productId={id} />
+</Suspense>
+
+// FAIL: the page waits for the slowest call before anything paints
+const [product, reviews] = await Promise.all([getProduct(id), getReviews(id)])
+return <ProductDetail product={product} reviews={reviews} />
+```
+
+---
+
+### Mutate through Server Actions, not client fetch calls
+
+A Server Action runs on the server, works without client JavaScript, and invalidates its own caches inside the same
+function. A client `fetch` to your own route handler gives up all three.
+
+```typescript
+// PASS: mutation and invalidation live together
+'use server'
+export async function addToCart(productId: string) {
+  const parsed = addToCartSchema.parse({ productId })
+  await db.cart.create({ data: parsed })
+  revalidateTag('cart')
+}
+
+// FAIL: a client round trip that leaves the cache stale
+const handleClick = () => fetch('/api/cart', { method: 'POST', body: JSON.stringify({ productId }) })
+```
+
+---
+
+### Validate and type every route handler boundary
+
+A route handler is a public HTTP endpoint. Parse the body and the search params through a schema, and return a status
+code the caller can act on.
+
+```typescript
+// PASS: parsed input, explicit status
+export async function POST(request: NextRequest) {
+  const parsed = createProductSchema.safeParse(await request.json())
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+  return NextResponse.json(await db.product.create({ data: parsed.data }), { status: 201 })
+}
+
+// FAIL: unvalidated body written straight to the database, always 200
+export async function POST(request: NextRequest) {
+  return NextResponse.json(await db.product.create({ data: await request.json() }))
 }
 ```
+
+Run route handlers and pages on the Node.js runtime unless a specific deployment constraint says otherwise. It is the
+default and it supports the full API surface most database drivers and SDKs need.
+
+---
+
+### Generate metadata from the same data the page renders
+
+Hardcoded metadata in a dynamic route means every product shares one title. Derive it with `generateMetadata`, and
+pre-render the known set with `generateStaticParams`.
+
+```typescript
+// PASS: title and description follow the record
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const product = await getProduct((await params).slug)
+  return { title: product.name, description: product.description }
+}
+
+// FAIL: one title for every product in the catalogue
+export const metadata = { title: 'Product', description: 'A product page' }
+```
+
+---
+
+### Serve images through next/image and split heavy client modules
+
+`next/image` handles format negotiation, responsive sizing, and lazy loading, and reserves layout space so the page
+does not shift. Anything heavy and below the fold loads dynamically instead of riding in the first bundle.
+
+```typescript
+// PASS: sized, prioritised above the fold, heavy chart deferred
+<Image src={product.image} alt={product.name} width={1200} height={630} priority />
+const Chart = dynamic(() => import('./RevenueChart'))
+
+// FAIL: unsized raw tag plus a charting library in the entry bundle
+<img src={product.image} />
+import { RevenueChart } from './RevenueChart'
+```
+
+---
+
+### Develop on Turbopack
+
+Turbopack is the default `next dev` bundler and keeps a filesystem cache, so a restart reuses previous work. Fall back
+to webpack only to work around a specific bug, and record why.
+
+```bash
+next dev
+```
+
+```bash
+next dev --webpack
+```
+
+The first command is the normal path. The second is the escape hatch, and a project that needs it permanently has a
+plugin problem worth fixing rather than a default worth changing.
 
 ---
 
@@ -556,7 +227,7 @@ justify in review, not a budget to spend. The one-line cap on a tag line has no 
 it.
 
 ```typescript
-// GOOD: one sentence, then only what the signature cannot say
+// PASS: one sentence, then only what the signature cannot say
 /**
  * Creates a product and revalidates every cached listing that shows it.
  *
@@ -564,7 +235,7 @@ it.
  */
 export async function createProduct(formData: FormData): Promise<Product> { ... }
 
-// BAD: restates the signature and the file name
+// FAIL: restates the signature and the file name
 /**
  * Server action that creates a product.
  *
@@ -576,20 +247,27 @@ export async function createProduct(formData: FormData): Promise<Product> { ... 
 
 ---
 
-### Best Practices
+### Related skills
 
-#### Do's
+- `frontend-patterns` for React composition, hooks, forms, and animation that do not depend on Next.js.
+- `frontend-design` for visual direction and composition.
+- `design-system` for tokens, theming, and styling architecture.
+- `web-accessibility` for keyboard, focus, ARIA, and contrast requirements.
+- `seo` for titles, structured data, and keyword mapping behind `generateMetadata`.
+- `performance-optimization` for profiling and Core Web Vitals work.
+- `api-design` for the contract shape of route handlers exposed to other clients.
 
-- Start with Server Components - Add 'use client' only when needed
-- Colocate data fetching - Fetch data where it's used
-- Use Suspense boundaries - Enable streaming for slow data
-- Leverage parallel routes - Independent loading states
-- Use Server Actions - For mutations with progressive enhancement
+---
 
-#### Don'ts
+### Checklist
 
-- Don't pass serializable data - Server → Client boundary limitations
-- Don't use hooks in Server Components - No useState, useEffect
-- Don't fetch in Client Components - Use Server Components or React Query
-- Don't over-nest layouts - Each layout adds to the component tree
-- Don't ignore loading states - Always provide loading.tsx or Suspense
+- Every `'use client'` sits at the smallest leaf that needs it.
+- Every fetch declares a revalidate window, a cache tag, or `no-store`.
+- Every slow region has a Suspense boundary with a real skeleton, and every route has `loading.tsx` or an equivalent.
+- Every mutation is a Server Action that invalidates the caches it dirties.
+- Every route handler parses its input through a schema and returns a meaningful status code.
+- Every dynamic route derives its metadata from its own data.
+- Every image goes through `next/image` with explicit dimensions, and above-the-fold images set `priority`.
+- Every heavy client-only module is loaded dynamically.
+- `next dev` runs on Turbopack, with any webpack fallback justified in writing.
+- No doc comment restates a signature, and every recoverable error is documented with `@throws`.

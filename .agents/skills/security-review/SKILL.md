@@ -1,672 +1,430 @@
 ---
 name: security-review
-description: Use this skill when adding authentication, handling user input, working with secrets, creating API endpoints, or implementing payment/sensitive features. Provides comprehensive security checklist and patterns.
-origin: ECC
+description: Application security review covering secrets, input validation, injection, authentication and session handling, authorization with row-level security, XSS and CSP, CSRF, rate limiting, data exposure, and dependency risk. Use when you say "add login to this app", "review this endpoint before it ships", "we are taking payments now", "is this file upload safe", or "check this for injection". Not for container and image hardening, use `docker-patterns`.
 ---
 
-# Security Review Skill
+# Security Review
 
-This skill ensures all code follows security best practices and identifies potential vulnerabilities.
-
----
-
-### When to Activate
-
-- Implementing authentication or authorization
-- Handling user input or file uploads
-- Creating new API endpoints
-- Working with secrets or credentials
-- Implementing payment features
-- Storing or transmitting sensitive data
-- Integrating third-party APIs
+Check application code against the failure modes that actually cause incidents, with a concrete pass and fail for each.
+This skill covers the application layer. Cloud, container and platform hardening live in the references, and the
+`security-auditor` agent takes over for threat modelling and a full assessment.
 
 ---
 
-### Security Checklist
+### When to activate
 
-#### 1. Secrets Management
+- Adding or changing authentication, session handling, or authorization.
+- Creating an API endpoint, especially one that accepts a body or a file.
+- Handling secrets, tokens, or credentials in code or configuration.
+- Implementing payments, or storing and transmitting personal data.
+- Integrating a third-party API that holds or returns sensitive data.
+- Reviewing a change that touches any of the above, as the security pillar of `code-reviewer`.
 
-##### FAIL: NEVER Do This
+---
+
+### When not to activate
+
+- A full multi-pillar review of a change. Use `code-reviewer`, which pulls this skill in for the security pillar.
+- Threat modelling, attack trees, or a formal assessment. Escalate to the `security-auditor` agent.
+- Cloud IAM, network, CI/CD and CDN hardening. Open
+  [references/cloud-infrastructure-security.md](references/cloud-infrastructure-security.md).
+- Container image hardening, base image choice, SBOM generation, and image scanning. Use `docker-patterns`.
+- Spring Security wiring specifically. Use `springboot-security`.
+- Writing the tests that prove a control works. Use `tdd-workflow`.
+
+---
+
+### Secrets
+
+No credential belongs in source. Read every secret from the environment, and fail fast at startup when one is missing
+rather than at the first request that needs it.
+
+Fail:
+
 ```typescript
-const apiKey = "sk-proj-xxxxx"  // Hardcoded secret
-const dbPassword = "password123" // In source code
+const apiKey = "sk-proj-3f8a2b91c4"
+const dbPassword = "password123"
 ```
 
-##### PASS: ALWAYS Do This
-```typescript
-const apiKey = process.env.OPENAI_API_KEY
-const dbUrl = process.env.DATABASE_URL
+Pass:
 
-// Verify secrets exist
+```typescript
+const apiKey = process.env.SEARCH_API_KEY
 if (!apiKey) {
-  throw new Error('OPENAI_API_KEY not configured')
+  throw new Error('SEARCH_API_KEY is not configured')
 }
 ```
 
-##### Verification Steps
-- [ ] No hardcoded API keys, tokens, or passwords
-- [ ] All secrets in environment variables
-- [ ] `.env.local` in .gitignore
-- [ ] No secrets in git history
-- [ ] Production secrets in hosting platform (Vercel, Railway)
+Keep `.env*` files out of version control, check the history as well as the working tree, and hold production secrets in
+the hosting platform's secret store rather than in a config file.
 
-#### 2. Input Validation
+---
 
-##### Always Validate User Input
+### Input validation
+
+Validate every input against a schema at the boundary, before anything downstream sees it. Allowlist what is permitted;
+a blocklist is a list of the attacks you happened to think of.
+
+Fail: the body is trusted as typed.
+
 ```typescript
-import { z } from 'zod'
+export async function createUser(input: CreateUserInput) {
+  return db.users.create(input)
+}
+```
 
-// Define validation schema
+Pass: parsed and rejected at the edge.
+
+```typescript
 const CreateUserSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1).max(100),
-  age: z.number().int().min(0).max(150)
+  age: z.number().int().min(0).max(150),
 })
 
-// Validate before processing
 export async function createUser(input: unknown) {
-  try {
-    const validated = CreateUserSchema.parse(input)
-    return await db.users.create(validated)
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return { success: false, errors: error.errors }
-    }
-    throw error
-  }
+  const validated = CreateUserSchema.parse(input)
+  return db.users.create(validated)
 }
 ```
 
-##### File Upload Validation
-```typescript
-function validateFileUpload(file: File) {
-  // Size check (5MB max)
-  const maxSize = 5 * 1024 * 1024
-  if (file.size > maxSize) {
-    throw new Error('File too large (max 5MB)')
-  }
+File uploads need size, declared type, extension, and the binary signature, because the first three are all attacker
+controlled.
 
-  // Type check
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/gif']
-  if (!allowedTypes.includes(file.type)) {
-    throw new Error('Invalid file type')
-  }
+Fail: extension only.
 
-  // Extension check
-  const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif']
-  const extension = file.name.toLowerCase().match(/\.[^.]+$/)?.[0]
-  if (!extension || !allowedExtensions.includes(extension)) {
-    throw new Error('Invalid file extension')
-  }
-
-  return true
-}
+```python
+def validate_upload(filename: str) -> bool:
+    return filename.lower().endswith((".jpg", ".png"))
 ```
 
-Always validate magic bytes (binary signature), not just extension or MIME header:
+Pass: the bytes decide.
 
 ```python
 import magic
 
-def validate_upload(file_bytes: bytes, allowed_types: list[str]) -> bool:
-    # Check binary signature (magic bytes) — not just extension or MIME header
-    detected = magic.from_buffer(file_bytes, mime=True)
-    return detected in allowed_types
+def validate_upload(file_bytes: bytes, filename: str, allowed_types: list[str]) -> bool:
+    if len(file_bytes) > 5 * 1024 * 1024:
+        return False
+    if not filename.lower().endswith((".jpg", ".jpeg", ".png", ".gif")):
+        return False
+    return magic.from_buffer(file_bytes, mime=True) in allowed_types
 ```
 
-##### Verification Steps
-- [ ] All user inputs validated with schemas
-- [ ] File uploads restricted (size, type, extension)
-- [ ] No direct use of user input in queries
-- [ ] Whitelist validation (not blacklist)
-- [ ] Error messages don't leak sensitive info
+Error messages returned to the caller must not leak which field failed for a reason that reveals internal structure.
 
-#### 3. SQL Injection Prevention
+---
 
-##### FAIL: NEVER Concatenate SQL
+### Injection
+
+Never build a query by concatenating user input. Use parameters, or a query builder that parameterises for you.
+
+Fail:
+
 ```typescript
-// DANGEROUS - SQL Injection vulnerability
 const query = `SELECT * FROM users WHERE email = '${userEmail}'`
 await db.query(query)
 ```
 
-##### PASS: ALWAYS Use Parameterized Queries
-```typescript
-// Safe - parameterized query
-const { data } = await supabase
-  .from('users')
-  .select('*')
-  .eq('email', userEmail)
+Pass:
 
-// Or with raw SQL
-await db.query(
-  'SELECT * FROM users WHERE email = $1',
-  [userEmail]
-)
+```typescript
+await db.query('SELECT id, email, name FROM users WHERE email = $1', [userEmail])
 ```
 
-##### Verification Steps
-- [ ] All database queries use parameterized queries
-- [ ] No string concatenation in SQL
-- [ ] ORM/query builder used correctly
-- [ ] Supabase queries properly sanitized
+The same rule covers every interpolated language, not just SQL: shell commands, LDAP filters, NoSQL query documents, and
+template expressions. If user input becomes part of a sentence another interpreter parses, it needs the parameterised
+form of that interpreter.
 
-#### 4. Authentication & Authorization
+---
 
-##### JWT Token Handling
+### Authentication and session handling
+
+Tokens live in `HttpOnly` cookies, never in `localStorage`, because any script that runs on the page can read
+`localStorage` and a stolen token is a full account takeover.
+
+Fail:
+
 ```typescript
-// FAIL: WRONG: localStorage (vulnerable to XSS)
 localStorage.setItem('token', token)
-
-// PASS: CORRECT: httpOnly cookies
-res.setHeader('Set-Cookie',
-  `token=${token}; HttpOnly; Secure; SameSite=Strict; Max-Age=3600`)
 ```
 
-##### Authorization Checks
+Pass:
+
 ```typescript
-export async function deleteUser(userId: string, requesterId: string) {
-  // ALWAYS verify authorization first
-  const requester = await db.users.findUnique({
-    where: { id: requesterId }
-  })
+res.setHeader('Set-Cookie', `token=${token}; HttpOnly; Secure; SameSite=Strict; Max-Age=3600`)
+```
 
-  if (requester.role !== 'admin') {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 403 }
-    )
-  }
+Hash passwords with Argon2id as the primary choice (`argon2-cffi` in Python, `Argon2PasswordEncoder` in Spring). BCrypt
+with a cost factor of 12 or more is an acceptable fallback. MD5, SHA-1, unsalted SHA-256, and PBKDF2 under 100,000
+iterations are prohibited.
 
-  // Proceed with deletion
+```python
+from argon2 import PasswordHasher
+
+hasher = PasswordHasher()
+stored = hasher.hash(password)
+hasher.verify(stored, password)
+```
+
+```java
+PasswordEncoder encoder = new Argon2PasswordEncoder(16, 32, 1, 65536, 3);
+String stored = encoder.encode(rawPassword);
+encoder.matches(rawPassword, stored);
+```
+
+OAuth, PKCE and JWT validation rules are in [references/platform-security.md](references/platform-security.md).
+
+---
+
+### Authorization
+
+Check authorization before the operation, on the server, against the authenticated identity rather than an identifier
+the client sent.
+
+Fail: the caller names their own role.
+
+```typescript
+export async function deleteUser(userId: string, role: string) {
+  if (role !== 'admin') return forbidden()
   await db.users.delete({ where: { id: userId } })
 }
 ```
 
-##### Password Hashing
+Pass: the role is looked up from the session identity.
 
-- Primary (recommended): Argon2id: `argon2-cffi` (Python) / `Argon2PasswordEncoder` (Spring)
-- Acceptable fallback: BCrypt with cost factor >= 12
-- Prohibited: MD5, SHA-1, SHA-256 (unsalted), PBKDF2 with < 100,000 iterations
-
-```python
-# Python — argon2-cffi
-from argon2 import PasswordHasher
-
-ph = PasswordHasher()
-hash = ph.hash(password)         # hash and store
-ph.verify(hash, password)        # verify on login
+```typescript
+export async function deleteUser(userId: string, session: Session) {
+  const requester = await db.users.findUnique({ where: { id: session.userId } })
+  if (requester?.role !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+  await db.users.delete({ where: { id: userId } })
+}
 ```
 
-```java
-// Spring Security
-PasswordEncoder encoder = new Argon2PasswordEncoder(16, 32, 1, 65536, 3);
-String hash = encoder.encode(rawPassword);
-encoder.matches(rawPassword, hash);
-```
+Where the database supports row-level security, enable it on every table holding user data and write the policy per
+operation. It is defence in depth: a missing check in one handler no longer exposes another user's rows.
 
-##### Row Level Security (Supabase)
 ```sql
--- Enable RLS on all tables
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 
--- Users can only view their own data
-CREATE POLICY "Users view own data"
-  ON users FOR SELECT
-  USING (auth.uid() = id);
+CREATE POLICY users_select_own ON users
+  FOR SELECT
+  USING (id = current_setting('app.current_user_id')::uuid);
 
--- Users can only update their own data
-CREATE POLICY "Users update own data"
-  ON users FOR UPDATE
-  USING (auth.uid() = id);
+CREATE POLICY users_update_own ON users
+  FOR UPDATE
+  USING (id = current_setting('app.current_user_id')::uuid);
 ```
 
-##### Verification Steps
-- [ ] Tokens stored in httpOnly cookies (not localStorage)
-- [ ] Authorization checks before sensitive operations
-- [ ] Row Level Security enabled in Supabase
-- [ ] Role-based access control implemented
-- [ ] Session management secure
-
-#### 5. XSS Prevention
-
-##### Sanitize HTML
-```typescript
-import DOMPurify from 'isomorphic-dompurify'
-
-// ALWAYS sanitize user-provided HTML
-function renderUserContent(html: string) {
-  const clean = DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'p'],
-    ALLOWED_ATTR: []
-  })
-  return <div dangerouslySetInnerHTML={{ __html: clean }} />
-}
-```
-
-##### Content Security Policy
-
-Rule: No `unsafe-inline` or `unsafe-eval` in Content Security Policy. Use nonces for inline scripts/styles if necessary.
-
-```typescript
-// next.config.js
-const nonce = generateSecureNonce() // cryptographically random per request
-
-const securityHeaders = [
-  {
-    key: 'Content-Security-Policy',
-    value: [
-      "default-src 'self'",
-      `script-src 'self' 'nonce-${nonce}'`,
-      `style-src 'self' 'nonce-${nonce}'`,
-      "img-src 'self' data:",
-      "font-src 'self'",
-      "frame-ancestors 'none'",
-      "base-uri 'self'",
-    ].join('; ')
-  }
-]
-```
-
-Full recommended CSP header:
-```
-Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{random}'; style-src 'self' 'nonce-{random}'; img-src 'self' data:; font-src 'self'; frame-ancestors 'none'; base-uri 'self'
-```
-
-##### Verification Steps
-- [ ] User-provided HTML sanitized
-- [ ] CSP headers configured with nonces: no `unsafe-inline` or `unsafe-eval`
-- [ ] No unvalidated dynamic content rendering
-- [ ] React's built-in XSS protection used
-
-#### 6. CSRF Protection
-
-##### CSRF Tokens
-```typescript
-import { csrf } from '@/lib/csrf'
-
-export async function POST(request: Request) {
-  const token = request.headers.get('X-CSRF-Token')
-
-  if (!csrf.verify(token)) {
-    return NextResponse.json(
-      { error: 'Invalid CSRF token' },
-      { status: 403 }
-    )
-  }
-
-  // Process request
-}
-```
-
-##### SameSite Cookies
-```typescript
-res.setHeader('Set-Cookie',
-  `session=${sessionId}; HttpOnly; Secure; SameSite=Strict`)
-```
-
-##### Verification Steps
-- [ ] CSRF tokens on state-changing operations
-- [ ] SameSite=Strict on all cookies
-- [ ] Double-submit cookie pattern implemented
-
-#### 7. Rate Limiting
-
-##### API Rate Limiting
-```typescript
-import rateLimit from 'express-rate-limit'
-
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per window
-  message: 'Too many requests'
-})
-
-// Apply to routes
-app.use('/api/', limiter)
-```
-
-##### Expensive Operations
-```typescript
-// Aggressive rate limiting for searches
-const searchLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 10, // 10 requests per minute
-  message: 'Too many search requests'
-})
-
-app.use('/api/search', searchLimiter)
-```
-
-##### Verification Steps
-- [ ] Rate limiting on all API endpoints
-- [ ] Stricter limits on expensive operations
-- [ ] IP-based rate limiting
-- [ ] User-based rate limiting (authenticated)
-
-#### 8. Sensitive Data Exposure
-
-##### Logging
-```typescript
-// FAIL: WRONG: Logging sensitive data
-console.log('User login:', { email, password })
-console.log('Payment:', { cardNumber, cvv })
-
-// PASS: CORRECT: Redact sensitive data
-console.log('User login:', { email, userId })
-console.log('Payment:', { last4: card.last4, userId })
-```
-
-##### Error Messages
-```typescript
-// FAIL: WRONG: Exposing internal details
-catch (error) {
-  return NextResponse.json(
-    { error: error.message, stack: error.stack },
-    { status: 500 }
-  )
-}
-
-// PASS: CORRECT: Generic error messages
-catch (error) {
-  console.error('Internal error:', error)
-  return NextResponse.json(
-    { error: 'An error occurred. Please try again.' },
-    { status: 500 }
-  )
-}
-```
-
-##### Verification Steps
-- [ ] No passwords, tokens, or secrets in logs
-- [ ] Error messages generic for users
-- [ ] Detailed errors only in server logs
-- [ ] No stack traces exposed to users
-
-#### 9. Blockchain Security (Solana)
-
-##### Wallet Verification
-```typescript
-import { verify } from '@solana/web3.js'
-
-async function verifyWalletOwnership(
-  publicKey: string,
-  signature: string,
-  message: string
-) {
-  try {
-    const isValid = verify(
-      Buffer.from(message),
-      Buffer.from(signature, 'base64'),
-      Buffer.from(publicKey, 'base64')
-    )
-    return isValid
-  } catch (error) {
-    return false
-  }
-}
-```
-
-##### Transaction Verification
-```typescript
-async function verifyTransaction(transaction: Transaction) {
-  // Verify recipient
-  if (transaction.to !== expectedRecipient) {
-    throw new Error('Invalid recipient')
-  }
-
-  // Verify amount
-  if (transaction.amount > maxAmount) {
-    throw new Error('Amount exceeds limit')
-  }
-
-  // Verify user has sufficient balance
-  const balance = await getBalance(transaction.from)
-  if (balance < transaction.amount) {
-    throw new Error('Insufficient balance')
-  }
-
-  return true
-}
-```
-
-##### Verification Steps
-- [ ] Wallet signatures verified
-- [ ] Transaction details validated
-- [ ] Balance checks before transactions
-- [ ] No blind transaction signing
-
-#### 10. Dependency Security
-
-##### Regular Updates
-```bash
-# Check for vulnerabilities
-npm audit
-
-# Fix automatically fixable issues (mutates the lockfile — review the diff before committing)
-npm audit fix
-
-# Update dependencies
-npm update
-
-# Check for outdated packages
-npm outdated
-```
-
-##### Lock Files
-```bash
-# ALWAYS commit lock files
-git add package-lock.json
-
-# Use in CI/CD for reproducible builds
-npm ci  # Instead of npm install
-```
-
-##### Verification Steps
-- [ ] Dependencies up to date
-- [ ] No known vulnerabilities (npm audit clean)
-- [ ] Lock files committed
-- [ ] Scheduled dependency review with a vulnerability scan (npm audit / pip-audit in CI); enabling Dependabot is an
-  approval-gated decision, not an automatic default
-- [ ] Regular security updates
+The session variable is set per connection from the authenticated identity. Managed platforms expose their own
+equivalent, such as an `auth.uid()` function, and the policy shape is the same either way. Row-level security is an
+addition to application authorization checks, never a replacement for them.
 
 ---
 
-### Security Testing
+### XSS and content security policy
 
-#### Automated Security Tests
+Sanitise any user-provided HTML before rendering it, with an explicit tag and attribute allowlist.
+
 ```typescript
-// Test authentication
-test('requires authentication', async () => {
+const clean = DOMPurify.sanitize(html, {
+  ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'p'],
+  ALLOWED_ATTR: [],
+})
+```
+
+Ship a Content Security Policy with no `unsafe-inline` and no `unsafe-eval`. Inline scripts and styles that genuinely
+have to exist get a per-request cryptographic nonce.
+
+Fail: the policy permits exactly what it exists to prevent.
+
+```text
+Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'
+```
+
+Pass:
+
+```text
+Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{random}'; style-src 'self' 'nonce-{random}'; img-src 'self' data:; font-src 'self'; frame-ancestors 'none'; base-uri 'self'
+```
+
+The full set of required response headers is in [references/platform-security.md](references/platform-security.md).
+
+---
+
+### CSRF
+
+Every state-changing request needs either a CSRF token or a `SameSite` cookie strong enough to prevent cross-site
+submission, and in practice both.
+
+Fail: a cookie-authenticated POST with no origin defence.
+
+```typescript
+export async function POST(request: Request) {
+  const session = await getSession(request)
+  return updateProfile(session.userId, await request.json())
+}
+```
+
+Pass:
+
+```typescript
+export async function POST(request: Request) {
+  if (!csrf.verify(request.headers.get('X-CSRF-Token'))) {
+    return NextResponse.json({ error: 'Invalid CSRF token' }, { status: 403 })
+  }
+  const session = await getSession(request)
+  return updateProfile(session.userId, await request.json())
+}
+```
+
+```typescript
+res.setHeader('Set-Cookie', `session=${sessionId}; HttpOnly; Secure; SameSite=Strict`)
+```
+
+A token-in-header API that never authenticates from a cookie is not CSRF-exposed in the same way, but say so
+deliberately rather than by omission.
+
+---
+
+### Rate limiting
+
+Rate limit every endpoint, and limit expensive endpoints harder. Key on the authenticated user where there is one and on
+the client address where there is not, because an address-only limit punishes shared networks and an identity-only limit
+does nothing to anonymous abuse.
+
+Fail: the expensive path shares the global limit.
+
+```typescript
+app.use('/api/', rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }))
+```
+
+Pass: the expensive path gets its own, tighter budget.
+
+```typescript
+app.use('/api/', rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }))
+app.use('/api/search', rateLimit({ windowMs: 60 * 1000, max: 10 }))
+app.use('/api/auth/login', rateLimit({ windowMs: 60 * 1000, max: 5 }))
+```
+
+---
+
+### Sensitive data exposure
+
+Nothing secret reaches a log, and nothing internal reaches a client.
+
+Fail:
+
+```typescript
+logger.info({ email, password }, 'user login')
+return NextResponse.json({ error: error.message, stack: error.stack }, { status: 500 })
+```
+
+Pass:
+
+```typescript
+logger.info({ email, userId }, 'user login')
+logger.error({ err: error }, 'internal error')
+return NextResponse.json({ error: 'An error occurred. Please try again.' }, { status: 500 })
+```
+
+Redact card numbers to the last four digits, never log a token or a password even at debug level, and keep stack traces
+on the server. Audit logging, encryption at rest, and privacy obligations are in
+[references/platform-security.md](references/platform-security.md).
+
+---
+
+### Dependency risk
+
+Scan dependencies on every pull request and block the build on a critical or high severity finding that has a fix
+available. Commit the lock file and install from it in CI so the build is reproducible.
+
+```bash
+npm audit --audit-level=high
+```
+
+```bash
+npm ci
+```
+
+Run `npm audit fix` deliberately rather than in CI: it rewrites the lock file, so the diff needs reviewing before it is
+committed. A scheduled dependency review belongs in the process. Turning on an automated update bot is a decision to
+take with approval, not a default.
+
+SBOM generation, container image signing, and image vulnerability scanning belong to the container pipeline. Use
+`docker-patterns` for those.
+
+---
+
+### Test the controls
+
+A control nobody tests is a control nobody has. Assert the rejection, not just the success path.
+
+```typescript
+test('rejects an unauthenticated request', async () => {
   const response = await fetch('/api/protected')
   expect(response.status).toBe(401)
 })
 
-// Test authorization
-test('requires admin role', async () => {
-  const response = await fetch('/api/admin', {
-    headers: { Authorization: `Bearer ${userToken}` }
-  })
+test('rejects a non-admin caller', async () => {
+  const response = await fetch('/api/admin', { headers: { Authorization: `Bearer ${userToken}` } })
   expect(response.status).toBe(403)
 })
 
-// Test input validation
-test('rejects invalid input', async () => {
+test('rejects a malformed payload', async () => {
   const response = await fetch('/api/users', {
     method: 'POST',
-    body: JSON.stringify({ email: 'not-an-email' })
+    body: JSON.stringify({ email: 'not-an-email' }),
   })
   expect(response.status).toBe(400)
 })
-
-// Test rate limiting
-test('enforces rate limits', async () => {
-  const requests = Array(101).fill(null).map(() =>
-    fetch('/api/endpoint')
-  )
-
-  const responses = await Promise.all(requests)
-  const tooManyRequests = responses.filter(r => r.status === 429)
-
-  expect(tooManyRequests.length).toBeGreaterThan(0)
-})
 ```
 
 ---
 
-### Pre-Deployment Security Checklist
+### Reference map
 
-Before ANY production deployment:
-
-- [ ] Secrets: No hardcoded secrets, all in env vars
-- [ ] Input Validation: All user inputs validated
-- [ ] SQL Injection: All queries parameterized
-- [ ] XSS: User content sanitized
-- [ ] CSRF: Protection enabled
-- [ ] Authentication: Proper token handling
-- [ ] Authorization: Role checks in place
-- [ ] Rate Limiting: Enabled on all endpoints
-- [ ] HTTPS: Enforced in production
-- [ ] Security Headers: CSP, X-Frame-Options configured
-- [ ] Error Handling: No sensitive data in errors
-- [ ] Logging: No sensitive data logged
-- [ ] Dependencies: Up to date, no vulnerabilities
-- [ ] Row Level Security: Enabled in Supabase
-- [ ] CORS: Properly configured
-- [ ] File Uploads: Validated (size, type)
-- [ ] Wallet Signatures: Verified (if blockchain)
+| Task | Open |
+| --- | --- |
+| OAuth 2.1 and PKCE, JWT validation, mTLS, required response headers, zero trust, supply chain, audit logging, privacy, encryption at rest, SAST and DAST | [references/platform-security.md](references/platform-security.md) |
+| Cloud IAM, secrets managers, network rules, pipeline hardening, CDN and WAF, backup and recovery | [references/cloud-infrastructure-security.md](references/cloud-infrastructure-security.md) |
+| Wallet signature verification and on-chain transaction validation | [references/blockchain-security.md](references/blockchain-security.md) |
 
 ---
 
-### Resources
+### Related skills
 
-- [OWASP Top 10](https://owasp.org/www-project-top-ten/)
-- [Next.js Security](https://nextjs.org/docs/security)
-- [Supabase Security](https://supabase.com/docs/guides/auth)
-- [Web Security Academy](https://portswigger.net/web-security)
-
----
-
-Remember: Security is not optional. One vulnerability can compromise the entire platform. When in doubt, err on the side
-of caution.
+- `code-reviewer` is the parent review workflow, and findings from it feed its security pillar and escalate to the
+  `security-auditor` agent.
+- `docker-patterns` owns container hardening, SBOM generation, and image scanning.
+- `springboot-security` owns Spring Security configuration specifically.
+- `api-design` owns the contract and error shape the validation rules above assert against.
+- `observability-and-logging` owns the log structure the redaction rules apply to.
+- `tdd-workflow` owns the discipline behind the control tests.
 
 ---
 
-### OAuth 2.1 / PKCE
+### Checklist
 
-- Mandate PKCE for all authorization code flows (S256 code challenge)
-- Prohibit Implicit Grant: removed in OAuth 2.1; use authorization code + PKCE instead
-- Prohibit ROPC (Resource Owner Password Credentials): no exceptions
-- Refresh Token Rotation: issue a new refresh token on every use; invalidate the old one immediately
-- Access token lifetime: maximum 15 minutes
+Run before any production deployment.
 
----
-
-### JWT Validation Checklist
-
-Always validate:
-- `alg` claim: explicitly reject `none` algorithm: configure allowed algorithms allowlist
-- `exp`: token must not be expired
-- `iss`: must match expected issuer exactly
-- `aud`: must match expected audience
-
-```python
-import jwt
-
-def decode_token(token: str) -> dict:
-    return jwt.decode(
-        token,
-        public_key,
-        algorithms=["RS256"],  # Explicit allowlist — never use algorithms=["*"]
-        options={"require": ["exp", "iss", "aud"]},
-        audience="my-api",
-        issuer="https://auth.example.com",
-    )
-```
-
----
-
-### mTLS, Service-to-Service
-
-For internal microservice communication, enforce mutual TLS:
-- Both client and server present certificates
-- Use a private CA for internal service certificates
-- Short certificate lifetimes (< 24h) via cert-manager or Vault PKI
-
----
-
-### Required Security Headers
-
-```http
-Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
-Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{random}'; frame-ancestors 'none'
-Permissions-Policy: camera=(), microphone=(), geolocation=()
-Referrer-Policy: strict-origin-when-cross-origin
-X-Content-Type-Options: nosniff
-X-Frame-Options: DENY
-```
-
----
-
-### Zero Trust Architecture
-
-Principles:
-- Never trust, always verify: no implicit trust based on network location
-- Every request must be authenticated and authorized, even between internal services
-- Network policies: default-deny; explicit allow rules for required communication paths
-- Short-lived credentials: rotate tokens, certificates, and secrets automatically
-- Least privilege: service accounts have only the permissions they need
-
----
-
-### Supply Chain Security
-
-- Generate SBOM (Software Bill of Materials) for every release (CycloneDX or SPDX format)
-- Sign container images with cosign (Sigstore) on every production push
-- Pin all dependencies to exact versions in lock files; prohibit unpinned ranges in production
-- Block CI on CRITICAL/HIGH CVEs with available fixes (Trivy, Grype, `npm audit`)
-
----
-
-### Audit Logging Requirements
-
-Every security-relevant event must produce an immutable audit log entry with:
-- `timestamp` (UTC ISO 8601)
-- `actor` (user ID or service account)
-- `action` (what was done)
-- `resource` (what was acted upon)
-- `outcome` (success/failure)
-- `ip_address` and `user_agent` for user-initiated actions
-
-Rules:
-- Write to a write-only log sink (append-only storage, separate account)
-- Retain for minimum 12 months
-- Never expose raw audit logs to end users
-
----
-
-### Privacy by Design
-
-- Data minimization: collect only what is strictly necessary
-- Legal basis: document the legal basis (consent, legitimate interest, etc.) for each data category
-- Right to erasure: implement within 30 days of request
-- DPIA (Data Protection Impact Assessment): required before introducing a feature that processes sensitive personal data
-  at scale
-- Pseudonymization in non-production: never use real PII in dev/staging environments
-
----
-
-### Encryption at Rest
-
-- Symmetric encryption: AES-256-GCM for field-level encryption
-- Asymmetric: RSA-4096 or ECDSA P-384 for key wrapping
-- KMS/HSM for cryptographic key management: never store master keys in application config
-- Rotate encryption keys annually or after suspected compromise
-
----
-
-### SAST / DAST Pipeline
-
-- SAST: run on every PR (Semgrep, SonarQube, or Bandit for Python)
-- DAST: run weekly or before every major release using OWASP ZAP against a staging environment
-- Dependency scanning: `npm audit`, `pip-audit`, `trivy fs` on every PR
+- [ ] No hardcoded secret in the working tree or the git history.
+- [ ] Every secret read from the environment, with a startup check.
+- [ ] Every input validated against a schema at the boundary.
+- [ ] File uploads checked on size, extension, declared type, and magic bytes.
+- [ ] Every query parameterised, in SQL and in every other interpreted target.
+- [ ] Tokens in `HttpOnly`, `Secure`, `SameSite` cookies.
+- [ ] Passwords hashed with Argon2id, or BCrypt at cost 12 or higher.
+- [ ] Authorization checked server-side against the session identity, before the operation.
+- [ ] Row-level security enabled where the database supports it, as defence in depth.
+- [ ] User HTML sanitised with an explicit allowlist.
+- [ ] CSP shipped with no `unsafe-inline` and no `unsafe-eval`.
+- [ ] CSRF defence on every cookie-authenticated state change.
+- [ ] Rate limits on every endpoint, tighter on expensive and auth endpoints.
+- [ ] No secret in a log, no stack trace in a response.
+- [ ] Dependency scan clean at high and critical, lock file committed, CI installs from it.
+- [ ] Rejection paths covered by tests, not only the happy path.
+- [ ] HTTPS enforced, security headers set, CORS scoped to known origins.
+- [ ] Auth, payment and personal-data findings escalated to the `security-auditor` agent.

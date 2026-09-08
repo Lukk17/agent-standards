@@ -1,38 +1,53 @@
 ---
 name: keycloak-auth-services
-description: "Implementation guide for Keycloak.AuthServices .NET library, authentication (JWT Bearer, OIDC, RFC 8414), authorization (RBAC, resource protection, Authorization Server, organizations, multi-tenancy), Admin REST API SDK, Protection API SDK, and developer experience tooling (.NET Aspire, templates, OpenTelemetry). Trigger phrases include Keycloak.AuthServices, ProtectedResource, Admin SDK, Protection API, organization, RFC 8414, token introspection."
-user-invocable: true
+description: Keycloak.AuthServices for .NET, covering JWT Bearer and OIDC authentication, RBAC policies, resource protection through the Authorization Server, organization multi-tenancy, and the Admin and Protection API SDKs. Use when you say "add Keycloak auth to my .NET API", "require a realm role on this endpoint", "call the Keycloak Admin API from C#", or "protect this resource with UMA". Not for administering the server, use `keycloak-administration`.
 ---
 
 # Keycloak.AuthServices Implementation Guide
 
+Wiring the Keycloak.AuthServices packages into an ASP.NET Core application: authentication, authorization, resource
+protection, and the SDKs that talk back to Keycloak. This is the client side of the identity boundary, and it assumes
+the realm and clients already exist.
+
+Baseline versions, current as of September 2026: Keycloak.AuthServices 2.x against Keycloak 26, on .NET 8 or newer.
+
 ---
 
-### Quick Start
+### When to activate
 
-Choose your task and load the appropriate reference:
+- Adding JWT Bearer or OIDC authentication to an ASP.NET Core API or web application.
+- Enforcing realm or client roles through an authorization policy.
+- Protecting an endpoint with the Keycloak Authorization Server and UMA permissions.
+- Calling the Keycloak Admin REST API or Protection API from C#.
+- Wiring Keycloak into .NET Aspire, or instrumenting it with OpenTelemetry.
 
-1. JWT Bearer Authentication (Web API) → Continue below
-2. OIDC Authentication (Web App) → Load [authentication.md](references/authentication.md)
-3. Authorization & RBAC → Load [authorization.md](references/authorization.md)
-4. Resource Protection & Authorization Server → Load [resource-protection.md](references/resource-protection.md)
-5. Admin REST API SDK → Load [admin-sdk.md](references/admin-sdk.md)
-6. Protection API SDK → Load [protection-api.md](references/protection-api.md)
-7. Developer Experience (Aspire, Templates) → Load [devex.md](references/devex.md)
-8. Configuration Reference → Load [configuration.md](references/configuration.md)
-9. Recipes & Troubleshooting → Load [troubleshooting.md](references/troubleshooting.md)
-10. Token Introspection (Lightweight Tokens) → Load [authorization.md](references/authorization.md) (see "Token
-    Introspection" section)
-11. Organization Authorization (Multi-Tenancy) → Load
-    [organization-authorization.md](references/organization-authorization.md)
-12. RFC 8414 Server Metadata Discovery → Load [authentication.md](references/authentication.md) (see "Server Metadata
-    Discovery" section)
-13. Custom Token Provider (IKeycloakAccessTokenProvider) → Load
-    [resource-protection.md](references/resource-protection.md) (see "IKeycloakAccessTokenProvider" section)
-14. Extensible Policy Builder (IProtectedResourcePolicyBuilder) → Load
-    [resource-protection.md](references/resource-protection.md) (see "IProtectedResourcePolicyBuilder" section)
-15. Pluggable Parameter Resolvers → Load [resource-protection.md](references/resource-protection.md) (see "Pluggable
-    Parameter Resolvers" section)
+---
+
+### When not to activate
+
+- Creating realms, clients, flows, or federation on the Keycloak server: use `keycloak-administration`.
+- Token verification in a Node service: use `node-backend-patterns`.
+- Spring Security resource-server configuration: use `springboot-security`.
+- The HTTP contract the protected endpoints expose: use `api-design`.
+- Threat modelling around authentication: use `security-review`.
+
+---
+
+### Reference map
+
+| Task | Open |
+| --- | --- |
+| OIDC web app authentication, RFC 8414 metadata discovery | [authentication.md](references/authentication.md) |
+| RBAC, role claims transformation, token introspection | [authorization.md](references/authorization.md) |
+| Authorization Server, protected resources, policy builder, parameter resolvers | [resource-protection.md](references/resource-protection.md) |
+| Admin REST API, hand-written and Kiota clients, token management | [admin-sdk.md](references/admin-sdk.md) |
+| UMA Protection API, resource and permission management | [protection-api.md](references/protection-api.md) |
+| Organization-based multi-tenancy and membership requirements | [organization-authorization.md](references/organization-authorization.md) |
+| .NET Aspire, project templates, OpenTelemetry | [devex.md](references/devex.md) |
+| Every configuration option, naming conventions, adapter file | [configuration.md](references/configuration.md) |
+| Recipes, common failures, debugging | [troubleshooting.md](references/troubleshooting.md) |
+
+JWT Bearer authentication for a Web API is covered below and needs no reference file.
 
 ---
 
@@ -53,8 +68,15 @@ Choose your task and load the appropriate reference:
 
 ### Minimal Web API Setup
 
+Install the authentication package:
+
 ```bash
 dotnet add package Keycloak.AuthServices.Authentication
+```
+
+Install the shared configuration package:
+
+```bash
 dotnet add package Keycloak.AuthServices.Common
 ```
 
@@ -74,8 +96,9 @@ app.MapGet("/", () => "Hello World!").RequireAuthorization();
 app.Run();
 ```
 
+Bind it from the `Keycloak` section of `appsettings.json`. The kebab-case keys come from the Keycloak adapter format:
+
 ```json
-// appsettings.json, "Keycloak" section (kebab-case from adapter config)
 {
   "Keycloak": {
     "realm": "Test",
@@ -162,19 +185,22 @@ app.MapGet("/users", async (IKeycloakUserClient client) =>
 
 ---
 
-### Reference Documentation
+### Related skills
 
-- [authentication.md](references/authentication.md): JWT Bearer and OIDC setup, all overloads, adapter file config, RFC
-  8414 server metadata discovery
-- [authorization.md](references/authorization.md): RBAC, realm/client roles, role claims transformation, token
-  introspection
-- [organization-authorization.md](references/organization-authorization.md): Organization-based multi-tenancy,
-  membership requirements, parameter resolvers
-- [resource-protection.md](references/resource-protection.md): Authorization Server, Protected Resource Builder, dynamic
-  resources, policy provider, IKeycloakAccessTokenProvider, IProtectedResourcePolicyBuilder, pluggable parameter
-  resolvers
-- [admin-sdk.md](references/admin-sdk.md): Admin REST API (hand-written + Kiota), access token management
-- [protection-api.md](references/protection-api.md): UMA Protection API, resource/permission/policy management
-- [devex.md](references/devex.md): .NET Aspire, templates, OpenTelemetry
-- [configuration.md](references/configuration.md): All configuration options, naming conventions, adapter file
-- [troubleshooting.md](references/troubleshooting.md): Common issues, recipes, debugging
+- `keycloak-administration` for creating the realm, clients, roles, and resources this library consumes.
+- `api-design` for the status codes and problem bodies an authorization failure should return.
+- `security-review` for reviewing the authentication and authorization design as a whole.
+- `build-dependency-management` for pinning the package versions across a multi-project solution.
+- `observability-and-logging` for what the OpenTelemetry instrumentation should feed into.
+
+---
+
+### Checklist
+
+- [ ] `verify-token-audience` is on, so a token minted for another client is rejected.
+- [ ] `ssl-required` is `external` or `all` outside local development, never `none`.
+- [ ] The client secret comes from configuration or a secret store, never from a committed `appsettings.json`.
+- [ ] Authorization policies name realm or client roles explicitly, rather than checking a raw claim.
+- [ ] Resource protection uses the Authorization Server where per-resource permission is genuinely needed.
+- [ ] Service-account tokens are cached and refreshed through a token manager, not requested per call.
+- [ ] OpenTelemetry instrumentation is registered so token failures are visible in traces.

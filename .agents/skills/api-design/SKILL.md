@@ -1,167 +1,118 @@
 ---
 name: api-design
-description: REST API design patterns including resource naming, status codes, pagination, filtering, error responses, versioning, and rate limiting for production APIs. Also covers GraphQL schema design, mutations, authorization, and production security.
-origin: ECC
+description: HTTP and GraphQL contract design covering resource naming, method and status-code semantics, RFC 7807 error bodies, pagination, idempotency, conditional requests, health endpoints, rate-limit headers and tiers, and versioning. Use when you say "design this endpoint", "what status code should this return", "review our API contract", "add cursor pagination to this list", or "how do we deprecate v1". Not for the service code behind the endpoint, use `backend-patterns`.
 ---
 
-# API Design Patterns
+# API Design
 
-Conventions and best practices for designing consistent, developer-friendly REST APIs and GraphQL APIs.
+Conventions for HTTP and GraphQL contracts that stay predictable as an API grows and gains external callers. The
+contract is the deliverable here, so everything is about what goes on the wire and nothing about the code that produces
+it.
 
----
-
-### When to Activate
-
-- Designing new API endpoints
-- Reviewing existing API contracts
-- Adding pagination, filtering, or sorting
-- Implementing error handling for APIs
-- Planning API versioning strategy
-- Building public or partner-facing APIs
+Standards baseline, current as of September 2026: HTTP semantics per RFC 9110, problem responses per RFC 7807,
+descriptions written in OpenAPI 3.1, GraphQL over the `graphql-ws` transport.
 
 ---
 
-### Resource Design
+### When to activate
 
-#### URL Structure
-
-```
-# Resources are nouns, plural, lowercase, kebab-case
-GET    /api/v1/users
-GET    /api/v1/users/:id
-POST   /api/v1/users
-PUT    /api/v1/users/:id
-PATCH  /api/v1/users/:id
-DELETE /api/v1/users/:id
-
-# Sub-resources for relationships
-GET    /api/v1/users/:id/orders
-POST   /api/v1/users/:id/orders
-
-# Actions that don't map to CRUD (use verbs sparingly)
-POST   /api/v1/orders/:id/cancel
-POST   /api/v1/auth/login
-POST   /api/v1/auth/refresh
-```
-
-#### Naming Rules
-
-```
-# GOOD
-/api/v1/team-members          # kebab-case for multi-word resources
-/api/v1/orders?status=active  # query params for filtering
-/api/v1/users/123/orders      # nested resources for ownership
-
-# BAD
-/api/v1/getUsers              # verb in URL
-/api/v1/user                  # singular (use plural)
-/api/v1/team_members          # snake_case in URLs
-/api/v1/users/123/getOrders   # verb in nested resource
-```
+- Designing a new endpoint or reviewing an existing API contract.
+- Choosing a status code, an error body, or a response envelope.
+- Adding pagination, filtering, or sorting to a collection endpoint.
+- Planning a versioning or deprecation path for a public or partner API.
+- Deciding what an endpoint must accept to be safe to retry.
 
 ---
 
-### HTTP Methods and Status Codes
+### When not to activate
 
-#### Method Semantics
-
-| Method | Idempotent | Safe | Use For |
-|--------|-----------|------|---------|
-| GET | Yes | Yes | Retrieve resources |
-| POST | No | No | Create resources, trigger actions |
-| PUT | Yes | No | Full replacement of a resource |
-| PATCH | No* | No | Partial update of a resource |
-| DELETE | Yes | No | Remove a resource |
-
-*PATCH can be made idempotent with proper implementation
-
-#### Status Code Reference
-
-```
-# Success
-200 OK                    — GET, PUT, PATCH (with response body)
-201 Created               — POST (include Location header)
-204 No Content            — DELETE, PUT (no response body)
-207 Multi-Status          — Bulk operations with per-item results
-304 Not Modified          — Conditional GET, resource unchanged
-
-# Client Errors
-400 Bad Request           — Validation failure, malformed JSON
-401 Unauthorized          — Missing or invalid authentication
-403 Forbidden             — Authenticated but not authorized
-404 Not Found             — Resource doesn't exist
-409 Conflict              — Duplicate entry, state conflict
-422 Unprocessable Entity  — Semantically invalid (valid JSON, bad data)
-429 Too Many Requests     — Rate limit exceeded
-
-# Server Errors
-500 Internal Server Error — Unexpected failure (never expose details)
-502 Bad Gateway           — Upstream service failed
-503 Service Unavailable   — Temporary overload, include Retry-After
-```
-
-#### Common Mistakes
-
-```
-# BAD: 200 for everything
-{ "status": 200, "success": false, "error": "Not found" }
-
-# GOOD: Use HTTP status codes semantically
-HTTP/1.1 404 Not Found
-Content-Type: application/problem+json
-{ "type": "https://example.com/errors/not-found", "title": "Not Found", "status": 404, "detail": "User not found" }
-
-# BAD: 500 for validation errors
-# GOOD: 400 or 422 with field-level details
-
-# BAD: 200 for created resources
-# GOOD: 201 with Location header
-HTTP/1.1 201 Created
-Location: /api/v1/users/abc-123
-```
+- Service structure, layering, or data access behind the endpoint: use `backend-patterns`.
+- Node, Express, or Next.js implementation of a handler: use `node-backend-patterns`.
+- Spring Boot controllers and their error handling: use `springboot-patterns`.
+- Authentication mechanics, token verification, and threat modelling: use `security-review`.
+- SOAP and WSDL contracts: use `soap-webservices`.
+- Writing the reference documentation for a finished contract: use `markdown-writer`.
 
 ---
 
-### Response Format
+### Reference map
 
-#### Success Response
+| Task | Open |
+| --- | --- |
+| Pagination, filtering, sorting, search, sparse fieldsets | [references/pagination-and-filtering.md](references/pagination-and-filtering.md) |
+| Versioning strategy, deprecation, and sunset headers | [references/versioning.md](references/versioning.md) |
+| GraphQL schema, resolvers, and production hardening | [references/graphql.md](references/graphql.md) |
+| A working handler in TypeScript, Python, or Go | [references/implementation-examples.md](references/implementation-examples.md) |
 
-```json
-{
-  "data": {
-    "id": "abc-123",
-    "email": "alice@example.com",
-    "name": "Alice",
-    "created_at": "2025-01-15T10:30:00Z"
-  }
-}
+---
+
+### Name resources as plural nouns
+
+A URL identifies a thing. The method says what you are doing to it, so a verb in the path duplicates the method and
+splits one resource across several names.
+
+```text
+# PASS
+GET    /api/v1/team-members
+GET    /api/v1/users/123/orders
+POST   /api/v1/orders/456/cancel
+
+# FAIL
+GET    /api/v1/getUsers
+GET    /api/v1/user
+GET    /api/v1/team_members
+GET    /api/v1/users/123/getOrders
 ```
 
-#### Collection Response (with Pagination)
+Use kebab-case for multi-word resources, nest only to express ownership, and reserve a verb path segment for a genuine
+state transition that no method expresses, such as `cancel` or `refund`.
 
-```json
-{
-  "data": [
-    { "id": "abc-123", "name": "Alice" },
-    { "id": "def-456", "name": "Bob" }
-  ],
-  "meta": {
-    "total": 142,
-    "page": 1,
-    "per_page": 20,
-    "total_pages": 8
-  },
-  "links": {
-    "self": "/api/v1/users?page=1&per_page=20",
-    "next": "/api/v1/users?page=2&per_page=20",
-    "last": "/api/v1/users?page=8&per_page=20"
-  }
-}
+---
+
+### Use the method that matches the semantics
+
+| Method | Idempotent | Safe | Use for |
+| --- | --- | --- | --- |
+| GET | Yes | Yes | Retrieving a resource |
+| POST | No | No | Creating a resource, triggering an action |
+| PUT | Yes | No | Replacing a resource in full |
+| PATCH | Not inherently | No | Updating part of a resource |
+| DELETE | Yes | No | Removing a resource |
+
+PATCH becomes idempotent when the body describes a target state rather than a delta. `{"status": "shipped"}` is
+idempotent, `{"increment_views": 1}` is not.
+
+---
+
+### Return the status code that describes what happened
+
+```text
+200 OK                     GET, PUT, PATCH with a response body
+201 Created                POST, with a Location header pointing at the new resource
+204 No Content             DELETE, or PUT with no body to return
+207 Multi-Status           a bulk operation with per-item outcomes
+304 Not Modified           a conditional GET whose resource is unchanged
+400 Bad Request            malformed syntax, unparseable JSON
+401 Unauthorized           missing or invalid credentials
+403 Forbidden              authenticated, and still not allowed
+404 Not Found              no such resource, or its existence is confidential
+409 Conflict               duplicate, or a state that forbids this transition
+422 Unprocessable Content  syntactically valid, semantically wrong
+429 Too Many Requests      rate limit exceeded, with Retry-After
+500 Internal Server Error  unexpected failure, never with internal detail
+502 Bad Gateway            an upstream dependency failed
+503 Service Unavailable    overloaded or draining, with Retry-After
 ```
 
-#### Error Response (RFC 7807 Problem Details)
+Fail: `HTTP 200` carrying `{"status": 200, "success": false, "error": "Not found"}`, which forces every client to parse
+the body before it knows whether the call worked, and defeats caches, proxies, and retry logic alike.
 
-Use `Content-Type: application/problem+json` for all error responses.
+---
+
+### Return errors as problem+json
+
+Every error body uses `Content-Type: application/problem+json` and the RFC 7807 shape, so one client-side handler covers
+every endpoint.
 
 ```json
 {
@@ -176,222 +127,72 @@ Use `Content-Type: application/problem+json` for all error responses.
 }
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `type` | Yes | URI identifying the problem type |
-| `title` | Yes | Short, human-readable summary |
-| `status` | Yes | HTTP status code |
-| `detail` | No | Human-readable explanation for this occurrence |
-| `instance` | No | URI reference to the specific occurrence |
-| `errors` | No | Extension: field-level validation errors |
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `type` | Yes | URI identifying the problem class, stable across releases |
+| `title` | Yes | Short human-readable summary of the class |
+| `status` | Yes | The HTTP status code, repeated for clients that lost it |
+| `detail` | No | What went wrong on this occurrence |
+| `instance` | No | URI of this specific occurrence |
+| `errors` | No | Extension array of field-level failures |
 
-#### Response Envelope Variants
-
-```typescript
-// Option A: Envelope with data wrapper (recommended for public APIs)
-interface ApiResponse<T> {
-  data: T;
-  meta?: PaginationMeta;
-  links?: PaginationLinks;
-}
-
-// Error: RFC 7807 Problem Details (Content-Type: application/problem+json)
-interface ProblemDetails {
-  type: string;
-  title: string;
-  status: number;
-  detail?: string;
-  instance?: string;
-  errors?: FieldError[];
-}
-
-// Option B: Flat response (simpler, common for internal APIs)
-// Success: just return the resource directly
-// Error: RFC 7807 Problem Details object
-// Distinguish by HTTP status code
-```
+Fail: a body carrying a stack trace, an SQL fragment, or an upstream vendor's error text. `detail` is for the caller,
+not for your logs.
 
 ---
 
-### Pagination
-
-#### Offset-Based (Simple)
-
-```
-GET /api/v1/users?page=2&per_page=20
-
-# Implementation
-SELECT * FROM users
-ORDER BY created_at DESC
-LIMIT 20 OFFSET 20;
-```
-
-Pros: Easy to implement, supports "jump to page N"
-Cons: Slow on large offsets (OFFSET 100000), inconsistent with concurrent inserts
-
-#### Cursor-Based (Default for Unbounded Data)
-
-```
-GET /api/v1/users?cursor=eyJpZCI6MTIzfQ&limit=20
-
-# Implementation
-SELECT * FROM users
-WHERE id > :cursor_id
-ORDER BY id ASC
-LIMIT 21;  -- fetch one extra to determine has_next
-```
+### Wrap success responses in a consistent envelope
 
 ```json
 {
-  "data": [...],
-  "meta": {
-    "has_next": true,
-    "next_cursor": "eyJpZCI6MTQzfQ"
-  }
+  "data": [{ "id": "abc-123", "name": "Alice" }],
+  "meta": { "has_next": true, "next_cursor": "eyJpZCI6MTQzfQ" },
+  "links": { "self": "/api/v1/users?limit=20", "next": "/api/v1/users?limit=20&cursor=eyJpZCI6MTQzfQ" }
 }
 ```
 
-Pros: Consistent performance regardless of position, stable with concurrent inserts
-Cons: Cannot jump to arbitrary page, cursor is opaque
+A `data` wrapper leaves room to add `meta` and `links` later without breaking clients, which is why it suits public
+APIs. Returning the bare resource is fine for an internal API, provided every endpoint does it. What is never fine is
+mixing the two across one surface.
 
-#### When to Use Which
-
-Cursor pagination is the default for datasets that grow unboundedly; use offset pagination only for fixed/small
-datasets.
-
-| Use Case | Pagination Type |
-|----------|----------------|
-| Admin dashboards, small datasets (<10K) | Offset |
-| Infinite scroll, feeds, large datasets | Cursor (default) |
-| Public APIs | Cursor (default) with offset (optional) |
-| Search results | Offset (users expect page numbers) |
+Cursor pagination is the default for any collection that grows without bound. Offset is for small fixed sets. The
+mechanics, plus filtering and sorting, are in
+[references/pagination-and-filtering.md](references/pagination-and-filtering.md).
 
 ---
 
-### Filtering, Sorting, and Search
+### Require an idempotency key on non-idempotent writes
 
-#### Filtering
+A client that times out cannot tell a lost request from a lost response. Give it a safe way to retry.
 
-```
-# Simple equality (flat notation)
-GET /api/v1/orders?status=active&customer_id=abc-123
-
-# Comparison operators (bracket notation for ranges only)
-GET /api/v1/products?price[gte]=10&price[lte]=100
-GET /api/v1/orders?created_at[after]=2025-01-01
-
-# Multiple values (comma-separated)
-GET /api/v1/products?category=electronics,clothing
-
-# Nested fields (dot notation)
-GET /api/v1/orders?customer.country=US
-```
-
-#### Sorting
-
-```
-# Single field (prefix - for descending)
-GET /api/v1/products?sort=-created_at
-
-# Multiple fields (comma-separated)
-GET /api/v1/products?sort=-featured,price,-created_at
-```
-
-#### Full-Text Search
-
-```
-# Search query parameter
-GET /api/v1/products?q=wireless+headphones
-
-# Field-specific search
-GET /api/v1/users?email=alice
-```
-
-#### Sparse Fieldsets
-
-```
-# Return only specified fields (reduces payload)
-GET /api/v1/users?fields=id,name,email
-GET /api/v1/orders?fields=id,total,status&include=customer.name
-```
-
----
-
-### Authentication and Authorization
-
-#### Token-Based Auth
-
-```
-# Bearer token in Authorization header
-GET /api/v1/users
-Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
-
-# API key (for server-to-server)
-GET /api/v1/data
-X-API-Key: sk_live_abc123
-```
-
-#### Authorization Patterns
-
-```typescript
-// Resource-level: check ownership
-app.get("/api/v1/orders/:id", async (req, res) => {
-  const order = await Order.findById(req.params.id);
-  if (!order) return res.status(404).set("Content-Type", "application/problem+json").json({ type: "https://example.com/errors/not-found", title: "Not Found", status: 404 });
-  if (order.userId !== req.user.id) return res.status(403).set("Content-Type", "application/problem+json").json({ type: "https://example.com/errors/forbidden", title: "Forbidden", status: 403 });
-  return res.json({ data: order });
-});
-
-// Role-based: check permissions
-app.delete("/api/v1/users/:id", requireRole("admin"), async (req, res) => {
-  await User.delete(req.params.id);
-  return res.status(204).send();
-});
-```
-
----
-
-### Idempotency
-
-For all non-idempotent POST/PATCH operations, require `Idempotency-Key: <UUID v4>` header.
-- Cache the response for 24 hours keyed by Idempotency-Key
-- Reusing the same key with the same request body within the cache window replays the stored response without
-  re-executing the operation
-- Return 422 if the same key is reused with a different request body
-
-```
+```text
 POST /api/v1/orders
 Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000
 ```
 
+- Store the response for 24 hours, keyed by the idempotency key.
+- The same key with the same request body replays the stored response without re-executing.
+- The same key with a different body returns 422.
+
 ---
 
-### Conditional Requests (Caching)
+### Support conditional requests on cacheable reads
 
-For cacheable GETs, return `ETag` and `Last-Modified` headers.
-Clients use `If-None-Match` / `If-Modified-Since` to skip re-fetching unchanged resources.
-Return 304 Not Modified when the resource is unchanged.
+Return `ETag` and `Last-Modified` on cacheable GETs, and honour `If-None-Match` and `If-Modified-Since` with a 304. The
+same `ETag` in `If-Match` on a PUT or PATCH gives you optimistic concurrency for free: a mismatch is a 412.
 
-```
-# Server response
+```text
 HTTP/1.1 200 OK
 ETag: "33a64df551425fcc55e4d42a148795d9f25f89d4"
 Last-Modified: Tue, 15 Jan 2025 10:30:00 GMT
-
-# Client conditional request
-GET /api/v1/users/123
-If-None-Match: "33a64df551425fcc55e4d42a148795d9f25f89d4"
-
-# Server response when unchanged
-HTTP/1.1 304 Not Modified
 ```
 
 ---
 
-### Bulk Operations
+### Return 207 from bulk endpoints, and bound the batch
 
-Use `POST /resources/batch` for bulk create/update.
-Return `207 Multi-Status` with per-item results:
+Use `POST /resources/batch` for bulk work and report per-item outcomes, because one failed item must not discard the
+other ninety-nine.
 
 ```json
 {
@@ -402,44 +203,40 @@ Return `207 Multi-Status` with per-item results:
 }
 ```
 
-- Limit bulk request body size; return 413 Payload Too Large if exceeded
-- Process atomically where possible; if partial success is allowed, always return 207
+Cap the number of items and the body size, and return 413 when a caller exceeds either. Process atomically when the
+domain requires it, and say which behaviour applies in the documentation.
 
 ---
 
-### Health Endpoints
+### Keep liveness and readiness separate
 
-Two distinct endpoints, do NOT merge them:
-- `GET /health`: liveness: always returns 200 if the process is alive; never checks dependencies
-- `GET /ready`: readiness: checks DB, cache, external deps; returns 503 if any are degraded
-
-These endpoints are outside the versioned API path (no `/v1/` prefix).
+```text
+GET /health   liveness:  200 while the process runs, checks nothing external
+GET /ready    readiness: 200 when dependencies are usable, 503 otherwise
+```
 
 ```json
-// GET /ready — degraded example
 { "status": "degraded", "checks": { "db": "ok", "redis": "timeout" } }
 ```
 
+Both sit outside the versioned path, because they describe the process rather than the API. Fail: one `/health` that
+checks the database, so a transient outage makes the orchestrator restart a perfectly healthy process.
+
 ---
 
-### Rate Limiting
+### Advertise rate limits on every response
 
-#### Rate Limiting Headers
+This section is the canonical definition of the rate-limit headers and tiers for this repository. Other skills
+implement it and must not restate the values.
 
-Include on all rate-limited responses:
-- `X-RateLimit-Limit: 100`
-- `X-RateLimit-Remaining: 42`
-- `X-RateLimit-Reset: 1714000000`  (UTC epoch seconds)
-
-Return 429 when limit exceeded. Include `Retry-After` header.
-
-```
+```text
 HTTP/1.1 200 OK
 X-RateLimit-Limit: 100
 X-RateLimit-Remaining: 95
 X-RateLimit-Reset: 1714000000
+```
 
-# When exceeded
+```text
 HTTP/1.1 429 Too Many Requests
 X-RateLimit-Limit: 100
 X-RateLimit-Remaining: 0
@@ -447,287 +244,53 @@ X-RateLimit-Reset: 1714000000
 Retry-After: 60
 Content-Type: application/problem+json
 
-{
-  "type": "https://example.com/errors/rate-limit-exceeded",
-  "title": "Too Many Requests",
-  "status": 429,
-  "detail": "Rate limit exceeded. Try again in 60 seconds."
-}
+{ "type": "https://example.com/errors/rate-limit-exceeded", "title": "Too Many Requests", "status": 429 }
 ```
 
-#### Rate Limit Tiers
+`X-RateLimit-Reset` is a UTC epoch in seconds. Send the three headers on successful responses too, because a client
+cannot back off from a budget it cannot see.
 
-| Tier | Limit | Window | Use Case |
-|------|-------|--------|----------|
+| Tier | Limit | Window | Applies to |
+| --- | --- | --- | --- |
 | Anonymous | 30/min | Per IP | Public endpoints |
 | Authenticated | 100/min | Per user | Standard API access |
-| Premium | 1000/min | Per API key | Paid API plans |
-| Internal | 10000/min | Per service | Service-to-service |
+| Premium | 1000/min | Per API key | Paid plans |
+| Internal | 10000/min | Per service | Service-to-service calls |
 
 ---
 
-### Versioning
+### Version in the path, and announce every retirement
 
-#### URL Path Versioning (Recommended)
-
-```
-/api/v1/users
-/api/v2/users
-```
-
-Pros: Explicit, easy to route, cacheable
-Cons: URL changes between versions
-
-#### Header Versioning
-
-```
-GET /api/users
-Accept: application/vnd.myapp.v2+json
-```
-
-Pros: Clean URLs
-Cons: Harder to test, easy to forget
-
-#### Version Lifecycle
-
-- Maintain the deprecated version in production for a minimum of 6 months after a new version is released
-- Maximum 2 active API versions at any time
-- Announce deprecation via `Deprecation` and `Sunset` response headers:
-
-```
-Deprecation: true
-Sunset: Sat, 01 Jan 2026 00:00:00 GMT
-```
-
-- Non-breaking changes don't need a new version:
-  - Adding new fields to responses
-  - Adding new optional query parameters
-  - Adding new endpoints
-- Breaking changes require a new version:
-  - Removing or renaming fields
-  - Changing field types
-  - Changing URL structure
-  - Changing authentication method
-- Return 410 Gone after the sunset date
+Put the version in the URL, keep at most two active versions, and give a deprecated one at least six months. Announce
+the end on the response with `Deprecation` and `Sunset`, then return 410 Gone after the date. The full policy, including
+which changes need a version at all, is in [references/versioning.md](references/versioning.md).
 
 ---
 
-### Implementation Patterns
+### Related skills
 
-#### TypeScript (Next.js API Route)
-
-```typescript
-import { z } from "zod";
-import { NextRequest, NextResponse } from "next/server";
-
-const createUserSchema = z.object({
-  email: z.string().email(),
-  name: z.string().min(1).max(100),
-});
-
-export async function POST(req: NextRequest) {
-  // Idempotency-Key required for non-idempotent POST
-  const idempotencyKey = req.headers.get("Idempotency-Key");
-  const body = await req.json();
-  const parsed = createUserSchema.safeParse(body);
-
-  if (!parsed.success) {
-    return NextResponse.json({
-      type: "https://example.com/errors/validation",
-      title: "Validation Failed",
-      status: 422,
-      detail: "Request validation failed",
-      errors: parsed.error.issues.map(i => ({
-        field: i.path.join("."),
-        message: i.message,
-        code: i.code,
-      })),
-    }, {
-      status: 422,
-      headers: { "Content-Type": "application/problem+json" },
-    });
-  }
-
-  const user = await createUser(parsed.data);
-
-  return NextResponse.json(
-    { data: user },
-    {
-      status: 201,
-      headers: { Location: `/api/v1/users/${user.id}` },
-    },
-  );
-}
-```
-
-#### Python (Django REST Framework)
-
-```python
-from rest_framework import serializers, viewsets, status
-from rest_framework.response import Response
-
-class CreateUserSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    name = serializers.CharField(max_length=100)
-
-class UserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ["id", "email", "name", "created_at"]
-
-class UserViewSet(viewsets.ModelViewSet):
-    serializer_class = UserSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_serializer_class(self):
-        if self.action == "create":
-            return CreateUserSerializer
-        return UserSerializer
-
-    def create(self, request):
-        serializer = CreateUserSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = UserService.create(**serializer.validated_data)
-        return Response(
-            {"data": UserSerializer(user).data},
-            status=status.HTTP_201_CREATED,
-            headers={"Location": f"/api/v1/users/{user.id}"},
-        )
-```
-
-#### Go (net/http)
-
-```go
-func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
-    var req CreateUserRequest
-    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-        // writeProblem sets Content-Type: application/problem+json
-        writeProblem(w, http.StatusBadRequest, "https://example.com/errors/invalid-json", "Invalid Request Body")
-        return
-    }
-
-    if err := req.Validate(); err != nil {
-        writeProblem(w, http.StatusUnprocessableEntity, "https://example.com/errors/validation", "Validation Failed")
-        return
-    }
-
-    user, err := h.service.Create(r.Context(), req)
-    if err != nil {
-        switch {
-        case errors.Is(err, domain.ErrEmailTaken):
-            writeProblem(w, http.StatusConflict, "https://example.com/errors/email-taken", "Email Already Registered")
-        default:
-            writeProblem(w, http.StatusInternalServerError, "https://example.com/errors/internal", "Internal Server Error")
-        }
-        return
-    }
-
-    w.Header().Set("Location", fmt.Sprintf("/api/v1/users/%s", user.ID))
-    writeJSON(w, http.StatusCreated, map[string]any{"data": user})
-}
-```
+- `backend-patterns` for idempotency storage, retries, and readiness behind the contract.
+- `node-backend-patterns` and `springboot-patterns` for handler-level implementations.
+- `hexagonal-architecture` for keeping transport concerns out of the domain.
+- `security-review` before exposing an endpoint that touches credentials, payments, or personal data.
+- `soap-webservices` when the contract is WSDL rather than HTTP and JSON.
+- `observability-and-logging` for correlating a request identifier across services.
 
 ---
 
-### API Design Checklist
+### Checklist
 
-Before shipping a new endpoint:
-
-- [ ] Resource URL follows naming conventions (plural, kebab-case, no verbs)
-- [ ] Correct HTTP method used (GET for reads, POST for creates, etc.)
-- [ ] Appropriate status codes returned (not 200 for everything)
-- [ ] Input validated with schema (Zod, Pydantic, Bean Validation)
-- [ ] Error responses use RFC 7807 Problem Details (`application/problem+json`)
-- [ ] Pagination implemented for list endpoints (cursor default for unbounded data)
-- [ ] `Idempotency-Key` header required for non-idempotent POST/PATCH
-- [ ] `ETag` / `Last-Modified` returned for cacheable GETs
-- [ ] Authentication required (or explicitly marked as public)
-- [ ] Authorization checked (user can only access their own resources)
-- [ ] Rate limiting configured with `X-RateLimit-*` headers
-- [ ] `Deprecation` / `Sunset` headers set on deprecated endpoints
-- [ ] `/health` (liveness) and `/ready` (readiness) endpoints present and separated
-- [ ] Response does not leak internal details (stack traces, SQL errors)
-- [ ] Consistent naming with existing endpoints (camelCase vs snake_case)
-- [ ] Documented (OpenAPI/Swagger spec updated)
-
----
-
-### GraphQL API Standards
-
-#### Schema Design
-- Types: `PascalCase`: `UserProfile`, `OrderItem`
-- Fields: `camelCase`: `createdAt`, `totalAmount`
-- Enum values: `UPPER_SNAKE_CASE`: `ORDER_STATUS_PENDING`
-- Every field must have a description: enforced by schema linting
-- Input types suffixed `Input`: `CreateOrderInput`
-- Mutation payload types suffixed `Payload`: `CreateOrderPayload`
-
-#### Mutation Payload Structure
-
-All mutations return a consistent payload:
-
-```graphql
-type CreateOrderPayload {
-  success: Boolean!
-  errors: [UserError!]!
-  order: Order
-}
-
-type UserError {
-  field: String
-  message: String!
-  code: String!
-}
-```
-
-#### N+1 Prevention, DataLoader
-
-Always use DataLoader for batching related-object fetches:
-
-```typescript
-const userLoader = new DataLoader(async (ids: readonly string[]) => {
-  const users = await db.users.findMany({ where: { id: { in: [...ids] } } })
-  return ids.map(id => users.find(u => u.id === id) ?? null)
-})
-```
-
-#### Authorization
-- Implement field-level authorization: return explicit errors, never silent null
-- Use a shield or directive pattern; do not inline auth logic in resolvers
-
-#### Production Security
-- Disable introspection in production
-- Enforce query depth limit (max 10 levels)
-- Enforce query complexity limits (assign cost per field; reject above threshold)
-- Use Automatic Persisted Queries (APQ) to reduce payload size and allow CDN caching
-
-#### Subscriptions
-
-Use `graphql-ws` protocol (not the deprecated `subscriptions-transport-ws`).
-
-#### Schema Evolution
-- Additive only: never remove or rename fields/types without a deprecation cycle
-- Mark deprecated fields with `@deprecated(reason: "Use X instead")`
-- Run schema diffing in CI with `graphql-inspector`; block breaking changes
-
-#### Pagination
-
-Follow the Relay Cursor Connections Specification for all paginated fields:
-
-```graphql
-type UserConnection {
-  edges: [UserEdge!]!
-  pageInfo: PageInfo!
-  totalCount: Int!
-}
-type UserEdge {
-  node: User!
-  cursor: String!
-}
-type PageInfo {
-  hasNextPage: Boolean!
-  hasPreviousPage: Boolean!
-  startCursor: String
-  endCursor: String
-}
-```
+- [ ] Resource URLs are plural, kebab-case nouns with no verbs outside genuine state transitions.
+- [ ] The method matches the semantics, and PATCH bodies describe a target state.
+- [ ] Status codes are used semantically, never 200 for a failure.
+- [ ] Every error body is `application/problem+json` and leaks no internal detail.
+- [ ] The success envelope is consistent across every endpoint on the surface.
+- [ ] List endpoints paginate, default to cursors when unbounded, and cap page size server-side.
+- [ ] Non-idempotent POST and PATCH require `Idempotency-Key`.
+- [ ] Cacheable GETs return `ETag` and `Last-Modified` and honour the conditional headers.
+- [ ] Bulk endpoints return 207 with per-item results and bound the batch.
+- [ ] `/health` and `/ready` exist, are separate, and sit outside the versioned path.
+- [ ] `X-RateLimit-*` headers are on every rate-limited response, with `Retry-After` on the 429.
+- [ ] Deprecated endpoints carry `Deprecation` and `Sunset` and return 410 after the date.
+- [ ] Input is schema-validated and authorization is checked per resource, not only per role.
+- [ ] The OpenAPI description is updated in the same change as the endpoint.

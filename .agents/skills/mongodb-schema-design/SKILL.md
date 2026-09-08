@@ -192,4 +192,11 @@ If you're not sure about a recommendation:
 
 We're a team-let's get this right together.
 
+---
 
+### Related skills
+
+- `mongodb-query-optimizer` once the model is settled and the remaining problem is an index or a plan.
+- `mongodb-connection` for driver pool sizing and timeout configuration against the modelled collections.
+- `mongodb-search-and-ai` when a collection also has to serve full-text or vector search.
+- `database-migrations` for the discipline of changing a stored shape that is already in production.

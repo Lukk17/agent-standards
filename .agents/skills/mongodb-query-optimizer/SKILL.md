@@ -187,3 +187,12 @@ Conditionally load these files:
 - Consider how many indexes already exist on the collection (if known) \- there shouldn’t generally be more than 20
 - Suggest removing indexes only if the suggestion comes from Atlas Performance Advisor
 - Do not create indexes directly via MCP unless the user gives approval
+
+---
+
+### Related skills
+
+- `mongodb-schema-design` when no index can rescue the query because the document model is wrong.
+- `mongodb-connection` when the latency is pool exhaustion or a timeout rather than a slow plan.
+- `mongodb-search-and-ai` when the query is full-text or vector search, which use their own index types.
+- `performance-optimization` for measuring the endpoint before assuming the database is the bottleneck.

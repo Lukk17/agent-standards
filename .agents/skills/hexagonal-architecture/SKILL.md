@@ -1,7 +1,6 @@
 ---
 name: hexagonal-architecture
-description: Design, implement, and refactor Ports & Adapters systems with clear domain boundaries, dependency inversion, and testable use-case orchestration across TypeScript, Java, Kotlin, and Go services.
-origin: ECC
+description: Ports and adapters design covering domain and use-case boundaries, inbound and outbound ports, dependency inversion, adapters, the composition root, and per-boundary testing in TypeScript, Java, Kotlin and Go. Use when you say "restructure this around ports and adapters", "my domain imports the ORM", "test this use case without a database", or "swap this payment provider". Not for HTTP contract design, use `api-design`.
 ---
 
 # Hexagonal Architecture
@@ -11,9 +10,12 @@ details. The core app depends on abstract ports, and adapters implement those po
 
 This skill is the architecture authority the `coding-standards` hub defers to for its Architecture section.
 
+Language baselines the examples assume, current as of September 2026: TypeScript 5 on Node.js 24 LTS, Java 21 LTS,
+Kotlin 2.2, and Go 1.25.
+
 ---
 
-### When to Use
+### When to activate
 
 - Building new features where long-term maintainability and testability matter.
 - Refactoring layered or framework-heavy code where domain logic is mixed with I/O concerns.
@@ -22,6 +24,25 @@ This skill is the architecture authority the `coding-standards` hub defers to fo
 
 Use this skill when the request involves boundaries, domain-centric design, refactoring tightly coupled services, or
 decoupling application logic from specific libraries.
+
+---
+
+### When not to activate
+
+- The HTTP or GraphQL contract at the edge: use `api-design`.
+- Runtime-specific handler, service, and repository code: use `node-backend-patterns` or `springboot-patterns`.
+- Language-neutral service concerns such as idempotency, retries, and outbox: use `backend-patterns`.
+- Schema, index, and query work behind the outbound adapter: use `postgres-patterns` or `jpa-patterns`.
+- The shared engineering floor of SOLID, naming, and error handling: use `coding-standards`.
+- A one-off script or a prototype whose whole lifetime is a week. The indirection costs more than it returns.
+
+---
+
+### Reference map
+
+| Task | Open |
+| --- | --- |
+| A complete vertical slice in TypeScript, from port to composition root | [references/typescript-example.md](references/typescript-example.md) |
 
 ---
 
@@ -138,96 +159,9 @@ src/
 
 ---
 
-### TypeScript Example
-
-#### Port definitions
-
-```typescript
-export interface OrderRepositoryPort {
-  save(order: Order): Promise<void>;
-  findById(orderId: string): Promise<Order | null>;
-}
-
-export interface PaymentGatewayPort {
-  authorize(input: { orderId: string; amountCents: number }): Promise<{ authorizationId: string }>;
-}
-```
-
-#### Use case
-
-```typescript
-type CreateOrderInput = {
-  orderId: string;
-  amountCents: number;
-};
-
-type CreateOrderOutput = {
-  orderId: string;
-  authorizationId: string;
-};
-
-export class CreateOrderUseCase {
-  constructor(
-    private readonly orderRepository: OrderRepositoryPort,
-    private readonly paymentGateway: PaymentGatewayPort
-  ) {}
-
-  async execute(input: CreateOrderInput): Promise<CreateOrderOutput> {
-    const order = Order.create({ id: input.orderId, amountCents: input.amountCents });
-
-    const auth = await this.paymentGateway.authorize({
-      orderId: order.id,
-      amountCents: order.amountCents,
-    });
-
-    // markAuthorized returns a new Order instance; it does not mutate in place.
-    const authorizedOrder = order.markAuthorized(auth.authorizationId);
-    await this.orderRepository.save(authorizedOrder);
-
-    return {
-      orderId: order.id,
-      authorizationId: auth.authorizationId,
-    };
-  }
-}
-```
-
-#### Outbound adapter
-
-```typescript
-export class PostgresOrderRepository implements OrderRepositoryPort {
-  constructor(private readonly db: SqlClient) {}
-
-  async save(order: Order): Promise<void> {
-    await this.db.query(
-      "insert into orders (id, amount_cents, status, authorization_id) values ($1, $2, $3, $4)",
-      [order.id, order.amountCents, order.status, order.authorizationId]
-    );
-  }
-
-  async findById(orderId: string): Promise<Order | null> {
-    const row = await this.db.oneOrNone("select * from orders where id = $1", [orderId]);
-    return row ? Order.rehydrate(row) : null;
-  }
-}
-```
-
-#### Composition root
-
-```typescript
-export const buildCreateOrderUseCase = (deps: { db: SqlClient; stripe: StripeClient }) => {
-  const orderRepository = new PostgresOrderRepository(deps.db);
-  const paymentGateway = new StripePaymentGateway(deps.stripe);
-
-  return new CreateOrderUseCase(orderRepository, paymentGateway);
-};
-```
-
----
-
 ### Multi-Language Mapping
 
-Use the same boundary rules across ecosystems; only syntax and wiring style change.
+Use the same boundary rules across ecosystems. Only the syntax and the wiring style change.
 
 - TypeScript/JavaScript
   - Ports: `application/ports/*` as interfaces/types.
@@ -239,12 +173,12 @@ Use the same boundary rules across ecosystems; only syntax and wiring style chan
     `adapter.out`.
   - Ports: interfaces in `application.port.*`.
   - Use cases: plain classes (Spring `@Service` is optional, not required).
-  - Composition: Spring config or manual wiring class; keep wiring out of domain/use-case classes.
+  - Composition: Spring config or a manual wiring class, keeping wiring out of domain and use-case classes.
 - Kotlin
   - Modules/packages mirror the Java split (`domain`, `application.port`, `application.usecase`, `adapter`).
   - Ports: Kotlin interfaces.
   - Use cases: classes with constructor injection (Koin/Dagger/Spring/manual).
-  - Composition: module definitions or dedicated composition functions; avoid service locator patterns.
+  - Composition: module definitions or dedicated composition functions, never a service locator.
 - Go
   - Packages: `internal/<feature>/domain`, `application`, `ports`, `adapters/inbound`, `adapters/outbound`.
   - Ports: small interfaces owned by the consuming application package.
@@ -271,7 +205,7 @@ Use the same boundary rules across ecosystems; only syntax and wiring style chan
 4. Move orchestration logic from controllers/services into the use case.
 5. Keep old adapters, but make them delegate to the new use case.
 6. Add tests around the new boundary (unit + adapter integration).
-7. Repeat slice-by-slice; avoid full rewrites.
+7. Repeat slice by slice, and avoid full rewrites.
 
 #### Refactoring Existing Systems
 
@@ -287,7 +221,7 @@ Use the same boundary rules across ecosystems; only syntax and wiring style chan
 ### Testing Guidance (Same Hexagonal Boundaries)
 
 - Domain tests: test entities/value objects as pure business rules (no mocks, no framework setup).
-- Use-case unit tests: test orchestration with fakes/stubs for outbound ports; assert business outcomes and port
+- Use-case unit tests: test orchestration with fakes or stubs for outbound ports, asserting business outcomes and port
   interactions.
 - Outbound adapter contract tests: define shared contract suites at port level and run them against each adapter
   implementation.
@@ -296,12 +230,22 @@ Use the same boundary rules across ecosystems; only syntax and wiring style chan
 - Adapter integration tests: run against real infrastructure (DB/API/queue) for serialization, schema/query behavior,
   retries, and timeouts.
 - End-to-end tests: cover critical user journeys through inbound adapter -> use case -> outbound adapter.
-- Refactor safety: add characterization tests before extraction; keep them until new boundary behavior is stable and
+- Refactor safety: add characterization tests before extraction, and keep them until the new boundary behavior is
   equivalent.
 
 ---
 
-### Best Practices Checklist
+### Related skills
+
+- `coding-standards` for the shared engineering floor this skill supplies the architecture section of.
+- `api-design` for the contract the inbound adapter exposes.
+- `backend-patterns` for idempotency, retries, and outbox behaviour inside the application layer.
+- `node-backend-patterns`, `springboot-patterns`, `python-patterns`, and `golang-patterns` for the adapter code.
+- `tdd-workflow` for the test discipline that makes the boundaries worth having.
+
+---
+
+### Checklist
 
 - Domain and use-case layers import only internal types and ports.
 - Every external dependency is represented by an outbound port.

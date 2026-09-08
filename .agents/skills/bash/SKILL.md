@@ -1,101 +1,104 @@
 ---
 name: bash
-description: Bash scripting standards covering strict mode, defensive patterns, argument parsing, exit codes, and ShellCheck enforcement.
-origin: project-standards
+description: Bash scripting standards covering strict mode, quoting and defensive patterns, argument parsing, exit codes, temp files, secret handling, and ShellCheck enforcement. Use when you say "write a bash script for this", "why does my script keep going after an error", "parse these flags properly", "this loop breaks on filenames with spaces", or "make ShellCheck pass". Not for PowerShell scripting on Windows, use `powershell`.
 ---
 
 # Bash Standards
 
----
+How a shell script behaves when something goes wrong: it stops, it cleans up, and it says why. Every rule here exists
+because the default shell behaviour is to carry on after a failure and produce a half-finished result.
 
-### Core Execution Directives
-
-- Treat all LLM generated scripts, variable expansions, and command pipelines as potentially hallucinated.
-- Enforce the Zero-Trust Prompt Engineering protocol for every script generation task.
-- Append a Zero-Trust directive demanding mandatory web searches for current Bash built-ins.
-- Implement a Fail-Fast directive forcing the agent to halt execution and refuse to answer if official documentation
-  cannot be retrieved via live search.
-- Require exact confidence percentage scores for every command flag and syntax structure provided.
-- Mandate direct, working links to the official documentation used to ground the code.
+Baseline: Bash 5.3 (verified locally) and ShellCheck current stable. Target Bash 4.4 or newer for anything that must
+run on older distributions, and say so in the script header.
 
 ---
 
-### Strict Mode and Error Handling
+### When to activate
 
-- Enforce the Unofficial Bash Strict Mode at the top of every script to prevent silent failures and unbound variable
-  errors.
-  - Ref: http://redsymbol.net/articles/unofficial-bash-strict-mode/
-- Require the agent to prepend the following line immediately after the shebang:
+- Writing or reviewing a `.sh` or `.bash` script.
+- Adding argument parsing, a usage block, or exit codes to an existing script.
+- Fixing a script that silently continues after a failed command.
+- Hardening a script against word splitting, globbing, or an unset variable.
+- Wiring ShellCheck into CI, or clearing its findings.
+- Writing a shell wrapper that starts a long-running service.
+
+---
+
+### When not to activate
+
+- Scripting on Windows or writing cmdlets and modules, use `powershell`.
+- Writing the CI workflow YAML the script runs inside, use `deployment-patterns`.
+- Writing the Dockerfile or entrypoint the script ships in, use `docker-patterns`.
+- Driving infrastructure configuration that a playbook should own, use `ansible`.
+- Writing Python instead because the script outgrew the shell, use `python-patterns`.
+
+---
+
+### Strict mode on every script
+
+Enable strict mode immediately after the shebang so an unset variable, a failed command, or a broken pipe stops the
+script instead of poisoning the rest of the run.
+
+Pass:
 
 ```bash
 set -euo pipefail
-IFS=$'\n\t'
 ```
 
-- Disable the `nounset` option temporarily using `set +u` only when checking for optional positional parameters, then
-  immediately re-enable it using `set -u`.
-- Use the `trap` built-in to catch `ERR` signals and execute cleanup functions, ensuring temporary files or locks are
-  removed even if the script crashes unexpectedly.
-
----
-
-### Defensive Scripting Practices
-
-- Quote all variable expansions to prevent word splitting and globbing issues. Use `"$VARIABLE"` instead of `$VARIABLE`.
-- Validate the presence of required external commands using `command -v` at the start of the script before executing any
-  logic.
-- Validate all required positional or named arguments at script entry; print a usage message and exit 1 if any are
-  missing or invalid.
-- Use `[[ ]]` for conditional tests instead of `[ ]`; the double-bracket form is safer and supports regex matching.
-
----
-
-### Script Structure Template
-
-Every non-trivial script must follow this structure:
+Fail:
 
 ```bash
-#!/usr/bin/env bash
-# -----------------------------------------------------------------------------
-# Script: script-name.sh
-# Description: One-sentence description of what this script does.
-# Usage: ./script-name.sh [OPTIONS] <required-arg>
-# Options:
-#   -h, --help    Show this help message and exit
-#   -v, --verbose Enable verbose output
-# -----------------------------------------------------------------------------
-set -euo pipefail
-IFS=$'\n\t'
+set -e
+```
 
-# --- Constants ---------------------------------------------------------------
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly SCRIPT_NAME="$(basename "$0")"
+- Ref: http://redsymbol.net/articles/unofficial-bash-strict-mode/
+- Set `IFS=$'\n\t'` alongside it so word splitting no longer happens on spaces.
+- Disable `nounset` with `set +u` only around an optional positional check, then re-enable it with `set -u`.
+- Trap `ERR` and `EXIT` to run cleanup, so temp files and locks are removed even when the script crashes.
 
-# --- Logging -----------------------------------------------------------------
-log_info()  { echo "[INFO]  $(date -u '+%Y-%m-%dT%H:%M:%SZ') $*" >&2; }
-log_warn()  { echo "[WARN]  $(date -u '+%Y-%m-%dT%H:%M:%SZ') $*" >&2; }
-log_error() { echo "[ERROR] $(date -u '+%Y-%m-%dT%H:%M:%SZ') $*" >&2; }
+---
 
-# --- Cleanup -----------------------------------------------------------------
-cleanup() {
-  local exit_code=$?
-  # Remove temp files, release locks, etc.
-  exit "$exit_code"
-}
-trap cleanup EXIT
+### Quote every expansion
 
-# --- Argument Parsing --------------------------------------------------------
-usage() {
-  grep '^#' "$0" | sed 's/^# \?//'
-  exit 0
-}
+An unquoted expansion is split on whitespace and glob-expanded. That is the single most common shell defect.
 
-main() {
-  # Script logic here
-  :
-}
+Pass:
 
-main "$@"
+```bash
+rm -f -- "$target_file"
+```
+
+Fail:
+
+```bash
+rm -f $target_file
+```
+
+- Validate required external commands with `command -v` before any logic runs.
+- Validate arguments at entry, print usage, and exit 2 when one is missing or invalid.
+- Use `[[ ]]` rather than `[ ]`. It does not word-split its operands and it supports regex matching.
+
+---
+
+### Script structure template
+
+Every non-trivial script follows one shape: header block, strict mode, constants, logging helpers, cleanup trap,
+argument parsing, `main`, then a single `main "$@"` call. The full copyable template and the reasoning behind each
+piece live in [references/script-template.md](references/script-template.md).
+
+The header comment block carries the script name, a one-sentence description, the usage line, every option, every
+exit code, and the minimum Bash version. `usage` prints it back, so the two can never drift.
+
+Pass:
+
+```bash
+usage() { grep '^#' "$0" | sed 's/^# \?//'; exit 0; }
+```
+
+Fail:
+
+```bash
+usage() { echo "usage: script.sh [-v] <path>"; exit 0; }
 ```
 
 ---
@@ -125,14 +128,18 @@ example a documented state machine, an ordering requirement, or a concurrency gu
 justify in review, not a budget to spend. The one-line cap on a note line has no exception at all: shorten it or
 delete it.
 
+Pass, one line, then only what the call site cannot show:
+
 ```bash
-# Good: one line, then only what the call site cannot show
 # Rotates the vault backups and prints the paths it removed.
 # $2 is an age in days, values above 3650 are rejected.
 # Exits 3 when the vault directory is missing.
 rotate_backups() { :; }
+```
 
-# Bad: restates the function name and numbers the arguments for no gain
+Fail, restates the function name and numbers the arguments for no gain:
+
+```bash
 # This function rotates backups.
 # $1 - the vault
 # $2 - the days
@@ -141,89 +148,157 @@ rotate_backups() { :; }
 
 ---
 
-### Argument Parsing
+### Argument parsing
 
-- Use `getopts` for single-character flags; use a manual `case` statement for long options (`--flag`).
-- Always implement `-h` / `--help` that prints usage and exits 0.
-- Document every flag and argument in the header comment block.
+Use `getopts` for single-character flags and a manual `case` loop for long options. Always implement `-h` and
+`--help`, printing usage and exiting 0.
 
----
+Pass:
 
-### Exit Code Conventions
+```bash
+while [[ $# -gt 0 ]]; do case "$1" in -h|--help) usage ;; -v|--verbose) verbose=1; shift ;; *) break ;; esac; done
+```
 
-- Exit `0` for success.
-- Exit `1` for general errors (catch-all).
-- Exit `2` for misuse of the script (wrong arguments, missing dependencies).
-- Exit codes `3`-`125` may be defined per-script for specific error conditions; document them in the header.
-- Never `exit` from inside a function; `return` a non-zero code and let the caller decide.
+Fail:
 
----
-
-### Temporary Files
-
-- Always create temp files with `mktemp`; never hardcode `/tmp/script-name.tmp`.
-- Always remove temp files in the `cleanup` trap; never rely on manual cleanup at the end of the script.
-- Use `mktemp -d` for temp directories; remove them with `rm -rf "$TMPDIR"` inside `cleanup`.
+```bash
+verbose="$1"
+```
 
 ---
 
-### Secret Handling
+### Exit codes
 
-- Never echo, print, or log secrets. If a secret must be passed to a subprocess, use a file descriptor or environment
-  variable scoped to that subprocess.
-- Read secrets from files or environment variables; never accept them as positional command-line arguments (they appear
-  in `ps` output).
+Exit 0 for success, 1 for a general error, 2 for misuse such as a bad argument or a missing dependency. Codes 3 to
+125 are per-script and documented in the header. Never `exit` from inside a function, return a code and let the
+caller decide.
+
+Pass:
+
+```bash
+validate_input() { [[ -n "${1:-}" ]] || return 2; }
+```
+
+Fail:
+
+```bash
+validate_input() { [[ -n "$1" ]] || exit 2; }
+```
+
+---
+
+### Temporary files
+
+Create every temp path with `mktemp` and remove it in the cleanup trap. A hardcoded path in `/tmp` is a collision and
+a symlink attack waiting to happen.
+
+Pass:
+
+```bash
+tmp_dir="$(mktemp -d)"
+```
+
+Fail:
+
+```bash
+tmp_dir="/tmp/my-script.tmp"
+```
+
+---
+
+### Secret handling
+
+Read secrets from a file or an environment variable scoped to the subprocess. Never accept one as a positional
+argument, it is visible in `ps` output to every user on the host, and never echo or log one.
+
+Pass:
+
+```bash
+API_TOKEN="$(< /run/secrets/api_token)" ./deploy.sh
+```
+
+Fail:
+
+```bash
+./deploy.sh --token "sk-live-1234567890"
+```
 
 ---
 
 ### Portability and ShellCheck
 
-- Explicitly target Bash 4.x or higher; document the minimum required version in the header comment.
-- Flag Bash-only features (arrays, `[[ ]]`, `declare`) with a comment if the script might be sourced in a POSIX `sh`
-  context.
-- Run ShellCheck on every script in CI with zero warnings/errors policy. Suppress individual rules only with an inline
-  `# shellcheck disable=SCxxxx` comment that includes a justification.
-  - Ref: https://www.shellcheck.net/
+Run ShellCheck on every script in CI with a zero-warning policy. Suppress a rule only with an inline
+`# shellcheck disable=SCxxxx` comment that states the justification.
+
+Pass:
+
+```bash
+shellcheck --severity=style --external-sources scripts/*.sh
+```
+
+Fail:
+
+```bash
+shellcheck --severity=error scripts/deploy.sh || true
+```
+
+- Ref: https://www.shellcheck.net/
+- Document the minimum Bash version in the header, and flag Bash-only features (arrays, `[[ ]]`, `declare`) when the
+  script might be sourced from a POSIX `sh`.
 
 ---
 
 ### Startup readiness log
 
-See [observability-and-logging](../observability-and-logging/SKILL.md) → "Startup readiness log" for the universal
-convention (ANSI Shadow
-banner, URL + profile + dependency + observability sections, 2-second probe timeouts, `<url> [Connected|Warning|FAILED]`
-result format).
+For a shell-implemented long-running service (a log aggregator, a polling daemon, an init wrapper around a child
+process), `cat` the readiness banner immediately before `exec` or the main loop. The universal convention, the ANSI
+Shadow banner, the section order, and the probe rules live in
+[observability-and-logging/references/startup-readiness-log.md](../observability-and-logging/references/startup-readiness-log.md).
 
-For shell-implemented long-running services (log aggregators, polling daemons, init wrappers around a child process),
-`cat` the banner immediately before `exec` or the main loop:
+Probe each dependency with a bounded timeout and surface only the status marker. Capture the exit code and send the
+probe's own stderr to a debug log.
 
-```bash
-cat <<'EOF'
-███████╗██╗   ██╗██████╗ ██████╗ ██╗     ██╗███████╗██████╗
-██╔════╝██║   ██║██╔══██╗██╔══██╗██║     ██║██╔════╝██╔══██╗
-███████╗██║   ██║██████╔╝██████╔╝██║     ██║█████╗  ██████╔╝
-╚════██║██║   ██║██╔═══╝ ██╔═══╝ ██║     ██║██╔══╝  ██╔══██╗
-███████║╚██████╔╝██║     ██║     ███████╗██║███████╗██║  ██║
-╚══════╝ ╚═════╝ ╚═╝     ╚═╝     ╚══════╝╚═╝╚══════╝╚═╝  ╚═╝
-EOF
-```
-
-Then the readiness lines (profile, hostname, dependencies, observability), then the `exec`:
+Pass:
 
 ```bash
-exec /usr/local/bin/my-daemon
+probe() { curl --silent --output /dev/null --max-time 2 --connect-timeout 2 "$1" && echo "$1 [Connected]" || echo "$1 [FAILED]"; }
 ```
 
-Probe timeouts: `curl --max-time 2 --connect-timeout 2 <url>` for each dependency check. Capture the exit code, redirect
-probe stderr to a debug log file, surface only `[Connected]` / `[FAILED]` in the banner:
+Fail:
 
 ```bash
-probe() {
-  local url="$1"
-  if curl --silent --output /dev/null --max-time 2 --connect-timeout 2 "$url"; then
-    printf '%s [Connected]\n' "$url"
-  else
-    printf '%s [FAILED]\n' "$url"
-  fi
-}
+curl "$dependency_url"
 ```
+
+---
+
+### Reference files
+
+| Open this | For |
+|---|---|
+| [references/script-template.md](references/script-template.md) | Starting a new script, or checking that an existing one has the header, trap, and logging pieces |
+| [../observability-and-logging/references/startup-readiness-log.md](../observability-and-logging/references/startup-readiness-log.md) | Writing the readiness banner a shell-run service prints when it comes up |
+
+---
+
+### Related skills
+
+- `powershell` for the same standards on Windows.
+- `observability-and-logging` for the readiness banner and the logging conventions it follows.
+- `docker-patterns` for entrypoint scripts and container health checks.
+- `deployment-patterns` for the CI workflow that runs ShellCheck and the script itself.
+- `ansible` when the script is really configuration management in disguise.
+
+---
+
+### Checklist
+
+- [ ] `set -euo pipefail` and `IFS=$'\n\t'` immediately after the shebang.
+- [ ] Every variable expansion quoted, every test using `[[ ]]`.
+- [ ] Required commands checked with `command -v` before any logic.
+- [ ] Arguments validated at entry, `-h` and `--help` implemented, usage matches the header block.
+- [ ] `trap cleanup EXIT` removes every temp file and lock.
+- [ ] Temp paths created with `mktemp`, never hardcoded.
+- [ ] No secret in a positional argument, an echo, or a log line.
+- [ ] Exit codes documented in the header, functions return rather than exit.
+- [ ] ShellCheck passes with zero findings, every suppression justified inline.

@@ -1,842 +1,212 @@
 ---
 name: backend-patterns
-description: Backend architecture patterns, API design, database optimization, and server-side best practices for Node.js, Express, and Next.js API routes.
-origin: ECC
+description: Language-neutral backend service design covering idempotency keys, timeouts and capped retries, the transactional outbox, cache invalidation, pagination of large reads, and graceful shutdown with liveness and readiness. Use when you say "make this endpoint safe to retry", "our webhook fired twice", "design the job queue", "this list endpoint times out on page 900", or "we drop requests during a deploy". Not for runtime-specific code, use `node-backend-patterns` or `springboot-patterns`.
 ---
 
-# Backend Development Patterns
+# Backend Patterns
 
-Backend architecture patterns and best practices for scalable server-side applications.
+Design rules for backend services that hold regardless of language or framework: what makes a write safe to repeat,
+what a retry may and may not do, and how a service stays correct while it is being replaced. Every example is
+pseudocode, because the decision is the deliverable and the syntax belongs in a runtime skill.
 
----
-
-### When to Activate
-
-- Designing REST or GraphQL API endpoints
-- Implementing repository, service, or controller layers
-- Optimizing database queries (N+1, indexing, connection pooling)
-- Adding caching (Redis, in-memory, HTTP cache headers)
-- Setting up background jobs or async processing
-- Structuring error handling and validation for APIs
-- Building middleware (auth, logging, rate limiting)
+Standards baseline, current as of September 2026: HTTP semantics per RFC 9110, error bodies per RFC 7807, service
+contracts described in OpenAPI 3.1.
 
 ---
 
-### API Design Patterns
+### When to activate
 
-#### RESTful API Structure
-
-```typescript
-// PASS: Resource-based URLs
-GET    /api/markets                 # List resources
-GET    /api/markets/:id             # Get single resource
-POST   /api/markets                 # Create resource
-PUT    /api/markets/:id             # Replace resource
-PATCH  /api/markets/:id             # Update resource
-DELETE /api/markets/:id             # Delete resource
-
-// PASS: Query parameters for filtering, sorting, pagination
-// Offset pagination shown here is for small, fixed-size sets only.
-GET /api/markets?status=active&sort=volume&limit=20&offset=0
-```
-
-Pagination default (section 12): unbounded or large lists default to cursor pagination
-(a stable, opaque cursor over an indexed sort key), not offset. Use offset only for small,
-fixed sets where the total stays bounded and deep paging is not a concern; offset degrades
-on large tables (the database must scan and discard skipped rows) and can skip or duplicate
-rows when the underlying data changes between page requests.
-
-#### Repository Pattern
-
-```typescript
-// Abstract data access logic
-interface MarketRepository {
-  findAll(filters?: MarketFilters): Promise<Market[]>
-  findById(id: string): Promise<Market | null>
-  create(data: CreateMarketDto): Promise<Market>
-  update(id: string, data: UpdateMarketDto): Promise<Market>
-  delete(id: string): Promise<void>
-}
-
-class SupabaseMarketRepository implements MarketRepository {
-  async findAll(filters?: MarketFilters): Promise<Market[]> {
-    let query = supabase.from('markets').select('*')
-
-    if (filters?.status) {
-      query = query.eq('status', filters.status)
-    }
-
-    if (filters?.limit) {
-      query = query.limit(filters.limit)
-    }
-
-    const { data, error } = await query
-
-    if (error) throw new Error(error.message)
-    return data
-  }
-
-  // Other methods...
-}
-```
-
-#### Service Layer Pattern
-
-```typescript
-// Business logic separated from data access
-class MarketService {
-  constructor(private marketRepo: MarketRepository) {}
-
-  async searchMarkets(query: string, limit: number = 10): Promise<Market[]> {
-    // Business logic
-    const embedding = await generateEmbedding(query)
-    const results = await this.vectorSearch(embedding, limit)
-
-    // Fetch full data
-    const markets = await this.marketRepo.findByIds(results.map(r => r.id))
-
-    // Sort by similarity
-    return markets.sort((a, b) => {
-      const scoreA = results.find(r => r.id === a.id)?.score || 0
-      const scoreB = results.find(r => r.id === b.id)?.score || 0
-      return scoreA - scoreB
-    })
-  }
-
-  private async vectorSearch(embedding: number[], limit: number) {
-    // Vector search implementation
-  }
-}
-```
-
-#### Middleware Pattern
-
-```typescript
-// Request/response processing pipeline
-export function withAuth(handler: NextApiHandler): NextApiHandler {
-  return async (req, res) => {
-    const token = req.headers.authorization?.replace('Bearer ', '')
-
-    // RFC 7807 problem+json bodies for auth failures (matches api-design)
-    if (!token) {
-      return res.status(401)
-        .setHeader('Content-Type', 'application/problem+json')
-        .json({
-          type: 'https://example.com/errors/unauthorized',
-          title: 'Unauthorized',
-          status: 401,
-          detail: 'Missing authorization token',
-        })
-    }
-
-    try {
-      const user = await verifyToken(token)
-      req.user = user
-      return handler(req, res)
-    } catch (error) {
-      return res.status(401)
-        .setHeader('Content-Type', 'application/problem+json')
-        .json({
-          type: 'https://example.com/errors/unauthorized',
-          title: 'Unauthorized',
-          status: 401,
-          detail: 'Invalid token',
-        })
-    }
-  }
-}
-
-// Usage
-export default withAuth(async (req, res) => {
-  // Handler has access to req.user
-})
-```
+- Deciding whether an endpoint or a message handler is safe to call twice.
+- Designing retries, timeouts, or a circuit breaker between two services.
+- Choosing between a queue, an outbox, and a synchronous call for work that follows a write.
+- Adding a cache and needing an invalidation rule rather than a TTL guess.
+- Paginating a list endpoint that has outgrown offsets.
+- Making a deployment or a restart invisible to callers.
 
 ---
 
-### Database Patterns
+### When not to activate
 
-#### Query Optimization
-
-```typescript
-// PASS: GOOD: Select only needed columns
-const { data } = await supabase
-  .from('markets')
-  .select('id, name, status, volume')
-  .eq('status', 'active')
-  .order('volume', { ascending: false })
-  .limit(10)
-
-// FAIL: BAD: Select everything
-const { data } = await supabase
-  .from('markets')
-  .select('*')
-```
-
-#### N+1 Query Prevention
-
-```typescript
-// FAIL: BAD: N+1 query problem
-const markets = await getMarkets()
-for (const market of markets) {
-  market.creator = await getUser(market.creator_id)  // N queries
-}
-
-// PASS: GOOD: Batch fetch
-const markets = await getMarkets()
-const creatorIds = markets.map(m => m.creator_id)
-const creators = await getUsers(creatorIds)  // 1 query
-const creatorMap = new Map(creators.map(c => [c.id, c]))
-
-markets.forEach(market => {
-  market.creator = creatorMap.get(market.creator_id)
-})
-```
-
-#### Transaction Pattern
-
-```typescript
-async function createMarketWithPosition(
-  marketData: CreateMarketDto,
-  positionData: CreatePositionDto
-) {
-  // Use Supabase transaction
-  const { data, error } = await supabase.rpc('create_market_with_position', {
-    market_data: marketData,
-    position_data: positionData
-  })
-
-  if (error) throw new Error('Transaction failed')
-  return data
-}
-
-// SQL function in Supabase
-CREATE OR REPLACE FUNCTION create_market_with_position(
-  market_data jsonb,
-  position_data jsonb
-)
-RETURNS jsonb
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  -- Start transaction automatically
-  INSERT INTO markets VALUES (market_data);
-  INSERT INTO positions VALUES (position_data);
-  RETURN jsonb_build_object('success', true);
-EXCEPTION
-  WHEN OTHERS THEN
-    -- Rollback happens automatically
-    RETURN jsonb_build_object('success', false, 'error', SQLERRM);
-END;
-$$;
-```
+- Runtime and framework code: use `node-backend-patterns`, `springboot-patterns`, `python-patterns`, or
+  `golang-patterns`.
+- URL shape, status codes, versioning, and rate-limit headers: use `api-design`.
+- Domain, port, and adapter boundaries: use `hexagonal-architecture`.
+- Schema, index, and query-plan work: use `postgres-patterns` or `mongodb-schema-design`.
+- Safe schema change and backfills: use `database-migrations`.
+- Log levels, tracing, metrics, and SLOs: use `observability-and-logging`.
 
 ---
 
-### Caching Strategies
+### Make every non-idempotent operation replayable
 
-#### Redis Caching Layer
+A caller that times out cannot tell a lost request from a lost response, so it retries, and the charge happens twice.
+Accept a client-supplied key, store it with the result inside the same transaction as the effect, and replay the stored
+response on a repeat.
 
-```typescript
-class CachedMarketRepository implements MarketRepository {
-  constructor(
-    private baseRepo: MarketRepository,
-    private redis: RedisClient
-  ) {}
-
-  async findById(id: string): Promise<Market | null> {
-    // Check cache first
-    const cached = await this.redis.get(`market:${id}`)
-
-    if (cached) {
-      return JSON.parse(cached)
-    }
-
-    // Cache miss - fetch from database
-    const market = await this.baseRepo.findById(id)
-
-    if (market) {
-      // Cache for 5 minutes
-      await this.redis.setex(`market:${id}`, 300, JSON.stringify(market))
-    }
-
-    return market
-  }
-
-  async invalidateCache(id: string): Promise<void> {
-    await this.redis.del(`market:${id}`)
-  }
-}
+```text
+on POST /orders with Idempotency-Key K:
+  begin transaction
+    row = select from idempotency where key = K for update
+    if row exists and row.request_hash == hash(body): return row.response      # replay
+    if row exists and row.request_hash != hash(body): return 422               # key reused
+    result = perform the operation
+    insert idempotency (key = K, request_hash = hash(body), response = result)
+  commit
 ```
 
-#### Cache-Aside Pattern
-
-```typescript
-async function getMarketWithCache(id: string): Promise<Market> {
-  const cacheKey = `market:${id}`
-
-  // Try cache
-  const cached = await redis.get(cacheKey)
-  if (cached) return JSON.parse(cached)
-
-  // Cache miss - fetch from DB
-  const market = await db.markets.findUnique({ where: { id } })
-
-  if (!market) throw new Error('Market not found')
-
-  // Update cache
-  await redis.setex(cacheKey, 300, JSON.stringify(market))
-
-  return market
-}
-```
+Fail: keying the record on the request body alone, so two genuinely distinct orders for the same amount collapse into
+one. The key comes from the caller and identifies the attempt, not the content.
 
 ---
 
-### Doc Comments
+### Give every outbound call a deadline before you give it a retry
 
-Default to none. A doc comment is usually a sign that the code failed to explain itself. Before writing one, extract
-the unclear block into a well-named function, rename the parameters so they carry their own meaning, and tighten the
-types. Do that first and most doc comments have nothing left to say, which is the outcome you want. Code that explains
-itself cannot go stale, a comment can.
+A retry on top of an unbounded wait multiplies the outage instead of absorbing it. Set the timeout first, then bound the
+attempts, then add jitter so every client does not wake at the same instant.
 
-When one is still genuinely needed, the prose is capped at five lines and is usually one. Every tag line is capped at
-one line, `@param` and `@returns` and `@throws` alike, and only appears when it genuinely adds something: if the note
-does not fit on a single line, shorten it or drop the tag. Four rules decide what goes in.
-
-1. Prose. One sentence saying what it does, then only what a caller cannot infer from the signature. Nothing more.
-2. `@param` only when the name and the type do not already convey it, meaning units, nullability, a valid range, or
-   who owns the argument afterwards. `@param userId - The user identifier` is noise, delete it, and never restate a
-   type TypeScript already declares.
-3. `@returns` only when it is non-obvious.
-4. `@throws` always, for every error a caller can act on. TypeScript keeps throws out of the signature, so this one is
-   genuinely contract rather than decoration.
-
-Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
-example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you
-justify in review, not a budget to spend. The one-line cap on a tag line has no exception at all: shorten it or delete
-it.
-
-```typescript
-// GOOD: one sentence, then only what the signature cannot say
-/**
- * Charges the saved payment method and records the receipt.
- *
- * @param amountMinor amount in minor units, never a float
- * @throws {PaymentDeclinedError} when the processor declines the charge
- */
-export async function chargeCustomer(customerId: string, amountMinor: number): Promise<Receipt> { ... }
-
-// BAD: restates the signature and leaves the unit of amountMinor a guess
-/**
- * Charges a customer.
- *
- * @param customerId - The customer id
- * @param amountMinor - The amount
- * @returns A receipt
- */
-export async function chargeCustomer(customerId: string, amountMinor: number): Promise<Receipt> { ... }
+```text
+timeout   = 2s per attempt
+attempts  = 3 maximum
+backoff   = min(2^n * 200ms + random(0..200ms), 10s)
+retry on  = timeout, connection error, 429, 502, 503, 504
+never on  = 400, 401, 403, 404, 409, 422
+budget    = total time across attempts < the caller's own deadline
 ```
+
+Fail: retrying a 422, which fails identically every time, or retrying a POST that has no idempotency key, which
+duplicates the effect the caller was trying to avoid.
+
+When a dependency fails persistently, stop calling it. A circuit breaker that opens after a failure ratio, serves a
+fallback while open, and lets one probe through before closing turns a slow cascade into a fast, contained error.
 
 ---
 
-### Error Handling Patterns
+### Do the work later, but decide first whether it may be lost
 
-#### Centralized Error Handler
+Move anything the caller does not need in the response off the request path: emails, indexing, thumbnails, webhooks.
+Then answer one question before choosing a mechanism.
 
-```typescript
-class ApiError extends Error {
-  constructor(
-    public statusCode: number,
-    public message: string,
-    public isOperational = true
-  ) {
-    super(message)
-    Object.setPrototypeOf(this, ApiError.prototype)
-  }
-}
+| Loss is acceptable | Loss is a defect |
+| --- | --- |
+| Fire and forget after the response | Durable queue, at-least-once, with a dead-letter queue |
+| Metrics, cache warming | Payments, notifications, downstream state changes |
 
-// All error responses use RFC 7807 application/problem+json (matches the
-// api-design skill). Shape: type, title, status, detail, instance, and an
-// errors[] of { field, message, code } for field-level validation failures.
-const PROBLEM_JSON = 'application/problem+json'
-
-export function errorHandler(error: unknown, req: Request): Response {
-  if (error instanceof ApiError) {
-    return NextResponse.json({
-      type: `https://example.com/errors/${error.statusCode}`,
-      title: error.message,
-      status: error.statusCode,
-      detail: error.message,
-      instance: new URL(req.url).pathname,
-    }, { status: error.statusCode, headers: { 'Content-Type': PROBLEM_JSON } })
-  }
-
-  if (error instanceof z.ZodError) {
-    // Map each Zod issue to a field-level error object, return 422
-    return NextResponse.json({
-      type: 'https://example.com/errors/validation',
-      title: 'Validation Failed',
-      status: 422,
-      detail: `${error.errors.length} field(s) failed validation`,
-      instance: new URL(req.url).pathname,
-      errors: error.errors.map(e => ({
-        field: e.path.join('.'),
-        message: e.message,
-        code: e.code,
-      })),
-    }, { status: 422, headers: { 'Content-Type': PROBLEM_JSON } })
-  }
-
-  // Log unexpected errors via pino (never console.error in production)
-  logger.error({ err: error }, 'Unexpected error')
-
-  return NextResponse.json({
-    type: 'https://example.com/errors/internal',
-    title: 'Internal Server Error',
-    status: 500,
-    detail: 'An unexpected error occurred',
-    instance: new URL(req.url).pathname,
-  }, { status: 500, headers: { 'Content-Type': PROBLEM_JSON } })
-}
-
-// Usage
-export async function GET(request: Request) {
-  try {
-    const data = await fetchData()
-    return NextResponse.json({ success: true, data })
-  } catch (error) {
-    return errorHandler(error, request)
-  }
-}
-```
-
-#### Retry with Exponential Backoff
-
-```typescript
-const BACKOFF_BASE_MS = 1000  // first retry waits 1s, then doubles
-const BACKOFF_CAP_MS = 30_000  // upper bound on any single backoff delay
-
-async function fetchWithRetry<T>(
-  fn: () => Promise<T>,
-  maxRetries = 3
-): Promise<T> {
-  let lastError: Error
-
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      return await fn()
-    } catch (error) {
-      lastError = error as Error
-
-      if (i < maxRetries - 1) {
-        // Exponential backoff: 1s, 2s, 4s, capped at BACKOFF_CAP_MS
-        const delay = Math.min(Math.pow(2, i) * BACKOFF_BASE_MS, BACKOFF_CAP_MS)
-        await new Promise(resolve => setTimeout(resolve, delay))
-      }
-    }
-  }
-
-  throw lastError!
-}
-
-// Usage
-const data = await fetchWithRetry(() => fetchFromAPI())
-```
-
-Concurrency (section 23): independent input and output work runs concurrently, not in
-sequence. When two awaited calls have no data dependency (for example, fetching a record
-and loading the caller's permissions), start both and await together with `Promise.all`
-rather than awaiting one then the other.
-
-```typescript
-const [market, permissions] = await Promise.all([
-  marketRepo.findById(id),
-  authService.loadPermissions(userId),
-])
-```
+Enqueue the identifier, not the object, so the worker reads current data. Assume at-least-once delivery, which makes an
+idempotent handler mandatory rather than defensive.
 
 ---
 
-### Authentication & Authorization
+### Publish through an outbox when the job must follow a committed write
 
-#### JWT Token Validation
+Writing a row and publishing a message are two systems, and there is no transaction across both. If the publish wins
+and the transaction rolls back, a consumer acts on a record that does not exist.
 
-```typescript
-import jwt from 'jsonwebtoken'
+```text
+begin transaction
+  insert into orders (...)
+  insert into outbox (topic = 'order.created', payload = {...})
+commit
 
-interface JWTPayload {
-  userId: string
-  email: string
-  role: 'admin' | 'user'
-}
-
-export function verifyToken(token: string): JWTPayload {
-  try {
-    const payload = jwt.verify(token, config.JWT_SECRET) as JWTPayload
-    return payload
-  } catch (error) {
-    throw new ApiError(401, 'Invalid token')
-  }
-}
-
-export async function requireAuth(request: Request) {
-  const token = request.headers.get('authorization')?.replace('Bearer ', '')
-
-  if (!token) {
-    throw new ApiError(401, 'Missing authorization token')
-  }
-
-  return verifyToken(token)
-}
-
-// Usage in API route
-export async function GET(request: Request) {
-  const user = await requireAuth(request)
-
-  const data = await getDataForUser(user.userId)
-
-  return NextResponse.json({ success: true, data })
-}
+relay loop:
+  claim a batch of unpublished outbox rows (skip rows another relay locked)
+  publish each to the broker
+  mark published
 ```
 
-#### Role-Based Access Control
-
-```typescript
-type Permission = 'read' | 'write' | 'delete' | 'admin'
-
-interface User {
-  id: string
-  role: 'admin' | 'moderator' | 'user'
-}
-
-const rolePermissions: Record<User['role'], Permission[]> = {
-  admin: ['read', 'write', 'delete', 'admin'],
-  moderator: ['read', 'write', 'delete'],
-  user: ['read', 'write']
-}
-
-export function hasPermission(user: User, permission: Permission): boolean {
-  return rolePermissions[user.role].includes(permission)
-}
-
-export function requirePermission(permission: Permission) {
-  return (handler: (request: Request, user: User) => Promise<Response>) => {
-    return async (request: Request) => {
-      const user = await requireAuth(request)
-
-      if (!hasPermission(user, permission)) {
-        throw new ApiError(403, 'Insufficient permissions')
-      }
-
-      return handler(request, user)
-    }
-  }
-}
-
-// Usage - HOF wraps the handler
-export const DELETE = requirePermission('delete')(
-  async (request: Request, user: User) => {
-    // Handler receives authenticated user with verified permission
-    return new Response('Deleted', { status: 200 })
-  }
-)
-```
+Fail: `save(order)` followed by `broker.publish(event)`, which produces phantom events on rollback and lost events on a
+crash between the two lines.
 
 ---
 
-### Rate Limiting
+### A cache needs an invalidation rule, not just a TTL
 
-#### Simple In-Memory Rate Limiter
+Decide what the cache is allowed to be wrong about before you decide how long it holds. Write the invalidation in the
+same function that performs the write, and treat the TTL as the backstop for the key you forgot.
 
-```typescript
-class RateLimiter {
-  private requests = new Map<string, number[]>()
-
-  async checkLimit(
-    identifier: string,
-    maxRequests: number,
-    windowMs: number
-  ): Promise<boolean> {
-    const now = Date.now()
-    const requests = this.requests.get(identifier) || []
-
-    // Remove old requests outside window
-    const recentRequests = requests.filter(time => now - time < windowMs)
-
-    if (recentRequests.length >= maxRequests) {
-      return false  // Rate limit exceeded
-    }
-
-    // Add current request
-    recentRequests.push(now)
-    this.requests.set(identifier, recentRequests)
-
-    return true
-  }
-
-  // Requests still allowed in the current window, for X-RateLimit-Remaining
-  remaining(identifier: string, maxRequests: number, windowMs: number): number {
-    const now = Date.now()
-    const recent = (this.requests.get(identifier) || []).filter(time => now - time < windowMs)
-    return Math.max(0, maxRequests - recent.length)
-  }
-}
-
-const limiter = new RateLimiter()
-
-export async function GET(request: Request) {
-  const ip = request.headers.get('x-forwarded-for') || 'unknown'
-
-  const limit = 100
-  const windowMs = 60_000  // 100 req/min
-  const allowed = await limiter.checkLimit(ip, limit, windowMs)
-  const remaining = await limiter.remaining(ip, limit, windowMs)
-  const resetSeconds = Math.ceil(windowMs / 1000)
-
-  // Always advertise the standard rate-limit headers; on 429 add Retry-After
-  // and return an RFC 7807 problem+json body (matches api-design)
-  const rateLimitHeaders = {
-    'X-RateLimit-Limit': String(limit),
-    'X-RateLimit-Remaining': String(remaining),
-    'X-RateLimit-Reset': String(resetSeconds),
-  }
-
-  if (!allowed) {
-    return NextResponse.json({
-      type: 'https://example.com/errors/rate-limit',
-      title: 'Too Many Requests',
-      status: 429,
-      detail: 'Rate limit exceeded',
-    }, {
-      status: 429,
-      headers: {
-        ...rateLimitHeaders,
-        'Content-Type': 'application/problem+json',
-        'Retry-After': String(resetSeconds),
-      },
-    })
-  }
-
-  // Continue with request, echoing rate-limit headers on the success path
-}
+```text
+read:   value = cache.get(key) ?? origin.load(key) then cache.put(key, value, ttl)
+write:  origin.save(entity) then cache.evict(key(entity))
+key:    <entity>:<schema version>:<id>            # bump the version to roll out a shape change
+never:  cache a response whose content depends on who asked, under a key that omits the asker
 ```
+
+A cache outage must degrade throughput, not availability: on a cache error, log at warn and read the origin.
+
+Fail: a 24-hour TTL on a permission lookup, so a revoked role stays effective until tomorrow.
 
 ---
 
-### Background Jobs & Queues
+### Paginate large reads with a cursor, and always bound the page
 
-#### Simple Queue Pattern
+Offset pagination makes the database scan and discard every skipped row, and it skips or repeats rows when the data
+changes between pages. Use it only for small, fixed sets where a user expects page numbers.
 
-```typescript
-class JobQueue<T> {
-  private queue: T[] = []
-  private processing = false
+```text
+GET /orders?limit=20&cursor=<opaque>
 
-  async add(job: T): Promise<void> {
-    this.queue.push(job)
-
-    if (!this.processing) {
-      this.process()
-    }
-  }
-
-  private async process(): Promise<void> {
-    this.processing = true
-
-    while (this.queue.length > 0) {
-      const job = this.queue.shift()!
-
-      try {
-        await this.execute(job)
-      } catch (error) {
-        console.error('Job failed:', error)
-      }
-    }
-
-    this.processing = false
-  }
-
-  private async execute(job: T): Promise<void> {
-    // Job execution logic
-  }
-}
-
-// Usage for indexing markets
-interface IndexJob {
-  marketId: string
-}
-
-const indexQueue = new JobQueue<IndexJob>()
-
-export async function POST(request: Request) {
-  const { marketId } = await request.json()
-
-  // Add to queue instead of blocking
-  await indexQueue.add({ marketId })
-
-  return NextResponse.json({ success: true, message: 'Job queued' })
-}
+  decode cursor -> (last_sort_value, last_id)
+  select ... where (sort_key, id) > (last_sort_value, last_id)
+  order by sort_key, id
+  limit 21                        # one extra row answers has_next
+  next_cursor = encode(last row)
 ```
+
+Sort on an indexed, immutable, tie-broken key, and cap `limit` server-side so a caller cannot ask for the whole table.
+Return the cursor opaque, so its encoding stays yours to change.
 
 ---
 
-### Logging & Monitoring
+### Separate liveness from readiness, and drain on shutdown
 
-#### Structured Logging with pino
+Liveness answers whether the process should be restarted. Readiness answers whether it should receive traffic. Merging
+them makes a transient dependency failure trigger a restart loop that fixes nothing.
 
-Use pino for structured JSON logging, never use `console.log` in production code.
-Every log entry on a request path must include `correlationId` and `requestId`.
+```text
+GET /health   -> 200 while the process is alive; checks nothing external
+GET /ready    -> 200 when dependencies are usable, 503 otherwise; body lists each check
 
-```typescript
-import pino from 'pino'
-import { z } from 'zod'
-
-// config.ts — typed config object; never access process.env directly in business logic
-const configSchema = z.object({
-  LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error']).default('info'),
-  JWT_SECRET: z.string().min(32),
-  DATABASE_URL: z.string().url(),
-  PORT: z.coerce.number().default(3000),
-})
-export const config = configSchema.parse(process.env)
-
-// logger.ts
-export const logger = pino({ level: config.LOG_LEVEL })
-
-export function createRequestLogger(correlationId: string, requestId: string) {
-  return logger.child({ correlationId, requestId })
-}
-
-// Usage in handler
-export async function GET(request: Request) {
-  const correlationId = request.headers.get('x-correlation-id') ?? crypto.randomUUID()
-  const requestId = crypto.randomUUID()
-  const log = createRequestLogger(correlationId, requestId)
-
-  log.info({ method: 'GET', path: '/api/markets' }, 'Fetching markets')
-
-  try {
-    const markets = await fetchMarkets()
-    return NextResponse.json({ success: true, data: markets })
-  } catch (error) {
-    log.error({ err: error }, 'Failed to fetch markets')
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
-  }
-}
+on SIGTERM:
+  mark /ready as 503                 # the load balancer stops sending new work
+  wait for the balancer to notice    # one or two probe intervals
+  stop accepting new connections
+  finish in-flight requests and jobs, bounded by a hard timer
+  close pools and connections, then exit
 ```
 
-Rules:
-- Never use `console.log`, `console.error`, or `console.warn` in production code: use pino
-- Never access `process.env` directly in business logic: use a validated typed config object
-- Every log entry on a request path must carry `correlationId` and `requestId`
-```
-
-Remember: Backend patterns enable scalable, maintainable server-side applications. Choose patterns that fit your complexity level.
+Fail: exiting on `SIGTERM` immediately, which drops every in-flight request on every deploy.
 
 ---
 
-## State Modeling
+### Layering and contracts live in their own skills
 
-### Discriminated Unions (Required)
+Keep the request path split into a transport layer that parses and responds, an application layer that holds the rule,
+and an infrastructure layer that talks to the outside. Depend inward, and let each side effect be an interface the
+application owns.
 
-Model async state as discriminated unions — never as nullable optional fields:
-
-```typescript
-// BAD — nullable fields for loading state
-type UserState = {
-  loading: boolean
-  error: Error | null
-  user: User | null
-}
-
-// GOOD — discriminated union
-type UserState =
-  | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'success'; data: User }
-  | { status: 'error'; error: Error }
-
-// Usage forces exhaustive handling:
-switch (state.status) {
-  case 'idle': return null
-  case 'loading': return <Spinner />
-  case 'success': return <UserCard user={state.data} />
-  case 'error': return <ErrorMessage error={state.error} />
-}
-```
+`hexagonal-architecture` is the authority on those boundaries, on where the port interfaces live, and on the composition
+root that wires the adapters. `api-design` is the authority on the contract itself: resource naming, status codes, error
+bodies, pagination parameters, versioning, and the rate-limit headers and tiers. Do not restate either here.
 
 ---
 
-### Environment & Configuration
+### Related skills
 
-Never access `process.env` directly in business logic. Always use a validated typed config object:
-
-```typescript
-import { z } from 'zod'
-
-const schema = z.object({
-  JWT_SECRET: z.string().min(32),
-  DATABASE_URL: z.string().url(),
-  PORT: z.coerce.number().default(3000),
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-})
-
-export const config = schema.parse(process.env)
-// Throws at startup if env vars are missing or invalid — fail fast
-```
+- `node-backend-patterns` for the Node, Express, and Next.js implementation of these rules.
+- `springboot-patterns` for the Java and Spring Boot implementation, and `jpa-patterns` for its data access.
+- `python-patterns` and `golang-patterns` for the Python and Go implementations.
+- `api-design` for the HTTP contract, and `hexagonal-architecture` for the internal boundaries.
+- `observability-and-logging` for correlation identifiers, metrics, and the readiness banner.
+- `database-migrations` when a change to a stored shape has to survive a rolling deploy.
 
 ---
 
-### Startup readiness log
+### Checklist
 
-See [observability-and-logging](../observability-and-logging/SKILL.md) → "Startup readiness log" for the universal
-convention (ANSI Shadow
-banner, URL + profile + dependency + observability sections, 2-second probe timeouts, `<url> [Connected|Warning|FAILED]`
-result format).
-
-Node / Express hook: `server.on('listening', ...)` after `app.listen()`. For NestJS, the post-`app.listen()` line in
-`bootstrap()`. For Next.js custom server, the post-bind callback.
-
-```typescript
-const server = app.listen(config.PORT, () => {
-  // One log call, leading '\n'. Pino / Winston stamp a timestamp + level per call;
-  // splitting the banner across many log calls would shred the art. See canonical
-  // rule in coding-standards "Emit the whole block in ONE log call with a leading \n".
-  logger.info('\n' + buildStartupLog())
-})
-```
-
-Probe timeouts: `fetch(url, { signal: AbortSignal.timeout(2000) })` so unreachable dependencies don't stall the banner.
-Catch with `.catch(...)`, log the detail at debug, surface only `[FAILED]`.
-
-```typescript
-async function probe(url: string): Promise<string> {
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(2000) })
-    return res.ok ? `${url} [Connected]` : `${url} [Warning] (status=${res.status})`
-  } catch (err) {
-    logger.debug({ url, err }, 'startup probe failed')
-    return `${url} [FAILED]`
-  }
-}
-```
-
----
-
-### Graceful Shutdown
-
-```typescript
-const shutdown = async (signal: string) => {
-  logger.info({ signal }, 'Shutdown received')
-  server.close(async () => {
-    await db.end()
-    await redis.quit()
-    process.exit(0)
-  })
-  // Force exit if drain takes too long
-  setTimeout(() => { logger.error('Forced shutdown'); process.exit(1) }, 30_000)
-}
-
-process.on('SIGTERM', () => shutdown('SIGTERM'))
-process.on('SIGINT', () => shutdown('SIGINT'))
+- [ ] Every non-idempotent write accepts and enforces an idempotency key.
+- [ ] Every outbound call has a timeout, and every retry has a cap, jitter, and a retryable-error list.
+- [ ] Work that may not be lost goes through a durable queue with a dead-letter destination.
+- [ ] Messages that must follow a committed write are published from an outbox, not inline.
+- [ ] Every cached key has a named invalidation trigger, and cache failure degrades throughput only.
+- [ ] List endpoints use cursor pagination with a server-side maximum page size.
+- [ ] `/health` and `/ready` are separate, and `SIGTERM` drains before exit.
+- [ ] Layering follows `hexagonal-architecture` and the contract follows `api-design`.

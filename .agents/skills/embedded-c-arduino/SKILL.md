@@ -1,68 +1,231 @@
 ---
 name: embedded-c-arduino
-description: Embedded C and Arduino standards for memory safety, non-blocking code, ISR discipline, hardware abstraction, and testing with Unity/CMock/Ceedling.
-origin: project-standards
+description: Embedded C and Arduino standards for heap-free memory discipline, bounded loops and watchdogs, non-blocking millis state machines, ISR flag-and-return, fixed-width integer types, MISRA C 2012 style, a hardware abstraction layer, and host-side unit tests. Use when you say "replace this delay with a state machine", "write the ISR for this encoder", "my sketch runs out of SRAM", "unit test this firmware on the host", or "add a watchdog". Not for the PCB the firmware runs on, use `kicad`.
 ---
 
-# Embedded C / Arduino Development Standards
+# Embedded C and Arduino Standards
 
----
+How firmware stays predictable on a part with a few kilobytes of RAM and no operating system underneath: nothing
+allocates, nothing blocks, and nothing that runs in an interrupt does real work. The rules read as restrictive
+because every one of them removes a failure that is untraceable once the device is in the field.
 
-### Memory Management and Safety
-
-- Prohibit `malloc`, `calloc`, `realloc`, and `free`. Heap fragmentation on constrained MCUs causes unpredictable
-  failures.
-- Prohibit the C++ `String` class on AVR microcontrollers. Use statically allocated `char` arrays (C-strings)
-  exclusively.
-- Declare all read-only lookup tables, arrays, and large constants with the `PROGMEM` keyword to store them in Flash
-  instead of SRAM.
-- Define strict memory bounds for all arrays and buffers to prevent buffer overflows.
-- Prefer fixed-size stack allocations; profile SRAM usage before each release.
+Baseline: C11 with MISRA C:2012 as the rule set, Arduino AVR and ESP32 cores at current stable, and Ceedling with
+Unity and CMock for host-side tests.
 
 ---
 
-### Control Flow and Infinite Loop Prevention
+### When to activate
 
-- Give every loop a fixed upper bound. No `while` or `for` loop may execute indefinitely, even under hardware failure or
-  disconnected peripheral conditions.
-- Implement hardware watchdog timers (WDT) on all safety-critical projects. The main loop must call `wdt_reset()`
-  periodically to recover from hard faults.
-- Do not use `goto`, `setjmp`/`longjmp`, or any form of direct or indirect recursion (MISRA C:2012 Required Rule 15.2,
-  17.2).
-- Replace all blocking `delay()` calls with non-blocking state machines driven by `millis()` or hardware timers.
-
----
-
-### Hardware Interfacing and Interrupts (ISR Discipline)
-
-- Restrict ISR bodies to the absolute minimum logic: set a `volatile` flag and return. Defer all processing to the main
-  loop.
-- Declare every variable shared between an ISR and the main loop with the `volatile` keyword to prevent compiler
-  over-optimisation.
-- Disable interrupts (`noInterrupts()` / `cli()`) only for the shortest possible critical section when reading or
-  writing multi-byte `volatile` variables, then re-enable immediately.
-- Never call blocking functions, `Serial.print`, or dynamic allocations from inside an ISR.
+- Writing or reviewing `.c`, `.h`, or `.ino` firmware.
+- Replacing `delay()` with non-blocking timing, or diagnosing a loop that misses events.
+- Writing or reviewing an interrupt service routine.
+- Chasing an SRAM exhaustion, a stack overflow, or a corrupted buffer.
+- Introducing a hardware abstraction layer so logic can be tested off-target.
+- Setting up Ceedling, Unity, or CMock for host-side unit tests.
 
 ---
 
-### Hardware-Specific Integer Types
+### When not to activate
 
-- Enforce the use of types from `<stdint.h>` (`uint8_t`, `int8_t`, `uint16_t`, `int16_t`, `uint32_t`, `int32_t`) for all
-  register-level and protocol code.
-- Never use bare `int`, `long`, or `short` for hardware-mapped values; their sizes are architecture-dependent.
-- Use `size_t` for buffer lengths and loop indices over arrays.
+- Designing the board the firmware runs on, use `kicad`.
+- Slicing or printing an enclosure for it, use `g-code-3d-printing`.
+- Writing the host-side tool that flashes or talks to the device, use `bash` or `powershell`.
+- Building a service that ingests the device's telemetry, use `backend-patterns`.
+- Automating the device from Home Assistant, use `home-assistant`.
 
 ---
 
-### Coding Style, MISRA C:2012
+### No heap, ever
 
-- Follow MISRA C:2012 as the target rule set. Treat all "Required" rules as mandatory; treat "Advisory" rules as
-  defaults requiring documented justification to deviate.
-- Use K&R brace style with 2-space indentation for all `.c` and `.h` files.
-- Limit function length to a maximum of 50 executable lines; extract longer functions into named sub-functions.
-- Add a file header block to every `.c` and `.h` file containing: description, author, date, target hardware, and
-  licence.
-- Name `#define` constants in `UPPER_SNAKE_CASE`; name functions in `lower_snake_case`.
+`malloc`, `calloc`, `realloc`, and `free` are prohibited. Heap fragmentation on a constrained MCU produces failures
+that appear after hours of uptime and cannot be reproduced on a bench. The C++ `String` class is prohibited on AVR
+for the same reason: it allocates on every concatenation.
+
+Pass:
+
+```c
+static char message_buffer[64];
+```
+
+Fail:
+
+```c
+String message = "temp: " + String(celsius);
+```
+
+Put every read-only lookup table, string, and large constant in Flash with `PROGMEM`, give every array and buffer a
+declared bound, and profile SRAM usage before each release.
+
+---
+
+### Every loop has an upper bound
+
+No `while` or `for` may run indefinitely, including under a hardware fault or a disconnected peripheral. Add a
+hardware watchdog on anything safety-critical and reset it from the main loop, so a hung path recovers.
+
+Pass:
+
+```c
+for (uint8_t attempt = 0U; attempt < MAX_ATTEMPTS; attempt++) {
+  if (sensor_ready()) { break; }
+  wdt_reset();
+}
+```
+
+Fail:
+
+```c
+while (!sensor_ready()) { }
+```
+
+No `goto`, no `setjmp` or `longjmp`, and no direct or indirect recursion (MISRA C:2012 Required rules 15.2 and
+17.2). Recursion has no bounded stack cost you can compute at review time.
+
+---
+
+### Non-blocking timing, not delay()
+
+`delay()` stops the whole program. Every periodic or timed behaviour is a state machine driven by `millis()` or a
+hardware timer, so the main loop keeps servicing everything else.
+
+Pass:
+
+```c
+typedef enum {
+  LAMP_IDLE,
+  LAMP_ON,
+  LAMP_COOLDOWN
+} lamp_state_t;
+
+#define LAMP_ON_MS        5000U
+#define LAMP_COOLDOWN_MS  1000U
+
+static lamp_state_t lamp_state    = LAMP_IDLE;
+static uint32_t     lamp_since_ms = 0U;
+
+void lamp_task(uint32_t now_ms, bool motion) {
+  switch (lamp_state) {
+    case LAMP_IDLE:
+      if (motion) {
+        hal_gpio_write(PIN_LAMP, 1U);
+        lamp_since_ms = now_ms;
+        lamp_state = LAMP_ON;
+      }
+      break;
+
+    case LAMP_ON:
+      if ((uint32_t)(now_ms - lamp_since_ms) >= LAMP_ON_MS) {
+        hal_gpio_write(PIN_LAMP, 0U);
+        lamp_since_ms = now_ms;
+        lamp_state = LAMP_COOLDOWN;
+      }
+      break;
+
+    case LAMP_COOLDOWN:
+      if ((uint32_t)(now_ms - lamp_since_ms) >= LAMP_COOLDOWN_MS) {
+        lamp_state = LAMP_IDLE;
+      }
+      break;
+
+    default:
+      lamp_state = LAMP_IDLE;
+      break;
+  }
+}
+```
+
+Fail:
+
+```c
+void lamp_task(bool motion) {
+  if (motion) {
+    digitalWrite(PIN_LAMP, HIGH);
+    delay(5000);
+    digitalWrite(PIN_LAMP, LOW);
+  }
+}
+```
+
+Compare elapsed time as `now - since >= interval`, never `now >= since + interval`. The subtraction form is correct
+across the `millis()` rollover at about 49.7 days, the addition form overflows and stalls the state machine there.
+`lamp_task` takes `now_ms` as a parameter rather than calling `millis()` itself, which is what makes it testable on
+the host with a synthetic clock.
+
+---
+
+### ISRs set a flag and return
+
+An interrupt handler does the minimum: record what happened, set a `volatile` flag, return. Everything else is the
+main loop's job. Blocking calls, `Serial.print`, and allocation inside an ISR either deadlock or corrupt state,
+because the code they call is not reentrant.
+
+Pass, the ISR:
+
+```c
+static volatile bool     pulse_pending = false;
+static volatile uint32_t pulse_count   = 0U;
+
+ISR(INT0_vect) {
+  pulse_count++;
+  pulse_pending = true;
+}
+```
+
+And the main loop, reading the shared state inside the shortest possible critical section:
+
+```c
+void loop(void) {
+  bool     pending;
+  uint32_t count;
+
+  noInterrupts();
+  pending       = pulse_pending;
+  count         = pulse_count;
+  pulse_pending = false;
+  interrupts();
+
+  if (pending) {
+    report_pulses(count);
+  }
+}
+```
+
+Fail:
+
+```c
+ISR(INT0_vect) {
+  pulse_count++;
+  Serial.print("pulse ");
+  Serial.println(pulse_count);
+  delay(10);
+}
+```
+
+Every variable shared between an ISR and the main loop is `volatile`, or the compiler caches it in a register and
+the main loop never sees the change. `pulse_count` is 32-bit, so an 8-bit core reads it in four instructions and an
+interrupt landing between them yields a torn value: that is why the copy sits inside `noInterrupts()` /
+`interrupts()`, and why that section contains nothing but the copy.
+
+---
+
+### Fixed-width integer types
+
+Use `<stdint.h>` types for every register-level and protocol value. Bare `int`, `long`, and `short` change size
+between an AVR build and an ESP32 build, so the same struct describes two different frame layouts.
+
+Pass:
+
+```c
+uint16_t adc_raw = hal_adc_read(ADC_CHANNEL_2);
+```
+
+Fail:
+
+```c
+int adc_raw = analogRead(A2);
+```
+
+Use `size_t` for buffer lengths and for indices into arrays.
 
 ---
 
@@ -92,16 +255,20 @@ example a documented state machine, an ordering requirement, or a concurrency gu
 justify in review, not a budget to spend. The one-line cap on a tag line has no exception at all: shorten it or delete
 it.
 
+Pass, one line of brief, then only what the signature cannot say:
+
 ```c
-// GOOD: one line of brief, then only what the signature cannot say
 /**
  * @brief Reads one temperature sample from the sensor.
  * @param[out] out_celsius Written only when the call returns SENSOR_OK.
  * @return SENSOR_TIMEOUT when the bus does not answer within 50 ms.
  */
 sensor_status_t sensor_read(sensor_handle_t *handle, float *out_celsius);
+```
 
-// BAD: every tag restates the signature
+Fail, every tag restates the signature:
+
+```c
 /**
  * @brief Reads the sensor.
  * @param handle The handle.
@@ -113,86 +280,78 @@ sensor_status_t sensor_read(sensor_handle_t *handle, float *out_celsius);
 
 ---
 
-### Arduino API Design
+### Hardware abstraction layer
 
-- Structure public API functions around the data and functionality the end user expects, abstracting low-level register
-  manipulation.
-- Follow established Arduino naming conventions: `read()` for inputs, `write()` for outputs, `begin()` for
-  initialisation.
-- Do not require the user to pass variables by pointer notation; use array notation or wrap complex structures securely.
-- Validate all inputs from external interfaces (UART, I2C, SPI). Implement timeouts for all synchronous serial reads to
-  prevent hanging when a peripheral disconnects.
+Separate register access from logic behind a HAL: `hal_gpio_write`, `hal_gpio_read`, `hal_uart_send`,
+`hal_uart_recv`, `hal_spi_transfer`. Implement each peripheral in its own translation unit, `hal_gpio_avr.c`,
+`hal_uart_avr.c`. That boundary is what lets the business logic compile and run on a host machine with no hardware
+attached, which is the entire basis of the testing rule below.
 
----
+Pass:
 
-### Hardware Abstraction Layer (HAL)
+```c
+hal_gpio_write(PIN_LAMP, 1U);
+```
 
-- Separate hardware register access from business logic using a HAL layer.
-- Define the HAL interface as a set of function pointers or abstract C functions: `hal_gpio_write`, `hal_gpio_read`,
-  `hal_uart_send`, `hal_uart_recv`, `hal_spi_transfer`, etc.
-- Implement hardware-specific HAL functions in a separate translation unit per peripheral (e.g., `hal_gpio_avr.c`,
-  `hal_uart_avr.c`).
-- This separation allows business logic to be compiled and unit-tested on a host machine (x86/x64) without physical
-  hardware.
+Fail:
+
+```c
+PORTB |= _BV(PB5);
+```
 
 ---
 
-### Unit Testing, Unity / CMock / Ceedling
+### Host-side unit tests
 
-- Write all unit tests using the Unity test framework, CMock for mock generation, and Ceedling as the build
-  orchestrator.
-  - Reference: http://www.throwtheswitch.org/ceedling
-- Compile and run all tests on the host machine (x86/x64) for fast iteration without flashing hardware.
-- Mock all HAL functions in unit tests; test business logic independently of hardware.
-- Target a minimum of 80% branch coverage for all business-logic modules.
-- Organise tests under `test/` mirroring the `src/` directory structure; one test file per source module.
+Write tests with Unity, generate mocks with CMock, orchestrate with Ceedling, and run all of it on the host for a
+fast loop with no flashing. Mock every HAL function, mirror `src/` under `test/`, and target at least 80 percent
+branch coverage on business-logic modules. Setup and coverage detail is in
+[references/style-and-testing.md](references/style-and-testing.md).
 
----
+Pass:
 
-### Power Management, Sleep Modes
+```bash
+ceedling test:all
+```
 
-- Use the MCU's sleep modes in battery-powered applications:
-  - `SLEEP_MODE_PWR_DOWN` for deepest sleep (wake via external interrupt only).
-  - `SLEEP_MODE_IDLE` for light sleep (wake via any interrupt including timers).
-- Enter sleep mode in the main loop's idle state; wake via interrupt (hardware timer, external pin, UART RX).
-- Power-gate unused peripherals (ADC, UART, SPI, TWI) via the Power Reduction Register (`PRR` / `PRR0` / `PRR1`) before
-  entering sleep.
-- Document the expected current consumption in each sleep mode in the project's hardware notes.
+Fail:
+
+```bash
+arduino-cli upload --fqbn arduino:avr:uno --port COM3
+```
 
 ---
 
-### RTOS, FreeRTOS Rules
+### Reference files
 
-When using FreeRTOS on Arduino-compatible hardware (AVR FreeRTOS library, ESP-IDF, or similar):
-
-- Assign explicit task priorities and document the priority rationale (higher value = more time-critical).
-- Calculate and explicitly specify task stack sizes using `uxTaskGetStackHighWaterMark()` profiling; never use arbitrary
-  large values.
-- Use mutexes (`xSemaphoreCreateMutex`) for shared resource protection from task context; do not disable interrupts from
-  tasks.
-- Use binary semaphores (`xSemaphoreCreateBinary`) for ISR-to-task synchronisation; never call FreeRTOS blocking APIs
-  (`xSemaphoreTake`, `vTaskDelay`, etc.) from within an ISR.
-- Use `xSemaphoreGiveFromISR` / `xQueueSendFromISR` for all ISR-to-task communication; always pass and check
-  `pxHigherPriorityTaskWoken`.
+| Open this | For |
+|---|---|
+| [references/rtos-ota-and-protocols.md](references/rtos-ota-and-protocols.md) | Sleep modes and power gating, FreeRTOS task and ISR rules, serial protocol versioning, and dual-bank OTA with rollback |
+| [references/style-and-testing.md](references/style-and-testing.md) | MISRA and formatting rules, Arduino library API conventions, and the Ceedling, Unity and CMock host test setup |
 
 ---
 
-### Communication Protocol Versioning
+### Related skills
 
-- Begin every serial protocol frame with a magic byte sequence (e.g., `0xAA 0x55`) and a 1-byte protocol version field.
-- Reject frames with unknown version numbers gracefully: log the received version and return a NACK byte; do not
-  silently process corrupt data.
-- Document the complete frame format (fields, sizes, byte order, CRC algorithm) in `docs/PROTOCOL.md`.
-- Increment the version field on any breaking change to the frame structure.
+- `kicad` for the board, its decoupling, and its connector pinout.
+- `g-code-3d-printing` for the printed enclosure.
+- `bash` and `powershell` for flashing, log capture, and CI scripts.
+- `home-assistant` for integrating the finished device into a home system.
+- `coding-standards` for the naming and control-flow floor this skill sits on top of.
 
 ---
 
-### OTA (Over-The-Air) Update Safety
+### Checklist
 
-- For platforms supporting OTA (ESP32, ESP8266, Arduino Nano 33 IoT), use a dual-bank flash scheme: one bank active, one
-  receiving the incoming image.
-- Verify the downloaded firmware image checksum (CRC32 or SHA-256) before committing the update and issuing a reboot.
-- Implement automatic rollback: if the new firmware fails to produce a healthy watchdog reset within N seconds after
-  first boot, revert to the previous bank automatically.
-- Log OTA update attempts, checksum results, and rollback events to non-volatile storage (EEPROM / NVS) for post-mortem
-  analysis.
+- [ ] No `malloc`, `free`, or C++ `String` anywhere in the build.
+- [ ] Every lookup table and constant string in `PROGMEM`, every buffer bounded.
+- [ ] SRAM usage profiled before the release.
+- [ ] Every loop bounded, watchdog reset from the main loop on safety-critical builds.
+- [ ] No `goto`, `setjmp`, `longjmp`, or recursion.
+- [ ] No `delay()`, timing done by a `millis()` state machine using subtraction for elapsed time.
+- [ ] Every ISR sets a `volatile` flag and returns, no printing, blocking, or allocation.
+- [ ] Multi-byte shared variables read inside the shortest possible `noInterrupts()` section.
+- [ ] Every register and protocol value uses a `<stdint.h>` type.
+- [ ] MISRA C:2012 Required rules met, deviations documented.
+- [ ] All register access sits behind the HAL.
+- [ ] Ceedling suite passes on the host, at least 80 percent branch coverage on logic modules.

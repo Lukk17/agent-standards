@@ -1,18 +1,42 @@
 ---
 name: e2e-testing
-description: Playwright E2E testing patterns, Page Object Model, configuration, CI/CD integration, artifact management, and flaky test strategies.
-origin: ECC
+description: Playwright browser end-to-end testing, covering suite layout, the Page Object Model, configuration, semantic locators, the canonical flaky-test policy, artifacts, and CI wiring. Use when you say "write a Playwright test for the login flow", "our e2e suite is flaky", "set up playwright.config.ts", "add e2e tests to CI", or "test the checkout journey in a browser". Not for backend capability sweeps against a live stack, use `e2e-runbooks`.
 ---
 
 # E2E Testing Patterns
 
-Comprehensive Playwright patterns for building stable, fast, and maintainable E2E test suites.
+Build Playwright suites that stay stable, fast, and readable as the UI changes underneath them. This skill owns browser
+end-to-end testing and is the canonical home of the flaky-test policy that the other testing skills defer to.
 
 ---
 
-### Test File Organization
+### When to activate
 
-```
+- Writing or restructuring Playwright tests for a user journey through the browser.
+- A browser suite is flaky, slow, or full of hardcoded waits, and needs a policy as well as a fix.
+- Setting up `playwright.config.ts`, choosing projects and reporters, or wiring the suite into CI.
+- Deciding how a UI test should locate elements, or where its page objects live.
+- Another testing skill has deferred a flaky-test decision to this one.
+
+---
+
+### When not to activate
+
+- Verifying a deployed backend capability with an API client rather than a browser. Use `e2e-runbooks`.
+- Unit and integration tests inside the codebase, and the red-green-refactor loop. Use `tdd-workflow`, or the language
+  testing skill (`python-testing`, `golang-testing`, `springboot-tdd`).
+- Sandbox-mode API regression tests that need no browser and no database. Use `ai-regression-testing`.
+- Auditing a page for keyboard operability and screen-reader behaviour. Use `web-accessibility`.
+- Load, soak, or chaos testing. Out of scope here, which is about correctness rather than capacity.
+
+---
+
+### Suite layout
+
+Group specs by the journey they exercise, keep fixtures separate from specs, and keep page objects out of the spec tree
+so a spec file only reads as a scenario.
+
+```text
 tests/
 ├── e2e/
 │   ├── auth/
@@ -22,61 +46,66 @@ tests/
 │   ├── features/
 │   │   ├── browse.spec.ts
 │   │   ├── search.spec.ts
-│   │   └── create.spec.ts
+│   │   └── checkout.spec.ts
 │   └── api/
 │       └── endpoints.spec.ts
 ├── fixtures/
 │   ├── auth.ts
 │   └── data.ts
+├── pages/
+│   └── ItemsPage.ts
 └── playwright.config.ts
 ```
 
 ---
 
-### Page Object Model (POM)
+### Page Object Model
+
+Put selectors and waiting behind a page object so a markup change costs one edit rather than twenty. A page object
+exposes intent (`search`, `submitOrder`) and never leaks a raw selector into a spec.
+
+Fail: the spec owns the selectors and the waits.
 
 ```typescript
-import { Page, Locator } from '@playwright/test'
+test('search', async ({ page }) => {
+  await page.goto('/items')
+  await page.locator('[data-testid="search-input"]').fill('test')
+  await page.waitForTimeout(500)
+  expect(await page.locator('[data-testid="item-card"]').count()).toBeGreaterThan(0)
+})
+```
 
+Pass: the page object owns them, and the spec reads as the journey.
+
+```typescript
 export class ItemsPage {
   readonly page: Page
   readonly searchInput: Locator
   readonly itemCards: Locator
-  readonly createButton: Locator
 
   constructor(page: Page) {
     this.page = page
-    this.searchInput = page.locator('[data-testid="search-input"]')
-    this.itemCards = page.locator('[data-testid="item-card"]')
-    this.createButton = page.locator('[data-testid="create-btn"]')
+    this.searchInput = page.getByTestId('search-input')
+    this.itemCards = page.getByTestId('item-card')
   }
 
   async goto() {
     await this.page.goto('/items')
-    await this.page.waitForLoadState('networkidle')
   }
 
   async search(query: string) {
     await this.searchInput.fill(query)
     await this.page.waitForResponse(resp => resp.url().includes('/api/search'))
-    await this.page.waitForLoadState('networkidle')
   }
 
-  async getItemCount() {
-    return await this.itemCards.count()
+  async itemCount() {
+    return this.itemCards.count()
   }
 }
 ```
 
----
-
-### Test Structure
-
 ```typescript
-import { test, expect } from '@playwright/test'
-import { ItemsPage } from '../../pages/ItemsPage'
-
-test.describe('Item Search', () => {
+test.describe('Item search', () => {
   let itemsPage: ItemsPage
 
   test.beforeEach(async ({ page }) => {
@@ -84,263 +113,215 @@ test.describe('Item Search', () => {
     await itemsPage.goto()
   })
 
-  test('should search by keyword', async ({ page }) => {
+  test('finds items by keyword', async () => {
     await itemsPage.search('test')
 
-    const count = await itemsPage.getItemCount()
-    expect(count).toBeGreaterThan(0)
-
+    expect(await itemsPage.itemCount()).toBeGreaterThan(0)
     await expect(itemsPage.itemCards.first()).toContainText(/test/i)
-    await page.screenshot({ path: 'artifacts/search-results.png' })
   })
 
-  test('should handle no results', async ({ page }) => {
+  test('shows the empty state when nothing matches', async ({ page }) => {
     await itemsPage.search('xyznonexistent123')
 
-    await expect(page.locator('[data-testid="no-results"]')).toBeVisible()
-    expect(await itemsPage.getItemCount()).toBe(0)
+    await expect(page.getByTestId('no-results')).toBeVisible()
+    expect(await itemsPage.itemCount()).toBe(0)
   })
 })
 ```
 
 ---
 
-### Playwright Configuration
+### Locators
+
+Locate by role, label, or an explicit test id. A locator tied to a generated class name breaks on the next styling
+change and tells the reader nothing.
+
+Fail: brittle and meaningless.
 
 ```typescript
-import { defineConfig, devices } from '@playwright/test'
-
-export default defineConfig({
-  testDir: './tests/e2e',
-  fullyParallel: true,
-  forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
-  reporter: [
-    ['html', { outputFolder: 'playwright-report' }],
-    ['junit', { outputFile: 'playwright-results.xml' }],
-    ['json', { outputFile: 'playwright-results.json' }]
-  ],
-  use: {
-    baseURL: process.env.BASE_URL || 'http://localhost:3000',
-    trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
-    actionTimeout: 10000,
-    navigationTimeout: 30000,
-  },
-  projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
-    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
-    { name: 'mobile-chrome', use: { ...devices['Pixel 5'] } },
-  ],
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120000,
-  },
-})
+await page.click('.css-1x7hj2k > div:nth-child(3) button')
 ```
+
+Pass: semantic, and stable across restyling.
+
+```typescript
+await page.getByRole('button', { name: 'Submit order' }).click()
+await page.getByTestId('submit-order').click()
+```
+
 
 ---
 
-### Flaky Test Patterns
+### Flaky tests, the canonical policy
 
-#### Quarantine
+A flaky test is a blocking defect, not background noise. It costs more than a failing test because it teaches the team
+to ignore red. This section is the project-wide policy: `tdd-workflow` and the language testing skills defer to it
+rather than restating it.
+
+| Rule | Value |
+| --- | --- |
+| Fix or quarantine SLA | 2 business days from the first observed flake |
+| Maximum quarantine period | 2 sprints |
+| Action when quarantine expires | Delete the test and rewrite it from scratch |
+| Prohibited in assertions | `Thread.sleep()`, `time.sleep()`, `setTimeout`, `page.waitForTimeout` |
+| Allowed retry | Framework-level retry (`retries` in Playwright, `@RetryingTest` in JUnit) only for genuinely non-deterministic integration paths, never to paper over a race |
+
+Quarantine explicitly and link the tracking issue, so the test cannot quietly rot.
 
 ```typescript
-test('flaky: complex search', async ({ page }) => {
-  test.fixme(true, 'Flaky - Issue #123')
-  // test code...
-})
-
-test('conditional skip', async ({ page }) => {
-  test.skip(process.env.CI, 'Flaky in CI - Issue #123')
-  // test code...
+test('complex search', async ({ page }) => {
+  test.fixme(true, 'Flaky, tracked in issue #123')
 })
 ```
 
-#### Identify Flakiness
+Confirm a suspected flake before spending time on it.
 
 ```bash
 npx playwright test tests/search.spec.ts --repeat-each=10
-npx playwright test tests/search.spec.ts --retries=3
 ```
 
-#### Common Causes & Fixes
+The three causes worth knowing. Race conditions: assert through an auto-waiting locator rather than a bare click on a
+possibly unmounted element.
 
-Race conditions:
+Fail:
+
 ```typescript
-// Bad: assumes element is ready
-await page.click('[data-testid="button"]')
-
-// Good: auto-wait locator
-await page.locator('[data-testid="button"]').click()
+await page.click('[data-testid="submit"]')
 ```
 
-Network timing:
+Pass:
+
 ```typescript
-// Bad: arbitrary timeout
+await page.getByTestId('submit').click()
+```
+
+Network timing: wait for the response the UI depends on, never for a wall-clock guess.
+
+Fail:
+
+```typescript
 await page.waitForTimeout(5000)
-
-// Good: wait for specific condition
-await page.waitForResponse(resp => resp.url().includes('/api/data'))
 ```
 
-Animation timing:
+Pass:
+
 ```typescript
-// Bad: click during animation
+await page.waitForResponse(resp => resp.url().includes('/api/data') && resp.ok())
+```
+
+Animation timing: wait for the element to be stable before interacting with it.
+
+Fail:
+
+```typescript
 await page.click('[data-testid="menu-item"]')
-
-// Good: wait for stability
-await page.locator('[data-testid="menu-item"]').waitFor({ state: 'visible' })
-await page.waitForLoadState('networkidle')
-await page.locator('[data-testid="menu-item"]').click()
 ```
+
+Pass:
+
+```typescript
+const item = page.getByTestId('menu-item')
+await item.waitFor({ state: 'visible' })
+await item.click()
+```
+
 
 ---
 
-### Artifact Management
+### External providers and third-party widgets
 
-#### Screenshots
+A journey that depends on a third-party provider (an identity provider, a payment widget, an analytics beacon) should
+stub the provider at the browser boundary. Stubbing keeps the test hermetic and fast, and it is the only way to make the
+failure paths reachable.
 
-```typescript
-await page.screenshot({ path: 'artifacts/after-login.png' })
-await page.screenshot({ path: 'artifacts/full-page.png', fullPage: true })
-await page.locator('[data-testid="chart"]').screenshot({ path: 'artifacts/chart.png' })
-```
-
-#### Traces
+Fail: the test drives the real provider, so it is slow, rate limited, and untestable for the declined case.
 
 ```typescript
-await browser.startTracing(page, {
-  path: 'artifacts/trace.json',
-  screenshots: true,
-  snapshots: true,
-})
-// ... test actions ...
-await browser.stopTracing()
-```
-
-#### Video
-
-```typescript
-// In playwright.config.ts
-use: {
-  video: 'retain-on-failure',
-  videosPath: 'artifacts/videos/'
-}
-```
-
----
-
-### CI/CD Integration
-
-```yaml
-# .github/workflows/e2e.yml
-name: E2E Tests
-on: [push, pull_request]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: npm ci
-      - run: npx playwright install --with-deps
-      - run: npx playwright test
-        env:
-          BASE_URL: ${{ vars.STAGING_URL }}
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 30
-```
-
----
-
-### Test Report Template
-
-```markdown
-# E2E Test Report
-
-**Date:** YYYY-MM-DD HH:MM
-**Duration:** Xm Ys
-**Status:** PASSING / FAILING
-
-## Summary
-- Total: X | Passed: Y (Z%) | Failed: A | Flaky: B | Skipped: C
-
-## Failed Tests
-
-### test-name
-**File:** `tests/e2e/feature.spec.ts:45`
-**Error:** Expected element to be visible
-**Screenshot:** artifacts/failed.png
-**Recommended Fix:** [description]
-
-## Artifacts
-- HTML Report: playwright-report/index.html
-- Screenshots: artifacts/*.png
-- Videos: artifacts/videos/*.webm
-- Traces: artifacts/*.zip
-```
-
----
-
-### Wallet / Web3 Testing
-
-```typescript
-test('wallet connection', async ({ page, context }) => {
-  // Mock wallet provider
-  await context.addInitScript(() => {
-    window.ethereum = {
-      isMetaMask: true,
-      request: async ({ method }) => {
-        if (method === 'eth_requestAccounts')
-          return ['0x1234567890123456789012345678901234567890']
-        if (method === 'eth_chainId') return '0x1'
-      }
-    }
-  })
-
-  await page.goto('/')
-  await page.locator('[data-testid="connect-wallet"]').click()
-  await expect(page.locator('[data-testid="wallet-address"]')).toContainText('0x1234')
+test('user signs in', async ({ page }) => {
+  await page.goto('/login')
+  await page.getByLabel('Email').fill(process.env.REAL_TEST_ACCOUNT!)
+  await page.getByRole('button', { name: 'Continue with provider' }).click()
 })
 ```
 
----
-
-### Financial / Critical Flow Testing
+Pass: the provider is stubbed, the app under test is real, and both outcomes are reachable.
 
 ```typescript
-test('trade execution', async ({ page }) => {
-  // Skip on production — real money
-  test.skip(process.env.NODE_ENV === 'production', 'Skip on production')
-
-  await page.goto('/markets/test-market')
-  await page.locator('[data-testid="position-yes"]').click()
-  await page.locator('[data-testid="trade-amount"]').fill('1.0')
-
-  // Verify preview
-  const preview = page.locator('[data-testid="trade-preview"]')
-  await expect(preview).toContainText('1.0')
-
-  // Confirm and wait for blockchain
-  await page.locator('[data-testid="confirm-trade"]').click()
-  await page.waitForResponse(
-    resp => resp.url().includes('/api/trade') && resp.status() === 200,
-    { timeout: 30000 }
+test('user signs in with the external provider', async ({ page, context }) => {
+  await context.route('**/oauth/token', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ access_token: 'test-token', expires_in: 3600 }),
+    }),
   )
 
-  await expect(page.locator('[data-testid="trade-success"]')).toBeVisible()
+  await page.goto('/login')
+  await page.getByRole('button', { name: 'Continue with provider' }).click()
+
+  await expect(page.getByTestId('user-menu')).toContainText('Signed in')
 })
 ```
+
+The same shape covers any browser-injected global a widget provides: install the stub with `context.addInitScript`
+before navigation, then assert on what the application does with it.
+
+---
+
+### Critical flows that move money
+
+A checkout, a payment, or anything that debits a real account gets three extra rules: it never runs against production,
+it asserts the confirmation state rather than the click, and it waits on the settlement response rather than a timeout.
+
+```typescript
+test('user completes checkout', async ({ page }) => {
+  test.skip(process.env.NODE_ENV === 'production', 'Never charge a real account from a test')
+
+  await page.goto('/cart')
+  await page.getByTestId('quantity').fill('2')
+  await page.getByRole('button', { name: 'Go to checkout' }).click()
+
+  await expect(page.getByTestId('order-total')).toContainText('49.98')
+
+  await page.getByRole('button', { name: 'Place order' }).click()
+  await page.waitForResponse(
+    resp => resp.url().includes('/api/orders') && resp.status() === 201,
+    { timeout: 30000 },
+  )
+
+  await expect(page.getByTestId('order-confirmation')).toBeVisible()
+})
+```
+
+---
+
+### Reference map
+
+| Task | Open |
+| --- | --- |
+| Write `playwright.config.ts`, decide the retry and artifact policy, wire the suite into CI | [references/config-and-ci.md](references/config-and-ci.md) |
+
+---
+
+### Related skills
+
+- `e2e-runbooks` covers the backend counterpart: one capability per spec, driven by an API client against a live stack.
+- `tdd-workflow` owns the unit and integration layers below this one and defers its flaky policy here.
+- `ai-regression-testing` covers DB-free API regression tests for AI-introduced defects.
+- `web-accessibility` covers keyboard and screen-reader auditing, which a functional browser test does not prove.
+- `deployment-patterns` covers where the suite runs in the pipeline and what a failure gates.
+
+---
+
+### Checklist
+
+- [ ] Specs are grouped by journey, page objects live outside the spec tree.
+- [ ] No raw selector appears in a spec file.
+- [ ] Every locator is role, label, or test-id based.
+- [ ] No `waitForTimeout` anywhere in the suite.
+- [ ] Base URL and every environment value come from the environment.
+- [ ] Trace on first retry, screenshot and video on failure, all under one artifact directory.
+- [ ] Every quarantined test carries a tracking issue and a quarantine date.
+- [ ] Third-party providers are stubbed at the browser boundary.
+- [ ] Money-moving flows are skipped against production and assert the confirmed state.
+- [ ] CI uploads the report on failure as well as success.

@@ -1,881 +1,287 @@
 ---
 name: git-workflow
-description: Git workflow patterns including branching strategies, commit conventions, merge vs rebase, conflict resolution, and collaborative development best practices for teams of all sizes.
-origin: ECC
+description: 'Git practice for a team: branching strategy, conventional commit messages, merge versus rebase, branch naming and cleanup, pull request content, and conflict prevention. Use when you say "what should I name this branch", "write the commit message for this", "merge or rebase here", "I have a conflict in this file", or "set up our git workflow". Not for issues, pull requests and releases on the hosting platform, use `github-ops`.'
 ---
 
-# Git Workflow Patterns
+# Git Workflow
 
-Best practices for Git version control, branching strategies, and collaborative development.
+Version control practice for work that more than one person touches: how branches are shaped, what a commit message
+has to say, when history may be rewritten, and what a pull request has to carry. Everything here is about the local
+repository and the shared history, so operating the hosting platform belongs to `github-ops`.
 
----
-
-### When to Activate
-
-- Setting up Git workflow for a new project
-- Deciding on branching strategy (GitFlow, trunk-based, GitHub flow)
-- Writing commit messages and PR descriptions
-- Resolving merge conflicts
-- Managing releases and version tags
-- Onboarding new team members to Git practices
+| Task | Open |
+|---|---|
+| Picking or changing a branching strategy for a repository | [branching-strategies.md](references/branching-strategies.md) |
+| Running an operation and needing the exact commands | [recipes.md](references/recipes.md) |
+| Setting up identity, defaults, aliases and ignore patterns | [git-config.md](references/git-config.md) |
+| Adopting signing, secret scanning, review turnaround, LFS or code ownership | [team-policy.md](references/team-policy.md) |
 
 ---
 
-### Branching Strategies
+### When to activate
 
-#### GitHub Flow (Simple, Recommended for Most)
-
-Best for continuous deployment and small-to-medium teams.
-
-```
-main (protected, always deployable)
-  │
-  ├── feature/user-auth      → PR → merge to main
-  ├── feature/payment-flow   → PR → merge to main
-  └── fix/login-bug          → PR → merge to main
-```
-
-Rules:
-- `main` is always deployable
-- Create feature branches from `main`
-- Open Pull Request when ready for review
-- After approval and CI passes, merge to `main`
-- Deploy immediately after merge
-
-#### Trunk-Based Development (High-Velocity Teams)
-
-Best for teams with strong CI/CD and feature flags.
-
-```
-main (trunk)
-  │
-  ├── short-lived feature (1-2 days max)
-  ├── short-lived feature
-  └── short-lived feature
-```
-
-Rules:
-- Everyone commits to `main` or very short-lived branches
-- Feature flags hide incomplete work
-- CI must pass before merge
-- Deploy multiple times per day
-
-#### GitFlow (Complex, Release-Cycle Driven)
-
-Best for scheduled releases and enterprise projects.
-
-```
-main (production releases)
-  │
-  └── develop (integration branch)
-        │
-        ├── feature/user-auth
-        ├── feature/payment
-        │
-        ├── release/1.0.0    → merge to main and develop
-        │
-        └── hotfix/critical  → merge to main and develop
-```
-
-Rules:
-- `main` contains production-ready code only
-- `develop` is the integration branch
-- Feature branches from `develop`, merge back to `develop`
-- Release branches from `develop`, merge to `main` and `develop`
-- Hotfix branches from `main`, merge to both `main` and `develop`
-
-#### When to Use Which
-
-| Strategy | Team Size | Release Cadence | Best For |
-|----------|-----------|-----------------|----------|
-| GitHub Flow | Any | Continuous | SaaS, web apps, startups |
-| Trunk-Based | 5+ experienced | Multiple/day | High-velocity teams, feature flags |
-| GitFlow | 10+ | Scheduled | Enterprise, regulated industries |
+- Setting up the git workflow for a new project
+- Choosing between GitHub Flow, trunk-based development and GitFlow
+- Writing a commit message or a pull request description
+- Deciding whether to merge or rebase in a specific situation
+- Naming a branch, or cleaning up branches after a merge
+- Resolving a conflict, or reducing how often conflicts happen
+- Undoing a mistake in local or shared history
 
 ---
 
-### Commit Messages
+### When not to activate
 
-#### Conventional Commits Format
-
-```
-<type>(<scope>): <subject>
-
-[optional body]
-
-[optional footer(s)]
-```
-
-#### Types
-
-| Type | Use For | Example |
-|------|---------|---------|
-| `feat` | New feature | `feat(auth): add OAuth2 login` |
-| `fix` | Bug fix | `fix(api): handle null response in user endpoint` |
-| `docs` | Documentation | `docs(readme): update installation instructions` |
-| `style` | Formatting, no code change | `style: fix indentation in login component` |
-| `refactor` | Code refactoring | `refactor(db): extract connection pool to module` |
-| `test` | Adding/updating tests | `test(auth): add unit tests for token validation` |
-| `chore` | Maintenance tasks | `chore(deps): update dependencies` |
-| `perf` | Performance improvement | `perf(query): add index to users table` |
-| `ci` | CI/CD changes | `ci: add PostgreSQL service to test workflow` |
-| `revert` | Revert previous commit | `revert: revert "feat(auth): add OAuth2 login"` |
-
-#### Good vs Bad Examples
-
-```
-# BAD: Vague, no context
-git commit -m "fixed stuff"
-git commit -m "updates"
-git commit -m "WIP"
-
-# GOOD: Clear, specific, explains why
-git commit -m "fix(api): retry requests on 503 Service Unavailable
-
-The external API occasionally returns 503 errors during peak hours.
-Added exponential backoff retry logic with max 3 attempts.
-
-Closes #123"
-```
-
-#### Commit Message Template
-
-Create `.gitmessage` in repo root:
-
-```
-# <type>(<scope>): <subject>
-# # Types: feat, fix, docs, style, refactor, test, chore, perf, ci, revert
-# Scope: api, ui, db, auth, etc.
-# Subject: imperative mood, no period, max 50 chars
-#
-# [optional body] - explain why, not what
-# [optional footer] - Breaking changes, closes #issue
-```
-
-Enable with: `git config commit.template .gitmessage`
+- Triaging issues, managing pull requests on the platform, or cutting a release, use `github-ops`
+- Recording work items, sizing and acceptance criteria, use `project-tracking`
+- Operating a Jira workflow around the branch, use `jira-integration`
+- Reviewing the content of a diff for correctness, use `code-reviewer`
+- Designing the pipeline the branch triggers, use `deployment-patterns`
+- Formatting the code inside the commit, use `code-formatter`
 
 ---
 
-### Merge vs Rebase
+### Pick one branching strategy and hold to it
 
-#### Merge (Preserves History)
+GitHub Flow suits continuous deployment and most small to medium teams: `main` stays deployable, work happens on a
+branch, and a reviewed branch merges and deploys. Trunk-based suits an experienced team with strong CI and feature
+flags, where branches live a day or two at most. GitFlow suits scheduled releases in a regulated setting and pays for
+that with a second long-lived branch. Full shape and rules per strategy are in
+[branching-strategies.md](references/branching-strategies.md).
 
-```bash
-# Creates a merge commit
-git checkout main
-git merge feature/user-auth
+Pass:
 
-# Result:
-# *   merge commit
-# |\
-# | * feature commits
-# |/
-# * main commits
+```text
+GitHub Flow. main protected and always deployable. Branch, PR, review, merge, deploy.
 ```
 
-Use when:
-- Merging feature branches into `main`
-- You want to preserve exact history
-- Multiple people worked on the branch
-- The branch has been pushed and others may have based work on it
+Fail:
 
-#### Rebase (Linear History)
-
-```bash
-# Rewrites feature commits onto target branch
-git checkout feature/user-auth
-git rebase main
-
-# Result:
-# * feature commits (rewritten)
-# * main commits
-```
-
-Use when:
-- Updating your local feature branch with latest `main`
-- You want a linear, clean history
-- The branch is local-only (not pushed)
-- You're the only one working on the branch
-
-#### Rebase Workflow
-
-```bash
-# Update feature branch with latest main (before PR)
-git checkout feature/user-auth
-git fetch origin
-git rebase origin/main
-
-# Fix any conflicts
-# Tests should still pass
-
-# Force push (only if you're the only contributor)
-git push --force-with-lease origin feature/user-auth
-```
-
-Any push, including `--force-with-lease`, happens only on explicit user instruction. Prefer `--force-with-lease` over
-`--force` so you never clobber commits you have not seen; on shared or public branches, revert instead of rewriting (see
-When NOT to Rebase).
-
-#### When NOT to Rebase
-
-```
-# NEVER rebase branches that:
-- Have been pushed to a shared repository
-- Other people have based work on
-- Are protected branches (main, develop)
-- Are already merged
-
-# Why: Rebase rewrites history, breaking others' work
+```text
+Mostly GitHub Flow but we also keep a develop branch, and hotfixes go straight to main sometimes.
 ```
 
 ---
 
-### Pull Request Workflow
+### Write conventional commit messages
 
-#### PR Title Format
+Use type, optional scope, then a subject in the imperative with no trailing period. Types: feat, fix, docs, style,
+refactor, test, chore, perf, ci, revert. The body explains why rather than what, because the diff already shows what.
+Keep the subject under about fifty characters and put the issue reference in the footer.
 
-```
-<type>(<scope>): <description>
+Pass:
 
-Examples:
-feat(auth): add SSO support for enterprise users
-fix(api): resolve race condition in order processing
-docs(api): add OpenAPI specification for v2 endpoints
-```
+```text
+fix(api): retry requests on 503 Service Unavailable
 
-#### PR Description Template
-
-```markdown
-## What
-
-Brief description of what this PR does.
-
-## Why
-
-Explain the motivation and context.
-
-## How
-
-Key implementation details worth highlighting.
-
-## Testing
-
-- [ ] Unit tests added/updated
-- [ ] Integration tests added/updated
-- [ ] Manual testing performed
-
-## Screenshots (if applicable)
-
-Before/after screenshots for UI changes.
-
-## Checklist
-
-- [ ] Code follows project style guidelines
-- [ ] Self-review completed
-- [ ] Comments added for complex logic
-- [ ] Documentation updated
-- [ ] No new warnings introduced
-- [ ] Tests pass locally
-- [ ] Related issues linked
+The upstream API returns 503 during peak hours. Added exponential backoff with a maximum of three attempts.
 
 Closes #123
 ```
 
-#### Code Review Checklist
+Fail:
 
-For Reviewers:
+```text
+fixed stuff
+```
 
-- [ ] Does the code solve the stated problem?
-- [ ] Are there any edge cases not handled?
-- [ ] Is the code readable and maintainable?
-- [ ] Are there sufficient tests?
-- [ ] Are there security concerns?
-- [ ] Is the commit history clean (squashed if needed)?
-
-For Authors:
-
-- [ ] Self-review completed before requesting review
-- [ ] CI passes (tests, lint, typecheck)
-- [ ] PR size is reasonable (<500 lines ideal)
-- [ ] Related to a single feature/fix
-- [ ] Description clearly explains the change
+A repository-level template makes the format the default rather than a thing to remember. The template and the config
+line that enables it are in [git-config.md](references/git-config.md).
 
 ---
 
-### Conflict Resolution
+### Merge in public, rebase in private
 
-#### Identify Conflicts
+Merge preserves the true history and is the safe default for anything others have pulled. Rebase produces a linear
+history and is for a branch only you have. Never rebase a branch that others have based work on, that is already
+merged, or that is shared, because rewriting it invalidates everyone else's copy and the recovery is manual.
 
-```bash
-# Check for conflicts before merge
-git checkout main
-git merge feature/user-auth --no-commit --no-ff
-
-# If conflicts, Git will show:
-# CONFLICT (content): Merge conflict in src/auth/login.ts
-# Automatic merge failed; fix conflicts and then commit the result.
-```
-
-#### Resolve Conflicts
+Pass:
 
 ```bash
-# See conflicted files
-git status
-
-# View conflict markers in file
-# <<<<<<< HEAD
-# content from main
-# =======
-# content from feature branch
-# >>>>>>> feature/user-auth
-
-# Option 1: Manual resolution
-# Edit file, remove markers, keep correct content
-
-# Option 2: Use merge tool
-git mergetool
-
-# Option 3: Accept one side
-git checkout --ours src/auth/login.ts    # Keep main version
-git checkout --theirs src/auth/login.ts  # Keep feature version
-
-# After resolving, stage and commit
-git add src/auth/login.ts
-git commit
+git rebase main
 ```
 
-#### Conflict Prevention Strategies
+Fail:
 
 ```bash
-# 1. Keep feature branches small and short-lived
-# 2. Rebase frequently onto main
-git checkout feature/user-auth
-git fetch origin
-git rebase origin/main
-
-# 3. Communicate with team about touching shared files
-# 4. Use feature flags instead of long-lived branches
-# 5. Review and merge PRs promptly
-```
-
----
-
-### Branch Management
-
-#### Naming Conventions
-
-```
-# Feature branches
-feature/user-authentication
-feature/TICKET-001-payment-integration
-
-# Bug fixes
-fix/login-redirect-loop
-fix/456-null-pointer-exception
-
-# Hotfixes (production issues)
-hotfix/critical-security-patch
-hotfix/database-connection-leak
-
-# Releases
-release/1.2.0
-release/2024-01-hotfix
-
-# Experiments/POCs
-experiment/new-caching-strategy
-poc/graphql-migration
-```
-
-#### Branch Cleanup
-
-```bash
-# Delete local branches that are merged
-git branch --merged main | grep -v "^\*\|main" | xargs -n 1 git branch -d
-
-# Delete remote-tracking references for deleted remote branches
-git fetch -p
-
-# Delete local branch
-git branch -d feature/user-auth  # Safe delete (only if merged)
-git branch -D feature/user-auth  # Force delete
-
-# Delete remote branch
-git push origin --delete feature/user-auth
-```
-
-#### Stash Workflow
-
-```bash
-# Save work in progress
-git stash push -m "WIP: user authentication"
-
-# List stashes
-git stash list
-
-# Apply most recent stash
-git stash pop
-
-# Apply specific stash
-git stash apply stash@{2}
-
-# Drop stash
-git stash drop stash@{0}
-```
-
----
-
-### Release Management
-
-#### Semantic Versioning
-
-```
-MAJOR.MINOR.PATCH
-
-MAJOR: Breaking changes
-MINOR: New features, backward compatible
-PATCH: Bug fixes, backward compatible
-
-Examples:
-1.0.0 → 1.0.1 (patch: bug fix)
-1.0.1 → 1.1.0 (minor: new feature)
-1.1.0 → 2.0.0 (major: breaking change)
-```
-
-#### Creating Releases
-
-```bash
-# Create annotated tag
-git tag -a v1.2.0 -m "Release v1.2.0
-
-Features:
-- Add user authentication
-- Implement password reset
-
-Fixes:
-- Resolve login redirect issue
-
-Breaking Changes:
-- None"
-
-# Push tag to remote
-git push origin v1.2.0
-
-# List tags
-git tag -l
-
-# Delete tag
-git tag -d v1.2.0
-git push origin --delete v1.2.0
-```
-
-#### Changelog Generation
-
-```bash
-# Generate changelog from commits
-git log v1.1.0..v1.2.0 --oneline --no-merges
-
-# Or use conventional-changelog
-npx conventional-changelog -i CHANGELOG.md -s
-```
-
----
-
-### Git Configuration
-
-#### Essential Configs
-
-```bash
-# User identity
-git config --global user.name "Your Name"
-git config --global user.email "your@email.com"
-
-# Default branch name
-git config --global init.defaultBranch main
-
-# Pull behavior (rebase instead of merge)
-git config --global pull.rebase true
-
-# Push behavior (push current branch only)
-git config --global push.default current
-
-# Auto-correct typos
-git config --global help.autocorrect 1
-
-# Better diff algorithm
-git config --global diff.algorithm histogram
-
-# Color output
-git config --global color.ui auto
-```
-
-#### Useful Aliases
-
-```bash
-# Add to ~/.gitconfig
-[alias]
-    co = checkout
-    br = branch
-    ci = commit
-    st = status
-    unstage = reset HEAD --
-    last = log -1 HEAD
-    visual = log --oneline --graph --all
-    amend = commit --amend --no-edit
-    wip = commit -m "WIP"
-    undo = reset --soft HEAD~1
-    contributors = shortlog -sn
-```
-
-#### Gitignore Patterns
-
-```gitignore
-# Dependencies
-node_modules/
-vendor/
-
-# Build outputs
-dist/
-build/
-*.o
-*.exe
-
-# Environment files
-.env
-.env.local
-.env.*.local
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-logs/
-
-# Test coverage
-coverage/
-
-# Cache
-.cache/
-*.tsbuildinfo
-```
-
----
-
-### Common Workflows
-
-#### Starting a New Feature
-
-```bash
-# 1. Update main branch
-git checkout main
-git pull origin main
-
-# 2. Create feature branch
-git checkout -b feature/user-auth
-
-# 3. Make changes and commit (stage explicit paths, not the whole tree)
-git add src/auth/oauth.ts src/auth/oauth.test.ts
-git commit -m "feat(auth): implement OAuth2 login"
-```
-
-Commits stay local until you decide to share them. When you are ready, and only on explicit instruction, push the
-branch and open the PR as separate deliberate steps:
-
-```bash
-git push -u origin feature/user-auth
-```
-
-Then create the Pull Request on GitHub/GitLab.
-
-#### Updating a PR with New Changes
-
-```bash
-git add src/auth/oauth.ts
-```
-
-```bash
-git commit -m "feat(auth): add error handling"
-```
-
-Pushing the update to the PR is a separate step, done only on explicit user instruction:
-
-```bash
-git push origin feature/user-auth
-```
-
-#### Syncing Fork with Upstream
-
-```bash
-# 1. Add upstream remote (once)
-git remote add upstream https://github.com/original/repo.git
-
-# 2. Fetch upstream
-git fetch upstream
-
-# 3. Merge upstream/main into your main
-git checkout main
-git merge upstream/main
-```
-
-Push the synced main to your fork only when you choose to, on explicit instruction:
-
-```bash
-git push origin main
-```
-
-#### Undoing Mistakes
-
-```bash
-# Undo last commit (keep changes)
-git reset --soft HEAD~1
-
-# Undo last commit (discard changes)
-git reset --hard HEAD~1
-
-# Undo last commit pushed to remote
-git revert HEAD
-git push origin main
-
-# Undo specific file changes
-git checkout HEAD -- path/to/file
-
-# Fix last commit message
-git commit --amend -m "New message"
-
-# Add forgotten file to last commit
-git add forgotten-file
-git commit --amend --no-edit
-```
-
----
-
-### Git Hooks
-
-#### Pre-Commit Hook
-
-```bash
-#!/bin/bash
-# .git/hooks/pre-commit
-
-# Run linting
-npm run lint || exit 1
-
-# Run tests
-npm test || exit 1
-
-# Check for secrets
-if git diff --cached | grep -E '(password|api_key|secret)'; then
-    echo "Possible secret detected. Commit aborted."
-    exit 1
-fi
-```
-
-#### Pre-Push Hook
-
-```bash
-#!/bin/bash
-# .git/hooks/pre-push
-
-# Run full test suite
-npm run test:all || exit 1
-
-# Check for console.log statements
-if git diff origin/main | grep -E 'console\.log'; then
-    echo "Remove console.log statements before pushing."
-    exit 1
-fi
-```
-
----
-
-### Anti-Patterns
-
-```
-# BAD: Committing directly to main
-git checkout main
-git commit -m "fix bug"
-
-# GOOD: Use feature branches and PRs
-
-# BAD: Committing secrets
-git add .env  # Contains API keys
-
-# GOOD: Add to .gitignore, use environment variables
-
-# BAD: Giant PRs (1000+ lines)
-# GOOD: Break into smaller, focused PRs
-
-# BAD: "Update" commit messages
-git commit -m "update"
-git commit -m "fix"
-
-# GOOD: Descriptive messages
-git commit -m "fix(auth): resolve redirect loop after login"
-
-# BAD: Rewriting public history
 git push --force origin main
+```
 
-# GOOD: Use revert for public branches (and any push happens only on explicit user instruction)
+The rebase run itself, conflict handling during it, and the safe force-push variant are in
+[recipes.md](references/recipes.md).
+
+---
+
+### Name branches by type and subject
+
+Use a type prefix, a slash, then a short hyphenated subject: `feature/user-auth`, `fix/login-redirect-loop`,
+`hotfix/token-refresh-crash`, `release/<version>`, `experiment/new-caching-strategy`. Keep the subject descriptive
+enough that the branch list reads without opening anything, and put the issue key in it when the project tracks one.
+
+Pass:
+
+```text
+feature/PROJ-1234-order-cancellation
+```
+
+Fail:
+
+```text
+lukas-branch-2
+```
+
+---
+
+### Delete a branch once it has merged
+
+A branch list that still holds every merged branch stops being usable, and stale remote-tracking references make it
+worse. Prune after every merge, locally and on the remote.
+
+Pass:
+
+```bash
+git branch --merged main | grep -v "^\*\|main" | xargs -n 1 git branch -d
+```
+
+Fail:
+
+```text
+Left 60 merged branches on the remote because deleting them felt risky.
+```
+
+---
+
+### Put what, why, how and testing in every pull request
+
+A pull request description answers four things: what changed, why it was needed, how it was done where that is not
+obvious, and how it was tested. Keep the change to one feature or one fix, and under about five hundred lines, so a
+reviewer can actually hold it in their head. Self-review before requesting review, and make sure CI is green first.
+
+Pass:
+
+```text
+What: cancel an order from the order detail page.
+Why: support currently cancels by hand in the database. Closes #482.
+How: new endpoint plus a state transition guard on paid orders.
+Testing: unit tests on the guard, integration test on the endpoint, manual pass on staging.
+```
+
+Fail:
+
+```text
+See commits.
+```
+
+The full description template, the reviewer checklist and the review turnaround policy are in
+[team-policy.md](references/team-policy.md).
+
+---
+
+### Prevent conflicts rather than resolving them
+
+Most conflicts come from a branch living too long next to a file everybody edits. Keep branches small and short,
+rebase onto the main line often, tell the team before touching a shared file, use a feature flag instead of a
+long-lived branch, and merge reviewed work promptly. When a conflict does happen, read both sides before picking one,
+never accept a side just to make the markers go away, and run the tests after resolving.
+
+Pass:
+
+```text
+Branch is two days old, rebased onto main this morning, touches four files nobody else has open.
+```
+
+Fail:
+
+```text
+Branch is six weeks old and the migration index file has conflicted three times.
+```
+
+The conflict-resolution commands and the merge-tool options are in [recipes.md](references/recipes.md).
+
+---
+
+### Stage only what you changed
+
+Stage explicit paths, or review each hunk, rather than sweeping the whole tree. A blind stage-everything commits the
+scratch file, the local config edit and the debug print alongside the change, and the next reader cannot tell which
+lines were the point.
+
+Pass:
+
+```bash
+git add -p
+```
+
+Fail:
+
+```bash
+git add .
+```
+
+---
+
+### Never rewrite public history, and never push unasked
+
+Pushing, force-pushing, opening a pull request and rebasing onto a remote all happen only on an explicit instruction.
+For a commit already on a shared branch, revert rather than rewrite: a revert is a new commit everyone can pull, and
+a rewrite is a break everyone has to repair by hand.
+
+Pass:
+
+```bash
 git revert HEAD
-
-# BAD: Long-lived feature branches (weeks/months)
-# GOOD: Keep branches short (days), rebase frequently
-
-# BAD: Committing generated files
-git add dist/
-git add node_modules/
-
-# GOOD: Add to .gitignore
 ```
 
----
-
-### Quick Reference
-
-| Task | Command |
-|------|---------|
-| Create branch | `git checkout -b feature/name` |
-| Switch branch | `git checkout branch-name` |
-| Delete branch | `git branch -d branch-name` |
-| Merge branch | `git merge branch-name` |
-| Rebase branch | `git rebase main` |
-| View history | `git log --oneline --graph` |
-| View changes | `git diff` |
-| Stage changes | `git add -p` or explicit paths (`git add .` only after verifying every file) |
-| Commit | `git commit -m "message"` |
-| Push | `git push origin branch-name` |
-| Pull | `git pull origin branch-name` |
-| Stash | `git stash push -m "message"` |
-| Undo last commit | `git reset --soft HEAD~1` |
-| Revert commit | `git revert HEAD` |
-
----
-
-### Commit Signing
-
-All commits and tags must be cryptographically signed. SSH keys are preferred over GPG:
+Fail:
 
 ```bash
-git config --global commit.gpgsign true
-git config --global gpg.format ssh
-git config --global user.signingkey ~/.ssh/id_ed25519.pub
-# Verify: git log --show-signature
+git rebase -i origin/main
 ```
 
 ---
 
-### Secret Scanning Pre-commit Hook
+### Release management lives in github-ops
 
-Install `git-secrets` and configure it as a pre-commit hook to prevent credentials from being committed:
-
-```bash
-git secrets --install
-git secrets --register-aws  # or custom patterns
-```
+Semantic versioning, tagging, changelog generation and publishing a release are one procedure, and it lives in
+`github-ops` so there is a single place that owns it. Come back here only for the branch and commit conventions the
+release process reads from.
 
 ---
 
-### Pull Request Template
+### Anti-patterns
 
-Every repository must have `.github/PULL_REQUEST_TEMPLATE.md`:
-
-```markdown
-## What
-<!-- Describe what changed and why -->
-
-## Why
-<!-- Link to issue/ticket; explain the motivation -->
-
-## How
-<!-- Summarize the technical approach -->
-
-## Testing Done
-<!-- What tests were run? What scenarios were verified? -->
-
-## Checklist
-- [ ] Tests pass (`CI green`)
-- [ ] No new lint warnings
-- [ ] Documentation updated if needed
-- [ ] Migration scripts reviewed (if DB changes)
-```
+| Anti-pattern | Cost | Do instead |
+|---|---|---|
+| Committing straight to the protected branch | No review, no CI gate before the main line moves | Branch, review, merge |
+| Committing a secret | Rotation plus a history rewrite across every clone | Ignore the file, read from the environment |
+| A pull request over a thousand lines | Review degrades to a skim | Split into focused changes |
+| A commit message that says update | The history stops answering why anything happened | Conventional commits with a body |
+| Rewriting a public branch | Everyone who pulled has to repair by hand | Revert on a public branch |
+| A feature branch alive for weeks | Conflicts compound and integration is deferred | Short branches plus a feature flag |
+| Committing generated output | Every regeneration is a diff nobody can review | Ignore the artifact, build it |
 
 ---
 
-### Code Review Standards
+### Related skills
 
-SLA: Reviewers must respond within 1 business day of review request.
-
-Comment prefixes (enforce consistent semantics):
-- `blocking:`: must be resolved before merge
-- `nit:`: optional style preference; author may ignore
-- `question:`: seeking understanding; no action required unless author chooses
-
-Branch protection (required settings):
-- Minimum 2 approving reviews before merge
-- Dismiss stale reviews when new commits are pushed
-- Require branch to be up-to-date with base before merge
+- `github-ops` owns issues, pull request operations, CI triage and the whole release procedure
+- `project-tracking` owns the work item the branch and commit reference
+- `jira-integration` owns reading and updating the Jira issue behind the branch
+- `code-reviewer` owns reviewing the content of the diff
+- `deployment-patterns` owns what happens after the merge
+- `security-review` owns the response when a secret does reach history
 
 ---
 
-### Merge Strategy by Scenario
+### Checklist
 
-| Scenario | Strategy |
-|---|---|
-| Feature branch → main | Squash merge, clean history, one commit per feature |
-| Hotfix → main | Merge commit (no-FF), preserves hotfix context |
-| Release branch → main | Merge commit (no-FF), preserves release history |
-| Rebase | Only on local, un-pushed commits, never rewrite shared history |
-
----
-
-### Automated Changelog
-
-Use `git-cliff` or `conventional-changelog` on every release:
-
-```bash
-git-cliff --tag v1.2.0 -o CHANGELOG.md
-```
-
-Requires [Conventional Commits](https://www.conventionalcommits.org/) format: `feat:`, `fix:`, `chore:`, `docs:`, etc.
-
----
-
-### Git LFS
-
-Track binary assets in Git LFS:
-
-```bash
-git lfs track "*.png" "*.jpg" "*.gif" "*.mp4" "*.pdf" "*.zip" "*.jar" "*.wasm" "*.fbx" "*.wav" "*.mp3"
-git add .gitattributes
-```
-
----
-
-### Branch Lifecycle Policy
-
-- Auto-delete merged branches immediately after merge (enable in GitHub/GitLab settings)
-- Stale branch review: any unmerged branch older than 30 days must be reviewed: either rebased and merged, or deleted
-- Never leave `WIP`/`draft` branches open indefinitely
-
----
-
-### Monorepo Configuration
-
-For monorepos:
-- Use CODEOWNERS with path-based ownership: `.github/CODEOWNERS`
-- Configure path-based CI triggers so only affected packages re-run
-- Consider Turborepo, Pants, or Bazel for incremental build graphs
-
-```
-# .github/CODEOWNERS
-/packages/auth/   @team-security
-/apps/frontend/   @team-frontend
-/infra/           @team-platform
-```
+- [ ] One branching strategy chosen and followed consistently
+- [ ] Every commit message carries a type and an imperative subject, with a body explaining why
+- [ ] Nothing shared was rebased, and nothing was pushed without an explicit instruction
+- [ ] Branch names carry a type prefix and a readable subject
+- [ ] Merged branches deleted locally and on the remote
+- [ ] Only intended paths staged, verified before committing
+- [ ] Pull request states what, why, how and how it was tested, and is under about five hundred lines
+- [ ] CI green and self-review done before review was requested
+- [ ] No secret and no generated artifact in the commit

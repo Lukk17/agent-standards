@@ -1,235 +1,206 @@
 ---
 name: springboot-verification
-description: "Verification loop for Spring Boot projects: build, static analysis, tests with coverage, security scans, and diff review before release or PR."
-origin: ECC
+description: "Six-phase verification pipeline for a Spring Boot service: build, static analysis, tests with coverage, dependency and secret scanning, format gate, and diff review, ending in a go or no-go report. Use when you say \"verify this before I open the PR\", \"run the full check pipeline\", \"is this ready to deploy\", \"scan for CVEs and committed secrets\", or \"give me a verification report\". Not for writing the tests this pipeline runs, use `springboot-tdd`."
+license: Apache-2.0
 ---
 
 # Spring Boot Verification Loop
 
-Run before PRs, after major changes, and pre-deploy.
+The command pipeline that decides whether a Spring Boot change is ready to leave your machine. It runs the gates
+and reports the result, and it defers to `springboot-tdd` for what the tests themselves should look like.
 
 ---
 
-### When to Activate
+### When to activate
 
-- Before opening a pull request for a Spring Boot service
-- After major refactoring or dependency upgrades
-- Pre-deployment verification for staging or production
-- Running full build → lint → test → security scan pipeline
-- Validating test coverage meets thresholds (around 90% of real logic)
+- Before opening a pull request for a Spring Boot service.
+- After a large refactor or a dependency upgrade.
+- Before a deployment to staging or production.
+- When somebody asks whether a change is ready, and the answer needs evidence.
 
 ---
 
-### Phase 1: Build
+### When not to activate
+
+- Writing or restructuring the tests, use `springboot-tdd`.
+- Reviewing the code itself for design and correctness, use `code-reviewer`.
+- Fixing a security finding this pipeline surfaces, use `springboot-security`.
+- Choosing or bumping the plugin versions the phases invoke, use `build-dependency-management`.
+- Shipping the artifact once the report is green, use `deployment-patterns`.
+
+---
+
+### Run the phases in order and stop at the first hard failure
+
+Each phase is cheaper than the one after it, so a broken build never burns a Testcontainers startup. Phases 1
+through 4 and phase 6 are hard gates. Phase 5 is a gate only in projects that have adopted a formatter.
+
+Pass: phase 1 fails, you fix the compilation error, and you restart from phase 1.
+
+Fail: the build is broken so you skip ahead to the diff review and report "tests not run" as if it were a result.
+
+---
+
+### Phase 1: build
+
+Maven:
 
 ```bash
 mvn -T 4 clean verify -DskipTests
-# or
+```
+
+Gradle:
+
+```bash
 ./gradlew clean assemble -x test
 ```
 
-If build fails, stop and fix.
+Pass: the artifact builds from a clean state.
+
+Fail: a build that only succeeds incrementally, because the failure is hiding in a stale output directory.
 
 ---
 
-### Phase 2: Static Analysis
+### Phase 2: static analysis
 
-Maven (common plugins):
+Maven:
+
 ```bash
 mvn -T 4 spotbugs:check pmd:check checkstyle:check
 ```
 
-Gradle (if configured):
+Gradle:
+
 ```bash
 ./gradlew checkstyleMain pmdMain spotbugsMain
 ```
 
+Pass: zero findings at the severity the project treats as an error, per `java-coding-standards`.
+
+Fail: findings acknowledged in the report and left in place, or a rule suppressed to clear the gate.
+
 ---
 
-### Phase 3: Tests + Coverage
+### Phase 3: tests and coverage
+
+Maven:
 
 ```bash
-mvn -T 4 test
-mvn jacoco:report   # verify ~90% coverage of real logic
-# or
+mvn -T 4 verify
+```
+
+Gradle:
+
+```bash
 ./gradlew test jacocoTestReport
 ```
 
-Report:
-- Total tests, passed/failed
-- Coverage % (lines/branches)
+Record the total test count, the pass and fail split, and line and branch coverage. The target is around 90% of
+real logic.
 
-#### Unit Tests
+Pass: the whole suite runs green and coverage clears the threshold on its own.
 
-Test service logic in isolation with mocked dependencies:
+Fail: a failing test annotated `@Disabled` to get the phase green, or a coverage threshold lowered in the same
+commit.
 
-```java
-@ExtendWith(MockitoExtension.class)
-class UserServiceTest {
-
-  @Mock private UserRepository userRepository;
-  @InjectMocks private UserService userService;
-
-  @Test
-  void createUser_validInput_returnsUser() {
-    var dto = new CreateUserDto("Alice", "alice@example.com");
-    var expected = new User(1L, "Alice", "alice@example.com");
-    when(userRepository.save(any(User.class))).thenReturn(expected);
-
-    var result = userService.create(dto);
-
-    assertThat(result.name()).isEqualTo("Alice");
-    verify(userRepository).save(any(User.class));
-  }
-
-  @Test
-  void createUser_duplicateEmail_throwsException() {
-    var dto = new CreateUserDto("Alice", "existing@example.com");
-    when(userRepository.existsByEmail(dto.email())).thenReturn(true);
-
-    assertThatThrownBy(() -> userService.create(dto))
-        .isInstanceOf(DuplicateEmailException.class);
-  }
-}
-```
-
-#### Integration Tests with Testcontainers
-
-Test against a real database instead of H2:
-
-```java
-@SpringBootTest
-@Testcontainers
-class UserRepositoryIntegrationTest {
-
-  @Container
-  static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-      .withDatabaseName("testdb");
-
-  @DynamicPropertySource
-  static void configureProperties(DynamicPropertyRegistry registry) {
-    registry.add("spring.datasource.url", postgres::getJdbcUrl);
-    registry.add("spring.datasource.username", postgres::getUsername);
-    registry.add("spring.datasource.password", postgres::getPassword);
-  }
-
-  @Autowired private UserRepository userRepository;
-
-  @Test
-  void findByEmail_existingUser_returnsUser() {
-    userRepository.save(new User("Alice", "alice@example.com"));
-
-    var found = userRepository.findByEmail("alice@example.com");
-
-    assertThat(found).isPresent();
-    assertThat(found.get().getName()).isEqualTo("Alice");
-  }
-}
-```
-
-#### API Tests with MockMvc
-
-Test controller layer with full Spring context:
-
-```java
-@WebMvcTest(UserController.class)
-class UserControllerTest {
-
-  @Autowired private MockMvc mockMvc;
-  @MockitoBean private UserService userService;
-
-  @Test
-  void createUser_validInput_returns201() throws Exception {
-    var user = new UserDto(1L, "Alice", "alice@example.com");
-    when(userService.create(any())).thenReturn(user);
-
-    mockMvc.perform(post("/api/users")
-            .contentType(MediaType.APPLICATION_JSON)
-            .content("""
-                {"name": "Alice", "email": "alice@example.com"}
-                """))
-        .andExpect(status().isCreated())
-        .andExpect(jsonPath("$.name").value("Alice"));
-  }
-
-  @Test
-  void createUser_invalidEmail_returns400() throws Exception {
-    mockMvc.perform(post("/api/users")
-            .contentType(MediaType.APPLICATION_JSON)
-            .content("""
-                {"name": "Alice", "email": "not-an-email"}
-                """))
-        .andExpect(status().isBadRequest());
-  }
-}
-```
+This skill defers to `springboot-tdd` for test shape. Anything about which slice a test belongs in, how to mock a
+Spring bean, how to wire Testcontainers, or how to build test data lives there, and is not repeated here.
 
 ---
 
-### Phase 4: Security Scan
+### Phase 4: security scan
+
+Dependency vulnerabilities, Maven:
 
 ```bash
-# Dependency CVEs
 mvn org.owasp:dependency-check-maven:check
-# or
+```
+
+Dependency vulnerabilities, Gradle:
+
+```bash
 ./gradlew dependencyCheckAnalyze
-
-# Secrets in source
-grep -rn "password\s*=\s*\"" src/ --include="*.java" --include="*.yml" --include="*.properties"
-grep -rn "sk-\|api_key\|secret" src/ --include="*.java" --include="*.yml"
-
-# Secrets (git history)
-git secrets --scan  # if configured
 ```
 
-#### Common Security Findings
+Committed credentials in the working tree:
 
+```bash
+grep -rnE "(password|secret|api[_-]?key)\s*[:=]\s*[\"'][^\"']+" src/ --include="*.java" --include="*.yml" --include="*.properties"
 ```
-# Check for System.out.println (use logger instead)
+
+Credentials in history, where the tool is configured:
+
+```bash
+git secrets --scan
+```
+
+Two more greps catch the findings that show up most often in review.
+
+```bash
 grep -rn "System\.out\.print" src/main/ --include="*.java"
+```
 
-# Check for raw exception messages in responses
-grep -rn "e\.getMessage()" src/main/ --include="*.java"
-
-# Check for wildcard CORS
+```bash
 grep -rn "allowedOrigins.*\*" src/main/ --include="*.java"
 ```
 
+Pass: no new CVE at or above the project's fail threshold, and no credential outside an environment variable or a
+vault reference.
+
+Fail: a CVE suppressed with no expiry and no ticket, or a hardcoded password explained away as test-only.
+
+Anything this phase finds is fixed under `springboot-security`, not patched over here.
+
 ---
 
-### Phase 5: Lint/Format (optional gate)
+### Phase 5: format gate
 
 ```bash
-mvn spotless:apply   # if using Spotless plugin
+mvn spotless:apply
+```
+
+```bash
 ./gradlew spotlessApply
 ```
 
+Pass: the formatter runs and produces no diff, meaning the tree was already formatted.
+
+Fail: a formatting run that rewrites files unrelated to the change, which buries the real diff in whitespace.
+
 ---
 
-### Phase 6: Diff Review
+### Phase 6: diff review
 
 ```bash
 git diff --stat
+```
+
+```bash
 git diff
 ```
 
-Checklist:
-- No debugging logs left (`System.out`, `log.debug` without guards)
-- Meaningful errors and HTTP statuses
-- Transactions and validation present where needed
-- Config changes documented
+Read the whole diff before reporting. The gates cannot see an accidentally committed debug branch or a config
+change nobody documented.
+
+Pass: every changed file is one the task required, with no leftover debugging output, meaningful HTTP statuses,
+transactions and validation where they belong, and config changes documented.
+
+Fail: an unrelated reformat, a stray `System.out`, or a commented-out block left as a note to self.
 
 ---
 
-### Output Template
+### Report the result in this template
 
-```
+Keep the output identical every run so a reader can compare two runs at a glance.
+
+```text
 VERIFICATION REPORT
 ===================
 Build:     [PASS/FAIL]
 Static:    [PASS/FAIL] (spotbugs/pmd/checkstyle)
 Tests:     [PASS/FAIL] (X/Y passed, Z% coverage)
 Security:  [PASS/FAIL] (CVE findings: N)
+Format:    [PASS/FAIL]
 Diff:      [X files changed]
 
 Overall:   [READY / NOT READY]
@@ -239,11 +210,43 @@ Issues to Fix:
 2. ...
 ```
 
+Pass: every line carries a real measured value, and NOT READY when any gate failed.
+
+Fail: READY declared with a phase marked "skipped", or a coverage number quoted from an earlier run.
+
 ---
 
-### Continuous Mode
+### Re-run on a short loop during long sessions
 
-- Re-run phases on significant changes or every 30-60 minutes in long sessions
-- Keep a short loop: `mvn -T 4 test` + spotbugs for quick feedback
+Re-run the full pipeline after any significant change, and roughly every thirty to sixty minutes in a long
+session. Between full runs, a fast loop of the test phase plus static analysis gives feedback without the wait.
 
-Remember: Fast feedback beats late surprises. Keep the gate strict-treat warnings as defects in production systems.
+Pass: failures surface minutes after the change that caused them.
+
+Fail: one verification run at the end of a day's work, where the bisect space is now forty files wide.
+
+---
+
+### Related skills
+
+| Skill | What it owns |
+| --- | --- |
+| `springboot-tdd` | The shape and structure of every test this pipeline runs. |
+| `springboot-security` | Fixing whatever phase 4 finds, and the release security checklist. |
+| `java-coding-standards` | The static analysis rules phase 2 enforces. |
+| `build-dependency-management` | Where the plugin versions in these commands are declared. |
+| `code-reviewer` | Human-grade review of the diff phase 6 prints. |
+| `deployment-patterns` | What happens after the report says READY. |
+
+---
+
+### Checklist
+
+- [ ] Phases ran in order, and the first hard failure stopped the run.
+- [ ] The build ran from clean, not incrementally.
+- [ ] Static analysis is at zero findings, with nothing newly suppressed.
+- [ ] The full suite is green and coverage cleared the threshold without the threshold moving.
+- [ ] Dependency and secret scans are clean, and any suppression has an expiry and a ticket.
+- [ ] The formatter produces no diff.
+- [ ] The whole diff was read, and every changed file belongs to the task.
+- [ ] The report uses the template, every value is measured, and the verdict matches the gates.

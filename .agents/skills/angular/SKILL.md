@@ -1,65 +1,261 @@
 ---
 name: angular
-description: Angular-specific standards for project structure, standalone components, signals, routing, testing, and performance.
-origin: project-standards
+description: Angular application standards covering standalone components, signals and RxJS interop, dependency injection with inject(), OnPush change detection, functional guards and interceptors, typed reactive forms, and global error handling. Use when you say "build this Angular component", "replace this BehaviorSubject with a signal", "my subscription leaks", "write a functional auth guard", or "add an HTTP error interceptor". Not for React and Next.js work, use `frontend-patterns`.
+license: Apache-2.0
 ---
 
 # Angular Standards
 
----
+Architecture and code standards for Angular applications: how components are declared, how state flows, how
+dependencies arrive, and how errors are handled. Every rule here has a modern form and a legacy form, and the legacy
+form is the one to remove on sight.
 
-### Core Execution Directives
-
-- Treat all LLM generated Angular components, services, RxJS pipelines, and RxJS operators as potentially hallucinated.
-- Enforce the Zero-Trust Prompt Engineering protocol for every Angular architectural decision.
-- Append a Zero-Trust directive demanding mandatory web searches for current Angular documentation, specifically
-  regarding Signals and RxJS interop.
-- Implement a Fail-Fast directive forcing the agent to halt execution and refuse to answer if official Angular
-  documentation cannot be retrieved via live search.
-- Require exact confidence percentage scores for every Angular API, RxJS operator, and configuration detail provided.
-- Mandate direct, working links to the official Angular documentation used to ground the code.
+Baseline: current stable Angular. Standalone components, signals, RxJS interop, `inject()`, functional guards and
+interceptors, and typed reactive forms are all stable, so nothing below is gated behind a flag.
 
 ---
 
-### Modern Architecture and Signals
+### When to activate
 
-- Default to using Standalone Components. Do not generate NgModules unless strictly required for legacy integration.
-- Use Angular Signals for synchronous state management and UI reactivity instead of `BehaviorSubject` where possible.
-- Use the `toSignal` function from the `@angular/core/rxjs-interop` package to track the value of an Observable in the
-  template.
-  - Ref: https://angular.dev/ecosystem/rxjs-interop
-
----
-
-### RxJS Patterns and State Management
-
-- Use RxJS strictly for asynchronous streams, event handling, and complex timing operations.
-- Prevent memory leaks by mandating the `takeUntilDestroyed` operator from `@angular/core/rxjs-interop` for all
-  component-level subscriptions. Do not use the legacy `Subject` and `ngOnDestroy` pattern.
-  - Ref: https://angular.dev/ecosystem/rxjs-interop/take-until-destroyed
-- Enforce the use of the `async` pipe in templates for any raw Observables that are not converted to Signals, preventing
-  manual `subscribe` calls in the component class.
-- Structure complex RxJS pipelines using higher-order mapping operators like `switchMap` for HTTP requests and
-  `concatMap` for ordered operations to avoid race conditions.
+- Building or reviewing any Angular component, service, guard, interceptor, or form.
+- Choosing between a signal and an observable for a piece of state.
+- Fixing a subscription leak or a change-detection performance problem.
+- Migrating NgModules to standalone components, or class-based guards and interceptors to functional ones.
+- Setting up global error handling, HTTP plumbing, or route-level data loading.
 
 ---
 
-### Dependency Injection
+### When not to activate
 
-- Mandate the use of the `inject` function for dependency injection instead of constructor injection. This aligns with
-  modern functional patterns and simplifies component inheritance.
-- Register singleton services using the `providedIn: 'root'` syntax inside the `@Injectable` decorator to ensure
-  tree-shaking works correctly.
-- Do not inject the `HttpClient` directly into components. Abstract all API communication into dedicated data services.
+- React, Next.js, and framework-agnostic web patterns. Use `frontend-patterns`.
+- Next.js rendering and routing. Use `nextjs-app-router-patterns`.
+- Visual direction and composition. Use `frontend-design`.
+- Tokens, theming, and stylesheet architecture. Use `design-system`.
+- WCAG conformance, ARIA, and screen-reader behaviour. Use `web-accessibility`.
+- The cross-language engineering baseline of SOLID, naming, and error handling. Use `coding-standards`.
 
 ---
 
-### Component Lifecycle and Naming Conventions
+### Reference map
 
-- Avoid putting complex logic inside the constructor. Defer initialization logic to the `ngOnInit` lifecycle hook.
-- Follow the Angular Style Guide naming conventions. Use `feature.type.ts` for file names.
-  - Ref: https://angular.dev/style-guide
-- Separate file names with dashes, and match the file name to the TypeScript class name.
+| Task | Open |
+| --- | --- |
+| Functional guards and resolvers, HTTP interceptors, typed forms | [references/routing-http-and-forms.md](references/routing-http-and-forms.md) |
+| Unit tests, component tests, HTTP mocking, end-to-end setup | [references/testing.md](references/testing.md) |
+| Sanitisation, CSP, and internationalisation | [references/security-and-i18n.md](references/security-and-i18n.md) |
+
+---
+
+### Declare components standalone
+
+Standalone components import what they use, so a component's dependencies are readable from the component itself.
+Generate an NgModule only to integrate with legacy code that still requires one.
+
+```typescript
+// PASS: dependencies declared where they are used
+@Component({
+  selector: 'app-widget-list',
+  imports: [WidgetCardComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `@for (widget of widgets(); track widget.id) { <app-widget-card [widget]="widget" /> }`,
+})
+export class WidgetListComponent {}
+
+// FAIL: a module whose only job is to declare one component
+@NgModule({ declarations: [WidgetListComponent], imports: [CommonModule] })
+export class WidgetListModule {}
+```
+
+---
+
+### Hold synchronous state in signals, not BehaviorSubject
+
+A signal is synchronously readable, needs no subscription, and cannot leak. Use it for state the UI renders. Keep
+RxJS for what it is good at: asynchronous streams, event timing, and cancellation.
+
+```typescript
+// PASS: signal state, derived values computed, no subscription to manage
+@Injectable({ providedIn: 'root' })
+export class CartStore {
+  private readonly items = signal<CartItem[]>([]);
+
+  readonly lines = this.items.asReadonly();
+  readonly total = computed(() => this.items().reduce((sum, item) => sum + item.price, 0));
+
+  add(item: CartItem): void {
+    this.items.update((current) => [...current, item]);
+  }
+}
+```
+
+```typescript
+// FAIL: a subject, a manual derived stream, and a value nobody can read synchronously
+@Injectable({ providedIn: 'root' })
+export class CartStore {
+  private readonly items$ = new BehaviorSubject<CartItem[]>([]);
+  readonly total$ = this.items$.pipe(map((items) => items.reduce((sum, i) => sum + i.price, 0)));
+}
+```
+
+To render an observable in a template, convert it with `toSignal` from `@angular/core/rxjs-interop`, or use the
+`async` pipe. Never call `subscribe` in a component to assign a field.
+
+```typescript
+readonly user = toSignal(this.userService.currentUser$, { initialValue: null });
+```
+
+---
+
+### Tear down subscriptions with takeUntilDestroyed
+
+A subscription that outlives its component keeps the component, its template, and everything they reference alive.
+`takeUntilDestroyed` reads the injection context and completes the stream automatically.
+
+```typescript
+// PASS: teardown is declared in the pipe, nothing to remember in a lifecycle hook
+@Component({ selector: 'app-search', changeDetection: ChangeDetectionStrategy.OnPush })
+export class SearchComponent {
+  private readonly search = inject(SearchService);
+
+  constructor() {
+    this.search.query$
+      .pipe(debounceTime(300), switchMap((q) => this.search.run(q)), takeUntilDestroyed())
+      .subscribe((results) => this.results.set(results));
+  }
+}
+```
+
+```typescript
+// FAIL: the legacy destroy subject, easy to forget and easy to get wrong
+export class SearchComponent implements OnDestroy {
+  private readonly destroy$ = new Subject<void>();
+
+  ngOnInit(): void {
+    this.search.query$.pipe(takeUntil(this.destroy$)).subscribe();
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+}
+```
+
+Outside an injection context, pass a `DestroyRef` explicitly: `takeUntilDestroyed(this.destroyRef)`.
+
+Use higher-order mapping operators deliberately: `switchMap` for a request that supersedes the last one, `concatMap`
+when order must hold, `exhaustMap` to ignore a second submit while the first is in flight, `mergeMap` only when
+concurrency is genuinely wanted.
+
+---
+
+### Inject dependencies with inject()
+
+`inject()` removes the constructor parameter list, so a subclass never has to repeat its parent's dependencies, and
+it works in field initialisers where a constructor parameter does not.
+
+```typescript
+// PASS: fields declare what they need, readonly, no constructor plumbing
+@Component({ selector: 'app-profile', changeDetection: ChangeDetectionStrategy.OnPush })
+export class ProfileComponent {
+  private readonly userService = inject(UserService);
+  private readonly router = inject(Router);
+}
+
+// FAIL: a constructor that every subclass must now restate
+export class ProfileComponent {
+  constructor(private userService: UserService, private router: Router) {}
+}
+```
+
+Register singletons with `providedIn: 'root'` so they tree-shake when unused, and never inject `HttpClient` into a
+component. API calls belong in a dedicated data service.
+
+---
+
+### Use the functional form of guards, interceptors, and forms
+
+Angular still ships a class-based API alongside the modern functional one for route guards, resolvers, and HTTP
+interceptors, and an untyped variant alongside typed reactive forms. In all four cases the legacy form is the one to
+remove on sight: a function composes and tests without TestBed, and a typed form catches a renamed control at compile
+time instead of at runtime.
+
+```typescript
+// PASS: a guard that is just a function, and a form whose shape is checked
+export const authGuard: CanActivateFn = (route, state) =>
+  inject(AuthService).isAuthenticated() || inject(Router).createUrlTree(['/login']);
+
+readonly form = new FormGroup<{ email: FormControl<string> }>({
+  email: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+});
+```
+
+```typescript
+// FAIL: the deprecated class guard, and a form whose every read is any
+@Injectable({ providedIn: 'root' })
+export class AuthGuard implements CanActivate {
+  canActivate(): boolean { return this.auth.isAuthenticated(); }
+}
+
+readonly form = new UntypedFormGroup({ email: new UntypedFormControl('') });
+```
+
+Register interceptors through `provideHttpClient(withInterceptors([...]))` in the order they should run. Full
+examples, including reusable validators and resolvers, are in
+[references/routing-http-and-forms.md](references/routing-http-and-forms.md).
+
+---
+
+### Handle uncaught errors globally
+
+An uncaught error with no handler leaves a blank screen and nothing in the logs. A custom `ErrorHandler` captures it,
+records the context that makes it diagnosable, and shows a fallback.
+
+```typescript
+// PASS: logged with the context that makes it diagnosable, user shown a fallback
+@Injectable()
+export class AppErrorHandler implements ErrorHandler {
+  private readonly logger = inject(LoggingService);
+  private readonly router = inject(Router);
+  private readonly notifications = inject(NotificationService);
+
+  handleError(error: unknown): void {
+    this.logger.error('Uncaught error', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      url: this.router.url,
+    });
+    this.notifications.showFallback();
+  }
+}
+```
+
+```typescript
+// FAIL: the error disappears and the stream quietly continues
+this.userService.load().pipe(catchError(() => of(null))).subscribe();
+```
+
+Register it in the application config with `{ provide: ErrorHandler, useClass: AppErrorHandler }`. Never swallow an
+error in `catchError` without logging it: re-throw, or convert it into a typed error the caller can render.
+
+---
+
+### Keep change detection cheap
+
+`OnPush` narrows re-rendering to the inputs and signals a component actually reads. A function call in a template
+runs on every check, which is what makes a template-bound method the most common Angular performance bug.
+
+```html
+<!-- PASS: bound to a signal, evaluated when it changes -->
+<p>{{ totalPrice() }}</p>
+
+<!-- FAIL: recomputed on every change detection cycle -->
+<p>{{ calculateTotalPrice(items) }}</p>
+```
+
+Defer heavy sections with `@defer` so they load on interaction or when they enter the viewport rather than on first
+paint. Keep constructors free of work and put initialisation in `ngOnInit`. Follow the Angular style guide for file
+names: dashes between words, `feature.type.ts`, and a file name matching the class it exports.
 
 ---
 
@@ -89,7 +285,7 @@ justify in review, not a budget to spend. The one-line cap on a tag line has no 
 it.
 
 ```typescript
-// GOOD: one sentence, then only what the signature cannot say
+// PASS: one sentence, then only what the signature cannot say
 /**
  * Loads the current user's dashboard widgets.
  *
@@ -98,7 +294,7 @@ it.
  */
 loadWidgets(): Observable<Widget[]> { ... }
 
-// BAD: restates the signature
+// FAIL: restates the signature
 /**
  * Loads widgets.
  *
@@ -110,77 +306,27 @@ loadWidgets(userId: string): Observable<Widget[]> { ... }
 
 ---
 
-### Performance and Change Detection
+### Related skills
 
-- Set `ChangeDetectionStrategy.OnPush` for all newly generated components to optimize rendering performance.
-- Do not call functions directly from HTML templates for data binding, as they execute on every change detection cycle.
-  Bind to properties, Signals, or use pure pipes instead.
-- Defer loading of heavy components using the `@defer` block syntax available in modern Angular templates.
-
----
-
-### Testing
-
-- Unit-test components and services using TestBed with Jest (via `jest-preset-angular`) or Vitest as the test runner.
-- Use `@testing-library/angular` for component tests; query by accessible roles and labels, not by CSS selectors or
-  component internals.
-- Write end-to-end tests with Playwright (`@playwright/test`); do not use the deprecated Protractor.
-- Mock HTTP calls in unit tests using `provideHttpClientTesting` and `HttpTestingController`; never mock `HttpClient`
-  directly.
+- `frontend-patterns` for React and framework-agnostic web patterns.
+- `frontend-design` for visual direction and composition.
+- `design-system` for tokens, theming, and stylesheet architecture.
+- `web-accessibility` for keyboard, focus, ARIA, and contrast requirements in Angular templates.
+- `coding-standards` for the cross-language engineering baseline.
+- `e2e-testing` for the Playwright suite that drives the application.
+- `api-design` for the contracts the data services call.
 
 ---
 
-### Routing Guards and Resolvers
+### Checklist
 
-- Implement route guards as functional guards using `inject()` rather than class-based `CanActivate`.
-- Use `CanDeactivate` guards for forms with unsaved changes to prevent accidental data loss.
-- Use resolvers (`ResolveFn`) only for data that is required before the component can render; for optional or deferred
-  data, fetch inside the component.
-
----
-
-### Forms
-
-- Use Reactive Forms (`FormGroup`, `FormControl`) for all non-trivial forms. Do not use Template-Driven Forms for forms
-  with complex validation or dynamic fields.
-- Use typed forms (`FormControl<string>`, `FormGroup<{...}>`) introduced in Angular 14+; never use untyped form
-  variants.
-- Extract reusable validators into pure functions; never inline complex validation logic in the template or component
-  class.
-
----
-
-### HTTP Interceptors
-
-- Use functional interceptors (`HttpInterceptorFn`) rather than class-based interceptors.
-- Implement a dedicated auth interceptor that attaches the Bearer token to outbound requests; inject the token source
-  with `inject()`.
-- Implement a global error-normalisation interceptor that maps HTTP error responses to typed application errors before
-  they reach services.
-
----
-
-### Global Error Handling
-
-- Provide a custom `ErrorHandler` implementation that captures uncaught errors, logs them with context (URL, user ID),
-  and displays a user-friendly fallback UI instead of a blank screen.
-- Never swallow errors in `catchError` without logging them; always re-throw or convert to a typed error signal.
-
----
-
-### Security
-
-- Never bypass Angular's built-in HTML sanitisation by calling `bypassSecurityTrustHtml` unless the content is generated
-  exclusively server-side and sanitised there.
-- Use Angular's `DomSanitizer` API for URL and style binding only when absolutely necessary and document the reason.
-- Set a strict Content Security Policy in the server response headers; Angular's template compiler generates
-  CSP-compatible code when `nonce` is configured.
-
----
-
-### Internationalisation (i18n)
-
-- Use Angular's built-in `@angular/localize` system for static text extraction and locale-specific builds.
-- Never hardcode user-visible strings directly in templates or component classes; always use `i18n` attributes or
-  `$localize` tagged templates.
-- For runtime language switching without full-page reloads, use `ngx-translate` as a complement to Angular i18n.
+- Every new component is standalone and sets `ChangeDetectionStrategy.OnPush`.
+- Synchronous UI state lives in signals, and no `BehaviorSubject` is used as a state container.
+- Every component-level subscription ends with `takeUntilDestroyed`, and no `ngOnDestroy` destroy subject remains.
+- No `subscribe` call in a component assigns a field that a signal or the `async` pipe could hold.
+- Dependencies arrive through `inject()`, and no component injects `HttpClient` directly.
+- Guards, resolvers, and interceptors are functions, not classes.
+- Every reactive form is typed, and no untyped form variant remains.
+- A custom `ErrorHandler` is registered, and no `catchError` discards an error without logging it.
+- No template binds to a method call.
+- No doc comment restates a signature, and every recoverable error is documented with `@throws`.

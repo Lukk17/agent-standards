@@ -1,759 +1,376 @@
 ---
 name: golang-testing
-description: Go testing patterns including table-driven tests, subtests, benchmarks, fuzzing, and test coverage. Follows TDD methodology with idiomatic Go practices.
-origin: ECC
+description: Go testing with the standard library, covering the red-green loop, table-driven tests and subtests, hand-written fakes, golden files, synctest for concurrent code, integration tests, benchmarks, fuzzing, and coverage. Use when writing tests for a Go package, converting copy-pasted tests into a table, testing an HTTP handler, benchmarking a hot path, or testing code that waits on time. Not for production Go idioms and package design, use `golang-patterns`.
 ---
 
 # Go Testing Patterns
 
-Comprehensive Go testing patterns for writing reliable, maintainable tests following TDD methodology.
+How a Go test suite is written with nothing but `testing` and the standard library: what a test asserts, what gets
+faked, and what the coverage number means. Table, fake, integration, and benchmark depth lives in the reference files
+listed near the bottom.
+
+Baseline: Go 1.25, the current stable toolchain. That gives per-iteration range variables, `t.Context`, `t.Chdir`,
+and a stable `testing/synctest`, all of which the examples use.
 
 ---
 
-### When to Activate
+### When to activate
 
-- Writing new Go functions or methods
-- Adding test coverage to existing code
-- Creating benchmarks for performance-critical code
-- Implementing fuzz tests for input validation
-- Following TDD workflow in Go projects
-
----
-
-### TDD Workflow for Go
-
-#### The RED-GREEN-REFACTOR Cycle
-
-```
-RED     → Write a failing test first
-GREEN   → Write minimal code to pass the test
-REFACTOR → Improve code while keeping tests green
-REPEAT  → Continue with next requirement
-```
-
-#### Step-by-Step TDD in Go
-
-```go
-// Step 1: Define the interface/signature
-// calculator.go
-package calculator
-
-func Add(a, b int) int {
-    panic("not implemented") // Placeholder
-}
-
-// Step 2: Write failing test (RED)
-// calculator_test.go
-package calculator
-
-import "testing"
-
-func TestAdd(t *testing.T) {
-    a, b := 2, 3
-    want := 5
-
-    got := Add(a, b)
-
-    if got != want {
-        t.Errorf("Add(2, 3) = %d; want %d", got, want)
-    }
-}
-
-// Step 3: Run test - verify FAIL
-// $ go test
-// --- FAIL: TestAdd (0.00s)
-// panic: not implemented
-
-// Step 4: Implement minimal code (GREEN)
-func Add(a, b int) int {
-    return a + b
-}
-
-// Step 5: Run test - verify PASS
-// $ go test
-// PASS
-
-// Step 6: Refactor if needed, verify tests still pass
-```
+- Writing tests for a new or changed Go function, method, or handler.
+- Adding coverage to a package that has little or none.
+- Diagnosing a flaky, slow, or order-dependent Go test.
+- Deciding what to fake and what to run for real.
+- Writing a benchmark, a fuzz target, or a golden-file test.
 
 ---
 
-### Table-Driven Tests
+### When not to activate
 
-The standard pattern for Go tests. Enables comprehensive coverage with minimal code.
+- Writing the production code the tests cover. Use `golang-patterns`.
+- Applying the language-neutral red-green-refactor loop and the test pyramid. Use `tdd-workflow`.
+- Driving a browser through a user journey. Use `e2e-testing`.
+- Exercising a whole running stack as a capability sweep. Use `e2e-runbooks`.
+- Setting up the CI pipeline itself. Use `deployment-patterns`.
+
+---
+
+### Write the failing test first
+
+Write the signature, write the test, watch it fail, then implement. A test written after the code passes on the first
+run and has never demonstrated that it can catch anything.
+
+Pass, in this order:
 
 ```go
 func TestAdd(t *testing.T) {
-    tests := []struct {
-        name     string
-        a, b     int
-        expected int
-    }{
-        {"positive numbers", 2, 3, 5},
-        {"negative numbers", -1, -2, -3},
-        {"zero values", 0, 0, 0},
-        {"mixed signs", -1, 1, 0},
-        {"large numbers", 1000000, 2000000, 3000000},
-    }
-
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            got := Add(tt.a, tt.b)
-            if got != tt.expected {
-                t.Errorf("Add(%d, %d) = %d; want %d",
-                    tt.a, tt.b, got, tt.expected)
-            }
-        })
+    if got := Add(2, 3); got != 5 {
+        t.Errorf("Add(2, 3) = %d; want 5", got)
     }
 }
 ```
 
-#### Table-Driven Tests with Error Cases
+Fail:
 
 ```go
-func TestParseConfig(t *testing.T) {
-    tests := []struct {
-        name    string
-        input   string
-        want    *Config
-        wantErr bool
-    }{
-        {
-            name:  "valid config",
-            input: `{"host": "localhost", "port": 8080}`,
-            want:  &Config{Host: "localhost", Port: 8080},
-        },
-        {
-            name:    "invalid JSON",
-            input:   `{invalid}`,
-            wantErr: true,
-        },
-        {
-            name:    "empty input",
-            input:   "",
-            wantErr: true,
-        },
-        {
-            name:  "minimal config",
-            input: `{}`,
-            want:  &Config{}, // Zero value config
-        },
-    }
-
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            got, err := ParseConfig(tt.input)
-
-            if tt.wantErr {
-                if err == nil {
-                    t.Error("expected error, got nil")
-                }
-                return
-            }
-
-            if err != nil {
-                t.Fatalf("unexpected error: %v", err)
-            }
-
-            if !reflect.DeepEqual(got, tt.want) {
-                t.Errorf("got %+v; want %+v", got, tt.want)
-            }
-        })
-    }
+func TestAdd(t *testing.T) {
+    _ = Add(2, 3)
 }
 ```
+
+Read the failure before implementing. A test that fails on a compile error has not been seen to fail for the right
+reason.
 
 ---
 
-### Subtests and Sub-benchmarks
+### Make the table the default shape
 
-#### Organizing Related Tests
+A table plus `t.Run` gives one named subtest per case, so the report names the input that broke rather than a line
+number. Depth, including error cases and comparison helpers, is in
+[references/table-tests.md](references/table-tests.md).
+
+Pass:
 
 ```go
-func TestUser(t *testing.T) {
-    // Setup shared by all subtests
-    db := setupTestDB(t)
+tests := []struct {
+    name string
+    a, b int
+    want int
+}{
+    {"positive", 2, 3, 5},
+    {"mixed signs", -1, 1, 0},
+}
 
-    t.Run("Create", func(t *testing.T) {
-        user := &User{Name: "Alice"}
-        err := db.CreateUser(user)
-        if err != nil {
-            t.Fatalf("CreateUser failed: %v", err)
+for _, tt := range tests {
+    t.Run(tt.name, func(t *testing.T) {
+        if got := Add(tt.a, tt.b); got != tt.want {
+            t.Errorf("Add(%d, %d) = %d; want %d", tt.a, tt.b, got, tt.want)
         }
-        if user.ID == "" {
-            t.Error("expected user ID to be set")
-        }
-    })
-
-    t.Run("Get", func(t *testing.T) {
-        user, err := db.GetUser("alice-id")
-        if err != nil {
-            t.Fatalf("GetUser failed: %v", err)
-        }
-        if user.Name != "Alice" {
-            t.Errorf("got name %q; want %q", user.Name, "Alice")
-        }
-    })
-
-    t.Run("Update", func(t *testing.T) {
-        // ...
-    })
-
-    t.Run("Delete", func(t *testing.T) {
-        // ...
     })
 }
 ```
 
-#### Parallel Subtests
+Fail:
 
 ```go
-func TestParallel(t *testing.T) {
-    tests := []struct {
-        name  string
-        input string
-    }{
-        {"case1", "input1"},
-        {"case2", "input2"},
-        {"case3", "input3"},
-    }
-
-    for _, tt := range tests {
-        tt := tt // Capture range variable
-        t.Run(tt.name, func(t *testing.T) {
-            t.Parallel() // Run subtests in parallel
-            result := Process(tt.input)
-            // assertions...
-            _ = result
-        })
-    }
-}
+func TestAddPositive(t *testing.T) { ... }
+func TestAddNegative(t *testing.T) { ... }
+func TestAddMixed(t *testing.T) { ... }
 ```
+
+Range variables are per-iteration from Go 1.22, so the old `tt := tt` copy inside the loop is dead code. Delete it
+wherever it still appears.
 
 ---
 
-### Test Helpers
+### Report with Errorf, stop with Fatalf
 
-#### Helper Functions
+`Errorf` records the failure and keeps going, which is what you want for independent assertions. `Fatalf` stops the
+test, which is what you want when continuing would panic on a nil result.
+
+Pass:
 
 ```go
-func setupTestDB(t *testing.T) *sql.DB {
-    t.Helper() // Marks this as a helper function
-
-    db, err := sql.Open("sqlite3", ":memory:")
-    if err != nil {
-        t.Fatalf("failed to open database: %v", err)
-    }
-
-    // Cleanup when test finishes
-    t.Cleanup(func() {
-        db.Close()
-    })
-
-    // Run migrations
-    if _, err := db.Exec(schema); err != nil {
-        t.Fatalf("failed to create schema: %v", err)
-    }
-
-    return db
+got, err := ParseConfig(input)
+if err != nil {
+    t.Fatalf("ParseConfig(%q): unexpected error: %v", input, err)
 }
+if got.Port != 8080 {
+    t.Errorf("Port = %d; want 8080", got.Port)
+}
+```
 
-func assertNoError(t *testing.T, err error) {
+Fail:
+
+```go
+got, err := ParseConfig(input)
+if err != nil {
+    t.Errorf("unexpected error: %v", err)
+}
+if got.Port != 8080 {
+```
+
+Write the message as `got X; want Y` with the input included. The message is the entire diagnosis a CI log gives you.
+
+---
+
+### Let the testing package own setup and cleanup
+
+`t.Helper` moves the reported line to the caller, `t.Cleanup` runs teardown in reverse order even after a `Fatalf`,
+`t.TempDir` and `t.Chdir` scope the filesystem to the test, and `t.Context` gives a context cancelled just before
+cleanup runs.
+
+Pass:
+
+```go
+func newStore(t *testing.T) *Store {
     t.Helper()
+    dir := t.TempDir()
+    store, err := Open(t.Context(), dir)
     if err != nil {
-        t.Fatalf("unexpected error: %v", err)
+        t.Fatalf("open store: %v", err)
     }
-}
-
-func assertEqual[T comparable](t *testing.T, got, want T) {
-    t.Helper()
-    if got != want {
-        t.Errorf("got %v; want %v", got, want)
-    }
+    t.Cleanup(func() { store.Close() })
+    return store
 }
 ```
 
-#### Temporary Files and Directories
+Fail:
 
 ```go
-func TestFileProcessing(t *testing.T) {
-    // Create temp directory - automatically cleaned up
-    tmpDir := t.TempDir()
-
-    // Create test file
-    testFile := filepath.Join(tmpDir, "test.txt")
-    err := os.WriteFile(testFile, []byte("test content"), 0644)
-    if err != nil {
-        t.Fatalf("failed to create test file: %v", err)
-    }
-
-    // Run test
-    result, err := ProcessFile(testFile)
-    if err != nil {
-        t.Fatalf("ProcessFile failed: %v", err)
-    }
-
-    _ = result
+func newStore(t *testing.T) *Store {
+    dir, _ := os.MkdirTemp("", "store")
+    defer os.RemoveAll(dir)
+    store, _ := Open(context.Background(), dir)
+    return store
 }
 ```
+
+The failing version deletes the directory before the test uses it, hides the error, and leaks the store. `t.Chdir`
+replaces the manual save-and-restore of the working directory and is safe because it refuses to run in a parallel
+test.
 
 ---
 
-### Golden Files
+### Fake with a struct, not a mock framework
 
-Testing against expected output files stored in `testdata/`.
+A hand-written fake that satisfies the consumer's interface is a few lines, reads as ordinary Go, and breaks at
+compile time when the interface changes. A generated mock adds a build step and a second thing to keep in sync.
+Variants are in [references/mocks-and-fakes.md](references/mocks-and-fakes.md).
+
+Pass:
 
 ```go
-var update = flag.Bool("update", false, "update golden files")
+type stubUserStore struct {
+    getUser func(ctx context.Context, id string) (*User, error)
+}
 
-func TestRender(t *testing.T) {
-    tests := []struct {
-        name  string
-        input Template
-    }{
-        {"simple", Template{Name: "test"}},
-        {"complex", Template{Name: "test", Items: []string{"a", "b"}}},
-    }
-
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            got := Render(tt.input)
-
-            golden := filepath.Join("testdata", tt.name+".golden")
-
-            if *update {
-                // Update golden file: go test -update
-                err := os.WriteFile(golden, got, 0644)
-                if err != nil {
-                    t.Fatalf("failed to update golden file: %v", err)
-                }
-            }
-
-            want, err := os.ReadFile(golden)
-            if err != nil {
-                t.Fatalf("failed to read golden file: %v", err)
-            }
-
-            if !bytes.Equal(got, want) {
-                t.Errorf("output mismatch:\ngot:\n%s\nwant:\n%s", got, want)
-            }
-        })
-    }
+func (s stubUserStore) GetUser(ctx context.Context, id string) (*User, error) {
+    return s.getUser(ctx, id)
 }
 ```
+
+Fail:
+
+```go
+mockStore := new(MockUserStore)
+mockStore.On("GetUser", mock.Anything, "123").Return(&User{Name: "Alice"}, nil)
+```
+
+The failing version matches by string, so a renamed method compiles and fails at runtime, or silently never matches.
 
 ---
 
-### Mocking with Interfaces
+### Never sleep to wait
 
-#### Interface-Based Mocking
+`time.Sleep` in a test is either too short, making the test flaky, or too long, making the suite slow. For code that
+waits on time or on other goroutines, `testing/synctest` runs the test in a bubble with a fake clock: time advances
+instantly once every goroutine is blocked.
 
-```go
-// Define interface for dependencies
-type UserRepository interface {
-    GetUser(id string) (*User, error)
-    SaveUser(user *User) error
-}
-
-// Production implementation
-type PostgresUserRepository struct {
-    db *sql.DB
-}
-
-func (r *PostgresUserRepository) GetUser(id string) (*User, error) {
-    // Real database query
-}
-
-// Mock implementation for tests
-type MockUserRepository struct {
-    GetUserFunc  func(id string) (*User, error)
-    SaveUserFunc func(user *User) error
-}
-
-func (m *MockUserRepository) GetUser(id string) (*User, error) {
-    return m.GetUserFunc(id)
-}
-
-func (m *MockUserRepository) SaveUser(user *User) error {
-    return m.SaveUserFunc(user)
-}
-
-// Test using mock
-func TestUserService(t *testing.T) {
-    mock := &MockUserRepository{
-        GetUserFunc: func(id string) (*User, error) {
-            if id == "123" {
-                return &User{ID: "123", Name: "Alice"}, nil
-            }
-            return nil, ErrNotFound
-        },
-    }
-
-    service := NewUserService(mock)
-
-    user, err := service.GetUserProfile("123")
-    if err != nil {
-        t.Fatalf("unexpected error: %v", err)
-    }
-    if user.Name != "Alice" {
-        t.Errorf("got name %q; want %q", user.Name, "Alice")
-    }
-}
-```
-
----
-
-### Benchmarks
-
-#### Basic Benchmarks
+Pass:
 
 ```go
-func BenchmarkProcess(b *testing.B) {
-    data := generateTestData(1000)
-    b.ResetTimer() // Don't count setup time
+func TestCacheExpires(t *testing.T) {
+    synctest.Test(t, func(t *testing.T) {
+        cache := New(time.Minute)
+        cache.Set("k", "v")
 
-    for i := 0; i < b.N; i++ {
-        Process(data)
-    }
-}
+        time.Sleep(2 * time.Minute)
+        synctest.Wait()
 
-// Run: go test -bench=BenchmarkProcess -benchmem
-// Output: BenchmarkProcess-8   10000   105234 ns/op   4096 B/op   10 allocs/op
-```
-
-#### Benchmark with Different Sizes
-
-```go
-func BenchmarkSort(b *testing.B) {
-    sizes := []int{100, 1000, 10000, 100000}
-
-    for _, size := range sizes {
-        b.Run(fmt.Sprintf("size=%d", size), func(b *testing.B) {
-            data := generateRandomSlice(size)
-            b.ResetTimer()
-
-            for i := 0; i < b.N; i++ {
-                // Make a copy to avoid sorting already sorted data
-                tmp := make([]int, len(data))
-                copy(tmp, data)
-                sort.Ints(tmp)
-            }
-        })
-    }
-}
-```
-
-#### Memory Allocation Benchmarks
-
-```go
-func BenchmarkStringConcat(b *testing.B) {
-    parts := []string{"hello", "world", "foo", "bar", "baz"}
-
-    b.Run("plus", func(b *testing.B) {
-        for i := 0; i < b.N; i++ {
-            var s string
-            for _, p := range parts {
-                s += p
-            }
-            _ = s
-        }
-    })
-
-    b.Run("builder", func(b *testing.B) {
-        for i := 0; i < b.N; i++ {
-            var sb strings.Builder
-            for _, p := range parts {
-                sb.WriteString(p)
-            }
-            _ = sb.String()
-        }
-    })
-
-    b.Run("join", func(b *testing.B) {
-        for i := 0; i < b.N; i++ {
-            _ = strings.Join(parts, "")
+        if _, ok := cache.Get("k"); ok {
+            t.Error("entry should have expired")
         }
     })
 }
 ```
 
----
-
-### Fuzzing (Go 1.18+)
-
-#### Basic Fuzz Test
+Fail:
 
 ```go
-func FuzzParseJSON(f *testing.F) {
-    // Add seed corpus
-    f.Add(`{"name": "test"}`)
-    f.Add(`{"count": 123}`)
-    f.Add(`[]`)
-    f.Add(`""`)
-
-    f.Fuzz(func(t *testing.T, input string) {
-        var result map[string]interface{}
-        err := json.Unmarshal([]byte(input), &result)
-
-        if err != nil {
-            // Invalid JSON is expected for random input
-            return
-        }
-
-        // If parsing succeeded, re-encoding should work
-        _, err = json.Marshal(result)
-        if err != nil {
-            t.Errorf("Marshal failed after successful Unmarshal: %v", err)
-        }
-    })
-}
-
-// Run: go test -fuzz=FuzzParseJSON -fuzztime=30s
-```
-
-#### Fuzz Test with Multiple Inputs
-
-```go
-func FuzzCompare(f *testing.F) {
-    f.Add("hello", "world")
-    f.Add("", "")
-    f.Add("abc", "abc")
-
-    f.Fuzz(func(t *testing.T, a, b string) {
-        result := Compare(a, b)
-
-        // Property: Compare(a, a) should always equal 0
-        if a == b && result != 0 {
-            t.Errorf("Compare(%q, %q) = %d; want 0", a, b, result)
-        }
-
-        // Property: Compare(a, b) and Compare(b, a) should have opposite signs
-        reverse := Compare(b, a)
-        if (result > 0 && reverse >= 0) || (result < 0 && reverse <= 0) {
-            if result != 0 || reverse != 0 {
-                t.Errorf("Compare(%q, %q) = %d, Compare(%q, %q) = %d; inconsistent",
-                    a, b, result, b, a, reverse)
-            }
-        }
-    })
+func TestCacheExpires(t *testing.T) {
+    cache := New(50 * time.Millisecond)
+    cache.Set("k", "v")
+    time.Sleep(100 * time.Millisecond)
+    if _, ok := cache.Get("k"); ok {
+        t.Error("entry should have expired")
+    }
 }
 ```
 
+Outside a bubble, synchronise on a channel or a `WaitGroup`. Sleeping is never the answer.
+
 ---
 
-### Test Coverage
+### Test through the exported API
 
-#### Running Coverage
+An internal test file can reach an unexported function, and then a rename that changes nothing observable breaks the
+suite. Test what a caller can call, and if a private function is hard to reach, that is usually a sign it wants to be
+its own package.
+
+Pass:
+
+```go
+package user_test
+
+import "myproject/internal/user"
+```
+
+Fail:
+
+```go
+package user
+
+func TestNormaliseEmailInternal(t *testing.T) { ... }
+```
+
+The `_test` package also proves the exported surface is usable from outside, which an internal test never checks.
+
+---
+
+### Run subtests in parallel only when they are independent
+
+`t.Parallel` pauses the subtest until the parent returns, then runs them together. That is free speed for pure
+functions and a source of interference for anything sharing a directory, a database, or a global.
+
+Pass:
+
+```go
+for _, tt := range tests {
+    t.Run(tt.name, func(t *testing.T) {
+        t.Parallel()
+        if got := Normalise(tt.input); got != tt.want {
+            t.Errorf("Normalise(%q) = %q; want %q", tt.input, got, tt.want)
+        }
+    })
+}
+```
+
+Fail:
+
+```go
+t.Run(tt.name, func(t *testing.T) {
+    t.Parallel()
+    os.Setenv("REGION", tt.region)
+    ...
+})
+```
+
+Cleanup registered in a parallel parent runs after every parallel child finishes, so a shared fixture is still safe.
+A shared mutable global is not.
+
+---
+
+### Cover around 90 percent of the real logic
+
+The target is around 90 percent of the real logic, 100 percent on critical business logic, and 90 percent or better
+on exported APIs. Excluding code from coverage is only for generated output such as protobuf stubs and generated
+mocks, never for hand-written logic: if you wrote it by hand, it must be tested.
+
+Run the suite the way CI runs it, with the race detector on:
 
 ```bash
-# Basic coverage
-go test -cover ./...
-
-# Generate coverage profile
-go test -coverprofile=coverage.out ./...
-
-# View coverage in browser
-go tool cover -html=coverage.out
-
-# View coverage by function
-go tool cover -func=coverage.out
-
-# Coverage with race detection
 go test -race -coverprofile=coverage.out ./...
 ```
 
-#### Coverage Targets
-
-| Code Type | Target |
-|-----------|--------|
-| Critical business logic | 100% |
-| Public APIs | 90%+ |
-| General code | around 90% of real logic |
-| Generated code | Exclude (generated output only) |
-
-#### Excluding Generated Code from Coverage
-
-Excluding code from coverage is ONLY for generated output such as mockgen mocks and protobuf stubs, never
-for hand-written logic. Do not read this as license to drop coverage on real code: if you wrote it by hand,
-it must be tested. The general target stays around 90% of real logic.
-
-```go
-//go:generate mockgen -source=interface.go -destination=mock_interface.go
-
-// In coverage profile, exclude with build tags:
-// go test -cover -tags=!generate ./...
-```
-
----
-
-### HTTP Handler Testing
-
-```go
-func TestHealthHandler(t *testing.T) {
-    // Create request
-    req := httptest.NewRequest(http.MethodGet, "/health", nil)
-    w := httptest.NewRecorder()
-
-    // Call handler
-    HealthHandler(w, req)
-
-    // Check response
-    resp := w.Result()
-    defer resp.Body.Close()
-
-    if resp.StatusCode != http.StatusOK {
-        t.Errorf("got status %d; want %d", resp.StatusCode, http.StatusOK)
-    }
-
-    body, _ := io.ReadAll(resp.Body)
-    if string(body) != "OK" {
-        t.Errorf("got body %q; want %q", body, "OK")
-    }
-}
-
-func TestAPIHandler(t *testing.T) {
-    tests := []struct {
-        name       string
-        method     string
-        path       string
-        body       string
-        wantStatus int
-        wantBody   string
-    }{
-        {
-            name:       "get user",
-            method:     http.MethodGet,
-            path:       "/users/123",
-            wantStatus: http.StatusOK,
-            wantBody:   `{"id":"123","name":"Alice"}`,
-        },
-        {
-            name:       "not found",
-            method:     http.MethodGet,
-            path:       "/users/999",
-            wantStatus: http.StatusNotFound,
-        },
-        {
-            name:       "create user",
-            method:     http.MethodPost,
-            path:       "/users",
-            body:       `{"name":"Bob"}`,
-            wantStatus: http.StatusCreated,
-        },
-    }
-
-    handler := NewAPIHandler()
-
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            var body io.Reader
-            if tt.body != "" {
-                body = strings.NewReader(tt.body)
-            }
-
-            req := httptest.NewRequest(tt.method, tt.path, body)
-            req.Header.Set("Content-Type", "application/json")
-            w := httptest.NewRecorder()
-
-            handler.ServeHTTP(w, req)
-
-            if w.Code != tt.wantStatus {
-                t.Errorf("got status %d; want %d", w.Code, tt.wantStatus)
-            }
-
-            if tt.wantBody != "" && w.Body.String() != tt.wantBody {
-                t.Errorf("got body %q; want %q", w.Body.String(), tt.wantBody)
-            }
-        })
-    }
-}
-```
-
----
-
-### Testing Commands
+Read which lines are missing rather than the headline number:
 
 ```bash
-# Run all tests
-go test ./...
+go tool cover -func=coverage.out
+```
 
-# Run tests with verbose output
-go test -v ./...
+---
 
-# Run specific test
-go test -run TestAdd ./...
+### Benchmark before you optimise, fuzz what parses input
 
-# Run tests matching pattern
-go test -run "TestUser/Create" ./...
+A benchmark turns a performance claim into a number, and `-benchmem` turns an allocation claim into one too. A fuzz
+target is worth writing for anything that parses untrusted bytes, because it finds the input nobody thought of.
 
-# Run tests with race detector
-go test -race ./...
-
-# Run tests with coverage
-go test -cover -coverprofile=coverage.out ./...
-
-# Run short tests only
-go test -short ./...
-
-# Run tests with timeout
-go test -timeout 30s ./...
-
-# Run benchmarks
+```bash
 go test -bench=. -benchmem ./...
-
-# Run fuzzing
-go test -fuzz=FuzzParse -fuzztime=30s ./...
-
-# Count test runs (for flaky test detection)
-go test -count=10 ./...
 ```
+
+```bash
+go test -fuzz=FuzzParseJSON -fuzztime=30s ./...
+```
+
+Both are in [references/benchmarks.md](references/benchmarks.md), including `b.Loop`, sub-benchmarks by size, and
+seed corpora.
 
 ---
 
-### Best Practices
+### Reference files
 
-DO:
-- Write tests FIRST (TDD)
-- Use table-driven tests for comprehensive coverage
-- Cover happy, error, and edge paths, not just the happy path
-- Test behavior, not implementation
-- Use `t.Helper()` in helper functions
-- Use `t.Parallel()` for independent tests
-- Clean up resources with `t.Cleanup()`
-- Use meaningful test names that describe the scenario
-- Split each test body into setup, action, and assertion; label the sections the way the project's existing tests
-  already do, not by mandate. Only pick a convention when the project has none (see `coding-standards` -> Test
-  Structure)
-
-DON'T:
-- Test private functions directly (test through public API)
-- Use `time.Sleep()` in tests (use channels or conditions)
-- Ignore flaky tests (fix or remove them)
-- Mock everything (prefer integration tests when possible)
-- Skip error path testing
+| Open this | For |
+| --- | --- |
+| [references/table-tests.md](references/table-tests.md) | Table shapes, error cases, subtests, golden files, comparison |
+| [references/mocks-and-fakes.md](references/mocks-and-fakes.md) | Fakes, stubs, spies, interfaces at the consumer, `httptest` |
+| [references/integration.md](references/integration.md) | Real databases, containers, build tags, HTTP handler tests |
+| [references/benchmarks.md](references/benchmarks.md) | Benchmarks, allocation counts, profiles, fuzzing, coverage |
 
 ---
 
-### Integration with CI/CD
+### Related skills
 
-```yaml
-# GitHub Actions example
-test:
-  runs-on: ubuntu-latest
-  steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-go@v5
-      with:
-        go-version: '1.22'
+- `golang-patterns` for the production code under test.
+- `tdd-workflow` for the language-neutral red-green-refactor loop and the test pyramid.
+- `e2e-testing` for browser journeys and the flaky-test policy.
+- `e2e-runbooks` for capability sweeps against a live stack.
+- `performance-optimization` for what to do with a benchmark once you have one.
+- `coding-standards` for the shared engineering floor, including the FIRST properties.
 
-    - name: Run tests
-      run: go test -race -coverprofile=coverage.out ./...
+---
 
-    - name: Check coverage
-      run: |
-        go tool cover -func=coverage.out | grep total | awk '{print $3}' | \
-        awk -F'%' '{if ($1 < 90) exit 1}'
-```
+### Checklist
 
-Remember: Tests are documentation. They show how your code is meant to be used. Write them clearly and keep them up to
-date.
+- Every new behaviour has a test that was seen to fail before the code was written.
+- Repeated tests that differ only by input are one table with named subtests.
+- Failure messages state the input, what was got, and what was wanted.
+- `Fatalf` is used wherever continuing would dereference a nil result.
+- Helpers call `t.Helper`, and teardown goes through `t.Cleanup` rather than `defer` in a helper.
+- Filesystem state uses `t.TempDir` and `t.Chdir`, and contexts come from `t.Context`.
+- Dependencies are hand-written fakes satisfying an interface declared at the consumer.
+- No `time.Sleep` anywhere: time-dependent code runs under `testing/synctest`.
+- Tests live in the `_test` package and exercise the exported API.
+- `t.Parallel` is only on subtests that share no mutable state.
+- Coverage of real logic is around 90 percent, with exclusions only for generated code.
+- `go test -race ./...` passes from the module root.

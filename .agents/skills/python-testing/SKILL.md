@@ -1,54 +1,70 @@
 ---
 name: python-testing
-description: Python testing strategies using pytest, TDD methodology, fixtures, mocking, parametrization, and coverage requirements.
-origin: ECC
+description: pytest practice for Python projects, covering the red-green-refactor loop, test structure and naming, fixtures, mocking boundaries, parametrization, async tests, and the coverage gate. Use when writing tests for new Python code, fixing a flaky pytest suite, mocking an external API, converting copy-pasted tests into a parametrized table, or raising coverage on a module. Not for production Python idioms and typing, use `python-patterns`.
 ---
 
 # Python Testing Patterns
 
-Comprehensive testing strategies for Python applications using pytest, TDD methodology, and best practices.
+How a Python test suite is written and kept honest: the order tests are written in, what a single test may assert,
+what may be mocked, and what the coverage gate means. Fixture, mocking, configuration, and integration depth lives in
+the reference files listed near the bottom.
+
+Baseline: Python 3.13 or newer, with 3.14 the current release, and the current stable pytest.
 
 ---
 
-### When to Activate
+### When to activate
 
-- Writing new Python code (follow TDD: red, green, refactor)
-- Designing test suites for Python projects
-- Reviewing Python test coverage
-- Setting up testing infrastructure
+- Writing tests for new or changed Python code.
+- Adding coverage to a module that has none.
+- Diagnosing a flaky, slow, or order-dependent pytest suite.
+- Deciding what to mock and what to exercise for real.
+- Setting up pytest configuration, markers, or the coverage gate for a project.
 
 ---
 
-### Core Testing Philosophy
+### When not to activate
 
-#### Test-Driven Development (TDD)
+- Writing the production code the tests cover. Use `python-patterns`.
+- Applying the language-neutral red-green-refactor discipline and the test pyramid. Use `tdd-workflow`.
+- Driving a browser through a user journey. Use `e2e-testing`.
+- Exercising a whole running stack as a capability sweep. Use `e2e-runbooks`.
+- Building regression tests aimed at agent-introduced defects. Use `ai-regression-testing`.
 
-Always follow the TDD cycle:
+---
 
-1. RED: Write a failing test for the desired behavior
-2. GREEN: Write minimal code to make the test pass
-3. REFACTOR: Improve code while keeping tests green
+### Write the failing test first
+
+The failing run is the evidence that the test can fail. A test written after the code passes on the first run and
+proves nothing, because nothing has ever shown it would catch the bug.
+
+Pass, in this order:
 
 ```python
-# Step 1: Write failing test (RED)
-def test_add_numbers():
-    result = add(2, 3)
-    assert result == 5
-
-# Step 2: Write minimal implementation (GREEN)
-def add(a, b):
-    return a + b
-
-# Step 3: Refactor if needed (REFACTOR)
+def test_apply_discount_reduces_total():
+    assert Cart(items=[Item("book", 20.0)]).apply(Coupon(percent=10)) == 18.0
 ```
 
-#### Test Structure
+Fail:
+
+```python
+def test_apply_discount():
+    assert True
+```
+
+Run the test and read the failure before writing the implementation. A test that errors on an import or a typo has
+not been seen to fail for the right reason.
+
+---
+
+### Give each test one behaviour and three phases
 
 Every test sets up state, performs one action, then asserts the observable outcome. Which words label the three
 phases is the project's choice, not this skill's: `Given`/`When`/`Then` and `Arrange`/`Act`/`Assert` are the two
 common spellings, and a project may have its own. Read how the project's existing tests are already labelled and
-match it; only pick a convention when the project has none, and then stay consistent within it. This structure
-keeps each test readable and makes it obvious when a test is trying to verify more than one behaviour.
+match it. Only pick a convention when the project has none, and then stay consistent within it.
+
+Pass:
 
 ```python
 def test_apply_discount_reduces_total():
@@ -60,854 +76,264 @@ def test_apply_discount_reduces_total():
     assert total == 22.5
 ```
 
-#### Coverage Requirements
+Fail:
 
-- Target: around 90% coverage of the real logic in the codebase
-- Critical paths: 100% coverage where it genuinely adds value
-- Do not add exclusion patterns to dodge meaningful tests; coverage measures real logic, not padding
-- Use `pytest --cov` to measure coverage
+```python
+def test_cart():
+    cart = Cart(items=[Item("book", 20.0)])
+    assert cart.total == 20.0
+    assert cart.apply(Coupon(percent=10)) == 18.0
+    assert cart.remove("book").total == 0.0
+```
+
+The failing version reports one name for three behaviours, so the report never says which one broke.
+
+---
+
+### Name the test after the behaviour, not the function
+
+The name is what a failing CI job shows. `test_login` says a thing was touched.
+`test_login_with_expired_token_returns_401` says what stopped being true.
+
+Pass:
+
+```python
+def test_withdraw_more_than_balance_raises_insufficient_funds(): ...
+```
+
+Fail:
+
+```python
+def test_withdraw_2(): ...
+```
+
+---
+
+### Assert with plain `assert` and `pytest.raises`
+
+pytest rewrites the assert statement and prints both sides on failure, so helper assertion methods buy nothing.
+Expected exceptions go through `pytest.raises` with a `match`, which pins the message as well as the type.
+
+Pass:
+
+```python
+with pytest.raises(ValueError, match="invalid email"):
+    User(email="nope")
+```
+
+Fail:
+
+```python
+try:
+    User(email="nope")
+    assert False
+except ValueError:
+    pass
+```
+
+---
+
+### Cover around 90 percent of the real logic
+
+The target is around 90 percent line coverage of the real logic in the codebase, and 100 percent on critical paths
+where it genuinely adds value. Do not add exclusion patterns to dodge meaningful tests: coverage measures real logic,
+not padding. Excluding generated output such as protobuf stubs is legitimate, excluding a hand-written module because
+it is awkward to test is not.
 
 ```bash
-pytest --cov=mypackage --cov-report=term-missing --cov-report=html
+pytest --cov=mypackage --cov-report=term-missing
 ```
+
+A coverage gate that fails is a signal to add the missing test, never a signal to lower the threshold.
 
 ---
 
-### pytest Fundamentals
+### Mock only what you cannot run
 
-#### Basic Test Structure
+Mock a third-party payment API or an email gateway, because you cannot run them. Do not mock the database when an
+in-memory engine or a transactional session fixture will exercise the real query. Mocking the thing under test only
+proves the mock was called.
 
-```python
-import pytest
-
-def test_addition():
-    """Test basic addition."""
-    assert 2 + 2 == 4
-
-def test_string_uppercase():
-    """Test string uppercasing."""
-    text = "hello"
-    assert text.upper() == "HELLO"
-
-def test_list_append():
-    """Test list append."""
-    items = [1, 2, 3]
-    items.append(4)
-    assert 4 in items
-    assert len(items) == 4
-```
-
-#### Assertions
-
-```python
-# Equality
-assert result == expected
-
-# Inequality
-assert result != unexpected
-
-# Truthiness
-assert result  # Truthy
-assert not result  # Falsy
-assert result is True  # Exactly True
-assert result is False  # Exactly False
-assert result is None  # Exactly None
-
-# Membership
-assert item in collection
-assert item not in collection
-
-# Comparisons
-assert result > 0
-assert 0 <= result <= 100
-
-# Type checking
-assert isinstance(result, str)
-
-# Exception testing (preferred approach)
-with pytest.raises(ValueError):
-    raise ValueError("error message")
-
-# Check exception message
-with pytest.raises(ValueError, match="invalid input"):
-    raise ValueError("invalid input provided")
-
-# Check exception attributes
-with pytest.raises(ValueError) as exc_info:
-    raise ValueError("error message")
-assert str(exc_info.value) == "error message"
-```
-
----
-
-### Fixtures
-
-#### Basic Fixture Usage
-
-```python
-import pytest
-
-@pytest.fixture
-def sample_data():
-    """Fixture providing sample data."""
-    return {"name": "Alice", "age": 30}
-
-def test_sample_data(sample_data):
-    """Test using the fixture."""
-    assert sample_data["name"] == "Alice"
-    assert sample_data["age"] == 30
-```
-
-#### Fixture with Setup/Teardown
-
-```python
-@pytest.fixture
-def database():
-    """Fixture with setup and teardown."""
-    # Setup
-    db = Database(":memory:")
-    db.create_tables()
-    db.insert_test_data()
-
-    yield db  # Provide to test
-
-    # Teardown
-    db.close()
-
-def test_database_query(database):
-    """Test database operations."""
-    result = database.query("SELECT * FROM users")
-    assert len(result) > 0
-```
-
-#### Fixture Scopes
-
-```python
-# Function scope (default) - runs for each test
-@pytest.fixture
-def temp_file():
-    with open("temp.txt", "w") as f:
-        yield f
-    os.remove("temp.txt")
-
-# Module scope - runs once per module
-@pytest.fixture(scope="module")
-def module_db():
-    db = Database(":memory:")
-    db.create_tables()
-    yield db
-    db.close()
-
-# Session scope - runs once per test session
-@pytest.fixture(scope="session")
-def shared_resource():
-    resource = ExpensiveResource()
-    yield resource
-    resource.cleanup()
-```
-
-#### Fixture with Parameters
-
-```python
-@pytest.fixture(params=[1, 2, 3])
-def number(request):
-    """Parameterized fixture."""
-    return request.param
-
-def test_numbers(number):
-    """Test runs 3 times, once for each parameter."""
-    assert number > 0
-```
-
-#### Using Multiple Fixtures
-
-```python
-@pytest.fixture
-def user():
-    return User(id=1, name="Alice")
-
-@pytest.fixture
-def admin():
-    return User(id=2, name="Admin", role="admin")
-
-def test_user_admin_interaction(user, admin):
-    """Test using multiple fixtures."""
-    assert admin.can_manage(user)
-```
-
-#### Autouse Fixtures
-
-```python
-@pytest.fixture(autouse=True)
-def reset_config():
-    """Automatically runs before every test."""
-    Config.reset()
-    yield
-    Config.cleanup()
-
-def test_without_fixture_call():
-    # reset_config runs automatically
-    assert Config.get_setting("debug") is False
-```
-
-#### Conftest.py for Shared Fixtures
-
-```python
-# tests/conftest.py
-import pytest
-
-@pytest.fixture
-def client():
-    """Shared fixture for all tests."""
-    app = create_app(testing=True)
-    with app.test_client() as client:
-        yield client
-
-@pytest.fixture
-def auth_headers(client):
-    """Generate auth headers for API testing."""
-    response = client.post("/api/login", json={
-        "username": "test",
-        "password": "test"
-    })
-    token = response.json["token"]
-    return {"Authorization": f"Bearer {token}"}
-```
-
----
-
-### Parametrization
-
-#### Basic Parametrization
-
-```python
-@pytest.mark.parametrize("input,expected", [
-    ("hello", "HELLO"),
-    ("world", "WORLD"),
-    ("PyThOn", "PYTHON"),
-])
-def test_uppercase(input, expected):
-    """Test runs 3 times with different inputs."""
-    assert input.upper() == expected
-```
-
-#### Multiple Parameters
-
-```python
-@pytest.mark.parametrize("a,b,expected", [
-    (2, 3, 5),
-    (0, 0, 0),
-    (-1, 1, 0),
-    (100, 200, 300),
-])
-def test_add(a, b, expected):
-    """Test addition with multiple inputs."""
-    assert add(a, b) == expected
-```
-
-#### Parametrize with IDs
-
-```python
-@pytest.mark.parametrize("input,expected", [
-    ("valid@email.com", True),
-    ("invalid", False),
-    ("@no-domain.com", False),
-], ids=["valid-email", "missing-at", "missing-domain"])
-def test_email_validation(input, expected):
-    """Test email validation with readable test IDs."""
-    assert is_valid_email(input) is expected
-```
-
-#### Parametrized Fixtures
-
-```python
-@pytest.fixture(params=["sqlite", "postgresql", "mysql"])
-def db(request):
-    """Test against multiple database backends."""
-    if request.param == "sqlite":
-        return Database(":memory:")
-    elif request.param == "postgresql":
-        return Database("postgresql://localhost/test")
-    elif request.param == "mysql":
-        return Database("mysql://localhost/test")
-
-def test_database_operations(db):
-    """Test runs 3 times, once for each database."""
-    result = db.query("SELECT 1")
-    assert result is not None
-```
-
----
-
-### Markers and Test Selection
-
-#### Custom Markers
-
-```python
-# Mark slow tests
-@pytest.mark.slow
-def test_slow_operation():
-    time.sleep(5)
-
-# Mark integration tests
-@pytest.mark.integration
-def test_api_integration():
-    response = requests.get("https://api.example.com")
-    assert response.status_code == 200
-
-# Mark unit tests
-@pytest.mark.unit
-def test_unit_logic():
-    assert calculate(2, 3) == 5
-```
-
-#### Run Specific Tests
-
-```bash
-# Run only fast tests
-pytest -m "not slow"
-
-# Run only integration tests
-pytest -m integration
-
-# Run integration or slow tests
-pytest -m "integration or slow"
-
-# Run tests marked as unit but not slow
-pytest -m "unit and not slow"
-```
-
-#### Configure Markers in pytest.ini
-
-```ini
-[pytest]
-markers =
-    slow: marks tests as slow
-    integration: marks tests as integration tests
-    unit: marks tests as unit tests
-    django: marks tests as requiring Django
-```
-
----
-
-### Mocking and Patching
-
-#### Mocking Functions
-
-```python
-from unittest.mock import patch, Mock
-
-@patch("mypackage.external_api_call")
-def test_with_mock(api_call_mock):
-    """Test with mocked external API."""
-    api_call_mock.return_value = {"status": "success"}
-
-    result = my_function()
-
-    api_call_mock.assert_called_once()
-    assert result["status"] == "success"
-```
-
-#### Mocking Return Values
-
-Mock only truly external services that you cannot run locally, such as a third-party payment API or an
-email gateway. Do not mock the database when you can exercise it: prefer the in-memory `Database(":memory:")`
-fixture (see "Fixture with Setup/Teardown" above) or the transactional `db_session` fixture (see "Testing
-Database Operations" below). Mocking `Database.connect` only proves the mock was called, not that the query
-logic works against a real engine.
+Pass:
 
 ```python
 @patch("mypackage.payment_gateway.charge")
 def test_checkout_calls_gateway(charge_mock):
-    """Test with a mocked external payment gateway."""
     charge_mock.return_value = {"status": "approved"}
-    order = Order(total=42.0)
 
-    result = checkout(order)
+    result = checkout(Order(total=42.0))
 
     assert result.paid is True
     charge_mock.assert_called_once_with(amount=42.0)
 ```
 
-#### Mocking Exceptions
+Fail:
 
 ```python
-@patch("mypackage.api_call")
-def test_api_error_handling(api_call_mock):
-    """Test error handling with mocked exception."""
-    api_call_mock.side_effect = ConnectionError("Network error")
-
-    with pytest.raises(ConnectionError):
-        api_call()
-
-    api_call_mock.assert_called_once()
+@patch("mypackage.Database.connect")
+def test_user_query(connect_mock):
+    connect_mock.return_value.query.return_value = [{"name": "Alice"}]
+    assert get_users()[0]["name"] == "Alice"
 ```
 
-#### Mocking Context Managers
+Patch where the name is used, not where it is defined, and prefer `autospec=True` so a signature change breaks the
+test instead of passing silently. The catalogue is in
+[references/fixtures-and-mocking.md](references/fixtures-and-mocking.md).
+
+---
+
+### Parametrize instead of copying a test
+
+One parametrized test reports one failure per case with the case in the name, so a broken input is identifiable
+without reading the diff. Give the cases explicit `ids` when the values do not read well.
+
+Pass:
 
 ```python
-@patch("builtins.open", new_callable=mock_open)
-def test_file_reading(mock_file):
-    """Test file reading with mocked open."""
-    mock_file.return_value.read.return_value = "file content"
-
-    result = read_file("test.txt")
-
-    mock_file.assert_called_once_with("test.txt", "r")
-    assert result == "file content"
+@pytest.mark.parametrize(
+    ("email", "valid"),
+    [("user@example.com", True), ("invalid", False), ("@no-local.com", False)],
+    ids=["valid", "missing-at", "missing-local-part"],
+)
+def test_email_validation(email, valid):
+    assert is_valid_email(email) is valid
 ```
 
-#### Using Autospec
+Fail:
 
 ```python
-@patch("mypackage.DBConnection", autospec=True)
-def test_autospec(db_mock):
-    """Test with autospec to catch API misuse."""
-    db = db_mock.return_value
-    db.query("SELECT * FROM users")
+def test_email_valid():
+    assert is_valid_email("user@example.com") is True
 
-    # This would fail if DBConnection doesn't have query method
-    db_mock.assert_called_once()
-```
-
-#### Mock Class Instances
-
-```python
-class TestUserService:
-    @patch("mypackage.UserRepository")
-    def test_create_user(self, repo_mock):
-        """Test user creation with mocked repository."""
-        repo_mock.return_value.save.return_value = User(id=1, name="Alice")
-
-        service = UserService(repo_mock.return_value)
-        user = service.create_user(name="Alice")
-
-        assert user.name == "Alice"
-        repo_mock.return_value.save.assert_called_once()
-```
-
-#### Mock Property
-
-```python
-@pytest.fixture
-def mock_config():
-    """Create a mock with a property."""
-    config = Mock()
-    type(config).debug = PropertyMock(return_value=True)
-    type(config).api_key = PropertyMock(return_value="test-key")
-    return config
-
-def test_with_mock_config(mock_config):
-    """Test with mocked config properties."""
-    assert mock_config.debug is True
-    assert mock_config.api_key == "test-key"
+def test_email_invalid():
+    assert is_valid_email("invalid") is False
 ```
 
 ---
 
-### Testing Async Code
+### Isolate every test
 
-#### Async Tests with pytest-asyncio
+A test that depends on another test's leftovers passes alone and fails under `-p no:randomly`, in parallel, or in a
+different order. Build state in a fixture, and let pytest's `tmp_path` own anything on disk.
+
+Pass:
 
 ```python
-import pytest
+def test_report_is_written(tmp_path):
+    target = tmp_path / "report.csv"
 
-@pytest.mark.asyncio
-async def test_async_function():
-    """Test async function."""
-    result = await async_add(2, 3)
-    assert result == 5
+    write_report(target, rows=[("a", 1)])
 
-@pytest.mark.asyncio
-async def test_async_with_fixture(async_client):
-    """Test async with async fixture."""
-    response = await async_client.get("/api/users")
+    assert target.read_text() == "a,1\n"
+```
+
+Fail:
+
+```python
+def test_report_is_written():
+    write_report("report.csv", rows=[("a", 1)])
+    assert open("report.csv").read() == "a,1\n"
+```
+
+`tmp_path` is a `pathlib.Path` and is cleaned up automatically. Prove isolation occasionally by running the suite
+shuffled, and treat any order-dependent failure as a defect in the test, not in the runner.
+
+---
+
+### Test async code in auto mode
+
+Set `asyncio_mode = "auto"` once in configuration and every `async def` test runs without a per-test marker. Async
+callables are mocked with `AsyncMock` and asserted with `assert_awaited_once`, because a plain `Mock` returns a
+coroutine nobody awaits.
+
+Pass:
+
+```python
+async def test_fetch_user_returns_profile(async_client):
+    response = await async_client.get("/users/1")
+
     assert response.status_code == 200
 ```
 
-#### Async Fixture
+Fail:
 
 ```python
-@pytest.fixture
-async def async_client():
-    """Async fixture providing async test client."""
-    app = create_app()
-    async with app.test_client() as client:
-        yield client
-
-@pytest.mark.asyncio
-async def test_api_endpoint(async_client):
-    """Test using async fixture."""
-    response = await async_client.get("/api/data")
-    assert response.status_code == 200
-```
-
-#### Mocking Async Functions
-
-```python
-@pytest.mark.asyncio
-@patch("mypackage.async_api_call")
-async def test_async_mock(api_call_mock):
-    """Test async function with mock."""
-    api_call_mock.return_value = {"status": "ok"}
-
-    result = await my_async_function()
-
-    api_call_mock.assert_awaited_once()
-    assert result["status"] == "ok"
+def test_fetch_user_returns_profile():
+    assert asyncio.run(fetch_user("1")).status_code == 200
 ```
 
 ---
 
-### Testing Exceptions
+### Register markers and keep slow tests separable
 
-#### Testing Expected Exceptions
+An unregistered marker is a typo waiting to silently skip nothing. Register every marker in configuration, run with
+`--strict-markers`, and keep the slow and integration sets addressable so the fast loop stays fast.
 
-```python
-def test_divide_by_zero():
-    """Test that dividing by zero raises ZeroDivisionError."""
-    with pytest.raises(ZeroDivisionError):
-        divide(10, 0)
-
-def test_custom_exception():
-    """Test custom exception with message."""
-    with pytest.raises(ValueError, match="invalid input"):
-        validate_input("invalid")
-```
-
-#### Testing Exception Attributes
-
-```python
-def test_exception_with_details():
-    """Test exception with custom attributes."""
-    with pytest.raises(CustomError) as exc_info:
-        raise CustomError("error", code=400)
-
-    assert exc_info.value.code == 400
-    assert "error" in str(exc_info.value)
-```
-
----
-
-### Testing Side Effects
-
-#### Testing File Operations
-
-```python
-import tempfile
-import os
-
-def test_file_processing():
-    """Test file processing with temp file."""
-    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
-        f.write("test content")
-        temp_path = f.name
-
-    try:
-        result = process_file(temp_path)
-        assert result == "processed: test content"
-    finally:
-        os.unlink(temp_path)
-```
-
-#### Testing with pytest's tmp_path Fixture
-
-```python
-def test_with_tmp_path(tmp_path):
-    """Test using pytest's built-in temp path fixture."""
-    test_file = tmp_path / "test.txt"
-    test_file.write_text("hello world")
-
-    result = process_file(str(test_file))
-    assert result == "hello world"
-    # tmp_path automatically cleaned up
-```
-
-#### Testing with tmpdir Fixture
-
-```python
-def test_with_tmpdir(tmpdir):
-    """Test using pytest's tmpdir fixture."""
-    test_file = tmpdir.join("test.txt")
-    test_file.write("data")
-
-    result = process_file(str(test_file))
-    assert result == "data"
-```
-
----
-
-### Test Organization
-
-#### Directory Structure
-
-```
-tests/
-├── conftest.py                 # Shared fixtures
-├── __init__.py
-├── unit/                       # Unit tests
-│   ├── __init__.py
-│   ├── test_models.py
-│   ├── test_utils.py
-│   └── test_services.py
-├── integration/                # Integration tests
-│   ├── __init__.py
-│   ├── test_api.py
-│   └── test_database.py
-└── e2e/                        # End-to-end tests
-    ├── __init__.py
-    └── test_user_flow.py
-```
-
-#### Test Classes
-
-```python
-class TestUserService:
-    """Group related tests in a class."""
-
-    @pytest.fixture(autouse=True)
-    def setup(self):
-        """Setup runs before each test in this class."""
-        self.service = UserService()
-
-    def test_create_user(self):
-        """Test user creation."""
-        user = self.service.create_user("Alice")
-        assert user.name == "Alice"
-
-    def test_delete_user(self):
-        """Test user deletion."""
-        user = User(id=1, name="Bob")
-        self.service.delete_user(user)
-        assert not self.service.user_exists(1)
-```
-
----
-
-### Best Practices
-
-#### DO
-
-- Follow TDD: Write tests before code (red-green-refactor)
-- Test one thing: Each test should verify a single behavior
-- Use descriptive names: `test_user_login_with_invalid_credentials_fails`
-- Use fixtures: Eliminate duplication with fixtures
-- Mock only external dependencies: Don't depend on external services; do not mock the database when you can exercise it
-  with an in-memory or `db_session` fixture
-- Cover happy, error, and edge paths: Empty inputs, None values, boundary conditions, and the failure cases
-- Aim for about 90% coverage of real logic: 100% where it genuinely adds value, with no exclusion patterns to dodge
-  meaningful tests
-- Keep tests fast: Use marks to separate slow tests
-
-#### DON'T
-
-- Don't test implementation: Test behavior, not internals
-- Don't use complex conditionals in tests: Keep tests simple
-- Don't ignore test failures: All tests must pass
-- Don't test third-party code: Trust libraries to work
-- Don't share state between tests: Tests should be independent
-- Don't catch exceptions in tests: Use `pytest.raises`
-- Don't use print statements: Use assertions and pytest output
-- Don't write tests that are too brittle: Avoid over-specific mocks
-
----
-
-### Common Patterns
-
-#### Testing API Endpoints (FastAPI/Flask)
-
-```python
-@pytest.fixture
-def client():
-    app = create_app(testing=True)
-    return app.test_client()
-
-def test_get_user(client):
-    response = client.get("/api/users/1")
-    assert response.status_code == 200
-    assert response.json["id"] == 1
-
-def test_create_user(client):
-    response = client.post("/api/users", json={
-        "name": "Alice",
-        "email": "alice@example.com"
-    })
-    assert response.status_code == 201
-    assert response.json["name"] == "Alice"
-```
-
-#### Testing Database Operations
-
-```python
-@pytest.fixture
-def db_session():
-    """Create a test database session."""
-    session = Session(bind=engine)
-    session.begin_nested()
-    yield session
-    session.rollback()
-    session.close()
-
-def test_create_user(db_session):
-    user = User(name="Alice", email="alice@example.com")
-    db_session.add(user)
-    db_session.commit()
-
-    retrieved = db_session.query(User).filter_by(name="Alice").first()
-    assert retrieved.email == "alice@example.com"
-```
-
-#### Testing Class Methods
-
-```python
-class TestCalculator:
-    @pytest.fixture
-    def calculator(self):
-        return Calculator()
-
-    def test_add(self, calculator):
-        assert calculator.add(2, 3) == 5
-
-    def test_divide_by_zero(self, calculator):
-        with pytest.raises(ZeroDivisionError):
-            calculator.divide(10, 0)
-```
-
----
-
-### pytest Configuration
-
-#### pytest.ini
-
-```ini
-[pytest]
-testpaths = tests
-python_files = test_*.py
-python_classes = Test*
-python_functions = test_*
-addopts =
-    --strict-markers
-    --disable-warnings
-    --cov=mypackage
-    --cov-report=term-missing
-    --cov-report=html
-markers =
-    slow: marks tests as slow
-    integration: marks tests as integration tests
-    unit: marks tests as unit tests
-```
-
-#### pyproject.toml
-
-```toml
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-addopts = [
-    "--strict-markers",
-    "--cov=mypackage",
-    "--cov-report=term-missing",
-    "--cov-report=html",
-]
-markers = [
-    "slow: marks tests as slow",
-    "integration: marks tests as integration tests",
-    "unit: marks tests as unit tests",
-]
-```
-
----
-
-### Running Tests
+Pass:
 
 ```bash
-# Run all tests
-pytest
-
-# Run specific file
-pytest tests/test_utils.py
-
-# Run specific test
-pytest tests/test_utils.py::test_function
-
-# Run with verbose output
-pytest -v
-
-# Run with coverage
-pytest --cov=mypackage --cov-report=html
-
-# Run only fast tests
 pytest -m "not slow"
+```
 
-# Run until first failure
-pytest -x
+Fail:
 
-# Run and stop on N failures
-pytest --maxfail=3
+```bash
+pytest --disable-warnings
+```
 
-# Run last failed tests
-pytest --lf
+Silencing warnings hides the deprecation that will break the suite at the next upgrade. Fix the warning instead.
 
-# Run tests with pattern
-pytest -k "test_user"
+---
 
-# Run with debugger on failure
-pytest --pdb
+### Run the whole suite from the project root
+
+`pytest` from the root is the command that decides whether a change is good. Scoping to one file is a debugging
+convenience, never the evidence that a fix works, because the regression it caused is in the file you skipped.
+
+Pass:
+
+```bash
+pytest
+```
+
+Fail:
+
+```bash
+pytest tests/test_users.py::test_create
 ```
 
 ---
 
-### Quick Reference
+### Reference files
 
-| Pattern | Usage |
-|---------|-------|
-| `pytest.raises()` | Test expected exceptions |
-| `@pytest.fixture()` | Create reusable test fixtures |
-| `@pytest.mark.parametrize()` | Run tests with multiple inputs |
-| `@pytest.mark.slow` | Mark slow tests |
-| `pytest -m "not slow"` | Skip slow tests |
-| `@patch()` | Mock functions and classes |
-| `tmp_path` fixture | Automatic temp directory |
-| `pytest --cov` | Generate coverage report |
-| `assert` | Simple and readable assertions |
-
-Remember: Tests are code too. Keep them clean, readable, and maintainable. Good tests catch bugs; great tests prevent
-them.
+| Open this | For |
+| --- | --- |
+| [references/fixtures-and-mocking.md](references/fixtures-and-mocking.md) | Fixture scopes, conftest, autouse, patching, autospec, async mocks |
+| [references/pytest-config.md](references/pytest-config.md) | pyproject configuration, markers, CLI flags, coverage, CI |
+| [references/integration-tests.md](references/integration-tests.md) | Suite layout, FastAPI clients, database sessions, test classes |
 
 ---
 
-### Testing FastAPI Endpoints (httpx + ASGITransport)
+### Related skills
 
-For async FastAPI apps, use `httpx.AsyncClient` with `ASGITransport`, no running server needed:
+- `python-patterns` for the production code under test.
+- `tdd-workflow` for the language-neutral red-green-refactor loop and the test pyramid.
+- `e2e-testing` for browser journeys and the flaky-test policy.
+- `ai-regression-testing` for tests aimed at agent-introduced regressions.
+- `coding-standards` for the shared engineering floor, including the FIRST properties.
 
-```python
-import pytest
-from httpx import AsyncClient, ASGITransport
-from src.myapp.main import app
+---
 
-@pytest.fixture
-async def client():
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-        yield c
+### Checklist
 
-async def test_create_user(client: AsyncClient):
-    response = await client.post("/users", json={"name": "Alice", "email": "alice@example.com"})
-    assert response.status_code == 201
-    assert response.json()["name"] == "Alice"
-
-async def test_get_user_not_found(client: AsyncClient):
-    response = await client.get("/users/nonexistent")
-    assert response.status_code == 404
-```
-
-Configure `pytest-asyncio` in `pyproject.toml`:
-
-```toml
-[tool.pytest.ini_options]
-asyncio_mode = "auto"   # all async test functions run automatically
-```
-
-Rule: Always use `pytest` from the project root, never run single test files to validate a fix (`pytest` runs all;
-`pytest tests/test_x.py` only if explicitly scoping a suite).
+- Every new behaviour has a test that was seen to fail before the code was written.
+- Each test asserts one behaviour and reads as setup, action, assertion.
+- Test names state the behaviour and the expected outcome.
+- Expected failures use `pytest.raises` with a `match`, never a bare `try`/`except`.
+- Only genuinely external services are mocked, and every patch uses `autospec=True` where it can.
+- Repeated tests that differ only by input are parametrized with readable `ids`.
+- No test depends on another test, on the working directory, or on leftover files.
+- Async tests run under `asyncio_mode = "auto"` and mock async callables with `AsyncMock`.
+- All markers are registered and `--strict-markers` is on.
+- Coverage of real logic is around 90 percent, with no exclusion added to dodge a test.
+- `pytest` passes from the project root, not just the file that was edited.

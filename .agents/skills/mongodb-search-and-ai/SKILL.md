@@ -157,3 +157,12 @@ Multiple collections are relevant:
 - Require approval before creating indexes
 - Map user's business requirements to technical implementations
 - Use the appropriate search type for the use case
+
+---
+
+### Related skills
+
+- `mongodb-schema-design` for the document shape a search index has to sit on.
+- `mongodb-query-optimizer` for the ordinary indexes the filter stages of a search pipeline still need.
+- `mongodb-connection` for pool and timeout settings on a workload that holds connections longer.
+- `backend-patterns` for caching and pagination around a search endpoint.

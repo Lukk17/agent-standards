@@ -1,99 +1,157 @@
 ---
 name: review-duplication
-description: Use this skill during code reviews to proactively investigate the codebase for duplicated functionality, reinvented wheels, or failure to reuse existing project best practices and shared utilities.
+description: Investigate a change for duplicated logic, reinvented utilities, and missed reuse of the project's existing helpers, patterns and installed libraries, then report what should have been reused and how. Use when you say "check this PR for duplication", "did we already have a function for this", "is this reinventing something", "why is there a second date formatter", or "review this for reuse before I approve it". Not for a full multi-pillar review pass, use `code-reviewer`.
 ---
 
 # Review Duplication
 
----
-
-### Overview
-
-This skill provides a structured workflow for investigating a codebase during a code review to identify duplicated
-logic, reinvented utilities, and missed opportunities to reuse established patterns. By executing this workflow, you
-ensure that new code integrates seamlessly with the existing project architecture.
-
-The conventions you check reuse against, and the DRY principle this skill enforces, live in the `coding-standards` hub.
+Investigate a codebase during review to find logic the project already has, utilities that were reinvented, and
+established patterns the change walked past. The conventions you check reuse against, and the DRY principle behind this
+skill, live in the `coding-standards` hub.
 
 ---
 
-### Workflow: Investigating for Duplication
+### When to activate
 
-When reviewing code, perform the following steps before finalizing your review:
+- Reviewing a change that introduces a helper, formatter, validator, client wrapper, or generic component.
+- A new third-party dependency or a new import of an existing one appears in the diff.
+- The user asks whether something already exists in the project, or why two similar things now exist.
+- A reviewer's instinct says "we have this somewhere", and the location needs to be found before the review is
+  finalised.
 
-#### 1. Extract Core Logic
-Analyze the new code to identify the core algorithms, utility functions, generic data structures, or UI components being
-introduced. Look beyond the specific business logic to see the underlying mechanics.
+---
 
-#### 2. Hypothesize Existing Locations & Trace Dependencies
-Think about where this type of code would live if it already existed in the project. Provide absolute paths from the
-repo root to disambiguate.
-- Utilities: `packages/core/src/utils/`, `packages/cli/src/utils/`
-- UI Components: `packages/cli/src/ui/components/`, `packages/cli/src/ui/`
-- Services: `packages/core/src/services/`, `packages/cli/src/services/`
-- Configuration: `packages/core/src/config/`, `packages/cli/src/config/`
-- Core Logic: Call out `packages/core/` if functionality does not appear React UI specific.
+### When not to activate
 
-Trace Third-Party Dependencies: If the PR introduces a new import for a utility library (e.g., `lodash.merge`,
-`date-fns`), trace how and where the project currently uses that library. There is likely an existing wrapper or shared
-utility.
+- The full review pass across correctness, security, performance and tests. Use `code-reviewer` and invoke this skill as
+  its reuse step.
+- Mapping an unfamiliar codebase for its own sake rather than for one change. Use the `code-archaeologist` agent
+  directly.
+- Deciding whether a new dependency is admissible and where its version is pinned. Use `build-dependency-management`.
+- Restructuring the duplicated code once it is found. Use the language skill that owns it, such as `python-patterns`,
+  `golang-patterns`, or `java-coding-standards`.
 
-Check Package Files: Before flagging a custom implementation of a complex algorithm, check `package.json` to see if a
-standard library (like `lodash` or `uuid`) is already installed that provides this functionality.
+---
 
-#### 3. Investigate the Codebase (Sub-Agent Delegation)
-Delegate the heavy lifting of codebase investigation to specialized sub-agents. They are optimized to perform deep
-searches and semantic mapping without bloating your session history.
+### Step 1: extract the core logic
 
-To ensure a comprehensive review, you MUST formulate highly specific objectives for the sub-agents, providing them with
-the "scents" you discovered in Step 1.
+Look past the business wrapper to the mechanics underneath: the algorithm, the utility function, the generic data
+structure, the reusable component. Reuse is found by shape, not by feature name.
 
-- Codebase Investigator: Use the `codebase_investigator` as your primary researcher. When delegating, formulate an
-  objective that asks specific, investigative questions about the codebase, explicitly including these search vectors:
-  - Structural Similarity: Ask if existing code uses the same underlying APIs (e.g., "Does any existing code use
-    `Intl.DateTimeFormat` or `setTimeout` for similar purposes?").
-  - Naming Conventions: Ask if there are existing symbols with similar naming patterns (e.g., "Are there existing
-    symbols with naming patterns like `*Format*` or `*Debounce*`?").
-  - Comments & Documentation: Ask if keywords from the PR's comments or JSDoc exist in describing similar behavior
-    elsewhere.
-  - Architectural Fit: Ask where this type of logic is currently centralized (e.g., "Where is centralized date
-    formatting logic located?").
-  - Refactoring Guidance: Crucially, ask the sub-agent to explain how the new code could be refactored to use any
-    existing logic it finds.
-- Generalist Agent: Use the `generalist` for detailed, turn-intensive comparisons. For example: "Review the
-  implementation of `MyNewComponent` in the PR and compare it semantically against all components in `packages/ui/src`.
-  Are there any existing components that could be extended or used instead?"
-- Retain Fast Path for Simple Searches: For extremely simple, unambiguous checks (e.g., "Does `package.json` include
-  `lodash`?"), perform a direct search to save time. Default to delegation for any open-ended "investigations."
+Fail: the search is framed around the feature and finds nothing.
 
-#### 4. Evaluate Best Practices
-Check if the new code aligns with the project's established conventions.
-- Error Handling: Does it use the project's standard error classes or logging mechanisms?
-- State Management: Does it bypass established stores or contexts?
-- Styling: Does it hardcode colors or spacing instead of using theme variables?
-If the PR introduces a new pattern, compare it against the documented standards and explicitly confirm if an existing
-project pattern should have been used instead.
+```text
+Searching for "checkout retry banner".
+```
 
-#### 5. Formulate Constructive Feedback
-If you discover that the PR duplicates existing functionality or ignores a best practice:
-- Provide a clear review comment.
-- Identify the Source: Explicitly mention the absolute or project-relative file path and the specific symbol (function,
-  component, class) that should be reused.
-- Implementation Guidance: Provide a brief code snippet or a clear explanation showing how to integrate the existing
-  code to fulfill the task's requirements.
-- Explain the Value: Briefly explain why reusing the existing code is beneficial (e.g., maintainability, consistency,
-  built-in edge case handling).
+Pass: the search is framed around the mechanic, which the project may already implement elsewhere.
 
-Example comment:
-> "It looks like this PR introduces a new `formatDate` utility. We already have a robust, tested `formatDate` function
-> in `src/utils/dateHelpers.ts`.
->
-> You can replace your implementation by importing it like this:
-> ```typescript
-> import { formatDate } from '../utils/dateHelpers';
-> 
-> // Then use it here:
-> const displayDate = formatDate(userDate, 'MMM Do, YYYY');
-> ```
-> Reusing this ensures that the date formatting remains consistent with the rest of the application and handles timezone
-> conversions correctly."
+```text
+The new code debounces input and formats a relative timestamp. Searching for existing debounce helpers and relative-time formatting.
+```
+
+---
+
+### Step 2: hypothesise where it would already live
+
+Name concrete candidate locations from the repo root before searching, so the search is directed rather than exhaustive.
+Read the project's own layout first, then map each category onto it. In a layered service the categories usually land
+like this:
+
+| Category | Typical home |
+| --- | --- |
+| Shared utilities | a `utils`, `common`, or `shared` module under the source root |
+| UI components | the component directory of the front-end module |
+| Domain services | the service or use-case layer of the application module |
+| Configuration | the config module, plus environment schema files |
+| Cross-cutting logic | the core or domain module, when the behaviour is not presentation specific |
+
+Trace third-party dependencies too. When the diff introduces an import of a utility library, find how the project
+already uses that library, because a wrapper or a shared helper usually exists. Before flagging a hand-written
+implementation of a standard algorithm, check the manifest (`package.json`, `pyproject.toml`, `build.gradle.kts`,
+`go.mod`) for a library already installed that provides it.
+
+---
+
+### Step 3: delegate the investigation
+
+Delegate deep searching to subagents so the review session stays readable and the search stays thorough. Give each one a
+specific objective built from the mechanics found in step 1, not a vague "look for duplication".
+
+- `code-archaeologist` is the primary researcher for structural questions. Ask it about the underlying APIs in use
+  ("does any existing code call `Intl.DateTimeFormat` or a date library for the same purpose?"), naming patterns ("are
+  there existing symbols matching `*Format*` or `*Debounce*`?"), where the behaviour is centralised today, and,
+  crucially, how the new code could be refactored onto whatever it finds.
+- `Explore` is the fast fan-out for locating candidates across many directories and naming conventions when you do not
+  yet know where to look. It reads excerpts and returns locations, so use it to narrow the field before a deeper pass.
+- `general-purpose` handles turn-intensive semantic comparison, for example: "compare the new `OrderSummaryCard` against
+  every component in the shared component module and report which one could be extended instead".
+
+Keep a fast path for unambiguous single-fact checks. Grepping the manifest for one package name is faster done directly
+than delegated. Anything open-ended goes to a subagent.
+
+---
+
+### Step 4: evaluate against project conventions
+
+Duplication is not only copied functions. A change that bypasses an established pattern duplicates the decision behind
+it.
+
+- Error handling: does it use the project's error types and logging entry point, or invent its own?
+- State management: does it bypass an established store, context, or repository?
+- Styling: does it hardcode colours and spacing instead of using the project's tokens?
+- Configuration: does it read an environment variable directly where the project has a config object?
+
+When the change introduces a genuinely new pattern, say so explicitly and compare it against the documented standard,
+rather than letting a second way of doing the same thing land silently.
+
+---
+
+### Step 5: report what should have been reused
+
+A useful finding names the replacement and shows the call. A useless one names the problem and leaves the work to the
+author.
+
+Fail: unactionable.
+
+```text
+This looks like it duplicates something we already have.
+```
+
+Pass: names the source, shows the integration, and states the benefit.
+
+```text
+This adds a new `formatDate` helper. The project already has a tested one in `src/utils/date-helpers.ts`.
+
+Replace the new function with:
+
+    import { formatDate } from '../utils/date-helpers'
+    const displayDate = formatDate(userDate, 'MMM d, yyyy')
+
+Reusing it keeps formatting consistent across the app and inherits the timezone handling the shared helper already covers.
+```
+
+Cite the path and the exact symbol, project-relative, on every finding, and explain the value in one clause:
+consistency, maintenance, or edge cases the existing code already handles.
+
+---
+
+### Related skills
+
+- `code-reviewer` is the parent review workflow. This skill is its reuse step and findings feed back into that report.
+- `coding-standards` holds the DRY principle and the conventions reuse is judged against.
+- `build-dependency-management` owns whether a newly imported library should be there at all.
+- `hexagonal-architecture` helps when the duplication is a boundary problem rather than a copied function.
+
+---
+
+### Checklist
+
+- [ ] The underlying mechanic was named, not just the feature.
+- [ ] Candidate locations were hypothesised from the project's real layout before searching.
+- [ ] Any newly imported library was traced to its existing usage and wrapper.
+- [ ] The manifest was checked for an installed library that already solves the problem.
+- [ ] Open-ended searching was delegated to `code-archaeologist`, `Explore`, or `general-purpose`.
+- [ ] Convention bypasses were checked, not only copied code.
+- [ ] Every finding names the reusable symbol, its path, and how to call it.
+- [ ] Findings were folded back into the `code-reviewer` report.

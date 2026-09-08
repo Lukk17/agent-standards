@@ -1,239 +1,325 @@
 ---
 name: kicad
-description: KiCad PCB design standards for schematic, layout, DRC, BOM, Gerber export, and design review processes.
-origin: project-standards
+description: KiCad board design standards for board setup and custom DRC rules, IPC-2221 trace sizing, decoupling and placement, ground pours and thermal reliefs, ERC on hierarchical schematics, BOM fields, Gerber and drill export, and Git handling of project files. Use when you say "route this board", "check my DRC", "export gerbers for JLCPCB", "write a kicad_dru rule for mains clearance", or "generate a BOM with LCSC part numbers". Not for the firmware that runs on the board, use `embedded-c-arduino`.
 ---
 
 # KiCad PCB Design Standards
 
----
+How a board gets from schematic to fabrication without a respin: rules configured before the first track, checks
+that are actually enabled, and an export that matches what the fabricator expects. Most board failures trace back to
+a constraint that existed only in someone's head.
 
-### Board Setup and DRC Enforcement
-
-- Configure Board Setup parameters before placing any components. Define minimum trace width, minimum clearance, minimum
-  via size, and minimum via drill hole based on the target PCB manufacturer's capabilities (JLCPCB, PCBWay, etc.).
-- Run DRC (Design Rules Check) continuously during the layout process. Never override or ignore DRC errors.
-- Define custom KiCad design rules (`.kicad_dru`) to enforce high-voltage isolation clearances, controlled impedance
-  nets, and any board-specific constraints.
-- Target zero DRC errors before submitting Gerbers to fabrication.
+Baseline: KiCad 10, current stable (10.0.6 as of September 2026). Custom design rules in `.kicad_dru` and the
+`kicad-cli` command-line exporter are both standard on this baseline.
 
 ---
 
-### Trace Routing and Clearances, IPC-2221
+### When to activate
 
-- Calculate trace widths from IPC-2221 standards using the maximum expected continuous current for each net. Never use
-  the default trace width for power nets (`VCC`, `+5V`, `+3V3`, `GND`, `VIN`).
-- Logic and signal traces: aim for 0.15-0.25 mm to stay within standard manufacturer etching limits.
-- Never route tracks at 90-degree angles. Use 45-degree angles or smooth curves to prevent acid traps during
-  manufacturing and signal reflections on high-speed traces.
-- Maintain a clearance of at least twice the trace width between adjacent high-speed or sensitive analog signals to
-  minimise crosstalk.
-- Use the KiCad trace width calculator with the IPC-2221 formula (`I = k × ΔT^0.44 × A^0.725`) for all power nets.
+- Setting up board constraints, netclasses, or custom design rules.
+- Routing tracks, pouring copper, or placing decoupling.
+- Running ERC or DRC, or interpreting a clean report.
+- Creating or verifying footprints and 3D models.
+- Generating a BOM, Gerbers, or drill files for fabrication.
+- Deciding what of a KiCad project goes into Git and how a release is tagged.
 
 ---
 
-### Component Placement and Decoupling Capacitors
+### When not to activate
 
-- Place decoupling capacitors (100 nF / 0.1 µF ceramic, X5R or X7R) physically as close as possible to the power pins of
-  every IC. The trace between the capacitor pad and the IC pin must be direct, short, and wide.
-- Separate analog components from digital components physically on the board to prevent digital switching noise from
-  coupling into sensitive analog circuits.
-- Lock critical mechanical components (connectors, mounting holes, switches, crystals) in the KiCad PCB Editor
-  immediately after placement to prevent accidental movement during routing.
-- Place bypass capacitors before bulk capacitors in the power delivery network, going from smallest to largest value
-  toward the power source.
+- Writing the firmware that runs on the board, use `embedded-c-arduino`.
+- Designing or slicing a 3D-printed enclosure for the board, use `g-code-3d-printing`.
+- Documenting the project for other people to read, use `markdown-writer`.
+- Setting up the CI that runs the export, use `deployment-patterns`.
+- Writing an export or checking script in shell, use `bash` or `powershell`.
 
 ---
 
-### Ground Planes and Thermal Reliefs
+### Board setup and custom design rules
 
-- Pour a continuous copper fill on the bottom layer (and top layer where possible) assigned to the `GND` net to provide
-  a low-impedance return path for all signals.
-- Avoid splitting the ground plane. If a split is required for mixed-signal designs (analog/digital), ensure no traces
-  route across the split.
-- Decide the pad-to-pour connection per pad, not as one blanket rule for the whole board. A thermal relief connects a
-  pad to the copper pour around it through a small number of narrow copper spokes, leaving a gap around the rest of
-  the pad. Its purpose is to stop the pour from sinking heat away from a soldering iron, or from a wave-solder bath (a
-  machine that solders many through-hole joints at once by passing the underside of the board over a wave of molten
-  solder), which is what actually causes a cold solder joint on a pad sitting inside a large sheet of copper. That
-  purpose only exists for hand-soldered or wave-soldered through-hole joints. A reflow oven heats the whole board at
-  once, so there is no iron or wave losing heat into the plane to protect against, and on a reflow-soldered pad the
-  same narrow spokes that protect a hand-soldered joint cut that pad's copper cross-section down to a fraction of a
-  solid connection, throttling both the current path and the thermal path through it. Ask, for every pad: will this
-  joint be hand- or wave-soldered, and does this pad need to carry meaningful current or sink heat into the pour
-  during operation (a power-supply output pin, a high-current connector pad, a component's own thermal pad)? Use a
-  thermal relief only where the first is true. Connect solid whenever the second is true, regardless of assembly
-  method. KiCad's own zone-connection setting exposes this choice per pad and per zone: solid, thermal relief, thermal
-  relief for through-hole pads only, or no connection at all.
-- Stitch the top and bottom ground pours together with via stitching around the board perimeter and around
-  high-frequency components.
+Configure minimum track width, clearance, via size, and via drill from the target fabricator's published
+capabilities before placing a single component. Add a `.kicad_dru` file for anything the Board Setup dialog cannot
+express: high-voltage isolation, controlled-impedance widths, per-netclass constraints.
 
----
+Pass, mains isolation and a USB pair width, each enforced by the tool:
 
-### Footprints, Libraries, and 3D Models, IPC-7351
+```lisp
+(version 1)
 
-- Use official, verified KiCad library footprints whenever possible. Create custom footprints only when the
-  manufacturer's suggested land pattern differs from the library entry.
-- Verify that all SMD footprint pad geometries conform to IPC-7351 standards (Most Material Condition, Nominal, or Least
-  Material Condition depending on assembly process) to prevent tombstoning during reflow.
-- Map 3D models (`.step` or `.wrl`) correctly to all footprints to visually verify spatial clearances and prevent
-  physical collisions during assembly.
-- Store custom footprints in a project-local library (`<project>.pretty/`) and custom 3D models in `3d_models/` within
-  the repository.
+(rule "Mains isolation"
+	(constraint clearance (min 8mm))
+	(condition "A.NetClass == 'MAINS' && B.NetClass != 'MAINS'"))
+
+(rule "USB pair width"
+	(constraint track_width (min 0.20mm) (opt 0.22mm) (max 0.25mm))
+	(condition "A.NetClass == 'USB'"))
+```
+
+Fail, the same constraint written where nothing enforces it:
+
+```text
+Note in the schematic: keep mains traces 8mm from everything else.
+```
+
+Run DRC continuously during layout and target zero errors before export. Never override or ignore a violation, fix
+the board or fix the rule and record why.
 
 ---
 
-### Hierarchical Schematic Design
+### Trace sizing, IPC-2221
 
-- Organise complex schematics into hierarchical sheets with one sheet per functional block:
-  - `power_supply.kicad_sch`
-  - `microcontroller.kicad_sch`
-  - `communication.kicad_sch`
-  - `user_interface.kicad_sch`
-- Use net labels for connections between sheets rather than drawing long wires. Net labels must be unique and
-  descriptive (e.g., `UART0_TX`, `I2C0_SDA`, `SPI0_CS_n`).
-- Add power flags (`PWR_FLAG`) to all power nets sourced from connectors or regulators to suppress ERC errors and ensure
-  correct netlisting.
-- Annotate all components with sequential reference designators per functional block (e.g., `U1xx` for MCUs, `C2xx` for
-  filter capacitors, `R3xx` for pull-up/pull-down resistors).
-- Run ERC (Electrical Rules Check) with zero errors before exporting the netlist or generating the PCB layout.
+Calculate power-net widths from IPC-2221 using the maximum expected continuous current, with KiCad's own trace-width
+calculator and the formula `I = k * dT^0.44 * A^0.725`. The default width is never correct for `VCC`, `+5V`, `+3V3`,
+`GND`, or `VIN`.
 
----
+Pass:
 
-### Bill of Materials (BOM)
+```text
+VBUS, 2 A continuous, 10 C rise, outer layer, 1 oz copper -> 0.85 mm, set on the POWER netclass.
+```
 
-- Generate the BOM from the schematic using KiCad's built-in BOM exporter or the `kibom` plugin. Never maintain the BOM
-  manually.
-- Every component entry must include:
-  - Reference Designator
-  - Value (resistance, capacitance, voltage rating, etc.)
-  - Manufacturer
-  - Manufacturer Part Number (MPN)
-  - Footprint
-  - LCSC part number (and/or Digi-Key / Mouser part number)
-- Prefer components available from at least two independent distributors to reduce supply-chain risk.
-- Store the exported BOM in `docs/bom/` versioned alongside the schematic source files.
+Fail:
+
+```text
+VBUS routed at the 0.25 mm board default because it looked thick enough.
+```
+
+Signal and logic traces sit around 0.15 to 0.25 mm to stay inside standard etching limits. Never route at 90
+degrees, use 45 degrees or a curve, and keep at least twice the trace width between adjacent high-speed or sensitive
+analog signals.
 
 ---
 
-### Gerber Export Checklist
+### Placement and decoupling
 
-Before sending to fabrication, export and verify all of the following layers:
+Every IC power pin gets a 100 nF X5R or X7R ceramic as close as the footprint allows, with a short wide direct
+connection to the pin. Separate analog from digital physically. Lock connectors, mounting holes, switches, and
+crystals immediately after placement so routing cannot nudge them.
+
+Pass:
+
+```text
+U3 pin 8 (VDD) -> C14 100nF 0402, 1.1 mm away, 0.4 mm track, then via to the GND pour.
+```
+
+Fail:
+
+```text
+U3 decoupling placed on the far side of the connector where there was room.
+```
+
+Order the power delivery network from smallest to largest toward the source: bypass capacitors first, bulk
+capacitors behind them.
+
+---
+
+### Ground pours and thermal reliefs
+
+Pour a continuous `GND` fill on the bottom layer, and on the top where space allows, to give every signal a
+low-impedance return. Avoid splitting the plane, and if a mixed-signal split is unavoidable, route nothing across
+it. Stitch top and bottom pours with vias around the perimeter and around high-frequency parts.
+
+Decide the pad-to-pour connection per pad, not once for the whole board. A thermal relief connects a pad to the pour
+through a few narrow spokes so an iron or a wave-solder bath cannot lose its heat into the copper sheet, which is
+what actually causes a cold joint. That purpose only exists for hand-soldered and wave-soldered through-hole joints.
+A reflow oven heats the whole board at once, and on a reflow pad those same spokes cut the copper cross-section down
+to a fraction, throttling both the current path and the thermal path.
+
+Ask two questions per pad: will this joint be hand- or wave-soldered, and does this pad need to carry meaningful
+current or sink heat into the pour during operation.
+
+Pass:
+
+```text
+J1 through-hole pads, hand-soldered, no current role -> thermal relief.
+U7 exposed thermal pad, reflow, sinks heat -> solid connection.
+```
+
+Fail:
+
+```text
+Zone connection: thermal relief, applied to every pad on the board.
+```
+
+KiCad exposes this per pad and per zone: solid, thermal relief, thermal relief for through-hole pads only, or no
+connection.
+
+---
+
+### Footprints, libraries, and 3D models
+
+Use official verified library footprints. Create a custom one only when the manufacturer's land pattern differs from
+the library entry, and verify SMD pad geometry against IPC-7351 so parts do not tombstone during reflow. Map a
+`.step` or `.wrl` model to every footprint, because spatial collisions are cheap to find in the 3D viewer and
+expensive to find on an assembled board.
+
+Pass:
+
+```text
+Custom footprint in board.pretty/, model in 3d_models/, both committed, land pattern traced to the datasheet.
+```
+
+Fail:
+
+```text
+Footprint edited in place inside the shared KiCad system library.
+```
+
+---
+
+### Hierarchical schematics and ERC
+
+One sheet per functional block: `power_supply.kicad_sch`, `microcontroller.kicad_sch`, `communication.kicad_sch`,
+`user_interface.kicad_sch`. Connect between sheets with unique descriptive net labels rather than long wires, and
+add `PWR_FLAG` to every power net sourced from a connector or a regulator. Annotate per block, `U1xx` for MCUs,
+`C2xx` for filter capacitors, `R3xx` for pull-ups.
+
+Pass:
+
+```text
+Net label UART0_TX crosses from microcontroller.kicad_sch to communication.kicad_sch. ERC: 0 errors, 0 warnings.
+```
+
+Fail:
+
+```text
+Net label NET1 crosses three sheets. ERC: 0 errors, 6 warnings (unconnected power input).
+```
+
+Run ERC to zero errors before exporting the netlist or laying out the board.
+
+---
+
+### Bill of materials
+
+Generate the BOM from the schematic, never by hand. Every line carries the fields below, so the board can be quoted
+and assembled without anyone opening KiCad.
+
+| Field | Purpose |
+|---|---|
+| `Reference` | Which designators this line covers |
+| `Value` | Resistance, capacitance, voltage rating, tolerance |
+| `Footprint` | Confirms the package the price was quoted against |
+| `Manufacturer` | Disambiguates an MPN that several vendors reuse |
+| `MPN` | The orderable part |
+| `LCSC` | Assembly house part number, plus Digi-Key or Mouser where used |
+| `Datasheet` | The traceable origin of every value on the line |
+| `Quantity` | Per board, after grouping |
+
+Pass:
+
+```bash
+kicad-cli sch export bom --fields 'Reference,Value,Footprint,Manufacturer,MPN,LCSC,Datasheet,${QUANTITY}' --group-by 'Value,Footprint,MPN' --output docs/bom/board-bom.csv board.kicad_sch
+```
+
+`${QUANTITY}` is a KiCad BOM variable, not a shell one, so the field list is single-quoted. In double quotes the
+shell substitutes it away and the quantity column comes out empty.
+
+Fail:
+
+```text
+docs/bom/board-bom.xlsx, last edited by hand three revisions ago.
+```
+
+Prefer parts stocked by at least two independent distributors, and commit the exported BOM under `docs/bom/`
+alongside the schematic.
+
+---
+
+### Gerber and drill export
+
+Export every layer the board uses, then verify the output in an independent viewer before it goes to the fab.
 
 | Layer | File |
 |---|---|
 | Front copper | `F.Cu` |
 | Back copper | `B.Cu` |
-| Inner copper layers | `In1.Cu`, `In2.Cu`, ... (if applicable) |
+| Inner copper | `In1.Cu`, `In2.Cu`, and so on where the stackup has them |
 | Front silkscreen | `F.Silkscreen` |
 | Back silkscreen | `B.Silkscreen` |
 | Front solder mask | `F.Mask` |
 | Back solder mask | `B.Mask` |
-| Front paste mask | `F.Paste` (for SMD reflow) |
+| Front paste mask | `F.Paste`, for SMD reflow stencils |
+| Back paste mask | `B.Paste`, only when the back is reflowed |
 | Board outline | `Edge.Cuts` |
-| Drill file | Excellon format, separate PTH and NPTH files |
+| Drill | Excellon, PTH and NPTH as separate files |
 
-- Run DRC one final time after Gerber export.
-- Verify the Gerber preview in an independent Gerber viewer (gerbv or KiCad's built-in Gerber Viewer) before submitting
-  to the fab.
+Pass:
 
----
+```bash
+kicad-cli pcb export gerbers --output fab/ --layers "F.Cu,B.Cu,F.Silkscreen,B.Silkscreen,F.Mask,B.Mask,F.Paste,Edge.Cuts" board.kicad_pcb
+```
 
-### High-Speed Signal Integrity, Differential Pairs and Impedance
+Then the drill files, Excellon, plated and non-plated separated:
 
-- A differential pair is two tracks that carry one signal as the voltage difference between them, rather than each
-  track carrying its own signal referenced to ground. USB, Ethernet, LVDS, CAN, and RS-485 all use this technique
-  because a matched pair rejects common-mode noise (interference picked up equally by both tracks) far better than a
-  single track referenced to ground does.
-- There is no single length-matching figure that fits every differential pair. The tolerable length mismatch between
-  the two tracks of a pair, called skew, is set by the signalling rate of the interface and by how much of that
-  interface's own timing budget the board is allowed to spend. A skew that is irrelevant on a slow link (RS-485 at a
-  few megabits per second) can break a fast one (a multi-gigabit link) outright, because what matters is skew as a
-  fraction of the unit interval, the time one bit occupies at the link's data rate, never skew in millimetres copied
-  from a different project.
-- Derive the enforced number instead of quoting one from memory:
-  1. Read the interface's own specification for its data rate and, where it states one directly, its own maximum
-     intra-pair skew. Some interface specifications publish an explicit skew limit in their own electrical chapter.
-     Where one doesn't, fall back on the general relationship that timing skew between the two lines of a pair
-     converts part of the intended differential signal into unwanted common-mode noise, roughly in proportion to skew
-     divided by the signal's rise time.
-  2. Convert that time budget into a physical length using the propagation velocity of the actual stackup and layer
-     the pair runs on, not a generic PCB propagation-speed figure remembered from elsewhere. Propagation velocity
-     depends on the effective dielectric constant the trace actually sees, v = c / √(ε_eff), a single number blending
-     how much of the trace's electric field sits inside the board material versus in the air above it for a surface
-     trace with a pour underneath (microstrip), or sits entirely inside the board material for a trace buried between
-     two reference planes (stripline). IPC-2141A, Design Guide for High-Speed Controlled Impedance Circuit Boards,
-     gives the standard delay approximations used for this conversion: roughly 1.017 × √(0.475εr + 0.67) nanoseconds
-     per inch for microstrip, and roughly 1.017 × √εr nanoseconds per inch for stripline, where εr is the substrate's
-     own dielectric constant (a material property read off the laminate's datasheet).
-  3. Apply a derating factor before the number becomes the one a check actually enforces. No IPC or IEEE standard
-     publishes one universal derating percentage for this: it is settled engineering convention, not a codified spec,
-     and the convention itself varies by how much risk a project is willing to carry. Keeping skew inside roughly 10
-     percent of the available timing budget is the commonly used conservative choice. A looser budget of up to
-     roughly 25 percent shows up in practice when board area is genuinely constrained and the interface's own timing
-     margin can absorb it. Neither figure is mandated anywhere. The underlying physical justification, that skew
-     converts to common-mode noise in rough proportion to the skew-to-rise-time ratio, is discussed in Johnson and
-     Graham, High-Speed Digital Design: A Handbook of Black Magic (Prentice Hall, 1993). Whichever factor is chosen
-     belongs inside the enforced number itself, the netclass rule or the design-rule-check constraint, never only in a
-     comment or a paragraph of prose next to the tool. A margin that nothing enforces gets silently consumed the first
-     time a router pass or a hand edit nudges a track.
-- A pair with a real skew budget is either hand-routed and then locked so nothing can move it afterward, or routed by
-  an autorouter and then checked. Neither path is inherently correct. General-purpose autorouters do not implement
-  dedicated differential-pair length matching: natural skew after autorouting depends entirely on how symmetric the
-  placement is and on whichever path the router happened to find, so an autorouted pair's as-built length has to be
-  measured on the real routed copper and checked against the derived tolerance before the board is considered
-  finished, never assumed to already match because the router "should" have kept it close. KiCad's interactive router
-  includes a dedicated length-tuning mode built for exactly this problem, because a general path-finding algorithm
-  does not solve for skew on its own. Use it for the hand-routed path.
-- Specify a target impedance for every high-speed pair or single-ended trace in the board stackup, and configure the
-  trace-width calculator to hit it:
-  - USB 2.0 full-speed/high-speed: 90 Ω differential
-  - RF / SMA traces: 50 Ω single-ended
-  - LVDS: 100 Ω differential
-- Keep high-speed signal return paths short: every signal trace must have an unbroken ground return plane immediately
-  below it with no slots or cuts interrupting the return current path.
-- Add series termination resistors (33-47 Ω) at the source end of high-speed single-ended traces to damp reflections.
+```bash
+kicad-cli pcb export drill --output fab/ --format excellon --separate-files --excellon-separate-th board.kicad_pcb
+```
+
+Fail:
+
+```text
+Plotted F.Cu, B.Cu and Edge.Cuts only, mask and paste left out of the zip.
+```
+
+Run DRC once more after export, and open the result in gerbv or KiCad's own Gerber Viewer. The viewer is reading the
+files the fab will read, which the layout canvas is not.
 
 ---
 
-### Verification Is a Discipline, Not a Result
+### Revision control
 
-- A design-rule check (DRC) reporting zero violations proves only that the rules actually switched on found nothing.
-  Before trusting a "0 errors" result, open the rule severity list itself and confirm nothing has been quietly
-  downgraded from error to warning, or excluded outright: a downgraded or excluded rule can no longer report a
-  violation at all, so the summary line reads exactly as clean as a board with no problems in it.
-- A check that silently skips an object it cannot parse produces a result indistinguishable from a genuine pass. Any
-  script or plugin that walks footprints, nets, or zones should report what it actually examined, not only what it
-  found wrong, meaning a count of footprints checked, nets checked, or zones checked next to the count of violations,
-  so a script that quietly processed 40 of 90 footprints because the other 50 had an unexpected property doesn't look
-  identical to one that checked all 90 and found them clean.
-- A check nobody has ever seen fail is not yet a check. Before trusting an automated check to catch a defect, build or
-  find a deliberately broken input carrying exactly that defect and confirm the check actually flags it. A script run
-  only against clean boards has never demonstrated it can fail at all, and an inverted condition, a wrong threshold,
-  or a pattern that matches nothing will pass every board handed to it while catching none of them, indefinitely.
-- A quantity sized by design-time arithmetic on an idealised shape has to be measured again on the routed, filled
-  board. A hand or script calculation for trace width, copper area, or clearance models a clean rectangle or a
-  straight line between two points. A real board is not that shape once it is routed and its copper pours are filled:
-  a keepout (a clearance a hole or a part must keep from copper that isn't its own net) cuts a notch out of a pour, a
-  corner pinches near a pad, a current path bends around an obstacle instead of running straight between two points.
-  The arithmetic that sized a rail is a starting point, not the final answer. Re-measure the real, as-filled geometry
-  once routing and zone fill are done, and check that measurement against the requirement, not the paper number alone.
-- A threshold nobody can trace back to a reason is itself a defect. If a check enforces a number and nobody on the
-  project can say where it came from, whether that's a component datasheet, a fabricator's published manufacturing
-  limit, a named standard, or a calculation someone can redo, the number will eventually either pass a board that
-  should fail or reject one that should pass. Once that happens often enough, the check gets ignored rather than
-  fixed. Give every enforced number a traceable origin, and record that origin next to the check, not only in
-  whoever's memory set it.
+Commit `.kicad_pro`, `.kicad_sch`, `.kicad_pcb`, `.kicad_sym`, and `.kicad_mod` as text. Disable "Save with full
+paths" in Preferences, Common so library paths stay relative and the project opens on another machine. Track binary
+assets with Git LFS: `.step`, `.wrl`, rendered images, fabrication PDFs.
+
+Pass:
+
+```bash
+git tag fab/v1.1
+```
+
+Fail:
+
+```bash
+git tag -f fab/v1.0
+```
+
+Tag every release at the moment Gerbers are sent, and never modify a tagged revision after ordering. Put the same
+`fab` revision in the PCB title block so it is embedded in the Gerber headers and the physical silkscreen.
 
 ---
 
-### Revision Control
+### Reference files
 
-- Store all KiCad project files in Git: `.kicad_pro`, `.kicad_sch`, `.kicad_pcb`, `.kicad_sym`, `.kicad_mod`.
-- Disable "Save with full paths" in KiCad Preferences → Common to ensure footprint and symbol paths are stored as
-  relative paths, making the project portable across developer machines.
-- Use Git LFS for binary assets: 3D model files (`.step`, `.wrl`), rendered board images, and fabrication PDFs.
-- Tag every release in Git when Gerbers are sent to fabrication using the convention `fab/v1.0`, `fab/v1.1`. Never
-  modify a tagged revision after ordering.
-- Add a `fab` tag in the KiCad PCB title block on every release build so the revision is embedded in the Gerber file
-  headers.
+| Open this | For |
+|---|---|
+| [references/signal-integrity.md](references/signal-integrity.md) | Deriving a skew budget for a differential pair, target impedances, and length tuning |
+| [references/verification-discipline.md](references/verification-discipline.md) | Deciding whether a clean DRC or a passing check script actually proves anything |
+
+---
+
+### Related skills
+
+- `embedded-c-arduino` for the firmware and the hardware abstraction on the other side of the connector.
+- `g-code-3d-printing` for the printed enclosure the board mounts into.
+- `markdown-writer` for the project README and the hardware documentation.
+- `deployment-patterns` for CI that runs ERC, DRC, and the export on every change.
+- `bash` and `powershell` for the export and checking scripts themselves.
+
+---
+
+### Checklist
+
+- [ ] Board Setup constraints taken from the chosen fabricator's published limits, before any placement.
+- [ ] Every board-specific constraint expressed in `.kicad_dru`, not in a note.
+- [ ] Power net widths derived from IPC-2221 with a recorded current and temperature rise.
+- [ ] No 90-degree track corners.
+- [ ] Every IC power pin decoupled with a short, direct, wide connection.
+- [ ] Pad-to-pour connection decided per pad, not one blanket setting.
+- [ ] Every footprint verified against the datasheet land pattern, every part carries a 3D model.
+- [ ] ERC clean, `PWR_FLAG` on every externally sourced power net.
+- [ ] DRC clean with no rule downgraded or excluded, and the severity list checked.
+- [ ] BOM generated from the schematic with all required fields, committed under `docs/bom/`.
+- [ ] Every needed layer plus separate PTH and NPTH drill files exported and opened in an independent viewer.
+- [ ] Release tagged `fab/vX.Y`, title block revision matching, tag never rewritten after ordering.

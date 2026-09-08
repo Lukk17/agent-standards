@@ -1,169 +1,301 @@
 ---
 name: home-assistant
-description: Home Assistant automation standards covering YAML conventions, entity naming, event-driven design, MCP server rules, backup, and notification routing.
-origin: project-standards
+description: Home Assistant standards for YAML style, entity_id references, native conditions, event-driven automations, automation modes, secrets, MCP exposure limits, and backup discipline. Use when you say "write an automation for this motion sensor", "my automation retriggers and cancels itself", "move these tokens into secrets.yaml", "expose these entities to the assistant", or "why did my template condition fail silently". Not for writing a custom integration in Python, use `python-patterns`.
 ---
 
 # Home Assistant Standards
 
----
+How a Home Assistant configuration stays reviewable and survives a device being re-paired, an upgrade, or a restore.
+Most breakage here is not a bug, it is a reference that pointed at something transient or a condition that only
+failed at runtime.
 
-### Core Execution Directives
-
-- Treat all LLM generated YAML, entity IDs, and state management logic as potentially hallucinated.
-- Enforce the Zero-Trust Prompt Engineering protocol for every HA architectural decision.
-- Append a Zero-Trust directive demanding mandatory web searches for current HA documentation, specifically regarding
-  MCP integration, Assist API limits, and YAML schemas.
-- Implement a Fail-Fast directive forcing the agent to halt execution and refuse to answer if official HA documentation
-  cannot be retrieved via live search.
-- Require exact confidence percentage scores for every YAML node, automation mode, and service call provided.
-- Mandate direct, working links to the official HA documentation used to ground the code.
+Baseline: Home Assistant Core current stable on the monthly 2026.x release train, and YAML 1.2 parsing rules.
 
 ---
 
-### YAML Configuration Syntax
+### When to activate
 
-- Enforce strict 2-space indentation.
-- Use exclusively lowercase `true` and `false` for booleans. Strictly prohibit the use of `True`, `False`, `yes`, `no`,
-  `on`, or `off` to maintain YAML 1.2 compliance and prevent parsing errors.
-  - Ref: https://developers.home-assistant.io/docs/documenting/yaml-style-guide/
-- Mandate block-style sequences and mappings. Do not use flow-style (JSON-like) syntax such as `[1, 2]` or
-  `{key: value}` in YAML files.
-- Wrap all string values in double quotes (`"string"`). Implicitly mark null values instead of using `~` or `null`.
-- Prohibit generating raw YAML manually for core configurations if a UI-managed Template Helper or Config Entry is
-  available. Always prefer UI-configured Helpers over raw `template:` YAML to ensure syntax validation and reliable
-  backups.
+- Writing or reviewing an automation, script, or blueprint.
+- Debugging an automation that fires twice, cancels itself, or silently does nothing.
+- Moving tokens and passwords into `secrets.yaml`.
+- Deciding which entities an assistant or MCP client may see.
+- Naming entities, or cleaning up entity IDs after a device rename.
+- Planning backups, integration cleanup, or a core upgrade.
 
 ---
 
-### State Management and Automations
+### When not to activate
 
-- Use `entity_id` exclusively over `device_id` in all triggers, conditions, and actions. Device IDs break silently if a
-  device is removed and re-added to the Zigbee/Z-Wave/Wi-Fi network.
-- Use native conditions (e.g., `numeric_state`) instead of template conditions. Native conditions are validated at load
-  time rather than runtime, preventing silent failures.
-- Build event-driven automations. Use `wait_for_trigger` with state triggers instead of polling the state bus with
-  `wait_template`.
-- Strictly prohibit direct modification of internal state files within the `.storage/` directory. Use the HA REST or
-  WebSocket API to interact with internal states to prevent database corruption.
-- Use `mode: restart` for motion-triggered automations rather than `mode: single` to ensure lighting timers reset
-  properly upon continuous movement.
+- Writing a custom integration in Python against the Home Assistant developer API, use `python-patterns`.
+- Writing a standalone script that talks to the REST API from outside, use `bash` or `powershell`.
+- Designing the network, reverse proxy, or container the instance runs in, use `docker-patterns`.
+- Building an external service that consumes Home Assistant events, use `backend-patterns`.
+- Reviewing the security posture of an internet-exposed instance, use `security-review`.
 
 ---
 
-### MCP (Model Context Protocol) Integration
+### YAML syntax
 
-- Restrict MCP LLM access strictly to explicitly exposed entities via the Home Assistant Assist API. Do not expose
-  administrative or security entities (locks, garage doors, alarm panels) to the MCP client to prevent unauthorized
-  autonomous actuation.
-  - Ref: https://www.home-assistant.io/integrations/mcp_server/
-- Secure the MCP server endpoint (`/api/mcp`) using a Long-Lived Access Token (LLAT) scoped specifically for the LLM
-  agent, or use OAuth if the client supports it.
-- If the MCP client (like Cursor or Claude Code local CLI) only supports `stdio` transport, explicitly define the
-  architecture to route through an `mcp-proxy`, as HA natively implements the Streamable HTTP (SSE) protocol for its MCP
-  server.
+Two-space indentation, block style everywhere, lowercase `true` and `false`. YAML 1.2 no longer treats `yes`, `no`,
+`on`, and `off` as booleans, and the parser difference produces a config that loads on one version and not another.
 
----
+Pass:
 
-### API Rate Limits and Polling Constraints
+```yaml
+automation:
+  - alias: "Hallway light on motion"
+    mode: restart
+    initial_state: true
+```
 
-- Respect local integration and external cloud API rate limits. Group state updates and avoid aggressive, high-frequency
-  polling from the LLM.
-- Implement conservative rate limits for external notifications matching the HA Companion App's limit of 150
-  notifications per 24 hours to prevent the AI from spamming user devices.
-- Handle `HTTP 429 Too Many Requests` gracefully in any external scripts or MCP clients querying the HA REST API by
-  implementing exponential backoff.
+Fail:
 
----
+```yaml
+automation: [{alias: Hallway light on motion, initial_state: yes}]
+```
 
-### Entity Naming Conventions
-
-- Use the pattern `domain.location_device_property` for entity IDs (e.g., `sensor.living_room_temperature`,
-  `light.bedroom_ceiling`).
-- Never abbreviate entity names; prefer clarity over brevity (`binary_sensor.front_door_contact` not
-  `binary_sensor.fd_c`).
-- Use lowercase with underscores only; no spaces, hyphens, or capital letters in entity IDs.
-- Group related entities using the `area` registry rather than encoding the area in the entity ID multiple times.
+Quote string values, leave null implicit rather than writing `~` or `null`, and prefer a UI-managed helper or config
+entry over hand-written `template:` YAML wherever one exists. A helper is validated on save and travels in the
+backup.
 
 ---
 
-### Secrets Management
+### Reference entities, never devices
 
-- Store all long-lived access tokens, API keys, and passwords in `secrets.yaml`; reference them in configuration with
-  `!secret key_name`.
-  - Ref: https://www.home-assistant.io/docs/configuration/secrets/
-- Never commit `secrets.yaml` to version control; add it to `.gitignore`.
-- Rotate long-lived access tokens for MCP and external integrations at least every 90 days.
+`device_id` is a registry row that is regenerated when a device is removed and re-added. Every trigger, condition,
+and action targets `entity_id`, which you control and which survives a re-pair.
 
----
+Pass:
 
-### Backup and Restore
+```yaml
+trigger:
+  - platform: state
+    entity_id: binary_sensor.hallway_motion
+    to: "on"
+```
 
-- Use the Home Assistant Backup integration (built-in since HA 2024.11) or the Google Drive Backup add-on to take daily
-  automated backups.
-- Store at least 7 days of daily backups and 4 weeks of weekly backups in an offsite location (cloud storage separate
-  from the HA host).
-- Perform a test restore to a clean HA instance at least quarterly to validate backup integrity.
-- Include the backup retention policy in the project README so other household members can restore the system.
+Fail:
 
----
+```yaml
+trigger:
+  - platform: device
+    device_id: 4f2c9b1ae8d3475fa0c6e2b7d914f083
+    type: motion
+```
 
-### Integration Management
-
-- Prefer native HA integrations (configured via the UI at Settings → Devices & Services) over YAML-configured custom
-  integrations.
-- For HACS (Home Assistant Community Store) add-ons: document every installed custom integration in
-  `docs/INTEGRATIONS.md` with purpose, version, and the reason a native integration was insufficient.
-- Audit and remove unused integrations and devices at least quarterly to reduce attack surface and complexity.
+Never edit anything under `.storage/` by hand. Go through the REST or WebSocket API, so the running instance stays
+consistent with what is on disk.
 
 ---
 
-### Blueprint vs Automation vs Script
+### Native conditions over template conditions
 
-| Type | When to Use |
+A native condition is validated when the config loads. A template condition is only evaluated when the automation
+runs, so a typo in it produces an automation that silently never fires and reports nothing.
+
+Pass:
+
+```yaml
+condition:
+  - condition: numeric_state
+    entity_id: sensor.hallway_illuminance
+    below: 15
+```
+
+Fail:
+
+```yaml
+condition:
+  - condition: template
+    value_template: "{{ states('sensor.hallway_iluminance') | float < 15 }}"
+```
+
+The failing version misspells the entity and coerces `unknown` to `0.0`, so it evaluates true forever and nobody
+sees an error. Reach for a template condition only where no native condition can express the test, and validate it
+in Developer Tools first.
+
+---
+
+### Wait on triggers, not on polled templates
+
+`wait_template` re-evaluates against the state bus. `wait_for_trigger` subscribes to the event, so it costs nothing
+while waiting and it cannot miss a transition between polls.
+
+Pass:
+
+```yaml
+- wait_for_trigger:
+    - platform: state
+      entity_id: binary_sensor.hallway_motion
+      to: "off"
+      for: "00:02:00"
+  timeout: "00:30:00"
+  continue_on_timeout: true
+```
+
+Fail:
+
+```yaml
+- wait_template: "{{ is_state('binary_sensor.hallway_motion', 'off') }}"
+  timeout: "00:30:00"
+```
+
+Always set a `timeout` and decide `continue_on_timeout` deliberately. A wait with no timeout leaves the automation
+run alive indefinitely and it shows up as a stuck trace weeks later.
+
+---
+
+### Pick the automation mode on purpose
+
+The default `single` drops a second trigger while the first run is still going, which is exactly wrong for a motion
+timer: continued movement is ignored and the light goes out with someone standing under it. `restart` cancels the
+running instance and starts the timer again.
+
+Pass:
+
+```yaml
+- alias: "Hallway light on motion"
+  mode: restart
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.hallway_motion
+      to: "on"
+  condition:
+    - condition: numeric_state
+      entity_id: sensor.hallway_illuminance
+      below: 15
+  action:
+    - service: light.turn_on
+      target:
+        entity_id: light.hallway_ceiling
+    - delay: "00:05:00"
+    - service: light.turn_off
+      target:
+        entity_id: light.hallway_ceiling
+```
+
+Fail:
+
+```yaml
+- alias: "Hallway light on motion"
+  mode: single
+```
+
+Use `queued` when every trigger must be handled in order, and `parallel` only when the runs genuinely do not touch
+the same entity.
+
+---
+
+### Secrets
+
+Every long-lived access token, API key, and password lives in `secrets.yaml` and is referenced with `!secret`.
+`secrets.yaml` is never committed, and it is in `.gitignore` before the first token goes into it.
+
+Pass:
+
+```yaml
+mqtt:
+  broker: "mqtt.internal"
+  username: !secret mqtt_username
+  password: !secret mqtt_password
+```
+
+Fail:
+
+```yaml
+mqtt:
+  broker: "mqtt.internal"
+  username: "homeassistant"
+  password: "hunter2"
+```
+
+- Ref: https://www.home-assistant.io/docs/configuration/secrets/
+- Rotate long-lived access tokens used by MCP clients and external integrations at least every 90 days.
+
+---
+
+### MCP exposure
+
+Home Assistant's MCP server speaks Streamable HTTP, and the current Claude Code CLI connects to remote MCP servers
+over HTTP and SSE directly. A `stdio` proxy is only needed for a client that still supports nothing but `stdio`, so
+check the client before adding one rather than assuming it.
+
+Expose only what the assistant needs. Locks, garage doors, alarm panels, and anything else whose actuation has a
+physical security consequence stay unexposed, whatever the client is.
+
+Pass:
+
+```yaml
+homeassistant:
+  expose:
+    - light.hallway_ceiling
+    - sensor.living_room_temperature
+```
+
+Fail:
+
+```yaml
+homeassistant:
+  expose:
+    - lock.front_door
+    - cover.garage_door
+    - alarm_control_panel.house
+```
+
+- Ref: https://www.home-assistant.io/integrations/mcp_server/
+- Secure `/api/mcp` with a long-lived access token scoped to the agent, or OAuth where the client supports it.
+
+---
+
+### Entity naming
+
+Use `domain.location_device_property`, lowercase with underscores, never abbreviated. The entity ID is the thing
+every automation, dashboard, and script references, so it is a name you have to live with.
+
+Pass:
+
+```yaml
+binary_sensor.front_door_contact
+```
+
+Fail:
+
+```yaml
+binary_sensor.fd_c
+```
+
+Group entities with the area registry rather than repeating the area inside the ID more than once.
+
+---
+
+### Reference files
+
+| Open this | For |
 |---|---|
-| Blueprint | Reusable automation template that non-developers can instantiate with parameters (e.g., motion-triggered light with configurable timeout). |
-| Automation | Single-use, complex automation with specific device targets that does not need to be reused. |
-| Script | Reusable sequence of actions called by multiple automations or triggered manually via the dashboard. |
-
-- Extract any automation logic used in more than two automations into a Script or Blueprint.
-- Store Blueprint YAML files in `config/blueprints/automation/` and version-control them.
+| [references/operations.md](references/operations.md) | Choosing between a blueprint, an automation and a script, tracing and testing a change, backups and restores, HACS hygiene, the notification priority taxonomy, and upgrade discipline |
 
 ---
 
-### Testing Automations
+### Related skills
 
-- Use Developer Tools → Automation Trace after every automation change to verify the execution path and confirm
-  conditions behaved as expected.
-- Use Developer Tools → Template editor to validate Jinja2 template expressions before embedding them in automations.
-- Test motion-triggered and time-triggered automations by firing test events from Developer Tools → Events before
-  relying on real hardware triggers.
-- Document the expected behaviour and test scenarios for complex automations in a comment block at the top of the
-  automation YAML.
+- `python-patterns` and `python-testing` for building and testing a custom integration in Python.
+- `security-review` before exposing the instance, its API, or a new entity set to anything outside the LAN.
+- `docker-patterns` for the container and network the instance runs in.
+- `bash` and `powershell` for external scripts driving the REST API.
+- `observability-and-logging` for anything long-running that consumes the event stream.
 
 ---
 
-### Notification Routing
+### Checklist
 
-Define a notification priority taxonomy and route accordingly:
-
-| Priority | Trigger Example | Delivery Method |
-|---|---|---|
-| Critical | Smoke alarm, CO alarm, intrusion | Phone call + push + persistent notification |
-| High | Door left open, unusual energy spike | Push notification + persistent notification |
-| Normal | Arriving home, daily summary | Push notification |
-| Low | Device status update, routine event | Persistent notification only |
-
-- Implement notification routing as a HA Script with a `priority` input parameter; call it from all automations instead
-  of hardcoding `notify.*` targets.
-- Respect quiet hours: suppress non-critical notifications between 23:00 and 07:00 using a time condition.
-
----
-
-### HA Version Compatibility
-
-- Document the minimum supported Home Assistant version for any automation or integration that uses features introduced
-  in a specific release (e.g., `# Requires HA 2024.10+`).
-- Subscribe to the HA release notes and Breaking Changes blog; review before every HA core update.
-- Test all automations in a development HA instance (a secondary VM or container) before applying a major HA update to
-  the production instance.
+- [ ] Two-space block YAML, lowercase booleans, quoted strings.
+- [ ] Every trigger, condition, and action references `entity_id`, no `device_id`.
+- [ ] Native conditions used wherever one exists, remaining templates validated in Developer Tools.
+- [ ] Waits use `wait_for_trigger` with an explicit `timeout` and a deliberate `continue_on_timeout`.
+- [ ] Every automation declares `mode` on purpose, motion timers use `restart`.
+- [ ] No token, key, or password outside `secrets.yaml`, and `secrets.yaml` is gitignored.
+- [ ] No lock, garage door, or alarm panel exposed to an assistant or MCP client.
+- [ ] Entity IDs follow `domain.location_device_property` and are unabbreviated.
+- [ ] Logic used in more than two automations is a script or a blueprint.
+- [ ] Automation Trace inspected after the change, conditions exercised rather than skipped.
+- [ ] Nothing under `.storage/` edited by hand.

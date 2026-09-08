@@ -1,302 +1,208 @@
 ---
 name: java-coding-standards
-description: "Java coding standards for Spring Boot services: naming, immutability, Optional usage, streams, exceptions, generics, concurrency, logging, Jackson, null safety, Lombok, and project layout."
-origin: ECC
+description: "Java language standards for Spring Boot services: naming, Lombok and constructor injection, immutability and records, Optional, streams, exceptions, generics, null safety, SLF4J logging, and Javadoc discipline. Use when you say \"review this Java class\", \"should this be a record\", \"is this Optional usage correct\", \"rename these methods properly\", or \"set up Checkstyle and SpotBugs\". Not for Spring Boot wiring and REST structure, use `springboot-patterns`."
+license: Apache-2.0
 ---
 
 # Java Coding Standards
 
-Standards for readable, maintainable Java (21+) code in Spring Boot services.
+How Java itself is written in a Spring Boot service, from naming through to Javadoc. Java 21 LTS is the minimum and
+Java 25 LTS, released September 2025, is the recommended target, so records, sealed types, pattern matching, and
+virtual threads are all available and expected.
 
 ---
 
-### When to Activate
+### When to activate
 
-- Writing or reviewing Java code in Spring Boot projects
-- Enforcing naming, immutability, or exception handling conventions
-- Working with records, sealed classes, or pattern matching (Java 17+)
-- Reviewing use of Optional, streams, or generics
-- Structuring packages and project layout
-
----
-
-### Core Principles
-
-- Prefer clarity over cleverness
-- Immutable by default; minimize shared mutable state
-- Fail fast with meaningful exceptions
-- Consistent naming and package structure
+- Writing or reviewing Java in a Spring Boot project.
+- Deciding between a record, a class, and a sealed hierarchy.
+- Enforcing naming, immutability, or exception conventions in review.
+- Reviewing use of `Optional`, streams, or generics.
+- Structuring packages, or setting up the static analysis that guards this style.
 
 ---
 
-### Naming
+### When not to activate
+
+- Spring Boot structure, controllers, DTO contracts, and bean wiring, use `springboot-patterns`.
+- Entity mapping, queries, and transaction boundaries, use `jpa-patterns`.
+- Writing the tests, use `springboot-tdd`.
+- Running the build and analysis pipeline before a pull request, use `springboot-verification`.
+- Version catalogs, BOM imports, and dependency admission, use `build-dependency-management`.
+- Ports and adapters layering across a service, use `hexagonal-architecture`.
+
+---
+
+### Name things after what they are
+
+Classes and records are PascalCase, methods and fields camelCase, constants UPPER_SNAKE_CASE. A boolean starts with
+`is`, `has`, or `can`. A method name is a verb phrase specific enough that a reader does not have to open the body.
+
+Pass:
 
 ```java
-// PASS: Classes/Records: PascalCase
-public class MarketService {}
 public record Money(BigDecimal amount, Currency currency) {}
 
-// PASS: Methods/fields: camelCase
-private final MarketRepository marketRepository;
-public Market findBySlug(String slug) {}
-
-// PASS: Constants: UPPER_SNAKE_CASE
 private static final int MAX_PAGE_SIZE = 100;
+
+public List<User> findActiveUsersByTenant(TenantId tenantId) { ... }
 ```
 
-Boolean variables and methods must start with `is`, `has`, or `can`.
-
-Method names must be descriptive verbs: `calculateTotalRevenue`, `findActiveUsers`.
+Fail: `getData()`, `flag`, `process()`, and a constant spelled `maxPageSize`.
 
 ---
 
-### Lombok
+### Inject through the constructor, log through Lombok
 
-Use Lombok to eliminate boilerplate. Required annotations:
+Lombok removes boilerplate that carries no decisions. `@RequiredArgsConstructor` for injection, `@Slf4j` for the
+logger, `@Builder` where construction is genuinely complex, `@Value` for immutable value objects, and `@Getter` or
+`@Setter` only where neither a record nor `@Value` fits.
 
-- `@Slf4j`: mandatory for all logging; never use `LoggerFactory.getLogger(...)` manually
-- `@RequiredArgsConstructor`: constructor injection
-- `@Builder`: for complex object construction
-
-Constructor injection only; never field injection, never `@Autowired` on a field.
-
-- `@Value`: for immutable value objects
-- `@Getter` / `@Setter`: only when not using `@Value` or records
-
-Prefer annotation-based configuration over manual wiring.
-
----
-
-### Immutability
+Pass: final fields, one generated constructor, no annotation on the field.
 
 ```java
-// PASS: Favor records and final fields
-public record MarketDto(Long id, String name, MarketStatus status) {}
-
-public class Market {
-  private final Long id;
-  private final String name;
-  // getters only, no setters
+@Service
+@Slf4j
+@RequiredArgsConstructor
+public class MarketService {
+  private final MarketRepository marketRepository;
 }
 ```
 
----
-
-### Optional Usage
+Fail: field injection, which hides the dependency from every constructor call and from every test.
 
 ```java
-// PASS: Return Optional from find* methods
-Optional<Market> market = marketRepository.findBySlug(slug);
-
-// PASS: Map/flatMap instead of get()
-return market
-    .map(MarketResponse::from)
-    .orElseThrow(() -> new EntityNotFoundException("Market not found"));
+@Autowired
+private MarketRepository marketRepository;
 ```
 
-`Optional` as return type ONLY, not for fields or constructor parameters.
+---
+
+### Make it immutable unless something has to change
+
+Records for data, final fields elsewhere, and no setter that exists only because a framework once needed one.
+Immutable objects are safe to share across threads and cannot be half-updated by a failed operation.
+
+Pass:
+
+```java
+public record MarketDto(Long id, String name, MarketStatus status) {}
+```
+
+Fail: a mutable bean with a no-argument constructor and a setter per field, passed between threads.
 
 ---
 
-### Streams Best Practices
+### Return Optional, never store it
+
+`Optional` is a return type for a lookup that can legitimately find nothing. It is not a field type, not a
+parameter type, and not a collection element.
+
+Pass: map or flatMap the value, and end with `orElseThrow`.
 
 ```java
-// PASS: Use streams for transformations, keep pipelines short
+return marketRepository.findBySlug(slug)
+    .map(MarketResponse::from)
+    .orElseThrow(() -> new MarketNotFoundException(slug));
+```
+
+Fail: `.get()` after `.isPresent()`, or an `Optional<String>` field on an entity.
+
+---
+
+### Keep stream pipelines short and named
+
+A stream expresses a transformation. When the pipeline needs more than a few stages, or a stage needs a comment,
+extract it into a method whose name says what the transformation produces.
+
+Pass:
+
+```java
 List<String> names = markets.stream()
     .map(Market::name)
     .filter(Objects::nonNull)
     .toList();
-
-// PASS: extract a complex pipeline into a named method rather than reverting to a loop
 ```
 
----
-
-### Formatting and Style
-
-- Use 2 or 4 spaces consistently (project standard)
-- One public top-level type per file
-- Keep methods short and focused; extract helpers
-- Order members: constants, fields, constructors, public methods, protected, private
-- Lambda expressions longer than one line must be extracted to a named private method
-
-Prefer explicit type names over `var`. A narrow allowance remains for an obvious right-hand-side `new` expression where
-the type is already on the line (e.g., `var list = new ArrayList<String>()`), but the default is an explicit type.
-
-Never use fully qualified class names in code; use imports.
+Fail: a twelve-stage pipeline with a nested `flatMap` and a lambda spanning six lines. Extract the lambda, or the
+whole pipeline, into a named private method.
 
 ---
 
-### Exceptions
+### Write for the next reader
 
-- Use unchecked exceptions for domain errors; wrap technical exceptions with context
-- Create domain-specific exceptions (e.g., `MarketNotFoundException`)
-- Avoid broad `catch (Exception ex)` unless rethrowing/logging centrally
-- Use global exception handlers (e.g., `@ControllerAdvice` in Spring)
-- No local try-catch blocks scattered across business logic methods
+One public top-level type per file. Members in order: constants, fields, constructors, public methods, protected,
+private. Methods short enough to hold in your head, with helpers extracted. A lambda longer than one line becomes a
+named private method. Never write a fully qualified class name in code, import it.
+
+Prefer an explicit type over `var`. The narrow allowance is a right-hand side that already names the type, such as
+`var list = new ArrayList<String>()`. Everywhere else, the type is the documentation.
+
+Pass: `MarketResponse response = service.findBySlug(slug);`
+
+Fail: `var result = service.process(input);`, where a reader has to open two methods to learn what `result` is.
+
+Indent with 2 or 4 spaces, matching the project. Consistency beats preference.
+
+---
+
+### Fail with a domain exception, handle it centrally
+
+Domain errors are unchecked exceptions named after the thing that went wrong. Technical exceptions get wrapped with
+context rather than swallowed. One `@ControllerAdvice` translates them into responses, so business methods stay
+free of try-catch blocks.
+
+Pass:
 
 ```java
 throw new MarketNotFoundException(slug);
 ```
 
+Fail: `catch (Exception ex) { log.error("error", ex); }` in the middle of a service method, which turns a failure
+into a wrong answer.
+
 ---
 
-### Generics and Type Safety
+### Declare your generics
 
-- Avoid raw types; declare generic parameters
-- Prefer bounded generics for reusable utilities
+No raw types. Bound a type parameter when a reusable utility needs a capability from it. A raw type turns a
+compile-time error into a `ClassCastException` at runtime.
+
+Pass:
 
 ```java
 public <T extends Identifiable> Map<Long, T> indexById(Collection<T> items) { ... }
 ```
 
----
-
-### Null Safety
-
-- Annotate all public API signatures with `@NonNull` / `@Nullable` (jspecify or `jakarta.annotation`)
-- Enforce with NullAway or jspecify annotation processor in CI
-- `Optional` as return type ONLY: not for fields or constructor parameters
-- Accept `@Nullable` only when unavoidable; otherwise use `@NonNull`
-- Use Bean Validation (`@NotNull`, `@NotBlank`) on inputs
+Fail: `public Map indexById(Collection items)`.
 
 ---
 
-### Logging
+### Say where null is allowed
 
-Use SLF4J as the logging API in all code; never import a concrete logging framework (Logback, Log4j2) directly in
-business logic.
+Annotate public API signatures with `@NonNull` and `@Nullable`, from JSpecify or `jakarta.annotation`, and enforce
+them with NullAway or the JSpecify processor in CI. Accept `@Nullable` only where the absence is genuinely part of
+the contract. Validate inbound values with Bean Validation so a null never travels deeper than the edge.
 
-Use `@Slf4j` (Lombok) for logger injection; never instantiate `LoggerFactory.getLogger(...)` manually.
+Pass: an annotated signature with a CI check that fails on a violation.
 
-```java
-// PASS
-@Slf4j
-public class MarketService {
-    public Market findBySlug(String slug) {
-        log.info("fetch_market slug={}", slug);
-        log.error("failed_fetch_market slug={}", slug, ex);
-    }
-}
-
-// FAIL
-private static final Logger log = LoggerFactory.getLogger(MarketService.class);
-```
-
-Log levels:
-- `ERROR`: unhandled exceptions
-- `WARN`: recoverable issues
-- `INFO`: significant domain events
-- `DEBUG`: diagnostic detail
-
-#### Logging (Production)
-
-- Use `logstash-logback-encoder` for structured JSON logs in production
-- Use Logback as the default implementation; switch to Log4j2 only if async appenders or advanced routing are required
+Fail: annotations added for documentation with nothing enforcing them, which drift within a release.
 
 ---
 
-### Concurrency
+### Log through SLF4J with structured messages
 
-#### Virtual Threads (Java 21+)
+Use SLF4J as the API, and never import Logback or Log4j2 in business code. Take the logger from `@Slf4j`. Message
+keys are stable tokens with the variable parts as parameters, so a log aggregator can group them.
 
-Use `Executors.newVirtualThreadPerTaskExecutor()` for all I/O-bound concurrency. Never use platform threads for
-I/O-bound work.
+Pass: `log.info("fetch_market slug={}", slug);` inside a class annotated `@Slf4j`.
 
-#### Async Pipelines
+Fail: `log.info("Fetching market " + slug)`, or a logger built by hand with
+`LoggerFactory.getLogger(MarketService.class)`.
 
-Use `CompletableFuture` for composing async pipelines. Always specify an explicit executor, never use the default
-ForkJoinPool for I/O:
-
-```java
-CompletableFuture.supplyAsync(() -> fetchData(), ioExecutor)
-    .thenApplyAsync(data -> transform(data), computeExecutor);
-```
-
-Avoid shared mutable state; use immutable Records or `@Value` classes as data carriers between threads. Document
-thread-safety guarantees (or lack thereof) on every class that is shared across threads.
-
----
-
-### Jackson Configuration
-
-- Register `JavaTimeModule` globally for Java 8 date/time types; never configure per-object-mapper ad hoc
-- Set `FAIL_ON_UNKNOWN_PROPERTIES` to `false` for inbound DTOs (tolerant reader pattern)
-- Use `@JsonProperty` for explicit field mapping, decoupling JSON keys from Java field names
-- Never expose domain entities directly as JSON response bodies: use DTOs
-
----
-
-### Configuration Binding
-
-Bind configuration to typed, validated `@ConfigurationProperties` objects. Do not read environment variables or
-`@Value` placeholders directly throughout the code; centralize them in a properties class and validate it with Bean
-Validation annotations so misconfiguration fails fast at startup.
-
-```java
-@Validated
-@ConfigurationProperties(prefix = "market")
-public record MarketProperties(@NotBlank String baseUrl, @Positive int maxPageSize) {}
-```
-
----
-
-### Entity and DTO Mapping
-
-Prefer a compile-time mapper such as MapStruct for entity to DTO and DTO to entity conversion. Hand-write a mapper only
-where the library is awkward, for example when generated mapping would overwrite managed audit fields. A compile-time
-mapper keeps the conversion explicit, fast, and verified at build time rather than via reflection.
-
----
-
-### Project Structure (Maven/Gradle)
-
-```
-src/main/java/com/example/app/
-  config/
-  controller/
-  service/
-  repository/
-  domain/
-  dto/
-  util/
-src/main/resources/
-  application.yml
-src/test/java/... (mirrors main)
-```
-
----
-
-### Code Quality Gates (CI)
-
-Enforce in CI via Gradle:
-
-- Checkstyle: style enforcement (Google Java Style or project-defined ruleset)
-- SpotBugs: static bytecode analysis; treat all `HIGH` and `MEDIUM` findings as errors
-- PMD: copy-paste detection and additional code smell rules
-
-```groovy
-plugins {
-    id 'checkstyle'
-    id 'com.github.spotbugs' version '6.0.9'
-    id 'pmd'
-}
-checkstyle { toolVersion = '10.12.4'; ignoreFailures = false }
-spotbugs { effort = 'max'; reportLevel = 'medium' }
-pmd { ignoreFailures = false; ruleSetFiles = files('config/pmd/ruleset.xml') }
-```
-
----
-
-### Build Output
-
-Redirect Gradle output to a log file to prevent terminal overflow:
-
-```bash
-./gradlew <task> > build_log.txt 2>&1
-```
-
-This overwrites `build_log.txt` so it always reflects only the most recent execution.
+Levels: `ERROR` for unhandled exceptions, `WARN` for recoverable problems, `INFO` for significant domain events,
+`DEBUG` for diagnostics. Structured JSON output and the production logging stack belong to
+`observability-and-logging`.
 
 ---
 
@@ -350,23 +256,42 @@ public Reservation reserveStockUntilPaymentWindowCloses(OrderId orderId, Duratio
 
 ---
 
-### Testing Expectations
+### Reference material
 
-- JUnit 5 + AssertJ for fluent assertions
-- Mockito for mocking; use `@InjectMocks` and `@Mock` instead of manual `@BeforeEach` initialization
-- Avoid partial mocks where possible
-- Favor deterministic tests; no hidden sleeps
-- Extract object creation to helper methods or a shared `TestDataFactory` class
+| Open this | For |
+| --- | --- |
+| [references/concurrency.md](references/concurrency.md) | Virtual threads, executors, `CompletableFuture` composition, and thread-safety documentation. |
+| [references/serialization-and-config.md](references/serialization-and-config.md) | Jackson setup, typed `@ConfigurationProperties`, and entity to DTO mapping. |
+| [references/static-analysis.md](references/static-analysis.md) | Checkstyle, SpotBugs, and PMD wiring, and keeping build output readable. |
+| [references/project-layout.md](references/project-layout.md) | Package structure for a layered project, and the code smells to fix on sight. |
 
 ---
 
-### Code Smells to Avoid
+### Related skills
 
-- Long parameter lists → use DTO/builders
-- Deep nesting → early returns
-- Magic numbers → named constants
-- Static mutable state → prefer dependency injection
-- Silent catch blocks → log and act or rethrow
+| Skill | What it owns |
+| --- | --- |
+| `springboot-patterns` | Spring Boot structure, REST contracts, caching, and async. |
+| `jpa-patterns` | Entities, queries, and transactions. |
+| `springboot-tdd` | Test structure, slices, and the coverage gate. |
+| `springboot-verification` | The pipeline that runs the analysis tools. |
+| `build-dependency-management` | Version catalog and BOM discipline for the plugins above. |
+| `hexagonal-architecture` | Ports and adapters layering when the project uses it. |
+| `observability-and-logging` | Structured log output, metrics, and tracing. |
+| `coding-standards` | The cross-language principles this skill applies to Java. |
 
-Remember: Keep code intentional, typed, and observable. Optimize for maintainability over micro-optimizations unless
-proven necessary.
+---
+
+### Checklist
+
+- [ ] Names say what the thing is, and booleans read as questions.
+- [ ] Every dependency arrives through the constructor, and no field carries `@Autowired`.
+- [ ] Data types are records or final-field classes, with no setter that nothing needs.
+- [ ] `Optional` appears only as a return type, and never after `.isPresent()` plus `.get()`.
+- [ ] Stream pipelines are short, or extracted into named methods.
+- [ ] Explicit types instead of `var`, except where the right-hand side already names the type.
+- [ ] Domain exceptions are unchecked, named, and handled in one `@ControllerAdvice`.
+- [ ] No raw types anywhere.
+- [ ] Nullability annotations are present on public signatures and enforced in CI.
+- [ ] Logging goes through `@Slf4j` with parameterised messages, never concatenation.
+- [ ] Javadoc is absent by default, and every surviving block clears the caps above.

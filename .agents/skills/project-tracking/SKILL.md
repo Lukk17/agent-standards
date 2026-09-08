@@ -1,6 +1,6 @@
 ---
 name: project-tracking
-description: "Tracker-independent standards for planning and tracking work: choosing the kind of work, sizing and splitting an item, keeping epics as outcomes, a governed label taxonomy, statuses and how closure is recorded, testable acceptance criteria, dependency and duplicate links, bounded work in progress with the measures that go with it, and tying an item back to the code. Invoke before creating, editing, splitting, closing or triaging a work item, and before proposing any change to a backlog, board or workflow."
+description: 'Tracker-independent standards for planning and tracking work: kinds of work, sizing and splitting, epics as outcomes, a governed label taxonomy, statuses and how closure is recorded, testable acceptance criteria, dependency and duplicate links, bounded work in progress, and tying an item back to the code. Use when you say "write this ticket", "split this story", "are these criteria testable", "can we close this", or "triage the backlog". Not for Jira API mechanics, use `jira-integration`.'
 ---
 
 # Project Tracking
@@ -9,8 +9,12 @@ Rules for keeping a backlog a truthful record of what is planned, what is in fli
 
 Every rule below is stated as a property of the work rather than as a feature of a tool, so it survives a change of
 tracker. Where a rule needs a mechanism the tool has to provide, the rule says what that mechanism must do and
-leaves the tool free to provide it however it does. Per-tool detail lives in
-[tracker-mechanics.md](references/tracker-mechanics.md), which you load only when acting inside a named tracker.
+leaves the tool free to provide it however it does.
+
+| Task | Open |
+|---|---|
+| Acting inside a named tracker, where per-tool field and status behaviour matters | [tracker-mechanics.md](references/tracker-mechanics.md) |
+| Writing or reviewing the implementation plan for an item, with phases, rollback and risk | [implementation-plans.md](references/implementation-plans.md) |
 
 ---
 
@@ -23,6 +27,17 @@ leaves the tool free to provide it however it does. Per-tool detail lives in
 - Before writing a branch name, a commit message or a merge-request title that has to link back to a work item
 - When a dependency, a duplicate or a parent relationship needs recording
 - Before proposing a change to a board, a workflow, a status set or a cadence
+
+---
+
+### When Not to Activate
+
+- Calling the Jira API to read, comment on or transition an issue, use `jira-integration`
+- Operating GitHub issues, pull requests and releases, use `github-ops`
+- Naming the branch or writing the commit message that carries the item key, use `git-workflow`
+- Recording an architectural decision rather than a unit of work, use `architecture-decision-records`
+- Writing the tests that an acceptance criterion implies, use `tdd-workflow` or the language test skill
+- Deciding how to hand the work to an agent once the item exists, use `agentic-engineering`
 
 ---
 
@@ -360,3 +375,14 @@ One more thing to check rather than assume: whether an item id survives a migrat
 identity is its id is fragile across a tool change. Two mitigations are cheap. Carry the original id inside the item
 body or in a dedicated field, and keep a committed id-to-summary mapping file in the repository, so a code marker
 naming an item stays resolvable even if the id it names does not survive.
+
+---
+
+### Related Skills
+
+- `jira-integration` owns reading, commenting on and transitioning an issue through the Jira API
+- `github-ops` owns issue triage, pull request operations and releases on GitHub
+- `git-workflow` owns the branch name and commit message that link a change back to an item
+- `architecture-decision-records` owns recording a design decision rather than a unit of work
+- `agentic-engineering` owns sizing and routing the work once the item exists
+- `markdown-writer` owns the human-facing documents an item may produce

@@ -1,39 +1,61 @@
 ---
 name: springboot-tdd
-description: Test-driven development for Spring Boot using JUnit 5, Mockito, MockMvc, Testcontainers, and JaCoCo. Use when adding features, fixing bugs, or refactoring.
-origin: ECC
+description: "Test-driven development for Spring Boot with JUnit 5, Mockito, MockMvc, @DataJpaTest, Testcontainers, and JaCoCo gates. Use when you say \"write the test first\", \"add tests for this endpoint\", \"mock this bean in a @WebMvcTest\", \"run this repository test against real Postgres\", or \"coverage is failing the build\". Not for running the whole build and scan pipeline before a pull request, use `springboot-verification`."
+license: Apache-2.0
 ---
 
 # Spring Boot TDD Workflow
 
-TDD guidance for Spring Boot services with around 90% coverage of real logic (unit + integration), and
-100% where it genuinely adds value.
+Test-first development for Spring Boot services, targeting around 90% coverage of real logic across unit and
+integration tests, and 100% where it genuinely adds value. Every example assumes Java 21 LTS as the minimum with
+Java 25 LTS as the recommended target, and Spring Boot 3.x.
 
 ---
 
-### When to Use
+### When to activate
 
-- New features or endpoints
-- Bug fixes or refactors
-- Adding data access logic or security rules
-
----
-
-### Workflow
-
-1) Write a failing test first (they should fail)
-2) Implement minimal code to pass
-3) Refactor with tests green
-4) Enforce coverage (JaCoCo)
-
-Every test must satisfy FIRST: Fast (runs in milliseconds), Isolated (no dependence on other tests or
-shared state), Repeatable (same result on every run and every machine), Self-validating (a single
-pass/fail with no manual inspection), and Timely (written alongside or before the code, not bolted on
-afterwards). FIRST is the governing principle for this workflow.
+- Starting a new feature, endpoint, or use case.
+- Fixing a bug, where the failing test comes before the fix.
+- Refactoring code that has to keep behaving the same way.
+- Adding data access logic, a security rule, or a validation constraint.
+- Deciding which test slice a piece of behaviour belongs in.
 
 ---
 
-### Unit Tests (JUnit 5 + Mockito)
+### When not to activate
+
+- Running the build, static analysis, and security pipeline before a pull request, use `springboot-verification`.
+- Language-neutral test discipline and the FIRST principles themselves, use `tdd-workflow`.
+- Entity mapping and query design that the repository tests exercise, use `jpa-patterns`.
+- Controller, DTO, and service structure under test, use `springboot-patterns`.
+- Browser-level end-to-end tests, use `e2e-testing`.
+
+---
+
+### Write the failing test first
+
+Red, green, refactor, in that order. A test written after the code passes on the first run, which proves nothing
+about whether it would catch the regression it exists for.
+
+1. Write a test that fails for the right reason.
+2. Write the least code that makes it pass.
+3. Refactor with the suite green.
+4. Keep the JaCoCo gate enforced rather than advisory.
+
+Every test satisfies FIRST: Fast, running in milliseconds. Isolated, with no dependence on another test or on
+shared state. Repeatable, giving the same result on every machine. Self-validating, a single pass or fail with no
+manual inspection. Timely, written alongside or before the code. FIRST governs this whole workflow.
+
+Pass: the new test fails, then the implementation makes it pass.
+
+Fail: the implementation lands first and the test is written to match whatever it already does.
+
+---
+
+### Unit tests with JUnit 5 and Mockito
+
+Test service logic in isolation with mocked collaborators, and cover the error and edge paths alongside the happy
+one. A suite that only tests the happy path is a suite that goes green during an outage.
 
 ```java
 @ExtendWith(MockitoExtension.class)
@@ -74,16 +96,18 @@ class MarketServiceTest {
 }
 ```
 
-Patterns:
-- Setup, action, assertion in every test body, labelled per the project's convention if the project labels test
-  phases at all (see `coding-standards` -> Test Structure)
-- Cover the happy path plus error and edge cases (failures, empty inputs, boundaries)
-- Avoid partial mocks; prefer explicit stubbing
-- Use `@ParameterizedTest` for variants
+Pass: setup, action, and assertion in every test body, one behaviour per test, `@ParameterizedTest` for variants.
+
+Fail: a partial mock of the class under test, or a test that asserts nothing beyond "no exception was thrown".
+
+Label the test phases only if the project labels them at all, per the Test Structure section of `coding-standards`.
 
 ---
 
-### Web Layer Tests (MockMvc)
+### Web layer tests with MockMvc
+
+`@WebMvcTest` loads the controller, the argument resolvers, and the validation, and nothing else. Use it to assert
+status codes, response shape, and validation behaviour.
 
 ```java
 @WebMvcTest(MarketController.class)
@@ -102,12 +126,17 @@ class MarketControllerTest {
 }
 ```
 
-Use `@MockitoBean` for mocking Spring beans on Boot 3.4 and newer; the older `@MockBean` is deprecated. The
-sibling springboot-verification skill must use the same annotation, so keep the two in sync.
+Pass: `@MockitoBean` for a mocked Spring bean, which is the supported annotation on Boot 3.4 and newer.
+
+Fail: `@MockBean`, which is deprecated, and a full `@SpringBootTest` context for a test that only checks a status
+code.
 
 ---
 
-### Integration Tests (SpringBootTest)
+### Integration tests with the real context
+
+`@SpringBootTest` wires the whole application. Reserve it for behaviour that only appears when the layers are
+connected, because every one of these tests costs a context startup.
 
 ```java
 @SpringBootTest
@@ -128,9 +157,16 @@ class MarketIntegrationTest {
 }
 ```
 
+Pass: a handful of integration tests covering the wiring, with the detail pushed down into slices.
+
+Fail: every test written as `@SpringBootTest`, which turns a five-second suite into a five-minute one.
+
 ---
 
-### Persistence Tests (DataJpaTest)
+### Persistence tests against the production engine
+
+Run repository tests against the database the service actually uses. H2 accepts SQL that PostgreSQL rejects, so a
+green H2 suite says nothing about production.
 
 ```java
 @DataJpaTest
@@ -151,18 +187,48 @@ class MarketRepositoryTest {
 }
 ```
 
----
+Pass: Testcontainers with reusable containers for Postgres and Redis, wired through `@DynamicPropertySource` so the
+container's JDBC URL reaches the Spring context.
 
-### Testcontainers
-
-- Use reusable containers for Postgres/Redis to mirror production
-- Wire via `@DynamicPropertySource` to inject JDBC URLs into Spring context
+Fail: the embedded in-memory database that `@DataJpaTest` substitutes by default.
 
 ---
 
-### Coverage (JaCoCo)
+### Assert with AssertJ
 
-Maven snippet:
+One fluent assertion library across the suite keeps failure messages readable and stops reviewers from switching
+dialects mid-file.
+
+Pass: `assertThat(...)` for values, `jsonPath` for response bodies, `assertThatThrownBy(...)` for exceptions.
+
+Fail: a mix of JUnit `assertEquals`, Hamcrest matchers, and AssertJ in the same class.
+
+---
+
+### Build test data through builders
+
+A builder with sensible defaults lets each test state only the field it cares about, so the intent of the test
+survives a change to the constructor.
+
+```java
+class MarketBuilder {
+  private String name = "Test";
+  MarketBuilder withName(String name) { this.name = name; return this; }
+  Market build() { return new Market(null, name, MarketStatus.ACTIVE); }
+}
+```
+
+Pass: one shared builder or test data factory per aggregate.
+
+Fail: a twelve-argument constructor call copied into thirty test methods.
+
+---
+
+### Enforce coverage in the build
+
+Coverage is a gate, not a report nobody opens. Fail the build below the threshold, and measure real logic rather
+than padding the number with generated accessors.
+
 ```xml
 <plugin>
   <groupId>org.jacoco</groupId>
@@ -181,31 +247,35 @@ Maven snippet:
 </plugin>
 ```
 
----
+Take the plugin version from the project version catalog rather than pinning it per module, per
+`build-dependency-management`.
 
-### Assertions
+Pass: `mvn verify` or `./gradlew test jacocoTestReport` fails when coverage drops below the threshold.
 
-- Prefer AssertJ (`assertThat`) for readability
-- For JSON responses, use `jsonPath`
-- For exceptions: `assertThatThrownBy(...)`
-
----
-
-### Test Data Builders
-
-```java
-class MarketBuilder {
-  private String name = "Test";
-  MarketBuilder withName(String name) { this.name = name; return this; }
-  Market build() { return new Market(null, name, MarketStatus.ACTIVE); }
-}
-```
+Fail: a coverage report generated and ignored, or a threshold lowered to make a red build green.
 
 ---
 
-### CI Commands
+### Related skills
 
-- Maven: `mvn -T 4 test` or `mvn verify`
-- Gradle: `./gradlew test jacocoTestReport`
+| Skill | What it owns |
+| --- | --- |
+| `springboot-verification` | The build, static analysis, test, scan, and diff pipeline that runs this suite. |
+| `tdd-workflow` | Language-neutral TDD discipline and the FIRST principles. |
+| `springboot-patterns` | The controllers, services, and DTOs these tests exercise. |
+| `jpa-patterns` | Entity and query design behind the repository tests. |
+| `java-coding-standards` | Java naming and style inside the test sources. |
+| `build-dependency-management` | Where the test and coverage plugin versions live. |
 
-Remember: Keep tests fast, isolated, and deterministic. Test behavior, not implementation details.
+---
+
+### Checklist
+
+- [ ] Every behaviour change started with a test that failed for the right reason.
+- [ ] Error and edge cases are covered, not just the happy path.
+- [ ] Mocked Spring beans use `@MockitoBean`, never the deprecated `@MockBean`.
+- [ ] Slices are used where they fit, and `@SpringBootTest` only where the wiring is the subject.
+- [ ] Repository tests run against the production database engine through Testcontainers.
+- [ ] Assertions are AssertJ throughout, with `jsonPath` for response bodies.
+- [ ] Test data comes from builders rather than repeated constructor calls.
+- [ ] The coverage gate fails the build, and nobody lowered the threshold to pass it.

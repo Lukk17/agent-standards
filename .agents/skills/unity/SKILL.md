@@ -1,109 +1,184 @@
 ---
 name: unity
-description: Unity game development standards for performance, memory management, asset loading, architecture patterns, testing, and build configuration.
-origin: project-standards
+description: Unity and C# standards for allocation-free per-frame code, object pooling, Addressables load and release pairing, cached component lookups, script execution order, ScriptableObject architecture, and the Unity Test Framework. Use when you say "why does my game stutter every few seconds", "pool these bullets", "load this asset with Addressables", "cache this GetComponent call", or "write an edit mode test for this". Not for engine-agnostic C# and SOLID rules, use `coding-standards`.
 ---
 
 # Unity Game Development Standards
 
+How a Unity project keeps a stable frame time and stays testable: nothing allocates in the per-frame path, nothing
+is looked up by search at runtime, and configuration lives in assets rather than in code. Most Unity stutter is a
+garbage collection pause caused by a single allocating line inside `Update`.
+
+Baseline: Unity 6.3 LTS, the current supported LTS (verified locally as 6000.3). Everything below assumes the
+Addressables, Input System, and Test Framework packages from that release.
+
 ---
 
-### Memory Management and Garbage Collection
+### When to activate
 
-- No allocations in Update, FixedUpdate, or LateUpdate. Any dynamic memory allocation in per-frame methods causes GC
-  spikes and frame rate drops.
-- Use Object Pooling for all runtime instantiation. Never call `Instantiate` or `Destroy` during active gameplay loops.
-  Pre-warm pools during scene load.
-- Use `GarbageCollector.GCMode.Manual` (or `GarbageCollector.Mode.Disabled`) only for critical, predictable gameplay
-  segments with strictly bounded allocation budgets (e.g., a racing lap). Always re-enable incremental GC afterward to
-  prevent OS-level memory pressure shutdowns.
-- Use `StringBuilder` in any loop that constructs strings. Never use `+` string concatenation inside Update or tight
-  loops; each concatenation allocates a new managed string object.
+- Writing or reviewing a MonoBehaviour, a ScriptableObject, or gameplay C#.
+- Chasing a frame-time spike, a GC pause, or a memory growth over a session.
+- Loading, releasing, or organising assets and bundles.
+- Deciding how systems talk to each other without direct references.
+- Writing Edit Mode or Play Mode tests.
+- Setting up the project's serialisation, LFS tracking, or build configuration.
 
-Example pool pattern:
+---
+
+### When not to activate
+
+- Language-level C# design, SOLID, naming, and error handling, use `coding-standards`.
+- Designing the backend a multiplayer or live-ops game talks to, use `backend-patterns`.
+- Building the CI pipeline itself rather than the Unity build settings, use `deployment-patterns`.
+- Writing the test strategy and coverage policy, use `tdd-workflow`.
+- Profiling a non-Unity application, use `performance-optimization`.
+
+---
+
+### Nothing allocates per frame
+
+Any managed allocation inside `Update`, `FixedUpdate`, or `LateUpdate` accumulates until the collector runs, and the
+collector running mid-frame is the stutter. Build strings with `StringBuilder`, never with `+` in a loop.
+
+Pass:
+
 ```csharp
-// Pre-warm
+private readonly StringBuilder _hud = new StringBuilder(64);
+
+private void Update()
+{
+    _hud.Clear();
+    _hud.Append("HP ").Append(_health);
+    _hudLabel.text = _hud.ToString();
+}
+```
+
+Fail:
+
+```csharp
+private void Update() => _hudLabel.text = "HP " + _health + " / " + _maxHealth;
+```
+
+Use `GarbageCollector.GCMode.Manual` only for a critical, predictable segment with a bounded allocation budget, a
+racing lap for example, and always re-enable incremental GC afterwards. Leaving it off invites the operating system
+to kill the process for memory pressure.
+
+---
+
+### Pool instead of Instantiate
+
+`Instantiate` and `Destroy` during gameplay allocate and produce garbage. Pre-warm a pool at scene load and
+activate out of it.
+
+Pass:
+
+```csharp
 for (int i = 0; i < poolSize; i++)
     _pool.Enqueue(Instantiate(prefab));
 
-// Acquire
 var obj = _pool.Count > 0 ? _pool.Dequeue() : Instantiate(prefab);
 obj.SetActive(true);
+```
 
-// Release
+Release by deactivating and returning to the pool, never by destroying:
+
+```csharp
 obj.SetActive(false);
 _pool.Enqueue(obj);
 ```
 
----
-
-### Asset Management, Addressables System
-
-- Never use `Resources.Load`. Use the Addressables system (`com.unity.addressables`) for all dynamic asset loading to
-  optimise memory footprint and reduce bundle sizes.
-- Enforce mirrored Load/Release calls. Every `Addressables.LoadAssetAsync<T>()` call must have a corresponding
-  `Addressables.Release()` call when the asset is no longer needed.
-- Unload Addressable bundles explicitly by decrementing the reference count to zero, ensuring that memory used by
-  `AsyncOperationHandle` structs is properly freed.
-- Organise Addressable groups by load context (e.g., `UI`, `Level_01`, `Shared_Audio`) to minimise bundle download size
-  and enable incremental content updates.
+Fail:
 
 ```csharp
-// Load
+private void Fire() => Destroy(Instantiate(bulletPrefab), 3f);
+```
+
+---
+
+### Addressables, and every load has a release
+
+`Resources.Load` pulls its whole folder into the build and gives no control over memory. Use Addressables, and pair
+every `LoadAssetAsync` with a `Release` when the asset is no longer needed, so the reference count reaches zero and
+the bundle actually unloads.
+
+Pass:
+
+```csharp
 var handle = Addressables.LoadAssetAsync<Sprite>("ui/icons/health");
 await handle.Task;
 _healthIcon.sprite = handle.Result;
+```
 
-// Release when done
+Then release it when the screen closes:
+
+```csharp
 Addressables.Release(handle);
 ```
 
----
+Fail:
 
-### Script Execution Order
+```csharp
+_healthIcon.sprite = Resources.Load<Sprite>("icons/health");
+```
 
-- Explicitly define the execution sequence using Script Execution Order (Project Settings → Script Execution Order)
-  instead of relying on arbitrary Unity load orders.
-- Use `[DefaultExecutionOrder(N)]` attribute on MonoBehaviours where the execution order matters:
-  ```csharp
-  [DefaultExecutionOrder(-100)]
-  public class InputManager : MonoBehaviour { ... }
-  ```
-- Systems that produce data (input, physics results) must execute before systems that consume it (character controllers,
-  UI).
+Organise groups by load context, `UI`, `Level_01`, `Shared_Audio`, so a download is scoped to what the player is
+about to need and content updates stay incremental.
 
 ---
 
-### Component Caching and Lifecycle
+### Cache component lookups
 
-- Cache all `GetComponent<T>()` and `FindObjectOfType<T>()` calls in `Awake()` or `Start()`. Never call them inside
-  `Update()` loops: they are expensive searches.
-- Place heavy initialisation logic in `Awake()` only when it is synchronous and fast. Defer non-critical setup to
-  `Start()` or use `async`/`UniTask` to prevent blocking the main thread during scene loads.
-- Null-check cached references in `OnEnable` if the component may be destroyed and re-enabled; do not assume the cached
-  reference remains valid across scene reloads.
+`GetComponent<T>()` and the `FindObjectOfType<T>()` family are searches. Run them once in `Awake` or `Start` and
+hold the reference.
+
+Pass:
 
 ```csharp
 private Rigidbody _rb;
-private Animator _animator;
 
-private void Awake()
-{
-    _rb = GetComponent<Rigidbody>();
-    _animator = GetComponent<Animator>();
-}
+private void Awake() => _rb = GetComponent<Rigidbody>();
 ```
+
+Fail:
+
+```csharp
+private void Update() => GetComponent<Rigidbody>().AddForce(Vector3.up);
+```
+
+Keep heavy initialisation out of `Awake` unless it is synchronous and fast, defer the rest to `Start` or an async
+path so scene loading is not blocked. Null-check a cached reference in `OnEnable` where the component can be
+destroyed and re-enabled, because the reference does not survive a scene reload.
 
 ---
 
-### Performance, Physics
+### Make execution order explicit
 
-- Use `Physics.RaycastNonAlloc` instead of `Physics.RaycastAll` to eliminate GC allocation during collision checks.
-  Pre-allocate a results buffer at field level.
-- Modify Transform position and rotation in a single operation using `Transform.SetPositionAndRotation()` rather than
-  setting `position` and `rotation` separately to avoid redundant internal transform updates.
-- Pass custom structs used in tight physics or math loops by reference using the `ref` or `in` keywords to prevent
-  unnecessary stack copying.
+Systems that produce data, input and physics results, must run before the systems that consume them. Relying on
+Unity's arbitrary default order produces a one-frame lag that only shows up under load.
+
+Pass:
+
+```csharp
+[DefaultExecutionOrder(-100)]
+public class InputManager : MonoBehaviour { }
+```
+
+Fail:
+
+```csharp
+public class InputManager : MonoBehaviour { }
+```
+
+Project Settings, Script Execution Order does the same job for cases where the attribute is impractical. Use one of
+the two, not neither.
+
+---
+
+### Physics without allocation
+
+`Physics.RaycastAll` allocates an array per call. The `NonAlloc` variants write into a buffer you own.
+
+Pass:
 
 ```csharp
 private readonly RaycastHit[] _hits = new RaycastHit[10];
@@ -115,21 +190,40 @@ private void Update()
 }
 ```
 
+Fail:
+
+```csharp
+private void Update()
+{
+    foreach (var hit in Physics.RaycastAll(transform.position, transform.forward, 10f)) { }
+}
+```
+
+Set position and rotation together with `Transform.SetPositionAndRotation()` rather than assigning each, which
+triggers two internal transform updates. Pass custom structs in tight math loops by `ref` or `in` to avoid copying.
+
 ---
 
-### C# Naming Conventions
+### C# naming
 
-- `MonoBehaviour` class names must match their filename exactly.
-- Use `[SerializeField] private` for Inspector-exposed fields. Never use `public` fields solely for Inspector
-  visibility.
-- Wrap all scripts in a project-specific namespace (e.g., `MyGame.Core`, `MyGame.UI`). Do not place scripts in the
-  global namespace.
-- Naming rules:
-  - Private fields: `_camelCase`
-  - Public properties: `PascalCase`
-  - Constants and static readonly: `PascalCase` (C# convention, not `UPPER_SNAKE_CASE`)
-  - Interfaces: prefix with `I`: `IInteractable`, `IDamageable`
-  - Abstract base classes: prefix with `Base`: `BaseDamageable`, `BaseWeapon`
+A `MonoBehaviour` class name matches its filename exactly, or Unity cannot bind the script. Expose Inspector fields
+with `[SerializeField] private`, never by making a field public.
+
+Pass:
+
+```csharp
+[SerializeField] private float _moveSpeed = 5f;
+```
+
+Fail:
+
+```csharp
+public float moveSpeed = 5f;
+```
+
+Wrap every script in a project namespace such as `MyGame.Core` or `MyGame.UI`. Private fields are `_camelCase`,
+public properties are `PascalCase`, constants and `static readonly` are `PascalCase` rather than
+`UPPER_SNAKE_CASE`, interfaces are prefixed `I`, abstract bases are prefixed `Base`.
 
 ---
 
@@ -158,141 +252,103 @@ example a documented state machine, an ordering requirement, or a concurrency gu
 justify in review, not a budget to spend. The one-line cap on a tag line has no exception at all: shorten it or delete
 it.
 
+Pass, single-line summary, then only what the signature cannot say:
+
 ```csharp
-// GOOD: single-line summary, then only what the signature cannot say
 /// <summary>Spawns a pooled projectile at the muzzle and arms it.</summary>
 /// <param name="speed">Metres per second, clamped to the weapon maximum.</param>
 /// <exception cref="InvalidOperationException">Thrown when the pool is exhausted.</exception>
-public Projectile Fire(float speed) { ... }
+public Projectile Fire(float speed) { }
+```
 
-// BAD: three lines to say what the method name already said
+Fail, three lines to say what the method name already said:
+
+```csharp
 /// <summary>
 /// Fires a projectile.
 /// </summary>
 /// <param name="speed">The speed.</param>
 /// <returns>A projectile.</returns>
-public Projectile Fire(float speed) { ... }
+public Projectile Fire(float speed) { }
 ```
 
 ---
 
-### Architecture, ScriptableObject-Based Design
+### ScriptableObject architecture
 
-- Use ScriptableObjects as data containers for configuration (weapon stats, level parameters, audio clips, difficulty
-  settings) instead of hardcoding values in MonoBehaviours.
-- Use ScriptableObject-based event channels (`GameEvent` / `GameEventListener` pattern) for decoupled communication
-  between systems, replacing direct MonoBehaviour references and static events.
-- Never store runtime mutable game state in ScriptableObjects that persist between Play Mode sessions in the Editor. Use
-  them only for immutable configuration data or event definitions.
+Put configuration in ScriptableObject assets rather than hardcoding it in MonoBehaviours, so a designer can tune it
+without a recompile, and use ScriptableObject event channels to decouple systems instead of direct references or
+static events. Never store runtime mutable state in one: it persists between Play Mode sessions in the Editor and
+produces a bug that only reproduces on the second run. Full data-container and event-channel examples are in
+[references/architecture-and-testing.md](references/architecture-and-testing.md).
+
+Pass:
 
 ```csharp
-// Data container
 [CreateAssetMenu(menuName = "Game/WeaponData")]
-public class WeaponData : ScriptableObject
-{
-    public float damage;
-    public float fireRate;
-    public AudioClip shootSound;
-}
+public class WeaponData : ScriptableObject { public float damage; public float fireRate; }
+```
 
-// Event channel
-[CreateAssetMenu(menuName = "Events/GameEvent")]
-public class GameEvent : ScriptableObject
-{
-    private readonly List<GameEventListener> _listeners = new();
-    public void Raise() => _listeners.ForEach(l => l.OnEventRaised());
-    public void Register(GameEventListener l) => _listeners.Add(l);
-    public void Unregister(GameEventListener l) => _listeners.Remove(l);
-}
+Fail:
+
+```csharp
+[CreateAssetMenu(menuName = "Game/PlayerState")]
+public class PlayerState : ScriptableObject { public int currentHealth; }
 ```
 
 ---
 
-### Testing, Unity Test Framework
+### Testing with the Unity Test Framework
 
-- Use the Unity Test Framework (`com.unity.test-framework`) for all automated tests. Organise tests in a dedicated
-  `Tests/` assembly definition (`.asmdef`).
-- Use Edit Mode tests for: pure logic, ScriptableObject configuration, utility functions, and data validation (no scene
-  required, fastest execution).
-- Use Play Mode tests for: gameplay mechanics, physics interactions, coroutine behaviour, component lifecycle, and
-  integration tests requiring a running scene.
-- Mock dependencies using interfaces and manual test doubles. Do not use the game's production scene in automated tests:
-  create minimal test scenes.
+Tests live in a dedicated `Tests/` assembly definition. Edit Mode for pure logic, ScriptableObject configuration,
+utilities, and data validation, which need no scene and run fastest. Play Mode for gameplay, physics, coroutines,
+component lifecycle, and integration. Mock through interfaces and hand-written doubles, and build a minimal scene
+per test rather than loading a production one, which breaks whenever a designer moves something.
+
+Pass:
 
 ```csharp
-// Edit Mode test
 [Test]
-public void WeaponData_DamageIsPositive()
-{
-    var data = ScriptableObject.CreateInstance<WeaponData>();
-    data.damage = 25f;
-    Assert.Greater(data.damage, 0f);
-}
+public void WeaponData_DamageIsPositive() => Assert.Greater(_weaponData.damage, 0f);
 ```
 
----
-
-### Version Control
-
-- Commit a `.gitignore` excluding: `Library/`, `Temp/`, `Logs/`, `Builds/`, `UserSettings/`, `*.csproj`, `*.sln` (unless
-  needed by CI).
-- Set Force Text serialisation in Project Settings → Editor → Asset Serialization mode to produce human-readable YAML
-  diffs for scene and prefab files, enabling meaningful Git diffs and conflict resolution.
-- Use Git LFS for all binary assets tracked by extension:
-  ```
-  *.png *.jpg *.psd *.tga    # Textures
-  *.wav *.mp3 *.ogg          # Audio
-  *.fbx *.obj *.blend        # 3D models
-  *.anim *.controller        # Animation assets
-  *.unity *.prefab           # Scenes & prefabs (optional, helps with large files)
-  ```
-
----
-
-### Build Pipeline, IL2CPP and CI
-
-- Use IL2CPP as the scripting backend for all release builds on mobile (Android, iOS) and console platforms. IL2CPP
-  provides better runtime performance and enables code stripping via Managed Stripping Level settings.
-- Use Mono for development builds only to benefit from faster iteration and script reload times.
-- Configure the CI build matrix to produce builds for all target platforms (Android AAB, iOS IPA, Windows standalone) on
-  every merge to the main branch.
-- Use Unity Cloud Build or a self-hosted runner with the correct Unity license activated and the target platform build
-  modules installed.
-- Enable Managed Code Stripping (`Strip Engine Code: true`, `Managed Stripping Level: High`) for release builds.
-  Maintain a `link.xml` to preserve types used via reflection.
-
----
-
-### Input System, New Input System
-
-- Use the New Input System (`com.unity.inputsystem`) for all new projects. Do not use the legacy `Input` class
-  (`Input.GetKey`, `Input.GetAxis`, etc.).
-- Define all input actions in an Input Actions asset (`.inputactions`). Never hardcode key bindings in MonoBehaviours.
-- Generate a C# wrapper class from the Input Actions asset (Project Settings → Input System Package → Generate C# Class)
-  for type-safe, IntelliSense-supported access.
+Fail:
 
 ```csharp
-private PlayerInputActions _inputActions;
-
-private void Awake()
-{
-    _inputActions = new PlayerInputActions();
-    _inputActions.Player.Jump.performed += OnJump;
-}
-
-private void OnEnable() => _inputActions.Enable();
-private void OnDisable() => _inputActions.Disable();
+[UnityTest]
+public IEnumerator Player_TakesDamage() { SceneManager.LoadScene("Level_01_Production"); yield return null; }
 ```
 
 ---
 
-### UI Standards, UI Toolkit vs. UGUI
+### Reference files
 
-- Use UI Toolkit (`UIElements`) for:
-  - All new editor tooling and custom Editor windows.
-  - Runtime UI in new projects targeting Unity 2023+.
-- Use UGUI (`Canvas`-based) only for:
-  - In-world spatial UI (e.g., health bars above characters, world-space labels).
-  - Porting or extending a legacy UGUI system where a full rewrite is not feasible.
-- Do not mix UI Toolkit and UGUI in the same screen context. Choose one system per UI context and document the choice.
-- Define all visual styles in USS (Unity Style Sheets) files, not inline in C# code.
+| Open this | For |
+|---|---|
+| [references/project-and-build.md](references/project-and-build.md) | Git and LFS setup, serialisation mode, IL2CPP and stripping, the CI build matrix, the Input System, and UI Toolkit versus UGUI |
+| [references/architecture-and-testing.md](references/architecture-and-testing.md) | Full ScriptableObject data-container and event-channel examples, and Edit Mode versus Play Mode test structure |
+
+---
+
+### Related skills
+
+- `coding-standards` for the C# design and naming floor underneath these rules.
+- `tdd-workflow` for the test strategy the Unity Test Framework implements.
+- `performance-optimization` for the measure-first method behind the frame-budget rules.
+- `deployment-patterns` for the CI pipeline that runs the build matrix.
+- `backend-patterns` for the services a live game talks to.
+
+---
+
+### Checklist
+
+- [ ] No managed allocation in `Update`, `FixedUpdate`, or `LateUpdate`.
+- [ ] No string concatenation in a per-frame or tight loop.
+- [ ] Runtime spawning goes through a pre-warmed pool, no `Instantiate` or `Destroy` in gameplay.
+- [ ] No `Resources.Load`, and every `LoadAssetAsync` has a matching `Release`.
+- [ ] Every `GetComponent` and `FindObjectOfType` cached in `Awake` or `Start`.
+- [ ] Producer systems ordered ahead of consumers with `[DefaultExecutionOrder]` or the project setting.
+- [ ] `NonAlloc` physics queries with a field-level buffer.
+- [ ] Inspector fields are `[SerializeField] private`, every script in a project namespace.
+- [ ] Configuration lives in ScriptableObjects, no runtime mutable state in them.
+- [ ] Tests sit in their own assembly definition and build their own minimal scenes.

@@ -1,119 +1,127 @@
 ---
 name: powershell
-description: PowerShell 7+ scripting standards for error handling, advanced functions, module structure, secrets handling, and Pester v5 testing.
-origin: project-standards
+description: PowerShell 7 scripting standards covering strict error handling, advanced functions and parameter validation, module layout, comment-based help, secret handling, PSScriptAnalyzer, Pester v5, and cross-platform rules. Use when you say "write a PowerShell script for this", "my script ignores when git fails", "turn this into a proper cmdlet", "add Pester tests for this module", or "make PSScriptAnalyzer clean". Not for POSIX shell scripting, use `bash`.
 ---
 
 # PowerShell Standards
 
----
+How a PowerShell script fails loudly, validates its inputs at the boundary, and stays testable. The defaults are the
+problem: PowerShell continues after most errors and ignores a native command's exit code unless told otherwise.
 
-### Core Execution Directives
-
-- Treat all LLM generated scripts, cmdlets, and object pipelines as potentially hallucinated.
-- Enforce the Zero-Trust Prompt Engineering protocol for every script generation task.
-- Append a Zero-Trust directive demanding mandatory web searches for current PowerShell module documentation.
-- Implement a Fail-Fast directive forcing the agent to halt execution and refuse to answer if official documentation
-  cannot be retrieved via live search.
-- Require exact confidence percentage scores for every cmdlet parameter and error handling structure provided.
-- Mandate direct, working links to the official documentation used to ground the code.
+Baseline: PowerShell 7.6 (verified locally), Pester v5, and PSScriptAnalyzer current stable. Target PowerShell 7.4
+LTS or newer and declare it with `#Requires -Version 7.4`.
 
 ---
 
-### Strict Mode and Error Handling
+### When to activate
 
-- Alter the default error behavior to stop execution on the first error rather than silently continuing.
-- Require the agent to set the global error action preference at the beginning of every script:
+- Writing or reviewing a `.ps1`, `.psm1`, or `.psd1` file.
+- Turning a loose script into an advanced function or a module.
+- Fixing a script that keeps running after a cmdlet or a native command failed.
+- Adding parameter validation, `-WhatIf` support, or comment-based help.
+- Writing Pester v5 tests or clearing PSScriptAnalyzer findings.
+- Making a Windows-only script run on Linux or macOS.
+
+---
+
+### When not to activate
+
+- Writing POSIX shell scripts, use `bash`.
+- Writing the CI workflow YAML that invokes the script, use `deployment-patterns`.
+- Writing the container image the script runs in, use `docker-patterns`.
+- Configuring Windows hosts at fleet scale, use `ansible`.
+- Choosing exception types and error-handling architecture, use `coding-standards`.
+
+---
+
+### Stop on the first error
+
+Set the preference at the top of every script, and turn on native command error propagation so a failing `git` or
+`robocopy` is a failure rather than a line of red text.
+
+Pass:
 
 ```powershell
 $ErrorActionPreference = 'Stop'
 ```
 
-- Enforce termination for native command failures (e.g., `git`, `robocopy`) in PowerShell 7.3 and newer:
-  - Ref: https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_preference_variables
+Also set this, so a non-zero exit code from a native executable becomes a terminating error:
 
 ```powershell
 $PSNativeCommandUseErrorActionPreference = $true
 ```
 
----
-
-### Defensive Scripting Practices
-
-- Mandate the use of `try`, `catch`, and `finally` blocks for all operations that interact with the filesystem, network,
-  or external APIs to gracefully handle terminating errors.
-- Avoid implicit data type conversions. Explicitly cast variables (e.g., `[int]`, `[string]`) to prevent runtime type
-  mismatch errors.
-- Validate all required parameters at script entry using `#Requires` statements and parameter validation attributes;
-  print a usage message and exit on invalid input.
-
----
-
-### Advanced Function Template
-
-Every reusable script block must be written as an advanced function:
+Fail:
 
 ```powershell
-function Invoke-MyOperation {
-    [CmdletBinding(SupportsShouldProcess)]
-    param (
-        [Parameter(Mandatory, ValueFromPipeline)]
-        [ValidateNotNullOrEmpty()]
-        [string]$InputPath,
-
-        [Parameter()]
-        [ValidateRange(1, 100)]
-        [int]$MaxRetries = 3
-    )
-
-    begin {
-        Write-Verbose "Starting Invoke-MyOperation"
-    }
-
-    process {
-        if ($PSCmdlet.ShouldProcess($InputPath, 'Process')) {
-            # operation logic
-        }
-    }
-
-    end {
-        Write-Verbose "Completed Invoke-MyOperation"
-    }
-}
+git push 2>$null
 ```
 
-- Always use `[CmdletBinding()]` on functions to enable `-Verbose`, `-Debug`, `-WhatIf`, and `-Confirm` support.
-- Use `SupportsShouldProcess` for any function that modifies state; guard mutations with `$PSCmdlet.ShouldProcess(...)`.
+- Ref: https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_preference_variables
+- Wrap every filesystem, network, and external API call in `try` / `catch` / `finally`.
+- Cast explicitly (`[int]`, `[string]`) rather than relying on implicit conversion.
 
 ---
 
-### Parameter Validation
+### Write advanced functions, not loose script blocks
 
-Use validation attributes on every parameter that has constraints:
+`[CmdletBinding()]` gives you `-Verbose`, `-Debug`, `-WhatIf`, and `-Confirm` for free. Anything that mutates state
+declares `SupportsShouldProcess` and guards the mutation with `$PSCmdlet.ShouldProcess(...)`, so a dry run actually
+skips the change instead of reporting one it made anyway. The full template and the `begin` / `process` / `end`
+reasoning live in [references/module-layout.md](references/module-layout.md).
 
-- `[ValidateNotNullOrEmpty()]` for required strings.
-- `[ValidateRange(min, max)]` for numeric bounds.
-- `[ValidateSet('Value1', 'Value2')]` for enumerated values.
-- `[ValidatePattern('^regex$')]` for format-constrained strings.
+Pass:
 
-Mark mandatory parameters with `[Parameter(Mandatory)]`; do not rely on runtime null checks for required inputs.
+```powershell
+[CmdletBinding(SupportsShouldProcess)] param([Parameter(Mandatory)][string]$Path)
+```
+
+Fail, a destructive function with no binding and no guard:
+
+```powershell
+function Remove-Backups { param($Path) Remove-Item -Recurse -Force $Path }
+```
 
 ---
 
-### Module Structure
+### Validate parameters with attributes
 
-Organise reusable code as PowerShell modules with a `.psm1` implementation file and a `.psd1` manifest. Export only
-public functions in the module manifest (`FunctionsToExport`); keep internal helpers unexported.
+Put the constraint on the parameter, not in a runtime null check further down.
 
-Use the following module directory layout:
+Pass:
 
+```powershell
+[Parameter(Mandatory)][ValidateSet('dev', 'staging', 'prod')][string]$Environment
 ```
-MyModule/
-  MyModule.psd1      # Module manifest
-  MyModule.psm1      # Dot-sources private functions, exports public ones
-  Public/            # Exported functions (one file per function)
-  Private/           # Internal helpers
-  Tests/             # Pester test files
+
+Fail:
+
+```powershell
+if (-not $Environment) { throw "Environment is required" }
+```
+
+Use `[ValidateNotNullOrEmpty()]` for required strings, `[ValidateRange(min, max)]` for numeric bounds,
+`[ValidateSet(...)]` for enumerated values, and `[ValidatePattern('^regex$')]` for format-constrained strings.
+
+---
+
+### Module structure
+
+Organise reusable code as a module with a `.psm1` implementation and a `.psd1` manifest, public functions under
+`Public/` one file each, internal helpers under `Private/`, and Pester tests under `Tests/`. Export a named list, so
+an internal rename never becomes a breaking change for a consumer. The layout is set out in
+[references/module-layout.md](references/module-layout.md).
+
+Pass:
+
+```powershell
+FunctionsToExport = @('Get-BackupSet', 'New-BackupSet')
+```
+
+Fail:
+
+```powershell
+FunctionsToExport = '*'
 ```
 
 ---
@@ -145,8 +153,9 @@ example a documented state machine, an ordering requirement, or a concurrency gu
 justify in review, not a budget to spend. The one-line cap on an entry line has no exception at all: shorten it or
 delete it.
 
+Pass, an exported function, one line per entry, nothing restated twice:
+
 ```powershell
-# Good: exported function, one line per entry, nothing restated twice
 function Get-BackupSet {
     <#
     .SYNOPSIS
@@ -157,8 +166,11 @@ function Get-BackupSet {
         Get-BackupSet -VaultName prod -RetentionDays 30
     #>
 }
+```
 
-# Bad: an internal helper carrying help that nothing will ever render
+Fail, an internal helper carrying help that nothing will ever render:
+
+```powershell
 function Get-BackupSetInternal {
     <#
     .SYNOPSIS
@@ -171,92 +183,140 @@ function Get-BackupSetInternal {
 
 ---
 
-### Logging Pattern
+### Logging through the right stream
 
-- Use `Write-Verbose` for diagnostic messages (visible with `-Verbose`).
-- Use `Write-Warning` for recoverable issues that do not stop execution.
-- Use `Write-Error` for non-terminating errors; use `throw` for terminating errors.
-- Never use `Write-Host` in library/module code; it bypasses the pipeline and cannot be captured. Use `Write-Output` for
-  data and `Write-Verbose`/`Write-Information` for status messages.
+`Write-Verbose` for diagnostics, `Write-Warning` for a recoverable issue, `Write-Error` for a non-terminating error,
+`throw` for a terminating one. `Write-Host` bypasses the pipeline and cannot be captured, so it never appears in
+library or module code.
 
----
-
-### Secret Handling
-
-- Never store passwords or tokens as plain `[string]`; use `[SecureString]` or `[PSCredential]`.
-- Pass secrets to external tools via environment variables or credential objects, not as command-line arguments (they
-  appear in process lists).
-- Read secrets from environment variables or a secrets vault (Azure Key Vault, HashiCorp Vault via the respective
-  PowerShell module) at runtime.
-
----
-
-### PSScriptAnalyzer and Testing
-
-- Run PSScriptAnalyzer on all scripts and modules in CI with the `PSGallery` ruleset; zero warnings/errors policy.
-  - Suppress individual rules only with `[Diagnostics.CodeAnalysis.SuppressMessageAttribute]` accompanied by a
-    justification comment.
-- Write tests using Pester v5:
-  - Structure tests with `Describe` / `Context` / `It` blocks.
-  - Mock dependencies with `Mock` and verify calls with `Should -Invoke`.
-  - Use `BeforeAll` / `AfterAll` for setup and teardown; do not use `BeforeEach` for expensive setup that can be shared.
-
----
-
-### Cross-Platform Compatibility (PowerShell 7+)
-
-- Target PowerShell 7.x (LTS) for all new scripts; document the minimum required version in the script header with
-  `#Requires -Version 7.2`.
-- Avoid Windows-only cmdlets (`Get-WmiObject`, `Get-EventLog`) without an OS guard:
+Pass:
 
 ```powershell
-if ($IsWindows) { ... } elseif ($IsLinux) { ... } elseif ($IsMacOS) { ... }
+Write-Verbose "Rotated $($removed.Count) backup sets"
 ```
 
-- Use `[System.IO.Path]::Combine()` or `Join-Path` for all path construction to ensure cross-platform path separators.
+Fail:
+
+```powershell
+Write-Host "Rotated $($removed.Count) backup sets"
+```
+
+---
+
+### Secret handling
+
+Never hold a password or token as a plain `[string]`. Use `[SecureString]` or `[PSCredential]`, read the value from
+an environment variable or a secrets vault at runtime, and pass it to an external tool through the environment rather
+than the command line, where it shows up in the process list.
+
+Pass:
+
+```powershell
+$credential = Get-Secret -Name 'deploy-account' -Vault 'CorpVault'
+```
+
+Fail:
+
+```powershell
+& terraform apply -var "token=$PlainTextToken"
+```
+
+---
+
+### PSScriptAnalyzer and Pester v5
+
+Run PSScriptAnalyzer in CI with the PSGallery ruleset and a zero-finding policy. Suppress a rule only with
+`[Diagnostics.CodeAnalysis.SuppressMessageAttribute]` plus a justification.
+
+Pass:
+
+```powershell
+Invoke-ScriptAnalyzer -Path ./src -Recurse -EnableExit
+```
+
+Fail:
+
+```powershell
+Invoke-ScriptAnalyzer -Path ./src -ExcludeRule PSAvoidUsingPlainTextForPassword
+```
+
+Structure tests with `Describe` / `Context` / `It`, mock dependencies with `Mock` and verify with `Should -Invoke`,
+and use `BeforeAll` / `AfterAll` for shared setup rather than repeating expensive work in `BeforeEach`.
+
+---
+
+### Cross-platform rules
+
+Guard Windows-only cmdlets and build every path with `Join-Path` or `[System.IO.Path]::Combine()` so the separator is
+never hardcoded.
+
+Pass:
+
+```powershell
+if ($IsWindows) { Get-CimInstance Win32_OperatingSystem } elseif ($IsLinux) { Get-Content /etc/os-release }
+```
+
+Fail:
+
+```powershell
+Get-WmiObject Win32_OperatingSystem
+```
 
 ---
 
 ### Startup readiness log
 
-See [observability-and-logging](../observability-and-logging/SKILL.md) → "Startup readiness log" for the universal
-convention (ANSI Shadow
-banner, URL + profile + dependency + observability sections, 2-second probe timeouts, `<url> [Connected|Warning|FAILED]`
-result format).
+For a PowerShell-orchestrated long-running service (a scheduled task, a service wrapper, a polling daemon), print the
+readiness banner with a here-string right before the main loop or `Start-Process`. The universal convention, the ANSI
+Shadow banner, the section order, and the probe rules live in
+[observability-and-logging/references/startup-readiness-log.md](../observability-and-logging/references/startup-readiness-log.md).
 
-For PowerShell-orchestrated long-running services (Windows scheduled tasks, service wrappers, polling daemons),
-`Write-Host` the banner with a here-string right before the main loop or `Start-Process`:
+The PowerShell 7 console host defaults to UTF-8 and renders the box-drawing characters natively. Legacy
+`powershell.exe` needs `[Console]::OutputEncoding = [Text.Encoding]::UTF8` set once before printing.
 
-```powershell
-@'
-███████╗██╗   ██╗██████╗ ██████╗ ██╗     ██╗███████╗██████╗
-██╔════╝██║   ██║██╔══██╗██╔══██╗██║     ██║██╔════╝██╔══██╗
-███████╗██║   ██║██████╔╝██████╔╝██║     ██║█████╗  ██████╔╝
-╚════██║██║   ██║██╔═══╝ ██╔═══╝ ██║     ██║██╔══╝  ██╔══██╗
-███████║╚██████╔╝██║     ██║     ███████╗██║███████╗██║  ██║
-╚══════╝ ╚═════╝ ╚═╝     ╚═╝     ╚══════╝╚═╝╚══════╝╚═╝  ╚═╝
-'@ | Write-Host
-```
-
-The console host on PowerShell 7+ defaults to UTF-8; the box-drawing characters render natively. Legacy `powershell.exe`
-(Windows PowerShell 5.1) needs `[Console]::OutputEncoding = [Text.Encoding]::UTF8` set once before printing.
-
-Probe timeouts: `Invoke-WebRequest -Uri <url> -TimeoutSec 2`, wrapped in `try { ... } catch { ... }` so an unreachable
-dependency doesn't bubble:
+Pass, a bounded probe that swallows the exception and surfaces only a marker:
 
 ```powershell
-function Test-StartupProbe {
-    param([string]$Url)
-    try {
-        $response = Invoke-WebRequest -Uri $Url -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop
-        if ($response.StatusCode -lt 400) {
-            "$Url [Connected]"
-        } else {
-            "$Url [Warning] (status=$($response.StatusCode))"
-        }
-    } catch {
-        Write-Debug "Startup probe failed: $Url ($($_.Exception.Message))"
-        "$Url [FAILED]"
-    }
-}
+try { $r = Invoke-WebRequest $Url -TimeoutSec 2 -ErrorAction Stop; "$Url [Connected]" } catch { "$Url [FAILED]" }
 ```
+
+Fail:
+
+```powershell
+Invoke-WebRequest $Url
+```
+
+---
+
+### Reference files
+
+| Open this | For |
+|---|---|
+| [references/module-layout.md](references/module-layout.md) | Writing an advanced function or laying out a new module, with the reasoning behind each block |
+| [../observability-and-logging/references/startup-readiness-log.md](../observability-and-logging/references/startup-readiness-log.md) | Writing the readiness banner a PowerShell-run service prints when it comes up |
+
+---
+
+### Related skills
+
+- `bash` for the same standards on POSIX shells.
+- `observability-and-logging` for the readiness banner and the logging conventions it follows.
+- `deployment-patterns` for the CI workflow that runs PSScriptAnalyzer and Pester.
+- `docker-patterns` when the script runs inside a container.
+- `ansible` when the work is fleet configuration rather than a one-host script.
+
+---
+
+### Checklist
+
+- [ ] `$ErrorActionPreference = 'Stop'` and `$PSNativeCommandUseErrorActionPreference = $true` at the top.
+- [ ] `#Requires -Version` declares the minimum PowerShell version.
+- [ ] Every reusable block is an advanced function with `[CmdletBinding()]`.
+- [ ] State-changing functions declare `SupportsShouldProcess` and guard with `ShouldProcess`.
+- [ ] Constraints live in parameter attributes, not runtime null checks.
+- [ ] Module manifest exports a named list, never `*`.
+- [ ] No `Write-Host` in module or library code.
+- [ ] Secrets are `[SecureString]` or `[PSCredential]`, never a command-line argument.
+- [ ] PSScriptAnalyzer passes with zero findings, every suppression justified.
+- [ ] Pester v5 tests exist and mocks are verified with `Should -Invoke`.
+- [ ] Paths built with `Join-Path`, Windows-only cmdlets guarded by `$IsWindows`.

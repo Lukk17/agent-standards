@@ -1,360 +1,295 @@
 ---
 name: springboot-security
-description: Spring Security best practices for authn/authz, validation, CSRF, secrets, headers, rate limiting, and dependency security in Java Spring Boot services.
-origin: ECC
+description: "Spring Security 6 practice for Spring Boot services: authentication, method authorization, input validation, SQL injection, password hashing, CSRF posture, secrets, response headers, CORS, and rate limiting. Use when you say \"add JWT auth to this API\", \"lock this endpoint down to admins\", \"should I disable CSRF here\", \"set our CSP and HSTS headers\", or \"rate limit this endpoint\". Not for running the CVE scan as a release gate, use `springboot-verification`."
+license: Apache-2.0
 ---
 
-# Spring Boot Security Review
+# Spring Boot Security
 
-Use when adding auth, handling input, creating endpoints, or dealing with secrets.
-
----
-
-### When to Activate
-
-- Adding authentication (JWT, OAuth2, session-based)
-- Implementing authorization (@PreAuthorize, role-based access)
-- Validating user input (Bean Validation, custom validators)
-- Configuring CORS, CSRF, or security headers
-- Managing secrets (Vault, environment variables)
-- Adding rate limiting or brute-force protection
-- Scanning dependencies for CVEs
+Authentication, authorization, and the hardening around them for a Spring Boot service. Every rule assumes Java 21
+LTS as the minimum with Java 25 LTS as the recommended target, Spring Boot 3.x, and Spring Security 6.x.
 
 ---
 
-### Authentication
+### When to activate
 
-- Prefer stateless JWT or opaque tokens with revocation list
-- Use `httpOnly`, `Secure`, `SameSite=Strict` cookies for sessions
-- Validate tokens with `OncePerRequestFilter` or resource server
-
-```java
-@Component
-public class JwtAuthFilter extends OncePerRequestFilter {
-  private final JwtService jwtService;
-
-  public JwtAuthFilter(JwtService jwtService) {
-    this.jwtService = jwtService;
-  }
-
-  @Override
-  protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
-      FilterChain chain) throws ServletException, IOException {
-    String header = request.getHeader(HttpHeaders.AUTHORIZATION);
-    if (header != null && header.startsWith("Bearer ")) {
-      String token = header.substring(7);
-      Authentication auth = jwtService.authenticate(token);
-      SecurityContextHolder.getContext().setAuthentication(auth);
-    }
-    chain.doFilter(request, response);
-  }
-}
-```
+- Adding authentication, whether JWT, OAuth2, or session based.
+- Adding authorization rules to endpoints or service methods.
+- Validating and sanitising user input at the edge.
+- Configuring CORS, CSRF, or response security headers.
+- Handling secrets, credentials, and their rotation.
+- Adding rate limiting or brute-force protection.
 
 ---
 
-### OAuth 2.1 Requirements
+### When not to activate
 
-- Mandate PKCE for all authorization code flows
-- Prohibit Implicit Grant (removed in OAuth 2.1)
-- Prohibit Resource Owner Password Credentials (ROPC)
-- Implement Refresh Token Rotation: issue new refresh token on each use; invalidate old one
-- Access token lifetime: 15 minutes maximum
+- Running the dependency and secret scan as part of the pre-merge pipeline, use `springboot-verification`.
+- General controller, service, and DTO structure, use `springboot-patterns`.
+- Writing the tests that prove a rule holds, use `springboot-tdd`.
+- Language-neutral threat modelling and review checklists, use `security-review`.
+- Configuring Keycloak itself as the identity provider, use `keycloak-auth-services`.
 
 ---
 
-### JWT Validation
+### Authenticate statelessly, validate every claim
 
-Always validate:
-- `alg` claim: explicitly reject `none` algorithm
-- `exp`: token must not be expired
-- `iss`: must match expected issuer
-- `aud`: must match expected audience
+Prefer a stateless bearer token, or an opaque token with a revocation list. Where sessions are unavoidable, mark the
+cookie `httpOnly`, `Secure`, and `SameSite=Strict`. Validate the token in a resource server or a single
+`OncePerRequestFilter`, never per controller.
+
+Pass: the decoder rejects `none` as an algorithm and checks `exp`, `iss`, and `aud`, with the audience validator
+configured explicitly because the default validator does not check it.
 
 ```java
 NimbusJwtDecoder decoder = NimbusJwtDecoder.withPublicKey(publicKey).build();
 decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer("https://auth.example.com"));
-// The default validator checks exp, nbf, iss
-// Explicitly configure audience validator:
-OAuth2TokenValidator<Jwt> audienceValidator = new JwtClaimValidator<List<String>>(
-    AUD, aud -> aud.contains("my-api"));
 ```
+
+Fail: a filter that reads the subject out of an unverified token, or a decoder left on defaults so any issuer with
+a valid signature is accepted.
+
+Access tokens live fifteen minutes at most. Full flow requirements, refresh token rotation, and the filter skeleton
+are in [references/oauth2-and-jwt.md](references/oauth2-and-jwt.md).
 
 ---
 
-### Authorization
+### Deny by default, then authorize per method
 
-- Enable method security: `@EnableMethodSecurity`
-- Use `@PreAuthorize("hasRole('ADMIN')")` or `@PreAuthorize("@authz.canEdit(#id)")`
-- Deny by default; expose only required scopes
+Turn on method security and put the rule next to the method it guards, so a new endpoint is closed until somebody
+opens it.
+
+Pass: `@EnableMethodSecurity`, role checks for coarse access, and a named authorization bean for ownership.
 
 ```java
-@RestController
-@RequestMapping("/api/admin")
-public class AdminController {
+@PreAuthorize("hasRole('ADMIN')")
+@GetMapping("/users")
+public List<UserDto> listUsers() {
+  return userService.findAll();
+}
 
-  @PreAuthorize("hasRole('ADMIN')")
-  @GetMapping("/users")
-  public List<UserDto> listUsers() {
-    return userService.findAll();
-  }
-
-  @PreAuthorize("@authz.isOwner(#id, authentication)")
-  @DeleteMapping("/users/{id}")
-  public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
-    userService.delete(id);
-    return ResponseEntity.noContent().build();
-  }
+@PreAuthorize("@authz.isOwner(#id, authentication)")
+@DeleteMapping("/users/{id}")
+public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
+  userService.delete(id);
+  return ResponseEntity.noContent().build();
 }
 ```
 
+Fail: an ownership check written inside the method body, which every later caller of that service method skips.
+
 ---
 
-### Input Validation
+### Validate input at the edge
 
-- Use Bean Validation with `@Valid` on controllers
-- Apply constraints on DTOs: `@NotBlank`, `@Email`, `@Size`, custom validators
-- Sanitize any HTML with a whitelist before rendering
+Constrain the DTO and let Bean Validation reject the request before any business code runs. Sanitise HTML against
+an allow list before it is ever rendered.
 
+Pass: a constrained record plus `@Valid` on the parameter.
 ```java
-// BAD: No validation
-@PostMapping("/users")
-public User createUser(@RequestBody UserDto dto) {
-  return userService.create(dto);
-}
-
-// GOOD: Validated DTO
 public record CreateUserDto(
     @NotBlank @Size(max = 100) String name,
     @NotBlank @Email String email,
     @NotNull @Min(0) @Max(150) Integer age
 ) {}
+```
 
+```java
 @PostMapping("/users")
 public ResponseEntity<UserDto> createUser(@Valid @RequestBody CreateUserDto dto) {
-  return ResponseEntity.status(HttpStatus.CREATED)
-      .body(userService.create(dto));
+  return ResponseEntity.status(HttpStatus.CREATED).body(userService.create(dto));
 }
 ```
 
----
-
-### SQL Injection Prevention
-
-- Use Spring Data repositories or parameterized queries
-- For native queries, use `:param` bindings; never concatenate strings
-
-```java
-// BAD: String concatenation in native query
-@Query(value = "SELECT * FROM users WHERE name = '" + name + "'", nativeQuery = true)
-
-// GOOD: Parameterized native query
-@Query(value = "SELECT * FROM users WHERE name = :name", nativeQuery = true)
-List<User> findByName(@Param("name") String name);
-
-// GOOD: Spring Data derived query (auto-parameterized)
-List<User> findByEmailAndActiveTrue(String email);
-```
+Fail: `createUser(@RequestBody UserDto dto)` with no constraints, where the first thing to notice a bad value is a
+constraint violation from the database.
 
 ---
 
-### Password Hashing
+### Parameterise every query
 
-- Primary (recommended): Argon2id: `new Argon2PasswordEncoder(16, 32, 1, 65536, 3)` (Spring Security 5.8+)
-- Acceptable fallback: BCrypt with work factor >= 12: `new BCryptPasswordEncoder(12)`
-- Prohibited: MD5, SHA-*, unsalted hashes, PBKDF2 with < 100,000 iterations
+Spring Data derived queries and named bindings are parameterised for you. String concatenation into a query is a
+SQL injection, whatever the surrounding validation claims.
 
-```java
-@Bean
-public PasswordEncoder passwordEncoder() {
-    // Argon2id: saltLength=16, hashLength=32, parallelism=1, memory=65536, iterations=3
-    return new Argon2PasswordEncoder(16, 32, 1, 65536, 3);
-}
+Pass: `@Query(value = "SELECT * FROM users WHERE name = :name", nativeQuery = true)` with a `@Param` binding, or a
+Spring Data derived query such as `findByEmailAndActiveTrue`.
 
-// In service
-public User register(CreateUserDto dto) {
-  String hashedPassword = passwordEncoder.encode(dto.password());
-  return userRepository.save(new User(dto.email(), hashedPassword));
-}
-```
+Fail: `@Query(value = "SELECT * FROM users WHERE name = '" + name + "'", nativeQuery = true)`.
 
 ---
 
-### CSRF Protection
+### Hash passwords with a memory-hard function
 
-- For browser session apps, keep CSRF enabled; include token in forms/headers
-- For pure APIs with Bearer tokens, disable CSRF and rely on stateless auth
-- Document the reason whenever disabling CSRF
+Argon2id is the primary choice, and BCrypt at work factor 12 or higher is the acceptable fallback. MD5, the SHA
+family, unsalted hashes, and PBKDF2 under 100,000 iterations are prohibited.
 
-```java
-// Disable CSRF only for stateless APIs (JWT-authenticated, no session cookies).
-// Document the reason here.
-http.csrf(csrf -> csrf.disable()); // Stateless JWT API — no CSRF risk
-http.sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
-```
+Pass: `new Argon2PasswordEncoder(16, 32, 1, 65536, 3)` as the `PasswordEncoder` bean, meaning salt length 16, hash
+length 32, parallelism 1, memory 65536, and 3 iterations.
+
+Fail: any digest function used directly, or a BCrypt encoder left on the default work factor.
 
 ---
 
-### Secrets Management
+### Pick a CSRF posture and write down why
 
-- No secrets in source; load from env or vault
-- Keep `application.yml` free of credentials; use placeholders
-- Rotate tokens and DB credentials regularly
+A browser app with session cookies keeps CSRF protection on and carries the token in forms and headers. A pure API
+authenticated with bearer tokens has no ambient credential to abuse, so CSRF can be disabled, and the reason
+belongs in the code.
 
-```yaml
-# BAD: Hardcoded in application.yml
-spring:
-  datasource:
-    password: mySecretPassword123
+Pass: `http.csrf(csrf -> csrf.disable())` alongside
+`http.sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))`, on an API that only
+accepts bearer tokens.
 
-# GOOD: Environment variable placeholder
-spring:
-  datasource:
-    password: ${DB_PASSWORD}
-
-# GOOD: Spring Cloud Vault integration
-spring:
-  cloud:
-    vault:
-      uri: https://vault.example.com
-      token: ${VAULT_TOKEN}
-```
+Fail: CSRF disabled on an app that still authenticates browsers with a session cookie.
 
 ---
 
-### Security Headers
+### Set response headers, and leave the ones Spring already decides
 
-No `unsafe-inline` or `unsafe-eval` in CSP. Use nonces for inline scripts/styles if absolutely necessary.
+Configure the headers that carry a policy decision: CSP with no `unsafe-inline` and no `unsafe-eval`, HSTS,
+frame-ancestors, referrer policy, and permissions policy.
 
+Pass: the policy headers set explicitly, with nonces where an inline script is genuinely unavoidable.
 ```java
 http.headers(headers -> headers
-    .contentSecurityPolicy(csp ->
-        csp.policyDirectives("default-src 'self'; script-src 'self' 'nonce-{random}'; style-src 'self' 'nonce-{random}'; img-src 'self' data:; frame-ancestors 'none'"))
+    .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'; frame-ancestors 'none'"))
     .frameOptions(HeadersConfigurer.FrameOptionsConfig::deny)
-    .xssProtection(Customizer.withDefaults())
-    .httpStrictTransportSecurity(hsts -> hsts
-        .maxAgeInSeconds(63072000)
-        .includeSubDomains(true)
-        .preload(true))
-    .referrerPolicy(referrer -> referrer
-        .policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
-    .permissionsPolicy(permissions -> permissions
-        .policy("camera=(), microphone=(), geolocation=()")));
+    .httpStrictTransportSecurity(hsts -> hsts.maxAgeInSeconds(63072000).includeSubDomains(true).preload(true)));
 ```
+
+Fail: re-enabling the legacy XSS auditor with `.xssProtection(Customizer.withDefaults())`. Spring Security 6 sends
+`X-XSS-Protection: 0` on purpose, because the browser auditors that header controlled were themselves exploitable
+and every current browser has removed them. Turning it back on asks for a filter that no longer exists and signals
+the wrong thing to a reviewer. CSP is the control that replaced it.
+
+The full header block, the CORS source bean, and mutual TLS for service-to-service calls are in
+[references/headers-cors-mtls.md](references/headers-cors-mtls.md).
 
 ---
 
-### Service-to-Service: mTLS
+### Rate limit with Bucket4j, refilling greedily
 
-For internal service communication, enforce mutual TLS:
+This is the one rate limiting implementation in the standards. `springboot-patterns` points here rather than
+carrying a second copy.
 
-```yaml
-server:
-  ssl:
-    client-auth: need
-    key-store: classpath:service.p12
-    trust-store: classpath:trusted-cas.p12
-```
+Refill greedily rather than at interval boundaries. A greedy bandwidth returns tokens continuously across the
+window, so a client that exhausts its quota recovers a little at a time. Interval refill returns the whole bucket
+at each boundary, which synchronises every throttled client on the node into one burst the instant the window
+turns over, and that burst lands on the upstream the limiter exists to protect. Greedy refill keeps the same
+average rate with none of that clustering.
 
----
-
-### CORS Configuration
-
-- Configure CORS at the security filter level, not per-controller
-- Restrict allowed origins: never use `*` in production
+Pass: one bucket per client key, greedy refill, 429 with a `Retry-After` the client can act on.
 
 ```java
-@Bean
-public CorsConfigurationSource corsConfigurationSource() {
-  CorsConfiguration config = new CorsConfiguration();
-  config.setAllowedOrigins(List.of("https://app.example.com"));
-  config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE"));
-  config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
-  config.setAllowCredentials(true);
-  config.setMaxAge(3600L);
-
-  UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-  source.registerCorsConfiguration("/api/**", config);
-  return source;
-}
-
-// In SecurityFilterChain:
-http.cors(cors -> cors.configurationSource(corsConfigurationSource()));
-```
-
----
-
-### Rate Limiting
-
-- Apply Bucket4j or gateway-level limits on expensive endpoints
-- Log and alert on bursts; return 429 with retry hints
-
-```java
-// Using Bucket4j for per-endpoint rate limiting
 @Component
 public class RateLimitFilter extends OncePerRequestFilter {
   private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
 
   private Bucket createBucket() {
     return Bucket.builder()
-        .addLimit(Bandwidth.classic(100, Refill.intervally(100, Duration.ofMinutes(1))))
+        .addLimit(limit -> limit.capacity(100).refillGreedy(100, Duration.ofMinutes(1)))
         .build();
   }
 
   @Override
   protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
       FilterChain chain) throws ServletException, IOException {
-    String clientIp = request.getRemoteAddr();
-    Bucket bucket = buckets.computeIfAbsent(clientIp, k -> createBucket());
+    Bucket bucket = buckets.computeIfAbsent(request.getRemoteAddr(), key -> createBucket());
+    ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
 
-    if (bucket.tryConsume(1)) {
+    if (probe.isConsumed()) {
       chain.doFilter(request, response);
-    } else {
-      response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
-      response.getWriter().write("{\"error\": \"Rate limit exceeded\"}");
+      return;
     }
+    long retryAfterSeconds = Duration.ofNanos(probe.getNanosToWaitForRefill()).toSeconds() + 1;
+    response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
+    response.setHeader(HttpHeaders.RETRY_AFTER, String.valueOf(retryAfterSeconds));
   }
 }
 ```
 
----
+Fail: `Refill.intervally(...)`, an unbounded map that grows one entry per client address forever, or a 429 with no
+`Retry-After`, which leaves a well-behaved client guessing.
 
-### Dependency Security
+Take the client key from `request.getRemoteAddr()`. It is the immediate connection address, which is the only value
+a client cannot forge. Behind a reverse proxy, make that address correct by configuring
+`server.forward-headers-strategy` and registering `ForwardedHeaderFilter`, and make sure the proxy overwrites
+rather than appends `X-Forwarded-For`. Never read that header directly in application code.
 
-- Run OWASP Dependency Check / Snyk in CI
-- Keep Spring Boot and Spring Security on supported versions
-- Fail builds on known CVEs
-
----
-
-### Logging and PII
-
-- Never log secrets, tokens, passwords, or full PAN data
-- Redact sensitive fields; use structured JSON logging
+Bound the map with an eviction policy, or move the buckets into a distributed store, before this filter meets real
+traffic. Alert on sustained 429 rates, because a limiter firing constantly is either under attack or misconfigured.
 
 ---
 
-### File Uploads
+### Keep secrets out of the source tree
 
-- Validate size, content type, and extension
-- Store outside web root; scan if required
+Configuration files carry placeholders, and the value arrives from the environment or a vault at runtime. Rotate
+tokens and database credentials on a schedule.
+
+Pass: `password: ${DB_PASSWORD}` in `application.yml`, or a Spring Cloud Vault backend supplying the value.
+
+Fail: `password: mySecretPassword123` written into the file that gets committed.
+
+Never log a secret, a token, a password, or full card data, and redact sensitive fields before they reach a
+structured log line.
 
 ---
 
-### Checklist Before Release
+### Validate uploads before you store them
 
-- [ ] Auth tokens validated and expired correctly
-- [ ] Authorization guards on every sensitive path
-- [ ] All inputs validated and sanitized
-- [ ] No string-concatenated SQL
-- [ ] CSRF posture correct for app type (documented if disabled)
-- [ ] Secrets externalized; none committed
-- [ ] Security headers configured (CSP without unsafe-inline/unsafe-eval, HSTS, Permissions-Policy)
-- [ ] Rate limiting on APIs
-- [ ] Dependencies scanned and up to date
-- [ ] Logs free of sensitive data
-- [ ] OAuth 2.1 flows use PKCE; no Implicit Grant or ROPC
-- [ ] JWT validates alg (rejects none), exp, iss, aud
-- [ ] Password hashing uses Argon2id or BCrypt (work factor >= 12)
+Check size, declared content type, and extension, and store the file outside the web root. Scan it where the
+threat model calls for it.
 
-Remember: Deny by default, validate inputs, least privilege, and secure-by-configuration first.
+Pass: a size cap, an allow list of types, and a generated storage name.
+
+Fail: writing the client-supplied filename straight into a served directory.
+
+---
+
+### Keep dependencies patched
+
+Run a dependency vulnerability scan in CI and fail the build on a known CVE at or above the project threshold. Stay
+on supported Spring Boot and Spring Security lines, because an unsupported line stops receiving the fixes entirely.
+The pipeline that runs the scan lives in `springboot-verification`.
+
+Pass: a scheduled, reviewed upgrade with the scan as a gate.
+
+Fail: a suppression file with no expiry dates.
+
+---
+
+### Reference material
+
+| Open this | For |
+| --- | --- |
+| [references/oauth2-and-jwt.md](references/oauth2-and-jwt.md) | OAuth 2.1 flow rules, refresh token rotation, JWT claim validation, and the auth filter. |
+| [references/headers-cors-mtls.md](references/headers-cors-mtls.md) | The full response header block, the CORS configuration source, and mutual TLS. |
+
+---
+
+### Related skills
+
+| Skill | What it owns |
+| --- | --- |
+| `springboot-patterns` | Controllers, services, and the API structure being secured. |
+| `springboot-verification` | The pipeline that runs the dependency and secret scans. |
+| `springboot-tdd` | Tests that prove an authorization rule actually denies. |
+| `security-review` | Language-neutral threat modelling and review checklists. |
+| `keycloak-auth-services` | Configuring Keycloak as the identity provider behind these flows. |
+| `api-design` | Public API shape, versioning, and error contracts. |
+
+---
+
+### Checklist
+
+- [ ] Tokens are validated for algorithm, expiry, issuer, and audience, and `none` is rejected.
+- [ ] Every sensitive path carries an authorization rule, and the default is deny.
+- [ ] Every request body is a constrained DTO validated with `@Valid`.
+- [ ] No query is built by string concatenation.
+- [ ] Passwords are hashed with Argon2id, or BCrypt at work factor 12 or higher.
+- [ ] The CSRF posture matches the app type, and a disabled CSRF says why in the code.
+- [ ] CSP has no `unsafe-inline` and no `unsafe-eval`, HSTS is set, and nothing re-enables `X-XSS-Protection`.
+- [ ] Rate limiting is in place, refills greedily, returns `Retry-After`, and its bucket map is bounded.
+- [ ] No secret is committed, and no secret reaches a log line.
+- [ ] Uploads are size, type, and extension checked, and stored outside the web root.
+- [ ] The dependency scan is green, and every suppression has an expiry.

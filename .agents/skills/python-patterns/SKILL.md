@@ -1,88 +1,89 @@
 ---
 name: python-patterns
-description: Pythonic idioms, PEP 8 standards, type hints, and best practices for building robust, efficient, and maintainable Python applications.
-origin: ECC
+description: Idiomatic Python for production code, covering type hints, error handling, dataclasses, context managers, concurrency choice, and package layout. Use when writing a new Python module, reviewing Python code, adding type hints to a legacy file, refactoring a package layout, or choosing between threads, processes and asyncio. Not for writing tests or pytest configuration, use `python-testing`.
 ---
 
 # Python Development Patterns
 
-Idiomatic Python patterns and best practices for building robust, efficient, and maintainable applications.
+Language-level rules for production Python: how to name things, type them, fail loudly, model data, and lay a package
+out. Framework stacks, tool configuration, and the long catalogues live in the reference files listed near the bottom.
+
+Baseline: Python 3.13 or newer, with 3.14 the current release. Every example assumes that floor, so builtin generics,
+`X | None`, `match`, and `asyncio.TaskGroup` appear without a compatibility note.
 
 ---
 
-### When to Activate
+### When to activate
 
-- Writing new Python code
-- Reviewing Python code
-- Refactoring existing Python code
-- Designing Python packages/modules
+- Writing a new Python module, package, or service.
+- Reviewing or refactoring existing Python code.
+- Adding type hints to an untyped file and choosing how strict to be.
+- Deciding between threads, processes, and asyncio for a workload.
+- Designing a package layout, its imports, and its public exports.
 
 ---
 
-### Core Principles
+### When not to activate
 
-#### 1. Readability Counts
+- Writing tests, fixtures, mocks, or pytest configuration. Use `python-testing`.
+- Setting up log formats, metrics, tracing, or the startup readiness banner. Use `observability-and-logging`.
+- Applying cross-language design principles such as SOLID, DRY, and naming. Use `coding-standards`.
+- Writing training loops, tensor code, or CUDA placement. Use `pytorch-patterns`.
+- Deciding blank-line and control-flow layout inside a function body. Use `code-formatter`.
+- Profiling a slow endpoint or query before changing it. Use `performance-optimization`.
 
-Python prioritizes readability. Code should be obvious and easy to understand.
+---
+
+### Write code that explains itself
+
+Names carry the meaning. A reader should not need the body to know what a function returns or what a variable holds.
+
+Pass:
 
 ```python
-# Good: Clear and readable
 def get_active_users(users: list[User]) -> list[User]:
-    """Return only active users from the provided list."""
     return [user for user in users if user.is_active]
+```
 
+Fail:
 
-# Bad: Clever but confusing
+```python
 def get_active_users(u):
     return [x for x in u if x.a]
 ```
 
-#### 2. Explicit is Better Than Implicit
+---
 
-Avoid magic; be clear about what your code does.
+### Prefer EAFP over LBYL
+
+Ask forgiveness, not permission. Check-then-act duplicates the lookup and opens a race whenever the object can change
+between the two statements.
+
+Pass:
 
 ```python
-# Good: Explicit configuration
-import logging
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-
-# Bad: Hidden side effects
-import some_module
-some_module.setup()  # What does this do?
+try:
+    return mapping[key]
+except KeyError:
+    return default
 ```
 
-#### 3. EAFP - Easier to Ask Forgiveness Than Permission
-
-Python prefers exception handling over checking conditions.
+Fail:
 
 ```python
-# Good: EAFP style
-def get_value(dictionary: dict, key: str) -> Any:
-    try:
-        return dictionary[key]
-    except KeyError:
-        return default_value
-
-# Bad: LBYL (Look Before You Leap) style
-def get_value(dictionary: dict, key: str) -> Any:
-    if key in dictionary:
-        return dictionary[key]
-    else:
-        return default_value
+if key in mapping:
+    return mapping[key]
+return default
 ```
 
 ---
 
-### Docstrings
+### Docstrings: default to none
 
-Default to none. A docstring is usually a sign that the code failed to explain itself. Before writing one, extract the
-unclear block into a well-named function, rename the arguments so they carry their own meaning, and tighten the types.
-Do that first and most docstrings have nothing left to say, which is the outcome you want. Code that explains itself
-cannot go stale, a comment can.
+A docstring is usually a sign that the code failed to explain itself. Before writing one, extract the unclear block
+into a well-named function, rename the arguments so they carry their own meaning, and tighten the types. Do that first
+and most docstrings have nothing left to say, which is the outcome you want. Code that explains itself cannot go
+stale, a comment can.
 
 When one is still genuinely needed, the prose is capped at five lines and is usually one. Every entry under `Args:`,
 `Returns:` or `Raises:` is capped at one line and only appears when it genuinely adds something: if the entry does not
@@ -101,8 +102,9 @@ example a documented state machine, an ordering requirement, or a concurrency gu
 justify in review, not a budget to spend. The one-line cap on an entry line has no exception at all: shorten it or
 delete it.
 
+Pass:
+
 ```python
-# Good: one sentence, then only what the signature cannot say
 def reserve_stock(order_id: OrderId, hold_for: timedelta) -> Reservation:
     """Reserve stock for an order and hold it until the payment window closes.
 
@@ -112,9 +114,11 @@ def reserve_stock(order_id: OrderId, hold_for: timedelta) -> Reservation:
     Raises:
         InsufficientStockError: when the warehouse cannot cover the order.
     """
+```
 
+Fail:
 
-# Bad: every entry restates the signature
+```python
 def reserve_stock(order_id: OrderId, hold_for: timedelta) -> Reservation:
     """Reserve stock.
 
@@ -125,906 +129,254 @@ def reserve_stock(order_id: OrderId, hold_for: timedelta) -> Reservation:
     Returns:
         Reservation: The reservation.
     """
+```
 
+Best of all, naming and annotations carry it and no docstring is needed:
 
-# Best: naming and annotations carry it, no docstring needed
+```python
 def reserve_stock_until_payment_window_closes(order_id: OrderId, hold_for: timedelta) -> Reservation: ...
 ```
 
 ---
 
-### Type Hints
+### Annotate every public signature
 
-#### Basic Type Annotations
+Use builtin generics and the union operator. The `typing` aliases `List`, `Dict`, and `Optional` are legacy spellings
+that only add an import. Depth on protocols, type aliases, and generics lives in
+[references/typing.md](references/typing.md).
+
+Pass:
 
 ```python
-from typing import Optional, List, Dict, Any
+def process_user(user_id: str, data: dict[str, object], active: bool = True) -> User | None:
+    return User(user_id, data) if active else None
+```
 
-def process_user(
-    user_id: str,
-    data: Dict[str, Any],
-    active: bool = True
-) -> Optional[User]:
-    """Process a user and return the updated User or None."""
-    if not active:
-        return None
+Fail:
+
+```python
+from typing import Any, Dict, Optional
+
+def process_user(user_id, data: Dict[str, Any], active=True) -> Optional[User]:
     return User(user_id, data)
 ```
 
-#### Modern Type Hints (Python 3.9+)
-
-```python
-# Python 3.9+ - Use built-in types
-def process_items(items: list[str]) -> dict[str, int]:
-    return {item: len(item) for item in items}
-
-# Python 3.8 and earlier - Use typing module
-from typing import List, Dict
-
-def process_items(items: List[str]) -> Dict[str, int]:
-    return {item: len(item) for item in items}
-```
-
-#### Type Aliases and TypeVar
-
-```python
-from typing import TypeVar, Union
-
-# Type alias for complex types
-JSON = Union[dict[str, Any], list[Any], str, int, float, bool, None]
-
-def parse_json(data: str) -> JSON:
-    return json.loads(data)
-
-# Generic types
-T = TypeVar('T')
-
-def first(items: list[T]) -> T | None:
-    """Return the first item or None if list is empty."""
-    return items[0] if items else None
-```
-
-#### Protocol-Based Duck Typing
-
-```python
-from typing import Protocol
-
-class Renderable(Protocol):
-    def render(self) -> str:
-        """Render the object to a string."""
-
-def render_all(items: list[Renderable]) -> str:
-    """Render all items that implement the Renderable protocol."""
-    return "\n".join(item.render() for item in items)
-```
-
 ---
 
-### Error Handling Patterns
+### Keep `Any` at the system boundary
 
-#### Specific Exception Handling
+`Any` switches the type checker off for everything it touches. It is honest at the edge where an untyped library or a
+raw payload arrives, and it is a defect inside domain code. Reach for `object`, a `TypeVar`, a `Protocol`, or an
+explicit union instead, then narrow once at the boundary.
 
-```python
-# Good: Catch specific exceptions
-def load_config(path: str) -> Config:
-    try:
-        with open(path) as f:
-            return Config.from_json(f.read())
-    except FileNotFoundError as e:
-        raise ConfigError(f"Config file not found: {path}") from e
-    except json.JSONDecodeError as e:
-        raise ConfigError(f"Invalid JSON in config: {path}") from e
-
-# Bad: Bare except
-def load_config(path: str) -> Config:
-    try:
-        with open(path) as f:
-            return Config.from_json(f.read())
-    except:
-        return None  # Silent failure!
-```
-
-#### Exception Chaining
+Pass:
 
 ```python
-def process_data(data: str) -> Result:
-    try:
-        parsed = json.loads(data)
-    except json.JSONDecodeError as e:
-        # Chain exceptions to preserve the traceback
-        raise ValueError(f"Failed to parse data: {data}") from e
-```
-
-#### Custom Exception Hierarchy
-
-```python
-class AppError(Exception):
-    """Base exception for all application errors."""
-    pass
-
-class ValidationError(AppError):
-    """Raised when input validation fails."""
-    pass
-
-class NotFoundError(AppError):
-    """Raised when a requested resource is not found."""
-    pass
-
-# Usage
-def get_user(user_id: str) -> User:
-    user = db.find_user(user_id)
-    if not user:
-        raise NotFoundError(f"User not found: {user_id}")
-    return user
-```
-
----
-
-### Context Managers
-
-#### Resource Management
-
-```python
-# Good: Using context managers
-def process_file(path: str) -> str:
-    with open(path, 'r') as f:
-        return f.read()
-
-# Bad: Manual resource management
-def process_file(path: str) -> str:
-    f = open(path, 'r')
-    try:
-        return f.read()
-    finally:
-        f.close()
-```
-
-#### Custom Context Managers
-
-```python
-from contextlib import contextmanager
-
-@contextmanager
-def timer(name: str):
-    """Context manager to time a block of code."""
-    start = time.perf_counter()
-    yield
-    elapsed = time.perf_counter() - start
-    print(f"{name} took {elapsed:.4f} seconds")
-
-# Usage
-with timer("data processing"):
-    process_large_dataset()
-```
-
-#### Context Manager Classes
-
-```python
-class DatabaseTransaction:
-    def __init__(self, connection):
-        self.connection = connection
-
-    def __enter__(self):
-        self.connection.begin_transaction()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type is None:
-            self.connection.commit()
-        else:
-            self.connection.rollback()
-        return False  # Don't suppress exceptions
-
-# Usage
-with DatabaseTransaction(conn):
-    user = conn.create_user(user_data)
-    conn.create_profile(user.id, profile_data)
-```
-
----
-
-### Comprehensions and Generators
-
-#### List Comprehensions
-
-```python
-# Good: List comprehension for simple transformations
-names = [user.name for user in users if user.is_active]
-
-# Bad: Manual loop
-names = []
-for user in users:
-    if user.is_active:
-        names.append(user.name)
-
-# Complex comprehensions should be expanded
-# Bad: Too complex
-result = [x * 2 for x in items if x > 0 if x % 2 == 0]
-
-# Good: Use a generator function
-def filter_and_transform(items: Iterable[int]) -> list[int]:
-    result = []
-    for x in items:
-        if x > 0 and x % 2 == 0:
-            result.append(x * 2)
-    return result
-```
-
-#### Generator Expressions
-
-```python
-# Good: Generator for lazy evaluation
-total = sum(x * x for x in range(1_000_000))
-
-# Bad: Creates large intermediate list
-total = sum([x * x for x in range(1_000_000)])
-```
-
-#### Generator Functions
-
-```python
-def read_large_file(path: str) -> Iterator[str]:
-    """Read a large file line by line."""
-    with open(path) as f:
-        for line in f:
-            yield line.strip()
-
-# Usage
-for line in read_large_file("huge.txt"):
-    process(line)
-```
-
----
-
-### Data Classes and Named Tuples
-
-#### Data Classes
-
-```python
-from dataclasses import dataclass, field
-from datetime import datetime
-
-@dataclass
-class User:
-    """User entity with automatic __init__, __repr__, and __eq__."""
-    id: str
-    name: str
-    email: str
-    created_at: datetime = field(default_factory=datetime.now)
-    is_active: bool = True
-
-# Usage
-user = User(
-    id="123",
-    name="Alice",
-    email="alice@example.com"
-)
-```
-
-#### Data Classes with Validation
-
-```python
-@dataclass
-class User:
-    email: str
-    age: int
-
-    def __post_init__(self):
-        # Validate email format
-        if "@" not in self.email:
-            raise ValueError(f"Invalid email: {self.email}")
-        # Validate age range
-        if self.age < 0 or self.age > 150:
-            raise ValueError(f"Invalid age: {self.age}")
-```
-
-#### Named Tuples
-
-```python
-from typing import NamedTuple
-
-class Point(NamedTuple):
-    """Immutable 2D point."""
-    x: float
-    y: float
-
-    def distance(self, other: 'Point') -> float:
-        return ((self.x - other.x) ** 2 + (self.y - other.y) ** 2) ** 0.5
-
-# Usage
-p1 = Point(0, 0)
-p2 = Point(3, 4)
-print(p1.distance(p2))  # 5.0
-```
-
----
-
-### Decorators
-
-#### Function Decorators
-
-```python
-import functools
-import time
-
-def timer(func: Callable) -> Callable:
-    """Decorator to time function execution."""
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        start = time.perf_counter()
-        result = func(*args, **kwargs)
-        elapsed = time.perf_counter() - start
-        print(f"{func.__name__} took {elapsed:.4f}s")
-        return result
-    return wrapper
-
-@timer
-def slow_function():
-    time.sleep(1)
-
-# slow_function() prints: slow_function took 1.0012s
-```
-
-#### Parameterized Decorators
-
-```python
-def repeat(times: int):
-    """Decorator to repeat a function multiple times."""
-    def decorator(func: Callable) -> Callable:
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            results = []
-            for _ in range(times):
-                results.append(func(*args, **kwargs))
-            return results
-        return wrapper
-    return decorator
-
-@repeat(times=3)
-def greet(name: str) -> str:
-    return f"Hello, {name}!"
-
-# greet("Alice") returns ["Hello, Alice!", "Hello, Alice!", "Hello, Alice!"]
-```
-
-#### Class-Based Decorators
-
-```python
-class CountCalls:
-    """Decorator that counts how many times a function is called."""
-    def __init__(self, func: Callable):
-        functools.update_wrapper(self, func)
-        self.func = func
-        self.count = 0
-
-    def __call__(self, *args, **kwargs):
-        self.count += 1
-        print(f"{self.func.__name__} has been called {self.count} times")
-        return self.func(*args, **kwargs)
-
-@CountCalls
-def process():
-    pass
-
-# Each call to process() prints the call count
-```
-
----
-
-### Concurrency Patterns
-
-#### Threading for I/O-Bound Tasks
-
-```python
-import concurrent.futures
-import threading
-
-def fetch_url(url: str) -> str:
-    """Fetch a URL (I/O-bound operation)."""
-    import urllib.request
-    with urllib.request.urlopen(url) as response:
-        return response.read().decode()
-
-def fetch_all_urls(urls: list[str]) -> dict[str, str]:
-    """Fetch multiple URLs concurrently using threads."""
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        future_to_url = {executor.submit(fetch_url, url): url for url in urls}
-        results = {}
-        for future in concurrent.futures.as_completed(future_to_url):
-            url = future_to_url[future]
-            try:
-                results[url] = future.result()
-            except Exception as e:
-                results[url] = f"Error: {e}"
-    return results
-```
-
-#### Multiprocessing for CPU-Bound Tasks
-
-```python
-def process_data(data: list[int]) -> int:
-    """CPU-intensive computation."""
-    return sum(x ** 2 for x in data)
-
-def process_all(datasets: list[list[int]]) -> list[int]:
-    """Process multiple datasets using multiple processes."""
-    with concurrent.futures.ProcessPoolExecutor() as executor:
-        results = list(executor.map(process_data, datasets))
-    return results
-```
-
-#### Async/Await for Concurrent I/O
-
-```python
-import asyncio
-
-async def fetch_async(url: str) -> str:
-    """Fetch a URL asynchronously."""
-    import aiohttp
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            return await response.text()
-
-async def fetch_all(urls: list[str]) -> dict[str, str]:
-    """Fetch multiple URLs concurrently."""
-    tasks = [fetch_async(url) for url in urls]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    return dict(zip(urls, results))
-```
-
----
-
-### Package Organization
-
-#### Standard Project Layout
-
-```
-myproject/
-├── src/
-│   └── mypackage/
-│       ├── __init__.py
-│       ├── main.py
-│       ├── api/
-│       │   ├── __init__.py
-│       │   └── routes.py
-│       ├── models/
-│       │   ├── __init__.py
-│       │   └── user.py
-│       └── utils/
-│           ├── __init__.py
-│           └── helpers.py
-├── tests/
-│   ├── __init__.py
-│   ├── conftest.py
-│   ├── test_api.py
-│   └── test_models.py
-├── pyproject.toml
-├── README.md
-└── .gitignore
-```
-
-#### Import Conventions
-
-```python
-# Good: Import order - stdlib, third-party, local
-import os
-import sys
-from pathlib import Path
-
-import requests
-from fastapi import FastAPI
-
-from mypackage.models import User
-from mypackage.utils import format_name
-
-# Good: Use ruff for automatic import sorting (replaces isort)
-# ruff check --select I --fix .
-```
-
-#### __init__.py for Package Exports
-
-```python
-# mypackage/__init__.py
-"""mypackage - A sample Python package."""
-
-__version__ = "1.0.0"
-
-# Export main classes/functions at package level
-from mypackage.models import User, Post
-from mypackage.utils import format_name
-
-__all__ = ["User", "Post", "format_name"]
-```
-
----
-
-### Memory and Performance
-
-#### Using __slots__ for Memory Efficiency
-
-```python
-# Bad: Regular class uses __dict__ (more memory)
-class Point:
-    def __init__(self, x: float, y: float):
-        self.x = x
-        self.y = y
-
-# Good: __slots__ reduces memory usage
-class Point:
-    __slots__ = ['x', 'y']
-
-    def __init__(self, x: float, y: float):
-        self.x = x
-        self.y = y
-```
-
-#### Generator for Large Data
-
-```python
-# Bad: Returns full list in memory
-def read_lines(path: str) -> list[str]:
-    with open(path) as f:
-        return [line.strip() for line in f]
-
-# Good: Yields lines one at a time
-def read_lines(path: str) -> Iterator[str]:
-    with open(path) as f:
-        for line in f:
-            yield line.strip()
-```
-
-#### Avoid String Concatenation in Loops
-
-```python
-# Bad: O(n²) due to string immutability
-result = ""
-for item in items:
-    result += str(item)
-
-# Good: O(n) using join
-result = "".join(str(item) for item in items)
-
-# Good: Using StringIO for building
-from io import StringIO
-
-buffer = StringIO()
-for item in items:
-    buffer.write(str(item))
-result = buffer.getvalue()
-```
-
----
-
-### Python Tooling Integration
-
-#### Package Manager: uv
-
-Use `uv` as the default package manager (replaces pip + virtualenv):
-
-```bash
-uv venv && source .venv/bin/activate
-uv pip install -r requirements.txt
-uv pip compile requirements.in -o requirements.txt   # pin all dependencies
-uv audit                                              # CVE scan in CI
-```
-
-#### Essential Commands
-
-```bash
-# Linting + formatting (ruff replaces black, isort, flake8, pylint — one tool)
-ruff check .
-ruff format .
-
-# Type checking (strict mode required as CI gate)
-mypy --strict .
-
-# Testing
-pytest --cov=mypackage --cov-report=html
-
-# Security scanning
-bandit -r .
-uv audit
-```
-
-#### pyproject.toml Configuration
-
-```toml
-[project]
-name = "mypackage"
-version = "1.0.0"
-requires-python = ">=3.12"
-dependencies = [
-    "fastapi>=0.111.0",
-    "pydantic>=2.0.0",
-    "pydantic-settings>=2.0.0",
-]
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.0.0",
-    "pytest-cov>=5.0.0",
-    "pytest-asyncio>=0.23.0",
-    "httpx>=0.27.0",
-    "mypy>=1.9.0",
-    "ruff>=0.4.0",
-]
-
-[tool.ruff]
-line-length = 120
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "N", "UP", "S", "B", "A"]
-
-[tool.mypy]
-strict = true
-python_version = "3.12"
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-asyncio_mode = "auto"
-addopts = "--cov=mypackage --cov-report=term-missing"
-```
-
-#### Pre-commit Hooks
-
-Commit `.pre-commit-config.yaml` to the repository:
-
-```yaml
-repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.0
-    hooks:
-      - id: ruff
-      - id: ruff-format
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.9.0
-    hooks:
-      - id: mypy
-        args: [--strict]
-```
-
----
-
-### Quick Reference: Python Idioms
-
-| Idiom | Description |
-|-------|-------------|
-| EAFP | Easier to Ask Forgiveness than Permission |
-| Context managers | Use `with` for resource management |
-| List comprehensions | For simple transformations |
-| Generators | For lazy evaluation and large datasets |
-| Type hints | Annotate function signatures |
-| Dataclasses | For data containers with auto-generated methods |
-| `__slots__` | For memory optimization |
-| f-strings | For string formatting (Python 3.6+) |
-| `pathlib.Path` | For path operations (Python 3.4+) |
-| `enumerate` | For index-element pairs in loops |
-
----
-
-### Anti-Patterns to Avoid
-
-```python
-# Bad: Mutable default arguments
-def append_to(item, items=[]):
-    items.append(item)
-    return items
-
-# Good: Use None and create new list
-def append_to(item, items=None):
-    if items is None:
-        items = []
-    items.append(item)
-    return items
-
-# Bad: Checking type with type()
-if type(obj) == list:
-    process(obj)
-
-# Good: Use isinstance
-if isinstance(obj, list):
-    process(obj)
-
-# Bad: Comparing to None with ==
-if value == None:
-    process()
-
-# Good: Use is
-if value is None:
-    process()
-
-# Bad: from module import *
-from os.path import *
-
-# Good: Explicit imports
-from os.path import join, exists
-
-# Bad: Bare except
-try:
-    risky_operation()
-except:
-    pass
-
-# Good: Specific exception
-try:
-    risky_operation()
-except SpecificError as e:
-    logger.error(f"Operation failed: {e}")
-```
-
-__Remember__: Python code should be readable, explicit, and follow the principle of least surprise. When in doubt,
-prioritize clarity over cleverness.
-
----
-
-### Project-Specific Rules (FastAPI / FastMCP Stack)
-
-#### Framework Mandate
-
-- HTTP APIs: use FastAPI: do not use Flask or Django for new projects
-- MCP servers: use FastMCP
-
-#### `Any` Type Policy
-
-Never use `Any` in domain code. Use `Any` only at system boundaries:
-
-```python
-# Allowed: untyped external library return, raw JSON payload from third party
-from typing import Any
 raw: Any = legacy_library.get_result()
+config = ReportConfig.model_validate(raw)
 
-# Not allowed: in business logic, service methods, domain models
-# Use object, TypeVar, Protocol, or explicit union types instead
-def process(data: object) -> str: ...   # Good
-def process(data: Any) -> str: ...     # Bad — avoid in domain code
+def summarise(config: ReportConfig) -> str: ...
 ```
 
-#### Error Handling (Hybrid Approach)
+Fail:
 
 ```python
-# Centralized: map domain exceptions → HTTP responses at the boundary
-@app.exception_handler(NotFoundError)
-async def not_found_handler(request: Request, exc: NotFoundError) -> JSONResponse:
-    return JSONResponse(status_code=404, content={"detail": str(exc)})
-
-# Allowed: try/except in business logic for expected, recoverable errors
-async def load_user(user_id: str) -> User:
-    try:
-        return await user_repo.get(user_id)
-    except TimeoutError:
-        raise ServiceUnavailableError("User service timeout")
-
-# Prohibited: HTTP status codes or JSONResponse inside business logic
-# Prohibited: bare except: pass
+def summarise(config: Any) -> str: ...
 ```
 
-#### Configuration (pydantic-settings)
+---
+
+### Raise specific exceptions and chain the cause
+
+Catch the exception you can actually handle, translate it into a domain error, and keep the original traceback with
+`from`. A bare `except` swallows `KeyboardInterrupt` and hides the bug you are trying to find.
+
+Pass:
 
 ```python
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
-class Settings(BaseSettings):
-    database_url: str
-    secret_key: str
-    debug: bool = False
-
-    model_config = SettingsConfigDict(env_file=".env")
-
-settings = Settings()
+try:
+    return Config.from_json(path.read_text())
+except json.JSONDecodeError as exc:
+    raise ConfigError(f"invalid JSON in config: {path}") from exc
 ```
 
-#### FastAPI Lifespan
-
-Use `lifespan` context manager, do NOT use deprecated `@app.on_event`:
+Fail:
 
 ```python
-from contextlib import asynccontextmanager
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    await db.connect()
-    yield
-    await db.disconnect()
-
-app = FastAPI(lifespan=lifespan)
+try:
+    return Config.from_json(path.read_text())
+except:
+    return None
 ```
 
-#### Database Access
+Root the whole hierarchy in one application base class, so a caller can catch everything the application raises
+without also catching library errors, and the HTTP or CLI boundary has one place to map errors onto responses.
 
 ```python
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-
-engine = create_async_engine(settings.database_url)
-# Use Alembic for all schema migrations — never modify schema outside migration scripts
-# Never execute raw SQL strings — use SQLAlchemy Core expressions or ORM
+class AppError(Exception): ...
+class ValidationError(AppError): ...
+class NotFoundError(AppError): ...
 ```
 
-#### Singleton Services
+---
+
+### Release every resource with a context manager
+
+`with` closes the resource on the exception path too. Custom managers, `ExitStack`, and transaction wrappers are in
+[references/idioms.md](references/idioms.md).
+
+Pass:
 
 ```python
-# Initialize once at module level with a descriptive name
-user_service = UserService()
-email_service = EmailService(settings.smtp_host)
+with path.open(encoding="utf-8") as handle:
+    return handle.read()
 ```
 
-#### Logging
+Fail:
 
 ```python
-import logging
-
-logging.basicConfig(
-    format="[MyService] %(asctime)s %(levelname)s %(message)s",
-    level=logging.INFO,
-)
-logger = logging.getLogger(__name__)
-# Do not use print() for operational output
+handle = open(path)
+return handle.read()
 ```
 
-#### Project Layout
+---
 
+### Model data with dataclasses, not loose dicts
+
+A dataclass gives the shape a name, a constructor, equality, and a place to put validation. A dict of strings gives
+none of that and defers every typo to runtime.
+
+Pass:
+
+```python
+@dataclass(frozen=True, slots=True)
+class User:
+    id: str
+    email: str
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 ```
-src/
-  myapp/
-    __init__.py
-    main.py            # sole entry point
-    domain/
-    application/
-    infrastructure/
-tests/
+
+Fail:
+
+```python
+user = {"id": "123", "email": "alice@example.com", "created": time.time()}
+```
+
+---
+
+### Pick the concurrency model from the bottleneck
+
+Match the tool to what the work is waiting on, then stop. Mixing models in one process is where deadlocks and starved
+pools come from. Full examples are in [references/concurrency.md](references/concurrency.md).
+
+| Bottleneck | Tool |
+| --- | --- |
+| Blocking I/O in library code you do not control | `concurrent.futures.ThreadPoolExecutor` |
+| CPU-bound computation | `concurrent.futures.ProcessPoolExecutor` |
+| Many awaitable I/O calls in async code | `asyncio.TaskGroup` |
+
+Pass:
+
+```python
+async with asyncio.TaskGroup() as group:
+    tasks = [group.create_task(fetch(url)) for url in urls]
+```
+
+Fail:
+
+```python
+with ProcessPoolExecutor() as pool:
+    results = list(pool.map(fetch, urls))
+```
+
+---
+
+### Lay the package out under src and import absolutely
+
+A `src/` layout stops tests from importing the working directory instead of the installed package. Relative imports
+that climb past one level make a module unreadable and unmovable.
+
+Pass:
+
+```python
+from myapp.domain.user import User
+```
+
+Fail:
+
+```python
+from ...domain.user import User
+```
+
+```text
+src/myapp/__init__.py
+src/myapp/domain/user.py
+tests/conftest.py
 pyproject.toml
 ```
 
-Always use absolute imports: `from src.myapp.domain.user import User`
+State the public surface in `__init__.py` with `__all__` and re-export only what callers are meant to use. Everything
+absent from it is internal and can be moved without a deprecation.
+
+---
+
+### Avoid the classic traps
+
+Each of these is legal Python that does something other than what it looks like.
+
+| Trap | Do instead |
+| --- | --- |
+| `def f(items=[])` mutable default | `def f(items: list[int] \| None = None)` then build inside |
+| `type(obj) == list` | `isinstance(obj, list)` |
+| `if value == None` | `if value is None` |
+| `from os.path import *` | Import the names you use |
+| `except:` with `pass` | Catch the specific exception and log or re-raise |
+| String built by `+=` in a loop | `"".join(parts)` |
 
 ---
 
 ### Startup readiness log
 
-See [observability-and-logging](../observability-and-logging/SKILL.md) → "Startup readiness log" for the universal
-convention (ANSI Shadow
-banner, URL + profile + dependency + observability sections, 2-second probe timeouts, `<url> [Connected|Warning|FAILED]`
-result format).
+The banner, the section order, the 2-second probe timeout, and the `<url> [Connected|Warning|FAILED]` result format
+are one convention shared by every language. It lives in `observability-and-logging`, including the Python hook per
+framework and the rule that the whole block is emitted in a single log call with a leading newline. Do not restate it
+here and do not invent a local variant.
 
-Hooks by framework:
+---
 
-- FastAPI: `lifespan` async context manager on the app; emit after the dependencies are probed but before `yield` so the
-  line appears at the moment the app is ready to serve.
-- Flask: explicit `init_app()` invoked from the entry point right before `app.run()`. `@app.before_first_request` was
-  removed in Flask 2.3.
-- Django: `AppConfig.ready()` runs at app-registry-ready time; close enough to "we're up" for sync deployments. For
-  ASGI, hook into the lifespan startup event.
+### Reference files
 
-```python
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
+| Open this | For |
+| --- | --- |
+| [references/typing.md](references/typing.md) | Protocols, type aliases, generics, `TypeVar`, narrowing |
+| [references/idioms.md](references/idioms.md) | Context managers, decorators, comprehensions, generators, `__slots__` |
+| [references/concurrency.md](references/concurrency.md) | Thread pools, process pools, asyncio, cancellation |
+| [references/tooling.md](references/tooling.md) | uv, ruff, mypy, pyproject, pre-commit, security scanning |
+| [references/fastapi-stack.md](references/fastapi-stack.md) | Optional FastAPI and FastMCP service conventions |
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # pre-readiness setup
-    await probe_dependencies()
-    # One logger.info call, leading "\n". The stdlib `logging` module stamps a
-    # timestamp / level / logger name per call; per-line emission would shred the
-    # banner. See canonical rule in coding-standards "Emit the whole block in ONE
-    # log call with a leading `\n`".
-    logger.info("\n" + build_startup_log())
-    yield
-    # post-shutdown cleanup
+---
 
-app = FastAPI(lifespan=lifespan)
-```
+### Related skills
 
-Probe timeouts: `httpx.AsyncClient(timeout=2.0)` (or `requests.get(..., timeout=2)` for sync code). Log detail at debug,
-surface only `[FAILED]` in the banner.
+- `python-testing` for pytest, fixtures, mocking, and the coverage gate.
+- `coding-standards` for the cross-language floor this skill sits on.
+- `observability-and-logging` for log discipline, metrics, and the startup readiness log.
+- `performance-optimization` for measuring before you optimise.
+- `pytorch-patterns` for model and training code.
+- `build-dependency-management` for how dependency versions are admitted and pinned.
 
-```python
-async def probe(url: str) -> str:
-    try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
-            r = await client.get(url)
-            if r.is_success:
-                return f"{url} [Connected]"
-            return f"{url} [Warning] (status={r.status_code})"
-    except httpx.HTTPError as exc:
-        logger.debug("startup probe failed: %s (%s)", url, exc)
-        return f"{url} [FAILED]"
-```
+---
+
+### Checklist
+
+- Every public function and method has annotated parameters and a return type.
+- No `Any` outside a boundary adapter, and every boundary narrows it immediately.
+- Docstrings are absent, or one sentence plus only the entries the signature cannot carry.
+- `Raises:` documents every exception a caller can act on.
+- Exceptions are specific, chained with `from`, and rooted in one application base class.
+- No bare `except`, no silent `pass`, no `return None` standing in for a failure.
+- Every file, socket, and transaction is acquired inside a `with`.
+- Data crossing a module boundary is a dataclass or a model, not a raw dict.
+- The concurrency model matches the bottleneck and only one model is used per process.
+- The package sits under `src/`, imports are absolute, and `__all__` states the public surface.
+- `ruff check`, `ruff format --check`, and `mypy --strict` all pass.

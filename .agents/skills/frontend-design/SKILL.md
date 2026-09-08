@@ -1,317 +1,291 @@
 ---
 name: frontend-design
-description: Create distinctive, production-grade frontend interfaces with high design quality. Use when the user asks to build web components, pages, or applications and the visual direction matters as much as the code quality.
-origin: ECC
+description: Give an interface a committed visual direction, covering composition, typography, colour, background atmosphere, and motion. Use when you say "make this page look designed", "this dashboard looks generic", "pick a visual direction for the landing page", "turn this card grid into something intentional", or "it works but it has no point of view". Not for token architecture, theming, and styling structure, use `design-system`.
+license: Apache-2.0
 ---
 
 # Frontend Design
 
-Use this when the task is not just "make it work" but "make it look designed."
-
-This skill is for product pages, dashboards, app shells, components, or visual systems that need a clear point of view
-instead of generic AI-looking UI.
+Direction and composition for interfaces that need a point of view, not just working markup. Use this when the task is
+not "make it work" but "make it look designed", on landing pages, dashboards, app shells, and marketing surfaces.
 
 ---
 
-### When To Use
+### When to activate
 
-- building a landing page, dashboard, or app surface from scratch
-- upgrading a bland interface into something intentional and memorable
-- translating a product concept into a concrete visual direction
-- implementing a frontend where typography, composition, and motion matter
-
----
-
-### Core Principle
-
-Pick a direction and commit to it.
-
-Safe-average UI is usually worse than a strong, coherent aesthetic with a few bold choices.
+- Building a landing page, dashboard, or app surface from scratch where the look matters.
+- Upgrading a bland interface into something intentional and memorable.
+- Translating a product concept into a concrete visual direction.
+- Implementing a frontend where typography, composition, and motion carry the product.
+- Reviewing a UI that works but reads as generic template output.
 
 ---
 
-### Design Workflow
+### When not to activate
 
-#### 1. Frame the interface first
-
-Before coding, settle:
-
-- purpose
-- audience
-- emotional tone
-- visual direction
-- one thing the user should remember
-
-Possible directions:
-
-- brutally minimal
-- editorial
-- industrial
-- luxury
-- playful
-- geometric
-- retro-futurist
-- soft and organic
-- maximalist
-
-Do not mix directions casually. Choose one and execute it cleanly.
-
-#### 2. Build the visual system
-
-Define:
-
-- type hierarchy
-- color variables
-- spacing rhythm
-- layout logic
-- motion rules
-- surface / border / shadow treatment
-
-Use CSS variables or the project's token system so the interface stays coherent as it grows.
-
-#### 3. Compose with intention
-
-Prefer:
-
-- asymmetry when it sharpens hierarchy
-- overlap when it creates depth
-- strong whitespace when it clarifies focus
-- dense layouts only when the product benefits from density
-
-Avoid defaulting to a symmetrical card grid unless it is clearly the right fit.
-
-#### 4. Make motion meaningful
-
-Use animation to:
-
-- reveal hierarchy
-- stage information
-- reinforce user action
-- create one or two memorable moments
-
-Do not scatter generic micro-interactions everywhere. One well-directed load sequence is usually stronger than twenty
-random hover effects.
+- Token architecture, theming, and stylesheet structure. Use `design-system`.
+- Contrast ratios, focus indicators, target sizes, and reduced motion. Use `web-accessibility`.
+- React component structure, hooks, and state. Use `frontend-patterns`.
+- Next.js rendering, routing, and data. Use `nextjs-app-router-patterns`.
+- Angular component and template work. Use `angular`.
 
 ---
 
-### Strong Defaults
+### Commit to one direction before writing CSS
 
-#### Typography
+Safe-average UI is worse than a coherent aesthetic with a few bold choices. Settle the purpose, the audience, the
+emotional tone, the direction, and the one thing the user should remember, then execute that one direction cleanly.
+Workable directions include brutally minimal, editorial, industrial, luxury, playful, geometric, retro-futurist, soft
+and organic, and maximalist. Do not blend them casually.
 
-- pick fonts with character
-- pair a distinctive display face with a readable body face when appropriate
-- avoid generic defaults when the page is design-led
-
-#### Color
-
-- commit to a clear palette
-- one dominant field with selective accents usually works better than evenly weighted rainbow palettes
-- avoid cliché purple-gradient-on-white unless the product genuinely calls for it
-
-#### Background
-
-Use atmosphere:
-
-- gradients
-- meshes
-- textures
-- subtle noise
-- patterns
-- layered transparency
-
-Flat empty backgrounds are rarely the best answer for a product-facing page.
-
-#### Layout
-
-- break the grid when the composition benefits from it
-- use diagonals, offsets, and grouping intentionally
-- keep reading flow obvious even when the layout is unconventional
-
----
-
-### Anti-Patterns
-
-Never default to:
-
-- interchangeable SaaS hero sections
-- generic card piles with no hierarchy
-- random accent colors without a system
-- placeholder-feeling typography
-- motion that exists only because animation was easy to add
-
----
-
-### Execution Rules
-
-- preserve the established design system when working inside an existing product
-- match technical complexity to the visual idea
-- keep accessibility and responsiveness intact
-- frontends should feel deliberate on desktop and mobile
-
----
-
-### Quality Gate
-
-Before delivering:
-
-- the interface has a clear visual point of view
-- typography and spacing feel intentional
-- color and motion support the product instead of decorating it randomly
-- the result does not read like generic AI UI
-- the implementation is production-grade, not just visually interesting
-
----
-
-### Accessibility & Visual Standards
-
-#### WCAG 2.2 Level AA (Required)
-
-- Normal text: 4.5:1 contrast ratio minimum
-- Large text (18pt / 14pt bold) and UI components: 3:1 minimum
-- Use contrast checkers in design tools before finalising colour choices
-- All interactive elements must have visible focus indicators (3:1 against adjacent colours)
-
-#### Touch Targets
-
-Minimum 44×44 CSS pixels for all interactive elements (WCAG 2.5.8).
-For icon-only buttons, add invisible padding to reach the minimum, do not enlarge the visual icon.
-
-#### 8-Point Grid System
-
-All margins, paddings, gaps, and component heights must be multiples of 8px.
-Use 4px for micro-adjustments (icon gutters, badge offsets) only.
-
-```css
-/* PASS: GOOD — multiples of 8 */
-padding: 16px 24px;
-gap: 8px;
-height: 48px;
-
-/* FAIL: BAD — arbitrary values */
-padding: 13px 19px;
-gap: 6px;
+```text
+PASS: editorial. Serif display at 4rem, tight leading, hairline rules, one ink accent, generous outer margin,
+asymmetric two-column body. Every later decision gets checked against that sentence.
 ```
 
-#### Semantic Color Palette, Design Tokens Required
+```text
+FAIL: "modern and clean, but also bold and playful, with a professional feel." Four directions, no decisions,
+and the result will read as a template.
+```
 
-Never use hardcoded hex values in component files. Define all colours as design tokens:
+---
+
+### Define the visual system once, in variables
+
+Type hierarchy, colour, spacing rhythm, layout logic, motion rules, and surface treatment get named once and reused.
+An interface that grows by inventing values drifts within a week.
 
 ```css
-/* tokens.css */
+/* PASS: named decisions the whole surface reuses */
 :root {
-  --color-primary-500: #2563eb;
-  --color-surface-default: #ffffff;
-  --color-text-primary: #111827;
-  --color-feedback-error: #dc2626;
-}
-
-[data-theme="dark"] {
-  --color-surface-default: #0f172a;
-  --color-text-primary: #f8fafc;
+  --font-display: "Fraunces", Georgia, serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --step-0: 1rem;
+  --step-3: clamp(2.5rem, 5vw, 4rem);
+  --space-3: 12px;
+  --space-8: 64px;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 ```
-
-```tsx
-/* PASS: GOOD — tokens */
-<Button style={{ background: 'var(--color-primary-500)' }} />
-
-/* FAIL: BAD — hardcoded */
-<Button style={{ background: '#2563eb' }} />
-```
-
-#### Mobile-First Responsive Design
-
-- Write base styles for the smallest viewport first
-- Use `min-width` media queries only (never `max-width`)
-- Design breakpoints: `sm: 640px`, `md: 768px`, `lg: 1024px`, `xl: 1280px`
 
 ```css
-/* PASS: GOOD — mobile-first */
-.card { padding: 16px; }
-@media (min-width: 768px) { .card { padding: 24px; } }
-
-/* FAIL: BAD — desktop-first */
-.card { padding: 24px; }
-@media (max-width: 767px) { .card { padding: 16px; } }
+/* FAIL: values invented per component, nothing shared */
+.hero h1 { font-size: 41px; margin-bottom: 27px; }
+.card h3 { font-size: 19px; margin-bottom: 13px; }
 ```
 
-#### Dark Mode, Day One Requirement
+---
 
-Dark mode is not optional. Implement using semantic tokens (see above) from the start of every project:
+### Compose with intention, not with a default grid
 
-- No hard-coded colour values in component CSS
-- Use CSS custom properties (`var(--token)`): never Tailwind arbitrary values like `bg-[#fff]`
-- Test both themes in Storybook before PR
+Asymmetry sharpens hierarchy, overlap creates depth, and whitespace directs focus. A symmetrical card grid is the
+default that happens when nobody decided anything, so reach for it only when the content genuinely is a set of peers.
 
-#### Animations & Motion
+Here is the same three-item section twice. The first is what generic output looks like: three identical boxes, equal
+weight, no entry point for the eye.
 
-All animations must respect `prefers-reduced-motion`:
+```html
+<!-- FAIL: three peers, nothing leads, the reader has no route through it -->
+<section class="grid">
+  <article class="card"><h3>Atlas</h3><p>Logistics dashboard</p></article>
+  <article class="card"><h3>Ferrous</h3><p>Steel marketplace</p></article>
+  <article class="card"><h3>Quill</h3><p>Editorial platform</p></article>
+</section>
+```
 
 ```css
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
+/* FAIL: the grid is doing the designing */
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.card { padding: 24px; border: 1px solid #e5e7eb; border-radius: 12px; }
+```
+
+The second commits to an editorial direction. One item leads at display size, the other two become a numbered index
+in a narrower column, and hairline rules replace the boxes. Same content, same component count, one clear route
+through it.
+
+```html
+<!-- PASS: one lead, a supporting index, an explicit reading order -->
+<section class="work">
+  <article class="work__lead">
+    <p class="work__kicker">Selected work</p>
+    <h3>Atlas</h3>
+    <p class="work__blurb">A logistics dashboard for freight forwarders moving 40,000 containers a month.</p>
+  </article>
+  <article class="work__item"><h3>Ferrous</h3><p>Steel marketplace</p></article>
+  <article class="work__item"><h3>Quill</h3><p>Editorial platform</p></article>
+</section>
+```
+
+```css
+/* PASS: asymmetric columns, one dominant voice, rules instead of boxes */
+.work {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 4fr);
+  gap: var(--space-3) var(--space-8);
+  align-items: start;
+  counter-reset: entry;
+}
+
+.work__lead { grid-row: span 2; }
+
+.work__kicker {
+  font-size: 0.75rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+
+.work__lead h3 {
+  font-family: var(--font-display);
+  font-size: var(--step-3);
+  line-height: 0.95;
+  margin: var(--space-3) 0;
+}
+
+.work__item {
+  counter-increment: entry;
+  border-top: 1px solid var(--color-rule);
+  padding-top: var(--space-3);
+}
+
+.work__item h3::before {
+  content: counter(entry, decimal-leading-zero);
+  margin-inline-end: var(--space-3);
+  color: var(--color-ink-muted);
+  font-variant-numeric: tabular-nums;
 }
 ```
 
-Timing guidelines:
-- Micro-interactions (button hover, checkbox): 100-150ms
-- Component transitions (drawer open, accordion): 200-300ms
-- Page/route transitions: 300-500ms
-- Never exceed 500ms for any UI transition
+Break the grid when the composition benefits, use diagonals, offsets, and grouping deliberately, and keep the reading
+flow obvious even when the layout is unconventional.
 
-#### Loading States
+---
 
-- Use skeleton screens instead of spinners for initial content load
-- Spinners are acceptable only for background/inline operations (e.g., form submission)
-- Set `aria-busy="true"` on the container while loading
-- Never show a full-screen spinner for background operations
+### Direct the motion instead of scattering it
 
-```tsx
-// PASS: GOOD — skeleton
-{isLoading ? <ArticleSkeleton /> : <ArticleCard article={article} />}
+One well-directed load sequence beats twenty random hover effects. Animation should reveal hierarchy, stage
+information, reinforce an action, or create one memorable moment. Anything else is decoration that costs frames.
 
-// FAIL: BAD — spinner blocks content area
-{isLoading ? <FullPageSpinner /> : <ArticleCard article={article} />}
+```css
+/* PASS: one staged reveal that establishes the hierarchy on entry */
+.hero > * { opacity: 0; transform: translateY(12px); animation: rise 600ms var(--ease-out) forwards; }
+.hero > :nth-child(2) { animation-delay: 90ms; }
+.hero > :nth-child(3) { animation-delay: 180ms; }
 ```
 
-#### Form UX Rules
-
-- Validate on blur (field loses focus), not on submit
-- On submit with errors: scroll to the first invalid field automatically
-- Never use disabled submit buttons: show inline validation errors instead
-- Link error messages with `aria-describedby` pointing to the error element ID
-- Show error messages below the field, not in a toast
-
-```tsx
-<input
-  id="email"
-  aria-describedby={emailError ? 'email-error' : undefined}
-  aria-invalid={!!emailError}
-/>
-{emailError && <p id="email-error" role="alert">{emailError}</p>}
+```css
+/* FAIL: every element animating on its own for no reason */
+.card:hover { transform: scale(1.04) rotate(1deg); }
+.badge { animation: pulse 2s infinite; }
+.icon:hover { animation: spin 400ms; }
 ```
 
-#### Defensive UI Patterns
+Every animation still has to respect the user's motion preference. See `web-accessibility` for the rule and the
+implementation.
 
-- Destructive actions: require a confirmation dialog with explicit labelling ("Delete permanently", not "OK")
-- Reversible destructive actions (e.g., archive, remove from list): show an undo toast (5-second window) instead of a
-  blocking confirmation dialog
-- Irreversible actions: always require typing the resource name or "DELETE" in a confirmation input
+---
 
-#### Internationalisation (i18n) Layout Budgets
+### Choose type with character
 
-- Allow 40% text expansion for translated strings when sizing containers
-- Support RTL layouts using CSS logical properties (`margin-inline-start`, `padding-block-end`): never use
-  `margin-left`/`padding-right` for layout
-- Use the `Intl` API for all number, date, and currency formatting: never hardcode locale-specific formats
+Typeface choice carries more of the direction than any other single decision. Pair a distinctive display face with a
+readable body face when the page is design-led, and let the scale do the work instead of weight alone.
 
-```tsx
-// PASS: GOOD
-const formatted = new Intl.NumberFormat(locale, { style: 'currency', currency: 'EUR' }).format(price)
-
-// FAIL: BAD
-const formatted = `€${price.toFixed(2)}`
+```css
+/* PASS: a display voice and a working body face, with real scale contrast */
+h1 { font-family: var(--font-display); font-size: var(--step-3); line-height: 0.95; letter-spacing: -0.02em; }
+p  { font-family: var(--font-body); font-size: var(--step-0); line-height: 1.6; max-width: 62ch; }
 ```
+
+```css
+/* FAIL: one system stack, hierarchy faked with bold */
+h1 { font-family: system-ui; font-size: 1.5rem; font-weight: 700; }
+p  { font-family: system-ui; font-size: 1rem; }
+```
+
+---
+
+### Weight the palette
+
+One dominant field with selective accents reads as designed. Evenly weighted palettes read as a colour picker. Avoid
+the purple-to-blue gradient on white unless the product genuinely calls for it.
+
+```css
+/* PASS: a dominant ground, one accent that means something */
+:root {
+  --color-ground: #12100e;
+  --color-ink: #f5f1ea;
+  --color-ink-muted: #8b857c;
+  --color-accent: #e4572e;
+}
+```
+
+```css
+/* FAIL: five accents of equal weight, none of them signals anything */
+:root { --blue: #3b82f6; --purple: #a855f7; --pink: #ec4899; --green: #22c55e; --amber: #f59e0b; }
+```
+
+Colour is direction here. Where those values live, how they are named, and how they invert for dark mode belong to
+`design-system`, and whether they clear contrast minimums belongs to `web-accessibility`.
+
+---
+
+### Give the background atmosphere
+
+A flat empty background is rarely the best answer on a product-facing page. Gradients, meshes, textures, subtle noise,
+patterns, and layered transparency all add depth, as long as they stay behind the content rather than competing with
+it.
+
+```css
+/* PASS: layered ground that stays behind the type */
+.hero {
+  background:
+    radial-gradient(60% 80% at 20% 0%, rgba(228, 87, 46, 0.18), transparent 70%),
+    linear-gradient(180deg, #12100e, #1c1916);
+}
+```
+
+```css
+/* FAIL: flat white, or a busy field the text has to fight */
+.hero { background: #ffffff; }
+```
+
+---
+
+### Anti-patterns
+
+| Never default to | Do instead |
+| --- | --- |
+| Interchangeable SaaS hero sections | Lead with the one thing the user should remember |
+| Generic card piles with no hierarchy | Give one item weight and demote the rest |
+| Random accent colours with no system | One dominant field, one accent with a job |
+| Placeholder-feeling typography | A display face with real scale contrast |
+| Motion added because animation was easy | One directed sequence that stages the content |
+| A new hex value per component | A named variable in the visual system |
+
+---
+
+### Related skills
+
+- `design-system` owns tokens, theming, dark mode, spacing scales, and styling architecture. Take the values from
+  there, and add new ones there rather than inline.
+- `web-accessibility` owns contrast ratios, focus indicators, target sizes, reduced motion, and form error wiring.
+  A direction that fails those is not finished.
+- `frontend-patterns` for React component structure and animation implementation.
+- `nextjs-app-router-patterns` for Next.js rendering and routing under the design.
+- `angular` for the same work in an Angular codebase.
+- `seo` for the copy and metadata behind a marketing surface.
+
+---
+
+### Checklist
+
+- The direction is stated in one sentence and every visual decision matches it.
+- Type hierarchy, colour, spacing, motion, and surface treatment live in named variables, not in component files.
+- The composition has an entry point and a reading order, and no section defaults to an undecided card grid.
+- Motion is one or two directed moments, not scattered micro-interactions.
+- Colour has one dominant field and accents that carry meaning.
+- The background contributes atmosphere without competing with the content.
+- An existing product's design system is preserved rather than overridden.
+- Technical complexity matches the visual idea, with no framework added for one effect.
+- The result is deliberate on both desktop and mobile.
+- Accessibility and responsiveness survived the redesign, checked against `web-accessibility`.

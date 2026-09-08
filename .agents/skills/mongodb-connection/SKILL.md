@@ -247,3 +247,12 @@ For every connection parameter you provide (in recommendations or code snippets)
 the user's application environment to inform values. If not, ask targeted questions before suggesting specific values.
 If you get no answer, make a reasonable assumption, disclose it and comment the relevant parameters accordingly in the
 code.
+
+---
+
+### Related skills
+
+- `mongodb-schema-design` when the pool is not the problem and the document model is.
+- `mongodb-query-optimizer` when connections are saturated because individual queries hold them too long.
+- `mongodb-search-and-ai` for Atlas Search and Vector Search workloads, which have their own connection profile.
+- `backend-patterns` for timeouts, retries, and graceful shutdown around the driver.

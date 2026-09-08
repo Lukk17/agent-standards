@@ -1,120 +1,196 @@
 ---
 name: ascend-web-hunter
-description: Search the web and scrape/extract page content via the self-hosted AscendWebSearch service. Use this whenever the task involves running a web search the agent should perform itself, or fetching, reading, or extracting content from a URL — job listings, articles, product pages, docs, paywalled or Cloudflare-protected sites. Handles WAFs automatically and escalates CAPTCHAs / login walls to a remote browser the user can drive on their phone.
+description: Web search and page-content extraction through the self-hosted AscendWebSearch service, covering WAF bypass, CAPTCHA escalation to a remote browser, and cached login sessions. Use when the user says "search the web for X", "read this URL", "scrape this job listing", "this page is behind Cloudflare", or "log me in to that site so you can read it". Not for recalling facts the user told you in an earlier conversation, use `ascend-memory`.
+compatibility: Requires the self-hosted AscendWebSearch service reachable over HTTP. Its base URL is configured by the user and appears in the examples as the placeholder $BASE, for example `http://ascend-web-hunter.local:8080`. No default base URL is assumed.
 ---
 
 # Ascend Web Hunter
 
-Self-hosted meta-search plus a tiered scraping cascade (fast HTTP → FlareSolverr → headed Playwright → remote NoVNC for human help), so most pages just work, and a session layer for getting past login walls proactively.
+Search the web and pull page content through AscendWebSearch, which cascades from fast HTTP to FlareSolverr to a
+headed Playwright browser to a remote NoVNC session a human can drive. Use it for any page a plain fetch cannot
+read, and for login walls the user signs into once so the service can cache the session.
 
-## Base URL
+---
 
-The service can live anywhere: a container name on the same Docker network, a `host:port` pair, a hostname on a local network, or a public HTTPS address behind a reverse proxy. There is no default here on purpose — a default that's wrong for the current environment looks like a working configuration right up until the first request fails. Take the base URL from whatever configuration surface the runtime provides for AscendWebSearch (an MCP server URL, an env var, a settings file) and ask the user if none is configured. Examples below use `$BASE` as a placeholder.
+### When to activate
 
-## Endpoints
+- The task needs a web search the agent runs itself rather than an answer from memory.
+- The task needs the text of a specific URL: a job listing, an article, a product page, a documentation page.
+- A plain fetch already returned a Cloudflare interstitial, a WAF challenge, or a bot check.
+- The target page sits behind a login the user can complete once on a phone or a laptop.
 
-Five endpoints matter to an agent, all under one base:
+---
 
-- `GET  {BASE}/api/v1/web/search?query=…&limit=…` — SearXNG meta-search; returns a list of `{title, url, content}` results.
-- `POST {BASE}/api/v2/web/read` — extract one page's content. Use POST/v2 because target URLs often contain `?` and `&` that a GET router would mangle.
-- `POST {BASE}/api/v2/web/session/establish` — proactively open a real browser session for a URL and hand the human a link to log in ahead of a read. See "Sessions" below.
-- `POST {BASE}/api/v2/web/session/status` — check whether a stored session for a URL is still active.
-- `POST {BASE}/api/v2/web/session/clear` — delete a stored session (and any cached reads for that domain).
+### When not to activate
 
-Four more endpoints exist on the service and are deliberately left out of this list: `GET /health` and `GET /ready` are for orchestration, not for an agent; `POST /api/v1/blocklist/refresh` and `GET /api/v1/blocklist/status` maintain the server's ad/annoyance blocklist and are an operator action, not something a calling agent should trigger.
+- Recalling something the user told you in an earlier conversation, use `ascend-memory`.
+- Turning a recording or a video into text, use `audio-scribe`.
+- Writing or polishing the markdown you produce from a fetched page, use `markdown-writer`.
 
-Typical workflow: `search` to find candidate URLs, then `read` each one. Reach for the session endpoints only when a site needs a login rather than a one-off CAPTCHA.
+---
 
-## Always send `heavy_mode: true` and `include_links: true`
+### Take the base URL from configuration, never from a guess
 
-These are the defaults you should use on every `read` call. Never opt out without a specific reason.
+Read the base URL from whatever configuration surface the runtime provides for AscendWebSearch, such as an MCP
+server URL, an environment variable, or a settings file. The service can live anywhere: a container name on the same
+Docker network, a host and port pair, a hostname on a local network, or a public HTTPS address behind a reverse
+proxy. Ask the user when nothing is configured. A wrong default looks like a working configuration right up until
+the first request fails. A configured value might look like `http://ascend-web-hunter.local:8080`, shown here only
+as an example of the shape, with the real value always coming from the user's own configuration.
 
-- **`heavy_mode: true`** — skips the fast-but-shallow tier and goes straight to the rendering tier. The fast tier silently drops JS-heavy content (most modern job boards, SPAs, anything with lazy-loaded sections), and an agent has no good way to detect that it got a partial page. Paying the latency once is cheaper than realizing later that half the listing was missing.
-- **`include_links: true`** — the response gains a `links` map keyed by the numeric markers inserted into `content` (see "Response shapes" below). Agents almost always need links for follow-up navigation (pagination, "view full job", related results). Asking for them upfront avoids a second round-trip and keeps the trail visible.
+Pass: resolve the base URL from configuration, then use it as `$BASE` in every call.
 
-Add `link_filter: "<substring>"` to narrow the returned links if you only care about a subset (e.g., `"jobs/view"` on LinkedIn).
+Fail: assume a default such as a well-known local port and start firing requests at it.
 
-## Example
+---
 
-Bash / Linux / macOS:
+### Call only the five agent-facing endpoints
 
-```bash
-curl -s --max-time 90 $BASE/api/v2/web/read \
-  -X POST -H "Content-Type: application/json" \
-  -d '{"url":"https://www.linkedin.com/jobs/view/123","heavy_mode":true,"include_links":true}'
-```
+| Endpoint | Method | Purpose |
+| --- | --- | --- |
+| `/api/v1/web/search?query=…&limit=…` | GET | SearXNG meta-search, returns a list of `{title, url, content}` results. |
+| `/api/v2/web/read` | POST | Extract one page. POST avoids a GET router mangling `?` and `&` inside the target URL. |
+| `/api/v2/web/session/establish` | POST | Open a real browser session for a URL and hand the user a link to sign in. |
+| `/api/v2/web/session/status` | POST | Check whether a stored session for a URL is still active. |
+| `/api/v2/web/session/clear` | POST | Delete a stored session and any cached reads for that domain. |
 
-PowerShell (Windows):
+Four other endpoints exist and stay out of an agent's reach. `GET /health` and `GET /ready` serve orchestration.
+`POST /api/v1/blocklist/refresh` and `GET /api/v1/blocklist/status` maintain the server's blocklist, which is an
+operator action.
 
-```powershell
-curl.exe -s --max-time 90 $BASE/api/v2/web/read `
-  -X POST -H "Content-Type: application/json" `
-  -d '{\"url\":\"https://www.linkedin.com/jobs/view/123\",\"heavy_mode\":true,\"include_links\":true}'
-```
+Pass: call `/api/v2/web/read` to get page text.
 
-Note for PowerShell: line continuation is the backtick `` ` ``, not `\`. Use `curl.exe` so PowerShell doesn't route to its `Invoke-WebRequest` alias, and escape inner double quotes in the JSON body. Set the client timeout generously (~90s) — cold Cloudflare domains take a while on the first hit while FlareSolverr warms up.
+Fail: call `/api/v1/blocklist/refresh` because a page looked full of ads.
 
-## Response shapes
+---
 
-**Success** (HTTP 200) — has `status: "success"`, plus `content` (extracted text) and `mode` (which strategy tier won, e.g. `"3-flaresolverr"`). When `include_links=true`, the response also carries `links`, a map from the numeric marker woven into `content` to its absolute URL, e.g. `content` contains `"View job [3]"` and `links` contains `{"3": "https://…"}`. The markers restart from 1 on every response; they are not stable identifiers across calls.
+### Send heavy_mode and include_links on every read
 
-**Error** (HTTP 200) — `status: "error"`, `error` (a message), and `reason` (`"all_tiers_failed"`, or `"budget_exhausted"` if the roughly 90-second wall-clock cascade budget ran out first). Both mean the page could not be read.
+Set `heavy_mode: true` so the call skips the fast-but-shallow tier and renders the page. The fast tier drops
+JavaScript-rendered content such as most modern job boards, single-page apps, and lazy-loaded sections, and an agent
+cannot tell a partial page from a complete one. Set `include_links: true` so the response carries a `links` map for
+follow-up navigation, which saves a second round trip. Narrow the result with `link_filter: "<substring>"` when only
+a subset matters, for example `"jobs/view"` on a job board.
 
-**Human intervention required** (HTTP 428 Precondition Required) — `status: "human_intervention_required"`, with `intervention_type` (`"captcha"` or `"login"`), `vnc_url`, and a human-readable `message`. This is *not* an error — see below — but it does arrive as a real 428: `curl` and most HTTP clients still hand you the body, but a client that calls something like `raise_for_status()` or only checks `response.ok` needs to unwrap this case explicitly rather than treating it as a failed request.
+Pass: send `{"url": "…", "heavy_mode": true, "include_links": true}`.
 
-**NoVNC busy** (HTTP 409 Conflict) — `status: "novnc_busy"`, `holder_url`, `holder_profile`, `message`. Only one human intervention session, whether a manual `session/establish` call or an automatic escalation from `read`, can run at a time; the server is already holding the shared browser/display for someone else. Wait and retry rather than hammering it.
+Fail: send `{"url": "…"}` and treat the shallow tier's partial text as the whole page.
 
-## Handling CAPTCHA / login walls
-
-When you get `human_intervention_required` (HTTP 428), the service has already opened a real headed browser session pointed at the target URL on a server it controls, and is monitoring it in the background. Your job:
-
-1. Show `vnc_url` to the user as a clickable link with a short prompt — e.g. *"This page needs you to solve a CAPTCHA / log in. Open this link on any device and do it: `<vnc_url>`. Tell me when you're done, or I'll keep checking."* The URL already includes `?autoconnect=true`, so the user lands directly on the live browser without a VNC password.
-2. The user solves the challenge (taps the checkbox, signs in, whatever). When they finish, the service captures the resulting cookies / clearance tokens and writes them to a shared Redis cache keyed by domain.
-3. Re-call `/api/v2/web/read` with the same URL and same body. The cached session is matched automatically — no extra parameter needed — and the call returns `success`. Subsequent calls to *other pages on the same domain* also reuse that session until the cookies expire.
-
-Since the service doesn't push a "done" signal, just poll: wait roughly 30 seconds, retry, repeat. Stop early if the user says they're finished and retry immediately. Cap retries (e.g., 5) so you don't loop forever if they walk away.
-
-Treat `human_intervention_required` as expected on auth-walled or aggressively protected sites (LinkedIn, Indeed, paywalled news). Don't hammer `/read` in a tight loop while a human is mid-solve — that just wastes work and may invalidate the in-progress session.
-
-## Sessions: establish ahead of time for login walls
-
-`read` only discovers that a page needs a login after it has already burned through the faster tiers, and the roughly 90-second cascade budget, and finally lands on the NoVNC tier, where it guesses `login` versus `captcha` from the URL (a known-redirect-pattern heuristic, not a general-purpose detector — a login form served without a redirect won't trip it). For a site you already know requires a login — the user tells you, or it's a private dashboard or authenticated app — call `session/establish` directly instead of waiting for `read` to fail first. That turns a guaranteed one-round-trip failure followed by a second call into a single call.
+Bash:
 
 ```bash
-curl -s -X POST $BASE/api/v2/web/session/establish \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://app.example.com/dashboard"}'
+curl -s --max-time 90 $BASE/api/v2/web/read -X POST -H "Content-Type: application/json" -d '{"url":"https://example.com/jobs/view/123","heavy_mode":true,"include_links":true}'
 ```
+
+PowerShell:
 
 ```powershell
-curl.exe -s -X POST $BASE/api/v2/web/session/establish `
-  -H "Content-Type: application/json" `
-  -d '{\"url\":\"https://app.example.com/dashboard\"}'
+curl.exe -s --max-time 90 $BASE/api/v2/web/read -X POST -H "Content-Type: application/json" -d '{\"url\":\"https://example.com/jobs/view/123\",\"heavy_mode\":true,\"include_links\":true}'
 ```
 
-This returns HTTP 200 with `{"status":"login_required","target":"…","vnc_url":"…"}` and, exactly like the CAPTCHA flow, opens a real browser session held for up to 10 minutes. Show `vnc_url` to the user the same way as above, then re-call `read` once they say they're done — the session is cached by domain and reused automatically.
+Call `curl.exe` in PowerShell so the shell does not route the name to its `Invoke-WebRequest` alias, and escape the
+inner double quotes of the JSON body. Give the client a generous timeout of around 90 seconds, because a cold
+Cloudflare domain takes a while on the first hit while FlareSolverr warms up.
 
-Because only one such session can run at a time (see the 409 case above), don't call `establish` speculatively for pages you haven't confirmed need it, and don't call it again while a `vnc_url` you already showed the user is still awaiting a solve.
+---
 
-Check status before re-establishing if you're unsure whether a prior login is still good:
+### Branch on the status field, not on the HTTP code alone
+
+| Case | HTTP | Key fields |
+| --- | --- | --- |
+| Success | 200 | `status: "success"`, `content`, `mode` (the winning tier, for example `"3-flaresolverr"`), plus `links` when requested. |
+| Error | 200 | `status: "error"`, `error`, `reason` (`"all_tiers_failed"` or `"budget_exhausted"`). |
+| Human needed | 428 | `status: "human_intervention_required"`, `intervention_type` (`"captcha"` or `"login"`), `vnc_url`, `message`. |
+| NoVNC busy | 409 | `status: "novnc_busy"`, `holder_url`, `holder_profile`, `message`. |
+
+Link markers are woven into `content` as numbers, so `"View job [3]"` pairs with `{"3": "https://…"}` in `links`.
+The markers restart at 1 on every response and are not stable across calls. The 428 case is not a failure, so a
+client that calls `raise_for_status()` or checks `response.ok` has to unwrap it before treating the request as
+broken. The 409 case means the shared browser is already held for someone else, so wait and retry.
+
+Pass: read `status` out of the body and route the 428 case into the human-intervention flow.
+
+Fail: call `raise_for_status()` and report the page as unreadable.
+
+---
+
+### Hand a CAPTCHA or a login wall back to the user
+
+On a 428 the service has already opened a headed browser on a machine it controls, pointed it at the target URL, and
+started monitoring it. Show `vnc_url` as a clickable link with a short prompt, for example: this page needs a CAPTCHA
+solved or a sign-in, open the link on any device and finish it, then tell me. The URL already carries
+`?autoconnect=true`, so the user lands on the live browser with no VNC password. Once they finish, the service
+captures the cookies and clearance tokens into a shared Redis cache keyed by domain. Re-call `/api/v2/web/read` with
+the same URL and the same body, and the cached session is matched with no extra parameter. Other pages on the same
+domain reuse it until the cookies expire.
+
+The service pushes no completion signal, so poll: wait around 30 seconds, retry, repeat, and stop early when the
+user says they are done. Cap the retries at about five so the loop ends when the user walks away.
+
+Pass: show `vnc_url`, wait, retry `/read` on a 30-second cadence, stop after five attempts.
+
+Fail: retry `/read` in a tight loop while the user is mid-solve, which wastes work and can invalidate the session.
+
+---
+
+### Establish a session ahead of a known login wall
+
+A `read` call only discovers a login wall after burning through the faster tiers and the roughly 90-second cascade
+budget, and it then guesses login versus CAPTCHA from a known redirect pattern rather than a general detector, so a
+login form served without a redirect slips past it. When the user tells you a site needs a sign-in, or the target is
+a private dashboard, call `session/establish` first and turn a guaranteed failed round trip into one call.
+
+Pass: call `session/establish` for a dashboard the user says needs a login.
+
+Fail: call `session/establish` speculatively while a `vnc_url` you already showed is still awaiting a solve.
+
+Bash:
 
 ```bash
-curl -s -X POST $BASE/api/v2/web/session/status \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://app.example.com/dashboard"}'
+curl -s -X POST $BASE/api/v2/web/session/establish -H "Content-Type: application/json" -d '{"url":"https://app.example.com/dashboard"}'
 ```
+
+PowerShell:
 
 ```powershell
-curl.exe -s -X POST $BASE/api/v2/web/session/status `
-  -H "Content-Type: application/json" `
-  -d '{\"url\":\"https://app.example.com/dashboard\"}'
+curl.exe -s -X POST $BASE/api/v2/web/session/establish -H "Content-Type: application/json" -d '{\"url\":\"https://app.example.com/dashboard\"}'
 ```
 
-Returns `{"url": "…", "status": "active" | "expired" | "none", "auth_ttl_remaining_seconds": …, "last_validated": …, "profile": "…"}`. Clear a stale session — for example when the user says they logged out or switched accounts — with the same request body shape against `session/clear`. That call always returns HTTP 200 and `{"status":"cleared","url":"…","existed": true | false,"cleared_cache_entries": …}`, whether or not a session existed.
+That returns HTTP 200 with `{"status":"login_required","target":"…","vnc_url":"…"}` and holds a real browser session
+for up to 10 minutes. Show `vnc_url` exactly as in the CAPTCHA flow, then re-call `read` once the user is done.
 
-All three session endpoints take an optional `profile` field (e.g. `"work"`, `"personal"`) for sites where the same user keeps more than one logged-in identity; omit it to use the server's default profile.
+Check `session/status` before re-establishing when you are unsure whether a prior login still holds. Same body
+shape, and it returns `{"url": "…", "status": "active" | "expired" | "none", "auth_ttl_remaining_seconds": …,
+"last_validated": …, "profile": "…"}`.
 
-## Search example
+Bash:
+
+```bash
+curl -s -X POST $BASE/api/v2/web/session/status -H "Content-Type: application/json" -d '{"url":"https://app.example.com/dashboard"}'
+```
+
+PowerShell:
+
+```powershell
+curl.exe -s -X POST $BASE/api/v2/web/session/status -H "Content-Type: application/json" -d '{\"url\":\"https://app.example.com/dashboard\"}'
+```
+
+Clear a stale session with the same body shape against `session/clear`, for instance when the user says they logged
+out or switched accounts. That call always returns HTTP 200 and
+`{"status":"cleared","url":"…","existed": true | false,"cleared_cache_entries": …}`, whether or not a session
+existed. All three session endpoints accept an optional `profile` field, such as `"work"` or `"personal"`, for sites
+where the user keeps more than one identity. Omit it to use the server's default profile.
+
+---
+
+### Search first, then read
+
+Use `search` to discover candidate URLs, then pass each promising one to `read`. Going straight to `read` on a URL
+you guessed wastes the whole cascade budget on a 404.
+
+Pass: search for the topic, pick the three most relevant results, read each one.
+
+Fail: invent a likely-looking URL and read it.
 
 Bash:
 
@@ -128,4 +204,21 @@ PowerShell:
 curl.exe -s "$BASE/api/v1/web/search?query=ascend%20ai&limit=5"
 ```
 
-Use it to discover URLs first; pass each promising one to `/read`.
+---
+
+### Related skills
+
+- `ascend-memory` for facts about the user that must survive across conversations.
+- `audio-scribe` for turning an audio or video recording into text.
+- `markdown-writer` for shaping fetched content into a human-facing document.
+
+---
+
+### Checklist
+
+- Base URL resolved from configuration, not from a default.
+- `heavy_mode` and `include_links` set on every `read`.
+- Response routed on its `status` field, with 428 and 409 handled as their own cases.
+- CAPTCHA and login walls handed to the user with `vnc_url`, then polled with a capped retry.
+- `session/establish` used only for a login wall you already know about.
+- Search run before read whenever the URL was not given to you.

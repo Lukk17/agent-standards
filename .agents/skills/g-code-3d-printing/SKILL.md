@@ -1,170 +1,253 @@
 ---
 name: g-code-3d-printing
-description: G-code and 3D printing standards covering thermal safety, motion safety, Klipper macros, calibration, start/end G-code, and slicer profile version control.
-origin: project-standards
+description: G-code and 3D printing standards for thermal and motion safety, absolute positioning, Klipper macros over raw G-code, start and end sequences with bed mesh and purge line, filament calibration, and slicer profile version control. Use when you say "write start G-code for my printer", "my nozzle drags through the print", "set up a START_PRINT macro", "calibrate pressure advance", or "version my slicer profiles". Not for the PCB inside the printed part, use `kicad`.
 ---
 
-# G-code and 3D Printing Development Standards
+# G-code and 3D Printing Standards
 
----
+How generated G-code stays safe on real hardware: the machine is never asked to move from an unknown position, never
+asked to extrude cold, and never asked to override a firmware safety feature. Every rule here maps to a specific way
+printers catch fire, crash, or ruin a plate.
 
-### Thermal Runaway and Heating Safety
-
-- Never attempt to manually override or disable firmware-level thermal runaway protection via G-code. This protection is
-  a critical safety feature that prevents fires.
-- Use blocking temperature commands before any extrusion sequence:
-  - `M109 S<temp>`: wait for hotend to reach target temperature.
-  - `M190 S<temp>`: wait for heated bed to reach target temperature.
-  - Do not use the non-blocking variants (`M104` / `M140`) as the sole heat command before extrusion; cold extrusion
-    shreds filament or breaks the extruder gear.
-- Enforce maximum temperature bounds based on the printer's hardware:
-  - PTFE-lined hotends: strictly limit to a maximum of 230°C to prevent off-gassing of toxic fumes (PTFE decomposition
-    begins above 240°C).
-  - All-metal hotends: respect the manufacturer's stated maximum.
-- Use `M303 E0 S<target_temp> C8` PID auto-tuning to establish stable thermal profiles before committing a new filament
-  profile to production G-code.
+Baseline: Marlin 2.1.x and Klipper current stable. Both accept the standard G-code below, the difference is that
+Klipper expects complex sequences to live in Jinja2 macros rather than in the slicer.
 
 ---
 
-### Coordinate Systems and Positioning
+### When to activate
 
-- Declare the positioning mode explicitly at the beginning of every G-code sequence. Never rely on the machine's assumed
-  default state.
-- Set all structural and toolhead movements to Absolute Positioning: `G90`.
-- Explicitly declare the extruder positioning mode:
-  - `M82`: Absolute Extrusion (E-values are cumulative totals).
-  - `M83`: Relative Extrusion (E-values are per-move deltas).
-  - The chosen mode must exactly match the logic used to calculate filament E-steps in the slicer profile.
-- Use Relative Positioning (`G91`) only for immediate toolhead micro-moves such as Z-hop, then immediately return to
-  `G90` (Absolute).
+- Writing or reviewing start, end, layer-change, or tool-change G-code.
+- Building or editing a Klipper macro.
+- Diagnosing a crash, a cold extrusion, a nozzle dragging through a print, or a Z-offset problem.
+- Calibrating pressure advance, extrusion multiplier, or retraction for a filament.
+- Version-controlling slicer profiles or embedding a profile reference in output.
+- Generating or post-processing G-code from a script.
 
 ---
 
-### Crash Prevention and Physical Boundaries
+### When not to activate
 
-- Require a mandatory homing command (`G28` or `G28 XYZ`) before any XYZ movement commands (`G0` or `G1`). Never command
-  a move when the machine's absolute position is unknown.
-- Enforce software limit bounding: be provided the exact build volume (e.g., X: 220, Y: 220, Z: 250) and never generate
-  coordinates that exceed these limits to prevent stepper motor crashes and belt skipping.
-- Mandate Z-hop during long travel moves over already printed areas:
-  ```gcode
-  G91           ; relative
-  G1 Z0.4 F600  ; lift
-  G90           ; absolute
-  G0 X... Y...  ; travel
-  G91
-  G1 Z-0.4 F600 ; lower
-  G90
-  ```
-  This prevents the hot nozzle from colliding with and dislodging the printed part.
+- Designing the PCB the printed enclosure houses, use `kicad`.
+- Writing firmware for the printer's own microcontroller, use `embedded-c-arduino`.
+- Writing the shell script that uploads or post-processes the file, use `bash` or `powershell`.
+- Automating the printer from Home Assistant, use `home-assistant`.
+- Documenting the printer setup for other people, use `markdown-writer`.
 
 ---
 
-### Firmware Specifics, Marlin vs. Klipper
+### Thermal safety
 
-- When targeting Klipper, prohibit raw G-code logic for complex processes (tool changes, filament runout, mesh
-  levelling). Invoke safe, pre-configured Jinja2 macros instead:
-  - `START_PRINT BED_TEMP=60 EXTRUDER_TEMP=215`
-  - `END_PRINT`
-  - `PAUSE`, `RESUME`, `CANCEL_PRINT`
-- All feedrate `F` values in `G0` and `G1` commands must be in millimeters per minute (mm/min), not mm/s. (600 mm/min =
-  10 mm/s.)
-- Add explicit `M400` (wait for moves to finish) before tasks that require the toolhead to be physically stopped (camera
-  snapshot, macro execution, pause).
+Never override or disable firmware thermal runaway protection from G-code. It is the feature that stops a detached
+thermistor from turning into a fire. Use the blocking heat commands before any extrusion: `M109` waits for the
+hotend, `M190` waits for the bed. The non-blocking `M104` and `M140` are for starting a heat-up early, never as the
+only heat command before extruding, because cold extrusion shreds filament and strips the extruder gear.
 
----
+Pass:
 
-### Filament Calibration Requirements
-
-Before generating production G-code for a new filament profile, perform and record the following calibrations:
-
-- Pressure Advance (Klipper) / Linear Advance K-factor (Marlin): tune for the specific filament and hotend combination
-  to eliminate corner bulge and improve dimensional accuracy.
-  - Klipper: `SET_PRESSURE_ADVANCE ADVANCE=<value>`
-  - Marlin: `M900 K<value>`
-- Extrusion Multiplier (EM): calibrate via a single-wall cube; target wall thickness must match the configured line
-  width within ±2%.
-- Retraction: tune retraction distance and speed for the specific extruder type:
-  - Direct drive: typically 0.5-2.0 mm.
-  - Bowden: typically 4-7 mm.
-  - Objective: eliminate stringing between features.
-- Store all calibrated profile values in a version-controlled slicer profile file alongside the G-code output.
-
----
-
-### Start G-code, Bed Mesh and Purge Line
-
-Every start G-code sequence must follow this pattern:
-
-1. Home all axes: `G28`.
-2. Load bed mesh / run auto-levelling:
-   - Klipper: `BED_MESH_CALIBRATE` or `BED_MESH_PROFILE LOAD=default`.
-   - Marlin UBL/BLTouch: `G29`.
-3. Never hard-code a Z-offset value in generated G-code; always read it from the printer's saved configuration.
-4. Generate a purge line on an edge of the bed, outside the print area to prime the nozzle before the first print move.
-   Never purge over the area where the part will be printed.
-
-Example purge line (left edge, outside print area):
 ```gcode
-G1 X1 Y20 Z0.3 F5000   ; move to purge start
-G1 E10 F300             ; prime
-G1 Y180 E25 F1500       ; draw purge line
-G1 Z2 F3000             ; lift
+M140 S60
+M104 S215
+M190 S60
+M109 S215
+```
+
+Fail:
+
+```gcode
+M104 S215
+G1 E10 F300
+```
+
+Respect the hardware ceiling: a PTFE-lined hotend stays at or below 230 C, because PTFE decomposition starts above
+240 C and off-gasses. An all-metal hotend follows the manufacturer's stated maximum. Run `M303 E0 S<temp> C8` PID
+tuning before committing a new filament profile.
+
+---
+
+### Declare the coordinate mode
+
+Never rely on the machine's assumed state. Declare absolute positioning with `G90` and pick the extruder mode
+explicitly: `M82` for absolute E values, `M83` for relative. The choice must match what the slicer profile computes.
+Use `G91` only for an immediate micro-move such as a Z-hop, and return to `G90` on the next line.
+
+Pass:
+
+```gcode
+G90
+M83
+```
+
+Fail:
+
+```gcode
+G1 X50 Y50 F3000
 ```
 
 ---
 
-### Post-Processing G-code Patterns
+### Home before moving, and stay inside the build volume
 
-- Fan ramp: set fan to 0% for the first two layers, then ramp to 100% (or profile-defined value) from layer 3 onward
-  using layer-change hooks.
-  ```gcode
-  ; Layer 1-2: M107 (fan off)
-  ; Layer 3+:  M106 S255 (full fan)
-  ```
-- Seam placement: position seams at the rear of the model or at a sharp corner to minimise visibility.
-- Use `G10` / `G11` (Firmware Retract) only when the printer's firmware retract values are fully tuned; otherwise use
-  explicit E-axis retract moves for reproducibility.
+`G28` before any `G0` or `G1`. A move commanded from an unknown position is a crash. Be given the exact build volume
+and never generate a coordinate outside it.
 
----
+Pass:
 
-### Multi-Material Print Standards
+```gcode
+G28
+G1 Z5 F600
+```
 
-- Define a dedicated `TOOL_CHANGE` macro in Klipper (or `T0`/`T1` sequences in Marlin) for each extruder. Never generate
-  raw inline tool-change sequences without invoking the printer's macro.
-- Always include a purge/prime tower or purge bucket wipe sequence after every tool change to clear residual filament
-  colour from the nozzle.
-- Set independent temperature targets per tool (`T0` and `T1`); ensure both nozzles reach target temperature before
-  beginning the tool-change sequence.
+Fail:
 
----
+```gcode
+G1 Z0 F600
+```
 
-### Slicer Profile Version Control
+Z-hop over already-printed areas so the hot nozzle cannot collide with and dislodge the part:
 
-- Store all slicer profiles in the project's Git repository under `slicer-profiles/`:
-  - PrusaSlicer: `.ini`
-  - OrcaSlicer: `.json`
-  - Cura: `.cfg` / `.curaprofile`
-- Name profile files with the filament type, nozzle size, and layer height:
-  ```
-  pla-0.4mm-0.2mm-layer.ini
-  petg-0.6mm-0.3mm-layer.json
-  ```
-- Tag the slicer profile version in the G-code file header comment so any printed part can be exactly reproduced:
-  ```gcode
-  ; Profile: pla-0.4mm-0.2mm-layer.ini v1.3
-  ; Slicer: OrcaSlicer 2.1.0
-  ; Printer: Voron 2.4 350mm
-  ; Date: 2025-03-01
-  ```
+```gcode
+G91
+G1 Z0.4 F600
+G90
+G0 X120 Y95
+G91
+G1 Z-0.4 F600
+G90
+```
 
 ---
 
-### Emergency Stop and Safety Halts
+### Klipper macros over raw sequences
 
-- Insert `; VERIFY: <instruction>` comments as operator checkpoints in generated G-code sequences that require hardware
-  state verification (bed clear, filament loaded) before proceeding.
-- Use `M112` (emergency stop) as the abort command in scripts that detect a fatal error condition. Understand that
-  `M112` immediately cuts power to all motors and heaters and requires a firmware restart.
-- Never generate G-code that commands `G1 Z0` or moves toward Z=0 without a prior `G28 Z` home; a Z-crash with a loaded
-  bed damages the print surface and the nozzle.
+On Klipper, tool changes, filament runout, and mesh levelling go through pre-configured Jinja2 macros, so the logic
+lives in `printer.cfg` under version control rather than being regenerated by every slicer export.
+
+Pass:
+
+```gcode
+START_PRINT BED_TEMP=60 EXTRUDER_TEMP=215
+```
+
+Fail:
+
+```gcode
+M190 S60
+M109 S215
+G28
+BED_MESH_CALIBRATE
+G1 X1 Y20 Z0.3 F5000
+```
+
+Feedrate `F` is always millimetres per minute, never mm/s, so 600 is 10 mm/s. Insert `M400` before anything that
+needs the toolhead physically stopped: a camera snapshot, a macro handoff, a pause.
+
+---
+
+### Start G-code, bed mesh and purge line
+
+The sequence is fixed: home, level, heat to the real target, purge outside the part, then print. Never hard-code a
+Z-offset, read it from the printer's saved configuration. Never purge over the area the part will occupy.
+
+Pass, a complete start sequence for a 220 x 220 bed:
+
+```gcode
+G90
+M83
+M140 S{bed_temperature}
+M104 S{first_layer_temperature}
+G28
+M190 S{bed_temperature}
+M109 S{first_layer_temperature}
+BED_MESH_PROFILE LOAD=default
+G92 E0
+G1 Z5 F600
+G1 X1.0 Y20 Z0.3 F5000
+G1 E10 F300
+G1 X1.0 Y180 E25 F1500
+G1 X1.4 Y180 Z0.3 F5000
+G1 X1.4 Y20 E40 F1500
+G92 E0
+G1 Z2 F3000
+```
+
+On Marlin with UBL or BLTouch, replace the `BED_MESH_PROFILE LOAD=default` line with `G29`.
+
+And the matching end sequence, which retracts, lifts, parks clear of the part, and cuts the heaters and motors:
+
+```gcode
+M400
+G91
+G1 E-4 F2100
+G1 Z10 F600
+G90
+G1 X5 Y200 F6000
+M104 S0
+M140 S0
+M106 S0
+M84 X Y E
+M117 Print complete
+```
+
+Fail, an end sequence that leaves the nozzle sitting on the part with the heaters live:
+
+```gcode
+M104 S0
+M84
+```
+
+The pair belongs together in the slicer profile and in version control. The end sequence retracts before it lifts,
+so no ooze is dragged across the top surface, and it leaves the Z motor energised so the gantry cannot drop.
+
+---
+
+### Emergency stop and operator checkpoints
+
+Insert `; VERIFY: <instruction>` comments where the operator must confirm hardware state, bed clear or filament
+loaded, before the sequence continues. Use `M112` as the abort in any script detecting a fatal condition, and
+understand that it cuts power to all motors and heaters and needs a firmware restart afterwards.
+
+Pass:
+
+```gcode
+; VERIFY: bed clear and previous part removed
+```
+
+Fail:
+
+```gcode
+M0 Click to continue
+```
+
+---
+
+### Reference files
+
+| Open this | For |
+|---|---|
+| [references/calibration-and-profiles.md](references/calibration-and-profiles.md) | Calibrating a new filament, fan and seam post-processing, multi-material tool changes, and slicer profile version control |
+
+---
+
+### Related skills
+
+- `kicad` for the board that goes inside the printed enclosure.
+- `embedded-c-arduino` for firmware on the printer's own controller.
+- `home-assistant` for automating the printer, its power, and its notifications.
+- `bash` and `powershell` for upload and post-processing scripts.
+- `markdown-writer` for the printer and profile documentation.
+
+---
+
+### Checklist
+
+- [ ] No G-code overrides or disables a firmware thermal safety feature.
+- [ ] `M109` and `M190` block before the first extrusion, hotend ceiling respected.
+- [ ] `G90` and an explicit `M82` or `M83` declared before any move.
+- [ ] `G28` precedes every XYZ move, and no coordinate leaves the build volume.
+- [ ] Z-hop wraps every travel move over printed material.
+- [ ] Complex sequences invoke a Klipper macro rather than inline G-code.
+- [ ] Start sequence homes, levels, heats, and purges outside the part, with no hard-coded Z-offset.
+- [ ] End sequence retracts, lifts, parks clear, and cuts heaters and fan.
+- [ ] Every `F` value is in mm/min.
+- [ ] Pressure advance, extrusion multiplier, and retraction recorded per filament.
+- [ ] Slicer profile committed, and its name and version stamped in the G-code header.

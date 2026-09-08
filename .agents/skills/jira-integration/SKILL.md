@@ -1,316 +1,258 @@
 ---
 name: jira-integration
-description: Use this skill when retrieving Jira tickets, analyzing requirements, updating ticket status, adding comments, or transitioning issues. Provides Jira API patterns via MCP or direct REST calls.
-origin: ECC
+description: 'Jira mechanics from a coding session: fetching an issue and its comments, running JQL, adding progress comments, transitioning status through the project workflow, and linking branches back to the key, through the Atlassian MCP server or the REST v3 API. Use when you say "pull up PROJ-1234", "move this ticket to In Review", "comment the PR link on the ticket", or "find my open issues this sprint". Not for how a work item should be written or closed, use `project-tracking`.'
 ---
 
-# Jira Integration Skill
+# Jira Integration
 
-Retrieve, analyze, and update Jira tickets directly from your AI coding workflow. Supports both MCP-based (recommended)
-and direct REST API approaches.
-
----
-
-### When to Activate
-
-- Fetching a Jira ticket to understand requirements
-- Extracting testable acceptance criteria from a ticket
-- Adding progress comments to a Jira issue
-- Transitioning a ticket status (To Do → In Progress → Done)
-- Linking merge requests or branches to a Jira issue
-- Searching for issues by JQL query
+How to talk to Jira from a coding session: authenticate, read an issue, act on it, and record progress against it.
+The content rules for a work item, what it should say and when it may close, live in `project-tracking`, and this
+skill defers to them rather than restating them.
 
 ---
 
-### Prerequisites
+### When to activate
 
-#### Option A: MCP Server (Recommended)
+- Fetching a Jira issue to understand what is being asked
+- Searching for issues with a JQL query
+- Adding a progress comment to an issue during or after implementation
+- Transitioning an issue through the project workflow
+- Linking a branch, pull request or merge request back to an issue key
+- Diagnosing a failing Jira call, such as a 401 or a rejected transition
 
-Install the `mcp-atlassian` MCP server. This exposes Jira tools directly to your AI agent.
+---
 
-Requirements:
-- Python 3.10+
-- `uvx` (from `uv`), installed via your package manager or the official `uv` installation documentation
+### When not to activate
 
-Add to your MCP config (e.g., `~/.claude.json` → `mcpServers`):
+- Deciding what an item should contain, how it is sized, or when it may close, use `project-tracking`
+- Operating GitHub issues, pull requests and releases, use `github-ops`
+- Naming the branch or writing the commit message that carries the key, use `git-workflow`
+- Writing the tests the acceptance criteria imply, use `tdd-workflow` or the language test skill
+- Reviewing the code the ticket produced, use `code-reviewer`
+
+---
+
+### Configure the server in your tool's own MCP file
+
+This repository keeps one MCP configuration file per agent tool, and a server has to be declared in the file the tool
+actually reads. Add the Atlassian MCP server there, following the setup document `docs/MCP_SETUP.md`, which lists the
+file each tool reads and the schema each one expects.
+
+Two rules hold regardless of tool. The secret comes from the process environment, never as a literal value inside a
+configuration file that can be committed. Do not pin the server package to a version in project configuration, so a
+consumer picks up fixes without editing a file this repository owns.
+
+Pass:
+
+```text
+JIRA_URL, JIRA_EMAIL and JIRA_API_TOKEN exported in the shell that starts the agent. Config file names the server only.
+```
+
+Fail:
 
 ```json
-{
-  "jira": {
-    "command": "uvx",
-    "args": ["mcp-atlassian==0.21.0"],
-    "env": {
-      "JIRA_URL": "https://YOUR_ORG.atlassian.net",
-      "JIRA_EMAIL": "your.email@example.com",
-      "JIRA_API_TOKEN": "your-api-token"
-    },
-    "description": "Jira issue tracking — search, create, update, comment, transition"
-  }
-}
+{"env": {"JIRA_API_TOKEN": "the-real-token-pasted-into-a-committed-file"}}
 ```
 
-> Security: Never hardcode secrets. Prefer setting `JIRA_URL`, `JIRA_EMAIL`, and `JIRA_API_TOKEN` in your system
-> environment (or a secrets manager). Only use the MCP `env` block for local, uncommitted config files.
-
-To get a Jira API token:
-1. Go to <https://id.atlassian.com/manage-profile/security/api-tokens>
-2. Click Create API token
-3. Copy the token: store it in your environment, never in source code
-
-#### Option B: Direct REST API
-
-If MCP is not available, use the Jira REST API v3 directly via `curl` or a helper script.
-
-Required environment variables:
-
-| Variable | Description |
-|----------|-------------|
-| `JIRA_URL` | Your Jira instance URL (e.g., `https://yourorg.atlassian.net`) |
-| `JIRA_EMAIL` | Your Atlassian account email |
-| `JIRA_API_TOKEN` | API token from id.atlassian.com |
-
-Store these in your shell environment, secrets manager, or an untracked local env file. Do not commit them to the repo.
+Create the token at the Atlassian account security page, store it in the environment or a secrets manager, and scope
+it to the projects you actually need. Rotate it immediately if it ever reaches git history.
 
 ---
 
-### MCP Tools Reference
+### Fall back to REST v3 when no MCP server is available
 
-When the `mcp-atlassian` MCP server is configured, these tools are available:
+The REST API answers the same questions over `curl`. It needs the same three environment variables.
 
-| Tool | Purpose | Example |
-|------|---------|---------|
-| `jira_search` | JQL queries | `project = PROJ AND status = "In Progress"` |
-| `jira_get_issue` | Fetch full issue details by key | `PROJ-1234` |
-| `jira_create_issue` | Create issues (Task, Bug, Story, Epic) | New bug report |
-| `jira_update_issue` | Update fields (summary, description, assignee) | Change assignee |
-| `jira_transition_issue` | Change status | Move to "In Review" |
-| `jira_add_comment` | Add comments | Progress update |
-| `jira_get_sprint_issues` | List issues in a sprint | Active sprint review |
-| `jira_create_issue_link` | Link issues (Blocks, Relates to) | Dependency tracking |
-| `jira_get_issue_development_info` | See linked PRs, branches, commits | Dev context |
-
-> Tip: Always call `jira_get_transitions` before transitioning, transition IDs vary per project workflow.
-
-> Guardrail: Create or modify tickets (`jira_create_issue`, `jira_update_issue`) only on explicit user request. Set
-> only the fields the user named; do not add labels, components, priority, or sprint on your own.
-
----
-
-### Direct REST API Reference
-
-#### Fetch a Ticket
-
-```bash
-curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  "$JIRA_URL/rest/api/3/issue/PROJ-1234" | jq '{
-    key: .key,
-    summary: .fields.summary,
-    status: .fields.status.name,
-    priority: .fields.priority.name,
-    type: .fields.issuetype.name,
-    assignee: .fields.assignee.displayName,
-    labels: .fields.labels,
-    description: .fields.description
-  }'
-```
-
-#### Fetch Comments
-
-```bash
-curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  "$JIRA_URL/rest/api/3/issue/PROJ-1234?fields=comment" | jq '.fields.comment.comments[] | {
-    author: .author.displayName,
-    created: .created[:10],
-    body: .body
-  }'
-```
-
-#### Add a Comment
-
-```bash
-curl -s -X POST -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "body": {
-      "version": 1,
-      "type": "doc",
-      "content": [{
-        "type": "paragraph",
-        "content": [{"type": "text", "text": "Your comment here"}]
-      }]
-    }
-  }' \
-  "$JIRA_URL/rest/api/3/issue/PROJ-1234/comment"
-```
-
-#### Transition a Ticket
-
-```bash
-# 1. Get available transitions
-curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
-  "$JIRA_URL/rest/api/3/issue/PROJ-1234/transitions" | jq '.transitions[] | {id, name: .name}'
-
-# 2. Execute transition (replace TRANSITION_ID)
-curl -s -X POST -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"transition": {"id": "TRANSITION_ID"}}' \
-  "$JIRA_URL/rest/api/3/issue/PROJ-1234/transitions"
-```
-
-#### Search with JQL
-
-```bash
-curl -s -G -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
-  --data-urlencode "jql=project = PROJ AND status = 'In Progress'" \
-  "$JIRA_URL/rest/api/3/search"
-```
-
----
-
-### Analyzing a Ticket
-
-When retrieving a ticket for development or test automation, extract:
-
-#### 1. Testable Requirements
-- Functional requirements: What the feature does
-- Acceptance criteria: Conditions that must be met
-- Testable behaviors: Specific actions and expected outcomes
-- User roles: Who uses this feature and their permissions
-- Data requirements: What data is needed
-- Integration points: APIs, services, or systems involved
-
-#### 2. Test Types Needed
-- Unit tests: Individual functions and utilities
-- Integration tests: API endpoints and service interactions
-- E2E tests: User-facing UI flows
-- API tests: Endpoint contracts and error handling
-
-#### 3. Edge Cases & Error Scenarios
-- Invalid inputs (empty, too long, special characters)
-- Unauthorized access
-- Network failures or timeouts
-- Concurrent users or race conditions
-- Boundary conditions
-- Missing or null data
-- State transitions (back navigation, refresh, etc.)
-
-#### 4. Structured Analysis Output
-
-```
-Ticket: PROJ-1234
-Summary: [ticket title]
-Status: [current status]
-Priority: [High/Medium/Low]
-Test Types: Unit, Integration, E2E
-
-Requirements:
-1. [requirement 1]
-2. [requirement 2]
-
-Acceptance Criteria:
-- [ ] [criterion 1]
-- [ ] [criterion 2]
-
-Test Scenarios:
-- Happy Path: [description]
-- Error Case: [description]
-- Edge Case: [description]
-
-Test Data Needed:
-- [data item 1]
-- [data item 2]
-
-Dependencies:
-- [dependency 1]
-- [dependency 2]
-```
-
----
-
-### Updating Tickets
-
-#### When to Update
-
-| Workflow Step | Jira Update |
+| Variable | What it holds |
 |---|---|
-| Start work | Transition to "In Progress" |
-| Tests written | Comment with test coverage summary |
-| Branch created | Comment with branch name |
-| PR/MR created | Comment with link, link issue |
-| Tests passing | Comment with results summary |
-| PR/MR merged | Transition to "Done" or "In Review" |
+| `JIRA_URL` | The instance base URL |
+| `JIRA_EMAIL` | The Atlassian account email |
+| `JIRA_API_TOKEN` | The API token, from the environment only |
 
-#### Comment Templates
+Validate that all three are set before the first call and fail with a clear message if not, because an unset variable
+produces a 401 that reads like a permissions problem.
 
-Starting Work:
+---
+
+### Know which MCP tool answers which question
+
+| Tool | Use it for |
+|---|---|
+| `jira_search` | JQL queries across a project |
+| `jira_get_issue` | Full detail for one key |
+| `jira_create_issue` | Creating a Task, Bug, Story or Epic |
+| `jira_update_issue` | Changing summary, description or assignee |
+| `jira_get_transitions` | The transition IDs valid for this issue right now |
+| `jira_transition_issue` | Moving status |
+| `jira_add_comment` | Progress updates |
+| `jira_get_sprint_issues` | Everything in the active sprint |
+| `jira_create_issue_link` | Blocks, relates to, duplicates |
+| `jira_get_issue_development_info` | Linked branches, commits and pull requests |
+
+---
+
+### Read a transition ID before transitioning
+
+Transition IDs are per project workflow and change between projects, so an ID that worked on one board fails on the
+next. Ask for the available transitions first, match on the name, then execute.
+
+Read the available transitions:
+
+```bash
+curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" "$JIRA_URL/rest/api/3/issue/PROJ-1234/transitions" | jq '.transitions[] | {id, name}'
 ```
-Starting implementation for this ticket.
-Branch: feat/PROJ-1234-feature-name
+
+Then execute the one you matched:
+
+```bash
+curl -s -X POST -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -H "Content-Type: application/json" -d '{"transition": {"id": "31"}}' "$JIRA_URL/rest/api/3/issue/PROJ-1234/transitions"
 ```
 
-Tests Implemented:
-```
-Automated tests implemented:
+Pass:
 
-Unit Tests:
-- [test file 1] — [what it covers]
-- [test file 2] — [what it covers]
-
-Integration Tests:
-- [test file] — [endpoints/flows covered]
-
-All tests passing locally. Coverage: XX%
+```text
+Fetched transitions, "In Review" is id 31 on this board, transitioned with 31.
 ```
 
-PR Created:
-```
-Pull request created:
-[PR Title](https://github.com/org/repo/pull/XXX)
+Fail:
 
-Ready for review.
-```
-
-Work Complete:
-```
-Implementation complete.
-
-PR merged: [link]
-Test results: All passing (X/Y)
-Coverage: XX%
+```text
+Used transition id 21 because that was "In Review" on the last project.
 ```
 
 ---
 
-### Security Guidelines
+### Fetch an issue with the fields you need
 
-- Never hardcode Jira API tokens in source code or skill files
-- Always use environment variables or a secrets manager
-- Add `.env` to `.gitignore` in every project
-- Rotate tokens immediately if exposed in git history
-- Use least-privilege API tokens scoped to required projects
-- Validate that credentials are set before making API calls: fail fast with a clear message
+```bash
+curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" "$JIRA_URL/rest/api/3/issue/PROJ-1234" | jq '{key, summary: .fields.summary, status: .fields.status.name, type: .fields.issuetype.name, labels: .fields.labels, description: .fields.description}'
+```
+
+Fetch the comment thread separately, because it is large and usually not needed:
+
+```bash
+curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" "$JIRA_URL/rest/api/3/issue/PROJ-1234?fields=comment" | jq '.fields.comment.comments[] | {author: .author.displayName, created: .created[:10], body: .body}'
+```
+
+Search with JQL:
+
+```bash
+curl -s -G -u "$JIRA_EMAIL:$JIRA_API_TOKEN" --data-urlencode "jql=project = PROJ AND status = 'In Progress'" "$JIRA_URL/rest/api/3/search"
+```
+
+---
+
+### Post a comment in Atlassian document format
+
+The v3 comment endpoint takes a structured document, not a plain string. A plain string is rejected with a 400 that
+does not say why.
+
+```bash
+curl -s -X POST -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -H "Content-Type: application/json" -d '{"body":{"version":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Branch feat/PROJ-1234 pushed."}]}]}}' "$JIRA_URL/rest/api/3/issue/PROJ-1234/comment"
+```
+
+Pass:
+
+```text
+Comment body wrapped in the doc structure with a paragraph node.
+```
+
+Fail:
+
+```json
+{"body": "Branch pushed."}
+```
+
+---
+
+### Write only the fields the user named
+
+Create or modify an issue only when the user asked for it, and set only the fields they named. Adding a label, a
+component, a priority or a sprint on your own edits somebody else's board, and the change is invisible until a filter
+returns the wrong set. Take the description template from the tracker rather than inventing one.
+
+Pass:
+
+```text
+Asked for a bug in PROJ with that summary and description. Created exactly those two fields. Nothing else set.
+```
+
+Fail:
+
+```text
+Created it and added the "backend" component, priority High and the current sprint, since that seemed right.
+```
+
+---
+
+### Update as you go, at the points that carry information
+
+| Moment in the work | What to record on the issue |
+|---|---|
+| Work starts | Transition to the in-progress status |
+| Branch created | Comment with the branch name |
+| Tests written | Comment with what they cover |
+| Pull request opened | Comment with the link, and link the issue |
+| Pull request merged | Transition to the next status in the workflow |
+
+Keep each comment short and link outward rather than pasting content. A comment that reproduces a test report goes
+stale the moment the report is regenerated, and a link never does.
+
+Pass:
+
+```text
+PR opened: <link>. 6 tests added covering the 429 path. Ready for review.
+```
+
+Fail:
+
+```text
+[400 lines of pasted test output]
+```
+
+---
+
+### Defer the content of the item to project-tracking
+
+What a good acceptance criterion looks like, how to size and split an item, which label taxonomy is allowed, and what
+has to be true before an item closes are all owned by `project-tracking`. Read that skill before you write a
+description, criteria or a closure comment, and use this skill only for getting that content into and out of Jira.
+
+Where criteria are vague, ask before writing code rather than inventing an interpretation, and check linked issues
+first so you understand the full scope of the feature.
 
 ---
 
 ### Troubleshooting
 
-| Error | Cause | Fix |
+| Symptom | Cause | Fix |
 |---|---|---|
-| `401 Unauthorized` | Invalid or expired API token | Regenerate at id.atlassian.com |
-| `403 Forbidden` | Token lacks project permissions | Check token scopes and project access |
-| `404 Not Found` | Wrong ticket key or base URL | Verify `JIRA_URL` and ticket key |
-| `spawn uvx ENOENT` | IDE cannot find `uvx` on PATH | Use full path (e.g., `~/.local/bin/uvx`) or set PATH in `~/.zprofile` |
-| Connection timeout | Network/VPN issue | Check VPN connection and firewall rules |
+| `401 Unauthorized` | Token invalid, expired, or not exported into the agent's process | Check the environment, regenerate if needed |
+| `403 Forbidden` | Token lacks permission on that project | Check token scope and project access |
+| `404 Not Found` | Wrong key or wrong base URL | Verify `JIRA_URL` and the issue key |
+| `400` on a comment | Body sent as a plain string | Wrap it in the Atlassian document structure |
+| Transition rejected | ID belongs to a different workflow | Read the transitions for this issue first |
+| Connection timeout | Network or VPN | Check VPN and firewall rules |
+| MCP server will not start | Launcher binary not on the agent's PATH | Use the absolute path, or set PATH in the shell profile that starts the agent |
 
 ---
 
-### Best Practices
+### Related skills
 
-- Update Jira as you go, not all at once at the end
-- Keep comments concise but informative
-- Link rather than copy: point to PRs, test reports, and dashboards
-- Use @mentions if you need input from others
-- Check linked issues to understand full feature scope before starting
-- If acceptance criteria are vague, ask for clarification before writing code
+- `project-tracking` owns item kinds, sizing, acceptance criteria, labels, statuses and closure rules
+- `github-ops` owns the same operational surface when the tracker is GitHub issues
+- `git-workflow` owns branch naming and commit messages that carry the issue key
+- `code-reviewer` owns reviewing the change the issue produced
+- `security-review` owns handling and rotation of the API token itself
+
+---
+
+### Checklist
+
+- [ ] Credentials come from the process environment, never a literal in a config file
+- [ ] The MCP server is declared in the file the running tool actually reads
+- [ ] No version pin was added to project MCP configuration
+- [ ] Transitions were read for this issue before one was executed
+- [ ] Only the fields the user named were written
+- [ ] Comments link outward rather than pasting reports
+- [ ] Item content follows `project-tracking`, not conventions invented here

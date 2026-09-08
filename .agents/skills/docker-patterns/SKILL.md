@@ -1,269 +1,137 @@
 ---
 name: docker-patterns
-description: Docker and Docker Compose patterns for local development, container security, networking, volume strategies, and multi-service orchestration.
-origin: ECC
+description: Docker and Compose standards for multi-stage builds, pinned base images, non-root runtime users, named volumes, network isolation, build-time and runtime secrets, and the Trivy, SBOM and cosign supply-chain gate. Use when you say "write a Dockerfile for this service", "set up compose for local dev", "my container cannot reach the database", "shrink this image", or "scan and sign this image before we push". Not for Kubernetes manifests and rollout strategy, use `deployment-patterns`.
 ---
 
 # Docker Patterns
 
-Docker and Docker Compose best practices for containerized development.
+How a container image stays small, reproducible, and safe to run: a pinned base, a build split into stages, a
+non-root user, no secret baked into a layer, and a scan plus a signature before it is trusted anywhere. Compose then
+wires those images into a local stack that behaves like the real one.
+
+Baseline: Docker Engine 29.3 and Docker Compose v5.1 (both verified locally). The Compose v1 `docker-compose`
+command is gone, every command below is `docker compose`.
 
 ---
 
-### When to Activate
+### When to activate
 
-- Setting up Docker Compose for local development
-- Designing multi-container architectures
-- Troubleshooting container networking or volume issues
-- Reviewing Dockerfiles for security and size
-- Migrating from local dev to containerized workflow
+- Writing or reviewing a Dockerfile or a Compose file.
+- Setting up or debugging a local multi-service development stack.
+- Shrinking an image, or fixing one that rebuilds everything on every change.
+- Hardening a container: user, capabilities, filesystem, secrets.
+- Adding image scanning, an SBOM, or signing to a pipeline.
+- Diagnosing container networking, DNS, or volume behaviour.
 
 ---
 
-### Docker Compose for Local Development
+### When not to activate
 
-#### Standard Web App Stack
+- Writing Kubernetes manifests, probes, or rollout strategy, use `deployment-patterns`.
+- Configuring hosts rather than containers, use `ansible`.
+- Writing the entrypoint script itself, use `bash` or `powershell`.
+- Instrumenting the application inside the container, use `observability-and-logging`.
+- Reviewing the application's own authentication or input handling, use `security-review`.
 
-> Rule: Named volumes only. Never use anonymous volumes (e.g., `- /app/node_modules`).
-> Why:
-> 1. Unidentifiable, no name; cannot be targeted by backup scripts or `docker volume inspect`
-> 2. Orphaned silently, persist as dangling volumes after `docker-compose down`; accumulate disk usage invisibly
-> 3. Not shareable, cannot be referenced between services or compose files
-> 4. Breaks reproducibility, volume names become random hashes; nothing can reliably reference them
-> 5. Production foot-gun, data is tied to container lifecycle rather than a managed named resource
+---
+
+### Named volumes only
+
+An anonymous volume (`- /app/node_modules`) gets a random hash for a name. Nothing can back it up, target it,
+inspect it, or share it, and it survives `docker compose down` as a dangling volume consuming disk invisibly. In
+production it ties data to a container lifecycle instead of a managed resource.
+
+Pass:
 
 ```yaml
-# docker-compose.yml
-services:
-  app:
-    build:
-      context: .
-      target: dev                     # Use dev stage of multi-stage Dockerfile
-    ports:
-      - "3000:3000"
-    volumes:
-      - .:/app                        # Bind mount for hot reload
-      - node_modules:/app/node_modules  # Named volume -- preserves container deps
-    environment:
-      - DATABASE_URL=postgres://postgres:postgres@db:5432/app_dev
-      - REDIS_URL=redis://redis:6379/0
-      - NODE_ENV=development
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_started
-    command: npm run dev
-
-  db:
-    image: postgres:16-alpine
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: app_dev
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redisdata:/data
-
-  mailpit:                            # Local email testing
-    image: axllent/mailpit
-    ports:
-      - "8025:8025"                   # Web UI
-      - "1025:1025"                   # SMTP
-
 volumes:
-  pgdata:
-  redisdata:
-  node_modules:
+  - node_modules:/app/node_modules
 ```
 
-#### Development vs Production Dockerfile
+Fail:
+
+```yaml
+volumes:
+  - /app/node_modules
+```
+
+---
+
+### Build in stages, ship the last one
+
+A multi-stage build keeps compilers, dev dependencies, and build caches out of the shipped image. Copy dependency
+manifests before source so a code change does not invalidate the dependency layer.
+
+Pass:
 
 ```dockerfile
-# Stage: dependencies
-FROM node:22-alpine AS deps
-WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
-
-# Stage: dev (hot reload, debug tools)
-FROM node:22-alpine AS dev
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-EXPOSE 3000
-CMD ["npm", "run", "dev"]
+```
 
-# Stage: build
-FROM node:22-alpine AS build
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+Fail:
+
+```dockerfile
 COPY . .
-RUN npm run build && npm prune --production
+RUN npm ci
+```
 
-# Stage: production (minimal image)
-FROM node:22-alpine AS production
-WORKDIR /app
+Full reference Dockerfiles for Node, Go, and Python, plus the apt-get, OCI label, and build-secret rules, are in
+[references/dockerfiles.md](references/dockerfiles.md).
+
+---
+
+### Pin the base image
+
+`:latest` makes a build unreproducible and silently changes the runtime under you. Pin a specific tag, and pin a
+digest where the registry supports it.
+
+Pass:
+
+```dockerfile
+FROM node:24.11-alpine3.23
+```
+
+Fail:
+
+```dockerfile
+FROM node:latest
+```
+
+Pick the smallest base that can actually run the artefact:
+
+| Workload | Preferred base |
+|---|---|
+| Compiled binaries (Go, Rust) | `gcr.io/distroless/static` or `scratch` |
+| JVM (Spring Boot) | `gcr.io/distroless/java21` |
+| Node.js | `node:24-alpine` |
+| Python | `python:3.14-slim` |
+
+Never use `ubuntu:latest` or `debian:latest` as a runtime base.
+
+---
+
+### Run as a non-root user
+
+Create a user in the image and switch to it before the runtime stage ends. A container escape from root is a host
+compromise, from an unprivileged user it usually is not.
+
+Pass:
+
+```dockerfile
 RUN addgroup -g 1001 -S appgroup && adduser -S appuser -u 1001
 USER appuser
-COPY --from=build --chown=appuser:appgroup /app/dist ./dist
-COPY --from=build --chown=appuser:appgroup /app/node_modules ./node_modules
-COPY --from=build --chown=appuser:appgroup /app/package.json ./
-ENV NODE_ENV=production
-EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://localhost:3000/health || exit 1
+```
+
+Fail:
+
+```dockerfile
 CMD ["node", "dist/server.js"]
 ```
 
-#### Override Files
-
-```yaml
-# docker-compose.override.yml (auto-loaded, dev-only settings)
-services:
-  app:
-    environment:
-      - DEBUG=app:*
-      - LOG_LEVEL=debug
-    ports:
-      - "9229:9229"                   # Node.js debugger
-
-# docker-compose.prod.yml (explicit for production)
-services:
-  app:
-    build:
-      target: production
-    restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: "1.0"
-          memory: 512M
-```
-
-```bash
-# Development (auto-loads override)
-docker compose up
-
-# Production
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-```
-
----
-
-### Networking
-
-#### Service Discovery
-
-Services in the same Compose network resolve by service name:
-```
-# From "app" container:
-postgres://postgres:postgres@db:5432/app_dev    # "db" resolves to the db container
-redis://redis:6379/0                             # "redis" resolves to the redis container
-```
-
-#### Custom Networks
-
-```yaml
-services:
-  frontend:
-    networks:
-      - frontend-net
-
-  api:
-    networks:
-      - frontend-net
-      - backend-net
-
-  db:
-    networks:
-      - backend-net              # Only reachable from api, not frontend
-
-networks:
-  frontend-net:
-  backend-net:
-```
-
-#### Exposing Only What's Needed
-
-```yaml
-services:
-  db:
-    ports:
-      - "127.0.0.1:5432:5432"   # Only accessible from host, not network
-    # Omit ports entirely in production -- accessible only within Docker network
-```
-
----
-
-### Volume Strategies
-
-```yaml
-volumes:
-  # Named volume: persists across container restarts, managed by Docker
-  pgdata:
-
-  # Bind mount: maps host directory into container (for development)
-  # - ./src:/app/src
-
-  # Named volume for container-generated content (never use anonymous volumes)
-  # node_modules:/app/node_modules
-```
-
-#### Common Patterns
-
-```yaml
-services:
-  app:
-    volumes:
-      - .:/app                          # Source code (bind mount for hot reload)
-      - node_modules:/app/node_modules  # Named volume: protect container's node_modules from host
-      - next_cache:/app/.next           # Named volume: protect build cache
-
-  db:
-    volumes:
-      - pgdata:/var/lib/postgresql/data          # Persistent data
-      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql  # Init scripts
-
-volumes:
-  node_modules:
-  next_cache:
-  pgdata:
-```
-
----
-
-### Container Security
-
-#### Dockerfile Hardening
-
-```dockerfile
-# 1. Use specific tags (never :latest)
-FROM node:22.12-alpine3.20
-
-# 2. Run as non-root
-RUN addgroup -g 1001 -S app && adduser -S app -u 1001
-USER app
-
-# 3. Drop capabilities (in compose)
-# 4. Read-only root filesystem where possible
-# 5. No secrets in image layers
-```
-
-#### Compose Security
+Harden the runtime from Compose as well, dropping every capability and adding back only what the process genuinely
+needs:
 
 ```yaml
 services:
@@ -277,41 +145,79 @@ services:
     cap_drop:
       - ALL
     cap_add:
-      - NET_BIND_SERVICE          # Only if binding to ports < 1024
+      - NET_BIND_SERVICE
 ```
 
-#### Secret Management
+`NET_BIND_SERVICE` is only needed when the process binds a port below 1024. Listen on a high port and drop it too.
+
+---
+
+### No secret in an image or a compose file
+
+Inject secrets at runtime through the environment or a Docker secret. Anything set with `ENV` or `ARG` is readable
+from the image history by anyone who can pull it.
+
+Pass:
 
 ```yaml
-# GOOD: Use environment variables (injected at runtime)
 services:
   app:
     env_file:
-      - .env                     # Never commit .env to git
+      - .env
     environment:
-      - API_KEY                  # Inherits from host environment
+      - API_KEY
+```
 
-# GOOD: Docker secrets (Swarm mode)
-secrets:
-  db_password:
-    file: ./secrets/db_password.txt
+Fail:
 
+```dockerfile
+ENV API_KEY=sk-proj-xxxxx
+```
+
+`- API_KEY` with no value inherits the variable from the host environment, so the value never enters a committed
+file. `.env` is gitignored. For build-time credentials use `--mount=type=secret`, covered in
+[references/dockerfiles.md](references/dockerfiles.md).
+
+---
+
+### Isolate what should not be reachable
+
+Put a database on its own network rather than relying on nobody connecting to it, and bind published ports to
+loopback so they are not exposed to the host's network.
+
+Pass:
+
+```yaml
 services:
   db:
-    secrets:
-      - db_password
-
-# BAD: Hardcoded in image
-# ENV API_KEY=sk-proj-xxxxx      # NEVER DO THIS
+    ports:
+      - "127.0.0.1:5432:5432"
+    networks:
+      - backend-net
 ```
+
+Fail:
+
+```yaml
+services:
+  db:
+    ports:
+      - "5432:5432"
+```
+
+Omit `ports` on internal services in production entirely. Compose service names resolve inside the network, so
+nothing needs a published port to talk to them.
 
 ---
 
 ### .dockerignore
 
-Always create a `.dockerignore` at the same level as the `Dockerfile`:
+Without one, the whole working tree goes into the build context, which slows every build and risks copying `.env`
+and `.git` into a layer. Create it next to the Dockerfile.
 
-```
+Pass:
+
+```text
 node_modules
 dist
 build
@@ -326,69 +232,31 @@ coverage
 tests/
 ```
 
----
+Fail:
 
-### Base Image Policy
-
-| Use case | Preferred base |
-|---|---|
-| Compiled binaries (Go, Rust) | `gcr.io/distroless/static` or `scratch` |
-| JVM (Spring Boot) | `gcr.io/distroless/java21` |
-| Node.js | `node:22-alpine` |
-| Python | `python:3.12-slim` |
-
-Never use `ubuntu:latest` or `debian:latest` as a runtime base, use a specific slim or distroless image.
-
----
-
-### apt-get Best Practice
-
-Always combine install + cleanup in a single RUN layer:
-
-```dockerfile
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+```text
+node_modules
 ```
 
 ---
 
-### OCI Image Labels
+### Supply chain: scan, bill of materials, signature
 
-Every published Dockerfile must include standard labels:
+This section is canonical for the repository. Other skills point here rather than restating it.
 
-```dockerfile
-LABEL org.opencontainers.image.source="https://github.com/org/repo" \
-      org.opencontainers.image.revision="${GIT_SHA}" \
-      org.opencontainers.image.created="${BUILD_DATE}" \
-      org.opencontainers.image.version="${VERSION}"
-```
-
----
-
-### Supply Chain Security
-
-#### Image Scanning (Trivy)
-
-Scan every image in CI before pushing:
+Scan every image in CI before it is pushed, and fail the build on a fixable critical or high finding:
 
 ```bash
 trivy image --exit-code 1 --severity CRITICAL,HIGH myimage:tag
 ```
 
-- Block the pipeline on CRITICAL/HIGH CVEs with available fixes
-- Store the scan report as a CI artifact
+Store the scan report as a CI artifact, so a later question about what was known at release time has an answer.
 
-#### SBOM Generation
-
-Generate a Software Bill of Materials and attach as OCI referrer:
+Generate a Software Bill of Materials and attach it as an OCI referrer:
 
 ```bash
 syft myimage:tag -o cyclonedx-json > sbom.json
 ```
-
-#### Container Signing (cosign / Sigstore)
 
 Sign every production image after push:
 
@@ -396,102 +264,66 @@ Sign every production image after push:
 cosign sign --key cosign.key myregistry/myimage:tag
 ```
 
-Verify before deploy:
+Verify before deploy, in the pipeline, not by hand:
 
 ```bash
 cosign verify --key cosign.pub myregistry/myimage:tag
 ```
 
+A signature nothing verifies proves nothing. The verify step belongs in the deploy job, gating it, and a cluster
+policy should reject an unsigned image outright.
+
 ---
 
-### Build-Time Secrets
+### Registry retention
 
-Use `--mount=type=secret` instead of `ARG` / `ENV` for sensitive values:
+Keep the last 10 tagged releases, auto-delete untagged images after 7 days, and implement it as a registry lifecycle
+policy rather than a cleanup script somebody remembers to run.
 
-```dockerfile
-# Dockerfile
-RUN --mount=type=secret,id=npm_token \
-    NPM_TOKEN=$(cat /run/secrets/npm_token) npm install
+Pass:
 
-# Build command
-docker build --secret id=npm_token,src=.npmrc .
+```text
+ECR lifecycle policy: keep 10 images tagged with prefix "v", expire untagged after 7 days.
 ```
 
----
-
-### Registry Retention Policy
-
-- Keep last 10 tagged releases in the registry
-- Auto-delete dangling (untagged) images after 7 days
-- Implement via registry lifecycle policies (ECR, GCR, Docker Hub retention)
-
----
-
-### Debugging
-
-#### Common Commands
+Fail:
 
 ```bash
-# View logs
-docker compose logs -f app           # Follow app logs
-docker compose logs --tail=50 db     # Last 50 lines from db
-
-# Execute commands in running container
-docker compose exec app sh           # Shell into app
-docker compose exec db psql -U postgres  # Connect to postgres
-
-# Inspect
-docker compose ps                     # Running services
-docker compose top                    # Processes in each container
-docker stats                          # Resource usage
-
-# Rebuild
-docker compose up --build             # Rebuild images
-docker compose build --no-cache app   # Force full rebuild
-
-# Clean up
-docker compose down                   # Stop and remove containers
-docker compose down -v                # Also remove volumes (DESTRUCTIVE)
-docker system prune                   # Remove unused images/containers
-```
-
-#### Debugging Network Issues
-
-```bash
-# Check DNS resolution inside container
-docker compose exec app nslookup db
-
-# Check connectivity
-docker compose exec app wget -qO- http://api:3000/health
-
-# Inspect network
-docker network ls
-docker network inspect <project>_default
+docker system prune -a
 ```
 
 ---
 
-### Anti-Patterns
+### Reference files
 
-```
-# BAD: Using docker compose in production without orchestration
-# Use Kubernetes, ECS, or Docker Swarm for production multi-container workloads
+| Open this | For |
+|---|---|
+| [references/dockerfiles.md](references/dockerfiles.md) | Full multi-stage Dockerfiles for Node, Go and Python, plus apt-get layering, OCI labels, and build-time secrets |
+| [references/compose-and-debugging.md](references/compose-and-debugging.md) | A complete local stack, override files, network isolation, volume strategies, and the commands for debugging containers and networking |
 
-# BAD: Storing data in containers without volumes
-# Containers are ephemeral -- all data lost on restart without volumes
+---
 
-# BAD: Running as root
-# Always create and use a non-root user
+### Related skills
 
-# BAD: Using :latest tag
-# Pin to specific versions for reproducible builds
+- `deployment-patterns` for Kubernetes, rollout strategy, and the pipeline these images move through.
+- `observability-and-logging` for the health, readiness, and log output the container emits.
+- `bash` and `powershell` for entrypoint and healthcheck scripts.
+- `ansible` for configuring the hosts the daemon runs on.
+- `security-review` before shipping an image that handles credentials or faces the internet.
 
-# BAD: One giant container with all services
-# Separate concerns: one process per container
+---
 
-# BAD: Putting secrets in docker-compose.yml
-# Use .env files (gitignored) or Docker secrets
+### Checklist
 
-# BAD: Using anonymous volumes (e.g., - /app/node_modules)
-# Always use named volumes so they are identifiable, shareable, and manageable
-```
+- [ ] Every base image pinned to a specific tag, never `:latest`.
+- [ ] Build split into stages, dependency manifests copied before source.
+- [ ] Runtime stage runs as a created non-root user.
+- [ ] `HEALTHCHECK` declared.
+- [ ] `.dockerignore` present next to the Dockerfile and excludes `.git`, `.env`, and tests.
+- [ ] No secret in `ENV`, `ARG`, or a committed compose file.
+- [ ] Named volumes only, no anonymous volume anywhere.
+- [ ] Internal services on their own network, published ports bound to loopback or omitted.
+- [ ] `cap_drop: [ALL]`, `no-new-privileges`, and a read-only root filesystem where the process allows it.
+- [ ] Trivy scan gates the push, the report is archived, and an SBOM is generated.
+- [ ] Production images are signed and the signature is verified by the deploy job.
+- [ ] Registry retention enforced by a lifecycle policy.
