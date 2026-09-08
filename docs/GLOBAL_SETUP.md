@@ -36,8 +36,9 @@ Stays per project, because a global copy would be wrong or actively harmful:
   token belongs to the one project that owns it. Servers that really are machine-wide, Context7 and Playwright for
   example, are the exception and are fine globally.
 - Anything that describes a codebase: its build commands, its module layout, its architecture decisions.
-- The blocking half of the gate. Every shipped hook wiring calls `python .agents/hooks/preflight_gate.py`, a
-  project-relative path. Read [Limitations](#limitations) for exactly how far the global half gets.
+- The blocking half of the gate. Every shipped hook wiring calls `python -S -E .agents/hooks/preflight_gate.py`, a
+  project-relative path, and the other hooks are wired the same way. Read [Limitations](#limitations) for exactly how
+  far the global half gets.
 
 ---
 
@@ -158,7 +159,7 @@ mkdir -p ~/.agents
 ```
 
 Copy the canonical content into it. This is `skills/`, the OpenCode-format `agents/` tree, the four `hooks/`
-scripts (the preflight gate, the reply formatting check, the markdown lint pass, and the task-list mirror), and
+scripts (the preflight gate, the reply formatting check, the task-list mirror, and the markdown lint pass), and
 the `plugin/` shim, all in one move. PowerShell:
 
 ```powershell
@@ -173,6 +174,16 @@ cp -R ~/.agent-standards/.agents/. ~/.agents/
 
 After this one step, Codex, OpenCode, and GitHub Copilot already see every skill, with no further wiring. Claude Code
 needs a symlink and Kilo Code needs one config line, both covered in their sections below.
+
+Three of those four hook scripts get wired per agent below. The fourth, `markdown_lint_check.py`, does not: it shells
+out to `tools/check-markdown.py`, which stays in the upstream repository and never ships, so a global wiring would
+start an interpreter that returns 0 every time. It is copied anyway, because the copy is one directory rather than a
+file list, and it costs nothing sitting there unwired.
+
+`task_list_sync.py` mirrors the agent's own task list into a file named `tasks.md` so a compaction cannot lose it. It
+writes that file at the project root when the working directory has an imported `.agents/hooks/` beside it, and in
+your home directory when it does not, which is what a bare directory gets. Add `tasks.md` to your global gitignore if
+you would rather it never showed up as an untracked file.
 
 Now put your machine-wide instruction file where the agents can find it. `AGENTS.md.example` is written for a project,
 so treat it as a starting point and cut the project-specific sections out of the global copy, leaving the parts that
@@ -255,13 +266,36 @@ user-scope memory file load without the external-import approval dialog, because
 @~/.agents/AGENTS.md
 ```
 
-Wire the gate into `~/.claude/settings.json`. Hooks in that file apply to every project on the machine
-([hooks docs](https://code.claude.com/docs/en/hooks)). Replace the two absolute paths with your real home directory.
+Wire the hooks into `~/.claude/settings.json`. Hooks in that file apply to every project on the machine
+([hooks docs](https://code.claude.com/docs/en/hooks)). Replace every absolute path with your real home directory.
 Forward slashes work on Windows too and save you escaping backslashes inside JSON.
+
+This is the same event set the per-project wiring uses, minus the markdown lint pass. `SessionStart` and
+`UserPromptSubmit` inject the gate text, `PreToolUse` is the blocking half, `Stop` and `SubagentStop` check the reply
+formatting, and the five task events keep `tasks.md` in step. `-S -E` skips site initialisation and ignores the
+`PYTHON*` environment variables, which is safe because every hook is standard library only and saves a slice of
+interpreter start on every single tool call. The trailing `; exit 0` is what turns a missing or broken hook back into
+an allow, in the one form both bash and PowerShell parse, because Claude Code has a single command field and picks the
+shell itself.
 
 ```json
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.'"
+          },
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "python -S -E /home/you/.agents/hooks/task_list_sync.py --event sessionstart --format claude ; exit 0"
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [
@@ -274,12 +308,45 @@ Forward slashes work on Windows too and save you escaping backslashes inside JSO
     ],
     "PreToolUse": [
       {
-        "matcher": "^(Edit|Write|NotebookEdit|Bash)$",
+        "matcher": "^(Edit|Write|NotebookEdit|Bash|WebFetch|WebSearch)$",
         "hooks": [
           {
             "type": "command",
             "timeout": 10,
-            "command": "python /home/you/.agents/hooks/preflight_gate.py --format claude ; exit 0"
+            "command": "python -S -E /home/you/.agents/hooks/preflight_gate.py --format claude ; exit 0"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "python -S -E /home/you/.agents/hooks/task_list_sync.py --event precompact --format claude ; exit 0"
+          }
+        ]
+      }
+    ],
+    "TaskCreated": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "python -S -E /home/you/.agents/hooks/task_list_sync.py --event taskcreated --format claude ; exit 0"
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "python -S -E /home/you/.agents/hooks/task_list_sync.py --event taskcompleted --format claude ; exit 0"
           }
         ]
       }
@@ -290,7 +357,23 @@ Forward slashes work on Windows too and save you escaping backslashes inside JSO
           {
             "type": "command",
             "timeout": 10,
-            "command": "python /home/you/.agents/hooks/no_ai_markers_check.py ; exit 0"
+            "command": "python -S -E /home/you/.agents/hooks/no_ai_markers_check.py --format claude ; exit 0"
+          },
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "python -S -E /home/you/.agents/hooks/task_list_sync.py --event stop --format claude ; exit 0"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "python -S -E /home/you/.agents/hooks/no_ai_markers_check.py --format claude ; exit 0"
           }
         ]
       }
@@ -359,13 +442,15 @@ Unix shell:
 ln -s ~/.agents/AGENTS.md ~/.codex/AGENTS.md
 ```
 
-Wire the gate in `~/.codex/hooks.json`, which is the user-level hooks file
+Wire the hooks in `~/.codex/hooks.json`, which is the user-level hooks file
 ([hooks docs](https://learn.chatgpt.com/codex/hooks)). The same tables can go inline in `~/.codex/config.toml` instead,
-and Codex asks you to pick one form per configuration layer rather than using both. Replace the absolute path. All
-three events matter: `UserPromptSubmit` and `SubagentStart` inject the text, on the main thread and inside a subagent,
-and `PreToolUse` is the blocking half. Leave `SubagentStart` out and a subagent gets no gate at all. The `|| exit 0`
-on the two `PreToolUse` commands is what makes a missing or broken gate script allow the call instead of denying every
-one of them.
+and Codex asks you to pick one form per configuration layer rather than using both. Replace every absolute path. All
+five events matter: `UserPromptSubmit` and `SubagentStart` inject the text, on the main thread and inside a subagent,
+`PreToolUse` is the blocking half, `Stop` checks the reply formatting, and `SessionStart` puts the task list back.
+Leave `SubagentStart` out and a subagent gets no gate at all. The `|| exit 0` on every script command is what makes a
+missing or broken script allow the call instead of denying every one of them, and each command needs its
+`commandWindows` sibling because Codex picks one of the two per platform and a command with no sibling is simply
+absent on the other.
 
 ```json
 {
@@ -394,6 +479,32 @@ one of them.
         ]
       }
     ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "statusMessage": "Task list",
+            "timeout": 10,
+            "command": "python -S -E /home/you/.agents/hooks/task_list_sync.py --event sessionstart --format codex 2>/dev/null || exit 0",
+            "commandWindows": "python -S -E /home/you/.agents/hooks/task_list_sync.py --event sessionstart --format codex 2>nul || exit 0"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "statusMessage": "Formatting check",
+            "timeout": 10,
+            "command": "python -S -E /home/you/.agents/hooks/no_ai_markers_check.py --format codex 2>/dev/null || exit 0",
+            "commandWindows": "python -S -E /home/you/.agents/hooks/no_ai_markers_check.py --format codex 2>nul || exit 0"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "^(Bash|shell|apply_patch|Edit|Write|NotebookEdit)$",
@@ -402,8 +513,8 @@ one of them.
             "type": "command",
             "statusMessage": "Preflight gate",
             "timeout": 10,
-            "command": "python /home/you/.agents/hooks/preflight_gate.py --format codex 2>/dev/null || exit 0",
-            "commandWindows": "python /home/you/.agents/hooks/preflight_gate.py --format codex 2>nul || exit 0"
+            "command": "python -S -E /home/you/.agents/hooks/preflight_gate.py --format codex 2>/dev/null || exit 0",
+            "commandWindows": "python -S -E /home/you/.agents/hooks/preflight_gate.py --format codex 2>nul || exit 0"
           }
         ]
       }
@@ -616,9 +727,11 @@ Unix shell:
 cp ~/.agent-standards/.github/hooks/preflight.json ~/.copilot/hooks/preflight.json
 ```
 
-Then open the copy and change the two `preToolUse` commands from `python .agents/hooks/preflight_gate.py` to the
-absolute path of `~/.agents/hooks/preflight_gate.py`, or that half of the gate only works in projects that ran the
-per-project import.
+Then open the copy and make both script paths absolute: the two `preToolUse` commands name
+`.agents/hooks/preflight_gate.py` and the second `sessionStart` command names `.agents/hooks/task_list_sync.py`, each
+of them relative. Put `~/.agents/hooks/` in front of both names, spelled out in full, or those hooks only work in
+projects that ran the per-project import. The file wires no reply formatting check, because Copilot has no confirmed
+event for one.
 
 Personal instructions live in `~/.copilot/copilot-instructions.md`. Point it at the shared file. PowerShell:
 
@@ -860,9 +973,10 @@ rm ~/.claude/skills
 Honest list of what a global install cannot do.
 
 1. The blocking half of the preflight gate is project-shaped. Every shipped hook wiring calls
-   `python .agents/hooks/preflight_gate.py`, resolved against the session's working directory. At user level you have
-   to rewrite that to an absolute path, which the Claude Code, Codex, and Copilot sections above tell you to do. The
-   gate script then looks for subagent definitions in both the current directory and its own grandparent, so a copy at
+   `python -S -E .agents/hooks/preflight_gate.py`, resolved against the session's working directory. At user level you
+   have to rewrite that to an absolute path, which the Claude Code, Codex, and Copilot sections above tell you to do,
+   and the same is true of `.agents/hooks/task_list_sync.py` and `.agents/hooks/no_ai_markers_check.py`. The gate
+   script then looks for subagent definitions in both the current directory and its own grandparent, so a copy at
    `~/.agents/hooks/preflight_gate.py` does find `~/.claude/agents` and `~/.agents/agents`. The text-injection half,
    the `echo` that reminds the model to name its skills, has no file dependency and works globally as it ships.
 

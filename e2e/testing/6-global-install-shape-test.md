@@ -19,7 +19,7 @@ them, so there is one copy to keep correct.
 ### What this verifies
 
 - The installer lands every shared tree in the container's home directory: one skills tree, five per-agent subagent
-  trees, one instruction file with a pointer from each agent, the gate script, and the plugin shim. This is the
+  trees, one instruction file with a pointer from each agent, all four hook scripts, and the plugin shim. This is the
   procedure a reader actually follows, run against the mounted repository rather than against GitHub.
 - Running it a second time changes nothing and still exits 0. The second run performs the same two operations the
   Updating section of [docs/GLOBAL_SETUP.md](../../docs/GLOBAL_SETUP.md) tells a reader to perform by hand, a
@@ -28,13 +28,16 @@ them, so there is one copy to keep correct.
 - Every assertion runs from `/work/bare`, a directory that has had nothing imported into it. This is the point of the
   suite. A global install is only proven when the working directory contains none of the per-project files, because
   otherwise there is no way to tell which layer the agent read.
-- The gate wiring at user scope names the gate by absolute path. Every shipped wiring calls
-  `python .agents/hooks/preflight_gate.py`, a project-relative path that resolves to nothing in a bare directory, so
-  the installer rewrites it and this spec asserts that it did.
+- Every hook call at user scope names its script by absolute path. Each shipped wiring calls
+  `python -S -E .agents/hooks/<name>.py`, a project-relative path that resolves to nothing in a bare directory, so the
+  installer rewrites it and this spec asserts that it did, for the gate and for the task-list mirror both.
 - The user-scope wiring keeps the shape of the project wiring it stands in for: the same event set per agent, the same
-  tool matcher, the same canonical wording, and the same forced zero exit that turns a missing or broken gate back
-  into an allow. A global install that drops an event or a zero exit gates less than the project install does, which
-  is the exact difference this spec is here to catch.
+  tool matcher, the same canonical wording, the same trimmed interpreter, and the same forced zero exit that turns a
+  missing or broken hook back into an allow. A global install that drops an event or a zero exit gates less than the
+  project install does, which is the exact difference this spec is here to catch.
+- One deliberate difference from the project wiring: `markdown_lint_check.py` is copied and never wired. It shells out
+  to `tools/check-markdown.py`, which never leaves the upstream repository, so wiring it globally would start an
+  interpreter that returns 0 every time. This spec asserts the file landed and that no wiring names it.
 - Out of scope, because the container is given no provider credentials: this spec starts no agent. Whether each tool
   reports what it found is [7-global-agent-discovery-test.md](7-global-agent-discovery-test.md), and whether the
   global gate copy refuses anything is [9-global-gate-enforcement-test.md](9-global-gate-enforcement-test.md).
@@ -242,6 +245,15 @@ test -f "$HOME/.agents/hooks/preflight_gate.py"
 
 Expect exit 0.
 
+The other three hook scripts landed beside it. The markdown lint is on this list because the copy is one directory
+rather than a file list, and the assertions further down are what say it stays unwired.
+
+```bash
+test -f "$HOME/.agents/hooks/no_ai_markers_check.py" -a -f "$HOME/.agents/hooks/task_list_sync.py" -a -f "$HOME/.agents/hooks/markdown_lint_check.py"
+```
+
+Expect exit 0.
+
 Claude Code has every subagent in its own markdown format.
 
 ```bash
@@ -379,6 +391,59 @@ jq -e '[.hooks.PreToolUse[].hooks[].command] | any(endswith("; exit 0"))' "$HOME
 
 Expect exit 0.
 
+Claude Code's matcher covers the two web tools as well as the four that write, because the gate hands research to a
+subagent rather than letting the main thread fetch or search directly.
+
+```bash
+jq -e '[.hooks.PreToolUse[].matcher] | any(type == "string" and test("Edit") and test("Write") and test("NotebookEdit") and test("Bash") and test("WebFetch") and test("WebSearch"))' "$HOME/.claude/settings.json"
+```
+
+Expect exit 0.
+
+Claude Code wires every event the project wiring wires, apart from the `PostToolUse` the markdown lint sits on. An
+event missing here is an event the global install does not gate.
+
+```bash
+jq -e '[.hooks | keys[]] == ["PreCompact", "PreToolUse", "SessionStart", "Stop", "SubagentStop", "TaskCompleted", "TaskCreated", "UserPromptSubmit"]' "$HOME/.claude/settings.json"
+```
+
+Expect exit 0.
+
+No wiring names the markdown lint, for the reason given under What this verifies.
+
+```bash
+jq -e '[.hooks[][].hooks[].command] | any(contains("markdown_lint_check.py")) | not' "$HOME/.claude/settings.json"
+```
+
+Expect exit 0.
+
+The reply formatting check runs on both stop events, once each, by absolute path.
+
+```bash
+jq -e '[[.hooks.Stop[].hooks[].command], [.hooks.SubagentStop[].hooks[].command] | map(select(contains("/.agents/hooks/no_ai_markers_check.py --format claude")))] | all(length == 1)' "$HOME/.claude/settings.json"
+```
+
+Expect exit 0.
+
+The task-list mirror runs on the five events that carry it, each with its own `--event` value, so a compaction cannot
+lose the list and a finished turn cannot leave items open with nothing to show for them.
+
+```bash
+jq -e '[.hooks.SessionStart[].hooks[].command, .hooks.PreCompact[].hooks[].command, .hooks.TaskCreated[].hooks[].command, .hooks.TaskCompleted[].hooks[].command, .hooks.Stop[].hooks[].command | select(contains("/.agents/hooks/task_list_sync.py")) | capture("--event (?<event>[a-z]+)").event] | sort == ["precompact", "sessionstart", "stop", "taskcompleted", "taskcreated"]' "$HOME/.claude/settings.json"
+```
+
+Expect exit 0.
+
+Every Claude Code hook starts the interpreter the same way the project wiring does. `-S -E` skips site initialisation
+and ignores the `PYTHON*` environment variables, which is safe because every hook is standard library only, and takes
+a slice off an interpreter start the gate pays on every single tool call.
+
+```bash
+jq -e '[.hooks[][].hooks[].command | select(contains(".py"))] | length > 0 and all(startswith("python -S -E /"))' "$HOME/.claude/settings.json"
+```
+
+Expect exit 0.
+
 Codex's user hooks file names the gate by absolute path too, and there the flag is part of the command string.
 
 ```bash
@@ -415,6 +480,40 @@ jq -e '[.hooks.UserPromptSubmit[].hooks[].command, .hooks.SubagentStart[].hooks[
 
 Expect exit 0.
 
+Codex wires the same five events its project configuration wires. `SessionStart` and `Stop` are the two that a
+gate-only global install used to drop.
+
+```bash
+jq -e '[.hooks | keys[]] == ["PreToolUse", "SessionStart", "Stop", "SubagentStart", "UserPromptSubmit"]' "$HOME/.codex/hooks.json"
+```
+
+Expect exit 0.
+
+Codex checks the reply formatting on `Stop`, by absolute path.
+
+```bash
+jq -e '[.hooks.Stop[].hooks[].command] | any(contains("/.agents/hooks/no_ai_markers_check.py --format codex"))' "$HOME/.codex/hooks.json"
+```
+
+Expect exit 0.
+
+Codex puts the task list back at the start of a session, by absolute path. `SessionStart` is also what carries the
+list through a compaction, because it fires again with `source` set to `compact`.
+
+```bash
+jq -e '[.hooks.SessionStart[].hooks[].command] | any(contains("/.agents/hooks/task_list_sync.py --event sessionstart --format codex"))' "$HOME/.codex/hooks.json"
+```
+
+Expect exit 0.
+
+Every Codex hook starts the interpreter the same trimmed way, on the POSIX command and on its Windows sibling both.
+
+```bash
+jq -e '[.hooks[][].hooks[] | .command, .commandWindows | select(contains(".py"))] | length > 0 and all(startswith("python -S -E /"))' "$HOME/.codex/hooks.json"
+```
+
+Expect exit 0.
+
 Every Codex command has a Windows sibling, because Codex picks one of the two per platform and a command with no
 sibling is simply absent on the other.
 
@@ -432,10 +531,28 @@ jq -e '[.hooks.preToolUse[].bash] | any(contains("/.agents/hooks/preflight_gate.
 
 Expect exit 0.
 
-No project-relative gate call survived that rewrite.
+Copilot puts the task list back on `sessionStart`, by absolute path, which is the second call the installer has to
+rewrite in that file.
 
 ```bash
-grep -qF "python .agents/hooks/preflight_gate.py" "$HOME/.copilot/hooks/preflight.json"
+jq -e '[.hooks.sessionStart[].bash] | any(contains("/.agents/hooks/task_list_sync.py --event sessionstart --format copilot"))' "$HOME/.copilot/hooks/preflight.json"
+```
+
+Expect exit 0.
+
+Every Copilot hook starts the interpreter the same trimmed way, on the bash field and on the PowerShell one both.
+
+```bash
+jq -e '[.hooks[][] | .bash, .powershell | select(contains(".py"))] | length > 0 and all(startswith("python -S -E /"))' "$HOME/.copilot/hooks/preflight.json"
+```
+
+Expect exit 0.
+
+No project-relative hook call survived that rewrite. The needle carries the space before the leading dot, because an
+absolute path ends in the same `.agents/hooks/` the relative one starts with and a bare substring would match both.
+
+```bash
+grep -qF -- "-E .agents/hooks/" "$HOME/.copilot/hooks/preflight.json"
 ```
 
 Expect exit 1, meaning the phrase is gone. Exit 0 here is a failure of the test.

@@ -42,6 +42,7 @@ readonly SHARED_PLUGIN="${SHARED}/plugin/hooks.js"
 readonly SHARED_INSTRUCTIONS="${SHARED}/AGENTS.md"
 readonly GATE_SCRIPT="${SHARED}/hooks/preflight_gate.py"
 readonly MARKER_SCRIPT="${SHARED}/hooks/no_ai_markers_check.py"
+readonly TASKS_SCRIPT="${SHARED}/hooks/task_list_sync.py"
 
 # --- State -------------------------------------------------------------------
 
@@ -361,17 +362,36 @@ install_shared_tree() {
 
 # --- Per-agent configuration content -----------------------------------------
 #
-# Each of these prints the file the install writes when there is none. The gate
-# is named by absolute path, because every wiring this repository ships calls it
-# as .agents/hooks/preflight_gate.py, which resolves against the session's
-# working directory and finds nothing outside an imported project.
+# Each of these prints the file the install writes when there is none. Every
+# hook script is named by absolute path, because the wirings this repository
+# ships call them as .agents/hooks/<name>.py, which resolves against the
+# session's working directory and finds nothing outside an imported project.
+#
+# The event sets mirror the project wirings, minus the markdown lint pass. That
+# one hook needs tools/check-markdown.py, which never leaves this repository, so
+# wiring it globally would spawn an interpreter that returns 0 every time.
 
 readonly PREFLIGHT_TEXT="PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default."
 
 claude_settings() {
-  sed -e "s#@GATE@#${GATE_SCRIPT}#g" -e "s#@MARKERS@#${MARKER_SCRIPT}#g" -e "s#@PREFLIGHT@#${PREFLIGHT_TEXT}#g" <<'JSON'
+  sed -e "s#@GATE@#${GATE_SCRIPT}#g" -e "s#@MARKERS@#${MARKER_SCRIPT}#g" -e "s#@TASKS@#${TASKS_SCRIPT}#g" -e "s#@PREFLIGHT@#${PREFLIGHT_TEXT}#g" <<'JSON'
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '@PREFLIGHT@'"
+          },
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "python -S -E @TASKS@ --event sessionstart --format claude ; exit 0"
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [
@@ -384,12 +404,45 @@ claude_settings() {
     ],
     "PreToolUse": [
       {
-        "matcher": "^(Edit|Write|NotebookEdit|Bash)$",
+        "matcher": "^(Edit|Write|NotebookEdit|Bash|WebFetch|WebSearch)$",
         "hooks": [
           {
             "type": "command",
             "timeout": 10,
-            "command": "python @GATE@ --format claude ; exit 0"
+            "command": "python -S -E @GATE@ --format claude ; exit 0"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "python -S -E @TASKS@ --event precompact --format claude ; exit 0"
+          }
+        ]
+      }
+    ],
+    "TaskCreated": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "python -S -E @TASKS@ --event taskcreated --format claude ; exit 0"
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "python -S -E @TASKS@ --event taskcompleted --format claude ; exit 0"
           }
         ]
       }
@@ -400,7 +453,23 @@ claude_settings() {
           {
             "type": "command",
             "timeout": 10,
-            "command": "python @MARKERS@ ; exit 0"
+            "command": "python -S -E @MARKERS@ --format claude ; exit 0"
+          },
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "python -S -E @TASKS@ --event stop --format claude ; exit 0"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "python -S -E @MARKERS@ --format claude ; exit 0"
           }
         ]
       }
@@ -411,7 +480,7 @@ JSON
 }
 
 codex_hooks() {
-  sed -e "s#@GATE@#${GATE_SCRIPT}#g" -e "s#@PREFLIGHT@#${PREFLIGHT_TEXT}#g" <<'JSON'
+  sed -e "s#@GATE@#${GATE_SCRIPT}#g" -e "s#@MARKERS@#${MARKER_SCRIPT}#g" -e "s#@TASKS@#${TASKS_SCRIPT}#g" -e "s#@PREFLIGHT@#${PREFLIGHT_TEXT}#g" <<'JSON'
 {
   "hooks": {
     "UserPromptSubmit": [
@@ -438,6 +507,32 @@ codex_hooks() {
         ]
       }
     ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "statusMessage": "Task list",
+            "timeout": 10,
+            "command": "python -S -E @TASKS@ --event sessionstart --format codex 2>/dev/null || exit 0",
+            "commandWindows": "python -S -E @TASKS@ --event sessionstart --format codex 2>nul || exit 0"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "statusMessage": "Formatting check",
+            "timeout": 10,
+            "command": "python -S -E @MARKERS@ --format codex 2>/dev/null || exit 0",
+            "commandWindows": "python -S -E @MARKERS@ --format codex 2>nul || exit 0"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "^(Bash|shell|apply_patch|Edit|Write|NotebookEdit)$",
@@ -446,8 +541,8 @@ codex_hooks() {
             "type": "command",
             "statusMessage": "Preflight gate",
             "timeout": 10,
-            "command": "python @GATE@ --format codex 2>/dev/null || exit 0",
-            "commandWindows": "python @GATE@ --format codex 2>nul || exit 0"
+            "command": "python -S -E @GATE@ --format codex 2>/dev/null || exit 0",
+            "commandWindows": "python -S -E @GATE@ --format codex 2>nul || exit 0"
           }
         ]
       }
@@ -468,8 +563,10 @@ kilo_config() {
 JSONC
 }
 
-# Copilot's hooks file is the one shipped in the repository with the gate call
+# Copilot's hooks file is the one shipped in the repository with every hook call
 # rewritten to an absolute path, so there is no second copy of its wording here.
+# The bracket expressions keep the leading dot of the shipped relative path
+# literal, so the match cannot slide onto a different directory.
 copilot_hooks() {
   local shipped="${CHECKOUT}/.github/hooks/preflight.json"
 
@@ -478,7 +575,7 @@ copilot_hooks() {
     return 1
   fi
 
-  sed -e "s#python .agents/hooks/preflight_gate.py#python ${GATE_SCRIPT}#g" "$shipped"
+  sed -e "s#[.]agents/hooks/preflight_gate[.]py#${GATE_SCRIPT}#g"       -e "s#[.]agents/hooks/task_list_sync[.]py#${TASKS_SCRIPT}#g" "$shipped"
 }
 
 # --- Per-agent installers ----------------------------------------------------

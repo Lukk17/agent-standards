@@ -485,6 +485,9 @@ verify_install_shape() {
   assert_glob_count "the same skill count is reachable through that symlink" \
     ".claude/skills/*/SKILL.md" "$SKILL_FILE_COUNT"
   assert_file "the gate script landed in the shared tree" ".agents/hooks/preflight_gate.py"
+  assert_file "the reply formatting check landed beside it" ".agents/hooks/no_ai_markers_check.py"
+  assert_file "the task list hook landed beside it" ".agents/hooks/task_list_sync.py"
+  assert_file "the markdown lint hook landed too, deliberately unwired" ".agents/hooks/markdown_lint_check.py"
 
   assert_glob_count "Claude Code has every subagent in its own markdown format" \
     ".claude/agents/*.md" "${#SUBAGENTS[@]}"
@@ -518,6 +521,18 @@ verify_install_shape() {
     '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py") and contains("--format claude") and endswith("; exit 0") and (contains("subprocess.DEVNULL") | not))'
   assert_json "Claude Code's user settings force a zero exit in a form both bash and PowerShell parse" ".claude/settings.json" \
     '[.hooks.PreToolUse[].hooks[].command] | any(endswith("; exit 0"))'
+  assert_json "Claude Code's user settings gate the web tools as well as the writing ones" ".claude/settings.json" \
+    '[.hooks.PreToolUse[].matcher] | any(type == "string" and test("Edit") and test("Write") and test("NotebookEdit") and test("Bash") and test("WebFetch") and test("WebSearch"))'
+  assert_json "Claude Code's user settings wire every event the project wiring wires but the markdown lint's" ".claude/settings.json" \
+    '[.hooks | keys[]] == ["PreCompact", "PreToolUse", "SessionStart", "Stop", "SubagentStop", "TaskCompleted", "TaskCreated", "UserPromptSubmit"]'
+  assert_json "Claude Code's user settings leave the markdown lint out, because it needs a tool that never ships" ".claude/settings.json" \
+    '[.hooks[][].hooks[].command] | any(contains("markdown_lint_check.py")) | not'
+  assert_json "Claude Code's user settings check the reply formatting on both stop events" ".claude/settings.json" \
+    '[[.hooks.Stop[].hooks[].command], [.hooks.SubagentStop[].hooks[].command] | map(select(contains("/.agents/hooks/no_ai_markers_check.py --format claude")))] | all(length == 1)'
+  assert_json "Claude Code's user settings mirror the task list on the five events that carry it" ".claude/settings.json" \
+    '[.hooks.SessionStart[].hooks[].command, .hooks.PreCompact[].hooks[].command, .hooks.TaskCreated[].hooks[].command, .hooks.TaskCompleted[].hooks[].command, .hooks.Stop[].hooks[].command | select(contains("/.agents/hooks/task_list_sync.py")) | capture("--event (?<event>[a-z]+)").event] | sort == ["precompact", "sessionstart", "stop", "taskcompleted", "taskcreated"]'
+  assert_json "Claude Code's user settings start every hook with the same trimmed interpreter the project wiring uses" ".claude/settings.json" \
+    '[.hooks[][].hooks[].command | select(contains(".py"))] | length > 0 and all(startswith("python -S -E /"))'
   assert_json "Codex's user hooks call the gate by absolute path" ".codex/hooks.json" \
     '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.agents/hooks/preflight_gate.py --format codex"))'
   assert_json "Codex's user hooks scope the gate to the tools that can write" ".codex/hooks.json" \
@@ -526,16 +541,26 @@ verify_install_shape() {
     '[.hooks.PreToolUse[].hooks[] | .command, .commandWindows] | length > 0 and all(endswith("|| exit 0"))'
   assert_json "Codex's user hooks inject at the start of a subagent too, not on the main thread alone" ".codex/hooks.json" \
     '[.hooks.SubagentStart[].hooks[].command] | length > 0'
-  assert_json "Codex's user hooks wire the same three events the project configuration wires" ".codex/hooks.json" \
-    '[.hooks | keys[]] == ["PreToolUse", "SubagentStart", "UserPromptSubmit"]'
+  assert_json "Codex's user hooks wire the same five events the project configuration wires" ".codex/hooks.json" \
+    '[.hooks | keys[]] == ["PreToolUse", "SessionStart", "Stop", "SubagentStart", "UserPromptSubmit"]'
+  assert_json "Codex's user hooks check the reply formatting on Stop, by absolute path" ".codex/hooks.json" \
+    '[.hooks.Stop[].hooks[].command] | any(contains("/.agents/hooks/no_ai_markers_check.py --format codex"))'
+  assert_json "Codex's user hooks put the task list back at the start of a session, by absolute path" ".codex/hooks.json" \
+    '[.hooks.SessionStart[].hooks[].command] | any(contains("/.agents/hooks/task_list_sync.py --event sessionstart --format codex"))'
+  assert_json "Codex's user hooks start every hook with the same trimmed interpreter the project wiring uses" ".codex/hooks.json" \
+    '[.hooks[][].hooks[] | .command, .commandWindows | select(contains(".py"))] | length > 0 and all(startswith("python -S -E /"))'
   assert_json "Codex's user hooks carry the canonical gate wording on both injecting events, not a shortened copy" ".codex/hooks.json" \
     '[.hooks.UserPromptSubmit[].hooks[].command, .hooks.SubagentStart[].hooks[].command] | length >= 2 and all(contains("Delegate investigation, review and bounded implementation by default."))'
   assert_json "Codex's user hooks give every command a Windows sibling, because Codex picks one per platform" ".codex/hooks.json" \
     '[.hooks[][].hooks[] | select(has("command"))] | length > 0 and all(has("commandWindows"))'
   assert_json "Copilot's user hooks call the gate by absolute path" ".copilot/hooks/preflight.json" \
     '[.hooks.preToolUse[].bash] | any(contains("/.agents/hooks/preflight_gate.py --format copilot"))'
-  assert_file_lacks "no project-relative gate call survived the rewrite" \
-    ".copilot/hooks/preflight.json" "python .agents/hooks/preflight_gate.py"
+  assert_json "Copilot's user hooks put the task list back at the start of a session, by absolute path" ".copilot/hooks/preflight.json" \
+    '[.hooks.sessionStart[].bash] | any(contains("/.agents/hooks/task_list_sync.py --event sessionstart --format copilot"))'
+  assert_json "Copilot's user hooks start every hook with the same trimmed interpreter the project wiring uses" ".copilot/hooks/preflight.json" \
+    '[.hooks[][] | .bash, .powershell | select(contains(".py"))] | length > 0 and all(startswith("python -S -E /"))'
+  assert_file_lacks "no project-relative hook call survived the rewrite" \
+    ".copilot/hooks/preflight.json" "-E .agents/hooks/"
 
   assert_file "the plugin shim landed where OpenCode loads one" ".config/opencode/plugins/hooks.js"
   assert_file "the plugin shim landed where Kilo Code loads one" ".config/kilo/plugin/hooks.js"
