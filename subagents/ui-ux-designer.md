@@ -6,7 +6,7 @@ model: inherit
 skills:
   - frontend-design
   - design-system
-  - frontend-patterns
+  - react-patterns
   - angular
   - nextjs-app-router-patterns
   - dart-flutter-patterns

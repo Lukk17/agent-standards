@@ -31,7 +31,7 @@ contracts described in OpenAPI 3.1.
   `golang-patterns`.
 - URL shape, status codes, versioning, and rate-limit headers: use `api-design`.
 - Domain, port, and adapter boundaries: use `hexagonal-architecture`.
-- Schema, index, and query-plan work: use `postgres-patterns` or `mongodb-schema-design`.
+- Schema, index, and query-plan work: use `postgres-patterns` or `mongodb-patterns`.
 - Safe schema change and backfills: use `database-migrations`.
 - Log levels, tracing, metrics, and SLOs: use `observability-and-logging`.
 
@@ -192,7 +192,7 @@ bodies, pagination parameters, versioning, and the rate-limit headers and tiers.
 ### Related skills
 
 - `node-backend-patterns` for the Node, Express, and Next.js implementation of these rules.
-- `springboot-patterns` for the Java and Spring Boot implementation, and `jpa-patterns` for its data access.
+- `springboot-patterns` for the Java and Spring Boot implementation, including its JPA data access.
 - `python-patterns` and `golang-patterns` for the Python and Go implementations.
 - `api-design` for the HTTP contract, and `hexagonal-architecture` for the internal boundaries.
 - `observability-and-logging` for correlation identifiers, metrics, and the readiness banner.

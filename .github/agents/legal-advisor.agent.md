@@ -1,6 +1,6 @@
 ---
 name: legal-advisor
-description: Use when drafting privacy policies, terms of service, cookie policies, data-processing agreements, or other compliance documentation. Produces drafts for a qualified attorney to review, never legal advice. Tuned for EU / GDPR, CCPA, and Polish data-protection rules, and any jurisdiction outside those needs explicit confirmation first.
+description: "Use when drafting privacy policies, terms of service, cookie policies, data-processing agreements, or other compliance documentation. Produces drafts for a qualified attorney to review, never legal advice. Tuned for EU / GDPR, CCPA, and Polish data-protection rules, and any jurisdiction outside those needs explicit confirmation first."
 tools: ["read", "create", "search"]
 ---
 

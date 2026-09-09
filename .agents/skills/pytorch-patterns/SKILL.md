@@ -26,7 +26,7 @@ Baseline: the current stable PyTorch release, the 2.x line, on Python 3.13 or ne
 ### When not to activate
 
 - Writing general-purpose Python. Use `python-patterns`.
-- Writing pytest tests around the training code. Use `python-testing`.
+- Writing pytest tests around the training code. Use `python-patterns`.
 - Profiling a web service or a database query. Use `performance-optimization`.
 - Structuring the logs and metrics a training run emits. Use `observability-and-logging`.
 - Packaging the training image or pinning CUDA in a container. Use `docker-patterns`.
@@ -344,8 +344,8 @@ because it shards all three across ranks rather than replicating them.
 
 ### Related skills
 
-- `python-patterns` for the Python the training script is written in.
-- `python-testing` for testing data pipelines, shapes, and training steps.
+- `python-patterns` for the Python the training script is written in, and for the pytest suite around data
+  pipelines, shapes, and training steps.
 - `performance-optimization` for the measure-first discipline this skill applies to GPUs.
 - `observability-and-logging` for metrics and structured logs from a run.
 - `docker-patterns` for packaging the training environment and its CUDA stack.

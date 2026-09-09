@@ -25,7 +25,7 @@ not "make it work" but "make it look designed", on landing pages, dashboards, ap
 
 - Token architecture, theming, and stylesheet structure. Use `design-system`.
 - Contrast ratios, focus indicators, target sizes, and reduced motion. Use `web-accessibility`.
-- React component structure, hooks, and state. Use `frontend-patterns`.
+- React component structure, hooks, and state. Use `react-patterns`.
 - Next.js rendering, routing, and data. Use `nextjs-app-router-patterns`.
 - Angular component and template work. Use `angular`.
 
@@ -270,7 +270,7 @@ it.
   there, and add new ones there rather than inline.
 - `web-accessibility` owns contrast ratios, focus indicators, target sizes, reduced motion, and form error wiring.
   A direction that fails those is not finished.
-- `frontend-patterns` for React component structure and animation implementation.
+- `react-patterns` for React component structure and animation implementation.
 - `nextjs-app-router-patterns` for Next.js rendering and routing under the design.
 - `angular` for the same work in an Angular codebase.
 - `seo` for the copy and metadata behind a marketing surface.

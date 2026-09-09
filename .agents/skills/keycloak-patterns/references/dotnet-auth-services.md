@@ -1,8 +1,3 @@
----
-name: keycloak-auth-services
-description: Keycloak.AuthServices for .NET, covering JWT Bearer and OIDC authentication, RBAC policies, resource protection through the Authorization Server, organization multi-tenancy, and the Admin and Protection API SDKs. Use when you say "add Keycloak auth to my .NET API", "require a realm role on this endpoint", "call the Keycloak Admin API from C#", or "protect this resource with UMA". Not for administering the server, use `keycloak-administration`.
----
-
 # Keycloak.AuthServices Implementation Guide
 
 Wiring the Keycloak.AuthServices packages into an ASP.NET Core application: authentication, authorization, resource
@@ -25,9 +20,9 @@ Baseline versions, current as of September 2026: Keycloak.AuthServices 2.x again
 
 ### When not to activate
 
-- Creating realms, clients, flows, or federation on the Keycloak server: use `keycloak-administration`.
+- Creating realms, clients, flows, or federation on the server: see [administration.md](administration.md).
 - Token verification in a Node service: use `node-backend-patterns`.
-- Spring Security resource-server configuration: use `springboot-security`.
+- Spring Security resource-server configuration: use `springboot-patterns`.
 - The HTTP contract the protected endpoints expose: use `api-design`.
 - Threat modelling around authentication: use `security-review`.
 
@@ -37,15 +32,15 @@ Baseline versions, current as of September 2026: Keycloak.AuthServices 2.x again
 
 | Task | Open |
 | --- | --- |
-| OIDC web app authentication, RFC 8414 metadata discovery | [authentication.md](references/authentication.md) |
-| RBAC, role claims transformation, token introspection | [authorization.md](references/authorization.md) |
-| Authorization Server, protected resources, policy builder, parameter resolvers | [resource-protection.md](references/resource-protection.md) |
-| Admin REST API, hand-written and Kiota clients, token management | [admin-sdk.md](references/admin-sdk.md) |
-| UMA Protection API, resource and permission management | [protection-api.md](references/protection-api.md) |
-| Organization-based multi-tenancy and membership requirements | [organization-authorization.md](references/organization-authorization.md) |
-| .NET Aspire, project templates, OpenTelemetry | [devex.md](references/devex.md) |
-| Every configuration option, naming conventions, adapter file | [configuration.md](references/configuration.md) |
-| Recipes, common failures, debugging | [troubleshooting.md](references/troubleshooting.md) |
+| OIDC web app authentication, RFC 8414 metadata discovery | [authentication.md](authentication.md) |
+| RBAC, role claims transformation, token introspection | [authorization.md](authorization.md) |
+| Authorization Server, protected resources, policy builder, parameter resolvers | [resource-protection.md](resource-protection.md) |
+| Admin REST API, hand-written and Kiota clients, token management | [admin-sdk.md](admin-sdk.md) |
+| UMA Protection API, resource and permission management | [protection-api.md](protection-api.md) |
+| Organization-based multi-tenancy and membership requirements | [organization-authorization.md](organization-authorization.md) |
+| .NET Aspire, project templates, OpenTelemetry | [devex.md](devex.md) |
+| Every configuration option, naming conventions, adapter file | [configuration.md](configuration.md) |
+| Recipes, common failures, debugging | [dotnet-troubleshooting.md](dotnet-troubleshooting.md) |
 
 JWT Bearer authentication for a Web API is covered below and needs no reference file.
 
@@ -185,9 +180,9 @@ app.MapGet("/users", async (IKeycloakUserClient client) =>
 
 ---
 
-### Related skills
+### Where to go next
 
-- `keycloak-administration` for creating the realm, clients, roles, and resources this library consumes.
+- [administration.md](administration.md) for creating the realm, clients, roles, and resources this consumes.
 - `api-design` for the status codes and problem bodies an authorization failure should return.
 - `security-review` for reviewing the authentication and authorization design as a whole.
 - `build-dependency-management` for pinning the package versions across a multi-project solution.

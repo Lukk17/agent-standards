@@ -278,7 +278,7 @@ Group entities with the area registry rather than repeating the area inside the 
 
 ### Related skills
 
-- `python-patterns` and `python-testing` for building and testing a custom integration in Python.
+- `python-patterns` for building and testing a custom integration in Python.
 - `security-review` before exposing the instance, its API, or a new entity set to anything outside the LAN.
 - `docker-patterns` for the container and network the instance runs in.
 - `bash` and `powershell` for external scripts driving the REST API.

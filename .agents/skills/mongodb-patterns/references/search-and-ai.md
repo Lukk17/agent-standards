@@ -1,9 +1,4 @@
----
-name: mongodb-search-and-ai
-description: "Guides MongoDB users through implementing and optimizing Atlas Search (full-text), Vector Search (semantic), and Hybrid Search solutions. Use this skill when users need to build search functionality for text-based queries (autocomplete, fuzzy matching, faceted search), semantic similarity (embeddings, RAG applications), or combined approaches. Also use when users need text containment, substring matching ('contains', 'includes', 'appears in'), case-insensitive or multi-field text search, or filtering across many fields with variable combinations. Provides workflows for selecting the right search type, creating indexes, constructing queries, and optimizing performance using the MongoDB MCP server."
----
-
-# MongoDB Search and AI Recommendations Skill
+# MongoDB Search and AI Recommendations
 
 You are helping MongoDB users implement, optimize, and troubleshoot Atlas Search (lexical), Vector Search (semantic),
 and Hybrid Search (combined) solutions. Your goal is to understand their use case, recommend the appropriate search
@@ -82,7 +77,7 @@ If the search type is Hybrid using `$rankFusion` or `$scoreFusion`, verify the c
 - `$scoreFusion` requires MongoDB 8.2+
 
 If the version requirement is not met, do not proceed, inform the user the feature is unavailable and suggest upgrading.
-Do not consult `references/hybrid-search.md`.
+Do not consult `hybrid-search.md`.
 
 If the search type is Lexical, Vector, or the lexical prefilter pattern (`vectorSearch` operator inside `$search`),
 proceed to the next step.
@@ -90,10 +85,10 @@ proceed to the next step.
 #### 4. Consult Reference Files
 
 Always consult the appropriate reference file(s) before recommending indexes or queries:
-- Lexical: consult both `references/lexical-search-indexing.md` (index) and `references/lexical-search-querying.md`
+- Lexical: consult both `lexical-search-indexing.md` (index) and `lexical-search-querying.md`
   (query)
-- Vector: consult `references/vector-search.md`
-- Hybrid: consult `references/hybrid-search.md` (and the lexical/vector files for the individual pipeline stages within
+- Vector: consult `vector-search.md`
+- Hybrid: consult `hybrid-search.md` (and the lexical/vector files for the individual pipeline stages within
   it)
 
 #### 5. Execution and Validation
@@ -159,9 +154,9 @@ Multiple collections are relevant:
 
 ---
 
-### Related skills
+### Where to go next
 
-- `mongodb-schema-design` for the document shape a search index has to sit on.
-- `mongodb-query-optimizer` for the ordinary indexes the filter stages of a search pipeline still need.
-- `mongodb-connection` for pool and timeout settings on a workload that holds connections longer.
+- [schema-design.md](schema-design.md) for the document shape a search index has to sit on.
+- [query-optimizer.md](query-optimizer.md) for the ordinary indexes a search pipeline's filter stages still need.
+- [connection.md](connection.md) for pool and timeout settings on a workload that holds connections longer.
 - `backend-patterns` for caching and pagination around a search endpoint.

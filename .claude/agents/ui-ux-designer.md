@@ -1,12 +1,12 @@
 ---
 name: ui-ux-designer
-description: Use when designing user flows, interface components, layouts, or running user research and usability validation. Two modes: UX research to understand the user, and interaction design to shape the flow. Produces specs and rationale that a framework agent then implements, never the implementation itself.
+description: "Use when designing user flows, interface components, layouts, or running user research and usability validation. Two modes: UX research to understand the user, and interaction design to shape the flow. Produces specs and rationale that a framework agent then implements, never the implementation itself."
 tools: Read, Write, Edit, Grep, Glob
 model: inherit
 skills:
   - frontend-design
   - design-system
-  - frontend-patterns
+  - react-patterns
   - angular
   - nextjs-app-router-patterns
   - dart-flutter-patterns
@@ -90,7 +90,7 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 
 - `frontend-design`
 - `design-system`
-- `frontend-patterns`
+- `react-patterns`
 - `angular`
 - `nextjs-app-router-patterns`
 - `dart-flutter-patterns`

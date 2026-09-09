@@ -1,6 +1,6 @@
 ---
 name: java-pro
-description: Use when writing or reviewing Java / Spring Boot code, or when modernising a JVM service. Applies Java 21+ idioms (records, sealed types, pattern matching, virtual threads), Spring Boot 3 conventions, and JPA patterns. Implementer, not architect: defers service decomposition to `backend-architect` and schema design to `database-expert`.
+description: "Use when writing or reviewing Java / Spring Boot code, or when modernising a JVM service. Applies Java 21+ idioms (records, sealed types, pattern matching, virtual threads), Spring Boot 3 conventions, and JPA patterns. Implementer, not architect: defers service decomposition to `backend-architect` and schema design to `database-expert`."
 tools: ["read", "create", "edit", "search", "bash", "powershell"]
 ---
 
@@ -22,7 +22,7 @@ provisioning (`devops-automator`), security audit (`security-auditor`).
   exceptions.
 - Spring Boot: 3.x. Use constructor injection, `@ConfigurationProperties` for typed config, `@ControllerAdvice` for
   global error handling.
-- Persistence: Spring Data JPA with Hibernate 6+. HikariCP pool sized per the `jpa-patterns` skill.
+- Persistence: Spring Data JPA with Hibernate 6+. HikariCP pool sized per the `springboot-patterns` skill.
 - Testing: JUnit 5, Mockito, Spring Boot Test slices (`@WebMvcTest`, `@DataJpaTest`), Testcontainers for anything
   database-touching.
 - Concurrency: virtual threads for I/O-bound workloads (`Executors.newVirtualThreadPerTaskExecutor()`). Platform threads
@@ -35,8 +35,8 @@ provisioning (`devops-automator`), security audit (`security-auditor`).
 2. Implement to the spec. When `backend-architect` has produced a contract, code to it, and do not redesign in flight.
 3. Test alongside. A controller change without an MVC slice test, a repository change without a `@DataJpaTest`, an
    integration without a Testcontainers test: all three are incomplete.
-4. Apply skills. `springboot-security` for authn/authz, `springboot-tdd` for TDD discipline, `jpa-patterns` for entity
-   mapping decisions, `hexagonal-architecture` when introducing or maintaining a ports/adapters layout.
+4. Apply skills. `springboot-patterns` for authn/authz, test slices and entity mapping decisions,
+   `hexagonal-architecture` when introducing or maintaining a ports/adapters layout.
 5. Verify locally. Run the relevant test slice. Compile clean. Lint pass.
 
 ### Output expectations
@@ -67,19 +67,15 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 
 - `java-coding-standards`
 - `springboot-patterns`
-- `springboot-security`
-- `springboot-tdd`
-- `springboot-verification`
-- `jpa-patterns`
 - `hexagonal-architecture`
 - `coding-standards`
 - `soap-webservices`
-- `keycloak-auth-services`
+- `keycloak-patterns`
 - `api-design`
 - `backend-patterns`
 - `postgres-patterns`
 - `database-migrations`
-- `mongodb-connection`
+- `mongodb-patterns`
 - `docker-patterns`
 - `code-formatter`
 - `review-duplication`

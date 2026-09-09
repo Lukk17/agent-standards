@@ -5,7 +5,7 @@ tools: [read, write, edit, grep, glob, bash]
 model: inherit
 skills:
   - nextjs-app-router-patterns
-  - frontend-patterns
+  - react-patterns
   - frontend-design
   - coding-standards
   - design-system

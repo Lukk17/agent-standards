@@ -5,15 +5,14 @@ tools: [read, grep, glob]
 model: opus
 skills:
   - security-review
-  - keycloak-administration
-  - keycloak-auth-services
+  - keycloak-patterns
   - coding-standards
   - code-reviewer
   - review-duplication
-  - springboot-security
+  - springboot-patterns
   - api-design
   - backend-patterns
-  - frontend-patterns
+  - react-patterns
   - angular
   - nextjs-app-router-patterns
   - soap-webservices

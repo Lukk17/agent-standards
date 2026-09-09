@@ -9,7 +9,7 @@ skills:
   - api-design
   - hexagonal-architecture
   - backend-patterns
-  - frontend-patterns
+  - react-patterns
   - security-review
   - deployment-patterns
   - observability-and-logging

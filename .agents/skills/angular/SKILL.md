@@ -1,6 +1,6 @@
 ---
 name: angular
-description: Angular application standards covering standalone components, signals and RxJS interop, dependency injection with inject(), OnPush change detection, functional guards and interceptors, typed reactive forms, and global error handling. Use when you say "build this Angular component", "replace this BehaviorSubject with a signal", "my subscription leaks", "write a functional auth guard", or "add an HTTP error interceptor". Not for React and Next.js work, use `frontend-patterns`.
+description: Angular application standards covering standalone components, signals and RxJS interop, dependency injection with inject(), OnPush change detection, functional guards and interceptors, typed reactive forms, and global error handling. Use when you say "build this Angular component", "replace this BehaviorSubject with a signal", "my subscription leaks", "write a functional auth guard", or "add an HTTP error interceptor". Not for React and Next.js work, use `react-patterns`.
 license: Apache-2.0
 ---
 
@@ -27,7 +27,7 @@ interceptors, and typed reactive forms are all stable, so nothing below is gated
 
 ### When not to activate
 
-- React, Next.js, and framework-agnostic web patterns. Use `frontend-patterns`.
+- React, Next.js, and framework-agnostic web patterns. Use `react-patterns`.
 - Next.js rendering and routing. Use `nextjs-app-router-patterns`.
 - Visual direction and composition. Use `frontend-design`.
 - Tokens, theming, and stylesheet architecture. Use `design-system`.
@@ -308,7 +308,7 @@ loadWidgets(userId: string): Observable<Widget[]> { ... }
 
 ### Related skills
 
-- `frontend-patterns` for React and framework-agnostic web patterns.
+- `react-patterns` for React and framework-agnostic web patterns.
 - `frontend-design` for visual direction and composition.
 - `design-system` for tokens, theming, and stylesheet architecture.
 - `web-accessibility` for keyboard, focus, ARIA, and contrast requirements in Angular templates.

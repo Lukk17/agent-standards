@@ -24,7 +24,7 @@ end-to-end testing and is the canonical home of the flaky-test policy that the o
 
 - Verifying a deployed backend capability with an API client rather than a browser. Use `e2e-runbooks`.
 - Unit and integration tests inside the codebase, and the red-green-refactor loop. Use `tdd-workflow`, or the language
-  testing skill (`python-testing`, `golang-testing`, `springboot-tdd`).
+  testing skill (`python-patterns`, `golang-patterns`, `springboot-patterns`).
 - Sandbox-mode API regression tests that need no browser and no database. Use `ai-regression-testing`.
 - Auditing a page for keyboard operability and screen-reader behaviour. Use `web-accessibility`.
 - Load, soak, or chaos testing. Out of scope here, which is about correctness rather than capacity.

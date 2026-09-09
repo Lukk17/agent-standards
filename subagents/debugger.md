@@ -10,15 +10,12 @@ skills:
   - git-workflow
   - tdd-workflow
   - python-patterns
-  - python-testing
   - java-coding-standards
   - golang-patterns
-  - golang-testing
   - dart-flutter-patterns
   - backend-patterns
-  - frontend-patterns
+  - react-patterns
   - springboot-patterns
-  - springboot-tdd
   - bash
   - powershell
   - observability-and-logging

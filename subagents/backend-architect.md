@@ -9,13 +9,11 @@ skills:
   - hexagonal-architecture
   - architecture-decision-records
   - springboot-patterns
-  - springboot-security
-  - keycloak-auth-services
+  - keycloak-patterns
   - soap-webservices
   - database-migrations
   - postgres-patterns
-  - jpa-patterns
-  - mongodb-schema-design
+  - mongodb-patterns
   - deployment-patterns
   - docker-patterns
   - security-review

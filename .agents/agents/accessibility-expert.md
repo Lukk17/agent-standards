@@ -1,5 +1,5 @@
 ---
-description: Use when auditing for WCAG 2.1 / 2.2 compliance, remediating accessibility issues, or designing inclusive components. Tests with real assistive tech in mind (screen readers, keyboard-only, voice control), not just automated scanners. Read-only: produces audit reports and remediation guidance, does not apply fixes.
+description: "Use when auditing for WCAG 2.1 / 2.2 compliance, remediating accessibility issues, or designing inclusive components. Tests with real assistive tech in mind (screen readers, keyboard-only, voice control), not just automated scanners. Read-only: produces audit reports and remediation guidance, does not apply fixes."
 mode: subagent
 tools:
   read: true
@@ -106,7 +106,7 @@ Every finding cites the WCAG success criterion, has a concrete fix, and a verifi
 Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns, and this prompt only defines persona and scope.
 
 - `web-accessibility`
-- `frontend-patterns`
+- `react-patterns`
 - `design-system`
 - `angular`
 - `nextjs-app-router-patterns`

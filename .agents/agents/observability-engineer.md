@@ -1,5 +1,5 @@
 ---
-description: Use when designing or extending production observability: logs, metrics, traces, SLOs, alerts, dashboards. Builds toward signals that drive action rather than vanity dashboards. Defers incident response to `devops-troubleshooter` and end-to-end performance tuning to `performance-engineer`.
+description: "Use when designing or extending production observability: logs, metrics, traces, SLOs, alerts, dashboards. Builds toward signals that drive action rather than vanity dashboards. Defers incident response to `devops-troubleshooter` and end-to-end performance tuning to `performance-engineer`."
 mode: subagent
 tools:
   read: true

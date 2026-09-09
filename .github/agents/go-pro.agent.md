@@ -1,6 +1,6 @@
 ---
 name: go-pro
-description: Use when writing or reviewing Go service code, or when a Go package needs restructuring. Applies idiomatic Go (useful zero values, interfaces declared at the consumer, wrapped errors, context propagation), table-driven tests, and ports-and-adapters boundaries. Implementer, not architect: defers service decomposition to `backend-architect` and schema design to `database-expert`.
+description: "Use when writing or reviewing Go service code, or when a Go package needs restructuring. Applies idiomatic Go (useful zero values, interfaces declared at the consumer, wrapped errors, context propagation), table-driven tests, and ports-and-adapters boundaries. Implementer, not architect: defers service decomposition to `backend-architect` and schema design to `database-expert`."
 tools: ["read", "create", "edit", "search", "bash", "powershell"]
 ---
 
@@ -78,7 +78,6 @@ wrapped and reachable from a test, and no exported symbol was added without a ca
 Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns, and this prompt only defines persona and scope.
 
 - `golang-patterns`
-- `golang-testing`
 - `hexagonal-architecture`
 - `api-design`
 - `backend-patterns`

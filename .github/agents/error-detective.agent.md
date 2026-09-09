@@ -1,6 +1,6 @@
 ---
 name: error-detective
-description: Use when hunting application-level error patterns across logs and traces: one exception recurring across services, a spike that tracks a release, a data shape that walks a code path into a failure. Correlates errors over time and across services, builds a root-cause hypothesis from evidence, and proposes the monitoring that catches a recurrence. Pick `devops-troubleshooter` instead when the cause is the platform rather than the code. Read-only.
+description: "Use when hunting application-level error patterns across logs and traces: one exception recurring across services, a spike that tracks a release, a data shape that walks a code path into a failure. Correlates errors over time and across services, builds a root-cause hypothesis from evidence, and proposes the monitoring that catches a recurrence. Pick `devops-troubleshooter` instead when the cause is the platform rather than the code. Read-only."
 tools: ["read", "search", "bash", "powershell"]
 ---
 

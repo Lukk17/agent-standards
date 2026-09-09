@@ -1,36 +1,11 @@
----
-name: golang-testing
-description: Go testing with the standard library, covering the red-green loop, table-driven tests and subtests, hand-written fakes, golden files, synctest for concurrent code, integration tests, benchmarks, fuzzing, and coverage. Use when writing tests for a Go package, converting copy-pasted tests into a table, testing an HTTP handler, benchmarking a hot path, or testing code that waits on time. Not for production Go idioms and package design, use `golang-patterns`.
----
-
-# Go Testing Patterns
+# Go Testing with the Standard Library
 
 How a Go test suite is written with nothing but `testing` and the standard library: what a test asserts, what gets
-faked, and what the coverage number means. Table, fake, integration, and benchmark depth lives in the reference files
-listed near the bottom.
+faked, and what the coverage number means. The hub carries the rules that decide most reviews, and this file carries
+the rest. Table, fake, integration, and benchmark depth sits in the sibling files listed at the bottom.
 
 Baseline: Go 1.25, the current stable toolchain. That gives per-iteration range variables, `t.Context`, `t.Chdir`,
 and a stable `testing/synctest`, all of which the examples use.
-
----
-
-### When to activate
-
-- Writing tests for a new or changed Go function, method, or handler.
-- Adding coverage to a package that has little or none.
-- Diagnosing a flaky, slow, or order-dependent Go test.
-- Deciding what to fake and what to run for real.
-- Writing a benchmark, a fuzz target, or a golden-file test.
-
----
-
-### When not to activate
-
-- Writing the production code the tests cover. Use `golang-patterns`.
-- Applying the language-neutral red-green-refactor loop and the test pyramid. Use `tdd-workflow`.
-- Driving a browser through a user journey. Use `e2e-testing`.
-- Exercising a whole running stack as a capability sweep. Use `e2e-runbooks`.
-- Setting up the CI pipeline itself. Use `deployment-patterns`.
 
 ---
 
@@ -65,8 +40,7 @@ reason.
 ### Make the table the default shape
 
 A table plus `t.Run` gives one named subtest per case, so the report names the input that broke rather than a line
-number. Depth, including error cases and comparison helpers, is in
-[references/table-tests.md](references/table-tests.md).
+number. Depth, including error cases and comparison helpers, is in [table-tests.md](table-tests.md).
 
 Pass:
 
@@ -175,7 +149,7 @@ test.
 
 A hand-written fake that satisfies the consumer's interface is a few lines, reads as ordinary Go, and breaks at
 compile time when the interface changes. A generated mock adds a build step and a second thing to keep in sync.
-Variants are in [references/mocks-and-fakes.md](references/mocks-and-fakes.md).
+Variants are in [mocks-and-fakes.md](mocks-and-fakes.md).
 
 Pass:
 
@@ -300,26 +274,6 @@ A shared mutable global is not.
 
 ---
 
-### Cover around 90 percent of the real logic
-
-The target is around 90 percent of the real logic, 100 percent on critical business logic, and 90 percent or better
-on exported APIs. Excluding code from coverage is only for generated output such as protobuf stubs and generated
-mocks, never for hand-written logic: if you wrote it by hand, it must be tested.
-
-Run the suite the way CI runs it, with the race detector on:
-
-```bash
-go test -race -coverprofile=coverage.out ./...
-```
-
-Read which lines are missing rather than the headline number:
-
-```bash
-go tool cover -func=coverage.out
-```
-
----
-
 ### Benchmark before you optimise, fuzz what parses input
 
 A benchmark turns a performance claim into a number, and `-benchmem` turns an allocation claim into one too. A fuzz
@@ -333,30 +287,18 @@ go test -bench=. -benchmem ./...
 go test -fuzz=FuzzParseJSON -fuzztime=30s ./...
 ```
 
-Both are in [references/benchmarks.md](references/benchmarks.md), including `b.Loop`, sub-benchmarks by size, and
-seed corpora.
+Both are in [benchmarks.md](benchmarks.md), including `b.Loop`, sub-benchmarks by size, and seed corpora.
 
 ---
 
-### Reference files
+### Sibling references
 
 | Open this | For |
 | --- | --- |
-| [references/table-tests.md](references/table-tests.md) | Table shapes, error cases, subtests, golden files, comparison |
-| [references/mocks-and-fakes.md](references/mocks-and-fakes.md) | Fakes, stubs, spies, interfaces at the consumer, `httptest` |
-| [references/integration.md](references/integration.md) | Real databases, containers, build tags, HTTP handler tests |
-| [references/benchmarks.md](references/benchmarks.md) | Benchmarks, allocation counts, profiles, fuzzing, coverage |
-
----
-
-### Related skills
-
-- `golang-patterns` for the production code under test.
-- `tdd-workflow` for the language-neutral red-green-refactor loop and the test pyramid.
-- `e2e-testing` for browser journeys and the flaky-test policy.
-- `e2e-runbooks` for capability sweeps against a live stack.
-- `performance-optimization` for what to do with a benchmark once you have one.
-- `coding-standards` for the shared engineering floor, including the FIRST properties.
+| [table-tests.md](table-tests.md) | Table shapes, error cases, subtests, golden files, comparison |
+| [mocks-and-fakes.md](mocks-and-fakes.md) | Fakes, stubs, spies, interfaces at the consumer, `httptest` |
+| [integration.md](integration.md) | Real databases, containers, build tags, HTTP handler tests |
+| [benchmarks.md](benchmarks.md) | Benchmarks, allocation counts, profiles, fuzzing, coverage |
 
 ---
 

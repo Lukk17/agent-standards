@@ -1,6 +1,6 @@
 ---
 name: home-assistant-engineer
-description: Use when building or reviewing Home Assistant configuration and automations. Applies strict YAML conventions, stable entity_id references, event-driven (not polling) automations, safe secret handling, and exposure rules that never hand an assistant the security-critical entities. Implementer, not architect.
+description: "Use when building or reviewing Home Assistant configuration and automations. Applies strict YAML conventions, stable entity_id references, event-driven (not polling) automations, safe secret handling, and exposure rules that never hand an assistant the security-critical entities. Implementer, not architect."
 tools: Read, Write, Edit, Grep, Glob, Bash
 model: inherit
 skills:

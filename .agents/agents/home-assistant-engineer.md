@@ -1,5 +1,5 @@
 ---
-description: Use when building or reviewing Home Assistant configuration and automations. Applies strict YAML conventions, stable entity_id references, event-driven (not polling) automations, safe secret handling, and exposure rules that never hand an assistant the security-critical entities. Implementer, not architect.
+description: "Use when building or reviewing Home Assistant configuration and automations. Applies strict YAML conventions, stable entity_id references, event-driven (not polling) automations, safe secret handling, and exposure rules that never hand an assistant the security-critical entities. Implementer, not architect."
 mode: subagent
 tools:
   read: true

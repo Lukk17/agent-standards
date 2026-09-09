@@ -25,9 +25,8 @@ virtual threads are all available and expected.
 ### When not to activate
 
 - Spring Boot structure, controllers, DTO contracts, and bean wiring, use `springboot-patterns`.
-- Entity mapping, queries, and transaction boundaries, use `jpa-patterns`.
-- Writing the tests, use `springboot-tdd`.
-- Running the build and analysis pipeline before a pull request, use `springboot-verification`.
+- Entity mapping, queries, transaction boundaries, and security wiring, use `springboot-patterns`.
+- Writing the tests, and running the analysis pipeline before a pull request, use `springboot-patterns`.
 - Version catalogs, BOM imports, and dependency admission, use `build-dependency-management`.
 - Ports and adapters layering across a service, use `hexagonal-architecture`.
 
@@ -271,10 +270,7 @@ public Reservation reserveStockUntilPaymentWindowCloses(OrderId orderId, Duratio
 
 | Skill | What it owns |
 | --- | --- |
-| `springboot-patterns` | Spring Boot structure, REST contracts, caching, and async. |
-| `jpa-patterns` | Entities, queries, and transactions. |
-| `springboot-tdd` | Test structure, slices, and the coverage gate. |
-| `springboot-verification` | The pipeline that runs the analysis tools. |
+| `springboot-patterns` | Spring Boot structure, REST contracts, security, JPA, tests, and the analysis pipeline. |
 | `build-dependency-management` | Version catalog and BOM discipline for the plugins above. |
 | `hexagonal-architecture` | Ports and adapters layering when the project uses it. |
 | `observability-and-logging` | Structured log output, metrics, and tracing. |

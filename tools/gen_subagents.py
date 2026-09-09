@@ -26,6 +26,7 @@ Usage:
 """
 from __future__ import annotations
 
+import json
 import os
 import pathlib
 import re
@@ -135,6 +136,15 @@ def parse(path: pathlib.Path, skills: set[str] | None = None) -> tuple[dict, str
     return fm, m.group(2).lstrip("\n")
 
 
+def _yaml_double_quoted(value: str) -> str:
+    """A YAML double-quoted scalar, safe for a value holding a colon or a quote.
+
+    json.dumps emits exactly the double-quoted form YAML 1.2 defines, escapes
+    included, so a description is never re-read as a mapping by a strict parser.
+    """
+    return json.dumps(value)
+
+
 def skills_block(skills: list[str] | None) -> str:
     if not skills:
         return ""
@@ -152,7 +162,7 @@ def emit_claude(fm: dict, body: str) -> str:
     lines = [
         "---",
         f"name: {fm['name']}",
-        f"description: {fm['description'].strip()}",
+        f"description: {_yaml_double_quoted(fm['description'].strip())}",
     ]
     tools = [CLAUDE_TOOLS.get(t, t) for t in fm.get("tools", [])]
     if tools:
@@ -170,7 +180,7 @@ def emit_claude(fm: dict, body: str) -> str:
 def emit_opencode(fm: dict, body: str) -> str:
     lines = [
         "---",
-        f"description: {fm['description'].strip()}",
+        f"description: {_yaml_double_quoted(fm['description'].strip())}",
         "mode: subagent",
     ]
     model_id = MODEL["opencode"][fm.get("model", "sonnet")]
@@ -203,7 +213,7 @@ def emit_copilot(fm: dict, body: str) -> str:
     lines = [
         "---",
         f"name: {fm['name']}",
-        f"description: {fm['description'].strip()}",
+        f"description: {_yaml_double_quoted(fm['description'].strip())}",
     ]
     canonical = fm.get("tools") or []
     tools = copilot_tools(canonical)

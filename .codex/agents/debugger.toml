@@ -73,15 +73,12 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `git-workflow`
 - `tdd-workflow`
 - `python-patterns`
-- `python-testing`
 - `java-coding-standards`
 - `golang-patterns`
-- `golang-testing`
 - `dart-flutter-patterns`
 - `backend-patterns`
-- `frontend-patterns`
+- `react-patterns`
 - `springboot-patterns`
-- `springboot-tdd`
 - `bash`
 - `powershell`
 - `observability-and-logging`

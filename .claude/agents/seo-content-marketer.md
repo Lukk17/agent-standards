@@ -1,6 +1,6 @@
 ---
 name: seo-content-marketer
-description: Use when planning content strategy, writing SEO content, optimising keyword usage, generating metadata, structuring content hierarchy, or auditing existing content for SEO and E-E-A-T. One agent covering the whole pipeline, from strategy through writing, keywords, metadata and structure to the audit. Read-only on application code, and the content, metadata and audits are the deliverable.
+description: "Use when planning content strategy, writing SEO content, optimising keyword usage, generating metadata, structuring content hierarchy, or auditing existing content for SEO and E-E-A-T. One agent covering the whole pipeline, from strategy through writing, keywords, metadata and structure to the audit. Read-only on application code, and the content, metadata and audits are the deliverable."
 tools: Read, Write, Edit, Grep, Glob
 model: inherit
 skills:

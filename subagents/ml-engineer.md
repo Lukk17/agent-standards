@@ -6,7 +6,6 @@ model: inherit
 skills:
   - pytorch-patterns
   - python-patterns
-  - python-testing
   - docker-patterns
   - performance-optimization
   - observability-and-logging

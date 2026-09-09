@@ -78,6 +78,15 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- The skills tree consolidated from 65 skills to 55, so each stack is one hub with its depth in `references/` instead
+  of a family of sibling skills. Spring Boot went from six skills to two, `springboot-patterns` and
+  `java-coding-standards`, absorbing `springboot-security`, `springboot-tdd`, `springboot-verification` and
+  `jpa-patterns`. Python went from three to two, `python-patterns` and `pytorch-patterns`, absorbing
+  `python-testing`. Go went from two to one, `golang-patterns` absorbing `golang-testing`. MongoDB went from four to
+  one, `mongodb-patterns` absorbing `mongodb-connection`, `mongodb-query-optimizer`, `mongodb-schema-design` and
+  `mongodb-search-and-ai`. Keycloak went from two to one, `keycloak-patterns` absorbing `keycloak-administration`
+  and `keycloak-auth-services`. `frontend-patterns` was renamed `react-patterns`. Every `skills` list in
+  `subagents/*.md` names the replacement, and the four generated subagent trees were regenerated.
 - Configuration files are no longer templates. `.mcp.json`, `opencode.json`, `.codex/config.toml`, and
   `.vscode/mcp.json` are committed as real files that a consumer pulls and uses unchanged. `AGENTS.md.example` is the
   only `.example` file left in the repo, because only `AGENTS.md` carries repo-specific content while hooks, MCP,

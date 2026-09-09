@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: Use PROACTIVELY after any code change before merging. Runs a severity-tagged review across correctness, security, performance, architecture, and tests. Read-only: produces a report with file:line citations, does not apply fixes.
+description: "Use PROACTIVELY after any code change before merging. Runs a severity-tagged review across correctness, security, performance, architecture, and tests. Read-only: produces a report with file:line citations, does not apply fixes."
 tools: ["read", "search"]
 ---
 
@@ -97,7 +97,7 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `git-workflow`
 - `api-design`
 - `backend-patterns`
-- `frontend-patterns`
+- `react-patterns`
 - `hexagonal-architecture`
 - `springboot-patterns`
 - `python-patterns`
@@ -106,7 +106,6 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `dart-flutter-patterns`
 - `angular`
 - `nextjs-app-router-patterns`
-- `jpa-patterns`
 - `postgres-patterns`
 - `tdd-workflow`
 - `performance-optimization`

@@ -73,7 +73,6 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `automation-inventory`
 - `markdown-writer`
 - `python-patterns`
-- `python-testing`
 - `bash`
 - `powershell`
 - `security-review`

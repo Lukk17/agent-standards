@@ -1,8 +1,3 @@
----
-name: keycloak-administration
-description: Keycloak server administration covering realm and client setup, authentication flows and MFA, RBAC and fine-grained authorization, LDAP federation, security hardening, clustering, and troubleshooting. Use when you say "set up SSO with Keycloak", "create a realm and a confidential client", "enable MFA for admins", "connect Keycloak to Active Directory", or "why does my token fail audience validation". Not for the .NET client library that consumes Keycloak, use `keycloak-auth-services`.
----
-
 # Keycloak Administration
 
 Operating and configuring a Keycloak server: realms, clients, flows, federation, and the hardening a production
@@ -24,9 +19,9 @@ Baseline version, current as of September 2026: Keycloak 26.
 
 ### When not to activate
 
-- Integrating the .NET Keycloak.AuthServices library into an application: use `keycloak-auth-services`.
+- Integrating the .NET Keycloak.AuthServices library: see [dotnet-auth-services.md](dotnet-auth-services.md).
 - Verifying a JWT inside a Node service: use `node-backend-patterns`.
-- Spring Security resource-server configuration: use `springboot-security`.
+- Spring Security resource-server configuration: use `springboot-patterns`.
 - Designing the API contract the tokens protect: use `api-design`.
 - Threat modelling the wider application: use `security-review`.
 
@@ -36,15 +31,15 @@ Baseline version, current as of September 2026: Keycloak 26.
 
 | Task | Open |
 | --- | --- |
-| Realms, users, groups, attributes, sessions | [realm-management.md](references/realm-management.md) |
-| OIDC and SAML clients, scopes, mappers, service accounts | [client-configuration.md](references/client-configuration.md) |
-| Auth flows, MFA, identity brokering, social login | [authentication-sso.md](references/authentication-sso.md) |
-| Roles, UMA fine-grained authorization, policies | [authorization-rbac.md](references/authorization-rbac.md) |
-| LDAP and AD integration, sync, mappers | [user-federation.md](references/user-federation.md) |
-| Password policy, brute force, TLS, audit, production checklist | [security-hardening.md](references/security-hardening.md) |
-| Clustering, database tuning, caching, monitoring, backup | [ha-scalability.md](references/ha-scalability.md) |
-| Login failures, token issues, LDAP sync, session problems | [troubleshooting.md](references/troubleshooting.md) |
-| .NET, Spring Boot, and Node.js integration examples | [integration-examples.md](references/integration-examples.md) |
+| Realms, users, groups, attributes, sessions | [realm-management.md](realm-management.md) |
+| OIDC and SAML clients, scopes, mappers, service accounts | [client-configuration.md](client-configuration.md) |
+| Auth flows, MFA, identity brokering, social login | [authentication-sso.md](authentication-sso.md) |
+| Roles, UMA fine-grained authorization, policies | [authorization-rbac.md](authorization-rbac.md) |
+| LDAP and AD integration, sync, mappers | [user-federation.md](user-federation.md) |
+| Password policy, brute force, TLS, audit, production checklist | [security-hardening.md](security-hardening.md) |
+| Clustering, database tuning, caching, monitoring, backup | [ha-scalability.md](ha-scalability.md) |
+| Login failures, token issues, LDAP sync, session problems | [administration-troubleshooting.md](administration-troubleshooting.md) |
+| .NET, Spring Boot, and Node.js integration examples | [integration-examples.md](integration-examples.md) |
 
 ---
 
@@ -196,10 +191,10 @@ An export contains client secrets. Treat the directory as a secret, not as a con
 
 ---
 
-### Related skills
+### Where to go next
 
-- `keycloak-auth-services` for the .NET client library that consumes this server.
-- `springboot-security` and `node-backend-patterns` for validating the tokens Keycloak issues.
+- [dotnet-auth-services.md](dotnet-auth-services.md) for the .NET client library that consumes this server.
+- `springboot-patterns` and `node-backend-patterns` for validating the tokens Keycloak issues.
 - `api-design` for the status codes and error bodies an authorization failure should produce.
 - `security-review` for threat modelling around the identity boundary.
 - `docker-patterns` for running the container safely in a local stack.

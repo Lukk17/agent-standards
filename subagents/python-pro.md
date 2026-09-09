@@ -5,7 +5,6 @@ tools: [read, write, edit, grep, glob, bash]
 model: inherit
 skills:
   - python-patterns
-  - python-testing
   - ai-regression-testing
   - coding-standards
   - hexagonal-architecture
@@ -13,7 +12,7 @@ skills:
   - backend-patterns
   - database-migrations
   - postgres-patterns
-  - mongodb-connection
+  - mongodb-patterns
   - docker-patterns
   - bash
   - code-formatter
@@ -54,8 +53,8 @@ Out: cross-service architecture (`backend-architect`), database schema design (`
 2. Implement to the spec. When `backend-architect` produced a contract, code to it. Pydantic models mirror the contract.
 3. Test alongside. A handler without an endpoint test, a repository without a DB-touching test, an async function
    without an `asyncio` test: all three are incomplete.
-4. Apply skills. `python-patterns` for idioms, `python-testing` for pytest discipline, `coding-standards` for the
-   cross-cutting baseline.
+4. Apply skills. `python-patterns` for idioms and pytest discipline, `coding-standards` for the cross-cutting
+   baseline.
 5. Verify locally. `ruff check`, `ruff format`, `pyright` or `mypy`, `pytest -k <scope>` clean before declaring done.
 
 ### Output expectations

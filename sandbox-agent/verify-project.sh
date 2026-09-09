@@ -159,6 +159,64 @@ assert_toml() {
   fi
 }
 
+# Passes when every markdown file matching the glob opens with a front matter
+# block whose values a strict YAML parser reads back as written. `copilot skill
+# list` cannot stand in here: `copilot plugins list` says outright that custom
+# agents are not covered yet, so Copilot offers no way to ask what it made of
+# .github/agents, and the image carries no YAML module to parse the block with.
+# The check is therefore narrower than a parse. It reads every `key: value` line
+# and accepts the value only when it is JSON, which YAML 1.2 reads verbatim, or
+# a plain scalar holding no colon and no comment marker. That is exactly the
+# defect that has already made Copilot skip three skill manifests, an unquoted
+# colon in a description, and it says nothing about the rest of YAML.
+assert_front_matter_safe() {
+  local label="$1" pattern="$2"
+  local output="" status=0
+
+  output="$(cd "$PROJECT" && python3 - "$pattern" <<'PY'
+import glob
+import json
+import re
+import sys
+
+KEY = re.compile(r"^([A-Za-z][A-Za-z0-9_-]*): (.+)$")
+PLAIN = re.compile(r"^[A-Za-z0-9][^:#]*$")
+BLOCK = re.compile(r"^---\n(.*?)\n---\n", re.S)
+
+paths = sorted(glob.glob(sys.argv[1]))
+failures = [] if paths else [f"no file matched {sys.argv[1]}"]
+
+for path in paths:
+    with open(path, encoding="utf-8") as handle:
+        block = BLOCK.match(handle.read())
+    if block is None:
+        failures.append(f"{path}: no front matter block")
+        continue
+    for line in block.group(1).splitlines():
+        entry = KEY.match(line)
+        if entry is None:
+            continue
+        key, value = entry.groups()
+        try:
+            json.loads(value)
+        except ValueError:
+            if not PLAIN.match(value):
+                failures.append(f"{path}: '{key}' is neither quoted nor a plain scalar")
+
+print(len(paths))
+for failure in failures:
+    print(failure)
+sys.exit(1 if failures else 0)
+PY
+  )" || status=$?
+
+  if [[ "$status" -eq 0 ]]; then
+    pass "${label} ($(head -n 1 <<<"$output") files)"
+  else
+    fail "${label} ($(one_line "$(tail -n +2 <<<"$output")"))"
+  fi
+}
+
 # Runs an agent CLI inside the project with stdout and stderr captured into
 # CLI_OUTPUT. Returns the exit status the CLI reported.
 capture_cli() {
@@ -391,6 +449,8 @@ verify_copilot() {
     < <(printf '%s\n' "$SAMPLE_SKILL" "code-reviewer" "coding-standards")
   assert_cli_lacks "every imported skill parses for Copilot" \
     "failed to load" copilot skill list
+  assert_front_matter_safe "every imported subagent's front matter is one Copilot can parse" \
+    ".github/agents/*.agent.md"
   assert_cli_lists "Copilot itself lists the project MCP servers" copilot mcp list \
     < <(printf '%s\n' "${MCP_SERVERS[@]}")
 }

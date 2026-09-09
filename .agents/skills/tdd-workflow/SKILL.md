@@ -27,7 +27,7 @@ per-stack mechanics.
 - Capability sweeps against a deployed stack with an API client. Use `e2e-runbooks`.
 - Regression tests aimed specifically at AI-introduced defects and sandbox-path drift. Use `ai-regression-testing`.
 - Per-language mechanics: pytest fixtures and parametrisation, Go table-driven tests and fuzzing, JUnit slice tests. Use
-  `python-testing`, `golang-testing`, or `springboot-tdd`.
+  `python-patterns`, `golang-patterns`, or `springboot-patterns`.
 - Load, soak, or capacity testing. Use `performance-optimization` for the measurement discipline instead.
 
 ---
@@ -330,7 +330,7 @@ In CI, run with coverage and upload the report.
 - `e2e-testing` owns the browser layer and the flaky-test policy.
 - `e2e-runbooks` owns capability verification against a deployed stack.
 - `ai-regression-testing` owns bug-driven regression tests and sandbox-path parity.
-- `python-testing`, `golang-testing`, `springboot-tdd` hold the per-language mechanics.
+- `python-patterns`, `golang-patterns`, `springboot-patterns` hold the per-language mechanics.
 - `performance-optimization` owns the measurement discipline when a test proves something is slow.
 
 ---

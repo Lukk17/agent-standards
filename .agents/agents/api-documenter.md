@@ -1,5 +1,5 @@
 ---
-description: Use when writing or maintaining API documentation, whether OpenAPI 3.1, GraphQL SDL, AsyncAPI, or developer-portal prose. Produces docs a developer can ship against without asking a follow-up question, covering working examples, the error catalogue, auth flows, and the versioning policy. Read-only on application code: the docs are the deliverable.
+description: "Use when writing or maintaining API documentation, whether OpenAPI 3.1, GraphQL SDL, AsyncAPI, or developer-portal prose. Produces docs a developer can ship against without asking a follow-up question, covering working examples, the error catalogue, auth flows, and the versioning policy. Read-only on application code: the docs are the deliverable."
 mode: subagent
 tools:
   read: true

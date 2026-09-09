@@ -31,7 +31,7 @@ one that needs fixing.
 
 ### When not to activate
 
-- React composition, hooks, state and rendering, use `frontend-patterns`
+- React composition, hooks, state and rendering, use `react-patterns`
 - Backend service structure, endpoints and data access, use `backend-patterns` or `api-design`
 - Blank lines, brace placement and chain breaking inside a function body, use `code-formatter`
 - The full testing playbook rather than the principle, use `tdd-workflow` or the language test skill
@@ -334,7 +334,8 @@ Fail:
 test('works', () => { })
 ```
 
-The detailed testing playbook lives in `tdd-workflow`, `python-testing`, `golang-testing` and `springboot-tdd`.
+The detailed testing playbook lives in `tdd-workflow`, `python-patterns`, `golang-patterns` and
+`springboot-patterns`.
 
 ---
 
@@ -368,13 +369,13 @@ if (user) {
 ### Related skills
 
 - `code-formatter` owns blank lines, brace placement and chain breaking inside a function body
-- `frontend-patterns` owns React composition, hooks, state and rendering
+- `react-patterns` owns React composition, hooks, state and rendering
 - `backend-patterns` and `api-design` own service structure, endpoints and contracts
 - `hexagonal-architecture` owns ports, adapters and dependency direction in depth
 - `observability-and-logging` owns structured logging, tracing, metrics and health
 - `performance-optimization` owns profiling and the measure-first loop
 - `architecture-decision-records` owns the decisions this hub keeps out of source files
-- `tdd-workflow`, `python-testing`, `golang-testing` and `springboot-tdd` own the testing playbook
+- `tdd-workflow`, `python-patterns`, `golang-patterns` and `springboot-patterns` own the testing playbook
 - `java-coding-standards`, `python-patterns`, `golang-patterns` and `dart-flutter-patterns` own per-language idiom
 
 ---

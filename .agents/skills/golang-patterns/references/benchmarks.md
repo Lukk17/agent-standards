@@ -62,6 +62,35 @@ func BenchmarkEncode(b *testing.B) {
 
 ---
 
+### Allocate once when the size is known
+
+`append` to a nil slice regrows and copies, which shows up in `-benchmem` as several allocations for one loop. Give
+`make` the capacity you already know, and build strings with `strings.Builder` or `strings.Join` rather than `+=` in
+a loop.
+
+Pass:
+
+```go
+results := make([]Result, 0, len(items))
+for _, item := range items {
+    results = append(results, process(item))
+}
+```
+
+Fail:
+
+```go
+var results []Result
+for _, item := range items {
+    results = append(results, process(item))
+}
+```
+
+Measure before going further. `sync.Pool` and buffer reuse are worth it in a hot path and are pure overhead
+everywhere else, so reach for them after a benchmark says so, not before.
+
+---
+
 ### Compare implementations with sub-benchmarks
 
 Sub-benchmarks put competing implementations, or the same implementation at several sizes, in one output block where

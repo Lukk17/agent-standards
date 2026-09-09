@@ -1,34 +1,9 @@
----
-name: springboot-tdd
-description: "Test-driven development for Spring Boot with JUnit 5, Mockito, MockMvc, @DataJpaTest, Testcontainers, and JaCoCo gates. Use when you say \"write the test first\", \"add tests for this endpoint\", \"mock this bean in a @WebMvcTest\", \"run this repository test against real Postgres\", or \"coverage is failing the build\". Not for running the whole build and scan pipeline before a pull request, use `springboot-verification`."
-license: Apache-2.0
----
+# Testing a Spring Boot Service
 
-# Spring Boot TDD Workflow
-
-Test-first development for Spring Boot services, targeting around 90% coverage of real logic across unit and
-integration tests, and 100% where it genuinely adds value. Every example assumes Java 21 LTS as the minimum with
-Java 25 LTS as the recommended target, and Spring Boot 3.x.
-
----
-
-### When to activate
-
-- Starting a new feature, endpoint, or use case.
-- Fixing a bug, where the failing test comes before the fix.
-- Refactoring code that has to keep behaving the same way.
-- Adding data access logic, a security rule, or a validation constraint.
-- Deciding which test slice a piece of behaviour belongs in.
-
----
-
-### When not to activate
-
-- Running the build, static analysis, and security pipeline before a pull request, use `springboot-verification`.
-- Language-neutral test discipline and the FIRST principles themselves, use `tdd-workflow`.
-- Entity mapping and query design that the repository tests exercise, use `jpa-patterns`.
-- Controller, DTO, and service structure under test, use `springboot-patterns`.
-- Browser-level end-to-end tests, use `e2e-testing`.
+Test-first development with JUnit 5, Mockito, MockMvc, `@DataJpaTest`, Testcontainers, and a JaCoCo gate. Open this
+when starting a feature, fixing a bug, deciding which slice a piece of behaviour belongs in, or when the coverage
+gate is failing the build. The target is around 90% coverage of real logic across unit and integration tests, and
+100% where it genuinely adds value.
 
 ---
 
@@ -192,6 +167,8 @@ container's JDBC URL reaches the Spring context.
 
 Fail: the embedded in-memory database that `@DataJpaTest` substitutes by default.
 
+Entity and query design behind these tests is in [jpa.md](jpa.md).
+
 ---
 
 ### Assert with AssertJ
@@ -254,18 +231,8 @@ Pass: `mvn verify` or `./gradlew test jacocoTestReport` fails when coverage drop
 
 Fail: a coverage report generated and ignored, or a threshold lowered to make a red build green.
 
----
-
-### Related skills
-
-| Skill | What it owns |
-| --- | --- |
-| `springboot-verification` | The build, static analysis, test, scan, and diff pipeline that runs this suite. |
-| `tdd-workflow` | Language-neutral TDD discipline and the FIRST principles. |
-| `springboot-patterns` | The controllers, services, and DTOs these tests exercise. |
-| `jpa-patterns` | Entity and query design behind the repository tests. |
-| `java-coding-standards` | Java naming and style inside the test sources. |
-| `build-dependency-management` | Where the test and coverage plugin versions live. |
+The pipeline that runs this suite alongside the build, static analysis, and scan gates is in
+[verification-pipeline.md](verification-pipeline.md).
 
 ---
 

@@ -8,7 +8,6 @@ skills:
   - automation-inventory
   - markdown-writer
   - python-patterns
-  - python-testing
   - bash
   - powershell
   - security-review

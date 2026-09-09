@@ -19,7 +19,7 @@ first one, because a passive instruction read once at session start loses salien
 A good opening line names owners and a plan, not a category:
 
 ```text
-Owners: markdown-writer for the docs, python-testing for the generator test. Delegating the edit to python-pro with those two skills, code-reviewer before merge.
+Owners: markdown-writer for the docs, python-patterns for the generator test. Delegating the edit to python-pro with those two skills, code-reviewer before merge.
 ```
 
 The gate is enforcing, not advisory. One shared rule in

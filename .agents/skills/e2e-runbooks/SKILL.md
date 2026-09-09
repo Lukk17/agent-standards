@@ -24,8 +24,8 @@ timestamped run record with token and duration accounting.
 ### When not to activate
 
 - Browser and UI journeys. Use `e2e-testing`, which owns Playwright.
-- Unit and integration tests inside the codebase. Use `tdd-workflow`, `python-testing`, `golang-testing`, or
-  `springboot-tdd`.
+- Unit and integration tests inside the codebase. Use `tdd-workflow`, `python-patterns`, `golang-patterns`, or
+  `springboot-patterns`.
 - Sandbox-mode API regression tests that need no deployed stack. Use `ai-regression-testing`.
 - Load, soak, or chaos testing. Out of scope: this skill is about correctness, not capacity or resilience.
 - Designing the API being tested. Use `api-design`.
@@ -285,8 +285,8 @@ dependency to fix, and there is no point running tests against a half-up stack.
 ### Related skills
 
 - `e2e-testing` owns browser and UI testing with Playwright, and the canonical flaky-test policy.
-- `tdd-workflow` owns unit and integration tests inside the codebase, along with `python-testing`, `golang-testing` and
-  `springboot-tdd`.
+- `tdd-workflow` owns unit and integration tests inside the codebase, along with `python-patterns`,
+  `golang-patterns` and `springboot-patterns`.
 - `ai-regression-testing` owns sandbox-mode API regression tests that need no deployed stack.
 - `observability-and-logging` owns the startup-readiness banner this skill reads at sweep start.
 - `docker-patterns` owns the local stack the tests are pointed at.

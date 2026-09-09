@@ -6,21 +6,18 @@ model: opus
 skills:
   - performance-optimization
   - coding-standards
-  - mongodb-query-optimizer
-  - mongodb-connection
+  - mongodb-patterns
   - postgres-patterns
-  - jpa-patterns
+  - springboot-patterns
   - database-migrations
   - backend-patterns
-  - frontend-patterns
+  - react-patterns
   - nextjs-app-router-patterns
   - dart-flutter-patterns
   - deployment-patterns
   - docker-patterns
   - python-patterns
   - golang-patterns
-  - golang-testing
-  - springboot-patterns
   - bash
   - markdown-writer
   - observability-and-logging

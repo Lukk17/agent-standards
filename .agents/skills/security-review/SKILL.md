@@ -29,7 +29,7 @@ This skill covers the application layer. Cloud, container and platform hardening
 - Cloud IAM, network, CI/CD and CDN hardening. Open
   [references/cloud-infrastructure-security.md](references/cloud-infrastructure-security.md).
 - Container image hardening, base image choice, SBOM generation, and image scanning. Use `docker-patterns`.
-- Spring Security wiring specifically. Use `springboot-security`.
+- Spring Security wiring specifically. Use `springboot-patterns`.
 - Writing the tests that prove a control works. Use `tdd-workflow`.
 
 ---
@@ -399,7 +399,7 @@ test('rejects a malformed payload', async () => {
 - `code-reviewer` is the parent review workflow, and findings from it feed its security pillar and escalate to the
   `security-auditor` agent.
 - `docker-patterns` owns container hardening, SBOM generation, and image scanning.
-- `springboot-security` owns Spring Security configuration specifically.
+- `springboot-patterns` owns Spring Security configuration specifically.
 - `api-design` owns the contract and error shape the validation rules above assert against.
 - `observability-and-logging` owns the log structure the redaction rules apply to.
 - `tdd-workflow` owns the discipline behind the control tests.

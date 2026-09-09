@@ -32,7 +32,7 @@ decoupling application logic from specific libraries.
 - The HTTP or GraphQL contract at the edge: use `api-design`.
 - Runtime-specific handler, service, and repository code: use `node-backend-patterns` or `springboot-patterns`.
 - Language-neutral service concerns such as idempotency, retries, and outbox: use `backend-patterns`.
-- Schema, index, and query work behind the outbound adapter: use `postgres-patterns` or `jpa-patterns`.
+- Schema, index, and query work behind the outbound adapter: use `postgres-patterns` or `springboot-patterns`.
 - The shared engineering floor of SOLID, naming, and error handling: use `coding-standards`.
 - A one-off script or a prototype whose whole lifetime is a week. The indirection costs more than it returns.
 

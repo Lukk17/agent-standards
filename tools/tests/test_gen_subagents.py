@@ -10,9 +10,11 @@ functions over a frontmatter dict, so each one is exercised directly on a
 fixture rather than through the filesystem.
 """
 
+import re
 import tomllib
 
 import pytest
+import yaml
 
 import gen_subagents as gen
 
@@ -28,6 +30,16 @@ WRITER = {
     "skills": ["coding-standards", "python-patterns"],
 }
 
+TRICKY = {
+    "name": "fixture-tricky",
+    "description": 'Use when auditing a "live" system. Read-only: produces a report, applies no fix.',
+    "tools": ["read", "grep", "glob"],
+    "model": "sonnet",
+    "skills": ["markdown-writer"],
+}
+
+FRONT_MATTER = re.compile(r"^---\n(.*?)\n---\n", re.S)
+
 READER = {
     "name": "fixture-reader",
     "description": "Use when a fixture needs reading only.",
@@ -35,6 +47,15 @@ READER = {
     "model": "opus",
     "skills": ["markdown-writer"],
 }
+
+
+def front_matter(rendered):
+    """The parsed front matter of a rendered markdown agent file."""
+    match = FRONT_MATTER.match(rendered)
+
+    assert match, f"no front matter block in:\n{rendered}"
+
+    return yaml.safe_load(match.group(1))
 
 
 def write_agent(directory, name, frontmatter, body=BODY):
@@ -159,7 +180,7 @@ def test_claude_emits_name_tools_model_and_skills():
     head = rendered.split("---\n")[1].splitlines()
 
     assert head[0] == "name: fixture-writer"
-    assert head[1] == "description: Use when a fixture needs writing."
+    assert head[1] == 'description: "Use when a fixture needs writing."'
     assert head[2] == "tools: Read, Write, Edit, Grep, Glob, Bash"
     assert head[3] == "model: sonnet"
     assert head[4:] == ["skills:", "  - coding-standards", "  - python-patterns"]
@@ -170,7 +191,7 @@ def test_opencode_emits_a_pinned_model_and_a_tool_map():
     rendered = gen.emit_opencode(WRITER, BODY)
     head = rendered.split("---\n")[1].splitlines()
 
-    assert head[0] == "description: Use when a fixture needs writing."
+    assert head[0] == 'description: "Use when a fixture needs writing."'
     assert head[1] == "mode: subagent"
     assert head[2] == "model: anthropic/claude-sonnet-4-6"
     assert head[3] == "tools:"
@@ -198,7 +219,7 @@ def test_copilot_emits_its_own_tool_names():
     head = rendered.split("---\n")[1].splitlines()
 
     assert head[0] == "name: fixture-writer"
-    assert head[1] == "description: Use when a fixture needs writing."
+    assert head[1] == 'description: "Use when a fixture needs writing."'
     assert head[2] == 'tools: ["read", "create", "edit", "search", "bash", "powershell"]'
 
 
@@ -225,6 +246,43 @@ def test_copilot_omits_the_tool_key_when_the_agent_declares_none():
     front_matter = gen.emit_copilot(inheritor, BODY).split("---\n")[1]
 
     assert "tools:" not in front_matter
+
+
+@pytest.mark.parametrize(
+    "emitter",
+    [gen.emit_claude, gen.emit_opencode, gen.emit_copilot],
+    ids=["claude", "opencode", "copilot"],
+)
+def test_a_description_holding_a_colon_and_a_quote_stays_valid_yaml(emitter):
+    """A colon followed by a space ends the key unless the value is quoted.
+
+    GitHub Copilot skips an agent whose front matter a strict parser rejects,
+    so every markdown emitter writes the description as a quoted scalar.
+    """
+    parsed = front_matter(emitter(TRICKY, BODY))
+
+    assert parsed["description"] == TRICKY["description"]
+
+
+@pytest.mark.parametrize(
+    ("tool", "extension"),
+    [("claude", ".md"), ("agents", ".md"), ("copilot", ".agent.md")],
+)
+def test_every_generated_markdown_agent_parses_and_keeps_its_description(tool, extension):
+    outdir = gen.TARGETS[tool][0]
+    sources = sorted(gen.SRC.glob("*.md"))
+
+    assert sources, f"no canonical agents under {gen.SRC}"
+
+    for source in sources:
+        canonical = front_matter(source.read_text(encoding="utf-8"))
+        generated = outdir / f"{canonical['name']}{extension}"
+
+        assert generated.is_file(), f"{generated} was never generated"
+
+        parsed = front_matter(generated.read_text(encoding="utf-8"))
+
+        assert parsed["description"] == canonical["description"].strip()
 
 
 @pytest.mark.parametrize(

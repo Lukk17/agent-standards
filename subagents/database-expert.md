@@ -5,13 +5,10 @@ tools: [read, grep, glob, bash]
 model: opus
 skills:
   - postgres-patterns
-  - mongodb-schema-design
-  - mongodb-query-optimizer
-  - mongodb-connection
-  - mongodb-search-and-ai
+  - mongodb-patterns
   - database-migrations
   - hexagonal-architecture
-  - jpa-patterns
+  - springboot-patterns
   - backend-patterns
   - architecture-decision-records
   - docker-patterns

@@ -126,7 +126,7 @@ go test -race ./...
 ```
 
 Test discipline beyond running the command, meaning table tests, fakes, benchmarks, fuzzing, and the coverage target,
-belongs to `golang-testing`.
+is in [testing.md](testing.md) and the sibling files it lists.
 
 ---
 

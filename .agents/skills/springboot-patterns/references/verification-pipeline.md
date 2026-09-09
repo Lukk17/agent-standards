@@ -1,32 +1,9 @@
----
-name: springboot-verification
-description: "Six-phase verification pipeline for a Spring Boot service: build, static analysis, tests with coverage, dependency and secret scanning, format gate, and diff review, ending in a go or no-go report. Use when you say \"verify this before I open the PR\", \"run the full check pipeline\", \"is this ready to deploy\", \"scan for CVEs and committed secrets\", or \"give me a verification report\". Not for writing the tests this pipeline runs, use `springboot-tdd`."
-license: Apache-2.0
----
+# Verification Pipeline
 
-# Spring Boot Verification Loop
-
-The command pipeline that decides whether a Spring Boot change is ready to leave your machine. It runs the gates
-and reports the result, and it defers to `springboot-tdd` for what the tests themselves should look like.
-
----
-
-### When to activate
-
-- Before opening a pull request for a Spring Boot service.
-- After a large refactor or a dependency upgrade.
-- Before a deployment to staging or production.
-- When somebody asks whether a change is ready, and the answer needs evidence.
-
----
-
-### When not to activate
-
-- Writing or restructuring the tests, use `springboot-tdd`.
-- Reviewing the code itself for design and correctness, use `code-reviewer`.
-- Fixing a security finding this pipeline surfaces, use `springboot-security`.
-- Choosing or bumping the plugin versions the phases invoke, use `build-dependency-management`.
-- Shipping the artifact once the report is green, use `deployment-patterns`.
+The six-phase command pipeline that decides whether a Spring Boot change is ready to leave your machine: build,
+static analysis, tests with coverage, dependency and secret scanning, format gate, and diff review, ending in a go
+or no-go report. Open this before a pull request, after a large refactor or a dependency upgrade, before a
+deployment, or when somebody asks whether a change is ready and the answer needs evidence.
 
 ---
 
@@ -103,8 +80,8 @@ Pass: the whole suite runs green and coverage clears the threshold on its own.
 Fail: a failing test annotated `@Disabled` to get the phase green, or a coverage threshold lowered in the same
 commit.
 
-This skill defers to `springboot-tdd` for test shape. Anything about which slice a test belongs in, how to mock a
-Spring bean, how to wire Testcontainers, or how to build test data lives there, and is not repeated here.
+This file defers to [testing.md](testing.md) for test shape. Anything about which slice a test belongs in, how to
+mock a Spring bean, how to wire Testcontainers, or how to build test data lives there, and is not repeated here.
 
 ---
 
@@ -149,7 +126,7 @@ vault reference.
 
 Fail: a CVE suppressed with no expiry and no ticket, or a hardcoded password explained away as test-only.
 
-Anything this phase finds is fixed under `springboot-security`, not patched over here.
+Anything this phase finds is fixed under [security.md](security.md), not patched over here.
 
 ---
 
@@ -224,19 +201,6 @@ session. Between full runs, a fast loop of the test phase plus static analysis g
 Pass: failures surface minutes after the change that caused them.
 
 Fail: one verification run at the end of a day's work, where the bisect space is now forty files wide.
-
----
-
-### Related skills
-
-| Skill | What it owns |
-| --- | --- |
-| `springboot-tdd` | The shape and structure of every test this pipeline runs. |
-| `springboot-security` | Fixing whatever phase 4 finds, and the release security checklist. |
-| `java-coding-standards` | The static analysis rules phase 2 enforces. |
-| `build-dependency-management` | Where the plugin versions in these commands are declared. |
-| `code-reviewer` | Human-grade review of the diff phase 6 prints. |
-| `deployment-patterns` | What happens after the report says READY. |
 
 ---
 

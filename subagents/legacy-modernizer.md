@@ -12,20 +12,17 @@ skills:
   - code-formatter
   - git-workflow
   - tdd-workflow
-  - python-testing
-  - golang-testing
-  - springboot-tdd
-  - springboot-patterns
-  - java-coding-standards
   - python-patterns
   - golang-patterns
+  - springboot-patterns
+  - java-coding-standards
   - nextjs-app-router-patterns
   - angular
   - dart-flutter-patterns
   - deployment-patterns
   - docker-patterns
   - backend-patterns
-  - frontend-patterns
+  - react-patterns
   - build-dependency-management
   - security-review
   - observability-and-logging

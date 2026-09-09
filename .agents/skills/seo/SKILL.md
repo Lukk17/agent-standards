@@ -225,7 +225,7 @@ Fix: Generate a unique title per product using the product name and primary cate
 - `nextjs-app-router-patterns` for `generateMetadata`, canonical URLs, sitemaps, and route handlers that serve them.
 - `performance-optimization` for the profiling and remediation behind Core Web Vitals.
 - `web-accessibility` for heading structure, alt text, and language attributes as assistive-technology requirements.
-- `frontend-patterns` for the components that render the marked-up content.
+- `react-patterns` for the components that render the marked-up content.
 - `frontend-design` for the marketing surfaces the copy sits on.
 - `markdown-writer` for long-form content structure and an honest voice.
 

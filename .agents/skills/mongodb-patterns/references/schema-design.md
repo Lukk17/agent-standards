@@ -1,9 +1,3 @@
----
-name: mongodb-schema-design
-description: MongoDB schema design patterns and anti-patterns. Use when designing data models, reviewing schemas, migrating from SQL, or troubleshooting performance issues caused by schema problems. Triggers on "design schema", "embed vs reference", "MongoDB data model", "schema review", "unbounded arrays", "one-to-many", "tree structure", "16MB limit", "schema validation", "JSON Schema", "time series", "schema migration", "polymorphic", "TTL", "data lifecycle", "archive", "index explosion", "unnecessary indexes", "approximation pattern", "document versioning".
-license: Apache-2.0
----
-
 # MongoDB Schema Design
 
 Data modeling patterns and anti-patterns for MongoDB, maintained by MongoDB. Bad schema is the root cause of most
@@ -31,47 +25,47 @@ Reference these guidelines when:
 
 #### 1. Schema Anti-Patterns - 3 rules
 
-- [antipattern-unnecessary-collections](references/antipattern-unnecessary-collections.md) - Splitting homogeneous data
+- [antipattern-unnecessary-collections](antipattern-unnecessary-collections.md) - Splitting homogeneous data
   into multiple collections is often an anti-pattern; consult this reference to validate whether this is the case.
-- [antipattern-excessive-lookups](references/antipattern-excessive-lookups.md) - When encountering overly normalized
+- [antipattern-excessive-lookups](antipattern-excessive-lookups.md) - When encountering overly normalized
   collections that reference each other or frequent and possibly slow $lookup operations, consult this reference to
   validate whether this is problematic and how to fix it.
-- [antipattern-unnecessary-indexes](references/antipattern-unnecessary-indexes.md) - Consult this reference when indexes
+- [antipattern-unnecessary-indexes](antipattern-unnecessary-indexes.md) - Consult this reference when indexes
   overlap or are not used by queries, to identify and remove unnecessary indexes that add overhead without benefit.
 
 #### 2. Schema Fundamentals - 4 rules
 
-- [fundamental-embed-vs-reference](references/fundamental-embed-vs-reference.md) - Consult this reference for approaches
+- [fundamental-embed-vs-reference](fundamental-embed-vs-reference.md) - Consult this reference for approaches
   to modeling different types of relationships (1:1, 1:few, 1:many, many:many, tree/hierarchical data) and how to decide
   between embedding and referencing based on access patterns.
-- [fundamental-document-model](references/fundamental-document-model.md) - Fundamentals of the document model. Consult
+- [fundamental-document-model](fundamental-document-model.md) - Fundamentals of the document model. Consult
   this reference when migrating from SQL or other normalized data to a document database like MongoDB.
-- [fundamental-schema-validation](references/fundamental-schema-validation.md) - Consult this reference when creating
+- [fundamental-schema-validation](fundamental-schema-validation.md) - Consult this reference when creating
   new collections, or adding validation to existing collections, for example in response to finding inconsistent
   document structures or data quality issues.
-- [fundamental-document-size](references/fundamental-document-size.md) - Consult this reference when documents hit the
+- [fundamental-document-size](fundamental-document-size.md) - Consult this reference when documents hit the
   hard 16MB limit, or when accesses are slower than expected as a result of large documents.
 
 #### 3. Design Patterns - 11 rules
 
-- [pattern-approximation](references/pattern-approximation.md) - Use approximate values for high-frequency counters
-- [pattern-archive](references/pattern-archive.md) - Move historical data to separate/cold storage for performance
-- [pattern-attribute](references/pattern-attribute.md) - Collapse many optional fields into key-value attributes
-- [pattern-bucket](references/pattern-bucket.md) - Group time-series or IoT data into buckets
-- [pattern-computed](references/pattern-computed.md) - Pre-calculate expensive aggregations
-- [pattern-document-versioning](references/pattern-document-versioning.md) - Track document changes to enable historical
+- [pattern-approximation](pattern-approximation.md) - Use approximate values for high-frequency counters
+- [pattern-archive](pattern-archive.md) - Move historical data to separate/cold storage for performance
+- [pattern-attribute](pattern-attribute.md) - Collapse many optional fields into key-value attributes
+- [pattern-bucket](pattern-bucket.md) - Group time-series or IoT data into buckets
+- [pattern-computed](pattern-computed.md) - Pre-calculate expensive aggregations
+- [pattern-document-versioning](pattern-document-versioning.md) - Track document changes to enable historical
   queries and audit trails
-- [pattern-extended-reference](references/pattern-extended-reference.md) - Cache frequently-accessed data from related
+- [pattern-extended-reference](pattern-extended-reference.md) - Cache frequently-accessed data from related
   entities
-- [pattern-outlier](references/pattern-outlier.md) - Handle collections in which a small subset of documents are much
+- [pattern-outlier](pattern-outlier.md) - Handle collections in which a small subset of documents are much
   larger than the rest, to prevent outliers from dominating memory and index costs
-- [pattern-polymorphic](references/pattern-polymorphic.md) - Store different types of entities in the same collection,
+- [pattern-polymorphic](pattern-polymorphic.md) - Store different types of entities in the same collection,
   often when they are different types of the same base entity (e.g. different types of users or different types of
   products)
-- [pattern-schema-versioning](references/pattern-schema-versioning.md) - Schema evolution, preventing drift, and safe
+- [pattern-schema-versioning](pattern-schema-versioning.md) - Schema evolution, preventing drift, and safe
   online migrations. Consult when encountering inconsistent document structures, or when planning a schema change that
   cannot be applied atomically.
-- [pattern-time-series-collections](references/pattern-time-series-collections.md) - Use native time series collections
+- [pattern-time-series-collections](pattern-time-series-collections.md) - Use native time series collections
   for high-frequency time series data
 
 ---
@@ -194,9 +188,9 @@ We're a team-let's get this right together.
 
 ---
 
-### Related skills
+### Where to go next
 
-- `mongodb-query-optimizer` once the model is settled and the remaining problem is an index or a plan.
-- `mongodb-connection` for driver pool sizing and timeout configuration against the modelled collections.
-- `mongodb-search-and-ai` when a collection also has to serve full-text or vector search.
+- [query-optimizer.md](query-optimizer.md) once the model is settled and the problem is an index or a plan.
+- [connection.md](connection.md) for driver pool sizing and timeouts against the modelled collections.
+- [search-and-ai.md](search-and-ai.md) when a collection also has to serve full-text or vector search.
 - `database-migrations` for the discipline of changing a stored shape that is already in production.

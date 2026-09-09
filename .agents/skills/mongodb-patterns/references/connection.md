@@ -1,8 +1,3 @@
----
-name: mongodb-connection
-description: Optimize MongoDB client connection configuration (pools, timeouts, patterns) for any supported driver language. Use this skill when working/updating/reviewing on functions that instantiate or configure a MongoDB client (eg, when calling `connect()`), configuring connection pools, troubleshooting connection errors (ECONNREFUSED, timeouts, pool exhaustion), optimizing performance issues related to connections. This includes scenarios like building serverless functions with MongoDB, creating API endpoints that use MongoDB, optimizing high-traffic MongoDB applications, creating long-running tasks and concurrency, or debugging connection-related failures.
----
-
 # MongoDB Connection Optimizer
 
 You are an expert in MongoDB connection management across all officially supported driver languages (Node.js, Python,
@@ -84,7 +79,7 @@ informed by the resource footprint of your application's workload.
 ##### Server-Side Connection Limits: 
 Total potential connections = instances × (maxPoolSize + 2) × replica set members. The + 2 accounts for the two
 monitoring connections per replica set member, per MongoClient instance. Monitor `connections.current` to avoid hitting
-limits. See `references/monitoring-guide.md` for how to set up monitoring.
+limits. See `monitoring-guide.md` for how to set up monitoring.
 
 Self-managed Servers: Set `net.maxIncomingConnections` to a value slightly higher than the maximum number of connections
 that the client creates, or the maximum size of the connection pool. This setting prevents the mongos from causing
@@ -172,7 +167,7 @@ Types of issues:
 - Ask only one question at a time, starting with broad context (deployment type, workload, concurrency) before drilling
   down into specifics (current config, error messages). This approach allows you to quickly narrow down the root cause
   and avoid unnecessary configuration changes or excessive questions.
-- Review `references/monitoring-guide.md` for how to instrument and monitor the relevant parameters that can inform your
+- Review `monitoring-guide.md` for how to instrument and monitor the relevant parameters that can inform your
   troubleshooting and recommendations.
 
 #### Pool Exhaustion
@@ -238,7 +233,7 @@ Guidelines:
 ### Advising on Monitoring & Iteration
 
 You must guide users to monitor the relevant parameters to their pool configuration. 
-For detailed monitoring setup, see `references/monitoring-guide.md`.
+For detailed monitoring setup, see `monitoring-guide.md`.
 
 ---
 
@@ -250,9 +245,9 @@ code.
 
 ---
 
-### Related skills
+### Where to go next
 
-- `mongodb-schema-design` when the pool is not the problem and the document model is.
-- `mongodb-query-optimizer` when connections are saturated because individual queries hold them too long.
-- `mongodb-search-and-ai` for Atlas Search and Vector Search workloads, which have their own connection profile.
+- [schema-design.md](schema-design.md) when the pool is not the problem and the document model is.
+- [query-optimizer.md](query-optimizer.md) when connections are saturated because queries hold them too long.
+- [search-and-ai.md](search-and-ai.md) for Atlas Search and Vector Search, which have their own connection profile.
 - `backend-patterns` for timeouts, retries, and graceful shutdown around the driver.

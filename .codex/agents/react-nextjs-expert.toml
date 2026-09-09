@@ -71,7 +71,7 @@ The test you added would fail without your change.
 Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns, and this prompt only defines persona and scope.
 
 - `nextjs-app-router-patterns`
-- `frontend-patterns`
+- `react-patterns`
 - `frontend-design`
 - `coding-standards`
 - `design-system`

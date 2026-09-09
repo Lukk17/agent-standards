@@ -12,7 +12,7 @@ skills:
   - git-workflow
   - api-design
   - backend-patterns
-  - frontend-patterns
+  - react-patterns
   - hexagonal-architecture
   - springboot-patterns
   - python-patterns
@@ -21,7 +21,6 @@ skills:
   - dart-flutter-patterns
   - angular
   - nextjs-app-router-patterns
-  - jpa-patterns
   - postgres-patterns
   - tdd-workflow
   - performance-optimization

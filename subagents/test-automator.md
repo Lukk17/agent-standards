@@ -8,10 +8,9 @@ skills:
   - ai-regression-testing
   - e2e-testing
   - e2e-runbooks
-  - python-testing
-  - golang-testing
-  - springboot-tdd
-  - springboot-verification
+  - python-patterns
+  - golang-patterns
+  - springboot-patterns
   - dart-flutter-patterns
   - coding-standards
   - code-formatter
@@ -20,7 +19,7 @@ skills:
   - api-design
   - bash
   - powershell
-  - frontend-patterns
+  - react-patterns
   - angular
   - security-review
   - build-dependency-management

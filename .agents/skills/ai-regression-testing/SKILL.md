@@ -32,8 +32,8 @@ another stack, translate the harness and keep the assertion. The equivalents are
 - The red-green-refactor loop, the test pyramid, and the coverage gate. Use `tdd-workflow`.
 - Browser journeys through the UI. Use `e2e-testing`.
 - Verifying a deployed capability against a live stack with an API client. Use `e2e-runbooks`.
-- Language-level test mechanics: fixtures, parametrisation, table-driven tests. Use `python-testing`, `golang-testing`,
-  or `springboot-tdd`.
+- Language-level test mechanics: fixtures, parametrisation, table-driven tests. Use `python-patterns`,
+  `golang-patterns`, or `springboot-patterns`.
 - Reviewing the change by reading it. Use `code-reviewer`, and treat this skill as the step that runs before that
   review.
 

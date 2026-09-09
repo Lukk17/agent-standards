@@ -1,10 +1,3 @@
----
-name: mongodb-query-optimizer
-description: "Help with MongoDB query optimization and indexing. Use only when the user asks for optimization or performance: \"How do I optimize this query?\", \"How do I index this?\", \"Why is this query slow?\", \"Can you fix my slow queries?\", \"What are the slow queries on my cluster?\", etc. Do not invoke for general MongoDB query writing unless user asks for performance or index help. Prefer indexing as optimization strategy. Use MongoDB MCP when available."
-compatibility: >-
-  Best with MongoDB MCP server. Uses collection-indexes and explain when the connection string works; uses Atlas Performance Advisor when Atlas API is configured. Without either, suggest indexes from query shape only. User creates indexes in Atlas or migrations unless tooling allows otherwise.
----
-
 # MongoDB Query Optimizer
 
 ---
@@ -164,14 +157,14 @@ Before beginning diagnosis and recommendation, load reference files.
 
 Always load:
 
-- `references/core-indexing-principles.md`
-- `references/antipattern-examples.md`
+- `core-indexing-principles.md`
+- `antipattern-examples.md`
 
 Conditionally load these files:
 
-- If diagnosing aggregation pipelines → `references/aggregation-optimization.md`
+- If diagnosing aggregation pipelines → `aggregation-optimization.md`
 - If diagnosing queries that change docs such as replaceOne, findOneAndUpdate, etc. →
-  `references/update-query-examples.md` for oplog-efficient updates and common update anti-patterns
+  `update-query-examples.md` for oplog-efficient updates and common update anti-patterns
 
 ---
 
@@ -189,9 +182,9 @@ Conditionally load these files:
 
 ---
 
-### Related skills
+### Where to go next
 
-- `mongodb-schema-design` when no index can rescue the query because the document model is wrong.
-- `mongodb-connection` when the latency is pool exhaustion or a timeout rather than a slow plan.
-- `mongodb-search-and-ai` when the query is full-text or vector search, which use their own index types.
+- [schema-design.md](schema-design.md) when no index can rescue the query because the document model is wrong.
+- [connection.md](connection.md) when the latency is pool exhaustion or a timeout rather than a slow plan.
+- [search-and-ai.md](search-and-ai.md) when the query is full-text or vector search, which use their own indexes.
 - `performance-optimization` for measuring the endpoint before assuming the database is the bottleneck.

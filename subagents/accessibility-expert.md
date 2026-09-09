@@ -5,7 +5,7 @@ tools: [read, grep, glob]
 model: inherit
 skills:
   - web-accessibility
-  - frontend-patterns
+  - react-patterns
   - design-system
   - angular
   - nextjs-app-router-patterns

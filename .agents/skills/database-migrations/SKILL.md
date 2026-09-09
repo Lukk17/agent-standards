@@ -27,8 +27,8 @@ reference map below.
 ### When not to activate
 
 - Choosing an index type, reading a query plan, or tuning a slow query: use `postgres-patterns`.
-- MongoDB document model and schema versioning: use `mongodb-schema-design`.
-- JPA and Hibernate entity mapping above the schema: use `jpa-patterns`.
+- MongoDB document model and schema versioning: use `mongodb-patterns`.
+- JPA and Hibernate entity mapping above the schema: use `springboot-patterns`.
 - Deploy orchestration and rollback of the application itself: use `deployment-patterns`.
 - Backup, restore, and retention policy: use `postgres-patterns`.
 
@@ -234,8 +234,8 @@ crosses both skills is reviewed once against one rule.
 ### Related skills
 
 - `postgres-patterns` for index choice, query plans, and the matching EXPLAIN ANALYZE gate.
-- `jpa-patterns` for the entity mapping that has to move with the schema.
-- `mongodb-schema-design` for the document-model equivalent of these changes.
+- `springboot-patterns` for the JPA entity mapping that has to move with the schema.
+- `mongodb-patterns` for the document-model equivalent of these changes.
 - `deployment-patterns` for sequencing a migration inside a rolling deploy.
 - `backend-patterns` for keeping an application readable across an expand-contract window.
 

@@ -91,7 +91,7 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 
 - `design-system`
 - `frontend-design`
-- `frontend-patterns`
+- `react-patterns`
 - `angular`
 - `nextjs-app-router-patterns`
 - `architecture-decision-records`

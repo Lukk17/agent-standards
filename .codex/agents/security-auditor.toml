@@ -142,15 +142,14 @@ close them.
 Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns, and this prompt only defines persona and scope.
 
 - `security-review`
-- `keycloak-administration`
-- `keycloak-auth-services`
+- `keycloak-patterns`
 - `coding-standards`
 - `code-reviewer`
 - `review-duplication`
-- `springboot-security`
+- `springboot-patterns`
 - `api-design`
 - `backend-patterns`
-- `frontend-patterns`
+- `react-patterns`
 - `angular`
 - `nextjs-app-router-patterns`
 - `soap-webservices`

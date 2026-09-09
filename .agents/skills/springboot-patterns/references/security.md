@@ -1,34 +1,8 @@
----
-name: springboot-security
-description: "Spring Security 6 practice for Spring Boot services: authentication, method authorization, input validation, SQL injection, password hashing, CSRF posture, secrets, response headers, CORS, and rate limiting. Use when you say \"add JWT auth to this API\", \"lock this endpoint down to admins\", \"should I disable CSRF here\", \"set our CSP and HSTS headers\", or \"rate limit this endpoint\". Not for running the CVE scan as a release gate, use `springboot-verification`."
-license: Apache-2.0
----
-
 # Spring Boot Security
 
-Authentication, authorization, and the hardening around them for a Spring Boot service. Every rule assumes Java 21
-LTS as the minimum with Java 25 LTS as the recommended target, Spring Boot 3.x, and Spring Security 6.x.
-
----
-
-### When to activate
-
-- Adding authentication, whether JWT, OAuth2, or session based.
-- Adding authorization rules to endpoints or service methods.
-- Validating and sanitising user input at the edge.
-- Configuring CORS, CSRF, or response security headers.
-- Handling secrets, credentials, and their rotation.
-- Adding rate limiting or brute-force protection.
-
----
-
-### When not to activate
-
-- Running the dependency and secret scan as part of the pre-merge pipeline, use `springboot-verification`.
-- General controller, service, and DTO structure, use `springboot-patterns`.
-- Writing the tests that prove a rule holds, use `springboot-tdd`.
-- Language-neutral threat modelling and review checklists, use `security-review`.
-- Configuring Keycloak itself as the identity provider, use `keycloak-auth-services`.
+Authentication, authorization, and the hardening around them for a Spring Boot service. Open this when adding
+authentication, locking an endpoint down, validating input at the edge, setting response headers or CORS, handling
+secrets, or rate limiting. Every rule assumes Spring Security 6.x on the baseline in the hub.
 
 ---
 
@@ -50,7 +24,7 @@ Fail: a filter that reads the subject out of an unverified token, or a decoder l
 a valid signature is accepted.
 
 Access tokens live fifteen minutes at most. Full flow requirements, refresh token rotation, and the filter skeleton
-are in [references/oauth2-and-jwt.md](references/oauth2-and-jwt.md).
+are in [oauth2-and-jwt.md](oauth2-and-jwt.md).
 
 ---
 
@@ -86,6 +60,7 @@ Constrain the DTO and let Bean Validation reject the request before any business
 an allow list before it is ever rendered.
 
 Pass: a constrained record plus `@Valid` on the parameter.
+
 ```java
 public record CreateUserDto(
     @NotBlank @Size(max = 100) String name,
@@ -150,6 +125,7 @@ Configure the headers that carry a policy decision: CSP with no `unsafe-inline` 
 frame-ancestors, referrer policy, and permissions policy.
 
 Pass: the policy headers set explicitly, with nonces where an inline script is genuinely unavoidable.
+
 ```java
 http.headers(headers -> headers
     .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'; frame-ancestors 'none'"))
@@ -163,14 +139,14 @@ and every current browser has removed them. Turning it back on asks for a filter
 the wrong thing to a reviewer. CSP is the control that replaced it.
 
 The full header block, the CORS source bean, and mutual TLS for service-to-service calls are in
-[references/headers-cors-mtls.md](references/headers-cors-mtls.md).
+[headers-cors-mtls.md](headers-cors-mtls.md).
 
 ---
 
 ### Rate limit with Bucket4j, refilling greedily
 
-This is the one rate limiting implementation in the standards. `springboot-patterns` points here rather than
-carrying a second copy.
+This is the one rate limiting implementation in the standards. It lives here, and no other file carries a second
+copy of it.
 
 Refill greedily rather than at interval boundaries. A greedy bandwidth returns tokens continuously across the
 window, so a client that exhausts its quota recovers a little at a time. Interval refill returns the whole bucket
@@ -250,33 +226,11 @@ Fail: writing the client-supplied filename straight into a served directory.
 
 Run a dependency vulnerability scan in CI and fail the build on a known CVE at or above the project threshold. Stay
 on supported Spring Boot and Spring Security lines, because an unsupported line stops receiving the fixes entirely.
-The pipeline that runs the scan lives in `springboot-verification`.
+The pipeline that runs the scan is in [verification-pipeline.md](verification-pipeline.md).
 
 Pass: a scheduled, reviewed upgrade with the scan as a gate.
 
 Fail: a suppression file with no expiry dates.
-
----
-
-### Reference material
-
-| Open this | For |
-| --- | --- |
-| [references/oauth2-and-jwt.md](references/oauth2-and-jwt.md) | OAuth 2.1 flow rules, refresh token rotation, JWT claim validation, and the auth filter. |
-| [references/headers-cors-mtls.md](references/headers-cors-mtls.md) | The full response header block, the CORS configuration source, and mutual TLS. |
-
----
-
-### Related skills
-
-| Skill | What it owns |
-| --- | --- |
-| `springboot-patterns` | Controllers, services, and the API structure being secured. |
-| `springboot-verification` | The pipeline that runs the dependency and secret scans. |
-| `springboot-tdd` | Tests that prove an authorization rule actually denies. |
-| `security-review` | Language-neutral threat modelling and review checklists. |
-| `keycloak-auth-services` | Configuring Keycloak as the identity provider behind these flows. |
-| `api-design` | Public API shape, versioning, and error contracts. |
 
 ---
 

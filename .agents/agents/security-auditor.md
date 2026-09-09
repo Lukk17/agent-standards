@@ -1,5 +1,5 @@
 ---
-description: Use PROACTIVELY before any auth, payment, or sensitive-data change ships, and on demand for threat modelling, security architecture review, or vulnerability assessment. Covers threat modelling (STRIDE and attack trees), backend and frontend secure coding, and compliance gap analysis. Read-only: produces findings and remediation guidance, does not patch code itself.
+description: "Use PROACTIVELY before any auth, payment, or sensitive-data change ships, and on demand for threat modelling, security architecture review, or vulnerability assessment. Covers threat modelling (STRIDE and attack trees), backend and frontend secure coding, and compliance gap analysis. Read-only: produces findings and remediation guidance, does not patch code itself."
 mode: subagent
 model: anthropic/claude-opus-4-7
 tools:
@@ -149,15 +149,14 @@ close them.
 Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns, and this prompt only defines persona and scope.
 
 - `security-review`
-- `keycloak-administration`
-- `keycloak-auth-services`
+- `keycloak-patterns`
 - `coding-standards`
 - `code-reviewer`
 - `review-duplication`
-- `springboot-security`
+- `springboot-patterns`
 - `api-design`
 - `backend-patterns`
-- `frontend-patterns`
+- `react-patterns`
 - `angular`
 - `nextjs-app-router-patterns`
 - `soap-webservices`

@@ -1,5 +1,5 @@
 ---
-description: Use when designing a new backend service or revising an API contract, whether REST, GraphQL, gRPC, or event-driven. Produces an authoritative spec (OpenAPI or GraphQL schema) plus service boundaries, auth, resilience, and observability decisions. Read-only: the spec is the deliverable, implementation happens elsewhere.
+description: "Use when designing a new backend service or revising an API contract, whether REST, GraphQL, gRPC, or event-driven. Produces an authoritative spec (OpenAPI or GraphQL schema) plus service boundaries, auth, resilience, and observability decisions. Read-only: the spec is the deliverable, implementation happens elsewhere."
 mode: subagent
 model: anthropic/claude-opus-4-7
 tools:
@@ -83,13 +83,11 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `hexagonal-architecture`
 - `architecture-decision-records`
 - `springboot-patterns`
-- `springboot-security`
-- `keycloak-auth-services`
+- `keycloak-patterns`
 - `soap-webservices`
 - `database-migrations`
 - `postgres-patterns`
-- `jpa-patterns`
-- `mongodb-schema-design`
+- `mongodb-patterns`
 - `deployment-patterns`
 - `docker-patterns`
 - `security-review`

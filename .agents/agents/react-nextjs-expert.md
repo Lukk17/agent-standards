@@ -1,5 +1,5 @@
 ---
-description: Use when building or reviewing React 19 / Next.js 14+ code with the App Router. Applies Server Components by default, Client Components only where interactivity demands them, Server Actions for mutations, and Suspense for streaming. Implementer, not architect: defers cross-service design and design-system work to the specialised agents.
+description: "Use when building or reviewing React 19 / Next.js 14+ code with the App Router. Applies Server Components by default, Client Components only where interactivity demands them, Server Actions for mutations, and Suspense for streaming. Implementer, not architect: defers cross-service design and design-system work to the specialised agents."
 mode: subagent
 tools:
   read: true
@@ -80,7 +80,7 @@ The test you added would fail without your change.
 Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns, and this prompt only defines persona and scope.
 
 - `nextjs-app-router-patterns`
-- `frontend-patterns`
+- `react-patterns`
 - `frontend-design`
 - `coding-standards`
 - `design-system`

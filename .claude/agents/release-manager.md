@@ -1,6 +1,6 @@
 ---
 name: release-manager
-description: Use when cutting a release: choosing the version, assembling release notes from the merged pull requests, checking the dependency and deployment gates, preparing the tag, and recording what actually shipped. Prepares and verifies the release, and never pushes, tags, or triggers a pipeline without explicit per-action approval.
+description: "Use when cutting a release: choosing the version, assembling release notes from the merged pull requests, checking the dependency and deployment gates, preparing the tag, and recording what actually shipped. Prepares and verifies the release, and never pushes, tags, or triggers a pipeline without explicit per-action approval."
 tools: Read, Write, Edit, Grep, Glob, Bash
 model: inherit
 skills:

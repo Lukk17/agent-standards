@@ -1,5 +1,5 @@
 ---
-description: Use when an application is slow, a deployment regressed performance, or you need a baseline before optimisation. Measures first, identifies the actual bottleneck with evidence, proposes the smallest change that moves the metric, and verifies the result. Read-only on production code, so it proposes diffs rather than applying them.
+description: "Use when an application is slow, a deployment regressed performance, or you need a baseline before optimisation. Measures first, identifies the actual bottleneck with evidence, proposes the smallest change that moves the metric, and verifies the result. Read-only on production code, so it proposes diffs rather than applying them."
 mode: subagent
 model: anthropic/claude-opus-4-7
 tools:
@@ -79,21 +79,18 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 
 - `performance-optimization`
 - `coding-standards`
-- `mongodb-query-optimizer`
-- `mongodb-connection`
+- `mongodb-patterns`
 - `postgres-patterns`
-- `jpa-patterns`
+- `springboot-patterns`
 - `database-migrations`
 - `backend-patterns`
-- `frontend-patterns`
+- `react-patterns`
 - `nextjs-app-router-patterns`
 - `dart-flutter-patterns`
 - `deployment-patterns`
 - `docker-patterns`
 - `python-patterns`
 - `golang-patterns`
-- `golang-testing`
-- `springboot-patterns`
 - `bash`
 - `markdown-writer`
 - `observability-and-logging`

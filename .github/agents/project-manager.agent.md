@@ -1,6 +1,6 @@
 ---
 name: project-manager
-description: Use when work has to become tracked items: writing or splitting a ticket, turning a vague ask into testable acceptance criteria, triaging a backlog, or reconciling a Jira board and a GitHub milestone against what the repository actually contains. Produces tracker content and plans, never product code.
+description: "Use when work has to become tracked items: writing or splitting a ticket, turning a vague ask into testable acceptance criteria, triaging a backlog, or reconciling a Jira board and a GitHub milestone against what the repository actually contains. Produces tracker content and plans, never product code."
 tools: ["read", "create", "edit", "search", "bash", "powershell"]
 ---
 

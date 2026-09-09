@@ -1,35 +1,9 @@
----
-name: jpa-patterns
-description: "JPA and Hibernate patterns for Spring Boot: entity mapping, fetch strategy, N+1 prevention, projections, transaction boundaries, auditing, indexing, pagination, and HikariCP pooling. Use when you say \"design this entity\", \"why does this query run two hundred times\", \"add a JOIN FETCH\", \"size the Hikari pool\", or \"write a @DataJpaTest for this repository\". Not for the REST layer above the repository, use `springboot-patterns`."
-license: Apache-2.0
----
+# JPA and Hibernate
 
-# JPA and Hibernate Patterns
-
-Data modeling, repositories, and query performance for the persistence layer of a Spring Boot service. Every rule
-here assumes Java 21 LTS as the minimum with Java 25 LTS as the recommended target, Spring Boot 3.x, and the
-Hibernate 6 that ships with it.
-
----
-
-### When to activate
-
-- Designing JPA entities and table mappings.
-- Defining relationships and choosing a fetch strategy.
-- Chasing N+1 queries, slow reads, or a query that loads far more than it needs.
-- Setting transaction boundaries, auditing, or soft deletes on the data layer.
-- Setting up pagination, sorting, or a custom repository method.
-- Tuning HikariCP or deciding whether a second-level cache earns its keep.
-
----
-
-### When not to activate
-
-- Controllers, DTOs, validation, and the API contract above the service, use `springboot-patterns`.
-- Java language style, naming, and immutability, use `java-coding-standards`.
-- Writing the repository tests themselves, use `springboot-tdd`.
-- Schema change and rollout mechanics, use `database-migrations`.
-- PostgreSQL query planning and index internals, use `postgres-patterns`.
+Data modeling, repositories, and query performance for the persistence layer. Open this when designing entities and
+table mappings, choosing a fetch strategy, chasing an N+1 query, setting transaction boundaries or auditing on the
+data layer, paging a repository method, or tuning HikariCP. Every rule assumes the Hibernate 6 that ships with the
+Spring Boot baseline in the hub.
 
 ---
 
@@ -77,6 +51,7 @@ Every association defaults to lazy, and the query that needs the children asks f
 on every read path including the ones that never touch it, and the cost is invisible until production.
 
 Pass: lazy mapping, then one `join fetch` in the query that actually needs the children.
+
 ```java
 @OneToMany(mappedBy = "market", cascade = CascadeType.ALL, orphanRemoval = true)
 private List<PositionEntity> positions = new ArrayList<>();
@@ -101,6 +76,7 @@ A read that needs three columns should select three columns. Loading whole entit
 mapped column and every eager association behind it.
 
 Pass: an interface projection, returned as a page.
+
 ```java
 public interface MarketSummary {
   Long getId();
@@ -116,7 +92,7 @@ Page<MarketSummary> findAllBy(Pageable pageable);
 Fail: loading full entities and mapping them in memory just to render a name and a status.
 
 A repository may return Spring Data's `Page`, but the public API must wrap it in a project DTO such as the
-`PageResponse` in `springboot-patterns` rather than serializing `Page` itself.
+`PageResponse` in [rest-api-and-validation.md](rest-api-and-validation.md) rather than serializing `Page` itself.
 
 ---
 
@@ -196,6 +172,7 @@ Every paged query needs an explicit sort, otherwise the database is free to retu
 page and a row can appear twice or never.
 
 Pass: page request with a sort, and keyset pagination for deep scrolling.
+
 ```java
 PageRequest page = PageRequest.of(pageNumber, pageSize, Sort.by("createdAt").descending());
 Page<MarketEntity> markets = repo.findByStatus(MarketStatus.ACTIVE, page);
@@ -241,6 +218,8 @@ Pass: `spring.jpa.hibernate.ddl-auto=validate`, with the schema owned by migrati
 
 Fail: `ddl-auto=update` in production, which silently rewrites the schema on a deploy.
 
+Migration authoring, rollback, and zero-downtime schema change belong to `database-migrations`.
+
 ---
 
 ### Test data access against the real engine
@@ -253,26 +232,8 @@ Pass: Testcontainers Postgres, with `logging.level.org.hibernate.SQL=DEBUG` and
 
 Fail: an in-memory H2 database standing in for PostgreSQL.
 
----
-
-### Reference material
-
-| Open this | For |
-| --- | --- |
-| [references/connection-pooling.md](references/connection-pooling.md) | HikariCP settings, pool sizing formula, and pool monitoring alerts. |
-
----
-
-### Related skills
-
-| Skill | What it owns |
-| --- | --- |
-| `springboot-patterns` | Controllers, DTOs, service layering, and the API contract. |
-| `java-coding-standards` | Java naming, immutability, and exception style. |
-| `springboot-tdd` | The shape of the repository and integration tests. |
-| `database-migrations` | Migration authoring, rollback, and zero-downtime schema change. |
-| `postgres-patterns` | PostgreSQL-specific indexing and query planning. |
-| `observability-and-logging` | Metrics and tracing for the queries this layer issues. |
+The slice annotations and the Testcontainers wiring are in [testing.md](testing.md). HikariCP sizing, configuration,
+and pool alerts are in [connection-pooling.md](connection-pooling.md).
 
 ---
 

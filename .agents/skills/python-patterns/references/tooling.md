@@ -1,9 +1,36 @@
 # Python Tooling
 
-The toolchain a Python project is expected to carry: uv for environments and locking, ruff for lint and format, mypy
-for types, and a pre-commit hook that runs them. Open this when setting a project up or when a check is missing in CI.
+The tree a Python project sits in and the toolchain it carries: the `src` layout, uv for environments and locking,
+ruff for lint and format, mypy for types, and a pre-commit hook that runs them. Open this when setting a project up
+or when a check is missing in CI.
 
 Baseline: Python 3.13 or newer, with 3.14 the current release.
+
+---
+
+### Lay the package out under src
+
+A `src/` layout stops tests from importing the working directory instead of the installed package, which is how a
+suite passes against files that were never packaged.
+
+```text
+src/myapp/__init__.py
+src/myapp/domain/user.py
+tests/conftest.py
+pyproject.toml
+```
+
+State the public surface in `__init__.py` with `__all__` and re-export only what callers are meant to use. Everything
+absent from it is internal and can be moved without a deprecation.
+
+```python
+from myapp.domain.user import User
+
+__all__ = ["User"]
+```
+
+Imports are absolute everywhere. A relative import that climbs past one level, `from ...domain.user import User`,
+makes the module unreadable and unmovable.
 
 ---
 
@@ -82,8 +109,8 @@ python_version = "3.13"
 `pydantic>=2` and `pytest-asyncio>=1` are floors because each of those majors was a rewrite. `fastapi`, `ruff`, and
 `mypy` carry no floor because the project wants whatever is current.
 
-Pytest configuration is deliberately absent from this file. It belongs to `python-testing`, which owns
-`[tool.pytest.ini_options]`, the marker registry, and the coverage gate.
+Pytest configuration is deliberately absent from this file. It belongs to [pytest-config.md](pytest-config.md),
+which owns `[tool.pytest.ini_options]`, the marker registry, and the coverage gate.
 
 ---
 

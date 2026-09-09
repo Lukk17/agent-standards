@@ -104,4 +104,4 @@ export const buildCreateOrderUseCase = (deps: { db: SqlClient; stripe: StripeCli
 
 - `hexagonal-architecture` for the boundary rules this slice follows.
 - `node-backend-patterns` for the Express or Next.js inbound adapter around the use case.
-- `frontend-patterns` when a similar boundary is wanted on the client.
+- `react-patterns` when a similar boundary is wanted on the client.

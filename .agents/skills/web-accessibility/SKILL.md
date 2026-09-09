@@ -27,7 +27,7 @@ Baseline: WCAG 2.2 Level AA, the current stable recommendation.
 
 - Choosing the visual direction a palette and type scale express. Use `frontend-design`.
 - Where token values live and what they are called. Use `design-system`.
-- React composition, hooks, and animation implementation. Use `frontend-patterns`.
+- React composition, hooks, and animation implementation. Use `react-patterns`.
 - Angular components, templates, and i18n wiring. Use `angular`.
 - Flutter semantics and screen-reader support. Use `dart-flutter-patterns`.
 - Search visibility and structured data. Use `seo`.
@@ -271,7 +271,7 @@ with a screen reader before calling anything accessible.
 
 - `frontend-design` for the visual direction the palette and type scale express.
 - `design-system` for where colour, spacing, and focus-ring tokens live.
-- `frontend-patterns` for the React mechanics of keyboard handling and focus management.
+- `react-patterns` for the React mechanics of keyboard handling and focus management.
 - `angular` for the same work in an Angular codebase.
 - `nextjs-app-router-patterns` for route changes, which are where focus is most often dropped.
 - `dart-flutter-patterns` for the equivalent semantics work in Flutter.

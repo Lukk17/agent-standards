@@ -1,5 +1,5 @@
 ---
-description: Use when designing a new data layer, choosing a database technology, modelling a schema, planning a migration, or tuning queries and indexes on an existing system. Two modes: design (greenfield or re-architecture) and optimisation (existing). Read-only on schemas, so it produces designs, plans, and diffs, and an implementer applies them.
+description: "Use when designing a new data layer, choosing a database technology, modelling a schema, planning a migration, or tuning queries and indexes on an existing system. Two modes: design (greenfield or re-architecture) and optimisation (existing). Read-only on schemas, so it produces designs, plans, and diffs, and an implementer applies them."
 mode: subagent
 model: anthropic/claude-opus-4-7
 tools:
@@ -128,13 +128,10 @@ Optimisation mode: the slow query has a saved plan, the proposed change has a me
 Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns, and this prompt only defines persona and scope.
 
 - `postgres-patterns`
-- `mongodb-schema-design`
-- `mongodb-query-optimizer`
-- `mongodb-connection`
-- `mongodb-search-and-ai`
+- `mongodb-patterns`
 - `database-migrations`
 - `hexagonal-architecture`
-- `jpa-patterns`
+- `springboot-patterns`
 - `backend-patterns`
 - `architecture-decision-records`
 - `docker-patterns`

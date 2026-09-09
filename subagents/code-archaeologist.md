@@ -12,7 +12,7 @@ skills:
   - hexagonal-architecture
   - coding-standards
   - backend-patterns
-  - frontend-patterns
+  - react-patterns
   - database-migrations
   - java-coding-standards
   - springboot-patterns

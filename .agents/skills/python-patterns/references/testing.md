@@ -1,35 +1,11 @@
----
-name: python-testing
-description: pytest practice for Python projects, covering the red-green-refactor loop, test structure and naming, fixtures, mocking boundaries, parametrization, async tests, and the coverage gate. Use when writing tests for new Python code, fixing a flaky pytest suite, mocking an external API, converting copy-pasted tests into a parametrized table, or raising coverage on a module. Not for production Python idioms and typing, use `python-patterns`.
----
-
-# Python Testing Patterns
+# Python Testing with pytest
 
 How a Python test suite is written and kept honest: the order tests are written in, what a single test may assert,
-what may be mocked, and what the coverage gate means. Fixture, mocking, configuration, and integration depth lives in
-the reference files listed near the bottom.
+what may be mocked, and what the coverage gate means. The hub carries the three rules that decide most reviews, and
+this file carries the rest. Fixture, configuration, and integration depth sits in the sibling files listed at the
+bottom.
 
 Baseline: Python 3.13 or newer, with 3.14 the current release, and the current stable pytest.
-
----
-
-### When to activate
-
-- Writing tests for new or changed Python code.
-- Adding coverage to a module that has none.
-- Diagnosing a flaky, slow, or order-dependent pytest suite.
-- Deciding what to mock and what to exercise for real.
-- Setting up pytest configuration, markers, or the coverage gate for a project.
-
----
-
-### When not to activate
-
-- Writing the production code the tests cover. Use `python-patterns`.
-- Applying the language-neutral red-green-refactor discipline and the test pyramid. Use `tdd-workflow`.
-- Driving a browser through a user journey. Use `e2e-testing`.
-- Exercising a whole running stack as a capability sweep. Use `e2e-runbooks`.
-- Building regression tests aimed at agent-introduced defects. Use `ai-regression-testing`.
 
 ---
 
@@ -60,7 +36,7 @@ not been seen to fail for the right reason.
 ### Give each test one behaviour and three phases
 
 Every test sets up state, performs one action, then asserts the observable outcome. Which words label the three
-phases is the project's choice, not this skill's: `Given`/`When`/`Then` and `Arrange`/`Act`/`Assert` are the two
+phases is the project's choice, not this file's: `Given`/`When`/`Then` and `Arrange`/`Act`/`Assert` are the two
 common spellings, and a project may have its own. Read how the project's existing tests are already labelled and
 match it. Only pick a convention when the project has none, and then stay consistent within it.
 
@@ -130,55 +106,6 @@ try:
 except ValueError:
     pass
 ```
-
----
-
-### Cover around 90 percent of the real logic
-
-The target is around 90 percent line coverage of the real logic in the codebase, and 100 percent on critical paths
-where it genuinely adds value. Do not add exclusion patterns to dodge meaningful tests: coverage measures real logic,
-not padding. Excluding generated output such as protobuf stubs is legitimate, excluding a hand-written module because
-it is awkward to test is not.
-
-```bash
-pytest --cov=mypackage --cov-report=term-missing
-```
-
-A coverage gate that fails is a signal to add the missing test, never a signal to lower the threshold.
-
----
-
-### Mock only what you cannot run
-
-Mock a third-party payment API or an email gateway, because you cannot run them. Do not mock the database when an
-in-memory engine or a transactional session fixture will exercise the real query. Mocking the thing under test only
-proves the mock was called.
-
-Pass:
-
-```python
-@patch("mypackage.payment_gateway.charge")
-def test_checkout_calls_gateway(charge_mock):
-    charge_mock.return_value = {"status": "approved"}
-
-    result = checkout(Order(total=42.0))
-
-    assert result.paid is True
-    charge_mock.assert_called_once_with(amount=42.0)
-```
-
-Fail:
-
-```python
-@patch("mypackage.Database.connect")
-def test_user_query(connect_mock):
-    connect_mock.return_value.query.return_value = [{"name": "Alice"}]
-    assert get_users()[0]["name"] == "Alice"
-```
-
-Patch where the name is used, not where it is defined, and prefer `autospec=True` so a signature change breaks the
-test instead of passing silently. The catalogue is in
-[references/fixtures-and-mocking.md](references/fixtures-and-mocking.md).
 
 ---
 
@@ -264,6 +191,37 @@ def test_fetch_user_returns_profile():
 
 ---
 
+### Patch where the name is used
+
+A patch target is the name the code under test looks up, not the module the object was defined in. Prefer
+`autospec=True` so a signature change breaks the test instead of passing silently, and reach for a fake object over
+a `MagicMock` whenever the collaborator has more than one method. The catalogue of fixture scopes, autouse rules,
+and async mocks is in [fixtures-and-mocking.md](fixtures-and-mocking.md).
+
+Pass:
+
+```python
+@patch("mypackage.checkout.charge", autospec=True)
+def test_checkout_calls_gateway(charge_mock):
+    charge_mock.return_value = {"status": "approved"}
+
+    result = checkout(Order(total=42.0))
+
+    assert result.paid is True
+    charge_mock.assert_called_once_with(amount=42.0)
+```
+
+Fail:
+
+```python
+@patch("stripe.Charge.create")
+def test_checkout_calls_gateway(charge_mock):
+    charge_mock.return_value = {"status": "approved"}
+    assert checkout(Order(total=42.0)).paid is True
+```
+
+---
+
 ### Register markers and keep slow tests separable
 
 An unregistered marker is a typo waiting to silently skip nothing. Register every marker in configuration, run with
@@ -304,23 +262,13 @@ pytest tests/test_users.py::test_create
 
 ---
 
-### Reference files
+### Sibling references
 
 | Open this | For |
 | --- | --- |
-| [references/fixtures-and-mocking.md](references/fixtures-and-mocking.md) | Fixture scopes, conftest, autouse, patching, autospec, async mocks |
-| [references/pytest-config.md](references/pytest-config.md) | pyproject configuration, markers, CLI flags, coverage, CI |
-| [references/integration-tests.md](references/integration-tests.md) | Suite layout, FastAPI clients, database sessions, test classes |
-
----
-
-### Related skills
-
-- `python-patterns` for the production code under test.
-- `tdd-workflow` for the language-neutral red-green-refactor loop and the test pyramid.
-- `e2e-testing` for browser journeys and the flaky-test policy.
-- `ai-regression-testing` for tests aimed at agent-introduced regressions.
-- `coding-standards` for the shared engineering floor, including the FIRST properties.
+| [fixtures-and-mocking.md](fixtures-and-mocking.md) | Fixture scopes, conftest, autouse, patching, autospec, async mocks |
+| [pytest-config.md](pytest-config.md) | pyproject configuration, markers, CLI flags, coverage, CI |
+| [integration-tests.md](integration-tests.md) | Suite layout, FastAPI clients, database sessions, test classes |
 
 ---
 

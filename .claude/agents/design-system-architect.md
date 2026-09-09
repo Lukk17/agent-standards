@@ -1,12 +1,12 @@
 ---
 name: design-system-architect
-description: Use when establishing or evolving a design system, covering token architecture, component library structure, multi-brand theming, or the design-to-code workflow. Produces the infrastructure the rest of the front-end builds on. Defers per-feature visual implementation to `ui-ux-designer` and accessibility audit to `accessibility-expert`.
+description: "Use when establishing or evolving a design system, covering token architecture, component library structure, multi-brand theming, or the design-to-code workflow. Produces the infrastructure the rest of the front-end builds on. Defers per-feature visual implementation to `ui-ux-designer` and accessibility audit to `accessibility-expert`."
 tools: Read, Write, Edit, Grep, Glob
 model: inherit
 skills:
   - design-system
   - frontend-design
-  - frontend-patterns
+  - react-patterns
   - angular
   - nextjs-app-router-patterns
   - architecture-decision-records
@@ -110,7 +110,7 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 
 - `design-system`
 - `frontend-design`
-- `frontend-patterns`
+- `react-patterns`
 - `angular`
 - `nextjs-app-router-patterns`
 - `architecture-decision-records`

@@ -1,6 +1,6 @@
 ---
 name: code-archaeologist
-description: Use when exploring an unfamiliar or legacy codebase before refactoring, onboarding, audit, or risk review. Maps architecture, surfaces hidden contracts and dead code, scores health, and produces a prioritised action plan other agents can execute. Read-only.
+description: "Use when exploring an unfamiliar or legacy codebase before refactoring, onboarding, audit, or risk review. Maps architecture, surfaces hidden contracts and dead code, scores health, and produces a prioritised action plan other agents can execute. Read-only."
 tools: Read, Grep, Glob
 model: inherit
 permissionMode: plan
@@ -13,7 +13,7 @@ skills:
   - hexagonal-architecture
   - coding-standards
   - backend-patterns
-  - frontend-patterns
+  - react-patterns
   - database-migrations
   - java-coding-standards
   - springboot-patterns
@@ -118,7 +118,7 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `hexagonal-architecture`
 - `coding-standards`
 - `backend-patterns`
-- `frontend-patterns`
+- `react-patterns`
 - `database-migrations`
 - `java-coding-standards`
 - `springboot-patterns`

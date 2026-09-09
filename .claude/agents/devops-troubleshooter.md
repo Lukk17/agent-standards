@@ -1,6 +1,6 @@
 ---
 name: devops-troubleshooter
-description: Use during a production incident in the infrastructure and runtime layer: crashing pods, DNS or networking faults, a deploy gone wrong, exhausted CPU, memory or disk. Gathers logs, metrics and traces, tests hypotheses in order, restores service, then writes a postmortem with the monitoring that would have caught it. Pick `error-detective` instead when the platform is healthy and the errors point at application code or data.
+description: "Use during a production incident in the infrastructure and runtime layer: crashing pods, DNS or networking faults, a deploy gone wrong, exhausted CPU, memory or disk. Gathers logs, metrics and traces, tests hypotheses in order, restores service, then writes a postmortem with the monitoring that would have caught it. Pick `error-detective` instead when the platform is healthy and the errors point at application code or data."
 tools: Read, Grep, Glob, Bash
 model: inherit
 skills:

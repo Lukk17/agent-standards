@@ -1,6 +1,6 @@
 ---
 name: e2e-runner
-description: Use to execute ONE end-to-end capability test against a live stack and return its Verdict plus Result summary. Takes a single spec path and reports back independently, so a main session can fan a sweep out across many tests. Do NOT use it to add or edit tests, and do NOT use it for Playwright UI tests.
+description: "Use to execute ONE end-to-end capability test against a live stack and return its Verdict plus Result summary. Takes a single spec path and reports back independently, so a main session can fan a sweep out across many tests. Do NOT use it to add or edit tests, and do NOT use it for Playwright UI tests."
 tools: Read, Write, Edit, Bash, Grep, Glob
 model: inherit
 skills:

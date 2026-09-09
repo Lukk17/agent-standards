@@ -1,5 +1,5 @@
 ---
-description: Use when writing or reviewing PyTorch training and inference code: model and dataset modules, the training loop, checkpointing, the evaluation harness, mixed precision and device placement, and packaging a trained model for serving. Implementer, not researcher: it builds and hardens the pipeline rather than proposing the architecture.
+description: "Use when writing or reviewing PyTorch training and inference code: model and dataset modules, the training loop, checkpointing, the evaluation harness, mixed precision and device placement, and packaging a trained model for serving. Implementer, not researcher: it builds and hardens the pipeline rather than proposing the architecture."
 mode: subagent
 tools:
   read: true
@@ -84,7 +84,6 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 
 - `pytorch-patterns`
 - `python-patterns`
-- `python-testing`
 - `docker-patterns`
 - `performance-optimization`
 - `observability-and-logging`

@@ -75,7 +75,6 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 
 - `pytorch-patterns`
 - `python-patterns`
-- `python-testing`
 - `docker-patterns`
 - `performance-optimization`
 - `observability-and-logging`

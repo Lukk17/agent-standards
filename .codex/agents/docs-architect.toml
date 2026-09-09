@@ -75,7 +75,7 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `api-design`
 - `hexagonal-architecture`
 - `backend-patterns`
-- `frontend-patterns`
+- `react-patterns`
 - `security-review`
 - `deployment-patterns`
 - `observability-and-logging`

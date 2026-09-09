@@ -28,7 +28,7 @@ Baseline: Tailwind CSS v4, which is configured in CSS through `@theme` and no lo
 
 - Choosing the visual direction, composition, typography voice, and motion direction. Use `frontend-design`.
 - Contrast ratios, focus indicators, target sizes, and reduced motion. Use `web-accessibility`.
-- React component structure and animation implementation. Use `frontend-patterns`.
+- React component structure and animation implementation. Use `react-patterns`.
 - Angular component styling and view encapsulation. Use `angular`.
 - Next.js rendering and routing. Use `nextjs-app-router-patterns`.
 
@@ -246,7 +246,7 @@ Standard breakpoints: `sm: 640px`, `md: 768px`, `lg: 1024px`, `xl: 1280px`.
   here.
 - `web-accessibility` owns contrast ratios, focus indicators, target sizes, and reduced motion. A palette that fails
   contrast is not a finished token set.
-- `frontend-patterns` for the React components consuming these tokens.
+- `react-patterns` for the React components consuming these tokens.
 - `angular` for the same consumption in an Angular codebase.
 - `markdown-writer` for the design document the generate mode produces.
 - `code-reviewer` for the styling-drift pass on a pull request.

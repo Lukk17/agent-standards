@@ -5,7 +5,7 @@ tools: [read, write, edit, grep, glob, bash]
 model: inherit
 skills:
   - angular
-  - frontend-patterns
+  - react-patterns
   - frontend-design
   - design-system
   - api-design
@@ -55,7 +55,7 @@ Out: cross-service architecture (`backend-architect`), design-token / component-
 3. OnPush by default. Inputs that change shape must produce new references. Mutating in place will not trigger a render.
 4. Streams hygienic. Subscribe in the template with `| async` whenever possible. Imperative `.subscribe()` requires
    explicit cleanup (`takeUntilDestroyed`).
-5. Apply skills. `angular` for the framework specifics, `frontend-patterns` for the broader frontend principles,
+5. Apply skills. `angular` for the framework specifics, `react-patterns` for the broader component principles,
    `frontend-design` for visual implementation.
 6. Verify locally. `ng build` clean, `ng test --watch=false` clean on the affected scope, `ng lint` clean.
 

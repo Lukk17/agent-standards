@@ -1,5 +1,5 @@
 ---
-description: Use when building or reviewing Flutter / Dart code for mobile, web, or desktop. Applies Dart 3 features (records, patterns, sealed classes), null safety, widget composition with const constructors, and the state management the project already uses (Riverpod, BLoC, or Provider). Implementer, not architect.
+description: "Use when building or reviewing Flutter / Dart code for mobile, web, or desktop. Applies Dart 3 features (records, patterns, sealed classes), null safety, widget composition with const constructors, and the state management the project already uses (Riverpod, BLoC, or Provider). Implementer, not architect."
 mode: subagent
 tools:
   read: true

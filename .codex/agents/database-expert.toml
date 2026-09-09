@@ -120,13 +120,10 @@ Optimisation mode: the slow query has a saved plan, the proposed change has a me
 Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns, and this prompt only defines persona and scope.
 
 - `postgres-patterns`
-- `mongodb-schema-design`
-- `mongodb-query-optimizer`
-- `mongodb-connection`
-- `mongodb-search-and-ai`
+- `mongodb-patterns`
 - `database-migrations`
 - `hexagonal-architecture`
-- `jpa-patterns`
+- `springboot-patterns`
 - `backend-patterns`
 - `architecture-decision-records`
 - `docker-patterns`

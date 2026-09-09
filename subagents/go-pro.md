@@ -5,7 +5,6 @@ tools: [read, write, edit, grep, glob, bash]
 model: inherit
 skills:
   - golang-patterns
-  - golang-testing
   - hexagonal-architecture
   - api-design
   - backend-patterns

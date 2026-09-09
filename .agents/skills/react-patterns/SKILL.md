@@ -1,10 +1,10 @@
 ---
-name: frontend-patterns
-description: Framework-agnostic React patterns for component composition, custom hooks, async state, a typed API client, memoisation, code splitting, virtualisation, forms, and animation. Use when you say "build a React component", "write a custom hook", "this list re-renders on every keystroke", "lazy load this chart", or "animate this list on mount". Not for Next.js rendering, routing, and caching, use `nextjs-app-router-patterns`.
+name: react-patterns
+description: React patterns for component composition, custom hooks, async state, a typed API client, memoisation, code splitting, virtualisation, forms, and animation. Use when you say "build a React component", "write a custom hook", "this list re-renders on every keystroke", "lazy load this chart", or "animate this list on mount". Not for Next.js rendering, routing, and caching, use `nextjs-app-router-patterns`.
 license: Apache-2.0
 ---
 
-# Frontend Development Patterns
+# React Development Patterns
 
 React patterns for maintainable, performant user interfaces, covering composition, hooks, async state, data access,
 performance, forms, and animation. Everything here is framework-agnostic React that works the same inside or outside a

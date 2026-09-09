@@ -30,7 +30,7 @@ Services 4, JAXB 4), Apache CXF 4, Spring-WS 4 with WSS4J, and Resilience4j 2.
 - Spring Boot service structure around the SOAP client: use `springboot-patterns`.
 - Java language style in the hand-written code: use `java-coding-standards`.
 - Gradle version catalogues and dependency admission: use `build-dependency-management`.
-- Authentication of your own HTTP endpoints: use `springboot-security`.
+- Authentication of your own HTTP endpoints: use `springboot-patterns`.
 
 ---
 

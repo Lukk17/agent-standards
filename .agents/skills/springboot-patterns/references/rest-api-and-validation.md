@@ -127,7 +127,22 @@ class GlobalExceptionHandler {
 ```
 
 The catch-all handler logs the exception with its stack trace and returns a body with no detail from it. An
-exception message reaching a client is an information leak, and `springboot-verification` greps for exactly that.
+exception message reaching a client is an information leak, and the scan phase in
+[verification-pipeline.md](verification-pipeline.md) greps for exactly that.
+
+---
+
+### Version in the path, and deprecate with a real date
+
+Put the version in the URI as `/api/v1/resource`. When a version is going away, mark the controller `@Deprecated`,
+send a `Deprecation` header, and send a `Sunset` header holding a date at least one full release cycle ahead of the
+announcement. Compute that date when you write the deprecation rather than copying one from an example, because a
+sunset date already in the past tells a client the endpoint is gone while it is still serving traffic.
+
+Pass: `.header("Sunset", sunsetDate.format(DateTimeFormatter.RFC_1123_DATE_TIME))` on a `@Deprecated` controller,
+where `sunsetDate` is computed from the release calendar rather than typed in.
+
+Fail: a hardcoded sunset date nobody revisits, or a version removed in the release that announced its deprecation.
 
 ---
 

@@ -20,7 +20,7 @@ For each of the five agents, in the agent's own terms wherever the agent offers 
 | Codex | `.agents/skills/` read natively | `.codex/agents/*.toml` count matches canonical | `.codex/config.toml` calls the gate on `PreToolUse` | `codex mcp list` names every server |
 | OpenCode | `.agents/skills/` read natively | `opencode agent list` names every imported subagent | `opencode.json` declares the shared plugin | `opencode mcp list` names every server |
 | Kilo Code | `.agents/skills/` read natively | `kilocode agent list` names every imported subagent | `opencode.json` declares the shared plugin | `kilocode mcp list` names every server |
-| GitHub Copilot | `copilot skill list` loads every skill without a parse error | `.github/agents/*.agent.md` count matches canonical | `.github/hooks/preflight.json` calls the gate on `preToolUse` | `copilot mcp list` names every server |
+| GitHub Copilot | `copilot skill list` loads every skill without a parse error | `.github/agents/*.agent.md` count matches canonical, each front matter safe for Copilot to parse | `.github/hooks/preflight.json` calls the gate on `preToolUse` | `copilot mcp list` names every server |
 
 On top of that it proves the import itself behaved: `AGENTS.md.example` was renamed rather than copied, all three
 symlinks resolve to directories, and the upstream-only `subagents/` and `tools/` trees did not come along.

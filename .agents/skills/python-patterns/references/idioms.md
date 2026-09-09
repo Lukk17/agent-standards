@@ -1,7 +1,59 @@
 # Python Idioms Catalogue
 
-Context managers, decorators, comprehensions, dataclass validation, named tuples, and the memory tricks that pay for
-themselves. Open this when the hub rule points here for a fuller example than the pass and fail pair it shows.
+EAFP, context managers, decorators, comprehensions, dataclass validation, named tuples, and the memory tricks that
+pay for themselves. Open this when the hub rule points here for a fuller example than the pass and fail pair it
+shows.
+
+---
+
+### Prefer EAFP over LBYL
+
+Ask forgiveness, not permission. Check-then-act duplicates the lookup and opens a race whenever the object can change
+between the two statements, which is every dictionary shared across threads and every file another process can touch.
+
+Pass:
+
+```python
+try:
+    return mapping[key]
+except KeyError:
+    return default
+```
+
+Fail:
+
+```python
+if key in mapping:
+    return mapping[key]
+return default
+```
+
+The same shape applies to `os.path.exists` before an `open`, and to `hasattr` before an attribute read. Catch the
+error the operation actually raises instead.
+
+---
+
+### Acquire every resource with `with`
+
+A file, a socket, a lock, or a transaction left to garbage collection is released at a time nobody controls, and not
+at all when an exception unwinds through a bare `open`. The `with` statement closes it on the exception path too.
+
+Pass:
+
+```python
+with path.open(encoding="utf-8") as handle:
+    return handle.read()
+```
+
+Fail:
+
+```python
+handle = open(path)
+return handle.read()
+```
+
+Always name the encoding on a text file. The platform default differs between a developer laptop and a container,
+and the same code then reads different bytes in each.
 
 ---
 

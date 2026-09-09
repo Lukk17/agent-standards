@@ -1,6 +1,6 @@
 ---
 name: docs-architect
-description: Use when producing long-form technical documentation from a codebase: architecture manuals, system handbooks, onboarding guides, technical deep-dives. Reads the actual code and the git history, captures the why, and organises it for different audiences. The documentation is the deliverable, not a code change.
+description: "Use when producing long-form technical documentation from a codebase: architecture manuals, system handbooks, onboarding guides, technical deep-dives. Reads the actual code and the git history, captures the why, and organises it for different audiences. The documentation is the deliverable, not a code change."
 tools: Read, Write, Edit, Grep, Glob, Bash
 model: inherit
 skills:
@@ -9,7 +9,7 @@ skills:
   - api-design
   - hexagonal-architecture
   - backend-patterns
-  - frontend-patterns
+  - react-patterns
   - security-review
   - deployment-patterns
   - observability-and-logging
@@ -91,7 +91,7 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `api-design`
 - `hexagonal-architecture`
 - `backend-patterns`
-- `frontend-patterns`
+- `react-patterns`
 - `security-review`
 - `deployment-patterns`
 - `observability-and-logging`

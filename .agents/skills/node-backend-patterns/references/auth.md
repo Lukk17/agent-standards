@@ -26,7 +26,7 @@ export function verifyToken(token: string): JwtPayload {
 Fail: `const payload = jwt.decode(token) as JwtPayload`, or `jwt.verify(token, secret)` with no `algorithms` option.
 
 For an external identity provider, fetch the signing keys from its JWKS endpoint with a cached key set rather than
-pasting a key into configuration. `keycloak-auth-services` covers the Keycloak side of that exchange.
+pasting a key into configuration. `keycloak-patterns` covers the Keycloak side of that exchange.
 
 ---
 
@@ -140,4 +140,4 @@ return NextResponse.json(
 - `node-backend-patterns` for the hub these rules belong to.
 - `api-design` for status codes, the problem body shape, and auth headers on the wire.
 - `security-review` for threat modelling, session fixation, and input handling.
-- `keycloak-auth-services` and `keycloak-administration` when the identity provider is Keycloak.
+- `keycloak-patterns` when the identity provider is Keycloak, for both the server and the .NET client.

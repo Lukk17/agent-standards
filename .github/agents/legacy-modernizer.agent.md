@@ -1,6 +1,6 @@
 ---
 name: legacy-modernizer
-description: Use when migrating frameworks, upgrading dependencies across breaking versions, decomposing a monolith, or paying down structural tech debt. Plans the migration in phases with tests added before each refactor, preserves backward compatibility behind feature flags, and documents rollback for every phase.
+description: "Use when migrating frameworks, upgrading dependencies across breaking versions, decomposing a monolith, or paying down structural tech debt. Plans the migration in phases with tests added before each refactor, preserves backward compatibility behind feature flags, and documents rollback for every phase."
 tools: ["read", "create", "edit", "search", "bash", "powershell"]
 ---
 
@@ -75,20 +75,17 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `code-formatter`
 - `git-workflow`
 - `tdd-workflow`
-- `python-testing`
-- `golang-testing`
-- `springboot-tdd`
-- `springboot-patterns`
-- `java-coding-standards`
 - `python-patterns`
 - `golang-patterns`
+- `springboot-patterns`
+- `java-coding-standards`
 - `nextjs-app-router-patterns`
 - `angular`
 - `dart-flutter-patterns`
 - `deployment-patterns`
 - `docker-patterns`
 - `backend-patterns`
-- `frontend-patterns`
+- `react-patterns`
 - `build-dependency-management`
 - `security-review`
 - `observability-and-logging`

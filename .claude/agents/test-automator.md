@@ -1,6 +1,6 @@
 ---
 name: test-automator
-description: Use PROACTIVELY after any code change to write the missing unit and integration tests in the codebase, run the relevant suites, analyse the failures, and fix them without weakening the test. Enforces red-green-refactor when adding new behaviour, and reports a genuine code bug rather than softening an assertion to make it green. Use `api-tester` for load, contract and security smoke tests against a running API.
+description: "Use PROACTIVELY after any code change to write the missing unit and integration tests in the codebase, run the relevant suites, analyse the failures, and fix them without weakening the test. Enforces red-green-refactor when adding new behaviour, and reports a genuine code bug rather than softening an assertion to make it green. Use `api-tester` for load, contract and security smoke tests against a running API."
 tools: Read, Write, Edit, Grep, Glob, Bash
 model: inherit
 skills:
@@ -8,10 +8,9 @@ skills:
   - ai-regression-testing
   - e2e-testing
   - e2e-runbooks
-  - python-testing
-  - golang-testing
-  - springboot-tdd
-  - springboot-verification
+  - python-patterns
+  - golang-patterns
+  - springboot-patterns
   - dart-flutter-patterns
   - coding-standards
   - code-formatter
@@ -20,7 +19,7 @@ skills:
   - api-design
   - bash
   - powershell
-  - frontend-patterns
+  - react-patterns
   - angular
   - security-review
   - build-dependency-management
@@ -100,10 +99,9 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `ai-regression-testing`
 - `e2e-testing`
 - `e2e-runbooks`
-- `python-testing`
-- `golang-testing`
-- `springboot-tdd`
-- `springboot-verification`
+- `python-patterns`
+- `golang-patterns`
+- `springboot-patterns`
 - `dart-flutter-patterns`
 - `coding-standards`
 - `code-formatter`
@@ -112,7 +110,7 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `api-design`
 - `bash`
 - `powershell`
-- `frontend-patterns`
+- `react-patterns`
 - `angular`
 - `security-review`
 - `build-dependency-management`

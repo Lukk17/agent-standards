@@ -99,6 +99,12 @@ public void onOrderCreated(OrderCreatedEvent event) {
 Carry an identifier in the event rather than the entity. An entity published across a transaction boundary is
 detached by the time the listener runs, and touching a lazy association on it throws.
 
+Pass: `@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)` on the listener, with the event carrying
+an identifier rather than a detached entity, so a rolled-back write never triggers an email nobody can un-send.
+
+Fail: a plain `@EventListener`, which runs inside the transaction and fires even when the transaction later rolls
+back.
+
 ---
 
 ### Background jobs

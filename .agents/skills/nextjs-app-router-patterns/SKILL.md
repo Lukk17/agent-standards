@@ -1,6 +1,6 @@
 ---
 name: nextjs-app-router-patterns
-description: Next.js App Router architecture covering Server and Client Components, caching, streaming, Server Actions, route handlers, metadata, images, and Turbopack dev tuning. Use when you say "build a Next.js page", "server or client component", "revalidate this fetch", "add a server action", "parallel routes for a dashboard", or "next dev is slow". Not for framework-agnostic React state, hooks, and animation, use `frontend-patterns`.
+description: Next.js App Router architecture covering Server and Client Components, caching, streaming, Server Actions, route handlers, metadata, images, and Turbopack dev tuning. Use when you say "build a Next.js page", "server or client component", "revalidate this fetch", "add a server action", "parallel routes for a dashboard", or "next dev is slow". Not for framework-agnostic React state, hooks, and animation, use `react-patterns`.
 license: Apache-2.0
 ---
 
@@ -27,7 +27,7 @@ bundler and `params` and `searchParams` arrive as promises.
 
 ### When not to activate
 
-- Framework-agnostic React work: component composition, hooks, forms, animation. Use `frontend-patterns`.
+- Framework-agnostic React work: component composition, hooks, forms, animation. Use `react-patterns`.
 - Visual direction, typography, and composition decisions. Use `frontend-design`.
 - Token architecture and theming. Use `design-system`.
 - Keyboard, focus, ARIA, and contrast requirements. Use `web-accessibility`.
@@ -249,7 +249,7 @@ export async function createProduct(formData: FormData): Promise<Product> { ... 
 
 ### Related skills
 
-- `frontend-patterns` for React composition, hooks, forms, and animation that do not depend on Next.js.
+- `react-patterns` for React composition, hooks, forms, and animation that do not depend on Next.js.
 - `frontend-design` for visual direction and composition.
 - `design-system` for tokens, theming, and styling architecture.
 - `web-accessibility` for keyboard, focus, ARIA, and contrast requirements.

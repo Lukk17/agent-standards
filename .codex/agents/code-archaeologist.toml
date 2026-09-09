@@ -92,7 +92,7 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `hexagonal-architecture`
 - `coding-standards`
 - `backend-patterns`
-- `frontend-patterns`
+- `react-patterns`
 - `database-migrations`
 - `java-coding-standards`
 - `springboot-patterns`

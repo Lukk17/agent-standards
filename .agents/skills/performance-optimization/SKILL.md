@@ -23,8 +23,8 @@ cross-cutting principles hub is the `coding-standards` skill and this skill is t
 
 - Designing a table, choosing a column type, or writing a migration. Use `postgres-patterns` for the schema and
   `database-migrations` for the change.
-- Writing the tests that prove the fix holds. Use `tdd-workflow`, or the language testing skill (`python-testing`,
-  `golang-testing`, `springboot-tdd`).
+- Writing the tests that prove the fix holds. Use `tdd-workflow`, or the language skill (`python-patterns`,
+  `golang-patterns`, `springboot-patterns`).
 - Reducing container image size or build time. Use `docker-patterns`.
 - Frontend rendering and bundle weight in a specific framework. Use `nextjs-app-router-patterns` or `angular`.
 - A general code review that happens to mention speed. Use `code-reviewer` and pull this skill in for the performance
