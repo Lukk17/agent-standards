@@ -22,7 +22,7 @@ That difference decides what belongs where.
 
 Belongs globally, because it is the same for you in every repository:
 
-- Skills. A skill such as `python-testing` says nothing about one project, so one copy in the home directory serves
+- Skills. A skill such as `python-patterns` says nothing about one project, so one copy in the home directory serves
   every project. This is also the part with the biggest payoff, because most of the agents read the same
   `~/.agents/skills` directory.
 - Subagents. Same reasoning. A `code-reviewer` definition is not project-specific.
@@ -174,6 +174,10 @@ cp -R ~/.agent-standards/.agents/. ~/.agents/
 
 After this one step, Codex, OpenCode, and GitHub Copilot already see every skill, with no further wiring. Claude Code
 needs a symlink and Kilo Code needs one config line, both covered in their sections below.
+
+`preflight_gate.py` guards only the project a session is open in and never your home directory at large: it takes the
+project root from the hook payload's own `cwd` field and from the working directory, and it ignores its own on-disk
+location once that location is your home directory rather than a project.
 
 Three of those four hook scripts get wired per agent below. The fourth, `markdown_lint_check.py`, does not: it shells
 out to `tools/check-markdown.py`, which stays in the upstream repository and never ships, so a global wiring would

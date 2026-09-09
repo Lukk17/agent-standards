@@ -40,6 +40,14 @@ session. The one deliberate exception is the repository-boundary helpers
 fails toward True, which denies rather than allows, because the whole point
 of those helpers is to decide what Rule A protects.
 
+Rule A protects a project, not the whole filesystem, and the boundary is
+every root in _roots(): the process working directory, the project root the
+payload names in its cwd field, and the gate's own on-disk location two
+parents up. That last one counts only while it really is a project. The
+user-level install in docs/GLOBAL_SETUP.md puts this script under the home
+directory, where two parents up is the home directory itself, so it is
+dropped there and only the project the session is in stays protected.
+
 Rule A exempts exactly one path, TASK_LIST_NAME at the project root. The main
 thread owns the task list, so it keeps writing that one file directly.
 
@@ -200,6 +208,26 @@ def _agent_type(payload: Dict[str, Any]) -> str:
         if isinstance(value, str) and value.strip():
             return value.strip()
     return ""
+
+
+# The project root the payload named, or None while no payload has been read.
+# Claude Code, Codex and the runner envelope all send the open project as cwd,
+# and it is the only root that still names the project once the gate is
+# installed under the user's home directory instead of inside a project. Set
+# only through _decide, which clears it again once the call has been decided.
+_PAYLOAD_ROOT: Optional[Path] = None
+
+
+def _payload_root(payload: Dict[str, Any]) -> Optional[Path]:
+    value = payload.get("cwd")
+
+    if not isinstance(value, str) or not value.strip():
+        return None
+
+    try:
+        return Path(value.strip().replace("\\", "/"))
+    except (OSError, ValueError):
+        return None
 
 
 def _direct_target(tool_input: Dict[str, Any]) -> str:
@@ -1268,12 +1296,13 @@ def _resolves_inside_repo(target: str) -> bool:
     (see AGENTS.md "Required opening move"), and that guarantee has broken
     silently once before, which would turn every file above a stray working
     directory into a writable target. A relative path is therefore resolved
-    against, and checked against, every root in _roots() (the gate's
-    invocation directory and the gate's own on-disk location two parents up,
-    the same two-root treatment _read_agent_definition already uses), and it
-    counts as inside when it resolves inside any one of them. Once the
-    command has changed directory the bases are those directories instead
-    (see _CD_BASE), and the roots stay the boundary being tested. An
+    against, and checked against, every root in _roots() (the invocation
+    directory, the project root the payload named, and the gate's own
+    location two parents up while that is a project rather than a home
+    directory), and it counts as inside when it resolves inside any one of
+    them. Once the command has changed directory the bases are those
+    directories instead (see _CD_BASE), and the roots stay the boundary
+    being tested. An
     unresolvable path fails toward True: failing safe here means denying, not
     allowing.
     """
@@ -1360,11 +1389,62 @@ def _is_write_target(target: str, powershell: bool = False) -> bool:
     return _resolves_inside_repo(target)
 
 
+def _install_root() -> Optional[Path]:
+    """The directory the gate was installed into, two parents up from itself.
+
+    A project keeps the script at <project>/.agents/hooks/preflight_gate.py,
+    and the user-level install in docs/GLOBAL_SETUP.md puts the same three
+    directories under the home directory instead. Either way this is where
+    the rest of the installation, the agent trees Rule B reads included,
+    sits beside it.
+    """
+    try:
+        return Path(__file__).resolve().parents[2]
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def _script_root() -> Optional[Path]:
+    """The install root, but only while it is a project rather than a home.
+
+    Under the user-level install the install root is the user's home
+    directory, or something above it. That is not a project, and keeping it
+    as one would make Rule A deny every main-thread write anywhere the user
+    keeps files, so it is dropped there and the session's own project decides
+    the boundary alone. A home directory the interpreter cannot name leaves
+    the root in place, which is the behaviour every project install has had
+    all along.
+    """
+    root = _install_root()
+
+    if root is None:
+        return None
+
+    try:
+        home = Path.home().resolve()
+    except (OSError, ValueError, RuntimeError):
+        return root
+
+    return None if home.is_relative_to(root) else root
+
+
 def _roots() -> List[Path]:
+    """Every directory Rule A treats as a project root.
+
+    Path comparison carries the platform's own case rule, so a Windows root
+    matches whatever case the payload or the shell spelled it in.
+    """
     roots: List[Path] = []
 
-    for candidate in (Path.cwd(), Path(__file__).resolve().parents[2]):
-        resolved = candidate.resolve()
+    for candidate in (Path.cwd(), _PAYLOAD_ROOT, _script_root()):
+        if candidate is None:
+            continue
+
+        try:
+            resolved = candidate.resolve()
+        except (OSError, ValueError):
+            continue
+
         if resolved not in roots:
             roots.append(resolved)
 
@@ -1372,10 +1452,23 @@ def _roots() -> List[Path]:
 
 
 def _read_agent_definition(agent_type: str) -> Optional[str]:
+    """The definition text for one subagent name, or None when there is none.
+
+    Rule B looks in every project root and in the install root as well. The
+    install root is not a project boundary, so Rule A drops it, but it is
+    where a user-level install keeps its agent trees, and Rule B has to find
+    them there.
+    """
     if not agent_type or "/" in agent_type or "\\" in agent_type or ".." in agent_type:
         return None
 
-    for root in _roots():
+    roots = _roots()
+    install = _install_root()
+
+    if install is not None and install not in roots:
+        roots.append(install)
+
+    for root in roots:
         for tree in AGENT_TREES:
             path = root / tree.directory / (agent_type + tree.extension)
             if path.is_file():
@@ -1452,6 +1545,17 @@ def _declares_skills(text: str) -> bool:
 
 def _decide(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Optional[str]:
     """Return a deny reason, or None to allow."""
+    global _PAYLOAD_ROOT
+
+    _PAYLOAD_ROOT = _payload_root(payload)
+
+    try:
+        return _apply_rules(payload, fmt, subagent_flag)
+    finally:
+        _PAYLOAD_ROOT = None
+
+
+def _apply_rules(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Optional[str]:
     identity = _caller_identity(payload, fmt, subagent_flag)
 
     if identity == _UNKNOWN:

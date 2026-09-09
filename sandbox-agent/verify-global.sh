@@ -661,6 +661,15 @@ assert_gate() {
   fi
 }
 
+# Writes one main-thread edit payload naming the target it wants to write and
+# the project root the agent has open, the way every adapter sends its cwd.
+gate_payload() {
+  local target="$1" project="$2"
+
+  jq -n --arg target "$target" --arg project "$project" \
+    '{tool_name: "Edit", tool_input: {file_path: $target}, cwd: $project}'
+}
+
 # Passes when the gate's refusal reason carries the needle, which is what tells
 # rule A and rule B apart and names the subagent rule B refused.
 assert_gate_reason() {
@@ -711,6 +720,23 @@ verify_gate_enforcement() {
     "${PAYLOADS}/subagent-without-skills.json"
   assert_gate "a subagent that declares skills is allowed from the same global directory" claude allow \
     "${PAYLOADS}/subagent-with-skills.json"
+
+  note "the gate lives under the home directory here, so the home directory is not itself a protected project."
+
+  local project="" notes=""
+  project="$(mktemp -d "${HOME}/e2e-gate-project.XXXXXX")"
+  notes="${HOME}/e2e-gate-notes"
+  mkdir -p "$notes"
+
+  gate_payload "${notes}/MEMORY.md" "$project" >"${project}/allow.json"
+  gate_payload "${project}/src/app.py" "$project" >"${project}/deny.json"
+
+  assert_gate "a write elsewhere under the home directory is outside the open project" claude allow \
+    "${project}/allow.json"
+  assert_gate "a write inside the project the payload names is denied" claude deny \
+    "${project}/deny.json"
+
+  rm -rf "$project" "$notes"
 
   rm -f "$PROBE_AGENT"
   assert_absent "the probe is gone again" ".claude/agents/${PROBE_NAME}.md"

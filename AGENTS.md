@@ -19,7 +19,7 @@ past. This is a hard gate.
 
 Investigation, review, and bounded implementation are delegated by default. Doing a specialist's work inline from the
 main session is the failure mode this gate prevents. Re-run the check at the start of every task. Most work in this
-repo is documentation and the Python tooling, so `markdown-writer`, `python-patterns`, and `python-testing` are the
+repo is documentation and the Python tooling, so `markdown-writer` and `python-patterns` are the
 usual owners, with `code-reviewer` before any merge.
 
 The gate is enforcing, not advisory. One shared rule in
@@ -27,9 +27,12 @@ The gate is enforcing, not advisory. One shared rule in
 
 - It denies a main-thread write of any file resolving inside the repository, with no exemption for markdown,
   configuration, or documentation, and tells the caller to delegate the change instead. "Inside the repository" is the
-  gate's own two roots rather than a git query: the process working directory, and the gate script's own on-disk
-  location two parents up. A relative path resolves against whichever directory a leading `cd` in the command moved to,
-  and against both roots when the command never changed directory. A write outside the repository, a write to the null
+  gate's own roots rather than a git query: the process working directory, the project root the hook payload names in
+  its `cwd` field, and the gate script's own on-disk location two parents up, that last one only while it is a real
+  project and not the user's home directory or a directory above it, so the user-level install in
+  [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md) protects the open project instead of everything the user owns. A
+  relative path resolves against whichever directory a leading `cd` in the command moved to,
+  and against every root when the command never changed directory. A write outside the repository, a write to the null
   device, a write to `tasks.md` at the project root, and git branch switching stay allowed, so the main thread keeps
   full use of git and keeps ownership of its own task list.
 - It denies any tool call, not only an edit, from a subagent whose own definition declares no skills, because that
@@ -333,7 +336,7 @@ list `.claude/agents/*.md` or `.agents/agents/*.md`, and browse skills in [.agen
 For this repo specifically: `agent-engineer` owns the agent configuration itself, which is every skill, every subagent
 definition, every hook wiring, every MCP server block, and this file. It is also the agent the main thread hands web
 research to, because the gate denies the main thread a web fetch or web search directly. `markdown-writer` owns doc
-work, `python-patterns` and `python-testing` own the generator, the hook scripts, and the lint scripts,
+work, `python-patterns` owns the generator, the hook scripts, and the lint scripts,
 `code-reviewer` runs before any merge, and `bash` and `powershell` own the update scripts in
 [docs/AGENTS-UPDATE.md](docs/AGENTS-UPDATE.md).
 

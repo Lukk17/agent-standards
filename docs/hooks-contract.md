@@ -80,7 +80,7 @@ payload = json.loads(sys.stdin.buffer.read().decode("utf-8", errors="replace") o
 | `agent_type` | Name of the acting subagent, `""` on the main thread. |
 | `is_subagent` | `true` when a subagent is acting. |
 | `assistant_text` | The newest assistant prose not yet delivered in this session, `""` when there is none. |
-| `cwd` | Absolute project root. The same directory the process already runs in. |
+| `cwd` | Absolute project root. The same directory the process already runs in, and the root the gate protects. |
 
 `assistant_text` is delivered at most once per distinct text per session. The runner does the de-duplication, so a hook
 that checks prose does not have to, and a run of tool calls after one reply does not block twice on prose the model

@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import NamedTuple
 
 import pytest
 
@@ -23,7 +24,7 @@ name: {name}
 description: A specialist.
 skills:
   - python-patterns
-  - python-testing
+  - coding-standards
 ---
 
 Body.
@@ -48,7 +49,7 @@ Persona text.
 
 Load and follow these before acting.
 
-- `python-testing`
+- `python-patterns`
 - `coding-standards`
 """
 
@@ -69,7 +70,7 @@ Persona text.
 
 ## Preloaded skills
 
-- `python-testing`
+- `python-patterns`
 - `coding-standards`
 """
 
@@ -80,7 +81,7 @@ Persona text.
 
 ## Preloaded skills
 
-- `python-testing`
+- `python-patterns`
 - `coding-standards`
 '''
 """
@@ -111,15 +112,19 @@ DECLARING_TREES = [
 ]
 
 
-def run(payload, fmt, cwd=None, extra=(), env=None):
-    """Run the gate and return (returncode, stdout, stderr)."""
+def run(payload, fmt, cwd=None, extra=(), env=None, script=PREFLIGHT_GATE):
+    """Run the gate and return (returncode, stdout, stderr).
+
+    Args:
+        script: the gate copy to run, so an installed copy can be driven too.
+    """
     if isinstance(payload, str):
         stdin = payload
     else:
         stdin = json.dumps(payload, ensure_ascii=False)
 
     result = subprocess.run(
-        [sys.executable, str(PREFLIGHT_GATE), "--format", fmt, *extra],
+        [sys.executable, str(script), "--format", fmt, *extra],
         input=stdin,
         capture_output=True,
         text=True,
@@ -1084,6 +1089,238 @@ def test_edit_tool_unc_path_allows():
     assert (code, out, err) == (0, "", "")
 
 
+# The user-level install in docs/GLOBAL_SETUP.md copies the gate to
+# <home>/.agents/hooks/preflight_gate.py, where the script-derived root is the
+# home directory itself. Keeping it would deny every main-thread write anywhere
+# under the home directory, so it is dropped there, and the project the session
+# is in (its working directory, and the cwd the payload names) is the whole
+# boundary. A project install, where the script really does sit two levels
+# under a project, is unaffected.
+class Install(NamedTuple):
+    gate: Path
+    home: Path
+    project: Path
+    env: dict
+
+
+def install_gate(root):
+    """Copy the gate to <root>/.agents/hooks and return the copy's path."""
+    hooks = root / ".agents" / "hooks"
+    hooks.mkdir(parents=True, exist_ok=True)
+    installed = hooks / PREFLIGHT_GATE.name
+    shutil.copy2(PREFLIGHT_GATE, installed)
+
+    return installed
+
+
+def fake_home(home):
+    """The environment that makes Path.home() answer home, on either platform."""
+    return {"HOME": str(home), "USERPROFILE": str(home)}
+
+
+@pytest.fixture
+def global_install(tmp_path):
+    """A gate installed under a fake home, with the project living elsewhere."""
+    home = tmp_path / "home"
+    project = tmp_path / "work" / "project"
+    project.mkdir(parents=True)
+
+    return Install(install_gate(home), home, project, fake_home(home))
+
+
+@pytest.fixture
+def project_install(tmp_path):
+    """A gate installed inside the project, with the home directory elsewhere."""
+    home = tmp_path / "home"
+    home.mkdir()
+    project = tmp_path / "work" / "project"
+    project.mkdir(parents=True)
+
+    return Install(install_gate(project), home, project, fake_home(home))
+
+
+def test_a_global_install_denies_a_write_inside_the_open_project(global_install):
+    # Given the gate installed under the home directory, and a write to the
+    # project the session is actually in
+    payload = edit(str(global_install.project / "src" / "app.py"))
+    payload["cwd"] = str(global_install.project)
+
+    # When
+    code, out, err = run(
+        payload,
+        "claude",
+        cwd=global_install.project,
+        env=global_install.env,
+        script=global_install.gate,
+    )
+
+    # Then
+    assert code == 0
+    assert err == ""
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_a_global_install_allows_a_write_elsewhere_under_the_home_directory(global_install):
+    # Given the same install, and a target that is under the home directory
+    # but has nothing to do with the open project
+    payload = edit(str(global_install.home / "notes" / "MEMORY.md"))
+    payload["cwd"] = str(global_install.project)
+
+    # When
+    code, out, err = run(
+        payload,
+        "claude",
+        cwd=global_install.project,
+        env=global_install.env,
+        script=global_install.gate,
+    )
+
+    # Then the script's own location is not a project root, so nothing denies
+    assert (code, out, err) == (0, "", "")
+
+
+def test_a_global_install_still_reads_the_agent_trees_beside_itself(global_install):
+    # Given a subagent whose definition ships with the global install rather
+    # than with the project the session is in
+    project_with_agent(global_install.home, "generalist", WITHOUT_SKILLS)
+    payload = edit(
+        str(global_install.project / "src" / "app.py"),
+        agent_id="sub-1",
+        agent_type="generalist",
+    )
+    payload["cwd"] = str(global_install.project)
+
+    # When
+    code, out, err = run(
+        payload,
+        "claude",
+        cwd=global_install.project,
+        env=global_install.env,
+        script=global_install.gate,
+    )
+
+    # Then Rule B still finds it in the install directory, which Rule A drops
+    assert code == 0
+    assert err == ""
+    assert "generalist" in json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"]
+
+
+def test_a_project_install_still_denies_a_write_inside_its_own_project(project_install, tmp_path):
+    # Given the gate installed inside a project, and a session whose working
+    # directory is somewhere else entirely, so only the script's own location
+    # can place the target
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    payload = edit(str(project_install.project / "src" / "app.py"))
+
+    # When
+    code, out, err = run(
+        payload,
+        "claude",
+        cwd=elsewhere,
+        env=project_install.env,
+        script=project_install.gate,
+    )
+
+    # Then
+    assert code == 0
+    assert err == ""
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_a_project_install_still_allows_a_write_outside_its_own_project(project_install):
+    # Given the same install, and a target under the home directory
+    payload = edit(str(project_install.home / "notes.md"))
+
+    # When
+    code, out, err = run(
+        payload,
+        "claude",
+        cwd=project_install.project,
+        env=project_install.env,
+        script=project_install.gate,
+    )
+
+    # Then
+    assert (code, out, err) == (0, "", "")
+
+
+def test_the_payload_cwd_is_a_project_root(tmp_path):
+    # Given a project the payload names, and a process working directory that
+    # is not it, nor anywhere near the gate's own location
+    project = tmp_path / "project"
+    project.mkdir()
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    payload = edit(str(project / "src" / "app.py"))
+    payload["cwd"] = str(project)
+
+    # When
+    code, out, err = run(payload, "claude", cwd=elsewhere)
+
+    # Then the named project is protected on its own
+    assert code == 0
+    assert err == ""
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_a_payload_without_a_cwd_leaves_an_unrelated_project_unprotected(tmp_path):
+    # Given the same two directories, and a payload that names neither
+    project = tmp_path / "project"
+    project.mkdir()
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+
+    # When
+    code, out, err = run(edit(str(project / "src" / "app.py")), "claude", cwd=elsewhere)
+
+    # Then
+    assert (code, out, err) == (0, "", "")
+
+
+@pytest.mark.parametrize("value", [None, "", "   ", 17, ["/project"]], ids=repr)
+def test_an_unusable_payload_cwd_names_no_root(value):
+    payload = {"cwd": value} if value is not None else {}
+
+    assert GATE._payload_root(payload) is None
+
+
+def test_the_script_root_is_dropped_when_it_is_the_home_directory(monkeypatch):
+    # Given a home directory that is exactly the gate's own project root
+    root = Path(GATE.__file__).resolve().parents[2]
+    monkeypatch.setattr(GATE.Path, "home", classmethod(lambda cls: root))
+
+    # When/Then the global install protects nothing on its own
+    assert GATE._script_root() is None
+
+
+def test_the_script_root_is_dropped_when_the_home_directory_sits_below_it(monkeypatch):
+    # Given a home directory somewhere inside the gate's own project root,
+    # which makes that root broader than the home directory
+    home = Path(GATE.__file__).resolve().parents[2] / "tools"
+    monkeypatch.setattr(GATE.Path, "home", classmethod(lambda cls: home))
+
+    # When/Then
+    assert GATE._script_root() is None
+
+
+def test_the_script_root_survives_an_unrelated_home_directory(monkeypatch, tmp_path):
+    monkeypatch.setattr(GATE.Path, "home", classmethod(lambda cls: tmp_path))
+
+    assert GATE._script_root() == Path(GATE.__file__).resolve().parents[2]
+
+
+def test_a_home_directory_the_interpreter_cannot_name_leaves_the_script_root_alone(monkeypatch):
+    # Given a platform that refuses to answer Path.home() at all
+    def unnameable(cls):
+        raise RuntimeError("no home directory")
+
+    monkeypatch.setattr(GATE.Path, "home", classmethod(unnameable))
+
+    # When/Then the project install keeps the behaviour it always had
+    assert GATE._script_root() == Path(GATE.__file__).resolve().parents[2]
+
+
 # Defect 3: apply_patch carries no path key at all, so its write target has
 # to be read out of the patch body's own file headers instead.
 def apply_patch_call(tool_input, tool="apply_patch"):
@@ -1519,7 +1756,7 @@ def test_every_empty_skills_key_spelling_declares_nothing(tmp_path, spelling):
 
 
 def test_a_skills_key_with_one_entry_declares_skills(tmp_path):
-    template = "---\nname: {name}\nskills:\n  - python-testing\n---\n\nBody.\n"
+    template = "---\nname: {name}\nskills:\n  - python-patterns\n---\n\nBody.\n"
     root = project_with_agent(tmp_path, "filled", template)
     payload = edit("src/app.py", agent_id="sub-1", agent_type="filled")
 
