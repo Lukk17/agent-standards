@@ -5,6 +5,7 @@ tools: [read, write, edit, grep, glob, bash]
 model: inherit
 skills:
   - docker-patterns
+  - jetbrains-ide-ops
   - deployment-patterns
   - ansible
   - github-ops

@@ -16,6 +16,7 @@ skills:
   - database-migrations
   - mongodb-patterns
   - docker-patterns
+  - jetbrains-ide-ops
   - code-formatter
   - review-duplication
   - git-workflow

@@ -6,7 +6,7 @@ One `git checkout` drops a shared AI coding setup (skills, subagents, MCP server
 project.
 
 [![Agents](https://img.shields.io/badge/agents-Claude%20Code%20%7C%20Kilo%20%7C%20OpenCode%20%7C%20Codex%20%7C%20Copilot-blueviolet)](https://github.com/Lukk17/agent-standards)
-[![Skills](https://img.shields.io/badge/skills-55-blueviolet)](.agents/skills/)
+[![Skills](https://img.shields.io/badge/skills-56-blueviolet)](.agents/skills/)
 [![Subagents](https://img.shields.io/badge/subagents-35-blueviolet)](subagents/)
 [![MCP](https://img.shields.io/badge/mcp_servers-8-blueviolet)](docs/MCP_SETUP.md)
 [![OpenSpec](https://img.shields.io/badge/openspec-ready-blueviolet)](docs/AGENT_TOOLING.md#openspec-integration)

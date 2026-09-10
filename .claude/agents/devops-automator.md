@@ -5,6 +5,7 @@ tools: Read, Write, Edit, Grep, Glob, Bash
 model: inherit
 skills:
   - docker-patterns
+  - jetbrains-ide-ops
   - deployment-patterns
   - ansible
   - github-ops
@@ -87,6 +88,7 @@ serving traffic.
 Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns, and this prompt only defines persona and scope.
 
 - `docker-patterns`
+- `jetbrains-ide-ops`
 - `deployment-patterns`
 - `ansible`
 - `github-ops`

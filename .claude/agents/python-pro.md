@@ -14,6 +14,7 @@ skills:
   - postgres-patterns
   - mongodb-patterns
   - docker-patterns
+  - jetbrains-ide-ops
   - bash
   - code-formatter
   - review-duplication
@@ -93,6 +94,7 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `postgres-patterns`
 - `mongodb-patterns`
 - `docker-patterns`
+- `jetbrains-ide-ops`
 - `bash`
 - `code-formatter`
 - `review-duplication`

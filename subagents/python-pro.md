@@ -14,6 +14,7 @@ skills:
   - postgres-patterns
   - mongodb-patterns
   - docker-patterns
+  - jetbrains-ide-ops
   - bash
   - code-formatter
   - review-duplication

@@ -13,6 +13,7 @@ skills:
   - tdd-workflow
   - security-review
   - build-dependency-management
+  - jetbrains-ide-ops
 ---
 
 You write idiomatic Flutter. Dart 3 with sound null safety. Widgets compose, they do not inherit. `const` everywhere it

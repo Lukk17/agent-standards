@@ -55,6 +55,9 @@ All notable changes to this project are documented here. The format follows
 - Five subagents: `agent-engineer`, which owns skills, subagent definitions, hooks, MCP blocks and `AGENTS.md`, and is
   the agent the main thread hands web research to now that Rule C denies it directly; `go-pro`; `ml-engineer`;
   `project-manager`; and `release-manager`.
+- A `jetbrains-ide-ops` skill: run configuration XML per type and the option-name trap, which `.idea/` files
+  are committed and which a build tool regenerates, the root module and per-build Gradle links for a monorepo,
+  the cold-reopen procedure, the rename checklist and the Windows traps, each vendor claim carrying its source.
 - A language-neutral `backend-patterns` skill covering idempotency keys, timeouts and capped retries, the
   transactional outbox, cache invalidation, pagination and graceful shutdown, with the runtime-specific material left
   to `node-backend-patterns` and `springboot-patterns`.

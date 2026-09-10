@@ -16,6 +16,7 @@ skills:
   - database-migrations
   - mongodb-patterns
   - docker-patterns
+  - jetbrains-ide-ops
   - code-formatter
   - review-duplication
   - git-workflow
@@ -100,6 +101,7 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `database-migrations`
 - `mongodb-patterns`
 - `docker-patterns`
+- `jetbrains-ide-ops`
 - `code-formatter`
 - `review-duplication`
 - `git-workflow`

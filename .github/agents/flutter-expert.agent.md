@@ -75,3 +75,4 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `tdd-workflow`
 - `security-review`
 - `build-dependency-management`
+- `jetbrains-ide-ops`
