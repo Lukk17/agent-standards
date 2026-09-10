@@ -344,8 +344,8 @@ verify_claude() {
     '[.hooks.PreToolUse[].hooks[].command] | any(endswith("; exit 0"))'
   assert_json "the gate text is injected on every prompt" ".claude/settings.json" \
     '[.hooks.UserPromptSubmit[].hooks[].command] | any(contains("PREFLIGHT"))'
-  assert_json "every hook Claude Code calls runs on python -S -E" ".claude/settings.json" \
-    '[.hooks[][].hooks[].command] | map(select(contains(".agents/hooks/"))) | ((length > 0) and all(contains("python -S -E")))'
+  assert_json "every hook Claude Code calls resolves python3 first and falls back to python, on -S -E" ".claude/settings.json" \
+    '[.hooks[][].hooks[].command] | map(select(contains(".agents/hooks/"))) | ((length > 0) and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E")))'
   assert_json "the formatting check is wired into Stop" ".claude/settings.json" \
     '[.hooks.Stop[].hooks[].command] | any(contains("no_ai_markers_check.py"))'
   assert_json "the formatting check is wired into SubagentStop" ".claude/settings.json" \
@@ -378,8 +378,10 @@ verify_codex() {
     '[.hooks.PreToolUse[].matcher] | any(type == "string" and test("Bash") and test("apply_patch"))'
   assert_toml "the gate text is injected on every prompt" ".codex/config.toml" \
     '[.hooks.UserPromptSubmit[].hooks[].command] | any(contains("PREFLIGHT"))'
-  assert_toml "every hook Codex calls runs on python -S -E" ".codex/config.toml" \
-    '[.hooks[][].hooks[] | (.command // empty), (.commandWindows // empty)] | map(select(contains(".agents/hooks/"))) | ((length > 0) and all(contains("python -S -E")))'
+  assert_toml "every POSIX hook command Codex calls resolves python3 first and falls back to python, on -S -E" ".codex/config.toml" \
+    '[.hooks[][].hooks[] | (.command // empty)] | map(select(contains(".agents/hooks/"))) | ((length > 0) and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E")))'
+  assert_toml "every Windows hook command Codex calls stays on python, the only name a python.org install provides" ".codex/config.toml" \
+    '[.hooks[][].hooks[] | (.commandWindows // empty)] | map(select(contains(".agents/hooks/"))) | ((length > 0) and all(contains("python -S -E")))'
   assert_toml "the formatting check is wired into Stop" ".codex/config.toml" \
     '[.hooks.Stop[].hooks[] | (.command // empty), (.commandWindows // empty)] | any(contains("no_ai_markers_check.py"))'
   assert_toml "MCP servers are present in the file Codex reads" ".codex/config.toml" \
@@ -438,8 +440,10 @@ verify_copilot() {
     '[.hooks.sessionStart[].bash] | any(contains("PREFLIGHT"))'
   assert_json "the gate is scoped to the tools that can write" ".github/hooks/preflight.json" \
     '[.hooks.preToolUse[].matcher] | any(type == "string" and test("bash") and test("powershell") and test("create") and test("edit"))'
-  assert_json "every hook Copilot calls runs on python -S -E" ".github/hooks/preflight.json" \
-    '[.hooks[][] | (.bash // empty), (.powershell // empty)] | map(select(contains(".agents/hooks/"))) | ((length > 0) and all(contains("python -S -E")))'
+  assert_json "every bash hook Copilot calls resolves python3 first and falls back to python, on -S -E" ".github/hooks/preflight.json" \
+    '[.hooks[][] | (.bash // empty)] | map(select(contains(".agents/hooks/"))) | ((length > 0) and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E")))'
+  assert_json "every PowerShell hook Copilot calls stays on python, the only name a python.org install provides" ".github/hooks/preflight.json" \
+    '[.hooks[][] | (.powershell // empty)] | map(select(contains(".agents/hooks/"))) | ((length > 0) and all(contains("python -S -E")))'
   assert_json "MCP servers are present in the file Copilot in VS Code reads" ".vscode/mcp.json" \
     '(.servers | length) > 0'
   assert_json "MCP servers are present in the GitHub Copilot CLI's own MCP configuration" ".github/mcp.json" \

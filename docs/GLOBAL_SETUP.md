@@ -36,9 +36,9 @@ Stays per project, because a global copy would be wrong or actively harmful:
   token belongs to the one project that owns it. Servers that really are machine-wide, Context7 and Playwright for
   example, are the exception and are fine globally.
 - Anything that describes a codebase: its build commands, its module layout, its architecture decisions.
-- The blocking half of the gate. Every shipped hook wiring calls `python -S -E .agents/hooks/preflight_gate.py`, a
-  project-relative path, and the other hooks are wired the same way. Read [Limitations](#limitations) for exactly how
-  far the global half gets.
+- The blocking half of the gate. Every shipped hook wiring calls `.agents/hooks/preflight_gate.py`, a
+  project-relative path, on an interpreter it resolves itself, and the other hooks are wired the same way. Read
+  [Limitations](#limitations) for exactly how far the global half gets.
 
 ---
 
@@ -276,7 +276,9 @@ Forward slashes work on Windows too and save you escaping backslashes inside JSO
 
 This is the same event set the per-project wiring uses, minus the markdown lint pass. `SessionStart` and
 `UserPromptSubmit` inject the gate text, `PreToolUse` is the blocking half, `Stop` and `SubagentStop` check the reply
-formatting, and the five task events keep `tasks.md` in step. `-S -E` skips site initialisation and ignores the
+formatting, and the five task events keep `tasks.md` in step. Each command resolves its own interpreter, `python3`
+first and `python` second, because Debian and Ubuntu ship no `python` and the python.org Windows installer ships
+no `python3`. `-S -E` skips site initialisation and ignores the
 `PYTHON*` environment variables, which is safe because every hook is standard library only and saves a slice of
 interpreter start on every single tool call. The trailing `; exit 0` is what turns a missing or broken hook back into
 an allow, in the one form both bash and PowerShell parse, because Claude Code has a single command field and picks the
@@ -295,7 +297,7 @@ shell itself.
           {
             "type": "command",
             "timeout": 10,
-            "command": "python -S -E /home/you/.agents/hooks/task_list_sync.py --event sessionstart --format claude ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.agents/hooks/task_list_sync.py --event sessionstart --format claude ; exit 0"
           }
         ]
       }
@@ -317,7 +319,7 @@ shell itself.
           {
             "type": "command",
             "timeout": 10,
-            "command": "python -S -E /home/you/.agents/hooks/preflight_gate.py --format claude ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.agents/hooks/preflight_gate.py --format claude ; exit 0"
           }
         ]
       }
@@ -328,7 +330,7 @@ shell itself.
           {
             "type": "command",
             "timeout": 10,
-            "command": "python -S -E /home/you/.agents/hooks/task_list_sync.py --event precompact --format claude ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.agents/hooks/task_list_sync.py --event precompact --format claude ; exit 0"
           }
         ]
       }
@@ -339,7 +341,7 @@ shell itself.
           {
             "type": "command",
             "timeout": 10,
-            "command": "python -S -E /home/you/.agents/hooks/task_list_sync.py --event taskcreated --format claude ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.agents/hooks/task_list_sync.py --event taskcreated --format claude ; exit 0"
           }
         ]
       }
@@ -350,7 +352,7 @@ shell itself.
           {
             "type": "command",
             "timeout": 10,
-            "command": "python -S -E /home/you/.agents/hooks/task_list_sync.py --event taskcompleted --format claude ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.agents/hooks/task_list_sync.py --event taskcompleted --format claude ; exit 0"
           }
         ]
       }
@@ -361,12 +363,12 @@ shell itself.
           {
             "type": "command",
             "timeout": 10,
-            "command": "python -S -E /home/you/.agents/hooks/no_ai_markers_check.py --format claude ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.agents/hooks/no_ai_markers_check.py --format claude ; exit 0"
           },
           {
             "type": "command",
             "timeout": 10,
-            "command": "python -S -E /home/you/.agents/hooks/task_list_sync.py --event stop --format claude ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.agents/hooks/task_list_sync.py --event stop --format claude ; exit 0"
           }
         ]
       }
@@ -377,7 +379,7 @@ shell itself.
           {
             "type": "command",
             "timeout": 10,
-            "command": "python -S -E /home/you/.agents/hooks/no_ai_markers_check.py --format claude ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.agents/hooks/no_ai_markers_check.py --format claude ; exit 0"
           }
         ]
       }
@@ -490,7 +492,7 @@ absent on the other.
             "type": "command",
             "statusMessage": "Task list",
             "timeout": 10,
-            "command": "python -S -E /home/you/.agents/hooks/task_list_sync.py --event sessionstart --format codex 2>/dev/null || exit 0",
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.agents/hooks/task_list_sync.py --event sessionstart --format codex 2>/dev/null || exit 0",
             "commandWindows": "python -S -E /home/you/.agents/hooks/task_list_sync.py --event sessionstart --format codex 2>nul || exit 0"
           }
         ]
@@ -503,7 +505,7 @@ absent on the other.
             "type": "command",
             "statusMessage": "Formatting check",
             "timeout": 10,
-            "command": "python -S -E /home/you/.agents/hooks/no_ai_markers_check.py --format codex 2>/dev/null || exit 0",
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.agents/hooks/no_ai_markers_check.py --format codex 2>/dev/null || exit 0",
             "commandWindows": "python -S -E /home/you/.agents/hooks/no_ai_markers_check.py --format codex 2>nul || exit 0"
           }
         ]
@@ -517,7 +519,7 @@ absent on the other.
             "type": "command",
             "statusMessage": "Preflight gate",
             "timeout": 10,
-            "command": "python -S -E /home/you/.agents/hooks/preflight_gate.py --format codex 2>/dev/null || exit 0",
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.agents/hooks/preflight_gate.py --format codex 2>/dev/null || exit 0",
             "commandWindows": "python -S -E /home/you/.agents/hooks/preflight_gate.py --format codex 2>nul || exit 0"
           }
         ]
@@ -977,7 +979,7 @@ rm ~/.claude/skills
 Honest list of what a global install cannot do.
 
 1. The blocking half of the preflight gate is project-shaped. Every shipped hook wiring calls
-   `python -S -E .agents/hooks/preflight_gate.py`, resolved against the session's working directory. At user level you
+   `.agents/hooks/preflight_gate.py`, resolved against the session's working directory. At user level you
    have to rewrite that to an absolute path, which the Claude Code, Codex, and Copilot sections above tell you to do,
    and the same is true of `.agents/hooks/task_list_sync.py` and `.agents/hooks/no_ai_markers_check.py`. The gate
    script then looks for subagent definitions in both the current directory and its own grandparent, so a copy at

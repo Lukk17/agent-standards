@@ -247,6 +247,31 @@ All notable changes to this project are documented here. The format follows
   command ends in `; exit 0` and no longer mentions `subprocess.DEVNULL`. Spec 6 gained the Codex matcher, event-set,
   and Windows-sibling assertions it was missing.
 
+- Every hook wiring invoked its script as `python`, while all four scripts under `.agents/hooks/` carry a
+  `#!/usr/bin/env python3` shebang. Debian 11 and Ubuntu 20.04 onward ship no `/usr/bin/python` unless the
+  `python-is-python3` package is installed, so on those machines every hook failed, and because each wiring ends in
+  `; exit 0` or `|| exit 0` it failed silently: the gate `AGENTS.md` calls enforcing did nothing at all. Swapping to
+  `python3` alone would have broken the other half, because the python.org Windows installer provides `python.exe`
+  and usually no `python3.exe`. Each POSIX wiring now resolves the interpreter itself with
+  `PY=$(command -v python3 || command -v python)`: the nine commands in `.claude/settings.json`, the three `command`
+  values in `.codex/config.toml`, and the two `bash` values in `.github/hooks/preflight.json`. The three
+  `commandWindows` values and the two `powershell` values stay on `python`, because those are cmd.exe and PowerShell
+  one-liners where it is the name that exists. `.agents/plugin/hooks.js` already chose the name per platform and
+  needed no change, so the repository had held both answers at once. A retry of the form `python3 ... || python ...`
+  was rejected rather than overlooked: the formatting check exits 2 to block a reply, and the retry would run it a
+  second time. `sandbox-agent/verify-project.sh` asserted the old literal on all three surfaces and now asserts the
+  resolution on the POSIX halves and `python` on the Windows halves, so the asymmetry is checked rather than assumed.
+  The global install surface carried the same defect and is fixed with it. `sandbox-agent/setup-global.sh` writes its
+  own Claude Code and Codex wirings instead of copying the shipped files, so its eleven POSIX `command` strings now
+  resolve the interpreter and its three `commandWindows` strings stay on `python`. Its Copilot wiring is the shipped
+  `.github/hooks/preflight.json` with the script paths rewritten to absolute, so that one inherited the fix and needed
+  no edit, which is also why `sandbox-agent/verify-global.sh` had already begun disagreeing with what the installer
+  produces. That script pinned `startswith("python -S -E /")` on all three surfaces, folding a POSIX command and its
+  Windows sibling into a single assertion each. It now carries five assertions rather than three: the resolution on
+  Claude Code's one command field, on Codex's `command` and on Copilot's `bash`, and `python` on `commandWindows` and
+  `powershell`. `e2e/testing/6-global-install-shape-test.md` carries the same five filters byte for byte, and the
+  eleven snippets in `docs/GLOBAL_SETUP.md` show the invocation a reader is meant to paste.
+
 ### Removed
 
 - The `finance-billing-ops` skill, which encoded one product's revenue and billing workflow and never belonged in a

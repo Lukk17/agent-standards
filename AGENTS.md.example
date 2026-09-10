@@ -38,7 +38,8 @@ Three more hooks sit beside the gate in [.agents/hooks/](.agents/hooks/) and rid
 formatting check, a markdown lint pass that runs just after a file is edited, and a task-list mirror that writes
 `tasks.md` at the project root so the session plan survives a compaction. That file is per-session working state, so
 put `/tasks.md` in this project's `.gitignore` rather than committing it. Every hook is a Python script, and every
-wiring throws a failed call away, which means the hooks are silently inert without Python 3 on the path.
+wiring throws a failed call away. Each wiring resolves its own interpreter, `python3` first and `python` second,
+which is the name a Windows install provides, so only a machine carrying neither name leaves the hooks inert.
 
 Each agent wires those scripts to its own hook surface:
 
@@ -223,8 +224,9 @@ That form applies to this repository. Adding `--global` sets it for every reposi
 you have not made yet, which is the form to use before cloning rather than after.
 
 Python 3 is the other prerequisite. Every hook in [.agents/hooks/](.agents/hooks/) is a Python script, and every
-wiring discards a failed call so a broken hook can never break a session, so a missing interpreter reads as an allow
-and the gate is wired but disarmed.
+wiring discards a failed call so a broken hook can never break a session. Each POSIX wiring resolves `python3`
+first and falls back to `python`, which is what Windows needs, so only a machine with neither name on its path
+reads as an allow and leaves the gate wired but disarmed.
 
 ---
 

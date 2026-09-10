@@ -29,10 +29,10 @@ them, so there is one copy to keep correct.
   suite. A global install is only proven when the working directory contains none of the per-project files, because
   otherwise there is no way to tell which layer the agent read.
 - Every hook call at user scope names its script by absolute path. Each shipped wiring calls
-  `python -S -E .agents/hooks/<name>.py`, a project-relative path that resolves to nothing in a bare directory, so the
+  `.agents/hooks/<name>.py`, a project-relative path that resolves to nothing in a bare directory, so the
   installer rewrites it and this spec asserts that it did, for the gate and for the task-list mirror both.
 - The user-scope wiring keeps the shape of the project wiring it stands in for: the same event set per agent, the same
-  tool matcher, the same canonical wording, the same trimmed interpreter, and the same forced zero exit that turns a
+  tool matcher, the same canonical wording, the same trimmed interpreter flags, and the same forced zero exit that turns a
   missing or broken hook back into an allow. A global install that drops an event or a zero exit gates less than the
   project install does, which is the exact difference this spec is here to catch.
 - One deliberate difference from the project wiring: `markdown_lint_check.py` is copied and never wired. It shells out
@@ -434,12 +434,13 @@ jq -e '[.hooks.SessionStart[].hooks[].command, .hooks.PreCompact[].hooks[].comma
 
 Expect exit 0.
 
-Every Claude Code hook starts the interpreter the same way the project wiring does. `-S -E` skips site initialisation
-and ignores the `PYTHON*` environment variables, which is safe because every hook is standard library only, and takes
-a slice off an interpreter start the gate pays on every single tool call.
+Every Claude Code hook resolves its own interpreter the same way the project wiring does, `python3` first and
+`python` second, then runs it on `-S -E`. Those flags skip site initialisation and ignore the `PYTHON*` environment
+variables, which is safe because every hook is standard library only, and they take a slice off an interpreter start
+the gate pays on every single tool call.
 
 ```bash
-jq -e '[.hooks[][].hooks[].command | select(contains(".py"))] | length > 0 and all(startswith("python -S -E /"))' "$HOME/.claude/settings.json"
+jq -e '[.hooks[][].hooks[].command | select(contains(".py"))] | length > 0 and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E /"))' "$HOME/.claude/settings.json"
 ```
 
 Expect exit 0.
@@ -506,10 +507,20 @@ jq -e '[.hooks.SessionStart[].hooks[].command] | any(contains("/.agents/hooks/ta
 
 Expect exit 0.
 
-Every Codex hook starts the interpreter the same trimmed way, on the POSIX command and on its Windows sibling both.
+Every Codex POSIX command resolves the interpreter the same way the project wiring does, and still names the script
+by absolute path.
 
 ```bash
-jq -e '[.hooks[][].hooks[] | .command, .commandWindows | select(contains(".py"))] | length > 0 and all(startswith("python -S -E /"))' "$HOME/.codex/hooks.json"
+jq -e '[.hooks[][].hooks[] | (.command // empty) | select(contains(".py"))] | length > 0 and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E /"))' "$HOME/.codex/hooks.json"
+```
+
+Expect exit 0.
+
+Its Windows sibling stays on `python`, which is the only name the python.org installer puts on the path, so this
+spec asserts the asymmetry rather than assuming it.
+
+```bash
+jq -e '[.hooks[][].hooks[] | (.commandWindows // empty) | select(contains(".py"))] | length > 0 and all(startswith("python -S -E /"))' "$HOME/.codex/hooks.json"
 ```
 
 Expect exit 0.
@@ -540,10 +551,20 @@ jq -e '[.hooks.sessionStart[].bash] | any(contains("/.agents/hooks/task_list_syn
 
 Expect exit 0.
 
-Every Copilot hook starts the interpreter the same trimmed way, on the bash field and on the PowerShell one both.
+Every Copilot bash command resolves the interpreter the same way the project wiring does, and still names the
+script by absolute path.
 
 ```bash
-jq -e '[.hooks[][] | .bash, .powershell | select(contains(".py"))] | length > 0 and all(startswith("python -S -E /"))' "$HOME/.copilot/hooks/preflight.json"
+jq -e '[.hooks[][] | (.bash // empty) | select(contains(".py"))] | length > 0 and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E /"))' "$HOME/.copilot/hooks/preflight.json"
+```
+
+Expect exit 0.
+
+Its PowerShell sibling stays on `python`, which is the only name the python.org installer puts on the path, so this
+spec asserts the asymmetry rather than assuming it.
+
+```bash
+jq -e '[.hooks[][] | (.powershell // empty) | select(contains(".py"))] | length > 0 and all(startswith("python -S -E /"))' "$HOME/.copilot/hooks/preflight.json"
 ```
 
 Expect exit 0.

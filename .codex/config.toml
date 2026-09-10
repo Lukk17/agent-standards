@@ -76,7 +76,7 @@ commandWindows = "echo {\"hookSpecificOutput\": {\"hookEventName\": \"UserPrompt
 type = "command"
 statusMessage = "Task list"
 timeout = 10
-command = "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" && python -S -E .agents/hooks/task_list_sync.py --event sessionstart --format codex 2>/dev/null || exit 0"
+command = "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" && PY=$(command -v python3 || command -v python) && \"$PY\" -S -E .agents/hooks/task_list_sync.py --event sessionstart --format codex 2>/dev/null || exit 0"
 commandWindows = "for /f delims^= %r in ('git rev-parse --show-toplevel 2^>nul') do @cd /d %r && python -S -E .agents/hooks/task_list_sync.py --event sessionstart --format codex 2>nul || exit 0"
 
 [[hooks.Stop]]
@@ -85,7 +85,7 @@ commandWindows = "for /f delims^= %r in ('git rev-parse --show-toplevel 2^>nul')
 type = "command"
 statusMessage = "Formatting check"
 timeout = 10
-command = "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" && python -S -E .agents/hooks/no_ai_markers_check.py --format codex 2>/dev/null || exit 0"
+command = "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" && PY=$(command -v python3 || command -v python) && \"$PY\" -S -E .agents/hooks/no_ai_markers_check.py --format codex 2>/dev/null || exit 0"
 commandWindows = "for /f delims^= %r in ('git rev-parse --show-toplevel 2^>nul') do @cd /d %r && python -S -E .agents/hooks/no_ai_markers_check.py --format codex 2>nul || exit 0"
 
 [[hooks.SubagentStart]]
@@ -103,5 +103,5 @@ matcher = "^(Bash|shell|apply_patch|Edit|Write|NotebookEdit)$"
 type = "command"
 statusMessage = "Preflight gate"
 timeout = 10
-command = "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" && python -S -E .agents/hooks/preflight_gate.py --format codex 2>/dev/null || exit 0"
+command = "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" && PY=$(command -v python3 || command -v python) && \"$PY\" -S -E .agents/hooks/preflight_gate.py --format codex 2>/dev/null || exit 0"
 commandWindows = "for /f delims^= %r in ('git rev-parse --show-toplevel 2^>nul') do @cd /d %r && python -S -E .agents/hooks/preflight_gate.py --format codex 2>nul || exit 0"

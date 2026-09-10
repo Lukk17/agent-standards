@@ -387,7 +387,7 @@ claude_settings() {
           {
             "type": "command",
             "timeout": 10,
-            "command": "python -S -E @TASKS@ --event sessionstart --format claude ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E @TASKS@ --event sessionstart --format claude ; exit 0"
           }
         ]
       }
@@ -409,7 +409,7 @@ claude_settings() {
           {
             "type": "command",
             "timeout": 10,
-            "command": "python -S -E @GATE@ --format claude ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E @GATE@ --format claude ; exit 0"
           }
         ]
       }
@@ -420,7 +420,7 @@ claude_settings() {
           {
             "type": "command",
             "timeout": 10,
-            "command": "python -S -E @TASKS@ --event precompact --format claude ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E @TASKS@ --event precompact --format claude ; exit 0"
           }
         ]
       }
@@ -431,7 +431,7 @@ claude_settings() {
           {
             "type": "command",
             "timeout": 10,
-            "command": "python -S -E @TASKS@ --event taskcreated --format claude ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E @TASKS@ --event taskcreated --format claude ; exit 0"
           }
         ]
       }
@@ -442,7 +442,7 @@ claude_settings() {
           {
             "type": "command",
             "timeout": 10,
-            "command": "python -S -E @TASKS@ --event taskcompleted --format claude ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E @TASKS@ --event taskcompleted --format claude ; exit 0"
           }
         ]
       }
@@ -453,12 +453,12 @@ claude_settings() {
           {
             "type": "command",
             "timeout": 10,
-            "command": "python -S -E @MARKERS@ --format claude ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E @MARKERS@ --format claude ; exit 0"
           },
           {
             "type": "command",
             "timeout": 10,
-            "command": "python -S -E @TASKS@ --event stop --format claude ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E @TASKS@ --event stop --format claude ; exit 0"
           }
         ]
       }
@@ -469,7 +469,7 @@ claude_settings() {
           {
             "type": "command",
             "timeout": 10,
-            "command": "python -S -E @MARKERS@ --format claude ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E @MARKERS@ --format claude ; exit 0"
           }
         ]
       }
@@ -514,7 +514,7 @@ codex_hooks() {
             "type": "command",
             "statusMessage": "Task list",
             "timeout": 10,
-            "command": "python -S -E @TASKS@ --event sessionstart --format codex 2>/dev/null || exit 0",
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E @TASKS@ --event sessionstart --format codex 2>/dev/null || exit 0",
             "commandWindows": "python -S -E @TASKS@ --event sessionstart --format codex 2>nul || exit 0"
           }
         ]
@@ -527,7 +527,7 @@ codex_hooks() {
             "type": "command",
             "statusMessage": "Formatting check",
             "timeout": 10,
-            "command": "python -S -E @MARKERS@ --format codex 2>/dev/null || exit 0",
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E @MARKERS@ --format codex 2>/dev/null || exit 0",
             "commandWindows": "python -S -E @MARKERS@ --format codex 2>nul || exit 0"
           }
         ]
@@ -541,7 +541,7 @@ codex_hooks() {
             "type": "command",
             "statusMessage": "Preflight gate",
             "timeout": 10,
-            "command": "python -S -E @GATE@ --format codex 2>/dev/null || exit 0",
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E @GATE@ --format codex 2>/dev/null || exit 0",
             "commandWindows": "python -S -E @GATE@ --format codex 2>nul || exit 0"
           }
         ]

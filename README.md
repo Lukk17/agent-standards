@@ -40,9 +40,11 @@ portable across the supported agents rather than tied to one tool.
 Four things. The first two matter in every project, the last two depend on your platform and on which agents you run.
 
 - Git. The import is a selective checkout from a second remote, so nothing else installs the files.
-- Python 3 on your path. Every hook in [.agents/hooks/](.agents/hooks/) is a Python script, and every wiring throws
-  away a failed call so a broken gate can never break a session. A missing interpreter therefore reads as an allow,
-  which means the gate is silently off rather than loudly broken. Check before you trust it.
+- Python 3 on your path, under either name. Every hook in [.agents/hooks/](.agents/hooks/) is a Python script, and
+  every wiring throws away a failed call so a broken gate can never break a session. Each POSIX wiring resolves
+  `python3` first and falls back to `python`, which is the name the python.org installer puts on a Windows path, so
+  either name is enough. With neither on the path the gate reads as an allow, which means it is silently off
+  rather than loudly broken. Check before you trust it.
 - Windows only: Developer Mode (Settings, System, For developers) plus git told to honour symlinks. Three paths in the
   import are symlinks, and without both git writes each one out as a text file holding its target path.
 - Node, only if you run OpenCode or Kilo Code. Their gate adapter is
@@ -627,7 +629,8 @@ including what each hook surface can actually block, lives in
   `compatibility`) following the open [Agent Skills specification](https://agentskills.io/specification), a
   description written as the phrases that should trigger it, and its depth in a `references/` subdirectory rather
   than in the manifest. Browse the catalogue to see what's available.
-- [.agents/hooks/](.agents/hooks/): four Python scripts, all standard library only, all run as `python -S -E`.
+- [.agents/hooks/](.agents/hooks/): four Python scripts, all standard library only, all run on `-S -E` under
+  whichever of `python3` and `python` the wiring resolves first.
   [.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) is the one shared gate rule every agent surface
   wires into. [.agents/hooks/no_ai_markers_check.py](.agents/hooks/no_ai_markers_check.py) rejects a reply whose prose
   carries a dash, a semicolon, or a bold or italic marker.

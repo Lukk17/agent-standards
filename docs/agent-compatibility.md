@@ -94,8 +94,9 @@ repository-boundary helper can resolve is treated as inside, which denies.
 
 Three more hooks live beside it in [../.agents/hooks/](../.agents/hooks/) and ride the same wirings:
 `no_ai_markers_check.py` checks the reply, `markdown_lint_check.py` lints a file just after it was edited, and
-`task_list_sync.py` mirrors the session task list into `tasks.md`. Every hook is invoked as `python -S -E`, and none
-of them uses `argparse`, because it exits 2 on a usage error and 2 is the deny code in the plain format.
+`task_list_sync.py` mirrors the session task list into `tasks.md`. Every hook is invoked on `-S -E`, under the
+first of `python3` and `python` its wiring resolves, and none of them uses `argparse`, because it exits 2 on a
+usage error and 2 is the deny code in the plain format.
 
 Each agent wires those scripts through its own hook surface, and the surfaces differ in what they can stop.
 

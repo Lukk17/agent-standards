@@ -531,8 +531,8 @@ verify_install_shape() {
     '[[.hooks.Stop[].hooks[].command], [.hooks.SubagentStop[].hooks[].command] | map(select(contains("/.agents/hooks/no_ai_markers_check.py --format claude")))] | all(length == 1)'
   assert_json "Claude Code's user settings mirror the task list on the five events that carry it" ".claude/settings.json" \
     '[.hooks.SessionStart[].hooks[].command, .hooks.PreCompact[].hooks[].command, .hooks.TaskCreated[].hooks[].command, .hooks.TaskCompleted[].hooks[].command, .hooks.Stop[].hooks[].command | select(contains("/.agents/hooks/task_list_sync.py")) | capture("--event (?<event>[a-z]+)").event] | sort == ["precompact", "sessionstart", "stop", "taskcompleted", "taskcreated"]'
-  assert_json "Claude Code's user settings start every hook with the same trimmed interpreter the project wiring uses" ".claude/settings.json" \
-    '[.hooks[][].hooks[].command | select(contains(".py"))] | length > 0 and all(startswith("python -S -E /"))'
+  assert_json "Claude Code's user settings resolve python3 first and fall back to python on every hook, calling the script by absolute path" ".claude/settings.json" \
+    '[.hooks[][].hooks[].command | select(contains(".py"))] | length > 0 and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E /"))'
   assert_json "Codex's user hooks call the gate by absolute path" ".codex/hooks.json" \
     '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.agents/hooks/preflight_gate.py --format codex"))'
   assert_json "Codex's user hooks scope the gate to the tools that can write" ".codex/hooks.json" \
@@ -547,8 +547,10 @@ verify_install_shape() {
     '[.hooks.Stop[].hooks[].command] | any(contains("/.agents/hooks/no_ai_markers_check.py --format codex"))'
   assert_json "Codex's user hooks put the task list back at the start of a session, by absolute path" ".codex/hooks.json" \
     '[.hooks.SessionStart[].hooks[].command] | any(contains("/.agents/hooks/task_list_sync.py --event sessionstart --format codex"))'
-  assert_json "Codex's user hooks start every hook with the same trimmed interpreter the project wiring uses" ".codex/hooks.json" \
-    '[.hooks[][].hooks[] | .command, .commandWindows | select(contains(".py"))] | length > 0 and all(startswith("python -S -E /"))'
+  assert_json "Codex's user hooks resolve python3 first and fall back to python on every POSIX command, calling the script by absolute path" ".codex/hooks.json" \
+    '[.hooks[][].hooks[] | (.command // empty) | select(contains(".py"))] | length > 0 and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E /"))'
+  assert_json "Codex's user hooks leave every Windows command on python, the only name a python.org install puts on the path" ".codex/hooks.json" \
+    '[.hooks[][].hooks[] | (.commandWindows // empty) | select(contains(".py"))] | length > 0 and all(startswith("python -S -E /"))'
   assert_json "Codex's user hooks carry the canonical gate wording on both injecting events, not a shortened copy" ".codex/hooks.json" \
     '[.hooks.UserPromptSubmit[].hooks[].command, .hooks.SubagentStart[].hooks[].command] | length >= 2 and all(contains("Delegate investigation, review and bounded implementation by default."))'
   assert_json "Codex's user hooks give every command a Windows sibling, because Codex picks one per platform" ".codex/hooks.json" \
@@ -557,8 +559,10 @@ verify_install_shape() {
     '[.hooks.preToolUse[].bash] | any(contains("/.agents/hooks/preflight_gate.py --format copilot"))'
   assert_json "Copilot's user hooks put the task list back at the start of a session, by absolute path" ".copilot/hooks/preflight.json" \
     '[.hooks.sessionStart[].bash] | any(contains("/.agents/hooks/task_list_sync.py --event sessionstart --format copilot"))'
-  assert_json "Copilot's user hooks start every hook with the same trimmed interpreter the project wiring uses" ".copilot/hooks/preflight.json" \
-    '[.hooks[][] | .bash, .powershell | select(contains(".py"))] | length > 0 and all(startswith("python -S -E /"))'
+  assert_json "Copilot's user hooks resolve python3 first and fall back to python on every bash command, calling the script by absolute path" ".copilot/hooks/preflight.json" \
+    '[.hooks[][] | (.bash // empty) | select(contains(".py"))] | length > 0 and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E /"))'
+  assert_json "Copilot's user hooks leave every PowerShell command on python, the only name a python.org install puts on the path" ".copilot/hooks/preflight.json" \
+    '[.hooks[][] | (.powershell // empty) | select(contains(".py"))] | length > 0 and all(startswith("python -S -E /"))'
   assert_file_lacks "no project-relative hook call survived the rewrite" \
     ".copilot/hooks/preflight.json" "-E .agents/hooks/"
 

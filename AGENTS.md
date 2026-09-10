@@ -65,8 +65,12 @@ Per-surface details worth knowing before you touch any of them:
   inside a subagent. The same `PreToolUse` payload also carries `agent_type`, the subagent's own name, and that is the
   field Rule B depends on: `agent_id` decides whether a subagent is acting at all, `agent_type` names which definition
   to read the declared skills out of. Codex spells both the same way.
-- Every hook is invoked as `python -S -E`. Both flags are safe because every hook is standard library only, and they
-  take a slice off an interpreter start that the gate pays on every single tool call.
+- Every hook runs on `-S -E`, under an interpreter each wiring resolves for itself: `python3` first, then
+  `python`, which is the name the python.org installer puts on a Windows path and usually the only one it puts
+  there. Debian 11 and Ubuntu 20.04 onward ship no `/usr/bin/python` unless `python-is-python3` is installed, so a
+  wiring that hardcoded either name alone was inert on one platform or the other. Both flags are safe because every
+  hook is standard library only, and they take a slice off an interpreter start that the gate pays on every single
+  tool call.
 - No hook uses `argparse`, which exits 2 on a usage error. Two is the deny code in the plain format, so a stray flag
   would read as a block. Each hook scans `sys.argv` by hand instead and treats an unknown flag as an allow.
 - Only Claude Code has task events, and none of the three agents has a task-updated event, so

@@ -58,7 +58,7 @@ the same CI workflow first, so a release runs the container suite as well.
   and `.github/hooks/preflight.json` if you touch those, and TOML validity for `.codex/config.toml`.
 - Tests for the shared hooks. If you change any of the four scripts in [.agents/hooks/](.agents/hooks/), add or
   update the matching case in [tools/tests/](tools/tests/). CI runs the suite. Keep every hook standard library only,
-  because they run as `python -S -E`, and keep `argparse` out of them, because it exits 2 on a usage error and 2 is
+  because they run on `-S -E`, and keep `argparse` out of them, because it exits 2 on a usage error and 2 is
   the deny code.
 - Dependencies declared once. [tools/pyproject.toml](tools/pyproject.toml) is the only file where a dependency or
   a version is written by hand, and no lock file sits beside it. Every version is an exact pin: the runtime ones

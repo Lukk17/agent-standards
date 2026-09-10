@@ -10,7 +10,7 @@
       {
         "type": "command",
         "cwd": ".",
-        "bash": "python -S -E .agents/hooks/task_list_sync.py --event sessionstart --format copilot 2>/dev/null || exit 0",
+        "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E .agents/hooks/task_list_sync.py --event sessionstart --format copilot 2>/dev/null || exit 0",
         "powershell": "python -S -E .agents/hooks/task_list_sync.py --event sessionstart --format copilot 2>$null; exit 0"
       }
     ],
@@ -26,7 +26,7 @@
         "type": "command",
         "matcher": "bash|powershell|create|edit",
         "cwd": ".",
-        "bash": "python -S -E .agents/hooks/preflight_gate.py --format copilot 2>/dev/null || exit 0",
+        "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E .agents/hooks/preflight_gate.py --format copilot 2>/dev/null || exit 0",
         "powershell": "python -S -E .agents/hooks/preflight_gate.py --format copilot 2>$null; exit 0"
       }
     ]
