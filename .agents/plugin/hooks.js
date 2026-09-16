@@ -164,7 +164,8 @@ export const Preflight = async ({ directory, worktree, client } = {}) => {
       // trip for the assistant text out of a project that checked out no hooks.
       if (hooks.length === 0) return
 
-      const agent = typeof input?.agent === "string" ? input.agent : ""
+     // will allow even main thread - currently no way to recognize subagents in kilo or opencode
+      const agent = typeof input?.sessionID === "string" && input.sessionID ? input.sessionID : (typeof input?.agent === "string" ? input.agent : "")
 
       const envelope = JSON.stringify({
         contract: CONTRACT,
