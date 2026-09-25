@@ -88,7 +88,7 @@ readonly CALLS_FILTER='
   | {id: (.call_id // ""), actor: $actor,
      tool: (if ($inner | length) > 0 then $inner[] else (.name // .type) end),
      input: $input, result: $result,
-     error: ($result | test("PREFLIGHT: |Script failed|\"exit_code\": ?[1-9]|Exit code: [1-9]"))}'
+     error: ($result | test("PREFLIGHT: |Script failed|^unsupported call: |\"exit_code\": ?[1-9]|Exit code: [1-9]"))}'
 
 # A forked subagent rollout replays the parent history with the same call ids,
 # so a call recorded in more than one rollout keeps its main-thread record.

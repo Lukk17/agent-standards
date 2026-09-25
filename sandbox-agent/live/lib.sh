@@ -425,17 +425,20 @@ test_gate_blocks_main_thread() {
 
 test_subagent_writes_file() {
   local name="2 a named subagent writes the file" dir="${CASES}/2-subagent"
-  local spawns sub_writes main_writes context
+  local spawn_attempts spawns sub_writes main_writes context
 
   run_case "2-subagent" "Delegate this task to the ${SUBAGENT_NAME} subagent: create the file ${SUB_PROBE} containing the single line: written by subagent. Do not write the file yourself. Stop once the subagent has reported back."
 
-  spawns="$(count_calls "$dir" main "$SPAWN_TOOL_RE" "$SUBAGENT_NAME")"
+  spawn_attempts="$(count_calls "$dir" main "$SPAWN_TOOL_RE" "$SUBAGENT_NAME")"
+  spawns="$(count_calls "$dir" main "$SPAWN_TOOL_RE" "$SUBAGENT_NAME" 1)"
   sub_writes="$(count_calls "$dir" subagent "$WRITE_TOOL_RE" "subagent-note.md" 1)"
   main_writes="$(count_calls "$dir" main "$WRITE_TOOL_RE" "subagent-note.md" 1)"
   context="$(agent_subagent_context "$dir" 2>/dev/null || true)"
 
-  if [[ "$spawns" -eq 0 ]]; then
+  if [[ "$spawn_attempts" -eq 0 ]]; then
     record "$name" INCONCLUSIVE "the model never started the ${SUBAGENT_NAME} subagent"
+  elif [[ "$spawns" -eq 0 ]]; then
+    record "$name" FAIL "the agent rejected all ${spawn_attempts} call(s) to start ${SUBAGENT_NAME}, so the subagent never ran"
   elif [[ ! -f "${PROJECT}/${SUB_PROBE}" ]]; then
     record "$name" FAIL "${SUBAGENT_NAME} was started but ${SUB_PROBE} does not exist"
   elif [[ "$context" != *"$SUBAGENT_TEXT_MARKER"* ]]; then

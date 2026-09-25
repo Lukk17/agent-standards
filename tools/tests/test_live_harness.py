@@ -166,7 +166,99 @@ def test_a_subagent_without_the_subagent_text_fails(tmp_path):
     assert "PREFLIGHT for a subagent:" in verdict
 
 
-SETUP_STUB = """#!/nonexistent/not-an-interpreter
+JQ = shutil.which("jq")
+needs_jq = pytest.mark.skipif(JQ is None, reason="jq is not installed")
+CODEX_ADAPTER = REPO_ROOT / "sandbox-agent" / "live" / "codex.sh"
+
+
+def judge_test_two_from_calls(work: Path, calls: list[dict]) -> str:
+    """Run test_subagent_writes_file over recorded calls with the real count_calls, the probe file absent."""
+    cases = work / "cases"
+    (cases / "2-subagent").mkdir(parents=True)
+    (work / "project").mkdir()
+    lines = "".join(json.dumps(call) + "\n" for call in calls)
+    (cases / "2-subagent" / "calls.ndjson").write_text(lines, encoding="utf-8", newline="\n")
+
+    script = (
+        f"source '{LIB.as_posix()}'; "
+        f"AGENT_LABEL=test; CASES='{cases.as_posix()}'; PROJECT='{(work / 'project').as_posix()}'; "
+        "SPAWN_TOOL_RE='^spawn_agent$'; WRITE_TOOL_RE='^write$'; "
+        "run_case() { :; }; agent_subagent_context() { :; }; "
+        "record() { printf '%s|%s' \"$2\" \"$3\"; }; "
+        "test_subagent_writes_file"
+    )
+    result = run_bounded([BASH, "-c", script], capture_output=True, text=True)
+
+    assert result.returncode == 0, result.stderr
+
+    return result.stdout
+
+
+def spawn_call(result: str, error: bool) -> dict:
+    return {"actor": "main", "tool": "spawn_agent", "input": '{"agent_type":"docs-architect"}', "result": result, "error": error}
+
+
+@needs_jq
+def test_a_spawn_the_agent_rejected_is_reported_as_never_started(tmp_path):
+    # Given every spawn call returned an error, as Codex's did in CI run 36155485254
+    calls = [spawn_call("unsupported call: spawn_agent", True)] * 6
+
+    # When
+    verdict = judge_test_two_from_calls(tmp_path, calls)
+
+    # Then
+    assert verdict.startswith("FAIL|")
+    assert "6 call(s) to start docs-architect" in verdict
+    assert "was started" not in verdict
+
+
+@needs_jq
+def test_a_spawn_that_succeeded_without_the_file_is_still_reported_as_started(tmp_path):
+    # Given
+    calls = [spawn_call('{"agent_id":"a1"}', False)]
+
+    # When
+    verdict = judge_test_two_from_calls(tmp_path, calls)
+
+    # Then
+    assert verdict.startswith("FAIL|")
+    assert "docs-architect was started" in verdict
+
+
+def codex_calls_filter() -> str:
+    adapter = CODEX_ADAPTER.read_text(encoding="utf-8")
+    match = re.search(r"^readonly CALLS_FILTER='(.*?)'$", adapter, re.MULTILINE | re.DOTALL)
+
+    assert match is not None
+
+    return match.group(1)
+
+
+@needs_jq
+def test_the_codex_parser_marks_an_unsupported_call_as_an_error(tmp_path):
+    # Given the rollout lines Codex 0.150.1 wrote for a spawn_agent call that lost its tool namespace
+    rollout = tmp_path / "rollout.jsonl"
+    lines = [
+        {"type": "session_meta", "payload": {"source": "exec"}},
+        {"type": "response_item", "payload": {"type": "function_call", "name": "spawn_agent", "call_id": "c1", "arguments": '{"agent_type":"docs-architect"}'}},
+        {"type": "response_item", "payload": {"type": "function_call_output", "call_id": "c1", "output": "unsupported call: spawn_agent"}},
+    ]
+    rollout.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8", newline="\n")
+
+    # When
+    result = run_bounded(
+        [JQ, "-R", "-s", "-c", f'[split("\\n")[] | fromjson?] | {codex_calls_filter()}', str(rollout)],
+        capture_output=True,
+        text=True,
+    )
+
+    # Then
+    assert result.returncode == 0, result.stderr
+    records = [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
+    assert [(record["tool"], record["error"]) for record in records] == [("spawn_agent", True)]
+
+
+SETUP_STUB ="""#!/nonexistent/not-an-interpreter
 set -euo pipefail
 git init --quiet "$SANDBOX_PROJECT"
 git -C "$SANDBOX_PROJECT" config user.name stub

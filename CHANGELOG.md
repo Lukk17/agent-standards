@@ -293,6 +293,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- The Codex live test reports a rejected `spawn_agent` call, one Codex answers with `unsupported call`, as the
+  subagent never starting. It used to count that call as a started subagent.
 - The preflight gate treats a `claude`-format call made by the GitHub Copilot CLI, recognised by `COPILOT_CLI` in the
   hook environment, as an unknown caller. The CLI runs the `.claude/settings.json` hooks with no `agent_id`, so every
   write a Copilot subagent made was denied as a main-thread write. `AGENTS.md` no longer claims that wiring is inert
