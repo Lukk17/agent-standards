@@ -81,3 +81,4 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 - `security-review`
 - `architecture-decision-records`
 - `coding-standards`
+- `research`

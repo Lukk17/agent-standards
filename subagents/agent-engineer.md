@@ -13,6 +13,7 @@ skills:
   - security-review
   - architecture-decision-records
   - coding-standards
+  - research
 ---
 
 You own the layer the other agents run on. A skill nobody loads, a subagent whose tools contradict its description, a
