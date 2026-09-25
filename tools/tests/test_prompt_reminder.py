@@ -78,6 +78,61 @@ def test_prompt_already_carrying_the_reminder_is_left_unchanged():
     assert result.stdout == b""
 
 
+# Recorded by Copilot CLI 1.0.81 in live run 36176881215, test 2: the prompt that
+# opened the docs-architect subagent's session. The CLI prepended the subagentStart
+# text to the task prompt, which the main thread had also opened with it.
+RECORDED_SUBAGENT_TEXT = (
+    "PREFLIGHT for a subagent: you are a subagent, and the main thread delegated this task to you. Do the work "
+    "yourself with your own tools and load the skills your definition names. The rules that the main thread must "
+    "delegate and may not write files apply to the main thread only, so do not hand this task on and do not refuse "
+    "it for that reason. The preflight gate still checks every tool call you make. Report back what you changed "
+    "and how you verified it."
+)
+RECORDED_SUBAGENT_TASK = (
+    "Create `live-probe/subagent-note.md` in the repository with exactly one line of content: `written by "
+    "subagent`. Do not add any other content. You own the write and should make it yourself. Report once the file "
+    "is created."
+)
+
+
+def recorded_subagent_prompt() -> bytes:
+    prompt = f"{RECORDED_SUBAGENT_TEXT}\n\n{RECORDED_SUBAGENT_TEXT}\n\n{RECORDED_SUBAGENT_TASK}"
+    body = {
+        "sessionId": "1112aa66-72ed-419e-81db-17efb6c06726",
+        "prompt": prompt,
+        "transformedPrompt": f"<current_datetime>2026-09-25T19:02:08.746+00:00</current_datetime>\n\n{prompt}",
+        "timestamp": 1790362928747,
+        "cwd": "/home/runner/work/_temp/live-copilot/project",
+    }
+
+    return json.dumps(body).encode("utf-8")
+
+
+def test_a_prompt_that_opens_a_subagent_session_gets_no_reminder():
+    # Given the recorded opening prompt of a Copilot subagent session
+    stdin = recorded_subagent_prompt()
+
+    # When
+    result = run(stdin)
+
+    # Then the subagent is not told to delegate its own task
+    assert result.returncode == 0
+    assert result.stdout == b""
+
+
+def test_the_recorded_subagent_text_is_the_canonical_one():
+    hook = _load_module("prompt_reminder_opening", PROMPT_REMINDER_HOOK)
+
+    assert RECORDED_SUBAGENT_TEXT == canonical_subagent_reminder()
+    assert canonical_subagent_reminder().startswith(hook.SUBAGENT_OPENING)
+
+
+def test_a_main_thread_prompt_that_mentions_the_subagent_text_still_gets_the_reminder():
+    result = run(payload(f"Delegate this and pass on: {RECORDED_SUBAGENT_TEXT}"))
+
+    assert json.loads(result.stdout)["modifiedTransformedPrompt"].endswith(REMINDER)
+
+
 @pytest.mark.parametrize(
     "stdin",
     [

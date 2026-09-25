@@ -10,6 +10,12 @@ It lives in a subdirectory of .agents/hooks/ because the OpenCode and Kilo Code
 runner discovers only the files sitting directly in that directory, so this
 Copilot-only helper never costs their tool calls an interpreter start.
 
+Copilot also fires the event for the prompt that opens a subagent's session,
+and the payload names no agent. The CLI puts the subagentStart text at the
+start of that prompt, so a prompt opening with it gets no reminder: the
+reminder tells its reader to delegate, and a subagent told that turns its own
+task away.
+
 Every failure path prints nothing and exits 0, which Copilot reads as no
 output and passes the prompt through unchanged.
 """
@@ -44,6 +50,9 @@ REMINDER = "\n".join(
 )
 
 
+SUBAGENT_OPENING = "PREFLIGHT for a subagent:"
+
+
 def with_reminder(transformed_prompt: str) -> Optional[str]:
     if transformed_prompt.rstrip().endswith(REMINDER):
         return None
@@ -51,11 +60,15 @@ def with_reminder(transformed_prompt: str) -> Optional[str]:
     return f"{transformed_prompt}\n{REMINDER}"
 
 
+def opens_a_subagent(prompt: object) -> bool:
+    return isinstance(prompt, str) and prompt.startswith(SUBAGENT_OPENING)
+
+
 def main() -> None:
     try:
         payload = json.loads(sys.stdin.buffer.read().decode("utf-8"))
         transformed_prompt = payload["transformedPrompt"]
-        if not isinstance(transformed_prompt, str):
+        if not isinstance(transformed_prompt, str) or opens_a_subagent(payload.get("prompt")):
             return
 
         modified = with_reminder(transformed_prompt)

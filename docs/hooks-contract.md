@@ -290,7 +290,11 @@ subagent, so the reminder is not expected to reach a Claude Code subagent. That 
 and not measured. Codex does run `UserPromptSubmit` for the message that starts a subagent: live run 36163866070
 recorded the reminder in a docs-architect rollout, right after the subagent text. Its payload carries `agent_id` only
 inside a subagent, per the input schema Codex 0.150.1 embeds, so the Codex reminder command prints nothing when the
-payload holds an `"agent_id"` key.
+payload holds an `"agent_id"` key. Copilot runs `userPromptTransformed` for the prompt that opens a subagent's session
+too, and live run 36176881215 recorded the reminder appended to two of them. That payload carries only the subagent's
+own `sessionId`, but Copilot CLI 1.0.81 puts the `subagentStart` text at the start of the subagent's `prompt`, so
+`prompt_reminder.py` prints nothing for a prompt that opens with `PREFLIGHT for a subagent:`. A later prompt in the same
+subagent session, such as a formatting block reason, carries neither marker nor agent id and still gets the reminder.
 
 The markdown lint is the only hook wired to a post-tool event, and it is also the only one gated behind a single
 format rather than run on the runner surface. `markdown_lint_check.py` returns 0 before it even reads standard input

@@ -320,6 +320,9 @@ All notable changes to this project are documented here. The format follows
 - The preflight gate reads the patch a shell `apply_patch` command carries, from a heredoc, a pipe or its argument, and
   denies a main-thread write it names. Codex runs `apply_patch <<'PATCH'` from `exec_command` as a file change, and
   live run 36163866070 wrote `live-probe/main-thread.txt` that way past the gate.
+- The Copilot `userPromptTransformed` reminder prints nothing for a prompt that opens with the subagent text, which
+  Copilot puts at the start of a subagent's first prompt. In live run 36176881215 both subagent sessions were told
+  to delegate their own task.
 - The Codex `UserPromptSubmit` reminder prints nothing when the payload carries `agent_id`. Codex fires that event
   for a subagent's opening message too, so a subagent was told to delegate its own task.
 - The gate treats a `COPILOT_CLI` call as an unknown caller only when the payload has no `transcript_path`, so Claude
