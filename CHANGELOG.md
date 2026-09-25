@@ -298,6 +298,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- The formatting check skips a Copilot `agentStop` whose `sessionId` does not name the session log it points at. A
+  subagent's agentStop carries its own id with the main session's log and fires before its final reply is written
+  there, so in live run 36168529868 the check blocked the docs-architect subagent over a semicolon in its first
+  message rather than its last.
 - Every GitHub Copilot subagent that may write or edit now lists `apply_patch`, and the Copilot gate matcher names it.
   Copilot gives a GPT model `apply_patch` as its only file tool, and neither `create` nor `edit` grants it, so in live
   run 36168529868 the docs-architect subagent reached gpt-6-luna with only `view` and `bash`, under a system prompt

@@ -1360,6 +1360,59 @@ def test_copilot_agent_stop_fails_open_on_an_unreadable_transcript(tmp_path, lin
     assert run_copilot({"transcriptPath": str(tmp_path / "missing.jsonl")}) == (0, "")
 
 
+# Recorded by Copilot CLI 1.0.81 in live run 36168529868, test 2. The subagent's
+# agentStop fired before its final reply reached the session log, so the newest
+# prose in the log was the subagent's first message, which the hook then judged.
+COPILOT_MAIN_SESSION = "60ba3979-2a9c-43a4-8db6-de3b93e440d6"
+COPILOT_SUBAGENT_SESSION = "2ca19017-d867-4e4a-baa0-6555b9bf0207"
+COPILOT_STALE_SUBAGENT_PROSE = (
+    "Preflight: `markdown-writer` is the applicable skill for this documentation task; no subagent is "
+    "applicable because I am the delegated owner and this is a single bounded file operation."
+)
+
+
+def copilot_session_log(tmp_path, *events):
+    log_dir = tmp_path / "session-state" / COPILOT_MAIN_SESSION
+    log_dir.mkdir(parents=True)
+
+    return copilot_events(log_dir, *events)
+
+
+def copilot_agent_stop(path, session):
+    return {
+        "sessionId": session,
+        "transcriptPath": str(path),
+        "stopReason": "end_turn",
+        "stop_hook_active": False,
+        "timestamp": 1790358173796,
+    }
+
+
+def test_a_copilot_subagent_stop_does_not_judge_an_older_message_from_the_session_log(tmp_path):
+    # Given the session log as it stood when the docs-architect subagent's agentStop fired
+    path = copilot_session_log(
+        tmp_path,
+        {"type": "user.message", "data": {"content": "Delegate this task to the docs-architect subagent."}},
+        copilot_message(COPILOT_STALE_SUBAGENT_PROSE, tools=[{"name": "bash"}]),
+        copilot_message("", tools=[{"name": "view"}, {"name": "view"}]),
+    )
+
+    # When the hook receives the subagent's own session id with the main session's log
+    result = run_copilot(copilot_agent_stop(path, COPILOT_SUBAGENT_SESSION))
+
+    # Then it stays silent, because the reply it would judge is not this subagent's last one
+    assert result == (0, "")
+
+
+def test_a_copilot_main_thread_stop_still_judges_its_own_session_log(tmp_path):
+    path = copilot_session_log(tmp_path, copilot_message(COPILOT_STALE_SUBAGENT_PROSE))
+
+    code, out = run_copilot(copilot_agent_stop(path, COPILOT_MAIN_SESSION))
+
+    assert code == 0
+    assert json.loads(out)["decision"] == "block"
+
+
 def test_a_global_copilot_copy_stays_silent_where_the_project_wires_agent_stop(tmp_path):
     command = "python .agents/hooks/no_ai_markers_check.py --format copilot"
     wiring = {"version": 1, "hooks": {"agentStop": [{"type": "command", "bash": command}]}}

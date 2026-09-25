@@ -556,7 +556,7 @@ def _transcript_text(payload: dict[str, object]) -> str:
 
         path = Path(value)
 
-        if not path.is_file():
+        if not path.is_file() or _names_another_session(payload, key, path):
             continue
 
         text = _last_assistant_text(
@@ -567,6 +567,19 @@ def _transcript_text(payload: dict[str, object]) -> str:
             return text
 
     return ""
+
+
+def _names_another_session(payload: dict[str, object], key: str, path: Path) -> bool:
+    """Whether a Copilot agentStop names a session log that is not its own.
+
+    The CLI keeps one log per session in a directory named after the session
+    id. A subagent's agentStop carries the subagent's own id with the main
+    session's log, and fires before the subagent's final reply is written
+    there, so the newest prose in that log belongs to an earlier message.
+    """
+    session = payload.get("sessionId")
+
+    return key == "transcriptPath" and isinstance(session, str) and bool(session) and path.parent.name != session
 
 
 def _project_dir(payload: dict[str, object], fmt: str) -> Path | None:
