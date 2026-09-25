@@ -376,7 +376,8 @@ Per-surface details worth knowing before you touch any of them:
   thread from a subagent (see Maintenance follow-ups). That expectation is `GATE_KNOWN_GAP=1` in
   [sandbox-agent/live/copilot.sh](sandbox-agent/live/copilot.sh). Remove that expectation, by setting it to `0` as
   every other agent script does, in the same change that removes the matching Maintenance follow-up, once the payload
-  carries an agent identifier.
+  carries an agent identifier. Test 2 also reports `KNOWN-GAP` on Copilot when the CLI's own subagent prompt forbade
+  the write and the subagent never tried it, for the reason the Maintenance follow-ups record.
 - The live projects load one MCP server, `context7`, and no other. All eight put about 34,500 tokens of tool
   descriptions into every request, and Copilot's subagent test alone used 206,000 tokens, above the OpenAI key's
   200,000 tokens per minute. `context7` stays because its two tools have the smallest descriptions of the set, it
@@ -669,6 +670,15 @@ should look like.
   Recheck the hooks reference for an agent identifier and pass it through with `--subagent` when one lands, and in
   the same change set `GATE_KNOWN_GAP=0` in [sandbox-agent/live/copilot.sh](sandbox-agent/live/copilot.sh) so live
   test 1 has to pass there.
+- **The Copilot CLI tells every custom subagent not to write files.** Copilot CLI 1.0.81 appends its own block to a
+  custom subagent's system prompt, from its native runtime and not from any file here: `**CRITICAL: Do NOT write
+  output to files.**`, ending with "Your ONLY output channel is your response text". The main thread gets no such
+  block. Measured against a local stub provider, the CLI does offer docs-architect `view`, `apply_patch` and `bash`,
+  so the tool is there and the instruction is what stops it. In live run 36176881215 the subagent made no tool call
+  and reported that it could not create the file, and run 36168529868 ended the same way. Live test 2 therefore
+  reports `KNOWN-GAP` on Copilot when the case records that block and the subagent never tried to write, through
+  `SUBAGENT_NO_WRITE_MARKER` in [sandbox-agent/live/copilot.sh](sandbox-agent/live/copilot.sh). Recheck each Copilot
+  CLI release for the block, and remove that marker in the same change that sees it gone, so test 2 has to pass.
 - **Codex now runs the formatting check, and the markdown lint has nowhere to go there.** `.codex/config.toml` wires
   `no_ai_markers_check.py` on `Stop`, so Codex is no longer a surface where the reply goes unchecked. Whether Codex's
   `Stop` can actually reject a reply the way Claude Code's can is not verified, so nothing in the docs claims it: they

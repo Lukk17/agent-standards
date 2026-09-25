@@ -26,6 +26,7 @@ readonly WRITE_TOOL_RE='^(create|edit|write|str_replace_editor|apply_patch|bash|
 readonly SPAWN_TOOL_RE='^task$'
 readonly SKILL_TOOL_RE='^skill$'
 readonly GATE_KNOWN_GAP=1
+readonly SUBAGENT_NO_WRITE_MARKER='CRITICAL: Do NOT write output to files'
 readonly PROMPT_TOKENS=128000
 readonly OUTPUT_TOKENS=8192
 

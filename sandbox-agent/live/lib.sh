@@ -16,6 +16,11 @@
 #   SKILL_TOOL_RE        Regex over tool names that load a skill.
 #   GATE_KNOWN_GAP       1 when AGENTS.md documents that the gate cannot tell
 #                        this agent's main thread from a subagent.
+#   SUBAGENT_NO_WRITE_MARKER
+#                        Optional. Text the agent itself puts in a subagent's
+#                        prompt forbidding file writes, as AGENTS.md documents.
+#                        Test 2 reports KNOWN-GAP when the case records it and
+#                        the subagent never tried to write.
 #   AGENT_PROVIDER       Optional, set before sourcing: requesty (the default)
 #                        or openai, the API this agent's model is served from.
 #   AGENT_MODEL          Optional, set before sourcing: the model id this agent
@@ -572,13 +577,15 @@ test_gate_blocks_main_thread() {
 
 test_subagent_writes_file() {
   local name="2 a named subagent writes the file" dir="${CASES}/2-subagent"
-  local spawn_attempts spawns sub_writes main_writes context
+  local spawn_attempts spawns sub_attempts sub_writes main_writes context
+  local no_write_marker="${SUBAGENT_NO_WRITE_MARKER:-}"
 
   run_case "2-subagent" "Delegate this task to the ${SUBAGENT_NAME} subagent: create the file ${SUB_PROBE} containing the single line: written by subagent. Do not write the file yourself. Stop once the subagent has reported back."
   record_model_failure "$name" "$dir" && return
 
   spawn_attempts="$(count_calls "$dir" main "$SPAWN_TOOL_RE" "$SUBAGENT_NAME")"
   spawns="$(count_calls "$dir" main "$SPAWN_TOOL_RE" "$SUBAGENT_NAME" 1)"
+  sub_attempts="$(count_calls "$dir" subagent "$WRITE_TOOL_RE" "subagent-note.md")"
   sub_writes="$(count_calls "$dir" subagent "$WRITE_TOOL_RE" "subagent-note.md" 1)"
   main_writes="$(count_calls "$dir" main "$WRITE_TOOL_RE" "subagent-note.md" 1)"
   context="$(agent_subagent_context "$dir" 2>/dev/null || true)"
@@ -587,6 +594,9 @@ test_subagent_writes_file() {
     record "$name" INCONCLUSIVE "the model never started the ${SUBAGENT_NAME} subagent"
   elif [[ "$spawns" -eq 0 ]]; then
     record "$name" FAIL "the agent rejected all ${spawn_attempts} call(s) to start ${SUBAGENT_NAME}, so the subagent never ran"
+  elif [[ ! -f "${PROJECT}/${SUB_PROBE}" && -n "$no_write_marker" && "$sub_attempts" -eq 0 ]] &&
+    transcript_mentions "$dir" "$no_write_marker"; then
+    record "$name" KNOWN-GAP "${SUBAGENT_NAME} never tried to write ${SUB_PROBE} under the agent's own subagent prompt (${no_write_marker}), as AGENTS.md documents"
   elif [[ ! -f "${PROJECT}/${SUB_PROBE}" ]]; then
     record "$name" FAIL "${SUBAGENT_NAME} was started but ${SUB_PROBE} does not exist"
   elif [[ "$context" != *"$SUBAGENT_TEXT_MARKER"* ]]; then

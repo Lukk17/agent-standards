@@ -191,18 +191,21 @@ needs_jq = pytest.mark.skipif(JQ is None, reason="jq is not installed")
 CODEX_ADAPTER = REPO_ROOT / "sandbox-agent" / "live" / "codex.sh"
 
 
-def judge_test_two_from_calls(work: Path, calls: list[dict]) -> str:
+def judge_test_two_from_calls(work: Path, calls: list[dict], setup: str = "", transcript: str | None = None) -> str:
     """Run test_subagent_writes_file over recorded calls with the real count_calls, the probe file absent."""
     cases = work / "cases"
     (cases / "2-subagent").mkdir(parents=True)
     (work / "project").mkdir()
     lines = "".join(json.dumps(call) + "\n" for call in calls)
     (cases / "2-subagent" / "calls.ndjson").write_text(lines, encoding="utf-8", newline="\n")
+    if transcript is not None:
+        (cases / "2-subagent" / "transcripts").mkdir()
+        (cases / "2-subagent" / "transcripts" / "session-events.jsonl").write_text(transcript, encoding="utf-8", newline="\n")
 
     script = (
         f"source '{LIB.as_posix()}'; "
         f"AGENT_LABEL=test; CASES='{cases.as_posix()}'; PROJECT='{(work / 'project').as_posix()}'; "
-        "SPAWN_TOOL_RE='^spawn_agent$'; WRITE_TOOL_RE='^write$'; "
+        f"SPAWN_TOOL_RE='^spawn_agent$'; WRITE_TOOL_RE='^write$'; {setup}"
         "run_case() { :; }; agent_subagent_context() { :; }; "
         "record() { printf '%s|%s' \"$2\" \"$3\"; }; "
         "test_subagent_writes_file"
@@ -243,6 +246,75 @@ def test_a_spawn_that_succeeded_without_the_file_is_still_reported_as_started(tm
     # Then
     assert verdict.startswith("FAIL|")
     assert "docs-architect was started" in verdict
+
+
+# Recorded by Copilot CLI 1.0.81 in live run 36176881215, test 2. The CLI appended
+# this block to the docs-architect subagent's system prompt, the subagent was
+# offered apply_patch, made no tool call and reported the file as not created.
+COPILOT_SUBAGENT_PROMPT_TAIL = (
+    "**CRITICAL: Do NOT write output to files.**\n"
+    "- Return ALL findings directly in your response text \u2014 never write results to a file\n"
+    "- Your ONLY output channel is your response text \u2014 this is a hard requirement, not a suggestion"
+)
+COPILOT_SUBAGENT_SYSTEM_EVENT = {"type": "system.message", "data": {"role": "system", "content": COPILOT_SUBAGENT_PROMPT_TAIL}}
+COPILOT_TASK_CALL = {
+    "actor": "main",
+    "tool": "task",
+    "input": '{"description":"Create requested note","agent_type":"docs-architect","name":"docs-architect","mode":"sync"}',
+    "result": 'Correction: "Skills/subagents: None apply. This is a one-line file creation task, with no separate investigation or review needed."',
+    "error": False,
+}
+COPILOT_TEST_TWO = (
+    "SPAWN_TOOL_RE='^task$'; WRITE_TOOL_RE='^(create|edit|apply_patch|bash)$'; "
+    "SUBAGENT_NO_WRITE_MARKER='CRITICAL: Do NOT write output to files'; "
+)
+
+
+@needs_jq
+def test_a_subagent_the_cli_told_not_to_write_is_a_known_gap(tmp_path):
+    # Given the recorded test 2 case: the subagent started, never tried to write, under the CLI's no-write block
+    transcript = json.dumps(COPILOT_SUBAGENT_SYSTEM_EVENT) + "\n"
+
+    # When
+    verdict = judge_test_two_from_calls(tmp_path, [COPILOT_TASK_CALL], COPILOT_TEST_TWO, transcript)
+
+    # Then
+    assert verdict.startswith("KNOWN-GAP|")
+    assert "Do NOT write output to files" in verdict
+
+
+@needs_jq
+def test_a_subagent_write_that_failed_is_still_a_failure_under_the_no_write_block(tmp_path):
+    # Given the same case, but the subagent did try apply_patch and the call failed
+    transcript = json.dumps(COPILOT_SUBAGENT_SYSTEM_EVENT) + "\n"
+    failed_write = {"actor": "subagent", "tool": "apply_patch", "input": "*** Add File: live-probe/subagent-note.md", "result": "denied", "error": True}
+
+    # When
+    verdict = judge_test_two_from_calls(tmp_path, [COPILOT_TASK_CALL, failed_write], COPILOT_TEST_TWO, transcript)
+
+    # Then
+    assert verdict.startswith("FAIL|")
+
+
+@needs_jq
+def test_a_missing_file_without_the_no_write_block_is_still_a_failure(tmp_path):
+    # Given the recorded calls but a transcript that never carried the CLI's no-write block
+    transcript = json.dumps({"type": "system.message", "data": {"content": "You write the documentation."}}) + "\n"
+
+    # When
+    verdict = judge_test_two_from_calls(tmp_path, [COPILOT_TASK_CALL], COPILOT_TEST_TWO, transcript)
+
+    # Then
+    assert verdict.startswith("FAIL|")
+    assert "docs-architect was started" in verdict
+
+
+def test_the_copilot_adapter_names_the_no_write_block_the_cli_recorded():
+    adapter = COPILOT_ADAPTER.read_text(encoding="utf-8")
+    match = re.search(r"^readonly SUBAGENT_NO_WRITE_MARKER='([^']+)'$", adapter, re.MULTILINE)
+
+    assert match is not None
+    assert match.group(1) in COPILOT_SUBAGENT_PROMPT_TAIL
 
 
 def codex_calls_filter() -> str:

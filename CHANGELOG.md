@@ -303,6 +303,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Live test 2 reports `KNOWN-GAP` on GitHub Copilot, not `FAIL`, when the subagent never tried to write under the
+  `CRITICAL: Do NOT write output to files` block that Copilot CLI 1.0.81 appends to every custom subagent's system
+  prompt. In live run 36176881215 docs-architect was offered `apply_patch` and still made no tool call. A write the
+  subagent tried and lost stays a `FAIL`.
 - The formatting check asks a blocked subagent for its whole report again rather than for `Correction:` lines. A
   subagent's next reply replaces the report its caller receives, so in live run 36176881215 Copilot handed the main
   thread only the corrected sentence and dropped the docs-architect's statement that it had not created the file.

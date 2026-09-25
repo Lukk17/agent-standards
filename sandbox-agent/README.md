@@ -79,8 +79,14 @@ Three verdicts are possible besides a pass:
   own model request so the model never ran. It fails the job.
 - `INCONCLUSIVE` means the model never attempted the tool call the test needs, so nothing was proven either way. It
   raises a warning and does not fail the job.
-- `KNOWN-GAP` appears only for test 1 on GitHub Copilot. Its payload carries no agent identifier, so the gate cannot
-  tell the main thread from a subagent, as the Maintenance follow-ups in AGENTS.md already record.
+- `KNOWN-GAP` appears only on GitHub Copilot, and for two tests. Test 1: its payload carries no agent identifier, so
+  the gate cannot tell the main thread from a subagent, as the Maintenance follow-ups in AGENTS.md already record.
+  Test 2: Copilot CLI 1.0.81 ends every custom subagent's system prompt with its own block,
+  `**CRITICAL: Do NOT write output to files.**`, which tells the subagent that its response text is its only output
+  channel. In live run 36176881215 docs-architect was offered `apply_patch`, made no tool call, and reported that it
+  could not create the file. The verdict is `KNOWN-GAP` only when the case records that block and the subagent never
+  tried to write. A write the subagent attempted and lost, or a missing file without that block, is still a `FAIL`.
+  It does not fail the job.
 
 #### One MCP server in the live runs
 
