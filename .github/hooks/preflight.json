@@ -4,8 +4,8 @@
     "sessionStart": [
       {
         "type": "command",
-        "bash": "echo '{\"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.\"}'",
-        "powershell": "echo '{\"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.\"}'"
+        "bash": "printf '%s\\n' '{\"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default. Follow the user-communication skill when writing to the user. If the prompt asks anything, answer every question first, then start the work. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:\\n\\nRunning: `running task name` (or: nothing)\\n\\n~~DONE: older finished task~~\\n~~DONE: most recent finished task~~\\n\\n**NOW: what is being done right now**\\n\\nNext: the next task\\nThen: the task after that\\n\\nWaiting on: what you wait for (or: nothing)\\n\\nWhen several tasks run, list each name in backticks on the Running line, separated by commas.\"}'",
+        "powershell": "echo '{\"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default. Follow the user-communication skill when writing to the user. If the prompt asks anything, answer every question first, then start the work. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:\\n\\nRunning: `running task name` (or: nothing)\\n\\n~~DONE: older finished task~~\\n~~DONE: most recent finished task~~\\n\\n**NOW: what is being done right now**\\n\\nNext: the next task\\nThen: the task after that\\n\\nWaiting on: what you wait for (or: nothing)\\n\\nWhen several tasks run, list each name in backticks on the Running line, separated by commas.\"}'"
       },
       {
         "type": "command",
@@ -17,8 +17,16 @@
     "subagentStart": [
       {
         "type": "command",
-        "bash": "echo '{\"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.\"}'",
-        "powershell": "echo '{\"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.\"}'"
+        "bash": "printf '%s\\n' '{\"additionalContext\": \"PREFLIGHT for a subagent: you are a subagent, and the main thread delegated this task to you. Do the work yourself with your own tools and load the skills your definition names. The rules that the main thread must delegate and may not write files apply to the main thread only, so do not hand this task on and do not refuse it for that reason. The preflight gate still checks every tool call you make. Report back what you changed and how you verified it.\"}'",
+        "powershell": "echo '{\"additionalContext\": \"PREFLIGHT for a subagent: you are a subagent, and the main thread delegated this task to you. Do the work yourself with your own tools and load the skills your definition names. The rules that the main thread must delegate and may not write files apply to the main thread only, so do not hand this task on and do not refuse it for that reason. The preflight gate still checks every tool call you make. Report back what you changed and how you verified it.\"}'"
+      }
+    ],
+    "userPromptTransformed": [
+      {
+        "type": "command",
+        "cwd": ".",
+        "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E .agents/hooks/copilot/prompt_reminder.py 2>/dev/null || exit 0",
+        "powershell": "python -S -E .agents/hooks/copilot/prompt_reminder.py 2>$null; exit 0"
       }
     ],
     "preToolUse": [
@@ -28,6 +36,14 @@
         "cwd": ".",
         "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E .agents/hooks/preflight_gate.py --format copilot 2>/dev/null || exit 0",
         "powershell": "python -S -E .agents/hooks/preflight_gate.py --format copilot 2>$null; exit 0"
+      }
+    ],
+    "agentStop": [
+      {
+        "type": "command",
+        "cwd": ".",
+        "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E .agents/hooks/no_ai_markers_check.py --format copilot 2>/dev/null || exit 0",
+        "powershell": "python -S -E .agents/hooks/no_ai_markers_check.py --format copilot 2>$null; exit 0"
       }
     ]
   }

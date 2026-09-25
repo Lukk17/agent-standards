@@ -5,7 +5,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo 'PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.'"
+            "command": "echo 'PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default. Follow the user-communication skill when writing to the user. If the prompt asks anything, answer every question first, then start the work. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:\n\nRunning: `running task name` (or: nothing)\n\n~~DONE: older finished task~~\n~~DONE: most recent finished task~~\n\n**NOW: what is being done right now**\n\nNext: the next task\nThen: the task after that\n\nWaiting on: what you wait for (or: nothing)\n\nWhen several tasks run, list each name in backticks on the Running line, separated by commas.'"
+          },
+          {
+            "type": "command",
+            "command": "echo 'When you launch a background subagent, note how long its task should take and schedule a recurring check every 10 minutes while any subagent runs. At each check compare its running time and latest output with that expectation. Leave it alone unless it is far over (for example 30 minutes on a task that should take 1) or clearly looping, then ask it for status or stop it and tell the user why.'"
           },
           {
             "type": "command",
@@ -20,14 +24,24 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo 'PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.'"
+            "command": "echo 'PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default. Follow the user-communication skill when writing to the user. If the prompt asks anything, answer every question first, then start the work. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:\n\nRunning: `running task name` (or: nothing)\n\n~~DONE: older finished task~~\n~~DONE: most recent finished task~~\n\n**NOW: what is being done right now**\n\nNext: the next task\nThen: the task after that\n\nWaiting on: what you wait for (or: nothing)\n\nWhen several tasks run, list each name in backticks on the Running line, separated by commas.'"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"SubagentStart\", \"additionalContext\": \"PREFLIGHT for a subagent: you are a subagent, and the main thread delegated this task to you. Do the work yourself with your own tools and load the skills your definition names. The rules that the main thread must delegate and may not write files apply to the main thread only, so do not hand this task on and do not refuse it for that reason. The preflight gate still checks every tool call you make. Report back what you changed and how you verified it.\"}}'"
           }
         ]
       }
     ],
     "PreToolUse": [
       {
-        "matcher": "^(Edit|Write|NotebookEdit|Bash|WebFetch|WebSearch)$",
+        "matcher": "^(Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|WebFetch|WebSearch)$",
         "hooks": [
           {
             "type": "command",
@@ -88,7 +102,7 @@
           {
             "type": "command",
             "timeout": 10,
-            "command": "cd \"${CLAUDE_PROJECT_DIR}\" && PY=$(command -v python3 || command -v python) && \"$PY\" -S -E .agents/hooks/no_ai_markers_check.py --format claude ; exit 0"
+            "command": "cd \"${CLAUDE_PROJECT_DIR}\" && PY=$(command -v python3 || command -v python) && \"$PY\" -S -E .agents/hooks/no_ai_markers_check.py --format claude --display-fixed ; exit 0"
           },
           {
             "type": "command",
@@ -105,6 +119,17 @@
             "type": "command",
             "timeout": 10,
             "command": "cd \"${CLAUDE_PROJECT_DIR}\" && PY=$(command -v python3 || command -v python) && \"$PY\" -S -E .agents/hooks/no_ai_markers_check.py --format claude ; exit 0"
+          }
+        ]
+      }
+    ],
+    "MessageDisplay": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "cd \"${CLAUDE_PROJECT_DIR}\" && PY=$(command -v python3 || command -v python) && \"$PY\" -S -E .agents/hooks/no_ai_markers_check.py --format claude --display ; exit 0"
           }
         ]
       }
