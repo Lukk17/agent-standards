@@ -25,19 +25,48 @@ readonly WRITE_TOOL_RE='^(apply_patch|shell|shell_command|exec_command|local_she
 readonly SPAWN_TOOL_RE='^spawn_agent$'
 readonly SKILL_TOOL_RE='^(skill|load_skill)$'
 readonly GATE_KNOWN_GAP=0
+readonly MCP_STARTUP_TIMEOUT_SEC=60
+
+MCP_ARGS=()
+
+# Prints every [mcp_servers.*] name in a Codex config.toml except MCP_SERVER.
+codex_other_mcp_servers() {
+  python3 -S -E - "$1" "$MCP_SERVER" <<'PY'
+import sys
+import tomllib
+
+with open(sys.argv[1], "rb") as handle:
+    servers = tomllib.load(handle).get("mcp_servers", {})
+
+for name in sorted(servers):
+    if name != sys.argv[2]:
+        print(name)
+PY
+}
 
 # CODEX_HOME is CI-only and throwaway: it carries the provider, which names the
 # key's environment variable rather than the key, and trusts the one project so
 # Codex reads the imported .codex/ layer. Codex reserves the provider id openai
 # for its login-based built-in, so the key-based provider needs its own id.
+# Every imported MCP server but MCP_SERVER is switched off with a --config
+# override, which outranks the project layer, and the startup grace of 0 makes
+# Codex wait for the npx-started server before it builds the first tool list.
 agent_configure() {
+  local name
+
   export CODEX_HOME="${WORK}/codex-home"
   mkdir -p "$CODEX_HOME"
+
+  MCP_ARGS=(-c "mcp_servers.${MCP_SERVER}.startup_timeout_sec=${MCP_STARTUP_TIMEOUT_SEC}")
+  while IFS= read -r name; do
+    [[ -n "$name" ]] && MCP_ARGS+=(-c "mcp_servers.${name}.enabled=false")
+  done < <(codex_other_mcp_servers "${PROJECT}/.codex/config.toml")
 
   cat > "${CODEX_HOME}/config.toml" <<EOF
 model = "${MODEL}"
 model_provider = "openai-api"
 model_supports_reasoning_summaries = false
+mcp_optional_startup_grace_ms = 0
 
 [model_providers.openai-api]
 name = "OpenAI"
@@ -56,7 +85,7 @@ agent_invoke() {
   snapshot="${dir}/.before"
   snapshot_files "${CODEX_HOME}/sessions" "$snapshot"
 
-  timeout "$AGENT_TIMEOUT" "$AGENT_BIN" exec --json \
+  timeout "$AGENT_TIMEOUT" "$AGENT_BIN" exec --json "${MCP_ARGS[@]}" \
     --dangerously-bypass-approvals-and-sandbox --dangerously-bypass-hook-trust \
     --cd "$PROJECT" "$prompt" \
     > "${dir}/stream.jsonl" 2> "${dir}/stderr.log" < /dev/null || status=$?
@@ -97,13 +126,36 @@ readonly DEDUPE_FILTER='
   map(select(.id == "")) + (map(select(.id != "")) | group_by([.id, .tool]) | map(sort_by(.actor != "main") | first))
   | .[] | del(.id)'
 
+# The exec stream reports every MCP tool call of the main thread as its own
+# mcp_tool_call item, whatever shape the rollout gives the same call.
+# shellcheck disable=SC2016  # $names here are jq variables, not shell expansions
+readonly MCP_CALLS_FILTER='
+  def text_of: if type == "string" then . elif type == "array" then (map(.text? // tostring) | join("\n")) else tojson end;
+  .[] | select(.type? == "item.completed" and .item.type? == "mcp_tool_call") | .item
+  | {id: "", actor: "main", tool: "mcp__\(.server)__\(.tool)",
+     input: ((.arguments // {}) | if type == "string" then . else tojson end),
+     result: ((.result.content // .error.message // "") | text_of),
+     error: ((.status // "") == "failed" or (.error // null) != null)}'
+
 agent_calls() {
   local dir="$1" file
 
-  for file in "${dir}"/transcripts/*.jsonl; do
-    [[ -f "$file" ]] || continue
-    jq -R -s -c "[split(\"\n\")[] | fromjson?] | ${CALLS_FILTER}" "$file"
-  done | jq -s -c "$DEDUPE_FILTER"
+  {
+    for file in "${dir}"/transcripts/*.jsonl; do
+      [[ -f "$file" ]] || continue
+      jq -R -s -c "[split(\"\n\")[] | fromjson?] | ${CALLS_FILTER}" "$file"
+    done
+    [[ -f "${dir}/stream.jsonl" ]] && jq -R -s -c "[split(\"\n\")[] | fromjson?] | ${MCP_CALLS_FILTER}" "${dir}/stream.jsonl"
+  } | jq -s -c "$DEDUPE_FILTER"
+}
+
+# The rollout does not record which MCP servers loaded, so the list comes from
+# Codex itself, asked with the same overrides in the project the case ran in.
+agent_mcp_servers() {
+  local dir="$1"
+
+  (cd "$PROJECT" && "$AGENT_BIN" "${MCP_ARGS[@]}" mcp list --json) > "${dir}/mcp-list.json" 2>> "${dir}/stderr.log" || return 1
+  jq -r '.[] | select(.enabled) | "\(.name)\tenabled"' "${dir}/mcp-list.json"
 }
 
 # Codex hands a hook's additionalContext to the model as a developer message,

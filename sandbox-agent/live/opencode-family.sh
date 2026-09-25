@@ -19,8 +19,10 @@ readonly PROVIDER_ID="requesty"
 
 # The provider travels in an environment variable, never in the committed
 # opencode.json, and names the key by {env:} reference rather than carrying it.
+# Inline configuration outranks the project file, so the same variable turns
+# off every imported MCP server but MCP_SERVER with its own enabled flag.
 agent_configure() {
-  local config
+  local config disabled
 
   export XDG_CONFIG_HOME="${WORK}/xdg/config"
   export XDG_DATA_HOME="${WORK}/xdg/data"
@@ -28,7 +30,9 @@ agent_configure() {
   export XDG_CACHE_HOME="${WORK}/xdg/cache"
   mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME"
 
-  config="$(jq -cn --arg id "$PROVIDER_ID" --arg url "$PROVIDER_V1_URL" --arg m "$MODEL" '{
+  disabled="$(jq -c --arg s "$MCP_SERVER" '.mcp // {} | with_entries(select(.key != $s) | .value += {enabled: false})' "${PROJECT}/opencode.json")"
+
+  config="$(jq -cn --arg id "$PROVIDER_ID" --arg url "$PROVIDER_V1_URL" --arg m "$MODEL" --argjson mcp "$disabled" '{
     provider: {($id): {
       npm: "@ai-sdk/openai-compatible",
       name: "Requesty",
@@ -37,6 +41,7 @@ agent_configure() {
     }},
     model: ($id + "/" + $m),
     small_model: ($id + "/" + $m),
+    mcp: $mcp,
     autoupdate: false,
     share: "disabled"
   }')"
@@ -127,4 +132,15 @@ agent_subagent_context() {
   done
 
   return 0
+}
+
+# The exported sessions do not record which MCP servers loaded, so the list
+# comes from the agent itself, asked with the same inline configuration in the
+# project the case ran in. Written to a file, never a pipe, like every stream.
+agent_mcp_servers() {
+  local dir="$1"
+  local list="${dir}/mcp-list.txt"
+
+  (cd "$PROJECT" && "$AGENT_BIN" mcp list) > "$list" 2>> "${dir}/stderr.log" || return 1
+  sed 's/\x1b\[[0-9;]*m//g' "$list" | awk '$1 == "●" && NF >= 4 { print $3 "\t" $4 }' | grep . || return 1
 }

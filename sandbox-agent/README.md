@@ -50,7 +50,8 @@ Driving a real agent session needs provider credentials, so none of this happens
 - The two GitHub Copilot surfaces that read no project file (JetBrains and the cloud agent) are out of reach, as is
   Copilot inside VS Code. Only the Copilot command-line tool is exercised.
 - Every MCP server is listed, not proven healthy. Some fail to connect inside the container because `uvx` and `docker`
-  are deliberately absent, which is a property of the container rather than of the configuration.
+  are deliberately absent, which is a property of the container rather than of the configuration. The live tests
+  below prove one server, `context7`, against a real model, and none of the others.
 
 The first three gaps are what the live tests below close, at the price of a funded key.
 
@@ -70,6 +71,7 @@ events the agent recorded, never from what the model wrote back.
 | 3 A skill is loaded | The main thread loaded the `kicad` skill through its skill tool or by reading its `SKILL.md` |
 | 4 The reminder reaches the model | The per-prompt reminder text is in the recorded context of that prompt, not only the session start |
 | 5 Key and model | One tiny request in the agent's own wire format is answered by the agent's provider |
+| 6 The one MCP server answers | `context7` is the only MCP server the session loaded, and a recorded `resolve-library-id` call for React returned a library id. A call whose result carries no id, such as a rate-limit or an invalid-key answer, is a `FAIL` quoting that result |
 
 Three verdicts are possible besides a pass:
 
@@ -79,6 +81,52 @@ Three verdicts are possible besides a pass:
   raises a warning and does not fail the job.
 - `KNOWN-GAP` appears only for test 1 on GitHub Copilot. Its payload carries no agent identifier, so the gate cannot
   tell the main thread from a subagent, as the Maintenance follow-ups in AGENTS.md already record.
+
+#### One MCP server in the live runs
+
+Each live project runs with `context7` alone, out of the eight servers the repository ships. With all eight, every
+model request carried about 34,500 tokens of MCP tool descriptions, and Copilot's subagent test alone used 206,000
+tokens, above the 200,000 tokens per minute the OpenAI key allows. None of tests 1 to 4 needs an MCP server, so the
+others only cost tokens. One server stays so that test 6 still proves the MCP setup works against a real model.
+
+`context7` is the one because it has the smallest tool descriptions, needs no secret on its free tier, and runs
+headless on a GitHub runner. Each size below is the JSON of the server's own `tools/list` answer at its `@latest`
+release on 2026-09-25, and the token figure assumes four characters per token:
+
+| Server | Tools | Characters | About this many tokens | Why it is not the one |
+| --- | --- | --- | --- | --- |
+| `context7` | 2 | 4,937 | 1,200 | Kept |
+| `n8n` | 7 | 12,408 | 3,100 | Two and a half times the size, and its control tools need an n8n instance |
+| `playwright` | 25 | 21,143 | 5,300 | Downloads browsers on first use |
+| `chrome-devtools` | 30 | 27,710 | 6,900 | Needs Chrome |
+| `redis` | 53 | 40,383 | 10,100 | Needs a running Redis |
+| `mongodb` | 20 | 60,158 | 15,000 | Needs a running MongoDB |
+| `grafana` | 81 | 106,016 | 26,500 | Needs a Grafana instance and a token |
+| `sonarqube` | not measured | | | Exits before its handshake without `SONARQUBE_TOKEN`, so it needs a secret |
+
+Every agent keeps the others out through its own documented mechanism, working from a filtered copy of its own MCP
+file or from overrides, and never from an edited repository file:
+
+| Agent | Mechanism | Vendor source |
+| --- | --- | --- |
+| Claude Code | `--strict-mcp-config --mcp-config` with a copy of `.mcp.json` that holds only `context7` | `https://code.claude.com/docs/en/cli-reference` |
+| Codex | `-c mcp_servers.<name>.enabled=false` for every other server in `.codex/config.toml`, plus `mcp_optional_startup_grace_ms = 0` so the first tool list waits for `context7` | `https://developers.openai.com/codex/config-reference` |
+| OpenCode | `"enabled": false` on every other server in `OPENCODE_CONFIG_CONTENT`, which outranks the project's `opencode.json` | `https://opencode.ai/docs/mcp-servers/` and `https://opencode.ai/docs/config/` |
+| Kilo Code | The same in `KILO_CONFIG_CONTENT` | `https://kilo.ai/docs/automate/mcp/using-in-kilo-code` and `https://kilo.ai/docs/getting-started/settings` |
+| GitHub Copilot | `--disable-builtin-mcps`, `--disable-mcp-server` for every other server, and `--additional-mcp-config` with a copy of `.github/mcp.json` that holds only `context7` | `https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference` |
+
+Copilot needs the extra override because it resolves `context7` from `.mcp.json`, whose `${CONTEXT7_API_KEY:-}`
+header it cannot expand, and Context7 answers that literal header with `Invalid API key`. The override outranks both
+workspace files, so the call goes out with no header and the free tier answers.
+
+Test 6 reads the loaded servers where the agent records them: the `system/init` event on Claude Code and the
+`session.mcp_servers_loaded` event on Copilot. Codex, OpenCode and Kilo Code record no server list in their sessions,
+so the harness asks the agent itself with `mcp list` under the same configuration and keeps the answer beside the
+transcripts.
+
+What the live runs therefore do not prove: that any of the other seven servers starts, authenticates or answers a
+tool call inside a real session. The containerised suite above still checks, for every agent, that its own `mcp list`
+names all eight servers, so discovery of the full set stays covered on every pull request.
 
 Test 5 runs first, as its own step, and the job stops there with one plain cause when the provider refuses. On
 Requesty the causes follow the error responses Requesty documents for its inference endpoints:
@@ -437,7 +485,7 @@ PowerShell and cmd do no such rewriting, so the PowerShell commands above need n
 | [verify-project.sh](verify-project.sh) | Every per-project assertion, one `PASS` or `FAIL` line each, exit 1 if any failed. Calls `setup-project.sh` first unless `SANDBOX_SKIP_SETUP=1`. |
 | [verify-global.sh](verify-global.sh) | Every global assertion, in the same style. Calls `setup-global.sh` twice and then with `--update`, and asserts from `/work/bare`. With `--scoped <agent>` it installs for that agent alone and asserts only its paths were written. |
 | [compose.yaml](compose.yaml) | Mounts the repository read-only at `/repo`, drops every Linux capability, and runs `verify-project.sh` unless the run names another script. |
-| [live/](live/) | The live tests: [lib.sh](live/lib.sh) with the health check and the five tests, [opencode-family.sh](live/opencode-family.sh) for what OpenCode and Kilo Code share, and one script per agent. |
+| [live/](live/) | The live tests: [lib.sh](live/lib.sh) with the health check and the other five tests, [opencode-family.sh](live/opencode-family.sh) for what OpenCode and Kilo Code share, and one script per agent. |
 | [.dockerignore](.dockerignore) | Keeps the README and the Compose file out of the build context, so editing either one does not bust the image cache. |
 
 The [Dockerfile](Dockerfile) pins the five agent tools to exact versions, so the image it builds is reproducible.

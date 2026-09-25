@@ -377,6 +377,17 @@ Per-surface details worth knowing before you touch any of them:
   [sandbox-agent/live/copilot.sh](sandbox-agent/live/copilot.sh). Remove that expectation, by setting it to `0` as
   every other agent script does, in the same change that removes the matching Maintenance follow-up, once the payload
   carries an agent identifier.
+- The live projects load one MCP server, `context7`, and no other. All eight put about 34,500 tokens of tool
+  descriptions into every request, and Copilot's subagent test alone used 206,000 tokens, above the OpenAI key's
+  200,000 tokens per minute. `context7` stays because its two tools have the smallest descriptions of the set, it
+  needs no secret, and it runs headless on a runner. Test 6 proves it is the only server loaded and that a recorded
+  `resolve-library-id` call returned a library id. Each agent drops the others through its own mechanism, from a
+  filtered copy of its MCP file or from overrides, never by editing the real files: `--strict-mcp-config` on Claude
+  Code, `-c mcp_servers.<name>.enabled=false` on Codex, `"enabled": false` in the inline configuration on OpenCode
+  and Kilo Code, and `--disable-mcp-server` plus `--additional-mcp-config` on Copilot. The live runs therefore prove
+  nothing about the other seven servers in a real session. The containerised sandbox still checks that every agent
+  discovers all eight. The measured sizes and the per-agent vendor sources are in
+  [sandbox-agent/README.md](sandbox-agent/README.md).
 
 Verified against Claude Code 2.1.281, Codex 0.156.1, OpenCode 1.18.32, and Kilo Code 7.7.9. GitHub Copilot CLI was
 last verified on 1.0.81 and is not installed here, so nothing above was re-measured against it.

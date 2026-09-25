@@ -2,7 +2,7 @@
 # -----------------------------------------------------------------------------
 # Script: lib.sh
 # Description: Shared library for the live agent tests. Sourced, never run. It
-#              owns the provider health check, the throwaway project, the five
+#              owns the provider health check, the throwaway project, the six
 #              test cases and their verdicts. Each agent script supplies how to
 #              configure, invoke and read back its own agent.
 # Usage: source "$(dirname "$0")/lib.sh"; live_main "$@"
@@ -33,6 +33,11 @@
 #                        Optional. Prints the error that ended the session when
 #                        the provider rejected the agent's own model request,
 #                        and returns non-zero when the session recorded none.
+#   agent_mcp_servers DIR
+#                        Optional. Prints one "name<TAB>status" line per MCP
+#                        server the session knew, status "disabled" for one it
+#                        left off, and returns non-zero when nothing records
+#                        which servers the agent loaded.
 # Environment:
 #   REQUESTY_API_KEY     Requesty API key. Required on Requesty. Never printed.
 #   OPENAI_API_KEY       OpenAI API key. Required on OpenAI. Never printed.
@@ -87,6 +92,10 @@ readonly SUBAGENT_NAME="docs-architect"
 readonly SKILL_NAME="kicad"
 readonly MAIN_PROBE="live-probe/main-thread.txt"
 readonly SUB_PROBE="live-probe/subagent-note.md"
+readonly MCP_SERVER="context7"
+readonly MCP_PROBE_LIBRARY="React"
+readonly MCP_RESOLVE_TOOL_RE='context7.*resolve[-_]?library[-_]?id'
+readonly MCP_ANSWER_RE='library ID: */[^/[:space:]]+/[^/[:space:]]+'
 
 readonly EXIT_FAILED=1
 readonly EXIT_USAGE=2
@@ -408,6 +417,40 @@ count_calls() {
     | length' "${dir}/calls.ndjson"
 }
 
+# Counts recorded calls of a tool matching $2 whose result also matches $3.
+count_answered_calls() {
+  local dir="$1" tool_re="$2" answer_re="$3"
+
+  jq -s --arg re "$tool_re" --arg ans "$answer_re" '
+    [ .[] | select(.tool | test($re; "i")) | select(.error | not) | select(.result | test($ans; "i")) ]
+    | length' "${dir}/calls.ndjson"
+}
+
+# Prints the result of the first recorded call of a tool matching $2, on one
+# line and cut short, so a verdict can quote the reason a call failed.
+first_call_result() {
+  local dir="$1" tool_re="$2"
+
+  jq -s -r --arg re "$tool_re" '
+    [ .[] | select(.tool | test($re; "i")) | .result ] | first // ""
+    | gsub("[\\r\\n|]+"; " ") | .[0:200]' "${dir}/calls.ndjson"
+}
+
+# Prints the MCP_SERVER-only copy of an MCP file whose servers sit under key $2,
+# the filtered configuration the live project runs with.
+mcp_json_only_probe_server() {
+  local file="$1" key="$2"
+
+  jq -c --arg k "$key" --arg s "$MCP_SERVER" '{($k): {($s): .[$k][$s]}}' "$file"
+}
+
+# Prints every server name under key $2 of an MCP file except MCP_SERVER.
+mcp_json_other_servers() {
+  local file="$1" key="$2"
+
+  jq -r --arg k "$key" --arg s "$MCP_SERVER" '.[$k] // {} | keys[] | select(. != $s)' "$file"
+}
+
 transcript_mentions() {
   grep -rqF --exclude=calls.ndjson -- "$2" "$1"
 }
@@ -497,7 +540,7 @@ record_model_failure() {
   record "$name" FAIL "the provider rejected the agent's model request, so the model never ran: ${error//|//}"
 }
 
-# --- The five tests -----------------------------------------------------------
+# --- The six tests ------------------------------------------------------------
 
 test_gate_blocks_main_thread() {
   local name="1 main-thread write is blocked by the preflight gate" dir="${CASES}/1-gate"
@@ -592,6 +635,50 @@ test_reminder_reaches_model() {
   fi
 }
 
+# Prints why the loaded MCP servers are wrong, or nothing when the session
+# loaded MCP_SERVER alone. Returns 1 when the agent records no server list.
+mcp_server_set_problem() {
+  local dir="$1" servers others probe_status
+
+  declare -F agent_mcp_servers > /dev/null || return 1
+  servers="$(agent_mcp_servers "$dir" 2>/dev/null)" || return 1
+
+  others="$(awk -F '\t' -v s="$MCP_SERVER" '$1 != s && $2 != "disabled" { printf "%s%s", sep, $1; sep = ", " }' <<< "$servers")"
+  probe_status="$(awk -F '\t' -v s="$MCP_SERVER" '$1 == s { print $2; exit }' <<< "$servers")"
+
+  if [[ -n "$others" ]]; then
+    printf 'the session loaded MCP servers besides %s: %s' "$MCP_SERVER" "$others"
+  elif [[ -z "$probe_status" ]]; then
+    printf 'the session did not load the %s MCP server' "$MCP_SERVER"
+  elif [[ "${probe_status,,}" =~ fail|error|disabled|auth ]]; then
+    printf 'the %s MCP server did not start (%s)' "$MCP_SERVER" "$probe_status"
+  fi
+}
+
+test_mcp_server_answers() {
+  local name="6 the ${MCP_SERVER} MCP server is the only one and answers" dir="${CASES}/6-mcp"
+  local attempts answered problem="" listed=0
+
+  run_case "6-mcp" "Use the resolve-library-id tool of the ${MCP_SERVER} MCP server to look up the ${MCP_SERVER} library id for ${MCP_PROBE_LIBRARY}. Call that tool yourself, right now: do not delegate to a subagent, do not use any other tool, and do not create or edit any file. Then reply with the library id it returned."
+  record_model_failure "$name" "$dir" && return
+
+  problem="$(mcp_server_set_problem "$dir")" || listed=$?
+  attempts="$(count_calls "$dir" any "$MCP_RESOLVE_TOOL_RE" "")"
+  answered="$(count_answered_calls "$dir" "$MCP_RESOLVE_TOOL_RE" "$MCP_ANSWER_RE")"
+
+  if [[ -n "$problem" ]]; then
+    record "$name" FAIL "$problem"
+  elif [[ "$attempts" -eq 0 ]]; then
+    record "$name" INCONCLUSIVE "the model never called the ${MCP_SERVER} resolve-library-id tool"
+  elif [[ "$answered" -gt 0 && "$listed" -eq 0 ]]; then
+    record "$name" PASS "${MCP_SERVER} was the only MCP server loaded and ${answered} resolve-library-id call(s) returned a library id"
+  elif [[ "$answered" -gt 0 ]]; then
+    record "$name" PASS "${answered} ${MCP_SERVER} resolve-library-id call(s) returned a library id, the transcript does not list the loaded servers"
+  else
+    record "$name" FAIL "${attempts} ${MCP_SERVER} resolve-library-id call(s), none returned a library id: $(first_call_result "$dir" "$MCP_RESOLVE_TOOL_RE")"
+  fi
+}
+
 # --- Reporting ----------------------------------------------------------------
 
 write_step_summary() {
@@ -648,11 +735,12 @@ run_suite() {
   prepare_project
   agent_configure
 
-  section "1 to 4 against the real model"
+  section "1 to 4 and 6 against the real model"
   test_gate_blocks_main_thread
   test_subagent_writes_file
   test_skill_is_loaded
   test_reminder_reaches_model
+  test_mcp_server_answers
 
   summary
 }

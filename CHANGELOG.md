@@ -137,6 +137,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- The live pipeline loads only the `context7` MCP server, through each agent's own mechanism and never an edited MCP
+  file, and live test 6 proves it is the only server loaded and answers a `resolve-library-id` call. All eight
+  servers added about 34,500 tokens of tool descriptions to every request, and Copilot's subagent test used 206,000
+  tokens, above the OpenAI key's 200,000 tokens per minute. The containerised sandbox still checks discovery of all
+  eight.
 - The live pipeline runs Codex and GitHub Copilot on OpenAI's own API with `gpt-6-luna` and the new
   `OPENAI_API_KEY` secret, while Claude Code, OpenCode and Kilo Code stay on Requesty with
   `deepinfra/deepseek-v4-flash-0731`. Requesty translated Codex's Responses request and dropped the `multi_agent_v1`

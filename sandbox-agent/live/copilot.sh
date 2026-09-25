@@ -29,7 +29,15 @@ readonly GATE_KNOWN_GAP=1
 readonly PROMPT_TOKENS=128000
 readonly OUTPUT_TOKENS=8192
 
+MCP_ARGS=()
+
+# Copilot resolves a server both workspace files define from .mcp.json, whose
+# ${VAR:-} header it cannot expand, so MCP_SERVER comes from the filtered
+# .github/mcp.json through --additional-mcp-config, which outranks both files.
+# Every other workspace server and the built-in GitHub server are disabled.
 agent_configure() {
+  local mcp_config="${WORK}/mcp-live.json" name
+
   export COPILOT_HOME="${WORK}/copilot-home"
   export COPILOT_OFFLINE=true
   export COPILOT_AUTO_UPDATE=false
@@ -45,6 +53,17 @@ agent_configure() {
 
   mkdir -p "$COPILOT_HOME"
   jq -n --arg p "$PROJECT" '{trustedFolders: [$p]}' > "${COPILOT_HOME}/config.json"
+
+  mcp_json_only_probe_server "${PROJECT}/.github/mcp.json" mcpServers > "$mcp_config"
+  MCP_ARGS=(--disable-builtin-mcps --additional-mcp-config "@${mcp_config}")
+  while IFS= read -r name; do
+    [[ -n "$name" ]] && MCP_ARGS+=(--disable-mcp-server "$name")
+  done < <(
+    {
+      mcp_json_other_servers "${PROJECT}/.mcp.json" mcpServers
+      mcp_json_other_servers "${PROJECT}/.github/mcp.json" mcpServers
+    } | sort -u
+  )
 }
 
 agent_invoke() {
@@ -54,7 +73,7 @@ agent_invoke() {
   snapshot_files "${COPILOT_HOME}/session-state" "$snapshot"
 
   timeout "$AGENT_TIMEOUT" "$AGENT_BIN" -p "$prompt" --output-format json \
-    --allow-all --no-ask-user --log-dir "${dir}/logs" \
+    --allow-all --no-ask-user --log-dir "${dir}/logs" "${MCP_ARGS[@]}" \
     > "${dir}/stream.jsonl" 2> "${dir}/stderr.log" < /dev/null || status=$?
 
   mkdir -p "${dir}/transcripts"
@@ -107,6 +126,18 @@ agent_subagent_context() {
     [split("\n")[] | fromjson? | objects
      | select(((.data.parentToolCallId? // null) != null) or ((.type // "") | tostring | startswith("subagent")))]
     | unique | .[]'
+}
+
+# session.mcp_servers_loaded lists every server with its status, a disabled
+# one included. The stream and the session-state log repeat the event.
+agent_mcp_servers() {
+  local dir="$1" servers
+
+  servers="$(cat "${dir}/stream.jsonl" "${dir}"/transcripts/*.jsonl 2>/dev/null | jq -R -s -r '
+    [split("\n")[] | fromjson? | objects | select(.type == "session.mcp_servers_loaded") | .data.servers[]?]
+    | unique_by(.name) | .[] | "\(.name)\t\(.status)"')"
+  [[ -n "$servers" ]] || return 1
+  printf '%s\n' "$servers"
 }
 
 # Copilot ends a session whose model request the provider rejected with a

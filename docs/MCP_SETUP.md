@@ -103,10 +103,16 @@ shipped default.
 | `sonarqube` | Code-quality issue lookup | Docker plus a SonarQube instance and token |
 | `n8n` | n8n workflow node documentation, optional control | none for documentation only, instance plus key for control |
 
-Turn off a server you do not use. In [opencode.json](../opencode.json) set `"enabled": false` on its block. In
-[.mcp.json](../.mcp.json), [.vscode/mcp.json](../.vscode/mcp.json), [.codex/config.toml](../.codex/config.toml), and
-[.github/mcp.json](../.github/mcp.json) delete the block, because those schemas have no enable flag. A server you
-never disable still spawns and still fills your log with authentication failures.
+Turn off a server you do not use. In [opencode.json](../opencode.json) set `"enabled": false` on its block, and in
+[.codex/config.toml](../.codex/config.toml) set `enabled = false` in its table. In [.mcp.json](../.mcp.json),
+[.vscode/mcp.json](../.vscode/mcp.json), and [.github/mcp.json](../.github/mcp.json) delete the block, because those
+schemas have no enable flag. A server you never disable still spawns and still fills your log with authentication
+failures.
+
+The agent-standards live pipeline, which runs every agent against a real model, loads `context7` alone. It has the
+smallest tool descriptions of the eight and needs no secret, and the descriptions of all eight together pushed a
+single test past the provider's per-minute token limit. So only `context7` is proven to answer a real model there,
+and the other seven are proven to be discovered by every agent, not to answer.
 
 ---
 

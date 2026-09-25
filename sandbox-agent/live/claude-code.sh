@@ -24,8 +24,13 @@ readonly SKILL_TOOL_RE='^Skill$'
 readonly GATE_KNOWN_GAP=0
 readonly MAX_TURNS=15
 
+MCP_CONFIG=""
+
+# --strict-mcp-config with the filtered .mcp.json keeps every other server out,
+# so each request carries the tool descriptions of one small server only.
 agent_configure() {
   unset ANTHROPIC_API_KEY
+  MCP_CONFIG="${WORK}/mcp-live.json"
   export CLAUDE_CONFIG_DIR="${WORK}/claude-config"
   export ANTHROPIC_BASE_URL="$PROVIDER_URL"
   export ANTHROPIC_AUTH_TOKEN="$REQUESTY_API_KEY"
@@ -39,6 +44,7 @@ agent_configure() {
   export DISABLE_AUTOUPDATER=1
 
   mkdir -p "$CLAUDE_CONFIG_DIR"
+  mcp_json_only_probe_server "${PROJECT}/.mcp.json" mcpServers > "$MCP_CONFIG"
 }
 
 agent_invoke() {
@@ -50,6 +56,7 @@ agent_invoke() {
   timeout "$AGENT_TIMEOUT" "$AGENT_BIN" -p "$prompt" \
     --output-format stream-json --verbose --include-hook-events \
     --dangerously-skip-permissions --max-turns "$MAX_TURNS" --model "$MODEL" \
+    --strict-mcp-config --mcp-config "$MCP_CONFIG" \
     > "${dir}/stream.jsonl" 2> "${dir}/stderr.log" || status=$?
 
   mkdir -p "${dir}/transcripts"
@@ -120,6 +127,17 @@ agent_subagent_context() {
   done
 
   return 0
+}
+
+# The system/init event lists every MCP server the session loaded.
+agent_mcp_servers() {
+  local dir="$1" servers
+
+  servers="$(jq -R -s -r '
+    [split("\n")[] | fromjson? | select(.type? == "system" and .subtype? == "init")] | first
+    | if . == null then empty else (.mcp_servers // [])[] | "\(.name)\t\(.status)" end' "${dir}/stream.jsonl")"
+  [[ -n "$servers" ]] || return 1
+  printf '%s\n' "$servers"
 }
 
 live_main "$@"
