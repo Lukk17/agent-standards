@@ -429,7 +429,11 @@ def test_copilot_talks_to_openai_in_the_responses_format_it_asks_for(tmp_path):
     # Given the CLI's own warning in run 36166936959: gpt-6-luna works best with wireApi "responses"
     case_dir = tmp_path / "case"
     case_dir.mkdir()
-    call = f"WORK='{tmp_path.as_posix()}'; PROJECT='{tmp_path.as_posix()}'; agent_configure; printf '%s|%s' \"$COPILOT_PROVIDER_WIRE_API\" \"$HEALTH_FORMAT\"; true"
+    project = tmp_path / "project"
+    (project / ".github").mkdir(parents=True)
+    shutil.copyfile(REPO_ROOT / ".mcp.json", project / ".mcp.json")
+    shutil.copyfile(REPO_ROOT / ".github" / "mcp.json", project / ".github" / "mcp.json")
+    call = f"WORK='{tmp_path.as_posix()}'; PROJECT='{project.as_posix()}'; agent_configure; printf '%s|%s' \"$COPILOT_PROVIDER_WIRE_API\" \"$HEALTH_FORMAT\"; true"
 
     # When
     result = adapter_function(COPILOT_ADAPTER, case_dir, call, {"OPENAI_API_KEY": "dummy"})
