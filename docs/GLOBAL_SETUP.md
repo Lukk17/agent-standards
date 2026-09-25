@@ -7,44 +7,66 @@ This is the counterpart to the per-project import in [AGENT_TOOLING.md](AGENT_TO
 than exclusive: an agent reads both scopes and merges them, so a project that also ran the per-project import keeps
 winning on the paths where both scopes define the same thing.
 
-Everything below is a command you run yourself, per agent, with a PowerShell version and a Unix-shell version of each
-one. Take only the sections for the agents you actually run.
+One folder in your home directory, `~/.agents`, holds everything the agents can share: the skills, the OpenCode-format
+subagents, the hook scripts and the OpenCode and Kilo Code plugin. Each agent then either reads that folder on its own
+or reaches it through one link or one config line. No copy of this repository stays in your home directory: the install
+and every update fetch a temporary copy, take what they need out of it, and delete it.
+
+Every command below comes in a PowerShell version and a Unix-shell version. Take only the sections for the agents you
+actually run. On Windows, `~` and `$HOME` both mean `%USERPROFILE%`, so `~/.agents` is `C:\Users\<you>\.agents`.
 
 ---
 
-### What this is, and how it differs from the per-project setup
+### What each agent shares and what stays per tool
 
-The per-project import drops files into a repository and commits them, so the whole team gets the same setup and the
-files travel with the code. A global install writes into your home directory instead. Nothing is committed, nothing is
-shared with anyone else, and every project you open on this machine picks it up without being touched.
+| What | Claude Code | Codex | OpenCode | Kilo Code | GitHub Copilot |
+| --- | --- | --- | --- | --- | --- |
+| Always-on instructions | `~/.claude/CLAUDE.md`, the one main file | `~/.codex/AGENTS.md`, a link to `~/.claude/CLAUDE.md` | falls back to `~/.claude/CLAUDE.md` on its own | `instructions` in `~/.config/kilo/kilo.jsonc` points at `~/.claude/CLAUDE.md` | `~/.copilot/copilot-instructions.md`, a link of its own to `~/.claude/CLAUDE.md` |
+| Skills | `~/.claude/skills`, a link to `~/.agents/skills` | reads `~/.agents/skills` natively | reads `~/.agents/skills` natively | reads `~/.agents/skills` natively | reads `~/.agents/skills` natively |
+| Subagents | own format in `~/.claude/agents` | own TOML format in `~/.codex/agents` | `~/.config/opencode/agents`, a junction or link to `~/.agents/agents` | `~/.config/kilo/agents`, a junction or link to `~/.agents/agents` | own `*.agent.md` format in `~/.copilot/agents` |
+| Hook scripts | shared, `~/.agents/hooks` | shared, `~/.agents/hooks` | shared, `~/.agents/hooks` | shared, `~/.agents/hooks` | shared, `~/.agents/hooks` |
+| Hook wiring | `hooks` in `~/.claude/settings.json` | `~/.codex/hooks.json` | the shared plugin, declared by path in `~/.config/opencode/opencode.json` | the same shared plugin, declared by path in `~/.config/kilo/kilo.jsonc` | `~/.copilot/hooks/preflight.json` |
+| MCP servers | `~/.claude.json`, written by `claude mcp add` | `[mcp_servers.*]` in `~/.codex/config.toml` | `mcp` in `~/.config/opencode/opencode.json`, or one shared file | `mcp` in `~/.config/kilo/kilo.jsonc`, or the same shared file | `~/.copilot/mcp-config.json`, VS Code user `mcp.json`, JetBrains `mcp.json` |
 
-That difference decides what belongs where.
+So there are four subagent trees rather than six. OpenCode and Kilo Code read the same OpenCode-format files, so both
+link to `~/.agents/agents`. Claude Code, Codex and Copilot each need their own format, for these reasons:
 
-Belongs globally, because it is the same for you in every repository:
+- Claude Code skips a subagent file with no `name` key, and the OpenCode format has none. Its documentation says a
+  file with "No `name`" is treated "as documentation kept beside your agents"
+  ([sub-agents docs](https://code.claude.com/docs/en/sub-agents)). The OpenCode format also writes `tools` as a map
+  where Claude Code expects a list, and carries no `skills` list, so the skills a subagent preloads would be lost even
+  if the file loaded. Measured with Claude Code 2.1.281 in a throwaway configuration directory: an `agents` junction to
+  the OpenCode tree loaded none of the 25 subagents, and the same junction to the Claude tree loaded all 25.
+- The reverse does not work either. OpenCode 1.18.32 rejected its whole configuration on the first Claude-format file
+  ("Configuration is invalid"), and Kilo Code 7.7.9 skipped all 25 of them.
+- Codex reads subagents only as "standalone TOML files under `~/.codex/agents/`"
+  ([subagents docs](https://learn.chatgpt.com/codex/agent-configuration/subagents)).
+- Copilot takes `tools` as a "list of strings, string" and stores personal agents in `~/.copilot/agents` "as
+  `.agent.md` files"
+  ([custom agents reference](https://docs.github.com/en/copilot/reference/custom-agents-configuration),
+  [CLI config dir reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference)).
+  The OpenCode `tools` map does not fit that. The Copilot CLI was not installed on the machine this was checked on, so
+  this row rests on the documentation alone.
 
-- Skills. A skill such as `python-patterns` says nothing about one project, so one copy in the home directory serves
-  every project. This is also the part with the biggest payoff, because most of the agents read the same
-  `~/.agents/skills` directory.
-- Subagents. Same reasoning. A `code-reviewer` definition is not project-specific.
-- The preflight gate. The rule "name the skills and subagents that own this task before you start" is a working habit,
-  not a project policy, so it is worth having in every session.
-- Your personal instruction file, the parts of it that are about how you work rather than about one codebase.
+None of the five documents a setting that moves its global subagent directory. OpenCode has `OPENCODE_CONFIG_DIR`, but
+that is an environment variable that also loads plugins, skills and commands from the directory it names, so a link is
+the smaller change.
 
-Stays per project, because a global copy would be wrong or actively harmful:
-
-- MCP servers that carry a connection string, a project token, or a service address. A Grafana URL or a SonarQube
-  token belongs to the one project that owns it. Servers that really are machine-wide, Context7 and Playwright for
-  example, are the exception and are fine globally.
-- Anything that describes a codebase: its build commands, its module layout, its architecture decisions.
-- The blocking half of the gate. Every shipped hook wiring calls `.agents/hooks/preflight_gate.py`, a
-  project-relative path, on an interpreter it resolves itself, and the other hooks are wired the same way. Read
-  [Limitations](#limitations) for exactly how far the global half gets.
+OpenCode and Kilo Code can share one MCP server list, but not by reading each other's file. Kilo Code "no longer falls
+back to opencode configuration stored in .opencode directories (such as ~/.config/opencode ...)"
+([Kilo CLI docs](https://kilo.ai/docs/code-with-ai/platforms/cli)). What both do support is a custom config file named
+by an environment variable, `OPENCODE_CONFIG` for OpenCode ([config docs](https://opencode.ai/docs/config/)) and
+`KILO_CONFIG` for Kilo Code, which Kilo lists as trusted config where `{env:VAR}` resolves. A file holding only an
+`mcp` block, named by both variables, is the one list both read. OpenCode 1.18.32 and Kilo Code 7.7.9 both showed a
+server from such a file in `debug config`, each run in a throwaway home.
+[Share one MCP list between OpenCode and Kilo Code](#share-one-mcp-list-between-opencode-and-kilo-code) has the
+commands.
 
 ---
 
 ### Prerequisites
 
-You need `git`, and Python 3 for the hooks. Every script under `.agents/hooks/` is Python, and every wiring throws a
+You need `git`, and Python 3 for the hooks. Every script under `~/.agents/hooks/` is Python, and every wiring throws a
 failed call away so a broken hook can never break a session, so a missing interpreter does not error: it allows every
 call the gate was meant to block. Confirm one answers before you rely on any of it. PowerShell:
 
@@ -58,95 +80,58 @@ Unix shell:
 python3 --version
 ```
 
-Several steps below create a symlink, so on Windows do both of these before you start.
-
-Turn on Developer Mode in Settings, System, For developers. Without it, creating a symlink needs an elevated shell.
-Claude Code's own documentation says the same thing about symlinking `CLAUDE.md`
+On Windows, link a directory with a junction. `New-Item -ItemType Junction` needs no Developer Mode and no elevated
+shell, and every agent in this document followed one when it was measured: Claude Code 2.1.281 loaded skills and
+subagents through a junction, and OpenCode 1.18.32 and Kilo Code 7.7.9 loaded subagents through one. A file link,
+such as `~/.codex/AGENTS.md`, has to be a symbolic link instead, and on Windows that needs Developer Mode, in Settings,
+System, For developers. Claude Code's own documentation says the same about symlinking `CLAUDE.md`
 ([memory docs](https://code.claude.com/docs/en/memory)).
 
-Tell git to honour symlinks, so the clone in step 1 writes real links rather than text files holding a path.
-PowerShell:
-
-```powershell
-git config --global core.symlinks true
-```
-
-Unix shell:
-
-```bash
-git config --global core.symlinks true
-```
-
-PowerShell has no `ln`. Use `New-Item -ItemType SymbolicLink`, which is the only command that makes a real symlink.
-`New-Item -ItemType Junction` and a shortcut file are not the same thing, and the agents will not follow them.
-
-If you would rather run the Unix-shell blocks under Git Bash on Windows, tell the MSYS runtime to make real symlinks
-first, because that is not its default. Put this in the session before you start, or in your `~/.bashrc`:
+If you run the Unix-shell blocks under Git Bash on Windows, tell the MSYS runtime to make real symlinks first, because
+that is not its default. Put this in the session before you start, or in your `~/.bashrc`:
 
 ```bash
 export MSYS=winsymlinks:nativestrict
 ```
 
-Without that setting `ln -s` silently copies the target, so `~/.claude/skills` becomes a stale snapshot of the skills
-tree instead of a live link to it, and an update stops reaching it.
+Without that setting `ln -s` silently copies the target, so a link becomes a stale snapshot and an update stops
+reaching it.
 
-WSL works too, but read what it installs into before you pick it. Inside WSL, `$HOME` is the Linux home, so the
-install lands there and a Windows-side agent never sees it. Use WSL only if the agents you run are the ones inside it.
-
-On Windows, `~` and `$HOME` in this document both mean `%USERPROFILE%`, so `~/.claude` means `%USERPROFILE%\.claude`
-([Claude Code settings](https://code.claude.com/docs/en/settings)).
+WSL works too, but inside WSL `$HOME` is the Linux home, so the install lands there and a Windows-side agent never sees
+it. Use WSL only if the agents you run are the ones inside it.
 
 ---
 
-### Step 1, one shared checkout
+### Step 1, a temporary copy of the repository
 
-Clone this repository once into a working location in your home directory. The clone is the staging area, not the live
-configuration: later steps copy or link out of it, and the update section pulls new commits into it.
-
-The clone is sparse and blobless, so only the directories the agents actually need come down. Cone mode also brings
-every file in the repository root along, which is how `AGENTS.md.example` arrives.
-
-PowerShell:
+Clone into your temporary directory, not your home directory. The copy lives only as long as the install. PowerShell:
 
 ```powershell
-git clone --filter=blob:none --sparse https://github.com/Lukk17/agent-standards.git $HOME\.agent-standards
+$src = Join-Path ([IO.Path]::GetTempPath()) 'agent-standards'
+```
+
+```powershell
+git clone --filter=blob:none https://github.com/Lukk17/agent-standards.git $src
 ```
 
 Unix shell:
 
 ```bash
-git clone --filter=blob:none --sparse https://github.com/Lukk17/agent-standards.git ~/.agent-standards
+src="$(mktemp -d)/agent-standards"
 ```
-
-Select the directories. PowerShell:
-
-```powershell
-git -C $HOME\.agent-standards sparse-checkout set .agents .claude .codex .github .kilo .opencode docs
-```
-
-Unix shell:
 
 ```bash
-git -C ~/.agent-standards sparse-checkout set .agents .claude .codex .github .kilo .opencode docs
+git clone --filter=blob:none https://github.com/Lukk17/agent-standards.git "$src"
 ```
 
-Stop the clone pushing anywhere by accident. PowerShell:
-
-```powershell
-git -C $HOME\.agent-standards remote set-url --push origin no_push
-```
-
-Unix shell:
-
-```bash
-git -C ~/.agent-standards remote set-url --push origin no_push
-```
+The clone is blobless, so file contents come down only for the commit you check out. Keep the same shell open until
+the install is finished, because every later block reads `$src`.
 
 ---
 
-### Step 2, the one shared tree every agent reads
+### Step 2, the one shared folder
 
-Create the shared directory. PowerShell:
+Create `~/.agents`. PowerShell:
 
 ```powershell
 New-Item -ItemType Directory -Force $HOME\.agents
@@ -158,70 +143,69 @@ Unix shell:
 mkdir -p ~/.agents
 ```
 
-Copy the canonical content into it. This is `skills/`, the OpenCode-format `agents/` tree, the four `hooks/`
-scripts (the preflight gate, the reply formatting check, the task-list mirror, and the markdown lint pass), and
-the `plugin/` shim, all in one move. PowerShell:
+Copy the four shared trees into it: `skills/`, the OpenCode-format `agents/`, the `hooks/` scripts, and the `plugin/`
+runner. PowerShell:
 
 ```powershell
-Copy-Item -Recurse -Force $HOME\.agent-standards\.agents\* $HOME\.agents\
+foreach ($d in 'skills', 'agents', 'hooks', 'plugin') { Copy-Item -Recurse -Force "$src\.agents\$d" "$HOME\.agents\" }
 ```
 
 Unix shell:
 
 ```bash
-cp -R ~/.agent-standards/.agents/. ~/.agents/
+for d in skills agents hooks plugin; do cp -R "$src/.agents/$d" ~/.agents/; done
 ```
 
-After this one step, Codex, OpenCode, and GitHub Copilot already see every skill, with no further wiring. Claude Code
-needs a symlink and Kilo Code needs one config line, both covered in their sections below.
+Copy the updater into `~/.agents/bin`. It is the one command
+[Updating the global installation](#updating-the-global-installation) runs, and every update keeps it current.
+PowerShell:
+
+```powershell
+Copy-Item -Recurse -Force "$src\global\bin" "$HOME\.agents\"
+```
+
+Unix shell:
+
+```bash
+cp -R "$src/global/bin" ~/.agents/
+```
+
+Delete what you do not want before you go on. A skill folder or a subagent file you remove now stays removed, because
+the update below refreshes only what you already have and never adds anything.
+
+Record which commit you installed, so the update can tell which files upstream removed since and what changed in the
+hook wiring. PowerShell:
+
+```powershell
+git -C $src rev-parse HEAD | Set-Content $HOME\.agents\.upstream-commit
+```
+
+Unix shell:
+
+```bash
+git -C "$src" rev-parse HEAD > ~/.agents/.upstream-commit
+```
 
 `preflight_gate.py` guards only the project a session is open in and never your home directory at large: it takes the
 project root from the hook payload's own `cwd` field and from the working directory, and it ignores its own on-disk
 location once that location is your home directory rather than a project.
 
-Three of those four hook scripts get wired per agent below. The fourth, `markdown_lint_check.py`, does not: it shells
-out to `tools/check-markdown.py`, which stays in the upstream repository and never ships, so a global wiring would
-start an interpreter that returns 0 every time. It is copied anyway, because the copy is one directory rather than a
-file list, and it costs nothing sitting there unwired.
+Three of the hook scripts get wired per agent below. `markdown_lint_check.py` does not: it shells out to
+`tools/check-markdown.py`, which stays in the upstream repository, so a global wiring would start an interpreter that
+returns 0 every time. It is copied anyway, because the copy is one directory rather than a file list.
 
 `task_list_sync.py` mirrors the agent's own task list into a file named `tasks.md` so a compaction cannot lose it. It
 writes that file at the project root when the working directory has an imported `.agents/hooks/` beside it, and in
-your home directory when it does not, which is what a bare directory gets. Add `tasks.md` to your global gitignore if
-you would rather it never showed up as an untracked file.
-
-Now put your machine-wide instruction file where the agents can find it. `AGENTS.md.example` is written for a project,
-so treat it as a starting point and cut the project-specific sections out of the global copy, leaving the parts that
-describe how you want to work everywhere. PowerShell:
-
-```powershell
-Copy-Item $HOME\.agent-standards\AGENTS.md.example $HOME\.agents\AGENTS.md
-```
-
-Unix shell:
-
-```bash
-cp ~/.agent-standards/AGENTS.md.example ~/.agents/AGENTS.md
-```
-
-Nothing reads `~/.agents/AGENTS.md` on its own. Each per-agent section below points its agent at this one file, so the
-text lives in one place instead of five.
+your home directory when it does not. Add `tasks.md` to your global gitignore if you would rather it never showed up as
+an untracked file.
 
 ---
 
-### Per-agent setup
+### Step 3, the always-on instructions
 
-Every subsection assumes steps 1 and 2 are done. Take only the subsections for the agents you actually run. Adding a
-second agent later is nothing more than running its subsection too, because the shared tree is the same files.
-
-#### Claude Code
-
-Claude Code is the one agent that reads neither `AGENTS.md` nor `~/.agents/skills`. Its personal skills location is
-`~/.claude/skills/<skill-name>/SKILL.md` ([skills docs](https://code.claude.com/docs/en/skills)), so the shared tree
-reaches it through a symlink, exactly as the per-project setup does. Personal subagents live in `~/.claude/agents/`
-([sub-agents docs](https://code.claude.com/docs/en/sub-agents)), user hooks and settings in `~/.claude/settings.json`,
-and personal instructions in `~/.claude/CLAUDE.md` ([memory docs](https://code.claude.com/docs/en/memory)).
-
-Create the parent directory first, because the symlink command will not make it for you. PowerShell:
+`~/.claude/CLAUDE.md` is the one instruction file. Claude Code reads it natively, OpenCode falls back to it, and the
+other three are pointed at it in their sections below. If you have none yet, start from `AGENTS.md.example` in the
+temporary copy and cut the project-specific sections, keeping the parts about how you work everywhere. PowerShell:
 
 ```powershell
 New-Item -ItemType Directory -Force $HOME\.claude
@@ -233,10 +217,37 @@ Unix shell:
 mkdir -p ~/.claude
 ```
 
+Copy the template, only when you have no `CLAUDE.md` yet. PowerShell:
+
+```powershell
+if (-not (Test-Path $HOME\.claude\CLAUDE.md)) { Copy-Item "$src\AGENTS.md.example" $HOME\.claude\CLAUDE.md }
+```
+
+Unix shell:
+
+```bash
+[ -e ~/.claude/CLAUDE.md ] || cp "$src/AGENTS.md.example" ~/.claude/CLAUDE.md
+```
+
+---
+
+### Per-agent setup
+
+Every subsection assumes steps 1 to 3 are done. Adding a second agent later is nothing more than running its
+subsection too, because the shared folder is the same files.
+
+#### Claude Code
+
+Claude Code reads its personal skills from `~/.claude/skills/<skill-name>/SKILL.md`
+([skills docs](https://code.claude.com/docs/en/skills)), so the shared skills reach it through one directory link.
+Personal subagents live in `~/.claude/agents/` ([sub-agents docs](https://code.claude.com/docs/en/sub-agents)), user
+hooks in `~/.claude/settings.json`, and personal instructions in `~/.claude/CLAUDE.md`
+([memory docs](https://code.claude.com/docs/en/memory)).
+
 Link the skills. PowerShell:
 
 ```powershell
-New-Item -ItemType SymbolicLink -Path $HOME\.claude\skills -Target $HOME\.agents\skills
+New-Item -ItemType Junction -Path $HOME\.claude\skills -Target $HOME\.agents\skills
 ```
 
 Unix shell:
@@ -245,29 +256,17 @@ Unix shell:
 ln -s ~/.agents/skills ~/.claude/skills
 ```
 
-The documentation guarantees the symlink is followed for a `<skill-name>` entry inside the skills directory, and says
-Claude Code loads a skill once even when the same target is reachable from two locations. Linking the whole `skills`
-directory in one go, which is what the command above does and what the per-project setup does, is not spelled out in
-the documentation. If it ever stops working, fall back to one symlink per skill directory, which is the documented
-shape.
-
-Copy the subagents. PowerShell:
+Copy the Claude-format subagents. This is one of the three trees that cannot be shared, see the table at the top.
+PowerShell:
 
 ```powershell
-Copy-Item -Recurse -Force $HOME\.agent-standards\.claude\agents $HOME\.claude\
+Copy-Item -Recurse -Force "$src\.claude\agents" $HOME\.claude\
 ```
 
 Unix shell:
 
 ```bash
-cp -R ~/.agent-standards/.claude/agents ~/.claude/
-```
-
-Point Claude Code at the shared instructions by adding one import line to `~/.claude/CLAUDE.md`. Imports in a
-user-scope memory file load without the external-import approval dialog, because that file is one you wrote yourself.
-
-```text
-@~/.agents/AGENTS.md
+cp -R "$src/.claude/agents" ~/.claude/
 ```
 
 Wire the hooks into `~/.claude/settings.json`. Hooks in that file apply to every project on the machine
@@ -275,14 +274,25 @@ Wire the hooks into `~/.claude/settings.json`. Hooks in that file apply to every
 Forward slashes work on Windows too and save you escaping backslashes inside JSON.
 
 This is the same event set the per-project wiring uses, minus the markdown lint pass. `SessionStart` and
-`UserPromptSubmit` inject the gate text, `PreToolUse` is the blocking half, `Stop` and `SubagentStop` check the reply
-formatting, and the five task events keep `tasks.md` in step. Each command resolves its own interpreter, `python3`
+`UserPromptSubmit` inject the gate text, `SessionStart` also injects the rule for checking on background subagents
+every 10 minutes, `SubagentStart` tells a subagent to do its delegated task itself rather than hand it on,
+`PreToolUse` is the blocking half, `MessageDisplay` fixes dashes, bold and italic on
+screen (Claude Code 2.1.152 or later), `Stop` checks what that fix leaves and `SubagentStop` checks the whole reply,
+and the five task events keep `tasks.md` in step. Each command resolves its own interpreter, `python3`
 first and `python` second, because Debian and Ubuntu ship no `python` and the python.org Windows installer ships
 no `python3`. `-S -E` skips site initialisation and ignores the
 `PYTHON*` environment variables, which is safe because every hook is standard library only and saves a slice of
 interpreter start on every single tool call. The trailing `; exit 0` is what turns a missing or broken hook back into
-an allow, in the one form both bash and PowerShell parse, because Claude Code has a single command field and picks the
-shell itself.
+an allow. Every command is POSIX shell, because Claude Code passes a command hook "to a shell: `sh -c` on macOS and
+Linux, Git Bash on Windows, or PowerShell when Git Bash isn't installed"
+([hooks docs](https://code.claude.com/docs/en/hooks)). Claude Code 2.1.281 on Windows 11 with Git Bash installed ran a
+probe hook under bash 5.3.9. On a Windows machine without Git Bash, PowerShell rejects these commands with a parse error
+and exits 1, which Claude Code treats as a non-blocking error, so every hook allows and nothing is gated. Install Git
+for Windows before relying on the gate there.
+
+The `PreToolUse` matcher names `PowerShell` beside `Bash` because Claude Code on Windows routes shell commands through
+its PowerShell tool whenever that tool is on, and the docs say "a hook that matches only `Bash` never fires there"
+([hooks docs](https://code.claude.com/docs/en/hooks#powershell)).
 
 ```json
 {
@@ -292,7 +302,11 @@ shell itself.
         "hooks": [
           {
             "type": "command",
-            "command": "echo 'PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.'"
+            "command": "echo 'PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default. Follow the user-communication skill when writing to the user. If the prompt asks anything, answer every question first, then start the work. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:\n\nRunning: `running task name` (or: nothing)\n\n~~DONE: older finished task~~\n~~DONE: most recent finished task~~\n\n**NOW: what is being done right now**\n\nNext: the next task\nThen: the task after that\n\nWaiting on: what you wait for (or: nothing)\n\nWhen several tasks run, list each name in backticks on the Running line, separated by commas.'"
+          },
+          {
+            "type": "command",
+            "command": "echo 'When you launch a background subagent, note how long its task should take and schedule a recurring check every 10 minutes while any subagent runs. At each check compare its running time and latest output with that expectation. Leave it alone unless it is far over (for example 30 minutes on a task that should take 1) or clearly looping, then ask it for status or stop it and tell the user why.'"
           },
           {
             "type": "command",
@@ -307,14 +321,24 @@ shell itself.
         "hooks": [
           {
             "type": "command",
-            "command": "echo 'PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.'"
+            "command": "echo 'PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default. Follow the user-communication skill when writing to the user. If the prompt asks anything, answer every question first, then start the work. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:\n\nRunning: `running task name` (or: nothing)\n\n~~DONE: older finished task~~\n~~DONE: most recent finished task~~\n\n**NOW: what is being done right now**\n\nNext: the next task\nThen: the task after that\n\nWaiting on: what you wait for (or: nothing)\n\nWhen several tasks run, list each name in backticks on the Running line, separated by commas.'"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"SubagentStart\", \"additionalContext\": \"PREFLIGHT for a subagent: you are a subagent, and the main thread delegated this task to you. Do the work yourself with your own tools and load the skills your definition names. The rules that the main thread must delegate and may not write files apply to the main thread only, so do not hand this task on and do not refuse it for that reason. The preflight gate still checks every tool call you make. Report back what you changed and how you verified it.\"}}'"
           }
         ]
       }
     ],
     "PreToolUse": [
       {
-        "matcher": "^(Edit|Write|NotebookEdit|Bash|WebFetch|WebSearch)$",
+        "matcher": "^(Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|WebFetch|WebSearch)$",
         "hooks": [
           {
             "type": "command",
@@ -363,7 +387,7 @@ shell itself.
           {
             "type": "command",
             "timeout": 10,
-            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.agents/hooks/no_ai_markers_check.py --format claude ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.agents/hooks/no_ai_markers_check.py --format claude --display-fixed ; exit 0"
           },
           {
             "type": "command",
@@ -380,6 +404,17 @@ shell itself.
             "type": "command",
             "timeout": 10,
             "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.agents/hooks/no_ai_markers_check.py --format claude ; exit 0"
+          }
+        ]
+      }
+    ],
+    "MessageDisplay": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.agents/hooks/no_ai_markers_check.py --format claude --display ; exit 0"
           }
         ]
       }
@@ -406,9 +441,8 @@ claude mcp add --transport http context7 --scope user https://mcp.context7.com/m
 
 #### Codex
 
-Codex needs the least work of the five. It scans `$HOME/.agents/skills` for skills natively and follows symlinked
-skill folders while scanning ([build skills](https://learn.chatgpt.com/codex/build-skills)), so step 2 finished the
-skills job. There is no `~/.codex/skills` in the documentation at all.
+Codex scans `$HOME/.agents/skills` for skills natively and follows symlinked skill folders while scanning
+([build skills](https://learn.chatgpt.com/codex/build-skills)), so step 2 finished the skills job.
 
 Create the configuration directory. PowerShell:
 
@@ -426,37 +460,52 @@ Copy the TOML subagents into `~/.codex/agents/`
 ([subagents](https://learn.chatgpt.com/codex/agent-configuration/subagents)). PowerShell:
 
 ```powershell
-Copy-Item -Recurse -Force $HOME\.agent-standards\.codex\agents $HOME\.codex\
+Copy-Item -Recurse -Force "$src\.codex\agents" $HOME\.codex\
 ```
 
 Unix shell:
 
 ```bash
-cp -R ~/.agent-standards/.codex/agents ~/.codex/
+cp -R "$src/.codex/agents" ~/.codex/
 ```
 
-Give Codex the shared instructions. It reads `~/.codex/AGENTS.md`
-([AGENTS.md docs](https://learn.chatgpt.com/codex/agent-configuration/agents-md)). PowerShell:
+Point Codex at the instruction file. It reads `~/.codex/AGENTS.md`
+([AGENTS.md docs](https://learn.chatgpt.com/codex/agent-configuration/agents-md)), so make that a link to
+`~/.claude/CLAUDE.md`. PowerShell:
 
 ```powershell
-New-Item -ItemType SymbolicLink -Path $HOME\.codex\AGENTS.md -Target $HOME\.agents\AGENTS.md
+New-Item -ItemType SymbolicLink -Path $HOME\.codex\AGENTS.md -Target $HOME\.claude\CLAUDE.md
 ```
 
 Unix shell:
 
 ```bash
-ln -s ~/.agents/AGENTS.md ~/.codex/AGENTS.md
+ln -s ~/.claude/CLAUDE.md ~/.codex/AGENTS.md
 ```
 
 Wire the hooks in `~/.codex/hooks.json`, which is the user-level hooks file
 ([hooks docs](https://learn.chatgpt.com/codex/hooks)). The same tables can go inline in `~/.codex/config.toml` instead,
 and Codex asks you to pick one form per configuration layer rather than using both. Replace every absolute path. All
-five events matter: `UserPromptSubmit` and `SubagentStart` inject the text, on the main thread and inside a subagent,
-`PreToolUse` is the blocking half, `Stop` checks the reply formatting, and `SessionStart` puts the task list back.
-Leave `SubagentStart` out and a subagent gets no gate at all. The `|| exit 0` on every script command is what makes a
-missing or broken script allow the call instead of denying every one of them, and each command needs its
-`commandWindows` sibling because Codex picks one of the two per platform and a command with no sibling is simply
-absent on the other.
+five events matter: `UserPromptSubmit` injects the reminder on the main thread, `SubagentStart` injects the subagent
+text inside a subagent, `PreToolUse` is the blocking half, `Stop` checks the reply formatting, and `SessionStart` puts
+the task list back. The two texts differ on purpose: the reminder tells its reader to delegate, and a subagent told
+that turns its own task away, so a subagent is told to do the work itself instead. The `|| exit 0` on every script
+`command` and the
+`; exit 0` on every `commandWindows` are what make a missing or broken script allow the call instead of denying every
+one of them. Each command needs its `commandWindows` sibling, because Codex picks one of the two per platform and a
+command with no sibling is simply absent on the other. Codex runs `commandWindows` in PowerShell, `pwsh` when it is
+installed and Windows PowerShell otherwise, and Windows PowerShell has no `||`, which is why the Windows lines end in
+`; exit 0` and send errors to `$null` rather than `nul`.
+
+Codex tracks every hook by a hash of its definition: "new or changed hooks are marked for review and skipped until
+trusted" ([hooks docs](https://learn.chatgpt.com/docs/hooks)). After you paste or refresh these entries, open an
+interactive Codex session and trust them, or every changed hook, the reminder included, is silently skipped. Codex
+0.156.1 ran the unchanged `Stop` hook, skipped the edited reminder hook, and ran it only with
+`--dangerously-bypass-hook-trust`.
+
+The two reminder commands print JSON whose `additionalContext` carries the line breaks as `\n` escapes. The POSIX
+`command` prints it with `printf '%s\n'` rather than `echo`, because `dash`, the `sh` on Debian and Ubuntu, turns
+`\n` inside an `echo` argument into a raw newline and breaks the JSON.
 
 ```json
 {
@@ -467,8 +516,8 @@ absent on the other.
           {
             "type": "command",
             "statusMessage": "Preflight gate",
-            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.\"}}'",
-            "commandWindows": "echo {\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.\"}}"
+            "command": "printf '%s\\n' '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default. Follow the user-communication skill when writing to the user. If the prompt asks anything, answer every question first, then start the work. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:\\n\\nRunning: `running task name` (or: nothing)\\n\\n~~DONE: older finished task~~\\n~~DONE: most recent finished task~~\\n\\n**NOW: what is being done right now**\\n\\nNext: the next task\\nThen: the task after that\\n\\nWaiting on: what you wait for (or: nothing)\\n\\nWhen several tasks run, list each name in backticks on the Running line, separated by commas.\"}}'",
+            "commandWindows": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default. Follow the user-communication skill when writing to the user. If the prompt asks anything, answer every question first, then start the work. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:\\n\\nRunning: `running task name` (or: nothing)\\n\\n~~DONE: older finished task~~\\n~~DONE: most recent finished task~~\\n\\n**NOW: what is being done right now**\\n\\nNext: the next task\\nThen: the task after that\\n\\nWaiting on: what you wait for (or: nothing)\\n\\nWhen several tasks run, list each name in backticks on the Running line, separated by commas.\"}}'; exit 0"
           }
         ]
       }
@@ -479,8 +528,8 @@ absent on the other.
           {
             "type": "command",
             "statusMessage": "Preflight gate",
-            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"SubagentStart\", \"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.\"}}'",
-            "commandWindows": "echo {\"hookSpecificOutput\": {\"hookEventName\": \"SubagentStart\", \"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default.\"}}"
+            "command": "printf '%s\\n' '{\"hookSpecificOutput\": {\"hookEventName\": \"SubagentStart\", \"additionalContext\": \"PREFLIGHT for a subagent: you are a subagent, and the main thread delegated this task to you. Do the work yourself with your own tools and load the skills your definition names. The rules that the main thread must delegate and may not write files apply to the main thread only, so do not hand this task on and do not refuse it for that reason. The preflight gate still checks every tool call you make. Report back what you changed and how you verified it.\"}}'",
+            "commandWindows": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"SubagentStart\", \"additionalContext\": \"PREFLIGHT for a subagent: you are a subagent, and the main thread delegated this task to you. Do the work yourself with your own tools and load the skills your definition names. The rules that the main thread must delegate and may not write files apply to the main thread only, so do not hand this task on and do not refuse it for that reason. The preflight gate still checks every tool call you make. Report back what you changed and how you verified it.\"}}'; exit 0"
           }
         ]
       }
@@ -493,7 +542,7 @@ absent on the other.
             "statusMessage": "Task list",
             "timeout": 10,
             "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.agents/hooks/task_list_sync.py --event sessionstart --format codex 2>/dev/null || exit 0",
-            "commandWindows": "python -S -E /home/you/.agents/hooks/task_list_sync.py --event sessionstart --format codex 2>nul || exit 0"
+            "commandWindows": "$root = git rev-parse --show-toplevel 2>$null; if ($root) { Set-Location -LiteralPath $root }; python -S -E /home/you/.agents/hooks/task_list_sync.py --event sessionstart --format codex 2>$null; exit 0"
           }
         ]
       }
@@ -506,7 +555,7 @@ absent on the other.
             "statusMessage": "Formatting check",
             "timeout": 10,
             "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.agents/hooks/no_ai_markers_check.py --format codex 2>/dev/null || exit 0",
-            "commandWindows": "python -S -E /home/you/.agents/hooks/no_ai_markers_check.py --format codex 2>nul || exit 0"
+            "commandWindows": "$root = git rev-parse --show-toplevel 2>$null; if ($root) { Set-Location -LiteralPath $root }; python -S -E /home/you/.agents/hooks/no_ai_markers_check.py --format codex 2>$null; exit 0"
           }
         ]
       }
@@ -520,7 +569,7 @@ absent on the other.
             "statusMessage": "Preflight gate",
             "timeout": 10,
             "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.agents/hooks/preflight_gate.py --format codex 2>/dev/null || exit 0",
-            "commandWindows": "python -S -E /home/you/.agents/hooks/preflight_gate.py --format codex 2>nul || exit 0"
+            "commandWindows": "$root = git rev-parse --show-toplevel 2>$null; if ($root) { Set-Location -LiteralPath $root }; python -S -E /home/you/.agents/hooks/preflight_gate.py --format codex 2>$null; exit 0"
           }
         ]
       }
@@ -535,142 +584,117 @@ want from [MCP_SETUP.md](MCP_SETUP.md).
 
 #### OpenCode
 
-OpenCode reads `~/.agents/skills/<name>/SKILL.md` natively as one of its skill locations, so step 2 finished that too
-([skills docs](https://opencode.ai/docs/skills/)). It also reads `~/.claude/skills`, which means the Claude Code
-symlink from the previous section is a second route to the same files. OpenCode loads a skill from whichever location
-it finds it in, so there is nothing to undo.
+OpenCode reads `~/.agents/skills/<name>/SKILL.md` natively ([skills docs](https://opencode.ai/docs/skills/)). It also
+reads `~/.claude/skills`, which the Claude Code link points at the same folder, and loads a skill from whichever
+location it finds it in, so there is nothing to undo.
+
+It reads the instruction file on its own. Its global rules file is `~/.config/opencode/AGENTS.md`, and "Global rules:
+~/.claude/CLAUDE.md (used if no ~/.config/opencode/AGENTS.md exists)" ([rules docs](https://opencode.ai/docs/rules/)).
+Create no `~/.config/opencode/AGENTS.md` and it reads `~/.claude/CLAUDE.md`.
 
 Create the configuration directory. PowerShell:
 
 ```powershell
-New-Item -ItemType Directory -Force $HOME\.config\opencode\plugins
+New-Item -ItemType Directory -Force $HOME\.config\opencode
 ```
 
 Unix shell:
 
 ```bash
-mkdir -p ~/.config/opencode/plugins
+mkdir -p ~/.config/opencode
 ```
 
-Copy the OpenCode-format subagents into the documented global location, `~/.config/opencode/agents/`
-([agents docs](https://opencode.ai/docs/agents/)). PowerShell:
+Link the subagents to the shared tree. The global location is `~/.config/opencode/agents/`
+([agents docs](https://opencode.ai/docs/agents/)), and OpenCode 1.18.32 loaded all 25 subagents through a junction
+there in a throwaway home. If the directory already exists, move it aside first, because the link needs its name.
+PowerShell:
 
 ```powershell
-Copy-Item -Recurse -Force $HOME\.agents\agents $HOME\.config\opencode\agents
+New-Item -ItemType Junction -Path $HOME\.config\opencode\agents -Target $HOME\.agents\agents
 ```
 
 Unix shell:
 
 ```bash
-cp -R ~/.agents/agents ~/.config/opencode/agents
+ln -s ~/.agents/agents ~/.config/opencode/agents
 ```
 
-Install the gate plugin. Files in `~/.config/opencode/plugins/` load automatically at startup
-([plugins docs](https://opencode.ai/docs/plugins/)). PowerShell:
+Declare the plugin by path rather than copying it, so an update to `~/.agents/plugin/hooks.js` reaches OpenCode with
+nothing else to do. Add this to `~/.config/opencode/opencode.json`, with your real home directory:
 
-```powershell
-Copy-Item $HOME\.agents\plugin\hooks.js $HOME\.config\opencode\plugins\hooks.js
+```jsonc
+{
+  "plugin": ["C:/Users/you/.agents/plugin/hooks.js"]
+}
 ```
 
-Unix shell:
+Leave `~/.config/opencode/plugins/` without a copy of `hooks.js`. Files in that directory load automatically at
+startup ([plugins docs](https://opencode.ai/docs/plugins/)), so a copy there would load the runner a second time.
 
-```bash
-cp ~/.agents/plugin/hooks.js ~/.config/opencode/plugins/hooks.js
-```
+The plugin prefers the project's own `.agents/hooks/` and falls back to `~/.agents/hooks/`, so it gates every project,
+including one that never ran the per-project import.
+[How the OpenCode and Kilo Code plugin finds its hooks](#how-the-opencode-and-kilo-code-plugin-finds-its-hooks) has
+the order and the per-project opt-out.
 
-Read the [Limitations](#limitations) section before you rely on this one. The plugin looks for the gate scripts under
-the project directory it was started in, so a global copy stays silent in a project that has no `.agents/hooks/`.
-
-Give OpenCode the shared instructions. Its global rules file is `~/.config/opencode/AGENTS.md`
-([rules docs](https://opencode.ai/docs/rules/)). PowerShell:
-
-```powershell
-New-Item -ItemType SymbolicLink -Path $HOME\.config\opencode\AGENTS.md -Target $HOME\.agents\AGENTS.md
-```
-
-Unix shell:
-
-```bash
-ln -s ~/.agents/AGENTS.md ~/.config/opencode/AGENTS.md
-```
-
-MCP servers and any extra `instructions` entries go under the `mcp` and `instructions` keys of
-`~/.config/opencode/opencode.json` ([config docs](https://opencode.ai/docs/config/)). Take the `mcp` block from
-[MCP_SETUP.md](MCP_SETUP.md) and keep the machine-wide servers only.
+MCP servers go under the `mcp` key of `~/.config/opencode/opencode.json`
+([config docs](https://opencode.ai/docs/config/)), or in the shared file from
+[Share one MCP list between OpenCode and Kilo Code](#share-one-mcp-list-between-opencode-and-kilo-code). Take the
+block from [MCP_SETUP.md](MCP_SETUP.md) and keep the machine-wide servers only.
 
 #### Kilo Code
 
-Kilo Code is the one agent where the shared skills tree is not automatic. Its documented global skill locations are
-`~/.kilo/skills/` and `~/.claude/skills/`, the second only when Claude Code Compatibility is turned on. A
-home-directory `~/.agents/skills` is not on that list, and `.agents/skills/` is documented as a project-relative
-compatibility directory only ([skills docs](https://kilo.ai/docs/customize/skills)).
+Kilo Code reads the shared skills with no configuration: "install them at `~/.agents/skills/<name>/SKILL.md`. Kilo
+discovers this user-level directory by default, without a skills.paths entry"
+([skills docs](https://kilo.ai/docs/customize/skills)). A `skills.paths` entry naming `~/.agents/skills` is therefore
+not needed.
 
 Create the configuration directory. PowerShell:
 
 ```powershell
-New-Item -ItemType Directory -Force $HOME\.config\kilo\plugin
+New-Item -ItemType Directory -Force $HOME\.config\kilo
 ```
 
 Unix shell:
 
 ```bash
-mkdir -p ~/.config/kilo/plugin
+mkdir -p ~/.config/kilo
 ```
 
-The documented way to add the shared tree is the `skills.paths` key, which accepts `~/` home-relative paths. Put this
-in `~/.config/kilo/kilo.jsonc`:
+Link the subagents to the same shared tree OpenCode uses. The global location is `~/.config/kilo/agents/`
+([custom subagents](https://kilo.ai/docs/customize/custom-subagents)). Kilo Code 7.7.9 loaded all 25 subagents through
+a junction there, in a throwaway home, both with and without a `markdown_source` rule. The documentation asks for that
+rule when a project's `.kilo/agents/` links outside the project, and the global directory did not need it. PowerShell:
+
+```powershell
+New-Item -ItemType Junction -Path $HOME\.config\kilo\agents -Target $HOME\.agents\agents
+```
+
+Unix shell:
+
+```bash
+ln -s ~/.agents/agents ~/.config/kilo/agents
+```
+
+Kilo Code reads no global `AGENTS.md`. Global rules come from the `instructions` key of `~/.config/kilo/kilo.jsonc`
+([custom rules](https://kilo.ai/docs/customize/custom-rules)), and the same file takes the plugin. Kilo loads a local
+plugin named as an absolute `file:` URL ([plugins docs](https://kilo.ai/docs/automate/extending/plugins)). Merge this
+into `~/.config/kilo/kilo.jsonc`, with your real home directory:
 
 ```jsonc
 {
-  "skills": {
-    "paths": ["~/.agents/skills"]
-  }
+  "instructions": ["C:/Users/you/.claude/CLAUDE.md"],
+  "plugin": ["file:///C:/Users/you/.agents/plugin/hooks.js"]
 }
 ```
 
-Copy the OpenCode-format subagents into `~/.config/kilo/agents/`
-([custom subagents](https://kilo.ai/docs/customize/custom-subagents)). PowerShell:
+Leave `~/.config/kilo/plugin/` without a copy of `hooks.js`, for the same reason as under OpenCode: every file in that
+directory is "auto-registered at startup", so a copy there would load the runner a second time.
 
-```powershell
-Copy-Item -Recurse -Force $HOME\.agents\agents $HOME\.config\kilo\agents
-```
-
-Unix shell:
-
-```bash
-cp -R ~/.agents/agents ~/.config/kilo/agents
-```
-
-Install the same gate plugin. Kilo's global plugin directory is `~/.config/kilo/plugin/`, and it accepts an
-OpenCode-format plugin unchanged ([plugins docs](https://kilo.ai/docs/automate/extending/plugins)). PowerShell:
-
-```powershell
-Copy-Item $HOME\.agents\plugin\hooks.js $HOME\.config\kilo\plugin\hooks.js
-```
-
-Unix shell:
-
-```bash
-cp ~/.agents/plugin/hooks.js ~/.config/kilo/plugin/hooks.js
-```
-
-Kilo Code reads no global `AGENTS.md`. Global rules come from the `instructions` key of the global config file
-([custom rules](https://kilo.ai/docs/customize/custom-rules)), so point that at the shared file. Merge this into the
-same `~/.config/kilo/kilo.jsonc`:
-
-```jsonc
-{
-  "instructions": ["~/.agents/AGENTS.md"],
-  "mcp": {}
-}
-```
-
-MCP servers go under the `mcp` key of that file, in the same shape as `opencode.json`
-([CLI docs](https://kilo.ai/docs/code-with-ai/platforms/cli)). `{env:VAR}` does work here. Kilo refuses environment
-references in a project config file, and rejects the whole file when it finds one, but the global config is trusted
-and expands them normally, in `environment` blocks and in remote `headers` alike. This is the place to put the
-Context7 API key header if you want Kilo to use your key rather than the free tier, and an MCP entry has to be a
-complete server block, since a partial override fails validation:
+MCP servers go under the `mcp` key of `~/.config/kilo/kilo.jsonc`, in the same shape as `opencode.json`
+([CLI docs](https://kilo.ai/docs/code-with-ai/platforms/cli)), or in the shared file below. `{env:VAR}` works here:
+Kilo refuses it in a project config file, but resolves it in "your global config (~/.config/kilo), a config passed via
+KILO_CONFIG / KILO_CONFIG_CONTENT, or organization/MDM-managed config". This is the place for the Context7 API key
+header if you want Kilo to use your key rather than the free tier:
 
 ```jsonc
 {
@@ -685,16 +709,43 @@ complete server block, since a partial override fails validation:
 }
 ```
 
+#### Share one MCP list between OpenCode and Kilo Code
+
+Optional. Put the machine-wide servers in one file that holds nothing but an `mcp` block, for example
+`~/.agents/mcp.json`, in the `opencode.json` shape from [MCP_SETUP.md](MCP_SETUP.md). Then name it in both variables,
+for your user account rather than one shell. PowerShell:
+
+```powershell
+[Environment]::SetEnvironmentVariable('OPENCODE_CONFIG', "$HOME\.agents\mcp.json", 'User')
+```
+
+```powershell
+[Environment]::SetEnvironmentVariable('KILO_CONFIG', "$HOME\.agents\mcp.json", 'User')
+```
+
+Unix shell, added to your shell profile:
+
+```bash
+printf 'export OPENCODE_CONFIG="$HOME/.agents/mcp.json"\nexport KILO_CONFIG="$HOME/.agents/mcp.json"\n' >> ~/.profile
+```
+
+Both tools merge that file over their own global config, so keep the `mcp` block out of `opencode.json` and
+`kilo.jsonc` to have one list. Restart the agents, or sign out and in again on Windows, so they see the variables.
+Whether Kilo Code ever writes back into a file named by `KILO_CONFIG` was not tested.
+
 #### GitHub Copilot
 
 Copilot reads `~/.agents/skills` as a personal skills location alongside `~/.copilot/skills`
 ([about agent skills](https://docs.github.com/en/copilot/concepts/agents/about-agent-skills)), so step 2 finished the
-skills job here too, across the cloud agent, code review, the CLI, the Copilot app, and agent mode in VS Code and
-JetBrains.
+skills job, across the cloud agent, code review, the CLI, and agent mode in VS Code and JetBrains.
 
-Everything else on this list is CLI-only. The CLI configuration directory is `~/.copilot`, relocatable with
-`COPILOT_HOME`
+The CLI configuration directory is `~/.copilot`, relocatable with `COPILOT_HOME`
 ([CLI config dir reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference)).
+VS Code reads from it too: its Local agent loads user hooks from `~/.copilot/hooks/*.json` and user custom agents from
+`~/.copilot/agents` or `~/.claude/agents`
+([VS Code hooks](https://code.visualstudio.com/docs/copilot/customization/hooks),
+[VS Code custom agents](https://code.visualstudio.com/docs/copilot/customization/custom-agents)). Because VS Code reads
+both agent folders, a subagent installed for Claude Code and for Copilot shows up there twice.
 
 Create the two directories the copies land in. PowerShell:
 
@@ -711,54 +762,200 @@ mkdir -p ~/.copilot/agents ~/.copilot/hooks
 Copy the `*.agent.md` subagents into `~/.copilot/agents/`. PowerShell:
 
 ```powershell
-Copy-Item -Recurse -Force $HOME\.agent-standards\.github\agents\* $HOME\.copilot\agents\
+Copy-Item -Recurse -Force "$src\.github\agents\*" $HOME\.copilot\agents\
 ```
 
 Unix shell:
 
 ```bash
-cp -R ~/.agent-standards/.github/agents/. ~/.copilot/agents/
+cp -R "$src/.github/agents/." ~/.copilot/agents/
 ```
 
-Copy the gate into the user-level hooks directory, `~/.copilot/hooks/`
+Copy the gate wiring into the user-level hooks directory, `~/.copilot/hooks/`
 ([hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)). PowerShell:
 
 ```powershell
-Copy-Item $HOME\.agent-standards\.github\hooks\preflight.json $HOME\.copilot\hooks\preflight.json
+Copy-Item "$src\.github\hooks\preflight.json" $HOME\.copilot\hooks\preflight.json
 ```
 
 Unix shell:
 
 ```bash
-cp ~/.agent-standards/.github/hooks/preflight.json ~/.copilot/hooks/preflight.json
+cp "$src/.github/hooks/preflight.json" ~/.copilot/hooks/preflight.json
 ```
 
-Then open the copy and make both script paths absolute: the two `preToolUse` commands name
-`.agents/hooks/preflight_gate.py` and the second `sessionStart` command names `.agents/hooks/task_list_sync.py`, each
-of them relative. Put `~/.agents/hooks/` in front of both names, spelled out in full, or those hooks only work in
-projects that ran the per-project import. The file wires no reply formatting check, because Copilot has no confirmed
-event for one.
+Then open the copy and make every script path absolute: the `preToolUse` commands name
+`.agents/hooks/preflight_gate.py`, the second `sessionStart` command names `.agents/hooks/task_list_sync.py`, the
+`userPromptTransformed` commands name `.agents/hooks/copilot/prompt_reminder.py`, and the `agentStop` commands name
+`.agents/hooks/no_ai_markers_check.py`, each of them relative. Replace the leading `.agents/hooks/` of each with your
+home directory's `.agents/hooks/`, spelled out in full, or those hooks only work in projects that ran the per-project
+import.
 
-Personal instructions live in `~/.copilot/copilot-instructions.md`. Point it at the shared file. PowerShell:
+Do not turn on `chat.useClaudeHooks` in VS Code on top of this. With it on, the Local agent also runs the hooks in
+`~/.claude/settings.json`, next to the ones in `~/.copilot/hooks/`, and the documentation adds that "Local ignores
+matcher values". The gate is wired in both files, so every tool call in a VS Code chat would run it twice.
+
+Point Copilot at the instruction file. Its personal instructions live in `~/.copilot/copilot-instructions.md`, and it
+reads none of the other agents' files, so it needs a link of its own. Run it in PowerShell 7 (`pwsh`): Windows
+PowerShell 5.1 refuses the symbolic link with "Administrator privilege required" even with Developer Mode on.
+PowerShell:
 
 ```powershell
-New-Item -ItemType SymbolicLink -Path $HOME\.copilot\copilot-instructions.md -Target $HOME\.agents\AGENTS.md
+New-Item -ItemType SymbolicLink -Path $HOME\.copilot\copilot-instructions.md -Target $HOME\.claude\CLAUDE.md
 ```
 
 Unix shell:
 
 ```bash
-ln -s ~/.agents/AGENTS.md ~/.copilot/copilot-instructions.md
+ln -s ~/.claude/CLAUDE.md ~/.copilot/copilot-instructions.md
 ```
 
-The CLI also honours `COPILOT_CUSTOM_INSTRUCTIONS_DIRS`, a comma-separated list of directories it searches for an
-`AGENTS.md`. Setting it to `~/.agents` is the alternative to the symlink above, and it needs no Developer Mode on
-Windows.
+MCP for the CLI is `~/.copilot/mcp-config.json`. In VS Code, run the `MCP: Open User Configuration` command to open
+the `mcp.json` in your user profile folder, which applies across every workspace. The JetBrains plugin reads one global
+file and no project file: `C:\Users\<you>\AppData\Local\github-copilot\intellij\mcp.json` on Windows and
+`~/.config/github-copilot/intellij/mcp.json` elsewhere. GitHub documents only the in-IDE interface, not the path, so
+treat that path as observed rather than documented. The manual blocks for all three are in [MCP_SETUP.md](MCP_SETUP.md).
 
-MCP for the CLI is `~/.copilot/mcp-config.json`. In VS Code, run the `MCP: Open User Configuration` command to open the
-`mcp.json` in your user profile folder, which applies across every workspace. The JetBrains plugin is global-only and
-GitHub documents the in-IDE user interface rather than the path, so no file is given here. The manual blocks for both
-are in [MCP_SETUP.md](MCP_SETUP.md).
+---
+
+### Finish, delete the temporary copy
+
+PowerShell:
+
+```powershell
+Remove-Item -Recurse -Force $src
+```
+
+Unix shell:
+
+```bash
+rm -rf "$src"
+```
+
+---
+
+### How the OpenCode and Kilo Code plugin finds its hooks
+
+The plugin runs the hook scripts, it holds no rules of its own. On every tool call it picks one directory of hooks and
+runs every script in it.
+
+It looks in this order and stops at the first match:
+
+1. The project's own `.agents/hooks/`. If that directory exists, the plugin uses it and nothing else, even when it is
+   empty. A project that ran the per-project import therefore keeps its own copy of the gate, pinned to the version it
+   imported.
+2. The opt-out file `.agents/no-global-hooks` in the project. If it exists, the plugin runs no hooks at all for that
+   project. Only its presence counts, so an empty file is enough.
+3. The global `.agents/hooks/` in your home directory, the one step 2 filled. On Windows that is
+   `C:\Users\<you>\.agents\hooks`, elsewhere `~/.agents/hooks`.
+
+If none of those exists, no hook runs and every tool call is allowed.
+
+A global hook still guards the project, not your home directory. The plugin starts it in the project root and names
+that root in the `cwd` field of the payload, so the gate protects the files of the project you have open, the same way
+the per-project copy does.
+
+The choice is made again on every tool call, so adding or removing the opt-out file, or importing hooks into the
+project, takes effect on the next call without a restart.
+
+To run one project without the gate on OpenCode and Kilo Code, create the opt-out file from the project root.
+PowerShell:
+
+```powershell
+New-Item -ItemType File -Force .agents\no-global-hooks
+```
+
+Unix shell:
+
+```bash
+mkdir -p .agents && touch .agents/no-global-hooks
+```
+
+To turn the gate back on, delete that file. The opt-out only switches the global fallback off. It never switches off
+hooks the project ships in its own `.agents/hooks/`, and it does nothing on Claude Code, Codex, or GitHub Copilot,
+which call the gate from their own settings files.
+
+---
+
+### What the main thread may run
+
+The gate stops the main thread from running a script or a module, because it cannot see what a script writes. The main
+thread hands that work to a subagent instead, and subagents are not affected by this rule.
+
+What counts as running a script:
+
+- An interpreter handed a file or a module, such as `python x.py`, `python -m pip`, `node x.js`, `bash x.sh`, or
+  `pwsh -File x.ps1`.
+- A package or task runner handed any subcommand, such as `npm run build`, `npx prettier`, `pnpm lint`, `yarn test`,
+  `uv run`, or `pip install`.
+- A git subcommand that runs a command of its own: `git bisect run`, `git rebase --exec`, `git submodule foreach`, and
+  `git filter-branch`.
+- A build runner or compiler asked for anything beyond its version or help, such as `make`, `make build`,
+  `cargo build`, `go run .`, `go generate`, `go test`, `dotnet build`, `mvn test`, `gradle build`, `just test`, or
+  `rake`. `make --version`, `go version` and `dotnet --info` stay allowed.
+- A program called by a script file name, such as `.\deploy.ps1`, and any program whose path lands inside the
+  project, such as `./gradlew build` or `./bin/tool`.
+- A native program named by any other path, such as `/usr/local/bin/terraform apply`, unless it is a known read-only
+  tool such as `/usr/bin/grep`.
+
+Inline code, such as `python -c "print(1)"` or `node -e "..."`, is not a script run. The gate reads that code itself
+and denies it when it writes a file in the project, or when it loads code the gate cannot read: a Python import from
+outside the standard library, or a JavaScript module that is not built in. Writing `tasks.md` at the project root,
+sending output to the null device, and switching branches all stay allowed.
+
+A command also denies when it sets an environment variable that changes which program or file it uses, such as
+`GIT_DIR`, `GIT_CONFIG_PARAMETERS`, `LD_PRELOAD`, `NODE_OPTIONS`, `PYTHONPATH`, `BASH_ENV`, `PATH`, or
+`PYTEST_ADDOPTS`, whether the assignment leads the command, goes through `env` or `export`, or is a PowerShell
+`$env:` assignment. `LANG=C ls` and `PYTHONUTF8=1 python -m pytest` stay allowed.
+
+Three read-only checks are always allowed, each with only the options listed:
+
+| Check | Options it may carry |
+| --- | --- |
+| `python -m pytest` | `-q`, `-v`, `-x`, `-s`, `-l`, `-k`, `-m`, `-r`, `--tb`, `--maxfail`, `--durations`, `--capture`, `--color`, `--deselect`, `--ignore`, `--lf`, `--ff`, `--nf`, `--sw`, `--co`, `--no-header`, `--no-summary`, `--strict-markers`, `--runxfail`, and the long forms of those, plus test paths inside the project |
+| `node --check` | file names only |
+| `bash -n` | file names only |
+
+Any other option denies. For pytest that covers every option that loads a plugin (`-p`), a configuration file (`-c`,
+`--config-file`, `-o`), a root directory or a conftest from elsewhere (`--rootdir`, `--confcutdir`, a test path outside
+the project), sets the temporary base (`--basetemp`), writes a report (`--junitxml`, `--debug`), or imports a warning
+category (`-W`). For `node --check` it covers `-r`, `--require` and `--import`, and for `bash -n` it covers `-i` and
+`+n`, which would run the script after all.
+
+git has no entry. A git read such as `git status` or `git log` is not a script run in the first place, so the gate
+judges it by what it writes, like any other command. `git diff --output=file`, `git format-patch` without `--stdout`,
+and `git config` writes deny when their file lands in the project.
+
+How a project entry is matched:
+
+- The first word is the program. `python3`, `python3.13` and `py` all count as `python`. A first word with a slash in
+  it names a file instead, and matches only that file, so `.venv/Scripts/python.exe -m pytest` needs its own entry,
+  and an entry `scripts/verify.sh` does not allow `other/verify.sh`.
+- A trailing `...` accepts any further arguments. Without it the command has to end where the entry ends, so an
+  entry `python scripts/verify.py` allows that command and denies `python scripts/verify.py --fix`.
+- A word with a slash in it is a file path, and it matches the file it names from where the command runs. After
+  `cd scripts`, `python verify.py` still matches, and after `cd docs`, `python scripts/verify.py` does not.
+- An entry that hands a script to a shell, such as `bash scripts/check.sh`, only lifts the script-run rule. The gate
+  still reads the script as shell code and denies it when it writes a file in the project.
+- The built-in list names no project's own scripts, because an entry such as `python tools/check.py` would also allow a
+  same-named script in every other project, and that script could write files.
+
+The built-in list lives in `MAIN_THREAD_ALLOWLIST` near the top of `.agents/hooks/preflight_gate.py`. Do not edit it
+in a project, because the next update overwrites that file. Add your own entries to `main-thread-allowlist.txt` at the
+project root instead, one per line, in the form described above. Blank lines and lines starting with `#` are
+skipped. The file
+sits at the root rather than under `.agents/`, so importing or updating `.agents` never overwrites it. For example:
+
+```text
+# read-only checks this project allows its main thread
+npm run lint ...
+make check
+python scripts/verify.py
+```
+
+The gate reads that file from the project root on every call, so a new entry works on the next command. The main
+thread cannot write the file itself, because the gate protects it like every other file in the project, so ask a
+subagent to add an entry. Commit the file so the whole team gets the same list.
 
 ---
 
@@ -767,8 +964,8 @@ are in [MCP_SETUP.md](MCP_SETUP.md).
 1. MCP servers, everywhere. Which servers are machine-wide is a judgement about your machine, and most servers should
    not be global at all. Each agent's subsection above says where its user-scope MCP configuration lives, and
    [MCP_SETUP.md](MCP_SETUP.md) has the blocks.
-2. The content of `~/.agents/AGENTS.md`. Step 2 copies the project template there once. Editing it down to the parts
-   that are about you is a job only you can do.
+2. The content of `~/.claude/CLAUDE.md`. Editing the template down to the parts that are about you is a job only you
+   can do.
 3. Merging into a configuration file you already have. Nothing above tells you to overwrite one. Where a file already
    exists, merge the block rather than replacing the file.
 
@@ -781,167 +978,180 @@ writes into your repository, and they are unaffected by anything here.
 
 | Agent | Skills | Subagents | Hooks or plugin | MCP config | Global instructions | Config-dir env var |
 | --- | --- | --- | --- | --- | --- | --- |
-| Claude Code | `~/.claude/skills/`, reached by symlink to `~/.agents/skills` | `~/.claude/agents/` | `hooks` in `~/.claude/settings.json` | `~/.claude.json`, written by `claude mcp add --scope user` | `~/.claude/CLAUDE.md`, plus `~/.claude/rules/` | `CLAUDE_CONFIG_DIR` |
-| Codex | `$HOME/.agents/skills` native, also `/etc/codex/skills` | `~/.codex/agents/` as TOML | `~/.codex/hooks.json`, or inline `[[hooks.*]]` in `~/.codex/config.toml` | `[mcp_servers.*]` in `~/.codex/config.toml` | `~/.codex/AGENTS.md`, override `~/.codex/AGENTS.override.md` | `CODEX_HOME` |
-| OpenCode | `~/.agents/skills/`, `~/.claude/skills/`, `~/.config/opencode/skills/`, all native | `~/.config/opencode/agents/` | `~/.config/opencode/plugins/`, or the `plugin` key in `~/.config/opencode/opencode.json` | `mcp` key in `~/.config/opencode/opencode.json` | `~/.config/opencode/AGENTS.md`, falls back to `~/.claude/CLAUDE.md` | `OPENCODE_CONFIG_DIR`, and `OPENCODE_CONFIG` for the file |
-| Kilo Code | `~/.kilo/skills/`, `~/.claude/skills/` behind a compatibility setting, plus anything in `skills.paths` | `~/.config/kilo/agents/` | `~/.config/kilo/plugin/` | `mcp` key in `~/.config/kilo/kilo.jsonc` | none, use `instructions` in `~/.config/kilo/kilo.jsonc` | NOT DOCUMENTED |
-| GitHub Copilot | `~/.copilot/skills/` and `~/.agents/skills/`, both native | `~/.copilot/agents/`, CLI only | `~/.copilot/hooks/`, CLI only | `~/.copilot/mcp-config.json` for the CLI, user-profile `mcp.json` for VS Code | `~/.copilot/copilot-instructions.md`, or `COPILOT_CUSTOM_INSTRUCTIONS_DIRS` | `COPILOT_HOME` |
-
----
-
-### The unification story
-
-Three of the five agents read `~/.agents/skills` straight out of the box: Codex, OpenCode, and every GitHub Copilot
-surface that supports skills. For those three, step 2 is the entire skills installation.
-
-Claude Code does not read it. Its only personal skills location is `~/.claude/skills`, so it needs the symlink. That is
-the same bridge the per-project setup uses, for the same reason.
-
-Kilo Code does not read it either, at least not from the home directory. It reads `~/.kilo/skills` and, with the
-compatibility setting on, `~/.claude/skills`. The documented `.agents/skills` support is project-relative. So Kilo gets
-one line of config, `skills.paths`, which the documentation says accepts a `~/` path. If you would rather avoid the
-config edit, turning on Claude Code Compatibility makes Kilo read `~/.claude/skills`, which the Claude Code symlink has
-already pointed at the shared tree.
-
-What cannot be shared, and why:
-
-- Subagents. There is no shared subagent format. Claude Code takes its own markdown, Codex takes TOML, Copilot takes
-  `*.agent.md`, and OpenCode and Kilo take OpenCode-format markdown in two different directories. Every global install
-  is therefore a copy into a per-agent directory. OpenCode and Kilo could share one tree through a symlink the way the
-  project setup does, but neither documents following a symlinked agents directory, so this document copies instead.
-- Hooks. Five different schemas, five different event vocabularies, five different files. The wording is identical
-  everywhere, the wiring never is.
-- MCP. Five schemas again, and the environment-variable substitution syntax differs in each. That one is a smaller loss
-  than it looks, because most servers should not be global anyway.
-- Instructions. One file can be shared, and this document shares it, but each agent needs its own pointer at it: an
-  `@` import for Claude Code, a symlink for Codex, OpenCode, and the Copilot CLI, and a config key for Kilo Code.
+| Claude Code | `~/.claude/skills/`, a link to `~/.agents/skills` | `~/.claude/agents/` | `hooks` in `~/.claude/settings.json` | `~/.claude.json`, written by `claude mcp add --scope user` | `~/.claude/CLAUDE.md`, plus `~/.claude/rules/` | `CLAUDE_CONFIG_DIR` |
+| Codex | `$HOME/.agents/skills` native, also `/etc/codex/skills` | `~/.codex/agents/` as TOML | `~/.codex/hooks.json`, or inline `[[hooks.*]]` in `~/.codex/config.toml` | `[mcp_servers.*]` in `~/.codex/config.toml` | `~/.codex/AGENTS.md`, a link to `~/.claude/CLAUDE.md` | `CODEX_HOME` |
+| OpenCode | `~/.agents/skills/`, `~/.claude/skills/`, `~/.config/opencode/skills/`, all native | `~/.config/opencode/agents/`, a link to `~/.agents/agents` | `plugin` in `~/.config/opencode/opencode.json`, naming `~/.agents/plugin/hooks.js` | `mcp` in `~/.config/opencode/opencode.json`, or the file in `OPENCODE_CONFIG` | falls back to `~/.claude/CLAUDE.md` | `OPENCODE_CONFIG_DIR`, and `OPENCODE_CONFIG` for a file |
+| Kilo Code | `~/.agents/skills/` and `~/.kilo/skills/` native, `~/.claude/skills/` behind a compatibility setting | `~/.config/kilo/agents/`, a link to `~/.agents/agents` | `plugin` in `~/.config/kilo/kilo.jsonc`, naming `~/.agents/plugin/hooks.js` | `mcp` in `~/.config/kilo/kilo.jsonc`, or the file in `KILO_CONFIG` | `instructions` in `~/.config/kilo/kilo.jsonc` | `KILO_CONFIG` for a file |
+| GitHub Copilot | `~/.copilot/skills/` and `~/.agents/skills/`, both native | `~/.copilot/agents/`, read by the CLI and VS Code | `~/.copilot/hooks/`, read by the CLI and VS Code | `~/.copilot/mcp-config.json` for the CLI, user-profile `mcp.json` for VS Code, `C:\Users\<you>\AppData\Local\github-copilot\intellij\mcp.json` for JetBrains on Windows | `~/.copilot/copilot-instructions.md`, a link to `~/.claude/CLAUDE.md` | `COPILOT_HOME` |
 
 ---
 
 ### Updating the global installation
 
-Everything above either copies out of `~/.agent-standards` or links into `~/.agents`. Updating means refreshing the
-clone, then refreshing only the trees you have not edited yourself.
-
-Fetch and fast-forward the clone. PowerShell:
-
-```powershell
-git -C $HOME\.agent-standards pull --ff-only
-```
-
-Unix shell:
-
-```bash
-git -C ~/.agent-standards pull --ff-only
-```
-
-Refresh the shared tree. Both commands copy over the top rather than wiping first, so a skill you wrote yourself under
-`~/.agents/skills` survives, while an upstream skill you edited in place is overwritten. If you have local edits worth
-keeping, copy them somewhere else before running this. PowerShell:
-
-```powershell
-Copy-Item -Recurse -Force $HOME\.agent-standards\.agents\* $HOME\.agents\
-```
-
-Unix shell:
-
-```bash
-cp -R ~/.agent-standards/.agents/. ~/.agents/
-```
-
-Refresh Claude Code's subagents. The `skills` symlink needs nothing, because it follows the directory it points at.
+One command updates everything the install put in your home directory. It clones a temporary copy of this repository,
+reads the files of its newest commit, updates your install from them, prints what it did, and deletes the copy.
 PowerShell:
 
 ```powershell
-Copy-Item -Recurse -Force $HOME\.agent-standards\.claude\agents $HOME\.claude\
+pwsh -NoProfile -File $HOME\.agents\bin\update-global.ps1
 ```
 
 Unix shell:
 
 ```bash
-cp -R ~/.agent-standards/.claude/agents ~/.claude/
+sh ~/.agents/bin/update-global.sh
 ```
 
-Refresh Codex's subagents. PowerShell:
+The PowerShell version needs PowerShell 7.4 or later, which is `pwsh`, not the Windows PowerShell 5.1 that Windows
+ships. The Unix version runs in any POSIX `sh`, including Git Bash. Both do exactly the same thing.
+
+What it changes:
+
+- The hook scripts in `~/.agents/hooks`, the plugin in `~/.agents/plugin`, and the updater itself in `~/.agents/bin`
+  are refreshed in full, including a file upstream added since your last update. OpenCode and Kilo Code name the
+  plugin by path, so this reaches both.
+- Every skill folder you already have in `~/.agents/skills` is refreshed file by file, when upstream still ships a
+  skill of that name. A skill you do not have is never added, so one you deleted stays deleted.
+- Every subagent file you already have is refreshed, in the four trees: `~/.agents/agents`, which OpenCode and Kilo
+  Code reach through their links, `~/.claude/agents`, `~/.codex/agents`, and `~/.copilot/agents`. A subagent you do
+  not have is never added.
+- A file is removed only when the commit recorded in `~/.agents/.upstream-commit` shipped it and the new commit no
+  longer does. A file of your own, such as a note you keep inside a skill folder, was never shipped, so it is never
+  removed. When the recorded commit is missing or unknown, nothing is removed and the summary says so.
+- A skill folder or a subagent file that upstream stopped shipping altogether stays in place and is reported as
+  `keep`. One that never came from upstream is reported as `skip` and left alone.
+- The new commit is written to `~/.agents/.upstream-commit`.
+
+It never touches the files listed under [Files no update touches](#files-no-update-touches). When upstream changed the
+hook wiring since the recorded commit, the summary names the changed files and prints the `git diff` command that
+shows the change. Merge each changed entry into your own file by hand, taking it from the per-agent block above and
+writing your absolute paths into it. After any change to `~/.codex/hooks.json`, open an interactive Codex session and
+trust the hooks again, because "changed hooks are marked for review and skipped until trusted"
+([hooks docs](https://learn.chatgpt.com/codex/hooks)).
+
+To see what an update would do first, run it as a dry run. It prints the same list and writes nothing. PowerShell:
 
 ```powershell
-Copy-Item -Recurse -Force $HOME\.agent-standards\.codex\agents $HOME\.codex\
+pwsh -NoProfile -File $HOME\.agents\bin\update-global.ps1 -DryRun
 ```
 
 Unix shell:
 
 ```bash
-cp -R ~/.agent-standards/.codex/agents ~/.codex/
+sh ~/.agents/bin/update-global.sh --dry-run
 ```
 
-Refresh the Copilot CLI's subagents. PowerShell:
+The summary lists one line per file it changed or skill and subagent it left alone, then the wiring report and the
+totals, for example:
+
+```text
+update  ~/.agents/hooks/preflight_gate.py
+add     ~/.agents/skills/research/references/source-order.md
+skip    ~/.agents/skills/my-own-skill (not an upstream skill)
+Hook wiring: unchanged upstream since 1006f0084bd24080dcfbadb5c4bd33aaa616950d.
+Recorded 3f2abe7a3afd255c4220154474a1c4700ca37273 in ~/.agents/.upstream-commit.
+Updated 1, added 1, removed 0. Unchanged 371. Left alone: 0 removed upstream, 1 not from upstream.
+```
+
+To update from a clone of this repository you already have rather than from GitHub, name it as the source. The
+updater reads that clone's last commit and never its working tree, so uncommitted work in it cannot reach your home
+directory. Replace the path with your clone. PowerShell:
 
 ```powershell
-Copy-Item -Recurse -Force $HOME\.agent-standards\.github\agents\* $HOME\.copilot\agents\
+pwsh -NoProfile -File $HOME\.agents\bin\update-global.ps1 -Source D:\src\agent-standards
 ```
 
 Unix shell:
 
 ```bash
-cp -R ~/.agent-standards/.github/agents/. ~/.copilot/agents/
+sh ~/.agents/bin/update-global.sh --source ~/src/agent-standards
 ```
 
-Refresh the OpenCode subagents from the shared tree you just updated. PowerShell:
+#### Installed before the updater existed
+
+An install older than `~/.agents/bin` has no updater yet. Run it once out of a temporary copy, and that first run
+puts it in `~/.agents/bin` for every later update. PowerShell:
 
 ```powershell
-Copy-Item -Recurse -Force $HOME\.agents\agents\* $HOME\.config\opencode\agents\
+$src = Join-Path ([IO.Path]::GetTempPath()) 'agent-standards'
 ```
-
-Unix shell:
-
-```bash
-cp -R ~/.agents/agents/. ~/.config/opencode/agents/
-```
-
-Run the same pair against Kilo Code's directory. PowerShell:
 
 ```powershell
-Copy-Item -Recurse -Force $HOME\.agents\agents\* $HOME\.config\kilo\agents\
+git clone --filter=blob:none https://github.com/Lukk17/agent-standards.git $src
+```
+
+```powershell
+pwsh -NoProfile -File "$src\global\bin\update-global.ps1" -Source $src
+```
+
+```powershell
+Remove-Item -Recurse -Force $src
 ```
 
 Unix shell:
 
 ```bash
-cp -R ~/.agents/agents/. ~/.config/kilo/agents/
+src="$(mktemp -d)/agent-standards"
 ```
 
-Never refreshed by any command above, on purpose, because they become yours the moment you install them:
-`~/.claude/settings.json`, `~/.claude/CLAUDE.md`, `~/.claude.json`, `~/.codex/hooks.json`, `~/.codex/config.toml`,
+```bash
+git clone --filter=blob:none https://github.com/Lukk17/agent-standards.git "$src"
+```
+
+```bash
+sh "$src/global/bin/update-global.sh" --source "$src"
+```
+
+```bash
+rm -rf "$src"
+```
+
+#### Adding a skill you do not have yet
+
+The update never adds a skill, so copy the one folder out of a temporary copy made as in
+[step 1](#step-1-a-temporary-copy-of-the-repository), and delete the copy afterwards. Replace `research` with the
+folder name under `.agents/skills/`. Every agent then finds it the way it finds the others, and from then on the
+update keeps it current. PowerShell:
+
+```powershell
+Copy-Item -Recurse "$src\.agents\skills\research" $HOME\.agents\skills\research
+```
+
+Unix shell:
+
+```bash
+cp -R "$src/.agents/skills/research" ~/.agents/skills/research
+```
+
+#### Files no update touches
+
+Never refreshed, on purpose, because they become yours the moment you install them: `~/.claude/settings.json`,
+`~/.claude/CLAUDE.md`, `~/.claude.json`, `~/.codex/hooks.json`, `~/.codex/config.toml`,
 `~/.config/opencode/opencode.json`, `~/.config/kilo/kilo.jsonc`, `~/.copilot/hooks/preflight.json`,
-`~/.copilot/mcp-config.json`, and `~/.agents/AGENTS.md`. When upstream changes the gate wording or adds an MCP server,
-merge it into those by hand.
-
-A deleted skill is the one case the copy commands get wrong: they bring back anything you removed on purpose. Once you
-start curating the set, use the selective approach in [AGENTS-UPDATE.md](AGENTS-UPDATE.md), which enumerates what is
-already on disk and refreshes only that.
+`~/.copilot/mcp-config.json`, and `~/.agents/mcp.json` if you made one. When upstream changes the gate wording, the
+hook wiring, or adds an MCP server, merge it into those by hand.
 
 ---
 
 ### Undoing the global installation
 
-Remove it by hand, in this order, checking each directory before you delete it. Every directory the install writes into
-is a directory an agent also lets you put your own files in, so deleting a whole tree takes anything you wrote yourself
-along with the imported files.
+Remove it by hand, checking each directory before you delete it. Every directory the install writes into is one an
+agent also lets you put your own files in, so deleting a whole tree takes anything you wrote yourself along with it.
 
-Delete the shared checkout, which nothing but this install owns. PowerShell:
+Remove the links first, so deleting a link never reaches the shared folder behind it. A junction or a symlink is
+removed as the link itself. PowerShell:
 
 ```powershell
-Remove-Item -Recurse -Force $HOME\.agent-standards
+foreach ($l in "$HOME\.claude\skills", "$HOME\.config\opencode\agents", "$HOME\.config\kilo\agents") { if (Test-Path $l) { (Get-Item $l).Delete() } }
 ```
 
 Unix shell:
 
 ```bash
-rm -rf ~/.agent-standards
+rm -f ~/.claude/skills ~/.config/opencode/agents ~/.config/kilo/agents
 ```
 
-Delete the shared tree. This also removes `~/.agents/AGENTS.md`, so move that aside first if you edited it into
-something you want to keep. PowerShell:
+Then delete the shared folder. PowerShell:
 
 ```powershell
 Remove-Item -Recurse -Force $HOME\.agents
@@ -953,24 +1163,11 @@ Unix shell:
 rm -rf ~/.agents
 ```
 
-Then, per agent, remove only what you recognise: the `agents/` directory, the plugin file, the `skills` symlink, and
-the pointer at the shared instruction file. The [Global path map](#global-path-map) above lists every one of them.
-Take the gate out of `~/.claude/settings.json`, `~/.codex/hooks.json`, and `~/.copilot/hooks/preflight.json` by
-editing those files, since each may hold configuration of yours as well, and take the `@~/.agents/AGENTS.md` line out
-of `~/.claude/CLAUDE.md`.
-
-Removing `~/.claude/skills` needs one bit of care. It is a symlink, so delete the link itself and not the tree behind
-it. PowerShell:
-
-```powershell
-(Get-Item $HOME\.claude\skills).Delete()
-```
-
-Unix shell:
-
-```bash
-rm ~/.claude/skills
-```
+Then, per agent, remove only what you recognise: the `agents/` directories of Claude Code, Codex and Copilot, and the
+two instruction links, `~/.codex/AGENTS.md` and `~/.copilot/copilot-instructions.md`. Take the gate out of
+`~/.claude/settings.json`, `~/.codex/hooks.json`, and `~/.copilot/hooks/preflight.json`, and the `plugin` and
+`instructions` entries out of `opencode.json` and `kilo.jsonc`, by editing those files, since each may hold
+configuration of yours as well. `~/.claude/CLAUDE.md` is yours and stays.
 
 ---
 
@@ -979,53 +1176,51 @@ rm ~/.claude/skills
 Honest list of what a global install cannot do.
 
 1. The blocking half of the preflight gate is project-shaped. Every shipped hook wiring calls
-   `.agents/hooks/preflight_gate.py`, resolved against the session's working directory. At user level you
-   have to rewrite that to an absolute path, which the Claude Code, Codex, and Copilot sections above tell you to do,
-   and the same is true of `.agents/hooks/task_list_sync.py` and `.agents/hooks/no_ai_markers_check.py`. The gate
-   script then looks for subagent definitions in both the current directory and its own grandparent, so a copy at
+   `.agents/hooks/preflight_gate.py`, resolved against the session's working directory. At user level you have to
+   rewrite that to an absolute path, which the Claude Code, Codex, and Copilot sections above tell you to do, and the
+   same is true of `task_list_sync.py` and `no_ai_markers_check.py`. The gate script then looks for subagent
+   definitions in both the current directory and its own grandparent, so a copy at
    `~/.agents/hooks/preflight_gate.py` does find `~/.claude/agents` and `~/.agents/agents`. The text-injection half,
    the `echo` that reminds the model to name its skills, has no file dependency and works globally as it ships.
 
-2. The OpenCode and Kilo Code plugin cannot be fixed the same way. It resolves the gate scripts against the project
-   directory it is handed at startup and allows the call when the file is missing, by design, so that a broken gate
-   never breaks a session. A global copy of that plugin is therefore a no-op in any project that has not run the
-   per-project import. Making it work globally means editing the two path constants at the top of `hooks.js` to
-   absolute paths, which this document does not tell you to do, because it writes your home directory into a file the
-   update step overwrites.
+2. The OpenCode and Kilo Code plugin needs no path rewriting. It uses the project's own `.agents/hooks/` when the
+   project has one and your home directory's `.agents/hooks/` otherwise, so the global entry gates a project that
+   never ran the per-project import. The one project that stays ungated is one holding the opt-out file described in
+   [How the OpenCode and Kilo Code plugin finds its hooks](#how-the-opencode-and-kilo-code-plugin-finds-its-hooks).
 
-3. GitHub Copilot's hooks exist only in the CLI and the cloud agent. VS Code, JetBrains, and Copilot code review get no
-   hook surface at all, so there is no global gate for them and no project-level one either. They still read
-   `~/.agents/skills` and the instruction files, so the advisory half of the gate reaches them as prose.
+3. Copilot hooks reach the CLI, the cloud agent and the Local agent in VS Code. The cloud agent reads hooks only from
+   `.github/hooks/*.json` in the cloned repository, so nothing in your home directory reaches it. Whether the
+   JetBrains plugin reads `~/.copilot/hooks/` was not verified. Copilot code review has no hook surface.
 
-4. The Copilot cloud agent reads hooks only from `.github/hooks/*.json` in the cloned repository. Nothing in your home
-   directory reaches it, by definition, because it runs on GitHub's machines.
-
-5. Claude Code Cowork sessions and cloud sessions do not read `~/.claude/skills` on your machine at all. Cowork loads
+4. Claude Code Cowork sessions and cloud sessions do not read `~/.claude/skills` on your machine at all. Cowork loads
    the skills enabled for your claude.ai account, and cloud sessions additionally load project skills from the cloned
-   repository. Cowork also skips a `~/.claude/CLAUDE.md` that is itself a symlink, and skips imports in a user-scope
-   file that resolve outside the session's working directory, which is exactly what `@~/.agents/AGENTS.md` does. So the
-   global install covers your local sessions and not those two.
+   repository. So the global install covers your local sessions and not those two.
 
-6. Kilo Code documents no environment variable that relocates its whole configuration directory. `KILO_CONFIG` and
-   `KILO_CONFIG_CONTENT` pass configuration content rather than moving the directory. The other four agents all have
-   one: `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `OPENCODE_CONFIG_DIR`, and `COPILOT_HOME`.
+5. Kilo Code documents no environment variable that relocates its whole configuration directory. `KILO_CONFIG` and
+   `KILO_CONFIG_CONTENT` pass configuration rather than moving the directory. The other four agents all have one:
+   `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `OPENCODE_CONFIG_DIR`, and `COPILOT_HOME`.
 
-7. Symlink behaviour is documented for two agents and merely observed for the rest. Claude Code documents that a
-   `<skill-name>` entry may be a symlink, and that `.claude/rules/` supports them. Codex documents that it follows
-   symlinked skill folders. OpenCode, Kilo Code, and GitHub Copilot document nothing either way, and no agent documents
-   following a symlinked subagents directory. Where this document needs a subagent tree in two places it copies rather
-   than links.
+6. Linked directories are documented for two agents and measured for the rest. Claude Code documents that a
+   `<skill-name>` entry may be a symlink, Codex documents that it follows symlinked skill folders, and Kilo Code
+   documents a linked `.kilo/agents/` with its `markdown_source` rule. The subagent and skills links in this document
+   were measured on Windows 11 with junctions: Claude Code 2.1.281, OpenCode 1.18.32 and Kilo Code 7.7.9 each loaded
+   the linked tree in a throwaway home. A Unix symlink in the same place was not measured.
 
-8. Project settings win. A project that ran the per-project import brings its own `.claude/settings.json`,
-   `opencode.json`, `.codex/config.toml`, and skills, and those take precedence over the global ones. That is the
-   correct behaviour, and it means the global install is a floor rather than a policy.
+7. Project settings win. A project that ran the per-project import brings its own `.claude/settings.json`,
+   `opencode.json`, `.codex/config.toml`, and skills, and those take precedence over the global ones. Hooks are the
+   exception: Claude Code and Codex run the global and the project hooks side by side. The formatting check handles
+   that itself. The copy under `~/.agents/hooks/` stays silent in a project whose `.claude/settings.json`,
+   `.claude/settings.local.json`, `.codex/config.toml`, `.codex/hooks.json` or `.github/hooks/*.json` already runs
+   `no_ai_markers_check.py` on the same event, so one reply is never blocked twice and one batch never fixed twice.
+   When it cannot read those files it checks anyway.
 
 ---
 
 ### Where these paths come from
 
-Every path in this document was taken from the current published documentation, listed here so you can recheck it when
-a tool moves something.
+Every path in this document was taken from the current published documentation, fetched on 2026-09-25, or measured
+where the documentation says nothing. The measurements ran on Windows 11 against Claude Code 2.1.281, Codex 0.156.1,
+OpenCode 1.18.32 and Kilo Code 7.7.9, each in a throwaway home.
 
 | Agent | Pages used |
 | --- | --- |
@@ -1033,4 +1228,4 @@ a tool moves something.
 | Codex | [build skills](https://learn.chatgpt.com/codex/build-skills), [subagents](https://learn.chatgpt.com/codex/agent-configuration/subagents), [hooks](https://learn.chatgpt.com/codex/hooks), [config basics](https://learn.chatgpt.com/codex/config-file/config-basic), [AGENTS.md](https://learn.chatgpt.com/codex/agent-configuration/agents-md), [MCP](https://learn.chatgpt.com/codex/extend/mcp) |
 | OpenCode | [config](https://opencode.ai/docs/config/), [skills](https://opencode.ai/docs/skills/), [agents](https://opencode.ai/docs/agents/), [plugins](https://opencode.ai/docs/plugins/), [rules](https://opencode.ai/docs/rules/) |
 | Kilo Code | [skills](https://kilo.ai/docs/customize/skills), [custom subagents](https://kilo.ai/docs/customize/custom-subagents), [plugins](https://kilo.ai/docs/automate/extending/plugins), [CLI](https://kilo.ai/docs/code-with-ai/platforms/cli), [custom rules](https://kilo.ai/docs/customize/custom-rules) |
-| GitHub Copilot | [CLI config dir](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference), [agent skills](https://docs.github.com/en/copilot/concepts/agents/about-agent-skills), [hooks](https://docs.github.com/en/copilot/reference/hooks-reference), [CLI custom instructions](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-custom-instructions) |
+| GitHub Copilot | [CLI config dir](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference), [agent skills](https://docs.github.com/en/copilot/concepts/agents/about-agent-skills), [custom agents](https://docs.github.com/en/copilot/reference/custom-agents-configuration), [hooks](https://docs.github.com/en/copilot/reference/hooks-reference), [CLI custom instructions](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-custom-instructions), [VS Code hooks](https://code.visualstudio.com/docs/copilot/customization/hooks), [VS Code custom agents](https://code.visualstudio.com/docs/copilot/customization/custom-agents) |
