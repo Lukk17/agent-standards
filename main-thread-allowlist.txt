@@ -1,0 +1,4 @@
+# Read-only checks of this repository that its main thread may run itself.
+python tools/check-markdown.py
+python tools/check-badges.py
+python tools/gen_subagents.py --check
