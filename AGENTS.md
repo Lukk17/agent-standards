@@ -285,13 +285,15 @@ Per-surface details worth knowing before you touch any of them:
   path. Event names are camelCase, and a hook entry carries `bash` and `powershell` as sibling string fields next to
   `type`, not a nested `command` object. A nested one is silently ignored, which leaves that surface ungated.
 - The Copilot CLI additionally reads hooks from `.claude/settings.json`. The JetBrains plugin does not: its bundled
-  agent hardcodes `.github/hooks/**/*.json` and rejects PascalCase event names. The borrowed Claude gate wiring is inert
-  on the CLI, and it is meant to stay that way. Copilot names its tools in lower case, the same `bash`, `powershell`,
-  `create` and `edit` its own matcher lists, and it compares a matcher anchored and case sensitively, so the PascalCase
-  Claude pattern matches nothing there. Nothing is ungated, because
-  [.github/hooks/preflight.json](.github/hooks/preflight.json) already covers that surface. Do not widen the Claude
-  pattern to Copilot's tool names to make it fire: the CLI reads both files, so it would then run the gate twice on
-  every tool call. `SubagentStart` takes no matcher either, and the hooks reference accepts a PascalCase event name
+  agent hardcodes `.github/hooks/**/*.json` and rejects PascalCase event names. The borrowed Claude gate wiring does fire
+  on the CLI. Measured on Copilot CLI 1.0.81 in the sandbox image: it maps its own tool names to Claude's (`create`
+  reaches the hook as `Write`), and hands the hook a Claude-shaped payload (`hook_event_name`, `session_id`, an ISO
+  `timestamp`, `cwd`, `tool_name`, `tool_input`) that carries no `agent_id` for a subagent and a main thread alike. Read
+  as Claude Code's, that absence named every caller the main thread, so live run 36155485254 denied the docs-architect
+  subagent's own write under Rule A. The CLI sets `COPILOT_CLI=1` in the hook's environment, and the gate reads a
+  claude-format call carrying it as an unknown caller, the same verdict
+  [.github/hooks/preflight.json](.github/hooks/preflight.json) gets on that surface. Do not widen the Claude pattern
+  to Copilot's tool names: the CLI reads both files, so the gate already runs twice on every mapped tool call. `SubagentStart` takes no matcher either, and the hooks reference accepts a PascalCase event name
   in its "VS Code compatible format", so the CLI may deliver the subagent text twice, once from each file. The text
   is identical and this is not measured, because Copilot is not installed here. `Stop` and `SubagentStop` take no
   matcher, so those two do run on the CLI, with Copilot's

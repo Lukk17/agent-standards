@@ -296,11 +296,18 @@ def _tool_input(payload: Dict[str, Any]) -> Dict[str, Any]:
 _SUBAGENT = "subagent"
 _MAIN_THREAD = "main_thread"
 _UNKNOWN = "unknown"
+_COPILOT_CLI_MARKER = "COPILOT_CLI"
 
 
 def _caller_identity(payload: Dict[str, Any], fmt: str, flag: bool) -> str:
     if flag:
         return _SUBAGENT
+
+    if fmt == "claude" and os.environ.get(_COPILOT_CLI_MARKER):
+        # The Copilot CLI also runs the .claude/settings.json hooks, handing
+        # them a Claude-shaped payload with no agent_id for a subagent and a
+        # main thread alike, so on that host the absence proves nothing.
+        return _UNKNOWN
 
     if fmt in ("claude", "codex"):
         # Both formats document agent_id as present only inside a subagent

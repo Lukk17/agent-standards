@@ -472,6 +472,60 @@ def test_copilot_subagent_less_call_is_allowed_even_with_a_drifter_definition(tm
     assert (code, out, err) == (0, "", "")
 
 
+def copilot_translated_write(path):
+    """The Claude-format payload Copilot CLI 1.0.81 sends a .claude/settings.json hook for its create tool."""
+    return {
+        "hook_event_name": "PreToolUse",
+        "session_id": "5778feb1-a222-4311-9dd3-bff4419bac7d",
+        "timestamp": "2026-09-25T15:40:49.058Z",
+        "cwd": str(REPO_ROOT),
+        "tool_name": "Write",
+        "tool_input": {"path": path, "file_text": "written by subagent"},
+    }
+
+
+@pytest.fixture(autouse=True)
+def outside_the_copilot_cli(monkeypatch):
+    """Run every case as Claude Code would, whatever agent launched pytest."""
+    monkeypatch.delenv("COPILOT_CLI", raising=False)
+
+
+def test_claude_format_call_from_the_copilot_cli_is_allowed_as_unidentified():
+    # Given the Claude-shaped payload Copilot CLI hands the Claude wiring, which
+    # carries no agent_id for a subagent and a main thread alike
+    payload = copilot_translated_write("live-probe/subagent-note.md")
+
+    # When
+    code, out, err = run(payload, "claude", env={"COPILOT_CLI": "1"})
+
+    # Then the caller is not identified, so no rule denies it
+    assert (code, out, err) == (0, "", "")
+
+
+def test_the_same_claude_format_call_outside_the_copilot_cli_is_still_denied():
+    # Given
+    payload = copilot_translated_write("live-probe/subagent-note.md")
+
+    # When
+    code, out, err = run(payload, "claude")
+
+    # Then
+    assert (code, err) == (0, "")
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_the_copilot_cli_marker_does_not_affect_the_codex_format():
+    # Given
+    payload = edit("src/app.py")
+
+    # When
+    code, out, err = run(payload, "codex", env={"COPILOT_CLI": "1"})
+
+    # Then
+    assert (code, err) == (0, "")
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
 def test_notebook_path_key_is_understood():
     payload = {"tool_name": "NotebookEdit", "tool_input": {"notebook_path": "a.ipynb"}}
 
