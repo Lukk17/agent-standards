@@ -1,7 +1,7 @@
 ---
 name: ascend-web-hunter
-description: Web search and page-content extraction through the self-hosted AscendWebSearch service, covering WAF bypass, CAPTCHA escalation to a remote browser, and cached login sessions. Use when the user says "search the web for X", "read this URL", "scrape this job listing", "this page is behind Cloudflare", or "log me in to that site so you can read it". Not for recalling facts the user told you in an earlier conversation, use `ascend-memory`.
-compatibility: Requires the self-hosted AscendWebSearch service reachable over HTTP. Its base URL is configured by the user and appears in the examples as the placeholder $BASE, for example `http://ascend-web-hunter.local:8080`. No default base URL is assumed.
+description: Page-content extraction through the self-hosted AscendWebSearch service for pages a normal fetch cannot read, covering WAF bypass, CAPTCHA escalation to a remote browser, and cached login sessions. Use when the user says "this page is behind Cloudflare", "the fetch got a bot check", "scrape this job listing that blocks bots", "this site needs a login", or "log me in to that site so you can read it". Not for general research or a web search a normal fetch can answer, use `research`, and not for recalling facts the user told you in an earlier conversation, use `ascend-memory`.
+compatibility: Requires the self-hosted AscendWebSearch service reachable over HTTP. The base URL comes from ASCEND_WEB_HUNTER_URL, else the first of http://ascend-web-hunter.internal and http://localhost:7021 whose /health answers, and appears in the examples as $BASE.
 ---
 
 # Ascend Web Hunter
@@ -14,33 +14,34 @@ read, and for login walls the user signs into once so the service can cache the 
 
 ### When to activate
 
-- The task needs a web search the agent runs itself rather than an answer from memory.
-- The task needs the text of a specific URL: a job listing, an article, a product page, a documentation page.
-- A plain fetch already returned a Cloudflare interstitial, a WAF challenge, or a bot check.
+- A plain fetch already returned a Cloudflare interstitial, a WAF challenge, a CAPTCHA, or a bot check.
+- The target page is known to block normal fetching, such as a job board or a shop that rejects automated clients.
 - The target page sits behind a login the user can complete once on a phone or a laptop.
 
 ---
 
 ### When not to activate
 
+- General research, a web search, or reading a page a normal fetch returns in full, use `research`.
 - Recalling something the user told you in an earlier conversation, use `ascend-memory`.
 - Turning a recording or a video into text, use `audio-scribe`.
 - Writing or polishing the markdown you produce from a fetched page, use `markdown-writer`.
 
 ---
 
-### Take the base URL from configuration, never from a guess
+### Resolve the base URL in a fixed order
 
-Read the base URL from whatever configuration surface the runtime provides for AscendWebSearch, such as an MCP
-server URL, an environment variable, or a settings file. The service can live anywhere: a container name on the same
-Docker network, a host and port pair, a hostname on a local network, or a public HTTPS address behind a reverse
-proxy. Ask the user when nothing is configured. A wrong default looks like a working configuration right up until
-the first request fails. A configured value might look like `http://ascend-web-hunter.local:8080`, shown here only
-as an example of the shape, with the real value always coming from the user's own configuration.
+1. Use the environment variable `ASCEND_WEB_HUNTER_URL` when it is set.
+2. Otherwise probe `http://ascend-web-hunter.internal`, then `http://localhost:7021`, and use the first whose
+   `/health` endpoint answers.
+3. When none answers, tell the user the service is down. Do not fall back to a normal web fetch without saying so.
 
-Pass: resolve the base URL from configuration, then use it as `$BASE` in every call.
+The local compose file publishes port 7021 and exposes `/health` and `/ready` there. Use the resolved value as
+`$BASE` in every call. The probe commands are in [references/base-url.md](references/base-url.md).
 
-Fail: assume a default such as a well-known local port and start firing requests at it.
+Pass: `ASCEND_WEB_HUNTER_URL` is unset, the `.internal` probe times out, `localhost:7021/health` answers, use that.
+
+Fail: every probe fails, and the page is read with the built-in web fetch as if nothing happened.
 
 ---
 
@@ -54,7 +55,8 @@ Fail: assume a default such as a well-known local port and start firing requests
 | `/api/v2/web/session/status` | POST | Check whether a stored session for a URL is still active. |
 | `/api/v2/web/session/clear` | POST | Delete a stored session and any cached reads for that domain. |
 
-Four other endpoints exist and stay out of an agent's reach. `GET /health` and `GET /ready` serve orchestration.
+Four other endpoints exist and stay out of an agent's reach, apart from the `/health` probe above. `GET /health`
+and `GET /ready` serve orchestration.
 `POST /api/v1/blocklist/refresh` and `GET /api/v1/blocklist/status` maintain the server's blocklist, which is an
 operator action.
 
@@ -208,6 +210,7 @@ curl.exe -s "$BASE/api/v1/web/search?query=ascend%20ai&limit=5"
 
 ### Related skills
 
+- `research` for general research, web search, and every page a normal fetch can read.
 - `ascend-memory` for facts about the user that must survive across conversations.
 - `audio-scribe` for turning an audio or video recording into text.
 - `markdown-writer` for shaping fetched content into a human-facing document.
@@ -216,7 +219,7 @@ curl.exe -s "$BASE/api/v1/web/search?query=ascend%20ai&limit=5"
 
 ### Checklist
 
-- Base URL resolved from configuration, not from a default.
+- Base URL taken from `ASCEND_WEB_HUNTER_URL`, else the first candidate whose `/health` answers, else reported down.
 - `heavy_mode` and `include_links` set on every `read`.
 - Response routed on its `status` field, with 428 and 409 handled as their own cases.
 - CAPTCHA and login walls handed to the user with `vnc_url`, then polled with a capped retry.
