@@ -6189,6 +6189,9 @@ def _is_this_machine(host: str) -> bool:
     dot, and any name or address, a LAN address or an alias, that resolves to
     one of the addresses the machine's own name resolves to.
     """
+    if host in _LOOPBACK_HOSTS:
+        return True
+
     name = host.lower().rstrip(".").strip("[]")
 
     if name.endswith(_IPV6_LITERAL_SUFFIX):

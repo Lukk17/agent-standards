@@ -4186,6 +4186,14 @@ def test_this_machine_is_recognised_by_every_loopback_spelling(host, fresh_host_
     assert GATE._is_this_machine(host)
 
 
+def test_a_lone_dot_names_this_machine_without_any_name_resolution(monkeypatch):
+    # Given a resolver that knows no host, as glibc does for the empty name
+    monkeypatch.setattr(GATE, "_host_addresses", lambda host: frozenset())
+
+    # When/Then
+    assert GATE._is_this_machine(".")
+
+
 @pytest.mark.skipif(sys.platform != "win32", reason="a UNC share exists only on Windows")
 @pytest.mark.parametrize("host", ["localhost.", "--ffff-7f00-1.ipv6-literal.net", THIS_MACHINE_ADDRESS])
 def test_a_share_on_this_machine_by_another_spelling_denies(nest, host, offline_network):
