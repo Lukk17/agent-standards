@@ -313,7 +313,11 @@ system reminder so it understands why it must continue" ([hooks](https://code.cl
 "automatically creates a new continuation prompt that acts as a new user prompt, using your `reason` as that prompt
 text" ([hooks](https://learn.chatgpt.com/docs/hooks)). A reason that asked for the whole reply again made the user read
 it twice, so the reason now lists what it found and asks only for the fixed sentences, one per line, each starting with
-`Correction:` and quoting the fixed text, with nothing else. Every format uses that same wording.
+`Correction:` and quoting the fixed text, with nothing else. Every format uses that same wording for a reply on
+screen. A subagent's reply is not on screen: it is the report its caller receives, and the subagent's next reply
+replaces it. Live run 36176881215 recorded the cost on Copilot, where the corrected turn became the whole task result
+and the main thread never read the subagent's report. A stop payload naming `SubagentStop`, or carrying `agent_id` or
+Copilot's `agentId`, therefore gets a reason that asks for the whole report again with every violation fixed.
 
 Where a surface can rewrite what the user sees, the hook fixes the mechanical markers itself and blocks only on what
 is left. `fix_prose` turns a dash into a comma with clean spacing (a hyphen in a digit range such as `3-5`), strips

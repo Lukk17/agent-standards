@@ -1413,6 +1413,73 @@ def test_a_copilot_main_thread_stop_still_judges_its_own_session_log(tmp_path):
     assert json.loads(out)["decision"] == "block"
 
 
+# Recorded by Copilot CLI 1.0.81 in live run 36176881215, test 2. The borrowed
+# Claude SubagentStop wiring blocked the docs-architect report over a semicolon,
+# the subagent answered with Correction lines only, and that answer became the
+# whole task result, so the main thread never read "I couldn't create the file".
+COPILOT_REPORT_SESSION = "a657b231-6fd5-4a2e-8ae0-a07abf6cbeb7"
+COPILOT_REPORTING_SUBAGENT = "1112aa66-72ed-419e-81db-17efb6c06726"
+COPILOT_SUBAGENT_REPORT = (
+    "Skills/subagents: None apply; this is a one-line file creation task, with no separate investigation or "
+    "review needed. I couldn’t create the file in this session."
+)
+
+
+def copilot_subagent_stop(tmp_path):
+    log_dir = tmp_path / "session-state" / COPILOT_REPORT_SESSION
+    log_dir.mkdir(parents=True)
+    path = copilot_events(log_dir, copilot_message(""), copilot_message(COPILOT_SUBAGENT_REPORT))
+
+    return {
+        "sessionId": COPILOT_REPORT_SESSION,
+        "transcriptPath": str(path),
+        "agentName": "docs-architect",
+        "agentType": "docs-architect",
+        "agentId": COPILOT_REPORTING_SUBAGENT,
+        "stopReason": "end_turn",
+        "response": COPILOT_SUBAGENT_REPORT,
+        "agentDisplayName": "docs-architect",
+        "timestamp": 1790362935995,
+        "cwd": str(tmp_path),
+    }
+
+
+def test_a_copilot_subagent_report_is_asked_for_again_in_full(tmp_path):
+    # Given the SubagentStop payload the Copilot CLI handed the borrowed Claude wiring
+    payload = copilot_subagent_stop(tmp_path)
+
+    # When
+    code, out, _err = run_stop(payload, "claude")
+    reason = json.loads(out)["reason"]
+
+    # Then the subagent rewrites the report its caller receives instead of replacing it with corrections
+    assert code == 0
+    assert "semicolon in " in reason
+    assert "write the whole report again" in reason
+    assert "Correction:" not in reason
+    assert "already on screen" not in reason
+
+
+def test_a_claude_code_subagent_report_is_asked_for_again_in_full():
+    payload = {"hook_event_name": "SubagentStop", "agent_id": "a1", "last_assistant_message": "One clause; another."}
+
+    code, out, _err = run_stop(payload, "claude")
+    reason = json.loads(out)["reason"]
+
+    assert code == 0
+    assert "write the whole report again" in reason
+    assert "Correction:" not in reason
+
+
+def test_a_main_thread_stop_still_asks_only_for_corrections():
+    code, out, _err = run_stop({"hook_event_name": "Stop", "last_assistant_message": "One clause; another."}, "claude")
+    reason = json.loads(out)["reason"]
+
+    assert code == 0
+    assert "Correction:" in reason
+    assert "write the whole report again" not in reason
+
+
 def test_a_global_copilot_copy_stays_silent_where_the_project_wires_agent_stop(tmp_path):
     command = "python .agents/hooks/no_ai_markers_check.py --format copilot"
     wiring = {"version": 1, "hooks": {"agentStop": [{"type": "command", "bash": command}]}}

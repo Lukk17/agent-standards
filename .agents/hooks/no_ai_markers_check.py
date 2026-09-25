@@ -25,8 +25,11 @@ Stop hook (default, or --format claude, codex or copilot). Reads the Stop,
 SubagentStop or agentStop payload as JSON on stdin and takes the reply from
 `last_assistant_message`, falling back to the transcript the payload names.
 Blocking prints {"decision": "block", "reason": "..."} on stdout and exits 0, a
-clean reply prints nothing. `stop_hook_active`, or Copilot's `stopHookActive`,
-short-circuits the check so one forced correction cannot loop, and a per-session
+clean reply prints nothing. The reason asks a reply on screen for corrected
+lines only, and asks a subagent for its whole report again, because the
+subagent's next reply replaces the report its caller receives.
+`stop_hook_active`, or Copilot's `stopHookActive`, short-circuits the check so
+one forced correction cannot loop, and a per-session
 counter in a small state file allows the next stop after a block even on a
 payload that carries neither flag. With --display-fixed, the lines the display
 fix recorded as fixed on screen for this session are run through the same fix
@@ -160,14 +163,29 @@ EXCERPT_RADIUS = 30
 
 REASON_HEAD = "Formatting violation in your last reply. The prose contains: "
 
+REASON_FIXES = (
+    " Replace an em dash or en dash with a comma, a period, a "
+    "colon, or parentheses. Replace a semicolon with a period or a comma, or split "
+    "the sentence. Remove bold and italic."
+)
+
 REASON_TAIL = (
     ". That reply is already on screen, so do not repeat it and do not rewrite it "
     "in full. Write only the sentences or lines that needed fixing, one per line, "
     'each starting with "Correction:" followed by the fixed text in quotes, and '
-    "write nothing else. Replace an em dash or en dash with a comma, a period, a "
-    "colon, or parentheses. Replace a semicolon with a period or a comma, or split "
-    "the sentence. Remove bold and italic."
+    "write nothing else." + REASON_FIXES
 )
+
+SUBAGENT_REASON_TAIL = (
+    ". That reply is the report your caller receives, and your next reply "
+    "replaces it, so write the whole report again with every violation fixed and "
+    "nothing left out." + REASON_FIXES
+)
+
+# Claude Code names the event and carries agent_id only inside a subagent. The
+# Copilot CLI hands the SubagentStop it borrows from .claude/settings.json a
+# camelCase payload with no event name and the subagent's agentId.
+SUBAGENT_STOP_KEYS = ("agent_id", "agentId")
 
 # Project files that can wire this check, per format, as glob patterns under
 # the project root. A copy running from outside the project stays silent when
@@ -444,8 +462,16 @@ def _fix_displayed_lines(text: str, displayed_fixes: frozenset[str]) -> str:
     return "\n".join(lines)
 
 
-def build_reason(violations: list[str]) -> str:
-    return REASON_HEAD + ", ".join(violations) + REASON_TAIL
+def build_reason(violations: list[str], subagent: bool = False) -> str:
+    return REASON_HEAD + ", ".join(violations) + (SUBAGENT_REASON_TAIL if subagent else REASON_TAIL)
+
+
+def _is_subagent_stop(payload: dict[str, object]) -> bool:
+    """Whether the stopping reply is a subagent's report rather than a reply on screen."""
+    if payload.get("hook_event_name") == "SubagentStop":
+        return True
+
+    return any(isinstance(payload.get(key), str) and payload.get(key) for key in SUBAGENT_STOP_KEYS)
 
 
 def _report(text: str) -> int:
@@ -723,7 +749,7 @@ def _stop_mode(fmt: str, display_fixed: bool) -> int:
             return 0
 
         sys.stdout.write(
-            json.dumps({"decision": "block", "reason": build_reason(violations)})
+            json.dumps({"decision": "block", "reason": build_reason(violations, _is_subagent_stop(payload))})
         )
     except Exception:
         return 0

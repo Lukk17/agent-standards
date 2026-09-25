@@ -303,6 +303,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- The formatting check asks a blocked subagent for its whole report again rather than for `Correction:` lines. A
+  subagent's next reply replaces the report its caller receives, so in live run 36176881215 Copilot handed the main
+  thread only the corrected sentence and dropped the docs-architect's statement that it had not created the file.
 - The Codex and Copilot live jobs share one job concurrency group and no longer run side by side. Both draw on one
   OpenAI organisation's per-minute token limit for gpt-6-luna, and in live run 36168529868 OpenAI refused Copilot's
   first request with a 429 because the Codex job had already used most of that minute.
