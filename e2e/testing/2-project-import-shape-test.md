@@ -300,10 +300,26 @@ jq -e '[.hooks.preToolUse[].bash] | any(contains("preflight_gate.py --format cop
 
 Expect exit 0.
 
-Copilot injects the gate text once per session, which is the only injection channel it offers.
+Copilot injects the gate text once per session.
 
 ```bash
 jq -e '[.hooks.sessionStart[].bash] | any(contains("PREFLIGHT"))' /work/project/.github/hooks/preflight.json
+```
+
+Expect exit 0.
+
+Copilot also appends the gate text to every prompt, through the helper that sits outside the runner's discovery set.
+
+```bash
+jq -e '[.hooks.userPromptTransformed[].bash] | any(contains(".agents/hooks/copilot/prompt_reminder.py"))' /work/project/.github/hooks/preflight.json
+```
+
+Expect exit 0.
+
+Copilot checks the reply formatting on `agentStop`.
+
+```bash
+jq -e '[.hooks.agentStop[].bash] | any(contains("no_ai_markers_check.py --format copilot"))' /work/project/.github/hooks/preflight.json
 ```
 
 Expect exit 0.

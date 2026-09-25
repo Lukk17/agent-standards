@@ -1,6 +1,5 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "instructions": ["~/.agents/AGENTS.md"],
   "mcp": {
     "context7": {
       "type": "remote",

@@ -52,6 +52,124 @@ Driving a real agent session needs provider credentials, so none of this happens
 - Every MCP server is listed, not proven healthy. Some fail to connect inside the container because `uvx` and `docker`
   are deliberately absent, which is a property of the container rather than of the configuration.
 
+The first three gaps are what the live tests below close, at the price of a funded key.
+
+---
+
+### Live tests against a real model
+
+[agent-live-tests.yml](../.github/workflows/agent-live-tests.yml) installs each agent at the version the
+[Dockerfile](Dockerfile) pins, points it at a real model through Requesty, and runs it headless in a fresh
+project that imported this repository the way a consumer does. Every verdict is read from the tool calls and hook
+events the agent recorded, never from what the model wrote back.
+
+| Test | Passes when |
+| --- | --- |
+| 1 Gate blocks the main thread | The main thread tried to write a file, the gate's denial is in the transcript, and the file is absent |
+| 2 A named subagent writes | The main thread started `docs-architect`, the recorded write of the file came from the subagent, and the subagent's own transcript carries the subagent text (`PREFLIGHT for a subagent:`) and not the main-thread reminder |
+| 3 A skill is loaded | The main thread loaded the `kicad` skill through its skill tool or by reading its `SKILL.md` |
+| 4 The reminder reaches the model | The per-prompt reminder text is in the recorded context of that prompt, not only the session start |
+| 5 Key and model | One tiny request in the agent's own wire format is answered by Requesty |
+
+Three verdicts are possible besides a pass:
+
+- `FAIL` means the agent did the thing and the configuration did not behave. It fails the job.
+- `INCONCLUSIVE` means the model never attempted the tool call the test needs, so nothing was proven either way. It
+  raises a warning and does not fail the job.
+- `KNOWN-GAP` appears only for test 1 on GitHub Copilot. Its payload carries no agent identifier, so the gate cannot
+  tell the main thread from a subagent, as the Maintenance follow-ups in AGENTS.md already record.
+
+Test 5 runs first, as its own step, and the job stops there with one plain cause when Requesty refuses. The causes
+follow the error responses Requesty documents for its inference endpoints:
+
+| Requesty answer | Plain cause printed |
+| --- | --- |
+| 401, or 403 with a message that does not name the model | The key is invalid, revoked or empty |
+| 402 | The organization balance is empty |
+| 404, or 400 and 403 with a message naming the model or the access list | The model is not available to this key |
+| 429 | The upstream provider rate-limited the request, since Requesty adds no limit of its own |
+| 500, 502 or no answer | Requesty or the upstream provider is down |
+
+| Agent | Wire format | How the provider is supplied |
+| --- | --- | --- |
+| Claude Code | Anthropic Messages | `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_MODEL`, every model alias variable and `CLAUDE_CODE_SUBAGENT_MODEL` |
+| Codex | OpenAI Responses | A throwaway `CODEX_HOME/config.toml` whose provider sets `wire_api = "responses"` and names `REQUESTY_API_KEY` in `env_key`, plus a trust record, run with `--dangerously-bypass-hook-trust` |
+| OpenCode | OpenAI Chat Completions | `OPENCODE_CONFIG_CONTENT` with an `{env:REQUESTY_API_KEY}` reference |
+| Kilo Code | OpenAI Chat Completions | `KILO_CONFIG_CONTENT`, one of the trusted sources where Kilo resolves `{env:}` |
+| GitHub Copilot | OpenAI Chat Completions | `COPILOT_PROVIDER_*` and `COPILOT_MODEL`, with `COPILOT_OFFLINE` so no GitHub token is needed |
+
+No key is ever written into a committed file. The committed [opencode.json](../opencode.json) stays free of
+substitution tokens, and every transcript is scanned for the key and dropped if it holds it before the job uploads the
+transcripts as an artifact.
+
+The provider is Requesty (REQUESTY LTD, London), an LLM router at `https://router.requesty.ai/v1` that speaks Chat
+Completions, Responses and Anthropic Messages. The one secret is `REQUESTY_API_KEY`, a Requesty API key, added under
+Settings, Secrets and variables, Actions. Each agent runs one fixed model, with no fallback to another:
+
+| Agent | Requesty model id |
+| --- | --- |
+| Claude Code, OpenCode, Kilo Code, GitHub Copilot | `deepinfra/deepseek-v4-flash-0731`, DeepSeek V4 Flash on DeepInfra, with tool calling |
+| Codex | `openai-responses/gpt-6-luna`, GPT-6 Luna on the Responses route that Requesty's Codex guide requires |
+
+Both are the standard ids, not the `:flex` variants, so a flex capacity refusal cannot stall a run. The tests send
+nothing but the fixed probe prompts in [live/lib.sh](live/lib.sh).
+
+A run costs what its tokens cost at the prices `https://router.requesty.ai/v1/models` lists:
+
+```text
+cost = uncached input tokens × input price + cached input tokens × cached price + output tokens × output price
+```
+
+At the prices listed when this was written, that comes to about 1 cent per DeepSeek agent run and about 1.4 cents
+for a Codex run.
+
+To start it, open the Actions tab, pick Agent live tests, choose Run workflow, and pick one agent or `all`. The same
+from a terminal, Unix shell:
+
+```bash
+gh workflow run agent-live-tests.yml -f agent=all
+```
+
+PowerShell:
+
+```powershell
+gh workflow run agent-live-tests.yml -f agent=all
+```
+
+The scripts run locally too, one per agent under [live/](live/), with [live/lib.sh](live/lib.sh) holding the shared
+steps and [live/opencode-family.sh](live/opencode-family.sh) what OpenCode and Kilo Code share. The health check needs
+only curl and jq. Unix shell:
+
+```bash
+REQUESTY_API_KEY="<your key>" bash sandbox-agent/live/codex.sh health
+```
+
+PowerShell:
+
+```powershell
+$env:REQUESTY_API_KEY = "<your key>"
+```
+
+```powershell
+bash sandbox-agent/live/codex.sh health
+```
+
+A full local run imports into a throwaway project and adds safe-directory entries to the global git configuration, so
+run it inside the sandbox container rather than on your machine. Unix shell:
+
+```bash
+docker compose run --rm --build -e REQUESTY_API_KEY -e SANDBOX_SKIP_UPDATE=1 sandbox bash /repo/sandbox-agent/live/codex.sh run
+```
+
+PowerShell:
+
+```powershell
+docker compose run --rm --build -e REQUESTY_API_KEY -e SANDBOX_SKIP_UPDATE=1 sandbox bash /repo/sandbox-agent/live/codex.sh run
+```
+
+The exit code is 0 when nothing failed, 1 when a test failed, 2 on misuse or a missing key, and 4 when the health
+check refused.
+
 ---
 
 ### An OpenCode quirk the sandbox works around
@@ -292,10 +410,11 @@ PowerShell and cmd do no such rewriting, so the PowerShell commands above need n
 | [Dockerfile](Dockerfile) | Debian image with Node, Python, git, jq and ShellCheck, plus a baseline install of the five agent tools under a non-root user. |
 | [entrypoint.sh](entrypoint.sh) | Refuses the run when the baked scripts no longer match the mounted ones, marks `/repo` and `/repo/.git` as git safe directories, updates every agent tool to its newest release, prints the resolved versions, then runs the container command. |
 | [setup-project.sh](setup-project.sh) | Creates the empty project, marks the same two paths plus the project itself as safe, runs the documented selective checkout against the mounted repository, and repairs and verifies the three symlinks. |
-| [setup-global.sh](setup-global.sh) | Clones the mounted repository into `~/.agent-standards` and installs the shared configuration into the container's home directory, for every agent or only the ones named. Idempotent, and it never deletes or rewrites a file it did not create. |
+| [setup-global.sh](setup-global.sh) | Follows [docs/GLOBAL_SETUP.md](../docs/GLOBAL_SETUP.md): clones the mounted repository into a temporary directory, fills `~/.agents`, wires every agent or only the ones named, and deletes the clone. With `--update` it runs the guide's update instead, refreshing only what is installed. Idempotent, and it never deletes or rewrites a file it did not create. |
 | [verify-project.sh](verify-project.sh) | Every per-project assertion, one `PASS` or `FAIL` line each, exit 1 if any failed. Calls `setup-project.sh` first unless `SANDBOX_SKIP_SETUP=1`. |
-| [verify-global.sh](verify-global.sh) | Every global assertion, in the same style. Calls `setup-global.sh` twice, then asserts from `/work/bare`. With `--scoped <agent>` it installs for that agent alone and asserts only its paths were written. |
+| [verify-global.sh](verify-global.sh) | Every global assertion, in the same style. Calls `setup-global.sh` twice and then with `--update`, and asserts from `/work/bare`. With `--scoped <agent>` it installs for that agent alone and asserts only its paths were written. |
 | [compose.yaml](compose.yaml) | Mounts the repository read-only at `/repo`, drops every Linux capability, and runs `verify-project.sh` unless the run names another script. |
+| [live/](live/) | The live tests: [lib.sh](live/lib.sh) with the health check and the five tests, [opencode-family.sh](live/opencode-family.sh) for what OpenCode and Kilo Code share, and one script per agent. |
 | [.dockerignore](.dockerignore) | Keeps the README and the Compose file out of the build context, so editing either one does not bust the image cache. |
 
 The [Dockerfile](Dockerfile) pins the five agent tools to exact versions, so the image it builds is reproducible.
@@ -343,13 +462,15 @@ directory rather than into a project, so it gets its own pair: [setup-global.sh]
 install and [verify-global.sh](verify-global.sh) asserts what every agent then discovers, exactly the way
 `setup-project.sh` and `verify-project.sh` divide the per-project scenario.
 
-`verify-global.sh` runs the installer twice, because an install that is not idempotent cannot also be the update
-path, and then asserts from `/work/bare`, a directory into which nothing was ever imported. That bareness is what
+`verify-global.sh` runs the installer twice, because adding a second agent later means running it again, then runs
+the update over a home directory it has changed on purpose: a skill deleted, a skill of the user's own added, a hook
+script damaged. It asserts the update restores the damage and adds nothing back. Every assertion runs from
+`/work/bare`, a directory into which nothing was ever imported. That bareness is what
 makes a passing assertion attributable to the home layer rather than to a project layer. Its assertions are those of
 suite B in [e2e/testing](../e2e/testing), specs 6 to 9, so the script and the specs say the same thing.
 
-Everything the installer copies comes from the clone it makes of `/repo`, so that part is committed state, the same
-rule the per-project suite follows. The scripts themselves are baked into the image, so a change to one of them needs
+Everything the installer copies comes from the temporary clone it makes of `/repo` and deletes afterwards, so that
+part is committed state, the same rule the per-project suite follows. The scripts themselves are baked into the image, so a change to one of them needs
 a rebuild before a run sees it.
 
 ---
@@ -361,7 +482,7 @@ a rebuild before a run sees it.
 - Nothing from your home directory is mounted. Every agent tool installs into `/home/sandbox/.npm-global` and writes
   its state under `/home/sandbox`, which dies with the container.
 - The container runs as the unprivileged `sandbox` user.
-- Credentials are never supplied, so no agent can reach a provider.
+- Credentials are never supplied, so no agent can reach a provider, unless you pass `REQUESTY_API_KEY` for a live test.
 
 ---
 

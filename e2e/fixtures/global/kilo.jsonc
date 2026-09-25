@@ -1,8 +1,4 @@
 {
-  "skills": {
-    "paths": ["~/.agents/skills"]
-  },
-  "instructions": ["~/.agents/AGENTS.md"],
   "mcp": {
     "context7": {
       "type": "remote",

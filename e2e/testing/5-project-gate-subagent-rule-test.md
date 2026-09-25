@@ -247,7 +247,8 @@ Expect exit 0.
 
 - `e2e/fixtures/e2e-no-skills-probe.md`: subagent definition carrying the canary marker `E2E-GATE-CANARY-9134` and
   declaring no skills, in front matter or body.
-- `e2e/fixtures/gate-payloads/main-thread-source-edit.json`: main-thread `Edit` of `src/e2e_canary_app.py`.
+- `e2e/fixtures/gate-payloads/main-thread-source-edit.json`: main-thread `Edit` of `src/e2e_canary_app.py`, with
+  `is_subagent: false` for the plain runner envelope, which the other formats ignore.
 - `e2e/fixtures/gate-payloads/subagent-without-skills.json`: subagent payload naming `e2e-no-skills-probe`.
 - `e2e/fixtures/gate-payloads/subagent-with-skills.json`: subagent payload naming `code-reviewer`, which declares a
   long list of skills in its front matter.

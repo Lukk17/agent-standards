@@ -231,7 +231,8 @@ Expect exit 0.
 
 ### Fixtures
 
-- `e2e/fixtures/gate-payloads/main-thread-source-edit.json`: main-thread `Edit` of `src/e2e_canary_app.py`.
+- `e2e/fixtures/gate-payloads/main-thread-source-edit.json`: main-thread `Edit` of `src/e2e_canary_app.py`, with
+  `is_subagent: false` for the plain runner envelope, which the other formats ignore.
 - `e2e/fixtures/gate-payloads/main-thread-shell-redirect.json`: `Bash` command redirecting into the same file.
 - `e2e/fixtures/gate-payloads/main-thread-markdown-edit.json`: main-thread `Edit` of `docs/e2e-canary-note.md`.
 - `e2e/fixtures/gate-payloads/malformed.txt`: a line of prose where JSON is expected.

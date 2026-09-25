@@ -18,13 +18,26 @@ them, so there is one copy to keep correct.
 
 ### What this verifies
 
-- The installer lands every shared tree in the container's home directory: one skills tree, five per-agent subagent
-  trees, one instruction file with a pointer from each agent, all four hook scripts, and the plugin shim. This is the
-  procedure a reader actually follows, run against the mounted repository rather than against GitHub.
-- Running it a second time changes nothing and still exits 0. The second run performs the same two operations the
-  Updating section of [docs/GLOBAL_SETUP.md](../../docs/GLOBAL_SETUP.md) tells a reader to perform by hand, a
-  fast-forward of the shared clone followed by a copy over the top, so an install that is not idempotent would mean
-  the documented update is not safe either.
+- The installer follows [docs/GLOBAL_SETUP.md](../../docs/GLOBAL_SETUP.md) step for step. It clones into a temporary
+  directory and deletes the clone when it is done, so no copy of the repository stays in the home directory. It fills
+  `~/.agents`, the one shared folder, with the skills, the OpenCode-format subagents, the hook scripts and the plugin,
+  and records the commit it installed in `~/.agents/.upstream-commit`.
+- `~/.claude/CLAUDE.md` is the one instruction file. It starts from `AGENTS.md.example` when none exists. Codex and
+  Copilot reach it through a link each, Kilo Code through its `instructions` key, and OpenCode through its own fallback,
+  so OpenCode gets no rules file of its own.
+- OpenCode and Kilo Code read `~/.agents/agents` through a link each rather than a copy. Claude Code, Codex and Copilot
+  keep their own formats in their own directories, because none of the three can read the OpenCode format.
+- OpenCode and Kilo Code both name the shared plugin by absolute path, OpenCode as a plain path in `opencode.json` and
+  Kilo Code as a `file://` URL in `kilo.jsonc`, and neither holds a copy of it, because a copy in their plugin
+  directories would load the runner a second time.
+- The Claude Code and Codex user hooks are exactly the blocks the guide prints, with the guide's placeholder home
+  directory replaced by the container's own. That includes the `SubagentStart` text that tells a subagent to do its
+  delegated task itself.
+- Running the install a second time changes nothing and still exits 0, which is what makes adding a second agent later
+  safe.
+- The update refreshes only what is installed. It restores a damaged hook script, leaves a skill of the user's own
+  alone, does not bring back a skill the user deleted, never touches `~/.claude/settings.json`, records the new commit,
+  and leaves no clone behind.
 - Every assertion runs from `/work/bare`, a directory that has had nothing imported into it. This is the point of the
   suite. A global install is only proven when the working directory contains none of the per-project files, because
   otherwise there is no way to tell which layer the agent read.
@@ -46,10 +59,10 @@ them, so there is one copy to keep correct.
   single-agent home directory. That case is covered instead by
   [verify-global.sh](../../sandbox-agent/verify-global.sh) run with `--scoped <agent>`, which the sandbox job in CI
   runs as its own step.
-- Also out of scope, and worth stating because it is a real limitation rather than a gap in the test: the OpenCode
-  and Kilo Code plugin resolves the gate script against the project directory it was started in and allows the call
-  when the file is missing, by design. The global copy of that plugin is therefore inert in a bare directory. This
-  spec asserts the file landed. It does not claim the file does anything there.
+- Also out of scope: what the OpenCode and Kilo Code plugin does at runtime. It prefers the project's own
+  `.agents/hooks/` and falls back to the `~/.agents/hooks/` this installer fills, unless the project holds the
+  `.agents/no-global-hooks` opt-out, so in a bare directory it runs the home copies. No agent is started here, so
+  this spec asserts the plugin file and the hook scripts landed and leaves the fallback to the plugin's unit tests.
 
 ---
 
@@ -126,7 +139,7 @@ them exist, so this is what makes the spec, and every spec that inherits this re
 has already run it once.
 
 ```bash
-rm -rf "$HOME/.agent-standards" "$HOME/.agents" "$HOME/.claude" "$HOME/.claude.json" "$HOME/.codex" "$HOME/.config/opencode" "$HOME/.config/kilo" "$HOME/.copilot"
+rm -rf "$HOME/.agents" "$HOME/.claude" "$HOME/.claude.json" "$HOME/.codex" "$HOME/.config/opencode" "$HOME/.config/kilo" "$HOME/.copilot"
 ```
 
 Clear and recreate the bare directory the assertions run from.
@@ -156,11 +169,12 @@ git config --global --add safe.directory /repo/.git
 ### Run
 
 The installer performs the same steps [docs/GLOBAL_SETUP.md](../../docs/GLOBAL_SETUP.md) describes, with one
-substitution that is a property of the container rather than a change to the procedure: it clones the mounted
-repository at `/repo` instead of the GitHub address, so the run tests the committed state of this checkout. The
-script lives in the sandbox image at `/sandbox/setup-global.sh`, alongside the per-project
-[setup-project.sh](../../sandbox-agent/setup-project.sh) it mirrors, and it is baked into the image rather than read
-from the mount, so a change to the script itself needs a rebuild before this spec sees it.
+substitution that is a property of the container rather than a change to the procedure: its temporary clone is made
+from the mounted repository at `/repo` instead of the GitHub address, so the run tests the committed state of this
+checkout. With `--update` it performs the guide's Updating section instead. The script lives in the sandbox image at
+`/sandbox/setup-global.sh`, alongside the per-project [setup-project.sh](../../sandbox-agent/setup-project.sh) it
+mirrors, and it is baked into the image rather than read from the mount, so a change to the script itself needs a
+rebuild before this spec sees it.
 
 Everything the installer copies comes from the clone it makes, so those are committed state.
 
@@ -170,14 +184,57 @@ Everything the installer copies comes from the clone it makes, so those are comm
 /sandbox/setup-global.sh
 ```
 
-2. Install again, unchanged. This is the update path, and the assertions below check that it neither duplicated
-   anything nor failed. Read `echo $?` immediately after this step too.
+2. Install again, unchanged, the way a reader adds a second agent later. The assertions below check that it neither
+   duplicated anything nor failed. Read `echo $?` immediately after this step too.
 
 ```bash
 /sandbox/setup-global.sh
 ```
 
-3. Move to the bare directory. Every assertion below runs from here.
+3. Prepare the update. Delete one installed skill, the way a reader drops one they do not want.
+
+```bash
+rm -rf "$HOME/.agents/skills/markdown-writer"
+```
+
+4. Add a skill of your own, which no upstream skill shares a name with.
+
+```bash
+mkdir -p "$HOME/.agents/skills/e2e-own-skill" && printf -- '---\nname: e2e-own-skill\ndescription: Own skill.\n---\n' > "$HOME/.agents/skills/e2e-own-skill/SKILL.md"
+```
+
+5. Damage an installed hook script, so the update has something to restore.
+
+```bash
+printf '\n# damaged\n' >> "$HOME/.agents/hooks/preflight_gate.py"
+```
+
+6. Record the digest of the Claude Code settings, which the update must not touch.
+
+```bash
+sha256sum "$HOME/.claude/settings.json" > /tmp/global-settings-before.txt
+```
+
+7. Run the update. Read `echo $?` immediately after this step.
+
+```bash
+/sandbox/setup-global.sh --update
+```
+
+8. Record which skills the update left, before the next step puts the deleted one back.
+
+```bash
+ls "$HOME/.agents/skills" > /tmp/global-update-skills.txt
+```
+
+9. Put the deleted skill back the way the guide adds one, by copying its folder, and remove your own skill again, so
+   every later spec sees the full canonical set.
+
+```bash
+cp -R /repo/.agents/skills/markdown-writer "$HOME/.agents/skills/markdown-writer" && rm -rf "$HOME/.agents/skills/e2e-own-skill"
+```
+
+10. Move to the bare directory. Every assertion below runs from here.
 
 ```bash
 cd /work/bare
@@ -195,13 +252,70 @@ echo $?
 
 Expect `0`, read straight after run step 1.
 
-The second install exited 0 as well, which is what makes re-running it safe as the update path.
+The second install exited 0 as well, which is what makes running a section again safe.
 
 ```bash
 echo $?
 ```
 
 Expect `0`, read straight after run step 2.
+
+The update exited 0.
+
+```bash
+echo $?
+```
+
+Expect `0`, read straight after run step 7.
+
+No temporary clone outlived the install or the update, and no permanent copy of the repository sits in the home
+directory.
+
+```bash
+test -z "$(find "${TMPDIR:-/tmp}" -mindepth 2 -maxdepth 2 -name agent-standards)" -a ! -e "$HOME/.agent-standards"
+```
+
+Expect exit 0.
+
+The shared folder records the commit the update refreshed from, which is the one under test.
+
+```bash
+test "$(cat "$HOME/.agents/.upstream-commit")" = "$(git -C /repo rev-parse HEAD)"
+```
+
+Expect exit 0.
+
+The update restored the damaged hook script to the committed file.
+
+```bash
+git -C /repo show HEAD:.agents/hooks/preflight_gate.py | cmp - "$HOME/.agents/hooks/preflight_gate.py"
+```
+
+Expect exit 0.
+
+The update did not bring back the skill you deleted.
+
+```bash
+grep -qx markdown-writer /tmp/global-update-skills.txt
+```
+
+Expect exit 1, meaning the name is absent. Exit 0 here is a failure of the test.
+
+The update left your own skill alone.
+
+```bash
+grep -qx e2e-own-skill /tmp/global-update-skills.txt
+```
+
+Expect exit 0.
+
+The update did not touch `~/.claude/settings.json`, which holds settings of your own.
+
+```bash
+sha256sum -c /tmp/global-settings-before.txt
+```
+
+Expect exit 0.
 
 The working directory holds none of the per-project files. If any of them were here, no later assertion in this suite
 could tell which layer an agent read.
@@ -221,10 +335,10 @@ test "$(find "$HOME/.agents/skills" -mindepth 1 -maxdepth 1 -type d | wc -l)" -e
 
 Expect exit 0.
 
-Claude Code's skills location is a symlink that resolves to a directory.
+Claude Code's skills location is a link to the shared skills.
 
 ```bash
-test -L "$HOME/.claude/skills" -a -d "$HOME/.claude/skills"
+test "$(readlink "$HOME/.claude/skills")" = "$HOME/.agents/skills"
 ```
 
 Expect exit 0.
@@ -270,18 +384,18 @@ test "$(find "$HOME/.codex/agents" -maxdepth 1 -name '*.toml' | wc -l)" -eq "$(f
 
 Expect exit 0.
 
-OpenCode has every subagent in its own global location.
+OpenCode and Kilo Code read their subagents through a link each to the shared tree, not a copy.
 
 ```bash
-test "$(find "$HOME/.config/opencode/agents" -maxdepth 1 -name '*.md' | wc -l)" -eq "$(find /repo/.agents/agents -maxdepth 1 -name '*.md' | wc -l)"
+test "$(readlink "$HOME/.config/opencode/agents")" = "$HOME/.agents/agents" -a "$(readlink "$HOME/.config/kilo/agents")" = "$HOME/.agents/agents"
 ```
 
 Expect exit 0.
 
-Kilo Code has every subagent in its own global location, which is a separate directory holding the same format.
+The shared tree holds every subagent, and both links reach them. The trailing slash makes `find` follow the link.
 
 ```bash
-test "$(find "$HOME/.config/kilo/agents" -maxdepth 1 -name '*.md' | wc -l)" -eq "$(find /repo/.agents/agents -maxdepth 1 -name '*.md' | wc -l)"
+test "$(find "$HOME/.config/opencode/agents/" -maxdepth 1 -name '*.md' | wc -l)" -eq "$(find /repo/.agents/agents -maxdepth 1 -name '*.md' | wc -l)" -a "$(find "$HOME/.config/kilo/agents/" -maxdepth 1 -name '*.md' | wc -l)" -eq "$(find /repo/.agents/agents -maxdepth 1 -name '*.md' | wc -l)"
 ```
 
 Expect exit 0.
@@ -299,64 +413,66 @@ directory of the same name is the classic way an install stops being repeatable,
 level deeper than any agent looks.
 
 ```bash
-test ! -e "$HOME/.config/opencode/agents/agents" -a ! -e "$HOME/.config/kilo/agents/agents" -a ! -e "$HOME/.claude/agents/agents"
+test ! -e "$HOME/.agents/agents/agents" -a ! -e "$HOME/.agents/skills/skills" -a ! -e "$HOME/.claude/agents/agents"
 ```
 
 Expect exit 0.
 
-There is one shared instruction file.
+There is one instruction file, `~/.claude/CLAUDE.md`, and it started from the template because none existed. The
+shared folder holds none of its own.
 
 ```bash
-test -s "$HOME/.agents/AGENTS.md"
+git -C /repo show HEAD:AGENTS.md.example | cmp - "$HOME/.claude/CLAUDE.md" && test ! -e "$HOME/.agents/AGENTS.md"
 ```
 
 Expect exit 0.
 
-Claude Code points at it with an import line rather than a copy, and with exactly one such line after two installs.
+Codex and Copilot point at it with a link each.
 
 ```bash
-test "$(grep -cxF "@~/.agents/AGENTS.md" "$HOME/.claude/CLAUDE.md")" -eq 1
+test "$(readlink "$HOME/.codex/AGENTS.md")" = "$HOME/.claude/CLAUDE.md" -a "$(readlink "$HOME/.copilot/copilot-instructions.md")" = "$HOME/.claude/CLAUDE.md"
 ```
 
 Expect exit 0.
 
-Codex points at it with a symlink that resolves to a file.
+OpenCode gets no global rules file, so it falls back to `~/.claude/CLAUDE.md` on its own.
 
 ```bash
-test -L "$HOME/.codex/AGENTS.md" -a -f "$HOME/.codex/AGENTS.md"
+test ! -e "$HOME/.config/opencode/AGENTS.md"
 ```
 
 Expect exit 0.
 
-OpenCode points at it with a symlink that resolves to a file.
+Kilo Code reads no global instruction file, so it points at the one file through its `instructions` key, by absolute
+path.
 
 ```bash
-test -L "$HOME/.config/opencode/AGENTS.md" -a -f "$HOME/.config/opencode/AGENTS.md"
+jq -e --arg f "$HOME/.claude/CLAUDE.md" '.instructions == [$f]' "$HOME/.config/kilo/kilo.jsonc"
 ```
 
 Expect exit 0.
 
-Copilot points at it with a symlink that resolves to a file.
+Kilo Code carries no `skills.paths` entry, because it reads `~/.agents/skills` natively.
 
 ```bash
-test -L "$HOME/.copilot/copilot-instructions.md" -a -f "$HOME/.copilot/copilot-instructions.md"
+jq -e 'has("skills") | not' "$HOME/.config/kilo/kilo.jsonc"
 ```
 
 Expect exit 0.
 
-Kilo Code reads no global instruction file, so it points at the shared one through its own config key instead.
+The Claude Code user settings are exactly the guide's block, with its placeholder home directory read as the
+container's own, so the `SubagentStart` text and every other entry match what a reader pastes.
 
 ```bash
-jq -e '[.instructions[]] | any(contains(".agents/AGENTS.md"))' "$HOME/.config/kilo/kilo.jsonc"
+python3 -c 'import json,os,re,sys;h=os.environ["HOME"];g=open("/repo/docs/GLOBAL_SETUP.md").read();b=[x for x in re.findall(r"^\x60{3}json\n(.*?)^\x60{3}$",g,re.M|re.S) if "MessageDisplay" in x][0];sys.exit(json.loads(b.replace("/home/you/",h+"/"))!=json.load(open(h+"/.claude/settings.json")))'
 ```
 
 Expect exit 0.
 
-Kilo Code is told where the shared skills tree is, which is the one line without which it never sees those skills
-from the home directory.
+The Codex user hooks are the guide's block in the same way.
 
 ```bash
-jq -e '[.skills.paths[]] | any(contains(".agents/skills"))' "$HOME/.config/kilo/kilo.jsonc"
+python3 -c 'import json,os,re,sys;h=os.environ["HOME"];g=open("/repo/docs/GLOBAL_SETUP.md").read();b=[x for x in re.findall(r"^\x60{3}json\n(.*?)^\x60{3}$",g,re.M|re.S) if "commandWindows" in x][0];sys.exit(json.loads(b.replace("/home/you/",h+"/"))!=json.load(open(h+"/.codex/hooks.json")))'
 ```
 
 Expect exit 0.
@@ -372,9 +488,8 @@ jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.agents/hooks/pref
 Expect exit 0.
 
 Claude Code's gate call runs the script directly here too, and it must carry no `subprocess.DEVNULL`, which would
-mean the old standard-error-discarding wrapper had come back. Claude Code is still the one surface whose command
-cannot carry a shell redirect, because no redirect token means the same thing in both shells it might pick, which is
-exactly why the gate script now silences its own standard error internally for this format instead.
+mean the old standard-error-discarding wrapper had come back. The gate script silences its own standard error for
+this format, so the command needs no redirect.
 
 ```bash
 jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.agents/hooks/preflight_gate.py") and contains("--format claude") and endswith("; exit 0") and (contains("subprocess.DEVNULL") | not))' "$HOME/.claude/settings.json"
@@ -382,8 +497,8 @@ jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.agents/hooks/pref
 
 Expect exit 0.
 
-Claude Code forces a zero exit as well, in the `; exit 0` form both bash and PowerShell parse, because it has one
-command field and picks the shell itself.
+Claude Code forces a zero exit as well, with a trailing `; exit 0`. The command is POSIX shell, which Claude Code runs
+under `sh -c`, or under Git Bash on Windows.
 
 ```bash
 jq -e '[.hooks.PreToolUse[].hooks[].command] | any(endswith("; exit 0"))' "$HOME/.claude/settings.json"
@@ -391,11 +506,12 @@ jq -e '[.hooks.PreToolUse[].hooks[].command] | any(endswith("; exit 0"))' "$HOME
 
 Expect exit 0.
 
-Claude Code's matcher covers the two web tools as well as the four that write, because the gate hands research to a
-subagent rather than letting the main thread fetch or search directly.
+Claude Code's matcher covers the two web tools as well as the six that can write, `PowerShell` among them, because
+the gate hands research to a subagent rather than letting the main thread fetch or search directly, and because Claude
+Code on Windows routes shell commands through its PowerShell tool whenever that tool is on.
 
 ```bash
-jq -e '[.hooks.PreToolUse[].matcher] | any(type == "string" and test("Edit") and test("Write") and test("NotebookEdit") and test("Bash") and test("WebFetch") and test("WebSearch"))' "$HOME/.claude/settings.json"
+jq -e '[.hooks.PreToolUse[].matcher] | any(type == "string" and test("Edit") and test("Write") and test("MultiEdit") and test("NotebookEdit") and test("Bash") and test("PowerShell") and test("WebFetch") and test("WebSearch"))' "$HOME/.claude/settings.json"
 ```
 
 Expect exit 0.
@@ -404,7 +520,24 @@ Claude Code wires every event the project wiring wires, apart from the `PostTool
 event missing here is an event the global install does not gate.
 
 ```bash
-jq -e '[.hooks | keys[]] == ["PreCompact", "PreToolUse", "SessionStart", "Stop", "SubagentStop", "TaskCompleted", "TaskCreated", "UserPromptSubmit"]' "$HOME/.claude/settings.json"
+jq -e '[.hooks | keys[]] == ["MessageDisplay", "PreCompact", "PreToolUse", "SessionStart", "Stop", "SubagentStart", "SubagentStop", "TaskCompleted", "TaskCreated", "UserPromptSubmit"]' "$HOME/.claude/settings.json"
+```
+
+Expect exit 0.
+
+Claude Code tells a subagent to do its delegated task itself and never hands it the main-thread reminder, which tells
+its reader to delegate.
+
+```bash
+jq -e '[.hooks.SubagentStart[].hooks[].command] | length > 0 and all(contains("PREFLIGHT for a subagent:") and (contains("Delegate investigation") | not))' "$HOME/.claude/settings.json"
+```
+
+Expect exit 0.
+
+Claude Code injects the subagent supervision text at session start, beside the gate text.
+
+```bash
+jq -e '[.hooks.SessionStart[].hooks[].command] | any(contains("When you launch a background subagent") and contains("every 10 minutes"))' "$HOME/.claude/settings.json"
 ```
 
 Expect exit 0.
@@ -421,6 +554,15 @@ The reply formatting check runs on both stop events, once each, by absolute path
 
 ```bash
 jq -e '[[.hooks.Stop[].hooks[].command], [.hooks.SubagentStop[].hooks[].command] | map(select(contains("/.agents/hooks/no_ai_markers_check.py --format claude")))] | all(length == 1)' "$HOME/.claude/settings.json"
+```
+
+Expect exit 0.
+
+`MessageDisplay` fixes the reply before it is shown, and the `Stop` check runs with `--display-fixed` so it judges
+only what that fix leaves.
+
+```bash
+jq -e '([.hooks.Stop[].hooks[].command] | any(contains("/.agents/hooks/no_ai_markers_check.py --format claude --display-fixed"))) and ([.hooks.MessageDisplay[].hooks[].command] | any(contains("/.agents/hooks/no_ai_markers_check.py --format claude --display ")))' "$HOME/.claude/settings.json"
 ```
 
 Expect exit 0.
@@ -466,17 +608,32 @@ denies with exit 0 and JSON on stdout and never uses a non-zero exit, so a bare 
 would deny every tool call instead of allowing it.
 
 ```bash
-jq -e '[.hooks.PreToolUse[].hooks[] | .command, .commandWindows] | length > 0 and all(endswith("|| exit 0"))' "$HOME/.codex/hooks.json"
+jq -e '[.hooks.PreToolUse[].hooks[] | .command] | length > 0 and all(endswith("|| exit 0"))' "$HOME/.codex/hooks.json"
 ```
 
 Expect exit 0.
 
-Codex injects the canonical gate wording on a new prompt and again at the start of a subagent, not a shortened copy of
-it. Both events are needed: without `SubagentStart` a subagent under a global Codex gets no injection at all, while the
-same subagent inside an imported project does.
+The Windows siblings run in PowerShell, where `||` after a command is a parse error, so every one of them ends in
+`; exit 0` instead.
 
 ```bash
-jq -e '[.hooks.UserPromptSubmit[].hooks[].command, .hooks.SubagentStart[].hooks[].command] | length >= 2 and all(contains("Delegate investigation, review and bounded implementation by default."))' "$HOME/.codex/hooks.json"
+jq -e '[.hooks[][].hooks[] | (.commandWindows // empty)] | length > 0 and all(endswith("; exit 0"))' "$HOME/.codex/hooks.json"
+```
+
+Expect exit 0.
+
+Codex injects the canonical gate wording on a new prompt, not a shortened copy of it, and the subagent text at the
+start of a subagent, because the gate wording tells its reader to delegate and a subagent told that turns its own task
+away.
+
+```bash
+jq -e '[.hooks.UserPromptSubmit[].hooks[].command] | length >= 1 and all(contains("Delegate investigation, review and bounded implementation by default."))' "$HOME/.codex/hooks.json"
+```
+
+Expect exit 0.
+
+```bash
+jq -e '[.hooks.SubagentStart[].hooks[].command] | length > 0 and all(contains("PREFLIGHT for a subagent:") and (contains("Delegate investigation") | not))' "$HOME/.codex/hooks.json"
 ```
 
 Expect exit 0.
@@ -516,11 +673,11 @@ jq -e '[.hooks[][].hooks[] | (.command // empty) | select(contains(".py"))] | le
 
 Expect exit 0.
 
-Its Windows sibling stays on `python`, which is the only name the python.org installer puts on the path, so this
-spec asserts the asymmetry rather than assuming it.
+Its Windows sibling moves to the project root in PowerShell first and then stays on `python`, which is the only
+name the python.org installer puts on the path, so this spec asserts the asymmetry rather than assuming it.
 
 ```bash
-jq -e '[.hooks[][].hooks[] | (.commandWindows // empty) | select(contains(".py"))] | length > 0 and all(startswith("python -S -E /"))' "$HOME/.codex/hooks.json"
+jq -e '[.hooks[][].hooks[] | (.commandWindows // empty) | select(contains(".py"))] | length > 0 and all(startswith("$root = git rev-parse --show-toplevel 2>$null; if ($root) { Set-Location -LiteralPath $root }; python -S -E /"))' "$HOME/.codex/hooks.json"
 ```
 
 Expect exit 0.
@@ -547,6 +704,24 @@ rewrite in that file.
 
 ```bash
 jq -e '[.hooks.sessionStart[].bash] | any(contains("/.agents/hooks/task_list_sync.py --event sessionstart --format copilot"))' "$HOME/.copilot/hooks/preflight.json"
+```
+
+Expect exit 0.
+
+Copilot appends the reminder to every prompt on `userPromptTransformed`, by absolute path, which is the third call the
+installer has to rewrite in that file.
+
+```bash
+jq -e '[.hooks.userPromptTransformed[].bash] | any(contains("/.agents/hooks/copilot/prompt_reminder.py"))' "$HOME/.copilot/hooks/preflight.json"
+```
+
+Expect exit 0.
+
+Copilot checks the reply formatting on `agentStop`, by absolute path, which is the fourth call the installer has to
+rewrite in that file.
+
+```bash
+jq -e '[.hooks.agentStop[].bash] | any(contains("/.agents/hooks/no_ai_markers_check.py --format copilot"))' "$HOME/.copilot/hooks/preflight.json"
 ```
 
 Expect exit 0.
@@ -578,11 +753,27 @@ grep -qF -- "-E .agents/hooks/" "$HOME/.copilot/hooks/preflight.json"
 
 Expect exit 1, meaning the phrase is gone. Exit 0 here is a failure of the test.
 
-The plugin shim landed in both places that load one at startup. It is inert in a bare directory, for the reason given
-under What this verifies, so this asserts presence and claims nothing more.
+The plugin sits once, in the shared folder, and OpenCode names it by absolute path. Its fallback to the home hooks is
+runtime behaviour, for the reason given under What this verifies, so this asserts the wiring and claims nothing more.
 
 ```bash
-test -f "$HOME/.config/opencode/plugins/hooks.js" -a -f "$HOME/.config/kilo/plugin/hooks.js"
+jq -e --arg p "$HOME/.agents/plugin/hooks.js" '.plugin == [$p]' "$HOME/.config/opencode/opencode.json"
+```
+
+Expect exit 0.
+
+Kilo Code names the same file as an absolute `file://` URL.
+
+```bash
+jq -e --arg p "file://$HOME/.agents/plugin/hooks.js" '.plugin == [$p]' "$HOME/.config/kilo/kilo.jsonc"
+```
+
+Expect exit 0.
+
+Neither holds a copy of the plugin in its own plugin directory, which it would load at startup as a second runner.
+
+```bash
+test -f "$HOME/.agents/plugin/hooks.js" -a ! -e "$HOME/.config/opencode/plugins" -a ! -e "$HOME/.config/kilo/plugin"
 ```
 
 Expect exit 0.
@@ -592,15 +783,18 @@ Expect exit 0.
 ### Fixtures
 
 None. The installer writes every configuration file it needs, with the absolute paths taken from the container's own
-`$HOME`, so there is nothing to copy in and nothing that hard-codes a home directory.
+`$HOME`, so there is nothing to copy in and nothing that hard-codes a home directory. The expected Claude Code and
+Codex wiring is read out of [docs/GLOBAL_SETUP.md](../../docs/GLOBAL_SETUP.md) itself, so the guide and this spec
+cannot drift apart.
 
 ---
 
 ### Concurrency
 
-- Mutates: the container's home directory, specifically `$HOME/.agent-standards`, `$HOME/.agents`, `$HOME/.claude`,
-  `$HOME/.codex`, `$HOME/.config/opencode`, `$HOME/.config/kilo`, and `$HOME/.copilot`, plus `/work/bare`. Nothing
-  outside the container: `/repo` is mounted read-only and the container is discarded on exit.
+- Mutates: the container's home directory, specifically `$HOME/.agents`, `$HOME/.claude`, `$HOME/.codex`,
+  `$HOME/.config/opencode`, `$HOME/.config/kilo`, and `$HOME/.copilot`, plus `/work/bare`, the temporary clone the
+  installer makes and deletes under `$TMPDIR`, and the `/tmp/global-*` records the update steps write. Nothing outside
+  the container: `/repo` is mounted read-only and the container is discarded on exit.
 - Conflicts with: every other spec in either suite when they share a container shell, because this one deletes and
   rewrites the whole global layer. Nothing at all when every spec gets its own `docker compose run --rm` container.
 - Serial: false

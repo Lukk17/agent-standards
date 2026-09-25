@@ -1,1 +1,1 @@
-{"tool_name": "Edit", "tool_input": {"file_path": "src/e2e_canary_app.py"}}
+{"tool_name": "Edit", "tool_input": {"file_path": "src/e2e_canary_app.py"}, "is_subagent": false}

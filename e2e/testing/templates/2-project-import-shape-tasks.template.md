@@ -50,6 +50,8 @@ None beyond the fresh container. `setup-project.sh` rebuilds `/work/project` its
 - [ ] Codex injects the gate text on every prompt
 - [ ] Copilot calls the gate on `preToolUse` in its own format
 - [ ] Copilot injects the gate text on session start
+- [ ] Copilot appends the gate text to every prompt
+- [ ] Copilot checks the reply formatting on `agentStop`
 - [ ] OpenCode declares the shared plugin by path
 - [ ] OpenCode is pointed at `AGENTS.md`
 - [ ] The plugin is declared in a file Kilo Code reads

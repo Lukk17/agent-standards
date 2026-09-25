@@ -19,11 +19,11 @@ into the global agent directory and deleted again inside the same run.
   [6-global-install-shape-test.md](6-global-install-shape-test.md).
 - Out of scope, because the container is given no provider credentials: no agent runtime fires the hook and no model
   is asked anything. This spec proves the global gate copy refuses the payload each adapter would hand it.
-- Also out of scope, and a real limitation rather than a gap in the test: the OpenCode and Kilo Code plugin resolves
-  the gate script against the project directory it was started in and allows the call when the file is missing, by
-  design, so that a broken gate never breaks a session. In a bare directory that file is missing, so the global copy
-  of the plugin is inert. This spec asserts that the file really is missing from the working directory, which is the
-  honest statement of the limitation, and it drives the plain adapter directly instead.
+- Also out of scope: the OpenCode and Kilo Code plugin itself. In a bare directory it finds no project
+  `.agents/hooks/` and falls back to the home copies this spec drives, unless the project holds the
+  `.agents/no-global-hooks` opt-out. No agent is started here, so this spec asserts that no project-relative gate
+  script exists in the working directory, which makes any deny attributable to the home copy, and it drives the plain
+  adapter directly instead.
 
 ---
 
@@ -96,7 +96,7 @@ docker compose run --rm sandbox /bin/bash
 
 Then perform the whole global installation by running every command in the Reset state and Run sections of
 [6-global-install-shape-test.md](6-global-install-shape-test.md), in order, ending in `/work/bare`. That is two
-invocations of [setup-global.sh](../../sandbox-agent/setup-global.sh) with the reset around them, and it is not
+installs and one update with [setup-global.sh](../../sandbox-agent/setup-global.sh), with the reset around them, and it is not
 repeated here so there is one copy to keep correct. Do not continue until it has finished.
 
 Remove any probe left behind by an interrupted earlier run, so the baseline step below means something.
@@ -269,7 +269,8 @@ Expect exit 0.
 
 - `e2e/fixtures/e2e-no-skills-probe.md`: subagent definition carrying the canary marker `E2E-GATE-CANARY-9134` and
   declaring no skills, in front matter or body.
-- `e2e/fixtures/gate-payloads/main-thread-source-edit.json`: main-thread `Edit` of `src/e2e_canary_app.py`.
+- `e2e/fixtures/gate-payloads/main-thread-source-edit.json`: main-thread `Edit` of `src/e2e_canary_app.py`, with
+  `is_subagent: false` for the plain runner envelope, which the other formats ignore.
 - `e2e/fixtures/gate-payloads/subagent-without-skills.json`: subagent payload naming `e2e-no-skills-probe`.
 - `e2e/fixtures/gate-payloads/subagent-with-skills.json`: subagent payload naming `code-reviewer`.
 

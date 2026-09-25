@@ -14,7 +14,8 @@ show which definition the gate refused, and so a stray copy left behind in a rea
 
 ### Conventions
 
-1. Fixtures are read-only inputs. A spec copies a fixture into place, it never edits one.
+1. Fixtures are read-only inputs. A spec copies a fixture into place, or merges it into a file the installer wrote,
+   and it never edits one.
 2. Every fixture a spec writes into an agent directory is deleted again in the same spec, and the spec says so under
    Reset state.
 3. The global fixtures hard-code the container path `/work/bare`. They are container inputs, not templates for a real
@@ -34,13 +35,13 @@ show which definition the gate refused, and so a stray copy left behind in a rea
 | File | Used by | Distinctive content |
 | --- | --- | --- |
 | `e2e-no-skills-probe.md` | tests 5 and 9 | Subagent definition with `E2E-GATE-CANARY-9134` that declares no skills anywhere |
-| `gate-payloads/main-thread-source-edit.json` | tests 1 and 9 | Main-thread `Edit` of `src/e2e_canary_app.py` |
+| `gate-payloads/main-thread-source-edit.json` | tests 1, 5 and 9 | Main-thread `Edit` of `src/e2e_canary_app.py`, with `is_subagent: false` for the plain runner envelope, which the other formats ignore |
 | `gate-payloads/main-thread-markdown-edit.json` | test 1 | Main-thread `Edit` of `docs/e2e-canary-note.md` |
 | `gate-payloads/main-thread-shell-redirect.json` | test 1 | `Bash` command redirecting into `src/e2e_canary_app.py` |
 | `gate-payloads/subagent-with-skills.json` | tests 5 and 9 | Subagent payload naming `code-reviewer`, which declares skills |
 | `gate-payloads/subagent-without-skills.json` | tests 5 and 9 | Subagent payload naming `e2e-no-skills-probe` |
 | `gate-payloads/malformed.txt` | test 1 | Not JSON, so the gate has to fail open |
 | `global/codex-config.toml` | test 8 | Two `[mcp_servers]` tables plus the trust record for `/work/bare` |
-| `global/opencode.json` | test 8 | Global OpenCode config with the two machine-wide servers |
-| `global/kilo.jsonc` | test 8 | Global Kilo config with `skills.paths`, `instructions`, and the same two servers |
+| `global/opencode.json` | test 8 | Only an `mcp` block with the two machine-wide servers, merged into the `opencode.json` the installer wrote so its `plugin` entry survives |
+| `global/kilo.jsonc` | test 8 | Only an `mcp` block with the same two servers, merged into the `kilo.jsonc` the installer wrote so its `instructions` and `plugin` entries survive |
 | `global/copilot-mcp-config.json` | test 8 | Copilot command-line MCP config keyed `mcpServers` |

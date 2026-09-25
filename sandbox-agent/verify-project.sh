@@ -340,16 +340,23 @@ verify_claude() {
     '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py") and contains("--format claude"))'
   assert_json "the gate call is direct, formats claude, forces a zero exit, and the DEVNULL wrapper does not return" ".claude/settings.json" \
     '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py") and contains("--format claude") and endswith("; exit 0") and (contains("subprocess.DEVNULL") | not))'
-  assert_json "the gate call forces a zero exit in a form both bash and PowerShell parse" ".claude/settings.json" \
+  assert_json "the gate call forces a zero exit with a trailing ; exit 0" ".claude/settings.json" \
     '[.hooks.PreToolUse[].hooks[].command] | any(endswith("; exit 0"))'
+  assert_json "the gate matcher covers every writing tool, the PowerShell tool and both web tools" ".claude/settings.json" \
+    '[.hooks.PreToolUse[].matcher] | any(type == "string" and test("Edit") and test("Write") and test("MultiEdit") and test("NotebookEdit") and test("Bash") and test("PowerShell") and test("WebFetch") and test("WebSearch"))'
   assert_json "the gate text is injected on every prompt" ".claude/settings.json" \
     '[.hooks.UserPromptSubmit[].hooks[].command] | any(contains("PREFLIGHT"))'
+  assert_json "the subagent supervision text is injected at session start" ".claude/settings.json" \
+    '[.hooks.SessionStart[].hooks[].command] | any(contains("When you launch a background subagent") and contains("every 10 minutes"))'
+  # shellcheck disable=SC2016  # the $ belongs to the hook command text the jq filter looks for
   assert_json "every hook Claude Code calls resolves python3 first and falls back to python, on -S -E" ".claude/settings.json" \
     '[.hooks[][].hooks[].command] | map(select(contains(".agents/hooks/"))) | ((length > 0) and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E")))'
   assert_json "the formatting check is wired into Stop" ".claude/settings.json" \
     '[.hooks.Stop[].hooks[].command] | any(contains("no_ai_markers_check.py"))'
   assert_json "the formatting check is wired into SubagentStop" ".claude/settings.json" \
     '[.hooks.SubagentStop[].hooks[].command] | any(contains("no_ai_markers_check.py"))'
+  assert_json "the formatting fix is wired into MessageDisplay and Stop checks what it leaves" ".claude/settings.json" \
+    '([.hooks.MessageDisplay[].hooks[].command] | any(contains("no_ai_markers_check.py --format claude --display "))) and ([.hooks.Stop[].hooks[].command] | any(contains("no_ai_markers_check.py --format claude --display-fixed")))'
   assert_json "the task list is wired into TaskCreated" ".claude/settings.json" \
     '[.hooks.TaskCreated[].hooks[].command] | any(contains("task_list_sync.py"))'
   assert_json "the task list is wired into TaskCompleted" ".claude/settings.json" \
@@ -378,10 +385,14 @@ verify_codex() {
     '[.hooks.PreToolUse[].matcher] | any(type == "string" and test("Bash") and test("apply_patch"))'
   assert_toml "the gate text is injected on every prompt" ".codex/config.toml" \
     '[.hooks.UserPromptSubmit[].hooks[].command] | any(contains("PREFLIGHT"))'
+  # shellcheck disable=SC2016  # the $ belongs to the hook command text the jq filter looks for
   assert_toml "every POSIX hook command Codex calls resolves python3 first and falls back to python, on -S -E" ".codex/config.toml" \
     '[.hooks[][].hooks[] | (.command // empty)] | map(select(contains(".agents/hooks/"))) | ((length > 0) and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E")))'
-  assert_toml "every Windows hook command Codex calls stays on python, the only name a python.org install provides" ".codex/config.toml" \
-    '[.hooks[][].hooks[] | (.commandWindows // empty)] | map(select(contains(".agents/hooks/"))) | ((length > 0) and all(contains("python -S -E")))'
+  # shellcheck disable=SC2016  # the $ belongs to the hook command text the jq filter looks for
+  assert_toml "every Windows hook command Codex calls moves to the project root in PowerShell and stays on python, the only name a python.org install provides" ".codex/config.toml" \
+    '[.hooks[][].hooks[] | (.commandWindows // empty)] | map(select(contains(".agents/hooks/"))) | ((length > 0) and all(startswith("$root = git rev-parse --show-toplevel 2>$null; if ($root) { Set-Location -LiteralPath $root }; python -S -E .agents/hooks/")))'
+  assert_toml "every Windows command Codex runs forces a zero exit with a trailing ; exit 0, the PowerShell form" ".codex/config.toml" \
+    '[.hooks[][].hooks[] | (.commandWindows // empty)] | ((length > 0) and all(endswith("; exit 0")))'
   assert_toml "the formatting check is wired into Stop" ".codex/config.toml" \
     '[.hooks.Stop[].hooks[] | (.command // empty), (.commandWindows // empty)] | any(contains("no_ai_markers_check.py"))'
   assert_toml "MCP servers are present in the file Codex reads" ".codex/config.toml" \
@@ -438,8 +449,13 @@ verify_copilot() {
     '[.hooks.preToolUse[].bash] | any(contains("preflight_gate.py --format copilot"))'
   assert_json "the gate text is injected on session start" ".github/hooks/preflight.json" \
     '[.hooks.sessionStart[].bash] | any(contains("PREFLIGHT"))'
+  assert_json "the gate text is appended to every prompt" ".github/hooks/preflight.json" \
+    '[.hooks.userPromptTransformed[].bash] | any(contains(".agents/hooks/copilot/prompt_reminder.py"))'
+  assert_json "the formatting check is wired into agentStop" ".github/hooks/preflight.json" \
+    '[.hooks.agentStop[].bash] | any(contains("no_ai_markers_check.py --format copilot"))'
   assert_json "the gate is scoped to the tools that can write" ".github/hooks/preflight.json" \
     '[.hooks.preToolUse[].matcher] | any(type == "string" and test("bash") and test("powershell") and test("create") and test("edit"))'
+  # shellcheck disable=SC2016  # the $ belongs to the hook command text the jq filter looks for
   assert_json "every bash hook Copilot calls resolves python3 first and falls back to python, on -S -E" ".github/hooks/preflight.json" \
     '[.hooks[][] | (.bash // empty)] | map(select(contains(".agents/hooks/"))) | ((length > 0) and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E")))'
   assert_json "every PowerShell hook Copilot calls stays on python, the only name a python.org install provides" ".github/hooks/preflight.json" \
@@ -505,7 +521,7 @@ AGENT
 
 verify_gate_behaviour() {
   local format=""
-  local main_source_edit='{"tool_name":"Edit","tool_input":{"file_path":"src/app.py"}}'
+  local main_source_edit='{"tool_name":"Edit","tool_input":{"file_path":"src/app.py"},"is_subagent":false}'
   local main_doc_edit='{"tool_name":"Edit","tool_input":{"file_path":"README.md"}}'
   local main_shell_write='{"tool_name":"Bash","tool_input":{"command":"echo x > src/app.py"}}'
   local specialist='{"agent_id":"a1","agent_type":"code-reviewer","tool_name":"Edit","tool_input":{"file_path":"src/app.py"}}'

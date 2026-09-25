@@ -94,7 +94,7 @@ docker compose run --rm sandbox /bin/bash
 
 Then perform the whole global installation by running every command in the Reset state and Run sections of
 [6-global-install-shape-test.md](6-global-install-shape-test.md), in order, ending in `/work/bare`. That is two
-invocations of [setup-global.sh](../../sandbox-agent/setup-global.sh) with the reset around them, and it is not
+installs and one update with [setup-global.sh](../../sandbox-agent/setup-global.sh), with the reset around them, and it is not
 repeated here so there is one copy to keep correct. Do not continue until it has finished.
 
 The installer writes no MCP configuration for any agent, deliberately, because which servers are machine-wide is a
@@ -108,18 +108,25 @@ reports nothing at all and the assertion would be measuring the trust prompt rat
 cp /repo/e2e/fixtures/global/codex-config.toml "$HOME/.codex/config.toml"
 ```
 
-Give OpenCode its global configuration. The installer creates none, so this file is the whole of what OpenCode reads
-at user scope here.
+Give OpenCode its two servers. The fixture holds only an `mcp` block, and it is merged into the `opencode.json` the
+installer wrote rather than copied over it, the way the guide says to merge a block, so the `plugin` entry survives.
 
 ```bash
-cp /repo/e2e/fixtures/global/opencode.json "$HOME/.config/opencode/opencode.json"
+jq -s '.[0] * .[1]' "$HOME/.config/opencode/opencode.json" /repo/e2e/fixtures/global/opencode.json > /tmp/global-opencode.json
 ```
 
-Give Kilo Code the same two servers. This overwrites the `kilo.jsonc` the installer wrote, and the fixture carries the
-`skills.paths` and `instructions` keys as well, so nothing the installer put there is lost.
+```bash
+mv /tmp/global-opencode.json "$HOME/.config/opencode/opencode.json"
+```
+
+Give Kilo Code the same two servers, merged the same way, so the `instructions` and `plugin` entries survive.
 
 ```bash
-cp /repo/e2e/fixtures/global/kilo.jsonc "$HOME/.config/kilo/kilo.jsonc"
+jq -s '.[0] * .[1]' "$HOME/.config/kilo/kilo.jsonc" /repo/e2e/fixtures/global/kilo.jsonc > /tmp/global-kilo.jsonc
+```
+
+```bash
+mv /tmp/global-kilo.jsonc "$HOME/.config/kilo/kilo.jsonc"
 ```
 
 Give the Copilot command-line tool its user-scope server file.
@@ -292,9 +299,10 @@ Expect exit 1, meaning the name appears nowhere. Exit 0 here is a failure of the
 
 - `e2e/fixtures/global/codex-config.toml`: two `[mcp_servers]` tables plus the trust record for `/work/bare`.
 - `e2e/fixtures/global/copilot-mcp-config.json`: Copilot command-line MCP configuration, keyed `mcpServers`.
-- `e2e/fixtures/global/opencode.json`: global OpenCode configuration, copied into place by this spec.
-- `e2e/fixtures/global/kilo.jsonc`: global Kilo Code configuration, copied into place by this spec over the one the
-  installer wrote, carrying `skills.paths` and `instructions` as well as the two servers.
+- `e2e/fixtures/global/opencode.json`: an `mcp` block only, merged by this spec into the `opencode.json` the
+  installer wrote.
+- `e2e/fixtures/global/kilo.jsonc`: an `mcp` block only, merged by this spec into the `kilo.jsonc` the installer
+  wrote.
 
 All four carry literal values and no variable references, so no assertion here can fail because a variable was unset
 in the container.
