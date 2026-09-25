@@ -134,7 +134,13 @@ def canonical_subagent_reminder() -> str:
 # Every wiring prints one single-quoted literal. sh, bash and PowerShell all
 # print a single-quoted literal as written, so the literal is what the agent
 # reads: plain text with real newlines, or JSON whose \n escapes decode to them.
-PRINTED_LITERAL = re.compile(r"^(?:echo|printf '%s\\n') '(?P<literal>[^']*)'(?:; exit 0)?$")
+SUBAGENT_GUARDS = (
+    r"grep -F '\"agent_id\"' >/dev/null \|\| ",
+    r'if \(-not \[Console\]::In\.ReadToEnd\(\)\.Contains\("`"agent_id`""\)\) \{ ',
+)
+PRINTED_LITERAL = re.compile(
+    rf"^(?:{'|'.join(SUBAGENT_GUARDS)})?(?:echo|printf '%s\\n') '(?P<literal>[^']*)'(?: \}})?(?:; exit 0)?$"
+)
 SHELL_KEYS = ("command", "commandWindows", "bash", "powershell")
 POWERSHELL_KEYS = ("commandWindows", "powershell")
 MARKER = "PREFLIGHT: before code work"

@@ -291,7 +291,9 @@ Per-surface details worth knowing before you touch any of them:
   `timestamp`, `cwd`, `tool_name`, `tool_input`) that carries no `agent_id` for a subagent and a main thread alike. Read
   as Claude Code's, that absence named every caller the main thread, so live run 36155485254 denied the docs-architect
   subagent's own write under Rule A. The CLI sets `COPILOT_CLI=1` in the hook's environment, and the gate reads a
-  claude-format call carrying it as an unknown caller, the same verdict
+  claude-format call carrying it, and no `transcript_path`, as an unknown caller. Claude Code always sends
+  `transcript_path` and the Copilot CLI does not, so a Claude Code session that inherited the variable from a Copilot
+  shell stays identified. That is the same verdict
   [.github/hooks/preflight.json](.github/hooks/preflight.json) gets on that surface. Do not widen the Claude pattern
   to Copilot's tool names: the CLI reads both files, so the gate already runs twice on every mapped tool call. `SubagentStart` takes no matcher either, and the hooks reference accepts a PascalCase event name
   in its "VS Code compatible format", so the CLI may deliver the subagent text twice, once from each file. The text
@@ -350,7 +352,9 @@ Per-surface details worth knowing before you touch any of them:
   (`https://docs.github.com/en/copilot/reference/hooks-reference`). Copilot's built-in `general-purpose` agent emits no
   `subagentStart`, per the same page. Claude Code's hooks reference names tool events as the ones that fire inside a
   subagent, so its `UserPromptSubmit` and `SessionStart` reminder is not expected to reach one, which is read from the
-  reference and not measured. Copilot's `userPromptTransformed` fires for a "submitted prompt", and the reference does
+  reference and not measured. Codex does fire `UserPromptSubmit` for a subagent's opening message, measured in live run
+  36163866070, and sends `agent_id` in that payload only inside a subagent, so the Codex reminder command prints
+  nothing when the payload carries an `"agent_id"` key. Copilot's `userPromptTransformed` fires for a "submitted prompt", and the reference does
   not say whether a subagent's prompt counts, so whether the reminder also reaches a Copilot subagent that way is
   unverified.
 - Copilot gets the gate text on every prompt from `userPromptTransformed`, which runs

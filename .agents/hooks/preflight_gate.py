@@ -303,10 +303,12 @@ def _caller_identity(payload: Dict[str, Any], fmt: str, flag: bool) -> str:
     if flag:
         return _SUBAGENT
 
-    if fmt == "claude" and os.environ.get(_COPILOT_CLI_MARKER):
+    if fmt == "claude" and os.environ.get(_COPILOT_CLI_MARKER) and "transcript_path" not in payload:
         # The Copilot CLI also runs the .claude/settings.json hooks, handing
         # them a Claude-shaped payload with no agent_id for a subagent and a
         # main thread alike, so on that host the absence proves nothing.
+        # Claude Code always sends transcript_path and Copilot never does, so
+        # a marker inherited by a Claude Code session leaves it identified.
         return _UNKNOWN
 
     if fmt in ("claude", "codex"):
@@ -4597,9 +4599,28 @@ def _code_runner_targets(
 
         return _child_shell_targets(code, depth, _POSIX) if code else []
 
+    if name in APPLY_PATCH_TOOLS:
+        return _apply_patch_command_targets(rest, feed, powershell)
+
     runner = _COMMAND_RUNNERS.get(name)
 
     return runner(rest, depth, dialect) if runner else None
+
+
+def _apply_patch_command_targets(tokens: List[str], feed: Callable[[], Optional[str]], powershell: bool) -> List[str]:
+    """What Codex's apply_patch writes when a shell runs it, read from its argument or its standard input.
+
+    Codex runs `apply_patch <<'PATCH'` from exec_command as a file change of
+    its own. A patch the gate cannot read, or one naming no file, denies.
+    """
+    body = "\n".join(tokens[1:]) if len(tokens) > 1 else feed()
+
+    if body is None or body == _UNKNOWN_INPUT:
+        return [_UNPLACEABLE_SHELL_TARGET]
+
+    named = _apply_patch_candidates({"patch": body})
+
+    return _sourced(named, powershell) if named else [_UNPLACEABLE_SHELL_TARGET]
 
 
 def _shell_script(name: str, tokens: List[str]) -> str:

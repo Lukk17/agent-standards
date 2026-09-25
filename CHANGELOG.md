@@ -298,6 +298,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- The preflight gate reads the patch a shell `apply_patch` command carries, from a heredoc, a pipe or its argument, and
+  denies a main-thread write it names. Codex runs `apply_patch <<'PATCH'` from `exec_command` as a file change, and
+  live run 36163866070 wrote `live-probe/main-thread.txt` that way past the gate.
+- The Codex `UserPromptSubmit` reminder prints nothing when the payload carries `agent_id`. Codex fires that event
+  for a subagent's opening message too, so a subagent was told to delegate its own task.
+- The gate treats a `COPILOT_CLI` call as an unknown caller only when the payload has no `transcript_path`, so Claude
+  Code started from a Copilot shell keeps its main thread gated.
 - The Codex live test reports a rejected `spawn_agent` call, one Codex answers with `unsupported call`, as the
   subagent never starting. It used to count that call as a started subagent.
 - The preflight gate treats a `claude`-format call made by the GitHub Copilot CLI, recognised by `COPILOT_CLI` in the

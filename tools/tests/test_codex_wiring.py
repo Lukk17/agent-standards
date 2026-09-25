@@ -126,6 +126,56 @@ def test_reminder_command_prints_the_canonical_text(shell, event, tmp_path):
     assert json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"] == canonical_text(event)
 
 
+def user_prompt(agent_id: str | None = None) -> str:
+    """A Codex 0.150.1 UserPromptSubmit payload, which carries agent_id only inside a subagent."""
+    payload = {"session_id": "s-1", "hook_event_name": "UserPromptSubmit", "prompt": 'mention "agent_id" here', "turn_id": "t-1"}
+
+    if agent_id:
+        payload["agent_id"] = agent_id
+
+    return json.dumps(payload)
+
+
+@pytest.mark.parametrize("shell", SHELLS)
+def test_windows_reminder_stays_silent_inside_a_subagent(shell, tmp_path):
+    result = run(shell, windows_command("UserPromptSubmit"), tmp_path, user_prompt("a-1"))
+
+    assert (result.returncode, result.stdout) == (0, "")
+
+
+@pytest.mark.parametrize("shell", SHELLS)
+def test_windows_reminder_reaches_the_main_thread_even_when_the_prompt_names_agent_id(shell, tmp_path):
+    result = run(shell, windows_command("UserPromptSubmit"), tmp_path, user_prompt())
+
+    assert result.returncode == 0
+    assert json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"] == canonical_reminder()
+
+
+POSIX_SHELL = shutil.which("sh")
+
+
+def posix_command(event: str) -> str:
+    config = tomllib.loads(CODEX_CONFIG.read_text(encoding="utf-8"))
+    [command] = [hook["command"] for group in config["hooks"][event] for hook in group["hooks"]]
+
+    return command
+
+
+@pytest.mark.skipif(POSIX_SHELL is None, reason="sh is not installed")
+def test_posix_reminder_stays_silent_inside_a_subagent(tmp_path):
+    result = run_bounded([POSIX_SHELL, "-c", posix_command("UserPromptSubmit")], input=user_prompt("a-1"), capture_output=True, text=True, cwd=tmp_path, timeout=60)
+
+    assert (result.returncode, result.stdout) == (0, "")
+
+
+@pytest.mark.skipif(POSIX_SHELL is None, reason="sh is not installed")
+def test_posix_reminder_reaches_the_main_thread_even_when_the_prompt_names_agent_id(tmp_path):
+    result = run_bounded([POSIX_SHELL, "-c", posix_command("UserPromptSubmit")], input=user_prompt(), capture_output=True, text=True, cwd=tmp_path, timeout=60)
+
+    assert result.returncode == 0
+    assert json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"] == canonical_reminder()
+
+
 @pytest.mark.parametrize("shell", SHELLS)
 def test_gate_command_reaches_the_gate_from_a_subdirectory(shell):
     # Given a main-thread write inside the repository, from a session started below the root

@@ -514,6 +514,19 @@ def test_the_same_claude_format_call_outside_the_copilot_cli_is_still_denied():
     assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
 
 
+def test_claude_codes_own_payload_stays_identified_when_copilot_cli_leaks_into_its_environment():
+    # Given Claude Code started from a Copilot CLI shell, so the marker is inherited,
+    # and the payload carries the transcript_path Claude Code sends and Copilot does not
+    payload = {**edit("src/app.py"), "session_id": "s1", "transcript_path": "/tmp/t.jsonl", "permission_mode": "default"}
+
+    # When
+    code, out, err = run(payload, "claude", env={"COPILOT_CLI": "1"})
+
+    # Then the main thread is still identified and denied
+    assert (code, err) == (0, "")
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
 def test_the_copilot_cli_marker_does_not_affect_the_codex_format():
     # Given
     payload = edit("src/app.py")
@@ -1667,6 +1680,66 @@ def test_apply_patch_with_no_readable_file_header_is_denied():
 
     assert code == 0
     assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def codex_shell_call(command):
+    """The Bash-named PreToolUse payload Codex sends for an exec_command call."""
+    return {"tool_name": "Bash", "tool_input": {"command": command}}
+
+
+def test_codex_shell_apply_patch_heredoc_is_denied():
+    # Given the exec_command call Codex 0.150.1 made in live run 36163866070, which Codex ran as a FileChange
+    command = "apply_patch <<'PATCH'\n*** Begin Patch\n*** Add File: live-probe/main-thread.txt\n+probe.\n*** End Patch\nPATCH"
+
+    # When
+    code, out, err = run(codex_shell_call(command), "codex")
+
+    # Then
+    assert (code, err) == (0, "")
+    output = json.loads(out)["hookSpecificOutput"]
+    assert output["permissionDecision"] == "deny"
+    assert "live-probe/main-thread.txt" in output["permissionDecisionReason"]
+
+
+def test_codex_shell_apply_patch_with_the_patch_as_its_argument_is_denied():
+    # Given
+    command = "apply_patch '*** Begin Patch\n*** Update File: src/app.py\n@@\n-old\n+new\n*** End Patch'"
+
+    # When
+    code, out, _err = run(codex_shell_call(command), "codex")
+
+    # Then
+    output = json.loads(out)["hookSpecificOutput"]
+    assert output["permissionDecision"] == "deny"
+    assert "src/app.py" in output["permissionDecisionReason"]
+
+
+def test_codex_shell_apply_patch_fed_through_a_pipe_is_denied():
+    # Given
+    command = "printf '*** Begin Patch\\n*** Add File: src/new.py\\n+x\\n*** End Patch\\n' | apply_patch"
+
+    # When
+    code, out, _err = run(codex_shell_call(command), "codex")
+
+    # Then
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_codex_shell_apply_patch_touching_only_files_outside_the_repository_allows():
+    # Given
+    command = "apply_patch <<'PATCH'\n*** Begin Patch\n*** Add File: /tmp/outside/scratch.txt\n+x\n*** End Patch\nPATCH"
+
+    # When/Then
+    assert run(codex_shell_call(command), "codex") == (0, "", "")
+
+
+def test_a_codex_subagent_may_run_apply_patch_through_the_shell():
+    # Given
+    command = "apply_patch <<'PATCH'\n*** Begin Patch\n*** Add File: live-probe/subagent-note.md\n+x\n*** End Patch\nPATCH"
+    payload = {**codex_shell_call(command), "agent_id": "a1"}
+
+    # When/Then
+    assert run(payload, "codex") == (0, "", "")
 
 
 def test_apply_patch_with_no_tool_input_at_all_is_denied():

@@ -561,8 +561,8 @@ codex_hooks() {
           {
             "type": "command",
             "statusMessage": "Preflight gate",
-            "command": "printf '%s\\n' '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"@PREFLIGHT@\"}}'",
-            "commandWindows": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"@PREFLIGHT@\"}}'; exit 0"
+            "command": "grep -F '\"agent_id\"' >/dev/null || printf '%s\\n' '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"@PREFLIGHT@\"}}'",
+            "commandWindows": "if (-not [Console]::In.ReadToEnd().Contains(\"`\"agent_id`\"\")) { echo '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"@PREFLIGHT@\"}}' }; exit 0"
           }
         ]
       }

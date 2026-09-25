@@ -287,7 +287,10 @@ text, and a session the lookup cannot read gets neither. Claude Code and Codex i
 `SubagentStart` and Copilot on `subagentStart`, each as `additionalContext`. Claude Code carries the reminder on
 `UserPromptSubmit` and `SessionStart`, and its hooks reference names tool events as the ones that fire inside a
 subagent, so the reminder is not expected to reach a Claude Code subagent. That last point is read from the reference
-and not measured.
+and not measured. Codex does run `UserPromptSubmit` for the message that starts a subagent: live run 36163866070
+recorded the reminder in a docs-architect rollout, right after the subagent text. Its payload carries `agent_id` only
+inside a subagent, per the input schema Codex 0.150.1 embeds, so the Codex reminder command prints nothing when the
+payload holds an `"agent_id"` key.
 
 The markdown lint is the only hook wired to a post-tool event, and it is also the only one gated behind a single
 format rather than run on the runner surface. `markdown_lint_check.py` returns 0 before it even reads standard input
