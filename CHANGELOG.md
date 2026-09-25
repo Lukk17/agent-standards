@@ -298,6 +298,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- The Codex and Copilot live jobs share one job concurrency group and no longer run side by side. Both draw on one
+  OpenAI organisation's per-minute token limit for gpt-6-luna, and in live run 36168529868 OpenAI refused Copilot's
+  first request with a 429 because the Codex job had already used most of that minute.
 - The formatting check skips a Copilot `agentStop` whose `sessionId` does not name the session log it points at. A
   subagent's agentStop carries its own id with the main session's log and fires before its final reply is written
   there, so in live run 36168529868 the check blocked the docs-architect subagent over a semicolon in its first

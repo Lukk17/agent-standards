@@ -28,6 +28,9 @@ jobs:
     name: live (${{ matrix.agent }})
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    concurrency:
+      group: agent-live-tests-key-${{ contains(fromJSON('["codex","copilot"]'), matrix.agent) && 'openai' || matrix.agent }}
+      cancel-in-progress: false
     strategy:
       fail-fast: false
       matrix:

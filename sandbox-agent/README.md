@@ -128,6 +128,10 @@ agent runs one fixed model, with no fallback to another:
 | Codex | OpenAI, `OPENAI_API_KEY` | `gpt-6-luna`, sent in the Responses format |
 | GitHub Copilot | OpenAI, `OPENAI_API_KEY` | `gpt-6-luna`, sent in the Responses format |
 
+The Codex and Copilot jobs share one job concurrency group, so they run one after the other rather than side by side.
+Both draw on the same OpenAI organisation's per-minute token limit for GPT-6 Luna, and in run 36168529868 Copilot's
+first request was refused with a 429 because the Codex job running beside it had already used most of that minute.
+
 The Requesty id is the standard one, not the `:flex` variant, so a flex capacity refusal cannot stall a run. The tests
 send nothing but the fixed probe prompts in [live/lib.sh](live/lib.sh).
 

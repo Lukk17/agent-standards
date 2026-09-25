@@ -19,6 +19,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 
 from tests.conftest import PREFLIGHT_GATE, REPO_ROOT
 from tests.process_tree import run_bounded
@@ -680,3 +681,22 @@ def test_the_workflow_passes_the_openai_key_to_exactly_the_agents_that_run_on_op
     # When/Then
     assert match is not None
     assert set(json.loads(match.group(1))) == on_openai == {"codex", "copilot"}
+
+
+def test_the_agents_that_share_the_openai_key_never_run_at_the_same_time():
+    # Given the 429 of run 36168529868: Copilot's first request asked for 42338 tokens of a
+    # 200000 per-minute limit on gpt-6-luna while the Codex job had already used 158792 of it
+    job = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]["live"]
+
+    # When
+    concurrency = job["concurrency"]
+    match = re.fullmatch(
+        r"agent-live-tests-key-\$\{\{ contains\(fromJSON\('(\[[^']*\])'\), matrix\.agent\) "
+        r"&& 'openai' \|\| matrix\.agent \}\}",
+        concurrency["group"],
+    )
+
+    # Then
+    assert match is not None
+    assert set(json.loads(match.group(1))) == {"codex", "copilot"}
+    assert concurrency["cancel-in-progress"] is False
