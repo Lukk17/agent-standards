@@ -73,7 +73,8 @@ events the agent recorded, never from what the model wrote back.
 
 Three verdicts are possible besides a pass:
 
-- `FAIL` means the agent did the thing and the configuration did not behave. It fails the job.
+- `FAIL` means the agent did the thing and the configuration did not behave, or the provider rejected the agent's
+  own model request so the model never ran. It fails the job.
 - `INCONCLUSIVE` means the model never attempted the tool call the test needs, so nothing was proven either way. It
   raises a warning and does not fail the job.
 - `KNOWN-GAP` appears only for test 1 on GitHub Copilot. Its payload carries no agent identifier, so the gate cannot
@@ -107,7 +108,7 @@ On OpenAI they follow the error codes OpenAI documents for its API:
 | Codex | OpenAI | OpenAI Responses | A throwaway `CODEX_HOME/config.toml` whose `openai-api` provider sets `base_url = "https://api.openai.com/v1"`, `wire_api = "responses"` and names `OPENAI_API_KEY` in `env_key`, plus a trust record, run with `--dangerously-bypass-hook-trust`. Codex reserves the id `openai` for its login-based built-in provider |
 | OpenCode | Requesty | OpenAI Chat Completions | `OPENCODE_CONFIG_CONTENT` with an `{env:REQUESTY_API_KEY}` reference |
 | Kilo Code | Requesty | OpenAI Chat Completions | `KILO_CONFIG_CONTENT`, one of the trusted sources where Kilo resolves `{env:}` |
-| GitHub Copilot | OpenAI | OpenAI Chat Completions | Bring-your-own-key: `COPILOT_PROVIDER_TYPE=openai`, `COPILOT_PROVIDER_BASE_URL=https://api.openai.com/v1`, `COPILOT_PROVIDER_API_KEY` from `OPENAI_API_KEY` and `COPILOT_MODEL=gpt-6-luna`, with `COPILOT_OFFLINE` so no GitHub token is needed |
+| GitHub Copilot | OpenAI | OpenAI Responses | Bring-your-own-key: `COPILOT_PROVIDER_TYPE=openai`, `COPILOT_PROVIDER_WIRE_API=responses`, `COPILOT_PROVIDER_BASE_URL=https://api.openai.com/v1`, `COPILOT_PROVIDER_API_KEY` from `OPENAI_API_KEY` and `COPILOT_MODEL=gpt-6-luna`, with `COPILOT_OFFLINE` so no GitHub token is needed |
 
 No key is ever written into a committed file. The committed [opencode.json](../opencode.json) stays free of
 substitution tokens, and every transcript is scanned for the key and dropped if it holds it before the job uploads the
@@ -125,7 +126,7 @@ agent runs one fixed model, with no fallback to another:
 | --- | --- | --- |
 | Claude Code, OpenCode, Kilo Code | Requesty, `REQUESTY_API_KEY` | `deepinfra/deepseek-v4-flash-0731`, DeepSeek V4 Flash on DeepInfra, with tool calling |
 | Codex | OpenAI, `OPENAI_API_KEY` | `gpt-6-luna`, sent in the Responses format |
-| GitHub Copilot | OpenAI, `OPENAI_API_KEY` | `gpt-6-luna`, sent in the Chat Completions format |
+| GitHub Copilot | OpenAI, `OPENAI_API_KEY` | `gpt-6-luna`, sent in the Responses format |
 
 The Requesty id is the standard one, not the `:flex` variant, so a flex capacity refusal cannot stall a run. The tests
 send nothing but the fixed probe prompts in [live/lib.sh](live/lib.sh).

@@ -2,7 +2,7 @@
 # -----------------------------------------------------------------------------
 # Script: copilot.sh
 # Description: Runs the GitHub Copilot CLI headless with bring-your-own-key
-#              against OpenAI's own API (Chat Completions format) and
+#              against OpenAI's own API (Responses format) and
 #              asserts on its JSONL events. Offline mode keeps it off GitHub's
 #              servers, so no GitHub token is involved.
 # Usage: copilot.sh [health|run|all] [-h|--help]
@@ -21,7 +21,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 readonly AGENT_LABEL="copilot"
 readonly AGENT_BIN="copilot"
 readonly AGENT_NPM_PACKAGE="@github/copilot"
-readonly HEALTH_FORMAT="chat"
+readonly HEALTH_FORMAT="responses"
 readonly WRITE_TOOL_RE='^(create|edit|write|str_replace_editor|apply_patch|bash|powershell)$'
 readonly SPAWN_TOOL_RE='^task$'
 readonly SKILL_TOOL_RE='^skill$'
@@ -34,6 +34,7 @@ agent_configure() {
   export COPILOT_OFFLINE=true
   export COPILOT_AUTO_UPDATE=false
   export COPILOT_PROVIDER_TYPE=openai
+  export COPILOT_PROVIDER_WIRE_API=responses
   export COPILOT_PROVIDER_BASE_URL="$PROVIDER_V1_URL"
   export COPILOT_PROVIDER_API_KEY="${!PROVIDER_KEY_VAR}"
   export COPILOT_PROVIDER_MAX_PROMPT_TOKENS="$PROMPT_TOKENS"
@@ -106,6 +107,19 @@ agent_subagent_context() {
     [split("\n")[] | fromjson? | objects
      | select(((.data.parentToolCallId? // null) != null) or ((.type // "") | tostring | startswith("subagent")))]
     | unique | .[]'
+}
+
+# Copilot ends a session whose model request the provider rejected with a
+# session.error event. The stream and the session-state log repeat it.
+agent_model_error() {
+  local dir="$1" error
+
+  error="$(cat "${dir}/stream.jsonl" "${dir}"/transcripts/*.jsonl 2>/dev/null | jq -R -s -r '
+    [split("\n")[] | fromjson? | objects | select(.type == "session.error") | .data.message // empty]
+    | unique | join("; ")')"
+
+  [[ -n "$error" ]] || return 1
+  printf '%s\n' "$error"
 }
 
 live_main "$@"

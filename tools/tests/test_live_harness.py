@@ -289,16 +289,21 @@ def write_rollout(path: Path, source, messages: list[dict]) -> None:
     path.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8", newline="\n")
 
 
-def codex_function(transcripts: Path, call: str) -> subprocess.CompletedProcess:
-    """Load codex.sh without running it, then call one of its functions."""
-    adapter = CODEX_ADAPTER.read_text(encoding="utf-8")
+def adapter_function(adapter_path: Path, case_dir: Path, call: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
+    """Load an agent adapter without running it, then call one of its functions on a case directory."""
+    adapter = adapter_path.read_text(encoding="utf-8")
     adapter = adapter.replace('"$(dirname "${BASH_SOURCE[0]}")/lib.sh"', f"'{LIB.as_posix()}'")
     adapter = adapter.replace('\nlive_main "$@"\n', "\n")
-    loadable = transcripts.parent.parent / "codex-functions.sh"
+    loadable = case_dir.parent / f"{adapter_path.stem}-functions.sh"
     loadable.write_text(adapter, encoding="utf-8", newline="\n")
-    script = f"source '{loadable.as_posix()}'; {call} '{transcripts.parent.as_posix()}'"
+    script = f"source '{loadable.as_posix()}'; {call} '{case_dir.as_posix()}'"
 
-    return run_bounded([BASH, "-c", script], capture_output=True, text=True)
+    return run_bounded([BASH, "-c", script], capture_output=True, text=True, env={**os.environ, **(env or {})})
+
+
+def codex_function(transcripts: Path, call: str) -> subprocess.CompletedProcess:
+    """Load codex.sh without running it, then call one of its functions."""
+    return adapter_function(CODEX_ADAPTER, transcripts.parent, call)
 
 
 def codex_rollouts(tmp_path: Path, main: list[dict], subagent: list[dict]) -> Path:
@@ -366,6 +371,124 @@ def test_the_codex_subagent_context_carries_a_reminder_the_hook_injected_into_th
 
     # Then
     assert "End every reply to the user with this block, exactly as shown" in result.stdout
+
+
+COPILOT_ADAPTER = REPO_ROOT / "sandbox-agent" / "live" / "copilot.sh"
+SNIPPY_ERROR = "400 Unknown parameter: 'snippy'."
+COPILOT_TURN_START = {"type": "assistant.turn_start", "data": {"turnId": "0", "interactionId": "7900d300-fba4-49bb-9b90-6c29ea7f789f"}, "id": "d44902ee-fc95-4448-9b6a-e7551f1b530b", "timestamp": "2026-09-25T17:27:10.918Z", "parentId": "47b29309-0d61-44c8-81ce-941d555e388e"}
+COPILOT_CALL_START = {"type": "model.call_start", "data": {"turnId": "0", "model": "gpt-6-luna"}, "ephemeral": True, "id": "0cc84e4f-ccb6-44f3-a72f-0698422affa8", "timestamp": "2026-09-25T17:27:10.961Z", "parentId": "d44902ee-fc95-4448-9b6a-e7551f1b530b"}
+COPILOT_REJECTED_SESSION = [
+    COPILOT_TURN_START,
+    COPILOT_CALL_START,
+    {"type": "model.call_failure", "data": {"model": "gpt-6-luna", "statusCode": 400, "apiEndpoint": "/chat/completions", "isByok": True, "errorMessage": '{"message":"Unknown parameter: \'snippy\'.","type":"invalid_request_error","param":"snippy","code":"unknown_parameter"}', "errorCode": "unknown_parameter"}, "ephemeral": True, "id": "f99df19c-6547-4534-82f3-d9d93f2fc0aa", "timestamp": "2026-09-25T17:27:11.203Z", "parentId": "d44902ee-fc95-4448-9b6a-e7551f1b530b"},
+    {"type": "session.error", "data": {"errorType": "query", "message": SNIPPY_ERROR, "statusCode": 400}, "id": "e460ed91-cb04-4c6c-b212-6757ed7227dc", "timestamp": "2026-09-25T17:27:11.208Z", "parentId": "ed70bd67-fdb2-4205-843f-39ede25a93c4"},
+    {"type": "result", "timestamp": "2026-09-25T17:27:11.275Z", "sessionId": "e3957e1f-2b04-4dbb-ad37-bbef9d5a070b", "exitCode": 1, "usage": {"premiumRequests": 0, "totalApiDurationMs": 0, "sessionDurationMs": 2724, "codeChanges": {"linesAdded": 0, "linesRemoved": 0, "filesModified": []}}},
+]
+
+
+def copilot_case(tmp_path: Path, events: list[dict]) -> Path:
+    """A Copilot case directory whose stream and session-state log both hold the given events."""
+    case_dir = tmp_path / "case"
+    (case_dir / "transcripts").mkdir(parents=True)
+    lines = "".join(json.dumps(event) + "\n" for event in events)
+    (case_dir / "stream.jsonl").write_text(lines, encoding="utf-8", newline="\n")
+    (case_dir / "transcripts" / "session-events.jsonl").write_text(lines, encoding="utf-8", newline="\n")
+
+    return case_dir
+
+
+@needs_jq
+def test_the_copilot_parser_reports_the_provider_error_that_ended_the_session(tmp_path):
+    # Given the events Copilot CLI 1.0.81 recorded in run 36166936959, where OpenAI rejected every request
+    case_dir = copilot_case(tmp_path, COPILOT_REJECTED_SESSION)
+
+    # When
+    result = adapter_function(COPILOT_ADAPTER, case_dir, "agent_model_error")
+
+    # Then
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == SNIPPY_ERROR
+
+
+@needs_jq
+def test_the_copilot_parser_reports_no_error_for_a_session_without_one(tmp_path):
+    # Given the same recorded turn with no failure after it
+    case_dir = copilot_case(tmp_path, [COPILOT_TURN_START, COPILOT_CALL_START])
+
+    # When
+    result = adapter_function(COPILOT_ADAPTER, case_dir, "agent_model_error")
+
+    # Then
+    assert result.returncode == 1, result.stderr
+    assert result.stdout == ""
+
+
+@needs_jq
+def test_copilot_talks_to_openai_in_the_responses_format_it_asks_for(tmp_path):
+    # Given the CLI's own warning in run 36166936959: gpt-6-luna works best with wireApi "responses"
+    case_dir = tmp_path / "case"
+    case_dir.mkdir()
+    call = f"WORK='{tmp_path.as_posix()}'; PROJECT='{tmp_path.as_posix()}'; agent_configure; printf '%s|%s' \"$COPILOT_PROVIDER_WIRE_API\" \"$HEALTH_FORMAT\"; true"
+
+    # When
+    result = adapter_function(COPILOT_ADAPTER, case_dir, call, {"OPENAI_API_KEY": "dummy"})
+
+    # Then
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "responses|responses"
+
+
+LIVE_TESTS = ["test_gate_blocks_main_thread", "test_subagent_writes_file", "test_skill_is_loaded", "test_reminder_reaches_model"]
+
+
+def judge_with_model_error(work: Path, test_function: str, model_error: str | None) -> list[str]:
+    """Run one live test with nothing recorded, the agent reporting the given model error, and return every verdict."""
+    cases = work / "cases"
+    project = work / "project"
+    project.mkdir(parents=True)
+    error_stub = "" if model_error is None else f"agent_model_error() {{ printf '%s' \"{model_error}\"; }}; "
+
+    script = (
+        f"source '{LIB.as_posix()}'; "
+        f"AGENT_LABEL=test; GATE_KNOWN_GAP=1; CASES='{cases.as_posix()}'; PROJECT='{project.as_posix()}'; "
+        "run_case() { :; }; count_calls() { printf '0'; }; agent_subagent_context() { :; }; "
+        "agent_reminder_seen() { return 0; }; transcript_has_gate_denial() { return 1; }; "
+        f"{error_stub}"
+        "record() { printf '%s|%s\\n' \"$2\" \"$3\"; }; "
+        f"{test_function}"
+    )
+    result = run_bounded([BASH, "-c", script], capture_output=True, text=True)
+
+    assert result.returncode == 0, result.stderr
+
+    return result.stdout.splitlines()
+
+
+@pytest.mark.parametrize("test_function", LIVE_TESTS)
+def test_a_model_request_the_provider_rejected_fails_the_test(tmp_path, test_function):
+    # Given/When
+    verdicts = judge_with_model_error(tmp_path, test_function, SNIPPY_ERROR)
+
+    # Then
+    assert len(verdicts) == 1
+    assert verdicts[0].startswith("FAIL|")
+    assert SNIPPY_ERROR in verdicts[0]
+
+
+def test_an_agent_that_reports_no_model_error_keeps_the_inconclusive_verdict(tmp_path):
+    # Given/When
+    verdicts = judge_with_model_error(tmp_path, "test_skill_is_loaded", None)
+
+    # Then
+    assert [verdict.split("|")[0] for verdict in verdicts] == ["INCONCLUSIVE"]
+
+
+def test_an_empty_model_error_is_not_a_failure(tmp_path):
+    # Given/When
+    verdicts = judge_with_model_error(tmp_path, "test_skill_is_loaded", "")
+
+    # Then
+    assert [verdict.split("|")[0] for verdict in verdicts] == ["INCONCLUSIVE"]
 
 
 def stubbed_health_check(tmp_path: Path, status: str, body: dict) -> subprocess.CompletedProcess:

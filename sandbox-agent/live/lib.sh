@@ -29,6 +29,10 @@
 #   agent_subagent_context DIR
 #                        Prints the recorded context of every subagent the
 #                        case started, and nothing the main thread recorded.
+#   agent_model_error DIR
+#                        Optional. Prints the error that ended the session when
+#                        the provider rejected the agent's own model request,
+#                        and returns non-zero when the session recorded none.
 # Environment:
 #   REQUESTY_API_KEY     Requesty API key. Required on Requesty. Never printed.
 #   OPENAI_API_KEY       OpenAI API key. Required on OpenAI. Never printed.
@@ -480,6 +484,19 @@ run_case() {
   agent_calls "$dir" > "${dir}/calls.ndjson" 2>"${dir}/calls.err" || true
 }
 
+# Records FAIL and returns 0 when the agent says the provider rejected its own
+# model request, so a model that never ran is not read as one that chose not to
+# act, and a reminder that sat in a rejected request does not count as seen.
+record_model_failure() {
+  local name="$1" dir="$2" error
+
+  declare -F agent_model_error > /dev/null || return 1
+  error="$(agent_model_error "$dir" 2>/dev/null)" || return 1
+  [[ -n "$error" ]] || return 1
+
+  record "$name" FAIL "the provider rejected the agent's model request, so the model never ran: ${error//|//}"
+}
+
 # --- The five tests -----------------------------------------------------------
 
 test_gate_blocks_main_thread() {
@@ -487,6 +504,7 @@ test_gate_blocks_main_thread() {
   local attempts sub_writes denial=0
 
   run_case "1-gate" "Create a new file at ${MAIN_PROBE} containing the single line: probe. Write it yourself, right now, with your own file-writing tool. Do not delegate to a subagent and do not ask any question. Stop after the attempt whatever the outcome."
+  record_model_failure "$name" "$dir" && return
 
   attempts="$(count_calls "$dir" main "$WRITE_TOOL_RE" "main-thread.txt")"
   sub_writes="$(count_calls "$dir" subagent "$WRITE_TOOL_RE" "main-thread.txt" 1)"
@@ -514,6 +532,7 @@ test_subagent_writes_file() {
   local spawn_attempts spawns sub_writes main_writes context
 
   run_case "2-subagent" "Delegate this task to the ${SUBAGENT_NAME} subagent: create the file ${SUB_PROBE} containing the single line: written by subagent. Do not write the file yourself. Stop once the subagent has reported back."
+  record_model_failure "$name" "$dir" && return
 
   spawn_attempts="$(count_calls "$dir" main "$SPAWN_TOOL_RE" "$SUBAGENT_NAME")"
   spawns="$(count_calls "$dir" main "$SPAWN_TOOL_RE" "$SUBAGENT_NAME" 1)"
@@ -545,6 +564,7 @@ test_skill_is_loaded() {
   local needle="skills/${SKILL_NAME}/SKILL.md" attempts loaded
 
   run_case "3-skill" "Before answering, load the project skill that owns KiCad board design, using your skill tool if you have one or by reading its SKILL.md. Then say in one sentence what that skill recommends for ground pours. Do not create or edit any file."
+  record_model_failure "$name" "$dir" && return
 
   attempts="$(( $(count_calls "$dir" main "$SKILL_TOOL_RE" "$SKILL_NAME") + $(count_calls "$dir" main '.' "$needle") ))"
   loaded="$(( $(count_calls "$dir" main "$SKILL_TOOL_RE" "$SKILL_NAME" 1) + $(count_calls "$dir" main '.' "$needle" 1) ))"
@@ -563,6 +583,7 @@ test_reminder_reaches_model() {
   local nonce="live-nonce-${RANDOM}${RANDOM}"
 
   run_case "4-reminder" "Reply with the single word ready followed by the token ${nonce}. Do not use any tool."
+  record_model_failure "$name" "$dir" && return
 
   if agent_reminder_seen "$dir" "$nonce"; then
     record "$name" PASS "the reminder text is in the recorded context of the prompt"
