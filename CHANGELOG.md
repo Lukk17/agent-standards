@@ -305,6 +305,10 @@ All notable changes to this project are documented here. The format follows
   for a subagent's opening message too, so a subagent was told to delegate its own task.
 - The gate treats a `COPILOT_CLI` call as an unknown caller only when the payload has no `transcript_path`, so Claude
   Code started from a Copilot shell keeps its main thread gated.
+- Live test 1 passes when the gate denied the main-thread write and the file came from a subagent the model then
+  started. The Codex live checks read hook text only from developer messages, so the imported `AGENTS.md` no longer
+  counts as the reminder. The OpenAI health check counts a reply cut off at the token limit as an answer instead of
+  as `model_not_found`.
 - The Codex live test reports a rejected `spawn_agent` call, one Codex answers with `unsupported call`, as the
   subagent never starting. It used to count that call as a started subagent.
 - The preflight gate treats a `claude`-format call made by the GitHub Copilot CLI, recognised by `COPILOT_CLI` in the

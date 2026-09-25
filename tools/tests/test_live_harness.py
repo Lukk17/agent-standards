@@ -1,8 +1,9 @@
 """Tests for the project import and the verdicts of live tests 1 and 2 in sandbox-agent/live/lib.sh.
 
 Test 1 passes only when the gate denied a main-thread write and the file is
-absent. Every deny reason the gate can give counts as a denial, and a write
-that landed is a failure whatever the transcript says. Test 2 passes only when
+absent, or only a subagent started after the denial wrote it. Every deny
+reason the gate can give counts as a denial, and any other write that landed
+is a failure whatever the transcript says. Test 2 passes only when
 the subagent wrote the file and its own transcript carries the subagent text
 and not the main-thread reminder. The import runs setup-project.sh whatever
 file mode the checkout recorded, and keeps its git configuration out of the
@@ -43,7 +44,7 @@ def gate_reasons() -> dict[str, str]:
     }
 
 
-def judge_test_one(work: Path, transcript: str, landed: bool) -> str:
+def judge_test_one(work: Path, transcript: str, landed: bool, subagent_writes: int = 0) -> str:
     """Run test_gate_blocks_main_thread over a recorded transcript and return its verdict."""
     cases = work / "cases"
     project = work / "project"
@@ -57,7 +58,9 @@ def judge_test_one(work: Path, transcript: str, landed: bool) -> str:
     script = (
         f"source '{LIB.as_posix()}'; "
         f"AGENT_LABEL=test; GATE_KNOWN_GAP=0; CASES='{cases.as_posix()}'; PROJECT='{project.as_posix()}'; "
-        "run_case() { :; }; count_calls() { printf '1'; }; record() { printf '%s' \"$2\"; }; "
+        "run_case() { :; }; "
+        f"count_calls() {{ if [[ \"$2\" == subagent ]]; then printf '{subagent_writes}'; else printf '1'; fi; }}; "
+        "record() { printf '%s' \"$2\"; }; "
         "test_gate_blocks_main_thread"
     )
     result = run_bounded([BASH, "-c", script], capture_output=True, text=True)
@@ -82,6 +85,22 @@ def test_a_write_that_landed_fails_even_with_a_denial_in_the_transcript(tmp_path
 
     # When/Then
     assert judge_test_one(tmp_path, transcript, landed=True) == "FAIL"
+
+
+def test_a_file_a_subagent_wrote_after_the_denial_passes(tmp_path):
+    # Given the Kilo Code run 36163866070 shape: the main write denied, then a delegated subagent created the file
+    transcript = json.dumps({"output": gate_reasons()["RULE_A_REASON"]}) + "\n"
+
+    # When/Then
+    assert judge_test_one(tmp_path, transcript, landed=True, subagent_writes=1) == "PASS"
+
+
+def test_a_file_a_subagent_wrote_without_any_denial_still_fails(tmp_path):
+    # Given
+    transcript = json.dumps({"context": canonical_reminder()}) + "\n"
+
+    # When/Then
+    assert judge_test_one(tmp_path, transcript, landed=True, subagent_writes=1) == "FAIL"
 
 
 def test_the_per_prompt_reminder_alone_is_not_a_denial(tmp_path):
@@ -256,6 +275,138 @@ def test_the_codex_parser_marks_an_unsupported_call_as_an_error(tmp_path):
     assert result.returncode == 0, result.stderr
     records = [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
     assert [(record["tool"], record["error"]) for record in records] == [("spawn_agent", True)]
+
+
+def rollout_message(role: str, text: str, message_id: str) -> dict:
+    return {"type": "response_item", "payload": {"type": "message", "id": message_id, "role": role, "content": [{"type": "input_text", "text": text}]}}
+
+
+AGENTS_MD_WITH_THE_MARKER = "# AGENTS.md\n\nPREFLIGHT: before code work ... " + canonical_reminder()
+
+
+def write_rollout(path: Path, source, messages: list[dict]) -> None:
+    lines = [{"type": "session_meta", "payload": {"source": source}}, *messages]
+    path.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8", newline="\n")
+
+
+def codex_function(transcripts: Path, call: str) -> subprocess.CompletedProcess:
+    """Load codex.sh without running it, then call one of its functions."""
+    adapter = CODEX_ADAPTER.read_text(encoding="utf-8")
+    adapter = adapter.replace('"$(dirname "${BASH_SOURCE[0]}")/lib.sh"', f"'{LIB.as_posix()}'")
+    adapter = adapter.replace('\nlive_main "$@"\n', "\n")
+    loadable = transcripts.parent.parent / "codex-functions.sh"
+    loadable.write_text(adapter, encoding="utf-8", newline="\n")
+    script = f"source '{loadable.as_posix()}'; {call} '{transcripts.parent.as_posix()}'"
+
+    return run_bounded([BASH, "-c", script], capture_output=True, text=True)
+
+
+def codex_rollouts(tmp_path: Path, main: list[dict], subagent: list[dict]) -> Path:
+    transcripts = tmp_path / "case" / "transcripts"
+    transcripts.mkdir(parents=True)
+    write_rollout(transcripts / "rollout-main.jsonl", "exec", main)
+    write_rollout(transcripts / "rollout-sub.jsonl", {"subagent": {"thread_spawn": {"agent_role": "docs-architect"}}}, subagent)
+
+    return transcripts
+
+
+@needs_jq
+def test_the_codex_reminder_check_ignores_the_imported_agents_md(tmp_path):
+    # Given a main rollout whose only copy of the reminder text is the AGENTS.md user message
+    transcripts = codex_rollouts(tmp_path, [rollout_message("user", AGENTS_MD_WITH_THE_MARKER, "m1")], [])
+
+    # When
+    result = codex_function(transcripts, "agent_reminder_seen")
+
+    # Then
+    assert result.returncode == 1, result.stderr
+
+
+@needs_jq
+def test_the_codex_reminder_check_finds_the_hook_text_in_a_developer_message(tmp_path):
+    # Given
+    transcripts = codex_rollouts(tmp_path, [rollout_message("developer", canonical_reminder(), "m1")], [])
+
+    # When
+    result = codex_function(transcripts, "agent_reminder_seen")
+
+    # Then
+    assert result.returncode == 0, result.stderr
+
+
+@needs_jq
+def test_the_codex_subagent_context_ignores_the_imported_agents_md(tmp_path):
+    # Given a subagent that got the subagent text as hook context and AGENTS.md as its own user message
+    transcripts = codex_rollouts(
+        tmp_path,
+        [rollout_message("user", AGENTS_MD_WITH_THE_MARKER, "m1")],
+        [rollout_message("user", AGENTS_MD_WITH_THE_MARKER, "s1"), rollout_message("developer", canonical_subagent_reminder(), "s2")],
+    )
+
+    # When
+    result = codex_function(transcripts, "agent_subagent_context")
+
+    # Then
+    assert result.returncode == 0, result.stderr
+    assert "PREFLIGHT for a subagent:" in result.stdout
+    assert "End every reply to the user with this block, exactly as shown" not in result.stdout
+
+
+@needs_jq
+def test_the_codex_subagent_context_carries_a_reminder_the_hook_injected_into_the_subagent(tmp_path):
+    # Given the Codex run 36163866070 shape: the reminder as a developer message of the subagent's own
+    transcripts = codex_rollouts(
+        tmp_path,
+        [rollout_message("developer", canonical_reminder(), "m1")],
+        [rollout_message("developer", canonical_subagent_reminder(), "s2"), rollout_message("developer", canonical_reminder(), "s3")],
+    )
+
+    # When
+    result = codex_function(transcripts, "agent_subagent_context")
+
+    # Then
+    assert "End every reply to the user with this block, exactly as shown" in result.stdout
+
+
+def stubbed_health_check(tmp_path: Path, status: str, body: dict) -> subprocess.CompletedProcess:
+    """Run health_check chat on the OpenAI provider with curl answering the given status and body."""
+    body_file = tmp_path / "answer.json"
+    body_file.write_text(json.dumps(body), encoding="utf-8")
+    stub = (
+        "curl() { local out='' dump=''; while [[ $# -gt 0 ]]; do case \"$1\" in "
+        "--output) out=\"$2\"; shift 2 ;; --dump-header) dump=\"$2\"; shift 2 ;; *) shift ;; esac; done; "
+        f"cat '{body_file.as_posix()}' > \"$out\"; : > \"$dump\"; printf '{status}'; }}; "
+    )
+
+    return run_lib("openai", stub + "health_check chat", {"OPENAI_API_KEY": "dummy", "GITHUB_ACTIONS": ""})
+
+
+@needs_jq
+def test_an_openai_reply_cut_off_at_the_token_limit_counts_as_an_answer(tmp_path):
+    # Given the 400 OpenAI gave gpt-6-luna in the Copilot run step of run 36163866070
+    message = "Could not finish the message because max_tokens or model output limit was reached. Please try again with higher max_tokens."
+    body = {"error": {"message": message, "type": "invalid_request_error", "param": None, "code": None}}
+
+    # When
+    result = stubbed_health_check(tmp_path, "400", body)
+
+    # Then
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.startswith("HEALTH OK")
+    assert "model_not_found" not in result.stdout
+
+
+@needs_jq
+def test_a_missing_openai_model_still_fails_the_health_check(tmp_path):
+    # Given
+    body = {"error": {"message": "The model gpt-6-luna does not exist or you do not have access to it.", "code": "model_not_found"}}
+
+    # When
+    result = stubbed_health_check(tmp_path, "404", body)
+
+    # Then
+    assert result.returncode != 0
+    assert "model_not_found" in result.stdout
 
 
 SETUP_STUB ="""#!/nonexistent/not-an-interpreter

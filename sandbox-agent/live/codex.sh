@@ -106,6 +106,11 @@ agent_calls() {
   done | jq -s -c "$DEDUPE_FILTER"
 }
 
+# Codex hands a hook's additionalContext to the model as a developer message,
+# while the imported AGENTS.md, which quotes the reminder, arrives as a user
+# message, so only developer messages count as hook text.
+readonly HOOK_TEXT_FILTER='select(.type == "response_item" and .payload.type? == "message" and .payload.role? == "developer")'
+
 # Codex injects the reminder only through UserPromptSubmit on the main thread
 # (SubagentStart carries the subagent text), so its text in a main rollout is the proof.
 agent_reminder_seen() {
@@ -115,7 +120,9 @@ agent_reminder_seen() {
     [[ -f "$file" ]] || continue
     source="$(jq -R -s -r '[split("\n")[] | fromjson? | select(.type == "session_meta") | .payload.source | tostring] | first // ""' "$file")"
     [[ "${source,,}" == *subagent* ]] && continue
-    grep -qF -- "$REMINDER_MARKER" "$file" && return 0
+    jq -R -s -e --arg r "$REMINDER_MARKER" \
+      "[split(\"\n\")[] | fromjson? | objects | ${HOOK_TEXT_FILTER} | tojson | select(contains(\$r))] | length > 0" \
+      "$file" > /dev/null && return 0
   done
 
   return 1
@@ -144,7 +151,8 @@ agent_subagent_context() {
   for file in "${subagent_files[@]}"; do
     jq -R -s -c --slurpfile main "$seen" '
       [split("\n")[] | fromjson? | objects] | .[]
-      | select(del(.timestamp) as $line | any($main[]; . == $line) | not)' "$file"
+      | select(del(.timestamp) as $line | any($main[]; . == $line) | not)
+      | '"${HOOK_TEXT_FILTER}" "$file"
   done
 }
 

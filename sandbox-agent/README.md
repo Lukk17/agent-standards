@@ -65,7 +65,7 @@ events the agent recorded, never from what the model wrote back.
 
 | Test | Passes when |
 | --- | --- |
-| 1 Gate blocks the main thread | The main thread tried to write a file, the gate's denial is in the transcript, and the file is absent |
+| 1 Gate blocks the main thread | The main thread tried to write a file, the gate's denial is in the transcript, and the file is absent or was written only by a subagent the model started after the denial |
 | 2 A named subagent writes | The main thread started `docs-architect`, the recorded write of the file came from the subagent, and the subagent's own transcript carries the subagent text (`PREFLIGHT for a subagent:`) and not the main-thread reminder |
 | 3 A skill is loaded | The main thread loaded the `kicad` skill through its skill tool or by reading its `SKILL.md` |
 | 4 The reminder reaches the model | The per-prompt reminder text is in the recorded context of that prompt, not only the session start |
