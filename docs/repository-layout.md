@@ -17,6 +17,8 @@ Three categories, and mixing them up is the one mistake that breaks a rebuild.
 | Canonical config | `.mcp.json`, `opencode.json`, `.codex/config.toml`, `.vscode/mcp.json`, `.github/mcp.json`, `.claude/settings.json`, `.github/hooks/preflight.json` | edit directly, keep the server set and the gate wording in sync |
 | Generated | `.claude/agents/*.md`, `.agents/agents/*.md`, `.codex/agents/*.toml`, `.github/agents/*.agent.md` | never hand-edit, run `python tools/gen_subagents.py` |
 | Symlink | `.opencode/agents`, `.kilo/agents`, `.claude/skills` | never edit through the link, fix the link itself |
+| Canonical, global install only | `global/bin/update-global.sh`, `global/bin/update-global.ps1` | edit both together, verified by `tools/tests/test_update_global.py`, shipped to `~/.agents/bin` by the global install and never by a project import |
+| Canonical, this repo only | `main-thread-allowlist.txt` | edit directly, verified by the pytest suite under `tools/tests/`, never shipped |
 | Runtime state | `tasks.md` at the project root | written by `task_list_sync.py` and by the model, git-ignored, never committed |
 
 A skill is a directory, not a file. `SKILL.md` is the manifest and stays short: standard front matter (`name`,
@@ -51,13 +53,16 @@ agent-standards/
       task_list_sync.py          # CANONICAL, mirrors the session task list into tasks.md
     plugin/
       hooks.js                   # CANONICAL, OpenCode and Kilo Code runner for every hook in hooks/
+  global/
+    bin/                         # CANONICAL global updater, update-global.sh and update-global.ps1
+                                 # shipped only by the global install to ~/.agents/bin, never by a project import
   subagents/                     # CANONICAL subagent sources, this repo only, inside the markdown lint scope
   tools/                         # Generator, linter and tests, this repo only
     gen_subagents.py             # Emits four trees plus the two agent symlinks, validates skills and tools
     check-markdown.py            # Markdown lint used by CI
     pyproject.toml               # CANONICAL, the only pinned dependency and pytest configuration
     check-badges.py              # Badge-count lint used by CI
-    tests/                       # CANONICAL pytest suite for the hook scripts and the linters
+    tests/                       # CANONICAL pytest suite for the hook scripts, the linters and the global updater
   e2e/                           # Capability test specs, templates and run records, this repo only
   sandbox-agent/                 # Containerised sandbox that runs those specs, this repo only
   openspec/schemas/e2e-runbooks/ # Vendored companion schema, reference copy, this repo runs no OpenSpec workflow
@@ -88,6 +93,7 @@ agent-standards/
   CONTRIBUTING.md                # Contribution rules and local checks, this repo only
   CHANGELOG.md                   # Release history, this repo only
   tasks.md                       # RUNTIME STATE written by the task-list hook, git-ignored
+  main-thread-allowlist.txt      # CANONICAL, this repo's own gate allowlist, never shipped
   LICENSE                        # MIT
   docs/
     AGENT_TOOLING.md             # Setup walkthrough shipped to consumers
@@ -106,7 +112,9 @@ agent-standards/
 directory any more.
 
 Consumer-project layout after import. The [subagents/](../subagents/) source and [tools/](../tools/) generator are
-intentionally absent:
+intentionally absent, and so are [main-thread-allowlist.txt](../main-thread-allowlist.txt), which is this repo's own,
+and [global/](../global/), which only the global install in [GLOBAL_SETUP.md](GLOBAL_SETUP.md) copies, to
+`~/.agents/bin`:
 
 ```text
 your-project/

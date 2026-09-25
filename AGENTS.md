@@ -17,6 +17,42 @@ Before any code work on a task, name the skill(s) and subagent(s) that own it an
 and why. State this as the first line of your reply. It is a required output you produce, not a passive banner to skim
 past. This is a hard gate.
 
+Every agent carries the same reminder into each main-thread prompt, word for word, from its own wiring. No wiring
+hands it to a subagent: it tells the reader to delegate, and a subagent told that turns its own task away. A subagent
+gets the second text below instead, also word for word, from every wiring that can reach one.
+
+```text
+PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default. Follow the user-communication skill when writing to the user. If the prompt asks anything, answer every question first, then start the work. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:
+
+Running: `running task name` (or: nothing)
+
+~~DONE: older finished task~~
+~~DONE: most recent finished task~~
+
+**NOW: what is being done right now**
+
+Next: the next task
+Then: the task after that
+
+Waiting on: what you wait for (or: nothing)
+
+When several tasks run, list each name in backticks on the Running line, separated by commas.
+```
+
+The subagent text:
+
+```text
+PREFLIGHT for a subagent: you are a subagent, and the main thread delegated this task to you. Do the work yourself with your own tools and load the skills your definition names. The rules that the main thread must delegate and may not write files apply to the main thread only, so do not hand this task on and do not refuse it for that reason. The preflight gate still checks every tool call you make. Report back what you changed and how you verified it.
+```
+
+The line breaks and blank lines are part of the wording, so every wiring delivers real newlines to the model. Claude
+Code prints plain text through `echo` with the newlines inside the single-quoted literal, which `sh`, Git Bash and
+PowerShell all print unchanged. Codex and Copilot read JSON, so they carry `\n` escapes inside `additionalContext`,
+printed by `printf '%s\n'` in a POSIX shell, because `dash` turns an `echo` argument's `\n` into a raw newline that
+breaks the JSON, and by `echo` in PowerShell, which prints a single-quoted literal as written. The plugin and
+[.agents/hooks/copilot/prompt_reminder.py](.agents/hooks/copilot/prompt_reminder.py) hold the text as a string
+constant.
+
 Investigation, review, and bounded implementation are delegated by default. Doing a specialist's work inline from the
 main session is the failure mode this gate prevents. Re-run the check at the start of every task. Most work in this
 repo is documentation and the Python tooling, so `markdown-writer` and `python-patterns` are the
@@ -32,32 +68,152 @@ The gate is enforcing, not advisory. One shared rule in
   project and not the user's home directory or a directory above it, so the user-level install in
   [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md) protects the open project instead of everything the user owns. A
   relative path resolves against whichever directory a leading `cd` in the command moved to,
-  and against every root when the command never changed directory. A write outside the repository, a write to the null
-  device, a write to `tasks.md` at the project root, and git branch switching stay allowed, so the main thread keeps
-  full use of git and keeps ownership of its own task list.
+  and against every root when the command never changed directory. Deleting, moving, or renaming the repository root or
+  any directory above it counts as a write inside it, so `rm -rf ..`, `rm -rf ~`, `Remove-Item -Recurse` or
+  `rmdir /s` on a parent, and `mv` or `Move-Item` of a parent are denied too, while the same command on a sibling folder
+  that holds no root is allowed. A wildcard operand counts when any path it could match, compared one component at a
+  time and case-insensitively on Windows, is the root, a directory above it, or a path inside it, so
+  `rm -rf ../agent-*` and `Remove-Item ..\*` are denied. Each shell's own quoting applies: a backslash escapes only in
+  a POSIX shell, PowerShell escapes with a backtick and splits an unquoted `a,..` into two paths, and cmd escapes with
+  a caret, so `Remove-Item "D:\parent\"` is read as the path it names. The same checks reach inside a wrapper:
+  `cmd /c` and `cmd /k`, `bash -c`, `sh -c`, `zsh -c`, and `powershell` or `pwsh` with `-Command`, `-c` or a decoded
+  `-EncodedCommand`, nested up to three deep. They also reach code a shell or interpreter takes some other way: a
+  heredoc or here-string, a piped `echo`, `printf` or `cat`, `xargs`, `eval`, `Invoke-Expression`, and a file run
+  with `source` or `.`. An encoded value that does not decode is an unlexable command and allows, since PowerShell
+  refuses to run it. Inline Python is parsed and inline JavaScript read for the path each actually writes, through
+  import aliases and renamed bindings, rather than for every string it holds. The writers the gate knows include
+  `find -delete` and `find -exec`, `git clean`, `git rm`, `git mv`, `git reset --hard`, `git stash`, `git checkout -f`
+  and `git checkout` or `git restore` of a path, `curl -o` and `-O`, `wget`, `touch`, `mkdir`, `install -d`, `tar`
+  and `unzip` extraction, the `[System.IO.File]` and `[System.IO.Directory]` methods, and the PowerShell item and
+  content cmdlets, bound the way PowerShell binds their parameters. The .NET methods are read whatever shell the tool
+  name claims, because Codex on Windows names its shell tool `Bash` and runs the command in PowerShell, so
+  `[System.IO.File]::WriteAllText($target, ...)` under `Bash` denies the same way it does under `PowerShell`.
+  A write outside the repository, a write to the
+  null device or to a PowerShell drive that holds no files such as `Env:` or `Function:`, a write to `tasks.md` at the
+  project root, and git branch switching stay allowed, so the main thread keeps full use of git and keeps ownership
+  of its own task list.
 - It denies any tool call, not only an edit, from a subagent whose own definition declares no skills, because that
   agent is not a specialist. The rule reads `agent_type` out of the payload and looks the definition up in the six
   agent trees, so an unknown or unreadable `agent_type` allows rather than denies.
 - It denies the main thread from running a web fetch or web search tool directly, on the one format where that
   tool's name is confirmed (Claude Code today; Codex has no confirmed equivalent name yet, see Maintenance
   follow-ups below). It spawns a subagent to do the research and report back instead.
+- It denies the main thread from running a script or a module, because the gate cannot see what a script writes:
+  an interpreter handed a file or `-m` (`python x.py`, `node x.js`, `bash x.sh`, `pwsh -File x.ps1`), a package or
+  task runner handed any subcommand (`npm`, `npx`, `pnpm`, `yarn`, `uv`, `pip` and their kin), a git subcommand that
+  runs a command of its own (`bisect run`, `rebase --exec`, `submodule foreach`, `filter-branch`), a build runner or
+  compiler asked for more than its version or help (`make`, `cargo`, `go run`, `go generate`, `go test`, `dotnet`,
+  `mvn`, `gradle`, `gradlew`, `just`, `rake` and their kin), a program called by a script file name, any program
+  whose path lands inside the repository, and a native program named by any other path unless it is a known
+  read-only tool such as `/usr/bin/grep`. The exception is a command that passes an entry of
+  `MAIN_THREAD_ALLOWLIST` in the gate, or matches, in full, an entry of the project's own `main-thread-allowlist.txt`
+  at its root. The built-in list holds three checks, `python -m pytest`, `node --check` and `bash -n`, and each one
+  names the only options it takes: pytest options that load a plugin, a configuration file, a root directory or a
+  conftest from elsewhere, set the temporary base, write a report, or import a warning category deny, and so does a
+  test path outside the repository. `node --check` takes no preload or require option, and `bash -n` takes nothing
+  that turns execution back on. A program spelled with a path never matches a built-in entry, so
+  `.venv/Scripts/python.exe -m pytest` needs a project entry, and a project entry whose first word holds a slash
+  matches only the file it names. git has no built-in entry: git reads are judged by what they write like any other
+  command, which is why read-only git is not listed. A shell handed a script file that an entry allows still has the
+  script read as shell code, so what it writes stays the write rule's to judge. This repository's three checks (`python tools/check-markdown.py`, `python tools/check-badges.py`,
+  `python tools/gen_subagents.py --check`) live in its own [main-thread-allowlist.txt](main-thread-allowlist.txt),
+  because a built-in entry would also allow a same-named script in a consumer project, and that script could write
+  files. The file sits at the root rather than under `.agents/`, because the Quickstart imports `.agents` whole and
+  would ship it, and no import pathspec names it. Inline code (`python -c`, `node -e`) is not a script run and stays
+  with the inline-code reader under the write rule. How entries match and how a consumer extends the list is in
+  [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md).
 - Every rule above fires only once the caller is positively identified as the main thread. A format whose payload
   carries nothing that could identify the caller, currently GitHub Copilot, is left ungated rather than guessed at,
-  because denying blind risks blocking a legitimate subagent as often as it blocks the main thread.
+  because denying blind risks blocking a legitimate subagent as often as it blocks the main thread. The same holds for
+  an OpenCode or Kilo Code call whose session the plugin could not read: the envelope then carries no `is_subagent`,
+  and the gate allows.
 - It fails open almost everywhere. Any parse error, missing key, unexpected payload, unknown `--format`, or
   unlexable shell command allows the call, because a broken gate must never break a session. The deliberate exception
-  is the two repository-boundary helpers, `_resolves_inside_repo` and `_path_exists_in_repo`: a path neither can
-  resolve fails toward True, which denies. Deciding what Rule A protects is the whole job of those two, so a path the
-  gate cannot place is treated as inside rather than waved through.
+  is the three repository-boundary helpers, `_resolves_inside_repo`, `_path_exists_in_repo` and `_contains_repo`: a
+  path none of them can resolve fails toward True, which denies. Deciding what Rule A protects is the whole job of
+  those three, so a path the gate cannot place is treated as inside rather than waved through. On Windows that
+  includes a loopback UNC path to a share that is not an administrative drive share, such as `\\localhost\share` or
+  `\\127.0.0.1\share`, because only the share definition knows which folder it maps to, an administrative drive share
+  such as `\\fileserver\C$` on any host, because the gate cannot prove that host is another machine, and a volume
+  GUID or `GLOBALROOT` path. This machine is recognised by its loopback and unspecified addresses in every spelling,
+  IPv4-mapped IPv6 included, by its own name with or without a domain or a trailing dot, and by any name or LAN
+  address that resolves to one of its own addresses. The loopback mapping runs again on the resolved path, so a link
+  that resolves to an administrative share of the project is still inside. A write the gate
+  recognises but cannot place denies the same way. A write target the shell has not expanded yet, such as the `$f` in
+  `rm $f`, is the common case, and the others are a command nested or wrapped deeper than the gate reads, code piped
+  into a shell or interpreter from a program whose output the gate cannot know, as in `curl ... | bash`, a sourced
+  file it cannot read, `eval` or `Invoke-Expression` of a variable, and inline code that starts a process or reaches a
+  file call through a computed name. Only the running program knows where such a write lands, so the main thread's
+  call is denied and the write goes to a subagent or is spelled with a literal path. On Windows, a Git Bash drive path such as
+  `/c/Users/x` is read as `C:/Users/x` before it is placed, for a `cd` operand and a write target alike.
+- What the write rule reads, beyond the plain writers: a hard link whose source is a project file (`ln` without `-s`,
+  `cp -l`, `fsutil hardlink create`, `New-Item -ItemType HardLink`, `mklink /H`), a Windows device, extended-length
+  or loopback administrative-share spelling of a project path, command substitution inside double quotes and
+  backquotes, a line continuation before CR LF, a PowerShell cmdlet fed its path through the pipeline, `pushd`,
+  `popd`, `Push-Location`, `Pop-Location`, `env --chdir`, `sudo --chdir` and `pwsh -WorkingDirectory`, parentheses
+  that are a subshell only in a POSIX shell, `xcopy`, `robocopy`, `replace`, `expand`, `esentutl`, `certutil`,
+  `bitsadmin`, `mklink`, `Start-Transcript`, every `Export-*` cmdlet, `Start-Process` with its redirects and argument
+  list, `Set-ItemProperty`, any other `System.IO` use, in-place editors and formatters, writes and processes inside an
+  `awk` or `sed` program, Lua, R, Julia, `sqlite3`, PHP, Perl and Ruby code, and the runners `busybox`, `toybox`,
+  `su -c`, `setsid`, `flock`, `watch`, `script`, `wsl` and `git -c alias.x=!...`. It also reads the file a git
+  output option names (`--output` and its abbreviations on the diff family, `format-patch`, which writes into the
+  working directory unless `--stdout`, `archive -o`, `bundle create`), a `git config` write, which lands in
+  `.git/config` or the `-f` file, and hard links made from Python and JavaScript, where the source counts as written
+  too. Each of the following cannot be placed and denies on the main thread: a leading assignment, an `env`,
+  `export`, cmd `set`, `setx`, `$env:`, `Env:` or `SetEnvironmentVariable` setting of a variable that changes which
+  program or file a command uses (git's configuration, directory, work tree, pager, editor and external diff, a
+  library preload, `NODE_OPTIONS`, `PYTHONPATH`, `PYTHONSTARTUP`, `PERL5OPT`, `RUBYOPT`, `BASH_ENV`, `ENV`, `PATH`,
+  `PYTEST_ADDOPTS`, the temporary directory, and the rest of `_UNPLACEABLE_ENVIRONMENT`), a `git config` setting or
+  `-c` value that runs a program or includes more configuration, `git grep -O`, `difftool` and `mergetool`, inline
+  Python that imports anything outside the standard library, a standard module shadowed by a file in its working
+  directory, or loads code through `runpy`, `importlib` or `ctypes`, inline JavaScript that loads any module that is
+  not built in, PowerShell that holds a `System.IO` type as a value, imports a namespace or module with `using`,
+  turns a string into a type, uses reflection or compiles code with `Add-Type`, WMI or CIM method calls and
+  `wmic ... call create`, `ssh`, `plink`, `winrs`, `Invoke-Command` and PowerShell sessions aimed at this machine or
+  at a session, a VM, a container or a script file, `psexec`, a container that binds a path inside or above the
+  repository, `docker` or `podman` `exec`, `start`, `build`, `cp` into a container, and `compose up`, `run` or
+  `build`, and a job handed to `schtasks /create`, `at`, `batch`, `crontab`, `systemd-run` or
+  `Register-ScheduledTask`. Read-only forms of the same tools still allow: container `ps`, `images`, `inspect`,
+  `logs`, `stats`, `network ls`, `volume ls`, `compose ls`, `ps`, `logs` and `config`, `schtasks /query`, `crontab -l`,
+  `Get-ScheduledTask`, and WMI or CIM queries. The standard-library writers the inline Python
+  reader places include archive extraction, URL download to a file, database files, logging file handlers, and
+  temporary files created in a named directory. A target holding an unexpanded
+  `$VAR`, `{a,b}`, `%VAR%` or `!VAR!` cannot be placed and denies. A shell command that is not a string denies, and so
+  does a tool the gate does not know that still carries a `command`, `cmd` or `script` value. A top-level command the
+  lexer cannot read still allows, while code nested inside a readable command that cannot be read denies.
+- No MCP tool is matched. Claude Code names an MCP tool `mcp__<server>__<tool>` and compares a `PreToolUse` matcher
+  against that name (`https://code.claude.com/docs/en/hooks`, "MCP tools follow the naming pattern
+  `mcp__<server>__<tool>`"), and the matcher in [.claude/settings.json](.claude/settings.json) names built-in tools
+  only. The OpenCode and Kilo Code runner hands every tool to the gate, but `EDIT_TOOLS` names built-in edit tools
+  only, so an MCP call is allowed there too. Two servers in [.mcp.json](.mcp.json) write local files that way:
+  `playwright` through `browser_take_screenshot` and `browser_pdf_save`, whose `filename` "Relative file names are
+  resolved against the workspace root"
+  (`https://github.com/microsoft/playwright-mcp/blob/main/README.md`), and `chrome-devtools` through
+  `take_screenshot`, `take_snapshot`, `take_heapsnapshot`, `performance_stop_trace`, `screencast_start`,
+  `evaluate_script` and `get_network_request`, each with a path parameter "to save" into
+  (`https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/tool-reference.md`, fetched 2026-09-25).
+- Known limits of the main-thread write rule. These are accepted, not open defects:
+  - The rule is a list of forbidden write forms, so a write form it does not know passes.
+  - A top-level shell command the gate cannot parse is allowed by design, because the gate fails open.
+  - MCP tools that write files are not covered by the matchers, as the bullet above records.
+  - A compiled program or native binary run by an allowlisted tool, and code run by an allowlisted test runner, are
+    trusted rather than read.
+  - GitHub Copilot's hook carries no caller identity, so its main thread is not gated. The live test reports this as
+    a known gap.
+  - The lists of risky environment variables and options were written from knowledge, not from checked vendor
+    documentation.
+  - A loopback share whose target folder cannot be determined is denied rather than mapped.
 
-Each agent wires that one script, and the two hooks beside it, to its own hook surface:
+  Re-audit the rule only when the rule itself changes. Record a newly found limit in this list rather than chasing it.
+
+Each agent wires that one script, and the hooks beside it, to its own hook surface:
 
 | Agent | Wiring | Events |
 | --- | --- | --- |
-| Claude Code | [.claude/settings.json](.claude/settings.json) | `SessionStart` and `UserPromptSubmit` for the gate text, `PreToolUse` (matcher `^(Edit\|Write\|NotebookEdit\|Bash\|WebFetch\|WebSearch)$`) for the gate, `PostToolUse` (matcher `^(Edit\|Write\|MultiEdit)$`) for the markdown lint in `markdown_lint_check.py`, `Stop` and `SubagentStop` for the formatting checker, `TaskCreated`, `TaskCompleted`, `SessionStart`, `PreCompact` and `Stop` for the task list |
-| Codex | inline `[[hooks.*]]` tables in [.codex/config.toml](.codex/config.toml) | `UserPromptSubmit` and `SubagentStart` for the gate text, `PreToolUse` (matcher `^(Bash\|shell\|apply_patch\|Edit\|Write\|NotebookEdit)$`) for the gate, `Stop` for the formatting checker, `SessionStart` for the task list |
-| OpenCode and Kilo Code | [.agents/plugin/hooks.js](.agents/plugin/hooks.js), declared once by path in the `plugin` array of [opencode.json](opencode.json), which both tools read | `tool.execute.before` |
-| GitHub Copilot | [.github/hooks/preflight.json](.github/hooks/preflight.json) | `sessionStart` for the gate text and the task list, `subagentStart` for the gate text, `preToolUse` (matcher `bash\|powershell\|create\|edit`) for the gate |
+| Claude Code | [.claude/settings.json](.claude/settings.json) | `SessionStart` and `UserPromptSubmit` for the gate text, `SessionStart` for the subagent supervision text, `SubagentStart` for the subagent text, `PreToolUse` (matcher `^(Edit\|Write\|MultiEdit\|NotebookEdit\|Bash\|PowerShell\|WebFetch\|WebSearch)$`) for the gate, `PostToolUse` (matcher `^(Edit\|Write\|MultiEdit)$`) for the markdown lint in `markdown_lint_check.py`, `MessageDisplay` for the display fix, `Stop` (with `--display-fixed`) and `SubagentStop` for the formatting checker, `TaskCreated`, `TaskCompleted`, `SessionStart`, `PreCompact` and `Stop` for the task list |
+| Codex | inline `[[hooks.*]]` tables in [.codex/config.toml](.codex/config.toml) | `UserPromptSubmit` for the gate text, `SubagentStart` for the subagent text, `PreToolUse` (matcher `^(Bash\|shell\|apply_patch\|Edit\|Write\|NotebookEdit)$`) for the gate, `Stop` for the formatting checker, `SessionStart` for the task list |
+| OpenCode and Kilo Code | [.agents/plugin/hooks.js](.agents/plugin/hooks.js), declared once by path in the `plugin` array of [opencode.json](opencode.json), which both tools read | `chat.message` for the gate text in a root session and the subagent text in a child session, `tool.execute.before` for every hook directly in [.agents/hooks/](.agents/hooks/), `experimental.text.complete` for the display fix |
+| GitHub Copilot | [.github/hooks/preflight.json](.github/hooks/preflight.json) | `sessionStart` for the gate text and the task list, `subagentStart` for the subagent text, `userPromptTransformed` for the gate text on every prompt through `copilot/prompt_reminder.py`, `preToolUse` (matcher `bash\|powershell\|create\|edit`) for the gate, `agentStop` for the formatting checker |
 
 Per-surface details worth knowing before you touch any of them:
 
@@ -65,12 +221,19 @@ Per-surface details worth knowing before you touch any of them:
   inside a subagent. The same `PreToolUse` payload also carries `agent_type`, the subagent's own name, and that is the
   field Rule B depends on: `agent_id` decides whether a subagent is acting at all, `agent_type` names which definition
   to read the declared skills out of. Codex spells both the same way.
+- Claude Code's `SessionStart` also echoes a second, fixed text beside the gate text: the subagent supervision rule.
+  It tells the main thread to note how long each background subagent should take, check every running one every 10
+  minutes against that estimate, and step in only when one is far over or clearly looping. It is plain context with
+  no script behind it, so it cannot deny anything, and no other wiring carries it. The global install in
+  [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md) and [sandbox-agent/setup-global.sh](sandbox-agent/setup-global.sh)
+  carry the same entry, word for word.
 - Every hook runs on `-S -E`, under an interpreter each wiring resolves for itself: `python3` first, then
   `python`, which is the name the python.org installer puts on a Windows path and usually the only one it puts
   there. Debian 11 and Ubuntu 20.04 onward ship no `/usr/bin/python` unless `python-is-python3` is installed, so a
   wiring that hardcoded either name alone was inert on one platform or the other. Both flags are safe because every
   hook is standard library only, and they take a slice off an interpreter start that the gate pays on every single
-  tool call.
+  tool call. The plugin tries `python3`, then `python`, and keeps the first one that answers a one-line probe, so a
+  Windows Store alias that exists under either name but runs nothing is skipped rather than chosen.
 - No hook uses `argparse`, which exits 2 on a usage error. Two is the deny code in the plain format, so a stray flag
   would read as a block. Each hook scans `sys.argv` by hand instead and treats an unknown flag as an allow.
 - Only Claude Code has task events, and none of the three agents has a task-updated event, so
@@ -86,42 +249,131 @@ Per-surface details worth knowing before you touch any of them:
   Copilot, the runtime's `worktree` in the plugin. The claude, codex and copilot formats deny with exit 0 and JSON on
   stdout and never use a non-zero exit, so forcing a zero exit on those three turns any error back into an allow. Codex
   and Copilot each carry a separate command field per shell, so they spell it per shell: `|| exit 0` wherever a POSIX
-  shell or cmd runs the line, `; exit 0` in Copilot's `powershell` field. Claude Code has one field and picks the shell
-  itself, so it uses `; exit 0` everywhere, which bash and PowerShell both parse. After `||` PowerShell reads `exit` as
-  a command name and errors, which is why the `||` form cannot be used there. The plugin cannot force a zero exit at
-  all, because its plain format does use exit 2 as the denial, so it reads each hook file before spawning it and drops
+  shell runs the line, `; exit 0` in Codex's `commandWindows` and in Copilot's `powershell` field. Codex 0.156.1 runs
+  `commandWindows` under `pwsh`, then `powershell.exe`, then `cmd`, whichever it finds first, a PowerShell with
+  `-NoProfile -Command` and `cmd` with `/c` (`get_powershell_shell` in `codex-rs/shell-command/src/shell_detect.rs`
+  and `derive_exec_args` in `codex-rs/core/src/shell.rs`, tag `rust-v0.156.1`). Windows PowerShell 5.1 has no `||`
+  operator at all, so a `|| exit 0` there is a parse error rather than a fallback. Claude Code has one command field,
+  written as POSIX shell and ended with `; exit 0` (see the next point for which shell runs it). The plugin cannot
+  force a zero exit at all, because its plain format does use exit 2 as the denial, so it reads each hook file before spawning it and drops
   the ones it cannot open.
-- Claude Code's `PreToolUse` command now calls the gate directly, with no wrapper. Its single command field still
-  picks the shell itself, so no redirect token means the same thing in both shells it may pick (`2>/dev/null` opens a
-  literal `dev` directory in PowerShell, `2>$null` is ambiguous in bash), which is still why the gate owns its own
-  silence rather than relying on one: `preflight_gate.py` swaps `sys.stderr` for a null sink for the call and
-  restores it in a `finally`. The `plain` format that OpenCode and Kilo Code use still writes its deny message to
-  standard error, so that deny channel is unaffected. Codex and Copilot keep the per-shell redirects their variant
-  fields let them write.
+- Claude Code runs every command hook in shell form: "The `command` string is passed to a shell: `sh -c` on macOS and
+  Linux, Git Bash on Windows, or PowerShell when Git Bash isn't installed"
+  (`https://code.claude.com/docs/en/hooks#exec-form-and-shell-form`). Measured on Claude Code 2.1.281, Windows 11 with
+  Git Bash installed: a probe hook ran under bash 5.3.9. Every Claude command here is POSIX shell (`PY=$(...)`,
+  `"${CLAUDE_PROJECT_DIR}"`), and `pwsh -Command` rejects it with a parse error and exit 1, which Claude Code treats
+  as a non-blocking error. On Windows without Git Bash every Claude hook therefore allows and nothing is gated, so the
+  setup docs require Git for Windows there. Exec form (`args`) would avoid the shell, but it cannot fall back from
+  `python3` to `python` or force a zero exit, and a missing script would then exit 2 and deny.
+- Claude Code's `PreToolUse` command calls the gate directly, with no wrapper and no redirect:
+  `preflight_gate.py` swaps `sys.stderr` for a null sink for the call and restores it in a `finally`. The `plain`
+  format that OpenCode and Kilo Code use still writes its deny message to standard error, so that deny channel is
+  unaffected. Codex and Copilot keep the per-shell redirects their variant fields let them write.
+- The Claude Code matcher names `PowerShell` beside `Bash`. The hooks reference says of the PowerShell tool: "On
+  Windows, wherever the PowerShell tool is enabled, Claude treats PowerShell as the primary shell and routes shell
+  commands through it" and "A hook that matches only `Bash` never fires there"
+  (`https://code.claude.com/docs/en/hooks#powershell`). Its payload is `tool_name: "PowerShell"` with the command in
+  `tool_input.command`, measured on 2.1.281, and the gate already reads that as a PowerShell command. `MultiEdit` is
+  matched as well, because the gate treats it as an edit tool, though the current tools reference no longer lists it.
 - Codex supports both inline `[[hooks.*]]` tables and a separate `hooks.json`, and warns when a single configuration
   layer carries both. The tables therefore live in `.codex/config.toml` and `.codex/hooks.json` no longer exists.
+  Every Windows command in those tables is PowerShell: the gate text is `echo '<json>'; exit 0`, and each script hook
+  moves to `git rev-parse --show-toplevel` with `Set-Location -LiteralPath` before it runs, then ends in
+  `2>$null; exit 0`. Before that fix every `commandWindows` value failed to parse in PowerShell, so no Codex hook ran
+  on Windows at all.
 - Copilot hooks are no longer CLI-only. They run in VS Code and in JetBrains as well, from the same `.github/hooks/`
   path. Event names are camelCase, and a hook entry carries `bash` and `powershell` as sibling string fields next to
   `type`, not a nested `command` object. A nested one is silently ignored, which leaves that surface ungated.
 - The Copilot CLI additionally reads hooks from `.claude/settings.json`. The JetBrains plugin does not: its bundled
-  agent hardcodes `.github/hooks/**/*.json` and rejects PascalCase event names. That borrowed Claude wiring is inert on
-  the CLI, and it is meant to stay that way. Copilot names its tools in lower case, the same `bash`, `powershell`,
+  agent hardcodes `.github/hooks/**/*.json` and rejects PascalCase event names. The borrowed Claude gate wiring is inert
+  on the CLI, and it is meant to stay that way. Copilot names its tools in lower case, the same `bash`, `powershell`,
   `create` and `edit` its own matcher lists, and it compares a matcher anchored and case sensitively, so the PascalCase
   Claude pattern matches nothing there. Nothing is ungated, because
   [.github/hooks/preflight.json](.github/hooks/preflight.json) already covers that surface. Do not widen the Claude
   pattern to Copilot's tool names to make it fire: the CLI reads both files, so it would then run the gate twice on
-  every tool call.
+  every tool call. `SubagentStart` takes no matcher either, and the hooks reference accepts a PascalCase event name
+  in its "VS Code compatible format", so the CLI may deliver the subagent text twice, once from each file. The text
+  is identical and this is not measured, because Copilot is not installed here. `Stop` and `SubagentStop` take no
+  matcher, so those two do run on the CLI, with Copilot's
+  snake_case payload. `no_ai_markers_check.py` stays silent on a claude-format `Stop` payload in the shape the hooks
+  reference documents for it (`stop_reason` present, `timestamp` an ISO 8601 string, no `last_assistant_message`),
+  so the reply is checked once, from `agentStop`. A Claude Code `Stop` carries `last_assistant_message` and is always
+  checked.
 - The JetBrains plugin scans `.claude/agents`, but it only understands its own `*.agent.md` format, so subagent
   definitions cannot be shared between Copilot and Claude Code or OpenCode.
-- OpenCode and Kilo Code have no event that can block a finished reply, so their plugin does everything at
-  `tool.execute.before`. It is a runner rather than a fixed wiring: on every tool call it discovers every hook in
-  [.agents/hooks/](.agents/hooks/), runs them in the order each hook declares, and hands each one a versioned JSON
-  envelope on standard input with `--format plain`. Adding a hook file is the whole registration step. The contract,
-  including the envelope fields, the ordering rule, the deny exit code, and the fail-open rules, is written up in
+- The formatting checker fixes what it can on every surface that can rewrite the display, and blocks only on what is
+  left, so the user is never asked to read a correction of a slip they did not see. Claude Code's `MessageDisplay`
+  (2.1.152 or later, verified on 2.1.281) replaces the text on screen only and records, per session and message id,
+  every line it changed. Its `Stop` runs with `--display-fixed`, which skips a fixable marker only on a line that
+  record names and checks the whole reply when there is no record. OpenCode and Kilo Code store the fixed text part
+  through `experimental.text.complete`, which the plugin hands only to hooks that declare `HOOK_TEXT_EVENT = True`.
+  Codex and Copilot have no display hook, so their stop events keep the full check. A block forces another turn, so
+  the check honours `stop_hook_active` and Copilot's `stopHookActive`, and a per-session counter allows the next stop
+  after a block even when neither flag arrives. Copilot's `agentStop` reads the reply
+  from the undocumented `transcriptPath` file and allows whatever it cannot parse, and Copilot is not installed here,
+  so that path is verified by the hooks reference and the unit tests only. Detail and quotes are in
   [docs/hooks-contract.md](docs/hooks-contract.md).
+- OpenCode and Kilo Code have no event that can block a finished reply, so their plugin runs every check at
+  `tool.execute.before`. It is a runner rather than a fixed wiring: on every tool call it discovers every hook in
+  the project's [.agents/hooks/](.agents/hooks/), or in `~/.agents/hooks/` when the project has no such directory
+  and holds no `.agents/no-global-hooks` opt-out file, runs them in the order each hook declares, and hands each one
+  a versioned JSON envelope on standard input with `--format plain`. Adding a hook file is the whole registration
+  step. The contract, including the envelope fields, the ordering rule, the deny exit code, and the fail-open rules,
+  is written up in [docs/hooks-contract.md](docs/hooks-contract.md).
+- OpenCode and Kilo Code name no caller on `tool.execute.before`, whose input is only `tool`, `sessionID` and
+  `callID`. The plugin reads the session with `client.session.get`: a session with a `parentID` is a subagent's child
+  session and sends `is_subagent: true`, one without is the main thread and sends `false`, and a lookup that fails
+  leaves the field out so the gate allows. The answer is cached per session. `agent_type` is the agent named on the
+  newest session message (`build` or `code` on the main thread, `general` or the subagent's own name in a child), never
+  the session id. Measured on OpenCode 1.18.32 and Kilo Code 7.7.9: a main-thread write was denied, a `general`
+  subagent write was allowed, and each lookup took 7 to 57 ms.
+- The plugin spawns each hook asynchronously with its own 10 second timer. `spawnSync` under the Bun runtime both tools
+  ship returned `ETIMEDOUT` within 100 ms on most tool calls after the first on Windows, which skipped the gate on those
+  calls and let main-thread writes through.
+- OpenCode and Kilo Code get the gate text on every main-thread prompt from the plugin's `chat.message` handler, a
+  stable hook in both tools. It appends the reminder to the user message as a synthetic text part, which the runtime
+  saves and sends to the model with the prompt. The handler also fires for the task prompt a subagent receives in its
+  child session, so it places the session first, with the same cached `client.session.get` lookup the gate uses: a
+  session with no `parentID` gets the reminder, a child session gets the subagent text, and a session the lookup
+  cannot read gets nothing. Before that, OpenCode 1.18.32 with `opencode-go/gpt-6-luna` handed the reminder to a
+  `docs-architect` subagent, which then refused to write because the main agent must delegate, three runs out of
+  three. Removing the reminder from the child session alone was not enough: the subagent still called itself the main
+  session and refused. With the subagent text, three isolated runs out of three had the subagent write the file with
+  `apply_patch` and the main thread write nothing.
+- Every wiring that can reach a subagent injects the subagent text and never the reminder: Claude Code and Codex on
+  `SubagentStart`, Copilot on `subagentStart`, the plugin in a child session. Claude Code documents `additionalContext`
+  on `SubagentStart` as "String added to the subagent's context at the start of its conversation, before its first
+  prompt" (`https://code.claude.com/docs/en/hooks#subagentstart`), and Copilot documents that on `subagentStart`
+  "`additionalContext` is prepended to the subagent's prompt"
+  (`https://docs.github.com/en/copilot/reference/hooks-reference`). Copilot's built-in `general-purpose` agent emits no
+  `subagentStart`, per the same page. Claude Code's hooks reference names tool events as the ones that fire inside a
+  subagent, so its `UserPromptSubmit` and `SessionStart` reminder is not expected to reach one, which is read from the
+  reference and not measured. Copilot's `userPromptTransformed` fires for a "submitted prompt", and the reference does
+  not say whether a subagent's prompt counts, so whether the reminder also reaches a Copilot subagent that way is
+  unverified.
+- Copilot gets the gate text on every prompt from `userPromptTransformed`, which runs
+  [.agents/hooks/copilot/prompt_reminder.py](.agents/hooks/copilot/prompt_reminder.py). The hook appends the reminder
+  to the `transformedPrompt` field and returns it as `modifiedTransformedPrompt`, per
+  `https://docs.github.com/en/copilot/reference/hooks-reference`. It sits in a subdirectory because the OpenCode and
+  Kilo Code runner discovers only the files directly in `.agents/hooks/`, so a helper one agent wires by path never
+  costs the other two an interpreter start per tool call. That is the documented opt-out in
+  [docs/hooks-contract.md](docs/hooks-contract.md), and it keeps a new top-level file the whole registration step.
+- The unit tests and the containerised sandbox prove what each agent discovers. What proves the wiring against a real
+  model is [sandbox-agent/live/](sandbox-agent/live/), one script per agent over a shared
+  [sandbox-agent/live/lib.sh](sandbox-agent/live/lib.sh), run by the manual live workflow described under Repo
+  conventions. Test 1 counts any gate denial as the block, whichever rule gave it: the harness reads the fixed text
+  of every `RULE_*_REASON` out of the gate itself, so a new rule needs no harness change, and a probe file that
+  landed is a failure whatever the transcript says. Test 2 also reads the subagent's own transcript, through the
+  `agent_subagent_context` function each agent script supplies, and fails unless it carries the subagent text
+  (`PREFLIGHT for a subagent:`) and not the main-thread reminder. On GitHub Copilot, test 1 reports `KNOWN-GAP`
+  rather than `FAIL`, because the Copilot payload carries no agent identifier and the gate cannot tell its main
+  thread from a subagent (see Maintenance follow-ups). That expectation is `GATE_KNOWN_GAP=1` in
+  [sandbox-agent/live/copilot.sh](sandbox-agent/live/copilot.sh). Remove that expectation, by setting it to `0` as
+  every other agent script does, in the same change that removes the matching Maintenance follow-up, once the payload
+  carries an agent identifier.
 
-Verified against Claude Code 2.1.250, Codex 0.150.1, OpenCode 1.18.25, Kilo Code 7.5.5, and GitHub Copilot CLI
-1.0.81.
+Verified against Claude Code 2.1.281, Codex 0.156.1, OpenCode 1.18.32, and Kilo Code 7.7.9. GitHub Copilot CLI was
+last verified on 1.0.81 and is not installed here, so nothing above was re-measured against it.
 
 ---
 
@@ -139,11 +391,13 @@ script and must never be hand-edited, and some are symlinks the generator create
 | --- | --- | --- |
 | `subagents/*.md` | canonical | edit directly, then regenerate |
 | `.agents/skills/*/SKILL.md` and its `references/*.md` | canonical | edit directly, keep the manifest short and the depth in `references/` |
-| `.agents/hooks/preflight_gate.py`, `.agents/hooks/no_ai_markers_check.py`, `.agents/hooks/task_list_sync.py`, `.agents/hooks/markdown_lint_check.py` | canonical | edit directly, then run the pytest suite |
+| `.agents/hooks/preflight_gate.py`, `.agents/hooks/no_ai_markers_check.py`, `.agents/hooks/task_list_sync.py`, `.agents/hooks/markdown_lint_check.py`, `.agents/hooks/copilot/prompt_reminder.py` | canonical | edit directly, then run the pytest suite |
 | `tasks.md` | runtime state, git-ignored | written by the hook and by the model, never committed |
 | `.agents/plugin/hooks.js` | canonical | edit directly |
 | `AGENTS.md.example`, `docs/*.md` | canonical | edit directly |
 | `tools/*.py`, `tools/tests/*.py`, `tools/pyproject.toml` | canonical | edit directly, then run the pytest suite |
+| `global/bin/update-global.sh`, `global/bin/update-global.ps1` | canonical, shipped only by the global install to `~/.agents/bin` | edit both together, then run `python -m pytest tools/tests/test_update_global.py` |
+| `main-thread-allowlist.txt` | canonical, this repo only, never shipped | edit directly, then run `python -m pytest tools/` |
 | `.claude/agents/*.md` | generated (Claude front matter with a `skills` key) | never hand-edit, run the generator |
 | `.agents/agents/*.md` | generated (OpenCode format) | never hand-edit, run the generator |
 | `.codex/agents/*.toml` | generated (Codex TOML) | never hand-edit, run the generator |
@@ -180,10 +434,11 @@ The OpenSpec sections in the `.example` are for consumers.
 - [.agents/agents/](.agents/agents/) is the OpenCode-format subagent tree, and only OpenCode and Kilo Code use it, both
   through the `.opencode/agents` and `.kilo/agents` symlinks. Claude Code, Codex, and Copilot each read their own
   generated tree instead, because none of the three formats is interchangeable.
-- [.agents/hooks/](.agents/hooks/) and [.agents/plugin/](.agents/plugin/) are invoked by every adapter. The four
-  Python scripts hold the only copy of the gate logic, of the response formatting check, of the markdown lint pass
-  that runs after an edit, and of the task-list mirror, and the plugin is a thin runner with no rules of its own that
-  hands every OpenCode and Kilo Code tool call to every hook in that directory.
+- [.agents/hooks/](.agents/hooks/) and [.agents/plugin/](.agents/plugin/) are invoked by every adapter. The Python
+  scripts hold the only copy of the gate logic, of the response formatting check, of the markdown lint pass that runs
+  after an edit, of the task-list mirror, and of Copilot's per-prompt reminder. The plugin is a thin runner with no
+  rules of its own that hands every OpenCode and Kilo Code tool call to every hook directly in that directory, and it carries
+  the reminder wording for its own `chat.message` handler.
 
 ---
 
@@ -197,6 +452,10 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
   [e2e/](e2e/), [sandbox-agent/](sandbox-agent/), [subagents/](subagents/), and [tools/](tools/) are test and build
   material and never reach a consumer, so no shipped document may link into them. A shipped document linking to a
   lowercase one is the same defect: the link resolves here and 404s there.
+  [global/](global/) ships only through the global install in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md), which
+  copies [global/bin/](global/bin/) to `~/.agents/bin`, and never through a project import, so no project-import
+  pathspec may name it. [main-thread-allowlist.txt](main-thread-allowlist.txt) is this repository's own and never
+  ships by either route.
 - **Never hand-edit generated subagent files.** Edit `subagents/<name>.md`, then run the generator. CI fails if the
   generated trees drift from canonical.
 - **Markdown lint.** `README.md`, `AGENTS.md.example`, `docs/*.md`, `.agents/skills/**/*.md`, and the canonical
@@ -252,8 +511,10 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
   [.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py). Every adapter calls that one script, so a
   behaviour change is a change to the script plus a case in
   [tools/tests/test_preflight_gate.py](tools/tests/test_preflight_gate.py), never a second copy of the logic. Keep the
-  injected wording identical in every wiring file that injects it. The OpenCode and Kilo Code plugin injects nothing,
-  because neither tool has a stable per-turn injection hook, so it only runs the hooks.
+  injected wording identical in every wiring file that injects it, including the `REMINDER` constant in
+  [.agents/plugin/hooks.js](.agents/plugin/hooks.js), which
+  [tools/tests/test_prompt_reminder.py](tools/tests/test_prompt_reminder.py) compares, line breaks included, against
+  the canonical block above.
 - **The tooling is a package under [tools/](tools/).** Sources sit at the top ([tools/gen_subagents.py](tools/gen_subagents.py),
   [tools/check-markdown.py](tools/check-markdown.py)), tests sit in [tools/tests/](tools/tests/) with an `__init__.py`
   and a `conftest.py`. [tools/pyproject.toml](tools/pyproject.toml) is the only place a dependency or a version is
@@ -268,6 +529,10 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
   checks listed below, and `sandbox` for the containerised suite, which builds the image once and then runs the
   per-project import assertions, a global install run twice, and a scoped single-agent global install. The sandbox job
   is the long one. Verify locally before you push, because the pipeline is the second opinion rather than the first.
+- **[.github/workflows/agent-live-tests.yml](.github/workflows/agent-live-tests.yml) is a separate workflow and never
+  part of CI.** Its only trigger is `workflow_dispatch`, so no push and no pull request ever starts it. It needs the
+  `REQUESTY_API_KEY` repository secret, because it drives each agent against a real model through Requesty, and
+  every run spends money on that key. Start it only with the user's explicit approval for that one run.
 
 Local verification (the same checks CI runs). Install the pinned dependencies first, with pip 25.1 or newer:
 
@@ -364,31 +629,27 @@ should look like.
 
 ## Maintenance follow-ups
 
-- **OpenCode per-turn gate injection still needs an experimental hook.** Enforcement now rides the stable
-  `tool.execute.before` hook in [.agents/plugin/hooks.js](.agents/plugin/hooks.js), so the gate blocks calls
-  without any experimental surface. Injecting the gate text into context every turn still requires
-  `experimental.chat.system.transform`, which is unchanged and still experimental in OpenCode 1.18.25. Periodically
-  recheck `https://opencode.ai/docs/plugins/`. When it stabilises, add per-turn injection to the plugin so OpenCode and
-  Kilo Code match the other three, then remove this note. Tracked in project memory so it resurfaces each session.
 - **Kilo Code is settled, no action outstanding.** Kilo reads `.agents/skills/` natively, so it needs no skill symlink.
   Its subagent tree is the `.kilo/agents` symlink to `../.agents/agents`, which the generator creates and repairs, so
   there is nothing per-Kilo to generate. It accepts the root `opencode.json` for MCP servers and for the plugin
   declaration, and `.kilocode/` is deleted. No `.kilo/kilo.jsonc` ships, because Kilo needs no per-tool copy of
   anything once the shared file carries no substitution tokens. The one live constraint, that a `{env:VAR}` anywhere
   in project config makes Kilo reject the whole file, is recorded under Repo conventions rather than here.
-- **GitHub Copilot per-turn injection is available and not yet adopted.** Copilot now exposes a `userPromptTransformed`
-  event on the CLI and on the cloud agent, so the old claim that it cannot re-inject per turn is wrong.
-  [.github/hooks/preflight.json](.github/hooks/preflight.json) still injects only at `sessionStart` and
-  `subagentStart`. Add a `userPromptTransformed` entry with the same wording, confirm the JetBrains plugin tolerates
-  the extra event, and check `https://docs.github.com/en/copilot/reference/hooks-reference` for the exact payload
-  shape before wiring it.
+- **GitHub Copilot per-prompt injection is wired, and documented only for the CLI and the cloud agent.**
+  [.github/hooks/preflight.json](.github/hooks/preflight.json) runs `copilot/prompt_reminder.py` on
+  `userPromptTransformed`.
+  The hooks reference (`https://docs.github.com/en/copilot/reference/hooks-reference`) documents that event for the
+  Copilot CLI and the cloud agent and says nothing about VS Code or JetBrains. Confirm that both IDEs fire it, or at
+  least tolerate the entry, and record the result here.
 - **The Copilot `preToolUse` payload carries no agent identifier, and its wiring never passes `--subagent` either.**
   There is no `agent_id` or equivalent field in Copilot's own payload, and
   [.github/hooks/preflight.json](.github/hooks/preflight.json) never sets `--subagent` on the `preToolUse` call, so
   [.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) cannot tell a Copilot subagent from the Copilot
   main thread. Caller identity resolves to unknown on every call, so neither Rule A, Rule B, nor Rule C ever fires on
   this surface: the whole surface is unenforced, which fails in the unsafe direction rather than the safe one.
-  Recheck the hooks reference for an agent identifier and pass it through with `--subagent` when one lands.
+  Recheck the hooks reference for an agent identifier and pass it through with `--subagent` when one lands, and in
+  the same change set `GATE_KNOWN_GAP=0` in [sandbox-agent/live/copilot.sh](sandbox-agent/live/copilot.sh) so live
+  test 1 has to pass there.
 - **Codex now runs the formatting check, and the markdown lint has nowhere to go there.** `.codex/config.toml` wires
   `no_ai_markers_check.py` on `Stop`, so Codex is no longer a surface where the reply goes unchecked. Whether Codex's
   `Stop` can actually reject a reply the way Claude Code's can is not verified, so nothing in the docs claims it: they

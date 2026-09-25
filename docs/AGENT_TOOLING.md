@@ -196,11 +196,11 @@ Each agent wires that same script through its own hook surface:
 
 | Agent | Where the hooks live | What it can stop |
 | --- | --- | --- |
-| Claude Code | [.claude/settings.json](../.claude/settings.json) | blocks the tool call, injects the gate at session start and every turn, lints markdown after an edit, blocks a reply on `Stop` and `SubagentStop`, and mirrors the task list |
-| Codex | inline `[[hooks.*]]` tables in [.codex/config.toml](../.codex/config.toml) | blocks the tool call, injects the gate every turn and on subagent start, runs the formatting check on `Stop`, and seeds the task list at session start |
-| OpenCode | plugin [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), declared in [opencode.json](../opencode.json) | blocks the tool call |
-| Kilo Code | the same plugin, the same declaration | blocks the tool call |
-| GitHub Copilot | [.github/hooks/preflight.json](../.github/hooks/preflight.json) | fires on the tool call but always allows, caller identity is always unknown there; injects the gate once per session and on subagent start |
+| Claude Code | [.claude/settings.json](../.claude/settings.json) | blocks the tool call, injects the gate at session start and every turn, tells a subagent to do its task itself on subagent start, lints markdown after an edit, blocks a reply on `Stop` and `SubagentStop`, and mirrors the task list |
+| Codex | inline `[[hooks.*]]` tables in [.codex/config.toml](../.codex/config.toml) | blocks the tool call, injects the gate every turn, tells a subagent to do its task itself on subagent start, runs the formatting check on `Stop`, and seeds the task list at session start |
+| OpenCode | plugin [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), declared in [opencode.json](../opencode.json) | blocks the tool call, injects the gate on every main-thread prompt through `chat.message` and the subagent text in a subagent's session |
+| Kilo Code | the same plugin, the same declaration | blocks the tool call, injects the gate on every main-thread prompt through `chat.message` and the subagent text in a subagent's session |
+| GitHub Copilot | [.github/hooks/preflight.json](../.github/hooks/preflight.json) | fires on the tool call but always allows, caller identity is always unknown there; injects the gate at session start and on every prompt through `userPromptTransformed`, and tells a subagent to do its task itself on subagent start |
 
 Only Claude Code has task events, so `tasks.md` is written from them there and merely injected at session start
 elsewhere. Nothing has a task-updated event, so the hook writes only `open` and `done` and the model sets
@@ -275,7 +275,9 @@ Copilot reads this setup natively across its surfaces, so it needs no bridge ins
   file actually in effect. The JetBrains plugin reads a global file only, and the cloud agent takes JSON pasted into
   a repository settings page. Both manual blocks are in [MCP_SETUP.md](MCP_SETUP.md).
 - Preflight: [.github/hooks/preflight.json](../.github/hooks/preflight.json), camelCase events, injecting the gate
-  on `sessionStart` and `subagentStart` and blocking on `preToolUse`. The pre-tool payload carries no agent
+  on `sessionStart`, telling a subagent to do its task itself on `subagentStart`, appending the gate to every prompt on
+  `userPromptTransformed`, and blocking on
+  `preToolUse`. The pre-tool payload carries no agent
   identifier, so caller identity there resolves to unknown and none of the gate's rules ever fires on that hook: this
   surface runs entirely unenforced rather than merely weaker. Copilot in JetBrains fires only six events, has no
   subagent event, and reads hook configuration only from `.github/hooks/`.

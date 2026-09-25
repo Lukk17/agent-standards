@@ -6,7 +6,7 @@ One `git checkout` drops a shared AI coding setup (skills, subagents, MCP server
 project.
 
 [![Agents](https://img.shields.io/badge/agents-Claude%20Code%20%7C%20Kilo%20%7C%20OpenCode%20%7C%20Codex%20%7C%20Copilot-blueviolet)](https://github.com/Lukk17/agent-standards)
-[![Skills](https://img.shields.io/badge/skills-56-blueviolet)](.agents/skills/)
+[![Skills](https://img.shields.io/badge/skills-59-blueviolet)](.agents/skills/)
 [![Subagents](https://img.shields.io/badge/subagents-35-blueviolet)](subagents/)
 [![MCP](https://img.shields.io/badge/mcp_servers-8-blueviolet)](docs/MCP_SETUP.md)
 [![OpenSpec](https://img.shields.io/badge/openspec-ready-blueviolet)](docs/AGENT_TOOLING.md#openspec-integration)
@@ -638,6 +638,8 @@ including what each hook surface can actually block, lives in
   after an edit to a linted file. [.agents/hooks/task_list_sync.py](.agents/hooks/task_list_sync.py) mirrors the live
   task list into `tasks.md` at the project root and injects it again after a compaction, so the session's own plan
   survives. `tasks.md` is per-session working state: add it to your `.gitignore` rather than committing it.
+  [.agents/hooks/copilot/prompt_reminder.py](.agents/hooks/copilot/prompt_reminder.py) appends the gate text to every
+  GitHub Copilot prompt, and sits one level down so the OpenCode and Kilo Code runner never spawns it.
   [.agents/plugin/hooks.js](.agents/plugin/hooks.js): the OpenCode and Kilo Code adapter, a runner that hands every
   tool call to every hook in that directory. Contract: [docs/hooks-contract.md](docs/hooks-contract.md).
 - [subagents/](subagents/) (this repo only): canonical subagent sources. Generator emits the per-tool copies. Each

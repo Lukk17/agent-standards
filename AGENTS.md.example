@@ -22,36 +22,92 @@ A good opening line names owners and a plan, not a category:
 Owners: markdown-writer for the docs, python-patterns for the generator test. Delegating the edit to python-pro with those two skills, code-reviewer before merge.
 ```
 
-The gate is enforcing, not advisory. One shared rule in
-[.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) denies a main-thread write of any file resolving
-inside the repository, with no exemption for markdown, configuration, or documentation, and tells the caller to
-delegate the change instead. A relative path is resolved against whatever a leading `cd` in the command moved to, so
-changing directory first buys nothing. A write outside the repository, a write to the null device, a write to
-`tasks.md` at the project root, and git branch switching stay allowed, so the main thread keeps full use of git and
-keeps ownership of its own task list. It also denies any tool call, not only an edit, from a subagent whose own
-definition declares no skills, and it denies the main thread from running a web fetch or web search tool directly, on
-the one format where that tool's name is confirmed (Claude Code today). Every rule fires only once the caller is
-positively identified as the main thread. A format whose payload carries no such field, currently GitHub Copilot, is
-left ungated rather than guessed at. Any error inside the gate fails open, so a broken hook can never break a session.
+Every agent carries the same reminder into each main-thread prompt, word for word, from its own wiring. No wiring
+hands it to a subagent: it tells the reader to delegate, and a subagent told that turns its own task away. A subagent
+gets the second text below instead, also word for word, from every wiring that can reach one.
 
-Three more hooks sit beside the gate in [.agents/hooks/](.agents/hooks/) and ride the same wirings: a reply
-formatting check, a markdown lint pass that runs just after a file is edited, and a task-list mirror that writes
-`tasks.md` at the project root so the session plan survives a compaction. That file is per-session working state, so
-put `/tasks.md` in this project's `.gitignore` rather than committing it. Every hook is a Python script, and every
-wiring throws a failed call away. Each wiring resolves its own interpreter, `python3` first and `python` second,
-which is the name a Windows install provides, so only a machine carrying neither name leaves the hooks inert.
+```text
+PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default. Follow the user-communication skill when writing to the user. If the prompt asks anything, answer every question first, then start the work. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:
+
+Running: `running task name` (or: nothing)
+
+~~DONE: older finished task~~
+~~DONE: most recent finished task~~
+
+**NOW: what is being done right now**
+
+Next: the next task
+Then: the task after that
+
+Waiting on: what you wait for (or: nothing)
+
+When several tasks run, list each name in backticks on the Running line, separated by commas.
+```
+
+The subagent text:
+
+```text
+PREFLIGHT for a subagent: you are a subagent, and the main thread delegated this task to you. Do the work yourself with your own tools and load the skills your definition names. The rules that the main thread must delegate and may not write files apply to the main thread only, so do not hand this task on and do not refuse it for that reason. The preflight gate still checks every tool call you make. Report back what you changed and how you verified it.
+```
+
+The gate is enforcing, not advisory. One shared rule in
+[.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) decides every tool call, on every agent:
+
+- It denies a main-thread write of any file resolving inside the repository, with no exemption for markdown,
+  configuration, or documentation, and tells the caller to delegate the change instead. A relative path is resolved
+  against whatever a leading `cd` in the command moved to, so changing directory first buys nothing. Deleting, moving
+  or renaming the repository root or any directory above it counts as a write inside it. A write outside the
+  repository, a write to the null device, a write to `tasks.md` at the project root, and git branch switching stay
+  allowed, so the main thread keeps full use of git and keeps ownership of its own task list.
+- It denies any tool call, not only an edit, from a subagent whose own definition declares no skills, because that
+  agent is not a specialist. An unknown or unreadable agent name allows rather than denies.
+- It denies the main thread from running a web fetch or web search tool directly, on the one format where that tool's
+  name is confirmed (Claude Code today), and tells it to hand the research to a subagent instead.
+- It denies the main thread from running a script or a module, because the gate cannot see what a script writes: an
+  interpreter handed a file or `-m` (`python x.py`, `node x.js`, `bash x.sh`, `pwsh -File x.ps1`), a package or task
+  runner (`npm`, `npx`, `pnpm`, `yarn`, `uv`, `pip` and their kin), a build runner or compiler asked for more than its
+  version or help (`make`, `cargo`, `go test`, `dotnet`, `mvn`, `gradle` and their kin), and a program called by a
+  script file name or by a path inside the repository. The exception is a command that passes the gate's built-in
+  list, which holds `python -m pytest`, `node --check` and `bash -n`, each with only the options it names, or matches
+  in full an entry of this project's own `main-thread-allowlist.txt` at the repository root. That file is this
+  project's extension point: one command per line, blank lines and `#` lines skipped, committed so the whole team
+  shares it, and never overwritten by an update because it lives outside `.agents/`. How entries match is in
+  [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md). The main thread cannot write the file itself, so ask a subagent to
+  add an entry.
+- Every rule above fires only once the caller is positively identified as the main thread. A format whose payload
+  carries nothing that could identify the caller, currently GitHub Copilot, is left ungated rather than guessed at, and
+  so is an OpenCode or Kilo Code call whose session the plugin could not read.
+- It fails open almost everywhere. Any parse error, missing key, unexpected payload, unknown `--format`, or unlexable
+  shell command allows the call, because a broken gate must never break a session. The deliberate exception is the
+  three repository-boundary helpers, `_resolves_inside_repo`, `_path_exists_in_repo` and `_contains_repo`: a path none
+  of them can resolve fails toward True, which denies. Deciding what the write rule protects is the whole job of those
+  three, so a path the gate cannot place is treated as inside rather than waved through.
+
+Four more hooks sit beside the gate in [.agents/hooks/](.agents/hooks/) and ride the same wirings: a reply
+formatting check, a markdown lint pass that runs just after a file is edited, a task-list mirror that writes
+`tasks.md` at the project root so the session plan survives a compaction, and, under `.agents/hooks/copilot/`, the
+GitHub Copilot prompt reminder. `tasks.md` is per-session working state, so put `/tasks.md` in this project's
+`.gitignore` rather than committing it. Every hook is a Python script, and every wiring throws a failed call away.
+Each wiring resolves its own interpreter, `python3` first and `python` second, which is the name a Windows install
+provides, so only a machine carrying neither name leaves the hooks inert.
 
 Each agent wires those scripts to its own hook surface:
 
-- Claude Code: [.claude/settings.json](.claude/settings.json), on `SessionStart`, `UserPromptSubmit`, `PreToolUse`,
-  `PostToolUse`, `TaskCreated`, `TaskCompleted`, `PreCompact`, `Stop`, and `SubagentStop`.
-- Codex: inline `[[hooks.*]]` tables in [.codex/config.toml](.codex/config.toml), on `UserPromptSubmit`,
-  `SubagentStart`, `SessionStart`, `PreToolUse`, and `Stop`.
+- Claude Code: [.claude/settings.json](.claude/settings.json), on `SessionStart` and `UserPromptSubmit` for the
+  reminder, `SubagentStart` for the subagent text, `PreToolUse` for the gate, `PostToolUse` for the markdown lint,
+  `MessageDisplay` for the display fix, `Stop` and `SubagentStop` for the formatting check, and `TaskCreated`,
+  `TaskCompleted`, `SessionStart`, `PreCompact` and `Stop` for the task list.
+- Codex: inline `[[hooks.*]]` tables in [.codex/config.toml](.codex/config.toml), on `UserPromptSubmit` for the
+  reminder, `SubagentStart` for the subagent text, `PreToolUse` for the gate, `Stop` for the formatting check, and
+  `SessionStart` for the task list.
 - OpenCode and Kilo Code: [.agents/plugin/hooks.js](.agents/plugin/hooks.js), declared once by path in the
-  `plugin` array of [opencode.json](opencode.json), which both tools read. It is a runner: it hands every tool call
-  to every hook in [.agents/hooks/](.agents/hooks/), so adding a hook file is the whole registration step.
-- GitHub Copilot: [.github/hooks/preflight.json](.github/hooks/preflight.json), on `sessionStart`,
-  `subagentStart`, and `preToolUse`.
+  `plugin` array of [opencode.json](opencode.json), which both tools read. It uses `chat.message` for the reminder in
+  a root session and the subagent text in a child session, `tool.execute.before` to hand every tool call to every hook
+  directly in [.agents/hooks/](.agents/hooks/), so adding a hook file is the whole registration step, and
+  `experimental.text.complete` for the display fix.
+- GitHub Copilot: [.github/hooks/preflight.json](.github/hooks/preflight.json), on `sessionStart` for the reminder and
+  the task list, `subagentStart` for the subagent text, `userPromptTransformed` for the reminder on every prompt,
+  `preToolUse` for the gate, and `agentStop` for the formatting check.
 
 Each wiring anchors the gate at the project root before calling it, so a session started in a subdirectory still finds
 the script, and a missing script allows rather than denies.
