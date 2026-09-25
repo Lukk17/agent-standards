@@ -9,12 +9,12 @@ made against a tree the test controls.
 
 import json
 import shutil
-import subprocess
 import sys
 
 import pytest
 
 from tests.conftest import MARKDOWN_LINT_HOOK, REPO_ROOT
+from tests.process_tree import run_bounded
 
 EM_DASH = "—"
 
@@ -42,7 +42,7 @@ def write(project, relative, body):
 
 
 def run(project, payload, fmt="claude"):
-    result = subprocess.run(
+    result = run_bounded(
         [sys.executable, str(MARKDOWN_LINT_HOOK), "--format", fmt],
         input=payload if isinstance(payload, str) else json.dumps(payload),
         capture_output=True,
@@ -144,7 +144,7 @@ def test_no_format_flag_at_all_reports_nothing(project):
     """There is no default format: the flag is the whole opt-in."""
     path = write(project, "docs/GUIDE.md", DIRTY)
 
-    result = subprocess.run(
+    result = run_bounded(
         [sys.executable, str(MARKDOWN_LINT_HOOK)],
         input=json.dumps(edit(path)),
         capture_output=True,
@@ -169,6 +169,13 @@ def test_the_plain_format_reports_nothing_and_never_blocks(project):
     path = write(project, "docs/GUIDE.md", DIRTY)
 
     assert run(project, edit(path), fmt="plain") == (0, "", "")
+
+
+def test_the_plain_format_allows_an_envelope_version_it_does_not_recognise(project):
+    path = write(project, "docs/GUIDE.md", DIRTY)
+    payload = {**edit(path), "contract": 99}
+
+    assert run(project, payload, fmt="plain") == (0, "", "")
 
 
 @pytest.mark.parametrize("tool", ["Read", "Bash", "Grep", ""], ids=["read", "bash", "grep", "none"])

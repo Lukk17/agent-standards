@@ -7,12 +7,12 @@ finds it by the working directory it was started in.
 """
 
 import json
-import subprocess
 import sys
 
 import pytest
 
 from tests.conftest import TASK_LIST_SYNC_HOOK
+from tests.process_tree import run_bounded
 
 TASK_LIST = "tasks.md"
 
@@ -26,7 +26,7 @@ def project(tmp_path):
 
 
 def run(project, event, fmt="claude", payload=None):
-    result = subprocess.run(
+    result = run_bounded(
         [sys.executable, str(TASK_LIST_SYNC_HOOK), "--event", event, "--format", fmt],
         input=json.dumps(payload if payload is not None else {}),
         capture_output=True,
@@ -315,6 +315,17 @@ def test_a_line_that_is_not_a_task_never_counts_as_unfinished(project):
 # Everything unrecognised, malformed, or not applicable allows in silence.
 
 
+def test_the_plain_format_allows_an_envelope_version_it_does_not_recognise(project):
+    # Given a list that would otherwise block
+    (project / TASK_LIST).write_text("- [open] task-001: Implement auth\n", encoding="utf-8")
+
+    # When
+    result = run(project, "stop", fmt="plain", payload={"contract": 99, "event": "tool.execute.before"})
+
+    # Then
+    assert result == (0, "", "")
+
+
 @pytest.mark.parametrize(
     "argv",
     [
@@ -333,7 +344,7 @@ def test_an_inapplicable_invocation_allows_in_silence(project, argv):
     (project / TASK_LIST).write_text("- [open] task-001: Implement auth\n", encoding="utf-8")
 
     # When
-    result = subprocess.run(
+    result = run_bounded(
         [sys.executable, str(TASK_LIST_SYNC_HOOK), *argv],
         input=json.dumps({}),
         capture_output=True,
@@ -352,7 +363,7 @@ def test_an_inapplicable_invocation_allows_in_silence(project, argv):
     ids=["empty", "garbage", "list", "null", "string"],
 )
 def test_a_malformed_payload_allows(project, raw):
-    result = subprocess.run(
+    result = run_bounded(
         [sys.executable, str(TASK_LIST_SYNC_HOOK), "--event", "taskcreated", "--format", "claude"],
         input=raw,
         capture_output=True,
