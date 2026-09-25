@@ -550,6 +550,8 @@ All notable changes to this project are documented here. The format follows
   `sandbox-agent/setup-global.sh` failed to parse in the PowerShell Codex runs it under: the gate text was an unquoted
   `echo {...}`, and the script hooks used `2>nul || exit 0`, which Windows PowerShell 5.1 has no `||` for. The gate
   text is now `echo '<json>'; exit 0`, and each script hook moves to the project root and ends in `2>$null; exit 0`.
+- The Limitations list in `docs/GLOBAL_SETUP.md` said linked directories are documented for two agents and then named
+  three. It now says three.
 
 ### Removed
 

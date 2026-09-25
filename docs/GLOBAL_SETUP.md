@@ -1244,7 +1244,7 @@ Honest list of what a global install cannot do.
    `KILO_CONFIG_CONTENT` pass configuration rather than moving the directory. The other four agents all have one:
    `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `OPENCODE_CONFIG_DIR`, and `COPILOT_HOME`.
 
-6. Linked directories are documented for two agents and measured for the rest. Claude Code documents that a
+6. Linked directories are documented for three agents and measured for the rest. Claude Code documents that a
    `<skill-name>` entry may be a symlink, Codex documents that it follows symlinked skill folders, and Kilo Code
    documents a linked `.kilo/agents/` with its `markdown_source` rule. The subagent and skills links in this document
    were measured on Windows 11 with junctions: Claude Code 2.1.281, OpenCode 1.18.32 and Kilo Code 7.7.9 each loaded
