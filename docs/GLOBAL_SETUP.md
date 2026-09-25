@@ -771,25 +771,67 @@ Unix shell:
 cp -R "$src/.github/agents/." ~/.copilot/agents/
 ```
 
-Copy the gate wiring into the user-level hooks directory, `~/.copilot/hooks/`
-([hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)). PowerShell:
+Wire the hooks in `~/.copilot/hooks/preflight.json`, the user-level hooks directory
+([hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)). The block is
+the checkout's `.github/hooks/preflight.json` with every script path made absolute. Replace every absolute
+path. Five events matter: `sessionStart` injects the reminder and puts the task list back,
+`subagentStart` injects the subagent text inside a subagent, `userPromptTransformed` appends the reminder to every
+prompt, `preToolUse` is the blocking half, and `agentStop` checks the reply formatting. Each entry carries `bash`
+and `powershell` as sibling string fields, because Copilot picks one per shell. The `|| exit 0` on every `bash`
+script call and the `; exit 0` on every `powershell` one are what make a missing or broken script allow the call.
 
-```powershell
-Copy-Item "$src\.github\hooks\preflight.json" $HOME\.copilot\hooks\preflight.json
+```json
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "bash": "printf '%s\\n' '{\"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default. Follow the user-communication skill when writing to the user. If the prompt asks anything, answer every question first, then start the work. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:\\n\\nRunning: `running task name` (or: nothing)\\n\\n~~DONE: older finished task~~\\n~~DONE: most recent finished task~~\\n\\n**NOW: what is being done right now**\\n\\nNext: the next task\\nThen: the task after that\\n\\nWaiting on: what you wait for (or: nothing)\\n\\nWhen several tasks run, list each name in backticks on the Running line, separated by commas.\"}'",
+        "powershell": "echo '{\"additionalContext\": \"PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default. Follow the user-communication skill when writing to the user. If the prompt asks anything, answer every question first, then start the work. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:\\n\\nRunning: `running task name` (or: nothing)\\n\\n~~DONE: older finished task~~\\n~~DONE: most recent finished task~~\\n\\n**NOW: what is being done right now**\\n\\nNext: the next task\\nThen: the task after that\\n\\nWaiting on: what you wait for (or: nothing)\\n\\nWhen several tasks run, list each name in backticks on the Running line, separated by commas.\"}'"
+      },
+      {
+        "type": "command",
+        "cwd": ".",
+        "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.agents/hooks/task_list_sync.py --event sessionstart --format copilot 2>/dev/null || exit 0",
+        "powershell": "python -S -E /home/you/.agents/hooks/task_list_sync.py --event sessionstart --format copilot 2>$null; exit 0"
+      }
+    ],
+    "subagentStart": [
+      {
+        "type": "command",
+        "bash": "printf '%s\\n' '{\"additionalContext\": \"PREFLIGHT for a subagent: you are a subagent, and the main thread delegated this task to you. Do the work yourself with your own tools and load the skills your definition names. The rules that the main thread must delegate and may not write files apply to the main thread only, so do not hand this task on and do not refuse it for that reason. The preflight gate still checks every tool call you make. Report back what you changed and how you verified it.\"}'",
+        "powershell": "echo '{\"additionalContext\": \"PREFLIGHT for a subagent: you are a subagent, and the main thread delegated this task to you. Do the work yourself with your own tools and load the skills your definition names. The rules that the main thread must delegate and may not write files apply to the main thread only, so do not hand this task on and do not refuse it for that reason. The preflight gate still checks every tool call you make. Report back what you changed and how you verified it.\"}'"
+      }
+    ],
+    "userPromptTransformed": [
+      {
+        "type": "command",
+        "cwd": ".",
+        "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.agents/hooks/copilot/prompt_reminder.py 2>/dev/null || exit 0",
+        "powershell": "python -S -E /home/you/.agents/hooks/copilot/prompt_reminder.py 2>$null; exit 0"
+      }
+    ],
+    "preToolUse": [
+      {
+        "type": "command",
+        "matcher": "bash|powershell|create|edit",
+        "cwd": ".",
+        "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.agents/hooks/preflight_gate.py --format copilot 2>/dev/null || exit 0",
+        "powershell": "python -S -E /home/you/.agents/hooks/preflight_gate.py --format copilot 2>$null; exit 0"
+      }
+    ],
+    "agentStop": [
+      {
+        "type": "command",
+        "cwd": ".",
+        "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.agents/hooks/no_ai_markers_check.py --format copilot 2>/dev/null || exit 0",
+        "powershell": "python -S -E /home/you/.agents/hooks/no_ai_markers_check.py --format copilot 2>$null; exit 0"
+      }
+    ]
+  }
+}
 ```
-
-Unix shell:
-
-```bash
-cp "$src/.github/hooks/preflight.json" ~/.copilot/hooks/preflight.json
-```
-
-Then open the copy and make every script path absolute: the `preToolUse` commands name
-`.agents/hooks/preflight_gate.py`, the second `sessionStart` command names `.agents/hooks/task_list_sync.py`, the
-`userPromptTransformed` commands name `.agents/hooks/copilot/prompt_reminder.py`, and the `agentStop` commands name
-`.agents/hooks/no_ai_markers_check.py`, each of them relative. Replace the leading `.agents/hooks/` of each with your
-home directory's `.agents/hooks/`, spelled out in full, or those hooks only work in projects that ran the per-project
-import.
 
 Do not turn on `chat.useClaudeHooks` in VS Code on top of this. With it on, the Local agent also runs the hooks in
 `~/.claude/settings.json`, next to the ones in `~/.copilot/hooks/`, and the documentation adds that "Local ignores

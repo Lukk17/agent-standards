@@ -293,6 +293,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- `docs/GLOBAL_SETUP.md` shows the GitHub Copilot wiring literally, as it already did for Claude Code and Codex.
 - The live pipeline runs `setup-project.sh` through `bash`, because a Windows checkout commits scripts without the
   executable bit. Each run gets its own `GIT_CONFIG_GLOBAL` under the work directory, so a local run never writes the
   user's `~/.gitconfig`. Codex on Requesty uses `openai/gpt-6-luna`, the id the Requesty model list carries.

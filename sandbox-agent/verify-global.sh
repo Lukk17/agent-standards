@@ -620,6 +620,8 @@ verify_install_shape() {
     ".claude/settings.json" '"MessageDisplay"' '"SubagentStart"'
   assert_matches_guide "Codex's user hooks are the guide's block, with the home directory filled in" \
     ".codex/hooks.json" '"commandWindows"' '"SubagentStart"'
+  assert_matches_guide "Copilot's user hooks are the guide's block, with the home directory filled in" \
+    ".copilot/hooks/preflight.json" '"subagentStart"' '"userPromptTransformed"'
 
   assert_json "Claude Code's user settings call the gate by absolute path" ".claude/settings.json" \
     '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.agents/hooks/preflight_gate.py") and contains("--format claude"))'

@@ -187,7 +187,7 @@ WIRED_COPIES = {
     ".claude/settings.json": 2,
     ".codex/config.toml": 2,
     ".github/hooks/preflight.json": 2,
-    "docs/GLOBAL_SETUP.md": 4,
+    "docs/GLOBAL_SETUP.md": 6,
 }
 
 
@@ -196,8 +196,21 @@ SUBAGENT_WIRED_COPIES = {
     ".claude/settings.json": 1,
     ".codex/config.toml": 2,
     ".github/hooks/preflight.json": 2,
-    "docs/GLOBAL_SETUP.md": 3,
+    "docs/GLOBAL_SETUP.md": 5,
 }
+
+
+def test_the_global_guide_shows_the_shipped_copilot_wiring_with_every_script_path_absolute():
+    # Given the shipped Copilot wiring with each relative script path moved under the guide's placeholder home
+    shipped = (REPO_ROOT / ".github" / "hooks" / "preflight.json").read_text(encoding="utf-8")
+    expected = json.loads(shipped.replace(" .agents/hooks/", " /home/you/.agents/hooks/"))
+
+    # When the guide's Copilot block is read
+    guide = (REPO_ROOT / "docs" / "GLOBAL_SETUP.md").read_text(encoding="utf-8")
+    copilot_blocks = [block for block in json_blocks(guide) if "subagentStart" in block.get("hooks", {})]
+
+    # Then there is exactly one, and it is the shipped wiring entry for entry
+    assert copilot_blocks == [expected]
 
 
 def wiring_commands(relative: str, marker: str = MARKER) -> list[tuple[str, str]]:
