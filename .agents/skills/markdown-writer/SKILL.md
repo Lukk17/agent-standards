@@ -140,20 +140,33 @@ Replace one with a comma for a mid-sentence pause, a period for a full break, a 
 parentheses for an aside. ASCII hyphens inside compound words are fine. Verify after editing rather than trusting the
 edit.
 
-Pass:
+Both checks below print every offending line with its number and print nothing at all for a clean file. The grep form
+also exits 0 when a dash is found and 1 when the file is clean, so it can gate a script. `Select-String` exits 0
+either way, so read its output rather than its code. Unix shells:
 
 ```bash
-grep -P "[\x{2013}\x{2014}]" README.md
+grep -nE "$(printf '\342\200\224|\342\200\223')" README.md
 ```
+
+PowerShell:
+
+```powershell
+Select-String -Path README.md -Pattern '[\u2014\u2013]'
+```
+
+The Unix pattern spells the two characters as their UTF-8 bytes in octal instead of using `grep -P "\x{2014}"`,
+because that older form fails two ways. BSD grep, which is what macOS ships, has no `-P` option at all. And PCRE caps
+`\x{}` at 0xff outside UTF-8 mode, so in a shell with no UTF-8 locale set (Git Bash on Windows, by default) it exits 2
+with `character value in \x{} or \o{} is too large`, matches nothing, and reports a clean file on a file full of
+dashes. Do not simplify the pattern back to a `\x{}` escape.
 
 Fail:
 
 ```text
-The queue is fast, reliable, and simple to run.
+A line that joins two clauses with an em dash where a comma or a period belongs.
 ```
 
-That failing line is fine as written. It fails only when the commas are replaced by dashes, which is the shape this
-rule exists to prevent.
+The failing form is described in words rather than printed, because this file itself has to pass the dash lint.
 
 ---
 
@@ -276,7 +289,7 @@ Rewrote the README.
 - [ ] Ground truth read from existing project documents before writing
 - [ ] Machine-facing and externally-governed files listed and skipped
 - [ ] Section order followed, empty sections dropped rather than padded
-- [ ] No em dash or en dash anywhere, verified with a grep
+- [ ] No em dash or en dash anywhere, verified by running the dash check rather than by reading the edit
 - [ ] No marketing adjective without a concrete fact behind it
 - [ ] One runnable command per fence, language tagged, no comments inside
 - [ ] Every real path linked, plain link text, on every mention
