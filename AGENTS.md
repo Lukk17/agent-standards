@@ -532,9 +532,11 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
   per-project import assertions, a global install run twice, and a scoped single-agent global install. The sandbox job
   is the long one. Verify locally before you push, because the pipeline is the second opinion rather than the first.
 - **[.github/workflows/agent-live-tests.yml](.github/workflows/agent-live-tests.yml) is a separate workflow and never
-  part of CI.** Its only trigger is `workflow_dispatch`, so no push and no pull request ever starts it. It needs the
-  `REQUESTY_API_KEY` repository secret, because it drives each agent against a real model through Requesty, and
-  every run spends money on that key. Start it only with the user's explicit approval for that one run.
+  part of CI.** Its only trigger is `workflow_dispatch`, so no push and no pull request ever starts it. It needs two
+  repository secrets, because it drives each agent against a real model: `REQUESTY_API_KEY` for Claude Code, OpenCode
+  and Kilo Code on Requesty, and `OPENAI_API_KEY` for Codex and GitHub Copilot on OpenAI's own API with
+  `gpt-6-luna`. Each job receives only the key its agent needs. Every run spends money on those keys. Start it only
+  with the user's explicit approval for that one run.
 
 Local verification (the same checks CI runs). Install the pinned dependencies first, with pip 25.1 or newer:
 

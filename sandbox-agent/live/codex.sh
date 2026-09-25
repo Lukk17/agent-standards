@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # -----------------------------------------------------------------------------
 # Script: codex.sh
-# Description: Runs Codex headless against Requesty (OpenAI Responses format,
-#              with the model id exactly as Requesty's model list names it)
+# Description: Runs Codex headless against OpenAI's own API (Responses format)
 #              and asserts on the rollout files it records for the main thread
 #              and for every subagent thread. See lib.sh for the contract.
 # Usage: codex.sh [health|run|all] [-h|--help]
-# Environment: REQUESTY_API_KEY plus the LIVE_* variables documented in lib.sh.
+# Environment: OPENAI_API_KEY plus the LIVE_* variables documented in lib.sh.
 # Exit codes: as lib.sh.
 # -----------------------------------------------------------------------------
 set -euo pipefail
 IFS=$'\n\t'
 
-readonly AGENT_MODEL="openai/gpt-6-luna"
+readonly AGENT_PROVIDER="openai"
+readonly AGENT_MODEL="gpt-6-luna"
 
 # shellcheck source=sandbox-agent/live/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -28,20 +28,21 @@ readonly GATE_KNOWN_GAP=0
 
 # CODEX_HOME is CI-only and throwaway: it carries the provider, which names the
 # key's environment variable rather than the key, and trusts the one project so
-# Codex reads the imported .codex/ layer.
+# Codex reads the imported .codex/ layer. Codex reserves the provider id openai
+# for its login-based built-in, so the key-based provider needs its own id.
 agent_configure() {
   export CODEX_HOME="${WORK}/codex-home"
   mkdir -p "$CODEX_HOME"
 
   cat > "${CODEX_HOME}/config.toml" <<EOF
 model = "${MODEL}"
-model_provider = "requesty"
+model_provider = "openai-api"
 model_supports_reasoning_summaries = false
 
-[model_providers.requesty]
-name = "Requesty"
-base_url = "${ROUTER_V1_URL}"
-env_key = "REQUESTY_API_KEY"
+[model_providers.openai-api]
+name = "OpenAI"
+base_url = "${PROVIDER_V1_URL}"
+env_key = "${PROVIDER_KEY_VAR}"
 wire_api = "responses"
 
 [projects."${PROJECT}"]

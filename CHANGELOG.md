@@ -137,6 +137,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- The live pipeline runs Codex and GitHub Copilot on OpenAI's own API with `gpt-6-luna` and the new
+  `OPENAI_API_KEY` secret, while Claude Code, OpenCode and Kilo Code stay on Requesty with
+  `deepinfra/deepseek-v4-flash-0731`. Requesty translated Codex's Responses request and dropped the `multi_agent_v1`
+  namespace of `spawn_agent`, so no Codex subagent started. Each job receives only the key its agent needs, and the
+  health check maps OpenAI's documented errors to plain causes.
 - The skills tree consolidated from 65 skills to 55, so each stack is one hub with its depth in `references/` instead
   of a family of sibling skills. Spring Boot went from six skills to two, `springboot-patterns` and
   `java-coding-standards`, absorbing `springboot-security`, `springboot-tdd`, `springboot-verification` and

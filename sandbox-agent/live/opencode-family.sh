@@ -28,7 +28,7 @@ agent_configure() {
   export XDG_CACHE_HOME="${WORK}/xdg/cache"
   mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME"
 
-  config="$(jq -cn --arg id "$PROVIDER_ID" --arg url "$ROUTER_V1_URL" --arg m "$MODEL" '{
+  config="$(jq -cn --arg id "$PROVIDER_ID" --arg url "$PROVIDER_V1_URL" --arg m "$MODEL" '{
     provider: {($id): {
       npm: "@ai-sdk/openai-compatible",
       name: "Requesty",

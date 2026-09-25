@@ -313,3 +313,96 @@ def test_the_import_writes_git_configuration_inside_the_work_directory_only(tmp_
     # Then
     assert result.returncode == 0, result.stderr
     assert (work / "project" / "git-config-global.txt").read_text(encoding="utf-8") == "inside"
+
+
+WORKFLOW = REPO_ROOT / ".github" / "workflows" / "agent-live-tests.yml"
+LIVE_SCRIPTS = REPO_ROOT / "sandbox-agent" / "live"
+
+
+def run_lib(provider: str, commands: str, env_overrides: dict[str, str] | None = None) -> subprocess.CompletedProcess:
+    """Source lib.sh for one provider, run the given commands, and return the finished process."""
+    script = f"AGENT_PROVIDER={provider}; AGENT_MODEL=gpt-6-luna; source '{LIB.as_posix()}'; AGENT_LABEL=test; {commands}"
+    env = {**os.environ, **(env_overrides or {})}
+
+    return run_bounded([BASH, "-c", script], capture_output=True, text=True, env=env)
+
+
+@pytest.mark.parametrize(
+    ("status", "message", "code", "retry_after", "expected"),
+    [
+        ("401", "Incorrect API key provided", "invalid_api_key", "", "OPENAI_API_KEY is invalid, revoked or empty"),
+        ("429", "You exceeded your current quota, please check your plan and billing details.", "insufficient_quota", "", "quota is used up"),
+        ("429", "Rate limit reached for requests", "rate_limit_exceeded", "retry-after: 2", "rate-limited"),
+        ("429", "Too many requests", "", "", "quota is used up"),
+        ("404", "The model gpt-6-luna does not exist or you do not have access to it.", "model_not_found", "", "model_not_found"),
+        ("503", "The engine is currently overloaded", "", "", "down or overloaded (HTTP 503)"),
+        ("500", "The server had an error", "", "", "down or overloaded (HTTP 500)"),
+        ("000", "", "", "", "OpenAI is unreachable"),
+    ],
+)
+def test_every_documented_openai_error_maps_to_one_plain_cause(status, message, code, retry_after, expected):
+    # Given/When
+    script = f"health_cause_openai '{status}' '{message}' '{code}' '{retry_after}'"
+    result = run_lib("openai", script)
+
+    # Then
+    assert result.returncode == 0, result.stderr
+    assert expected in result.stdout
+
+
+def test_the_openai_provider_reads_only_the_openai_key():
+    # Given a Requesty key and no OpenAI key
+    env = {"REQUESTY_API_KEY": "requesty-dummy", "OPENAI_API_KEY": ""}
+
+    # When
+    result = run_lib("openai", "require_key", env)
+
+    # Then
+    assert result.returncode == 2
+    assert "OPENAI_API_KEY is not set" in result.stderr
+
+
+def test_the_openai_provider_points_at_the_openai_api():
+    # Given/When
+    result = run_lib("openai", "printf '%s|%s' \"$PROVIDER_NAME\" \"$PROVIDER_V1_URL\"")
+
+    # Then
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "OpenAI|https://api.openai.com/v1"
+
+
+def test_requesty_stays_the_default_provider():
+    # Given/When
+    script = f"source '{LIB.as_posix()}'; printf '%s|%s|%s' \"$PROVIDER_NAME\" \"$PROVIDER_KEY_VAR\" \"$MODEL\""
+    result = run_bounded([BASH, "-c", script], capture_output=True, text=True, env={**os.environ, "LIVE_ROUTER_URL": ""})
+
+    # Then
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "Requesty|REQUESTY_API_KEY|deepinfra/deepseek-v4-flash-0731"
+
+
+@needs_jq
+def test_the_openai_chat_check_sends_the_token_limit_openai_accepts():
+    # Given/When
+    result = run_lib("openai", "health_request chat")
+
+    # Then
+    assert result.returncode == 0, result.stderr
+    url, _header, body = result.stdout.splitlines()
+    assert url == "https://api.openai.com/v1/chat/completions"
+    assert json.loads(body) == {"model": "gpt-6-luna", "max_completion_tokens": 16, "messages": [{"role": "user", "content": "ping"}]}
+
+
+def test_the_workflow_passes_the_openai_key_to_exactly_the_agents_that_run_on_openai():
+    # Given
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    match = re.search(r"contains\(fromJSON\('(\[[^']*\])'\), matrix\.agent\) && 'OPENAI_API_KEY'", workflow)
+    on_openai = {
+        script.stem
+        for script in LIVE_SCRIPTS.glob("*.sh")
+        if re.search(r'^readonly AGENT_PROVIDER="openai"$', script.read_text(encoding="utf-8"), re.MULTILINE)
+    }
+
+    # When/Then
+    assert match is not None
+    assert set(json.loads(match.group(1))) == on_openai == {"codex", "copilot"}

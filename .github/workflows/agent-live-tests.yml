@@ -32,6 +32,8 @@ jobs:
       fail-fast: false
       matrix:
         agent: ${{ fromJSON(inputs.agent == 'all' && '["claude-code","codex","opencode","kilo-code","copilot"]' || format('["{0}"]', inputs.agent)) }}
+    env:
+      LIVE_KEY_NAME: ${{ contains(fromJSON('["codex","copilot"]'), matrix.agent) && 'OPENAI_API_KEY' || 'REQUESTY_API_KEY' }}
     steps:
       - name: Checkout with full history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -39,9 +41,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Check the key, the balance and the model through Requesty
+      - name: Check the key, the balance and the model with the provider
         env:
-          REQUESTY_API_KEY: ${{ secrets.REQUESTY_API_KEY }}
+          REQUESTY_API_KEY: ${{ env.LIVE_KEY_NAME == 'REQUESTY_API_KEY' && secrets.REQUESTY_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ env.LIVE_KEY_NAME == 'OPENAI_API_KEY' && secrets.OPENAI_API_KEY || '' }}
         run: bash sandbox-agent/live/${{ matrix.agent }}.sh health
 
       - name: Put the commit under test on a master branch the import can read
@@ -54,7 +57,8 @@ jobs:
 
       - name: Run the agent against the real model
         env:
-          REQUESTY_API_KEY: ${{ secrets.REQUESTY_API_KEY }}
+          REQUESTY_API_KEY: ${{ env.LIVE_KEY_NAME == 'REQUESTY_API_KEY' && secrets.REQUESTY_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ env.LIVE_KEY_NAME == 'OPENAI_API_KEY' && secrets.OPENAI_API_KEY || '' }}
           LIVE_WORK: ${{ runner.temp }}/live-${{ matrix.agent }}
           LIVE_INSTALL: "1"
         run: bash sandbox-agent/live/${{ matrix.agent }}.sh run

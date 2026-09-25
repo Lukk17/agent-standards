@@ -2,15 +2,18 @@
 # -----------------------------------------------------------------------------
 # Script: copilot.sh
 # Description: Runs the GitHub Copilot CLI headless with bring-your-own-key
-#              against Requesty (OpenAI Chat Completions format) and
+#              against OpenAI's own API (Chat Completions format) and
 #              asserts on its JSONL events. Offline mode keeps it off GitHub's
 #              servers, so no GitHub token is involved.
 # Usage: copilot.sh [health|run|all] [-h|--help]
-# Environment: REQUESTY_API_KEY plus the LIVE_* variables documented in lib.sh.
+# Environment: OPENAI_API_KEY plus the LIVE_* variables documented in lib.sh.
 # Exit codes: as lib.sh.
 # -----------------------------------------------------------------------------
 set -euo pipefail
 IFS=$'\n\t'
+
+readonly AGENT_PROVIDER="openai"
+readonly AGENT_MODEL="gpt-6-luna"
 
 # shellcheck source=sandbox-agent/live/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -31,8 +34,8 @@ agent_configure() {
   export COPILOT_OFFLINE=true
   export COPILOT_AUTO_UPDATE=false
   export COPILOT_PROVIDER_TYPE=openai
-  export COPILOT_PROVIDER_BASE_URL="$ROUTER_V1_URL"
-  export COPILOT_PROVIDER_API_KEY="$REQUESTY_API_KEY"
+  export COPILOT_PROVIDER_BASE_URL="$PROVIDER_V1_URL"
+  export COPILOT_PROVIDER_API_KEY="${!PROVIDER_KEY_VAR}"
   export COPILOT_PROVIDER_MAX_PROMPT_TOKENS="$PROMPT_TOKENS"
   export COPILOT_PROVIDER_MAX_OUTPUT_TOKENS="$OUTPUT_TOKENS"
   export COPILOT_MODEL="$MODEL"

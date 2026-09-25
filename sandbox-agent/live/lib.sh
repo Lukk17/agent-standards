@@ -2,7 +2,7 @@
 # -----------------------------------------------------------------------------
 # Script: lib.sh
 # Description: Shared library for the live agent tests. Sourced, never run. It
-#              owns the Requesty health check, the throwaway project, the five
+#              owns the provider health check, the throwaway project, the five
 #              test cases and their verdicts. Each agent script supplies how to
 #              configure, invoke and read back its own agent.
 # Usage: source "$(dirname "$0")/lib.sh"; live_main "$@"
@@ -16,8 +16,10 @@
 #   SKILL_TOOL_RE        Regex over tool names that load a skill.
 #   GATE_KNOWN_GAP       1 when AGENTS.md documents that the gate cannot tell
 #                        this agent's main thread from a subagent.
-#   AGENT_MODEL          Optional, set before sourcing: the Requesty model id
-#                        this agent runs. Default DEFAULT_MODEL below.
+#   AGENT_PROVIDER       Optional, set before sourcing: requesty (the default)
+#                        or openai, the API this agent's model is served from.
+#   AGENT_MODEL          Optional, set before sourcing: the model id this agent
+#                        runs, as its provider names it. Default DEFAULT_MODEL.
 #   agent_configure      Writes the agent's CI-only provider configuration.
 #   agent_invoke DIR P   Runs one headless prompt, keeps every transcript in DIR.
 #   agent_calls DIR      Prints the recorded tool calls as NDJSON records of
@@ -28,18 +30,20 @@
 #                        Prints the recorded context of every subagent the
 #                        case started, and nothing the main thread recorded.
 # Environment:
-#   REQUESTY_API_KEY     Requesty API key. Required. Never printed.
+#   REQUESTY_API_KEY     Requesty API key. Required on Requesty. Never printed.
+#   OPENAI_API_KEY       OpenAI API key. Required on OpenAI. Never printed.
 #   LIVE_WORK            Scratch directory. Default a fresh mktemp directory.
 #   LIVE_INSTALL         1 installs the agent at the version the sandbox pins.
 #   LIVE_AGENT_TIMEOUT   Seconds allowed per agent prompt. Default 600.
-#   LIVE_ROUTER_URL      Default https://router.requesty.ai. The Anthropic
-#                        format uses it bare, the OpenAI formats append /v1.
+#   LIVE_ROUTER_URL      Requesty only. Default https://router.requesty.ai. The
+#                        Anthropic format uses it bare, the OpenAI formats
+#                        append /v1.
 #   LIVE_MODEL           Overrides AGENT_MODEL for the agent being run.
 # Exit codes:
 #   0  No test failed. Inconclusive tests are reported but do not fail.
 #   1  At least one test failed.
-#   2  Misuse: unknown subcommand, missing command or missing REQUESTY_API_KEY.
-#   4  The Requesty health check failed, so no agent test ran.
+#   2  Misuse: unknown subcommand, missing command or missing provider key.
+#   4  The provider health check failed, so no agent test ran.
 # Requires: Bash 4.4 or newer, curl, jq, git, python3, timeout.
 # -----------------------------------------------------------------------------
 # shellcheck disable=SC2034  # constants read by the agent scripts that source this file
@@ -50,8 +54,25 @@ REPO_ROOT="$(dirname "$SANDBOX_DIR")"
 readonly LIVE_DIR SANDBOX_DIR REPO_ROOT
 
 readonly DEFAULT_MODEL="deepinfra/deepseek-v4-flash-0731"
-readonly ROUTER_URL="${LIVE_ROUTER_URL:-https://router.requesty.ai}"
-readonly ROUTER_V1_URL="${ROUTER_URL}/v1"
+readonly PROVIDER="${AGENT_PROVIDER:-requesty}"
+
+case "$PROVIDER" in
+  openai)
+    PROVIDER_NAME="OpenAI"
+    PROVIDER_KEY_VAR="OPENAI_API_KEY"
+    PROVIDER_URL="https://api.openai.com"
+    CHAT_TOKEN_LIMIT="max_completion_tokens"
+    ;;
+  *)
+    PROVIDER_NAME="Requesty"
+    PROVIDER_KEY_VAR="REQUESTY_API_KEY"
+    PROVIDER_URL="${LIVE_ROUTER_URL:-https://router.requesty.ai}"
+    CHAT_TOKEN_LIMIT="max_tokens"
+    ;;
+esac
+
+readonly PROVIDER_NAME PROVIDER_KEY_VAR PROVIDER_URL CHAT_TOKEN_LIMIT
+readonly PROVIDER_V1_URL="${PROVIDER_URL}/v1"
 readonly MODEL="${LIVE_MODEL:-${AGENT_MODEL:-$DEFAULT_MODEL}}"
 readonly AGENT_TIMEOUT="${LIVE_AGENT_TIMEOUT:-600}"
 
@@ -87,11 +108,11 @@ usage() {
   cat <<EOF
 Usage: $(basename "$0") [health|run|all] [-h|--help]
 
-  health  Send one tiny request to Requesty in the format ${AGENT_LABEL} uses.
+  health  Send one tiny request to ${PROVIDER_NAME} in the format ${AGENT_LABEL} uses.
   run     Run the agent tests (the health check runs first).
   all     Same as run. The default.
 
-Requires REQUESTY_API_KEY in the environment. See sandbox-agent/README.md.
+Requires ${PROVIDER_KEY_VAR} in the environment. See sandbox-agent/README.md.
 EOF
 }
 
@@ -106,9 +127,13 @@ require_commands() {
   done
 }
 
+provider_key() {
+  printf '%s' "${!PROVIDER_KEY_VAR:-}"
+}
+
 require_key() {
-  if [[ -z "${REQUESTY_API_KEY:-}" ]]; then
-    log_error "REQUESTY_API_KEY is not set. Add it as a repository secret, or export it for a local run."
+  if [[ -z "$(provider_key)" ]]; then
+    log_error "${PROVIDER_KEY_VAR} is not set. Add it as a repository secret, or export it for a local run."
     return "$EXIT_USAGE"
   fi
 }
@@ -132,22 +157,22 @@ record() {
   fi
 }
 
-# --- Requesty health check ----------------------------------------------------
+# --- Provider health check ----------------------------------------------------
 
 # Prints the request URL, one format-specific header and the body.
 health_request() {
   case "$1" in
     anthropic)
-      printf '%s\n' "${ROUTER_V1_URL}/messages" "anthropic-version: 2023-06-01"
+      printf '%s\n' "${PROVIDER_V1_URL}/messages" "anthropic-version: 2023-06-01"
       jq -cn --arg m "$MODEL" '{model: $m, max_tokens: 16, messages: [{role: "user", content: "ping"}]}'
       ;;
     responses)
-      printf '%s\n' "${ROUTER_V1_URL}/responses" "Accept: application/json"
+      printf '%s\n' "${PROVIDER_V1_URL}/responses" "Accept: application/json"
       jq -cn --arg m "$MODEL" '{model: $m, max_output_tokens: 16, input: "ping"}'
       ;;
     chat)
-      printf '%s\n' "${ROUTER_V1_URL}/chat/completions" "Accept: application/json"
-      jq -cn --arg m "$MODEL" '{model: $m, max_tokens: 16, messages: [{role: "user", content: "ping"}]}'
+      printf '%s\n' "${PROVIDER_V1_URL}/chat/completions" "Accept: application/json"
+      jq -cn --arg m "$MODEL" --arg limit "$CHAT_TOKEN_LIMIT" '{model: $m, ($limit): 16, messages: [{role: "user", content: "ping"}]}'
       ;;
     *)
       return "$EXIT_USAGE"
@@ -164,14 +189,14 @@ health_shape() {
   esac
 }
 
-# True when Requesty's own message blames the model rather than the key.
+# True when the provider's own message blames the model rather than the key.
 message_names_model() {
   [[ "${1,,}" =~ model|access\ list|region|not\ supported|unsupported|unavailable|not\ available ]]
 }
 
 # Maps an HTTP status and Requesty's own message to one plain cause, following
 # the error responses Requesty documents for its three inference endpoints.
-health_cause() {
+health_cause_requesty() {
   local status="$1" message="$2"
   local invalid_key="the key was rejected: REQUESTY_API_KEY is invalid, revoked or empty"
   local no_model="the model ${MODEL} is not available to this key (not in the Requesty model list or the key's access list)"
@@ -201,11 +226,50 @@ health_cause() {
   esac
 }
 
+# Maps an HTTP status, OpenAI's error code and message, and any retry-after
+# header to one plain cause, following the error codes OpenAI documents.
+health_cause_openai() {
+  local status="$1" message="$2" code="$3" retry_after="$4"
+  local no_model="the model ${MODEL} does not exist on OpenAI or this key's project has no access to it (model_not_found)"
+  local no_quota="the OpenAI quota is used up: add credit or raise the budget under Billing at https://platform.openai.com (insufficient_quota)"
+
+  case "$status" in
+    000) printf 'OpenAI is unreachable: no HTTP answer from %s' "$PROVIDER_URL" ;;
+    401) printf 'the key was rejected: OPENAI_API_KEY is invalid, revoked or empty (invalid_api_key)' ;;
+    403)
+      if message_names_model "$message"; then
+        printf '%s' "$no_model"
+      else
+        printf 'OpenAI refused this key from here: the country, region or project is not allowed'
+      fi
+      ;;
+    404) printf '%s' "$no_model" ;;
+    429)
+      if [[ "$code" == "insufficient_quota" || "${message,,}" =~ quota|billing ]]; then
+        printf '%s' "$no_quota"
+      elif [[ -n "$retry_after" || "$code" == "rate_limit_exceeded" ]]; then
+        printf 'OpenAI rate-limited the request, retry later'
+      else
+        printf '%s' "$no_quota"
+      fi
+      ;;
+    400)
+      if [[ "$code" == "model_not_found" ]] || message_names_model "$message"; then
+        printf '%s' "$no_model"
+      else
+        printf 'OpenAI rejected the request as malformed for this format'
+      fi
+      ;;
+    5??) printf 'OpenAI is down or overloaded (HTTP %s)' "$status" ;;
+    *) printf 'OpenAI answered HTTP %s' "$status" ;;
+  esac
+}
+
 # Sends one tiny request in the agent's wire format. The key reaches curl on
 # stdin through --config, so it never appears in an argument list or a log.
 health_check() {
   local format="$1"
-  local url="" header="" body="" body_file="" status="" message="" cause=""
+  local url="" header="" body="" body_file="" header_file="" status="" message="" code="" retry_after="" cause=""
   local request=()
 
   mapfile -t request < <(health_request "$format")
@@ -217,32 +281,38 @@ health_check() {
   header="${request[1]}"
   body="${request[2]}"
   body_file="$(mktemp)"
+  header_file="$(mktemp)"
 
   status="$(
-    printf 'header = "Authorization: Bearer %s"\n' "$REQUESTY_API_KEY" |
+    printf 'header = "Authorization: Bearer %s"\n' "$(provider_key)" |
       curl --silent --show-error --max-time 60 --connect-timeout 15 --config - \
         --header 'Content-Type: application/json' \
         --header "$header" \
+        --dump-header "$header_file" \
         --output "$body_file" --write-out '%{http_code}' \
         --data "$body" "$url" 2>/dev/null
   )" || status="${status:-000}"
 
   message="$(jq -r '(.error.message? // .message? // .error? // empty) | tostring' "$body_file" 2>/dev/null | head -c 300 || true)"
+  code="$(jq -r '(.error.code? // .error.type? // empty) | tostring' "$body_file" 2>/dev/null || true)"
+  retry_after="$(grep -i '^retry-after:' "$header_file" 2>/dev/null | head -n 1 || true)"
 
   if [[ "$status" == "200" ]] && jq -e "$(health_shape "$format")" "$body_file" >/dev/null 2>&1; then
-    rm -f "$body_file"
-    printf 'HEALTH OK   %s: Requesty answered a %s request for %s\n' "$AGENT_LABEL" "$format" "$MODEL"
+    rm -f "$body_file" "$header_file"
+    printf 'HEALTH OK   %s: %s answered a %s request for %s\n' "$AGENT_LABEL" "$PROVIDER_NAME" "$format" "$MODEL"
     return 0
   fi
 
   if [[ "$status" == "200" ]]; then
-    cause="Requesty answered 200 but not in the ${format} shape, so this model does not serve that format"
+    cause="${PROVIDER_NAME} answered 200 but not in the ${format} shape, so this model does not serve that format"
+  elif [[ "$PROVIDER" == "openai" ]]; then
+    cause="$(health_cause_openai "$status" "$message" "$code" "$retry_after")"
   else
-    cause="$(health_cause "$status" "$message")"
+    cause="$(health_cause_requesty "$status" "$message")"
   fi
 
-  rm -f "$body_file"
-  printf 'HEALTH FAIL %s: %s. Requesty said: %s\n' "$AGENT_LABEL" "$cause" "${message:-nothing}"
+  rm -f "$body_file" "$header_file"
+  printf 'HEALTH FAIL %s: %s. %s said: %s\n' "$AGENT_LABEL" "$cause" "$PROVIDER_NAME" "${message:-nothing}"
 
   if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
     printf '::error title=%s health check::%s\n' "$AGENT_LABEL" "$cause"
@@ -512,7 +582,7 @@ scrub_transcripts() {
     [[ -n "$leaked" ]] || continue
     log_error "removing a transcript that contains the key: ${leaked#"${WORK}/"}"
     rm -f -- "$leaked"
-  done < <(grep -rlF -- "$REQUESTY_API_KEY" "$WORK" 2>/dev/null || true)
+  done < <(grep -rlF -- "$(provider_key)" "$WORK" 2>/dev/null || true)
 }
 
 summary() {
@@ -534,7 +604,7 @@ run_suite() {
   if [[ "$health_status" -ne 0 ]]; then
     return "$health_status"
   fi
-  record "5 key and model answer through Requesty" PASS "${HEALTH_FORMAT} request for ${MODEL} answered"
+  record "5 key and model answer through ${PROVIDER_NAME}" PASS "${HEALTH_FORMAT} request for ${MODEL} answered"
 
   install_agent
   prepare_workspace

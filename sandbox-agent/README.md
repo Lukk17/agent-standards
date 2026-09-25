@@ -59,7 +59,7 @@ The first three gaps are what the live tests below close, at the price of a fund
 ### Live tests against a real model
 
 [agent-live-tests.yml](../.github/workflows/agent-live-tests.yml) installs each agent at the version the
-[Dockerfile](Dockerfile) pins, points it at a real model through Requesty, and runs it headless in a fresh
+[Dockerfile](Dockerfile) pins, points it at a real model through Requesty or OpenAI, and runs it headless in a fresh
 project that imported this repository the way a consumer does. Every verdict is read from the tool calls and hook
 events the agent recorded, never from what the model wrote back.
 
@@ -69,7 +69,7 @@ events the agent recorded, never from what the model wrote back.
 | 2 A named subagent writes | The main thread started `docs-architect`, the recorded write of the file came from the subagent, and the subagent's own transcript carries the subagent text (`PREFLIGHT for a subagent:`) and not the main-thread reminder |
 | 3 A skill is loaded | The main thread loaded the `kicad` skill through its skill tool or by reading its `SKILL.md` |
 | 4 The reminder reaches the model | The per-prompt reminder text is in the recorded context of that prompt, not only the session start |
-| 5 Key and model | One tiny request in the agent's own wire format is answered by Requesty |
+| 5 Key and model | One tiny request in the agent's own wire format is answered by the agent's provider |
 
 Three verdicts are possible besides a pass:
 
@@ -79,8 +79,8 @@ Three verdicts are possible besides a pass:
 - `KNOWN-GAP` appears only for test 1 on GitHub Copilot. Its payload carries no agent identifier, so the gate cannot
   tell the main thread from a subagent, as the Maintenance follow-ups in AGENTS.md already record.
 
-Test 5 runs first, as its own step, and the job stops there with one plain cause when Requesty refuses. The causes
-follow the error responses Requesty documents for its inference endpoints:
+Test 5 runs first, as its own step, and the job stops there with one plain cause when the provider refuses. On
+Requesty the causes follow the error responses Requesty documents for its inference endpoints:
 
 | Requesty answer | Plain cause printed |
 | --- | --- |
@@ -90,38 +90,55 @@ follow the error responses Requesty documents for its inference endpoints:
 | 429 | The upstream provider rate-limited the request, since Requesty adds no limit of its own |
 | 500, 502 or no answer | Requesty or the upstream provider is down |
 
-| Agent | Wire format | How the provider is supplied |
-| --- | --- | --- |
-| Claude Code | Anthropic Messages | `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_MODEL`, every model alias variable and `CLAUDE_CODE_SUBAGENT_MODEL` |
-| Codex | OpenAI Responses | A throwaway `CODEX_HOME/config.toml` whose provider sets `wire_api = "responses"` and names `REQUESTY_API_KEY` in `env_key`, plus a trust record, run with `--dangerously-bypass-hook-trust` |
-| OpenCode | OpenAI Chat Completions | `OPENCODE_CONFIG_CONTENT` with an `{env:REQUESTY_API_KEY}` reference |
-| Kilo Code | OpenAI Chat Completions | `KILO_CONFIG_CONTENT`, one of the trusted sources where Kilo resolves `{env:}` |
-| GitHub Copilot | OpenAI Chat Completions | `COPILOT_PROVIDER_*` and `COPILOT_MODEL`, with `COPILOT_OFFLINE` so no GitHub token is needed |
+On OpenAI they follow the error codes OpenAI documents for its API:
+
+| OpenAI answer | Plain cause printed |
+| --- | --- |
+| 401 (`invalid_api_key`) | The key is invalid, revoked or empty |
+| 429 with `insufficient_quota` or a billing message, or with no `retry-after` header | The quota is used up, add credit under Billing |
+| 429 with `rate_limit_exceeded` or a `retry-after` header | OpenAI rate-limited the request |
+| 404 (`model_not_found`), or 400 and 403 with a message naming the model | The model does not exist or the key's project has no access to it |
+| 403 with any other message | The country, region or project is not allowed |
+| 500, 503 or no answer | OpenAI is down or overloaded |
+
+| Agent | Provider | Wire format | How the provider is supplied |
+| --- | --- | --- | --- |
+| Claude Code | Requesty | Anthropic Messages | `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_MODEL`, every model alias variable and `CLAUDE_CODE_SUBAGENT_MODEL` |
+| Codex | OpenAI | OpenAI Responses | A throwaway `CODEX_HOME/config.toml` whose `openai-api` provider sets `base_url = "https://api.openai.com/v1"`, `wire_api = "responses"` and names `OPENAI_API_KEY` in `env_key`, plus a trust record, run with `--dangerously-bypass-hook-trust`. Codex reserves the id `openai` for its login-based built-in provider |
+| OpenCode | Requesty | OpenAI Chat Completions | `OPENCODE_CONFIG_CONTENT` with an `{env:REQUESTY_API_KEY}` reference |
+| Kilo Code | Requesty | OpenAI Chat Completions | `KILO_CONFIG_CONTENT`, one of the trusted sources where Kilo resolves `{env:}` |
+| GitHub Copilot | OpenAI | OpenAI Chat Completions | Bring-your-own-key: `COPILOT_PROVIDER_TYPE=openai`, `COPILOT_PROVIDER_BASE_URL=https://api.openai.com/v1`, `COPILOT_PROVIDER_API_KEY` from `OPENAI_API_KEY` and `COPILOT_MODEL=gpt-6-luna`, with `COPILOT_OFFLINE` so no GitHub token is needed |
 
 No key is ever written into a committed file. The committed [opencode.json](../opencode.json) stays free of
 substitution tokens, and every transcript is scanned for the key and dropped if it holds it before the job uploads the
 transcripts as an artifact.
 
-The provider is Requesty (REQUESTY LTD, London), an LLM router at `https://router.requesty.ai/v1` that speaks Chat
-Completions, Responses and Anthropic Messages. The one secret is `REQUESTY_API_KEY`, a Requesty API key, added under
-Settings, Secrets and variables, Actions. Each agent runs one fixed model, with no fallback to another:
+Two providers serve the models. Requesty (REQUESTY LTD, London) is an LLM router at `https://router.requesty.ai/v1`
+that speaks Chat Completions, Responses and Anthropic Messages. OpenAI's own API at `https://api.openai.com/v1` serves
+Codex and GitHub Copilot, because Requesty serves GPT-6 Luna by translating Codex's Responses request, and that
+translation dropped the `multi_agent_v1` namespace of `spawn_agent`, so no Codex subagent ever started. The two
+secrets are `REQUESTY_API_KEY`, a Requesty API key, and `OPENAI_API_KEY`, an OpenAI API key, both added under
+Settings, Secrets and variables, Actions. Each job receives only the one its agent needs, and the other is empty. Each
+agent runs one fixed model, with no fallback to another:
 
-| Agent | Requesty model id |
-| --- | --- |
-| Claude Code, OpenCode, Kilo Code, GitHub Copilot | `deepinfra/deepseek-v4-flash-0731`, DeepSeek V4 Flash on DeepInfra, with tool calling |
-| Codex | `openai/gpt-6-luna`, GPT-6 Luna under the id the Requesty model list carries, sent in the Responses format |
+| Agent | Provider | Model id |
+| --- | --- | --- |
+| Claude Code, OpenCode, Kilo Code | Requesty, `REQUESTY_API_KEY` | `deepinfra/deepseek-v4-flash-0731`, DeepSeek V4 Flash on DeepInfra, with tool calling |
+| Codex | OpenAI, `OPENAI_API_KEY` | `gpt-6-luna`, sent in the Responses format |
+| GitHub Copilot | OpenAI, `OPENAI_API_KEY` | `gpt-6-luna`, sent in the Chat Completions format |
 
-Both are the standard ids, not the `:flex` variants, so a flex capacity refusal cannot stall a run. The tests send
-nothing but the fixed probe prompts in [live/lib.sh](live/lib.sh).
+The Requesty id is the standard one, not the `:flex` variant, so a flex capacity refusal cannot stall a run. The tests
+send nothing but the fixed probe prompts in [live/lib.sh](live/lib.sh).
 
-A run costs what its tokens cost at the prices `https://router.requesty.ai/v1/models` lists:
+A run costs what its tokens cost at the prices `https://router.requesty.ai/v1/models` lists for DeepSeek, and at
+OpenAI's published API prices for GPT-6 Luna:
 
 ```text
 cost = uncached input tokens × input price + cached input tokens × cached price + output tokens × output price
 ```
 
 At the prices listed when this was written, that comes to about 1 cent per DeepSeek agent run and about 1.4 cents
-for a Codex run.
+for a Codex or GitHub Copilot run on OpenAI.
 
 To start it, open the Actions tab, pick Agent live tests, choose Run workflow, and pick one agent or `all`. The same
 from a terminal, Unix shell:
@@ -141,13 +158,13 @@ steps and [live/opencode-family.sh](live/opencode-family.sh) what OpenCode and K
 only curl and jq. Unix shell:
 
 ```bash
-REQUESTY_API_KEY="<your key>" bash sandbox-agent/live/codex.sh health
+OPENAI_API_KEY="<your key>" bash sandbox-agent/live/codex.sh health
 ```
 
 PowerShell:
 
 ```powershell
-$env:REQUESTY_API_KEY = "<your key>"
+$env:OPENAI_API_KEY = "<your key>"
 ```
 
 ```powershell
@@ -159,13 +176,13 @@ never in your own. The agents still start from your home directory, so run it in
 on your machine. Unix shell:
 
 ```bash
-docker compose run --rm --build -e REQUESTY_API_KEY -e SANDBOX_SKIP_UPDATE=1 sandbox bash /repo/sandbox-agent/live/codex.sh run
+docker compose run --rm --build -e OPENAI_API_KEY -e SANDBOX_SKIP_UPDATE=1 sandbox bash /repo/sandbox-agent/live/codex.sh run
 ```
 
 PowerShell:
 
 ```powershell
-docker compose run --rm --build -e REQUESTY_API_KEY -e SANDBOX_SKIP_UPDATE=1 sandbox bash /repo/sandbox-agent/live/codex.sh run
+docker compose run --rm --build -e OPENAI_API_KEY -e SANDBOX_SKIP_UPDATE=1 sandbox bash /repo/sandbox-agent/live/codex.sh run
 ```
 
 The exit code is 0 when nothing failed, 1 when a test failed, 2 on misuse or a missing key, and 4 when the health
@@ -483,7 +500,8 @@ a rebuild before a run sees it.
 - Nothing from your home directory is mounted. Every agent tool installs into `/home/sandbox/.npm-global` and writes
   its state under `/home/sandbox`, which dies with the container.
 - The container runs as the unprivileged `sandbox` user.
-- Credentials are never supplied, so no agent can reach a provider, unless you pass `REQUESTY_API_KEY` for a live test.
+- Credentials are never supplied, so no agent can reach a provider, unless you pass `REQUESTY_API_KEY` or
+  `OPENAI_API_KEY` for a live test.
 
 ---
 
