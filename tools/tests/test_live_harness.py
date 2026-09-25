@@ -1,16 +1,20 @@
-"""Tests for the verdicts of live tests 1 and 2 in sandbox-agent/live/lib.sh.
+"""Tests for the project import and the verdicts of live tests 1 and 2 in sandbox-agent/live/lib.sh.
 
 Test 1 passes only when the gate denied a main-thread write and the file is
 absent. Every deny reason the gate can give counts as a denial, and a write
 that landed is a failure whatever the transcript says. Test 2 passes only when
 the subagent wrote the file and its own transcript carries the subagent text
-and not the main-thread reminder.
+and not the main-thread reminder. The import runs setup-project.sh whatever
+file mode the checkout recorded, and keeps its git configuration out of the
+user's own.
 """
 
 import importlib.util
 import json
+import os
 import re
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -160,3 +164,60 @@ def test_a_subagent_without_the_subagent_text_fails(tmp_path):
     # Then
     assert verdict.startswith("FAIL|")
     assert "PREFLIGHT for a subagent:" in verdict
+
+
+SETUP_STUB = """#!/nonexistent/not-an-interpreter
+set -euo pipefail
+git init --quiet "$SANDBOX_PROJECT"
+git -C "$SANDBOX_PROJECT" config user.name stub
+git -C "$SANDBOX_PROJECT" config user.email stub@example.invalid
+case "${GIT_CONFIG_GLOBAL:-}" in
+  "$(dirname "$SANDBOX_PROJECT")"/*) where=inside ;;
+  *) where="outside:${GIT_CONFIG_GLOBAL:-unset}" ;;
+esac
+printf '%s' "$where" > "$SANDBOX_PROJECT/git-config-global.txt"
+"""
+
+
+def run_prepare_project(tmp_path: Path) -> tuple[subprocess.CompletedProcess, Path]:
+    """Source a copy of lib.sh beside a setup-project.sh that cannot be executed directly, and import."""
+    sandbox = tmp_path / "sandbox-agent"
+    (sandbox / "live").mkdir(parents=True)
+    shutil.copyfile(LIB, sandbox / "live" / "lib.sh")
+    setup = sandbox / "setup-project.sh"
+    setup.write_text(SETUP_STUB, encoding="utf-8", newline="\n")
+    setup.chmod(0o644)
+    work = tmp_path / "work"
+    home = tmp_path / "home"
+    home.mkdir()
+
+    script = (
+        f"source '{(sandbox / 'live' / 'lib.sh').as_posix()}'; "
+        f"AGENT_LABEL=test; LIVE_WORK='{work.as_posix()}'; "
+        "prepare_workspace; prepare_project"
+    )
+    env = {**os.environ, "HOME": home.as_posix(), "GIT_CONFIG_NOSYSTEM": "1"}
+    env.pop("GIT_CONFIG_GLOBAL", None)
+    result = run_bounded([BASH, "-c", script], capture_output=True, text=True, env=env)
+
+    return result, work
+
+
+def test_the_import_runs_even_when_setup_project_is_not_executable(tmp_path):
+    # Given a checkout that recorded setup-project.sh without its executable bit, as CI run 36145559786 did
+    # When
+    result, work = run_prepare_project(tmp_path)
+
+    # Then
+    assert result.returncode == 0, result.stderr
+    assert (work / "project" / "git-config-global.txt").is_file()
+
+
+def test_the_import_writes_git_configuration_inside_the_work_directory_only(tmp_path):
+    # Given setup-project.sh adds safe.directory entries with git config --global
+    # When
+    result, work = run_prepare_project(tmp_path)
+
+    # Then
+    assert result.returncode == 0, result.stderr
+    assert (work / "project" / "git-config-global.txt").read_text(encoding="utf-8") == "inside"

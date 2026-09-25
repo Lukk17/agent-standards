@@ -293,6 +293,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- The live pipeline runs `setup-project.sh` through `bash`, because a Windows checkout commits scripts without the
+  executable bit. Each run gets its own `GIT_CONFIG_GLOBAL` under the work directory, so a local run never writes the
+  user's `~/.gitconfig`. Codex on Requesty uses `openai/gpt-6-luna`, the id the Requesty model list carries.
 - The preflight gate reads a .NET file call whatever shell the tool name claims. Codex on Windows names its shell tool
   `Bash` and runs the command in PowerShell, so `[System.IO.File]::WriteAllText($target, ...)` from a Codex main
   thread was read as a POSIX command and allowed. A `[System.IO.*]` or `[IO.*]` call, and a `New-Object` of an

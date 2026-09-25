@@ -293,13 +293,14 @@ prepare_workspace() {
   PROJECT="${WORK}/project"
   CASES="${WORK}/cases"
   mkdir -p "$CASES"
+  export GIT_CONFIG_GLOBAL="${WORK}/gitconfig"
 }
 
 # Builds the throwaway consumer project with the same import a consumer runs,
 # so the agent sees exactly what a real project would receive.
 prepare_project() {
   log_info "importing agent-standards into ${PROJECT}"
-  AGENT_STANDARDS_REPO="$REPO_ROOT" SANDBOX_PROJECT="$PROJECT" "${SANDBOX_DIR}/setup-project.sh"
+  AGENT_STANDARDS_REPO="$REPO_ROOT" SANDBOX_PROJECT="$PROJECT" bash "${SANDBOX_DIR}/setup-project.sh"
   git -C "$PROJECT" add --all
   git -C "$PROJECT" commit --quiet --message "import agent-standards"
 }

@@ -2,10 +2,9 @@
 # -----------------------------------------------------------------------------
 # Script: codex.sh
 # Description: Runs Codex headless against Requesty (OpenAI Responses format,
-#              the openai-responses/ model route Requesty's Codex guide
-#              requires) and asserts on the rollout files it records for the
-#              main thread and for every subagent thread. See lib.sh for the
-#              contract.
+#              with the model id exactly as Requesty's model list names it)
+#              and asserts on the rollout files it records for the main thread
+#              and for every subagent thread. See lib.sh for the contract.
 # Usage: codex.sh [health|run|all] [-h|--help]
 # Environment: REQUESTY_API_KEY plus the LIVE_* variables documented in lib.sh.
 # Exit codes: as lib.sh.
@@ -13,7 +12,7 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-readonly AGENT_MODEL="openai-responses/gpt-6-luna"
+readonly AGENT_MODEL="openai/gpt-6-luna"
 
 # shellcheck source=sandbox-agent/live/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"

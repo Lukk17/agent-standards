@@ -109,7 +109,7 @@ Settings, Secrets and variables, Actions. Each agent runs one fixed model, with 
 | Agent | Requesty model id |
 | --- | --- |
 | Claude Code, OpenCode, Kilo Code, GitHub Copilot | `deepinfra/deepseek-v4-flash-0731`, DeepSeek V4 Flash on DeepInfra, with tool calling |
-| Codex | `openai-responses/gpt-6-luna`, GPT-6 Luna on the Responses route that Requesty's Codex guide requires |
+| Codex | `openai/gpt-6-luna`, GPT-6 Luna under the id the Requesty model list carries, sent in the Responses format |
 
 Both are the standard ids, not the `:flex` variants, so a flex capacity refusal cannot stall a run. The tests send
 nothing but the fixed probe prompts in [live/lib.sh](live/lib.sh).
@@ -154,8 +154,9 @@ $env:REQUESTY_API_KEY = "<your key>"
 bash sandbox-agent/live/codex.sh health
 ```
 
-A full local run imports into a throwaway project and adds safe-directory entries to the global git configuration, so
-run it inside the sandbox container rather than on your machine. Unix shell:
+A full local run imports into a throwaway project and keeps its git configuration in a file under the work directory,
+never in your own. The agents still start from your home directory, so run it inside the sandbox container rather than
+on your machine. Unix shell:
 
 ```bash
 docker compose run --rm --build -e REQUESTY_API_KEY -e SANDBOX_SKIP_UPDATE=1 sandbox bash /repo/sandbox-agent/live/codex.sh run
