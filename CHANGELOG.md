@@ -298,6 +298,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Every GitHub Copilot subagent that may write or edit now lists `apply_patch`, and the Copilot gate matcher names it.
+  Copilot gives a GPT model `apply_patch` as its only file tool, and neither `create` nor `edit` grants it, so in live
+  run 36168529868 the docs-architect subagent reached gpt-6-luna with only `view` and `bash`, under a system prompt
+  telling it not to write files, and reported the file as not created.
 - The preflight gate reads the patch a shell `apply_patch` command carries, from a heredoc, a pipe or its argument, and
   denies a main-thread write it names. Codex runs `apply_patch <<'PATCH'` from `exec_command` as a file change, and
   live run 36163866070 wrote `live-probe/main-thread.txt` that way past the gate.

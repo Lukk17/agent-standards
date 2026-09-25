@@ -67,8 +67,8 @@ COPILOT_TOOLS = {
     "read": ("read",),
     "grep": ("search",),
     "glob": ("search",),
-    "write": ("create",),
-    "edit": ("edit",),
+    "write": ("create", "apply_patch"),
+    "edit": ("edit", "apply_patch"),
     "bash": ("bash", "powershell"),
 }
 

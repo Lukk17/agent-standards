@@ -817,7 +817,7 @@ script call and the `; exit 0` on every `powershell` one are what make a missing
     "preToolUse": [
       {
         "type": "command",
-        "matcher": "bash|powershell|create|edit",
+        "matcher": "bash|powershell|create|edit|apply_patch",
         "cwd": ".",
         "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.agents/hooks/preflight_gate.py --format copilot 2>/dev/null || exit 0",
         "powershell": "python -S -E /home/you/.agents/hooks/preflight_gate.py --format copilot 2>$null; exit 0"

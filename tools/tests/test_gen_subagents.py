@@ -220,7 +220,18 @@ def test_copilot_emits_its_own_tool_names():
 
     assert head[0] == "name: fixture-writer"
     assert head[1] == 'description: "Use when a fixture needs writing."'
-    assert head[2] == 'tools: ["read", "create", "edit", "search", "bash", "powershell"]'
+    assert head[2] == 'tools: ["read", "create", "apply_patch", "edit", "search", "bash", "powershell"]'
+
+
+def test_a_copilot_writing_agent_can_write_on_a_model_that_edits_with_apply_patch():
+    """Copilot hands a GPT model apply_patch as its only file tool, and neither create nor edit grants it.
+
+    In live run 36168529868 the docs-architect subagent, declared with create and edit, reached
+    gpt-6-luna with only view and bash, under a system prompt telling it not to write files.
+    """
+    generated = (gen.TARGETS["copilot"][0] / "docs-architect.agent.md").read_text(encoding="utf-8")
+
+    assert "apply_patch" in front_matter(generated)["tools"]
 
 
 def test_copilot_drops_a_tool_it_has_no_confirmed_name_for():
@@ -290,7 +301,7 @@ def test_every_generated_markdown_agent_parses_and_keeps_its_description(tool, e
     [
         (gen.emit_claude, ("Write", "Edit", "Bash")),
         (gen.emit_opencode, ("write: true", "edit: true", "bash: true")),
-        (gen.emit_copilot, ("create", "edit", "bash", "powershell")),
+        (gen.emit_copilot, ("create", "apply_patch", "edit", "bash", "powershell")),
     ],
     ids=["claude", "opencode", "copilot"],
 )

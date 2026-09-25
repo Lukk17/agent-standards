@@ -454,7 +454,7 @@ verify_copilot() {
   assert_json "the formatting check is wired into agentStop" ".github/hooks/preflight.json" \
     '[.hooks.agentStop[].bash] | any(contains("no_ai_markers_check.py --format copilot"))'
   assert_json "the gate is scoped to the tools that can write" ".github/hooks/preflight.json" \
-    '[.hooks.preToolUse[].matcher] | any(type == "string" and test("bash") and test("powershell") and test("create") and test("edit"))'
+    '[.hooks.preToolUse[].matcher] | any(type == "string" and test("bash") and test("powershell") and test("create") and test("edit") and test("apply_patch"))'
   # shellcheck disable=SC2016  # the $ belongs to the hook command text the jq filter looks for
   assert_json "every bash hook Copilot calls resolves python3 first and falls back to python, on -S -E" ".github/hooks/preflight.json" \
     '[.hooks[][] | (.bash // empty)] | map(select(contains(".agents/hooks/"))) | ((length > 0) and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E")))'
