@@ -8,6 +8,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `.claude/workflows/skill-audit.js`, a saved Claude Code workflow run as `/skill-audit`. It audits every skill under
+  `.agents/skills/` read-only, and a second agent tries to refute each finding before it is reported. It is documented
+  in `docs/AGENT_TOOLING.md`, and the update routines in `docs/AGENTS-UPDATE.md` and `README.md` now refresh
+  `.claude/workflows` along with the other imported trees.
 - A containerised end-to-end sandbox in `sandbox-agent/`. It installs all five agent CLIs, updates them to the latest
   release on container start, imports the shared configuration into a throwaway project, and asserts what each agent
   actually discovers. The repository is mounted read-only and the host home is never touched.
@@ -137,6 +141,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- `AGENTS.md` is about half its former length. The per-surface detail moved to `docs/agent-compatibility.md`,
+  `docs/hooks-contract.md`, `docs/GLOBAL_SETUP.md` and `sandbox-agent/README.md`, and the Working Principles section
+  stays as it was.
 - The live pipeline loads only the `context7` MCP server, through each agent's own mechanism and never an edited MCP
   file, and live test 6 proves it is the only server loaded and answers a `resolve-library-id` call. All eight
   servers added about 34,500 tokens of tool descriptions to every request, and Copilot's subagent test used 206,000
@@ -303,6 +310,18 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- The 85 defects the first skill audit confirmed across the skills. Rules that their own examples contradicted now
+  agree with them. Skills that handed the same job to each other in their "when not to activate" lists now name one
+  owner. Broken references are repaired, among them a link into `subagents/`, which consumers never receive.
+- The `code-reviewer` skill description held an unquoted colon, so YAML cut it in half. It is now quoted and loads
+  whole.
+- The `jira-integration` skill named `jira_*` tools that no server here provides. It now points at Atlassian's own
+  remote MCP server and uses that server's tool names, and it proposes each tracker write to the user rather than
+  making it.
+- `AGENTS.md` defects: the GitHub Copilot `preToolUse` matcher cell in the wiring table was garbled, a pointer named a
+  follow-up that did not exist, and a claim was still marked unverified after it had been measured. Comments in
+  `.agents/hooks/preflight_gate.py` cited an `AGENTS.md` "Defect 3" section that no longer exists, and now cite
+  nothing.
 - Live test 2 reports `KNOWN-GAP` on GitHub Copilot, not `FAIL`, when the subagent never tried to write under the
   `CRITICAL: Do NOT write output to files` block that Copilot CLI 1.0.81 appends to every custom subagent's system
   prompt. In live run 36176881215 docs-architect was offered `apply_patch` and still made no tool call. A write the
