@@ -238,13 +238,13 @@ Then pull upstream's half back over your tree. Your `AGENTS.md`, `.claude/CLAUDE
 `.mcp.json` are left out on purpose, because they become yours at import. PowerShell:
 
 ```powershell
-git checkout agent-standards/master -- .agents/skills .agents/hooks .claude/agents docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- .agents/skills .agents/hooks .claude/agents .claude/workflows docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 Unix shell:
 
 ```bash
-git checkout agent-standards/master -- .agents/skills .agents/hooks .claude/agents docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- .agents/skills .agents/hooks .claude/agents .claude/workflows docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 #### Codex
@@ -653,6 +653,8 @@ including what each hook surface can actually block, lives in
   read-only agents, and accepts `model: inherit` for an agent that should run on whatever the session already uses.
 - [.claude/](.claude/): Claude Code bridge. [.claude/CLAUDE.md](.claude/CLAUDE.md) imports `AGENTS.md`, plus a
   `skills` symlink, a generated `agents/` tree, and the hooks in `settings.json`.
+- [.claude/workflows/skill-audit.js](.claude/workflows/skill-audit.js): a saved Claude Code workflow, run as
+  `/skill-audit`, that audits the skills. See [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md#auditing-the-skills).
 - OpenSpec scaffold (consumer side only, this repo ships no `openspec-*` skills of its own, because OpenSpec is a
   consumer concern): spec-driven workflow. Initialise it with the vendor-neutral `openspec init --tools agents`, which
   writes into `.agents/skills/` and creates no per-tool directories. That one target covers every agent, since Codex,
@@ -771,6 +773,11 @@ itself on every run. It contains bash and PowerShell commands that:
 - Enumerate the skills already in the consumer's `.agents/skills/` and pull only those (no surprise additions).
 - Enumerate the subagents already in the four generated trees (`.agents/agents/`, `.claude/agents/`, `.codex/agents/`,
   `.github/agents/`) and pull only those.
+- Enumerate the saved Claude Code workflows already in `.claude/workflows/` and pull only those.
+
+The per-agent update commands earlier in this README work differently: they check out whole folders such as
+`.agents/skills`, `.claude/agents` and `.claude/workflows`, so they also bring in skills, subagents and workflows your
+project did not have yet.
 
 Files intentionally NOT touched by the update: the three symlinks (`.claude/skills`, `.opencode/agents`,
 `.kilo/agents`, all of which follow their canonical directories anyway), `.claude/CLAUDE.md`, `AGENTS.md.example`, the

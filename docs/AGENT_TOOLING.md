@@ -122,8 +122,9 @@ What you just pulled:
 - [.agents/skills/](../.agents/skills/), the canonical skills, plus [.agents/agents/](../.agents/agents/), the shared
   OpenCode-format subagents, [.agents/hooks/](../.agents/hooks/), the four hook scripts, and
   [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), the OpenCode and Kilo adapter for the gate.
-- [.claude/](../.claude/): the `CLAUDE.md` bridge, the `skills` symlink, the generated `agents/` tree, and
-  `settings.json` carrying the Claude Code hooks.
+- [.claude/](../.claude/): the `CLAUDE.md` bridge, the `skills` symlink, the generated `agents/` tree,
+  `settings.json` carrying the Claude Code hooks, and the `workflows/` folder holding the
+  [skill audit](#auditing-the-skills).
 - `.opencode/agents` and `.kilo/agents`: symlinks into [.agents/agents/](../.agents/agents/). One tree, two agents.
 - [.codex/](../.codex/): the generated TOML custom agents and `config.toml`, which holds both the Codex MCP servers
   and the Codex gate hooks inline.
@@ -157,8 +158,8 @@ If any of them came through as a small text file instead of a link, go back to S
 
 [docs/AGENTS-UPDATE.md](AGENTS-UPDATE.md) ships from upstream, holds the per-shell update commands, and refreshes
 itself on every run. Open it and run the block for your shell. It refreshes the shipped documents, all four hook
-scripts and the plugin, the Copilot hook file, and only the skills and subagents already present in your tree.
-Nothing new appears behind your back.
+scripts and the plugin, the Copilot hook file, and only the skills, subagents and saved Claude Code workflows already
+present in your tree. Nothing new appears behind your back.
 
 It deliberately leaves your `AGENTS.md`, your five MCP config files, `.claude/settings.json`, and `.claude/CLAUDE.md`
 alone. Those are yours. When you do want an upstream change in one of the configuration files, each shell section of
@@ -302,6 +303,33 @@ Skills are invoked from inside the agent shell with slash syntax:
 
 Depending on the agent, the autocomplete may show `/name` or `/name.md`. Use whichever form yours offers. The full
 catalogue is [.agents/skills/](../.agents/skills/), one directory per skill, each holding a `SKILL.md`.
+
+---
+
+### Auditing the skills
+
+[.claude/workflows/skill-audit.js](../.claude/workflows/skill-audit.js) is a saved Claude Code workflow. It reads every
+skill under [.agents/skills/](../.agents/skills/) and reports contradictions, broken references, weak descriptions,
+and overlaps between skills. A second agent tries to refute each finding before it is reported, so the result lists
+confirmed and rejected findings separately.
+
+It is read-only: no agent in it edits a file or runs a script. A full run is expensive in tokens, because it starts
+one lister, then one reader and one checker per batch of skills, at most five batches. To gauge the cost first, audit
+a few skills rather than all of them.
+
+It runs only in Claude Code. Claude Code runs a saved workflow as a command named after it, so type:
+
+```text
+/skill-audit
+```
+
+To audit a few skills only, name them in the same prompt, and Claude passes them to the script as its `args` list:
+
+```text
+Run /skill-audit on python-patterns and bash
+```
+
+Run `/workflows` to watch the progress of a run or to stop it.
 
 ---
 

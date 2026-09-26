@@ -10,6 +10,7 @@
 - [.agents/agents/](../.agents/agents/), the OpenCode-format subagents shared by OpenCode and Kilo Code, plus the
   three per-tool trees generated beside it: [.claude/agents/](../.claude/agents/), [.codex/agents/](../.codex/agents/),
   and [.github/agents/](../.github/agents/).
+- [.claude/workflows/](../.claude/workflows/), the saved Claude Code workflows, such as the skill audit.
 - [.agents/hooks/](../.agents/hooks/), the four hook scripts: the shared preflight gate, the reply formatting check,
   the markdown lint pass that runs after an edit, and the task-list mirror. Beside them,
   [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), the OpenCode and Kilo Code adapter that runs them all.
@@ -104,10 +105,11 @@ Pull the upstream copy of every skill you currently have. Skills missing upstrea
 for d in .agents/skills/*/; do [ -d "$d" ] || continue; git checkout agent-standards/master -- "$d" 2>/dev/null || true; done
 ```
 
-Pull the upstream copy of every subagent you currently have, across the four generated trees.
+Pull the upstream copy of every subagent you currently have, across the four generated trees, and of every saved
+Claude Code workflow you currently have.
 
 ```bash
-for f in .agents/agents/*.md .claude/agents/*.md .codex/agents/*.toml .github/agents/*.agent.md; do [ -e "$f" ] || continue; git checkout agent-standards/master -- "$f" 2>/dev/null || true; done
+for f in .agents/agents/*.md .claude/agents/*.md .codex/agents/*.toml .github/agents/*.agent.md .claude/workflows/*.js; do [ -e "$f" ] || continue; git checkout agent-standards/master -- "$f" 2>/dev/null || true; done
 ```
 
 ---
@@ -163,10 +165,11 @@ Pull the upstream copy of every skill you currently have.
 if (Test-Path .agents/skills) { foreach ($d in Get-ChildItem -Directory .agents/skills) { git checkout agent-standards/master -- ".agents/skills/$($d.Name)/" 2>$null } }
 ```
 
-Pull the upstream copy of every subagent you currently have, across the four generated trees.
+Pull the upstream copy of every subagent you currently have, across the four generated trees, and of every saved
+Claude Code workflow you currently have.
 
 ```powershell
-foreach ($base in '.agents/agents', '.claude/agents', '.codex/agents', '.github/agents') { if (Test-Path $base) { foreach ($f in Get-ChildItem $base -File) { git checkout agent-standards/master -- "$base/$($f.Name)" 2>$null } } }
+foreach ($base in '.agents/agents', '.claude/agents', '.codex/agents', '.github/agents', '.claude/workflows') { if (Test-Path $base) { foreach ($f in Get-ChildItem $base -File) { git checkout agent-standards/master -- "$base/$($f.Name)" 2>$null } } }
 ```
 
 ---

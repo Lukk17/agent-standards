@@ -71,6 +71,7 @@ agent-standards/
     settings.json                # gate, formatting, markdown lint and task-list hooks
     skills -> ../.agents/skills  # SYMLINK, the only way Claude Code sees the canonical skills
     agents/                      # GENERATED, Claude-format subagents
+    workflows/skill-audit.js     # CANONICAL, read-only skill audit, a saved Claude Code workflow
   .opencode/
     agents -> ../.agents/agents  # SYMLINK maintained by the generator
   .kilo/
@@ -126,6 +127,7 @@ your-project/
   .claude/settings.json          # Claude Code hooks, consumer-owned after import
   .claude/skills                 # symlink to ../.agents/skills
   .claude/agents/                # generated Claude-format subagents
+  .claude/workflows/skill-audit.js # read-only skill audit, a saved Claude Code workflow
   .opencode/agents               # symlink to ../.agents/agents
   .kilo/agents                   # symlink to ../.agents/agents
   .codex/agents/                 # generated Codex custom agents (*.toml)
