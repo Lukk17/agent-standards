@@ -88,6 +88,14 @@ Three verdicts are possible besides a pass:
   tried to write. A write the subagent attempted and lost, or a missing file without that block, is still a `FAIL`.
   It does not fail the job.
 
+Test 1 counts any gate denial as the block, whichever rule gave it, because [live/lib.sh](live/lib.sh) reads the fixed
+text of every `RULE_*_REASON` out of the gate itself, so a new rule needs no harness change. A probe file that landed
+is a failure whatever the transcript says. Test 2 reads the subagent's own transcript through the
+`agent_subagent_context` function each agent script supplies. Both Copilot expectations are switches in
+[live/copilot.sh](live/copilot.sh): `GATE_KNOWN_GAP=1` for test 1, which every other agent script sets to `0`, and
+`SUBAGENT_NO_WRITE_MARKER` for test 2. Each one goes in the same change that removes its Maintenance follow-up in
+[AGENTS.md](../AGENTS.md).
+
 #### One MCP server in the live runs
 
 Each live project runs with `context7` alone, out of the eight servers the repository ships. With all eight, every
@@ -116,7 +124,7 @@ file or from overrides, and never from an edited repository file:
 | Agent | Mechanism | Vendor source |
 | --- | --- | --- |
 | Claude Code | `--strict-mcp-config --mcp-config` with a copy of `.mcp.json` that holds only `context7` | `https://code.claude.com/docs/en/cli-reference` |
-| Codex | `-c mcp_servers.<name>.enabled=false` for every other server in `.codex/config.toml`, plus `mcp_optional_startup_grace_ms = 0` so the first tool list waits for `context7` | `https://developers.openai.com/codex/config-reference` |
+| Codex | `-c mcp_servers.<name>.enabled=false` for every other server in `.codex/config.toml`, plus `mcp_optional_startup_grace_ms = 0`, which makes the first tool list wait for each server's own `startup_timeout_sec` instead of the shared 1 second default, and `-c mcp_servers.context7.startup_timeout_sec=60`, which raises that wait for `context7` from the 10 second default | `https://developers.openai.com/codex/config-reference` |
 | OpenCode | `"enabled": false` on every other server in `OPENCODE_CONFIG_CONTENT`, which outranks the project's `opencode.json` | `https://opencode.ai/docs/mcp-servers/` and `https://opencode.ai/docs/config/` |
 | Kilo Code | The same in `KILO_CONFIG_CONTENT` | `https://kilo.ai/docs/automate/mcp/using-in-kilo-code` and `https://kilo.ai/docs/getting-started/settings` |
 | GitHub Copilot | `--disable-builtin-mcps`, `--disable-mcp-server` for every other server, and `--additional-mcp-config` with a copy of `.github/mcp.json` that holds only `context7` | `https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference` |
@@ -547,8 +555,8 @@ makes a passing assertion attributable to the home layer rather than to a projec
 suite B in [e2e/testing](../e2e/testing), specs 6 to 9, so the script and the specs say the same thing.
 
 Everything the installer copies comes from the temporary clone it makes of `/repo` and deletes afterwards, so that
-part is committed state, the same rule the per-project suite follows. The scripts themselves are baked into the image, so a change to one of them needs
-a rebuild before a run sees it.
+part is committed state, the same rule the per-project suite follows. The scripts themselves are baked into the image,
+so a change to one of them needs a rebuild before a run sees it.
 
 ---
 

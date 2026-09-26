@@ -2,8 +2,10 @@
 
 What each supported agent reads, where it reads it from, what it can actually block, and the few places our layout
 has to work around a tool limitation. Checked against vendor documentation on 2026-08-25, against Claude Code 2.1.250,
-Codex 0.150.1, OpenCode 1.18.25, Kilo Code 7.5.5, and GitHub Copilot CLI 1.0.81. Cells that rest on something less
-than official documentation say so.
+Codex 0.150.1, OpenCode 1.18.25, Kilo Code 7.5.5, and GitHub Copilot CLI 1.0.81. The gate matcher paragraph under Hook
+enforcement and its four subsections, from the repository boundary through MCP tools, were checked later against
+Claude Code 2.1.281, Codex 0.156.1, OpenCode 1.18.32 and Kilo Code 7.7.9, and not against Copilot. Cells that rest on
+something less than official documentation say so.
 
 This file stays in the agent-standards repo only. For the full repository tree and each agent's instruction-merge
 precedence, see [repository-layout.md](repository-layout.md). For human MCP setup (keys, environment variables,
@@ -79,18 +81,20 @@ a generated tree.
 
 ### Hook enforcement, what each agent can actually block
 
-The gate is one shared rule in [../.agents/hooks/preflight_gate.py](../.agents/hooks/preflight_gate.py). It reads a
-hook payload on standard input and denies three things: a write of any file resolving inside the repository working
-tree coming from the main thread, with no exemption left for markdown, configuration, or `docs/` (delegate the change
-to a subagent that owns the area instead), any tool call at all from a subagent whose own definition declares no
-skills (spawn a specialist instead), and a web fetch or web search called straight from the main thread on the one
-format whose payload names that tool today, Claude Code. A relative path is resolved against whatever a leading `cd`
-in the command moved to, so changing directory first buys nothing. A write outside the repository, the null device,
-`tasks.md` at the project root, and switching a git branch stay allowed, and the main thread keeps full use of git
-otherwise. Caller identity is a tri-state, subagent, main thread, or unknown when a payload carries nothing that
-could tell the two apart, and none of the three rules fires on an unknown caller. Every failure path also allows the
-call, because a broken gate must never break a session, with one deliberate exception: a path neither
-repository-boundary helper can resolve is treated as inside, which denies.
+The gate is one shared rule in [../.agents/hooks/preflight_gate.py](../.agents/hooks/preflight_gate.py). It reads a hook
+payload on standard input and denies four things: a write of any file resolving inside the repository working tree
+coming from the main thread, with no exemption left for markdown, configuration, or `docs/` (delegate the change to a
+subagent that owns the area instead), any tool call at all from a subagent whose own definition declares no skills
+(spawn a specialist instead), a web fetch or web search called straight from the main thread on the one format whose
+payload names that tool today, Claude Code, and a script or module run from the main thread, because the gate cannot see
+what a script writes. The allowlist that lifts the last rule is in
+[What the main thread may run](GLOBAL_SETUP.md#what-the-main-thread-may-run). A relative path is resolved against
+whatever a leading `cd` in the command moved to, so changing directory first buys nothing. A write outside the
+repository, the null device, `tasks.md` at the project root, and switching a git branch stay allowed, and the main
+thread keeps full use of git otherwise. Caller identity is a tri-state, subagent, main thread, or unknown when a payload
+carries nothing that could tell the two apart, and none of the four rules fires on an unknown caller. Every failure path
+also allows the call, because a broken gate must never break a session, with one deliberate exception: a path none of
+the three repository-boundary helpers can resolve is treated as inside, which denies.
 
 Three more hooks live beside it in [../.agents/hooks/](../.agents/hooks/) and ride the same wirings:
 `no_ai_markers_check.py` checks the reply, `markdown_lint_check.py` lints a file just after it was edited, and
@@ -117,6 +121,12 @@ The full event set per surface, beyond the gate itself:
 | OpenCode and Kilo Code | `tool.execute.before` | same event, the runner passes every hook, plus `experimental.text.complete` | same event | same event |
 | GitHub Copilot | `sessionStart`, `subagentStart`, `userPromptTransformed`, `preToolUse` | `agentStop` | not wired | `sessionStart` |
 
+The gate's tool matcher per wiring is `^(Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|WebFetch|WebSearch)$` on
+Claude Code, `^(Bash|shell|apply_patch|Edit|Write|NotebookEdit)$` on Codex, and
+`bash|powershell|create|edit|apply_patch` on GitHub Copilot. Claude Code's `SessionStart` also injects the
+subagent supervision text, which has no script behind it. OpenCode and Kilo Code match nothing, because the
+runner hands every tool call to every hook.
+
 Reading the tables row by row:
 
 - Every row anchors the gate at the project root before calling it, so a session started in a subdirectory still finds
@@ -141,11 +151,132 @@ Reading the tables row by row:
   the enforcement is the pre-tool block plus per-agent tool permissions, and the only thing after the fact is the
   stored fix of a finished text part.
 - GitHub Copilot's `preToolUse` payload carries no agent identifier at all, so caller identity there resolves to
-  unknown every time and none of the gate's three rules ever fires. The hook is wired and runs, but it always allows:
+  unknown every time and none of the gate's four rules ever fires. The hook is wired and runs, but it always allows:
   that surface is entirely unenforced by the gate, not merely weaker, and the `AGENTS.md` text plus the
   `sessionStart` and `userPromptTransformed` injections carry the whole weight instead.
 - Copilot in JetBrains fires only six events, has no subagent event at all, and reads hook configuration only from
   `.github/hooks/`. A hook file anywhere else is ignored by that client.
+
+#### Where the write rule draws the repository boundary
+
+"Inside the repository" is the gate's own roots rather than a git query: the process working directory, the project
+root the hook payload names in its `cwd` field, and the gate script's own on-disk location two parents up, that last
+one only while it is a real project and not the user's home directory or a directory above it. That is what lets the
+user-level install in [GLOBAL_SETUP.md](GLOBAL_SETUP.md) protect the open project instead of everything the user owns.
+A relative path resolves against whichever directory a leading `cd` in the command moved to, and against every root
+when the command never changed directory. On Windows, a Git Bash drive path such as `/c/Users/x` is read as
+`C:/Users/x` before it is placed, for a `cd` operand and a write target alike.
+
+Deleting, moving, or renaming the repository root or any directory above it counts as a write inside it, so
+`rm -rf ..`, `rm -rf ~`, `Remove-Item -Recurse` or `rmdir /s` on a parent, and `mv` or `Move-Item` of a parent are
+denied, while the same command on a sibling folder that holds no root is allowed. A wildcard operand counts when any
+path it could match, compared one component at a time and case-insensitively on Windows, is the root, a directory
+above it, or a path inside it, so `rm -rf ../agent-*` and `Remove-Item ..\*` are denied.
+
+A write outside the repository, a write to the null device or to a PowerShell drive that holds no files such as `Env:`
+or `Function:`, a write to `tasks.md` at the project root, and git branch switching stay allowed, so the main thread
+keeps full use of git and keeps ownership of its own task list.
+
+#### How the write rule reads a command
+
+Each shell's own quoting applies: a backslash escapes only in a POSIX shell, PowerShell escapes with a backtick and
+splits an unquoted `a,..` into two paths, and cmd escapes with a caret, so `Remove-Item "D:\parent\"` is read as the
+path it names. The same checks reach inside a wrapper: `cmd /c` and `cmd /k`, `bash -c`, `sh -c`, `zsh -c`, and
+`powershell` or `pwsh` with `-Command`, `-c` or a decoded `-EncodedCommand`, nested up to three deep. They also reach
+code a shell or interpreter takes some other way: a heredoc or here-string, a piped `echo`, `printf` or `cat`,
+`xargs`, `eval`, `Invoke-Expression`, and a file run with `source` or `.`. An encoded value that does not decode is an
+unlexable command and allows, since PowerShell refuses to run it. Inline Python is parsed and inline JavaScript read
+for the path each actually writes, through import aliases and renamed bindings, rather than for every string it holds.
+
+Codex's `apply_patch` call carries a patch body rather than a file path, and the key that holds that body in the
+payload is not confirmed. The gate therefore reads the file headers out of every string value in the call rather than
+out of one named key, and denies the call when it finds no path key and no file header, because an edit whose target
+it cannot resolve is not trusted.
+
+The writers the gate knows include `find -delete` and `find -exec`, `git clean`, `git rm`, `git mv`,
+`git reset --hard`, `git stash`, `git checkout -f` and `git checkout` or `git restore` of a path, `curl -o` and `-O`,
+`wget`, `touch`, `mkdir`, `install -d`, `tar` and `unzip` extraction, the `[System.IO.File]` and
+`[System.IO.Directory]` methods, and the PowerShell item and content cmdlets, bound the way PowerShell binds their
+parameters. The .NET methods are read whatever shell the tool name claims, because Codex on Windows names its shell
+tool `Bash` and runs the command in PowerShell, so `[System.IO.File]::WriteAllText($target, ...)` under `Bash` denies
+the same way it does under `PowerShell`.
+
+Beyond the plain writers, the rule reads a hard link whose source is a project file (`ln` without `-s`, `cp -l`,
+`fsutil hardlink create`, `New-Item -ItemType HardLink`, `mklink /H`), a Windows device, extended-length or loopback
+administrative-share spelling of a project path, command substitution inside double quotes and backquotes, a line
+continuation before CR LF, a PowerShell cmdlet fed its path through the pipeline, `pushd`, `popd`, `Push-Location`,
+`Pop-Location`, `env --chdir`, `sudo --chdir` and `pwsh -WorkingDirectory`, parentheses that are a subshell only in a
+POSIX shell, `xcopy`, `robocopy`, `replace`, `expand`, `esentutl`, `certutil`, `bitsadmin`, `mklink`,
+`Start-Transcript`, every `Export-*` cmdlet, `Start-Process` with its redirects and argument list,
+`Set-ItemProperty`, any other `System.IO` use, in-place editors and formatters, writes and processes inside an `awk`
+or `sed` program, Lua, R, Julia, `sqlite3`, PHP, Perl and Ruby code, and the runners `busybox`, `toybox`, `su -c`,
+`setsid`, `flock`, `watch`, `script`, `wsl` and `git -c alias.x=!...`. It also reads the file a git output option
+names (`--output` and its abbreviations on the diff family, `format-patch`, which writes into the working directory
+unless `--stdout`, `archive -o`, `bundle create`), a `git config` write, which lands in `.git/config` or the `-f`
+file, and hard links made from Python and JavaScript, where the source counts as written too. The standard-library
+writers the inline Python reader places include archive extraction, URL download to a file, database files, logging
+file handlers, and temporary files created in a named directory.
+
+#### What the gate cannot place
+
+The gate fails open almost everywhere, but not on the repository boundary. The three helpers that decide it,
+`_resolves_inside_repo`, `_path_exists_in_repo` and `_contains_repo`, fail toward True on a path none of them can
+resolve, which denies, because deciding what Rule A protects is their whole job. On Windows that includes a loopback
+UNC path to a share that is not an administrative drive share, such as `\\localhost\share` or `\\127.0.0.1\share`,
+because only the share definition knows which folder it maps to, an administrative drive share such as
+`\\fileserver\C$` on any host, because the gate cannot prove that host is another machine, and a volume GUID or
+`GLOBALROOT` path. This machine is recognised by its loopback and unspecified addresses in every spelling,
+IPv4-mapped IPv6 included, by its own name with or without a domain or a trailing dot, and by any name or LAN address
+that resolves to one of its own addresses. The loopback mapping runs again on the resolved path, so a link that
+resolves to an administrative share of the project is still inside.
+
+A write the gate recognises but cannot place denies the same way on the main thread. A write target the shell has not
+expanded yet, such as the `$f` in `rm $f`, is the common case, and so is any target holding an unexpanded `$VAR`,
+`{a,b}`, `%VAR%` or `!VAR!`. The others are a command nested or wrapped deeper than the gate reads, code piped into a
+shell or interpreter from a program whose output the gate cannot know, as in `curl ... | bash`, a sourced file it
+cannot read, `eval` or `Invoke-Expression` of a variable, and inline code that starts a process or reaches a file
+call through a computed name. Only the running program knows where such a write lands, so the write goes to a
+subagent or is spelled with a literal path.
+
+Each of the following cannot be placed either and denies on the main thread:
+
+- A leading assignment, an `env`, `export`, cmd `set`, `setx`, `$env:`, `Env:` or `SetEnvironmentVariable` setting of
+  a variable that changes which program or file a command uses: git's configuration, directory, work tree, pager,
+  editor and external diff, a library preload, `NODE_OPTIONS`, `PYTHONPATH`, `PYTHONSTARTUP`, `PERL5OPT`, `RUBYOPT`,
+  `BASH_ENV`, `ENV`, `PATH`, `PYTEST_ADDOPTS`, the temporary directory, and the rest of `_UNPLACEABLE_ENVIRONMENT`.
+- A `git config` setting or `-c` value that runs a program or includes more configuration, `git grep -O`,
+  `difftool` and `mergetool`.
+- Inline Python that imports anything outside the standard library, a standard module shadowed by a file in its
+  working directory, or loads code through `runpy`, `importlib` or `ctypes`, and inline JavaScript that loads any
+  module that is not built in.
+- PowerShell that holds a `System.IO` type as a value, imports a namespace or module with `using`, turns a string into
+  a type, uses reflection or compiles code with `Add-Type`.
+- WMI or CIM method calls and `wmic ... call create`, and `ssh`, `plink`, `winrs`, `Invoke-Command` and PowerShell
+  sessions aimed at this machine or at a session, a VM, a container or a script file, and `psexec`.
+- A container that binds a path inside or above the repository, `docker` or `podman` `exec`, `start`, `build`, `cp`
+  into a container, and `compose up`, `run` or `build`.
+- A job handed to `schtasks /create`, `at`, `batch`, `crontab`, `systemd-run` or `Register-ScheduledTask`.
+- A shell command that is not a string, and a tool the gate does not know that still carries a `command`, `cmd` or
+  `script` value.
+
+Read-only forms of the same tools still allow: container `ps`, `images`, `inspect`, `logs`, `stats`, `network ls`,
+`volume ls`, `compose ls`, `ps`, `logs` and `config`, `schtasks /query`, `crontab -l`, `Get-ScheduledTask`, and WMI or
+CIM queries. A top-level command the lexer cannot read still allows, while code nested inside a readable command that
+cannot be read denies.
+
+#### MCP tools are not gated
+
+Claude Code names an MCP tool `mcp__<server>__<tool>` and compares a `PreToolUse` matcher against that name
+([hooks](https://code.claude.com/docs/en/hooks), "MCP tools follow the naming pattern `mcp__<server>__<tool>`"), and
+the matcher in [.claude/settings.json](../.claude/settings.json) names built-in tools only. The OpenCode and Kilo Code
+runner hands every tool to the gate, but `EDIT_TOOLS` names built-in edit tools only, so an MCP call is allowed there
+too. Two servers in [.mcp.json](../.mcp.json) write local files that way. `playwright` does it through
+`browser_take_screenshot` and `browser_pdf_save`, whose `filename` "Relative file names are resolved against the
+workspace root" ([playwright-mcp README](https://github.com/microsoft/playwright-mcp/blob/main/README.md)).
+`chrome-devtools` does it through `take_screenshot`, `take_snapshot`, `take_heapsnapshot`, `performance_stop_trace`,
+`screencast_start`, `evaluate_script` and `get_network_request`, each with a path parameter "to save" into
+([tool reference](https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/tool-reference.md), fetched
+2026-09-25).
 
 The canonical wording of the gate itself lives in the `## Required opening move` section of `AGENTS.md`. Every adapter
 repeats it verbatim. Change one, change all of them.
@@ -207,6 +338,8 @@ OpenCode or Kilo config, as [MCP_SETUP.md](MCP_SETUP.md) describes.
   should initialise it with the vendor-neutral target instead (see [AGENTS-UPDATE.md](AGENTS-UPDATE.md)).
 - Codex loads the whole `.codex/` project layer, custom agents, MCP servers, and hooks alike, only after the project
   is trusted. On a fresh clone the gate does not run until the user approves the project once.
+- The JetBrains Copilot plugin scans `.claude/agents`, but it only understands its own `*.agent.md` format, so
+  subagent definitions cannot be shared between Copilot and Claude Code or OpenCode.
 - GitHub Copilot ships four surfaces (VS Code, JetBrains, CLI, cloud agent) that differ on hooks, on MCP, and on
   documentation quality. Never answer a Copilot question without naming the surface.
 - On Windows the two agent symlinks and the skills symlink need `git config core.symlinks true` and Developer Mode

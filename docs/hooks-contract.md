@@ -296,6 +296,14 @@ own `sessionId`, but Copilot CLI 1.0.81 puts the `subagentStart` text at the sta
 `prompt_reminder.py` prints nothing for a prompt that opens with `PREFLIGHT for a subagent:`. A later prompt in the same
 subagent session, such as a formatting block reason, carries neither marker nor agent id and still gets the reminder.
 
+The line breaks and blank lines in both texts are part of the wording, so every wiring delivers real newlines to the
+model. Claude Code prints plain text through `echo` with the newlines inside the single-quoted literal, which `sh`,
+Git Bash and PowerShell all print unchanged. Codex and Copilot read JSON, so they carry `\n` escapes inside
+`additionalContext`, printed by `printf '%s\n'` in a POSIX shell, because `dash` turns an `echo` argument's `\n` into a
+raw newline that breaks the JSON, and by `echo` in PowerShell, which prints a single-quoted literal as written. The
+plugin and [.agents/hooks/copilot/prompt_reminder.py](../.agents/hooks/copilot/prompt_reminder.py) hold the text as a
+string constant.
+
 The markdown lint is the only hook wired to a post-tool event, and it is also the only one gated behind a single
 format rather than run on the runner surface. `markdown_lint_check.py` returns 0 before it even reads standard input
 unless it is called with `--format claude`, returns 0 for any tool other than `Edit`, `Write`, or `MultiEdit`, and
@@ -369,15 +377,30 @@ counter whenever a stop is allowed. A payload with no session id cannot be count
 agent's own override bounds: "After 8 consecutive `block` continuations, the CLI overrides the hook and ends the turn
 anyway". Claude Code documents the same cap of 8 for its `Stop`.
 
-The Copilot CLI also reads `.claude/settings.json`, and a PascalCase `Stop` there gets the "VS Code compatible"
-payload, which the reference lists as `hook_event_name`, `session_id`, `timestamp` ("ISO 8601 timestamp"), `cwd`,
-`transcript_path`, `stop_reason` and `stop_hook_active`. Claude Code's own `Stop` carries `last_assistant_message` and
-`permission_mode` and neither `stop_reason` nor `timestamp`. The claude format stays silent only when all three
-differences agree (`stop_reason` present, `timestamp` a string, no `last_assistant_message`), because `stop_reason`
-alone is one field Claude Code could add in any release, and a payload that matches only partly is checked, which at
-worst checks a reply twice. The CLI therefore checks a reply once, from `agentStop`. Its borrowed `SubagentStop` still
-runs, because Copilot's own wiring has no `subagentStop` entry. Copilot is not installed where this was written, so
-this path is verified against the reference and the unit tests only.
+The Copilot CLI also runs the hooks in `.claude/settings.json`. The JetBrains plugin does not: its bundled agent
+hardcodes `.github/hooks/**/*.json` and rejects PascalCase event names. Measured on Copilot CLI 1.0.81 in the sandbox
+image, the CLI maps its own tool names to Claude's (`create` reaches the hook as `Write`) and hands the gate a
+Claude-shaped payload (`hook_event_name`, `session_id`, an ISO `timestamp`, `cwd`, `tool_name`, `tool_input`) that
+carries no `agent_id` for a subagent and a main thread alike. Read as Claude Code's, that absence named every caller
+the main thread, so live run 36155485254 denied the docs-architect subagent's own write under Rule A. The CLI sets
+`COPILOT_CLI=1` in the hook's environment, and the gate reads a claude-format call carrying it, and no
+`transcript_path`, as an unknown caller, the same verdict
+[.github/hooks/preflight.json](../.github/hooks/preflight.json) gets. Claude Code always sends `transcript_path` and
+the Copilot CLI does not, so a Claude Code session that inherited the variable from a Copilot shell stays identified.
+The Claude matcher is not widened to Copilot's tool names, because the CLI reads both files and the gate already runs
+twice on every mapped tool call. `SubagentStart` takes no matcher, and the reference accepts a PascalCase event name
+in its "VS Code compatible format", so the CLI may deliver the subagent text twice, once from each file. The text is
+identical, and this is not measured.
+
+A PascalCase `Stop` in `.claude/settings.json` gets the "VS Code compatible" payload, which the reference lists as
+`hook_event_name`, `session_id`, `timestamp` ("ISO 8601 timestamp"), `cwd`, `transcript_path`, `stop_reason` and
+`stop_hook_active`. Claude Code's own `Stop` carries `last_assistant_message` and `permission_mode` and neither
+`stop_reason` nor `timestamp`. The claude format stays silent only when all three differences agree (`stop_reason`
+present, `timestamp` a string, no `last_assistant_message`), because `stop_reason` alone is one field Claude Code
+could add in any release, and a payload that matches only partly is checked, which at worst checks a reply twice. The
+CLI therefore checks a reply once, from `agentStop`. Its borrowed `SubagentStop` still runs, because Copilot's own
+wiring has no `subagentStop` entry. Copilot is not installed where this was written, so this path is verified against
+the reference and the unit tests only.
 
 Claude Code and Codex run every matching hook from every configuration layer, so a user-level install from
 [GLOBAL_SETUP.md](GLOBAL_SETUP.md) and a project wiring would both block the same reply with the same reason. In the

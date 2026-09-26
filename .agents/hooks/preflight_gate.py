@@ -33,8 +33,9 @@ D. The main thread may not run a script or a module, because the gate cannot
 Every rule above denies only once the caller is positively identified as the
 main thread. A format whose payload carries nothing that could identify the
 caller (currently Copilot, and a runner envelope with no is_subagent, see
-_caller_identity) is left ungated rather than guessed at: denying blind risks blocking a legitimate subagent as often as it
-blocks the main thread, and an agent that cannot edit cannot work at all.
+_caller_identity) is left ungated rather than guessed at: denying blind risks
+blocking a legitimate subagent as often as it blocks the main thread, and an
+agent that cannot edit cannot work at all.
 
 The output shape is picked with --format:
 
@@ -107,7 +108,7 @@ SHELL_TOOLS = {"bash", "shell", "powershell", "pwsh", "terminal", "run_command"}
 
 # apply_patch carries no path key at all: Codex's own matcher in
 # .codex/config.toml names it as a distinct tool from Edit/Write, and its
-# call arguments are a patch body, not a file path (see AGENTS.md Defect 3).
+# call arguments are a patch body, not a file path.
 APPLY_PATCH_TOOLS = {"apply_patch", "applypatch"}
 
 PATH_KEYS = ("file_path", "filePath", "path", "notebook_path", "notebookPath")
@@ -116,9 +117,9 @@ COMMAND_KEYS = ("command", "cmd", "script")
 
 # Every header apply_patch's own custom diff format and a standard unified or
 # git diff use to name a file a patch adds, changes, deletes, or moves, on
-# either side of the move. The exact key Codex's payload uses to carry the
-# patch body is not confirmed (see AGENTS.md Defect 3), so every string value
-# in the tool call is searched rather than one named key.
+# either side of the move. Every string value in the tool call is searched
+# rather than one named key (docs/agent-compatibility.md "How the write rule
+# reads a command").
 _APPLY_PATCH_FILE_RE = re.compile(
     r"^\*\*\* (?:Update|Add|Delete) File: (?P<named>.+?)\s*$"
     r"|^\*\*\* Move to: (?P<moved>.+?)\s*$"
@@ -372,11 +373,7 @@ def _direct_target(tool_input: Dict[str, Any]) -> str:
 
 
 def _apply_patch_body(tool_input: Dict[str, Any]) -> str:
-    """Every top-level string value in an apply_patch call, concatenated.
-
-    The key that carries the patch text is not confirmed (see AGENTS.md
-    Defect 3), so nothing is named; every string field is searched instead.
-    """
+    """Every top-level string value in an apply_patch call, concatenated."""
     return "\n".join(value for value in tool_input.values() if isinstance(value, str))
 
 
@@ -6732,10 +6729,11 @@ def _is_write_target(target: str, powershell: bool = False) -> bool:
     exemption by extension.
 
     Rule A denies a main-thread write of any file inside this repository,
-    documentation and configuration included: see AGENTS.md "Required
-    opening move" for why the earlier per-extension exemption was removed,
-    and for why the check stops at the repository boundary and never treats
-    the null device as a write. The root task list is the one exemption.
+    documentation and configuration included, with no per-extension
+    exemption (AGENTS.md "Required opening move"). The check stops at the
+    repository boundary and never treats the null device as a write
+    (docs/agent-compatibility.md "Where the write rule draws the repository
+    boundary"). The root task list is the one exemption.
     """
     if not target:
         return False
@@ -6995,10 +6993,7 @@ def _apply_rules(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Opti
             candidates = _apply_patch_candidates(tool_input)
 
             if not candidates:
-                # No path key, and no file header the gate could read out of
-                # the patch body either: deny rather than trust an edit tool
-                # whose write target the gate cannot resolve, per AGENTS.md
-                # Defect 3.
+                # No path key and no file header in the patch body: deny.
                 return RULE_A_REASON.format(target="apply_patch (unreadable patch body)")
 
             write_targets = _sourced(candidates)

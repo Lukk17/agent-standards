@@ -495,7 +495,10 @@ that turns its own task away, so a subagent is told to do the work itself instea
 one of them. Each command needs its `commandWindows` sibling, because Codex picks one of the two per platform and a
 command with no sibling is simply absent on the other. Codex runs `commandWindows` in PowerShell, `pwsh` when it is
 installed and Windows PowerShell otherwise, and Windows PowerShell has no `||`, which is why the Windows lines end in
-`; exit 0` and send errors to `$null` rather than `nul`.
+`; exit 0` and send errors to `$null` rather than `nul`. Codex 0.156.1 tries `pwsh`, then `powershell.exe`, then
+`cmd`, and runs a PowerShell with `-NoProfile -Command` and `cmd` with `/c` (`get_powershell_shell` in
+`codex-rs/shell-command/src/shell_detect.rs` and `derive_exec_args` in `codex-rs/core/src/shell.rs`, tag
+`rust-v0.156.1` of [openai/codex](https://github.com/openai/codex)).
 
 Codex tracks every hook by a hash of its definition: "new or changed hooks are marked for review and skipped until
 trusted" ([hooks docs](https://learn.chatgpt.com/docs/hooks)). After you paste or refresh these entries, open an
@@ -986,9 +989,9 @@ How a project entry is matched:
 
 The built-in list lives in `MAIN_THREAD_ALLOWLIST` near the top of `.agents/hooks/preflight_gate.py`. Do not edit it
 in a project, because the next update overwrites that file. Add your own entries to `main-thread-allowlist.txt` at the
-project root instead, one per line, in the form described above. Blank lines and lines starting with `#` are
-skipped. The file
-sits at the root rather than under `.agents/`, so importing or updating `.agents` never overwrites it. For example:
+project root instead, one per line, in the form described above. Blank lines and lines starting with `#` are skipped.
+The file sits at the root rather than under `.agents/`, so importing or updating `.agents` never overwrites it. For
+example:
 
 ```text
 # read-only checks this project allows its main thread
