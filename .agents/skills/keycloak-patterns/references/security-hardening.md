@@ -45,7 +45,7 @@ Realm Settings → Security Defenses → Brute Force Detection:
 ### Token Security
 
 - Access token lifespan: 5-15 minutes
-- Refresh token: 30 min: 1 hour idle
+- Refresh token idle lifetime: 30 minutes to 1 hour
 - Enable refresh token rotation
 - Revoke refresh tokens on logout
 - Validate: signature, issuer (`iss`), audience (`aud`), expiration (`exp`), not-before (`nbf`)

@@ -39,7 +39,7 @@ that pairing and are easy to get wrong:
 - Spring Security resource-server configuration. Use `springboot-patterns`.
 - Verifying a JWT inside a Node service. Use `node-backend-patterns`.
 - The HTTP contract and error bodies the protected endpoints expose. Use `api-design`.
-- Threat modelling the wider application. Use `security-review`.
+- Threat modelling the wider application. Use the `security-auditor` agent.
 - Running the Keycloak container inside a local stack. Use `docker-patterns`.
 - Pinning the package versions across a multi-project solution. Use `build-dependency-management`.
 
@@ -124,7 +124,7 @@ Each entry below carries its own reference map, so open the entry for your side 
 
 - `springboot-patterns` and `node-backend-patterns` for validating Keycloak tokens outside .NET.
 - `api-design` for the status codes and problem bodies an authorization failure should return.
-- `security-review` for threat modelling around the identity boundary.
+- The `security-auditor` agent for threat modelling around the identity boundary.
 - `docker-patterns` for running the Keycloak container safely in a local stack.
 - `build-dependency-management` for pinning the image tag and the package versions.
 - `observability-and-logging` for what the OpenTelemetry instrumentation should feed into.
@@ -136,7 +136,8 @@ Each entry below carries its own reference map, so open the entry for your side 
 - [ ] The container image is pinned to a major version, and the server runs `start --optimized` against PostgreSQL.
 - [ ] Bootstrap admin credentials are replaced by a real admin account and removed.
 - [ ] Applications run against their own realm, never master, and every client has exact redirect URIs.
-- [ ] Public clients require PKCE, and MFA is enforced for administrative accounts through a copied flow.
+- [ ] Every client, confidential or public, requires PKCE, and MFA is enforced for administrative accounts through a
+      copied flow.
 - [ ] Roles reach users through groups, and policies name realm or client roles rather than raw claims.
 - [ ] `KC_HOSTNAME` and TLS are configured so the issuer matches the public URL.
 - [ ] `verify-token-audience` is on and `ssl-required` is `external` or `all` outside local development.

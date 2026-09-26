@@ -17,14 +17,22 @@ file as FastAPI-specific.
 ### Map domain errors to responses at the boundary
 
 Business logic raises domain exceptions and knows nothing about HTTP. One exception handler per domain error turns it
-into a response, so status codes live in exactly one layer.
+into a response, so status codes live in exactly one layer. The body is `application/problem+json` in the RFC 7807
+shape that `api-design` owns.
 
 Pass:
 
 ```python
 @app.exception_handler(NotFoundError)
 async def handle_not_found(request: Request, exc: NotFoundError) -> JSONResponse:
-    return JSONResponse(status_code=404, content={"detail": str(exc)})
+    problem = {
+        "type": "https://example.com/errors/not-found",
+        "title": "Not Found",
+        "status": 404,
+        "detail": str(exc),
+        "instance": request.url.path,
+    }
+    return JSONResponse(status_code=404, content=problem, media_type="application/problem+json")
 
 async def load_user(user_id: str) -> User:
     try:

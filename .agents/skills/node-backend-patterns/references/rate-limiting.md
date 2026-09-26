@@ -2,8 +2,9 @@
 
 Read this when adding a limiter to an Express or Next.js route, or when a limiter behaves differently across instances.
 
-The header names, the tier table, and the 429 body shape are owned by `api-design`. This file covers only the Node
-implementation of that contract.
+The header names, the tier table, and the 429 body shape are owned by `api-design`. The policy of what to key on and
+where to count is owned by the "Rate limiting" section of `security-review`. This file covers only the Node
+implementation of both.
 
 ---
 
@@ -32,12 +33,13 @@ Fail: `const requests = new Map<string, number[]>()` in a module scope, deployed
 
 ### Choose the subject before the algorithm
 
-Key on the authenticated user or API key whenever the request carries one, and fall back to the client IP only for
-anonymous traffic. Keying everything on IP punishes users behind a shared NAT and lets one account with many addresses
-bypass the limit entirely.
+Which subject to key on is the policy in the "Rate limiting" section of `security-review`. In Node that subject becomes
+the `subject` part of the Redis key, so one user or one anonymous client address maps to `rl:<subject>:<window>` and
+every instance increments the same counter.
 
-Behind a proxy, trust only the hop you control. Set `app.set('trust proxy', 1)` in Express for exactly one trusted
-proxy, rather than reading the leftmost `X-Forwarded-For` value, which the client can forge.
+When the subject is the client address, behind a proxy trust only the hop you control. Set
+`app.set('trust proxy', 1)` in Express for exactly one trusted proxy, rather than reading the leftmost
+`X-Forwarded-For` value, which the client can forge.
 
 ---
 
@@ -67,17 +69,19 @@ async function slidingHit(redis: RedisClient, subject: string, windowMs: number,
 
 A client cannot back off from a limit it cannot see. Set `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and
 `X-RateLimit-Reset` on every rate-limited response, and add `Retry-After` plus an RFC 7807 body on the 429.
+`X-RateLimit-Reset` is the window end as a UTC epoch in seconds, while `Retry-After` is the seconds left.
 
 ```typescript
 export async function GET(request: Request) {
   const subject = await subjectFor(request)
   const { allowed, remaining, resetMs } = await hit(redis, subject, 60_000, 100)
   const resetSeconds = Math.ceil(resetMs / 1000)
+  const resetEpochSeconds = Math.ceil(Date.now() / 1000) + resetSeconds
 
   const headers = {
     'X-RateLimit-Limit': '100',
     'X-RateLimit-Remaining': String(remaining),
-    'X-RateLimit-Reset': String(resetSeconds),
+    'X-RateLimit-Reset': String(resetEpochSeconds),
   }
 
   if (!allowed) {

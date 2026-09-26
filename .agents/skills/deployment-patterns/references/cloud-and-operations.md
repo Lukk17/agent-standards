@@ -77,7 +77,8 @@ Application:
 - [ ] No hardcoded secret in code or config.
 - [ ] Error handling covers the edge cases, not only the happy path.
 - [ ] Logging is structured and contains no personal data.
-- [ ] The health endpoint reports something meaningful, not a constant 200.
+- [ ] The readiness endpoint, `/ready`, checks real dependencies rather than returning a constant 200, and `/health`
+  stays a dependency-free liveness check.
 
 Infrastructure:
 

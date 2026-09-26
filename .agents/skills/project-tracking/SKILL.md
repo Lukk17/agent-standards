@@ -24,7 +24,7 @@ leaves the tool free to provide it however it does.
 - Before editing, splitting, re-typing or re-parenting an existing item
 - Before closing or cancelling an item
 - Before triaging the backlog, proposing a re-organisation, or running a bulk edit
-- Before writing a branch name, a commit message or a merge-request title that has to link back to a work item
+- Checking that a branch, commit or merge-request title carries the item id
 - When a dependency, a duplicate or a parent relationship needs recording
 - Before proposing a change to a board, a workflow, a status set or a cadence
 
@@ -321,7 +321,7 @@ Branch naming, commit message format and merge strategy are not this skill's sub
    and the scope boundary either way.
 6. Acceptance criteria are testable and independent, in the project's one chosen form.
 7. The item is small enough to finish in a normal cycle and to verify on its own, or it is an epic with children.
-8. At least one area label, and at most one kind label, both from the documented lists.
+8. At least one area label, and at most one nature-of-work label, both from the documented lists.
 9. The parent epic is an outcome, or the item is deliberately standalone.
 10. Every dependency mentioned in the text also exists as a link.
 

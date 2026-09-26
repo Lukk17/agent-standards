@@ -44,7 +44,7 @@ git rebase main
 Use when:
 - Updating your local feature branch with latest `main`
 - You want a linear, clean history
-- The branch is local-only (not pushed)
+- No one else has pulled the branch
 - You're the only one working on the branch
 
 #### Rebase Workflow
@@ -279,7 +279,7 @@ fi
 | Rebase branch | `git rebase main` |
 | View history | `git log --oneline --graph` |
 | View changes | `git diff` |
-| Stage changes | `git add -p` or explicit paths (`git add .` only after verifying every file) |
+| Stage changes | `git add -p` or explicit paths |
 | Commit | `git commit -m "message"` |
 | Push | `git push origin branch-name` |
 | Pull | `git pull origin branch-name` |

@@ -23,7 +23,7 @@ Baseline version, current as of September 2026: Keycloak 26.
 - Verifying a JWT inside a Node service: use `node-backend-patterns`.
 - Spring Security resource-server configuration: use `springboot-patterns`.
 - Designing the API contract the tokens protect: use `api-design`.
-- Threat modelling the wider application: use `security-review`.
+- Threat modelling the wider application: use the `security-auditor` agent.
 
 ---
 
@@ -39,7 +39,7 @@ Baseline version, current as of September 2026: Keycloak 26.
 | Password policy, brute force, TLS, audit, production checklist | [security-hardening.md](security-hardening.md) |
 | Clustering, database tuning, caching, monitoring, backup | [ha-scalability.md](ha-scalability.md) |
 | Login failures, token issues, LDAP sync, session problems | [administration-troubleshooting.md](administration-troubleshooting.md) |
-| .NET, Spring Boot, and Node.js integration examples | [integration-examples.md](integration-examples.md) |
+| .NET integration examples and token validation on any platform | [integration-examples.md](integration-examples.md) |
 
 ---
 
@@ -133,7 +133,7 @@ Editing the built-in flow in place leaves no clean way back when the change lock
 3. Map the attributes you need, including the ones roles depend on.
 4. Test the connection, then run a sync, then check a real user before enabling it broadly.
 
-Choose the edit mode deliberately. `READ_ONLY` keeps the directory authoritative, `WRITEABLE` lets Keycloak write back,
+Choose the edit mode deliberately. `READ_ONLY` keeps the directory authoritative, `WRITABLE` lets Keycloak write back,
 and picking the wrong one is discovered when a password reset fails.
 
 ---
@@ -196,7 +196,7 @@ An export contains client secrets. Treat the directory as a secret, not as a con
 - [dotnet-auth-services.md](dotnet-auth-services.md) for the .NET client library that consumes this server.
 - `springboot-patterns` and `node-backend-patterns` for validating the tokens Keycloak issues.
 - `api-design` for the status codes and error bodies an authorization failure should produce.
-- `security-review` for threat modelling around the identity boundary.
+- The `security-auditor` agent for threat modelling around the identity boundary.
 - `docker-patterns` for running the container safely in a local stack.
 
 ---
@@ -207,7 +207,7 @@ An export contains client secrets. Treat the directory as a secret, not as a con
 - [ ] Bootstrap admin credentials are replaced by a real admin account and removed.
 - [ ] Applications run against their own realm, not master.
 - [ ] Every client has exact redirect URIs and no wildcard.
-- [ ] Public clients require PKCE.
+- [ ] Every client, confidential or public, requires PKCE.
 - [ ] MFA is enforced for administrative accounts.
 - [ ] Brute-force protection and event logging are enabled and exported.
 - [ ] `KC_HOSTNAME` and TLS are configured so the issuer matches the public URL.

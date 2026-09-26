@@ -1,6 +1,6 @@
 ---
 name: performance-optimization
-description: Measure-first performance work for application code and data access, covering profiling, N+1 queries, fetch and index discipline, caching with an invalidation rule, streaming, and concurrent IO. Use when you say "this endpoint is slow", "the page takes four seconds to load", "profile this before I change anything", "did my change regress latency", or "this query runs inside a loop". Not for schema and index design on Postgres itself, use `postgres-patterns`.
+description: Measure-first performance work for application code and data access, covering profiling, N+1 queries, fetch and index discipline, caching with an invalidation rule, streaming, and concurrent IO. Use when you say "this endpoint is slow", "the page takes four seconds to load", "profile this before I change anything", "did my change regress latency", or "this query runs inside a loop". Not for schema and index design on Postgres itself, use `postgres-patterns`, and not for Core Web Vitals in a Next.js app, use `nextjs-app-router-patterns`.
 ---
 
 # Performance Optimization
@@ -26,7 +26,8 @@ cross-cutting principles hub is the `coding-standards` skill and this skill is t
 - Writing the tests that prove the fix holds. Use `tdd-workflow`, or the language skill (`python-patterns`,
   `golang-patterns`, `springboot-patterns`).
 - Reducing container image size or build time. Use `docker-patterns`.
-- Frontend rendering and bundle weight in a specific framework. Use `nextjs-app-router-patterns` or `angular`.
+- Frontend rendering, bundle weight, and Core Web Vitals in a specific framework. Use `nextjs-app-router-patterns`
+  or `angular`.
 - A general code review that happens to mention speed. Use `code-reviewer` and pull this skill in for the performance
   findings only.
 
@@ -95,10 +96,10 @@ Fail: unbounded and over-wide.
 SELECT * FROM events WHERE tenant_id = $1 ORDER BY created_at DESC;
 ```
 
-Pass: narrow, bounded, and backed by an index on `(tenant_id, created_at DESC)`.
+Pass: narrow, bounded, paged by cursor, and backed by an index on `(tenant_id, created_at DESC, id DESC)`.
 
 ```sql
-SELECT id, kind, created_at FROM events WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 50 OFFSET $2;
+SELECT id, kind, created_at FROM events WHERE tenant_id = $1 AND (created_at, id) < ($2, $3) ORDER BY created_at DESC, id DESC LIMIT 50;
 ```
 
 ---

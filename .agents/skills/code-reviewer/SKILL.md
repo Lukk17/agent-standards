@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: Structured review of local changes or a remote pull request across correctness, maintainability, doc comments, efficiency, security, error handling and test coverage, with every finding led by a path:line reference. Use when you say "review my changes", "review PR #123", "look over this diff before I merge", "is this branch ready to merge", or "review what I have staged". Not for hunting duplicated or reinvented code specifically, use `review-duplication`.
+description: 'Structured review of local changes or a remote pull request across correctness, maintainability, doc comments, efficiency, security, error handling and test coverage, with every finding led by a path:line reference. Use when you say "review my changes", "review PR #123", "look over this diff before I merge", "is this branch ready to merge", or "review what I have staged". Not for hunting duplicated or reinvented code specifically, use `review-duplication`.'
 ---
 
 # Code Reviewer
@@ -25,8 +25,8 @@ for security, and lead every finding with a `path:line` reference.
 - Writing the fix rather than reporting it. Hand the findings to the implementing skill or agent, or to the `debugger`
   agent for a root-cause failure.
 - A dedicated hunt for duplicated logic or a reinvented utility. Use `review-duplication`.
-- A deep security assessment or threat model rather than a review pass. Use `security-review`, and escalate to the
-  `security-auditor` agent.
+- A deep security assessment or threat model rather than a review pass. Use the `security-auditor` agent, and keep
+  `security-review` for the security checklist pass.
 - Profiling and optimising a slow path. Use `performance-optimization`.
 - Reviewing prose, a README, or docs. Use `markdown-writer`.
 
@@ -101,6 +101,7 @@ Work through each pillar and cite `path:line` for every finding.
   so a `@param` that wraps onto a second line is itself a finding: shorten it or delete it.
 - Efficiency. Any query in a loop, unbounded fetch, or sequential await of independent calls introduced here?
 - Security. Any injection, missing authorisation check, leaked secret, or unvalidated input?
+- Styling. When the change touches styling, check it against the styling-drift criteria in `design-system`.
 - Edge cases and error handling. Null, empty, boundary, concurrent, and failure paths.
 - Testability. Is the new behaviour actually covered, and which cases are missing?
 
@@ -150,6 +151,7 @@ For a remote pull request, ask the user at the end whether to switch back to the
 - `security-review` supplies the security checklist behind the security pillar.
 - `performance-optimization` supplies the detail behind the efficiency pillar.
 - `tdd-workflow` supplies the coverage bar behind the testability pillar.
+- `design-system` supplies the styling-drift criteria when a change touches styling.
 - `git-workflow` covers branch, commit and merge hygiene when the review turns up problems there.
 
 ---

@@ -5,7 +5,7 @@ named tracker and need to know which feature carries which rule there.
 
 Nothing here changes a rule. The rules live in the skill and hold whatever tool is in use. This file records how
 seven trackers express them, so a reader on any of those tools can act without translating first. A tracker not
-listed here is covered by the four porting questions at the end of the skill.
+listed here is covered by the five porting questions at the end of the skill.
 
 ---
 

@@ -1,13 +1,13 @@
 ---
 name: code-formatter
-description: 'Visual formatting and reading flow inside function bodies across Dart, Java, Python, Kotlin, TypeScript and Go: braced control-flow exits, blank lines marking phase transitions, comments above the line they describe, doc comments earning their place, one chain step per line. Use when you say "format this function", "why is this hard to read", "clean up the spacing here", or "break this method chain up". Not for naming and error handling, use `coding-standards`.'
+description: 'Visual formatting and reading flow inside function bodies across Dart, Java and Python: braced control-flow exits, blank lines marking phase transitions, comments above the line they describe, doc comments sitting on their declaration, one chain step per line. Use when you say "format this function", "why is this hard to read", "clean up the spacing here", or "break this method chain up". Not for naming, error handling, or whether a comment or doc comment should exist at all, use `coding-standards`.'
 ---
 
 # Code Formatter
 
 Formatting rules that optimise for one thing: the next reader locating a function's control-flow exits and its async
-phase transitions in a single scan. They deliberately diverge from what gofmt, dart format, black and
-google-java-style produce in specific places, which each rule names.
+phase transitions in a single scan. They deliberately diverge from what dart format, black and google-java-style
+produce in specific places, which each rule names.
 
 | Task | Open |
 |---|---|
@@ -17,16 +17,16 @@ google-java-style produce in specific places, which each rule names.
 
 ### When to activate
 
-- Writing a new source file in Dart, Java, Python, Kotlin, TypeScript or Go
+- Writing a new source file in Dart, Java or Python
 - Editing a file already written in this style
 - Reviewing a branch or pull request and flagging readability problems
-- Deciding whether a comment or a doc comment should exist at all
 
 ---
 
 ### When not to activate
 
 - Naming, SOLID, immutability, error handling and architecture, use `coding-standards`
+- Deciding whether a comment or a doc comment should exist and what it says, use `coding-standards`
 - Language-specific idiom and typing in Java, use `java-coding-standards`
 - Language-specific idiom and typing in Python, use `python-patterns`
 - Language-specific idiom in Go, use `golang-patterns`
@@ -49,7 +49,7 @@ Each rule below has its full body, its reasoning, and its wrong-and-right forms 
 | Blank line below a return inside a try with clauses | The blank line marks the seam between the happy path and the failure or cleanup clauses |
 | Empty line above an operation-terminating call | A call that ends a phase, such as a dismiss, a send, a publish or a navigation, separates from the arithmetic that set it up |
 | Comments above the line, never trailing | A trailing comment gets truncated by line length and forces horizontal scrolling |
-| Doc comments earn their place | Default to none. Extract and rename first. When one survives, prose is capped at five lines and every tag line at one |
+| Doc comments sit on their declaration | No blank line between the block and what it documents, and no tag hard-wrapped to fit a width. Whether one exists is `coding-standards` |
 | One concept per blank-separated paragraph | Related lines stay together with no blank between them, a topic change gets exactly one. Two blanks means extract a method |
 | One chain step per line | Break before each `.` in a fluent or functional pipeline, so a step can be added, removed or diffed on its own |
 | Single-expression bodies stay on one line | The blank-line rules govern blocks. Do not expand an arrow function or a one-line definition to satisfy them |
@@ -122,7 +122,7 @@ local arithmetic around them.
 - [ ] No control-flow exit shares a line with its condition
 - [ ] Blank lines mark the try, the async hand-off and the terminating call as distinct beats
 - [ ] Every comment sits above the line it describes
-- [ ] Every doc comment that survived is justified, five prose lines or fewer, one line per tag
+- [ ] Every doc comment sits directly on its declaration, with no tag wrapped onto a second line
 - [ ] No two consecutive blank lines inside a function body
 - [ ] Fluent chains break before each dot
 - [ ] Single-expression bodies were left on one line

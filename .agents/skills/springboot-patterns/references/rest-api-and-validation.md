@@ -10,7 +10,7 @@ response shape needs to be settled.
 
 ```java
 @RestController
-@RequestMapping("/api/markets")
+@RequestMapping("/api/v1/markets")
 @Validated
 class MarketController {
   private final MarketService marketService;
@@ -154,13 +154,13 @@ controllers.
 ```java
 @Tag(name = "Users", description = "User management")
 @RestController
-public class UserController {
+class UserController {
 
     @Operation(summary = "Get user by ID")
     @ApiResponse(responseCode = "200", description = "User found")
     @ApiResponse(responseCode = "404", description = "User not found")
     @GetMapping("/api/v1/users/{id}")
-    public UserDto getUser(@PathVariable Long id) { ... }
+    UserDto getUser(@PathVariable Long id) { ... }
 }
 ```
 

@@ -311,7 +311,7 @@ Both are in [benchmarks.md](benchmarks.md), including `b.Loop`, sub-benchmarks b
 - Helpers call `t.Helper`, and teardown goes through `t.Cleanup` rather than `defer` in a helper.
 - Filesystem state uses `t.TempDir` and `t.Chdir`, and contexts come from `t.Context`.
 - Dependencies are hand-written fakes satisfying an interface declared at the consumer.
-- No `time.Sleep` anywhere: time-dependent code runs under `testing/synctest`.
+- No `time.Sleep` outside a `testing/synctest` bubble: time-dependent code runs under `testing/synctest`.
 - Tests live in the `_test` package and exercise the exported API.
 - `t.Parallel` is only on subtests that share no mutable state.
 - Coverage of real logic is around 90 percent, with exclusions only for generated code.

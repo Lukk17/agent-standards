@@ -40,11 +40,21 @@ if (user) {
 }
 
 // PASS: GOOD: Early returns
-if (!user) return
-if (!user.isAdmin) return
-if (!market) return
-if (!market.isActive) return
-if (!hasPermission) return
+if (!user) {
+  return
+}
+if (!user.isAdmin) {
+  return
+}
+if (!market) {
+  return
+}
+if (!market.isActive) {
+  return
+}
+if (!hasPermission) {
+  return
+}
 
 // Do something
 ```

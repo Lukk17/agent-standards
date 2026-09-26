@@ -124,7 +124,8 @@ record of it. Retain for at least 12 months, and never expose raw audit logs to 
 ### Encryption at rest
 
 - Field-level symmetric encryption: AES-256-GCM.
-- Key wrapping: RSA-4096 or ECDSA P-384.
+- Key wrapping: AES-256 Key Wrap (`A256KW`) under a KMS key, RSA-OAEP-256 with a 4096-bit key, or ECDH-ES+A256KW on
+  P-384. ECDSA is a signature algorithm and cannot wrap a key.
 - Manage keys in a KMS or HSM. A master key never lives in application config.
 - Rotate encryption keys annually, and immediately on suspected compromise.
 

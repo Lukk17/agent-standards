@@ -23,7 +23,8 @@ not "make it work" but "make it look designed", on landing pages, dashboards, ap
 
 ### When not to activate
 
-- Token architecture, theming, and stylesheet structure. Use `design-system`.
+- Token architecture, theming, and stylesheet structure, and token-level slop such as raw hex values or off-scale
+  spacing. Use `design-system`.
 - Contrast ratios, focus indicators, target sizes, and reduced motion. Use `web-accessibility`.
 - React component structure, hooks, and state. Use `react-patterns`.
 - Next.js rendering, routing, and data. Use `nextjs-app-router-patterns`.
@@ -266,8 +267,9 @@ it.
 
 ### Related skills
 
-- `design-system` owns tokens, theming, dark mode, spacing scales, and styling architecture. Take the values from
-  there, and add new ones there rather than inline.
+- `design-system` owns tokens, theming, dark mode, spacing scales, and styling architecture, and its slop check finds
+  token-level drift. This skill owns the judgement of whether a UI looks generic. Take the values from there, and add
+  new ones there rather than inline.
 - `web-accessibility` owns contrast ratios, focus indicators, target sizes, reduced motion, and form error wiring.
   A direction that fails those is not finished.
 - `react-patterns` for React component structure and animation implementation.

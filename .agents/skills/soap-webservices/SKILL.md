@@ -170,20 +170,24 @@ spf.setFeature("http://xml.org/sax/features/external-parameter-entities", false)
 
 ### WS-Security
 
-- Use WS-Security (WSS4J / Spring-WS `Wss4jSecurityInterceptor`) when the integration partner requires message-level
-  security beyond transport TLS.
+- The client is the CXF-generated JAX-WS port, so every interceptor below is a CXF one attached to that port through
+  `ClientProxy.getClient(port)`. Spring-WS interceptors such as `Wss4jSecurityInterceptor` plug into a
+  `WebServiceTemplate`, not a JAX-WS port, and do not apply here.
+- Use WS-Security through CXF's `WSS4JOutInterceptor` when the integration partner requires message-level security
+  beyond transport TLS.
 - For username/password authentication, use `UsernameToken` with PasswordDigest mode. Never transmit passwords in
   plaintext in the SOAP header.
 - For high-security integrations, use X.509 certificate signing and encryption of the SOAP body. Store private keys in a
   KMS or Java KeyStore (`PKCS12`). Never store private keys in plaintext files.
-- Configure `Wss4jSecurityInterceptor` example:
+- Configure `WSS4JOutInterceptor` example, with the password supplied by a callback that reads it from the vault:
 
 ```java
-Wss4jSecurityInterceptor interceptor = new Wss4jSecurityInterceptor();
-interceptor.setSecurementActions("UsernameToken");
-interceptor.setSecurementUsername("serviceUser");
-interceptor.setSecurementPassword(passwordFromVault);
-interceptor.setSecurementPasswordType(WSConstants.PW_DIGEST);
+Map<String, Object> props = Map.of(
+    ConfigurationConstants.ACTION, ConfigurationConstants.USERNAME_TOKEN,
+    ConfigurationConstants.USER, "serviceUser",
+    ConfigurationConstants.PASSWORD_TYPE, WSConstants.PW_DIGEST,
+    ConfigurationConstants.PW_CALLBACK_REF, vaultPasswordCallback);
+ClientProxy.getClient(port).getOutInterceptors().add(new WSS4JOutInterceptor(props));
 ```
 
 ---
@@ -196,15 +200,16 @@ interceptor.setSecurementPasswordType(WSConstants.PW_DIGEST);
   element. Use `ERROR` level only for unexpected system faults.
 - Distinguish two categories of faults in integration documentation:
   - Business faults: invalid invoice number, unknown customer ID, insufficient balance. Non-retryable.
-  - System faults: service unavailable, timeout, internal server error. Retryable with backoff.
+  - System faults: an internal server error reported as a SOAP fault. Non-retryable, because the server received the
+    request and may have acted on it.
 - Translate all faults to a standardised error envelope before returning to the caller.
 
 ---
 
 ### Message Logging with PII Redaction
 
-- Log all outbound SOAP requests and inbound responses at `DEBUG` level using a Spring-WS `PayloadLoggingInterceptor` or
-  a custom `ClientInterceptor`.
+- Log all outbound SOAP requests and inbound responses at `DEBUG` level using CXF's `LoggingFeature` on the client
+  port, and name the elements to mask with `setSensitiveElementNames` and `setSensitiveProtocolHeaderNames`.
 - Before writing to logs, redact:
   - Authentication credentials in WS-Security headers
   - PII fields (names, addresses, tax IDs, NINs)
@@ -217,16 +222,21 @@ interceptor.setSecurementPasswordType(WSConstants.PW_DIGEST);
 ### Resilience4j, Retry and Circuit Breaker
 
 - Wrap all outbound SOAP client calls with a Resilience4j circuit breaker and retry policy.
-- Configure exponential backoff with jitter on retry. Maximum of 3 retries for transient faults.
-- Retryable conditions: HTTP 5xx responses, `SOAPFaultException` with a system fault code, connection timeouts.
-- Non-retryable conditions: business fault codes (invalid input, authorisation failure).
+- The retry policy itself (deadline per attempt, attempt budget, backoff with jitter, retryable statuses) is owned by
+  `backend-patterns`. This section applies it to SOAP.
+- At most 3 attempts, meaning one call and two retries, with exponential backoff and jitter. Resilience4j counts the
+  initial call as the first attempt.
+- Retryable conditions: transient transport failures only, meaning HTTP 502, 503 and 504 and connection or read
+  timeouts. The client boundary maps each of them to a typed `SoapTransportException`.
+- Non-retryable conditions: every SOAP fault, business or system. SOAP 1.1 returns every fault as HTTP 500, so an
+  HTTP 500 is classified by its fault code and never retried on its status code.
 
 ```java
 RetryConfig retryConfig = RetryConfig.custom()
     .maxAttempts(3)
     .waitDuration(Duration.ofMillis(500))
     .intervalFunction(IntervalFunction.ofExponentialRandomBackoff(500, 2.0, 0.5))
-    .retryOnException(e -> e instanceof SoapSystemFaultException)
+    .retryOnException(e -> e instanceof SoapTransportException)
     .build();
 ```
 
@@ -291,7 +301,8 @@ MyService port = service.getMyServicePort(mtomFeature);
 - [ ] TLS is enforced, with explicit connect and read timeouts on the HTTP client.
 - [ ] The `Service` object is a singleton, and the transport uses a connection pool.
 - [ ] WS-Security passwords use digest mode, and private keys live in a keystore or KMS.
-- [ ] Faults are split into business and system categories, and only system faults are retried.
+- [ ] Faults are split into business and system categories, no SOAP fault is retried, and only transport failures
+      (502, 503, 504, timeouts) are.
 - [ ] Message logging redacts credentials, personal data, and financial identifiers.
 - [ ] Tests stub the endpoint with WireMock and cover a business fault, a system fault, a timeout, and a malformed
       response.

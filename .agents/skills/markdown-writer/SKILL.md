@@ -211,8 +211,9 @@ Fail:
 
 ### Keep the badge row tight
 
-Use shields.io as the only badge source, and limit the row to build status, license, primary language version and
-last commit. Drop vanity badges: star counts under a few hundred, download counts, made-with hearts. Badge the top
+Use shields.io as the only badge source, and limit the row to build status, license, primary language version, last
+commit, and a badge for each count that moves with project content, because that count lives in a badge and nowhere
+else. Drop vanity badges: star counts under a few hundred, download counts, made-with hearts. Badge the top
 repository only in a monorepo, never each module.
 
 Pass:

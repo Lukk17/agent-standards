@@ -24,8 +24,9 @@ set -euo pipefail
 IFS=$'\n\t'
 
 # --- Constants ---------------------------------------------------------------
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly SCRIPT_NAME="$(basename "$0")"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_NAME="$(basename "$0")"
+readonly SCRIPT_DIR SCRIPT_NAME
 
 # --- Logging -----------------------------------------------------------------
 log_info()  { echo "[INFO]  $(date -u '+%Y-%m-%dT%H:%M:%SZ') $*" >&2; }
@@ -41,8 +42,8 @@ trap cleanup EXIT
 
 # --- Argument Parsing --------------------------------------------------------
 usage() {
-  grep '^#' "$0" | sed 's/^# \?//'
-  exit 0
+  sed -n '3,/^# --*$/{/^# --*$/d;s/^# //;p;}' "$0"
+  exit "${1:-0}"
 }
 
 main() {
@@ -56,11 +57,18 @@ main "$@"
 
 ### Why the pieces are there
 
-The header comment block is the single source of truth for the usage text: `usage` prints the block back with the
-comment markers stripped, so the documentation and the help output cannot drift apart.
+The header comment block is the single source of truth for the usage text: `usage` prints the lines between the two
+dashed rules with the comment markers stripped, and nothing else from the file, so the documentation and the help
+output cannot drift apart.
 
-`readonly SCRIPT_DIR` resolves the script's own directory even when the script is invoked through a symlink or from
-another working directory, which is what makes sibling-file lookups reliable.
+`usage` and `cleanup` are the two functions allowed to call `exit`. `usage` ends the run with the code it is given:
+`usage` alone exits 0 after `--help`, and `usage 2 >&2` prints to stderr and exits 2 on a bad argument. `cleanup`
+runs as the `EXIT` trap, where it re-raises the status it captured.
+
+`SCRIPT_DIR` is assigned first and marked `readonly` on its own line, because `readonly VAR="$(...)"` hides the exit
+status of the command substitution and ShellCheck reports it as SC2155. It resolves the script's own directory even
+when the script is invoked through a symlink or from another working directory, which is what makes sibling-file
+lookups reliable.
 
 Logging helpers write to stderr so a caller can pipe the script's real output without the diagnostics mixing in.
 

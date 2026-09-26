@@ -14,7 +14,7 @@ class CachedMarketRepository implements MarketRepository {
   constructor(private readonly inner: MarketRepository, private readonly redis: RedisClient) {}
 
   async findById(id: string): Promise<Market | null> {
-    const key = `market:${id}`
+    const key = `market:v1:${id}`
     const cached = await this.redis.get(key)
     if (cached) return JSON.parse(cached) as Market
 
@@ -25,7 +25,7 @@ class CachedMarketRepository implements MarketRepository {
 
   async update(id: string, data: UpdateMarketDto): Promise<Market> {
     const market = await this.inner.update(id, data)
-    await this.redis.del(`market:${id}`)
+    await this.redis.del(`market:v1:${id}`)
     return market
   }
 }

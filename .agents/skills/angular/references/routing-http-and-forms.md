@@ -7,8 +7,8 @@ form in all three.
 
 ### Write guards and resolvers as functions
 
-A functional guard is a plain function that returns a decision. It composes, it tests without TestBed, and it uses
-`inject()` for whatever it needs.
+A functional guard is a plain function that returns a decision. It composes, it tests with no component fixture,
+only an injection context, and it uses `inject()` for whatever it needs.
 
 ```typescript
 // PASS: a function, injectable, easy to unit test

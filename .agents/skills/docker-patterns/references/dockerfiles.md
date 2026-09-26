@@ -11,25 +11,25 @@ declares a `HEALTHCHECK`.
 ### Node.js, development and production from one file
 
 ```dockerfile
-FROM node:24-alpine AS deps
+FROM node:24.11-alpine3.23 AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-FROM node:24-alpine AS dev
+FROM node:24.11-alpine3.23 AS dev
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 EXPOSE 3000
 CMD ["npm", "run", "dev"]
 
-FROM node:24-alpine AS build
+FROM node:24.11-alpine3.23 AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build && npm prune --production
 
-FROM node:24-alpine AS production
+FROM node:24.11-alpine3.23 AS production
 WORKDIR /app
 RUN addgroup -g 1001 -S appgroup && adduser -S appuser -u 1001
 USER appuser

@@ -24,7 +24,7 @@ Baseline versions, current as of September 2026: Keycloak.AuthServices 2.x again
 - Token verification in a Node service: use `node-backend-patterns`.
 - Spring Security resource-server configuration: use `springboot-patterns`.
 - The HTTP contract the protected endpoints expose: use `api-design`.
-- Threat modelling around authentication: use `security-review`.
+- Threat modelling around authentication: use the `security-auditor` agent.
 
 ---
 
@@ -100,13 +100,19 @@ Bind it from the `Keycloak` section of `appsettings.json`. The kebab-case keys c
     "auth-server-url": "http://localhost:8080/",
     "ssl-required": "none",
     "resource": "test-client",
-    "verify-token-audience": true,
-    "credentials": {
-      "secret": "your-client-secret"
-    }
+    "verify-token-audience": true
   }
 }
 ```
+
+The client secret stays out of the committed file. In development keep it in user secrets:
+
+```bash
+dotnet user-secrets set "Keycloak:credentials:secret" "<client-secret>"
+```
+
+In a deployed environment set the `Keycloak__credentials__secret` environment variable from the platform's secret
+store. Both bind into the same `Keycloak` section.
 
 ---
 

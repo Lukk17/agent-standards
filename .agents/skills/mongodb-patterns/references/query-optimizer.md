@@ -177,7 +177,8 @@ Conditionally load these files:
 - Do not use strong language, such as saying “You should create these indexes and they will definitely improve
   application performance” \- Explain they are suggestions for certain queries, and give the reasoning behind them.
 - Consider how many indexes already exist on the collection (if known) \- there shouldn’t generally be more than 20
-- Suggest removing indexes only if the suggestion comes from Atlas Performance Advisor
+- Suggest removing an index only when Atlas Performance Advisor flags it, or when the redundant-prefix or unused-index
+  checks in `antipattern-unnecessary-indexes.md` show it, and always through the hide, monitor, drop process there
 - Do not create indexes directly via MCP unless the user gives approval
 
 ---

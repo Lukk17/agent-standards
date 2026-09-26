@@ -2,8 +2,8 @@
 
 Test-first development with JUnit 5, Mockito, MockMvc, `@DataJpaTest`, Testcontainers, and a JaCoCo gate. Open this
 when starting a feature, fixing a bug, deciding which slice a piece of behaviour belongs in, or when the coverage
-gate is failing the build. The target is around 90% coverage of real logic across unit and integration tests, and
-100% where it genuinely adds value.
+gate is failing the build. The coverage gate, its threshold and which tests count toward it, is defined once in
+`tdd-workflow` under Coverage gate. This file only wires that gate into JaCoCo.
 
 ---
 
@@ -92,9 +92,9 @@ class MarketControllerTest {
 
   @Test
   void returnsMarkets() throws Exception {
-    when(marketService.list(any())).thenReturn(Page.empty());
+    when(marketService.list(any())).thenReturn(new PageResponse<>(List.of(), 0, 20, 0, 0));
 
-    mockMvc.perform(get("/api/markets"))
+    mockMvc.perform(get("/api/v1/markets"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.content").isArray());
   }
@@ -122,7 +122,7 @@ class MarketIntegrationTest {
 
   @Test
   void createsMarket() throws Exception {
-    mockMvc.perform(post("/api/markets")
+    mockMvc.perform(post("/api/v1/markets")
         .contentType(MediaType.APPLICATION_JSON)
         .content("""
           {"name":"Test","description":"Desc","endDate":"2030-01-01T00:00:00Z","categories":["general"]}
@@ -220,14 +220,53 @@ than padding the number with generated accessors.
       <phase>verify</phase>
       <goals><goal>report</goal></goals>
     </execution>
+    <execution>
+      <id>check</id>
+      <phase>verify</phase>
+      <goals><goal>check</goal></goals>
+      <configuration>
+        <rules>
+          <rule>
+            <element>BUNDLE</element>
+            <limits>
+              <limit>
+                <counter>LINE</counter>
+                <value>COVEREDRATIO</value>
+                <minimum>0.90</minimum>
+              </limit>
+              <limit>
+                <counter>BRANCH</counter>
+                <value>COVEREDRATIO</value>
+                <minimum>0.70</minimum>
+              </limit>
+            </limits>
+          </rule>
+        </rules>
+      </configuration>
+    </execution>
   </executions>
 </plugin>
+```
+
+On Gradle the task that fails the build is `jacocoTestCoverageVerification`, not `jacocoTestReport`, which only
+writes the report. Give it the same rule and hang it on `check`:
+
+```kotlin
+tasks.jacocoTestCoverageVerification {
+  violationRules {
+    rule {
+      limit { counter = "LINE"; minimum = "0.90".toBigDecimal() }
+      limit { counter = "BRANCH"; minimum = "0.70".toBigDecimal() }
+    }
+  }
+}
+tasks.check { dependsOn(tasks.jacocoTestCoverageVerification) }
 ```
 
 Take the plugin version from the project version catalog rather than pinning it per module, per
 `build-dependency-management`.
 
-Pass: `mvn verify` or `./gradlew test jacocoTestReport` fails when coverage drops below the threshold.
+Pass: `mvn verify` or `./gradlew check` fails when line coverage drops below 90 percent or branch coverage below 70.
 
 Fail: a coverage report generated and ignored, or a threshold lowered to make a red build green.
 

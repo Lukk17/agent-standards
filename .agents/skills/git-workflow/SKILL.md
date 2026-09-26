@@ -37,7 +37,8 @@ repository and the shared history, so operating the hosting platform belongs to 
 - Operating a Jira workflow around the branch, use `jira-integration`
 - Reviewing the content of a diff for correctness, use `code-reviewer`
 - Designing the pipeline the branch triggers, use `deployment-patterns`
-- Formatting the code inside the commit, use `code-formatter`
+- Formatting Dart, Java or Python code inside the commit, use `code-formatter`. Any other language follows its
+  language skill or its default formatter
 
 ---
 

@@ -62,7 +62,9 @@ On a platform that supports it (ESP32, ESP8266, Arduino Nano 33 IoT), use a dual
 one receiving the incoming image.
 
 - Verify the downloaded image's checksum, CRC32 or SHA-256, before committing the update and rebooting.
-- Implement automatic rollback: if the new firmware does not produce a healthy watchdog reset within N seconds of
-  its first boot, revert to the previous bank without human involvement.
+- Implement automatic rollback: if the new firmware does not mark itself valid within N seconds of its first boot,
+  by calling the bootloader's confirm API after its self-test passes, or if the watchdog resets it first, revert to
+  the previous bank without human involvement. On ESP-IDF that call is `esp_ota_mark_app_valid_cancel_rollback()`
+  with `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE` set.
 - Log every attempt, checksum result, and rollback to non-volatile storage (EEPROM or NVS). A device that bricked in
   the field is only diagnosable from what it wrote down before it did.

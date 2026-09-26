@@ -1,13 +1,13 @@
 ---
 name: observability-and-logging
-description: Structured logging and production observability for services, covering log levels, correlation IDs, health checks, metrics, tracing, SLOs, resilient outbound calls, graceful shutdown, and the startup readiness banner. Use when you say "add logging to this service", "my logs have no trace id", "add a readiness probe", "put a timeout and retry on this client", or "print a startup banner when the app is up". Not for CI/CD pipelines and release gating, use `deployment-patterns`.
+description: Structured logging and production observability for services, covering log levels, correlation IDs, health checks, metrics, tracing, SLOs, and the startup readiness banner. Use when you say "add logging to this service", "my logs have no trace id", "add a readiness endpoint", "alert on our error budget", or "print a startup banner when the app is up". Not for CI/CD pipelines, release gating, or Kubernetes probe manifests, use `deployment-patterns`.
 ---
 
 # Observability and Logging
 
-The operability layer every long-running service needs: how it logs, how it reports health, and how it survives a
-failing dependency. The cross-cutting principles hub is the `coding-standards` skill, this skill is the detailed
-playbook for the logging and observability rules it points to.
+The operability layer every long-running service needs: how it logs, how it reports health, and how its metrics
+and traces show a failing dependency. The cross-cutting principles hub is the `coding-standards` skill, this skill
+is the detailed playbook for the logging and observability rules it points to.
 
 Baseline: OpenTelemetry is the reference instrumentation API for traces, metrics, and logs. Prometheus exposition is
 the reference metrics format. Both are language-neutral, so pick the current stable SDK for your stack.
@@ -19,8 +19,6 @@ the reference metrics format. Both are language-neutral, so pick the current sta
 - Adding or reviewing logging in a service.
 - Instrumenting a service with health checks, metrics, or tracing.
 - Defining SLOs, alerts, or dashboards.
-- Making outbound calls resilient with timeouts, retries, or a circuit breaker.
-- Implementing graceful shutdown.
 - Writing the startup readiness banner.
 
 ---
@@ -28,6 +26,8 @@ the reference metrics format. Both are language-neutral, so pick the current sta
 ### When not to activate
 
 - Building the CI/CD pipeline or the release gate that ships the service, use `deployment-patterns`.
+- Writing the Kubernetes liveness, readiness, and startup probe manifests, use `deployment-patterns`.
+- Designing timeouts, capped retries, circuit breakers, and graceful shutdown, use `backend-patterns`.
 - Writing the Dockerfile or Compose file the service runs in, use `docker-patterns`.
 - Chasing a specific slow endpoint or query with a profiler, use `performance-optimization`.
 - Deciding how exceptions are raised, typed, and chained, use `coding-standards`.
@@ -119,28 +119,21 @@ raised.
 
 Liveness reports only that the process is alive and never touches a dependency. Readiness verifies the database,
 cache, and external dependencies and reports unhealthy when one is degraded. Keep both outside the versioned API
-path, so a version bump cannot move the probe URL.
+path, so a version bump cannot move the probe URL. The generic paths are `/health` and `/ready`, defined by
+`api-design`. Spring Boot Actuator serves the same two checks under its own paths, shown below. This skill owns what
+each endpoint reports. The probe manifests that point Kubernetes at them belong to `deployment-patterns`.
 
 Pass:
 
-```yaml
-livenessProbe:
-  httpGet:
-    path: /actuator/health/liveness
-    port: 8080
-readinessProbe:
-  httpGet:
-    path: /actuator/health/readiness
-    port: 8080
+```text
+GET /actuator/health/liveness    200 while the process runs, touches no dependency
+GET /actuator/health/readiness   200 when the database, cache, and downstream services answer, 503 otherwise
 ```
 
 Fail:
 
-```yaml
-livenessProbe:
-  httpGet:
-    path: /api/v1/health/full
-    port: 8080
+```text
+GET /api/v1/health/full   one versioned endpoint that checks every dependency and answers both probes
 ```
 
 ---
@@ -161,51 +154,6 @@ Fail:
 
 ```promql
 process_cpu_seconds_total
-```
-
----
-
-### Time-box and cap every outbound call
-
-Set a connect and a read timeout on every call. Retry a transient failure with exponential backoff plus jitter,
-capped at a maximum delay and attempt count, and never retry a non-idempotent operation without an idempotency key.
-Add a circuit breaker where a dependency can fail for a sustained period. Run independent calls concurrently.
-
-Pass:
-
-```yaml
-resilience4j.timelimiter.instances.pricing.timeoutDuration: 2s
-resilience4j.retry.instances.pricing:
-  maxAttempts: 3
-  waitDuration: 200ms
-  enableExponentialBackoff: true
-  enableRandomizedWait: true
-```
-
-Fail:
-
-```java
-HttpClient.newHttpClient().send(request, BodyHandlers.ofString());
-```
-
----
-
-### Shut down in a defined order
-
-Stop accepting new work, finish or cancel in-flight work, close connections and flush buffers, then exit. Set a hard
-timeout as a backstop so a stuck task cannot block shutdown forever.
-
-Pass:
-
-```yaml
-server.shutdown: graceful
-spring.lifecycle.timeout-per-shutdown-phase: 30s
-```
-
-Fail:
-
-```java
-Runtime.getRuntime().addShutdownHook(new Thread(() -> System.exit(0)));
 ```
 
 ---
@@ -242,7 +190,8 @@ buildStartupLog().lines().forEach(log::info);
 ### Related skills
 
 - `coding-standards` for the error-handling and design principles this skill logs against.
-- `deployment-patterns` for probes, rollout gating, and the pipeline that ships the service.
+- `backend-patterns` for timeouts, capped retries, circuit breakers, and graceful shutdown.
+- `deployment-patterns` for the probe manifests, rollout gating, and the pipeline that ships the service.
 - `docker-patterns` for the container the service logs from.
 - `performance-optimization` for turning a latency metric into a fix.
 - `springboot-patterns`, `python-patterns`, `golang-patterns`, `node-backend-patterns` for the per-stack hook.
@@ -257,6 +206,4 @@ buildStartupLog().lines().forEach(log::info);
 - [ ] Expensive message construction is guarded or lazy.
 - [ ] Liveness and readiness are separate endpoints outside the versioned API path.
 - [ ] Rate, error, latency, and saturation metrics are exported and an SLO burn-rate alert exists.
-- [ ] Every outbound call has a connect timeout, a read timeout, and a capped retry policy.
-- [ ] Graceful shutdown drains in-flight work and has a hard timeout backstop.
 - [ ] The startup readiness block is emitted in one log call with a leading newline.

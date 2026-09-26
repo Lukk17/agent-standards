@@ -180,8 +180,8 @@ Use the same boundary rules across ecosystems. Only the syntax and the wiring st
   - Use cases: classes with constructor injection (Koin/Dagger/Spring/manual).
   - Composition: module definitions or dedicated composition functions, never a service locator.
 - Go
-  - Packages: `internal/<feature>/domain`, `application`, `ports`, `adapters/inbound`, `adapters/outbound`.
-  - Ports: small interfaces owned by the consuming application package.
+  - Packages: `internal/<feature>/domain`, `application`, `adapters/inbound`, `adapters/outbound`.
+  - Ports: small interfaces declared in the consuming `application` package, not in a separate `ports` package.
   - Use cases: structs with interface fields plus explicit `New...` constructors.
   - Composition: wire in `cmd/<app>/main.go` (or dedicated wiring package), keep constructors explicit.
 

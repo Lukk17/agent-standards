@@ -231,7 +231,8 @@ and fuzzing are in [references/testing.md](references/testing.md).
 
 The banner, the section order, the 2-second probe timeout, and the `<url> [Connected|Warning|FAILED]` result format
 are one convention shared by every language, owned by `observability-and-logging`. What is Go-specific is where it is
-emitted and that it goes through one `log/slog` call with a leading newline, because slog stamps a timestamp and
+emitted, after `net.Listen` returns and before `srv.Serve(listener)` blocks, so the port is already bound when the
+banner says so, and that it goes through one `log/slog` call with a leading newline, because slog stamps a timestamp and
 level per call and per-line emission would shred the banner, so the whole block is one `logger.Info` of the built
 string. Probe with `http.Client{Timeout: 2 * time.Second}` so an unreachable dependency cannot stall startup, log the
 detail at debug with `slog.Debug`, and surface only the result in the banner.
@@ -291,7 +292,8 @@ logger.Info("\n" + buildStartupLog())
 - Functions accept interfaces and return concrete types, and interfaces are declared at the consumer.
 - Doc comments are absent, or one sentence plus only the notes the signature cannot carry.
 - Every error a caller can act on is documented, including the sentinels it can match.
-- Every returned error is wrapped with `%w` and a lowercase operation phrase, and none is discarded with `_`.
+- Every returned error is wrapped with `%w` and a lowercase operation phrase, and none is silently dropped. An
+  explicit `_ =` assignment appears only where nothing can be done.
 - `context.Context` is the first parameter everywhere and is passed to every blocking call.
 - Every goroutine has a defined way to stop, and dependencies arrive through a constructor.
 - Slices are preallocated where the length is known and strings are built with a `Builder`.

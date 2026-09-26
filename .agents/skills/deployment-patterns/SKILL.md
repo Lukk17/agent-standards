@@ -32,6 +32,7 @@ Action referenced here is pinned to its current major.
 - Instrumenting the application with logs, metrics, and traces, use `observability-and-logging`.
 - Planning a schema change that has to survive the rollout, use `database-migrations`.
 - Reviewing the application's own auth and input handling, use `security-review`.
+- Secret scanning and dependency scanning inside the pipeline, use `security-review`.
 
 ---
 
@@ -142,19 +143,19 @@ automation are in [references/github-actions.md](references/github-actions.md).
 ### Health checks that answer different questions
 
 Expose a liveness endpoint that touches nothing and a readiness endpoint that verifies dependencies, then wire three
-probes to them. Pointing liveness at a dependency-checking endpoint turns a database blip into a cluster-wide
-restart storm.
+probes to them. The paths are the ones `api-design` defines, `/health` and `/ready`, so use them rather than a local
+variant. Pointing liveness at a dependency-checking endpoint turns a database blip into a cluster-wide restart storm.
 
 Pass:
 
 ```yaml
 livenessProbe:
   httpGet:
-    path: /health/liveness
+    path: /health
     port: 3000
 readinessProbe:
   httpGet:
-    path: /health/readiness
+    path: /ready
     port: 3000
 ```
 
@@ -167,8 +168,8 @@ livenessProbe:
     port: 3000
 ```
 
-Probe timings, the `startupProbe`, and what each one does to a pod are in
-[references/kubernetes.md](references/kubernetes.md). What the endpoints should report is in
+This skill owns the probe manifests. Probe timings, the `startupProbe`, and what each one does to a pod are in
+[references/kubernetes.md](references/kubernetes.md). What the endpoints should report is owned by
 `observability-and-logging`.
 
 ---

@@ -192,7 +192,7 @@ fixtures/markdown-canary.md: "The HELENA-DEDUP-CANARY village holds the 17th ann
 The same principle in other formats: short PDFs with invented product names and specific prices, DOCX recipes with
 distinctive rest times (47 minutes, not an hour), small images of an uncommon but recognisable subject, audio clips
 under 60 seconds containing an invented word. Keep every fixture small enough to upload in under two seconds, put them
-in `e2e/fixtures/`, and record each one's distinctive content in a table in `e2e/README.md`.
+in `e2e/fixtures/`, and record each one's distinctive content in a table in `e2e/fixtures/README.md`.
 
 ---
 
@@ -250,7 +250,7 @@ The runner, human or agent, follows the same sequence every time.
 ### Sweeps
 
 For more than one test, the main session delegates rather than executing. It orders the specs by `{N}`, picks one UTC
-sweep timestamp, and fans out one [`e2e-runner`](../../../subagents/e2e-runner.md) subagent per spec, refilling the
+sweep timestamp, and fans out one `e2e-runner` subagent per spec, refilling the
 in-flight slots as verdicts return. Isolated context per test, per-test token accounting, and failure isolation are what
 the fan-out buys.
 

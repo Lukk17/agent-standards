@@ -72,7 +72,19 @@ build/
 .env.*.local
 
 # IDE
-.idea/
+.idea/workspace.xml
+.idea/shelf/
+.idea/modules/
+.idea/compiler.xml
+.idea/libraries/
+.idea/dataSources*
+.idea/aws.xml
+.idea/sonarlint.xml
+.idea/git_toolbox_*.xml
+.idea/developer-tools.xml
+*.iml
+!.idea/<project>.iml
+!<python-module>.iml
 .vscode/
 *.swp
 *.swo
@@ -92,3 +104,6 @@ coverage/
 .cache/
 *.tsbuildinfo
 ```
+
+The `.idea/` lines ignore only the machine-local and regenerated files. The rest of `.idea/` is committed, and which
+file falls on which side is owned by `jetbrains-ide-ops`, so check its version-control reference before changing them.

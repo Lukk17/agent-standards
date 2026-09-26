@@ -48,8 +48,9 @@ build while it is still cheap to fix.
 
 ### Coverage settings live with coverage, not in addopts
 
-Threshold and exclusion belong in the coverage configuration, so a developer running one file locally does not fail
-the gate.
+Threshold and exclusion belong in the coverage configuration, so they are stated once. Because `--cov` sits in
+`addopts`, every run checks the threshold, a run of one file included, so pass `--no-cov` when running part of the
+suite locally.
 
 ```toml
 [tool.coverage.run]

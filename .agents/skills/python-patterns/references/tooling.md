@@ -68,11 +68,11 @@ reproducible.
 
 ---
 
-### Pin a floor, let the lock file pin the version
+### Pin exact versions, and let the lock file pin the rest
 
-Name a version in `pyproject.toml` only where a major release changed the API you rely on. Everything else resolves to
-the newest compatible release and is pinned exactly in `uv.lock`. A dependency list full of patch-level pins goes
-stale within a month and tells a reader nothing about what the code actually needs.
+`build-dependency-management` owns the version policy: pin exact versions so a clean checkout builds the same artifacts
+tomorrow, because a range turns every build into a different build. Every direct dependency in `pyproject.toml` carries
+an exact `==` pin, and `uv.lock` pins every transitive dependency on top of it. A bump is a deliberate edit to one line.
 
 ```toml
 [project]
@@ -80,19 +80,19 @@ name = "mypackage"
 version = "1.0.0"
 requires-python = ">=3.13"
 dependencies = [
-    "fastapi",
-    "pydantic>=2",
-    "pydantic-settings>=2",
+    "fastapi==0.141.1",
+    "pydantic==2.13.5",
+    "pydantic-settings==2.15.0",
 ]
 
 [dependency-groups]
 dev = [
-    "httpx",
-    "mypy",
-    "pytest",
-    "pytest-asyncio>=1",
-    "pytest-cov",
-    "ruff",
+    "httpx==0.28.1",
+    "mypy==2.3.1",
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+    "pytest-cov==7.1.0",
+    "ruff==0.16.9",
 ]
 
 [tool.ruff]
@@ -106,8 +106,8 @@ strict = true
 python_version = "3.13"
 ```
 
-`pydantic>=2` and `pytest-asyncio>=1` are floors because each of those majors was a rewrite. `fastapi`, `ruff`, and
-`mypy` carry no floor because the project wants whatever is current.
+The pins are the versions current on PyPI in September 2026. Replace them with the current release when you copy the
+file, and never loosen one into a range.
 
 Pytest configuration is deliberately absent from this file. It belongs to [pytest-config.md](pytest-config.md),
 which owns `[tool.pytest.ini_options]`, the marker registry, and the coverage gate.

@@ -137,8 +137,9 @@ One exception to the default, and only one. Comment-based help on a function exp
 consumed: `Get-Help` renders it, so an exported function carries `.SYNOPSIS`, one `.PARAMETER` per parameter, and one
 `.EXAMPLE`, even where the names already say it, because a missing entry reads as a bug in the module. One
 `.EXAMPLE` showing the common invocation is enough, a second needs a reason and a third is padding. Everything not
-exported, meaning private helpers and script-local functions, follows the default of none. Inside the block every
-entry is capped at one line and the four rules below still decide what it says.
+exported, meaning private helpers and script-local functions, follows the default of none. Inside the block the
+`.SYNOPSIS` and `.DESCRIPTION` prose is capped at five lines and is usually one, every other entry is capped at one
+line, and the four rules below still decide what it says.
 
 1. Prose. One sentence saying what it does, then only what a caller cannot infer from the signature. Nothing more.
 2. `.PARAMETER` on an exported function is required by the help system, so make it earn the line anyway: units,
@@ -160,6 +161,8 @@ function Get-BackupSet {
     <#
     .SYNOPSIS
         Returns the backup sets kept for a vault, newest first.
+    .PARAMETER VaultName
+        Vault to read, which must already exist, since the function never creates one.
     .PARAMETER RetentionDays
         Age cut-off in days, values above 3650 are rejected.
     .EXAMPLE

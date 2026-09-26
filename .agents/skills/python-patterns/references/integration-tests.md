@@ -19,7 +19,8 @@ tests/integration/test_repository.py
 tests/e2e/test_checkout_journey.py
 ```
 
-Mark the directories rather than the individual tests, so a new file inherits the marker.
+Mark each module with a module-level `pytestmark` rather than decorating the individual tests, so every test in the
+file carries the marker.
 
 ```python
 pytestmark = pytest.mark.integration
@@ -140,7 +141,7 @@ production. Start the real engine once per session with a container.
 ```python
 @pytest.fixture(scope="session")
 def postgres_url() -> Iterator[str]:
-    with PostgresContainer("postgres:17") as container:
+    with PostgresContainer("postgres:18") as container:
         yield container.get_connection_url()
 ```
 

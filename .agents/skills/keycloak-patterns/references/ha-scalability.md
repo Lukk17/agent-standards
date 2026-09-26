@@ -84,6 +84,7 @@ GET /metrics         — Prometheus metrics
 ### Backup & Disaster Recovery
 
 - Database: daily automated backups, point-in-time recovery, test restores regularly
-- Configuration: export realm configs (`bin/kc.sh export`), store in version control
+- Configuration: export realm configs (`bin/kc.sh export`) and store them encrypted in the secret store or backup
+  vault, never in version control, because an export holds client secrets
 - Keys: back up realm signing keys separately (needed for token validation continuity)
 - Recovery plan: document restore steps, target RTO/RPO, test failover procedures

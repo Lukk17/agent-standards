@@ -169,7 +169,7 @@ owns.
 class OrderRepositoryTest {
 
   @Container
-  static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+  static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:18-alpine");
 
   @DynamicPropertySource
   static void props(DynamicPropertyRegistry registry) {

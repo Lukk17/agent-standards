@@ -252,6 +252,3 @@ public class DocumentsController : ControllerBase
 4. Create Policies (e.g., "Require Admin Role": role-based policy)
 5. Create Permissions linking resources + scopes + policies
 6. Use Keycloak's "Evaluate" tab to test permissions
-
-See realm export files in `tests/Keycloak.AuthServices.IntegrationTests/KeycloakConfiguration/` for complete working
-examples.

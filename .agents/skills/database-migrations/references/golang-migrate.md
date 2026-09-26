@@ -61,14 +61,13 @@ empty down.
 
 ### Concurrent indexes
 
-golang-migrate wraps each file in a transaction by default, and `CREATE INDEX CONCURRENTLY` cannot run inside one. Add
-the `x-multi-statement=false` behaviour by keeping the statement alone in its own migration and disabling the
-transaction with a leading directive:
+The Postgres driver sends a whole migration file in one `Exec`, and PostgreSQL runs several statements sent in one
+`Exec` inside a transaction, where `CREATE INDEX CONCURRENTLY` cannot run. Put the statement alone in its own
+migration file, with nothing else in it, and leave `x-multi-statement` at its default of `false`. A file holding one
+statement opens no implicit transaction, so the index builds concurrently:
 
 ```sql
 -- migrations/000004_add_avatar_index.up.sql
-BEGIN;
-COMMIT;
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_avatar ON users (avatar_url) WHERE avatar_url IS NOT NULL;
 ```
 

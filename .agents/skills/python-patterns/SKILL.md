@@ -153,8 +153,10 @@ class User:
 
 ### Pick the concurrency model from the bottleneck
 
-Match the tool to what the work is waiting on, then stop. Mixing models in one process is where deadlocks and starved
-pools come from. Full examples are in [references/concurrency.md](references/concurrency.md).
+Match the tool to what the work is waiting on, then stop. Running independent models side by side in one process is
+where deadlocks and starved pools come from. The one sanctioned mix is async code handing a blocking call to a thread
+with `asyncio.to_thread` or `run_in_executor`, so the event loop never stalls. Full examples are in
+[references/concurrency.md](references/concurrency.md).
 
 | Bottleneck | Tool |
 | --- | --- |
@@ -209,9 +211,10 @@ def test_login_with_expired_token_returns_401(client):
     assert response.status_code == 401
 ```
 
-Mock only what you cannot run. A third-party payment API or an email gateway is fair, the database is not when an
-in-memory engine or a transactional session fixture will exercise the real query, and mocking the thing under test
-only proves the mock was called. Patch where the name is used, not where it is defined, and pass `autospec=True`.
+Mock only what you cannot run. A third-party payment API or an email gateway is fair, the database is not, when a
+containerised real engine or a transactional session fixture on it will exercise the real query, and mocking the thing
+under test only proves the mock was called. Patch where the name is used, not where it is defined, and pass
+`autospec=True`.
 
 Cover around 90 percent of the real logic and 100 percent of the critical paths. A failing coverage gate is a signal
 to add the missing test, never to lower the threshold or add an exclusion: generated output such as protobuf stubs is
@@ -291,7 +294,7 @@ here and do not invent a local variant.
 - No bare `except`, no silent `pass`, no `return None` standing in for a failure.
 - Every file, socket, and transaction is acquired inside a `with`.
 - Data crossing a module boundary is a dataclass or a model, not a raw dict.
-- The concurrency model matches the bottleneck and only one model is used per process.
+- The concurrency model matches the bottleneck, one model per process, blocking calls offloaded from async to threads.
 - The package sits under `src/`, imports are absolute, and `__all__` states the public surface.
 - Every new behaviour has a test that was seen to fail before the code was written.
 - Only genuinely external services are mocked, and coverage of real logic is around 90 percent.

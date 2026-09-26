@@ -1,11 +1,6 @@
-| name | description |
-|------|-------------|
-| cloud-infrastructure-security | Use this skill when deploying to cloud platforms, configuring infrastructure, managing IAM policies, setting up logging/monitoring, or implementing CI/CD pipelines. Provides cloud security checklist aligned with best practices. |
+# Cloud & Infrastructure Security
 
-# Cloud & Infrastructure Security Skill
-
-This skill ensures cloud infrastructure, CI/CD pipelines, and deployment configurations follow security best practices
-and comply with industry standards.
+Depth behind [SKILL.md](../SKILL.md) for cloud, network and pipeline hardening.
 
 ---
 
@@ -13,7 +8,6 @@ and comply with industry standards.
 
 - Deploying applications to cloud platforms (AWS, Vercel, Railway, Cloudflare)
 - Configuring IAM roles and permissions
-- Setting up CI/CD pipelines
 - Implementing infrastructure as code (Terraform, CloudFormation)
 - Configuring logging and monitoring
 - Managing secrets in cloud environments
@@ -69,16 +63,24 @@ aws iam enable-mfa-device \
 
 ##### Cloud Secrets Managers
 
+Application code reads every secret from its environment, as [SKILL.md](../SKILL.md) requires. In production a
+secrets manager with rotation is what fills those variables, through the platform's secret injection or a fetch at
+startup like the one below. A secret that exists only as a hand-set variable, with no manager behind it, is never
+rotated and never audited.
+
 ```typescript
-// PASS: CORRECT: Use cloud secrets manager
+// PASS: CORRECT: the secrets manager is the source of the value
 import { SecretsManager } from '@aws-sdk/client-secrets-manager';
 
 const client = new SecretsManager({ region: 'us-east-1' });
 const secret = await client.getSecretValue({ SecretId: 'prod/api-key' });
 const apiKey = JSON.parse(secret.SecretString).key;
 
-// FAIL: WRONG: Hardcoded or in environment variables only
-const apiKey = process.env.API_KEY; // Not rotated, not audited
+// PASS: CORRECT: application code reads the variable the platform filled from the manager
+const apiKey = process.env.API_KEY;
+
+// FAIL: WRONG: hardcoded
+const apiKey = 'sk-live-3f8a2b91c4';
 ```
 
 ##### Secrets Rotation
@@ -179,49 +181,20 @@ const logSecurityEvent = async (event: SecurityEvent) => {
 
 #### 5. CI/CD Pipeline Security
 
-##### Secure Pipeline Configuration
-
-```yaml
-# PASS: CORRECT: Secure GitHub Actions workflow
-name: Deploy
-
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read  # Minimal permissions
-
-    steps:
-      - uses: actions/checkout@v4
-
-      # Scan for secrets
-      - name: Secret scanning
-        uses: trufflesecurity/trufflehog@main
-
-      # Dependency audit
-      - name: Audit dependencies
-        run: npm audit --audit-level=high
-
-      # Use OIDC, not long-lived tokens
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::123456789:role/GitHubActionsRole
-          aws-region: us-east-1
-```
+Pipeline OIDC, job-level permissions, and action pinning belong to `deployment-patterns`, in
+[github-actions.md](../../deployment-patterns/references/github-actions.md). This reference adds only what the
+pipeline must scan: secrets on every push, and dependencies blocked at high and critical with the lock file installed
+through `npm ci`, as [SKILL.md](../SKILL.md) states under Dependency risk.
 
 ##### Supply Chain Security
 
+The package scripts for a local audit. `install` is not redefined, because npm runs that lifecycle script during
+every install.
+
 ```json
-// package.json - Use lock files and integrity checks
 {
   "scripts": {
-    "install": "npm ci",  // Use ci for reproducible builds
-    "audit": "npm audit --audit-level=moderate",
+    "audit": "npm audit --audit-level=high",
     "check": "npm outdated"
   }
 }
@@ -229,7 +202,7 @@ jobs:
 
 ##### Verification Steps
 
-- [ ] OIDC used instead of long-lived credentials
+- [ ] OIDC and job permissions set per `deployment-patterns`
 - [ ] Secrets scanning in pipeline
 - [ ] Dependency vulnerability scanning
 - [ ] Container image scanning (if applicable)
@@ -321,7 +294,7 @@ Before ANY production cloud deployment:
 - [ ] Network: Security groups restricted, no public databases
 - [ ] Logging: CloudWatch/logging enabled with retention
 - [ ] Monitoring: Alerts configured for anomalies
-- [ ] CI/CD: OIDC auth, secrets scanning, dependency audits
+- [ ] CI/CD: secrets scanning and dependency audits, OIDC and permissions per `deployment-patterns`
 - [ ] CDN/WAF: Cloudflare WAF enabled with OWASP rules
 - [ ] Encryption: Data encrypted at rest and in transit
 - [ ] Backups: Automated backups with tested recovery

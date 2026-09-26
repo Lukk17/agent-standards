@@ -14,12 +14,12 @@ services:
       context: .
       target: dev
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - .:/app
       - node_modules:/app/node_modules
     environment:
-      - DATABASE_URL=postgres://postgres:postgres@db:5432/app_dev
+      - DATABASE_URL=postgres://postgres:${POSTGRES_PASSWORD:?set it in .env}@db:5432/app_dev
       - REDIS_URL=redis://redis:6379/0
       - NODE_ENV=development
     depends_on:
@@ -35,7 +35,7 @@ services:
       - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set it in .env}
       POSTGRES_DB: app_dev
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -56,14 +56,18 @@ services:
   mailpit:
     image: axllent/mailpit:v1
     ports:
-      - "8025:8025"
-      - "1025:1025"
+      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:1025:1025"
 
 volumes:
   pgdata:
   redisdata:
   node_modules:
 ```
+
+The database password comes from the gitignored `.env` next to the compose file, which Compose reads to fill
+`${POSTGRES_PASSWORD}`, so no credential sits in the committed file. `:?` stops `docker compose up` with that message
+when the variable is unset, rather than starting a database with an empty password.
 
 `.:/app` is the bind mount that gives hot reload. `node_modules:/app/node_modules` is a named volume layered on top
 of it so the container's own dependencies, built for the container's platform, are not shadowed by whatever the host
@@ -82,7 +86,7 @@ services:
       - DEBUG=app:*
       - LOG_LEVEL=debug
     ports:
-      - "9229:9229"
+      - "127.0.0.1:9229:9229"
 ```
 
 `docker-compose.prod.yml` is explicit and never auto-loads:

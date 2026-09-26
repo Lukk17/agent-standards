@@ -41,7 +41,8 @@ than by review. The exact block is in [references/architecture.md](references/ar
 ### When not to activate
 
 - Language-neutral design rules such as SOLID, DRY, naming, and error-handling shape. Use `coding-standards`.
-- Formatting and visual layout of source files in any language. Use `code-formatter`.
+- Blank lines, control-flow exits and chain breaking inside a Dart function body. Use `code-formatter`, which covers
+  Dart, Java and Python only. Any other language follows its language skill or its default formatter.
 - The red, green, refactor loop itself rather than Flutter test mechanics. Use `tdd-workflow`.
 - WCAG conformance for a web page or a non-Flutter front end. Use `web-accessibility`.
 - Reviewing a diff or a pull request for defects. Use `code-reviewer`.
@@ -53,7 +54,8 @@ than by review. The exact block is in [references/architecture.md](references/ar
 
 `!` turns a compile-time question into a runtime crash. Dart already has an expression that carries the null case,
 and `late` is the same failure mode one step removed. Reserve `late` for a field initialised in `initState` before
-any read, such as an `AnimationController`, and use a nullable field everywhere else.
+any read, or a `late final` field with an inline initializer, such as an `AnimationController` built with
+`vsync: this`, which runs on first read and so cannot be read unset. Use a nullable field everywhere else.
 
 ```dart
 // BAD
@@ -105,7 +107,9 @@ context.go('/home');
 
 // GOOD
 await authService.login(email, password);
-if (!mounted) return;
+if (!mounted) {
+  return;
+}
 context.go('/home');
 ```
 
@@ -180,16 +184,23 @@ adds interceptors, cancellation, and typed errors, which pay off once you need t
 ```dart
 // package:http
 final response = await client.get(Uri.https('api.example.com', '/users/$id'));
-if (response.statusCode != 200) throw HttpException('GET /users/$id failed');
+if (response.statusCode != 200) {
+  throw HttpException('GET /users/$id failed');
+}
 final user = User.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
 
 // package:dio
 final response = await dio.get<Map<String, dynamic>>('/users/$id');
-final user = User.fromJson(response.data!);
+final data = response.data;
+if (data == null) {
+  throw ApiException('GET /users/$id returned no body');
+}
+final user = User.fromJson(data);
 ```
 
-Both get the same treatment: build URLs with `Uri.https`, check the status code and throw rather than returning
-null, and never leave a token in source.
+Both get the same treatment: never concatenate a host or a query string, check the status code and throw rather
+than returning null, and never leave a token in source. `package:http` builds its URL with `Uri.https`. `dio` takes
+the host from `baseUrl` in its `BaseOptions` and query values through `queryParameters`.
 
 ---
 
@@ -303,7 +314,7 @@ Future<Reservation> reserve(OrderId orderId, Duration holdFor);
 ### Related skills
 
 - `coding-standards` for the cross-language engineering floor these patterns sit on.
-- `code-formatter` for source layout and reading flow in Dart and every other language here.
+- `code-formatter` for reading flow inside function bodies in Dart, Java and Python, and no other language.
 - `tdd-workflow` for the red, green, refactor discipline behind [references/testing.md](references/testing.md).
 - `web-accessibility` for WCAG conformance when a Flutter web build sits inside a wider site.
 - `code-reviewer` for reviewing a Dart diff against all of the above.
@@ -313,12 +324,12 @@ Future<Reservation> reserve(OrderId orderId, Duration holdFor);
 
 ### Checklist
 
-- [ ] No `!` force-unwrap and no `late` that is not initialised in `initState`.
+- [ ] No `!` force-unwrap, and no `late` that is neither initialised in `initState` nor a `late final` initializer.
 - [ ] Async state is a sealed type or `AsyncValue`, never a bag of nullable fields.
 - [ ] Every `context` use after an `await` is guarded by `mounted` or a pre-await capture.
 - [ ] Subtrees are widget classes, not `_build...()` methods, and `const` reaches as far up as it can.
 - [ ] One state-management library per feature, matching what the project already uses.
-- [ ] One HTTP client, matching `pubspec.yaml`, with URLs built through `Uri.https`.
+- [ ] One HTTP client, matching `pubspec.yaml`, with URLs built through `Uri.https` or dio's `baseUrl`.
 - [ ] No user-facing literal anywhere, including validators and semantics labels.
 - [ ] Every disposable (`AnimationController`, `TextEditingController`, `StreamSubscription`) is disposed.
 - [ ] Doc comments follow the four rules above, and none merely restate a signature.

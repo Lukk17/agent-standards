@@ -29,7 +29,8 @@ descriptions written in OpenAPI 3.1, GraphQL over the `graphql-ws` transport.
 - Service structure, layering, or data access behind the endpoint: use `backend-patterns`.
 - Node, Express, or Next.js implementation of a handler: use `node-backend-patterns`.
 - Spring Boot controllers and their error handling: use `springboot-patterns`.
-- Authentication mechanics, token verification, and threat modelling: use `security-review`.
+- Authentication mechanics and token verification: use `security-review`. Threat modelling: use the `security-auditor`
+  agent.
 - SOAP and WSDL contracts: use `soap-webservices`.
 - Writing the reference documentation for a finished contract: use `markdown-writer`.
 
@@ -170,6 +171,7 @@ POST /api/v1/orders
 Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000
 ```
 
+- A request with no key returns 400 with a problem body whose `type` links to the documentation.
 - Store the response for 24 hours, keyed by the idempotency key.
 - The same key with the same request body replays the stored response without re-executing.
 - The same key with a different body returns 422.
@@ -209,6 +211,9 @@ domain requires it, and say which behaviour applies in the documentation.
 ---
 
 ### Keep liveness and readiness separate
+
+This section is the canonical definition of the health endpoint paths for this repository. Other skills probe or
+implement these two paths and must not rename them.
 
 ```text
 GET /health   liveness:  200 while the process runs, checks nothing external

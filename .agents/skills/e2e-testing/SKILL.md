@@ -320,7 +320,7 @@ test('user completes checkout', async ({ page }) => {
 - [ ] Every locator is role, label, or test-id based.
 - [ ] No `waitForTimeout` anywhere in the suite.
 - [ ] Base URL and every environment value come from the environment.
-- [ ] Trace on first retry, screenshot and video on failure, all under one artifact directory.
+- [ ] Trace, screenshot and video kept on failure, all under one artifact directory.
 - [ ] Every quarantined test carries a tracking issue and a quarantine date.
 - [ ] Third-party providers are stubbed at the browser boundary.
 - [ ] Money-moving flows are skipped against production and assert the confirmed state.

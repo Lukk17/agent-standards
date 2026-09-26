@@ -1,6 +1,6 @@
 ---
 name: audio-scribe
-description: Speech-to-text through the self-hosted AudioScribe service, covering a local faster-whisper backend, hosted API backends, and chronological speaker merging for multi-track Audacity or Craig recordings. Use when the user says "transcribe this", "what is said in this audio", "turn this recording into text", "write up this meeting", or hands you a path ending in .mp3, .wav, .m4a, .ogg, .flac, or .zip. Not for extracting text from a web page, use `ascend-web-hunter`.
+description: Speech-to-text through the self-hosted AudioScribe service, covering a local faster-whisper backend, hosted API backends, and chronological speaker merging for multi-track Audacity or Craig recordings. Use when the user says "transcribe this", "what is said in this audio", "turn this recording into text", "write up this meeting", or hands you a path ending in .mp3, .wav, .m4a, .ogg, .flac, .mp4, or .webm, or a multi-track Audacity or Craig .zip. Not for reading a web page, use `research`, which hands a page that blocks a normal fetch to `ascend-web-hunter`.
 compatibility: Requires the self-hosted AudioScribe service reachable over HTTP. Its base URL is configured by the user and appears in the examples as the placeholder $BASE, for example `http://audio-scribe.local:8080`. No default base URL is assumed.
 ---
 
@@ -23,7 +23,8 @@ Markdown transcript.
 
 ### When not to activate
 
-- Pulling text out of a web page or a URL, use `ascend-web-hunter`.
+- Pulling text out of a web page or a URL, use `research`, which hands a page that blocks a normal fetch to
+  `ascend-web-hunter`.
 - Storing a fact from the transcript so it survives the conversation, use `ascend-memory`.
 - Formatting the finished transcript into a human-facing document, use `markdown-writer`.
 
@@ -65,8 +66,10 @@ Fail: unzip the Craig dump yourself and post one track at a time to `/local`, wh
 
 Default to `local`: it is free, keeps the audio on the host, and supports timestamps whenever a GPU is available.
 Switch to `openai` for a short, non-sensitive clip where general-purpose quality matters most and timestamps do not.
-Reach for `hf` only when the user pins a specific Hugging Face model. Send anything multi-speaker, and every
-Discord or Craig recording, to `/audacity`.
+Reach for `hf` only when the user pins a specific Hugging Face model. Send every multi-track `.zip`, from Audacity
+or from a Discord Craig bot, to `/audacity`, which is the only endpoint that attributes speakers, one per track. A
+single-file recording with several speakers goes to the backend the rules above pick, `/local` by default, and its
+transcript carries no speaker names.
 
 Pass: a confidential hour-long interview goes to `/local` with `with_timestamps=true`.
 
@@ -152,7 +155,8 @@ Fail: prompt the user to paste an API key so the hosted backend can run.
 
 ### Related skills
 
-- `ascend-web-hunter` for text that lives on a web page rather than in a recording.
+- `research` for text that lives on a web page rather than in a recording.
+- `ascend-web-hunter` for a page behind a WAF, a CAPTCHA or a login that blocks a normal fetch.
 - `ascend-memory` for storing a durable fact you extracted from a transcript.
 - `markdown-writer` for turning a raw transcript into a document a person reads.
 

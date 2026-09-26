@@ -54,9 +54,9 @@ None.
 
 ---
 
-### Example 2: MCP tool round trip, `2-mcp-tool-test.md`
+### Example 2: MCP tool round trip, `1-mcp-tool-test.md`
 
-Setup class 2: still no state, but the assertion has to prove a tool actually fired rather than that the model answered
+Setup class 1: still no state, but the assertion has to prove a tool actually fired rather than that the model answered
 from memory. The negative assertion is what does that.
 
 ````markdown
@@ -114,9 +114,9 @@ None.
 
 ---
 
-### Example 3: fixture upload and retrieval, `5-rag-canary-test.md`
+### Example 3: fixture upload and retrieval, `4-rag-canary-test.md`
 
-Setup class 5: multi-service reset, a canary fixture, and an async ingestion step to wait on. Note that the Reset
+Setup class 4: multi-service reset, a canary fixture, and an async ingestion step to wait on. Note that the Reset
 section drops exactly what the Concurrency section declares as mutated.
 
 ````markdown
@@ -177,7 +177,7 @@ The retrieval response's `content` field references the canary phrase from the f
 
 ## Concurrency
 
-- Mutates: vector collection `documents` (filter `userId=canary`), object bucket `local/uploads/canary/`, metadata rows where `user_id='canary'`.
+- Mutates: vector collection `documents` (filter `userId=canary`), object bucket `local/uploads/canary/`.
 - Conflicts with: any other test that ingests, retrieves, or wipes data for `userId=canary` across those stores.
 - Serial: false, parallelisable against tests using a different `userId`.
 ````

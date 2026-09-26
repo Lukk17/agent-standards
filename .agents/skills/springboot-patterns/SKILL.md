@@ -39,7 +39,8 @@ Hibernate 6 that ships with it. This targets blocking Spring MVC on virtual thre
 - Log format, metrics, tracing, and the startup readiness banner, use `observability-and-logging`.
 - Schema change and rollout mechanics, use `database-migrations`.
 - PostgreSQL query planning and index internals, use `postgres-patterns`.
-- Language-neutral threat modelling and review checklists, use `security-review`.
+- Language-neutral security review checklists, use `security-review`. Threat modelling goes to the `security-auditor`
+  agent.
 - Configuring Keycloak itself as the identity provider, use `keycloak-patterns`.
 - Version catalogs, BOM imports, and dependency admission, use `build-dependency-management`.
 
@@ -54,7 +55,7 @@ Pass: a thin controller delegating to a service that returns a project DTO.
 
 ```java
 @RestController
-@RequestMapping("/api/markets")
+@RequestMapping("/api/v1/markets")
 @Validated
 class MarketController {
   @PostMapping
@@ -244,6 +245,15 @@ public void publish(OrderId orderId) { ... }
 - HikariCP sized for the workload with explicit timeouts, and `readOnly = true` on every query path.
 - Nullability enforced with `@NonNull` and `Optional`, per `java-coding-standards`.
 - The version in the path as `/api/v1/resource`, and a computed future `Sunset` date on anything deprecated.
+
+---
+
+### Startup readiness log
+
+The banner and its format belong to `observability-and-logging`. What is Spring-specific is the hook: emit the block
+from an `@EventListener(ApplicationReadyEvent.class)` method. Spring Boot sends that event after every application and
+command-line runner has run, right before readiness moves to `ACCEPTING_TRAFFIC`, whereas `ApplicationStartedEvent`
+fires before those runners.
 
 ---
 

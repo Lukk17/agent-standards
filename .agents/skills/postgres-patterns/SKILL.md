@@ -9,8 +9,8 @@ A working reference for PostgreSQL decisions that come up while writing queries 
 type, which lock, and which query will tell you what the database is actually doing. For a full review of an existing
 data layer, hand the work to the `database-expert` subagent.
 
-Baseline version, current as of September 2026: PostgreSQL 17. PostgreSQL 15 is the oldest release still supported, so
-treat anything older as a version to upgrade rather than a version to target.
+Baseline version, current as of September 2026: PostgreSQL 18. PostgreSQL 14 is the oldest release still supported,
+until November 12, 2026, so treat anything older as a version to upgrade rather than a version to target.
 
 Based on Supabase Agent Skills (credit: Supabase team), MIT License.
 
@@ -215,6 +215,15 @@ Two triggers, either one of which requires the plan in the change description:
 
 ```sql
 EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM orders WHERE created_at > '2024-01-01';
+```
+
+`EXPLAIN ANALYZE` executes the statement it plans, so on an `UPDATE`, `DELETE` or `INSERT` it changes the data. Run
+it inside a transaction and roll back:
+
+```sql
+BEGIN;
+EXPLAIN ANALYZE UPDATE orders SET status = 'active' WHERE created_at > '2024-01-01';
+ROLLBACK;
 ```
 
 This is the same gate `database-migrations` states for schema changes, deliberately worded identically so a change that

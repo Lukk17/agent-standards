@@ -24,7 +24,9 @@ is the `coding-standards` skill, and this skill is the build-layer detail undern
 
 - Writing the Java inside the modules, use `java-coding-standards`.
 - Wiring Spring Boot beans, starters, and application configuration, use `springboot-patterns`.
-- Test libraries, coverage gates, and the pre-merge build, analysis and scan pipeline, use `springboot-patterns`.
+- Test libraries and coverage gates, use `tdd-workflow`, or `springboot-patterns` in a Spring Boot project.
+- The pre-merge build, analysis and scan pipeline, use `deployment-patterns`, or `springboot-patterns` in a Spring Boot
+  project.
 
 ---
 
@@ -157,6 +159,8 @@ Fail: a generated client is committed, then patched by hand to fix one field.
 | `coding-standards` | The cross-cutting principles this skill sits under. |
 | `java-coding-standards` | Java language style, and the static analysis tools the build runs. |
 | `springboot-patterns` | Spring Boot structure and starters, and the pipeline that runs the build and its gates. |
+| `tdd-workflow` | Test libraries and coverage gates outside a Spring Boot project. |
+| `deployment-patterns` | The CI pipeline that runs the build and its gates outside a Spring Boot project. |
 
 ---
 

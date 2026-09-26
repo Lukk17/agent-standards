@@ -6,9 +6,10 @@ compatibility: Requires the self-hosted AscendWebSearch service reachable over H
 
 # Ascend Web Hunter
 
-Search the web and pull page content through AscendWebSearch, which cascades from fast HTTP to FlareSolverr to a
-headed Playwright browser to a remote NoVNC session a human can drive. Use it for any page a plain fetch cannot
-read, and for login walls the user signs into once so the service can cache the session.
+Pull page content through AscendWebSearch, which cascades from fast HTTP to FlareSolverr to a headed Playwright
+browser to a remote NoVNC session a human can drive. Use it for any page a plain fetch cannot read, and for login
+walls the user signs into once so the service can cache the session. General web search and every page a normal fetch
+returns in full belong to `research`, which hands a blocked page to this skill.
 
 ---
 
@@ -185,12 +186,13 @@ where the user keeps more than one identity. Omit it to use the server's default
 
 ---
 
-### Search first, then read
+### Search a blocking site first, then read
 
-Use `search` to discover candidate URLs, then pass each promising one to `read`. Going straight to `read` on a URL
-you guessed wastes the whole cascade budget on a 404.
+Use `search` only to find candidate URLs on a site already known to block a normal fetch, then pass each promising
+one to `read`. Going straight to `read` on a URL you guessed wastes the whole cascade budget on a 404. An open-ended
+web search goes to `research`, not here.
 
-Pass: search for the topic, pick the three most relevant results, read each one.
+Pass: search for the listing on the blocking site, pick the three most relevant results, read each one.
 
 Fail: invent a likely-looking URL and read it.
 
@@ -224,4 +226,4 @@ curl.exe -s "$BASE/api/v1/web/search?query=ascend%20ai&limit=5"
 - Response routed on its `status` field, with 428 and 409 handled as their own cases.
 - CAPTCHA and login walls handed to the user with `vnc_url`, then polled with a capped retry.
 - `session/establish` used only for a login wall you already know about.
-- Search run before read whenever the URL was not given to you.
+- Search run before read whenever the URL on a blocking site was not given to you, open-ended search left to `research`.

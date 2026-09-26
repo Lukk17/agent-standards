@@ -44,7 +44,9 @@ class BatteryService {
   Future<int> getBatteryLevel() async {
     try {
       final level = await _channel.invokeMethod<int>('getBatteryLevel');
-      if (level == null) throw const BatteryUnavailableException('no level returned');
+      if (level == null) {
+        throw const BatteryUnavailableException('no level returned');
+      }
       return level;
     } on PlatformException catch (e) {
       throw BatteryUnavailableException(e.message ?? e.code);

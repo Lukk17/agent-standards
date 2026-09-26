@@ -8,9 +8,9 @@ file when picking where to look next or when a tier returns nothing useful.
 ### Check the toolbox first
 
 Before the first query, check which research tools this session has: the Context7 MCP server, a web fetch, a web
-search, `gh`, and `curl`. Name any missing one in the first line of the reply, with the route used instead. Note
-whether a Firecrawl or Exa MCP server is also connected, but do not report either as missing, because both are
-optional extras covered at the end of this file.
+search, `gh`, and `curl`. Name any missing one right after the answer, with the evidence, and give the route used
+instead. Note whether a Firecrawl or Exa MCP server is also connected, but do not report either as missing, because
+both are optional extras covered at the end of this file.
 
 Pass:
 

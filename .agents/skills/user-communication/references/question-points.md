@@ -66,8 +66,8 @@ port numbers to remember instead of one.
 
 Running: nothing
 
-~~Read /srv/orders/config/endpoints.yaml~~
-~~Trace which clients call the export addresses~~
+~~DONE: Read /srv/orders/config/endpoints.yaml~~
+~~DONE: Trace which clients call the export addresses~~
 
 **NOW: nothing, stopped until 47 is answered**
 

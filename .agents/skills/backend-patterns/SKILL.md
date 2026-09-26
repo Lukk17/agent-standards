@@ -9,6 +9,9 @@ Design rules for backend services that hold regardless of language or framework:
 what a retry may and may not do, and how a service stays correct while it is being replaced. Every example is
 pseudocode, because the decision is the deliverable and the syntax belongs in a runtime skill.
 
+This skill owns the design of timeouts, capped retries, circuit breakers, and graceful shutdown.
+`observability-and-logging` owns the logs, metrics, and traces that watch them, and does not restate these rules.
+
 Standards baseline, current as of September 2026: HTTP semantics per RFC 9110, error bodies per RFC 7807, service
 contracts described in OpenAPI 3.1.
 
@@ -139,16 +142,16 @@ Fail: a 24-hour TTL on a permission lookup, so a revoked role stays effective un
 ### Paginate large reads with a cursor, and always bound the page
 
 Offset pagination makes the database scan and discard every skipped row, and it skips or repeats rows when the data
-changes between pages. Use it only for small, fixed sets where a user expects page numbers.
+changes between pages. Which kind fits which list, and the request parameters and response fields, are defined by
+`api-design` in [pagination-and-filtering.md](../api-design/references/pagination-and-filtering.md). This section
+covers the query behind a cursor page.
 
 ```text
-GET /orders?limit=20&cursor=<opaque>
-
-  decode cursor -> (last_sort_value, last_id)
-  select ... where (sort_key, id) > (last_sort_value, last_id)
-  order by sort_key, id
-  limit 21                        # one extra row answers has_next
-  next_cursor = encode(last row)
+decode cursor -> (last_sort_value, last_id)
+select ... where (sort_key, id) > (last_sort_value, last_id)
+order by sort_key, id
+limit 21                        # one extra row answers has_next
+next_cursor = encode(last row)
 ```
 
 Sort on an indexed, immutable, tie-broken key, and cap `limit` server-side so a caller cannot ask for the whole table.
@@ -159,7 +162,8 @@ Return the cursor opaque, so its encoding stays yours to change.
 ### Separate liveness from readiness, and drain on shutdown
 
 Liveness answers whether the process should be restarted. Readiness answers whether it should receive traffic. Merging
-them makes a transient dependency failure trigger a restart loop that fixes nothing.
+them makes a transient dependency failure trigger a restart loop that fixes nothing. The two paths are the ones
+`api-design` defines.
 
 ```text
 GET /health   -> 200 while the process is alive; checks nothing external
@@ -207,6 +211,6 @@ bodies, pagination parameters, versioning, and the rate-limit headers and tiers.
 - [ ] Work that may not be lost goes through a durable queue with a dead-letter destination.
 - [ ] Messages that must follow a committed write are published from an outbox, not inline.
 - [ ] Every cached key has a named invalidation trigger, and cache failure degrades throughput only.
-- [ ] List endpoints use cursor pagination with a server-side maximum page size.
+- [ ] List endpoints over unbounded data use cursor pagination with a server-side maximum page size.
 - [ ] `/health` and `/ready` are separate, and `SIGTERM` drains before exit.
 - [ ] Layering follows `hexagonal-architecture` and the contract follows `api-design`.

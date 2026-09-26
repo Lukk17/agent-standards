@@ -43,7 +43,8 @@ from Obsidian's own help and from the notesmd-cli source, not measured on those 
 ### Read the vault list, never guess a path
 
 A machine often has several vaults, and a guessed path writes a note into the wrong one. Read `obsidian.json`, or ask
-`notesmd-cli list-vaults`, and use the entry the user named or the one marked open. Do not write a vault path into a
+`notesmd-cli list-vaults`, and use the entry the user named. `list-vaults` marks only the default vault, so finding
+the vault open in the app needs a direct read of the `open` flag in `obsidian.json`. Do not write a vault path into a
 script: resolve it at run time. The per-platform locations and the exact commands are in
 [vault-discovery.md](references/vault-discovery.md).
 

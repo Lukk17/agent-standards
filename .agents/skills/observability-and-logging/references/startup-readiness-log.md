@@ -191,8 +191,14 @@ Same shape for every framework: build the whole block first (StringBuilder, `Str
 f-string, Go `strings.Builder`), then emit once. If the builder needs to probe dependencies asynchronously, do that work
 first, collect the results, then assemble the string, then log.
 
-Pick the framework's "we're really up" hook from its own skill:
-[springboot-patterns](../../springboot-patterns/SKILL.md), [backend-patterns](../../backend-patterns/SKILL.md),
-[python-patterns](../../python-patterns/SKILL.md), [golang-patterns](../../golang-patterns/SKILL.md),
-[bash](../../bash/SKILL.md), [powershell](../../powershell/SKILL.md). The hook differs per stack, the convention
-above is identical.
+Emit the block from the framework's "we're really up" hook. The hook differs per stack, the convention above is
+identical.
+
+| Stack | Hook |
+| --- | --- |
+| Spring Boot | A listener for `ApplicationReadyEvent`, per [springboot-patterns](../../springboot-patterns/SKILL.md) |
+| Python on FastAPI | Inside `lifespan`, after the probes and before `yield`, per [fastapi-stack.md](../../python-patterns/references/fastapi-stack.md) |
+| Node, Express, NestJS, Next.js | The `app.listen` callback and its kin, per [node-backend-patterns](../../node-backend-patterns/SKILL.md) |
+| Go | After `net.Listen` returns and before `srv.Serve(listener)`, per [golang-patterns](../../golang-patterns/SKILL.md) |
+| Shell service | Right before `exec` or the main loop, per [bash](../../bash/SKILL.md) |
+| PowerShell service | Right before the main loop or `Start-Process`, per [powershell](../../powershell/SKILL.md) |

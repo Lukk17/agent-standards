@@ -25,7 +25,7 @@ recommendation rests on a config file that merely mentions a tool.
 
 - Operating a single CI provider, triaging its runs or preparing a release, use `github-ops`
 - Designing the deployment pipeline itself rather than surveying what exists, use `deployment-patterns`
-- Investigating a single failing test or job as a bug, use `ai-regression-testing` or the project test skill
+- Finding why a single CI job fails, use `github-ops`, then `ai-regression-testing` to add the regression test
 - Reviewing the code an automation runs rather than the automation wiring, use `code-reviewer`
 - Adding logging, metrics or alerting to automation you already trust, use `observability-and-logging`
 
@@ -80,7 +80,8 @@ problem type, so the reader can sort the table without rereading the prose.
 
 Live states: configured, authenticated, verified, stale, missing.
 
-Problem types: active breakage, authentication outage, stale status, overlap, missing capability.
+Problem types: active breakage, authentication outage, stale status, overlap, missing capability, or none for a
+verified item with nothing wrong.
 
 Pass:
 
@@ -118,20 +119,20 @@ CI looks healthy, the workflow file has not changed in a while.
 
 ### Report as one evidence table, then one recommendation per item
 
-The table is the deliverable. Each row carries the automation, where it is defined, its live state, and the proof.
-Recommendations come after the table and each one is a single word, so the user can act on the list without
-interpreting a paragraph.
+The table is the deliverable. Each row carries the automation, where it is defined, its live state, its problem
+type, and the proof. Recommendations come after the table and each one is a single word, so the user can act on the
+list without interpreting a paragraph.
 
 A filled example:
 
-| Automation | Source | Live state | Proof | Call |
-|---|---|---|---|---|
-| Nightly backup timer | `/etc/systemd/system/backup.timer` | verified | `systemctl list-timers backup` shows next run in 6h, last run OK | keep |
-| CI test workflow | `.github/workflows/ci.yml` | verified | `gh run list --workflow ci.yml` shows 5 of 5 success | keep |
-| Pre-commit lint hook | `.git/hooks/pre-commit` | stale | Calls `npx eslint`, `npx eslint --version` exits 127, package removed | fix next |
-| Legacy deploy script | `scripts/deploy.sh` | stale | No run in git log since the CI deploy job landed, same steps as `deploy.yml` | cut |
-| Atlassian MCP server | `.mcp.json` | configured | Process starts, `atlassianUserInfo` returns 401, no token in environment | fix next |
-| Secret scanning | none found | missing | No `gitleaks` config, no scanning workflow, no pre-push hook | fix next |
+| Automation | Source | Live state | Problem type | Proof | Call |
+|---|---|---|---|---|---|
+| Nightly backup timer | `/etc/systemd/system/backup.timer` | verified | none | `systemctl list-timers backup` shows next run in 6h, last run OK | keep |
+| CI test workflow | `.github/workflows/ci.yml` | verified | none | `gh run list --workflow ci.yml` shows 5 of 5 success | keep |
+| Pre-commit lint hook | `.git/hooks/pre-commit` | stale | active breakage | Calls `npx eslint`, `npx eslint --version` exits 127, package removed | fix next |
+| Legacy deploy script | `scripts/deploy.sh` | stale | overlap | No run in git log since the CI deploy job landed, same steps as `deploy.yml` | cut |
+| Atlassian MCP server | `.mcp.json` | configured | authentication outage | Process starts, `atlassianUserInfo` returns 401, no token in environment | fix next |
+| Secret scanning | none found | missing | missing capability | No `gitleaks` config, no scanning workflow, no pre-push hook | fix next |
 
 Every row ends in keep, merge, cut or fix next. No row ends in "investigate further" without a named next command.
 

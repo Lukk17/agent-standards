@@ -1,6 +1,6 @@
 ---
 name: design-system
-description: "Build and audit a design system: token architecture and naming, spacing rhythm, stylesheet organisation, Tailwind v4 CSS-first theming, dark mode, and visual-consistency review. Use when you say \"set up design tokens\", \"audit this UI for consistency\", \"there are forty shades of grey in this codebase\", \"migrate us to Tailwind v4 @theme\", or \"review this PR for styling drift\". Not for choosing the visual direction itself, use `frontend-design`."
+description: "Build and audit a design system: token architecture and naming, spacing rhythm, stylesheet organisation, Tailwind v4 CSS-first theming, dark mode, and visual-consistency review. Use when you say \"set up design tokens\", \"audit this UI for consistency\", \"there are forty shades of grey in this codebase\", \"migrate us to Tailwind v4 @theme\", or \"which styles in this change bypass our tokens\". Not for choosing the visual direction itself or judging whether a UI looks generic, use `frontend-design`. Not for running a pull request review, use `code-reviewer`, which pulls this skill in for its styling-drift criteria."
 license: Apache-2.0
 ---
 
@@ -19,14 +19,16 @@ Baseline: Tailwind CSS v4, which is configured in CSS through `@theme` and no lo
 - Auditing an existing codebase for visual consistency.
 - Preparing a redesign and needing an inventory of what is already there.
 - Diagnosing a UI that looks wrong without an obvious cause.
-- Reviewing a pull request that touches styling.
+- Supplying the styling-drift criteria when a pull request that `code-reviewer` is reviewing touches styling.
 - Migrating a Tailwind v3 configuration to the v4 CSS-first setup.
 
 ---
 
 ### When not to activate
 
-- Choosing the visual direction, composition, typography voice, and motion direction. Use `frontend-design`.
+- Choosing the visual direction, composition, typography voice, and motion direction, or judging whether a UI looks
+  generic. Use `frontend-design`.
+- Running the pull request review itself. Use `code-reviewer`, which pulls this skill in for the styling-drift pass.
 - Contrast ratios, focus indicators, target sizes, and reduced motion. Use `web-accessibility`.
 - React component structure and animation implementation. Use `react-patterns`.
 - Angular component styling and view encapsulation. Use `angular`.
@@ -49,10 +51,11 @@ spacing rhythm, component consistency, responsive behaviour, dark mode completen
 accessibility, information density, and polish, meaning hover, transition, loading, and empty states. Every score
 comes with concrete examples and a fix pinned to a file and line. A score with no file reference is not a finding.
 
-Slop check hunts the tells of generic generated design: gradients on everything, purple-to-blue defaults, glass
-morphism with no purpose, rounded corners on elements that should be square, animation triggered by every scroll, a
-centred hero over a stock gradient, and a system font stack with no personality. Report each hit with its location
-and the direction it undermines.
+Slop check hunts the token-level tells of a system nobody designed: raw hex values and one-off gradients in component
+files, spacing and sizes off the scale, a radius or shadow defined once and never reused, a font stack declared inline
+rather than as a token, and near-duplicate colours that should be one token. Report each hit with its location and the
+token it bypasses. Whether the interface looks generic, meaning purple-to-blue defaults, glass morphism with no
+purpose, or a centred hero over a stock gradient, is a direction question, and `frontend-design` owns it.
 
 ---
 
@@ -249,7 +252,7 @@ Standard breakpoints: `sm: 640px`, `md: 768px`, `lg: 1024px`, `xl: 1280px`.
 - `react-patterns` for the React components consuming these tokens.
 - `angular` for the same consumption in an Angular codebase.
 - `markdown-writer` for the design document the generate mode produces.
-- `code-reviewer` for the styling-drift pass on a pull request.
+- `code-reviewer` runs the pull request review and pulls this skill in for its styling-drift criteria.
 
 ---
 
@@ -262,5 +265,5 @@ Standard breakpoints: `sm: 640px`, `md: 768px`, `lg: 1024px`, `xl: 1280px`.
 - Stylesheets follow the 7-1 layout, `abstracts/` emits no CSS, and `main.scss` only imports.
 - Dark mode is driven by semantic token overrides, and both themes have been viewed.
 - Media queries are `min-width` only, from one shared breakpoint set.
-- An audit finding names a file and a line, and a slop-check finding names the direction it undermines.
+- An audit finding names a file and a line, and a slop-check finding names the token it bypasses.
 - Colour choices have been checked against the contrast rules in `web-accessibility`.

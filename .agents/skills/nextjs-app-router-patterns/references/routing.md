@@ -159,8 +159,9 @@ A modal built this way still needs focus moved into it, trapped, and restored on
 
 ### Route handlers
 
-One `route.ts` per resource, one exported function per HTTP method. Parse the input, return the status code that
-matches what happened.
+One `route.ts` per resource, one exported function per HTTP method. Parse the input, hand the work to a service, and
+return the status code that matches what happened. The service layering and the shared `toProblemResponse` handler,
+which answers a failed schema with 422, are owned by `node-backend-patterns`.
 
 | Method | Meaning | Success status |
 | --- | --- | --- |
@@ -173,32 +174,28 @@ matches what happened.
 // app/api/products/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { toProblemResponse } from '@/lib/http/problem'
+import { productService } from '@/lib/products/service'
 
 const listQuerySchema = z.object({ category: z.string().optional() })
 const createProductSchema = z.object({ name: z.string().min(1), price: z.number().positive() })
 
 export async function GET(request: NextRequest) {
-  const parsed = listQuerySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams))
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+  try {
+    const query = listQuerySchema.parse(Object.fromEntries(request.nextUrl.searchParams))
+    return NextResponse.json(await productService.list(query))
+  } catch (error) {
+    return toProblemResponse(error, request.nextUrl.pathname)
   }
-
-  const products = await db.product.findMany({
-    where: parsed.data.category ? { category: parsed.data.category } : undefined,
-    take: 20,
-  })
-
-  return NextResponse.json(products)
 }
 
 export async function POST(request: NextRequest) {
-  const parsed = createProductSchema.safeParse(await request.json())
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+  try {
+    const input = createProductSchema.parse(await request.json())
+    return NextResponse.json(await productService.create(input), { status: 201 })
+  } catch (error) {
+    return toProblemResponse(error, request.nextUrl.pathname)
   }
-
-  const product = await db.product.create({ data: parsed.data })
-  return NextResponse.json(product, { status: 201 })
 }
 ```
 
@@ -211,13 +208,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  const product = await db.product.findUnique({ where: { id } })
-
-  if (!product) {
-    return NextResponse.json({ error: 'Product not found' }, { status: 404 })
+  try {
+    return NextResponse.json(await productService.getById(id))
+  } catch (error) {
+    return toProblemResponse(error, request.nextUrl.pathname)
   }
-
-  return NextResponse.json(product)
 }
 ```
 

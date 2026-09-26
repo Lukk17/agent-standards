@@ -54,7 +54,8 @@ set -e
 - Ref: http://redsymbol.net/articles/unofficial-bash-strict-mode/
 - Set `IFS=$'\n\t'` alongside it so word splitting no longer happens on spaces.
 - Disable `nounset` with `set +u` only around an optional positional check, then re-enable it with `set -u`.
-- Trap `ERR` and `EXIT` to run cleanup, so temp files and locks are removed even when the script crashes.
+- Trap `EXIT` to run cleanup, so temp files and locks are removed even when the script crashes. Under `set -e` the
+  `EXIT` trap also fires on an error, so an `ERR` trap for the same cleanup would run it twice.
 
 ---
 
@@ -75,7 +76,8 @@ rm -f $target_file
 ```
 
 - Validate required external commands with `command -v` before any logic runs.
-- Validate arguments at entry, print usage, and exit 2 when one is missing or invalid.
+- Validate arguments at entry, and call `usage 2 >&2` when one is missing or invalid, which prints usage to stderr
+  and exits 2.
 - Use `[[ ]]` rather than `[ ]`. It does not word-split its operands and it supports regex matching.
 
 ---
@@ -87,12 +89,13 @@ argument parsing, `main`, then a single `main "$@"` call. The full copyable temp
 piece live in [references/script-template.md](references/script-template.md).
 
 The header comment block carries the script name, a one-sentence description, the usage line, every option, every
-exit code, and the minimum Bash version. `usage` prints it back, so the two can never drift.
+exit code, and the minimum Bash version. `usage` prints the lines between the header's two dashed rules back, so the
+two can never drift.
 
 Pass:
 
 ```bash
-usage() { grep '^#' "$0" | sed 's/^# \?//'; exit 0; }
+usage() { sed -n '3,/^# --*$/{/^# --*$/d;s/^# //;p;}' "$0"; exit "${1:-0}"; }
 ```
 
 Fail:
@@ -171,7 +174,8 @@ verbose="$1"
 
 Exit 0 for success, 1 for a general error, 2 for misuse such as a bad argument or a missing dependency. Codes 3 to
 125 are per-script and documented in the header. Never `exit` from inside a function, return a code and let the
-caller decide.
+caller decide. The two exceptions are `usage`, which ends the run with the code it is given (0 after `--help`, 2 on
+misuse), and the `EXIT` trap handler, which re-raises the status it captured.
 
 Pass:
 
@@ -300,5 +304,5 @@ curl "$dependency_url"
 - [ ] `trap cleanup EXIT` removes every temp file and lock.
 - [ ] Temp paths created with `mktemp`, never hardcoded.
 - [ ] No secret in a positional argument, an echo, or a log line.
-- [ ] Exit codes documented in the header, functions return rather than exit.
+- [ ] Exit codes documented in the header, functions return rather than exit, except `usage` and the `EXIT` trap.
 - [ ] ShellCheck passes with zero findings, every suppression justified inline.

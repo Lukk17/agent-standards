@@ -27,7 +27,8 @@ Addressables, Input System, and Test Framework packages from that release.
 
 ### When not to activate
 
-- Language-level C# design, SOLID, naming, and error handling, use `coding-standards`.
+- Engine-agnostic C# design, SOLID and error handling, use `coding-standards`. Unity-specific C# naming is owned
+  here.
 - Designing the backend a multiplayer or live-ops game talks to, use `backend-patterns`.
 - Building the CI pipeline itself rather than the Unity build settings, use `deployment-patterns`.
 - Writing the test strategy and coverage policy, use `tdd-workflow`.
@@ -68,7 +69,8 @@ to kill the process for memory pressure.
 ### Pool instead of Instantiate
 
 `Instantiate` and `Destroy` during gameplay allocate and produce garbage. Pre-warm a pool at scene load and
-activate out of it.
+activate out of it. An empty pool is a sizing defect: log it and raise the pool size, never fall back to
+`Instantiate`.
 
 Pass:
 
@@ -76,7 +78,12 @@ Pass:
 for (int i = 0; i < poolSize; i++)
     _pool.Enqueue(Instantiate(prefab));
 
-var obj = _pool.Count > 0 ? _pool.Dequeue() : Instantiate(prefab);
+if (_pool.Count == 0)
+{
+    Debug.LogWarning($"{prefab.name} pool is empty, raise poolSize");
+    return;
+}
+var obj = _pool.Dequeue();
 obj.SetActive(true);
 ```
 
@@ -286,7 +293,14 @@ Pass:
 
 ```csharp
 [CreateAssetMenu(menuName = "Game/WeaponData")]
-public class WeaponData : ScriptableObject { public float damage; public float fireRate; }
+public class WeaponData : ScriptableObject
+{
+    [SerializeField] private float _damage;
+    [SerializeField] private float _fireRate;
+
+    public float Damage => _damage;
+    public float FireRate => _fireRate;
+}
 ```
 
 Fail:
@@ -309,7 +323,7 @@ Pass:
 
 ```csharp
 [Test]
-public void WeaponData_DamageIsPositive() => Assert.Greater(_weaponData.damage, 0f);
+public void WeaponData_DamageIsPositive() => Assert.Greater(_weaponData.Damage, 0f);
 ```
 
 Fail:

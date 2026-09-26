@@ -46,9 +46,10 @@ Authentication answers who is calling. Authorization answers whether this caller
 lets any authenticated user read any record by changing the identifier in the URL.
 
 ```typescript
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await requireAuth(request)
-  const order = await orderRepo.findById(params.id)
+  const { id } = await params
+  const order = await orderRepo.findById(id)
 
   if (!order) throw new ApiError(404, 'Not found')
   if (order.userId !== user.sub) throw new ApiError(403, 'Forbidden')
@@ -139,5 +140,5 @@ return NextResponse.json(
 
 - `node-backend-patterns` for the hub these rules belong to.
 - `api-design` for status codes, the problem body shape, and auth headers on the wire.
-- `security-review` for threat modelling, session fixation, and input handling.
+- `security-review` for session fixation and input handling, and the `security-auditor` agent for threat modelling.
 - `keycloak-patterns` when the identity provider is Keycloak, for both the server and the .NET client.

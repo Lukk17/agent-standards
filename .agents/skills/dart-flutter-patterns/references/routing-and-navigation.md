@@ -44,12 +44,15 @@ class TodoListPage extends StatelessWidget {
         itemBuilder: (context, index) => ListTile(
           title: Text(todos[index].title),
           onTap: () async {
+            final cubit = context.read<TodoCubit>();
             final edited = await Navigator.push<Todo>(
               context,
               MaterialPageRoute(builder: (_) => TodoDetailPage(todo: todos[index])),
             );
-            if (edited == null) return;
-            context.read<TodoCubit>().save(edited);
+            if (edited == null) {
+              return;
+            }
+            cubit.save(edited);
           },
         ),
       ),
@@ -75,8 +78,12 @@ final router = GoRouter(
   redirect: (context, state) {
     final isLoggedIn = context.read<AuthCubit>().state is AuthAuthenticated;
     final isGoingToLogin = state.matchedLocation == '/login';
-    if (!isLoggedIn && !isGoingToLogin) return '/login';
-    if (isLoggedIn && isGoingToLogin) return '/';
+    if (!isLoggedIn && !isGoingToLogin) {
+      return '/login';
+    }
+    if (isLoggedIn && isGoingToLogin) {
+      return '/';
+    }
     return null;
   },
   routes: [
@@ -119,7 +126,9 @@ class _SetupFlowState extends State<SetupFlow> {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
+        if (didPop) {
+          return;
+        }
         _exitSetup();
       },
       child: Scaffold(

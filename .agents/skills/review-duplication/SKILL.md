@@ -82,10 +82,14 @@ specific objective built from the mechanics found in step 1, not a vague "look f
   ("does any existing code call `Intl.DateTimeFormat` or a date library for the same purpose?"), naming patterns ("are
   there existing symbols matching `*Format*` or `*Debounce*`?"), where the behaviour is centralised today, and,
   crucially, how the new code could be refactored onto whatever it finds.
-- `Explore` is the fast fan-out for locating candidates across many directories and naming conventions when you do not
-  yet know where to look. It reads excerpts and returns locations, so use it to narrow the field before a deeper pass.
-- `general-purpose` handles turn-intensive semantic comparison, for example: "compare the new `OrderSummaryCard` against
-  every component in the shared component module and report which one could be extended instead".
+- A fast read-only search subagent is the fan-out for locating candidates across many directories and naming
+  conventions when you do not yet know where to look. It reads excerpts and returns locations, so use it to narrow the
+  field before a deeper pass. The built-in one is `Explore` on Claude Code, `explore` on OpenCode, Kilo Code and the
+  GitHub Copilot CLI, and `explorer` on Codex.
+- A general subagent handles turn-intensive semantic comparison, for example: "compare the new `OrderSummaryCard`
+  against every component in the shared component module and report which one could be extended instead". The
+  built-in one is `general-purpose` on Claude Code and the GitHub Copilot CLI, `general` on OpenCode and Kilo Code, and
+  `default` on Codex.
 
 Keep a fast path for unambiguous single-fact checks. Grepping the manifest for one package name is faster done directly
 than delegated. Anything open-ended goes to a subagent.
@@ -151,7 +155,7 @@ consistency, maintenance, or edge cases the existing code already handles.
 - [ ] Candidate locations were hypothesised from the project's real layout before searching.
 - [ ] Any newly imported library was traced to its existing usage and wrapper.
 - [ ] The manifest was checked for an installed library that already solves the problem.
-- [ ] Open-ended searching was delegated to `code-archaeologist`, `Explore`, or `general-purpose`.
+- [ ] Open-ended searching was delegated to `code-archaeologist`, a read-only search subagent, or a general subagent.
 - [ ] Convention bypasses were checked, not only copied code.
 - [ ] Every finding names the reusable symbol, its path, and how to call it.
 - [ ] Findings were folded back into the `code-reviewer` report.

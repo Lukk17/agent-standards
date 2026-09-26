@@ -28,8 +28,8 @@ Synchronous vs. Asynchronous Drivers:
 - Asynchronous (Node.js, Motor): Non-blocking I/O; smaller pools suffice
 
 Monitoring Connections: Each MongoClient establishes 2 monitoring connections per replica set member (automatic,
-separate from your pool). Formula: `Total = (minPoolSize + 2) × replica members × app instances`. Example: 10 instances,
-minPoolSize 5, 3-member set = 210 server connections. Always account for this when planning capacity.
+separate from your pool). Formula: `Total = (maxPoolSize + 2) × replica members × app instances`. Example: 10 instances,
+maxPoolSize 5, 3-member set = 210 server connections. Always account for this when planning capacity.
 
 ---
 
@@ -46,7 +46,8 @@ gathered. Use the user's environment details (deployment type, workload, concurr
 Example: `maxPoolSize: 50`, "Based on your observed peak of 40 concurrent operations with 25% headroom for traffic
 bursts"
 
-If you provide code snippets, add inline comments explaining the rationale for each parameter choice.
+If you provide code snippets, give the reason for each parameter value in your reply to the user, not as comments in
+the code.
 
 #### Calculating Initial Pool Size
 
@@ -61,7 +62,8 @@ Query optimization can dramatically reduce required pool size.
 
 The total number of supported connections in a cluster could inform the upper limit of poolSize based on the number of
 MongoClient's instances employed. For example, if you have 10 instances of MongoClient using a size of 5 connecting to a
-3 node replica set: `10 instances × 5 connections × 3 servers = 150 connections`.
+3 node replica set, counting the two monitoring connections per member:
+`10 instances × (5 + 2) connections × 3 servers = 210 connections`.
 
 Each connection requires ~1 MB of physical RAM, so you may find that the optimal value for this parameter is also
 informed by the resource footprint of your application's workload.
@@ -240,8 +242,8 @@ For detailed monitoring setup, see `monitoring-guide.md`.
 ### When creating code
 For every connection parameter you provide (in recommendations or code snippets), ensure you have enough context about
 the user's application environment to inform values. If not, ask targeted questions before suggesting specific values.
-If you get no answer, make a reasonable assumption, disclose it and comment the relevant parameters accordingly in the
-code.
+If you get no answer, make a reasonable assumption and disclose it, with the parameters it affects, in your reply to
+the user rather than as comments in the code.
 
 ---
 

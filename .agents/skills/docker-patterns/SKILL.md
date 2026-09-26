@@ -103,10 +103,13 @@ Pick the smallest base that can actually run the artefact:
 
 | Workload | Preferred base |
 |---|---|
-| Compiled binaries (Go, Rust) | `gcr.io/distroless/static` or `scratch` |
-| JVM (Spring Boot) | `gcr.io/distroless/java21` |
-| Node.js | `node:24-alpine` |
+| Compiled binaries (Go, Rust) | `gcr.io/distroless/static-debian13:nonroot` or `scratch` |
+| JVM (Spring Boot) | `gcr.io/distroless/java21-debian13:nonroot` |
+| Node.js | `node:24.11-alpine3.23` |
 | Python | `python:3.14-slim` |
+
+Distroless publishes no version tags, only `latest`, `nonroot` and their `debug` variants, so its pin is the Debian
+suffix in the name plus a digest.
 
 Never use `ubuntu:latest` or `debian:latest` as a runtime base.
 
@@ -252,10 +255,16 @@ trivy image --exit-code 1 --severity CRITICAL,HIGH myimage:tag
 
 Store the scan report as a CI artifact, so a later question about what was known at release time has an answer.
 
-Generate a Software Bill of Materials and attach it as an OCI referrer:
+Generate a Software Bill of Materials after push:
 
 ```bash
 syft myimage:tag -o cyclonedx-json > sbom.json
+```
+
+Attach it to the pushed image as a signed attestation, so the SBOM travels with the image in the registry:
+
+```bash
+cosign attest --key cosign.key --type cyclonedx --predicate sbom.json myregistry/myimage:tag
 ```
 
 Sign every production image after push:
@@ -324,6 +333,6 @@ docker system prune -a
 - [ ] Named volumes only, no anonymous volume anywhere.
 - [ ] Internal services on their own network, published ports bound to loopback or omitted.
 - [ ] `cap_drop: [ALL]`, `no-new-privileges`, and a read-only root filesystem where the process allows it.
-- [ ] Trivy scan gates the push, the report is archived, and an SBOM is generated.
+- [ ] Trivy scan gates the push, the report is archived, and an SBOM is generated and attested to the image.
 - [ ] Production images are signed and the signature is verified by the deploy job.
 - [ ] Registry retention enforced by a lifecycle policy.

@@ -69,11 +69,11 @@ mvn -T 4 verify
 Gradle:
 
 ```bash
-./gradlew test jacocoTestReport
+./gradlew check
 ```
 
-Record the total test count, the pass and fail split, and line and branch coverage. The target is around 90% of
-real logic.
+Record the total test count, the pass and fail split, and line and branch coverage. The threshold is the coverage
+gate defined in `tdd-workflow`, wired into JaCoCo as [testing.md](testing.md) shows.
 
 Pass: the whole suite runs green and coverage clears the threshold on its own.
 
@@ -133,14 +133,15 @@ Anything this phase finds is fixed under [security.md](security.md), not patched
 ### Phase 5: format gate
 
 ```bash
-mvn spotless:apply
+mvn spotless:check
 ```
 
 ```bash
-./gradlew spotlessApply
+./gradlew spotlessCheck
 ```
 
-Pass: the formatter runs and produces no diff, meaning the tree was already formatted.
+Pass: the check exits zero, meaning the tree was already formatted. When it fails, run `mvn spotless:apply` or
+`./gradlew spotlessApply` to fix the files, review that diff, and run the check again.
 
 Fail: a formatting run that rewrites files unrelated to the change, which buries the real diff in whitespace.
 

@@ -10,8 +10,9 @@ When transforming a collection, filter then map then aggregate, prefer a pipelin
 reading top down, over an imperative loop with an if-else cascade and an explicit accumulator. The pipeline reads as
 what is being done to the data. The cascade reads as how the bookkeeping goes.
 
-This is a code-shape rule, not a syntax-level formatting one. The sibling `code-formatter` skill says one chain step
-per line. This rule says reach for the chain in the first place.
+This is a code-shape rule, not a syntax-level formatting one. For Dart, Java and Python the sibling
+`code-formatter` skill says one chain step per line, and any other language follows its language skill or its default
+formatter. This rule says reach for the chain in the first place.
 
 ---
 

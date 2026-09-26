@@ -40,9 +40,9 @@ Training memory is a lead to follow, never a source, because tools change betwee
 
 ### Rules
 
-1. Name any missing research tool (Context7, web fetch, web search, `gh`, `curl`) in the first line of the reply,
-   with the route used instead. A missing tool never turns a guess into a fact. Firecrawl and Exa are optional and
-   are used only when configured, so their absence is not reported.
+1. Name any missing research tool (Context7, web fetch, web search, `gh`, `curl`) right after the answer, with the
+   evidence, and give the route used instead. A missing tool never turns a guess into a fact. Firecrawl and Exa are
+   optional and are used only when configured, so their absence is not reported.
 2. Before the first query on a topic that needs more than one fact, split it into 3 to 5 sub-questions that can each
    be answered on its own, and search per sub-question. A single-fact lookup skips this step.
 3. For a broad topic, run one subagent per sub-question in parallel when the runtime can spawn them. Give each one
@@ -95,7 +95,7 @@ Training memory is a lead to follow, never a source, because tools change betwee
 
 ### Checklist
 
-- [ ] Missing research tools named at the start, with the route used instead
+- [ ] Missing research tools named after the answer, with the evidence and the route used instead
 - [ ] A multi-fact topic split into 3 to 5 sub-questions before searching, broad ones fanned out to subagents
 - [ ] Subagent findings merged by the parent, deciding claims re-checked
 - [ ] Sources tried in tier order, primary sources preferred over summaries and ranking

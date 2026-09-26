@@ -33,7 +33,9 @@ one that needs fixing.
 
 - React composition, hooks, state and rendering, use `react-patterns`
 - Backend service structure, endpoints and data access, use `backend-patterns` or `api-design`
-- Blank lines, brace placement and chain breaking inside a function body, use `code-formatter`
+- Blank lines, chain breaking and comment placement inside a Dart, Java or Python function body, use
+  `code-formatter`. Any other language follows its language skill or its default formatter, and brace placement
+  and indent width follow each language's default formatter
 - The full testing playbook rather than the principle, use `tdd-workflow` or the language test skill
 - Logging and observability beyond the one rule here, use `observability-and-logging`
 - Ports and adapters in depth, use `hexagonal-architecture`
@@ -189,7 +191,9 @@ the check at the edge of the feature, in one place.
 Pass:
 
 ```typescript
-if (!flags.isEnabled('checkout-v2')) return renderLegacyCheckout()
+if (!flags.isEnabled('checkout-v2')) {
+  return renderLegacyCheckout()
+}
 ```
 
 Fail:
@@ -348,9 +352,15 @@ those calls for restructuring rather than for a comment. The failing and repaire
 Pass:
 
 ```typescript
-if (!user) return
-if (!user.isAdmin) return
-if (!market.isActive) return
+if (!user) {
+  return
+}
+if (!user.isAdmin) {
+  return
+}
+if (!market.isActive) {
+  return
+}
 ```
 
 Fail:
@@ -368,7 +378,8 @@ if (user) {
 
 ### Related skills
 
-- `code-formatter` owns blank lines, brace placement and chain breaking inside a function body
+- `code-formatter` owns blank lines, chain breaking and where a comment sits inside a Dart, Java or Python function
+  body, and leaves brace placement and indent width to each language's default formatter
 - `react-patterns` owns React composition, hooks, state and rendering
 - `backend-patterns` and `api-design` own service structure, endpoints and contracts
 - `hexagonal-architecture` owns ports, adapters and dependency direction in depth

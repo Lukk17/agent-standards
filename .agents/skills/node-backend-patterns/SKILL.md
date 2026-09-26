@@ -67,6 +67,9 @@ class MarketService {
 Fail: a route handler that calls the query builder directly, checks the status inline, and leaves the same rule to be
 re-implemented by the next caller.
 
+This skill owns the layering, error responses, logging, and shutdown of a Next.js route handler as well as of an
+Express route. `nextjs-app-router-patterns` owns the `route.ts` file convention, the runtime choice, and caching.
+
 ---
 
 ### Select the columns you need and batch the related reads

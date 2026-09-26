@@ -9,8 +9,10 @@ development machine. The memory, timing, and interrupt rules live in [SKILL.md](
 
 Treat every Required rule as mandatory and every Advisory rule as a default that needs a documented justification to
 deviate from. K&R braces, two-space indentation, `UPPER_SNAKE_CASE` for `#define`, `lower_snake_case` for functions.
-Cap a function at 50 executable lines and extract beyond that. Every `.c` and `.h` carries a file header block with
-description, author, date, target hardware, and licence.
+Cap a function at 50 executable lines and extract beyond that. Every `.c` and `.h` starts with one
+`SPDX-License-Identifier` line, the one comment every file carries because licence scanners read it. No other file
+header: git already records the author and the date, and the no-comments default in `coding-standards` and the Doc
+Comments rule in [SKILL.md](../SKILL.md) cover the rest.
 
 Pass:
 
@@ -36,7 +38,8 @@ static uint8_t CRC8Update(uint8_t crc, uint8_t byte)
 
 Shape a public API around what the user of the library wants to do, not around the registers underneath. Follow the
 established naming: `begin()` to initialise, `read()` for input, `write()` for output. Do not make the caller pass
-raw pointers, take an array or wrap the structure. Validate everything arriving from UART, I2C, or SPI, and put a
+a raw buffer pointer and a separate length, take a bounded array or wrap the data in a struct. A pointer to a handle
+or to a single output value is fine. Validate everything arriving from UART, I2C, or SPI, and put a
 timeout on every synchronous read so a disconnected peripheral cannot hang the device.
 
 Pass:

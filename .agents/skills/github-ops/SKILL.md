@@ -234,7 +234,7 @@ Enabled Dependabot and auto-merge for patch updates so this stops happening.
 ### Checklist
 
 - [ ] Every triaged issue carries a type and a priority label
-- [ ] No pull request older than seven days without a review or a comment
+- [ ] No pull request past five days without a review, and none idle seven days without a stale comment
 - [ ] Every CI failure was investigated to a named cause, not just re-run
 - [ ] Release notes reflect what actually merged since the last tag
 - [ ] Security alerts are acknowledged and tracked, criticals raised immediately

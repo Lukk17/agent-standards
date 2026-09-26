@@ -117,7 +117,7 @@ Java
 ```java
 state = state.toBuilder().running(true).build();
 
-CompletableFuture<Void> shown = gateway.show(1001, "Rest over", "Time to lift");
+gateway.show(1001, "Rest over", "Time to lift").join();
 
 logger.info("alarm fired");
 ```
@@ -329,32 +329,17 @@ final delay = computeBackoff(retryCount);
 Exception: short tag comments tied to an issue tracker (e.g. `// TODO(TICKET-001): drop after Q3`) sometimes trail by
 team convention. Even then, prefer the comment above when there's room.
 
-### Doc comments earn their place or get deleted
+### Doc comments sit on the declaration they document
 
-Default to none. A doc comment is usually a sign that the code failed to explain itself. Before writing one, extract
-the unclear block into a well-named function, rename the parameters so they carry their own meaning, and tighten the
-types. Do that first and most doc comments have nothing left to say, which is the outcome you want. Code that explains
-itself cannot go stale, a comment can.
+Whether a doc comment should exist at all, and what its prose and tags may say, is owned by `coding-standards`. This
+rule covers only where the block sits and how its lines break.
 
-When one is still genuinely needed, the prose is capped at five lines and is usually one. Every tag line is capped at
-one physical line, whatever the language calls it: `@param`, `@return` and `@throws` in Javadoc, JSDoc, KDoc and
-Doxygen, an entry under `Args:`, `Returns:` or `Raises:` in a Python docstring, a plain sentence in a Go or Dart doc
-comment. A tag that does not fit on one line gets shortened or dropped, never wrapped to fit a width, which is the
-same rule this skill applies to code. Five rules decide what goes in, the last one being where the block sits.
-
-1. Prose. One sentence saying what it does, then only what a caller cannot infer from the signature. Nothing more.
-2. A parameter note only when the name and the type do not already convey it, meaning units, nullability, a valid
-   range, or who owns the argument afterwards. `@param orderId the wholesale order identifier` is noise, delete it.
-3. A return note only when it is non-obvious.
-4. A throws note always, for every exception a caller can act on. Most languages keep throwing out of the signature,
-   so this one is genuinely contract rather than decoration.
-5. The block sits directly on the declaration it documents. No blank line between the two, ever, and no doc comment on
+1. The block sits directly on the declaration it documents. No blank line between the two, ever, and no doc comment on
    a line of its own floating above an annotation stack.
-
-Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
-example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you
-justify in review, not a budget to spend. The one-line cap on a tag line has no exception at all: shorten it or delete
-it.
+2. Every tag line is one physical line, whatever the language calls it: `@param`, `@return` and `@throws` in Javadoc,
+   an entry under `Args:`, `Returns:` or `Raises:` in a Python docstring, a plain sentence in a Dart doc comment. A
+   tag that does not fit on one line gets shortened or dropped, never wrapped to fit a width, which is the same rule
+   this skill applies to code.
 
 ```java
 // GOOD: sits on the declaration, one line per tag
@@ -434,7 +419,7 @@ Future<void> save() async {
   final navigator = Navigator.of(context);
   final selectedDate = ref.read(selectedDateProvider);
 
-  final updated = widget.exercise!.copyWith(
+  final updated = widget.exercise.copyWith(
     name: _nameController.text,
     bodyParts: form.primary,
   );

@@ -17,7 +17,11 @@ configured explicitly because the default validator does not check it.
 
 ```java
 NimbusJwtDecoder decoder = NimbusJwtDecoder.withPublicKey(publicKey).build();
-decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer("https://auth.example.com"));
+OAuth2TokenValidator<Jwt> audience = new JwtClaimValidator<List<String>>(
+    JwtClaimNames.AUD, aud -> aud != null && aud.contains("my-api"));
+decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+    JwtValidators.createDefaultWithIssuer("https://auth.example.com"),
+    audience));
 ```
 
 Fail: a filter that reads the subject out of an unverified token, or a decoder left on defaults so any issuer with
@@ -145,8 +149,9 @@ The full header block, the CORS source bean, and mutual TLS for service-to-servi
 
 ### Rate limit with Bucket4j, refilling greedily
 
-This is the one rate limiting implementation in the standards. It lives here, and no other file carries a second
-copy of it.
+This is the Spring implementation of the rate limiting policy in `security-review`, which owns the language-neutral
+rule: limit every endpoint, limit expensive ones harder, and key on the authenticated user where there is one and on
+the client address where there is not.
 
 Refill greedily rather than at interval boundaries. A greedy bandwidth returns tokens continuously across the
 window, so a client that exhausts its quota recovers a little at a time. Interval refill returns the whole bucket
@@ -170,7 +175,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
   @Override
   protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
       FilterChain chain) throws ServletException, IOException {
-    Bucket bucket = buckets.computeIfAbsent(request.getRemoteAddr(), key -> createBucket());
+    Principal principal = request.getUserPrincipal();
+    String clientKey = principal != null ? "user:" + principal.getName() : "addr:" + request.getRemoteAddr();
+    Bucket bucket = buckets.computeIfAbsent(clientKey, key -> createBucket());
     ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
 
     if (probe.isConsumed()) {
@@ -187,10 +194,13 @@ public class RateLimitFilter extends OncePerRequestFilter {
 Fail: `Refill.intervally(...)`, an unbounded map that grows one entry per client address forever, or a 429 with no
 `Retry-After`, which leaves a well-behaved client guessing.
 
-Take the client key from `request.getRemoteAddr()`. It is the immediate connection address, which is the only value
-a client cannot forge. Behind a reverse proxy, make that address correct by configuring
-`server.forward-headers-strategy` and registering `ForwardedHeaderFilter`, and make sure the proxy overwrites
-rather than appends `X-Forwarded-For`. Never read that header directly in application code.
+Key the bucket on the authenticated principal name when the request carries one, and on `request.getRemoteAddr()`
+only for anonymous traffic. Order the filter after Spring Security's filter chain, which
+`spring.security.filter.order` places at `-100` by default, so the principal is already set when the bucket is chosen.
+The remote address is the immediate connection address, which is the only address a client cannot forge. Behind a
+reverse proxy, make that address correct by configuring `server.forward-headers-strategy` and registering
+`ForwardedHeaderFilter`, and make sure the proxy overwrites rather than appends `X-Forwarded-For`.
+Never read that header directly in application code.
 
 Bound the map with an eviction policy, or move the buckets into a distributed store, before this filter meets real
 traffic. Alert on sustained 429 rates, because a limiter firing constantly is either under attack or misconfigured.

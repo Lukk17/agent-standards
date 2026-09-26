@@ -54,7 +54,7 @@ var testDB *sql.DB
 
 func TestMain(m *testing.M) {
     ctx := context.Background()
-    container, err := postgres.Run(ctx, "postgres:17-alpine")
+    container, err := postgres.Run(ctx, "postgres:18-alpine")
     if err != nil {
         log.Fatalf("start postgres: %v", err)
     }

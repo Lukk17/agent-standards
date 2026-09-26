@@ -6,8 +6,8 @@ description: Application security review covering secrets, input validation, inj
 # Security Review
 
 Check application code against the failure modes that actually cause incidents, with a concrete pass and fail for each.
-This skill covers the application layer. Cloud, container and platform hardening live in the references, and the
-`security-auditor` agent takes over for threat modelling and a full assessment.
+This skill covers the application layer. Cloud and platform hardening live in the references, container hardening
+lives in `docker-patterns`, and the `security-auditor` agent takes over for threat modelling and a full assessment.
 
 ---
 
@@ -19,6 +19,8 @@ This skill covers the application layer. Cloud, container and platform hardening
 - Implementing payments, or storing and transmitting personal data.
 - Integrating a third-party API that holds or returns sensitive data.
 - Reviewing a change that touches any of the above, as the security pillar of `code-reviewer`.
+- Hardening cloud IAM, network rules, pipeline scanning, or a CDN, through
+  [references/cloud-infrastructure-security.md](references/cloud-infrastructure-security.md).
 
 ---
 
@@ -26,8 +28,7 @@ This skill covers the application layer. Cloud, container and platform hardening
 
 - A full multi-pillar review of a change. Use `code-reviewer`, which pulls this skill in for the security pillar.
 - Threat modelling, attack trees, or a formal assessment. Escalate to the `security-auditor` agent.
-- Cloud IAM, network, CI/CD and CDN hardening. Open
-  [references/cloud-infrastructure-security.md](references/cloud-infrastructure-security.md).
+- Pipeline OIDC, job permissions, and action pinning. Use `deployment-patterns`.
 - Container image hardening, base image choice, SBOM generation, and image scanning. Use `docker-patterns`.
 - Spring Security wiring specifically. Use `springboot-patterns`.
 - Writing the tests that prove a control works. Use `tdd-workflow`.
@@ -293,20 +294,24 @@ deliberately rather than by omission.
 
 Rate limit every endpoint, and limit expensive endpoints harder. Key on the authenticated user where there is one and on
 the client address where there is not, because an address-only limit punishes shared networks and an identity-only limit
-does nothing to anonymous abuse.
+does nothing to anonymous abuse. Keep the counters in a store every instance shares once the service runs more than
+one process, because a per-process counter multiplies the limit by the instance count.
 
-Fail: the expensive path shares the global limit.
+This section owns that policy. The implementations follow it: Spring in `springboot-patterns` under
+`references/security.md`, and Node in `node-backend-patterns` under `references/rate-limiting.md`.
 
-```typescript
-app.use('/api/', rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }))
+Fail: the search and login endpoints share the global budget, and every counter is keyed on the client address.
+
+```text
+/api/**            100 requests per 15 minutes, keyed on client address
 ```
 
-Pass: the expensive path gets its own, tighter budget.
+Pass: expensive and authentication endpoints get their own tighter budgets, keyed on the user when there is one.
 
-```typescript
-app.use('/api/', rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }))
-app.use('/api/search', rateLimit({ windowMs: 60 * 1000, max: 10 }))
-app.use('/api/auth/login', rateLimit({ windowMs: 60 * 1000, max: 5 }))
+```text
+/api/**            100 requests per 15 minutes, keyed on user, or on client address when anonymous
+/api/search        10 requests per minute, keyed the same way
+/api/auth/login    5 requests per minute, keyed on client address, since no user is authenticated yet
 ```
 
 ---
@@ -389,7 +394,7 @@ test('rejects a malformed payload', async () => {
 | Task | Open |
 | --- | --- |
 | OAuth 2.1 and PKCE, JWT validation, mTLS, required response headers, zero trust, supply chain, audit logging, privacy, encryption at rest, SAST and DAST | [references/platform-security.md](references/platform-security.md) |
-| Cloud IAM, secrets managers, network rules, pipeline hardening, CDN and WAF, backup and recovery | [references/cloud-infrastructure-security.md](references/cloud-infrastructure-security.md) |
+| Cloud IAM, secrets managers, network rules, pipeline scanning, CDN and WAF, backup and recovery | [references/cloud-infrastructure-security.md](references/cloud-infrastructure-security.md) |
 | Wallet signature verification and on-chain transaction validation | [references/blockchain-security.md](references/blockchain-security.md) |
 
 ---
@@ -399,6 +404,7 @@ test('rejects a malformed payload', async () => {
 - `code-reviewer` is the parent review workflow, and findings from it feed its security pillar and escalate to the
   `security-auditor` agent.
 - `docker-patterns` owns container hardening, SBOM generation, and image scanning.
+- `deployment-patterns` owns pipeline OIDC, job permissions, and action pinning.
 - `springboot-patterns` owns Spring Security configuration specifically.
 - `api-design` owns the contract and error shape the validation rules above assert against.
 - `observability-and-logging` owns the log structure the redaction rules apply to.

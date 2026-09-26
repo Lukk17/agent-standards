@@ -79,19 +79,15 @@ Branch protection (required settings):
 | Feature branch → main | Squash merge, clean history, one commit per feature |
 | Hotfix → main | Merge commit (no-FF), preserves hotfix context |
 | Release branch → main | Merge commit (no-FF), preserves release history |
-| Rebase | Only on local, un-pushed commits, never rewrite shared history |
+| Rebase | Only on a branch no one else has pulled, force-push with `--force-with-lease` only on explicit instruction |
 
 ---
 
-### Automated Changelog
+### Changelog
 
-Use `git-cliff` or `conventional-changelog` on every release:
-
-```bash
-git-cliff --tag v1.2.0 -o CHANGELOG.md
-```
-
-Requires [Conventional Commits](https://www.conventionalcommits.org/) format: `feat:`, `fix:`, `chore:`, `docs:`, etc.
+Changelog generation is part of the release procedure, which lives in `github-ops`. This skill owns only the commit
+format a generated changelog reads: [Conventional Commits](https://www.conventionalcommits.org/), with `feat:`, `fix:`,
+`chore:`, `docs:` and the other types.
 
 ---
 

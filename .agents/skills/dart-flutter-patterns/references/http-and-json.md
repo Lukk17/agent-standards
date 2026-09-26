@@ -9,8 +9,10 @@ large payloads off the UI isolate.
 
 - Use HTTPS. iOS and Android block cleartext by default. If a debug build genuinely needs plain HTTP, scope it to
   one host through `network_security_config.xml` on Android and `NSAppTransportSecurity` on iOS, and never ship it.
-- Build URLs with `Uri.https(authority, path, queryParameters)`. String concatenation gets the encoding wrong the
-  first time someone passes a space or an ampersand.
+- Never concatenate a host or a query string. With `package:http`, build URLs with
+  `Uri.https(authority, path, queryParameters)`. With `dio`, set the host once as `baseUrl` in `BaseOptions` and pass
+  query values through `queryParameters`. String concatenation gets the encoding wrong the first time someone passes
+  a space or an ampersand.
 - Check the status code and throw a typed exception. Never return `null` to mean failure, because the caller has
   no way to tell it apart from a legitimately absent value.
 - Keep tokens out of source. Read them from secure storage at request time, and inject the base URL through
@@ -115,7 +117,9 @@ class UserApiDataSource {
   Future<User> getById(String id) async {
     final response = await _dio.get<Map<String, dynamic>>('/users/$id');
     final data = response.data;
-    if (data == null) throw ApiException('GET /users/$id returned no body');
+    if (data == null) {
+      throw ApiException('GET /users/$id returned no body');
+    }
     return User.fromJson(data);
   }
 }
@@ -189,7 +193,9 @@ List<Photo> parsePhotos(String responseBody) {
 Future<List<Photo>> fetchPhotos(http.Client client) async {
   final uri = Uri.https('jsonplaceholder.typicode.com', '/photos');
   final response = await client.get(uri);
-  if (response.statusCode != 200) throw ApiException('GET $uri failed');
+  if (response.statusCode != 200) {
+    throw ApiException('GET $uri failed');
+  }
   return Isolate.run(() => parsePhotos(response.body));
 }
 ```
@@ -202,7 +208,7 @@ version and does not need `package:flutter/foundation.dart`.
 ### Checklist
 
 - [ ] One HTTP client across the app, matching `pubspec.yaml`.
-- [ ] Every URL is built with `Uri.https`, never concatenated.
+- [ ] Every URL is built with `Uri.https` or dio's `baseUrl` and `queryParameters`, never concatenated.
 - [ ] Every non-success status code throws a typed exception rather than returning null.
 - [ ] The client is injected, not called as a top-level function, so tests can substitute it.
 - [ ] Token refresh has a retry guard so a failing refresh cannot loop.

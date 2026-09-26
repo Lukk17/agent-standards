@@ -68,24 +68,26 @@ reducer keeps every transition in one switch, which makes the set of legal chang
 
 ```typescript
 interface State {
-  markets: Market[]
+  markets: AsyncState<Market[]>
   selectedMarket: Market | null
-  loading: boolean
 }
 
 type Action =
-  | { type: 'SET_MARKETS'; payload: Market[] }
+  | { type: 'FETCH_MARKETS' }
+  | { type: 'MARKETS_LOADED'; payload: Market[] }
+  | { type: 'MARKETS_FAILED'; payload: Error }
   | { type: 'SELECT_MARKET'; payload: Market }
-  | { type: 'SET_LOADING'; payload: boolean }
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
-    case 'SET_MARKETS':
-      return { ...state, markets: action.payload }
+    case 'FETCH_MARKETS':
+      return { ...state, markets: { status: 'loading' } }
+    case 'MARKETS_LOADED':
+      return { ...state, markets: { status: 'success', data: action.payload } }
+    case 'MARKETS_FAILED':
+      return { ...state, markets: { status: 'error', reason: action.payload } }
     case 'SELECT_MARKET':
       return { ...state, selectedMarket: action.payload }
-    case 'SET_LOADING':
-      return { ...state, loading: action.payload }
     default:
       return state
   }
@@ -95,9 +97,8 @@ const MarketContext = createContext<{ state: State; dispatch: Dispatch<Action> }
 
 export function MarketProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, {
-    markets: [],
+    markets: { status: 'idle' },
     selectedMarket: null,
-    loading: false,
   })
 
   return (

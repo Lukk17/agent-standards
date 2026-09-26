@@ -76,7 +76,9 @@ class UserRepository {
 
   Future<User> getUser(String userId) async {
     final cached = _cachedUser;
-    if (cached != null && cached.id == userId) return cached;
+    if (cached != null && cached.id == userId) {
+      return cached;
+    }
 
     final raw = await _apiService.fetchUserRaw(userId);
     final user = User(id: raw['id'] as String, name: raw['name'] as String);

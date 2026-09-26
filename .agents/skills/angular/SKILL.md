@@ -177,8 +177,8 @@ component. API calls belong in a dedicated data service.
 
 Angular still ships a class-based API alongside the modern functional one for route guards, resolvers, and HTTP
 interceptors, and an untyped variant alongside typed reactive forms. In all four cases the legacy form is the one to
-remove on sight: a function composes and tests without TestBed, and a typed form catches a renamed control at compile
-time instead of at runtime.
+remove on sight: a function composes and tests with no component fixture, only an injection context, and a typed
+form catches a renamed control at compile time instead of at runtime.
 
 ```typescript
 // PASS: a guard that is just a function, and a form whose shape is checked
@@ -254,8 +254,9 @@ runs on every check, which is what makes a template-bound method the most common
 ```
 
 Defer heavy sections with `@defer` so they load on interaction or when they enter the viewport rather than on first
-paint. Keep constructors free of work and put initialisation in `ngOnInit`. Follow the Angular style guide for file
-names: dashes between words, `feature.type.ts`, and a file name matching the class it exports.
+paint. Keep constructors free of work and put initialisation in `ngOnInit`, except for wiring that needs the injection
+context, such as `takeUntilDestroyed()`, `toSignal` and `effect`, which belongs in the constructor. Follow the Angular
+style guide for file names: dashes between words, `feature.type.ts`, and a file name matching the class it exports.
 
 ---
 

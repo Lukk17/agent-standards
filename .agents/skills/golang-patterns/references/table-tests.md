@@ -178,10 +178,11 @@ func TestRender(t *testing.T) {
 }
 ```
 
-Regenerate deliberately, then read the diff before committing:
+Regenerate deliberately, then read the diff before committing. Name only the package that declares the flag, here
+`./internal/render`, because every other test binary rejects `-update` with `flag provided but not defined`:
 
 ```bash
-go test ./... -update
+go test ./internal/render -update
 ```
 
 `testdata/` is ignored by the Go tool, so anything in it is test material and never gets compiled or vendored. A

@@ -34,7 +34,7 @@ For legacy enterprise apps requiring SAML 2.0. Supports SSO and Single Logout (S
 | Client Authentication | On | Off |
 | Standard flow | Enabled | Enabled |
 | Service accounts | Optional | N/A |
-| PKCE | Optional | Required |
+| PKCE (`S256`) | Required | Required |
 
 #### URLs
 

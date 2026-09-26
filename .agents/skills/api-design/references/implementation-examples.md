@@ -1,7 +1,8 @@
 # Endpoint implementation examples
 
-The same create-user endpoint in three stacks: schema validation, a 422 problem body on failure, and a 201 with a
-`Location` header on success. Read this when you want a concrete shape to copy rather than the rule behind it.
+The same create-user endpoint in three stacks: a 400 problem body when the `Idempotency-Key` header is missing,
+schema validation, a 422 problem body on failure, and a 201 with a `Location` header on success. Read this when you
+want a concrete shape to copy rather than the rule behind it.
 
 ---
 
@@ -18,6 +19,15 @@ const createUserSchema = z.object({
 
 export async function POST(req: NextRequest) {
   const idempotencyKey = req.headers.get("Idempotency-Key");
+  if (!idempotencyKey) {
+    return NextResponse.json({
+      type: "https://example.com/errors/idempotency-key-missing",
+      title: "Idempotency-Key Required",
+      status: 400,
+      detail: "Send an Idempotency-Key header so this request is safe to retry",
+    }, { status: 400, headers: { "Content-Type": "application/problem+json" } });
+  }
+
   const parsed = createUserSchema.safeParse(await req.json());
 
   if (!parsed.success) {
@@ -42,7 +52,14 @@ export async function POST(req: NextRequest) {
 
 ```python
 from rest_framework import serializers, status, viewsets
+from rest_framework.exceptions import APIException
 from rest_framework.response import Response
+
+
+class MissingIdempotencyKey(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = "Send an Idempotency-Key header so this request is safe to retry."
+    default_code = "idempotency_key_missing"
 
 
 class CreateUserSerializer(serializers.Serializer):
@@ -64,9 +81,13 @@ class UserViewSet(viewsets.ModelViewSet):
         return CreateUserSerializer if self.action == "create" else UserSerializer
 
     def create(self, request):
+        idempotency_key = request.headers.get("Idempotency-Key")
+        if not idempotency_key:
+            raise MissingIdempotencyKey()
+
         serializer = CreateUserSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user = UserService.create(**serializer.validated_data)
+        user = UserService.create(**serializer.validated_data, idempotency_key=idempotency_key)
         return Response(
             {"data": UserSerializer(user).data},
             status=status.HTTP_201_CREATED,
@@ -83,6 +104,12 @@ the contract splits in two.
 
 ```go
 func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
+    idempotencyKey := r.Header.Get("Idempotency-Key")
+    if idempotencyKey == "" {
+        writeProblem(w, http.StatusBadRequest, "https://example.com/errors/idempotency-key-missing", "Idempotency-Key Required")
+        return
+    }
+
     var req CreateUserRequest
     if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
         writeProblem(w, http.StatusBadRequest, "https://example.com/errors/invalid-json", "Invalid Request Body")
@@ -94,7 +121,7 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    user, err := h.service.Create(r.Context(), req)
+    user, err := h.service.Create(r.Context(), req, idempotencyKey)
     if err != nil {
         switch {
         case errors.Is(err, domain.ErrEmailTaken):

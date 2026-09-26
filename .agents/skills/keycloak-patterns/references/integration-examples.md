@@ -69,54 +69,11 @@ app.MapGet("/users", async (IKeycloakUserClient client) =>
 
 ---
 
-### Spring Boot
+### Spring Boot and Node.js
 
-```yaml
-spring:
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: https://keycloak.example.com/realms/my-realm
-```
-
-```java
-@Configuration
-@EnableWebSecurity
-public class SecurityConfig {
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http.authorizeHttpRequests(authz -> authz
-                .requestMatchers("/public/**").permitAll()
-                .anyRequest().authenticated())
-            .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
-        return http.build();
-    }
-}
-```
-
----
-
-### Node.js / Express
-
-```javascript
-const { Issuer, Strategy } = require('openid-client');
-
-const keycloakIssuer = await Issuer.discover(
-  'https://keycloak.example.com/realms/my-realm'
-);
-
-const client = new keycloakIssuer.Client({
-  client_id: 'node-app',
-  client_secret: 'secret',
-  redirect_uris: ['http://localhost:3000/callback'],
-});
-
-// Use with passport.js
-passport.use('oidc', new Strategy({ client }, (tokenSet, userinfo, done) => {
-  return done(null, userinfo);
-}));
-```
+Spring Security resource-server configuration against a Keycloak realm belongs to `springboot-patterns`, and
+verifying a Keycloak JWT inside a Node service belongs to `node-backend-patterns`. Point either one at the realm
+issuer, `{AuthServerUrl}/realms/{realm}`, and read the client secret from the environment, never from source.
 
 ---
 

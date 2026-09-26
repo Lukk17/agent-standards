@@ -72,7 +72,7 @@ export const MarketCard = ({ market }: MarketCardProps) => (
 ### Compose components, never inherit
 
 Build a family of small pieces that slot into each other. Inheritance in React produces components with a props
-surface that only grows.
+surface that only grows. Error boundaries are the one exception, because React supports them only as class components.
 
 ```typescript
 // PASS: composed pieces, each with one job
@@ -233,7 +233,8 @@ export function useMarketPrice(marketId: string): Price | null { ... }
 - `nextjs-app-router-patterns` owns Server Components, streaming, route caching, Server Actions, and route handlers.
   This skill does not cover them.
 - `web-accessibility` owns WCAG conformance, ARIA semantics, and screen-reader behaviour. The React mechanics for
-  keyboard and focus are in [references/accessibility.md](references/accessibility.md), the requirements are there.
+  keyboard and focus are in [references/accessibility.md](references/accessibility.md), and the requirements are in
+  `web-accessibility`.
 - `frontend-design` for visual direction and motion direction.
 - `design-system` for tokens, theming, and stylesheet architecture.
 - `performance-optimization` for profiling and Core Web Vitals work beyond React-level fixes.
@@ -244,7 +245,8 @@ export function useMarketPrice(marketId: string): Price | null { ... }
 
 ### Checklist
 
-- Every top-level component is a named function declaration.
+- Every top-level component is a named function declaration, except an error boundary, which React supports only as a
+  class component.
 - Component families are composed, not configured through a growing flag surface.
 - Every async operation exposes one `AsyncState` union, not separate data, loading, and error flags.
 - No component or hook calls `fetch` directly, and every endpoint lives in the typed API client.

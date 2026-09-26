@@ -32,26 +32,27 @@ skill defers to them rather than restating them.
 
 ---
 
-### Configure the server in your tool's own MCP file
+### Add Atlassian's remote MCP server yourself
 
-This repository keeps one MCP configuration file per agent tool, and a server has to be declared in the file the tool
-actually reads. Add the Atlassian MCP server there, following the setup document `docs/MCP_SETUP.md`, which lists the
-file each tool reads and the schema each one expects.
+No MCP configuration file in this repository declares a Jira server. The MCP tools below come from Atlassian's own
+remote MCP server, which each user adds to the MCP file or command their agent tool uses, following
+[Getting started with the Atlassian MCP Server](https://support.atlassian.com/atlassian-rovo-mcp-server/docs/getting-started-with-the-atlassian-remote-mcp-server/).
+Atlassian hosts it, so there is no package to install or pin. It signs in through an OAuth 2.1 browser flow, or
+through an API token in an `Authorization` header for a headless client.
 
-Two rules hold regardless of tool. The secret comes from the process environment, never as a literal value inside a
-configuration file that can be committed. Do not pin the server package to a version in project configuration, so a
-consumer picks up fixes without editing a file this repository owns.
+One rule holds regardless of tool. A token comes from the process environment or a secrets manager, never as a
+literal value inside a configuration file that can be committed.
 
 Pass:
 
 ```text
-JIRA_URL, JIRA_EMAIL and JIRA_API_TOKEN exported in the shell that starts the agent. Config file names the server only.
+Server added with the OAuth sign-in. No token in any committed file.
 ```
 
 Fail:
 
 ```json
-{"env": {"JIRA_API_TOKEN": "the-real-token-pasted-into-a-committed-file"}}
+{"headers": {"Authorization": "Basic the-real-token-pasted-into-a-committed-file"}}
 ```
 
 Create the token at the Atlassian account security page, store it in the environment or a secrets manager, and scope
@@ -78,16 +79,20 @@ produces a 401 that reads like a permissions problem.
 
 | Tool | Use it for |
 |---|---|
-| `jira_search` | JQL queries across a project |
-| `jira_get_issue` | Full detail for one key |
-| `jira_create_issue` | Creating a Task, Bug, Story or Epic |
-| `jira_update_issue` | Changing summary, description or assignee |
-| `jira_get_transitions` | The transition IDs valid for this issue right now |
-| `jira_transition_issue` | Moving status |
-| `jira_add_comment` | Progress updates |
-| `jira_get_sprint_issues` | Everything in the active sprint |
-| `jira_create_issue_link` | Blocks, relates to, duplicates |
-| `jira_get_issue_development_info` | Linked branches, commits and pull requests |
+| `searchJiraIssuesUsingJql` | JQL queries across a project |
+| `getJiraIssue` | Full detail for one key |
+| `createJiraIssue` | Creating a Task, Bug, Story or Epic |
+| `editJiraIssue` | Changing summary, description or assignee |
+| `listJiraIssueTransitions` | The transitions valid for this issue right now |
+| `transitionJiraIssue` | Moving status |
+| `addOrEditJiraIssueComment` | Progress updates |
+| `getJiraBoardSprintData` | Everything in the active sprint of a board |
+| `createJiraIssueLink` | Blocks, relates to, duplicates |
+
+These names come from Atlassian's
+[supported tools](https://support.atlassian.com/atlassian-rovo-mcp-server/docs/supported-tools/) page. A client
+connected before the current server version can still list older names, such as `getTransitionsForJiraIssue` and
+`addCommentToJiraIssue`, so call the name the connected server actually lists.
 
 ---
 
@@ -185,9 +190,12 @@ Created it and added the "backend" component, priority High and the current spri
 
 ---
 
-### Update as you go, at the points that carry information
+### Propose updates as you go, at the points that carry information
 
-| Moment in the work | What to record on the issue |
+Every row below is a proposal, not an action. Tell the user the transition or the comment you would make, and run it
+only after they approve that one action.
+
+| Moment in the work | What to propose for the issue |
 |---|---|
 | Work starts | Transition to the in-progress status |
 | Branch created | Comment with the branch name |
@@ -233,7 +241,7 @@ first so you understand the full scope of the feature.
 | `400` on a comment | Body sent as a plain string | Wrap it in the Atlassian document structure |
 | Transition rejected | ID belongs to a different workflow | Read the transitions for this issue first |
 | Connection timeout | Network or VPN | Check VPN and firewall rules |
-| MCP server will not start | Launcher binary not on the agent's PATH | Use the absolute path, or set PATH in the shell profile that starts the agent |
+| MCP tools missing or asking to sign in | Server URL not in the agent's MCP file, or the OAuth sign-in never finished | Add the remote server URL, then finish the browser sign-in |
 
 ---
 
@@ -251,7 +259,8 @@ first so you understand the full scope of the feature.
 
 - [ ] Credentials come from the process environment, never a literal in a config file
 - [ ] The MCP server is declared in the file the running tool actually reads
-- [ ] No version pin was added to project MCP configuration
+- [ ] Each MCP tool called is one the connected server actually lists
+- [ ] Every transition and comment ran only after the user approved that one action
 - [ ] Transitions were read for this issue before one was executed
 - [ ] Only the fields the user named were written
 - [ ] Comments link outward rather than pasting reports

@@ -65,13 +65,13 @@ either roll the write back inside the test or drop the scope back to `function`.
 ### Parametrized fixture
 
 Parameters on the fixture run every test that requests it once per value, which is how one suite covers several
-backends.
+implementations of the same port. Never use it to stand SQLite in for Postgres, see
+[integration-tests.md](integration-tests.md).
 
 ```python
-@pytest.fixture(params=["sqlite", "postgres"])
-def db(request) -> Iterator[Database]:
-    with make_database(request.param) as database:
-        yield database
+@pytest.fixture(params=["json", "msgpack"])
+def serializer(request) -> Serializer:
+    return make_serializer(request.param)
 ```
 
 ---

@@ -54,7 +54,9 @@ class DatabaseService {
 
   Future<Database> _open() async {
     final existing = _database;
-    if (existing != null) return existing;
+    if (existing != null) {
+      return existing;
+    }
 
     final dbPath = join(await getDatabasesPath(), 'app_database.db');
     final opened = await openDatabase(

@@ -18,16 +18,17 @@ export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  retries: 0,
   workers: process.env.CI ? 1 : undefined,
+  outputDir: 'artifacts/test-results',
   reporter: [
-    ['html', { outputFolder: 'playwright-report' }],
-    ['junit', { outputFile: 'playwright-results.xml' }],
-    ['json', { outputFile: 'playwright-results.json' }],
+    ['html', { outputFolder: 'artifacts/playwright-report' }],
+    ['junit', { outputFile: 'artifacts/playwright-results.xml' }],
+    ['json', { outputFile: 'artifacts/playwright-results.json' }],
   ],
   use: {
     baseURL: process.env.BASE_URL || 'http://localhost:3000',
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
     actionTimeout: 10000,
@@ -49,33 +50,41 @@ export default defineConfig({
 ```
 
 Three settings carry most of the weight. `forbidOnly` under CI stops a stray `test.only` from silently reducing the
-suite to one test. `retries: 2` under CI and `0` locally means a flake is visible where it can be fixed and survivable
-where it blocks a deploy. `workers: 1` under CI trades wall-clock for determinism, and is worth relaxing once the suite
-is genuinely isolated.
+suite to one test. `retries: 0` keeps every flake visible, because the flaky policy in [SKILL.md](../SKILL.md) allows a
+retry only on a genuinely non-deterministic integration path, and that spec opts in on its own. `workers: 1` under CI
+trades wall-clock for determinism, and is worth relaxing once the suite is genuinely isolated.
+
+```typescript
+test.describe.configure({ retries: 2 })
+```
+
+That line sits at the top of the one spec file that drives the non-deterministic path, never in the global config.
 
 ---
 
 ### Artifacts
 
-Let the config capture failures rather than sprinkling manual captures through specs. Screenshots, video, and traces all
-belong under one artifact directory that CI uploads as a whole.
+Let the config capture failures rather than sprinkling manual captures through specs. Screenshots, video, traces, and
+the reports all belong under one artifact directory, `artifacts/`, that CI uploads as a whole. `outputDir` is where
+Playwright writes screenshots, video, and traces, and Playwright cleans it at the start of every run.
 
-A deliberate screenshot inside a spec is for documenting a state, not for diagnosing a failure.
+A deliberate screenshot inside a spec is for documenting a state, not for diagnosing a failure. Write it through
+`testInfo.outputPath`, which puts it inside `outputDir` in a folder of its own for that test.
 
 ```typescript
-await page.screenshot({ path: 'artifacts/checkout-summary.png', fullPage: true })
+await page.screenshot({ path: test.info().outputPath('checkout-summary.png'), fullPage: true })
 ```
 
 Traces are the highest-value artifact for a failure that only reproduces in CI, because they replay the run with DOM
-snapshots, network activity, and the console. `trace: 'on-first-retry'` is the right default: no cost on green runs, a
-full trace on the run that actually failed.
+snapshots, network activity, and the console. `trace: 'retain-on-failure'` is the right default with no global retry: it
+records every run and keeps the trace only for a run that failed, even when a later retry passes.
 
 ---
 
 ### CI wiring
 
-Run the suite on every push and pull request, and always upload the report, so a red build is diagnosable without a
-local reproduction.
+Run the suite on every push and pull request, and always upload the artifact directory, so a red build is diagnosable
+without a local reproduction.
 
 ```yaml
 name: E2E Tests
@@ -97,8 +106,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playwright-report
-          path: playwright-report/
+          name: playwright-artifacts
+          path: artifacts/
           retention-days: 30
 ```
 

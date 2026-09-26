@@ -293,7 +293,15 @@ def main() -> None:
         sampler.set_epoch(epoch)
         train_one_epoch(model, loader, optimizer, criterion, torch.device(local_rank))
         if dist.get_rank() == 0:
-            save_checkpoint(model.module, optimizer, epoch, path)
+            state = {
+                "model_state_dict": model.module.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "scheduler_state_dict": scheduler.state_dict(),
+                "scaler_state_dict": scaler.state_dict(),
+                "epoch": epoch,
+            }
+            save_checkpoint(state, path)
+        dist.barrier()
 
     dist.destroy_process_group()
 ```
@@ -325,7 +333,7 @@ because it shards all three across ranks rather than replicating them.
 | `x += residual` or `relu(x, inplace=True)` on a tensor autograd needs | `x = x + residual`, `x = F.relu(x)` |
 | `.item()` before `backward` | Keep the tensor, call `.item()` only to log |
 | `model.to(device)` inside the training loop | Move once before the loop |
-| Accumulating `total_loss += loss` | Accumulate `loss.item()`, or the graph is retained |
+| Accumulating `total_loss += loss` | Accumulate `loss.detach()`, or the graph is retained, and call `.item()` once per epoch |
 | `torch.load(path)` with no `weights_only` | `torch.load(path, map_location="cpu", weights_only=True)` |
 | Validating without `model.eval()` | Set the mode, and wrap in `@torch.no_grad()` |
 

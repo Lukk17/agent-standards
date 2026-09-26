@@ -17,21 +17,21 @@ serve right now", and a failure removes it from the Service endpoints without re
 ```yaml
 startupProbe:
   httpGet:
-    path: /health/liveness
+    path: /health
     port: 3000
   periodSeconds: 5
   failureThreshold: 30
 
 livenessProbe:
   httpGet:
-    path: /health/liveness
+    path: /health
     port: 3000
   periodSeconds: 30
   failureThreshold: 3
 
 readinessProbe:
   httpGet:
-    path: /health/readiness
+    path: /ready
     port: 3000
   periodSeconds: 10
   failureThreshold: 2

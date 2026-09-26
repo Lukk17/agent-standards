@@ -20,8 +20,9 @@ Track binaries with Git LFS by extension:
 | `*.png *.jpg *.psd *.tga` | Textures |
 | `*.wav *.mp3 *.ogg` | Audio |
 | `*.fbx *.obj *.blend` | 3D models |
-| `*.anim *.controller` | Animation assets |
-| `*.unity *.prefab` | Scenes and prefabs, optional, worth it once they get large |
+
+Keep `*.unity`, `*.prefab`, `*.anim` and `*.controller` out of LFS. Under Force Text they are YAML, and LFS would store
+them as pointer files and give up the text diff and merge the setting above exists for.
 
 ---
 

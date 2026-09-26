@@ -45,7 +45,7 @@ Pass:
 
 ```yaml
 - name: Ensure nginx is installed
-  ansible.builtin.package:
+  ansible.builtin.apt:
     name: nginx
     state: present
 ```
@@ -88,7 +88,8 @@ nginx_tls_key: "-----BEGIN PRIVATE KEY-----MIIEvQIBADANBg..."
 
 Every task declares a desired state and reports changed only when it actually changed something. Reach for
 `ansible.builtin.command` or `ansible.builtin.shell` only when no module covers the job, and give it `creates` or
-`removes` so a second run is a no-op.
+`removes` so a second run is a no-op. A command that runs only from a `rescue` has no such marker, so it states its
+real result with `changed_when: true` instead.
 
 Pass:
 
@@ -155,6 +156,7 @@ Pass:
   rescue:
     - name: Restore previous release
       ansible.builtin.command: /opt/app/bin/rollback.sh
+      changed_when: true
   always:
     - name: Remove the staging directory
       ansible.builtin.file:
@@ -278,7 +280,8 @@ reports any change. That is the only mechanical proof the idempotency rule above
 - [ ] Every module call uses its Fully Qualified Collection Name.
 - [ ] Role variables are prefixed, defaulted in `defaults/main.yml`, and asserted at role entry.
 - [ ] No secret in plain text, everything in Vault or an AWX credential.
-- [ ] Every `command` or `shell` task carries `creates` or `removes`.
+- [ ] Every `command` or `shell` task carries `creates` or `removes`, or runs only from a `rescue` with
+  `changed_when: true`.
 - [ ] No `changed_when: false` masking a task that really does change the host.
 - [ ] `become` is on the tasks that need it, never on the play.
 - [ ] State-mutating groups are wrapped in `block` / `rescue` / `always`, no bare `ignore_errors`.

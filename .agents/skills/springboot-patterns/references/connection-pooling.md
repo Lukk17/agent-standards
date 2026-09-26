@@ -15,8 +15,8 @@ the formula and adjust only with a measurement.
 maximumPoolSize = (number_of_cores * 2) + effective_spindle_count
 ```
 
-Use `effective_spindle_count = 1` for an SSD-backed database. A four-core application server against an SSD
-database gives `(4 * 2) + 1 = 9`, which rounds up to 10.
+Use `effective_spindle_count = 1` for an SSD-backed database. A four-core database host on SSD gives
+`(4 * 2) + 1 = 9`, which rounds up to 10.
 
 Count cores on the database host rather than the application host when the two differ, because the pool exists to
 avoid overwhelming the database.

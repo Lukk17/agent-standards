@@ -140,8 +140,8 @@ def test_email_invalid():
 
 ### Isolate every test
 
-A test that depends on another test's leftovers passes alone and fails under `-p no:randomly`, in parallel, or in a
-different order. Build state in a fixture, and let pytest's `tmp_path` own anything on disk.
+A test that depends on another test's leftovers passes alone and fails under pytest-randomly's shuffled order, in
+parallel, or in a different order. Build state in a fixture, and let pytest's `tmp_path` own anything on disk.
 
 Pass:
 

@@ -150,18 +150,18 @@ Fail: the new field reaches one branch only.
 
 ```typescript
 if (isSandboxMode()) {
-  return { data: { id, email, name } }
+  return { data: { id, email, full_name, phone, role, created_at, avatar_url } }
 }
-return { data: { id, email, name, notificationSettings } }
+return { data: { id, email, full_name, phone, role, created_at, avatar_url, notification_settings } }
 ```
 
 Pass: both branches satisfy the same contract, with the sandbox branch returning an explicit empty value.
 
 ```typescript
 if (isSandboxMode()) {
-  return { data: { id, email, name, notificationSettings: null } }
+  return { data: { id, email, full_name, phone, role, created_at, avatar_url, notification_settings: null } }
 }
-return { data: { id, email, name, notificationSettings } }
+return { data: { id, email, full_name, phone, role, created_at, avatar_url, notification_settings } }
 ```
 
 The test that enforces it runs against the sandbox branch, since the test environment forces the flag on.

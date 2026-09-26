@@ -9,7 +9,7 @@ Rules for changing a schema that is already carrying production traffic, where t
 rather than a compile error. The tool-specific commands live in the references. This file is the safety model every
 tool has to satisfy.
 
-Baseline versions, current as of September 2026: PostgreSQL 17, MySQL 8.4 LTS, and the migration tools named in the
+Baseline versions, current as of September 2026: PostgreSQL 18, MySQL 8.4 LTS, and the migration tools named in the
 reference map below.
 
 ---
@@ -62,7 +62,7 @@ reference map below.
 -- PASS: nullable column, metadata-only change
 ALTER TABLE users ADD COLUMN avatar_url TEXT;
 
--- PASS: PostgreSQL 15 or newer stores a constant default in the catalogue, so no rewrite happens
+-- PASS: PostgreSQL 11 or newer stores a constant default in the catalogue, so no rewrite happens
 ALTER TABLE users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT true;
 
 -- FAIL: NOT NULL with no default on an existing table rewrites every row under an exclusive lock
@@ -152,10 +152,10 @@ ALTER TABLE orders
   ADD CONSTRAINT uq_orders_reference UNIQUE (reference_number),
   ADD CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(id);
 
-CREATE INDEX ix_orders_status ON orders (status) WHERE status != 'completed';
+CREATE INDEX idx_orders_status ON orders (status) WHERE status != 'completed';
 ```
 
-Prefixes: `ck_` check, `uq_` unique, `fk_` foreign key, `ix_` index.
+Prefixes: `ck_` check, `uq_` unique, `fk_` foreign key, `idx_` index.
 
 ---
 
@@ -208,8 +208,13 @@ Two triggers, either one of which requires the plan in the change description:
   concurrent index build.
 - Any query expected to touch more than 10,000 rows.
 
+`EXPLAIN ANALYZE` executes the statement it plans, so on an `UPDATE`, `DELETE` or `INSERT` it changes the data. Run
+it inside a transaction and roll back:
+
 ```sql
+BEGIN;
 EXPLAIN ANALYZE UPDATE orders SET status = 'active' WHERE created_at > '2024-01-01';
+ROLLBACK;
 ```
 
 This is the same gate `postgres-patterns` states for query changes, deliberately worded identically so a change that

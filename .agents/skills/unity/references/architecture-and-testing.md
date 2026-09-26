@@ -17,9 +17,13 @@ Pass, a data container and an event channel:
 [CreateAssetMenu(menuName = "Game/WeaponData")]
 public class WeaponData : ScriptableObject
 {
-    public float damage;
-    public float fireRate;
-    public AudioClip shootSound;
+    [SerializeField] private float _damage;
+    [SerializeField] private float _fireRate;
+    [SerializeField] private AudioClip _shootSound;
+
+    public float Damage => _damage;
+    public float FireRate => _fireRate;
+    public AudioClip ShootSound => _shootSound;
 }
 
 [CreateAssetMenu(menuName = "Events/GameEvent")]
@@ -48,15 +52,18 @@ Put tests in a dedicated `Tests/` assembly definition. Edit Mode for pure logic,
 utilities, and data validation, which need no scene and run fastest. Play Mode for gameplay mechanics, physics,
 coroutines, component lifecycle, and integration.
 
-Pass:
+Pass, an Edit Mode test that sets the private serialized field through `SerializedObject`, the way the Inspector
+does:
 
 ```csharp
 [Test]
 public void WeaponData_DamageIsPositive()
 {
     var data = ScriptableObject.CreateInstance<WeaponData>();
-    data.damage = 25f;
-    Assert.Greater(data.damage, 0f);
+    var serialized = new SerializedObject(data);
+    serialized.FindProperty("_damage").floatValue = 25f;
+    serialized.ApplyModifiedPropertiesWithoutUndo();
+    Assert.Greater(data.Damage, 0f);
 }
 ```
 

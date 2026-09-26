@@ -20,7 +20,7 @@ def train_one_epoch(
     scaler: torch.amp.GradScaler | None = None,
 ) -> float:
     model.train()
-    total_loss = 0.0
+    total_loss = torch.zeros((), device=device)
 
     for data, target in loader:
         data = data.to(device, non_blocking=True)
@@ -42,9 +42,9 @@ def train_one_epoch(
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
 
-        total_loss += loss.item()
+        total_loss += loss.detach()
 
-    return total_loss / len(loader)
+    return (total_loss / len(loader)).item()
 ```
 
 `scaler.unscale_(optimizer)` before clipping is what makes the clip threshold mean the same thing with and without
@@ -66,8 +66,8 @@ def evaluate(
     device: torch.device,
 ) -> tuple[float, float]:
     model.eval()
-    total_loss = 0.0
-    correct = 0
+    total_loss = torch.zeros((), device=device)
+    correct = torch.zeros((), dtype=torch.long, device=device)
     total = 0
 
     for data, target in loader:
@@ -75,11 +75,11 @@ def evaluate(
         target = target.to(device, non_blocking=True)
 
         output = model(data)
-        total_loss += criterion(output, target).item()
-        correct += (output.argmax(1) == target).sum().item()
+        total_loss += criterion(output, target)
+        correct += (output.argmax(1) == target).sum()
         total += target.size(0)
 
-    return total_loss / len(loader), correct / total
+    return (total_loss / len(loader)).item(), correct.item() / total
 ```
 
 Divide the metric by the number of samples and the loss by the number of batches. Mixing the two is the most common

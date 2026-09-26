@@ -79,8 +79,8 @@ how an accidental extra call gets caught.
 
 ### Testing signals and functional guards
 
-A functional guard is a function, so it needs no TestBed harness. Run it inside an injection context and assert on
-what it returns.
+A functional guard is a function, so it needs no component fixture and no module declaration, only an injection
+context from `TestBed.runInInjectionContext`. Run it there and assert on what it returns.
 
 ```typescript
 it('redirects an anonymous visitor to the login page', () => {

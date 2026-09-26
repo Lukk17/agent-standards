@@ -88,7 +88,7 @@ You can also use ASP.NET Core's standard config:
 ```json
 {
   "Keycloak": {
-    "ssl-required": "internal",
+    "ssl-required": "external",
     "resource": "test-client",
     "verify-token-audience": true,
     "credentials": { "secret": "secret" }

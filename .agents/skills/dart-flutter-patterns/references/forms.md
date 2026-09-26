@@ -11,8 +11,8 @@ Building a `Form`, validating several fields together, gating the submit, and te
   is expensive and destroys the form's state on every rebuild.
 - Pass the key to the `Form` widget's `key` property. That is what gives you `FormState` for validation and save.
 - From a deep descendant where passing the key is impractical, reach the state with `Form.of(context)`.
-- Create every `TextEditingController` and `FocusNode` in `initState` and dispose them in `dispose`. A leaked
-  controller keeps the whole subtree alive.
+- Create every `TextEditingController` and `FocusNode` once per `State`, as a field initializer or in `initState`,
+  never in `build`, and dispose them in `dispose`. A leaked controller keeps the whole subtree alive.
 
 ---
 
@@ -76,7 +76,9 @@ class _RegistrationFormState extends State<RegistrationForm> {
   }
 
   Future<void> _submit() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
 
     setState(() => _submitting = true);
     final messenger = ScaffoldMessenger.of(context);
@@ -107,8 +109,12 @@ class _RegistrationFormState extends State<RegistrationForm> {
             decoration: InputDecoration(labelText: l10n.emailLabel),
             validator: (value) {
               final email = value?.trim() ?? '';
-              if (email.isEmpty) return l10n.emailRequired;
-              if (!email.contains('@') || email.endsWith('@')) return l10n.emailMalformed;
+              if (email.isEmpty) {
+                return l10n.emailRequired;
+              }
+              if (!email.contains('@') || email.endsWith('@')) {
+                return l10n.emailMalformed;
+              }
               return null;
             },
           ),
@@ -121,8 +127,12 @@ class _RegistrationFormState extends State<RegistrationForm> {
             onChanged: (_) => _formKey.currentState?.validate(),
             validator: (value) {
               final password = value ?? '';
-              if (password.length < 12) return l10n.passwordTooShort(12);
-              if (!password.contains(RegExp(r'\d'))) return l10n.passwordNeedsDigit;
+              if (password.length < 12) {
+                return l10n.passwordTooShort(12);
+              }
+              if (!password.contains(RegExp(r'\d'))) {
+                return l10n.passwordNeedsDigit;
+              }
               return null;
             },
           ),

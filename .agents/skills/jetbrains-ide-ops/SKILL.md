@@ -118,7 +118,8 @@ then reopen and read the module list back. The full procedure is in
 ### Checklist
 
 - [ ] Every option name in a run configuration was copied from a working file or from XML the IDE wrote
-- [ ] Every path inside a run configuration uses `$PROJECT_DIR$`, never an absolute path
+- [ ] Every path inside a run configuration uses `$PROJECT_DIR$`, never an absolute path, except `SDK_NAME`, which is
+  the interpreter's registered name copied as the IDE wrote it, even when that name looks like a path
 - [ ] `.idea/modules.xml` lists only modules whose `.iml` is committed beside it
 - [ ] `git check-ignore -v` confirmed each `.idea/` path in both directions
 - [ ] Every `<module name="...">` in a run configuration names a module the IDE currently shows

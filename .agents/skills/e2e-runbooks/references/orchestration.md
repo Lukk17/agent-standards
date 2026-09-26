@@ -8,7 +8,7 @@ same state are kept apart. Depth behind the Sweeps section of [SKILL.md](../SKIL
 ### Why one subagent per test
 
 The main session picks specs, watches for completion, and aggregates. It never executes a test itself. Delegating each
-spec to one [`e2e-runner`](../../../../subagents/e2e-runner.md) buys four things:
+spec to one `e2e-runner` subagent buys four things:
 
 - Isolated context per test, so no runner carries "I already saw endpoint X" reasoning into an unrelated spec.
 - Per-test token accounting, since each runner reports its own input and output estimate and the sweep sums them.

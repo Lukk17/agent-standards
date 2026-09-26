@@ -234,7 +234,7 @@ Fix: Generate a unique title per product using the product name and primary cate
 ### Checklist
 
 - No important page is blocked by `robots.txt` or carrying an unintended `noindex`.
-- Every canonical is self-consistent and non-looping, and no redirect chain runs past three hops.
+- Every canonical is self-consistent and non-looping, and no redirect chain runs to three hops or more.
 - The sitemap matches the intended public surface, and hreflang is correct where it exists.
 - Each URL owns one primary intent, with no two pages competing for the same query.
 - Every title is roughly 50 to 60 characters and every description roughly 120 to 160, written for a human reader.

@@ -22,6 +22,7 @@ bundler and `params` and `searchParams` arrive as promises.
 - Adding a Server Action, a route handler, or per-route metadata.
 - Migrating a Pages Router application to the App Router.
 - Diagnosing a slow `next dev` start or a slow hot update.
+- Fixing a Core Web Vitals regression in a Next.js app. This skill owns that work.
 
 ---
 
@@ -32,7 +33,8 @@ bundler and `params` and `searchParams` arrive as promises.
 - Token architecture and theming. Use `design-system`.
 - Keyboard, focus, ARIA, and contrast requirements. Use `web-accessibility`.
 - Titles, meta descriptions, structured data, and keyword mapping. Use `seo`.
-- Profiling and Core Web Vitals remediation beyond the Next.js primitives. Use `performance-optimization`.
+- Profiling the server code and data access behind a slow route. Use `performance-optimization`.
+- Layering, error responses, logging, and shutdown inside a route handler. Use `node-backend-patterns`.
 
 ---
 
@@ -114,9 +116,11 @@ function. A client `fetch` to your own route handler gives up all three.
 // PASS: mutation and invalidation live together
 'use server'
 export async function addToCart(productId: string) {
-  const parsed = addToCartSchema.parse({ productId })
-  await db.cart.create({ data: parsed })
+  const parsed = addToCartSchema.safeParse({ productId })
+  if (!parsed.success) return { error: 'Invalid product' }
+  await db.cart.create({ data: parsed.data })
   revalidateTag('cart')
+  return { success: true }
 }
 
 // FAIL: a client round trip that leaves the cache stale
@@ -127,15 +131,19 @@ const handleClick = () => fetch('/api/cart', { method: 'POST', body: JSON.string
 
 ### Validate and type every route handler boundary
 
-A route handler is a public HTTP endpoint. Parse the body and the search params through a schema, and return a status
-code the caller can act on.
+A route handler is a public HTTP endpoint. Parse the body and the search params through a schema, hand the work to a
+service, and return every error through the shared problem+json handler. The service layering and
+`toProblemResponse` are owned by `node-backend-patterns`, which answers a failed schema with 422.
 
 ```typescript
-// PASS: parsed input, explicit status
+// PASS: parsed input, rule in a service, errors through the shared problem+json handler
 export async function POST(request: NextRequest) {
-  const parsed = createProductSchema.safeParse(await request.json())
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
-  return NextResponse.json(await db.product.create({ data: parsed.data }), { status: 201 })
+  try {
+    const input = createProductSchema.parse(await request.json())
+    return NextResponse.json(await productService.create(input), { status: 201 })
+  } catch (error) {
+    return toProblemResponse(error, request.nextUrl.pathname)
+  }
 }
 
 // FAIL: unvalidated body written straight to the database, always 200
@@ -231,18 +239,18 @@ it.
 /**
  * Creates a product and revalidates every cached listing that shows it.
  *
- * @throws {ZodError} when the submitted form fails validation
+ * @returns `{ error }` when the submitted form fails validation, never a thrown error
  */
-export async function createProduct(formData: FormData): Promise<Product> { ... }
+export async function createProduct(formData: FormData): Promise<CreateProductResult> { ... }
 
 // FAIL: restates the signature and the file name
 /**
  * Server action that creates a product.
  *
  * @param formData - The form data
- * @returns The created product
+ * @returns The result
  */
-export async function createProduct(formData: FormData): Promise<Product> { ... }
+export async function createProduct(formData: FormData): Promise<CreateProductResult> { ... }
 ```
 
 ---
@@ -254,7 +262,7 @@ export async function createProduct(formData: FormData): Promise<Product> { ... 
 - `design-system` for tokens, theming, and styling architecture.
 - `web-accessibility` for keyboard, focus, ARIA, and contrast requirements.
 - `seo` for titles, structured data, and keyword mapping behind `generateMetadata`.
-- `performance-optimization` for profiling and Core Web Vitals work.
+- `performance-optimization` for profiling server code and data access. Core Web Vitals work stays here.
 - `api-design` for the contract shape of route handlers exposed to other clients.
 
 ---

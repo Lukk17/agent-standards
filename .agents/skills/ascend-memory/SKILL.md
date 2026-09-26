@@ -1,6 +1,6 @@
 ---
 name: ascend-memory
-description: Long-term semantic memory for one user through the self-hosted AscendMemory service, covering insert, semantic search, delete, and wipe against a per-user Qdrant namespace. Use when the user says "remember that…", "what did I tell you about…", "save this for later", "forget this", or when prior context about the user would change your answer. Not for fetching content from the live web, use `ascend-web-hunter`.
+description: Long-term semantic memory for one user through the self-hosted AscendMemory service, covering insert, semantic search, delete, and wipe against a per-user Qdrant namespace. Use when the user says "remember that…", "what did I tell you about…", "save this for later", "forget this", or when prior context about the user would change your answer. Not for web research or fetching a page, use `research`, which hands a page that blocks a normal fetch to `ascend-web-hunter`.
 compatibility: Requires the self-hosted AscendMemory service reachable over HTTP. Its base URL is configured by the user and appears in the examples as the placeholder $BASE, for example `http://ascend-memory.local:8080`. No default base URL is assumed.
 ---
 
@@ -23,7 +23,8 @@ every request.
 
 ### When not to activate
 
-- Fetching a page or running a web search for information you do not have, use `ascend-web-hunter`.
+- Running a web search or fetching a page for information you do not have, use `research`.
+- Reading a page behind a WAF, a CAPTCHA or a login that blocks a normal fetch, use `ascend-web-hunter`.
 - Turning a recording into text before storing anything from it, use `audio-scribe`.
 - Recording an architectural decision about a codebase rather than a fact about the user, use
   `architecture-decision-records`.
@@ -151,7 +152,8 @@ Fail: search a second user's id to compare, or dump every hit back into the repl
 
 ### Related skills
 
-- `ascend-web-hunter` for information that lives on the web rather than in the user's history.
+- `research` for information that lives on the web rather than in the user's history.
+- `ascend-web-hunter` for a page behind a WAF, a CAPTCHA or a login that blocks a normal fetch.
 - `audio-scribe` for turning a recording into text you might then store.
 - `architecture-decision-records` for decisions about a codebase rather than facts about a person.
 

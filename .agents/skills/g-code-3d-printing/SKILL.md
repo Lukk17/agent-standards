@@ -145,19 +145,22 @@ needs the toolhead physically stopped: a camera snapshot, a macro handoff, a pau
 
 ### Start G-code, bed mesh and purge line
 
-The sequence is fixed: home, level, heat to the real target, purge outside the part, then print. Never hard-code a
+The sequence is fixed: home, heat to the real target, level, purge outside the part, then print. Never hard-code a
 Z-offset, read it from the printer's saved configuration. Never purge over the area the part will occupy.
 
-Pass, a complete start sequence for a 220 x 220 bed:
+On Klipper this sequence is the body of the `START_PRINT` macro in `printer.cfg`, and the slicer start G-code stays the
+single `START_PRINT` call shown above. The mesh loads after the heat, because the bed changes shape as it warms.
+
+Pass, a complete `START_PRINT` macro body for a 220 x 220 bed:
 
 ```gcode
 G90
 M83
-M140 S{bed_temperature}
-M104 S{first_layer_temperature}
+M140 S{params.BED_TEMP}
+M104 S{params.EXTRUDER_TEMP}
 G28
-M190 S{bed_temperature}
-M109 S{first_layer_temperature}
+M190 S{params.BED_TEMP}
+M109 S{params.EXTRUDER_TEMP}
 BED_MESH_PROFILE LOAD=default
 G92 E0
 G1 Z5 F600
@@ -170,7 +173,9 @@ G92 E0
 G1 Z2 F3000
 ```
 
-On Marlin with UBL or BLTouch, replace the `BED_MESH_PROFILE LOAD=default` line with `G29`.
+On Marlin, which has no macros, the same sequence is the slicer start G-code itself: write the temperatures as the
+slicer placeholders `{bed_temperature}` and `{first_layer_temperature}`, and with UBL or BLTouch replace the
+`BED_MESH_PROFILE LOAD=default` line with `G29`.
 
 And the matching end sequence, which retracts, lifts, parks clear of the part, and cuts the heaters and motors:
 
@@ -246,7 +251,7 @@ M0 Click to continue
 - [ ] `G28` precedes every XYZ move, and no coordinate leaves the build volume.
 - [ ] Z-hop wraps every travel move over printed material.
 - [ ] Complex sequences invoke a Klipper macro rather than inline G-code.
-- [ ] Start sequence homes, levels, heats, and purges outside the part, with no hard-coded Z-offset.
+- [ ] Start sequence homes, heats, levels, and purges outside the part, with no hard-coded Z-offset.
 - [ ] End sequence retracts, lifts, parks clear, and cuts heaters and fan.
 - [ ] Every `F` value is in mm/min.
 - [ ] Pressure advance, extrusion multiplier, and retraction recorded per filament.

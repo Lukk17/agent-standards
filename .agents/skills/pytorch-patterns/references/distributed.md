@@ -19,16 +19,27 @@ def main() -> None:
 
     model = DistributedDataParallel(MyModel().to(device), device_ids=[local_rank])
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
+    scaler = torch.amp.GradScaler("cuda")
 
     sampler = DistributedSampler(dataset, shuffle=True)
     loader = DataLoader(dataset, batch_size=32, sampler=sampler, num_workers=8, pin_memory=True)
 
     for epoch in range(epochs):
         sampler.set_epoch(epoch)
-        train_one_epoch(model, loader, optimizer, criterion, device)
+        train_one_epoch(model, loader, optimizer, criterion, device, scaler)
+        scheduler.step()
 
         if dist.get_rank() == 0:
-            save_checkpoint({"model_state_dict": model.module.state_dict()}, checkpoint_path)
+            state = {
+                "epoch": epoch,
+                "model_state_dict": model.module.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "scheduler_state_dict": scheduler.state_dict(),
+                "scaler_state_dict": scaler.state_dict(),
+            }
+            save_checkpoint(state, checkpoint_path)
+        dist.barrier()
 
     dist.destroy_process_group()
 
@@ -88,7 +99,14 @@ Pass:
 
 ```python
 if dist.get_rank() == 0:
-    torch.save({"model_state_dict": model.module.state_dict()}, path)
+    state = {
+        "epoch": epoch,
+        "model_state_dict": model.module.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "scheduler_state_dict": scheduler.state_dict(),
+        "scaler_state_dict": scaler.state_dict(),
+    }
+    torch.save(state, path)
 dist.barrier()
 ```
 
