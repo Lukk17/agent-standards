@@ -287,7 +287,7 @@ Expect exit 0.
 Codex injects the gate text on every prompt too.
 
 ```bash
-python3 -c "import sys,tomllib;h=tomllib.load(open('/work/project/.codex/config.toml','rb'))['hooks']['UserPromptSubmit'];sys.exit(0 if any('PREFLIGHT' in i['command'] for e in h for i in e['hooks']) else 1)"
+python3 -c "import sys,tomllib;h=tomllib.load(open('/work/project/.codex/config.toml','rb'))['hooks']['UserPromptSubmit'];sys.exit(0 if any('Before code work, name the skills' in i['command'] for e in h for i in e['hooks']) else 1)"
 ```
 
 Expect exit 0.
@@ -303,7 +303,7 @@ Expect exit 0.
 Copilot injects the gate text once per session.
 
 ```bash
-jq -e '[.hooks.sessionStart[].bash] | any(contains("PREFLIGHT"))' /work/project/.github/hooks/preflight.json
+jq -e '[.hooks.sessionStart[].bash] | any(contains("Before code work, name the skills"))' /work/project/.github/hooks/preflight.json
 ```
 
 Expect exit 0.

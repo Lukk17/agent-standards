@@ -384,7 +384,7 @@ verify_codex() {
   assert_toml "the gate is scoped to the tools that can write" ".codex/config.toml" \
     '[.hooks.PreToolUse[].matcher] | any(type == "string" and test("Bash") and test("apply_patch"))'
   assert_toml "the gate text is injected on every prompt" ".codex/config.toml" \
-    '[.hooks.UserPromptSubmit[].hooks[].command] | any(contains("PREFLIGHT"))'
+    '[.hooks.UserPromptSubmit[].hooks[].command] | any(contains("Before code work, name the skills"))'
   # shellcheck disable=SC2016  # the $ belongs to the hook command text the jq filter looks for
   assert_toml "every POSIX hook command Codex calls resolves python3 first and falls back to python, on -S -E" ".codex/config.toml" \
     '[.hooks[][].hooks[] | (.command // empty)] | map(select(contains(".agents/hooks/"))) | ((length > 0) and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E")))'
@@ -448,7 +448,7 @@ verify_copilot() {
   assert_json "the gate is wired into preToolUse" ".github/hooks/preflight.json" \
     '[.hooks.preToolUse[].bash] | any(contains("preflight_gate.py --format copilot"))'
   assert_json "the gate text is injected on session start" ".github/hooks/preflight.json" \
-    '[.hooks.sessionStart[].bash] | any(contains("PREFLIGHT"))'
+    '[.hooks.sessionStart[].bash] | any(contains("Before code work, name the skills"))'
   assert_json "the gate text is appended to every prompt" ".github/hooks/preflight.json" \
     '[.hooks.userPromptTransformed[].bash] | any(contains(".agents/hooks/copilot/prompt_reminder.py"))'
   assert_json "the formatting check is wired into agentStop" ".github/hooks/preflight.json" \

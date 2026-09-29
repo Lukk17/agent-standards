@@ -443,7 +443,7 @@ def test_the_codex_subagent_context_carries_a_reminder_the_hook_injected_into_th
     result = codex_function(transcripts, "agent_subagent_context")
 
     # Then
-    assert "End every reply to the user with this block, exactly as shown" in result.stdout
+    assert "Follow the user-communication skill when writing to the user" in result.stdout
 
 
 COPILOT_ADAPTER = REPO_ROOT / "sandbox-agent" / "live" / "copilot.sh"
