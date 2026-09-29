@@ -1,4 +1,6 @@
-// Generic hook runner for OpenCode and Kilo Code.
+// Generic hook runner for OpenCode and Kilo Code. A global copy stands down
+// when the project ships its own plugin: it returns no hooks so the project
+// copy runs the gate exactly once.
 //
 // Neither runtime can block a reply from completing, so every check rides the
 // only blocking channel they have: throwing from tool.execute.before aborts the
@@ -11,10 +13,7 @@
 // hook must follow is documented at
 // https://github.com/Lukk17/agent-standards/blob/master/docs/hooks-contract.md.
 //
-// It also adds the preflight reminder to every user message of a root session
-// through chat.message, and the subagent reminder to every user message of a
-// child session, the same two wordings the other agents inject from their own
-// wiring. It hands every
+// It hands every
 // finished text part through experimental.text.complete to the hooks that declare
 // HOOK_TEXT_EVENT, so a hook can store a fixed version of it. That is the one
 // event whose stdout counts.
@@ -23,10 +22,10 @@
 // serves both runtimes.
 
 import { spawn } from "node:child_process"
-import { randomBytes } from "node:crypto"
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { homedir } from "node:os"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
+import { fileURLToPath } from "node:url"
 
 // Tried in this order, the way every other wiring resolves its interpreter:
 // Debian and Ubuntu ship no `python`, the python.org Windows installer ships no
@@ -55,41 +54,6 @@ const HEAD_CHARS = 16384
 const TIMEOUT_MS = 10000
 const SESSION_CAP = 64
 const MESSAGE_WINDOW = 8
-
-const REMINDER = [
-  "PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, " +
-    "or say none apply and why. Delegate investigation, review and bounded implementation by default. " +
-    "Follow the user-communication skill when writing to the user. " +
-    "If the prompt asks anything, answer every question first, then start the work. " +
-    "End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, " +
-    "plain lines only, keeping every blank line:",
-  "",
-  "Running: `running task name` (or: nothing)",
-  "",
-  "~~DONE: older finished task~~",
-  "~~DONE: most recent finished task~~",
-  "",
-  "**NOW: what is being done right now**",
-  "",
-  "Next: the next task",
-  "Then: the task after that",
-  "",
-  "Waiting on: what you wait for (or: nothing)",
-  "",
-  "When several tasks run, list each name in backticks on the Running line, separated by commas.",
-].join("\n")
-
-const SUBAGENT_REMINDER =
-  "PREFLIGHT for a subagent: you are a subagent, and the main thread delegated this task to you. " +
-  "Do the work yourself with your own tools and load the skills your definition names. " +
-  "The rules that the main thread must delegate and may not write files apply to the main thread only, " +
-  "so do not hand this task on and do not refuse it for that reason. " +
-  "The preflight gate still checks every tool call you make. " +
-  "Report back what you changed and how you verified it."
-
-const PART_PREFIX = "prt_"
-const PART_RANDOM_CHARS = 14
-const BASE62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
 // Reading the file is load bearing twice over. It yields the declared order and
 // whether the hook takes the text event, and it proves the file can be opened
@@ -420,39 +384,6 @@ const freshAssistantText = (messages, seen, sessionID) => {
   return text
 }
 
-// A part id in the runtime's own ascending shape: prefix, 12 hex digits of
-// millisecond time and a per-millisecond counter, then random base62.
-let lastStamp = 0
-let stampCounter = 0
-
-const partID = () => {
-  const now = Date.now()
-
-  if (now !== lastStamp) {
-    lastStamp = now
-    stampCounter = 0
-  }
-
-  stampCounter++
-
-  const time = (BigInt(now) * 0x1000n + BigInt(stampCounter)).toString(16).padStart(12, "0").slice(-12)
-  const random = Array.from(randomBytes(PART_RANDOM_CHARS), (byte) => BASE62[byte % 62]).join("")
-
-  return PART_PREFIX + time + random
-}
-
-// A synthetic text part on the user message reaches the model with the prompt
-// and stays out of the visible transcript.
-const remind = (input, output, text) => {
-  const parts = output?.parts
-  const sessionID = output?.message?.sessionID || input?.sessionID
-  const messageID = output?.message?.id || input?.messageID
-
-  if (!Array.isArray(parts) || !sessionID || !messageID) return
-
-  parts.push({ id: partID(), sessionID, messageID, type: "text", text, synthetic: true })
-}
-
 // `worktree` is the project root; `directory` is only the session's working
 // directory, which is a subdirectory whenever the runtime was started deeper in
 // the tree. Anchoring on the root is what keeps .agents/hooks/ findable. A hook
@@ -460,27 +391,20 @@ const remind = (input, output, text) => {
 // working directory and its envelope cwd, so it protects the project, not home.
 export const Preflight = async ({ directory, worktree, client } = {}) => {
   const root = worktree || directory || process.cwd()
+  // A global copy stands down when the project ships its own plugin file,
+  // so the gate runs exactly once from the project copy.
+  const ownPath = fileURLToPath(import.meta.url)
+  const projectPluginPath = join(root, ".agents", "plugin", "hooks.js")
+  const same =
+    process.platform === "win32"
+      ? resolve(ownPath).toLowerCase() === resolve(projectPluginPath).toLowerCase()
+      : resolve(ownPath) === resolve(projectPluginPath)
+
+  if (!same && existsSync(projectPluginPath)) return {}
   const seen = new Map()
   const placed = new Map()
 
   return {
-    // The reminder tells the reader to delegate, so only a session placed as a
-    // root session gets it. A subagent's task prompt arrives through this same
-    // event in its child session and gets the subagent text instead, and a
-    // session that cannot be placed gets nothing.
-    "chat.message": async (input, output) => {
-      try {
-        const sessionID = output?.message?.sessionID || input?.sessionID
-        const subagent = await placeSession(client, placed, sessionID)
-
-        if (subagent === null) return
-
-        remind(input, output, subagent ? SUBAGENT_REMINDER : REMINDER)
-      } catch {
-        return
-      }
-    },
-
     [TEXT_EVENT]: async (_input, output) => {
       try {
         if (typeof output?.text !== "string" || !output.text) return

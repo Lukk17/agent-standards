@@ -1106,34 +1106,26 @@ def user_message(parts=None, message_id="msg_1", session=ROOT_SESSION):
     }
 
 
-def test_every_prompt_gets_the_reminder_as_a_synthetic_part(tmp_path):
+def test_a_user_message_adds_no_synthetic_part(tmp_path):
     # Given the user's own text part
     typed = {"id": "prt_0", "sessionID": ROOT_SESSION, "messageID": "msg_1", "type": "text", "text": "Hi"}
 
     # When
     results = drive(tmp_path, [user_message([typed])])
 
-    # Then the reminder follows the user's part, on the same message
-    parts = results[0]["parts"]
-    added = parts[-1]
-
-    assert parts[0] == typed
-    assert len(parts) == 2
-    assert (added["type"], added["synthetic"]) == ("text", True)
-    assert (added["sessionID"], added["messageID"]) == (ROOT_SESSION, "msg_1")
-    assert added["id"].startswith("prt_") and len(added["id"]) == 30
+    # Then the parts pass through unchanged with nothing injected
+    assert results[0]["parts"] == [typed]
 
 
-def test_reminder_part_ids_are_unique_and_ascending(tmp_path):
-    # Given
-    steps = [user_message(message_id="msg_" + str(n)) for n in range(5)]
+def test_an_empty_user_message_stays_empty(tmp_path):
+    # Given one root prompt and one child prompt with no parts
+    steps = [user_message(session=ROOT_SESSION), user_message(message_id="msg_2", session=CHILD_SESSION)]
 
     # When
-    ids = [result["parts"][0]["id"] for result in drive(tmp_path, steps)]
+    results = drive(tmp_path, steps)
 
-    # Then
-    assert ids == sorted(ids)
-    assert len(set(ids)) == len(ids)
+    # Then neither prompt gains a synthetic part
+    assert [result["parts"] for result in results] == [[], []]
 
 
 @pytest.mark.parametrize(
@@ -1152,42 +1144,23 @@ def test_a_malformed_message_gets_no_reminder_and_no_error(tmp_path, output, exp
     assert results == [{"ok": True, "parts": expected}]
 
 
-MAIN_MARKER = "PREFLIGHT: before code work"
-SUBAGENT_MARKER = "PREFLIGHT for a subagent:"
-
-
-def test_a_subagent_task_prompt_gets_the_subagent_text_and_not_the_reminder(tmp_path):
+def test_a_child_session_message_gets_no_subagent_text(tmp_path):
     # Given the task prompt a subagent receives in its child session
     typed = {"id": "prt_0", "sessionID": CHILD_SESSION, "messageID": "msg_1", "type": "text", "text": "Write x"}
 
     # When
     parts = drive(tmp_path, [user_message([typed], session=CHILD_SESSION)])[0]["parts"]
 
-    # Then the task is followed by the subagent text alone, on the same message
-    added = parts[-1]
-
-    assert parts[0] == typed
-    assert len(parts) == 2
-    assert (added["type"], added["synthetic"]) == ("text", True)
-    assert (added["sessionID"], added["messageID"]) == (CHILD_SESSION, "msg_1")
-    assert added["text"].startswith(SUBAGENT_MARKER)
-    assert "Delegate investigation" not in added["text"]
+    # Then the task passes through with nothing injected
+    assert parts == [typed]
 
 
-@pytest.mark.parametrize("wrapped", [False, True], ids=["bare", "wrapped"])
-def test_the_text_follows_the_session_parent_in_either_response_style(tmp_path, wrapped):
-    # Given one root prompt and one child prompt
-    steps = [user_message(session=ROOT_SESSION), user_message(message_id="msg_2", session=CHILD_SESSION)]
-
+def test_the_hooks_object_exposes_exactly_two_keys(tmp_path):
     # When
-    results = drive(tmp_path, steps, wrapped=wrapped)
+    results = drive(tmp_path, [{"kind": "keys"}])
 
-    # Then the root prompt gets the reminder and the child prompt the subagent text, one part each
-    [root_parts, child_parts] = [result["parts"] for result in results]
-
-    assert [len(root_parts), len(child_parts)] == [1, 1]
-    assert root_parts[0]["text"].startswith(MAIN_MARKER)
-    assert child_parts[0]["text"].startswith(SUBAGENT_MARKER)
+    # Then no chat.message handler remains
+    assert sorted(results[0]["keys"]) == ["experimental.text.complete", "tool.execute.before"]
 
 
 def test_a_prompt_in_a_session_that_cannot_be_placed_gets_no_reminder(tmp_path):
@@ -1198,7 +1171,8 @@ def test_a_prompt_in_a_session_that_cannot_be_placed_gets_no_reminder(tmp_path):
     assert results == [{"ok": True, "parts": []}]
 
 
-def test_a_placed_session_is_looked_up_once_across_prompts(tmp_path):
+# A user message no longer touches the session store, so no lookup runs for it.
+def test_a_user_message_runs_no_session_lookup(tmp_path):
     # Given
     steps = [user_message(), user_message(message_id="msg_2"), {"kind": "lookups"}]
 
@@ -1206,7 +1180,7 @@ def test_a_placed_session_is_looked_up_once_across_prompts(tmp_path):
     results = drive(tmp_path, steps)
 
     # Then
-    assert results[-1] == {"ok": True, "count": 1}
+    assert results[-1] == {"ok": True, "count": 0}
 
 
 # experimental.text.complete hands every finished text part to the same hooks,
@@ -1398,3 +1372,62 @@ def test_the_runner_falls_back_to_python_on_windows(tmp_path):
 
 def test_the_runner_allows_when_no_interpreter_answers(tmp_path):
     assert gate_decision_with_path(tmp_path, str(tmp_path / "empty")) is True
+
+
+def drive_with_plugin(root, plugin, steps, sessions=None, wrapped=False, home=None):
+    """Run the scripted steps against the plugin file at `plugin`."""
+    job = {
+        "plugin": str(plugin),
+        "root": str(root),
+        "sessions": SESSIONS if sessions is None else sessions,
+        "wrapped": wrapped,
+        "steps": steps,
+        "home": str(home if home is not None else isolated_home(root)),
+    }
+
+    result = run_bounded(
+        [NODE, str(RUNNER_DRIVER)],
+        input=json.dumps(job),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+    assert result.returncode == 0, result.stderr
+
+    return json.loads(result.stdout)
+
+
+def test_global_plugin_stands_down_when_project_ships_own_copy(tmp_path):
+    # Given the project ships its own plugin copy
+    project = tmp_path / "project"
+    own = project / ".agents" / "plugin"
+    own.mkdir(parents=True)
+    shutil.copy(PLUGIN, own / "hooks.js")
+    recorder(project, "gate.py", 10, tmp_path / "log.jsonl", deny=True)
+    global_plugin = tmp_path / "global" / "hooks.js"
+    global_plugin.parent.mkdir(parents=True)
+    shutil.copy(PLUGIN, global_plugin)
+
+    # When the global copy serves that project
+    results = drive_with_plugin(project, global_plugin, [{"kind": "keys"}, call()])
+
+    # Then it exposes no handlers and the denying hook never runs
+    assert results[0] == {"ok": True, "keys": []}
+    assert results[1] == {"ok": True}
+
+
+def test_project_plugin_copy_still_exposes_the_gate(tmp_path):
+    # Given the project's own plugin copy
+    project = tmp_path / "project"
+    own = project / ".agents" / "plugin"
+    own.mkdir(parents=True)
+    shutil.copy(PLUGIN, own / "hooks.js")
+    recorder(project, "gate.py", 10, tmp_path / "log.jsonl", deny=True)
+
+    # When that copy serves the project
+    results = drive_with_plugin(project, own / "hooks.js", [{"kind": "keys"}, call()])
+
+    # Then the gate handler is exposed and denies
+    assert "tool.execute.before" in results[0]["keys"]
+    assert results[1] == {"ok": False, "error": "denied by gate.py"}

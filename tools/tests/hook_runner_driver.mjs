@@ -123,8 +123,18 @@ for (const step of job.steps) {
     continue
   }
 
+  if (step.kind === "keys") {
+    results.push({ ok: true, keys: Object.keys(hooks) })
+    continue
+  }
+
   if (step.kind === "message") {
     const output = step.output ?? {}
+
+    if (typeof hooks["chat.message"] !== "function") {
+      results.push({ ok: true, parts: output.parts ?? null })
+      continue
+    }
 
     await hooks["chat.message"](step.input ?? {}, output)
     results.push({ ok: true, parts: output.parts ?? null })
@@ -133,6 +143,11 @@ for (const step of job.steps) {
 
   if (step.kind === "text") {
     const output = step.output ?? {}
+
+    if (typeof hooks["experimental.text.complete"] !== "function") {
+      results.push({ ok: true, text: output.text ?? null })
+      continue
+    }
 
     try {
       await hooks["experimental.text.complete"](step.input ?? {}, output)
@@ -145,6 +160,11 @@ for (const step of job.steps) {
   }
 
   messages = step.messages ?? []
+
+  if (typeof handler !== "function") {
+    results.push({ ok: true })
+    continue
+  }
 
   try {
     await handler(step.input ?? {}, step.output ?? {})

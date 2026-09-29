@@ -49,6 +49,11 @@ nothing needs `chmod +x`. This is also why the same file works unchanged on Wind
 
 ---
 
+A copy of the plugin loaded from outside the project (a global install) returns no
+hooks when the project root ships its own `.agents/plugin/hooks.js`, so the
+project copy runs the hooks exactly once; in projects without their own copy,
+the global copy serves them.
+
 ### Invocation
 
 The runner spawns each hook as:
@@ -193,12 +198,22 @@ Current values:
 | --- | --- | --- |
 | 10 | `preflight_gate.py` | A policy denial about the action being attempted outranks a note about prose already sent. |
 | 20 | `no_ai_markers_check.py` | Formatting, checked only when there is new prose to check. It is also the one hook that rewrites a finished text part. |
+| 30 | `question_numbering_check.py` | Numbered questions, checked on new prose. It never takes the text event. |
 | 30 | `task_list_sync.py` | Bookkeeping, and it never denies. It exits 0 immediately on the plain format. |
 | 40 | `markdown_lint_check.py` | Gated behind `--format claude` only. It exits 0 at once on the plain format. |
 
 The first denial stops the chain. Later hooks are not run.
 
 ---
+
+### Question numbering check
+
+`question_numbering_check.py` runs at order 30 on the OpenCode and Kilo Code
+runner only. It denies with exit 2 when the newest assistant prose holds a
+question line that is not numbered. It declares `HOOK_TEXT_EVENT = False`, so
+it never sees `experimental.text.complete`. Claude Code, Codex, and GitHub
+Copilot call hooks with their own formats and do not run this hook unless it
+is wired there, which it is not.
 
 ### Exit codes
 
@@ -271,19 +286,13 @@ actually carries a task list through a compaction is `SessionStart` firing again
 both Claude Code and Codex document.
 
 OpenCode and Kilo Code have neither a session-start nor a pre-compact event, so nothing can be injected at either
-point. The per-prompt gate reminder does reach the model: the plugin's `chat.message` handler, a stable hook in both
-runtimes, appends the reminder as a synthetic text part to every user message of a root session. The runtime saves
-the parts after the handler returns and sends every text part that is not `ignored` to the model. Measured on OpenCode
-1.18.32 and Kilo Code 7.7.9: the model quoted the reminder back verbatim. The reminder is wording, not a rule, so it is
-the one thing the plugin carries rather than a hook in this directory.
+point. No per-prompt reminder is injected on these runtimes. The plugin carries no wording, only the gate.
 
 What reaches a subagent is its own definition, the project's `AGENTS.md`, the gate on every tool call, and the
-subagent text from the Required opening move in [AGENTS.md](../AGENTS.md), never the reminder. The reminder tells its
+subagent text injected by wirings that reach a subagent, never the reminder. The reminder tells its
 reader to delegate, and a subagent told that turns its own task away. The subagent text says the delegation and
-no-write rules belong to the main thread and tells the subagent to do the work itself. The `chat.message` handler also
-fires for the task prompt that starts a subagent's child session, so the plugin places the session with the same
-cached `client.session.get` lookup the runner uses: no `parentID` gets the reminder, a `parentID` gets the subagent
-text, and a session the lookup cannot read gets neither. Claude Code and Codex inject the subagent text on
+no-write rules belong to the main thread and tells the subagent to do the work itself.
+Claude Code and Codex inject the subagent text on
 `SubagentStart` and Copilot on `subagentStart`, each as `additionalContext`. Claude Code carries the reminder on
 `UserPromptSubmit` and `SessionStart`, and its hooks reference names tool events as the ones that fire inside a
 subagent, so the reminder is not expected to reach a Claude Code subagent. That last point is read from the reference
@@ -300,8 +309,8 @@ The line breaks and blank lines in both texts are part of the wording, so every 
 model. Claude Code prints plain text through `echo` with the newlines inside the single-quoted literal, which `sh`,
 Git Bash and PowerShell all print unchanged. Codex and Copilot read JSON, so they carry `\n` escapes inside
 `additionalContext`, printed by `printf '%s\n'` in a POSIX shell, because `dash` turns an `echo` argument's `\n` into a
-raw newline that breaks the JSON, and by `echo` in PowerShell, which prints a single-quoted literal as written. The
-plugin and [.agents/hooks/copilot/prompt_reminder.py](../.agents/hooks/copilot/prompt_reminder.py) hold the text as a
+raw newline that breaks the JSON, and by `echo` in PowerShell, which prints a single-quoted literal as written.
+[.agents/hooks/copilot/prompt_reminder.py](../.agents/hooks/copilot/prompt_reminder.py) holds the text as a
 string constant.
 
 The markdown lint is the only hook wired to a post-tool event, and it is also the only one gated behind a single
