@@ -380,7 +380,10 @@ install_instructions() {
 # wiring it globally would spawn an interpreter that returns 0 every time.
 
 # shellcheck disable=SC2016  # the backticks are markdown in the reminder text, never command substitution
-readonly PREFLIGHT_TEXT='PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default. Follow the user-communication skill when writing to the user. If the prompt asks anything, answer every question first, then start the work. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:
+readonly PREFLIGHT_TEXT='Before code work, name the skills and subagents that own this task and invoke them, or say none apply and why, in one line. Follow the user-communication skill when writing to the user. End every reply with the status block the skill describes, plain text only.'
+
+# shellcheck disable=SC2016  # the backticks are markdown in the reminder text, never command substitution
+readonly CLAUDE_PREFLIGHT_TEXT='PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default. Follow the user-communication skill when writing to the user. If the prompt asks anything, answer every question first, then start the work. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:
 
 Running: `running task name` (or: nothing)
 
@@ -407,6 +410,8 @@ PREFLIGHT_JSON="$(escape_newlines "$PREFLIGHT_TEXT" '\n')"
 readonly PREFLIGHT_JSON
 PREFLIGHT_NESTED_JSON="$(escape_newlines "$PREFLIGHT_TEXT" '\\n')"
 readonly PREFLIGHT_NESTED_JSON
+CLAUDE_PREFLIGHT_JSON="$(escape_newlines "$CLAUDE_PREFLIGHT_TEXT" '\n')"
+readonly CLAUDE_PREFLIGHT_JSON
 
 readonly SUPERVISION_TEXT="When you launch a background subagent, note how long its task should take and schedule a recurring check every 10 minutes while any subagent runs. At each check compare its running time and latest output with that expectation. Leave it alone unless it is far over (for example 30 minutes on a task that should take 1) or clearly looping, then ask it for status or stop it and tell the user why."
 
@@ -421,7 +426,7 @@ sed_replacement() {
 }
 
 claude_settings() {
-  sed -e "s#@GATE@#$(sed_replacement "$GATE_SCRIPT")#g" -e "s#@MARKERS@#$(sed_replacement "$MARKER_SCRIPT")#g" -e "s#@TASKS@#$(sed_replacement "$TASKS_SCRIPT")#g" -e "s#@PREFLIGHT@#$(sed_replacement "$PREFLIGHT_JSON")#g" -e "s#@SUPERVISION@#$(sed_replacement "$SUPERVISION_TEXT")#g" -e "s#@SUBAGENT@#$(sed_replacement "$SUBAGENT_TEXT")#g" <<'JSON'
+  sed -e "s#@GATE@#$(sed_replacement "$GATE_SCRIPT")#g" -e "s#@MARKERS@#$(sed_replacement "$MARKER_SCRIPT")#g" -e "s#@TASKS@#$(sed_replacement "$TASKS_SCRIPT")#g" -e "s#@PREFLIGHT@#$(sed_replacement "$CLAUDE_PREFLIGHT_JSON")#g" -e "s#@SUPERVISION@#$(sed_replacement "$SUPERVISION_TEXT")#g" -e "s#@SUBAGENT@#$(sed_replacement "$SUBAGENT_TEXT")#g" <<'JSON'
 {
   "hooks": {
     "SessionStart": [

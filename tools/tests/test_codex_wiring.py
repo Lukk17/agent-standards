@@ -16,7 +16,7 @@ import pytest
 
 from tests.conftest import REPO_ROOT
 from tests.process_tree import run_bounded
-from tests.test_prompt_reminder import canonical_reminder, canonical_subagent_reminder
+from tests.reminder_support import canonical_reminder, canonical_subagent_reminder
 
 CODEX_CONFIG = REPO_ROOT / ".codex" / "config.toml"
 REMINDER_EVENTS = ("UserPromptSubmit", "SubagentStart")

@@ -91,7 +91,7 @@ readonly MODEL="${LIVE_MODEL:-${AGENT_MODEL:-$DEFAULT_MODEL}}"
 readonly AGENT_TIMEOUT="${LIVE_AGENT_TIMEOUT:-600}"
 
 readonly GATE_SCRIPT="${REPO_ROOT}/.agents/hooks/preflight_gate.py"
-readonly REMINDER_MARKER="End every reply to the user with this block, exactly as shown"
+readonly REMINDER_MARKER="Follow the user-communication skill when writing to the user."
 readonly SUBAGENT_TEXT_MARKER="PREFLIGHT for a subagent:"
 readonly SUBAGENT_NAME="docs-architect"
 readonly SKILL_NAME="kicad"

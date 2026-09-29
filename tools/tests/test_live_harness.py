@@ -23,10 +23,10 @@ import yaml
 
 from tests.conftest import PREFLIGHT_GATE, REPO_ROOT
 from tests.process_tree import run_bounded
-from tests.test_prompt_reminder import canonical_reminder, canonical_subagent_reminder
+from tests.reminder_support import canonical_reminder, canonical_subagent_reminder, posix_shell
 
 LIB = REPO_ROOT / "sandbox-agent" / "live" / "lib.sh"
-BASH = shutil.which("bash")
+BASH = posix_shell()
 MAIN_PROBE = "live-probe/main-thread.txt"
 
 pytestmark = pytest.mark.skipif(BASH is None, reason="bash is not installed")

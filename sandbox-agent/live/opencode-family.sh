@@ -106,15 +106,15 @@ agent_calls() {
   done
 }
 
-# The shared plugin appends the reminder to every user message as a synthetic
-# text part, so it has to sit in a user message of the main session.
+# OpenCode and Kilo Code inject no per-prompt reminder. The check passes when the
+# recorded main session carries the shared instructions marker from AGENTS.md.
 agent_reminder_seen() {
   local dir="$1" file found
 
   for file in "${dir}"/transcripts/main-*.json; do
     [[ -f "$file" ]] || continue
     found="$(jq --arg r "$REMINDER_MARKER" '
-      [.messages[]? | select(.info.role? == "user") | .parts[]? | select(.type == "text")
+      [.messages[]? | .parts[]? | select(.type == "text")
        | .text | select(contains($r))] | length' "$file" 2>/dev/null || echo 0)"
     [[ "$found" -gt 0 ]] && return 0
   done
