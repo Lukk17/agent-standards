@@ -82,13 +82,13 @@ def posix_shell() -> str | None:
         if base:
             candidates.append(f"{base}\\Git\\bin\\bash.exe")
             candidates.append(f"{base}\\Git\\usr\\bin\\bash.exe")
-    candidates.append(shutil.which("sh"))
     candidates.append(shutil.which("bash"))
+    candidates.append(shutil.which("sh"))
     for candidate in candidates:
         if not candidate:
             continue
         try:
-            probed = run_bounded([candidate, "-c", "exit 0"], capture_output=True, check=False, timeout=30)
+            probed = run_bounded([candidate, "-c", "source /dev/null"], capture_output=True, check=False, timeout=30)
         except Exception:
             continue
         if probed.returncode == 0:
