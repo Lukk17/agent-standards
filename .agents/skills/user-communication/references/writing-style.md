@@ -50,8 +50,9 @@ Never state a cause you have not checked. Once the user says fix it, investigate
 ### No machine-writing tells
 
 Never use an em dash (U+2014) or an en dash (U+2013). Never join two clauses with a semicolon. Use a comma, a period,
-a colon, or parentheses, or split the sentence. No bold, no italic, except the `NOW:` line of the status block,
-which is bold.
+a colon, or parentheses, or split the sentence. No bold, no italic, not even in the status block. The status
+ block carries exactly one dash rule above the word Status, and one fenced code block per status group, and these
+ are the only decorative markdown a reply may use.
 
 No filler openers or closers such as it is worth noting, furthermore, in conclusion, or ultimately. No three-beat
 rhythmic lists. No empty adjectives such as comprehensive, robust, seamless, leverage, or delve. No narration of what

@@ -19,49 +19,82 @@ findings early.
 Every reply ends with the status block, and nothing comes after it. It carries both what the agent waits on and the
 names of the tasks still running, so no separate closing line exists for either.
 
-Copy this template exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank
-line. It is the same template the per-prompt reminder carries.
+Copy this template exactly as shown, with every code block, the one dash rule, and every blank line in place.
+
+---------------------
+
+Status
 
 ```text
-Running: `running task name` (or: nothing)
-
-~~DONE: older finished task~~
-~~DONE: most recent finished task~~
-
-**NOW: what is being done right now**
-
-Next: the next task
-Then: the task after that
-
-Waiting on: what you wait for (or: nothing)
+Running: name of each running task, with progress like 3 of 10 todos done
 ```
 
-When several tasks run, list each name in backticks on the Running line, separated by commas.
+```text
+Done: older finished task
+Done: most recent finished task
+```
 
-What each group carries:
+```text
+NOW: what is being done right now, one line
+```
 
-- `Running:` names each subtask and background agent still running, each in backticks and exactly as the task panel
-  shows it, so the user can match it there and close it, or says `nothing`.
-- The last two finished tasks, one per line, each prefixed `DONE:` and crossed out with markdown strikethrough, the
-  older one first.
-- The current task, in bold, after the label `NOW:` in capitals. Use one `NOW:` line per task when several run at
-  once. This line is the only bold a reply may carry.
-- A `Next:` line names the next task and a `Then:` line names the one after it, in the order they will start.
-- `Waiting on:` comes last and says what the agent waits for: the user's answer and to which numbered question, a
-  named task, or `nothing`.
+```text
+Next: the next task
+Then: the task after that
+```
+
+```text
+Waiting on: what the agent waits for
+```
+
+```text
+State: WAITING FOR YOU
+```
+
+Every item sits in its own code block. Done lines share one block, Next and Then share one block. Blank lines
+separate the code blocks from each other so they parse as separate blocks. The Running block is omitted when
+nothing runs. When several tasks run, list each name on the Running line separated by commas, no backticks.
+
+Done lists the last two finished tasks, older first, plain text.
+
+State is exactly one of three values in capitals: WAITING FOR YOU, WORKING, DONE.
+
+State is WAITING FOR YOU only when work is blocked on the user answer. State is WORKING while any task or subagent
+runs, even when a question waits that does not block. State is DONE when finished and idle.
+
+Nothing comes after the State block. The State block is the last block of every reply.
+
+No other markdown anywhere in the block. No bold, no italics, no other markdown in the block. The 21-hyphen rule
+sits above the word Status and nowhere else. No dash lines anywhere else.
 
 A filled example:
 
+---------------------
+
+Status
+
 ```text
-Running: `Run containerised sandbox suite`
+Running: Run containerised sandbox suite, 7 of 10 todos done
+```
 
-~~DONE: Fix code review findings~~
-~~DONE: First Docker test run (2 checks failed)~~
+```text
+Done: Fix code review findings
+Done: First Docker test run, 2 checks failed
+```
 
-**NOW: fix the two Docker checks and rerun the suite**
+```text
+NOW: fix the two Docker checks and rerun the suite
+```
 
+```text
 Next: build the live test pipeline once you answer 3.6
 Then: build the research skill once you answer 13.1
+```
 
+```text
 Waiting on: your answers to 3.6, 10.1, 11.1, 12.1 and 13.1
+```
+
+```text
+State: WORKING
 ```

@@ -63,16 +63,34 @@ hardcoded. The minus is one more value to set in every deployment.
 
 Recommendation: keep them for now, because changing ports also means changing the firewall rules. The minus is three
 port numbers to remember instead of one.
+```
 
-Running: nothing
+---------------------
 
-~~DONE: Read /srv/orders/config/endpoints.yaml~~
-~~DONE: Trace which clients call the export addresses~~
+Status
 
-**NOW: nothing, stopped until 47 is answered**
+```text
+Running: nothing, stopped until 47 is answered
+```
 
-Next: change the addresses the way 47 decides
-Then: rerun the export download test
+```text
+Done: Read /srv/orders/config/endpoints.yaml
+Done: Trace which clients call the export addresses
+```
 
+```text
+NOW: nothing, stopped until 47 is answered
+```
+
+```text
+Next: answer 47
+Then: nothing
+```
+
+```text
 Waiting on: your answer to 47
+```
+
+```text
+State: WAITING FOR YOU
 ```
