@@ -19,19 +19,18 @@ findings early.
 Every reply ends with the status block, and nothing comes after it. It carries both what the agent waits on and the
 names of the tasks still running, so no separate closing line exists for either.
 
-Copy this template exactly as shown, with every code block, the one dash rule, and every blank line in place.
+Copy this template exactly as shown, with the crossed Done lines, every code block, the one dash rule,
+and every blank line in place.
 
 ---------------------
 
 Status
 
-```text
-Running: name of each running task, with progress like 3 of 10 todos done
-```
+~~Done: older finished task~~
+~~Done: most recent finished task~~
 
 ```text
-Done: older finished task
-Done: most recent finished task
+Running: name of each running task, with progress like 3 of 10 todos done
 ```
 
 ```text
@@ -51,11 +50,12 @@ Waiting on: what the agent waits for
 State: WAITING FOR YOU
 ```
 
-Every item sits in its own code block. Done lines share one block, Next and Then share one block. Blank lines
+The Done group is plain text, no code fence, each Done line wrapped in double tilde strikethrough,
+older task first. Every other item sits in its own code block. Blank lines
 separate the code blocks from each other so they parse as separate blocks. The Running block is omitted when
 nothing runs. When several tasks run, list each name on the Running line separated by commas, no backticks.
 
-Done lists the last two finished tasks, older first, plain text.
+Done lists the last two finished tasks, older first, as crossed plain text lines.
 
 State is exactly one of three values in capitals: WAITING FOR YOU, WORKING, DONE.
 
@@ -64,7 +64,8 @@ runs, even when a question waits that does not block. State is DONE when finishe
 
 Nothing comes after the State block. The State block is the last block of every reply.
 
-No other markdown anywhere in the block. No bold, no italics, no other markdown in the block. The 21-hyphen rule
+No other markdown anywhere in the block. No bold, no italics, no other markdown in the block,
+except the double-tilde strikethrough on the Done lines. The 21-hyphen rule
 sits above the word Status and nowhere else. No dash lines anywhere else.
 
 A filled example:
@@ -73,13 +74,11 @@ A filled example:
 
 Status
 
-```text
-Running: Run containerised sandbox suite, 7 of 10 todos done
-```
+~~Done: Fix code review findings~~
+~~Done: First Docker test run, 2 checks failed~~
 
 ```text
-Done: Fix code review findings
-Done: First Docker test run, 2 checks failed
+Running: Run containerised sandbox suite, 7 of 10 todos done
 ```
 
 ```text

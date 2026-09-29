@@ -282,13 +282,11 @@ STATUS_BLOCK_TEMPLATE = """---------------------
 
 Status
 
-```text
-Running: name of each running task, with progress like 3 of 10 todos done
-```
+~~Done: older finished task~~
+~~Done: most recent finished task~~
 
 ```text
-Done: older finished task
-Done: most recent finished task
+Running: name of each running task, with progress like 3 of 10 todos done
 ```
 
 ```text

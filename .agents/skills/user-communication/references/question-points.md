@@ -69,13 +69,11 @@ port numbers to remember instead of one.
 
 Status
 
-```text
-Running: nothing, stopped until 47 is answered
-```
+~~Done: Read /srv/orders/config/endpoints.yaml~~
+~~Done: Trace which clients call the export addresses~~
 
 ```text
-Done: Read /srv/orders/config/endpoints.yaml
-Done: Trace which clients call the export addresses
+Running: nothing, stopped until 47 is answered
 ```
 
 ```text

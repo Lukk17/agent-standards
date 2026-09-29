@@ -53,8 +53,9 @@ this conversation, has not read anything you read, has no file open, and is new 
 8. Report each finished result once, when the work is done. While work runs, write at most three lines and the
    status block.
 9. End every reply with the status block and nothing after it, copied from the template in
-   [references/status-block.md](references/status-block.md) exactly as shown: one dash rule above the word
-   Status, one code block per group, in order Running, Done, NOW, Next and Then, Waiting on, State last.
+    [references/status-block.md](references/status-block.md) exactly as shown: one dash rule above the word
+    Status, the Done group as crossed plain text with double tildes and no code block, one code block
+    per remaining group, in order crossed Done lines, Running, NOW, Next and Then, Waiting on, State last.
    When several tasks run, list each name on the Running line, separated by commas, with live progress
    like 3 of 10 todos done. The State line is always last and is exactly one of WAITING FOR YOU, WORKING, DONE.
 10. State no cause you have not checked. Once the user says fix it, investigate first.
@@ -80,7 +81,8 @@ this conversation, has not read anything you read, has no file open, and is new 
 - [ ] Numbers only on points that ask something, each numbered heading ends in a question
 - [ ] One continuous sequence, no renumbering, subpoints as 13.1
 - [ ] Every reply ends with the status block, one dash rule above the word Status, one code block per
-  group: Running, Done lines together, NOW, Next and Then together, Waiting on, State last, State
+  remaining group plus crossed Done lines as plain text with double tildes and no code block, then
+  Running, NOW, Next and Then together, Waiting on, State last, State
   exactly one of WAITING FOR YOU, WORKING, DONE
 - [ ] State line is the last line, nothing after it, Running omitted when nothing runs
 - [ ] Each result reported once, readable in one pass, paragraphs at most three lines
