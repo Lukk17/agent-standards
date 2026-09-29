@@ -670,8 +670,8 @@ verify_install_shape() {
   # shellcheck disable=SC2016  # the $ belongs to the hook command text the jq filter looks for
   assert_json "Codex's user hooks move every Windows script call to the project root in PowerShell and leave it on python, the only name a python.org install puts on the path" ".codex/hooks.json" \
     '[.hooks[][].hooks[] | (.commandWindows // empty) | select(contains(".py"))] | length > 0 and all(startswith("$root = git rev-parse --show-toplevel 2>$null; if ($root) { Set-Location -LiteralPath $root }; python -S -E /"))'
-  assert_json "Codex's user hooks carry the canonical gate wording on the main-thread event, not a shortened copy" ".codex/hooks.json" \
-    '[.hooks.UserPromptSubmit[].hooks[].command] | length >= 1 and all(contains("Delegate investigation, review and bounded implementation by default."))'
+  assert_json "Codex's user hooks carry the short gate wording on the main-thread event" ".codex/hooks.json" \
+    '[.hooks.UserPromptSubmit[].hooks[].command] | length >= 1 and all(contains("Before code work, name the skills"))'
   assert_json "Codex's user hooks give every command a Windows sibling, because Codex picks one per platform" ".codex/hooks.json" \
     '[.hooks[][].hooks[] | select(has("command"))] | length > 0 and all(has("commandWindows"))'
   assert_json "Copilot's user hooks call the gate by absolute path" ".copilot/hooks/preflight.json" \

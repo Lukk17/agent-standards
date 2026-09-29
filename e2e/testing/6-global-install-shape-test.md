@@ -622,12 +622,12 @@ jq -e '[.hooks[][].hooks[] | (.commandWindows // empty)] | length > 0 and all(en
 
 Expect exit 0.
 
-Codex injects the canonical gate wording on a new prompt, not a shortened copy of it, and the subagent text at the
-start of a subagent, because the gate wording tells its reader to delegate and a subagent told that turns its own task
-away.
+Codex injects the short gate wording on a new prompt, and the subagent text at the
+start of a subagent, because the gate wording tells its reader to name skills first and a subagent needs its own
+scoped variant.
 
 ```bash
-jq -e '[.hooks.UserPromptSubmit[].hooks[].command] | length >= 1 and all(contains("Delegate investigation, review and bounded implementation by default."))' "$HOME/.codex/hooks.json"
+jq -e '[.hooks.UserPromptSubmit[].hooks[].command] | length >= 1 and all(contains("Before code work, name the skills"))' "$HOME/.codex/hooks.json"
 ```
 
 Expect exit 0.
