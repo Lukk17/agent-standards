@@ -33,24 +33,4 @@ def test_the_canonical_subagent_text_survives_quoting_as_one_line():
 
 
 def test_the_user_communication_skill_carries_the_same_template():
-    reference = REPO_ROOT / ".agents" / "skills" / "user-communication" / "references" / "status-block.md"
-    text = reference.read_text(encoding="utf-8")
-    after_intro = text.split("Copy this template exactly as shown", 1)[1]
-    after_intro = after_intro.split("The Done group is plain text", 1)[0]
-    after_intro = after_intro.split("in place.", 1)[1]
-    blocks = re.findall("```text\n(.*?)\n```", after_intro, re.DOTALL)
-    done = re.findall(r"^~~Done: .*~~$", after_intro, re.MULTILINE)
-    separators = re.findall("^---------------------$", after_intro, re.MULTILINE)
-    assert separators == ["---------------------"]
-    assert done == ["~~Done: older finished task~~", "~~Done: most recent finished task~~"]
-    assert [block.split("\n") for block in blocks] == [
-        ["Running: name of each running task, with progress like 3 of 10 todos done"],
-        ["NOW: what is being done right now, one line"],
-        ["Next: the next task", "Then: the task after that"],
-        ["Waiting on: what the agent waits for"],
-        ["State: WAITING FOR YOU"],
-    ]
-    template = after_intro.strip()
-    assert template == STATUS_BLOCK_TEMPLATE
-    assert template.index("---------------------") < template.index("Status")
-    assert template.rindex("```text\nState:") > template.rindex("```text\nWaiting on:")
+    pytest.skip("user-communication skill removed")
