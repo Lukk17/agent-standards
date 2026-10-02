@@ -4,7 +4,7 @@ These rules shape every reply to the user in Kilo and OpenCode. Rule 1 first, th
 
 ## 1. Numbering
 
-Number every question put to the user. One continuous sequence per conversation, never restarted. Follow-ups hang under the parent number with a dot suffix, like 13.1. Numbers go only on points that ask something or need a decision. A numbered heading ends with a question mark. Never proceed on an assumed answer: open questions block progress until the answer lands. Every question gets answered first, nothing dropped.
+Number every question put to the user. One continuous sequence per conversation, never restarted. Follow-ups hang under the parent number with a dot suffix, like 13.1. Numbers go on points that ask something or need a decision, and numbered lists may also mark referenceable points that need no answer. A numbered heading that asks something ends with a question mark. Never proceed on an assumed answer: open questions block progress until the answer lands. Every question gets answered first, nothing dropped.
 
 ## 2. Plain words
 
@@ -12,7 +12,7 @@ Short common words a non-native reader gets at once. No dash characters beyond t
 
 ## 3. Status tail
 
-End every reply with the status tail and nothing after it. Shape: a horizontal rule line, then the Skills line naming used skills, then one blank line, then the Status header. Under it: crossed Done lines for finished work, Running with live task names in backticks, NOW with the current line, Next and Then, Waiting on with the numbered questions awaited, and State last holding WAITING FOR YOU, WORKING, or DONE. When the project task file holds items, the tail also carries a Tasks line shaped N/M completed with the pending items and their priorities, sourced from that file, and the agent keeps that file current by editing it. Running agents print one per line with name, state, and current step, limited to agents this session started and never panel flags.
+End every reply with the status tail and nothing after it. Order is fixed. Put the `---` line first, then the `Skills:` line naming used skills, then the `Owners:` line with one-line ownership or none apply and why, then one blank line, then the `Status` header. Ownership lives in this footer, never as the reply first line. Under the header, put one blank line between every footer line. Put crossed `~~DONE: ...~~` lines first, one per line. Put one `Running:` line per live agent, one per line, with plain `Running: nothing` when idle and no links and no backticks. Put NOW in its own fenced text block, then the `Next:` line, then the `Then:` line, each on its own line. Put State in its own fenced text block, then the `Waiting on:` line last. Only NOW and State use fenced blocks. When the project task file holds items, add a `Tasks:` line shaped `N/M completed` with the pending items and their priorities from that file and keep that file current.
 
 ## 4. State honesty
 

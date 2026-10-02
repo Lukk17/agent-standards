@@ -248,11 +248,13 @@ def test_text_mode_banned_markers_exit_two(prose, label):
     assert label in err
 
 
-def test_text_mode_reason_asks_for_correction_lines_only():
+def test_text_mode_reason_asks_for_a_normal_corrected_reply():
     _code, _out, err = run_text("First clause; second clause.")
 
-    assert 'each starting with "Correction:"' in err
-    assert "write nothing else" in err
+    assert "normal corrected reply" in err
+    assert "status tail" in err
+    assert "Correction:" not in err
+    assert "write nothing else" not in err
 
 
 def test_text_mode_ignores_a_semicolon_in_a_fenced_block():
@@ -649,31 +651,40 @@ def test_italic_is_reported_alongside_the_other_markers():
         assert label in err
 
 
-# The NOW line of the status block is the one bold line a reply may carry.
+# The status block carries NOW and State in fenced text blocks, which the
+# check strips like any other fenced block. No bold line is allowed.
 
 STATUS_BLOCK = (
-    "Running: `Run containerised sandbox suite`\n"
+    "Running: Run containerised sandbox suite\n"
     "\n"
     "~~DONE: Fix code review findings~~\n"
     "~~DONE: First Docker test run (2 checks failed)~~\n"
     "\n"
-    "**NOW: fix the two Docker checks and rerun the suite**\n"
+    "```text\n"
+    "NOW: fix the two Docker checks and rerun the suite\n"
+    "```\n"
     "\n"
     "Next: build the live test pipeline once you answer 3.6\n"
     "Then: build the research skill once you answer 13.1\n"
+    "\n"
+    "```text\n"
+    "State: WAITING FOR YOU\n"
+    "```\n"
     "\n"
     "Waiting on: your answers to 3.6, 10.1, 11.1, 12.1 and 13.1"
 )
 
 
-def test_the_status_block_now_line_is_allowed_bold():
+def test_the_status_block_fenced_now_is_ignored():
     assert run_text("Done with the review.\n\n" + STATUS_BLOCK) == (0, "", "")
 
 
-def test_several_now_lines_are_all_allowed():
+def test_several_bold_now_lines_now_block():
     prose = "**NOW: fix the gate**\n**NOW: rerun the sandbox suite**"
+    code, _out, err = run_text(prose)
 
-    assert run_text(prose) == (0, "", "")
+    assert code == 2
+    assert "bold" in err
 
 
 @pytest.mark.parametrize(
@@ -688,34 +699,34 @@ def test_several_now_lines_are_all_allowed():
     ],
     ids=["other-bold-beside-block", "inline-now", "now-with-trailing-prose", "lowercase", "underscore", "other-label"],
 )
-def test_bold_other_than_the_now_line_still_blocks(prose):
+def test_bold_still_blocks(prose):
     code, _out, err = run_text(prose)
 
     assert code == 2
     assert "bold" in err
 
 
-def test_the_now_line_is_still_checked_for_other_markers():
+def test_a_bold_now_line_reports_both_markers():
     code, _out, err = run_text("**NOW: fix the gate; then rerun it**")
 
     assert code == 2
     assert "semicolon" in err
-    assert "bold in " not in err
+    assert "bold in " in err
 
 
 @pytest.mark.parametrize("fmt", ["claude", "codex", "plain"])
-def test_the_reason_forbids_repeating_the_reply_that_is_already_on_screen(fmt):
-    """A blocked reply is already shown, so a full rewrite shows it twice."""
+def test_the_reason_asks_for_a_normal_corrected_reply(fmt):
+    """A blocked reply is fixed with a normal corrected reply ending with the status tail."""
     if fmt == "plain":
         _code, _out, reason = run_runner(envelope("One clause; another."))
     else:
         _code, out, _err = run_stop({"last_assistant_message": "One clause; another."}, fmt)
         reason = json.loads(out)["reason"]
 
-    assert "already on screen" in reason
-    assert "do not repeat it" in reason
-    assert "Rewrite the whole reply" not in reason
-    assert "Output only the corrected reply" not in reason
+    assert "normal corrected reply" in reason
+    assert "status tail" in reason
+    assert "Correction:" not in reason
+    assert "write nothing else" not in reason
     assert "semicolon in " in reason
 
 
@@ -919,8 +930,8 @@ FIX_CASES = [
     ("underscore-bold", "This is __bold__ text.", "This is bold text."),
     ("italic", "An *italic* word and _another_ one.", "An italic word and another one."),
     ("bold-italic", "***both***", "both"),
-    ("now-line-kept", "**NOW: fix the hook**", "**NOW: fix the hook**"),
-    ("now-line-inner-dash", "**NOW: fix " + EM_DASH + " the hook**", "**NOW: fix, the hook**"),
+    ("bold-now-line", "**NOW: fix the hook**", "NOW: fix the hook"),
+    ("bold-now-line-inner-dash", "**NOW: fix " + EM_DASH + " the hook**", "NOW: fix, the hook"),
     (
         "inline-code-untouched",
         "Run `a " + EM_DASH + " **b**` now " + EM_DASH + " please.",
@@ -1224,7 +1235,9 @@ def test_behind_a_display_fix_a_semicolon_still_blocks_alone(tmp_path):
     assert "semicolon in " in reason
     assert "em dash (U+2014) in " not in reason
     assert "bold in " not in reason
-    assert "Correction:" in reason
+    assert "normal corrected reply" in reason
+    assert "status tail" in reason
+    assert "Correction:" not in reason
 
 
 def test_behind_a_display_fix_escaped_markers_in_a_quote_do_not_block(tmp_path):
@@ -1332,7 +1345,9 @@ def test_copilot_agent_stop_blocks_on_the_last_assistant_message(tmp_path):
     assert code == 0
     assert decision["decision"] == "block"
     assert "em dash" in decision["reason"]
-    assert "Correction:" in decision["reason"]
+    assert "normal corrected reply" in decision["reason"]
+    assert "status tail" in decision["reason"]
+    assert "Correction:" not in decision["reason"]
 
 
 def test_copilot_agent_stop_passes_clean_prose(tmp_path):
@@ -1456,6 +1471,8 @@ def test_a_copilot_subagent_report_is_asked_for_again_in_full(tmp_path):
     assert code == 0
     assert "semicolon in " in reason
     assert "write the whole report again" in reason
+    assert "normal corrected reply" in reason
+    assert "status tail" in reason
     assert "Correction:" not in reason
     assert "already on screen" not in reason
 
@@ -1468,15 +1485,19 @@ def test_a_claude_code_subagent_report_is_asked_for_again_in_full():
 
     assert code == 0
     assert "write the whole report again" in reason
+    assert "normal corrected reply" in reason
+    assert "status tail" in reason
     assert "Correction:" not in reason
 
 
-def test_a_main_thread_stop_still_asks_only_for_corrections():
+def test_a_main_thread_stop_asks_for_a_normal_corrected_reply():
     code, out, _err = run_stop({"hook_event_name": "Stop", "last_assistant_message": "One clause; another."}, "claude")
     reason = json.loads(out)["reason"]
 
     assert code == 0
-    assert "Correction:" in reason
+    assert "normal corrected reply" in reason
+    assert "status tail" in reason
+    assert "Correction:" not in reason
     assert "write the whole report again" not in reason
 
 

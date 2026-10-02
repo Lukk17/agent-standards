@@ -31,8 +31,8 @@ STATE_VALUES = frozenset({"WAITING FOR YOU", "WORKING", "DONE"})
 REASON = (
     "Question numbering violation in your last reply. Every question to the user "
     "must be numbered, one continuous sequence per conversation, with subpoints "
-    "like 13.1. Write only the corrected questions, one per line, each starting "
-    'with "Correction:" followed by the fixed text in quotes, and write nothing else.'
+    "like 13.1. Send a normal corrected reply with the fixed questions as normal "
+    "numbered lines, ending with the status tail."
 )
 
 

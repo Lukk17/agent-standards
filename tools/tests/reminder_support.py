@@ -278,33 +278,33 @@ COPIES = [
     (".agents/hooks/copilot/prompt_reminder.py", hook_module_reminder),
 ]
 
-STATUS_BLOCK_TEMPLATE = """---------------------
+STATUS_BLOCK_TEMPLATE = """---
+
+Skills: name of each skill used
+
+Owners: name of each owner
 
 Status
 
-~~Done: older finished task~~
-~~Done: most recent finished task~~
+~~DONE: older finished task~~
 
-```text
+~~DONE: most recent finished task~~
+
 Running: name of each running task, with progress like 3 of 10 todos done
-```
 
 ```text
 NOW: what is being done right now, one line
 ```
 
-```text
 Next: the next task
-Then: the task after that
-```
 
-```text
-Waiting on: what the agent waits for
-```
+Then: the task after that
 
 ```text
 State: WAITING FOR YOU
-```"""
+```
+
+Waiting on: what the agent waits for"""
 
 SEVERAL_RUNNING_TASKS = (
     "When several tasks run, list each name on the Running line separated by commas."

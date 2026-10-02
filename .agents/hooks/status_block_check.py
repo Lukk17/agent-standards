@@ -2,9 +2,9 @@
 """Blocks a reply that ends without the Status tail.
 
 Runner (--format plain) only. Subagent reports are exempt: the caller owns
-status. A valid tail is a Status header line followed later by a State line
-holding WAITING FOR YOU, WORKING, or DONE. Blocking prints the reason on
-stderr and exits 2.
+status. A valid tail holds in order: a dash run line, a Skills line, an
+Owners line, a Status header line, then a State line holding WAITING FOR
+YOU, WORKING, or DONE. Blocking prints the reason on stderr and exits 2.
 """
 
 import json
@@ -17,14 +17,18 @@ HOOK_TEXT_EVENT = False
 
 CONTRACTS = frozenset({3})
 
+SEPARATOR_RE = re.compile(r"^\s*-{2,}\s*$")
+SKILLS_RE = re.compile(r"^\s*Skills:")
+OWNERS_RE = re.compile(r"^\s*Owners:")
 STATUS_RE = re.compile(r"^\s*Status\s*$")
 STATE_RE = re.compile(r"^\s*State:\s*(WAITING FOR YOU|WORKING|DONE)\s*$", re.IGNORECASE)
 
 REASON = (
     "Status block violation in your last reply. End every reply with the "
-    "Status tail: the Status header plus a State line holding WAITING FOR YOU, "
-    "WORKING, or DONE. Fix what was flagged and anything else other hooks "
-    "asked you to fix, then end with the status block."
+    "Status tail in order: a dash run line, a Skills line, an Owners line, "
+    "the Status header, plus a State line holding WAITING FOR YOU, WORKING, "
+    "or DONE. Fix what was flagged and anything else other hooks asked you "
+    "to fix, then end with the status block."
 )
 
 TASK_LINE_RE = re.compile(r"^\s*Tasks:\s*\d+\s*/\s*\d+")
@@ -33,17 +37,24 @@ TASK_REASON = ("Task list violation in your last reply. The project task file ho
 
 
 def has_status_tail(text: str) -> bool:
-    status_seen = False
+    stage = 0
 
     for line in text.splitlines():
-        if not status_seen:
+        if stage == 0:
+            if SEPARATOR_RE.match(line):
+                stage = 1
+        elif stage == 1:
+            if SKILLS_RE.match(line):
+                stage = 2
+        elif stage == 2:
+            if OWNERS_RE.match(line):
+                stage = 3
+        elif stage == 3:
             if STATUS_RE.match(line):
-                status_seen = True
-
-            continue
-
-        if STATE_RE.match(line):
-            return True
+                stage = 4
+        elif stage == 4:
+            if STATE_RE.match(line):
+                return True
 
     return False
 

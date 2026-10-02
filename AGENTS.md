@@ -11,7 +11,7 @@ unchanged.
 Before any code work on a task, name the skill(s) and subagent(s) that own it and invoke them, or state "none apply"
 and why, as the first line of your reply. This is a hard gate.
 
-Follow the user-communication skill when writing to the user. End every reply with the status block the skill describes: one horizontal rule above the word Status, then one code block per group, with the State line last.
+Follow [.agents/instructions/reply-rules.md](.agents/instructions/reply-rules.md) when writing to the user. Name skills and ownership in the footer status tail it defines, never as the reply first line.
 
 The gate is enforcing, not advisory. One shared rule in
 [.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) decides every tool call, on every agent:
@@ -113,7 +113,7 @@ script and must never be hand-edited, and some are symlinks the generator create
 | --- | --- | --- |
 | `subagents/*.md` | canonical | edit directly, then regenerate |
 | `.agents/skills/*/SKILL.md` and its `references/*.md` | canonical | edit directly, keep the manifest short and the depth in `references/` |
-| `.agents/hooks/preflight_gate.py`, `.agents/hooks/no_ai_markers_check.py`, `.agents/hooks/task_list_sync.py`, `.agents/hooks/markdown_lint_check.py`, `.agents/hooks/question_numbering_check.py`, `.agents/hooks/copilot/prompt_reminder.py` | canonical | edit directly, then run the pytest suite |
+| `.agents/hooks/preflight_gate.py`, `.agents/hooks/no_ai_markers_check.py`, `.agents/hooks/task_list_sync.py`, `.agents/hooks/markdown_lint_check.py`, `.agents/hooks/question_numbering_check.py`, `.agents/hooks/status_block_check.py`, `.agents/hooks/copilot/prompt_reminder.py` | canonical | edit directly, then run the pytest suite |
 | `tasks.md` | runtime state, git-ignored | written by the hook and by the model, never committed |
 | `.agents/plugin/hooks.js` | canonical | edit directly |
 | `AGENTS.md.example`, `docs/*.md` | canonical | edit directly |
@@ -180,6 +180,9 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
 - **One gate, one rule, one wording.** A behaviour change is a change to
   [.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) plus a case in
   [tools/tests/test_preflight_gate.py](tools/tests/test_preflight_gate.py), never a second copy of the logic. The per-surface reminder text, where a surface still injects one, is kept in that surface's own wiring file, and tools/tests/test_prompt_reminder.py compares every copy to its canonical source.
+- **One tail, one check, one wording.** [.agents/instructions/reply-rules.md](.agents/instructions/reply-rules.md),
+  [.agents/hooks/status_block_check.py](.agents/hooks/status_block_check.py) and its tests ship as one
+  consistent set with no conflicts, and the hook is the enforcement.
 - **The tooling is a package under [tools/](tools/).** [tools/pyproject.toml](tools/pyproject.toml) is the only place
   a dependency or a version is written by hand, and it holds the pytest configuration too.
 - **There is no lock file.** Every version in [tools/pyproject.toml](tools/pyproject.toml) is an exact pin, and
@@ -276,9 +279,9 @@ should look like.
 5. **Live progress by tool, not prose.** For any task with more than one step, create a todo list with the
    todowrite tool and keep it current at every step. For long-running work, start a session goal with the goal
    tool so the mobile app and widgets show live state. Use the notify_user tool only when the user must act
-   right now. The status block at the end of every reply copies its Running line from the live todo list,
-   with progress like 3 of 10 todos done, and ends with the State line, which is exactly one of WAITING FOR YOU,
-   WORKING, DONE.
+   right now. The status tail at the end of every reply follows
+   [.agents/instructions/reply-rules.md](.agents/instructions/reply-rules.md): one `Running:` line per live
+   agent, State in its own fenced block, and `Waiting on:` last.
 6. **Number every question.** Every question put to the user is numbered, one continuous sequence per conversation,
    subpoints like 13.1. The question_numbering_check hook denies the next tool call when a reply carries an
    unnumbered question.

@@ -6,14 +6,13 @@ HTML entities, then blocks when what is left contains an em dash (U+2014), an
 en dash (U+2013), a semicolon, bold, or italic. Bold and italic are matched as
 paired delimiters in both spellings, `**text**` and `__text__` for bold,
 `*text*` and `_text_` for italic, so a bullet marker, a multiplication sign and
-a snake_case identifier are not mistaken for emphasis. One bold line is
-allowed: a line that is entirely `**NOW: ...**`, the current-task line of the
-status block that ends a reply. Its text is still checked for every other
-marker.
+a snake_case identifier are not mistaken for emphasis. No bold line is
+allowed. The status block carries NOW inside a fenced text block, which is
+stripped from the check like any other fenced block.
 
 Four of those markers can be fixed mechanically, and `fix_prose` does it: a
 dash becomes a comma with clean spacing (a hyphen in a digit range), and bold
-and italic lose their delimiters, the NOW line excepted. Code spans, fenced
+and italic lose their delimiters. Code spans, fenced
 blocks, link targets and URLs stay as written. The fix works line by line, so a
 batch of whole lines comes out the same as the whole text would. A semicolon
 joining two clauses cannot be fixed without reading the sentence, so it is only
@@ -99,7 +98,6 @@ HTML_ENTITY_RE = re.compile(r"&(?:#[0-9]+|#[xX][0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*
 # A backslash-escaped delimiter is literal text in markdown, never emphasis.
 # An escaped backslash is matched as a pair, so `\\*a*` stays italic.
 ESCAPED_MARKER_RE = re.compile(r"\\[\\*_]")
-STATUS_NOW_LINE_RE = re.compile(r"^\s*\*\*(NOW: [^*\n]+?)\*\*\s*$")
 
 # Paired delimiters, both spellings. The opener may not be preceded by a word
 # character or by another delimiter of the same kind, and the run may not start
@@ -170,16 +168,14 @@ REASON_FIXES = (
 )
 
 REASON_TAIL = (
-    ". That reply is already on screen, so do not repeat it and do not rewrite it "
-    "in full. Write only the sentences or lines that needed fixing, one per line, "
-    'each starting with "Correction:" followed by the fixed text in quotes, and '
-    "write nothing else." + REASON_FIXES
+    ". Send a normal corrected reply with every violation fixed, ending with "
+    "the status tail." + REASON_FIXES
 )
 
 SUBAGENT_REASON_TAIL = (
     ". That reply is the report your caller receives, and your next reply "
-    "replaces it, so write the whole report again with every violation fixed and "
-    "nothing left out." + REASON_FIXES
+    "replaces it, so write the whole report again as a normal corrected reply "
+    "with every violation fixed, ending with the status tail." + REASON_FIXES
 )
 
 # Claude Code names the event and carries agent_id only inside a subagent. The
@@ -290,8 +286,7 @@ def strip_code(text: str) -> str:
     Fenced blocks, table rows, inline code spans, escaped delimiters, link
     targets, bare URLs and HTML entities all go. A table row goes whole, because its cell separators
     and its entities are markup rather than punctuation, and `&amp;` ends in a
-    semicolon that is not one. The status block's NOW line keeps its text and
-    loses only its bold delimiters.
+    semicolon that is not one.
     """
     kept: list[str] = []
     fence = ""
@@ -302,9 +297,7 @@ def strip_code(text: str) -> str:
         if code or TABLE_ROW_RE.match(line):
             continue
 
-        now_line = STATUS_NOW_LINE_RE.match(line)
-
-        kept.append(now_line.group(1) if now_line else line)
+        kept.append(line)
 
     prose = "\n".join(kept)
     prose = INLINE_CODE_RE.sub(" ", prose)
@@ -335,12 +328,6 @@ def fix_prose(text: str, fence: str = "") -> tuple[str, str]:
 
 def _fix_line(line: str) -> str:
     body, ending = (line[:-1], "\r") if line.endswith("\r") else (line, "")
-    now_line = STATUS_NOW_LINE_RE.match(body)
-
-    if now_line:
-        inner = _fix_span(now_line.group(1))
-
-        return body[: now_line.start(1)] + inner + body[now_line.end(1) :] + ending
 
     return _fix_span(body) + ending
 

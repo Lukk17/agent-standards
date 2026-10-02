@@ -13,18 +13,33 @@ from tests.process_tree import run_bounded
 HOOK = HOOKS_DIR / "status_block_check.py"
 
 TAIL = (
-    "----------------------\n"
+    "---\n"
+    "\n"
     "Skills: agent-engineer\n"
+    "\n"
+    "Owners: agent-engineer\n"
     "\n"
     "Status\n"
     "\n"
-    "```text\n"
+    "~~DONE: older finished task~~\n"
+    "\n"
+    "~~DONE: most recent finished task~~\n"
+    "\n"
     "Running: nothing\n"
+    "\n"
+    "```text\n"
+    "NOW: what is being done right now\n"
     "```\n"
+    "\n"
+    "Next: the next task\n"
+    "\n"
+    "Then: the task after that\n"
     "\n"
     "```text\n"
     "State: WAITING FOR YOU\n"
     "```\n"
+    "\n"
+    "Waiting on: nothing\n"
 )
 
 
@@ -95,10 +110,56 @@ def test_corrections_plus_tail_exits_zero():
     assert result.returncode == 0
 
 
-def test_fully_fenced_tail_passes():
+def test_fully_fenced_tail_denies():
     result = run(payload("```\nStatus\n\nState: DONE\n```"))
 
-    assert result.returncode == 0
+    assert result.returncode == 2
+
+
+def test_missing_dash_run_denies():
+    tail_without_dash = "\n".join(
+        line for line in TAIL.splitlines() if line.strip() != "---"
+    ) + "\n"
+    result = run(payload("Done.\n" + tail_without_dash))
+
+    assert result.returncode == 2
+
+
+def test_missing_skills_line_denies():
+    tail_without_skills = "\n".join(
+        line for line in TAIL.splitlines() if not line.lstrip().startswith("Skills:")
+    ) + "\n"
+    result = run(payload("Done.\n" + tail_without_skills))
+
+    assert result.returncode == 2
+
+
+def test_missing_owners_line_denies():
+    tail_without_owners = "\n".join(
+        line for line in TAIL.splitlines() if not line.lstrip().startswith("Owners:")
+    ) + "\n"
+    result = run(payload("Done.\n" + tail_without_owners))
+
+    assert result.returncode == 2
+
+
+def test_missing_status_denies():
+    tail_without_status = "\n".join(
+        line for line in TAIL.splitlines() if line.strip() != "Status"
+    ) + "\n"
+    result = run(payload("Done.\n" + tail_without_status))
+
+    assert result.returncode == 2
+
+
+def test_state_before_status_denies_full_tail():
+    swapped = TAIL.replace("Status\n", "__STATUS__\n").replace(
+        "State: WAITING FOR YOU", "Status"
+    )
+    swapped = swapped.replace("__STATUS__", "State: WAITING FOR YOU")
+    result = run(payload("Done.\n" + swapped))
+
+    assert result.returncode == 2
 
 
 def test_tasks_present_with_tasks_line_exits_zero(tmp_path):
