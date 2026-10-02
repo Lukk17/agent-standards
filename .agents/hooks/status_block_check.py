@@ -27,6 +27,10 @@ REASON = (
     "asked you to fix, then end with the status block."
 )
 
+TASK_LINE_RE = re.compile(r"^\s*Tasks:\s*\d+\s*/\s*\d+")
+TASK_ITEM_RE = re.compile(r"^\s*-\s*\[(open|in progress|done|blocked)\]", re.IGNORECASE)
+TASK_REASON = ("Task list violation in your last reply. The project task file holds items, so add a Tasks: N/M completed line with the pending items and their priorities.")
+
 
 def has_status_tail(text: str) -> bool:
     status_seen = False
@@ -54,6 +58,22 @@ def _speaks_contract(payload: dict[str, object]) -> bool:
     return type(version) is int and version in CONTRACTS
 
 
+def tasks_present(root: str) -> bool:
+    try:
+        from pathlib import Path
+
+        candidate = Path(root) / "tasks.md"
+
+        if not candidate.is_file():
+            return False
+
+        text = candidate.read_text(encoding="utf-8", errors="replace")
+
+        return any(TASK_ITEM_RE.match(line) for line in text.splitlines())
+    except Exception:
+        return False
+
+
 def _runner_mode() -> int:
     try:
         payload = json.loads(_stdin_text() or "{}")
@@ -73,6 +93,14 @@ def _runner_mode() -> int:
             return 0
 
         if has_status_tail(text):
+            root = payload.get("cwd") if isinstance(payload.get("cwd"), str) else ""
+
+            if tasks_present(root) and not any(TASK_LINE_RE.match(line) for line in text.splitlines()):
+                sys.stderr.buffer.write(TASK_REASON.encode("utf-8"))
+                sys.stderr.buffer.flush()
+
+                return 2
+
             return 0
 
         sys.stderr.buffer.write(REASON.encode("utf-8"))

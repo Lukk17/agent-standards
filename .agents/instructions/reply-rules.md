@@ -12,7 +12,7 @@ Short common words a non-native reader gets at once. No dash characters beyond t
 
 ## 3. Status tail
 
-End every reply with the status tail and nothing after it. Shape: a horizontal rule line, then the Skills line naming used skills, then one blank line, then the Status header. Under it: crossed Done lines for finished work, Running with live task names in backticks, NOW with the current line, Next and Then, Waiting on with the numbered questions awaited, and State last holding WAITING FOR YOU, WORKING, or DONE.
+End every reply with the status tail and nothing after it. Shape: a horizontal rule line, then the Skills line naming used skills, then one blank line, then the Status header. Under it: crossed Done lines for finished work, Running with live task names in backticks, NOW with the current line, Next and Then, Waiting on with the numbered questions awaited, and State last holding WAITING FOR YOU, WORKING, or DONE. When the project task file holds items, the tail also carries a Tasks line shaped N/M completed with the pending items and their priorities, sourced from that file, and the agent keeps that file current by editing it.
 
 ## 4. State honesty
 

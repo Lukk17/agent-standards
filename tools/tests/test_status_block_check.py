@@ -37,7 +37,7 @@ def run(stdin: bytes) -> subprocess.CompletedProcess:
     )
 
 
-def payload(assistant_text: object, subagent: bool = False) -> bytes:
+def payload(assistant_text: object, subagent: bool = False, cwd: object = REPO_ROOT) -> bytes:
     body = {
         "contract": 3,
         "event": "tool.execute.before",
@@ -46,7 +46,7 @@ def payload(assistant_text: object, subagent: bool = False) -> bytes:
         "agent_type": "general",
         "is_subagent": subagent,
         "assistant_text": assistant_text,
-        "cwd": str(REPO_ROOT),
+        "cwd": str(cwd),
     }
 
     return json.dumps(body).encode("utf-8")
@@ -97,5 +97,33 @@ def test_corrections_plus_tail_exits_zero():
 
 def test_fully_fenced_tail_passes():
     result = run(payload("```\nStatus\n\nState: DONE\n```"))
+
+    assert result.returncode == 0
+
+
+def test_tasks_present_with_tasks_line_exits_zero(tmp_path):
+    (tmp_path / "tasks.md").write_text("- [open] fix hook\n- [done] prior work\n", encoding="utf-8")
+    result = run(payload("Done.\n" + TAIL + "Tasks: 1/2 completed\n", cwd=str(tmp_path)))
+
+    assert result.returncode == 0
+
+
+def test_tasks_present_without_tasks_line_denies(tmp_path):
+    (tmp_path / "tasks.md").write_text("- [open] fix hook\n- [open] add test\n", encoding="utf-8")
+    result = run(payload("Done.\n" + TAIL, cwd=str(tmp_path)))
+
+    assert result.returncode == 2
+    assert "Task list violation" in result.stderr.decode("utf-8")
+
+
+def test_empty_dir_without_tasks_line_exits_zero(tmp_path):
+    result = run(payload("Done.\n" + TAIL, cwd=str(tmp_path)))
+
+    assert result.returncode == 0
+
+
+def test_tasks_file_without_items_exits_zero(tmp_path):
+    (tmp_path / "tasks.md").write_text("No items here.\n", encoding="utf-8")
+    result = run(payload("Done.\n" + TAIL, cwd=str(tmp_path)))
 
     assert result.returncode == 0
