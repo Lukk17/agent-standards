@@ -12,7 +12,7 @@ Short common words a non-native reader gets at once. No dash characters beyond t
 
 ## 3. Status tail
 
-End every reply with the status tail and nothing after it. Shape: a horizontal rule line, then the Skills line naming used skills, then one blank line, then the Status header. Under it: crossed Done lines for finished work, Running with live task names in backticks, NOW with the current line, Next and Then, Waiting on with the numbered questions awaited, and State last holding WAITING FOR YOU, WORKING, or DONE. When the project task file holds items, the tail also carries a Tasks line shaped N/M completed with the pending items and their priorities, sourced from that file, and the agent keeps that file current by editing it.
+End every reply with the status tail and nothing after it. Shape: a horizontal rule line, then the Skills line naming used skills, then one blank line, then the Status header. Under it: crossed Done lines for finished work, Running with live task names in backticks, NOW with the current line, Next and Then, Waiting on with the numbered questions awaited, and State last holding WAITING FOR YOU, WORKING, or DONE. When the project task file holds items, the tail also carries a Tasks line shaped N/M completed with the pending items and their priorities, sourced from that file, and the agent keeps that file current by editing it. Running agents print one per line with name, state, and current step, limited to agents this session started and never panel flags.
 
 ## 4. State honesty
 
@@ -24,7 +24,7 @@ Version-sensitive claims get a docs check before they cost a turn: Context7 or v
 
 ## 6. Readability
 
-One element per line in lists. One point per paragraph. Descriptions stay on their line. Only code blocks break out to their own lines. Dotted labels like 1.1 are not list markers, so wrapped lines end with a backslash to keep the breaks. Never skip user words: everything written stays in full.
+One element per line in lists. One point per paragraph, with a blank line between points and paragraphs. Enumerations become real lists, never inline comma strings. A blank line stands before headings, fences, and the rule line. Descriptions stay on their line. Only code blocks break out to their own lines. Full paths and URIs go on their own line inside their own fenced block, never inline. Dotted labels like 1.1 are not list markers, so wrapped lines end with a backslash to keep the breaks. Never skip user words: everything written stays in full.
 
 ## 7. Approval and interrupt
 
