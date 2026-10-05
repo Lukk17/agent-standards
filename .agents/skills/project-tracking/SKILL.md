@@ -90,10 +90,10 @@ the thing it is actually changing. The activity becomes a label, and the item li
 component being changed. A catch-all epic for work that fits nowhere fails the same way, plus one more: it hides the
 fact that the work has no home, which is usually the more interesting problem.
 
-Not every item needs an epic. A small standalone chore, a one-off bug, or a spike may legitimately have no parent,
-and that is a normal state rather than a gap to fill. This only stays true if nobody invents a bucket epic to absorb
-them, because a search for parentless items is a useful hygiene check exactly as long as the parentless set means
-"genuinely standalone" and not "someone has not sorted these yet".
+Every item except an epic has a parent epic, and the parent is set when the item is created, not sorted out later.
+A Subtask takes its item as parent instead. When no existing epic fits, ask which outcome the work belongs to before
+creating the item. Never create it without a parent, and never park it under a catch-all epic to fill the field. The
+same rule makes a search for parentless items, epics aside, a hygiene check that should always return nothing.
 
 ---
 
@@ -322,7 +322,8 @@ Branch naming, commit message format and merge strategy are not this skill's sub
 6. Acceptance criteria are testable and independent, in the project's one chosen form.
 7. The item is small enough to finish in a normal cycle and to verify on its own, or it is an epic with children.
 8. At least one area label, and at most one nature-of-work label, both from the documented lists.
-9. The parent epic is an outcome, or the item is deliberately standalone.
+9. The item has a parent set at creation: an epic that is an outcome, or its item for a Subtask. An epic alone has
+   none.
 10. Every dependency mentioned in the text also exists as a link.
 
 ---

@@ -170,22 +170,25 @@ Fail:
 
 ---
 
-### Write only the fields the user named
+### Write the parent and labels, and only the other fields the user named
 
-Create or modify an issue only when the user asked for it, and set only the fields they named. Adding a label, a
-component, a priority or a sprint on your own edits somebody else's board, and the change is invisible until a filter
-returns the wrong set. Take the description template from the tracker rather than inventing one.
+Create or modify an issue only when the user asked for it, and create each new issue only after the user approved
+that one issue. A new issue always gets its parent epic and the labels the project's tracking conventions require: at
+least one area label and at most one nature-of-work label, taken only from the project's own documented label list and
+never invented. Every other field, meaning priority, components, sprint and assignee, is set only when the user names
+it. Adding one of those on your own edits somebody else's board, and the change is invisible until a filter returns
+the wrong set. Take the description template from the tracker rather than inventing one.
 
 Pass:
 
 ```text
-Asked for a bug in PROJ with that summary and description. Created exactly those two fields. Nothing else set.
+Asked for a bug in PROJ with that summary and description. Created it with those two fields, the parent epic and the area label from the project's list.
 ```
 
 Fail:
 
 ```text
-Created it and added the "backend" component, priority High and the current sprint, since that seemed right.
+Created it with no parent, invented a "misc" label, and added priority High and the current sprint, since that seemed right.
 ```
 
 ---
@@ -262,6 +265,7 @@ first so you understand the full scope of the feature.
 - [ ] Each MCP tool called is one the connected server actually lists
 - [ ] Every transition and comment ran only after the user approved that one action
 - [ ] Transitions were read for this issue before one was executed
-- [ ] Only the fields the user named were written
+- [ ] A new issue carries its parent epic and the required labels from the project's list
+- [ ] Every other field written was one the user named
 - [ ] Comments link outward rather than pasting reports
 - [ ] Item content follows `project-tracking`, not conventions invented here

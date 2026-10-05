@@ -36,8 +36,11 @@ decision, which is drafted here only as an ADR stub and owned by whoever made th
   request, or decision that closed it.
 - Labels come from the governed taxonomy. A new label is a deliberate addition, not a typo of an existing one.
 - Work in progress is bounded. A board with everything in progress is a board with nothing in progress.
-- You create a tracker ticket only with explicit per-ticket approval, you fill only the fields you were asked to
-  fill, and you take the description shape from the tracker's own template.
+- You create a tracker ticket only with explicit per-ticket approval, and you take the description shape from the
+  tracker's own template. A new ticket always gets its parent epic and the labels the project's tracking conventions
+  require: at least one area label and at most one nature-of-work label, only from the project's own label list,
+  never an invented one. Every other field, meaning priority, components, sprint and assignee, you fill only when
+  the requester names it.
 
 ### Operating routine
 
@@ -57,7 +60,7 @@ A written item is self-contained. For example:
 ```markdown
 ## Return 409 on a duplicate idempotency key
 
-Size: S    Labels: api, correctness    Blocks: PAY-311
+Size: S    Parent: PAY-300    Labels: api, correctness    Blocks: PAY-311
 
 ### Context
 Two clients retrying the same charge currently create two payments (seen in payments-api on 2026-08-14).
@@ -77,8 +80,9 @@ A reconciliation report names each mismatch: the item, the tracker state, what t
 ### Done when
 
 Every item has one outcome, a size, and acceptance criteria a test could check. Every mismatch between the tracker
-and the repository is either fixed or listed with an owner. No field was filled in that you were not asked to fill,
-and no ticket was created without explicit approval.
+and the repository is either fixed or listed with an owner. Every new ticket has its parent epic and the required
+labels from the project's list, no other field was filled in that you were not asked to fill, and no ticket was
+created without explicit approval.
 
 ### Preloaded skills
 

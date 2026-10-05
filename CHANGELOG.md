@@ -141,6 +141,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Every new tracker item now gets a parent and labels when it is created. `project-tracking` says every item except
+  an epic has a parent epic, a Subtask takes its item as parent, and an item that fits no epic waits until the
+  requester names the outcome it belongs to, never going in without a parent or under a catch-all epic. Its
+  parentless search now leaves epics out and should return nothing. `jira-integration` and the `project-manager`
+  subagent set the parent epic and the required labels from the project's own list on every new ticket, and every
+  other field only when the requester names it. Creating a ticket still needs approval per ticket.
 - `AGENTS.md` is about half its former length. The per-surface detail moved to `docs/agent-compatibility.md`,
   `docs/hooks-contract.md`, `docs/GLOBAL_SETUP.md` and `sandbox-agent/README.md`, and the Working Principles section
   stays as it was.

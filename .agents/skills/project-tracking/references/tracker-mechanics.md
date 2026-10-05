@@ -47,12 +47,12 @@ titles each carry the uppercase item key, and different panels read different ar
 rewrites the commit message can break the deployment link.
 
 Two searches are worth running on a regular cadence, written here against an invented project key ABC. The first
-lists items with no parent, which should return only work that is genuinely standalone rather than work nobody has
-sorted yet. The second lists items sitting in a done status with no resolution recorded, which is the state
-described above and should always return nothing at all.
+lists items other than epics with no parent, which should always return nothing at all, because every item gets
+its parent when it is created. The second lists items sitting in a done status with no resolution recorded, which is
+the state described above and should always return nothing at all.
 
 ```
-project = ABC AND parent IS EMPTY ORDER BY created DESC
+project = ABC AND parent IS EMPTY AND issuetype != Epic ORDER BY created DESC
 ```
 
 ```
