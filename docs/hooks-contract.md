@@ -198,8 +198,10 @@ Current values:
 | --- | --- | --- |
 | 10 | `preflight_gate.py` | A policy denial about the action being attempted outranks a note about prose already sent. |
 | 20 | `no_ai_markers_check.py` | Formatting, checked only when there is new prose to check. It is also the one hook that rewrites a finished text part. |
-| 30 | `question_numbering_check.py` | Numbered questions, checked on new prose. It never takes the text event. |
-| 30 | `task_list_sync.py` | Bookkeeping, and it never denies. It exits 0 immediately on the plain format. |
+| 20 | `task_watchdog.py` | Watchdog, compares the reply Tasks line against live todo state. Ties at 20 resolve by file name. |
+| 30 | `question_numbering_check.py` | Numbered questions, checked on new prose. It never takes the text event. Ties at 30 resolve by file name. |
+| 30 | `task_list_sync.py` | Bookkeeping, and it never denies. On the plain runner format it syncs live tool todos. |
+| 35 | `status_block_check.py` | Footer shape gate, logs on tool events, exit 2 only on user-reply events. |
 | 40 | `markdown_lint_check.py` | Gated behind `--format claude` only. It exits 0 at once on the plain format. |
 
 The first denial stops the chain. Later hooks are not run.
@@ -261,14 +263,15 @@ wrap the body in `try` and return 0 on any exception.
 
 ### Events the other three agents wire directly
 
-The runner has one event. The three agents that call hooks from their own configuration have many, and the table below
-is what this repo wires today. Each cell names the event in that agent's own spelling.
+The runner has one event plus the `todo.updated` runner event in `hooks.js`, which hands live tool todos to every
+hook with `tool_name` set to `todo`. The three agents that call hooks from their own configuration have many, and
+the table below is what this repo wires today. Each cell names the event in that agent's own spelling.
 
 | Hook | Claude Code | Codex | GitHub Copilot |
 | --- | --- | --- | --- |
 | `preflight_gate.py` | `PreToolUse` | `PreToolUse` | `preToolUse` |
 | `no_ai_markers_check.py` | `MessageDisplay`, `Stop`, `SubagentStop` | `Stop` | `agentStop` |
-| `task_list_sync.py` | `TaskCreated`, `TaskCompleted`, `SessionStart`, `PreCompact`, `Stop` | `SessionStart` | `sessionStart` |
+| `task_list_sync.py` | `TaskCreated`, `TaskUpdated`, `TaskCompleted`, `SessionStart`, `PreCompact`, `Stop` | `SessionStart` | `sessionStart` |
 | `markdown_lint_check.py` | `PostToolUse` on `Edit`, `Write`, `MultiEdit` | not wired | not wired |
 | `copilot/prompt_reminder.py` | not wired | not wired | `userPromptTransformed` |
 

@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Blocks a reply that ends without the Status tail.
+"""Footer shape gate for user-facing replies.
 
-Runner (--format plain) only. Subagent reports are exempt: the caller owns
-status. A valid tail holds in order: a dash run line, a Skills line, an
-Owners line, a Status header line, then a State line holding WAITING FOR
-YOU, WORKING, or DONE. Blocking prints the reason on stderr and exits 2.
+Footer shape is mandatory for user-facing replies in the exact order: dash
+rule line, Skills line, inline Tasks single line, two crossed DONE lines,
+inline NOW single line, Running lines with agent names in inline code, Next
+line, Then line, inline State single line, Waiting on line last, blank lines
+skipped never breaking the sequence. The hook never denies a tool or
+subagent call over it: tool and subagent events log the violation and exit 0.
+Exit 2 applies only on a user-reply event if the runner provides one.
 """
 
 import json
@@ -17,44 +20,123 @@ HOOK_TEXT_EVENT = False
 
 CONTRACTS = frozenset({3})
 
+REPLY_EVENTS = frozenset({
+    "assistant.reply.complete",
+    "experimental.text.complete",
+    "reply.complete",
+    "stop",
+})
+
+TOOL_EVENTS = frozenset({
+    "tool.execute.before",
+})
+
 SEPARATOR_RE = re.compile(r"^\s*-{2,}\s*$")
 SKILLS_RE = re.compile(r"^\s*Skills:")
-OWNERS_RE = re.compile(r"^\s*Owners:")
-STATUS_RE = re.compile(r"^\s*Status\s*$")
-STATE_RE = re.compile(r"^\s*State:\s*(WAITING FOR YOU|WORKING|DONE)\s*$", re.IGNORECASE)
+TASK_RE = re.compile(r"^\s*`{3}.*Tasks:\s*\d+\s*/\s*\d+.*`{3}\s*$")
+DONE_RE = re.compile(r"^\s*~~DONE:.*~~\s*$")
+NOW_RE = re.compile(r"^\s*`{3}.*NOW:.*`{3}\s*$")
+RUNNING_RE = re.compile(r"^\s*Running:\s*\S.*\(agent:\s*`[^`]+`\)\s*$")
+NEXT_RE = re.compile(r"^\s*Next:")
+THEN_RE = re.compile(r"^\s*Then:")
+STATE_RE = re.compile(r"^\s*`{3}.*State:\s*(WAITING FOR YOU|WORKING|DONE).*`{3}\s*$", re.IGNORECASE)
+WAITING_RE = re.compile(r"^\s*Waiting on:")
 
 REASON = (
     "Status block violation in your last reply. End every reply with the "
-    "Status tail in order: a dash run line, a Skills line, an Owners line, "
-    "the Status header, plus a State line holding WAITING FOR YOU, WORKING, "
-    "or DONE. Fix what was flagged and anything else other hooks asked you "
-    "to fix, then end with the status block."
+    "Status tail in order: dash rule line, Skills line, fenced Tasks line "
+    "directly below Skills, two crossed DONE lines, fenced one-line NOW "
+    "above Running lines, Running lines, Next line, Then line, fenced "
+    "one-line State line, Waiting on line last. Fix what was flagged and "
+    "anything else other hooks asked you to fix, then end with the status block."
 )
 
-TASK_LINE_RE = re.compile(r"^\s*Tasks:\s*\d+\s*/\s*\d+")
+TASK_LINE_RE = re.compile(r"^\s*`{0,3}.*Tasks:\s*\d+\s*/\s*\d+")
 TASK_ITEM_RE = re.compile(r"^\s*-\s*\[(open|in progress|done|blocked)\]", re.IGNORECASE)
 TASK_REASON = ("Task list violation in your last reply. The project task file holds items, so add a Tasks: N/M completed line with the pending items and their priorities.")
 
 
 def has_status_tail(text: str) -> bool:
+    lines = text.splitlines()
+    start = None
+
+    for index, line in enumerate(lines):
+        if SEPARATOR_RE.match(line):
+            start = index
+
+    if start is None:
+        return False
+
+    tail = lines[start:]
+    if start == 0 or lines[start - 1].strip():
+        return False
     stage = 0
 
-    for line in text.splitlines():
+    for line in tail:
+        if not line.strip():
+            continue
+
         if stage == 0:
             if SEPARATOR_RE.match(line):
                 stage = 1
+            else:
+                return False
         elif stage == 1:
             if SKILLS_RE.match(line):
                 stage = 2
+            else:
+                return False
         elif stage == 2:
-            if OWNERS_RE.match(line):
+            if TASK_RE.match(line):
                 stage = 3
-        elif stage == 3:
-            if STATUS_RE.match(line):
+            elif DONE_RE.match(line):
                 stage = 4
+            else:
+                return False
+        elif stage == 3:
+            if DONE_RE.match(line):
+                stage = 4
+            else:
+                return False
         elif stage == 4:
+            if DONE_RE.match(line):
+                stage = 5
+            else:
+                return False
+        elif stage == 5:
+            if NOW_RE.match(line):
+                stage = 6
+            else:
+                return False
+        elif stage == 6:
+            if RUNNING_RE.match(line):
+                stage = 7
+            elif NEXT_RE.match(line):
+                stage = 8
+            else:
+                return False
+        elif stage == 7:
+            if RUNNING_RE.match(line):
+                pass
+            elif NEXT_RE.match(line):
+                stage = 8
+            else:
+                return False
+        elif stage == 8:
+            if THEN_RE.match(line):
+                stage = 9
+            else:
+                return False
+        elif stage == 9:
             if STATE_RE.match(line):
+                stage = 10
+            else:
+                return False
+        elif stage == 10:
+            if WAITING_RE.match(line):
                 return True
+
+            return False
 
     return False
 
@@ -92,10 +174,27 @@ def _runner_mode() -> int:
         if not isinstance(payload, dict) or not _speaks_contract(payload):
             return 0
 
-        if payload.get("event") != "tool.execute.before":
+        if payload.get("is_subagent") is True:
+            text = payload.get("assistant_text")
+
+            if isinstance(text, str) and text.strip() and not has_status_tail(text):
+                sys.stderr.buffer.write(("Subagent footer note (not blocking): " + REASON).encode("utf-8"))
+                sys.stderr.buffer.flush()
+
             return 0
 
-        if payload.get("is_subagent") is True:
+        event = payload.get("event")
+
+        if event in TOOL_EVENTS:
+            text = payload.get("assistant_text")
+
+            if isinstance(text, str) and text.strip() and not has_status_tail(text):
+                sys.stderr.buffer.write(("Tool-event footer note (not blocking): " + REASON).encode("utf-8"))
+                sys.stderr.buffer.flush()
+
+            return 0
+
+        if event not in REPLY_EVENTS:
             return 0
 
         text = payload.get("assistant_text")

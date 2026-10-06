@@ -20,6 +20,7 @@ Three categories, and mixing them up is the one mistake that breaks a rebuild.
 | Canonical, global install only | `global/bin/update-global.sh`, `global/bin/update-global.ps1` | edit both together, verified by `tools/tests/test_update_global.py`, shipped to `~/.agents/bin` by the global install and never by a project import |
 | Canonical, this repo only | `main-thread-allowlist.txt` | edit directly, verified by the pytest suite under `tools/tests/`, never shipped |
 | Runtime state | `tasks.md` at the project root | written by `task_list_sync.py` and by the model, git-ignored, never committed |
+| Runtime state | `.agents/tasks.widget.json` beside `tasks.md` | generated widget snapshot, git-ignored, never committed |
 
 A skill is a directory, not a file. `SKILL.md` is the manifest and stays short: standard front matter (`name`,
 `description`, and optionally `license` or `compatibility`) per the open
@@ -51,6 +52,9 @@ agent-standards/
       no_ai_markers_check.py     # CANONICAL, reply formatting check, Stop and SubagentStop
       markdown_lint_check.py     # CANONICAL, lints a linted file just after it was edited
       task_list_sync.py          # CANONICAL, mirrors the session task list into tasks.md
+      status_block_check.py      # CANONICAL, footer shape gate for user-facing replies
+      question_numbering_check.py # CANONICAL, numbered questions check on new prose
+      task_watchdog.py           # CANONICAL, reply Tasks line must match live tool todo state
     plugin/
       hooks.js                   # CANONICAL, OpenCode and Kilo Code runner for every hook in hooks/
   global/
@@ -94,6 +98,7 @@ agent-standards/
   CONTRIBUTING.md                # Contribution rules and local checks, this repo only
   CHANGELOG.md                   # Release history, this repo only
   tasks.md                       # RUNTIME STATE written by the task-list hook, git-ignored
+  .agents/tasks.widget.json       # RUNTIME STATE generated widget snapshot, git-ignored, never committed
   main-thread-allowlist.txt      # CANONICAL, this repo's own gate allowlist, never shipped
   LICENSE                        # MIT
   docs/
@@ -140,6 +145,7 @@ your-project/
   opencode.json                  # OpenCode and Kilo Code MCP servers plus the plugin declaration
   AGENTS.md                      # renamed from AGENTS.md.example, then filled in
   tasks.md                       # written by the task-list hook, add /tasks.md to your own .gitignore
+  .agents/tasks.widget.json       # generated widget snapshot, add /.agents/tasks.widget.json too, never committed
   docs/                          # only the UPPERCASE docs: AGENT_TOOLING, MCP_SETUP, AGENTS-UPDATE, GLOBAL_SETUP
 ```
 

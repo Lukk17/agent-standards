@@ -116,7 +116,7 @@ The full event set per surface, beyond the gate itself:
 
 | Agent | Gate | Formatting check | Markdown lint | Task list |
 | --- | --- | --- | --- | --- |
-| Claude Code | `SessionStart`, `UserPromptSubmit`, `SubagentStart`, `PreToolUse` | `MessageDisplay`, `Stop`, `SubagentStop` | `PostToolUse`, matcher `^(Edit\|Write\|MultiEdit)$` | `TaskCreated`, `TaskCompleted`, `SessionStart`, `PreCompact`, `Stop` |
+| Claude Code | `SessionStart`, `UserPromptSubmit`, `SubagentStart`, `PreToolUse` | `MessageDisplay`, `Stop`, `SubagentStop` | `PostToolUse`, matcher `^(Edit\|Write\|MultiEdit)$` | `TaskCreated`, `TaskUpdated`, `TaskCompleted`, `SessionStart`, `PreCompact`, `Stop` |
 | Codex | `UserPromptSubmit`, `SubagentStart`, `PreToolUse` | `Stop` | not wired, no matching event | `SessionStart` |
 | OpenCode and Kilo Code | `tool.execute.before` | same event, the runner passes every hook, plus `experimental.text.complete` | same event | same event |
 | GitHub Copilot | `sessionStart`, `subagentStart`, `userPromptTransformed`, `preToolUse` | `agentStop` | not wired | `sessionStart` |

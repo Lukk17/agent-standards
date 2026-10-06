@@ -103,16 +103,18 @@ mv AGENTS.md.example AGENTS.md
 
 Then ignore the agent task list. `.agents/hooks/task_list_sync.py` mirrors the live session task list into `tasks.md`
 at the project root so the plan survives a compaction, and that file is per-session working state rather than shared
-history. PowerShell:
+history. The same hook writes the generated `.agents/tasks.widget.json` snapshot beside it, which is ignored too.
+The reply `Tasks:` line must match the live list, and the runner `todo.updated` event keeps all three in sync.
+PowerShell:
 
 ```powershell
-Add-Content .gitignore "`n/tasks.md"
+Add-Content .gitignore "`n/tasks.md`n/.agents/tasks.widget.json"
 ```
 
 Unix shell:
 
 ```bash
-printf '\n/tasks.md\n' >> .gitignore
+printf '\n/tasks.md\n/.agents/tasks.widget.json\n' >> .gitignore
 ```
 
 That is the whole setup. Commit when you are ready.

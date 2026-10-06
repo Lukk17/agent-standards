@@ -1,6 +1,7 @@
-// Generic hook runner for OpenCode and Kilo Code. A global copy stands down
-// when the project ships its own plugin: it returns no hooks so the project
-// copy runs the gate exactly once.
+// Generic hook runner for OpenCode surfaces plus Kilo via the opencode.json
+// legacy file. A global copy stands down when the project ships its own
+// plugin: it returns no hooks so the project copy runs the gate exactly once.
+// Support matrix: OpenCode surfaces plus Kilo via opencode.json legacy file.
 //
 // Neither runtime can block a reply from completing, so every check rides the
 // only blocking channel they have: throwing from tool.execute.before aborts the
@@ -45,6 +46,7 @@ const OPT_OUT = join(".agents", "no-global-hooks")
 const CONTRACT = 3
 const EVENT = "tool.execute.before"
 const TEXT_EVENT = "experimental.text.complete"
+const TODO_EVENT = "todo.updated"
 
 const DEFAULT_ORDER = 100
 const ORDER_RE = /^HOOK_ORDER\s*=\s*(\d+)\s*$/m
@@ -449,6 +451,34 @@ export const Preflight = async ({ directory, worktree, client } = {}) => {
         const message = denial(await run(python, root, hook, envelope), hook.name)
 
         if (message) throw new Error(message)
+      }
+    },
+
+    [TODO_EVENT]: async (input, output) => {
+      try {
+        const todos = input?.todos ?? output?.todos ?? input?.todo ?? output?.todo ?? []
+
+        if (!Array.isArray(todos) || todos.length === 0) return
+
+        const python = await resolvePython(root)
+
+        if (!python) return
+
+        const envelope = JSON.stringify({
+          contract: CONTRACT,
+          event: EVENT,
+          tool_name: "todo",
+          tool_input: { todos },
+          agent_type: "",
+          assistant_text: "",
+          cwd: root,
+        })
+
+        for (const hook of discover(root)) {
+          await run(python, root, hook, envelope)
+        }
+      } catch {
+        return
       }
     },
   }

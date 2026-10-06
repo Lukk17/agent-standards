@@ -133,13 +133,13 @@ task list into `tasks.md` at the project root so the plan survives a compaction,
 state, never shared history. PowerShell:
 
 ```powershell
-Add-Content .gitignore "`n/tasks.md"
+Add-Content .gitignore "`n/tasks.md`n/.agents/tasks.widget.json"
 ```
 
 Unix shell:
 
 ```bash
-printf '\n/tasks.md\n' >> .gitignore
+printf '\n/tasks.md\n/.agents/tasks.widget.json\n' >> .gitignore
 ```
 
 ---

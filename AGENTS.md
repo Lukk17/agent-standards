@@ -113,7 +113,7 @@ script and must never be hand-edited, and some are symlinks the generator create
 | --- | --- | --- |
 | `subagents/*.md` | canonical | edit directly, then regenerate |
 | `.agents/skills/*/SKILL.md` and its `references/*.md` | canonical | edit directly, keep the manifest short and the depth in `references/` |
-| `.agents/hooks/preflight_gate.py`, `.agents/hooks/no_ai_markers_check.py`, `.agents/hooks/task_list_sync.py`, `.agents/hooks/markdown_lint_check.py`, `.agents/hooks/question_numbering_check.py`, `.agents/hooks/status_block_check.py`, `.agents/hooks/copilot/prompt_reminder.py` | canonical | edit directly, then run the pytest suite |
+| `.agents/hooks/preflight_gate.py`, `.agents/hooks/no_ai_markers_check.py`, `.agents/hooks/task_list_sync.py`, `.agents/hooks/markdown_lint_check.py`, `.agents/hooks/question_numbering_check.py`, `.agents/hooks/status_block_check.py`, `.agents/hooks/task_watchdog.py`, `.agents/hooks/copilot/prompt_reminder.py` | canonical | edit directly, then run the pytest suite |
 | `tasks.md` | runtime state, git-ignored | written by the hook and by the model, never committed |
 | `.agents/plugin/hooks.js` | canonical | edit directly |
 | `AGENTS.md.example`, `docs/*.md` | canonical | edit directly |

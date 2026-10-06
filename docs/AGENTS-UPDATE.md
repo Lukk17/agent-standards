@@ -51,8 +51,9 @@ Unix shell:
 python3 --version
 ```
 
-While you are here, check that `/tasks.md` is in your project's `.gitignore`. The task-list hook writes it at the
-project root every session, and it is working state rather than shared history.
+While you are here, check that `/tasks.md` and `/.agents/tasks.widget.json` are in your project's `.gitignore`.
+The task-list hook writes `tasks.md` at the project root plus the generated widget snapshot every session, and both
+are working state rather than shared history.
 
 ---
 
@@ -103,6 +104,10 @@ Pull the upstream copy of every skill you currently have. Skills missing upstrea
 
 ```bash
 for d in .agents/skills/*/; do [ -d "$d" ] || continue; git checkout agent-standards/master -- "$d" 2>/dev/null || true; done
+```
+
+```bash
+for f in .agents/instructions/*.md; do [ -e "$f" ] || continue; git checkout agent-standards/master -- "$f" 2>/dev/null || true; done
 ```
 
 Pull the upstream copy of every subagent you currently have, across the four generated trees, and of every saved
@@ -163,6 +168,10 @@ Pull the upstream copy of every skill you currently have.
 
 ```powershell
 if (Test-Path .agents/skills) { foreach ($d in Get-ChildItem -Directory .agents/skills) { git checkout agent-standards/master -- ".agents/skills/$($d.Name)/" 2>$null } }
+```
+
+```powershell
+if (Test-Path .agents/instructions) { foreach ($f in Get-ChildItem -File .agents/instructions -Filter *.md) { git checkout agent-standards/master -- ".agents/instructions/$($f.Name)" 2>$null } }
 ```
 
 Pull the upstream copy of every subagent you currently have, across the four generated trees, and of every saved
@@ -234,7 +243,7 @@ Who owns which half:
 | [.mcp.json](../.mcp.json) | the whole file: server set, hosts, tokens | nothing |
 | [.vscode/mcp.json](../.vscode/mcp.json) | the whole file: server set, hosts, tokens | nothing |
 | [.github/mcp.json](../.github/mcp.json) | the whole file: server set, hosts, tokens | nothing |
-| [opencode.json](../opencode.json) | the `mcp` block | the `plugin` array, which declares the gate |
+| [opencode.json](../opencode.json) | the `mcp` block, including the newly added `atlassian` server | the `plugin` array and the `instructions` array, which declare the gate and track upstream |
 | [.codex/config.toml](../.codex/config.toml) | the `[mcp_servers.*]` tables | the `[[hooks.*]]` tables, which declare the gate |
 | [.claude/settings.json](../.claude/settings.json) | anything you add beside the hooks, typically a `permissions` block | the `hooks` block, which declares the gate |
 

@@ -106,6 +106,21 @@ EDIT_TOOLS = {
 
 SHELL_TOOLS = {"bash", "shell", "powershell", "pwsh", "terminal", "run_command"}
 
+# Read-only tools the main thread always keeps. These never write files, so
+# the gate allows them before any write or script-run analysis runs.
+MAIN_THREAD_READ_TOOLS = {
+    "read",
+    "glob",
+    "grep",
+    "list",
+    "list_files",
+    "search",
+    "glob_files",
+    "read_mcp_resource",
+    "list_mcp_resources",
+    "list_mcp_resource_templates",
+}
+
 # apply_patch carries no path key at all: Codex's own matcher in
 # .codex/config.toml names it as a distinct tool from Edit/Write, and its
 # call arguments are a patch body, not a file path.
@@ -6982,6 +6997,9 @@ def _apply_rules(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Opti
 
     tool = _tool_name(payload)
     tool_input = _tool_input(payload)
+
+    if tool in MAIN_THREAD_READ_TOOLS:
+        return None
 
     if fmt in RESEARCH_FORMATS and tool in RESEARCH_TOOLS:
         return RULE_C_REASON.format(tool=tool)
