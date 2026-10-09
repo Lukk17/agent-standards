@@ -67,8 +67,8 @@ env = { N8N_API_URL = "http://localhost:5678", N8N_API_KEY = "" }
 [[hooks.UserPromptSubmit.hooks]]
 type = "command"
 statusMessage = "Preflight gate"
-command = "grep -F '\"agent_id\"' >/dev/null || printf '%s\\n' '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"Before code work, name the skills and subagents that own this task and invoke them, or say none apply and why, in one line. Follow the user-communication skill when writing to the user. End every reply with the status block the skill describes, plain text only.\"}}'"
-commandWindows = "if (-not [Console]::In.ReadToEnd().Contains(\"`\"agent_id`\"\")) { echo '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"Before code work, name the skills and subagents that own this task and invoke them, or say none apply and why, in one line. Follow the user-communication skill when writing to the user. End every reply with the status block the skill describes, plain text only.\"}}' }; exit 0"
+command = "grep -F '\"agent_id\"' >/dev/null || printf '%s\\n' '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"Before code work, name the skills and subagents that own this task and invoke them, or say none apply and why, in one line. End every reply with the status block the skill describes, plain text only.\"}}'"
+commandWindows = "if (-not [Console]::In.ReadToEnd().Contains(\"`\"agent_id`\"\")) { echo '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"Before code work, name the skills and subagents that own this task and invoke them, or say none apply and why, in one line. End every reply with the status block the skill describes, plain text only.\"}}' }; exit 0"
 
 [[hooks.SessionStart]]
 

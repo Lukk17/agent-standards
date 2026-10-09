@@ -345,7 +345,7 @@ every violation fixed, ending with the status tail.
 
 Where a surface can rewrite what the user sees, the hook fixes the mechanical markers itself and blocks only on what
 is left. `fix_prose` turns a dash into a comma with clean spacing (a hyphen in a digit range such as `3-5`), strips
-bold except the NOW line, and strips italic, leaving code spans, fenced blocks, link targets and URLs exactly as
+bold and italic, leaving code spans, fenced blocks, link targets and URLs exactly as
 written. It works line by line, so a batch of whole lines comes out the same as the whole text. A semicolon joining
 two clauses needs the sentence read, so it is never fixed, only reported.
 

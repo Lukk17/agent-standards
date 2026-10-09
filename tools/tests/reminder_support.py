@@ -322,7 +322,7 @@ SHORT_REMINDER = REMINDER
 CLAUDE_REMINDER = (
     "PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, "
     "or say none apply and why. Delegate investigation, review and bounded implementation by default. "
-    "Follow the user-communication skill when writing to the user. If the prompt asks anything, answer "
+    "If the prompt asks anything, answer "
     "every question first, then start the work. End every reply to the user with this block, exactly as "
     "shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:\n"
     "\n"
@@ -331,7 +331,7 @@ CLAUDE_REMINDER = (
     "~~DONE: older finished task~~\n"
     "~~DONE: most recent finished task~~\n"
     "\n"
-    "**NOW: what is being done right now**\n"
+    "NOW: what is being done right now\n"
     "\n"
     "Next: the next task\n"
     "Then: the task after that\n"

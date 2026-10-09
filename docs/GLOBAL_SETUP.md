@@ -304,7 +304,7 @@ its PowerShell tool whenever that tool is on, and the docs say "a hook that matc
         "hooks": [
           {
             "type": "command",
-            "command": "echo 'PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default. Follow the user-communication skill when writing to the user. If the prompt asks anything, answer every question first, then start the work. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:\n\nRunning: `running task name` (or: nothing)\n\n~~DONE: older finished task~~\n~~DONE: most recent finished task~~\n\n**NOW: what is being done right now**\n\nNext: the next task\nThen: the task after that\n\nWaiting on: what you wait for (or: nothing)\n\nWhen several tasks run, list each name in backticks on the Running line, separated by commas.'"
+            "command": "echo 'PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default. If the prompt asks anything, answer every question first, then start the work. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:\n\nRunning: `running task name` (or: nothing)\n\n~~DONE: older finished task~~\n~~DONE: most recent finished task~~\n\nNOW: what is being done right now\n\nNext: the next task\nThen: the task after that\n\nWaiting on: what you wait for (or: nothing)\n\nWhen several tasks run, list each name in backticks on the Running line, separated by commas.'"
           },
           {
             "type": "command",
@@ -323,7 +323,7 @@ its PowerShell tool whenever that tool is on, and the docs say "a hook that matc
         "hooks": [
           {
             "type": "command",
-            "command": "echo 'PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default. Follow the user-communication skill when writing to the user. If the prompt asks anything, answer every question first, then start the work. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:\n\nRunning: `running task name` (or: nothing)\n\n~~DONE: older finished task~~\n~~DONE: most recent finished task~~\n\n**NOW: what is being done right now**\n\nNext: the next task\nThen: the task after that\n\nWaiting on: what you wait for (or: nothing)\n\nWhen several tasks run, list each name in backticks on the Running line, separated by commas.'"
+            "command": "echo 'PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default. If the prompt asks anything, answer every question first, then start the work. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:\n\nRunning: `running task name` (or: nothing)\n\n~~DONE: older finished task~~\n~~DONE: most recent finished task~~\n\nNOW: what is being done right now\n\nNext: the next task\nThen: the task after that\n\nWaiting on: what you wait for (or: nothing)\n\nWhen several tasks run, list each name in backticks on the Running line, separated by commas.'"
           }
         ]
       }
@@ -523,8 +523,8 @@ look for `"agent_id"` on standard input and print nothing when they find it.
           {
             "type": "command",
             "statusMessage": "Preflight gate",
-            "command": "grep -F '\"agent_id\"' >/dev/null || printf '%s\\n' '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"Before code work, name the skills and subagents that own this task and invoke them, or say none apply and why, in one line. Follow the user-communication skill when writing to the user. End every reply with the status block the skill describes, plain text only.\"}}'",
-            "commandWindows": "if (-not [Console]::In.ReadToEnd().Contains(\"`\"agent_id`\"\")) { echo '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"Before code work, name the skills and subagents that own this task and invoke them, or say none apply and why, in one line. Follow the user-communication skill when writing to the user. End every reply with the status block the skill describes, plain text only.\"}}' }; exit 0"
+            "command": "grep -F '\"agent_id\"' >/dev/null || printf '%s\\n' '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"Before code work, name the skills and subagents that own this task and invoke them, or say none apply and why, in one line. End every reply with the status block the skill describes, plain text only.\"}}'",
+            "commandWindows": "if (-not [Console]::In.ReadToEnd().Contains(\"`\"agent_id`\"\")) { echo '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"Before code work, name the skills and subagents that own this task and invoke them, or say none apply and why, in one line. End every reply with the status block the skill describes, plain text only.\"}}' }; exit 0"
           }
         ]
       }
@@ -794,8 +794,8 @@ script call and the `; exit 0` on every `powershell` one are what make a missing
     "sessionStart": [
       {
         "type": "command",
-        "bash": "printf '%s\\n' '{\"additionalContext\": \"Before code work, name the skills and subagents that own this task and invoke them, or say none apply and why, in one line. Follow the user-communication skill when writing to the user. End every reply with the status block the skill describes, plain text only.\"}'",
-        "powershell": "echo '{\"additionalContext\": \"Before code work, name the skills and subagents that own this task and invoke them, or say none apply and why, in one line. Follow the user-communication skill when writing to the user. End every reply with the status block the skill describes, plain text only.\"}'"
+        "bash": "printf '%s\\n' '{\"additionalContext\": \"Before code work, name the skills and subagents that own this task and invoke them, or say none apply and why, in one line. End every reply with the status block the skill describes, plain text only.\"}'",
+        "powershell": "echo '{\"additionalContext\": \"Before code work, name the skills and subagents that own this task and invoke them, or say none apply and why, in one line. End every reply with the status block the skill describes, plain text only.\"}'"
       },
       {
         "type": "command",

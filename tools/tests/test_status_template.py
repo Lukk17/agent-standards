@@ -15,8 +15,8 @@ from tests.process_tree import run_bounded
 
 def test_the_canonical_reminder_ends_with_the_status_block_template_line_for_line():
     assert canonical_reminder().endswith(
-        "Follow the user-communication skill when writing "
-        "to the user. End every reply with the status block the skill describes, plain text only."
+        "or say none apply and why, in one line. "
+        "End every reply with the status block the skill describes, plain text only."
     )
 
 
