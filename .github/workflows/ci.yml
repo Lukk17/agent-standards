@@ -65,6 +65,9 @@ jobs:
       - name: Check README badge counts match the tree
         run: python tools/check-badges.py
 
+      - name: Check no CLAUDE.md is tracked and every AGENTS.md is within its size limit
+        run: python tools/check-agents-md.py
+
       - name: Run the hook and tooling test suite
         working-directory: tools
         run: python -m pytest

@@ -138,8 +138,26 @@ All notable changes to this project are documented here. The format follows
   from `~/.agents/hooks/`, where `docs/GLOBAL_SETUP.md` installs them, so a global install gates every project. A
   project opts out with an `.agents/no-global-hooks` file. Before this a project that never ran the import had no gate
   on those two tools at all.
+- `tools/check-agents-md.py` and its tests, a guard the CI `validate` job runs. It fails on any tracked `CLAUDE.md`,
+  on a root `AGENTS.md` or `AGENTS.md.example` of 200 lines or more or of 32 KiB or more, the most Codex reads by
+  default, and on any other `AGENTS.md` of 60 lines or more. It is a copy of the Pharmacy project's own guard, with
+  the template added to the root rule. It stays in `tools/` and is not shipped.
 
 ### Changed
+
+- Every agent now reads `AGENTS.md` natively, Claude Code included. Claude Code 2.1.277 and later reads it only while
+  the project holds no `CLAUDE.md` (`https://code.claude.com/docs/en/memory`), so nothing ships one any more and every
+  document that called `.claude/CLAUDE.md` the Claude Code entry point now describes native loading. Measured in the
+  Pharmacy project on 2026-10-10 with Claude Code 2.1.281, dropping its `.claude/CLAUDE.md`, which imported 20
+  `AGENTS.md` files, and shrinking those files cut a session at the repository root from 206,376 to 4,739 tokens of
+  instructions, and work in one module folder from 42,757 to 6,516 tokens on average.
+- `AGENTS.md.example` is a short index with a new "Writing AGENTS.md files" section: a file holds "before X, read Y"
+  links and the few rules nothing else catches, the root stays under 200 lines and 32 KiB, any other file under 60
+  lines, and no `CLAUDE.md` is ever added. The detail it used to carry is in `docs/AGENT_TOOLING.md`, which gains an
+  "Instruction files" section. `docs/AGENTS-UPDATE.md` gains the one-off step that deletes an old `.claude/CLAUDE.md`,
+  and `docs/bootstrap-prompt.md` now checks for a `CLAUDE.md` and for file sizes instead of diffing imports.
+- This repository's own `AGENTS.md` follows the same rules. The per-surface wiring details and the known limits of the
+  write rule moved to `docs/agent-compatibility.md`, and the local checks to `CONTRIBUTING.md`.
 
 - Every new tracker item now gets a parent and labels when it is created. `project-tracking` says every item except
   an epic has a parent epic, a Subtask takes its item as parent, and an item that fits no epic waits until the
@@ -580,6 +598,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Removed
 
+- `.claude/CLAUDE.md`, which held only `@../AGENTS.md`. Any `CLAUDE.md` switches off Claude Code's native `AGENTS.md`
+  loading, and an `@` import loads every imported file in every session.
 - The `finance-billing-ops` skill, which encoded one product's revenue and billing workflow and never belonged in a
   shared catalogue.
 - `argparse` from every hook. It exits 2 on a usage error, and 2 is the deny code in the plain format, so a stray

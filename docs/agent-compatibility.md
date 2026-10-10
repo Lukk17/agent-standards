@@ -17,11 +17,11 @@ per-operating-system commands), see [MCP_SETUP.md](MCP_SETUP.md).
 
 Two things converged across the tools and one thing did not. Skills at `.agents/skills/` and shared instructions in
 `AGENTS.md` are read natively by Codex, OpenCode, Kilo Code, and every GitHub Copilot surface, so both are canonical
-here. Claude Code reads neither path natively, so it reaches skills through the `.claude/skills` symlink and
-instructions through the `@../AGENTS.md` import in `.claude/CLAUDE.md`. Both bridges are patterns Claude Code's own
-documentation supports, not hacks. Subagent definitions did not converge at all: Claude Code, Codex, and Copilot each
-demand a different format, so one canonical source is generated into four trees, and only OpenCode and Kilo Code are
-close enough to share one.
+here. Claude Code 2.1.277 and later reads `AGENTS.md` natively too, but only while the project holds no `CLAUDE.md`,
+so no project file ships one. It still does not read `.agents/skills/`, so it reaches the skills through the
+`.claude/skills` symlink, a pattern its own documentation supports. Subagent definitions did not converge at all:
+Claude Code, Codex, and Copilot each demand a different format, so one canonical source is generated into four trees,
+and only OpenCode and Kilo Code are close enough to share one.
 
 ---
 
@@ -44,7 +44,7 @@ One symlink for one agent. Everything else reads the canonical directory directl
 
 | Agent | Instruction file | How it loads |
 | --- | --- | --- |
-| Claude Code | `CLAUDE.md` | [.claude/CLAUDE.md](../.claude/CLAUDE.md) contains `@../AGENTS.md`, the documented import pattern; Claude Code never reads `AGENTS.md` itself |
+| Claude Code | `AGENTS.md`, when no `CLAUDE.md` exists | native from 2.1.277: every `AGENTS.md` from the working directory up at session start, and a subdirectory's `AGENTS.md` when Claude reads a file there. Any `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above turns it off, `~/.claude/CLAUDE.md` does not |
 | Codex | `AGENTS.md` | native, walks nested `AGENTS.md` from the root down to the working directory, `AGENTS.override.md` wins at each level |
 | OpenCode | `AGENTS.md` | native from the project root, falls back to `CLAUDE.md` when absent |
 | Kilo Code | `AGENTS.md`, `.kilo/rules/` | both auto-read from the project root on every task |
@@ -53,6 +53,12 @@ One symlink for one agent. Everything else reads the canonical directory directl
 The JetBrains row needs a caveat spelled out. The March 2026 JetBrains plugin changelog states that agent mode reads
 `AGENTS.md`, and it does. GitHub's own published support matrix for custom instructions still omits JetBrains from the
 `AGENTS.md` column, so the two sources disagree. Treat the behaviour as real and the documentation as behind.
+
+The Claude Code row rests on the [memory docs](https://code.claude.com/docs/en/memory), read on 2026-10-10 against
+Claude Code 2.1.281: "By default, Claude reads `AGENTS.md` only when you have no `CLAUDE.md` in your working directory
+or above it", and "Reading `AGENTS.md` directly requires Claude Code v2.1.277 or later". An `@` import saves nothing,
+because "imported files also load at launch". [tools/check-agents-md.py](../tools/check-agents-md.py) fails CI on any
+tracked `CLAUDE.md`, and the shipped template tells a project never to add one.
 
 Copilot code review (the pull-request bot) and the editors that read only `.github/copilot-instructions.md` (Visual
 Studio, Xcode, Eclipse) are out of scope. Add that bridge yourself per project if you target them. Plain Copilot chat
@@ -264,6 +270,12 @@ Read-only forms of the same tools still allow: container `ps`, `images`, `inspec
 CIM queries. A top-level command the lexer cannot read still allows, while code nested inside a readable command that
 cannot be read denies.
 
+Known limits of the write rule, accepted rather than open: a write form the gate does not know passes, a top-level
+command it cannot parse allows, MCP tools are not gated, code run by an allowlisted tool is trusted rather than read,
+Copilot's main thread is not gated, the risky variable and option lists come from knowledge rather than vendor
+documentation, and a loopback share whose folder cannot be determined denies. Re-audit only when the rule changes, and
+record a new limit here rather than chasing it.
+
 #### MCP tools are not gated
 
 Claude Code names an MCP tool `mcp__<server>__<tool>` and compares a `PreToolUse` matcher against that name
@@ -280,6 +292,49 @@ workspace root" ([playwright-mcp README](https://github.com/microsoft/playwright
 
 The canonical wording of the gate itself lives in the `## Required opening move` section of `AGENTS.md`. Every adapter
 repeats it verbatim. Change one, change all of them.
+
+---
+
+### Wiring details per surface
+
+Read these before you touch any hook wiring. They moved here from `AGENTS.md`, which links to this section.
+
+- Claude Code's `SessionStart` also injects the subagent supervision text, plain context with no script behind it.
+  [GLOBAL_SETUP.md](GLOBAL_SETUP.md) and [sandbox-agent/setup-global.sh](../sandbox-agent/setup-global.sh) carry it
+  word for word.
+- Every hook runs on `-S -E` under `python3`, falling back to `python`.
+- No hook uses `argparse`, which exits 2 on a usage error. Two is the deny code in the plain format, so a stray flag
+  would read as a block. Each hook scans `sys.argv` by hand instead and treats an unknown flag as an allow.
+- Every wiring moves to the project root before it calls a hook, and forces a zero exit where its format allows, so a
+  missing script allows. A session started in a subdirectory once denied every call, because Python exits 2 on a
+  file it cannot open. Codex's `commandWindows` runs under PowerShell and ends in `; exit 0`, because Windows
+  PowerShell 5.1 has no `||`. The plugin cannot force a zero exit, so it drops a hook file it cannot open.
+- Claude Code runs every command hook in shell form, Git Bash on Windows
+  (`https://code.claude.com/docs/en/hooks#exec-form-and-shell-form`, measured on 2.1.281). Without Git Bash every
+  Claude hook fails to parse and allows, so the setup docs require Git for Windows.
+- The Claude Code matcher names `PowerShell` beside `Bash`, because on Windows "A hook that matches only `Bash` never
+  fires there" (`https://code.claude.com/docs/en/hooks#powershell`).
+- Codex hooks live inline in `.codex/config.toml`. Codex warns when one layer also carries a `hooks.json`, so
+  `.codex/hooks.json` does not exist.
+- Copilot hooks are no longer CLI-only. They run in VS Code and in JetBrains as well, from the same `.github/hooks/`
+  path. Event names are camelCase, and a hook entry carries `bash` and `powershell` as sibling string fields next to
+  `type`, not a nested `command` object. A nested one is silently ignored, which leaves that surface ungated.
+- The Copilot CLI also runs the hooks in `.claude/settings.json`, with a Claude-shaped payload and no `agent_id`. The
+  gate reads a claude-format call carrying `COPILOT_CLI=1` and no `transcript_path` as an unknown caller. Do not widen
+  the Claude matcher to Copilot's tool names. The measurements are in [hooks-contract.md](hooks-contract.md).
+- The formatting checker fixes what it can on every surface that can rewrite the display, and blocks only on what is
+  left. Detail is in [hooks-contract.md](hooks-contract.md).
+- OpenCode and Kilo Code run every hook directly in [.agents/hooks/](../.agents/hooks/) on every
+  `tool.execute.before`, through the plugin runner. Adding a hook file is the whole registration step. The contract is
+  in [hooks-contract.md](hooks-contract.md).
+- Every wiring that can reach a subagent injects the subagent text and never the reminder. The per-agent evidence is
+  in [hooks-contract.md](hooks-contract.md).
+- Copilot gets the reminder on every prompt from `userPromptTransformed` through
+  [.agents/hooks/copilot/prompt_reminder.py](../.agents/hooks/copilot/prompt_reminder.py), which sits in a
+  subdirectory so the OpenCode and Kilo Code runner skips it.
+- [sandbox-agent/live/](../sandbox-agent/live/) proves the wiring against a real model, run by the manual live
+  workflow under Repo conventions in `AGENTS.md`. On Copilot, tests 1 and 2 can report `KNOWN-GAP`, as the
+  Maintenance follow-ups in `AGENTS.md` record. Test detail is in [sandbox-agent/README.md](../sandbox-agent/README.md).
 
 ---
 
@@ -331,8 +386,9 @@ OpenCode or Kilo config, as [MCP_SETUP.md](MCP_SETUP.md) describes.
 
 ### Per-agent caveats worth remembering
 
-- Claude Code is the only agent that reads neither `AGENTS.md` nor `.agents/skills/` natively. Both bridges, the
-  `@` import and the `.claude/skills` symlink, must survive every update or the whole setup silently does nothing.
+- Claude Code is the only agent that does not read `.agents/skills/` natively, so the `.claude/skills` symlink must
+  survive every update. It reads `AGENTS.md` natively only while no `CLAUDE.md` exists in the working directory or
+  above it, so a single `CLAUDE.md` added anywhere on that path silently stops the nested files from loading.
 - Kilo Code moved its configuration root from `.kilocode/` to `.kilo/`. Nothing in this repo writes to `.kilocode/`
   any more. OpenSpec 1.10.0 still hardcodes `.kilocode` for its Kilo target, which is one of the reasons consumers
   should initialise it with the vendor-neutral target instead (see [AGENTS-UPDATE.md](AGENTS-UPDATE.md)).

@@ -150,8 +150,8 @@ All five agents share the same instructions and the same skills. Pick whichever 
 
 #### Claude Code
 
-Reads [.claude/CLAUDE.md](../.claude/CLAUDE.md), which is nothing but `@../AGENTS.md` plus a comment, so the shared
-instructions arrive inline. Skills come through the `.claude/skills` symlink, subagents from
+Reads [AGENTS.md](../AGENTS.md) natively on 2.1.277 and later, because the project has no `CLAUDE.md`. Add none, or
+Claude Code stops reading `AGENTS.md`. Skills come through the `.claude/skills` symlink, subagents from
 [.claude/agents/](../.claude/agents/), hooks from [.claude/settings.json](../.claude/settings.json). No further
 configuration.
 

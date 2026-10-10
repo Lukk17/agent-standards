@@ -64,6 +64,15 @@ the same CI workflow first, so a release runs the container suite as well.
   a version is written by hand, and no lock file sits beside it. Every version is an exact pin: the runtime ones
   under `[project.dependencies]`, the test ones in the `dev` dependency group, and the build backend under
   `[build-system]`.
+- Instruction files small and no `CLAUDE.md`. `AGENTS.md` and `AGENTS.md.example` stay under 200 lines and 32 KiB,
+  any other `AGENTS.md` under 60 lines, and no `CLAUDE.md` is tracked anywhere, because any one of them stops Claude
+  Code reading `AGENTS.md` natively. CI runs [tools/check-agents-md.py](tools/check-agents-md.py) and fails on either.
+
+---
+
+### Local checks
+
+These are the checks the `validate` job in CI runs. Run all of them before you push.
 
 Install the pinned dependencies before running anything below. The `--group` flag needs pip 25.1 or newer, so upgrade
 first if yours is older. PowerShell or Unix shell, same command:
@@ -100,6 +109,24 @@ Confirm the generated subagent trees still match their canonical sources:
 
 ```bash
 python tools/gen_subagents.py --check
+```
+
+Check that no `CLAUDE.md` is tracked and every `AGENTS.md` is within its size limit:
+
+```bash
+python tools/check-agents-md.py
+```
+
+Check that every JSON configuration and hook file parses:
+
+```bash
+python -c "import json; [json.load(open(f)) for f in ['.mcp.json','opencode.json','.vscode/mcp.json','.github/mcp.json','.claude/settings.json','.github/hooks/preflight.json']]"
+```
+
+Check that the Codex configuration parses:
+
+```bash
+python -c "import tomllib; tomllib.load(open('.codex/config.toml','rb'))"
 ```
 
 ---

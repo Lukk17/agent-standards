@@ -183,10 +183,11 @@ paths are the same files.
 
 #### Claude Code
 
-Claude Code is the one agent here that reads neither `AGENTS.md` nor [.agents/skills/](.agents/skills/) on its own. It
-gets the shared instructions from [.claude/CLAUDE.md](.claude/CLAUDE.md), which is a single `@../AGENTS.md` import,
-the skills through the `.claude/skills` symlink, subagents from [.claude/agents/](.claude/agents/), hooks from
-[.claude/settings.json](.claude/settings.json), and MCP servers from [.mcp.json](.mcp.json) at the project root.
+Claude Code 2.1.277 and later reads `AGENTS.md` natively, but only while the project holds no `CLAUDE.md`, so this
+setup ships none and you add none ([why](docs/AGENT_TOOLING.md#instruction-files)). It is the one agent that does not
+read [.agents/skills/](.agents/skills/) on its own, so it gets the skills through the `.claude/skills` symlink,
+subagents from [.claude/agents/](.claude/agents/), hooks from [.claude/settings.json](.claude/settings.json), and MCP
+servers from [.mcp.json](.mcp.json) at the project root.
 
 `.claude/skills` is a symlink, so Windows needs Developer Mode on (Settings, System, For developers) and git told to
 honour symlinks. Without both, git writes a text file holding the target path and Claude Code sees no skills at all.
@@ -210,7 +211,7 @@ Unix shell:
 git checkout agent-standards/master -- .agents/skills .agents/hooks .claude .mcp.json AGENTS.md.example docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
-Rename the template so the `@` import resolves. PowerShell:
+Rename the template so Claude Code reads it as `AGENTS.md`. PowerShell:
 
 ```powershell
 Rename-Item AGENTS.md.example AGENTS.md
@@ -234,8 +235,8 @@ Unix shell:
 git fetch agent-standards
 ```
 
-Then pull upstream's half back over your tree. Your `AGENTS.md`, `.claude/CLAUDE.md`, `.claude/settings.json`, and
-`.mcp.json` are left out on purpose, because they become yours at import. PowerShell:
+Then pull upstream's half back over your tree. Your `AGENTS.md`, `.claude/settings.json`, and `.mcp.json` are left
+out on purpose, because they become yours at import. PowerShell:
 
 ```powershell
 git checkout agent-standards/master -- .agents/skills .agents/hooks .claude/agents .claude/workflows docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
@@ -606,15 +607,15 @@ deny is the only one that stops anything. That is why Python 3 is a prerequisite
 
 ### Agent support
 
-Four of the five agents read `AGENTS.md` and [.agents/skills/](.agents/skills/) natively. Claude Code reads neither,
-so it gets an `@` import for the instructions and a symlink for the skills, both patterns its own documentation
-supports. Subagents and MCP are per tool because no shared format exists. Full per-surface detail,
+All five agents read `AGENTS.md` natively, Claude Code only while the project holds no `CLAUDE.md`. Four read
+[.agents/skills/](.agents/skills/) natively, and Claude Code gets a symlink for the skills, a pattern its own
+documentation supports. Subagents and MCP are per tool because no shared format exists. Full per-surface detail,
 including what each hook surface can actually block, lives in
 [docs/agent-compatibility.md](docs/agent-compatibility.md).
 
 | Agent | Instructions | Skills | Subagents | Preflight | MCP config |
 | --- | --- | --- | --- | --- | --- |
-| Claude Code | `CLAUDE.md` imports `AGENTS.md` | `.claude/skills` (symlink) | `.claude/agents/` | hooks in `.claude/settings.json`, blocks tools and replies | `.mcp.json` |
+| Claude Code | `AGENTS.md` (native, with no `CLAUDE.md`) | `.claude/skills` (symlink) | `.claude/agents/` | hooks in `.claude/settings.json`, blocks tools and replies | `.mcp.json` |
 | OpenCode | `AGENTS.md` (native) | `.agents/skills/` (native) | `.opencode/agents` (symlink) | shared plugin, blocks tools | `opencode.json` |
 | Kilo Code | `AGENTS.md` (native) | `.agents/skills/` (native) | `.kilo/agents` (symlink) | the same plugin, blocks tools | `opencode.json` |
 | Codex | `AGENTS.md` (native) | `.agents/skills/` (native) | `.codex/agents/` (TOML) | inline hooks in `.codex/config.toml`, blocks tools | `.codex/config.toml` |
@@ -645,14 +646,15 @@ including what each hook surface can actually block, lives in
 - [subagents/](subagents/) (this repo only): canonical subagent sources. Generator emits the per-tool copies. Each
   source names the skills its agent preloads, and the generator refuses to run when one of those names has no folder
   under [.agents/skills/](.agents/skills/), so a renamed skill fails the build instead of silently doing nothing.
-- [tools/](tools/) (this repo only): the subagent generator, the markdown linter, the badge-count linter, and the
-  pytest suite for the shared hook scripts in [tools/tests/](tools/tests/). The generator emits four subagent trees
-  ([.agents/agents/](.agents/agents/), [.claude/agents/](.claude/agents/), [.codex/agents/](.codex/agents/),
-  [.github/agents/](.github/agents/)) and maintains the `.opencode/agents` and `.kilo/agents` symlinks. It also emits
-  a per-format tools list, including Copilot's own tool names, sets `permissionMode: plan` on Claude Code for the
-  read-only agents, and accepts `model: inherit` for an agent that should run on whatever the session already uses.
-- [.claude/](.claude/): Claude Code bridge. [.claude/CLAUDE.md](.claude/CLAUDE.md) imports `AGENTS.md`, plus a
-  `skills` symlink, a generated `agents/` tree, and the hooks in `settings.json`.
+- [tools/](tools/) (this repo only): the subagent generator, the markdown linter, the badge-count linter, the
+  `AGENTS.md` size guard, and the pytest suite for the shared hook scripts in [tools/tests/](tools/tests/). The
+  generator emits four subagent trees ([.agents/agents/](.agents/agents/), [.claude/agents/](.claude/agents/),
+  [.codex/agents/](.codex/agents/), [.github/agents/](.github/agents/)) and maintains the `.opencode/agents` and
+  `.kilo/agents` symlinks. It also emits a per-format tools list, including Copilot's own tool names, sets
+  `permissionMode: plan` on Claude Code for the read-only agents, and accepts `model: inherit` for an agent that should
+  run on whatever the session already uses.
+- [.claude/](.claude/): Claude Code's own folder, with a `skills` symlink, a generated `agents/` tree, and the hooks
+  in `settings.json`. It holds no `CLAUDE.md`, because any `CLAUDE.md` stops Claude Code reading `AGENTS.md`.
 - [.claude/workflows/skill-audit.js](.claude/workflows/skill-audit.js): a saved Claude Code workflow, run as
   `/skill-audit`, that audits the skills. See [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md#auditing-the-skills).
 - OpenSpec scaffold (consumer side only, this repo ships no `openspec-*` skills of its own, because OpenSpec is a
@@ -780,10 +782,14 @@ The per-agent update commands earlier in this README work differently: they chec
 project did not have yet.
 
 Files intentionally NOT touched by the update: the three symlinks (`.claude/skills`, `.opencode/agents`,
-`.kilo/agents`, all of which follow their canonical directories anyway), `.claude/CLAUDE.md`, `AGENTS.md.example`, the
-consumer's customised `AGENTS.md`, and the six configuration files (`.mcp.json`, `opencode.json`,
+`.kilo/agents`, all of which follow their canonical directories anyway), `AGENTS.md.example`, the consumer's
+customised `AGENTS.md`, and the six configuration files (`.mcp.json`, `opencode.json`,
 `.vscode/mcp.json`, `.github/mcp.json`, `.codex/config.toml`, `.claude/settings.json`). Three of those six hold gate
 wiring next to something of yours, so a checkout would take your MCP servers or your permissions with it.
+
+A project imported before agent-standards stopped shipping `.claude/CLAUDE.md` deletes it once, as
+[retiring .claude/CLAUDE.md](docs/AGENTS-UPDATE.md#retiring-claudeclaudemd) describes, because any `CLAUDE.md` stops
+Claude Code reading `AGENTS.md` natively.
 
 When you do want an upstream change in one of the six, each shell section of that doc ends with a diff command and a
 checkout for all six, and [what this skips](docs/AGENTS-UPDATE.md#what-this-skips-and-why) says which half of

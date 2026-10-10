@@ -1,241 +1,111 @@
 # AGENTS.md
 
-This file provides shared instructions to all AI coding agents working in this repository (Claude Code, Kilo Code,
-OpenCode, Codex CLI, GitHub Copilot). Standards and skills are imported from
-[agent-standards](https://github.com/Lukk17/agent-standards).
+Shared instructions for every AI coding agent working in this repository (Claude Code, Kilo Code, OpenCode, Codex
+CLI, GitHub Copilot). Standards and skills are imported from
+[agent-standards](https://github.com/Lukk17/agent-standards). The detail behind every rule below is in
+[docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md).
 
 ---
 
 ### Required opening move
 
-Before any code work on a task, in one line, name the skill(s) and subagent(s) that own it and invoke them, or
-state "none apply" and why. State this as the first line of your reply: it is a required output you produce, not a
-passive banner to skim past. This is a hard gate, not a suggestion.
+- Before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. This
+  is the first line of the reply, on every task, not once per session. A good one names owners and a plan:
+  `Owners: markdown-writer for the docs, python-patterns for the test. Delegating to python-pro, code-reviewer after.`
+- Delegate investigation, review and bounded implementation by default. Doing a specialist's work inline from the main
+  session is the failure this rule exists to prevent.
+- Every wiring injects the same reminder into each main-thread prompt and a separate subagent text into each subagent,
+  so a subagent does its own task rather than handing it on. Both texts are in
+  [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md).
 
-Investigation, review, and bounded implementation are delegated by default. Doing a specialist's work inline from
-the main session is the failure mode this gate prevents. Re-run the check at the start of every task, not just the
-first one, because a passive instruction read once at session start loses salience over a long session.
+---
 
-A good opening line names owners and a plan, not a category:
+### The preflight gate
 
-```text
-Owners: markdown-writer for the docs, python-patterns for the generator test. Delegating the edit to python-pro with those two skills, code-reviewer before merge.
-```
+[.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) enforces the opening move on every agent. Before
+relying on it or changing its wiring, read
+[docs/AGENT_TOOLING.md, The preflight gate](docs/AGENT_TOOLING.md#the-preflight-gate).
 
-Every agent carries the same reminder into each main-thread prompt, word for word, from its own wiring. No wiring
-hands it to a subagent: it tells the reader to delegate, and a subagent told that turns its own task away. A subagent
-gets the second text below instead, also word for word, from every wiring that can reach one.
+- It denies the main thread a write of any file inside the repository, markdown and configuration included, and a
+  leading `cd` changes nothing. Delegate the write to a subagent. A write outside the repository, to the null device or
+  to `tasks.md` at the root, and switching git branches stay allowed.
+- It denies every tool call from a subagent whose definition declares no skills.
+- It denies the main thread web fetch and web search on Claude Code. Delegate research to a subagent.
+- It denies the main thread running a script, a module, a package or task runner, or a build, unless the command
+  passes the gate's built-in list or matches a line of `main-thread-allowlist.txt` at the root. How entries match is in
+  [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md). Ask a subagent to add an entry.
+- Every rule fires only on a caller positively identified as the main thread, so GitHub Copilot is ungated. Any error
+  inside the gate allows the call, except a path it cannot place, which counts as inside the repository.
+- The other hooks in [.agents/hooks/](.agents/hooks/) check reply formatting, lint markdown after an edit and mirror
+  the task list into `tasks.md` and `.agents/tasks.widget.json`. Keep both of those files in `.gitignore`.
+- Every hook is Python and needs `python3` or `python` on the path. With neither, every hook is silently inert.
 
-```text
-PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default. If the prompt asks anything, answer every question first, then start the work. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:
+---
 
-Running: `running task name` (or: nothing)
+### Writing AGENTS.md files
 
-~~DONE: older finished task~~
-~~DONE: most recent finished task~~
-
-NOW: what is being done right now
-
-Next: the next task
-Then: the task after that
-
-Waiting on: what you wait for (or: nothing)
-
-When several tasks run, list each name in backticks on the Running line, separated by commas.
-```
-
-The subagent text:
-
-```text
-PREFLIGHT for a subagent: you are a subagent, and the main thread delegated this task to you. Do the work yourself with your own tools and load the skills your definition names. The rules that the main thread must delegate and may not write files apply to the main thread only, so do not hand this task on and do not refuse it for that reason. The preflight gate still checks every tool call you make. Report back what you changed and how you verified it.
-```
-
-The gate is enforcing, not advisory. One shared rule in
-[.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) decides every tool call, on every agent:
-
-- It denies a main-thread write of any file resolving inside the repository, with no exemption for markdown,
-  configuration, or documentation, and tells the caller to delegate the change instead. A relative path is resolved
-  against whatever a leading `cd` in the command moved to, so changing directory first buys nothing. Deleting, moving
-  or renaming the repository root or any directory above it counts as a write inside it. A write outside the
-  repository, a write to the null device, a write to `tasks.md` at the project root, and git branch switching stay
-  allowed, so the main thread keeps full use of git and keeps ownership of its own task list.
-- It denies any tool call, not only an edit, from a subagent whose own definition declares no skills, because that
-  agent is not a specialist. An unknown or unreadable agent name allows rather than denies.
-- It denies the main thread from running a web fetch or web search tool directly, on the one format where that tool's
-  name is confirmed (Claude Code today), and tells it to hand the research to a subagent instead.
-- It denies the main thread from running a script or a module, because the gate cannot see what a script writes: an
-  interpreter handed a file or `-m` (`python x.py`, `node x.js`, `bash x.sh`, `pwsh -File x.ps1`), a package or task
-  runner (`npm`, `npx`, `pnpm`, `yarn`, `uv`, `pip` and their kin), a build runner or compiler asked for more than its
-  version or help (`make`, `cargo`, `go test`, `dotnet`, `mvn`, `gradle` and their kin), and a program called by a
-  script file name or by a path inside the repository. The exception is a command that passes the gate's built-in
-  list, which holds `python -m pytest`, `node --check` and `bash -n`, each with only the options it names, or matches
-  in full an entry of this project's own `main-thread-allowlist.txt` at the repository root. That file is this
-  project's extension point: one command per line, blank lines and `#` lines skipped, committed so the whole team
-  shares it, and never overwritten by an update because it lives outside `.agents/`. How entries match is in
-  [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md). The main thread cannot write the file itself, so ask a subagent to
-  add an entry.
-- Every rule above fires only once the caller is positively identified as the main thread. A format whose payload
-  carries nothing that could identify the caller, currently GitHub Copilot, is left ungated rather than guessed at, and
-  so is an OpenCode or Kilo Code call whose session the plugin could not read.
-- It fails open almost everywhere. Any parse error, missing key, unexpected payload, unknown `--format`, or unlexable
-  shell command allows the call, because a broken gate must never break a session. The deliberate exception is the
-  three repository-boundary helpers, `_resolves_inside_repo`, `_path_exists_in_repo` and `_contains_repo`: a path none
-  of them can resolve fails toward True, which denies. Deciding what the write rule protects is the whole job of those
-  three, so a path the gate cannot place is treated as inside rather than waved through.
-
-Four more hooks sit beside the gate in [.agents/hooks/](.agents/hooks/) and ride the same wirings: a reply
-formatting check, a markdown lint pass that runs just after a file is edited, a task-list mirror that writes
-`tasks.md` at the project root so the session plan survives a compaction, and, under `.agents/hooks/copilot/`, the
-GitHub Copilot prompt reminder. `tasks.md` is per-session working state, so put `/tasks.md` in this project's
-`.gitignore` rather than committing it. Every hook is a Python script, and every wiring throws a failed call away.
-Each wiring resolves its own interpreter, `python3` first and `python` second, which is the name a Windows install
-provides, so only a machine carrying neither name leaves the hooks inert.
-
-Each agent wires those scripts to its own hook surface:
-
-- Claude Code: [.claude/settings.json](.claude/settings.json), on `SessionStart` and `UserPromptSubmit` for the
-  reminder, `SubagentStart` for the subagent text, `PreToolUse` for the gate, `PostToolUse` for the markdown lint,
-  `MessageDisplay` for the display fix, `Stop` and `SubagentStop` for the formatting check, and `TaskCreated`,
-  `TaskCompleted`, `SessionStart`, `PreCompact` and `Stop` for the task list.
-- Codex: inline `[[hooks.*]]` tables in [.codex/config.toml](.codex/config.toml), on `UserPromptSubmit` for the
-  reminder, `SubagentStart` for the subagent text, `PreToolUse` for the gate, `Stop` for the formatting check, and
-  `SessionStart` for the task list.
-- OpenCode and Kilo Code: [.agents/plugin/hooks.js](.agents/plugin/hooks.js), declared once by path in the
-  `plugin` array of [opencode.json](opencode.json), which both tools read. It uses `chat.message` for the reminder in
-  a root session and the subagent text in a child session, `tool.execute.before` to hand every tool call to every hook
-  directly in [.agents/hooks/](.agents/hooks/), so adding a hook file is the whole registration step, and
-  `experimental.text.complete` for the display fix.
-- GitHub Copilot: [.github/hooks/preflight.json](.github/hooks/preflight.json), on `sessionStart` for the reminder and
-  the task list, `subagentStart` for the subagent text, `userPromptTransformed` for the reminder on every prompt,
-  `preToolUse` for the gate, and `agentStop` for the formatting check.
-
-Each wiring anchors the gate at the project root before calling it, so a session started in a subdirectory still finds
-the script, and a missing script allows rather than denies.
-
-The Skills and Subagents sections below say which specialist to reach for. This gate makes reaching for one the first
-move.
+- Before changing how these files are written or loaded, read
+  [docs/AGENT_TOOLING.md, Instruction files](docs/AGENT_TOOLING.md#instruction-files).
+- An AGENTS.md holds only links written as "before X, read Y", and the few rules that no test or guard catches and
+  whose breaking is expensive.
+- Explanations, reasoning, examples, package or file trees, measured numbers and history go into `docs/` or the
+  module's own docs folder, and the AGENTS.md links there.
+- A rule a test or guard already enforces is not repeated. Name the guard instead, but only if an agent would otherwise
+  not know it exists.
+- The root AGENTS.md stays under 200 lines and under 32 KiB, which is the most Codex reads by default, and every other
+  AGENTS.md stays under 60 lines.
+- Never add a `CLAUDE.md` anywhere in the project, `.claude/CLAUDE.md` and `CLAUDE.local.md` included, because any of
+  them switches off native AGENTS.md loading in Claude Code. Your own `~/.claude/CLAUDE.md` is outside the project.
+- Before adding a line, ask whether an agent would make a mistake without it. If not, it belongs in `docs/`.
 
 ---
 
 ### Skills
 
-This project includes agent skills in [.agents/skills/](.agents/skills/). Invoke relevant skills before starting
-implementation work. Examples:
-
-- `/code-reviewer` before reviewing code
-- `/security-review` before auditing for vulnerabilities
-- `/coding-standards` before writing new code
-- `/tdd-workflow` before adding features or fixing bugs
-- `/e2e-runbooks` before adding or running an end-to-end capability test against the live stack
-
-Slash commands may appear as `/name` or `/name.md` in your agent's autocomplete. Use whichever your agent shows.
-
-Each skill is a directory holding a `SKILL.md` manifest and, where it needs depth, a `references/` subdirectory. The
-manifest carries standard front matter (`name`, `description`, and optionally `license` or `compatibility`) per the
-open [Agent Skills specification](https://agentskills.io/specification), and its description is written as the
-phrases that should trigger it, so matching a phrase to a skill is the whole selection step.
+- Skills live only in [.agents/skills/](.agents/skills/). `.claude/skills` is the one symlink to it, so finding no
+  skills folder beside your own agent's configuration does not mean the project has none.
+- Read the `description` of every skill, open every matching `SKILL.md` in full, and invoke it before the work, for
+  example `/code-reviewer` before a review, `/coding-standards` before new code, `/tdd-workflow` before a feature or a
+  fix. Run discovery again when the task changes shape.
+- Slash commands may show as `/name` or `/name.md` in your autocomplete. Use whichever your agent shows.
 
 ---
 
 ### Subagents
 
-This project ships a catalogue of specialised subagents: narrow-scope agents the main session delegates to. Claude
-Code reads [.claude/agents/](.claude/agents/). OpenCode reads [.opencode/agents/](.opencode/agents/) and Kilo Code
-reads `.kilo/agents/`, both of which are symlinks to the one shared [.agents/agents/](.agents/agents/) tree. Codex
-reads [.codex/agents/](.codex/agents/) (`*.toml` files). GitHub Copilot reads [.github/agents/](.github/agents/)
-(`*.agent.md` files) in VS Code, in the JetBrains plugin, and in the Copilot CLI.
-
-These files are generated artifacts pulled from agent-standards. Do not hand-edit them, because changes are
-overwritten on the next pull. To modify a subagent permanently, edit its canonical source in the agent-standards repo
-(`subagents/<name>.md`), regenerate there, and re-import.
-
-A few of the most-used:
-
-- `code-reviewer`: security-aware diff review before merge
-- `test-automator`: write missing tests and fix failures without weakening assertions
-- `security-auditor`: threat modelling, secure-coding review, compliance gap analysis
-- `backend-architect`: contract-first service and API design
-- `database-expert`: schema design and query / index optimisation
-- `debugger`: root-cause analysis for a single failing test or runtime error
-- `devops-troubleshooter`: live incident response with postmortem
-
-Full catalogue: list `.claude/agents/*.md` (or `.agents/agents/*.md`) in this project for the names available to
-your agent. Browse the
-[agent-standards subagents directory](https://github.com/Lukk17/agent-standards/tree/master/subagents) for the
-canonical sources.
+- The catalogue is [.agents/agents/](.agents/agents/), generated into one tree per agent from `subagents/<name>.md` in
+  [agent-standards](https://github.com/Lukk17/agent-standards/tree/master/subagents). Change an agent there, never in
+  this project. Before choosing one, read [docs/AGENT_TOOLING.md, Subagents](docs/AGENT_TOOLING.md#subagents).
 
 #### When to use them
 
-Use subagents proactively, not reactively. If a task has a subagent that fits, spawn it. Do not try to do the
-specialist's work yourself from the main session. A short main-session reply that delegates correctly beats a long
-main-session reply that reinvented the specialist's checklist. The catalogue exists so the main session can stay
-high-level.
-
-Spawn them in parallel when the work is independent. Multiple subagents running concurrently is the point. Review
-breadth, multi-stack coverage, and fast turnaround all depend on it. Send one message with multiple `Agent` tool calls
-when nothing blocks anything else.
-
-Concrete patterns:
-
-- Reviewing code: always spawn `code-reviewer`, AND every stack or concern-relevant specialist in parallel.
-  `security-auditor` for auth, payments, secrets, or PII handling, `database-expert` for schema or query changes,
-  `accessibility-expert` for UI work, `performance-engineer` after a hot-path edit, `api-tester` after an API surface
-  change, `legal-advisor` for anything touching ToS, privacy, or consent. Default to more reviewers, not fewer.
-- Adding a feature: `backend-architect` for the contract first, the relevant stack expert (`java-pro`,
-  `python-pro`, `flutter-expert`, `angular-expert`, `react-nextjs-expert`) for the implementation, `test-automator`
-  for the test plan.
-- Debugging: `debugger` for a single failing test, `error-detective` for cross-service log correlation,
-  `devops-troubleshooter` for a live incident.
-- Migrations and dependency bumps: `code-archaeologist` first when the legacy area is unfamiliar, then
-  `legacy-modernizer` for the phased plan.
-- Docs and content: `docs-architect` for long-form technical writing, `seo-content-marketer` for anything
-  externally facing, `api-documenter` for API reference work.
-- Running e2e capability tests: fan out one `e2e-runner` subagent per test spec. Before fanning out, take the
-  parallel cap from the Settings section below. If that line is still `<N>`, confirm the cap with the user instead:
-  default 5, drop to 3 if the test environment is shared or the API budget is tight, raise to 8 or 10 only with a
-  dedicated environment and a provider tier that supports the concurrent load.
-  Then build a conflict graph from each spec's `Concurrency` section: tests with disjoint `Mutates:` resources
-  parallelise, tests with overlapping resources serialise, and tests marked `Serial: true` run alone. The cap is a
-  ceiling and the graph is a lower bound, so the orchestrator may run fewer than the cap when conflicts demand it,
-  never more. The main session orders specs by their numeric prefix, picks one UTC sweep timestamp shared across all
-  runners, and aggregates the per-test verdict, token and duration reports into a sweep summary. Never execute API
-  client invocations from the main session during a sweep, always through `e2e-runner`. See the `e2e-runbooks`
-  skill's Orchestration and Concurrency-constraints sections for the full flow.
-
-You may direct subagents to invoke specific skills. When you spawn a subagent, tell it which skills to use as part
-of its work, e.g. "review this diff, invoke `/security-review` and `/coding-standards` while you do". The subagent
-loads those skills the same way the main session does. This is the recommended way to bias a generalist subagent
-toward a specific quality bar.
-
-Codex reads TOML custom agents from [.codex/agents/](.codex/agents/), generated from the same canonical
-sources as every other tree, so delegation works there the same way it does everywhere else.
+- Spawn a subagent whenever one fits, proactively, and in parallel when the work is independent. Tell each one which
+  skills to load, for example "review this diff, invoke `/security-review` while you do".
+- A review spawns `code-reviewer` plus every specialist the diff touches: `security-auditor` for auth, payments,
+  secrets or personal data, `database-expert` for schema or queries, `accessibility-expert` for UI,
+  `performance-engineer` after a hot-path edit, `api-tester` for an API change, `legal-advisor` for terms or privacy.
+- A feature: `backend-architect` for the contract first, the stack expert for the code, `test-automator` for the tests.
+- Debugging: `debugger` for one failing test, `error-detective` across service logs, `devops-troubleshooter` for a
+  live incident. Unfamiliar legacy code: `code-archaeologist` first, then `legacy-modernizer`.
+- Docs: `docs-architect` for long-form writing, `api-documenter` for API reference.
 
 ---
 
 ### MCP servers
 
-This project may expose MCP tools. Check your tool list at startup and use them when they're a better fit than
-re-deriving the answer from local files. The full server list and human-side setup live in
-[docs/MCP_SETUP.md](docs/MCP_SETUP.md).
+- Check your tool list at startup and prefer an MCP tool over re-deriving the same answer from local files. The server
+  list and the human setup are in [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
+- No secret and no substitution token in any MCP configuration. Local servers inherit the environment of the process
+  that started the agent.
 
 ---
 
 ### End-to-end capability tests
 
-If this project has an `e2e/` directory with `e2e/testing/*-test.md` files, those are spec-driven capability tests
-following the methodology in the `/e2e-runbooks` skill. Before adding a new one, run the skill. Each
-capability test is a triple: immutable `e2e/testing/{N}-{capability}-test.md` spec, immutable
-`e2e/testing/templates/{N}-{capability}-tasks.template.md` checklist, and one timestamped run record per execution
-under `e2e/testing/runs/`. Assertions are observable behaviour only (HTTP status, response body, persisted state);
-never log substrings.
-
-Projects on OpenSpec can install the matching schema for slash-command lifecycle integration. See
-[openspec-schemas/e2e-runbooks](https://github.com/Lukk17/openspec-schemas/tree/master/openspec/schemas/e2e-runbooks).
-
-#### Settings
-
-Replace `<N>` with this project's sweep cap, in whole numbers, and the orchestrator stops asking before every sweep.
-Leave it as `<N>` and it asks each time.
+- Before adding or running a test under `e2e/testing/`, load the `/e2e-runbooks` skill. During a sweep run one
+  `e2e-runner` per spec, within the cap below and the conflict graph each spec's `Concurrency` section defines, and
+  never call the API from the main session.
+- Replace `<N>` with this project's sweep cap. While it reads `<N>`, the orchestrator asks the user before each sweep.
 
 ```text
 e2e-runner-max-parallel: <N>
@@ -245,130 +115,40 @@ e2e-runner-max-parallel: <N>
 
 ### Working With Agents
 
-All supported agents read this `AGENTS.md` from the project root and auto-discover skills from
-[.agents/skills/](.agents/skills/). Claude Code reaches the skills through the `.claude/skills` symlink, and the other
-four read that directory natively. Start your agent from the project root:
+Start every agent from the project root. Every one of them reads this file natively.
 
-- Claude Code: run `claude`. Reads [.claude/CLAUDE.md](.claude/CLAUDE.md), which imports this file. MCP servers
-  come from [.mcp.json](.mcp.json).
-- Kilo Code: reads `AGENTS.md` and `.agents/skills/` automatically. Its configuration root is `.kilo/`, and it
-  accepts the root [opencode.json](opencode.json) for both MCP servers and the preflight plugin. Never put a
-  `{env:VAR}` in that file. Kilo does not leave the placeholder standing, it rejects the whole file, which costs it
-  every MCP server and the preflight plugin at once. Run `kilocode config check` after editing it.
-- OpenCode: reads `AGENTS.md` automatically. Configuration lives in [opencode.json](opencode.json) at the project
-  root, the same file Kilo Code reads, and `.opencode/` holds nothing but the `agents` symlink.
-- Codex: run `codex`. Reads `AGENTS.md` automatically. Project MCP servers and preflight hooks live in
-  [.codex/config.toml](.codex/config.toml), and global settings in `~/.codex/config.toml`.
-- GitHub Copilot: the CLI, VS Code, and the JetBrains plugin all read `AGENTS.md` and `.agents/skills/` natively.
-  Subagents come from [.github/agents/](.github/agents/) and hooks from [.github/hooks/](.github/hooks/). MCP comes
-  from [.vscode/mcp.json](.vscode/mcp.json) in VS Code and from [.github/mcp.json](.github/mcp.json) in the CLI,
-  which uses the CLI's own `mcpServers` schema (`"type": "local"` for a stdio server rather than `.mcp.json`'s
-  `"type": "stdio"`). The CLI also reads a project-root `.mcp.json` when one exists, and its own precedence rule
-  makes `.mcp.json` win over `.github/mcp.json` whenever both name the same server; see
-  [docs/MCP_SETUP.md](docs/MCP_SETUP.md) for the measured detail. The JetBrains plugin reads MCP only from a global
-  `~/.config/github-copilot/intellij/mcp.json`.
-
-Windows prerequisite: this project ships symlinks (`.claude/skills`, `.opencode/agents`, `.kilo/agents`). Git creates
-them only when it is allowed to, so turn on Windows Developer Mode and set the option below. Otherwise Git writes each
-link out as a plain text file holding its target path, and every agent that follows the link finds nothing.
-
-```powershell
-git config core.symlinks true
-```
-
-That form applies to this repository. Adding `--global` sets it for every repository on the machine, including clones
-you have not made yet, which is the form to use before cloning rather than after.
-
-Python 3 is the other prerequisite. Every hook in [.agents/hooks/](.agents/hooks/) is a Python script, and every
-wiring discards a failed call so a broken hook can never break a session. Each POSIX wiring resolves `python3`
-first and falls back to `python`, which is what Windows needs, so only a machine with neither name on its path
-reads as an allow and leaves the gate wired but disarmed.
+- Claude Code: run `claude`. It reads this `AGENTS.md` at session start, and a folder's `AGENTS.md` when it reads a
+  file there, because the project has no `CLAUDE.md`. Hooks in [.claude/settings.json](.claude/settings.json), MCP in
+  [.mcp.json](.mcp.json).
+- Codex: run `codex`. MCP servers and hooks in [.codex/config.toml](.codex/config.toml), agents as TOML in
+  `.codex/agents/`.
+- OpenCode and Kilo Code: MCP and the hook runner in [opencode.json](opencode.json), agents through the
+  `.opencode/agents` and `.kilo/agents` symlinks. Never put `{env:VAR}` in `opencode.json`: Kilo Code rejects the
+  whole file and loses every MCP server and the hooks. Run `kilocode config check` after editing it.
+- GitHub Copilot: agents in `.github/agents/`, hooks in [.github/hooks/](.github/hooks/), MCP in
+  [.vscode/mcp.json](.vscode/mcp.json) for VS Code and [.github/mcp.json](.github/mcp.json) for the CLI. A root
+  `.mcp.json` entry of the same name wins over the CLI file.
+- On Windows the symlinks need Developer Mode and `git config core.symlinks true`, or each one is checked out as a
+  text file and the agent that follows it finds nothing.
 
 ---
 
 ### Working Principles
 
-Apply these to every task, in order. They govern how you work, and the `coding-standards` skill governs what the
-code should look like.
-
-#### 1. Think Before Coding
-
-State assumptions explicitly. When the prompt is ambiguous, surface the interpretations and ask. Do not pick one
-silently and run with it. If a simpler approach exists, propose it before writing code. Stop and ask when genuinely
-unsure. A clarifying question costs less than a wrong implementation.
-
-#### 2. Simplicity First
-
-Write the minimum code that solves the problem.
-
-- No features beyond what was asked.
-- No abstractions for single-use code.
-- No "flexibility" or "configurability" that wasn't requested.
-- No error handling for scenarios that cannot happen.
-- If 200 lines could be 50, rewrite it.
-
-Test: would a senior engineer call this overcomplicated? If yes, simplify.
-
-#### 3. Surgical Changes
-
-Touch only what the task requires.
-
-- Do not "improve" adjacent code, comments, or formatting.
-- Do not refactor code that is not broken.
-- Match existing style, even if you would write it differently.
-- If you notice unrelated dead code, mention it; do not delete it.
-- Remove imports, variables, and helpers that your own changes orphan. Leave pre-existing dead code alone unless asked.
-
-Test: every changed line should trace directly to the request.
-
-#### 4. Goal-Driven Execution
-
-Define success before starting. Convert vague asks into verifiable goals:
-
-| Instead of...       | Transform to...                                                       |
-| ------------------- | --------------------------------------------------------------------- |
-| "Add validation"    | "Write tests for invalid inputs, then make them pass"                 |
-| "Fix the bug"       | "Write a failing test that reproduces it, then make it pass"          |
-| "Refactor X"        | "Ensure tests pass before and after, behavior unchanged"              |
-
-For multi-step work, state the plan first:
-
-1. `<step>` then verify: `<check>`
-2. `<step>` then verify: `<check>`
-3. `<step>` then verify: `<check>`
-
-Then loop until each check passes. Do not claim a task is done without running the verification.
+- Think before coding. State assumptions, and when the prompt is ambiguous, ask rather than pick a reading silently.
+- Simplicity first. Write the minimum that solves the problem, with no unrequested features, abstractions or options.
+- Surgical changes. Touch only what the task requires, match the existing style, and remove only what your own change
+  orphans.
+- Goal-driven execution. Turn the ask into checks, state the plan, and loop until each check passes. Never call a task
+  done without running the verification.
 
 ---
 
 ### OpenSpec Workflow
 
-This project uses [OpenSpec](https://github.com/Fission-AI/OpenSpec) for spec-driven development. Specs and changes
-live under `openspec/`.
-
-The full lifecycle (run inside your agent shell):
-
-1. Propose a change: the agent generates proposal, design, and `tasks.md` under `openspec/changes/`:
-   ```text
-   /opsx:propose add dark mode support
-   ```
-2. Apply the code: after reviewing or editing `tasks.md`, agent implements and checks off tasks:
-   ```text
-   /opsx:apply
-   ```
-3. Verify and refine: pass back logs or bug reports to refine:
-   ```text
-   /opsx:verify The toggle button is invisible on mobile. Fix it.
-   ```
-4. Archive: once tested, merge delta specs into `openspec/specs/` and archive the change folder:
-   ```text
-   /opsx:archive
-   ```
-
-Some agents render commands as `/opsx-propose.md` instead of `/opsx:propose`; both work. Use what appears in your
-autocomplete.
-
-Use multiline prompts when you need to include logs or detailed context with a command.
+- When this project uses [OpenSpec](https://github.com/Fission-AI/OpenSpec), any change beyond a trivial edit starts
+  with `/opsx:propose`. The lifecycle is in [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md#openspec-workflow).
+- Tick each task in the change's `tasks.md` the moment it is done, before starting the next.
 
 ---
 

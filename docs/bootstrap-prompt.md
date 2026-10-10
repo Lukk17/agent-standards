@@ -147,8 +147,10 @@ The root `AGENTS.md` is canonical. More `AGENTS.md` files MAY exist in subdirect
 - Linux or macOS: `find . -name AGENTS.md -not -path './node_modules/*'`
 - Windows PowerShell:
   `Get-ChildItem -Recurse -Filter AGENTS.md | Where-Object { $_.FullName -notmatch 'node_modules' }`
-- Claude Code only: open `.claude/CLAUDE.md`, list every `@`-imported path, and diff that against the find output.
-  Any `AGENTS.md` that is not imported is drift. Flag it.
+- Look for any `CLAUDE.md` or `CLAUDE.local.md` in the project, `.claude/CLAUDE.md` included, with the same command
+  and that name. Claude Code reads `AGENTS.md` natively only while none exists, so flag every one found.
+- Count the lines of each `AGENTS.md`. The root one stays under 200 lines and 32 KiB, every other one under 60 lines.
+  Flag any file over its limit.
 
 ## 8. Fill the AGENTS.md stubs
 
@@ -157,10 +159,10 @@ WHOLE POINT of the bootstrap. Do not skip it and do not treat it as a footnote.
 
 Open the root `AGENTS.md` and find the empty sections and HTML-comment placeholders. At minimum:
 
-- `## What This Repo Is`: one short paragraph on what the project does, who uses it, and what stack it runs. Derive it
+- `### What This Repo Is`: one short paragraph on what the project does, who uses it, and what stack it runs. Derive it
   from `package.json`, `pom.xml`, `pyproject.toml`, `Cargo.toml`, `go.mod`, and the top-level file tree. Do not invent
   a purpose. If the evidence does not support one, say so and ask.
-- `## Architecture`: a bullet list. Framework and version, the patterns actually in use, the deploy target, and the
+- `### Architecture`: a bullet list. Framework and version, the patterns actually in use, the deploy target, and the
   notable constraints (monorepo, server-rendered only, offline-first, and so on). Derive it from config files, folder
   structure, and any decision records under `docs/` or `openspec/specs/`.
 
@@ -184,8 +186,8 @@ Confirm it exists. If it is missing, the project was imported before it shipped:
 
 ## 9. Confirm the delegation strategy
 
-Open `AGENTS.md` (or `AGENTS.md.example` if it has not been renamed yet) and read the `## Subagents` section including
-its `### When to use them` subsection.
+Open `AGENTS.md` (or `AGENTS.md.example` if it has not been renamed yet) and read the `### Subagents` section including
+its `#### When to use them` subsection.
 
 Restate in your own words, in three or four sentences:
 
@@ -201,8 +203,8 @@ preflight gate will block a main-thread source edit anyway, so getting this righ
 
 Create an `AGENTS.md` in a subdirectory ONLY when that subdirectory has its own toolchain or build system, its own
 deploy target or runtime, or conventions that meaningfully differ from the root. Single-application repositories
-almost never need one. Three near-empty files are worse than one good root file. If nothing qualifies, that is a pass,
-not a warning.
+almost never need one. Three near-empty files are worse than one good root file. A subdirectory file stays under 60
+lines and holds links and the rules nothing else catches. If nothing qualifies, that is a pass, not a warning.
 
 ## 11. Report, then wait
 
@@ -221,7 +223,8 @@ failure mark for wiring that is genuinely broken or missing.
 - [ ] OpenSpec callable (slash command name, version if available)
 - [ ] End-to-end runbook tests checked (spec files, runner tool, `e2e-runner` subagent present, or "no e2e directory")
 - [ ] AGENTS.md inventory (paths found)
-- [ ] CLAUDE.md imports versus that inventory (drift listed, or "no drift")
+- [ ] No project `CLAUDE.md` (none found, or the paths listed)
+- [ ] Every `AGENTS.md` within its size limit (all within, or the files and their line counts)
 - [ ] Root AGENTS.md stubs filled (show the diff the subagent applied)
 - [ ] docs/AGENTS-UPDATE.md present
 - [ ] Delegation strategy restated
@@ -236,9 +239,10 @@ Apply without asking, as part of this pass, each one through a subagent because 
 Wait for approval before:
 
 - Creating any NEW `AGENTS.md` file in a subdirectory.
-- Adding NEW `@` imports to `.claude/CLAUDE.md`.
+- Deleting a project `CLAUDE.md` found in step 7. Anything in it beyond an `@AGENTS.md` import moves into `AGENTS.md`
+  or `docs/` first.
 
-After approval, apply those and re-run the inventory diff to confirm. If the user pushes back on the stub fill or the
+After approval, apply those and re-run step 7 to confirm. If the user pushes back on the stub fill or the
 MCP trim, revise from their feedback.
 
 ## Operating rules from here on
@@ -247,7 +251,7 @@ MCP trim, revise from their feedback.
 - Skills are invoked with slash syntax. Use them instead of reinventing the guidance. The catalogue is
   `.agents/skills/`.
 - Subagents are spawned proactively and in parallel where the work is independent. The full strategy is the
-  `## Subagents` section of `AGENTS.md`.
+  `### Subagents` section of `AGENTS.md`.
 - The main thread delegates every file write inside the project, source, docs, and config alike. The preflight gate
   enforces it on every surface that can tell who is asking.
 - MCP tools active in this session beat re-deriving the same answer from local files.

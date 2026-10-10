@@ -66,12 +66,12 @@ agent-standards/
     check-markdown.py            # Markdown lint used by CI
     pyproject.toml               # CANONICAL, the only pinned dependency and pytest configuration
     check-badges.py              # Badge-count lint used by CI
+    check-agents-md.py           # AGENTS.md size limits and no tracked CLAUDE.md, used by CI
     tests/                       # CANONICAL pytest suite for the hook scripts, the linters and the global updater
   e2e/                           # Capability test specs, templates and run records, this repo only
   sandbox-agent/                 # Containerised sandbox that runs those specs, this repo only
   openspec/schemas/e2e-runbooks/ # Vendored companion schema, reference copy, this repo runs no OpenSpec workflow
   .claude/
-    CLAUDE.md                    # imports ../AGENTS.md, the Claude Code bridge
     settings.json                # gate, formatting, markdown lint and task-list hooks
     skills -> ../.agents/skills  # SYMLINK, the only way Claude Code sees the canonical skills
     agents/                      # GENERATED, Claude-format subagents
@@ -128,7 +128,6 @@ your-project/
   .agents/agents/                # generated OpenCode-format subagents
   .agents/hooks/                 # the four shared hook scripts
   .agents/plugin/hooks.js        # the OpenCode and Kilo Code hook runner
-  .claude/CLAUDE.md              # imports ../AGENTS.md
   .claude/settings.json          # Claude Code hooks, consumer-owned after import
   .claude/skills                 # symlink to ../.agents/skills
   .claude/agents/                # generated Claude-format subagents
@@ -158,15 +157,15 @@ The short version. The full per-surface matrix, including hook enforcement and t
 
 | Agent | Instructions | Skills | Subagents | MCP |
 | --- | --- | --- | --- | --- |
-| Claude Code | `.claude/CLAUDE.md` imports `../AGENTS.md` | `.claude/skills` symlink | `.claude/agents/` | `.mcp.json` |
+| Claude Code | `AGENTS.md` natively, while no `CLAUDE.md` exists | `.claude/skills` symlink | `.claude/agents/` | `.mcp.json` |
 | OpenCode | `AGENTS.md` natively | `.agents/skills/` natively | `.opencode/agents` symlink | `opencode.json` |
 | Kilo Code | `AGENTS.md` natively | `.agents/skills/` natively | `.kilo/agents` symlink | `opencode.json` |
 | Codex | `AGENTS.md` natively | `.agents/skills/` natively | `.codex/agents/` | `.codex/config.toml` |
 | GitHub Copilot | `AGENTS.md` natively | `.agents/skills/` natively | `.github/agents/` | per client, see the matrix |
 
-Two facts drive the whole layout. Skills and instructions converged on open locations that four of the five agents
-read without help, so `.agents/skills/` and `AGENTS.md` are canonical and Claude Code reaches both through a bridge
-(a symlink for skills, an `@` import for instructions), which Claude Code's own documentation supports. Subagent
+Two facts drive the whole layout. Skills and instructions converged on open locations, so `.agents/skills/` and
+`AGENTS.md` are canonical. Every agent reads `AGENTS.md` natively, Claude Code only while the project has no
+`CLAUDE.md`, and Claude Code reaches the skills through a symlink, which its own documentation supports. Subagent
 definitions did not converge: Claude, Codex and Copilot each need a different file format, so the generator fans one
 canonical source out to four trees. Only OpenCode and Kilo Code share a format, which is why they share one tree
 through symlinks instead of getting a copy each.
@@ -191,8 +190,12 @@ conflict. Skills load on demand and sit outside this ordering.
 8. Skills, loaded on demand
 ```
 
-Claude Code does not read `AGENTS.md`. Entry 7 is what makes the setup work: [.claude/CLAUDE.md](../.claude/CLAUDE.md)
-contains nothing but `@../AGENTS.md` plus a comment, so the shared instructions arrive inline.
+When no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` exists in the working directory or above it, Claude Code
+2.1.277 and later reads `AGENTS.md` in place of entries 3 to 5: every `AGENTS.md` from the working directory up at
+session start, and a subdirectory's `AGENTS.md` once Claude reads a file there
+([memory docs](https://code.claude.com/docs/en/memory)). Entry 2, `~/.claude/CLAUDE.md`, does not count and keeps
+loading alongside it. That is why no project file here ships a `CLAUDE.md`, and why an `@` import is no substitute:
+"imported files also load at launch".
 
 #### OpenCode
 

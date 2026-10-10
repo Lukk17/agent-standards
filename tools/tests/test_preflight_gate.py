@@ -3192,6 +3192,7 @@ def test_the_main_thread_cannot_write_the_project_allowlist(nest):
 THIS_REPOSITORYS_CHECKS = (
     "python tools/check-markdown.py",
     "python tools/check-badges.py",
+    "python tools/check-agents-md.py",
     "python tools/gen_subagents.py --check",
 )
 

@@ -80,6 +80,51 @@ The Unix shells need neither, symlinks work out of the box.
 
 ---
 
+### Retiring .claude/CLAUDE.md
+
+A project imported before October 2026 got a `.claude/CLAUDE.md` holding nothing but `@../AGENTS.md`. Delete it once,
+after updating Claude Code to 2.1.277 or later. Claude Code now reads `AGENTS.md` natively, but only while the project
+has no `CLAUDE.md` ([memory docs](https://code.claude.com/docs/en/memory)), so the old file stops a folder's own
+`AGENTS.md` from loading when work reaches that folder, and its import loads every imported file in every session.
+Your `~/.claude/CLAUDE.md` is outside the project and stays.
+
+Show what the file holds. Anything beyond the import moves into `AGENTS.md` or `docs/` before you delete it.
+PowerShell:
+
+```powershell
+Get-Content .claude/CLAUDE.md
+```
+
+Unix shell:
+
+```bash
+cat .claude/CLAUDE.md
+```
+
+Delete it. PowerShell or Unix shell, same command:
+
+```bash
+git rm .claude/CLAUDE.md
+```
+
+List any other tracked `CLAUDE.md`. It should print nothing. PowerShell or Unix shell, same command:
+
+```bash
+git ls-files "*CLAUDE.md" "*CLAUDE.local.md"
+```
+
+An untracked `CLAUDE.local.md` of your own switches native loading off as well, for you alone.
+
+With native loading every `AGENTS.md` should stay small: the root one under 200 lines and 32 KiB, every other one under
+60 lines. The rules are in the "Writing AGENTS.md files" section of upstream's template, and the reasons in
+[instruction files](AGENT_TOOLING.md#instruction-files). Read the template. PowerShell or Unix shell, same command:
+
+```bash
+git show agent-standards/master:AGENTS.md.example
+```
+
+---
+
 ### Unix shell
 
 Fetch upstream first.
@@ -215,8 +260,6 @@ Nothing in this list is refreshed. Each one is either derived or yours.
 - The three symlinks, `.claude/skills`, `.opencode/agents`, and `.kilo/agents`. They point at
   [.agents/skills/](../.agents/skills/) and [.agents/agents/](../.agents/agents/), so they update the moment those
   directories do. Pulling the link itself would only risk turning it into a file.
-- [.claude/CLAUDE.md](../.claude/CLAUDE.md), your Claude Code entry point. It imports `AGENTS.md` and stays under
-  your control.
 - [.claude/settings.json](../.claude/settings.json), which ships the Claude Code hooks on first import and then
   becomes yours, because it is also where your project permissions live.
 - [opencode.json](../opencode.json) and [.codex/config.toml](../.codex/config.toml). Both carry your MCP servers

@@ -24,8 +24,8 @@ quoted and its URL named, never from memory.
 
 In: skill manifests and their reference files, canonical subagent definitions and the generator that renders them,
 preflight hooks and their adapters per agent format, MCP server configuration across every file that declares one,
-AGENTS.md and CLAUDE.md content, the Python tooling that checks all of it, and web research on agent tooling
-behaviour.
+AGENTS.md content and the user-level `~/.claude/CLAUDE.md`, the Python tooling that checks all of it, and web research
+on agent tooling behaviour.
 
 Out: the product code the configuration is applied to, which belongs to the language implementers. Long-form human
 documentation, which belongs to `docs-architect` and `markdown-writer` used directly. Security review of application
@@ -43,6 +43,8 @@ code, which belongs to `security-auditor`.
 - A claim about a tool's behaviour needs a citation. Quote the field or sentence you relied on and give the URL, or
   say plainly that it is unverified and state your confidence.
 - A configuration change is verified by running the checks, not by reading the diff.
+- A project carries no `CLAUDE.md` anywhere, because any one of them stops Claude Code reading `AGENTS.md` natively.
+  Every `AGENTS.md` holds links and the rules nothing else catches, with the detail in `docs/`.
 
 ### Operating routine
 
@@ -69,7 +71,8 @@ Verified: python -m pytest tools/ -q  ->  passed
 
 When reviewing agent configuration, raise: a skill listed by a subagent that has no folder, a read-only agent with a
 write tool, a rule duplicated into an adapter, a token or secret in a committed config file, a generated file edited
-by hand, and a documentation claim with no source behind it.
+by hand, a `CLAUDE.md` inside a project, an `AGENTS.md` over its size limit, and a documentation claim with no source
+behind it.
 
 ### Done when
 

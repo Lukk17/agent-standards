@@ -10,8 +10,8 @@ This project imports a central set of AI agent standards from a shared repositor
 - Subagents generated into [.claude/agents/](../.claude/agents/) (Claude markdown),
   [.agents/agents/](../.agents/agents/) (OpenCode markdown, shared by OpenCode and Kilo Code through symlinks),
   [.codex/agents/](../.codex/agents/) (TOML), and [.github/agents/](../.github/agents/) (`*.agent.md`).
-- Instructions in [AGENTS.md](../AGENTS.md): shared rules read natively by Codex, OpenCode, Kilo Code, and GitHub
-  Copilot, and imported into Claude Code through [.claude/CLAUDE.md](../.claude/CLAUDE.md).
+- Instructions in [AGENTS.md](../AGENTS.md): shared rules every agent reads natively, Claude Code included as long as
+  the project holds no `CLAUDE.md`. See [instruction files](#instruction-files).
 - A preflight gate in [.agents/hooks/preflight_gate.py](../.agents/hooks/preflight_gate.py), one shared rule wired
   into every agent's hook surface, that actually blocks work rather than just asking for it, plus three hooks beside
   it in [.agents/hooks/](../.agents/hooks/): a reply formatting check, a markdown lint pass after an edit, and a
@@ -104,7 +104,8 @@ mv AGENTS.md.example AGENTS.md
 Then ignore the agent task list. `.agents/hooks/task_list_sync.py` mirrors the live session task list into `tasks.md`
 at the project root so the plan survives a compaction, and that file is per-session working state rather than shared
 history. The same hook writes the generated `.agents/tasks.widget.json` snapshot beside it, which is ignored too.
-The reply `Tasks:` line must match the live list, and the runner `todo.updated` event keeps all three in sync.
+The reply `Tasks:` line must match the live list, and the runner `event` hook keeps all three in sync whenever a
+`todo.updated` bus event arrives.
 PowerShell:
 
 ```powershell
@@ -124,9 +125,9 @@ What you just pulled:
 - [.agents/skills/](../.agents/skills/), the canonical skills, plus [.agents/agents/](../.agents/agents/), the shared
   OpenCode-format subagents, [.agents/hooks/](../.agents/hooks/), the four hook scripts, and
   [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), the OpenCode and Kilo adapter for the gate.
-- [.claude/](../.claude/): the `CLAUDE.md` bridge, the `skills` symlink, the generated `agents/` tree,
-  `settings.json` carrying the Claude Code hooks, and the `workflows/` folder holding the
-  [skill audit](#auditing-the-skills).
+- [.claude/](../.claude/): the `skills` symlink, the generated `agents/` tree, `settings.json` carrying the Claude
+  Code hooks, and the `workflows/` folder holding the [skill audit](#auditing-the-skills). It holds no `CLAUDE.md`, on
+  purpose, see [instruction files](#instruction-files).
 - `.opencode/agents` and `.kilo/agents`: symlinks into [.agents/agents/](../.agents/agents/). One tree, two agents.
 - [.codex/](../.codex/): the generated TOML custom agents and `config.toml`, which holds both the Codex MCP servers
   and the Codex gate hooks inline.
@@ -163,16 +164,63 @@ itself on every run. Open it and run the block for your shell. It refreshes the 
 scripts and the plugin, the Copilot hook file, and only the skills, subagents and saved Claude Code workflows already
 present in your tree. Nothing new appears behind your back.
 
-It deliberately leaves your `AGENTS.md`, your five MCP config files, `.claude/settings.json`, and `.claude/CLAUDE.md`
-alone. Those are yours. When you do want an upstream change in one of the configuration files, each shell section of
-that document ends with a diff command and a checkout for all five, and
-[what this skips](AGENTS-UPDATE.md#what-this-skips-and-why) names which half of each file is yours.
+It deliberately leaves your `AGENTS.md`, your five MCP config files, and `.claude/settings.json` alone. Those are
+yours. A project imported before agent-standards stopped shipping `.claude/CLAUDE.md` still has one, and
+[retiring .claude/CLAUDE.md](AGENTS-UPDATE.md#retiring-claudeclaudemd) says how to remove it. When you do want an
+upstream change in one of the configuration files, each shell section of that document ends with a diff command and a
+checkout for all five, and [what this skips](AGENTS-UPDATE.md#what-this-skips-and-why) names which half of each file
+is yours.
+
+---
+
+### Instruction files
+
+Every agent reads `AGENTS.md` natively, and loads a folder's own `AGENTS.md` only for work in that part of the tree.
+Claude Code 2.1.277 and later does so only while the project holds no `CLAUDE.md`. Its
+[memory docs](https://code.claude.com/docs/en/memory) say: "By default, Claude reads `AGENTS.md` only when you have no
+`CLAUDE.md` in your working directory or above it." It then reads every `AGENTS.md` from the working directory up at
+session start, and "a subdirectory's `AGENTS.md`, when Claude opens a file there with the Read tool". A `CLAUDE.md`,
+`.claude/CLAUDE.md` or `CLAUDE.local.md` anywhere in the working directory or above it switches that off, and the
+nested files then never load. An `@AGENTS.md` import does not replace it, because "imported files also load at
+launch": every imported file costs its tokens in every session. Your own `~/.claude/CLAUDE.md` is outside the project,
+does not count, and keeps loading alongside `AGENTS.md`. So no project file here ships a `CLAUDE.md`, and you add none.
+
+Size matters to every agent. Codex "stops adding files once the combined size reaches the limit defined by
+`project_doc_max_bytes` (32 KiB by default)"
+([Codex AGENTS.md guide](https://learn.chatgpt.com/docs/agent-configuration/agents-md)), and the Claude Code memory
+docs say "Longer files consume more context and reduce adherence". So the root `AGENTS.md` stays under 200 lines and
+32 KiB, and every other `AGENTS.md` under 60 lines. The section "Writing AGENTS.md files" in
+[AGENTS.md.example](../AGENTS.md.example) says what may go in one: links written as "before X, read Y", and only the
+rules no test or guard catches and whose breaking is expensive. Everything else goes in `docs/`.
+
+One example of what it saves. The Pharmacy project imported every `AGENTS.md` through one `.claude/CLAUDE.md` until
+October 2026, then deleted it and shrank its 21 files to fit these limits. Measured on 2026-10-10 with Claude Code
+2.1.281, a session at the repository root dropped from 206,376 to 4,739 tokens of instructions, and work in one module
+folder from 42,757 to 6,516 tokens on average. The numbers describe that project on that day and are not kept current.
+
+List any `CLAUDE.md` your repository tracks. It should print nothing. PowerShell or Unix shell, same command:
+
+```bash
+git ls-files "*CLAUDE.md" "*CLAUDE.local.md"
+```
+
+Count the lines and bytes of every tracked `AGENTS.md`. PowerShell:
+
+```powershell
+git ls-files "*AGENTS.md" | ForEach-Object { "{0}: {1} lines, {2} bytes" -f $_, (Get-Content $_).Count, (Get-Item $_).Length }
+```
+
+Unix shell:
+
+```bash
+git ls-files "*AGENTS.md" | xargs wc -lc
+```
 
 ---
 
 ### The preflight gate
 
-The `## Required opening move` section of [AGENTS.md](../AGENTS.md) is the canonical rule: before code work, name the
+The Required opening move section of [AGENTS.md](../AGENTS.md) is the canonical rule: before code work, name the
 skills and subagents that own the task and invoke them, or say none apply and why. A rule read once at session start
 loses its grip over a long session, so the gate is also enforced mechanically.
 
