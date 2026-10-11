@@ -196,9 +196,9 @@ identical.
 
 | Stack | Hook |
 | --- | --- |
-| Spring Boot | A listener for `ApplicationReadyEvent`, per [springboot-patterns](../../springboot-patterns/SKILL.md) |
-| Python on FastAPI | Inside `lifespan`, after the probes and before `yield`, per [fastapi-stack.md](../../python-patterns/references/fastapi-stack.md) |
-| Node, Express, NestJS, Next.js | The `app.listen` callback and its kin, per [node-backend-patterns](../../node-backend-patterns/SKILL.md) |
-| Go | After `net.Listen` returns and before `srv.Serve(listener)`, per [golang-patterns](../../golang-patterns/SKILL.md) |
-| Shell service | Right before `exec` or the main loop, per [bash](../../bash/SKILL.md) |
-| PowerShell service | Right before the main loop or `Start-Process`, per [powershell](../../powershell/SKILL.md) |
+| Spring Boot | A listener for `ApplicationReadyEvent`, per `springboot-patterns` |
+| Python on FastAPI | Inside `lifespan`, after the probes and before `yield`, per `references/fastapi-stack.md` in `python-patterns` |
+| Node, Express, NestJS, Next.js | The `app.listen` callback and its kin, per `node-backend-patterns` |
+| Go | After `net.Listen` returns and before `srv.Serve(listener)`, per `golang-patterns` |
+| Shell service | Right before `exec` or the main loop, per `bash` |
+| PowerShell service | Right before the main loop or `Start-Process`, per `powershell` |

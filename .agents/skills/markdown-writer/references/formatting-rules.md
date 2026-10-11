@@ -119,8 +119,7 @@ ii. Authenticate
 
 Write each paragraph, list item and table row as one physical line and let the viewer soft-wrap it. Never break a
 command, path or URL inside a fenced block, because a reader copies it and a break corrupts it. The one exception is
-a project whose own lint enforces a maximum line length, such as this repository at 120 characters. Wrap to the cap
-there and nowhere else, and never rewrap a file the project does not lint.
+a project whose own lint enforces a maximum line length. Wrap to the cap there and nowhere else, and never rewrap a file the project does not lint.
 
 Pass:
 

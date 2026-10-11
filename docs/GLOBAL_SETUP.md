@@ -190,9 +190,7 @@ git -C "$src" rev-parse HEAD > ~/.agents/.upstream-commit
 project root from the hook payload's own `cwd` field and from the working directory, and it ignores its own on-disk
 location once that location is your home directory rather than a project.
 
-Three of the hook scripts get wired per agent below. `markdown_lint_check.py` does not: it shells out to
-`tools/check-markdown.py`, which stays in the upstream repository, so a global wiring would start an interpreter that
-returns 0 every time. It is copied anyway, because the copy is one directory rather than a file list.
+Three of the hook scripts get wired per agent below. `markdown_lint_check.py` does not: it lints only files inside a project that imported `.agents/hooks`, where the project wiring already runs it, so a global wiring would start a second interpreter on every edit for nothing. It is copied anyway, together with the `_check_markdown.py` rules beside it, because the copy is one directory rather than a file list.
 
 `task_list_sync.py` mirrors the agent's own task list into a file named `tasks.md` so a compaction cannot lose it. It
 writes that file at the project root when the working directory has an imported `.agents/hooks/` beside it, and in

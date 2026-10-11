@@ -143,7 +143,7 @@ Fail: a 24-hour TTL on a permission lookup, so a revoked role stays effective un
 
 Offset pagination makes the database scan and discard every skipped row, and it skips or repeats rows when the data
 changes between pages. Which kind fits which list, and the request parameters and response fields, are defined by
-`api-design` in [pagination-and-filtering.md](../api-design/references/pagination-and-filtering.md). This section
+`api-design` in its `references/pagination-and-filtering.md`. This section
 covers the query behind a cursor page.
 
 ```text

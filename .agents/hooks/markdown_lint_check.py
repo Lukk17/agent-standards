@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
 """Lints a markdown file the model just wrote and reports the violations back.
 
-The repository markdown rules (no em-dash or en-dash, no prose line over 120
-characters, no level-2 heading) are enforced by tools/check-markdown.py, which
-CI runs over the whole target set. That is the second opinion rather than the
-first: by the time it fails, the edit is already committed and pushed. This
-hook closes the loop at the moment of the edit instead, so a violation comes
-back while the file is still open.
+The repository markdown rules (no em-dash or en-dash, no level-2 heading, no
+skill linking outside its own folder) live in .agents/hooks/_check_markdown.py
+beside this hook, and CI runs them over the whole target set through
+tools/check-markdown.py. That is the second opinion rather than the first: by
+the time it fails, the edit is already committed and pushed. This hook closes
+the loop at the moment of the edit instead, so a violation comes back while
+the file is still open.
 
 It applies to one surface only. `--format claude` after Edit, Write or
 MultiEdit is the whole of it, and every other invocation returns 0 before
 reading anything: `--format plain` is the runner contract, whose only event is
 `tool.execute.before`, where the file has not been edited yet and whose runner
-throws away anything written to stderr unless the hook exits 2. The lint
-script is checked for before the report is prepared as well, because a
-consumer repository pulls the hooks without tools/check-markdown.py and the
-hook would otherwise spawn a process on every edit to learn that.
+throws away anything written to stderr unless the hook exits 2. The rules
+module is looked up under the project root, where every import of
+.agents/hooks puts it, and a project that lacks it is silent rather than
+spawning a process on every edit to learn that.
 
 It reads the edited path out of
 `tool_input.file_path` (documented at https://code.claude.com/docs/en/hooks-guide
@@ -32,7 +33,7 @@ The one output shape prints the violations as `additionalContext` under
 `hookSpecificOutput`. It never blocks: this hook reports, and the model
 decides.
 
-Another tool, a file out of scope, a clean file, a missing lint script, or any
+Another tool, a file out of scope, a clean file, a missing rules module, or any
 error at all: exit 0 with nothing printed. A broken hook must never break a
 session.
 """
@@ -54,7 +55,7 @@ EVENT_NAME = "PostToolUse"
 
 EDIT_TOOLS = ("edit", "write", "multiedit")
 
-LINT_SCRIPT = ("tools", "check-markdown.py")
+LINT_SCRIPT = (".agents", "hooks", "_check_markdown.py")
 
 LINT_TIMEOUT_SECONDS = 10
 

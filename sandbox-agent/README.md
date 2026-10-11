@@ -594,7 +594,7 @@ recorded here because they show the class of problem only a live run finds. All 
    `mapping values are not allowed in this context`, because each `description` carried an unquoted colon, which left
    both skills invisible to Copilot. Both values are quoted now. Item 2 was closed with a one-off scan, which is why
    this one got in, so the check is mechanical this time: `check_front_matter` in
-   [tools/check-markdown.py](../tools/check-markdown.py) parses the front matter of every skill manifest and every
+   [.agents/hooks/_check_markdown.py](../.agents/hooks/_check_markdown.py), which CI runs through [tools/check-markdown.py](../tools/check-markdown.py), parses the front matter of every skill manifest and every
    canonical subagent source with a strict YAML parser, and reports an unquoted colon or a leading YAML indicator in a
    description, a name that does not match the folder name or the file stem, a missing, empty, non-string or
    over-length description, and any skill key outside the Agent Skills specification. CI runs it on every pull request.

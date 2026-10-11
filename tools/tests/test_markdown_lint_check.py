@@ -2,7 +2,8 @@
 
 Driven as a subprocess, because the hook contract is the process contract:
 stdin payload, --format flag, stdout shape, exit code. Every run gets its own
-project root holding a real copy of tools/check-markdown.py, so the hook shells
+project root shaped like a consumer checkout, holding a real copy of
+.agents/hooks/_check_markdown.py and no tools/ directory, so the hook shells
 out to the same linter CI runs rather than to a stub, and the scope decision is
 made against a tree the test controls.
 """
@@ -13,7 +14,7 @@ import sys
 
 import pytest
 
-from tests.conftest import MARKDOWN_LINT_HOOK, REPO_ROOT
+from tests.conftest import MARKDOWN_LINT_HOOK, MARKDOWN_LINT_RULES
 from tests.process_tree import run_bounded
 
 EM_DASH = "—"
@@ -22,13 +23,15 @@ DIRTY = "### Heading\n\nProse carrying an em dash " + EM_DASH + " which the lint
 
 CLEAN = "### Heading\n\nProse carrying no banned character at all.\n"
 
+LONG_PROSE = "### Heading\n\n" + " ".join(["word"] * 60) + "\n"
+
 
 @pytest.fixture
 def project(tmp_path):
-    """A throwaway project root the hook will recognise, lint script included."""
-    (tmp_path / ".agents" / "hooks").mkdir(parents=True)
-    (tmp_path / "tools").mkdir()
-    shutil.copy(REPO_ROOT / "tools" / "check-markdown.py", tmp_path / "tools")
+    """A consumer-shaped project root: the imported hooks directory and no tools/."""
+    hooks = tmp_path / ".agents" / "hooks"
+    hooks.mkdir(parents=True)
+    shutil.copy(MARKDOWN_LINT_RULES, hooks)
 
     return tmp_path
 
@@ -187,8 +190,29 @@ def test_a_tool_that_writes_nothing_is_not_linted(project, tool):
     assert run(project, payload) == (0, "", "")
 
 
-def test_a_project_without_the_lint_script_reports_nothing(tmp_path):
-    # Given a consumer checkout, which pulls the hooks but not tools/
+def test_a_consumer_checkout_without_tools_is_linted(project):
+    # Given a project that pulled .agents/hooks and never had a tools/ directory
+    assert not (project / "tools").exists()
+    path = write(project, "docs/GUIDE.md", DIRTY)
+
+    # When
+    code, out, err = run(project, edit(path))
+
+    # Then the shipped rules beside the hook are found and run
+    assert (code, err) == (0, "")
+    assert "em-dash or en-dash found" in context(out)
+
+
+def test_a_long_unwrapped_prose_line_reports_nothing(project):
+    # Given a paragraph written as one physical line, the way the owner writes prose
+    path = write(project, "docs/GUIDE.md", LONG_PROSE)
+
+    # When / Then
+    assert run(project, edit(path)) == (0, "", "")
+
+
+def test_a_project_without_the_lint_rules_reports_nothing(tmp_path):
+    # Given a hooks directory that lost the shipped rules module
     (tmp_path / ".agents" / "hooks").mkdir(parents=True)
     path = write(tmp_path, "docs/GUIDE.md", DIRTY)
 

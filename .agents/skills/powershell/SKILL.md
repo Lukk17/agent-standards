@@ -272,7 +272,7 @@ Get-WmiObject Win32_OperatingSystem
 For a PowerShell-orchestrated long-running service (a scheduled task, a service wrapper, a polling daemon), print the
 readiness banner with a here-string right before the main loop or `Start-Process`. The universal convention, the ANSI
 Shadow banner, the section order, and the probe rules live in
-[observability-and-logging/references/startup-readiness-log.md](../observability-and-logging/references/startup-readiness-log.md).
+the `observability-and-logging` skill, in its `references/startup-readiness-log.md`.
 
 The PowerShell 7 console host defaults to UTF-8 and renders the box-drawing characters natively. Legacy
 `powershell.exe` needs `[Console]::OutputEncoding = [Text.Encoding]::UTF8` set once before printing.
@@ -296,7 +296,7 @@ Invoke-WebRequest $Url
 | Open this | For |
 |---|---|
 | [references/module-layout.md](references/module-layout.md) | Writing an advanced function or laying out a new module, with the reasoning behind each block |
-| [../observability-and-logging/references/startup-readiness-log.md](../observability-and-logging/references/startup-readiness-log.md) | Writing the readiness banner a PowerShell-run service prints when it comes up |
+| `references/startup-readiness-log.md` in the `observability-and-logging` skill | Writing the readiness banner a PowerShell-run service prints when it comes up |
 
 ---
 

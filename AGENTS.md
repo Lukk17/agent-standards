@@ -68,7 +68,7 @@ script and must never be hand-edited, and some are symlinks the generator create
 | --- | --- | --- |
 | `subagents/*.md` | canonical | edit directly, then regenerate |
 | `.agents/skills/*/SKILL.md` and its `references/*.md` | canonical | edit directly, keep the manifest short and the depth in `references/` |
-| `.agents/hooks/preflight_gate.py`, `.agents/hooks/no_ai_markers_check.py`, `.agents/hooks/task_list_sync.py`, `.agents/hooks/markdown_lint_check.py`, `.agents/hooks/question_numbering_check.py`, `.agents/hooks/status_block_check.py`, `.agents/hooks/task_watchdog.py`, `.agents/hooks/copilot/prompt_reminder.py` | canonical | edit directly, then run the pytest suite |
+| `.agents/hooks/preflight_gate.py`, `.agents/hooks/no_ai_markers_check.py`, `.agents/hooks/task_list_sync.py`, `.agents/hooks/markdown_lint_check.py`, `.agents/hooks/_check_markdown.py`, `.agents/hooks/question_numbering_check.py`, `.agents/hooks/status_block_check.py`, `.agents/hooks/task_watchdog.py`, `.agents/hooks/copilot/prompt_reminder.py` | canonical | edit directly, then run the pytest suite |
 | `tasks.md` | runtime state, git-ignored | written by the hook and by the model, never committed |
 | `.agents/plugin/hooks.js` | canonical | edit directly |
 | `AGENTS.md.example`, `docs/*.md` | canonical | edit directly |
@@ -106,7 +106,7 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
   resolves here and 404s there. [global/](global/) ships only through the global install in
   [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md), so no project-import pathspec may name it.
   [main-thread-allowlist.txt](main-thread-allowlist.txt) never ships by either route.
-- **Markdown lint.** [tools/check-markdown.py](tools/check-markdown.py) covers every human-facing document but this
+- **Markdown lint.** The rules live in [.agents/hooks/_check_markdown.py](.agents/hooks/_check_markdown.py), which ships so the lint hook works downstream, and [tools/check-markdown.py](tools/check-markdown.py) only runs them. They cover every human-facing document but this
   `AGENTS.md`, whose style matches anyway. One runnable command per fenced code block, language tag, no `#` comments.
 - **One server set, one schema per file.** Change all five MCP files together: [.mcp.json](.mcp.json),
   [opencode.json](opencode.json), [.codex/config.toml](.codex/config.toml), [.vscode/mcp.json](.vscode/mcp.json) and

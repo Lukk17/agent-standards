@@ -271,7 +271,7 @@ fires before those runners.
 | HikariCP sizing formula, pool configuration, utilisation alerts | [references/connection-pooling.md](references/connection-pooling.md) |
 | Test slices, MockMvc, Testcontainers, AssertJ, test data builders, the JaCoCo gate | [references/testing.md](references/testing.md) |
 | The six pre-merge phases, the scan commands, the report template, the re-run loop | [references/verification-pipeline.md](references/verification-pipeline.md) |
-| The startup banner and readiness log block, which `observability-and-logging` owns | [../observability-and-logging/references/startup-readiness-log.md](../observability-and-logging/references/startup-readiness-log.md) |
+| The startup banner and readiness log block, which `observability-and-logging` owns | `references/startup-readiness-log.md` in the `observability-and-logging` skill |
 
 ---
 

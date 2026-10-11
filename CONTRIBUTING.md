@@ -47,8 +47,8 @@ the same CI workflow first, so a release runs the container suite as well.
 
 - No em-dashes or en-dashes in human-facing markdown (`README.md`, `AGENTS.md.example`, `docs/*.md`,
   `.agents/skills/**/*.md`, `subagents/*.md`). CI lint will flag them. The `markdown-writer` skill explains why.
-- Prose lines under 120 characters in the same files. Tables, fenced code blocks, badge lines, and
-  `<summary>` tags are exempt.
+- No hard-wrapped prose in new or edited text. A paragraph, list item or table row is one physical line, and the lint has no line-length limit.
+- A skill file links only inside its own skill folder, because a consumer can delete any skill it does not use. Name another skill in backticks instead. The same lint run rejects such a link.
 - Section headings start at level 3 in the same files. Level 1 is the document title and level 2 is never used. The
   same lint run rejects a level-2 heading.
 - Generator output in sync. If you edit any canonical subagent under `subagents/`, re-run

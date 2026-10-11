@@ -48,9 +48,7 @@ them, so there is one copy to keep correct.
   tool matcher, the same canonical wording, the same trimmed interpreter flags, and the same forced zero exit that turns a
   missing or broken hook back into an allow. A global install that drops an event or a zero exit gates less than the
   project install does, which is the exact difference this spec is here to catch.
-- One deliberate difference from the project wiring: `markdown_lint_check.py` is copied and never wired. It shells out
-  to `tools/check-markdown.py`, which never leaves the upstream repository, so wiring it globally would start an
-  interpreter that returns 0 every time. This spec asserts the file landed and that no wiring names it.
+- One deliberate difference from the project wiring: `markdown_lint_check.py` is copied and never wired. It lints only files inside a project that imported `.agents/hooks`, where the project wiring already runs it, so wiring it globally would start a second interpreter on every edit for nothing. This spec asserts the file landed and that no wiring names it.
 - Out of scope, because the container is given no provider credentials: this spec starts no agent. Whether each tool
   reports what it found is [7-global-agent-discovery-test.md](7-global-agent-discovery-test.md), and whether the
   global gate copy refuses anything is [9-global-gate-enforcement-test.md](9-global-gate-enforcement-test.md).

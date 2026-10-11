@@ -376,8 +376,8 @@ install_instructions() {
 # session's working directory and finds nothing outside an imported project.
 #
 # The event sets mirror the project wirings, minus the markdown lint pass. That
-# one hook needs tools/check-markdown.py, which never leaves this repository, so
-# wiring it globally would spawn an interpreter that returns 0 every time.
+# one hook lints only inside a project that imported .agents/hooks, where the
+# project wiring already runs it, so a global wiring would only add a second run.
 
 # shellcheck disable=SC2016  # the backticks are markdown in the reminder text, never command substitution
 readonly PREFLIGHT_TEXT='Before code work, name the skills and subagents that own this task and invoke them, or say none apply and why, in one line. End every reply with the status block the skill describes, plain text only.'

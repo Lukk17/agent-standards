@@ -181,8 +181,8 @@ const logSecurityEvent = async (event: SecurityEvent) => {
 
 #### 5. CI/CD Pipeline Security
 
-Pipeline OIDC, job-level permissions, and action pinning belong to `deployment-patterns`, in
-[github-actions.md](../../deployment-patterns/references/github-actions.md). This reference adds only what the
+Pipeline OIDC, job-level permissions, and action pinning belong to `deployment-patterns`, in its
+`references/github-actions.md`. This reference adds only what the
 pipeline must scan: secrets on every push, and dependencies blocked at high and critical with the lock file installed
 through `npm ci`, as [SKILL.md](../SKILL.md) states under Dependency risk.
 

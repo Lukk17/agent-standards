@@ -51,6 +51,7 @@ agent-standards/
       preflight_gate.py          # CANONICAL, the one shared gate rule for every agent surface
       no_ai_markers_check.py     # CANONICAL, reply formatting check, Stop and SubagentStop
       markdown_lint_check.py     # CANONICAL, lints a linted file just after it was edited
+      _check_markdown.py         # CANONICAL, the markdown rules, shipped so the lint hook works downstream
       task_list_sync.py          # CANONICAL, mirrors the session task list into tasks.md
       status_block_check.py      # CANONICAL, footer shape gate for user-facing replies
       question_numbering_check.py # CANONICAL, numbered questions check on new prose
@@ -63,7 +64,7 @@ agent-standards/
   subagents/                     # CANONICAL subagent sources, this repo only, inside the markdown lint scope
   tools/                         # Generator, linter and tests, this repo only
     gen_subagents.py             # Emits four trees plus the two agent symlinks, validates skills and tools
-    check-markdown.py            # Markdown lint used by CI
+    check-markdown.py            # Markdown lint used by CI, runs .agents/hooks/_check_markdown.py
     pyproject.toml               # CANONICAL, the only pinned dependency and pytest configuration
     check-badges.py              # Badge-count lint used by CI
     check-agents-md.py           # AGENTS.md size limits and no tracked CLAUDE.md, used by CI
@@ -126,7 +127,7 @@ and [global/](../global/), which only the global install in [GLOBAL_SETUP.md](GL
 your-project/
   .agents/skills/                # canonical skills, read natively by every agent except Claude Code
   .agents/agents/                # generated OpenCode-format subagents
-  .agents/hooks/                 # the four shared hook scripts
+  .agents/hooks/                 # the shared hook scripts and the markdown rules the lint hook runs
   .agents/plugin/hooks.js        # the OpenCode and Kilo Code hook runner
   .claude/settings.json          # Claude Code hooks, consumer-owned after import
   .claude/skills                 # symlink to ../.agents/skills

@@ -334,6 +334,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- The markdown lint hook now works in a consumer repository. Its rules moved from `tools/check-markdown.py`, which never ships, to `.agents/hooks/_check_markdown.py`, which every import of `.agents/hooks` delivers, and `tools/check-markdown.py` only runs that file for CI. The leading underscore keeps the OpenCode and Kilo Code runner from treating it as a hook.
+- Skills no longer link into other skill folders, so a consumer that removed a skill it does not use, such as `node-backend-patterns`, keeps no dead link in the rest. Each link now names the other skill in backticks, and the markdown lint rejects a skill link that leaves its own folder.
 - The 85 defects the first skill audit confirmed across the skills. Rules that their own examples contradicted now
   agree with them. Skills that handed the same job to each other in their "when not to activate" lists now name one
   owner. Broken references are repaired, among them a link into `subagents/`, which consumers never receive.
@@ -598,6 +600,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Removed
 
+- The markdown lint's 120-character limit on prose lines. Prose is never hard-wrapped, so a paragraph is one physical line however long it runs.
 - `.claude/CLAUDE.md`, which held only `@../AGENTS.md`. Any `CLAUDE.md` switches off Claude Code's native `AGENTS.md`
   loading, and an `@` import loads every imported file in every session.
 - The `finance-billing-ops` skill, which encoded one product's revenue and billing workflow and never belonged in a

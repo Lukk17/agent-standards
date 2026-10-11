@@ -257,7 +257,7 @@ shellcheck --severity=error scripts/deploy.sh || true
 For a shell-implemented long-running service (a log aggregator, a polling daemon, an init wrapper around a child
 process), `cat` the readiness banner immediately before `exec` or the main loop. The universal convention, the ANSI
 Shadow banner, the section order, and the probe rules live in
-[observability-and-logging/references/startup-readiness-log.md](../observability-and-logging/references/startup-readiness-log.md).
+the `observability-and-logging` skill, in its `references/startup-readiness-log.md`.
 
 Probe each dependency with a bounded timeout and surface only the status marker. Capture the exit code and send the
 probe's own stderr to a debug log.
@@ -281,7 +281,7 @@ curl "$dependency_url"
 | Open this | For |
 |---|---|
 | [references/script-template.md](references/script-template.md) | Starting a new script, or checking that an existing one has the header, trap, and logging pieces |
-| [../observability-and-logging/references/startup-readiness-log.md](../observability-and-logging/references/startup-readiness-log.md) | Writing the readiness banner a shell-run service prints when it comes up |
+| `references/startup-readiness-log.md` in the `observability-and-logging` skill | Writing the readiness banner a shell-run service prints when it comes up |
 
 ---
 

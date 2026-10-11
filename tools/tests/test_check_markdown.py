@@ -1,7 +1,9 @@
-"""Tests for the front matter checks in tools/check-markdown.py.
+"""Tests for the markdown rules in .agents/hooks/_check_markdown.py.
 
-The script's filename carries a hyphen, so it is loaded in-process via
-importlib rather than a normal `import` statement, the same technique
+The rules ship inside the hooks directory so a consumer checkout has them, and
+tools/check-markdown.py is only the command CI runs over this repository. The
+module lives in a dotted directory, so it is loaded in-process via importlib
+rather than a normal `import` statement, the same technique
 tests/test_check_badges.py uses for its own hyphenated sibling.
 
 Every case drives a real file under a throwaway repo root, because the check
@@ -11,12 +13,16 @@ parsing can never reach a green suite.
 """
 
 import importlib.util
+import sys
 
 import pytest
 
-from tests.conftest import REPO_ROOT
+from tests.conftest import MARKDOWN_LINT_RULES, REPO_ROOT
+from tests.process_tree import run_bounded
 
-CHECK_MARKDOWN = REPO_ROOT / "tools" / "check-markdown.py"
+CHECK_MARKDOWN = MARKDOWN_LINT_RULES
+
+CI_COMMAND = REPO_ROOT / "tools" / "check-markdown.py"
 
 
 def _load_check_markdown_module():
@@ -556,3 +562,151 @@ def test_every_real_manifest_and_subagent_source_parses():
 
     # Then every manifest an agent loads is valid by the time the suite is green
     assert failures == 0
+
+
+def _write_document(tmp_path, body):
+    path = tmp_path / "docs" / "GUIDE.md"
+    path.parent.mkdir(parents=True)
+    path.write_text(body, encoding="utf-8")
+
+    return path
+
+
+def test_a_long_prose_line_is_not_reported(tmp_path, capsys):
+    # Given a paragraph written as one physical line, because prose is never hard-wrapped
+    path = _write_document(tmp_path, "### Heading\n\n" + " ".join(["word"] * 60) + "\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_a_level_two_heading_is_still_reported(tmp_path, capsys):
+    # Given a document using a level-2 section heading
+    path = _write_document(tmp_path, "# Title\n\n## Section\n\nProse.\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 1
+    assert "level-2 heading" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "link",
+    [
+        "[sibling](../other-skill/SKILL.md)",
+        "[sibling reference](../other-skill/references/topic.md)",
+        "[repository doc](../../../docs/GUIDE.md)",
+        "[rooted path](/docs/GUIDE.md)",
+    ],
+    ids=["sibling-manifest", "sibling-reference", "outside-the-skills-tree", "rooted-path"],
+)
+def test_a_skill_link_leaving_its_own_folder_is_reported(tmp_path, capsys, link):
+    # Given a skill manifest linking to a path a consumer may not have
+    path = _write_skill(tmp_path, CLEAN_SKILL_FRONT_MATTER)
+    path.write_text(CLEAN_SKILL_FRONT_MATTER + "\n# Demo\n\nSee " + link + ".\n", encoding="utf-8")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 1
+    assert "links outside its own skill folder" in capsys.readouterr().out
+
+
+def test_a_rooted_link_in_a_skill_given_as_a_relative_path_is_reported(tmp_path, capsys, monkeypatch):
+    # Given a skill passed on the command line as a relative path, holding a link rooted at the drive
+    path = _write_skill(tmp_path, CLEAN_SKILL_FRONT_MATTER)
+    path.write_text(CLEAN_SKILL_FRONT_MATTER + "\n# Demo\n\nSee [rooted](/docs/GUIDE.md).\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    # When
+    failures = MARKDOWN.check_file(path.relative_to(tmp_path))
+
+    # Then the mixed absolute and relative comparison is reported rather than raised
+    assert failures == 1
+    assert "links outside its own skill folder" in capsys.readouterr().out
+
+
+def test_a_skill_reference_file_linking_to_a_sibling_skill_is_reported(tmp_path, capsys):
+    # Given a reference file one level down linking two levels up into another skill
+    _write_skill(tmp_path, CLEAN_SKILL_FRONT_MATTER)
+    path = tmp_path / ".agents" / "skills" / "demo-skill" / "references" / "topic.md"
+    path.parent.mkdir()
+    path.write_text("### Topic\n\nPer [node](../../node-backend-patterns/SKILL.md).\n", encoding="utf-8")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 1
+    assert "links outside its own skill folder" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "link",
+    [
+        "[reference](references/topic.md)",
+        "[anchor](#demo)",
+        "[vendor](https://example.com/docs)",
+        "`[not a link](../other-skill/SKILL.md)`",
+    ],
+    ids=["own-reference", "anchor", "absolute-url", "inside-inline-code"],
+)
+def test_a_skill_link_staying_inside_its_folder_passes(tmp_path, capsys, link):
+    # Given a skill manifest linking only within itself or to the web
+    path = _write_skill(tmp_path, CLEAN_SKILL_FRONT_MATTER)
+    path.write_text(CLEAN_SKILL_FRONT_MATTER + "\n# Demo\n\nSee " + link + ".\n", encoding="utf-8")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_a_document_outside_the_skills_tree_may_link_anywhere(tmp_path, capsys):
+    # Given a shipped document linking into the skills tree
+    path = _write_document(tmp_path, "### Guide\n\nSee [bash](../.agents/skills/bash/SKILL.md).\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_no_real_skill_links_outside_its_own_folder(capsys):
+    # Given every markdown file of every skill this repository ships
+    targets = sorted((REPO_ROOT / ".agents" / "skills").glob("**/*.md"))
+
+    # When
+    failures = sum(MARKDOWN.check_file(path) for path in targets)
+
+    # Then a consumer that removed any one skill still has no dead link in the others
+    assert failures == 0, capsys.readouterr().out
+
+
+def test_the_ci_command_runs_the_shipped_rules(tmp_path):
+    # Given a file breaking a shipped rule
+    path = tmp_path / "GUIDE.md"
+    path.write_text("### Heading\n\nProse with an em-dash — in it.\n", encoding="utf-8")
+
+    # When the command CI and CONTRIBUTING.md name is run on it
+    result = run_bounded(
+        [sys.executable, str(CI_COMMAND), str(path)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+    # Then it delegates to the one copy of the rules
+    assert result.returncode == 1
+    assert "em-dash or en-dash found" in result.stdout
