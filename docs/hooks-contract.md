@@ -319,11 +319,12 @@ string constant.
 The markdown lint is the only hook wired to a post-tool event, and it is also the only one gated behind a single
 format rather than run on the runner surface. `markdown_lint_check.py` returns 0 before it even reads standard input
 unless it is called with `--format claude`, returns 0 for any tool other than `Edit`, `Write`, or `MultiEdit`, and
-returns 0 when `tools/check-markdown.py` is missing, which every consumer checkout is, since `tools/` never ships
-downstream. On OpenCode, on Kilo Code, and in a consumer repository it therefore does nothing at all. Only here, on
-Claude Code, does it read the edited path from `tool_input.file_path`, check that path against the lint scope
-(`README.md`, `AGENTS.md.example`, `docs/`, `.agents/skills/` and `subagents/`), run `tools/check-markdown.py` over
-that one file, and hand the violations back as `additionalContext`. It reports rather than denies, so it always
+returns 0 when `.agents/hooks/_check_markdown.py` is missing. The rules ship inside `.agents/hooks/`, which every
+consumer pulls whole, so the lint runs in a consumer repository as it does here, and `tools/check-markdown.py` is only
+the runner CI calls. On OpenCode and on Kilo Code it does nothing at all. On Claude Code it reads the edited path from
+`tool_input.file_path`, checks that path against the lint scope (`README.md`, `AGENTS.md.example`, `docs/`,
+`.agents/skills/` and `subagents/`), runs `.agents/hooks/_check_markdown.py` over that one file, and hands the
+violations back as `additionalContext`. It reports rather than denies, so it always
 returns 0 there too.
 
 The same script also validates front matter on every `.agents/skills/*/SKILL.md` and `subagents/*.md` file it lints:
