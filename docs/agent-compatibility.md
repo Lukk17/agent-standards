@@ -112,9 +112,9 @@ Each agent wires those scripts through its own hook surface, and the surfaces di
 
 | Agent | Hook config | Blocks a tool call | Injects context | Blocks a reply | Tells subagent from main thread |
 | --- | --- | --- | --- | --- | --- |
-| Claude Code | [.claude/settings.json](../.claude/settings.json) | yes, `PreToolUse` | yes, `SessionStart` and `UserPromptSubmit` on every turn, and the subagent text on `SubagentStart` | yes, `Stop` and `SubagentStop`, after `MessageDisplay` fixes the display | yes, `agent_id` is present only inside a subagent |
+| Claude Code | [.claude/settings.json](../.claude/settings.json) | yes, `PreToolUse` | yes, `SessionStart` and `UserPromptSubmit` on every turn, and the subagent text on `SubagentStart` | yes, `Stop` on the main thread only, after `MessageDisplay` fixes the display | yes, `agent_id` is present only inside a subagent |
 | Codex | inline `[[hooks.*]]` in [.codex/config.toml](../.codex/config.toml) | yes, `PreToolUse` | yes, `UserPromptSubmit`, and the subagent text on `SubagentStart` | runs the check on `Stop` | yes, `agent_id` is present only inside a subagent |
-| OpenCode | plugin [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), declared by path in [opencode.json](../opencode.json) | yes, throwing from `tool.execute.before` | yes, `chat.message` on every root-session prompt, as a synthetic text part, and the subagent text in a child session | no, but `experimental.text.complete` stores a fixed text part | yes, the session `parentID` read through `client.session.get` |
+| OpenCode | plugin [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), declared by its directory under singular `plugin` in [opencode.json](../opencode.json), `server` on 1.x and `setup` on 2.x. Singular `plugin` loads on 1.x and on 2.0.26, measured 2026-10-15: `opencode plugin list` from the repo shows the repo copy beside the global copy | yes, throwing from `tool.execute.before` | yes, `chat.message` on every root-session prompt, as a synthetic text part, and the subagent text in a child session | no, but `experimental.text.complete` stores a fixed text part | yes, the session `parentID` read through `client.session.get` |
 | Kilo Code | the same plugin, same declaration | yes, throwing from `tool.execute.before` | yes, same mechanism | no | yes, same mechanism |
 | GitHub Copilot | [.github/hooks/preflight.json](../.github/hooks/preflight.json), camelCase events | fires on `preToolUse`, but caller identity there always resolves to unknown, so the gate always allows | yes, `sessionStart` and `userPromptTransformed` on every prompt, and the subagent text on `subagentStart` | yes, `agentStop` forces a correction turn | no, the `preToolUse` payload carries no agent identifier |
 
@@ -122,7 +122,7 @@ The full event set per surface, beyond the gate itself:
 
 | Agent | Gate | Formatting check | Markdown lint | Task list |
 | --- | --- | --- | --- | --- |
-| Claude Code | `SessionStart`, `UserPromptSubmit`, `SubagentStart`, `PreToolUse` | `MessageDisplay`, `Stop`, `SubagentStop` | `PostToolUse`, matcher `^(Edit\|Write\|MultiEdit)$` | `TaskCreated`, `TaskUpdated`, `TaskCompleted`, `SessionStart`, `PreCompact`, `Stop` |
+| Claude Code | `SessionStart`, `UserPromptSubmit`, `SubagentStart`, `PreToolUse` | `MessageDisplay`, `Stop` | `PostToolUse`, matcher `^(Edit\|Write\|MultiEdit)$` | `TaskCreated`, `TaskUpdated`, `TaskCompleted`, `SessionStart`, `PreCompact`, `Stop` |
 | Codex | `UserPromptSubmit`, `SubagentStart`, `PreToolUse` | `Stop` | not wired, no matching event | `SessionStart` |
 | OpenCode and Kilo Code | `tool.execute.before` | same event, the runner passes every hook, plus `experimental.text.complete` | same event | same event |
 | GitHub Copilot | `sessionStart`, `subagentStart`, `userPromptTransformed`, `preToolUse` | `agentStop` | not wired | `sessionStart` |
@@ -142,7 +142,7 @@ Reading the tables row by row:
 - [../.agents/hooks/no_ai_markers_check.py](../.agents/hooks/no_ai_markers_check.py) finds an em dash, an en dash, a
   semicolon, or a bold or italic marker, asterisk or underscore form, and asks only for `Correction:` lines. Claude
   Code first fixes dashes, bold and italic on screen through `MessageDisplay`, so its `Stop` blocks only on what that
-  fix leaves, a semicolon above all, while `SubagentStop` checks the whole reply. Codex runs the full check on `Stop`.
+  fix leaves, a semicolon above all. No subagent's reply is checked on any agent, because only the main thread's reply reaches the user. Codex runs the full check on `Stop`.
   GitHub Copilot runs it on `agentStop`, reading the reply from the transcript file the payload names, and a block
   there forces one more turn with the reason as its prompt. OpenCode and Kilo Code store a fixed copy of each
   finished text part and check what remains at the next tool call.
@@ -155,7 +155,14 @@ Reading the tables row by row:
   separate `.codex/hooks.json` any more. Codex also loads that whole layer only after the project is trusted.
 - OpenCode and Kilo Code run one plugin file between them. Neither has an event that can block a reply, so on those two
   the enforcement is the pre-tool block plus per-agent tool permissions, and the only thing after the fact is the
-  stored fix of a finished text part.
+  stored fix of a finished text part. OpenCode 2.x has not even that: no hook runs after a finished reply, so the
+  formatting check sees a reply only when the next tool call starts. 2.x also ignores the `instructions` key and does
+  not fall back to `~/.claude/CLAUDE.md`, so the plugin's 2.x entry point adds the reply rules through the session
+  `context` hook itself. Measured on OpenCode 2.0.26.
+- The per-agent tool permissions are the generator's `permission` block. OpenCode and Kilo Code read a subagent's
+  `tools` map as overrides on top of everything it already has, so a read-only definition listing only `read`, `grep`
+  and `glob` still had `edit` and `bash`. The generator now writes `edit: deny` unless `write` or `edit` is listed and
+  `bash: deny` unless `bash` is. The same V1 front shape loads on OpenCode 2.0.26, measured 2026-10-15: `debug agents` from the repo lists 35 project agents plus 7 built in, and the live view shows the `tools` map as a `permissions` list.
 - GitHub Copilot's `preToolUse` payload carries no agent identifier at all, so caller identity there resolves to
   unknown every time and none of the gate's four rules ever fires. The hook is wired and runs, but it always allows:
   that surface is entirely unenforced by the gate, not merely weaker, and the `AGENTS.md` text plus the
@@ -346,14 +353,14 @@ rather than by agent.
 | File | Schema key | Serves | Environment-variable syntax |
 | --- | --- | --- | --- |
 | [.mcp.json](../.mcp.json) | `mcpServers` | Claude Code | `${VAR}`, `${VAR:-default}` |
-| [opencode.json](../opencode.json) at the project root | `mcp` | OpenCode and Kilo Code | none, a token here voids the file for Kilo |
+| [opencode.json](../opencode.json) at the project root | `mcp` | OpenCode and Kilo Code | none, a token here voids the file for Kilo. Same flat `mcp` plus `enabled` shape loads on OpenCode 1.x and on 2.0.26, measured 2026-10-15, where `debug config` shows it as `mcp.servers` plus `disabled` |
 | [.codex/config.toml](../.codex/config.toml) | `[mcp_servers.*]` tables | Codex | none, values are literal |
 | [.vscode/mcp.json](../.vscode/mcp.json) | `servers` | GitHub Copilot in VS Code | `${env:VAR}`, `${input:NAME}` |
 | [.github/mcp.json](../.github/mcp.json) | `mcpServers` | the GitHub Copilot CLI | none, values are literal |
 | `~/.config/github-copilot/intellij/mcp.json` | `servers` | GitHub Copilot in JetBrains, global only | none documented |
 | repository settings page | pasted JSON | GitHub Copilot cloud agent | none, values are literal |
 
-The same eight servers are mirrored across the five project files. Only the file name, the schema key, the `type`
+Four project files mirror the same eight servers. [opencode.json](../opencode.json) mirrors those eight plus `atlassian`, nine in total. Only the file name, the schema key, the `type`
 value, and the environment-variable syntax differ. The last two rows are not project files at all, which is why they
 carry no template.
 

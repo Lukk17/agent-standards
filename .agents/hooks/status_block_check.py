@@ -5,7 +5,9 @@ Footer shape is mandatory for user-facing replies in the exact order: dash
 rule line, Skills line, inline Tasks single line, two crossed DONE lines,
 inline NOW single line, Running lines with agent names in inline code, Next
 line, Then line, inline State single line, Waiting on line last, blank lines
-skipped never breaking the sequence. The hook never denies a tool or
+skipped never breaking the sequence. Write the tail airy, one empty line
+between each tail row, because the desktop app joins rows with no empty line
+into one line. The hook never denies a tool or
 subagent call over it: tool and subagent events log the violation and exit 0.
 Exit 2 applies only on a user-reply event if the runner provides one.
 """

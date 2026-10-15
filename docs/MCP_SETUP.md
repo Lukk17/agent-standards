@@ -20,8 +20,8 @@ Five real config files, committed and ready to use. They are not templates any m
 | [.vscode/mcp.json](../.vscode/mcp.json) | `servers` | GitHub Copilot in VS Code | key is `servers`, not `mcpServers` |
 | [.github/mcp.json](../.github/mcp.json) | `mcpServers` | the GitHub Copilot CLI | `"type": "http"` for remote, `"type": "local"` for a stdio server |
 
-All five carry the same eight servers. Only the file name, the schema key, the `type` value, and the
-environment-variable syntax change between them. There is no per-tool overlay beyond these five: one file per agent
+Four files carry the same eight servers. [opencode.json](../opencode.json) carries those eight plus `atlassian`, nine in total. Only the file name, the schema key, the `type` value, and the
+environment-variable syntax change between them. The V1 shape in [opencode.json](../opencode.json), flat `mcp` plus `enabled`, loads on OpenCode 1.x and on 2.0.26, measured 2026-10-15: `opencode plugin list` from the repo shows the repo plugin, and `opencode debug config` shows the same file as `mcp.servers` plus `disabled`. V2 keeps the V1 file working by change in memory. There is no per-tool overlay beyond these five: one file per agent
 surface, and that is the whole set.
 
 Two surfaces get no shipped file, because there is nothing a repository could ship that they would read:
@@ -110,9 +110,9 @@ schemas have no enable flag. A server you never disable still spawns and still f
 failures.
 
 The agent-standards live pipeline, which runs every agent against a real model, loads `context7` alone. It has the
-smallest tool descriptions of the eight and needs no secret, and the descriptions of all eight together pushed a
+smallest tool descriptions of the nine and needs no secret, and the descriptions of all nine together pushed a
 single test past the provider's per-minute token limit. So only `context7` is proven to answer a real model there,
-and the other seven are proven to be discovered by every agent, not to answer.
+and the other eight are proven to be discovered by every agent, not to answer.
 
 ---
 
@@ -385,7 +385,7 @@ Claude Desktop must be fully quit from the system tray and relaunched after an e
 
 #### Codex and Copilot CLI globals
 
-Codex reads `~/.codex/config.toml` for global scope, in the same TOML shape as the project file:
+Codex reads `config.toml` in its home directory for global scope, `~/.config/codex/config.toml` under the layout in [GLOBAL_SETUP.md](GLOBAL_SETUP.md), which sets `CODEX_HOME`, and `~/.codex/config.toml` without it, in the same TOML shape as the project file:
 
 ```toml
 [mcp_servers.context7]
@@ -403,8 +403,33 @@ per-project sources. When both name the same server, as all eight do here, the C
 `.github/mcp.json` is the file actually in effect. Project-level sources, both of them, load only once you confirm
 you trust the directory on first launch and are silently skipped otherwise; there is no flag to skip that prompt for
 `copilot mcp list` itself. For servers you want available everywhere, the CLI also reads
-`~/.copilot/mcp-config.json` (relocatable with `COPILOT_HOME`), keyed `mcpServers`, with a `tools` allowlist per
+`~/.copilot/mcp-config.json` (relocatable with `COPILOT_HOME`, so `~/.config/copilot/mcp-config.json` under the layout in [GLOBAL_SETUP.md](GLOBAL_SETUP.md)), keyed `mcpServers`, with a `tools` allowlist per
 server, no directory-trust requirement, and no substitution. Keep that one out of version control too.
+
+#### Arch Linux operations server, not shipped
+
+`arch-ops-server` (the Arch Wiki, AUR and pacman tools from [nihalxkumar/arch-mcp](https://github.com/nihalxkumar/arch-mcp)) is not one of the eight servers, because it only helps on an Arch machine. Add it to your own user-scope configuration, and start it with both pins:
+
+```bash
+uvx --from arch-ops-server==3.4.0 --with 'mcp<2' arch-ops-server
+```
+
+The `--with 'mcp<2'` is not optional. Release 3.4.0 declares `mcp>=1.0.0` with no upper bound, so `uvx` resolves the newest `mcp`, and `mcp` 2.0, released on 2026-07-28, removed the decorator API the server registers its handlers with: the SDK's migration guide lists "Lowlevel decorators replaced with `on_*` constructor params" with the symptom "`AttributeError: 'Server' object has no attribute 'list_tools'`", and the server fails at start with the same `AttributeError` on `list_resources`. With `mcp<2` it starts and answers `tools/list`, measured on 2026-10-13. The last commit upstream is from 2026-03-10 and carries no fix.
+
+In a `.mcp.json` style file the same command is:
+
+```json
+{
+  "mcpServers": {
+    "arch": {
+      "command": "uvx",
+      "args": ["--from", "arch-ops-server==3.4.0", "--with", "mcp<2", "arch-ops-server"]
+    }
+  }
+}
+```
+
+Remove the `mcp<2` pin, and move the version pin forward, once a release of `arch-ops-server` declares `mcp>=2` or an upper bound below 2 itself. Check its dependencies on [PyPI](https://pypi.org/project/arch-ops-server/) before you do.
 
 ---
 
