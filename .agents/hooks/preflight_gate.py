@@ -63,9 +63,9 @@ Rule A protects a project, not the whole filesystem, and the boundary is
 every root in _roots(): the process working directory, the project root the
 payload names in its cwd field, and the gate's own on-disk location two
 parents up. That last one counts only while it really is a project. The
-user-level install in docs/GLOBAL_SETUP.md puts this script under the home
-directory, where two parents up is the home directory itself, so it is
-dropped there and only the project the session is in stays protected.
+user-level install in docs/GLOBAL_SETUP.md puts this script in
+~/.config/agents/hooks, which _install_root() maps to the home directory, so it
+is dropped there and only the project the session is in stays protected.
 
 Rule A exempts exactly one path, TASK_LIST_NAME at the project root. The main
 thread owns the task list, so it keeps writing that one file directly.
@@ -175,6 +175,18 @@ AGENT_TREES = (
     AgentTree(".github/agents", ".agent.md"),
     AgentTree(".opencode/agents", ".md"),
     AgentTree(".kilo/agents", ".md"),
+)
+
+# Where the user-level install in docs/GLOBAL_SETUP.md keeps this script's
+# directory, relative to the home directory, and the agent trees that install
+# writes there besides ~/.claude/agents: the shared OpenCode-format tree, and the
+# Codex and Copilot trees under CODEX_HOME and COPILOT_HOME.
+GLOBAL_INSTALL_DIRECTORY = (".config", "agents")
+
+GLOBAL_AGENT_TREES = (
+    AgentTree(".config/agents/agents", ".md"),
+    AgentTree(".config/codex/agents", ".toml"),
+    AgentTree(".config/copilot/agents", ".agent.md"),
 )
 
 FRONT_MATTER_SKILLS_RE = re.compile(r"^skills:[ \t]*(.*)$")
@@ -6815,15 +6827,24 @@ def _install_root() -> Optional[Path]:
     """The directory the gate was installed into, two parents up from itself.
 
     A project keeps the script at <project>/.agents/hooks/preflight_gate.py,
-    and the user-level install in docs/GLOBAL_SETUP.md puts the same three
-    directories under the home directory instead. Either way this is where
-    the rest of the installation, the agent trees Rule B reads included,
-    sits beside it.
+    and that project is where the agent trees Rule B reads sit beside it. The
+    user-level install in docs/GLOBAL_SETUP.md keeps it at
+    ~/.config/agents/hooks/preflight_gate.py instead, where two parents up is
+    ~/.config, so there the home directory is the answer: every agent tree of
+    that install, GLOBAL_AGENT_TREES included, hangs off it.
     """
     try:
-        return Path(__file__).resolve().parents[2]
+        script = Path(__file__).resolve()
+        root = script.parents[2]
     except (OSError, ValueError, IndexError):
         return None
+
+    try:
+        home = Path.home().resolve()
+    except (OSError, ValueError, RuntimeError):
+        return root
+
+    return home if script.parent.parent == home.joinpath(*GLOBAL_INSTALL_DIRECTORY).resolve() else root
 
 
 def _script_root() -> Optional[Path]:
@@ -6891,7 +6912,7 @@ def _read_agent_definition(agent_type: str) -> Optional[str]:
         roots.append(install)
 
     for root in roots:
-        for tree in AGENT_TREES:
+        for tree in AGENT_TREES + GLOBAL_AGENT_TREES:
             path = root / tree.directory / (agent_type + tree.extension)
             if path.is_file():
                 return path.read_text(encoding="utf-8", errors="replace")

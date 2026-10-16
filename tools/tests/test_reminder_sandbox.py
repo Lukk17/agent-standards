@@ -39,7 +39,7 @@ def test_the_setup_global_subagent_text_matches_the_canonical_block():
 
 def test_the_global_guide_shows_the_shipped_copilot_wiring_with_every_script_path_absolute():
     shipped = (REPO_ROOT / ".github" / "hooks" / "preflight.json").read_text(encoding="utf-8")
-    expected = json.loads(shipped.replace(" .agents/hooks/", " /home/you/.agents/hooks/"))
+    expected = json.loads(shipped.replace(" .agents/hooks/", " /home/you/.config/agents/hooks/"))
     guide = (REPO_ROOT / "docs" / "GLOBAL_SETUP.md").read_text(encoding="utf-8")
     copilot_blocks = [block for block in json_blocks(guide) if "subagentStart" in block.get("hooks", {})]
     assert copilot_blocks == [expected]

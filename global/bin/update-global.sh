@@ -2,11 +2,13 @@
 # -----------------------------------------------------------------------------
 # Script: update-global.sh
 # Description: Updates the global agent-standards install in a home directory
-#              from the committed state of the repository. The hook scripts, the
-#              plugin and this updater are refreshed in full. Only the skills and
-#              subagents already installed are refreshed, and none is ever added.
-#              A file is removed only when the previously installed commit
-#              shipped it and the new one no longer does.
+#              from the committed state of the repository. The install lives in
+#              ~/.config/agents. The hook scripts, the plugin, the reply rules and
+#              this updater are refreshed in full. Only the skills and subagents already installed
+#              are refreshed, and none is ever added. A file is removed only when
+#              the previously installed commit shipped it and the new one no
+#              longer does. Afterwards the Claude Code skill links in
+#              ~/.claude/skills are brought in step with the shared skills.
 # Usage: sh update-global.sh [--dry-run] [--source PATH|URL] [--home-dir DIR]
 # Options:
 #   --dry-run       List what would change and write nothing.
@@ -16,7 +18,8 @@
 #   -h, --help      Print this help and exit.
 # Exit codes:
 #   0  Updated, or the dry run listed what it would do.
-#   1  No install was found, or a git step failed.
+#   1  No install was found, the install predates ~/.config/agents, or a git
+#      step failed.
 #   2  Bad arguments, or a required command is missing.
 # Requires: a POSIX sh, git, tar, find, cmp, sort, awk, mktemp.
 # -----------------------------------------------------------------------------
@@ -26,9 +29,13 @@ LC_ALL=C
 export LC_ALL
 
 readonly UPSTREAM_URL='https://github.com/Lukk17/agent-standards.git'
-readonly UPSTREAM_PATHS='.agents/hooks .agents/plugin global/bin .agents/skills .agents/agents .claude/agents .codex/agents .github/agents'
+readonly UPSTREAM_PATHS='.agents/hooks .agents/plugin .agents/instructions global/bin .agents/skills .agents/agents .claude/agents .codex/agents .github/agents'
 readonly WIRING_FILES='.claude/settings.json .codex/config.toml .github/hooks/preflight.json docs/GLOBAL_SETUP.md'
-readonly SUBAGENT_TREES='.agents/agents:.agents/agents .claude/agents:.claude/agents .codex/agents:.codex/agents .copilot/agents:.github/agents'
+readonly INSTALL_DIR='.config/agents'
+readonly LEGACY_INSTALL_DIR='.agents'
+readonly SUBAGENT_TREES='.config/agents/agents:.agents/agents .claude/agents:.claude/agents .config/codex/agents:.codex/agents .config/copilot/agents:.github/agents'
+readonly RESERVED_SKILL_NAMES='synced .trash'
+readonly SKILL_LINK_HOOK='hooks/claude/sync_skill_links.py'
 
 dry_run=0
 source_ref=$UPSTREAM_URL
@@ -137,8 +144,8 @@ load_previous_commit() {
   old_list=$workspace/previous.list
   : >"$old_list"
 
-  if [ -f "$home_dir/.agents/.upstream-commit" ]; then
-    old_commit=$(tr -d ' \r\n' <"$home_dir/.agents/.upstream-commit")
+  if [ -f "$home_dir/$INSTALL_DIR/.upstream-commit" ]; then
+    old_commit=$(tr -d ' \r\n' <"$home_dir/$INSTALL_DIR/.upstream-commit")
   fi
 
   if [ -n "$old_commit" ] && git -C "$repo" cat-file -e "$old_commit^{commit}" 2>/dev/null; then
@@ -229,23 +236,35 @@ mirror() {
 }
 
 update_tooling() {
-  mirror .agents/hooks .agents/hooks
-  mirror .agents/plugin .agents/plugin
-  mirror global/bin .agents/bin
+  mirror .agents/hooks "$INSTALL_DIR/hooks"
+  mirror .agents/plugin "$INSTALL_DIR/plugin"
+  mirror .agents/instructions "$INSTALL_DIR/instructions"
+  mirror global/bin "$INSTALL_DIR/bin"
+}
+
+is_reserved_skill() {
+  for reserved_name in $RESERVED_SKILL_NAMES; do
+    [ "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" = "$reserved_name" ] && return 0
+  done
+
+  return 1
 }
 
 update_skills() {
-  for skill_dir in "$home_dir/.agents/skills"/*/; do
+  for skill_dir in "$home_dir/$INSTALL_DIR/skills"/*/; do
     [ -d "$skill_dir" ] || continue
     skill_name=$(basename "$skill_dir")
 
+    # Claude Code's own folders are never skills of this install.
+    is_reserved_skill "$skill_name" && continue
+
     if [ -d "$tree/.agents/skills/$skill_name" ]; then
-      mirror ".agents/skills/$skill_name" ".agents/skills/$skill_name"
+      mirror ".agents/skills/$skill_name" "$INSTALL_DIR/skills/$skill_name"
     elif shipped_before_under ".agents/skills/$skill_name"; then
-      report keep ".agents/skills/$skill_name" ' (removed upstream, left in place)'
+      report keep "$INSTALL_DIR/skills/$skill_name" ' (removed upstream, left in place)'
       count_keep=$((count_keep + 1))
     else
-      report skip ".agents/skills/$skill_name" ' (not an upstream skill)'
+      report skip "$INSTALL_DIR/skills/$skill_name" ' (not an upstream skill)'
       count_skip=$((count_skip + 1))
     fi
   done
@@ -297,12 +316,32 @@ report_wiring() {
 
 record_commit() {
   if [ "$dry_run" -eq 1 ]; then
-    printf 'Would record %s in ~/.agents/.upstream-commit.\n' "$commit"
+    printf 'Would record %s in ~/%s/.upstream-commit.\n' "$commit" "$INSTALL_DIR"
     return 0
   fi
 
-  printf '%s\n' "$commit" >"$home_dir/.agents/.upstream-commit"
-  printf 'Recorded %s in ~/.agents/.upstream-commit.\n' "$commit"
+  printf '%s\n' "$commit" >"$home_dir/$INSTALL_DIR/.upstream-commit"
+  printf 'Recorded %s in ~/%s/.upstream-commit.\n' "$commit" "$INSTALL_DIR"
+}
+
+# Runs the same hook Claude Code runs on SessionStart, so a skill the update
+# removed loses its link now rather than at the next session.
+sync_skill_links() {
+  skill_link_hook=$home_dir/$INSTALL_DIR/$SKILL_LINK_HOOK
+
+  if [ "$dry_run" -eq 1 ] || [ ! -f "$skill_link_hook" ]; then
+    return 0
+  fi
+
+  python_command=$(command -v python3 || command -v python || true)
+
+  if [ -z "$python_command" ]; then
+    printf 'Skill links: no python3 or python found, so no skill link was refreshed.\n'
+    return 0
+  fi
+
+  HOME=$home_dir "$python_command" -S -E "$skill_link_hook" </dev/null || true
+  printf 'Skill links: the Claude Code and Codex skills folders checked against ~/%s/skills.\n' "$INSTALL_DIR"
 }
 
 report_totals() {
@@ -320,7 +359,12 @@ main() {
   parse_args "$@"
   require_commands
 
-  [ -d "$home_dir/.agents" ] || die "no global install at $home_dir/.agents; install it first, see docs/GLOBAL_SETUP.md"
+  if [ ! -d "$home_dir/$INSTALL_DIR" ]; then
+    if [ -f "$home_dir/$LEGACY_INSTALL_DIR/.upstream-commit" ]; then
+      die "the install at $home_dir/$LEGACY_INSTALL_DIR predates $home_dir/$INSTALL_DIR; migrate it first, see \"Migrating from ~/.agents\" in docs/GLOBAL_SETUP.md"
+    fi
+    die "no global install at $home_dir/$INSTALL_DIR; install it first, see docs/GLOBAL_SETUP.md"
+  fi
 
   workspace=$(mktemp -d)
   trap cleanup EXIT
@@ -343,6 +387,7 @@ main() {
   update_subagents
   report_wiring
   record_commit
+  sync_skill_links
   report_totals
 }
 

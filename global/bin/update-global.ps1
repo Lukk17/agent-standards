@@ -3,10 +3,11 @@
 .SYNOPSIS
     Updates the global agent-standards install in a home directory from the committed state of the repository.
 .DESCRIPTION
-    The hook scripts, the plugin and this updater are refreshed in full. Only the skills and subagents already
-    installed are refreshed, and none is ever added. A file is removed only when the previously installed commit
-    shipped it and the new one no longer does. Exits 1 when no install is found or a git step fails, 2 when a
-    required command is missing.
+    The install lives in ~/.config/agents. The hook scripts, the plugin, the reply rules and this updater are refreshed in full. Only
+    the skills and subagents already installed are refreshed, and none is ever added. A file is removed only when the
+    previously installed commit shipped it and the new one no longer does. Afterwards the Claude Code skill links are
+    brought in step. Exits 1 when no install is found, the install predates ~/.config/agents, or a git step fails, 2
+    when a required command is missing.
 .PARAMETER DryRun
     List what would change and write nothing.
 .PARAMETER Source
@@ -14,7 +15,7 @@
 .PARAMETER HomeDir
     The home directory that holds the install.
 .EXAMPLE
-    pwsh -NoProfile -File ~/.agents/bin/update-global.ps1 -DryRun
+    pwsh -NoProfile -File ~/.config/agents/bin/update-global.ps1 -DryRun
 #>
 [CmdletBinding()]
 param(
@@ -27,14 +28,18 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 
-$UpstreamPaths = @('.agents/hooks', '.agents/plugin', 'global/bin', '.agents/skills', '.agents/agents', '.claude/agents', '.codex/agents', '.github/agents')
+$UpstreamPaths = @('.agents/hooks', '.agents/plugin', '.agents/instructions', 'global/bin', '.agents/skills', '.agents/agents', '.claude/agents', '.codex/agents', '.github/agents')
 $WiringFiles = @('.claude/settings.json', '.codex/config.toml', '.github/hooks/preflight.json', 'docs/GLOBAL_SETUP.md')
+$InstallDir = '.config/agents'
+$LegacyInstallDir = '.agents'
 $SubagentTrees = @(
-    @('.agents/agents', '.agents/agents'),
+    @('.config/agents/agents', '.agents/agents'),
     @('.claude/agents', '.claude/agents'),
-    @('.codex/agents', '.codex/agents'),
-    @('.copilot/agents', '.github/agents')
+    @('.config/codex/agents', '.codex/agents'),
+    @('.config/copilot/agents', '.github/agents')
 )
+$ReservedSkillNames = @('synced', '.trash')
+$SkillLinkHook = 'hooks/claude/sync_skill_links.py'
 
 $Counts = @{ update = 0; add = 0; remove = 0; unchanged = 0; keep = 0; skip = 0 }
 
@@ -175,12 +180,16 @@ function Test-ShippedBeforeUnder([string]$Prefix) {
 }
 
 function Sync-InstalledSkill {
-    foreach ($name in (Get-VisibleNameList (Join-Relative $HomeDir '.agents/skills') -Directory)) {
-        $relative = ".agents/skills/$name"
-        if (Test-Path -LiteralPath (Join-Relative $script:Tree $relative) -PathType Container) {
-            Sync-Tree $relative $relative
+    foreach ($name in (Get-VisibleNameList (Join-Relative $HomeDir "$InstallDir/skills") -Directory)) {
+        if ($ReservedSkillNames -contains $name.ToLowerInvariant()) {
+            continue
         }
-        elseif (Test-ShippedBeforeUnder $relative) {
+        $upstream = ".agents/skills/$name"
+        $relative = "$InstallDir/skills/$name"
+        if (Test-Path -LiteralPath (Join-Relative $script:Tree $upstream) -PathType Container) {
+            Sync-Tree $upstream $relative
+        }
+        elseif (Test-ShippedBeforeUnder $upstream) {
             Write-Action -Verb 'keep' -Relative $relative -Note ' (removed upstream, left in place)'
         }
         else {
@@ -231,11 +240,36 @@ function Write-WiringReport {
 
 function Write-CommitRecord {
     if ($DryRun) {
-        "Would record $($script:Commit) in ~/.agents/.upstream-commit."
+        "Would record $($script:Commit) in ~/$InstallDir/.upstream-commit."
         return
     }
-    [IO.File]::WriteAllText((Join-Relative $HomeDir '.agents/.upstream-commit'), "$($script:Commit)`n")
-    "Recorded $($script:Commit) in ~/.agents/.upstream-commit."
+    [IO.File]::WriteAllText((Join-Relative $HomeDir "$InstallDir/.upstream-commit"), "$($script:Commit)`n")
+    "Recorded $($script:Commit) in ~/$InstallDir/.upstream-commit."
+}
+
+function Sync-SkillLink {
+    $hook = Join-Relative $HomeDir "$InstallDir/$SkillLinkHook"
+    if ($DryRun -or -not (Test-Path -LiteralPath $hook -PathType Leaf)) {
+        return
+    }
+    $python = @('python3', 'python' | ForEach-Object { Get-Command $_ -CommandType Application -ErrorAction SilentlyContinue } | Select-Object -First 1)
+    if ($python.Count -eq 0) {
+        'Skill links: no python3 or python found, so no skill link was refreshed.'
+        return
+    }
+    $previousHome = $env:HOME
+    $previousProfile = $env:USERPROFILE
+    try {
+        $env:HOME = $HomeDir
+        $env:USERPROFILE = $HomeDir
+        $PSNativeCommandUseErrorActionPreference = $false
+        $null | & $python[0].Source -S -E $hook | Out-Null
+    }
+    finally {
+        $env:HOME = $previousHome
+        $env:USERPROFILE = $previousProfile
+    }
+    "Skill links: the Claude Code and Codex skills folders checked against ~/$InstallDir/skills."
 }
 
 function Write-Summary {
@@ -252,8 +286,11 @@ if (-not (Get-Command git -CommandType Application -ErrorAction SilentlyContinue
     Exit-WithError 'required command not found: git' 2
 }
 
-if (-not (Test-Path -LiteralPath (Join-Relative $HomeDir '.agents') -PathType Container)) {
-    Exit-WithError "no global install at $(Join-Relative $HomeDir '.agents'); install it first, see docs/GLOBAL_SETUP.md"
+if (-not (Test-Path -LiteralPath (Join-Relative $HomeDir $InstallDir) -PathType Container)) {
+    if (Test-Path -LiteralPath (Join-Relative $HomeDir "$LegacyInstallDir/.upstream-commit") -PathType Leaf) {
+        Exit-WithError "the install at $(Join-Relative $HomeDir $LegacyInstallDir) predates $(Join-Relative $HomeDir $InstallDir); migrate it first, see `"Migrating from ~/.agents`" in docs/GLOBAL_SETUP.md"
+    }
+    Exit-WithError "no global install at $(Join-Relative $HomeDir $InstallDir); install it first, see docs/GLOBAL_SETUP.md"
 }
 
 $workspace = Join-Path ([IO.Path]::GetTempPath()) ('agent-standards-update-' + [Guid]::NewGuid().ToString('N'))
@@ -291,7 +328,7 @@ try {
     $script:PreviousCommit = ''
     $script:PreviousKnown = $false
     $script:PreviousFiles = [string[]]@()
-    $record = Join-Relative $HomeDir '.agents/.upstream-commit'
+    $record = Join-Relative $HomeDir "$InstallDir/.upstream-commit"
     if (Test-Path -LiteralPath $record -PathType Leaf) {
         $script:PreviousCommit = ([IO.File]::ReadAllText($record)) -replace '\s', ''
     }
@@ -309,13 +346,15 @@ try {
     "Source: $Source at $($script:Commit)"
     "Home:   $HomeDir"
 
-    Sync-Tree '.agents/hooks' '.agents/hooks'
-    Sync-Tree '.agents/plugin' '.agents/plugin'
-    Sync-Tree 'global/bin' '.agents/bin'
+    Sync-Tree '.agents/hooks' "$InstallDir/hooks"
+    Sync-Tree '.agents/plugin' "$InstallDir/plugin"
+    Sync-Tree '.agents/instructions' "$InstallDir/instructions"
+    Sync-Tree 'global/bin' "$InstallDir/bin"
     Sync-InstalledSkill
     Sync-InstalledSubagent
     Write-WiringReport
     Write-CommitRecord
+    Sync-SkillLink
     Write-Summary
 }
 finally {

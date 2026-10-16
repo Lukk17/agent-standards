@@ -9,11 +9,12 @@ real home directory: HOME and USERPROFILE point at the fake one as well.
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
-from tests.conftest import REPO_ROOT
+from tests.conftest import REPO_ROOT, SYNC_SKILL_LINKS_HOOK
 from tests.process_tree import run_bounded
 
 UPDATER_DIR = REPO_ROOT / "global" / "bin"
@@ -82,17 +83,17 @@ SECOND_RELEASE_REMOVALS = (
 )
 
 INSTALLED_TREES = {
-    ".agents/skills": ".agents/skills",
-    ".agents/agents": ".agents/agents",
-    ".agents/hooks": ".agents/hooks",
-    ".agents/plugin": ".agents/plugin",
-    "global/bin": ".agents/bin",
+    ".agents/skills": ".config/agents/skills",
+    ".agents/agents": ".config/agents/agents",
+    ".agents/hooks": ".config/agents/hooks",
+    ".agents/plugin": ".config/agents/plugin",
+    "global/bin": ".config/agents/bin",
     ".claude/agents": ".claude/agents",
-    ".codex/agents": ".codex/agents",
-    ".github/agents": ".copilot/agents",
+    ".codex/agents": ".config/codex/agents",
+    ".github/agents": ".config/copilot/agents",
 }
 
-INSTALL_ROOTS = (".agents", ".claude", ".codex", ".copilot")
+INSTALL_ROOTS = (".config/agents", ".config/codex", ".config/copilot", ".claude")
 
 USER_SETTINGS ='{"permissions": {"allow": ["mine"]}}\n'
 USER_SKILL = "---\nname: mine\ndescription: The user's own skill.\n---\n"
@@ -146,12 +147,12 @@ def install_home(root: Path, repo: Path, commit: str) -> Path:
     home = root / "home"
     for upstream, installed in INSTALLED_TREES.items():
         shutil.copytree(repo / upstream, home / installed)
-    (home / ".agents" / ".upstream-commit").write_bytes(f"{commit}\n".encode("ascii"))
+    (home / ".config" / "agents" / ".upstream-commit").write_bytes(f"{commit}\n".encode("ascii"))
 
-    shutil.rmtree(home / ".agents" / "skills" / "beta")
+    shutil.rmtree(home / ".config" / "agents" / "skills" / "beta")
     (home / ".claude" / "agents" / "b.md").unlink()
     write_files(home, {
-        ".agents/skills/mine/SKILL.md": USER_SKILL,
+        ".config/agents/skills/mine/SKILL.md": USER_SKILL,
         ".claude/agents/mine.md": "my own subagent\n",
         ".claude/settings.json": USER_SETTINGS,
     })
@@ -164,7 +165,7 @@ def snapshot(home: Path) -> dict[str, bytes]:
     return {
         path.relative_to(home).as_posix(): path.read_bytes()
         for top in INSTALL_ROOTS
-        for path in sorted((home / top).rglob("*"))
+        for path in sorted(home.joinpath(*top.split("/")).rglob("*"))
         if path.is_file()
     }
 
@@ -213,7 +214,7 @@ def test_a_fresh_install_is_already_current(released, implementation):
     # Then only the user's own items are reported, and nothing changed
     assert result.returncode == 0, result.stderr
     assert action_lines(result.stdout) == [
-        "skip    ~/.agents/skills/mine (not an upstream skill)",
+        "skip    ~/.config/agents/skills/mine (not an upstream skill)",
         "skip    ~/.claude/agents/mine.md (not an upstream subagent)",
     ]
     assert "Updated 0, added 0, removed 0." in result.stdout
@@ -232,48 +233,48 @@ def test_an_update_refreshes_only_what_is_installed(released, implementation):
     # Then
     assert result.returncode == 0, result.stderr
     assert action_lines(result.stdout) == [
-        "add     ~/.agents/hooks/new_hook.py",
-        "update  ~/.agents/hooks/preflight_gate.py",
-        "remove  ~/.agents/hooks/copilot/prompt_reminder.py",
-        "remove  ~/.agents/hooks/old_hook.py",
-        "update  ~/.agents/bin/update-global.sh",
-        "update  ~/.agents/skills/alpha/SKILL.md",
-        "add     ~/.agents/skills/alpha/references/new.md",
-        "remove  ~/.agents/skills/alpha/references/old.md",
-        "keep    ~/.agents/skills/delta (removed upstream, left in place)",
-        "skip    ~/.agents/skills/mine (not an upstream skill)",
-        "update  ~/.agents/agents/a.md",
-        "keep    ~/.agents/agents/c.md (removed upstream, left in place)",
+        "add     ~/.config/agents/hooks/new_hook.py",
+        "update  ~/.config/agents/hooks/preflight_gate.py",
+        "remove  ~/.config/agents/hooks/copilot/prompt_reminder.py",
+        "remove  ~/.config/agents/hooks/old_hook.py",
+        "update  ~/.config/agents/bin/update-global.sh",
+        "update  ~/.config/agents/skills/alpha/SKILL.md",
+        "add     ~/.config/agents/skills/alpha/references/new.md",
+        "remove  ~/.config/agents/skills/alpha/references/old.md",
+        "keep    ~/.config/agents/skills/delta (removed upstream, left in place)",
+        "skip    ~/.config/agents/skills/mine (not an upstream skill)",
+        "update  ~/.config/agents/agents/a.md",
+        "keep    ~/.config/agents/agents/c.md (removed upstream, left in place)",
         "update  ~/.claude/agents/a.md",
         "keep    ~/.claude/agents/c.md (removed upstream, left in place)",
         "skip    ~/.claude/agents/mine.md (not an upstream subagent)",
-        "update  ~/.codex/agents/a.toml",
-        "keep    ~/.codex/agents/c.toml (removed upstream, left in place)",
-        "update  ~/.copilot/agents/a.agent.md",
-        "keep    ~/.copilot/agents/c.agent.md (removed upstream, left in place)",
+        "update  ~/.config/codex/agents/a.toml",
+        "keep    ~/.config/codex/agents/c.toml (removed upstream, left in place)",
+        "update  ~/.config/copilot/agents/a.agent.md",
+        "keep    ~/.config/copilot/agents/c.agent.md (removed upstream, left in place)",
     ]
     assert "Updated 7, added 2, removed 3. Unchanged 2. Left alone: 5 removed upstream, 2 not from upstream." in result.stdout
     assert f"Hook wiring changed upstream since {first}." in result.stdout
     assert "  .claude/settings.json" in result.stdout
 
     files = snapshot(home)
-    assert files[".agents/hooks/preflight_gate.py"] == b"gate v2\n"
-    assert files[".agents/hooks/new_hook.py"] == b"new hook\n"
-    assert ".agents/hooks/old_hook.py" not in files
-    assert not (home / ".agents" / "hooks" / "copilot").exists()
-    assert files[".agents/bin/update-global.sh"] == b"updater v2\n"
-    assert files[".agents/skills/alpha/references/new.md"] == b"new reference\n"
-    assert ".agents/skills/alpha/references/old.md" not in files
-    assert not (home / ".agents" / "skills" / "beta").exists()
-    assert not (home / ".agents" / "skills" / "gamma").exists()
-    assert files[".agents/skills/delta/SKILL.md"] == b"delta v1\n"
-    assert files[".agents/skills/mine/SKILL.md"] == USER_SKILL.encode("utf-8")
-    assert ".agents/agents/d.md" not in files
+    assert files[".config/agents/hooks/preflight_gate.py"] == b"gate v2\n"
+    assert files[".config/agents/hooks/new_hook.py"] == b"new hook\n"
+    assert ".config/agents/hooks/old_hook.py" not in files
+    assert not (home / ".config" / "agents" / "hooks" / "copilot").exists()
+    assert files[".config/agents/bin/update-global.sh"] == b"updater v2\n"
+    assert files[".config/agents/skills/alpha/references/new.md"] == b"new reference\n"
+    assert ".config/agents/skills/alpha/references/old.md" not in files
+    assert not (home / ".config" / "agents" / "skills" / "beta").exists()
+    assert not (home / ".config" / "agents" / "skills" / "gamma").exists()
+    assert files[".config/agents/skills/delta/SKILL.md"] == b"delta v1\n"
+    assert files[".config/agents/skills/mine/SKILL.md"] == USER_SKILL.encode("utf-8")
+    assert ".config/agents/agents/d.md" not in files
     assert ".claude/agents/b.md" not in files
     assert files[".claude/agents/mine.md"] == b"my own subagent\n"
     assert files[".claude/settings.json"] == USER_SETTINGS.encode("utf-8")
-    assert files[".copilot/agents/a.agent.md"] == b"copilot a v2\n"
-    assert files[".agents/.upstream-commit"] == f"{second}\n".encode("ascii")
+    assert files[".config/copilot/agents/a.agent.md"] == b"copilot a v2\n"
+    assert files[".config/agents/.upstream-commit"] == f"{second}\n".encode("ascii")
 
 
 @pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
@@ -308,8 +309,8 @@ def test_uncommitted_work_in_the_source_never_reaches_the_home(released, impleme
 
     # Then
     assert result.returncode == 0, result.stderr
-    assert (home / ".agents" / "hooks" / "preflight_gate.py").read_bytes() == b"gate v1\n"
-    assert not (home / ".agents" / "hooks" / "dirty.py").exists()
+    assert (home / ".config" / "agents" / "hooks" / "preflight_gate.py").read_bytes() == b"gate v1\n"
+    assert not (home / ".config" / "agents" / "hooks" / "dirty.py").exists()
 
 
 @pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
@@ -317,17 +318,17 @@ def test_an_unknown_previous_commit_removes_nothing(released, implementation):
     # Given an install whose recorded commit the source does not know
     repo, home, first = released
     release_second(repo)
-    (home / ".agents" / ".upstream-commit").write_bytes(b"0" * 40 + b"\n")
+    (home / ".config" / "agents" / ".upstream-commit").write_bytes(b"0" * 40 + b"\n")
 
     # When
     result = run_updater(implementation, home, str(repo))
 
     # Then files upstream removed stay, because nothing proves they came from upstream
     assert result.returncode == 0, result.stderr
-    assert (home / ".agents" / "hooks" / "old_hook.py").exists()
+    assert (home / ".config" / "agents" / "hooks" / "old_hook.py").exists()
     assert "remove " not in result.stdout
     assert "the previously installed commit is unknown here" in result.stdout
-    assert "skip    ~/.agents/skills/delta (not an upstream skill)" in result.stdout
+    assert "skip    ~/.config/agents/skills/delta (not an upstream skill)" in result.stdout
 
 
 @pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
@@ -389,8 +390,8 @@ def test_a_user_skill_named_only_deep_inside_an_upstream_path_is_not_upstream(tm
 
     # Then the user's own skill is skipped as theirs, not kept as a removed upstream one
     assert result.returncode == 0, result.stderr
-    assert "skip    ~/.agents/skills/mine (not an upstream skill)" in result.stdout
-    assert "keep    ~/.agents/skills/mine" not in result.stdout
+    assert "skip    ~/.config/agents/skills/mine (not an upstream skill)" in result.stdout
+    assert "keep    ~/.config/agents/skills/mine" not in result.stdout
 
 
 @pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
@@ -422,3 +423,79 @@ def test_a_failed_wiring_diff_names_both_commits(released, implementation):
     # Then
     assert result.returncode == 1
     assert f"update-global: git diff failed between {first} and {second}" in result.stderr
+
+
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+def test_claude_code_owned_folders_in_the_skills_tree_are_not_reported(released, implementation):
+    # Given the folders Claude Code writes into a skills directory it can reach
+    repo, home, first = released
+    write_files(home, {
+        ".config/agents/skills/synced/abc/SKILL.md": "synced from claude.ai\n",
+        ".config/agents/skills/Synced/SKILL.md": "any capitalisation\n",
+        ".config/agents/skills/.trash/old/SKILL.md": "deleted\n",
+    })
+
+    # When
+    result = run_updater(implementation, home, str(repo))
+
+    # Then none of them is treated as a skill, reported, or touched
+    assert result.returncode == 0, result.stderr
+    assert "synced" not in result.stdout.lower()
+    assert ".trash" not in result.stdout
+    assert (home / ".config" / "agents" / "skills" / "synced" / "abc" / "SKILL.md").is_file()
+
+
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+def test_an_install_in_the_old_layout_is_refused_with_the_migration_pointer(tmp_path, implementation):
+    # Given an install made before ~/.config/agents, and nothing at the new place
+    repo, first = make_upstream(tmp_path)
+    home = tmp_path / "old-home"
+    write_files(home, {".agents/.upstream-commit": f"{first}\n", ".agents/hooks/preflight_gate.py": "gate v1\n"})
+
+    # When
+    result = run_updater(implementation, home, str(repo))
+
+    # Then
+    assert result.returncode == 1
+    assert "Migrating from ~/.agents" in result.stderr
+    assert not (home / ".config").exists()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the skill link hook does nothing on Windows by design")
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+def test_an_update_brings_the_claude_code_skill_links_in_step(tmp_path, implementation):
+    # Given an upstream that ships the skill link hook, and a home with no links yet
+    repo, first = make_upstream(tmp_path)
+    write_files(repo, {".agents/hooks/claude/sync_skill_links.py": SYNC_SKILL_LINKS_HOOK.read_text(encoding="utf-8")})
+    first = commit_all(repo, "ship the hook")
+    home = install_home(tmp_path, repo, first)
+
+    # When
+    planned = run_updater(implementation, home, str(repo), dry_run=True)
+    links_after_dry_run = (home / ".claude" / "skills").exists()
+    result = run_updater(implementation, home, str(repo))
+
+    # Then the dry run linked nothing and the real run linked every installed skill
+    assert planned.returncode == 0, planned.stderr
+    assert not links_after_dry_run
+    assert result.returncode == 0, result.stderr
+    assert "Skill links: the Claude Code and Codex skills folders checked against ~/.config/agents/skills." in result.stdout
+    links = home / ".claude" / "skills"
+    assert sorted(path.name for path in links.iterdir()) == ["alpha", "delta", "mine"]
+    assert all((links / name).is_symlink() for name in ("alpha", "delta", "mine"))
+
+
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+def test_the_reply_rules_are_refreshed_in_full_like_the_hooks(released, implementation):
+    # Given an upstream release that starts shipping the reply rules
+    repo, home, first = released
+    write_files(repo, {".agents/instructions/reply-rules.md": "rules v2\n"})
+    commit_all(repo, "ship the reply rules")
+
+    # When
+    result = run_updater(implementation, home, str(repo))
+
+    # Then they land beside the hooks, where the OpenCode 2.x plugin reads them
+    assert result.returncode == 0, result.stderr
+    assert "add     ~/.config/agents/instructions/reply-rules.md" in result.stdout
+    assert (home / ".config" / "agents" / "instructions" / "reply-rules.md").read_bytes() == b"rules v2\n"

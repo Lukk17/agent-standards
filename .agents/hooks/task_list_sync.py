@@ -44,6 +44,7 @@ Every failure path allows: a broken hook must never break a session.
 """
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -56,6 +57,14 @@ HOOK_ORDER = 30
 TASK_LIST_NAME = "tasks.md"
 
 WIDGET_NAME = "tasks.widget.json"
+
+# Where the user-level install in docs/GLOBAL_SETUP.md keeps the hooks
+# directory, relative to the home directory.
+GLOBAL_INSTALL_DIRECTORY = (".config", "agents")
+
+DEFAULT_STATE_DIRECTORY = (".local", "state")
+
+STATE_SUBDIRECTORY = "agents"
 
 OPEN = "open"
 IN_PROGRESS = "in progress"
@@ -119,20 +128,61 @@ def _flag(argv: List[str], name: str) -> str:
     return ""
 
 
-def _task_list() -> Path:
-    """The list's path at the project root.
+def _state_directory(home: Path) -> Path:
+    """$XDG_STATE_HOME/agents, where a relative value is ignored as the spec says."""
+    configured = Path(os.environ.get("XDG_STATE_HOME", ""))
+    base = configured if configured.is_absolute() else home.joinpath(*DEFAULT_STATE_DIRECTORY)
+    directory = base / STATE_SUBDIRECTORY
+
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+
+    return directory
+
+
+def _install_directory() -> Tuple[Path, Path]:
+    """The root that holds the list and the directory that holds the widget.
 
     Every wiring moves to the project root before invoking a hook, so the
-    working directory is the contract. It is trusted only once it holds the
-    hooks directory that proves it is a project root, because that guarantee
-    has broken silently before (see AGENTS.md "Required opening move"). The
-    hook's own location two parents up is the fallback.
+    working directory is the contract once it holds the hooks directory that
+    proves it is a project root. Home is never a project, even when a linked
+    ~/.agents gives it one. The user-level copy in ~/.config/agents/hooks keeps
+    a non-project session's list and widget together in the start directory,
+    or in the state directory when that is home. A project copy falls back to
+    its own project, two parents up, and never to home.
     """
     cwd = Path.cwd().resolve()
-    anchored = Path(__file__).resolve().parents[2]
-    root = cwd if (cwd / ".agents" / "hooks").is_dir() else anchored
+    installed = Path(__file__).resolve().parents[1]
 
-    return root / TASK_LIST_NAME
+    try:
+        home = Path.home().resolve()
+    except (OSError, RuntimeError):
+        home = None
+
+    if cwd != home and (cwd / ".agents" / "hooks").is_dir():
+        return cwd, cwd / ".agents"
+
+    if home is None:
+        return installed.parent, installed
+
+    if installed == home.joinpath(*GLOBAL_INSTALL_DIRECTORY).resolve():
+        root, widget_directory = cwd, cwd
+    else:
+        root, widget_directory = installed.parent, installed
+
+    if root == home:
+        state = _state_directory(home)
+
+        return state, state
+
+    return root, widget_directory
+
+
+def _task_list() -> Path:
+    """The list's path at the project root."""
+    return _install_directory()[0] / TASK_LIST_NAME
 
 
 def _read_lines(path: Path) -> List[str]:
@@ -161,11 +211,7 @@ def _entry(status: str, task_id: str, subject: str) -> str:
 
 def _widget_path() -> Path:
     """Snapshot the tool task widget on mobile plus WebUI reads."""
-    cwd = Path.cwd().resolve()
-    anchored = Path(__file__).resolve().parents[2]
-    root = cwd if (cwd / ".agents" / "hooks").is_dir() else anchored
-
-    return root / ".agents" / WIDGET_NAME
+    return _install_directory()[1] / WIDGET_NAME
 
 
 def _sync_widget(lines: List[str]) -> None:

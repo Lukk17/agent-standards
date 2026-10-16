@@ -1502,6 +1502,88 @@ def test_a_global_install_still_reads_the_agent_trees_beside_itself(global_insta
     assert "generalist" in json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"]
 
 
+@pytest.fixture
+def config_install(tmp_path):
+    """A gate installed the way docs/GLOBAL_SETUP.md does now, in ~/.config/agents/hooks."""
+    home = tmp_path / "home"
+    project = tmp_path / "work" / "project"
+    project.mkdir(parents=True)
+
+    hooks = home / ".config" / "agents" / "hooks"
+    hooks.mkdir(parents=True)
+    gate = hooks / PREFLIGHT_GATE.name
+    shutil.copy2(PREFLIGHT_GATE, gate)
+
+    return Install(gate, home, project, fake_home(home))
+
+
+def test_a_config_install_allows_a_write_elsewhere_under_the_config_directory(config_install):
+    # Given the gate in ~/.config/agents/hooks, where two parents up is ~/.config,
+    # and a main-thread write to another tool's configuration there
+    payload = edit(str(config_install.home / ".config" / "other-tool" / "settings.json"))
+    payload["cwd"] = str(config_install.project)
+
+    # When
+    code, out, err = run_process(
+        payload,
+        "claude",
+        cwd=config_install.project,
+        env=config_install.env,
+        script=config_install.gate,
+    )
+
+    # Then ~/.config is not mistaken for a project
+    assert (code, out, err) == (0, "", "")
+
+
+def test_a_config_install_still_denies_a_write_inside_the_open_project(config_install):
+    payload = edit(str(config_install.project / "src" / "app.py"))
+    payload["cwd"] = str(config_install.project)
+
+    code, out, _err = run_process(
+        payload,
+        "claude",
+        cwd=config_install.project,
+        env=config_install.env,
+        script=config_install.gate,
+    )
+
+    assert code == 0
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+@pytest.mark.parametrize(
+    ("agent_dir", "filename"),
+    [
+        (".claude/agents", "generalist.md"),
+        (".config/agents/agents", "generalist.md"),
+        (".config/codex/agents", "generalist.toml"),
+        (".config/copilot/agents", "generalist.agent.md"),
+    ],
+)
+def test_a_config_install_reads_every_agent_tree_of_the_global_layout(config_install, agent_dir, filename):
+    # Given a skill-less subagent defined only in one tree of the global install
+    agents = config_install.home.joinpath(*agent_dir.split("/"))
+    agents.mkdir(parents=True)
+    (agents / filename).write_text(WITHOUT_SKILLS.format(name="generalist"), encoding="utf-8")
+    payload = edit(str(config_install.project / "src" / "app.py"), agent_id="sub-1", agent_type="generalist")
+    payload["cwd"] = str(config_install.project)
+
+    # When
+    code, out, err = run_process(
+        payload,
+        "claude",
+        cwd=config_install.project,
+        env=config_install.env,
+        script=config_install.gate,
+    )
+
+    # Then Rule B finds the definition and denies it
+    assert code == 0
+    assert err == ""
+    assert "generalist" in json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"]
+
+
 def test_a_project_install_still_denies_a_write_inside_its_own_project(project_install, tmp_path):
     # Given the gate installed inside a project, and a session whose working
     # directory is somewhere else entirely, so only the script's own location

@@ -7,6 +7,8 @@ finds it by the working directory it was started in.
 """
 
 import json
+import os
+import shutil
 import sys
 
 import pytest
@@ -382,3 +384,135 @@ def test_a_non_ascii_subject_survives_the_round_trip(project):
     _code, out, _err = run(project, "sessionstart")
 
     assert "Wdroz uwierzytelnianie zurueck" in context(out)
+
+
+def install_user_level_copy(home):
+    """The hook installed the way docs/GLOBAL_SETUP.md does, in ~/.config/agents/hooks."""
+    hooks = home / ".config" / "agents" / "hooks"
+    hooks.mkdir(parents=True)
+    installed = hooks / TASK_LIST_SYNC_HOOK.name
+    shutil.copy2(TASK_LIST_SYNC_HOOK, installed)
+
+    return installed
+
+
+def run_user_level_copy(installed, home, cwd, state_home=None):
+    env = {key: value for key, value in os.environ.items() if key != "XDG_STATE_HOME"}
+    env.update({"HOME": str(home), "USERPROFILE": str(home)})
+
+    if state_home is not None:
+        env["XDG_STATE_HOME"] = state_home
+
+    return run_bounded(
+        [sys.executable, str(installed), "--event", "taskcreated", "--format", "claude"],
+        input=json.dumps(task("task-001", "Global task")),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(cwd),
+        env=env,
+    )
+
+
+def assert_nothing_written_to_home_or_install(home):
+    assert not (home / TASK_LIST).exists()
+    assert not (home / "tasks.widget.json").exists()
+    assert not (home / ".config" / TASK_LIST).exists()
+    assert not (home / ".config" / "agents" / "tasks.widget.json").exists()
+
+
+def test_the_user_level_copy_keeps_the_list_and_widget_in_the_start_directory(tmp_path):
+    # Given a session started in a directory that is no project and is not home
+    home = tmp_path / "home"
+    installed = install_user_level_copy(home)
+    workspace = home / ".local" / "state" / "agents" / "workspace"
+    workspace.mkdir(parents=True)
+
+    # When
+    result = run_user_level_copy(installed, home, workspace)
+
+    # Then
+    assert result.returncode == 0, result.stderr
+    assert (workspace / TASK_LIST).is_file()
+    assert (workspace / "tasks.widget.json").is_file()
+    assert_nothing_written_to_home_or_install(home)
+    assert not (home / ".agents").exists()
+
+
+def test_a_session_started_in_home_writes_to_the_default_state_directory(tmp_path):
+    # Given
+    home = tmp_path / "home"
+    installed = install_user_level_copy(home)
+
+    # When
+    result = run_user_level_copy(installed, home, home)
+
+    # Then
+    state = home / ".local" / "state" / "agents"
+    assert result.returncode == 0, result.stderr
+    assert (state / TASK_LIST).is_file()
+    assert (state / "tasks.widget.json").is_file()
+    assert_nothing_written_to_home_or_install(home)
+
+
+def test_a_session_started_in_home_honours_xdg_state_home(tmp_path):
+    # Given
+    home = tmp_path / "home"
+    installed = install_user_level_copy(home)
+    state_home = tmp_path / "state"
+
+    # When
+    result = run_user_level_copy(installed, home, home, state_home=str(state_home))
+
+    # Then
+    assert result.returncode == 0, result.stderr
+    assert (state_home / "agents" / TASK_LIST).is_file()
+    assert (state_home / "agents" / "tasks.widget.json").is_file()
+    assert_nothing_written_to_home_or_install(home)
+    assert not (home / ".local" / "state").exists()
+
+
+def test_a_relative_xdg_state_home_is_ignored(tmp_path):
+    # Given a relative value, which the XDG base directory specification says to ignore
+    home = tmp_path / "home"
+    installed = install_user_level_copy(home)
+
+    # When
+    result = run_user_level_copy(installed, home, home, state_home="relative/state")
+
+    # Then
+    assert result.returncode == 0, result.stderr
+    assert (home / ".local" / "state" / "agents" / TASK_LIST).is_file()
+    assert not (home / "relative").exists()
+    assert_nothing_written_to_home_or_install(home)
+
+
+def test_home_is_never_a_project_even_with_a_linked_agents_directory(tmp_path):
+    # Given ~/.agents linked to ~/.config/agents, which gives home a .agents/hooks directory
+    home = tmp_path / "home"
+    installed = install_user_level_copy(home)
+    (home / ".agents").symlink_to(home / ".config" / "agents", target_is_directory=True)
+
+    # When
+    result = run_user_level_copy(installed, home, home)
+
+    # Then
+    assert result.returncode == 0, result.stderr
+    assert (home / ".local" / "state" / "agents" / TASK_LIST).is_file()
+    assert_nothing_written_to_home_or_install(home)
+
+
+def test_a_start_directory_that_links_to_home_counts_as_home(tmp_path):
+    # Given a working directory that resolves to home through a link
+    home = tmp_path / "home"
+    installed = install_user_level_copy(home)
+    alias = tmp_path / "alias"
+    alias.symlink_to(home, target_is_directory=True)
+
+    # When
+    result = run_user_level_copy(installed, home, alias)
+
+    # Then
+    assert result.returncode == 0, result.stderr
+    assert (home / ".local" / "state" / "agents" / TASK_LIST).is_file()
+    assert_nothing_written_to_home_or_install(home)

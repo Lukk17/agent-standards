@@ -13,11 +13,11 @@ Three categories, and mixing them up is the one mistake that breaks a rebuild.
 
 | Category | Paths | How to change it |
 | --- | --- | --- |
-| Canonical | `subagents/*.md`, `.agents/skills/*/SKILL.md` and their `references/*.md`, `.agents/hooks/*.py`, `.agents/plugin/hooks.js`, `docs/*.md` | edit directly |
+| Canonical | `subagents/*.md`, `.agents/skills/*/SKILL.md` and their `references/*.md`, `.agents/hooks/*.py`, `.agents/hooks/claude/sync_skill_links.py`, `.agents/plugin/hooks.js`, `.agents/plugin/index.js`, `docs/*.md` | edit directly |
 | Canonical config | `.mcp.json`, `opencode.json`, `.codex/config.toml`, `.vscode/mcp.json`, `.github/mcp.json`, `.claude/settings.json`, `.github/hooks/preflight.json` | edit directly, keep the server set and the gate wording in sync |
 | Generated | `.claude/agents/*.md`, `.agents/agents/*.md`, `.codex/agents/*.toml`, `.github/agents/*.agent.md` | never hand-edit, run `python tools/gen_subagents.py` |
 | Symlink | `.opencode/agents`, `.kilo/agents`, `.claude/skills` | never edit through the link, fix the link itself |
-| Canonical, global install only | `global/bin/update-global.sh`, `global/bin/update-global.ps1` | edit both together, verified by `tools/tests/test_update_global.py`, shipped to `~/.agents/bin` by the global install and never by a project import |
+| Canonical, global install only | `global/bin/update-global.sh`, `global/bin/update-global.ps1` | edit both together, verified by `tools/tests/test_update_global.py`, shipped to `~/.config/agents/bin` by the global install and never by a project import |
 | Canonical, this repo only | `main-thread-allowlist.txt` | edit directly, verified by the pytest suite under `tools/tests/`, never shipped |
 | Runtime state | `tasks.md` at the project root | written by `task_list_sync.py` and by the model, git-ignored, never committed |
 | Runtime state | `.agents/tasks.widget.json` beside `tasks.md` | generated widget snapshot, git-ignored, never committed |
@@ -49,7 +49,7 @@ agent-standards/
     agents/                      # GENERATED, OpenCode-format subagents, shared by OpenCode and Kilo Code
     hooks/
       preflight_gate.py          # CANONICAL, the one shared gate rule for every agent surface
-      no_ai_markers_check.py     # CANONICAL, reply formatting check, Stop and SubagentStop
+      no_ai_markers_check.py     # CANONICAL, reply formatting check, main-thread Stop
       markdown_lint_check.py     # CANONICAL, lints a linted file just after it was edited
       _check_markdown.py         # CANONICAL, the markdown rules, shipped so the lint hook works downstream
       task_list_sync.py          # CANONICAL, mirrors the session task list into tasks.md
@@ -60,7 +60,7 @@ agent-standards/
       hooks.js                   # CANONICAL, OpenCode and Kilo Code runner for every hook in hooks/
   global/
     bin/                         # CANONICAL global updater, update-global.sh and update-global.ps1
-                                 # shipped only by the global install to ~/.agents/bin, never by a project import
+                                 # shipped only by the global install to ~/.config/agents/bin, never by a project import
   subagents/                     # CANONICAL subagent sources, this repo only, inside the markdown lint scope
   tools/                         # Generator, linter and tests, this repo only
     gen_subagents.py             # Emits four trees plus the two agent symlinks, validates skills and tools
@@ -121,7 +121,7 @@ directory any more.
 Consumer-project layout after import. The [subagents/](../subagents/) source and [tools/](../tools/) generator are
 intentionally absent, and so are [main-thread-allowlist.txt](../main-thread-allowlist.txt), which is this repo's own,
 and [global/](../global/), which only the global install in [GLOBAL_SETUP.md](GLOBAL_SETUP.md) copies, to
-`~/.agents/bin`:
+`~/.config/agents/bin`:
 
 ```text
 your-project/
@@ -129,6 +129,7 @@ your-project/
   .agents/agents/                # generated OpenCode-format subagents
   .agents/hooks/                 # the shared hook scripts and the markdown rules the lint hook runs
   .agents/plugin/hooks.js        # the OpenCode and Kilo Code hook runner
+  .agents/plugin/index.js        # the directory entry every loader resolves, re-exports hooks.js
   .claude/settings.json          # Claude Code hooks, consumer-owned after import
   .claude/skills                 # symlink to ../.agents/skills
   .claude/agents/                # generated Claude-format subagents
