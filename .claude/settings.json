@@ -112,17 +112,6 @@
         ]
       }
     ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "timeout": 10,
-            "command": "cd \"${CLAUDE_PROJECT_DIR}\" && PY=$(command -v python3 || command -v python) && \"$PY\" -S -E .agents/hooks/no_ai_markers_check.py --format claude ; exit 0"
-          }
-        ]
-      }
-    ],
     "MessageDisplay": [
       {
         "hooks": [

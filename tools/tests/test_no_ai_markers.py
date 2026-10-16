@@ -1583,10 +1583,22 @@ def test_claude_code_wires_the_display_fix():
 
 def test_claude_code_stop_checks_only_what_the_display_fix_leaves():
     stop = [command for command in claude_commands("Stop") if "no_ai_markers_check.py" in command]
-    subagent = [command for command in claude_commands("SubagentStop") if "no_ai_markers_check.py" in command]
 
     assert len(stop) == 1 and "--format claude --display-fixed" in stop[0]
-    assert len(subagent) == 1 and "--display" not in subagent[0]
+
+
+REPLY_STYLE_HOOKS = ("no_ai_markers_check.py", "status_block_check.py", "question_numbering_check.py")
+
+
+def test_claude_code_checks_reply_style_on_the_main_thread_only():
+    # Given the project wiring, where a subagent's report is read by its caller and never by the user
+    settings = json.loads(CLAUDE_SETTINGS.read_text(encoding="utf-8"))
+    subagent_stop = [
+        entry["command"] for group in settings["hooks"].get("SubagentStop", []) for entry in group["hooks"]
+    ]
+
+    # Then no reply-style check runs when a subagent stops
+    assert [command for command in subagent_stop if any(hook in command for hook in REPLY_STYLE_HOOKS)] == []
 
 
 def test_codex_keeps_the_full_check():

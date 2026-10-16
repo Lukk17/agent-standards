@@ -22,8 +22,9 @@ The runner first picks one hooks directory, in this order, and stops at the firs
 1. `<project root>/.agents/hooks/` whenever that directory exists, even empty.
 2. Nothing at all when `<project root>/.agents/no-global-hooks` exists. That file is the per-project opt-out from the
    global fallback, and only its presence counts. It never switches off a project's own `.agents/hooks/`.
-3. `.agents/hooks/` under the user's home directory, where [GLOBAL_SETUP.md](GLOBAL_SETUP.md) installs the hooks
-   (`os.homedir()`, so `%USERPROFILE%` on Windows and `$HOME` elsewhere).
+3. `.config/agents/hooks/` under the user's home directory, where [GLOBAL_SETUP.md](GLOBAL_SETUP.md) installs the hooks
+   (`os.homedir()`, so `%USERPROFILE%` on Windows and `$HOME` elsewhere). The `.agents/hooks/` of the layout before it is
+   no longer read.
 
 A hook from the global directory runs exactly like a project one: its working directory and the envelope's `cwd` are
 the project root, so the gate protects the open project rather than the home directory. A directory that does not exist
@@ -52,7 +53,12 @@ nothing needs `chmod +x`. This is also why the same file works unchanged on Wind
 A copy of the plugin loaded from outside the project (a global install) returns no
 hooks when the project root ships its own `.agents/plugin/hooks.js`, so the
 project copy runs the hooks exactly once; in projects without their own copy,
-the global copy serves them.
+the global copy serves them. The two paths are compared after links are followed,
+so a `~/.agents` linked to `~/.config/agents` makes the home directory carry the
+global copy itself rather than a project copy, and a session started there keeps
+the gate.
+
+The plugin has one default export, `{ id, server, setup }`, and is declared by its directory, which every loader resolves to [.agents/plugin/index.js](../.agents/plugin/index.js). OpenCode 1.x and Kilo Code call `server` and get the hooks object this page describes. OpenCode 2.x calls `setup`, where the runner registers the tool `execute.before` hook with the same envelope, plus a session `context` hook that adds `.agents/instructions/reply-rules.md` as a system part. On 2.x reply rules and reply checks serve the main thread only: a session the runner places as a child through `session.get({ sessionID })` and its `parentID` gets no reply rules on its model requests, and its tool calls carry an empty `assistant_text`, so no reply check can block a subagent, while the gate still runs on every call. A session the runner cannot place keeps both, as before. 1.x and Kilo Code do the same with the reply checks, placing the session through `client.session.get`: a child session's tool calls carry an empty `assistant_text` and its finished text parts skip `experimental.text.complete` hooks, while the gate runs for every session and an unplaced session keeps both. Their reply rules still arrive through the `instructions` key of `opencode.json`, which the plugin does not touch. Measured with real turns against a mock model on OpenCode 1.19.0 and Kilo Code 7.8.9, where the task tool's child session answered `session.get` with the caller's id as `parentID` and the root session with none. 2.x has no `experimental.text.complete` and no other hook after a finished reply, because "Only tool execute.before may fail" (`packages/core/src/plugin/hooks.ts`, OpenCode 2.0.26), so a hook that checks prose sees it only at the next tool call there.
 
 ### Invocation
 
@@ -73,6 +79,8 @@ in this directory.
 
 The working directory is set to the project root, and one JSON object, the envelope, arrives on standard input. There
 are no other arguments. Everything a hook needs is in the envelope.
+
+On OpenCode 1.x and Kilo Code the project root is the `worktree` the runtime hands `server` while that path is a git root (a `.git` directory or file) holding the session's start folder, `directory`, compared after links are followed. Otherwise it is the start folder, the folder Claude Code, Codex and OpenCode 2.x treat as the project. Outside a git repository both runtimes hand `/` as the worktree: OpenCode 1.18.25 sets `worktree` to `"/"` for a project with id `global` and no version control (`packages/opencode/src/project/project.ts`), so a root taken from it made the whole disk the project. On OpenCode 2.x the root is `location.project.directory`, unchanged.
 
 The spawn is asynchronous, with the runner's own 10 second timer. `spawnSync` was measured returning `ETIMEDOUT`
 within 100 ms on most tool calls after the first, under the Bun runtime OpenCode 1.18.32 and Kilo Code 7.7.9 ship on
@@ -136,8 +144,10 @@ The second event is `experimental.text.complete`, which both runtimes fire once 
 `{sessionID, messageID, partID}` and output `{text}` (plugin
 [types](https://github.com/anomalyco/opencode/blob/dev/packages/plugin/src/index.ts)). The runner hands every hook the
 same envelope, but only to a hook that declares the text event (see Applicability below), with `event` set to that
-name, `text` holding the part, `tool_name` and `assistant_text` empty, and no session lookup, so `agent_type` is empty
-and `is_subagent` is absent. A hook that wants to replace the text prints one
+name, `text` holding the part, `tool_name` and `assistant_text` empty, `agent_type` empty and `is_subagent` absent.
+Before it runs any such hook the runner places the part's `sessionID` with the same cached `client.session.get` lookup
+a tool call uses, and a part from a session placed as a subagent reaches no hook and is stored as written. A part
+whose session cannot be placed is handed over as before. A hook that wants to replace the text prints one
 JSON object, `{"text": "..."}`, on stdout and exits 0. The next hook sees the replacement, and whatever the last hook
 leaves is what the runtime stores in place of the part. The event cannot be denied, so exit 2 means nothing here, and
 any other outcome keeps the text as it was. The raw text has already streamed to the screen by then, so the stored
@@ -270,7 +280,7 @@ the table below is what this repo wires today. Each cell names the event in that
 | Hook | Claude Code | Codex | GitHub Copilot |
 | --- | --- | --- | --- |
 | `preflight_gate.py` | `PreToolUse` | `PreToolUse` | `preToolUse` |
-| `no_ai_markers_check.py` | `MessageDisplay`, `Stop`, `SubagentStop` | `Stop` | `agentStop` |
+| `no_ai_markers_check.py` | `MessageDisplay`, `Stop` | `Stop` | `agentStop` |
 | `task_list_sync.py` | `TaskCreated`, `TaskUpdated`, `TaskCompleted`, `SessionStart`, `PreCompact`, `Stop` | `SessionStart` | `sessionStart` |
 | `markdown_lint_check.py` | `PostToolUse` on `Edit`, `Write`, `MultiEdit` | not wired | not wired |
 | `copilot/prompt_reminder.py` | not wired | not wired | `userPromptTransformed` |
@@ -342,7 +352,7 @@ screen. A subagent's reply is not on screen: it is the report its caller receive
 replaces it. Live run 36176881215 recorded the cost on Copilot, where the corrected turn became the whole task result
 and the main thread never read the subagent's report. A stop payload naming `SubagentStop`, or carrying `agent_id` or
 Copilot's `agentId`, therefore gets a reason that asks for the whole report again as a normal corrected reply with
-every violation fixed, ending with the status tail.
+every violation fixed, ending with the status tail. None of the wiring this repository ships sends a subagent's reply to the check any more, because reply style is checked on the main thread only: Claude Code wires no `SubagentStop`, Codex's `Stop` and Copilot's `agentStop` are the main thread's events, and the OpenCode 2.x runner hands a child session no assistant text. The subagent reason stays for wiring a user adds by hand.
 
 Where a surface can rewrite what the user sees, the hook fixes the mechanical markers itself and blocks only on what
 is left. `fix_prose` turns a dash into a comma with clean spacing (a hyphen in a digit range such as `3-5`), strips
@@ -367,7 +377,7 @@ and the display's `message_id` "can't be correlated with transcript message ids"
 message in the session count. A line the display never fixed, and a reply with no record at all, because the display
 hook is older than 2.1.152, failed, or could not write its file, is checked in full. The check therefore blocks only
 on what the display could not fix, a semicolon or a bold run that spans lines, and never asks for a correction of a
-slip the user did not see. `SubagentStop` keeps the full check. Measured on Claude Code 2.1.281 with `claude -p`: a
+slip the user did not see. Nothing is wired on `SubagentStop`. Measured on Claude Code 2.1.281 with `claude -p`: a
 reply holding an em dash and a bold word was shown as `The plan is simple, delegate the work.`, `MessageDisplay` ran
 before `Stop`, and the Stop hook stayed silent. Replaying the captured `Stop` payload once the record was gone
 blocked on the em dash. Two `MessageDisplay` hooks on one message both received the original text and one replacement
@@ -411,8 +421,7 @@ A PascalCase `Stop` in `.claude/settings.json` gets the "VS Code compatible" pay
 `stop_reason` nor `timestamp`. The claude format stays silent only when all three differences agree (`stop_reason`
 present, `timestamp` a string, no `last_assistant_message`), because `stop_reason` alone is one field Claude Code
 could add in any release, and a payload that matches only partly is checked, which at worst checks a reply twice. The
-CLI therefore checks a reply once, from `agentStop`. Its borrowed `SubagentStop` still runs, because Copilot's own
-wiring has no `subagentStop` entry. Copilot is not installed where this was written, so this path is verified against
+CLI therefore checks a reply once, from `agentStop`, which the reference describes as firing when "The main agent finishes a turn". The borrowed `SubagentStop` is gone with the Claude wiring, so the CLI checks no subagent's reply. Copilot is not installed where this was written, so this path is verified against
 the reference and the unit tests only.
 
 Claude Code and Codex run every matching hook from every configuration layer, so a user-level install from
