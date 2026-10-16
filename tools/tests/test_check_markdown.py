@@ -710,3 +710,20 @@ def test_the_ci_command_runs_the_shipped_rules(tmp_path):
     # Then it delegates to the one copy of the rules
     assert result.returncode == 1
     assert "em-dash or en-dash found" in result.stdout
+
+
+@pytest.mark.parametrize("name", ["AGENTS.md.example", "MACHINE.md.example", "bootstrap-machine.prompt.md"])
+def test_a_violation_in_a_global_template_is_caught_by_default(tmp_path, capsys, name):
+    # Given a global install document carrying an em dash, under a throwaway repo root
+    path = tmp_path / "global" / name
+    path.parent.mkdir(parents=True)
+    path.write_text("### Heading\n\nProse — with a dash.\n", encoding="utf-8")
+
+    # When the default target set is linted
+    targets = MARKDOWN.default_targets(tmp_path)
+    failures = sum(MARKDOWN.check_file(target) for target in targets if target.exists())
+
+    # Then the file is in scope and its violation is reported
+    assert path in targets
+    assert failures == 1
+    assert name in capsys.readouterr().out

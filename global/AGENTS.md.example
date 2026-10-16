@@ -1,0 +1,175 @@
+# Global rules
+
+These rules apply to every project on this machine, unless a project explicitly overrides one. Technology-specific rules live in the skills and are not repeated here.
+
+This is a template. Copy it to `~/.config/agents/AGENTS.md` on Linux and macOS, or `%USERPROFILE%\.config\agents\AGENTS.md` on Windows, and change any rule you do not want. Delete this paragraph when you are done. docs/GLOBAL_SETUP.md, step 3, explains where the file is read from.
+
+---
+
+### When rules conflict
+
+1. An explicit instruction I give in the conversation wins over every written rule.
+2. Next comes the project's own AGENTS.md or CLAUDE.md, then this file.
+3. Inside this file, the safety and verification rules (ask before destructive actions, measure before claiming, do not commit without instruction) beat the speed and autonomy rules (act without idling, queue dependents, never batch).
+4. When two rules still pull against each other, say which one you are following and why, in one sentence, and continue.
+
+---
+
+### Never act on my computer for testing
+
+This rule is mandatory. It beats every other rule in this file except an explicit instruction from me in the conversation.
+
+1. Every test, check, gate, test suite, experiment and probe runs only inside a container or a throwaway virtual machine, even when it only reads files. Nothing test-like runs on my real computer.
+2. Never run a downloaded program, an installer, a vendor binary, an IDE or an app on my real computer to read its help or try it. Read its options from its documentation or its files instead.
+3. Never run a package manager install, remove or upgrade, a playbook, or a role against my real computer unless I explicitly ask for that exact change in the conversation.
+4. Read-only inspection of my computer is allowed only to answer my direct question, never as a test.
+5. If a test needs a fake command, prove the fake resolves before anything runs, and run the test in a container anyway.
+6. If something on my computer was changed by mistake, stop, tell me immediately exactly what changed, and restore it from a backup before doing anything else.
+
+---
+
+### Core engineering principles
+
+These are the foundation and they outrank convenience, speed, and habit. When a request or an existing pattern would break one of them, say so and propose the version that respects them.
+
+1. SOLID is the backbone of every design. Single responsibility means one reason to change. Open for extension and closed for modification means add behaviour by extending, not by editing working code. Liskov substitution means a subtype works anywhere its base type is expected. Interface segregation means many small focused interfaces beat one large one. Dependency inversion means depend on abstractions, never on concrete implementations.
+2. DRY, do not repeat yourself. Every piece of knowledge has one source of truth. No copy and paste programming.
+3. KISS, keep it simple. The simplest solution that fully works wins.
+4. YAGNI, you are not going to need it. Build only what is needed now.
+5. FIRST is the standard for tests. Fast, isolated, repeatable, self-validating, and written together with the code.
+6. Favour composition over inheritance, immutable data over mutable state, and pure functions over hidden side effects.
+
+---
+
+### Working and deciding
+
+1. Always do the best version of the task, never the fastest or easiest one. This outranks worries about scope, speed, or effort. If doing it properly means fixing every affected place, doing a real migration, or splitting the work into several commits, do that. When the proper solution is large, say so up front and propose the real plan. Never reduce the scope silently.
+2. When I say fix all, fix all. Nothing may be deferred or labelled out of scope, theoretical, nice to have, or a follow-up. Every defect named out loud, by you, by a review, by a skill checklist, or noticed in passing, stays in scope until it is closed. If you believe a fix is wrong to make, ask me before the work, not after. Handing back a list of what you did not do is not an acceptable ending.
+3. Run the anti-laziness check before calling anything done. Did I take a shortcut I would object to, disable a check, skip a test, pin an old version, leave an unrequested placeholder, claim success without verifying, or quietly accept technical debt. Any yes means it is not done.
+4. Make surgical changes. Touch only what the task needs, do not reformat or refactor unrelated code, and match the existing style even when you would write it differently. Implement only what was requested. If you think versions or unrelated things should also change, ask first.
+5. Provide long-term solutions, never temporary patches, hardcoded workarounds, or anything that bypasses the architecture, not even during debugging.
+6. Treat every result as production ready. If a feature implies its obvious companions, such as full create, read, update, and delete management, build them unless told not to.
+7. Stay consistent. New code follows the patterns already in use. If a better pattern is worth adopting, change it everywhere rather than leaving two ways to do the same thing.
+8. After presenting a plan or proposal, wait for explicit approval before changing any file. A follow-up question is not approval. For any change that touches several files or modules, give a one-line plan and wait for an explicit yes. A plan must be detailed enough to act on without more research: concrete steps, file paths, commands.
+9. When something is unclear, ask before starting, and if there are several open questions, number them and wait. Never invent facts. If a value, identifier, path, name, or rule is unknown, ask, especially for issue-tracker field values, server addresses, ports, secret names, and environment variable names. Remember the answer once given. When you must guess or rely on possibly stale information, say so and state your confidence.
+10. When a request cannot be met exactly as asked because a constraint is impossible, stop and explain, then ask whether to proceed differently. A follow-up sentence in the same message is not permission to deliver a watered-down version.
+11. Ask before any destructive or irreversible action, such as deleting files, dropping or truncating data, or rewriting history. Read the current content of a file before editing it.
+12. When I reject a change, ask why before proposing a new one.
+13. Critique your own work before presenting it. Do not refuse a task by citing model, context, or capability limits. Make a plan and carry it out.
+
+---
+
+### Verification and definition of done
+
+1. Trust no tool blindly. After an edit, confirm the changed region is saved, not the whole file, unless the tool reported success and a later check, build or test covers that change.
+2. Do not report success without verifying. Run the build, run the tests, and do a manual check where it applies.
+3. After a set of changes, review them file by file against the plan and the rules, as strictly as a senior reviewer on a pull request, and report what passed and what did not.
+4. For user-facing changes, exercise the real end-to-end flow, not just a green build, and record what you did and the outcome.
+5. A task is done only when the goal is met, no unrelated files changed, documentation is updated, the checks were run, and they pass.
+6. Do not create throwaway scripts or files just to validate the work.
+7. Never blame anything outside my code without measuring it first. This covers a third-party service being down, an endpoint being unreachable, a rate limit, an upstream bug, a broken mirror, a runner, the network, and anything else I do not control. Before you tell me the cause is external, go and check it, and show me the command and its output. No measurement means no claim.
+8. Measure the exact thing the error names, not something that resembles it. Take the identifier straight out of the failure, the full URL, the package name, the version, the host and port, and test that. A nearby path, a shorter URL, the vendor's front page, or the service status page is not the same test and its answer proves nothing about the failure in front of you. If the exact thing answers fine, say so and keep looking, because the cause is then somewhere else.
+9. If the tool you would use to check is unavailable, say that plainly and find another way to measure. Out of search budget, no credentials, no network from here, a rate-limited command: none of those turn a guess into a fact. Reach for a different route, curl instead of a search, an authenticated command line instead of a web fetch, a query against the service's own interface, and if there is genuinely no route left then tell me the claim is unverified and state your confidence, rather than presenting it as the cause.
+10. When a measurement contradicts what you already told me, correct it in your next message, in one sentence, with the new evidence. Do not let a wrong diagnosis stand because the conclusion happened to be convenient.
+
+---
+
+### No AI tells
+
+Never use an em dash (U+2014) or an en dash (U+2013). Never use a semicolon to join two clauses. Use a comma, a period, a colon, or parentheses, or split the sentence. No bold, no italic, anywhere, the status block included.
+
+No filler openers or closers such as it is worth noting, furthermore, in conclusion, ultimately. No three-beat rhythmic lists. No empty adjectives such as comprehensive, robust, seamless, leverage, delve. No narration of what you are about to do or just did. No summary or recap at the top of a reply.
+
+Never break a line inside a code block or a command, and never hard-wrap prose into narrow lines. One command per code block. Anything copyable goes in a code block. Headings start at level three. Full file paths, never labels.
+
+---
+
+### Plain, common words
+
+Write in simple, common English that a non-native reader understands at once.
+
+1. Always pick the most widely known word for a thing. Say checkout, not till. Say sales figures, not KPI. Say prescription, not Rx. Say shopping cart, not basket, when the screen calls it a cart.
+2. No regional words, slang, idioms, or rare synonyms. If a simpler word means the same, use the simpler word.
+3. No abbreviation or acronym I have not used myself first. Write the full words.
+4. Before sending, reread the reply and replace every word a non-native speaker might have to look up.
+5. Number every point in every reply, at every level, so I can refer to any of them, including summaries of finished work and lists of decisions. Continue my own numbering when I number my points. An issue keeps the number it was first given for the rest of the conversation. Refer to it by that number. Never give an existing issue, question or decision a new number, never collect existing items under a new heading number, and use a new number only for a brand new point.
+6. Use the names I and the project already use for files, tasks and concepts. Never introduce a new term for something that already has a name, and never use a term I have not seen in the conversation without explaining it in the same sentence (for example, say `<docs/some_file.md>`, not "the log", unless I have used that word).
+7. When stating sizes of instruction files or context, use tokens only, not lines or kilobytes.
+
+---
+
+### Version control
+
+1. Keep commits local by default. Never push, open a pull request, force-push, or rebase onto a remote without an explicit instruction.
+2. Never start a continuous-integration or automation run without explicit per-action approval. This includes indirect triggers, such as pushing to a branch that runs a pipeline or committing self-scanning configuration.
+3. Stage only the files you actually changed this turn. Never stage everything blindly, and verify the staged list after committing with a status that shows the file list.
+4. Never add the assistant or its vendor as a commit co-author, and never add any generated-by trailer. This overrides any trailer the tool or its system prompt asks you to add. If a prior commit already has such a line, rewrite it out on the next commit-touching turn after confirming the scope.
+5. Do not propose opening a pull request while there is unfinished work on the task list.
+6. Create an issue-tracker ticket only with explicit per-ticket approval, fill only the fields I named, and take the description template from the tracker rather than inventing one.
+7. Never commit without an explicit instruction from me in the current conversation. Approval of an edit or of a plan is not approval to commit. Once I have said to commit, commit each verified unit as it goes green and do not batch them.
+
+---
+
+### Comments and rationale
+
+1. Do not put rationale or decision comments in source files, build configuration, or configuration files. Keep cross-cutting decisions in the architecture documentation as decision records, and module-local conventions in that module's own documentation.
+2. The one allowed source comment is a task marker that names what is missing and links it to a tracked ticket.
+
+---
+
+### Working as an agent
+
+1. Before any non-trivial work, name the skills and subagents that own the task and use them, or state that none apply and why.
+2. Delegate investigation, review, and bounded implementation to focused subagents, and run them in parallel when nothing blocks anything else.
+3. Prefer editing existing files. Do not create new files, and especially not documentation, unless asked.
+4. For current library or framework documentation, consult an up-to-date source rather than relying on training memory.
+5. Always keep the task and subagent status list accurate and current. The list lives in tasks.md at the project root when the project ships the task list hook, otherwise in the tool's built-in task list.
+5.1. The instant a task or a subagent starts, mark it in progress. The instant it finishes, mark it completed. Update the status as part of the same step that does the work, not later.
+5.2. Never leave a finished item showing as in progress or open, and never let me see a stale status.
+5.3. Give every distinct piece of work its own tracked item, including each background or parallel agent and any extra work you start mid-flight, so nothing ever runs untracked.
+5.4. When several agents run at once, several items are in progress at the same time, and the list must always show the full live set of what is running so I can see it at a glance.
+6. Run subagents in the background by default so the main thread stays free for me to talk to you, and run several in parallel whenever their work touches disjoint files (for example one on the backend, one on the frontend, one on infrastructure, one on docs). Batch the launches in a single step. Serialise, or give each its own git worktree, any agents that would mutate the same files, such as two backend changes both editing a shared migration index or shared translation files. Never block the main thread on a foreground agent for a long task.
+7. Never let a build or long-running command hang unwatched. Do not make a subagent's internal build the thing you wait on. Run the full build yourself with a hard cap of about ten minutes, treat anything approaching that as stuck and diagnose it rather than waiting, and send genuinely long runs to the background and check them at most every ten minutes. After interrupting or killing an agent, clean up its orphaned processes and containers, because killing the agent does not kill the build it launched.
+8. The instant an agent finishes implementing a unit of work, verify it. Never sit on a finished result and never idle.
+8.1. If verification fails, fix it right then. A failing gate such as coverage or a lint rule means the work is not done, not that you are waiting.
+8.2. Commit a green unit only when I have said to commit in this conversation (see Version control rule 7). Once I have, commit each unit as it goes green and do not batch them.
+8.3. Always state in one line the exact thing you are currently doing or blocked on, so it is never a mystery to me what you are waiting for.
+8.4. Keep every dependent piece of work queued to start the instant its blocker clears. When a change blocks others, get it green first so the dependents can run.
+8.5. While something is blocked, make progress on anything independent rather than waiting.
+9. Make every background task locatable by name.
+9.1. State the exact task name the moment you launch it, always written in a backtick code block so it stands out, and keep that name identical to what my background-task panel shows so I can match it and close it.
+9.2. While one or more tasks are still running, the Running line of the status block that ends every reply must list those running task names, each in backticks.
+9.3. This is because stopped or finished tasks can linger as running in the panel, so I need the live names to close the right one.
+10. Before changing disks, mounts, boot, drivers, audio, displays, system packages or services on this computer, read ~/.config/agents/MACHINE.md, and add a change log entry to it for anything you change.
+
+---
+
+### Global agent setup
+
+1. The canonical folder is ~/.config/agents (Windows %USERPROFILE%\.config\agents): AGENTS.md, MACHINE.md, instructions/ (reply rules), skills/, agents/, hooks/, plugin/, bin/ (updaters).
+2. Agents reach it through links or environment variables: Claude Code through ~/.claude/CLAUDE.md importing AGENTS.md and a hook keeping the ~/.claude/skills links, Codex through CODEX_HOME=~/.config/codex, OpenCode and Kilo Code through ~/.config/opencode and ~/.config/kilo, Copilot through environment variables. The variables live in ~/.config/environment.d on Linux and in the user environment on macOS and Windows.
+3. Never edit generated copies. Change agent-standards and run the updater.
+4. Machine work starts in ~/.local/state/agents/workspace.
+5. Details: docs/GLOBAL_SETUP.md in https://github.com/Lukk17/agent-standards.
+
+---
+
+### Documentation and README standard
+
+A read-me file is the front door of a project and must always look professional.
+
+1. Write every read-me in this order, dropping a section only when it does not apply: a title with a one-line description and a small row of status badges, a short explanation of what the project is and why it exists, a copy-and-paste quick start, an architecture overview with a diagram and a few sentences, a features list, an honest comparison with alternatives that also says where the project is weaker, configuration and ports for a service, a documentation map, and the license.
+2. Show the architecture as a diagram drawn in text so it stays in version control, and add a second diagram for the path of one typical request in a service.
+3. Keep counts and other changing numbers in the badges only, never written into the prose where they go stale.
+4. Use real, copy-and-paste commands, one per code block, with a PowerShell version and a Unix-shell version.
+5. Write in a plain human voice, follow the formatting and markdown style section above, and end with a documentation map that links to every document the project ships.
+6. The result must always look polished and professional.
+
+---
+
+### Interrupt rule
+
+A user message interrupts everything. Answer questions before any further tool call, then resume interrupted work. Run long work in background subagents so the main thread stays free.
+
+1. Never merge any branch into master or any other branch, never propose a merge, only the user merges.
+2. Never push to any remote, never open pull requests, local commits only, unless the user explicitly names the push in the current conversation.

@@ -1,0 +1,272 @@
+# MACHINE.md
+
+Facts about one specific computer, for an agent that is about to change something on it. Copy this template to `~/.config/agents/MACHINE.md` on Linux and macOS, or `%USERPROFILE%\.config\agents\MACHINE.md` on Windows, then fill it by running [bootstrap-machine.prompt.md](bootstrap-machine.prompt.md) in any agent.
+
+The file is not loaded into every session. The global instruction file (`~/.claude/CLAUDE.md`, which Codex, OpenCode, Kilo Code and Copilot reach through their own links) carries one line pointing here, so an agent reads it only when the task touches the machine itself:
+
+```text
+Before changing disks, mounts, boot, drivers, audio, displays, system packages or services on this computer, read ~/.config/agents/MACHINE.md, and add a change log entry to it for anything you change.
+```
+
+Rules for whoever edits this file:
+
+1. Every row carries the command or the person it came from and the date it was true. A fact with no source is a guess.
+2. Facts the owner stated and no command can confirm are marked `owner` in the Source column. A later discovery run never overwrites them silently. It records a disagreement under Known quirks instead.
+3. Anything that needs root to read is listed under Needs root as a command for the owner. An agent never runs it.
+4. No secret goes in here: no password, recovery key, Wi-Fi passphrase, token or serial number of a credential device.
+5. The never-touch list is the most important table in the file. Read it before any storage command.
+
+Last full discovery: `<YYYY-MM-DD>` by `<agent and version>` on `<OS and version>`.
+
+---
+
+### Identity
+
+| Item | Value | Source | Verified |
+|---|---|---|---|
+| Hostname | `<hostname>` | `hostnamectl` / `scutil --get ComputerName` / `$env:COMPUTERNAME` | `<date>` |
+| Operating system | `<distribution or edition, version, build>` | | |
+| Kernel | `<version>` | | |
+| Desktop environment | `<name and version>` | | |
+| Display server | `<Wayland, X11, Quartz, DWM>` | | |
+| Login manager | `<name>` | | |
+| Primary user and groups | `<user>`, `<groups that matter: wheel, docker, libvirt>` | | |
+| Shell | `<shell and version>` | | |
+| Locale and time zone | `<LANG>`, `<zone>` | | |
+
+---
+
+### CPU
+
+| Item | Value | Source | Verified |
+|---|---|---|---|
+| Model | `<vendor model>` | | |
+| Cores and threads | `<cores>` / `<threads>` | | |
+| Frequency range | `<min>` to `<max>` MHz | | |
+| ISA level or notable flags | `<x86-64-v3, AVX2, AMD-V>` | | |
+| Microcode | `<version>` | | |
+| Frequency driver and governor | `<driver>`, `<governor>` | | |
+
+---
+
+### RAM
+
+| Item | Value | Source | Verified |
+|---|---|---|---|
+| Total | `<size>` | | |
+| Slots used and free | `<n of m>`, or "needs root" | `dmidecode -t memory` | |
+| Module size, type, speed, part number | `<per slot>`, or "needs root" | `dmidecode -t memory` | |
+| Swap | `<zram, file or partition, size>` | | |
+
+---
+
+### Motherboard and firmware
+
+| Item | Value | Source | Verified |
+|---|---|---|---|
+| Board vendor and model | `<vendor model>` | | |
+| Firmware vendor, version, date | `<vendor>`, `<version>`, `<date>` | | |
+| Firmware mode | `<UEFI or legacy>` | | |
+| Secure Boot | `<enabled, disabled, setup mode>` | | |
+| TPM | `<present, version>` | | |
+
+---
+
+### GPU
+
+| Item | Value | Source | Verified |
+|---|---|---|---|
+| GPU | `<model, PCI id>` | | |
+| Driver and version | `<driver>`, `<version>` | | |
+| Driver packaging | `<prebuilt module, DKMS, vendor installer>` | | |
+| VRAM | `<size>` | | |
+
+Add one row block per GPU, including an integrated one that is disabled in firmware.
+
+---
+
+### Displays
+
+| Connector | Monitor | Resolution and refresh | Scale | Position | Source | Verified |
+|---|---|---|---|---|---|---|
+| `<DP-1>` | `<vendor model, size>` | `<3840x2160@60>` | `<2>` | `<0,0>` | | |
+
+---
+
+### Storage
+
+Disks:
+
+| Device | Model | Size | Bus | Partition | Filesystem | Label or UUID | Encryption | Mount point | Source | Verified |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `<nvme0n1>` | `<model>` | `<size>` | `<nvme, sata, usb>` | `<p1>` | `<fs>` | `<label>`, `<uuid>` | `<none, LUKS, BitLocker, FileVault>` | `<path or unmounted>` | | |
+
+Mount table, as written in `/etc/fstab` or its platform equivalent:
+
+```text
+<paste the non-comment fstab lines>
+```
+
+Never touch. No agent mounts, unlocks, repairs, formats, partitions, writes to or adds to fstab any of these, for any reason, without the owner asking in the current conversation:
+
+| Device | Why | Source |
+|---|---|---|
+| `<sdX1>` | `<BitLocker, holds the owner's data>` | owner |
+
+---
+
+### Boot
+
+| Item | Value | Source | Verified |
+|---|---|---|---|
+| Bootloader | `<name and version>` | | |
+| Boot entries in order | `<entry list>` | `efibootmgr` / `bcdedit /enum` | |
+| Dual boot | `<other OS, its own EFI entry or a menu entry>` | | |
+| Kernels installed | `<main and fallback>` | | |
+| initramfs generator and hooks | `<tool, hooks>` | | |
+| Snapshot boot entries | `<yes or no, tool>` | | |
+
+---
+
+### Snapshots and backup
+
+| Item | Value | Source | Verified |
+|---|---|---|---|
+| Snapshot tool and configs | `<snapper, Timeshift, Time Machine, restore points>` | | |
+| What is covered | `<root only, home, everything>` | | |
+| Automatic triggers | `<per package transaction, timeline>` | | |
+| Off-machine backup | `<tool, target, schedule>` or `none` | owner | |
+| How to take one before a risky change | `<command for the owner>` | | |
+
+---
+
+### Network
+
+| Item | Value | Source | Verified |
+|---|---|---|---|
+| Interfaces | `<name, type, state>` | | |
+| Wi-Fi | `<adapter, network name, band>` | | |
+| Address | `<LAN address and how it is assigned>` | | |
+| DNS | `<resolver and mode>` | | |
+| VPNs | `<Tailscale, WireGuard, corporate client, and state>` | | |
+| Firewall | `<tool, active or not, rules readable or needs root>` | | |
+| Bluetooth | `<adapter, state>` | | |
+
+---
+
+### Audio
+
+| Item | Value | Source | Verified |
+|---|---|---|---|
+| Sound server | `<PipeWire and WirePlumber, PulseAudio, CoreAudio, Windows audio>` | | |
+| Cards | `<card, codec, PCI or USB id>` | | |
+| Default sink and source | `<name>` | | |
+| Custom configuration | `<file path, what it sets, why>` | | |
+
+---
+
+### Input and peripherals
+
+| Device | USB id | Driver or tool | Notes | Source | Verified |
+|---|---|---|---|---|---|
+| `<keyboard, mouse, dock, controller>` | `<vvvv:pppp>` | `<openrazer, ckb-next, vendor app>` | | | |
+
+---
+
+### Power
+
+| Item | Value | Source | Verified |
+|---|---|---|---|
+| Power profile tool and active profile | `<power-profiles-daemon balanced, powercfg scheme>` | | |
+| Profiles offered | `<list>` | | |
+| Sleep and hibernation | `<works, untested, disabled>` | owner | |
+| Scheduler or tuning daemons | `<ananicy-cpp, scx, tuned>` | | |
+
+---
+
+### Package managers and repositories
+
+| Manager | Version | Repositories or sources | Notes | Source | Verified |
+|---|---|---|---|---|---|
+| `<pacman, apt, dnf, brew, winget, choco>` | | `<repo list>` | `<upgrade rule, AUR helper>` | | |
+
+Packages installed outside the main repositories, such as AUR, PPA, casks or manual installers:
+
+```text
+<list>
+```
+
+---
+
+### Language runtimes and version managers
+
+| Runtime | Active version | Manager and other versions | Notes | Source | Verified |
+|---|---|---|---|---|---|
+| `<Python>` | `<3.x>` | `<pyenv: 3.10 to 3.13>` | `<why the global is what it is>` | | |
+
+---
+
+### Containers and virtual machines
+
+| Item | Value | Source | Verified |
+|---|---|---|---|
+| Container engine | `<Docker version, storage driver, rootless or not>` | | |
+| Compose | `<version>` | | |
+| Hypervisors | `<KVM and libvirt, Hyper-V, VirtualBox, VMware>` | | |
+| WSL distributions | `<Windows only>` | | |
+| Defined VMs | `<list or none>` | | |
+
+---
+
+### Agent tooling
+
+| Item | Value | Source | Verified |
+|---|---|---|---|
+| Agent command-line tools | `<claude, codex, opencode, kilo, copilot, with versions>` | | |
+| Global instruction file | `<path, and which agents reach it through which link>` | | |
+| Global skills, subagents, hooks | `<path, upstream commit>` | | |
+| MCP servers configured machine-wide | `<names only, never a token>` | | |
+
+---
+
+### Projects
+
+| Item | Value | Source | Verified |
+|---|---|---|---|
+| Projects folder | `<~/Projects>` | owner | |
+| Provisioning repository | `<repo that installs and configures this machine>` | owner | |
+| Administration workspace | `<repo or folder agents are started in to administer the machine>` | owner | |
+
+---
+
+### Known quirks and fixes
+
+Numbered, each with the symptom, the cause, the fix and where the fix lives, so the next agent does not rediscover it.
+
+1. `<symptom>`. Cause: `<cause>`. Fix: `<what was changed>`, in `<file>`. Verified `<date>` with `<command>`.
+
+---
+
+### Owner preferences
+
+1. `<preference an agent cannot discover, for example which shell to give commands for, or what never to install>`.
+
+---
+
+### Needs root
+
+Facts this file is missing because reading them needs elevation. The owner runs these and pastes the output, or an agent records the answer the owner gives.
+
+```text
+needs: sudo <command>   (fills: <section and row>)
+```
+
+---
+
+### Change log
+
+Newest first. Every change an agent makes or witnesses on this machine: date, what, why, how to undo.
+
+#### `<YYYY-MM-DD>`
+
+1. `<what changed>`. Why: `<reason>`. Undo: `<command or steps>`.

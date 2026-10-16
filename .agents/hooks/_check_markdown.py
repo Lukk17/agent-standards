@@ -32,8 +32,9 @@ YAML reads as an indicator, is reported as needing quotes rather than left for a
 downstream agent to choke on. GitHub Copilot refused to load two skills over
 exactly that, and the block parses as a nested mapping instead of a string.
 
-Scope: README.md, AGENTS.md.example, docs/*.md, .agents/skills/**/*.md, and
-the canonical subagents/*.md source. The four generated subagent trees
+Scope: README.md, AGENTS.md.example, docs/*.md, .agents/skills/**/*.md, the
+global install's global/*.md and global/*.md.example, and the canonical
+subagents/*.md source. The four generated subagent trees
 (.claude/agents/, .agents/agents/, .codex/agents/, .github/agents/) and the
 .opencode/agents and .kilo/agents symlinks into .agents/agents/ are NOT
 checked: they are rendered from the canonical source, so linting them would
@@ -441,19 +442,27 @@ def check_file(path: Path) -> int:
     return check_lines(lines, path) + check_front_matter(lines, path)
 
 
+def default_targets(repo_root: Path) -> list[Path]:
+    targets = [
+        repo_root / "README.md",
+        repo_root / "AGENTS.md.example",
+    ]
+    targets.extend(sorted((repo_root / "docs").glob("*.md")))
+    targets.extend(sorted((repo_root / ".agents" / "skills").glob("**/*.md")))
+    targets.extend(sorted((repo_root / "global").glob("*.md")))
+    targets.extend(sorted((repo_root / "global").glob("*.md.example")))
+    targets.extend(sorted((repo_root / "subagents").glob("*.md")))
+
+    return targets
+
+
 def main() -> int:
     repo_root = Path(__file__).resolve().parents[2]
 
     if len(sys.argv) > 1:
         targets = [Path(arg) for arg in sys.argv[1:]]
     else:
-        targets = [
-            repo_root / "README.md",
-            repo_root / "AGENTS.md.example",
-        ]
-        targets.extend(sorted((repo_root / "docs").glob("*.md")))
-        targets.extend(sorted((repo_root / ".agents" / "skills").glob("**/*.md")))
-        targets.extend(sorted((repo_root / "subagents").glob("*.md")))
+        targets = default_targets(repo_root)
 
     total = 0
     checked = 0
