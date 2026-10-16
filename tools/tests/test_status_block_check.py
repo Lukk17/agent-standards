@@ -1,6 +1,9 @@
 """Tests for the status tail hook at .agents/hooks/status_block_check.py.
 
-Driven as a subprocess with --format plain and the envelope JSON on stdin.
+Driven as a subprocess with --format plain and the envelope JSON on stdin. The
+tail shape is the one in .agents/instructions/reply-rules.md, rule 3. Only a
+user-reply event can deny, so every deny case drives one. A tool event and a
+subagent payload only log the violation, and their own cases assert that.
 """
 
 import json
@@ -12,35 +15,36 @@ from tests.process_tree import run_bounded
 
 HOOK = HOOKS_DIR / "status_block_check.py"
 
-TAIL = (
-    "---\n"
-    "\n"
-    "Skills: agent-engineer\n"
-    "\n"
-    "Owners: agent-engineer\n"
-    "\n"
-    "Status\n"
-    "\n"
-    "~~DONE: older finished task~~\n"
-    "\n"
-    "~~DONE: most recent finished task~~\n"
-    "\n"
-    "Running: nothing\n"
-    "\n"
-    "```text\n"
-    "NOW: what is being done right now\n"
-    "```\n"
-    "\n"
-    "Next: the next task\n"
-    "\n"
-    "Then: the task after that\n"
-    "\n"
-    "```text\n"
-    "State: WAITING FOR YOU\n"
-    "```\n"
-    "\n"
-    "Waiting on: nothing\n"
+REPLY_EVENT = "stop"
+TOOL_EVENT = "tool.execute.before"
+
+TASKS_LINE = "```Tasks: 1/2 completed```"
+NOW_LINE = "```NOW: what is being done right now```"
+STATE_LINE = "```State: WAITING FOR YOU```"
+
+TAIL_LINES = (
+    "---",
+    "Skills: agent-engineer",
+    "~~DONE: older finished task~~",
+    "~~DONE: most recent finished task~~",
+    NOW_LINE,
+    "Running: sandbox build (agent: `agent-engineer`)",
+    "Next: the next task",
+    "Then: the task after that",
+    STATE_LINE,
+    "Waiting on: nothing",
 )
+
+
+def tail(lines=TAIL_LINES) -> str:
+    return "\n" + "\n\n".join(lines) + "\n"
+
+
+TAIL = tail()
+
+
+def without(prefix: str) -> str:
+    return tail(tuple(line for line in TAIL_LINES if not line.startswith(prefix)))
 
 
 def run(stdin: bytes) -> subprocess.CompletedProcess:
@@ -52,10 +56,15 @@ def run(stdin: bytes) -> subprocess.CompletedProcess:
     )
 
 
-def payload(assistant_text: object, subagent: bool = False, cwd: object = REPO_ROOT) -> bytes:
+def payload(
+    assistant_text: object,
+    subagent: bool = False,
+    cwd: object = REPO_ROOT,
+    event: str = REPLY_EVENT,
+) -> bytes:
     body = {
         "contract": 3,
-        "event": "tool.execute.before",
+        "event": event,
         "tool_name": "Edit",
         "tool_input": {},
         "agent_type": "general",
@@ -69,6 +78,12 @@ def payload(assistant_text: object, subagent: bool = False, cwd: object = REPO_R
 
 def test_reply_with_full_tail_exits_zero():
     result = run(payload("Done, the build is green.\n" + TAIL))
+
+    assert result.returncode == 0
+
+
+def test_reply_with_tail_and_no_running_lines_exits_zero():
+    result = run(payload("Done.\n" + without("Running:")))
 
     assert result.returncode == 0
 
@@ -102,6 +117,14 @@ def test_subagent_payload_without_tail_exits_zero():
     result = run(payload("Done, the build is green.", subagent=True))
 
     assert result.returncode == 0
+    assert "Subagent footer note (not blocking)" in result.stderr.decode("utf-8")
+
+
+def test_tool_event_without_tail_logs_and_exits_zero():
+    result = run(payload("Done, the build is green.", event=TOOL_EVENT))
+
+    assert result.returncode == 0
+    assert "Tool-event footer note (not blocking)" in result.stderr.decode("utf-8")
 
 
 def test_corrections_plus_tail_exits_zero():
@@ -117,54 +140,49 @@ def test_fully_fenced_tail_denies():
 
 
 def test_missing_dash_run_denies():
-    tail_without_dash = "\n".join(
-        line for line in TAIL.splitlines() if line.strip() != "---"
-    ) + "\n"
-    result = run(payload("Done.\n" + tail_without_dash))
+    result = run(payload("Done.\n" + without("---")))
+
+    assert result.returncode == 2
+
+
+def test_rule_line_without_blank_line_above_denies():
+    result = run(payload("Done." + TAIL.lstrip("\n")))
 
     assert result.returncode == 2
 
 
 def test_missing_skills_line_denies():
-    tail_without_skills = "\n".join(
-        line for line in TAIL.splitlines() if not line.lstrip().startswith("Skills:")
-    ) + "\n"
-    result = run(payload("Done.\n" + tail_without_skills))
+    result = run(payload("Done.\n" + without("Skills:")))
 
     assert result.returncode == 2
 
 
-def test_missing_owners_line_denies():
-    tail_without_owners = "\n".join(
-        line for line in TAIL.splitlines() if not line.lstrip().startswith("Owners:")
-    ) + "\n"
-    result = run(payload("Done.\n" + tail_without_owners))
+def test_missing_now_line_denies():
+    result = run(payload("Done.\n" + without(NOW_LINE)))
 
     assert result.returncode == 2
 
 
-def test_missing_status_denies():
-    tail_without_status = "\n".join(
-        line for line in TAIL.splitlines() if line.strip() != "Status"
-    ) + "\n"
-    result = run(payload("Done.\n" + tail_without_status))
+def test_missing_state_line_denies():
+    result = run(payload("Done.\n" + without(STATE_LINE)))
 
     assert result.returncode == 2
 
 
-def test_state_before_status_denies_full_tail():
-    swapped = TAIL.replace("Status\n", "__STATUS__\n").replace(
-        "State: WAITING FOR YOU", "Status"
+def test_state_before_now_denies_full_tail():
+    swapped = tuple(
+        STATE_LINE if line == NOW_LINE else NOW_LINE if line == STATE_LINE else line
+        for line in TAIL_LINES
     )
-    swapped = swapped.replace("__STATUS__", "State: WAITING FOR YOU")
-    result = run(payload("Done.\n" + swapped))
+    result = run(payload("Done.\n" + tail(swapped)))
 
     assert result.returncode == 2
 
 
 def test_tasks_present_with_tasks_line_exits_zero(tmp_path):
     (tmp_path / "tasks.md").write_text("- [open] fix hook\n- [done] prior work\n", encoding="utf-8")
-    result = run(payload("Done.\n" + TAIL + "Tasks: 1/2 completed\n", cwd=str(tmp_path)))
+    with_tasks = TAIL_LINES[:2] + (TASKS_LINE,) + TAIL_LINES[2:]
+    result = run(payload("Done.\n" + tail(with_tasks), cwd=str(tmp_path)))
 
     assert result.returncode == 0
 

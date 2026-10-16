@@ -247,9 +247,9 @@ Each agent wires that same script through its own hook surface:
 
 | Agent | Where the hooks live | What it can stop |
 | --- | --- | --- |
-| Claude Code | [.claude/settings.json](../.claude/settings.json) | blocks the tool call, injects the gate at session start and every turn, tells a subagent to do its task itself on subagent start, lints markdown after an edit, blocks a reply on `Stop` and `SubagentStop`, and mirrors the task list |
+| Claude Code | [.claude/settings.json](../.claude/settings.json) | blocks the tool call, injects the gate at session start and every turn, tells a subagent to do its task itself on subagent start, lints markdown after an edit, blocks a main-thread reply on `Stop`, and mirrors the task list |
 | Codex | inline `[[hooks.*]]` tables in [.codex/config.toml](../.codex/config.toml) | blocks the tool call, injects the gate every turn, tells a subagent to do its task itself on subagent start, runs the formatting check on `Stop`, and seeds the task list at session start |
-| OpenCode | plugin [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), declared in [opencode.json](../opencode.json) | blocks the tool call, injects the gate on every main-thread prompt through `chat.message` and the subagent text in a subagent's session |
+| OpenCode | plugin [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), declared by its directory in [opencode.json](../opencode.json), serving 1.x and 2.x | blocks the tool call, injects the gate on every main-thread prompt through `chat.message` and the subagent text in a subagent's session |
 | Kilo Code | the same plugin, the same declaration | blocks the tool call, injects the gate on every main-thread prompt through `chat.message` and the subagent text in a subagent's session |
 | GitHub Copilot | [.github/hooks/preflight.json](../.github/hooks/preflight.json) | fires on the tool call but always allows, caller identity is always unknown there; injects the gate at session start and on every prompt through `userPromptTransformed`, and tells a subagent to do its task itself on subagent start |
 
@@ -261,7 +261,7 @@ Every one of those wirings anchors the gate at the project root before calling i
 used to resolve the relative script path to nothing, and Python exits 2 when it cannot open the file it was handed,
 which is the deny code, so the gate blocked every tool call instead of allowing them. Claude Code uses
 `${CLAUDE_PROJECT_DIR}`, Codex resolves the git root, Copilot sets `"cwd": "."`, and the plugin takes the runtime's
-`worktree`. A missing or broken script now allows: the three JSON formats deny with exit 0 on stdout and never use a
+`worktree` while it is a git root holding the folder the session started in, and that start folder otherwise, because OpenCode 1.x and Kilo Code name `/` as the worktree outside a git repository. A missing or broken script now allows: the three JSON formats deny with exit 0 on stdout and never use a
 non-zero exit, so any non-zero exit is an error and is thrown away, and the plugin reads each hook file before spawning
 it.
 

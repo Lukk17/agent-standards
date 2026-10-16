@@ -13,10 +13,13 @@
 //     "wrapped": false,
 //     "path": "<PATH for the spawned hooks, optional>",
 //     "home": "<home directory the plugin and its hooks see, optional>",
+//     "directory": "<start folder handed to server(), optional, root when absent>",
+//     "worktree": "<worktree handed to server(), optional, none when absent>",
 //     "steps": [
 //       {"kind": "call",  "input": {...}, "output": {...}, "messages": [...]},
 //       {"kind": "message", "input": {...}, "output": {...}},
 //       {"kind": "text", "input": {...}, "output": {"text": "..."}},
+//       {"kind": "todo", "input": {"todos": [...]}},
 //       {"kind": "lookups"},
 //       {"kind": "fetches"},
 //       {"kind": "write", "path": "relative/name.py", "content": "..."},
@@ -92,8 +95,61 @@ const get = async ({ path } = {}) => {
 }
 
 const client = { session: { messages: list, get } }
-const hooks = await plugin.default({ directory: job.root, client })
-const handler = hooks["tool.execute.before"]
+
+// The default export is { id, server, setup }. OpenCode 1.x and Kilo Code call
+// server(), OpenCode 2.x calls setup(), and "v2": true drives the second the
+// way 2.x does: one execute.before callback, session.get({ sessionID }) and
+// session.context({ sessionID }) on the context, and the tool arguments on
+// the event itself.
+const entry = plugin.default
+let hooks = {}
+let handler = null
+
+if (job.v2) {
+  const registered = {}
+  const ctx = {
+    location: { project: { directory: job.root }, directory: job.root },
+    session: {
+      get: async ({ sessionID } = {}) => {
+        lookups++
+
+        const session = sessions[sessionID]
+
+        if (!session) throw new Error("no such session: " + sessionID)
+
+        return session
+      },
+      context: async () => messages,
+      hook: async (name, callback) => {
+        registered["session." + name] = callback
+      },
+    },
+    tool: {
+      hook: async (name, callback) => {
+        registered[name] = callback
+      },
+    },
+  }
+
+  await entry.setup(ctx)
+  hooks = Object.fromEntries(
+    Object.keys(registered).map((name) => [name.startsWith("session.") ? name : "tool." + name, registered[name]]),
+  )
+
+  const callback = registered["execute.before"]
+
+  handler = callback
+    ? (input, output) =>
+        callback({ sessionID: input?.sessionID, tool: input?.tool, agent: input?.agent, input: output?.args })
+    : null
+} else {
+  const server = typeof entry === "function" ? entry : entry.server
+
+  const worktree = typeof job.worktree === "string" ? { worktree: job.worktree } : {}
+
+  hooks = await server({ directory: job.directory ?? job.root, ...worktree, client })
+  handler = hooks["tool.execute.before"]
+}
 
 const results = []
 
@@ -128,6 +184,15 @@ for (const step of job.steps) {
     continue
   }
 
+  if (step.kind === "context") {
+    const event = { system: [], ...(step.sessionID ? { sessionID: step.sessionID } : {}) }
+    const callback = hooks["session.context"]
+
+    if (typeof callback === "function") await callback(event)
+    results.push({ ok: true, system: event.system })
+    continue
+  }
+
   if (step.kind === "message") {
     const output = step.output ?? {}
 
@@ -138,6 +203,19 @@ for (const step of job.steps) {
 
     await hooks["chat.message"](step.input ?? {}, output)
     results.push({ ok: true, parts: output.parts ?? null })
+    continue
+  }
+
+  if (step.kind === "todo") {
+    const callback = hooks["todo.updated"]
+
+    try {
+      if (typeof callback === "function") await callback(step.input ?? {}, step.output ?? {})
+      results.push({ ok: true })
+    } catch (error) {
+      results.push({ ok: false, error: String(error?.message ?? error) })
+    }
+
     continue
   }
 

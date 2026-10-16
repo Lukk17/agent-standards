@@ -47,10 +47,10 @@ Each agent wires that one script, and the hooks beside it, to its own hook surfa
 | --- | --- | --- |
 | Claude Code | [.claude/settings.json](.claude/settings.json) | `^(Edit\|Write\|MultiEdit\|NotebookEdit\|Bash\|PowerShell\|WebFetch\|WebSearch)$` |
 | Codex | inline `[[hooks.*]]` tables in [.codex/config.toml](.codex/config.toml) | `^(Bash\|shell\|apply_patch\|Edit\|Write\|NotebookEdit)$` |
-| OpenCode and Kilo Code | [.agents/plugin/hooks.js](.agents/plugin/hooks.js), declared once by path in the `plugin` array of [opencode.json](opencode.json), which both tools read | none, every tool call |
+| OpenCode 1.x and 2.x, Kilo Code | [.agents/plugin/hooks.js](.agents/plugin/hooks.js), one default export `{ id, server, setup }`, declared by its directory `./.agents/plugin` in the `plugin` array of [opencode.json](opencode.json) | none, every tool call |
 | GitHub Copilot | [.github/hooks/preflight.json](.github/hooks/preflight.json) | `bash\|powershell\|create\|edit\|apply_patch` |
 
-Verified against Claude Code 2.1.281, Codex 0.156.1, OpenCode 1.18.32, and Kilo Code 7.7.9. GitHub Copilot CLI was
+Verified against Claude Code 2.1.281, Codex 0.156.1, OpenCode 1.18.32, and Kilo Code 7.7.9. The dual-format plugin was measured on OpenCode 1.19.0 and 2.0.26 and Kilo Code 7.8.9. GitHub Copilot CLI was
 last verified on 1.0.81 and is not installed here, so nothing above was re-measured against it.
 
 ---
@@ -68,12 +68,12 @@ script and must never be hand-edited, and some are symlinks the generator create
 | --- | --- | --- |
 | `subagents/*.md` | canonical | edit directly, then regenerate |
 | `.agents/skills/*/SKILL.md` and its `references/*.md` | canonical | edit directly, keep the manifest short and the depth in `references/` |
-| `.agents/hooks/preflight_gate.py`, `.agents/hooks/no_ai_markers_check.py`, `.agents/hooks/task_list_sync.py`, `.agents/hooks/markdown_lint_check.py`, `.agents/hooks/_check_markdown.py`, `.agents/hooks/question_numbering_check.py`, `.agents/hooks/status_block_check.py`, `.agents/hooks/task_watchdog.py`, `.agents/hooks/copilot/prompt_reminder.py` | canonical | edit directly, then run the pytest suite |
+| `.agents/hooks/preflight_gate.py`, `.agents/hooks/no_ai_markers_check.py`, `.agents/hooks/task_list_sync.py`, `.agents/hooks/markdown_lint_check.py`, `.agents/hooks/_check_markdown.py`, `.agents/hooks/question_numbering_check.py`, `.agents/hooks/status_block_check.py`, `.agents/hooks/task_watchdog.py`, `.agents/hooks/copilot/prompt_reminder.py`, `.agents/hooks/claude/sync_skill_links.py` | canonical | edit directly, then run the pytest suite |
 | `tasks.md` | runtime state, git-ignored | written by the hook and by the model, never committed |
-| `.agents/plugin/hooks.js` | canonical | edit directly |
+| `.agents/plugin/hooks.js`, `.agents/plugin/index.js` | canonical | edit directly, `index.js` only re-exports |
 | `AGENTS.md.example`, `docs/*.md` | canonical | edit directly |
 | `tools/*.py`, `tools/tests/*.py`, `tools/pyproject.toml` | canonical | edit directly, then run the pytest suite |
-| `global/bin/update-global.sh`, `global/bin/update-global.ps1` | canonical, shipped only by the global install to `~/.agents/bin` | edit both together, then run `python -m pytest tools/tests/test_update_global.py` |
+| `global/bin/update-global.sh`, `global/bin/update-global.ps1` | canonical, shipped only by the global install to `~/.config/agents/bin` | edit both together, then run `python -m pytest tools/tests/test_update_global.py` |
 | `main-thread-allowlist.txt` | canonical, this repo only, never shipped | edit directly, then run `python -m pytest tools/` |
 | `.claude/agents/*.md` | generated (Claude front matter with a `skills` key) | never hand-edit, run the generator |
 | `.agents/agents/*.md` | generated (OpenCode format) | never hand-edit, run the generator |
@@ -188,6 +188,9 @@ scripts, `bash` and `powershell` the update scripts in [docs/AGENTS-UPDATE.md](d
   Recheck each CLI release, and remove that marker in the same change that sees the block gone.
 - **Whether a Codex `Stop` hook can reject a reply is not measured.** Confirm it and say so plainly here. The markdown
   lint stays Claude-only, because Codex has no post-tool event.
+- **Reply rules outside OpenCode.** OpenCode 2.x gets `.agents/instructions/reply-rules.md` from the plugin's session
+  `context` hook, main thread only, and 1.x and Kilo Code from `instructions`. TODO: decide how a global install loads them on Claude
+  Code, Codex and Copilot, keeping them out of `AGENTS.md`, and document it in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md).
 - **JetBrains Copilot MCP is global-only and undocumented,** read from `~/.config/github-copilot/intellij/mcp.json`,
   so no JetBrains MCP file ships here. Ship one if GitHub documents a per-project path
   (`https://docs.github.com/en/copilot/how-tos/provide-context/use-mcp/extend-copilot-chat-with-mcp`).

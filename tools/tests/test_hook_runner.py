@@ -166,12 +166,14 @@ def isolated_home(root):
     return home
 
 
-def drive(root, steps, sessions=None, wrapped=False, path=None, home=None):
+def drive(root, steps, sessions=None, wrapped=False, path=None, home=None, directory=None, worktree=None):
     """Run the scripted steps against one plugin instance and return results.
 
     Args:
         path: the PATH the plugin spawns hooks under, the driver's own when None.
         home: the home directory the plugin sees, an empty one beside root when None.
+        directory: the start folder server() is handed, root when None.
+        worktree: the worktree server() is handed, none at all when None.
     """
     job = {
         "plugin": str(PLUGIN),
@@ -181,6 +183,8 @@ def drive(root, steps, sessions=None, wrapped=False, path=None, home=None):
         "steps": steps,
         "home": str(home if home is not None else isolated_home(root)),
         **({} if path is None else {"path": path}),
+        **({} if directory is None else {"directory": str(directory)}),
+        **({} if worktree is None else {"worktree": str(worktree)}),
     }
 
     result = run_bounded(
@@ -356,7 +360,7 @@ def test_missing_hooks_directory_allows(tmp_path):
 
 
 # A project without its own .agents/hooks/ falls back to the global install
-# under ~/.agents/hooks/, unless it holds the opt-out file.
+# under ~/.config/agents/hooks/, unless it holds the opt-out file.
 
 OPT_OUT = (".agents", "no-global-hooks")
 
@@ -364,7 +368,7 @@ OPT_OUT = (".agents", "no-global-hooks")
 def global_home(tmp_path):
     """A home directory holding a global hooks directory, and that directory."""
     home = tmp_path / "home"
-    hooks = home / ".agents" / "hooks"
+    hooks = home / ".config" / "agents" / "hooks"
     hooks.mkdir(parents=True)
 
     return home, hooks
@@ -426,7 +430,7 @@ def test_a_project_without_hooks_falls_back_to_the_global_ones(tmp_path):
 
 
 def test_the_shipped_gate_installed_globally_protects_a_bare_project(tmp_path):
-    # Given the shipped gate under ~/.agents/hooks/ and a project that imported nothing
+    # Given the shipped gate under ~/.config/agents/hooks/ and a project that imported nothing
     project = tmp_path / "project"
     project.mkdir()
     home, hooks = global_home(tmp_path)
@@ -441,6 +445,191 @@ def test_the_shipped_gate_installed_globally_protects_a_bare_project(tmp_path):
     assert results[0]["ok"] is False
     assert "src/app.py" in results[0]["error"]
     assert results[1] == {"ok": True}
+
+
+# OpenCode 1.x and Kilo Code hand server() the start folder as `directory` and
+# the project as `worktree`, which is "/" outside a git repository. The root is
+# the worktree only while it is a git root holding the start folder, and the
+# start folder otherwise, the folder Claude Code, Codex and OpenCode 2.x use.
+NO_GIT_WORKTREE = "/"
+
+
+def git_repository(path, git_entry_is_file=False):
+    """A directory that passes for a git root: .git as a directory, or as the file a linked worktree has."""
+    path.mkdir(parents=True, exist_ok=True)
+
+    if git_entry_is_file:
+        (path / ".git").write_text("gitdir: /elsewhere/.git/worktrees/linked\n", encoding="utf-8")
+    else:
+        (path / ".git").mkdir()
+
+    return path
+
+
+def test_a_session_started_deeper_in_a_git_repository_runs_from_its_worktree(tmp_path):
+    # Given a git repository whose hooks sit at its root, and a session started two levels down
+    project = git_repository(tmp_path / "project")
+    start = project / "src" / "app"
+    start.mkdir(parents=True)
+    log = tmp_path / "log.jsonl"
+    recorder(project, "project_hook.py", 10, log, deny=True)
+
+    # When
+    results = drive(project, [call()], directory=start, worktree=project)
+
+    # Then the root hooks ran, against the worktree
+    assert results == [{"ok": False, "error": "denied by project_hook.py"}]
+    assert read_log(log)[0]["envelope"]["cwd"] == str(project)
+
+
+def test_a_linked_git_worktree_whose_git_entry_is_a_file_keeps_its_worktree(tmp_path):
+    # Given a linked worktree, whose .git is a file rather than a directory
+    project = git_repository(tmp_path / "linked", git_entry_is_file=True)
+    start = project / "docs"
+    start.mkdir()
+    log = tmp_path / "log.jsonl"
+    recorder(project, "project_hook.py", 10, log)
+
+    # When
+    results = drive(project, [call()], directory=start, worktree=project)
+
+    # Then
+    assert results == [{"ok": True}]
+    assert read_log(log)[0]["envelope"]["cwd"] == str(project)
+
+
+def test_a_start_folder_reached_through_a_link_still_counts_as_inside_its_git_worktree(tmp_path):
+    # Given a git repository, and a start folder spelled through a link to it
+    project = git_repository(tmp_path / "project")
+    (project / "src").mkdir()
+    alias = tmp_path / "alias"
+    alias.symlink_to(project, target_is_directory=True)
+    log = tmp_path / "log.jsonl"
+    recorder(project, "project_hook.py", 10, log)
+
+    # When
+    results = drive(project, [call()], directory=alias / "src", worktree=project)
+
+    # Then the worktree is still the root
+    assert results == [{"ok": True}]
+    assert read_log(log)[0]["envelope"]["cwd"] == str(project)
+
+
+def test_a_session_started_outside_a_git_repository_uses_its_start_folder(tmp_path):
+    # Given a folder that is no git repository and ships its own hooks
+    start = tmp_path / "machine-work"
+    log = tmp_path / "log.jsonl"
+    recorder(start, "start_hook.py", 10, log, deny=True)
+
+    # When the runtime names "/" as the worktree
+    results = drive(start, [call()], directory=start, worktree=NO_GIT_WORKTREE)
+
+    # Then the start folder's hooks ran, against the start folder
+    assert results == [{"ok": False, "error": "denied by start_hook.py"}]
+    assert read_log(log)[0]["envelope"]["cwd"] == str(start)
+
+
+def test_outside_a_git_repository_the_global_hooks_run_against_the_start_folder(tmp_path):
+    # Given a start folder with no hooks, no git repository, and a global install
+    start = tmp_path / "machine-work"
+    start.mkdir()
+    log = tmp_path / "log.jsonl"
+    home, hooks = global_home(tmp_path)
+    global_recorder(hooks, "global_hook.py", log)
+
+    # When
+    results = drive(start, [call()], home=home, directory=start, worktree=NO_GIT_WORKTREE)
+
+    # Then
+    assert results == [{"ok": True}]
+    assert read_log(log)[0]["envelope"]["cwd"] == str(start)
+
+
+def test_a_worktree_that_is_no_git_root_yields_to_the_start_folder(tmp_path):
+    # Given a worktree with no .git entry at all
+    worktree = tmp_path / "plain"
+    start = worktree / "inner"
+    log = tmp_path / "log.jsonl"
+    recorder(start, "start_hook.py", 10, log)
+
+    # When
+    results = drive(start, [call()], directory=start, worktree=worktree)
+
+    # Then
+    assert results == [{"ok": True}]
+    assert read_log(log)[0]["envelope"]["cwd"] == str(start)
+
+
+def test_a_git_root_that_does_not_hold_the_start_folder_yields_to_it(tmp_path):
+    # Given a git root beside the start folder rather than above it
+    other = git_repository(tmp_path / "other")
+    start = tmp_path / "machine-work"
+    log = tmp_path / "log.jsonl"
+    recorder(other, "other_hook.py", 10, log, deny=True)
+    recorder(start, "start_hook.py", 10, log)
+
+    # When
+    results = drive(start, [call()], directory=start, worktree=other)
+
+    # Then
+    assert results == [{"ok": True}]
+    assert hooks_run(log) == ["start_hook.py"]
+    assert read_log(log)[0]["envelope"]["cwd"] == str(start)
+
+
+def test_the_shipped_gate_outside_git_protects_the_start_folder_and_not_the_whole_disk(tmp_path):
+    # Given the shipped gate installed globally and a start folder that is no git repository
+    start = tmp_path / "machine-work"
+    start.mkdir()
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    home, hooks = global_home(tmp_path)
+    shutil.copy(PREFLIGHT_GATE, hooks / PREFLIGHT_GATE.name)
+
+    # When the main thread writes inside the start folder, then outside it
+    edit_inside = call(tool="Edit", args={"file_path": str(start / "notes.md")}, session=ROOT_SESSION)
+    edit_outside = call(tool="Edit", args={"file_path": str(elsewhere / "notes.md")}, session=ROOT_SESSION)
+    results = drive(start, [edit_inside, edit_outside], home=home, directory=start, worktree=NO_GIT_WORKTREE)
+
+    # Then only the start folder is the project
+    assert results[0]["ok"] is False
+    assert "may not write files directly" in results[0]["error"]
+    assert results[1] == {"ok": True}
+
+
+def test_a_session_started_in_home_outside_git_never_makes_home_a_project_for_the_task_list(tmp_path, monkeypatch):
+    # Given the task list hook installed globally and a session started in home, which is no git repository
+    monkeypatch.delenv("XDG_STATE_HOME", raising=False)
+    home, hooks = global_home(tmp_path)
+    shutil.copy(TASK_LIST_SYNC_HOOK, hooks / TASK_LIST_SYNC_HOOK.name)
+    todos = [{"content": "fix the hook", "status": "in_progress"}]
+
+    # When the runtime reports a todo update
+    results = drive(home, [{"kind": "todo", "input": {"todos": todos}}], home=home, directory=home, worktree=NO_GIT_WORKTREE)
+
+    # Then the list lands in the state directory and nothing lands in home
+    assert results == [{"ok": True}]
+    assert (home / ".local" / "state" / "agents" / "tasks.md").is_file()
+    assert not (home / "tasks.md").exists()
+    assert not (home / "tasks.widget.json").exists()
+
+
+def test_the_legacy_home_hooks_directory_is_no_longer_read(tmp_path):
+    # Given hooks left in ~/.agents/hooks by the layout before the migration
+    project = tmp_path / "project"
+    project.mkdir()
+    log = tmp_path / "log.jsonl"
+    home = tmp_path / "home"
+    legacy = home / ".agents" / "hooks"
+    legacy.mkdir(parents=True)
+    global_recorder(legacy, "legacy_hook.py", log, deny=True)
+
+    # When
+    results = drive(project, [call()], home=home)
+
+    # Then
+    assert results == [{"ok": True}]
+    assert hooks_run(log) == []
 
 
 def test_no_project_hooks_and_no_global_hooks_allows(tmp_path):
@@ -699,7 +888,8 @@ def test_envelope_carries_the_documented_fields(tmp_path):
     assert envelope["tool_input"] == {"file_path": "src/app.py"}
     assert envelope["agent_type"] == "python-pro"
     assert envelope["is_subagent"] is True
-    assert envelope["assistant_text"] == "Hello."
+    # A subagent's prose is never handed to the reply checks, so the field is present and empty.
+    assert envelope["assistant_text"] == ""
     assert envelope["cwd"] == str(tmp_path)
 
 
@@ -1155,12 +1345,44 @@ def test_a_child_session_message_gets_no_subagent_text(tmp_path):
     assert parts == [typed]
 
 
-def test_the_hooks_object_exposes_exactly_two_keys(tmp_path):
+def test_the_hooks_object_exposes_exactly_three_keys(tmp_path):
     # When
     results = drive(tmp_path, [{"kind": "keys"}])
 
-    # Then no chat.message handler remains
-    assert sorted(results[0]["keys"]) == ["experimental.text.complete", "tool.execute.before"]
+    # Then no chat.message handler remains, and todo.updated feeds the task list sync
+    assert sorted(results[0]["keys"]) == ["experimental.text.complete", "todo.updated", "tool.execute.before"]
+
+
+def test_a_todo_update_hands_every_hook_the_todo_list(tmp_path):
+    # Given
+    log = tmp_path / "log.jsonl"
+    recorder(tmp_path, "a_first.py", 10, log)
+    recorder(tmp_path, "b_second.py", 20, log, deny=True)
+    todos = [{"content": "fix hook", "status": "in_progress"}]
+
+    # When
+    results = drive(tmp_path, [{"kind": "todo", "input": {"todos": todos}}])
+
+    # Then every hook sees it, and a hook exiting 2 blocks nothing
+    entries = read_log(log)
+
+    assert results == [{"ok": True}]
+    assert [entry["hook"] for entry in entries] == ["a_first.py", "b_second.py"]
+    assert entries[0]["envelope"]["tool_name"] == "todo"
+    assert entries[0]["envelope"]["tool_input"] == {"todos": todos}
+
+
+def test_an_empty_todo_update_runs_no_hook(tmp_path):
+    # Given
+    log = tmp_path / "log.jsonl"
+    recorder(tmp_path, "a_first.py", 10, log)
+
+    # When
+    results = drive(tmp_path, [{"kind": "todo", "input": {"todos": []}}])
+
+    # Then
+    assert results == [{"ok": True}]
+    assert hooks_run(log) == []
 
 
 def test_a_prompt_in_a_session_that_cannot_be_placed_gets_no_reminder(tmp_path):
@@ -1208,10 +1430,10 @@ sys.exit({code})
 """
 
 
-def finished_text(text):
+def finished_text(text, session=ROOT_SESSION):
     return {
         "kind": "text",
-        "input": {"sessionID": ROOT_SESSION, "messageID": "msg_1", "partID": "prt_1"},
+        "input": {"sessionID": session, "messageID": "msg_1", "partID": "prt_1"},
         "output": {"text": text},
     }
 
@@ -1225,6 +1447,128 @@ def test_the_shipped_formatting_check_fixes_a_finished_text_part(tmp_path):
 
     # Then
     assert results == [{"ok": True, "text": "The plan is simple, delegate now."}]
+
+
+SUBAGENT_PROSE = "The plan is simple — delegate the work; Should I go on?"
+
+
+def test_a_subagent_session_text_part_is_left_as_written(tmp_path):
+    # Given the shipped hooks and a finished part from a child session
+    real_hooks(tmp_path)
+
+    # When
+    results = drive(tmp_path, [finished_text(SUBAGENT_PROSE, session=CHILD_SESSION)])
+
+    # Then nobody reads a subagent's reply style, so nothing rewrote it
+    assert results == [{"ok": True, "text": SUBAGENT_PROSE}]
+
+
+def test_a_wrapped_subagent_session_reply_still_leaves_the_text_part_alone(tmp_path):
+    # Given session.get answering wrapped in { data }, as OpenCode 1.19.0 and Kilo Code 7.8.9 were measured to
+    real_hooks(tmp_path)
+
+    # When
+    results = drive(tmp_path, [finished_text(SUBAGENT_PROSE, session=CHILD_SESSION)], wrapped=True)
+
+    # Then
+    assert results == [{"ok": True, "text": SUBAGENT_PROSE}]
+
+
+@pytest.mark.parametrize("session", ["unknown", ""], ids=["lookup-throws", "no-session-id"])
+def test_a_text_part_in_a_session_that_cannot_be_placed_is_still_fixed(tmp_path, session):
+    # Given
+    real_hooks(tmp_path)
+
+    # When
+    results = drive(tmp_path, [finished_text("The plan is simple — delegate **now**.", session=session)])
+
+    # Then an unplaced session is the main thread for reply style, never a subagent
+    assert results == [{"ok": True, "text": "The plan is simple, delegate now."}]
+
+
+def test_a_text_part_with_no_text_hook_makes_no_session_lookup(tmp_path):
+    # Given a hook that does not take the text event
+    recorder(tmp_path, "watcher.py", 10, tmp_path / "log.jsonl")
+
+    # When
+    results = drive(tmp_path, [finished_text("Some prose.", session=CHILD_SESSION), {"kind": "lookups"}])
+
+    # Then
+    assert results[-1] == {"ok": True, "count": 0}
+
+
+def test_a_subagent_session_hands_no_reply_text_to_the_hooks(tmp_path):
+    # Given a reply-style hook and a subagent whose prose would fail it
+    log = tmp_path / "log.jsonl"
+    recorder(tmp_path, "check.py", 10, log)
+
+    # When the subagent calls a tool
+    drive(tmp_path, [call(tool="Read", agent="docs-architect", text=SUBAGENT_PROSE)])
+
+    # Then the hooks still run, for the gate, with the agent named but no assistant text to check
+    envelope = read_log(log)[0]["envelope"]
+
+    assert (envelope["is_subagent"], envelope["agent_type"], envelope["assistant_text"]) == (
+        True,
+        "docs-architect",
+        "",
+    )
+
+
+def test_the_shipped_reply_checks_let_subagent_prose_through(tmp_path):
+    # Given
+    real_hooks(tmp_path)
+
+    # When
+    step = call(tool="Read", args={"file_path": "README.md"}, agent="docs-architect", text=SUBAGENT_PROSE)
+    results = drive(tmp_path, [step])
+
+    # Then
+    assert results == [{"ok": True}]
+
+
+def test_the_shipped_reply_checks_still_block_the_same_prose_on_the_main_thread(tmp_path):
+    # Given
+    real_hooks(tmp_path)
+
+    # When
+    results = drive(tmp_path, [call(tool="Read", args={"file_path": "README.md"}, text=SUBAGENT_PROSE)])
+
+    # Then
+    assert results[0]["ok"] is False
+    assert "Formatting violation" in results[0]["error"]
+
+
+def test_a_session_that_cannot_be_placed_still_hands_its_reply_text(tmp_path):
+    # Given
+    log = tmp_path / "log.jsonl"
+    recorder(tmp_path, "check.py", 10, log)
+
+    # When
+    drive(tmp_path, [call(tool="Read", session="unknown", text=SUBAGENT_PROSE)])
+
+    # Then
+    envelope = read_log(log)[0]["envelope"]
+
+    assert "is_subagent" not in envelope
+    assert envelope["assistant_text"] == SUBAGENT_PROSE
+
+
+def test_the_shipped_gate_still_applies_rule_b_to_a_subagent_session(tmp_path):
+    # Given a subagent whose definition declares no skills
+    real_hooks(tmp_path)
+    agents = tmp_path / ".agents" / "agents"
+    agents.mkdir(parents=True)
+    (agents / "no-skills-probe.md").write_text(
+        "---\ndescription: Fixture with no skills.\nmode: subagent\n---\n\nNo skills here.\n", encoding="utf-8"
+    )
+
+    # When it calls a tool after prose the reply checks would have refused
+    results = drive(tmp_path, [call(tool="Read", agent="no-skills-probe", text=SUBAGENT_PROSE)])
+
+    # Then the gate still refuses it, for its own reason
+    assert results[0]["ok"] is False
+    assert "declares no skills" in results[0]["error"]
 
 
 def test_every_hook_that_declares_the_text_event_sees_it(tmp_path):
@@ -1431,3 +1775,263 @@ def test_project_plugin_copy_still_exposes_the_gate(tmp_path):
     # Then the gate handler is exposed and denies
     assert "tool.execute.before" in results[0]["keys"]
     assert results[1] == {"ok": False, "error": "denied by gate.py"}
+
+
+def home_with_linked_agents_directory(tmp_path):
+    """A home whose ~/.agents links to the global install in ~/.config/agents."""
+    home = tmp_path / "home"
+    installed = home / ".config" / "agents"
+    (installed / "plugin").mkdir(parents=True)
+    shutil.copy(PLUGIN, installed / "plugin" / "hooks.js")
+    (home / ".agents").symlink_to(installed, target_is_directory=True)
+    recorder(home, "gate.py", 10, tmp_path / "log.jsonl", deny=True)
+
+    return home, installed / "plugin" / "hooks.js"
+
+
+def test_global_plugin_started_in_home_does_not_stand_down_for_a_linked_copy_of_itself(tmp_path):
+    # Given ~/.agents is a link to ~/.config/agents, so home appears to ship the global plugin
+    home, global_plugin = home_with_linked_agents_directory(tmp_path)
+
+    # When the global copy serves a session started in home
+    results = drive_with_plugin(home, global_plugin, [{"kind": "keys"}, call()], home=home)
+
+    # Then it keeps the gate, because the "project" copy is the same file
+    assert "tool.execute.before" in results[0]["keys"]
+    assert results[1] == {"ok": False, "error": "denied by gate.py"}
+
+
+def test_opencode_2_global_plugin_started_in_home_does_not_stand_down_for_a_linked_copy_of_itself(tmp_path):
+    # Given
+    home, global_plugin = home_with_linked_agents_directory(tmp_path)
+    job = {
+        "plugin": str(global_plugin),
+        "root": str(home),
+        "sessions": SESSIONS,
+        "v2": True,
+        "steps": [{"kind": "keys"}, v2_call()],
+        "home": str(home),
+    }
+
+    # When
+    result = run_bounded([NODE, str(RUNNER_DRIVER)], input=json.dumps(job), capture_output=True, text=True, encoding="utf-8")
+
+    # Then
+    assert result.returncode == 0, result.stderr
+    keys, outcome = json.loads(result.stdout)
+    assert keys["keys"] != []
+    assert outcome == {"ok": False, "error": "denied by gate.py"}
+
+
+# One default export serves all three loaders: OpenCode 1.x and Kilo Code call
+# `server`, OpenCode 2.x calls `setup`. A plugin entry names the directory, so
+# index.js beside hooks.js is what each loader resolves.
+PLUGIN_INDEX = PLUGIN.parent / "index.js"
+
+
+def plugin_shape():
+    script = (
+        "const m = await import(process.argv[1]);"
+        "const d = m.default;"
+        "process.stdout.write(JSON.stringify({id: d.id, server: typeof d.server, setup: typeof d.setup}))"
+    )
+    result = run_bounded(
+        [NODE, "--input-type=module", "-e", script, PLUGIN_INDEX.as_uri()],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+    assert result.returncode == 0, result.stderr
+
+    return json.loads(result.stdout)
+
+
+def test_the_directory_entry_exports_one_object_for_every_loader():
+    assert plugin_shape() == {"id": "agent-standards.preflight", "server": "function", "setup": "function"}
+
+
+def drive_v2(root, steps, sessions=None, home=None):
+    job = {
+        "plugin": str(PLUGIN),
+        "root": str(root),
+        "sessions": SESSIONS if sessions is None else sessions,
+        "v2": True,
+        "steps": steps,
+        "home": str(home if home is not None else isolated_home(root)),
+    }
+    result = run_bounded(
+        [NODE, str(RUNNER_DRIVER)],
+        input=json.dumps(job),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+    assert result.returncode == 0, result.stderr
+
+    return json.loads(result.stdout)
+
+
+def v2_call(tool="write", args=None, session=ROOT_SESSION, text=None):
+    messages = [] if text is None else [{"type": "assistant", "content": [{"type": "text", "text": text}]}]
+
+    return {
+        "kind": "call",
+        "input": {"tool": tool, "sessionID": session},
+        "output": {"args": args if args is not None else {}},
+        "messages": messages,
+    }
+
+
+def test_opencode_2_registers_the_context_hook_and_the_tool_hook(tmp_path):
+    results = drive_v2(tmp_path, [{"kind": "keys"}])
+
+    assert sorted(results[0]["keys"]) == ["session.context", "tool.execute.before"]
+
+
+def test_opencode_2_adds_the_project_reply_rules_as_a_system_part(tmp_path):
+    # Given a project that ships its reply rules, and a global copy that must lose to it
+    rules = tmp_path / ".agents" / "instructions" / "reply-rules.md"
+    rules.parent.mkdir(parents=True)
+    rules.write_text("Project rules.\n", encoding="utf-8")
+    home = isolated_home(tmp_path)
+    global_rules = home / ".config" / "agents" / "instructions" / "reply-rules.md"
+    global_rules.parent.mkdir(parents=True)
+    global_rules.write_text("Global rules.\n", encoding="utf-8")
+
+    # When
+    results = drive_v2(tmp_path, [{"kind": "context"}], home=home)
+
+    # Then one text part carries the project file, named, and nothing else is added
+    assert results[0]["system"] == [{"type": "text", "text": f"Instructions from: {rules}\nProject rules.\n"}]
+
+
+def test_opencode_2_falls_back_to_the_global_reply_rules(tmp_path):
+    home = isolated_home(tmp_path)
+    global_rules = home / ".config" / "agents" / "instructions" / "reply-rules.md"
+    global_rules.parent.mkdir(parents=True)
+    global_rules.write_text("Global rules.\n", encoding="utf-8")
+
+    results = drive_v2(tmp_path, [{"kind": "context"}], home=home)
+
+    assert results[0]["system"] == [{"type": "text", "text": f"Instructions from: {global_rules}\nGlobal rules.\n"}]
+
+
+def test_opencode_2_adds_nothing_when_no_reply_rules_exist(tmp_path):
+    results = drive_v2(tmp_path, [{"kind": "context"}])
+
+    assert results[0]["system"] == []
+
+
+def write_global_rules(root):
+    home = isolated_home(root)
+    rules = home / ".config" / "agents" / "instructions" / "reply-rules.md"
+    rules.parent.mkdir(parents=True)
+    rules.write_text("Global rules.\n", encoding="utf-8")
+
+    return home, rules
+
+
+def test_opencode_2_adds_no_reply_rules_to_a_subagent_session(tmp_path):
+    # Given reply rules on disk and a request from a child session
+    home, _ = write_global_rules(tmp_path)
+
+    # When
+    results = drive_v2(tmp_path, [{"kind": "context", "sessionID": CHILD_SESSION}], home=home)
+
+    # Then the subagent's request carries no reply rules
+    assert results[0]["system"] == []
+
+
+def test_opencode_2_adds_the_reply_rules_to_the_main_session(tmp_path):
+    home, rules = write_global_rules(tmp_path)
+
+    results = drive_v2(tmp_path, [{"kind": "context", "sessionID": ROOT_SESSION}], home=home)
+
+    assert results[0]["system"] == [{"type": "text", "text": f"Instructions from: {rules}\nGlobal rules.\n"}]
+
+
+def test_opencode_2_still_adds_the_reply_rules_when_the_session_cannot_be_placed(tmp_path):
+    home, rules = write_global_rules(tmp_path)
+
+    results = drive_v2(tmp_path, [{"kind": "context", "sessionID": "unknown"}], home=home)
+
+    assert results[0]["system"] == [{"type": "text", "text": f"Instructions from: {rules}\nGlobal rules.\n"}]
+
+
+def test_opencode_2_hands_no_reply_text_from_a_subagent_session(tmp_path):
+    # Given a reply-style hook and a subagent whose prose would fail it
+    log = tmp_path / "log.jsonl"
+    recorder(tmp_path, "check.py", 10, log)
+
+    # When the subagent calls a tool
+    drive_v2(tmp_path, [v2_call(session=CHILD_SESSION, text="Subagent prose; unchecked.")])
+
+    # Then the hooks still run, for the gate, but see no assistant text to check
+    envelope = read_log(log)[0]["envelope"]
+    assert (envelope["is_subagent"], envelope["assistant_text"]) == (True, "")
+
+
+def test_opencode_2_denies_through_the_tool_hook(tmp_path):
+    # Given a denying hook in the project
+    log = tmp_path / "log.jsonl"
+    recorder(tmp_path, "gate.py", 10, log, deny=True)
+
+    # When
+    results = drive_v2(tmp_path, [v2_call(args={"path": "src/app.py"})])
+
+    # Then the call is refused and the hook saw the 2.x arguments and a placed root session
+    assert results == [{"ok": False, "error": "denied by gate.py"}]
+    envelope = read_log(log)[0]["envelope"]
+    assert envelope["tool_name"] == "write"
+    assert envelope["tool_input"] == {"path": "src/app.py"}
+    assert envelope["is_subagent"] is False
+    assert envelope["cwd"] == str(tmp_path)
+
+
+def test_opencode_2_places_a_child_session_as_a_subagent(tmp_path):
+    log = tmp_path / "log.jsonl"
+    recorder(tmp_path, "gate.py", 10, log)
+
+    drive_v2(tmp_path, [v2_call(session=CHILD_SESSION)])
+
+    assert read_log(log)[0]["envelope"]["is_subagent"] is True
+
+
+def test_opencode_2_hands_each_new_reply_to_the_hooks_once(tmp_path):
+    # Given two tool calls after the same assistant prose, then a third after new prose
+    log = tmp_path / "log.jsonl"
+    recorder(tmp_path, "check.py", 10, log)
+    steps = [v2_call(text="first reply"), v2_call(text="first reply"), v2_call(text="second reply")]
+
+    # When
+    drive_v2(tmp_path, steps)
+
+    # Then the formatting check sees each reply only at the next tool call, and once
+    texts = [entry["envelope"]["assistant_text"] for entry in read_log(log)]
+    assert texts == ["first reply", "", "second reply"]
+
+
+def test_opencode_2_global_copy_stands_down_when_the_project_ships_its_own(tmp_path):
+    project = tmp_path / "project"
+    own = project / ".agents" / "plugin"
+    own.mkdir(parents=True)
+    shutil.copy(PLUGIN, own / "hooks.js")
+    recorder(project, "gate.py", 10, tmp_path / "log.jsonl", deny=True)
+    global_plugin = tmp_path / "global" / "hooks.js"
+    global_plugin.parent.mkdir(parents=True)
+    shutil.copy(PLUGIN, global_plugin)
+    job = {
+        "plugin": str(global_plugin),
+        "root": str(project),
+        "sessions": SESSIONS,
+        "v2": True,
+        "steps": [{"kind": "keys"}, v2_call()],
+        "home": str(isolated_home(project)),
+    }
+
+    result = run_bounded([NODE, str(RUNNER_DRIVER)], input=json.dumps(job), capture_output=True, text=True, encoding="utf-8")
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == [{"ok": True, "keys": []}, {"ok": True}]

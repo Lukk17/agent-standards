@@ -11,7 +11,7 @@
     ".agents/instructions/reply-rules.md"
   ],
   "plugin": [
-    "./.agents/plugin/hooks.js"
+    "./.agents/plugin"
   ],
   "mcp": {
     
