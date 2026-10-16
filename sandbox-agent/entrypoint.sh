@@ -9,6 +9,8 @@
 # Usage: entrypoint.sh [COMMAND [ARGS...]]
 # Environment:
 #   AGENT_STANDARDS_REPO     Mounted upstream repository. Default /repo.
+#   OPENCODE2_PREFIX         npm prefix holding OpenCode 2.x. Default
+#                            ~/.opencode-v2.
 #   SANDBOX_SKIP_UPDATE      Set to 1 to keep the versions baked into the image.
 #   SANDBOX_SKIP_STALE_CHECK Set to 1 to run the baked scripts even when they no
 #                            longer match the mounted repository.
@@ -36,6 +38,11 @@ readonly BINARIES=(
   "kilocode"
   "copilot"
 )
+
+# OpenCode 2.x is @opencode/cli, which also owns the opencode binary name, so
+# it lives in its own prefix and is reached through the opencode2 wrapper.
+readonly OPENCODE2_PACKAGE="@opencode/cli"
+readonly OPENCODE2_PREFIX="${OPENCODE2_PREFIX:-${HOME}/.opencode-v2}"
 
 readonly VERSION_TIMEOUT=90
 
@@ -88,7 +95,7 @@ trust_mounted_repo() {
   done
 }
 
-# Every *.sh basename present in either copy, listed once, sorted. Derived from
+# Every *.sh and *.mjs basename present in either copy, listed once, sorted. Derived from
 # the directories rather than from a list, so a script added to the Dockerfile's
 # COPY is covered without editing anything here, and a script that exists only
 # on one side still counts as a difference.
@@ -96,7 +103,7 @@ script_names() {
   local directory path
 
   for directory in "$IMAGE_SCRIPTS" "$REPO_SCRIPTS"; do
-    for path in "$directory"/*.sh; do
+    for path in "$directory"/*.sh "$directory"/*.mjs; do
       [[ -f "$path" ]] || continue
 
       basename "$path"
@@ -188,10 +195,11 @@ assert_scripts_are_fresh() {
   return 1
 }
 
-# Version npm currently has installed for a package, or "not-installed".
+# Version npm currently has installed for a package, or "not-installed". The
+# second argument names a prefix other than the global one.
 installed_version() {
-  local package="$1"
-  local manifest="${NPM_CONFIG_PREFIX}/lib/node_modules/${package}/package.json"
+  local package="$1" prefix="${2:-$NPM_CONFIG_PREFIX}"
+  local manifest="${prefix}/lib/node_modules/${package}/package.json"
 
   if [[ -f "$manifest" ]]; then
     jq -r '.version // "unknown"' "$manifest"
@@ -232,6 +240,12 @@ update_agents() {
       log_warn "could not update ${package}, continuing with the image version"
     fi
   done
+
+  log_info "updating ${OPENCODE2_PACKAGE} to latest in ${OPENCODE2_PREFIX}"
+
+  if ! npm install --global --prefix "$OPENCODE2_PREFIX" --loglevel=error "${OPENCODE2_PACKAGE}@latest"; then
+    log_warn "could not update ${OPENCODE2_PACKAGE}, continuing with the image version"
+  fi
 }
 
 report_versions() {
@@ -248,6 +262,11 @@ report_versions() {
       "$(installed_version "${PACKAGES[$index]}")" \
       "$(self_reported_version "${BINARIES[$index]}")"
   done
+
+  printf '%-28s %-14s %s\n' \
+    "${OPENCODE2_PACKAGE}" \
+    "$(installed_version "$OPENCODE2_PACKAGE" "$OPENCODE2_PREFIX")" \
+    "$(self_reported_version opencode2)"
 
   printf '%-28s %-14s %s\n' "node" "$(node --version)" "-"
   printf '%-28s %-14s %s\n' "python3" "$(python3 --version | awk '{print $2}')" "-"

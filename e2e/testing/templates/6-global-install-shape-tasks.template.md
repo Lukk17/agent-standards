@@ -26,9 +26,9 @@ go. Add anything you did beyond the spec under Additional tasks I did.
 
 - [ ] 1. Installer run for all five agents, exit status read
 - [ ] 2. Installer run a second time, unchanged, exit status read
-- [ ] 3. `markdown-writer` deleted from `~/.agents/skills`
-- [ ] 4. `e2e-own-skill` added to `~/.agents/skills`
-- [ ] 5. `~/.agents/hooks/preflight_gate.py` damaged
+- [ ] 3. `markdown-writer` deleted from `~/.config/agents/skills`
+- [ ] 4. `e2e-own-skill` added to `~/.config/agents/skills`
+- [ ] 5. `~/.config/agents/hooks/preflight_gate.py` damaged
 - [ ] 6. Digest of `~/.claude/settings.json` recorded
 - [ ] 7. Update run with `--update`, exit status read
 - [ ] 8. Skills left by the update recorded
@@ -41,27 +41,26 @@ go. Add anything you did beyond the spec under Additional tasks I did.
 - [ ] The second install exited 0
 - [ ] The update exited 0
 - [ ] No temporary clone and no `~/.agent-standards` left behind
-- [ ] `~/.agents/.upstream-commit` holds the commit under test
+- [ ] `~/.config/agents/.upstream-commit` holds the commit under test
 - [ ] The update restored the damaged hook script
 - [ ] The update did not bring back the deleted skill
 - [ ] The update left the own skill alone
 - [ ] The update did not touch `~/.claude/settings.json`
 - [ ] `/work/bare` holds none of the per-project files
 - [ ] The shared skills tree holds every canonical skill
-- [ ] `~/.claude/skills` is a link to `~/.agents/skills`
-- [ ] The same skill count is reachable through that link
+- [ ] `~/.claude/skills` is a real directory, not a link
+- [ ] The same skill count is reachable through its per-skill links
 - [ ] The gate script landed in the shared tree
 - [ ] Claude Code subagent count matches canonical
 - [ ] Codex TOML subagent count matches canonical
-- [ ] `~/.config/opencode/agents` and `~/.config/kilo/agents` are links to `~/.agents/agents`
+- [ ] `~/.config/opencode/agents` and `~/.config/kilo/agents` are links to `~/.config/agents/agents`
 - [ ] OpenCode and Kilo Code subagent counts through those links match canonical
 - [ ] Copilot subagent count matches canonical
 - [ ] The second install nested no tree inside another
-- [ ] `~/.claude/CLAUDE.md` is the template, and `~/.agents` holds no instruction file
-- [ ] Codex and Copilot point at it with a link each
-- [ ] OpenCode has no global rules file of its own
-- [ ] Kilo Code points at it through its `instructions` key, by absolute path
-- [ ] Kilo Code carries no `skills.paths` entry
+- [ ] `~/.config/agents/AGENTS.md` is the one instruction file, started from `global/AGENTS.md.example`
+- [ ] `~/.claude/CLAUDE.md` is a real file holding only the import
+- [ ] Codex, OpenCode and Kilo Code point at it with a link each, and Copilot has no link of its own
+- [ ] Kilo Code names the shared skills in `skills.paths` and carries no `instructions` key
 - [ ] Claude Code's user settings equal the guide's block
 - [ ] Codex's user hooks equal the guide's block
 - [ ] Claude Code's user settings call the gate by absolute path, with the flag matched separately

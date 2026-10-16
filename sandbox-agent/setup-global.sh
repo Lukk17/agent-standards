@@ -4,7 +4,7 @@
 # Description: Installs or updates the shared configuration from the mounted
 #              agent-standards repository in the container's own home directory,
 #              the way docs/GLOBAL_SETUP.md describes a person doing it on their
-#              machine: a temporary clone, ~/.agents as the one shared folder,
+#              machine: a temporary clone, ~/.config/agents as the one shared folder,
 #              and nothing of the repository left behind afterwards.
 #              Global counterpart of setup-project.sh.
 # Usage: setup-global.sh [-h] [AGENT...]
@@ -35,19 +35,23 @@ readonly SCRIPT_NAME
 readonly REPO="${AGENT_STANDARDS_REPO:-/repo}"
 readonly KNOWN_AGENTS=(claude codex opencode kilo copilot)
 
-readonly SHARED="${HOME}/.agents"
-readonly SHARED_TREES=(skills agents hooks plugin)
+readonly SHARED="${HOME}/.config/agents"
+readonly SHARED_TREES=(skills agents hooks plugin instructions)
 readonly SHARED_SKILLS="${SHARED}/skills"
-readonly SHARED_AGENTS="${SHARED}/agents"
-readonly SHARED_PLUGIN="${SHARED}/plugin/hooks.js"
+readonly SHARED_PLUGIN="${SHARED}/plugin"
 readonly SHARED_BIN="${SHARED}/bin"
 readonly UPDATER="${SHARED_BIN}/update-global.sh"
 readonly UPSTREAM_COMMIT="${SHARED}/.upstream-commit"
-readonly INSTRUCTIONS="${HOME}/.claude/CLAUDE.md"
+readonly INSTRUCTIONS="${SHARED}/AGENTS.md"
+readonly CLAUDE_INSTRUCTIONS="${HOME}/.claude/CLAUDE.md"
+readonly CLAUDE_IMPORT='@~/.config/agents/AGENTS.md'
+readonly CODEX_DIR="${CODEX_HOME:-${HOME}/.config/codex}"
+readonly COPILOT_DIR="${COPILOT_HOME:-${HOME}/.config/copilot}"
 readonly GATE_SCRIPT="${SHARED}/hooks/preflight_gate.py"
 readonly MARKER_SCRIPT="${SHARED}/hooks/no_ai_markers_check.py"
 readonly TASKS_SCRIPT="${SHARED}/hooks/task_list_sync.py"
 readonly PROMPT_SCRIPT="${SHARED}/hooks/copilot/prompt_reminder.py"
+readonly SKILL_LINK_SCRIPT="${SHARED}/hooks/claude/sync_skill_links.py"
 
 # --- State -------------------------------------------------------------------
 
@@ -88,10 +92,10 @@ get all five. With --update, refreshes only what is already installed.
 
 Agents:
   claude      Claude Code       ~/.claude
-  codex       Codex             ~/.codex
+  codex       Codex             ~/.config/codex (CODEX_HOME)
   opencode    OpenCode          ~/.config/opencode
   kilo        Kilo Code         ~/.config/kilo
-  copilot     GitHub Copilot    ~/.copilot
+  copilot     GitHub Copilot    ~/.config/copilot (COPILOT_HOME)
 
 Options:
   -h, --help  Print this help and exit.
@@ -358,14 +362,18 @@ install_shared_tree() {
 # --- Step 3, the always-on instructions --------------------------------------
 
 install_instructions() {
-  ensure_dir "${HOME}/.claude"
-
   if [[ -e "$INSTRUCTIONS" ]]; then
     log_info "${INSTRUCTIONS} exists; left alone"
     return 0
   fi
 
-  copy_file "${SRC}/AGENTS.md.example" "$INSTRUCTIONS"
+  copy_file "${SRC}/global/AGENTS.md.example" "$INSTRUCTIONS"
+}
+
+# Runs the skill link hook the way the guide does after creating a skills folder.
+sync_skill_links() {
+  log_step "run ${SKILL_LINK_SCRIPT}"
+  python3 -S -E "$SKILL_LINK_SCRIPT"
 }
 
 # --- Per-agent configuration content -----------------------------------------
@@ -406,8 +414,6 @@ escape_newlines() {
   printf '%s' "${1//"$newline"/"$2"}"
 }
 
-PREFLIGHT_JSON="$(escape_newlines "$PREFLIGHT_TEXT" '\n')"
-readonly PREFLIGHT_JSON
 PREFLIGHT_NESTED_JSON="$(escape_newlines "$PREFLIGHT_TEXT" '\\n')"
 readonly PREFLIGHT_NESTED_JSON
 CLAUDE_PREFLIGHT_JSON="$(escape_newlines "$CLAUDE_PREFLIGHT_TEXT" '\n')"
@@ -426,7 +432,7 @@ sed_replacement() {
 }
 
 claude_settings() {
-  sed -e "s#@GATE@#$(sed_replacement "$GATE_SCRIPT")#g" -e "s#@MARKERS@#$(sed_replacement "$MARKER_SCRIPT")#g" -e "s#@TASKS@#$(sed_replacement "$TASKS_SCRIPT")#g" -e "s#@PREFLIGHT@#$(sed_replacement "$CLAUDE_PREFLIGHT_JSON")#g" -e "s#@SUPERVISION@#$(sed_replacement "$SUPERVISION_TEXT")#g" -e "s#@SUBAGENT@#$(sed_replacement "$SUBAGENT_TEXT")#g" <<'JSON'
+  sed -e "s#@GATE@#$(sed_replacement "$GATE_SCRIPT")#g" -e "s#@MARKERS@#$(sed_replacement "$MARKER_SCRIPT")#g" -e "s#@TASKS@#$(sed_replacement "$TASKS_SCRIPT")#g" -e "s#@PREFLIGHT@#$(sed_replacement "$CLAUDE_PREFLIGHT_JSON")#g" -e "s#@SUPERVISION@#$(sed_replacement "$SUPERVISION_TEXT")#g" -e "s#@SUBAGENT@#$(sed_replacement "$SUBAGENT_TEXT")#g" -e "s#@SKILLLINKS@#$(sed_replacement "$SKILL_LINK_SCRIPT")#g" <<'JSON'
 {
   "hooks": {
     "SessionStart": [
@@ -444,6 +450,16 @@ claude_settings() {
             "type": "command",
             "timeout": 10,
             "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E @TASKS@ --event sessionstart --format claude ; exit 0"
+          }
+        ]
+      },
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E @SKILLLINKS@ ; exit 0"
           }
         ]
       }
@@ -525,17 +541,6 @@ claude_settings() {
             "type": "command",
             "timeout": 10,
             "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E @TASKS@ --event stop --format claude ; exit 0"
-          }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "timeout": 10,
-            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E @MARKERS@ --format claude ; exit 0"
           }
         ]
       }
@@ -629,22 +634,24 @@ codex_hooks() {
 JSON
 }
 
-# OpenCode names the shared plugin by absolute path, so an update of
-# ~/.agents/plugin/hooks.js reaches it with nothing else to do.
+# OpenCode names the shared plugin directory by absolute path, so an update of
+# ~/.config/agents/plugin reaches it with nothing else to do, and names the
+# shared skills in skills.paths.
 opencode_config() {
   cat <<JSON
 {
+  "skills": { "paths": ["${SHARED_SKILLS}"] },
   "plugin": ["${SHARED_PLUGIN}"]
 }
 JSON
 }
 
-# Kilo Code reads no global AGENTS.md, so its instructions key points at the one
-# instruction file, and it loads the same shared plugin as an absolute file URL.
+# Kilo Code reads its instructions from the AGENTS.md link in its own directory,
+# the skills from skills.paths, and the same plugin directory as a file URL.
 kilo_config() {
   cat <<JSONC
 {
-  "instructions": ["${INSTRUCTIONS}"],
+  "skills": { "paths": ["~/.config/agents/skills"] },
   "plugin": ["file://${SHARED_PLUGIN}"]
 }
 JSONC
@@ -670,7 +677,10 @@ copilot_hooks() {
 install_claude() {
   log_info "installing for Claude Code"
 
-  ensure_symlink "${HOME}/.claude/skills" "$SHARED_SKILLS"
+  ensure_dir "${HOME}/.claude"
+  install_config "$CLAUDE_INSTRUCTIONS" "$CLAUDE_IMPORT" "$CLAUDE_IMPORT"
+  ensure_dir "${HOME}/.claude/skills"
+  sync_skill_links
   copy_tree "${SRC}/.claude/agents" "${HOME}/.claude/agents"
   install_config "${HOME}/.claude/settings.json" "$GATE_SCRIPT" "$(claude_settings)"
 
@@ -680,17 +690,20 @@ install_claude() {
 install_codex() {
   log_info "installing for Codex"
 
-  ensure_dir "${HOME}/.codex"
-  copy_tree "${SRC}/.codex/agents" "${HOME}/.codex/agents"
-  ensure_symlink "${HOME}/.codex/AGENTS.md" "$INSTRUCTIONS"
-  install_config "${HOME}/.codex/hooks.json" "$GATE_SCRIPT" "$(codex_hooks)"
+  ensure_dir "$CODEX_DIR"
+  ensure_symlink "${CODEX_DIR}/AGENTS.md" "../agents/AGENTS.md"
+  ensure_dir "${CODEX_DIR}/skills"
+  sync_skill_links
+  copy_tree "${SRC}/.codex/agents" "${CODEX_DIR}/agents"
+  install_config "${CODEX_DIR}/hooks.json" "$GATE_SCRIPT" "$(codex_hooks)"
 }
 
 install_opencode() {
   log_info "installing for OpenCode"
 
   ensure_dir "${HOME}/.config/opencode"
-  ensure_symlink "${HOME}/.config/opencode/agents" "$SHARED_AGENTS"
+  ensure_symlink "${HOME}/.config/opencode/AGENTS.md" "../agents/AGENTS.md"
+  ensure_symlink "${HOME}/.config/opencode/agents" "../agents/agents"
   install_config "${HOME}/.config/opencode/opencode.json" "$SHARED_PLUGIN" "$(opencode_config)"
 }
 
@@ -698,17 +711,17 @@ install_kilo() {
   log_info "installing for Kilo Code"
 
   ensure_dir "${HOME}/.config/kilo"
-  ensure_symlink "${HOME}/.config/kilo/agents" "$SHARED_AGENTS"
+  ensure_symlink "${HOME}/.config/kilo/AGENTS.md" "../agents/AGENTS.md"
+  ensure_symlink "${HOME}/.config/kilo/agents" "../agents/agents"
   install_config "${HOME}/.config/kilo/kilo.jsonc" "$SHARED_PLUGIN" "$(kilo_config)"
 }
 
 install_copilot() {
   log_info "installing for GitHub Copilot"
 
-  ensure_dir "${HOME}/.copilot"
-  copy_tree "${SRC}/.github/agents" "${HOME}/.copilot/agents"
-  install_config "${HOME}/.copilot/hooks/preflight.json" "$GATE_SCRIPT" "$(copilot_hooks)"
-  ensure_symlink "${HOME}/.copilot/copilot-instructions.md" "$INSTRUCTIONS"
+  ensure_dir "$COPILOT_DIR"
+  copy_tree "${SRC}/.github/agents" "${COPILOT_DIR}/agents"
+  install_config "${COPILOT_DIR}/hooks/preflight.json" "$GATE_SCRIPT" "$(copilot_hooks)"
 }
 
 install_agent() {
@@ -724,7 +737,7 @@ install_agent() {
 # --- Update ------------------------------------------------------------------
 #
 # The guide's Updating section is one command: the updater the install put in
-# ~/.agents/bin. It is run here exactly as a person runs it, with the mounted
+# ~/.config/agents/bin. It is run here exactly as a person runs it, with the mounted
 # repository as the URL it clones instead of GitHub, so the logic lives in that
 # one script and is not repeated here.
 

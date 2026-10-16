@@ -19,6 +19,7 @@ For each of the five agents, in the agent's own terms wherever the agent offers 
 | Claude Code | `.claude/skills` symlink resolves to all canonical skills | `.claude/agents/*.md` count matches canonical | `.claude/settings.json` calls the gate on `PreToolUse` | `claude mcp list` names every server |
 | Codex | `.agents/skills/` read natively | `.codex/agents/*.toml` count matches canonical | `.codex/config.toml` calls the gate on `PreToolUse` | `codex mcp list` names every server |
 | OpenCode | `.agents/skills/` read natively | `opencode agent list` names every imported subagent | `opencode.json` declares the shared plugin | `opencode mcp list` names every server |
+| OpenCode 2.x | the same project, run as `opencode2` | a real turn starts subagent `docs-architect` | the plugin loads from its directory entry and the gate blocks a real main-thread write | none, the probe copy drops the MCP block |
 | Kilo Code | `.agents/skills/` read natively | `kilocode agent list` names every imported subagent | `opencode.json` declares the shared plugin | `kilocode mcp list` names every server |
 | GitHub Copilot | `copilot skill list` loads every skill without a parse error | `.github/agents/*.agent.md` count matches canonical, each front matter safe for Copilot to parse | `.github/hooks/preflight.json` calls the gate on `preToolUse` | `copilot mcp list` names every server |
 
@@ -35,6 +36,31 @@ directly with the payload each adapter would hand it, once per output format, an
 - Rule A denies a shell redirect that writes into a source file.
 - Rule B denies a subagent whose definition declares no skills, using a fixture agent the sandbox writes and deletes.
 - A subagent that declares skills is allowed, and a malformed payload fails open rather than blocking the session.
+
+---
+
+### OpenCode 2.x beside 1.x
+
+Every run covers OpenCode 1.x, OpenCode 2.x and Kilo Code. OpenCode 2.x is a different npm package, `@opencode/cli`, and its install page says "The npm package uses a postinstall script to select the native `opencode` binary for your platform" (https://opencode.ai/v2/docs/). Both packages own the `opencode` binary name, so 2.x is installed into its own prefix, `/home/sandbox/.opencode-v2`, and reaches `PATH` only through the [opencode2.sh](opencode2.sh) wrapper, installed as `opencode2`.
+
+The wrapper moves 2.x to its own data directory, `~/.local/share/opencode-v2`, because both majors keep their database at `$XDG_DATA_HOME/opencode/opencode.db`. Measured in the container with 1.18.25 and 2.0.28: once a 2.x turn has created that file on the shared path, `opencode agent list` exits 1 with `Database is not empty and has no session table`. The configuration directory stays shared, which is the part the suites assert on.
+
+No 2.x assertion reads a configuration file alone. Each one runs a real 2.x turn against [mock-model.mjs](mock-model.mjs), a stdlib Node server that speaks the OpenAI chat completions format, answers from a script keyed on a marker in the prompt, and logs every request body. The provider block follows the custom provider example at https://opencode.ai/v2/docs/providers/. Every turn uses `run --standalone`, so no background service outlives it and no earlier plugin load answers for a later turn. [lib-opencode2.sh](lib-opencode2.sh) holds the assertions both suites share:
+
+- the plugin logs `loading plugin` with `entrypoint=file://<plugin directory>/index.js`, and no `configured plugin path must be a directory` warning, which is what 2.x logs when the entry names `hooks.js` instead
+- a main-thread `write` tool call comes back with the gate's `PREFLIGHT: the main thread may not write files directly` refusal, and the file does not exist afterwards
+- every agent turn of the main session carries `reply-rules.md` in a system message, and every turn of a `docs-architect` subagent carries none. The title request 2.x makes from the prompt offers no tools and is not counted.
+- the 2.x database sits in its own data directory, and 1.x still starts after 2.x ran
+- the 2.x turns tried to start no MCP server
+
+The project suite runs 2.x in a copy of the imported project with the MCP block and `.mcp.json` removed, because the copy also carries the 2.x-only `providers` key. The global suite runs it in a temporary directory holding only the provider block, before the MCP fixtures land in the user configuration.
+
+The project suite also drives OpenCode 1.x and Kilo Code through real turns against the same mock, in its own MCP-free copy of the project, with the provider passed in `OPENCODE_CONFIG_CONTENT` and `KILO_CONFIG_CONTENT` and the session database in a temporary directory. `verify_reply_style_v1` in [lib-opencode2.sh](lib-opencode2.sh) asserts on each runtime that reply style is a main-thread matter while the gate covers every session. The prose the mock writes carries an em dash, which the text rewrite fixes, and a semicolon and an unnumbered question, which only the tool-call checks refuse. A runtime stores a reply's prose only after that reply's own tool call has started, so the mock follows each prose with two glob calls, and the second one is where a check reads the prose.
+
+- the main session's stored prose has lost its em dash, and its second glob is refused with `Formatting violation in your last reply`
+- a `docs-architect` subagent started through the `task` tool keeps its em dash, and both of its glob calls run
+- a main-thread `write` is refused by the gate and the file does not exist afterwards
+- a subagent whose definition declares no skills is refused by rule B inside its own session
 
 ---
 
@@ -348,8 +374,7 @@ PowerShell:
 docker compose run --rm --build sandbox /sandbox/verify-global.sh --scoped codex
 ```
 
-A cold run takes several minutes. Most of it is the container updating the five agent tools and then waiting on MCP
-servers that cannot connect.
+A cold run takes several minutes. Most of it is the container updating the agent tools.
 
 To reuse the versions already baked into the image and skip the update step, Unix shell:
 
@@ -495,8 +520,12 @@ PowerShell and cmd do no such rewriting, so the PowerShell commands above need n
 | [Dockerfile](Dockerfile) | Debian image with Node, Python, git, jq and ShellCheck, plus a baseline install of the five agent tools under a non-root user. |
 | [entrypoint.sh](entrypoint.sh) | Refuses the run when the baked scripts no longer match the mounted ones, marks `/repo` and `/repo/.git` as git safe directories, updates every agent tool to its newest release, prints the resolved versions, then runs the container command. |
 | [setup-project.sh](setup-project.sh) | Creates the empty project, marks the same two paths plus the project itself as safe, runs the documented selective checkout against the mounted repository, and repairs and verifies the three symlinks. |
-| [setup-global.sh](setup-global.sh) | Follows [docs/GLOBAL_SETUP.md](../docs/GLOBAL_SETUP.md): clones the mounted repository into a temporary directory, fills `~/.agents`, wires every agent or only the ones named, and deletes the clone. With `--update` it runs the guide's update instead, refreshing only what is installed. Idempotent, and it never deletes or rewrites a file it did not create. |
+| [setup-global.sh](setup-global.sh) | Follows [docs/GLOBAL_SETUP.md](../docs/GLOBAL_SETUP.md): clones the mounted repository into a temporary directory, fills `~/.config/agents`, wires every agent or only the ones named, and deletes the clone. With `--update` it runs the guide's update instead, refreshing only what is installed. Idempotent, and it never deletes or rewrites a file it did not create. |
 | [verify-project.sh](verify-project.sh) | Every per-project assertion, one `PASS` or `FAIL` line each, exit 1 if any failed. Calls `setup-project.sh` first unless `SANDBOX_SKIP_SETUP=1`. |
+| [lib-opencode2.sh](lib-opencode2.sh) | The OpenCode 2.x assertions, sourced by both verify scripts, and the OpenCode 1.x and Kilo Code reply style turns the project suite runs. |
+| [opencode2.sh](opencode2.sh) | The `opencode2` wrapper, which runs 2.x from its own prefix with its own data directory. |
+| [mock-model.mjs](mock-model.mjs) | A scripted OpenAI-compatible model the 2.x, 1.x and Kilo Code turns run against, logging every request body. |
+| [mcp-guard.sh](mcp-guard.sh) | Stands in for `docker`, `npx` and `uvx`, first on `PATH`, recording and refusing every call. |
 | [verify-global.sh](verify-global.sh) | Every global assertion, in the same style. Calls `setup-global.sh` twice and then with `--update`, and asserts from `/work/bare`. With `--scoped <agent>` it installs for that agent alone and asserts only its paths were written. |
 | [compose.yaml](compose.yaml) | Mounts the repository read-only at `/repo`, drops every Linux capability, and runs `verify-project.sh` unless the run names another script. |
 | [live/](live/) | The live tests: [lib.sh](live/lib.sh) with the health check and the other five tests, [opencode-family.sh](live/opencode-family.sh) for what OpenCode and Kilo Code share, and one script per agent. |
@@ -567,6 +596,7 @@ so a change to one of them needs a rebuild before a run sees it.
 - Nothing from your home directory is mounted. Every agent tool installs into `/home/sandbox/.npm-global` and writes
   its state under `/home/sandbox`, which dies with the container.
 - The container runs as the unprivileged `sandbox` user.
+- No MCP server can start. `docker`, `npx` and `uvx`, the only launchers the shipped MCP blocks use, resolve to [mcp-guard.sh](mcp-guard.sh), which records the call in `/tmp/sandbox-mcp-guard.log` and exits 127. Every `mcp list` assertion still passes, because each CLI names its configured servers whether or not they connect, and each suite notes how many launches the guard refused. A run before the guard existed started the `npx` servers inside the container, and a run on a host with Docker pulled `mcp/sonarqube`.
 - Credentials are never supplied, so no agent can reach a provider, unless you pass `REQUESTY_API_KEY` or
   `OPENAI_API_KEY` for a live test.
 

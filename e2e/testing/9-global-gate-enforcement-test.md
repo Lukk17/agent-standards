@@ -11,7 +11,7 @@ into the global agent directory and deleted again inside the same run.
   that has none of the per-project files in it. This is the assertion the whole global suite exists for: the same
   refusal from a bare working directory can only have come from the home layer.
 - Rule B reaches the global subagent trees. The gate searches its own grandparent as well as the working directory,
-  so a copy at `~/.agents/hooks/preflight_gate.py` finds `~/.claude/agents` and `~/.agents/agents`. This spec proves
+  so a copy at `~/.config/agents/hooks/preflight_gate.py` finds `~/.claude/agents` and `~/.config/agents/agents`. This spec proves
   that, with the probe definition and the baseline that makes the deny attributable to it.
 - A subagent that does declare skills is allowed, from the same bare directory, so the rule stays targeted.
 - The project-relative path the shipped wirings use resolves to nothing here, which is the concrete reason the global
@@ -120,26 +120,26 @@ Expect `/work/bare`.
 1. Judge a main-thread source edit with the gate copy in the home directory, called from the bare working directory.
 
 ```bash
-python3 "$HOME/.agents/hooks/preflight_gate.py" --format claude < /repo/e2e/fixtures/gate-payloads/main-thread-source-edit.json > /tmp/global-gate-source.json
+python3 "$HOME/.config/agents/hooks/preflight_gate.py" --format claude < /repo/e2e/fixtures/gate-payloads/main-thread-source-edit.json > /tmp/global-gate-source.json
 ```
 
 2. The same payload through the Codex adapter.
 
 ```bash
-python3 "$HOME/.agents/hooks/preflight_gate.py" --format codex < /repo/e2e/fixtures/gate-payloads/main-thread-source-edit.json > /tmp/global-gate-source-codex.json
+python3 "$HOME/.config/agents/hooks/preflight_gate.py" --format codex < /repo/e2e/fixtures/gate-payloads/main-thread-source-edit.json > /tmp/global-gate-source-codex.json
 ```
 
 3. The same payload through the plain adapter, which signals through its exit status, so read the status immediately
    after the step.
 
 ```bash
-python3 "$HOME/.agents/hooks/preflight_gate.py" --format plain < /repo/e2e/fixtures/gate-payloads/main-thread-source-edit.json
+python3 "$HOME/.config/agents/hooks/preflight_gate.py" --format plain < /repo/e2e/fixtures/gate-payloads/main-thread-source-edit.json
 ```
 
 4. Establish the baseline: judge the probe subagent's payload before the probe definition exists anywhere.
 
 ```bash
-python3 "$HOME/.agents/hooks/preflight_gate.py" --format claude < /repo/e2e/fixtures/gate-payloads/subagent-without-skills.json > /tmp/global-gate-probe-before.json
+python3 "$HOME/.config/agents/hooks/preflight_gate.py" --format claude < /repo/e2e/fixtures/gate-payloads/subagent-without-skills.json > /tmp/global-gate-probe-before.json
 ```
 
 5. Write the probe definition into the global subagent directory.
@@ -151,13 +151,13 @@ cp /repo/e2e/fixtures/e2e-no-skills-probe.md "$HOME/.claude/agents/e2e-no-skills
 6. Judge the same payload again, now that the definition is on disk in the home directory.
 
 ```bash
-python3 "$HOME/.agents/hooks/preflight_gate.py" --format claude < /repo/e2e/fixtures/gate-payloads/subagent-without-skills.json > /tmp/global-gate-probe-after.json
+python3 "$HOME/.config/agents/hooks/preflight_gate.py" --format claude < /repo/e2e/fixtures/gate-payloads/subagent-without-skills.json > /tmp/global-gate-probe-after.json
 ```
 
 7. Judge a subagent that does declare skills, `code-reviewer`, which the global install placed in the same directory.
 
 ```bash
-python3 "$HOME/.agents/hooks/preflight_gate.py" --format claude < /repo/e2e/fixtures/gate-payloads/subagent-with-skills.json > /tmp/global-gate-specialist.json
+python3 "$HOME/.config/agents/hooks/preflight_gate.py" --format claude < /repo/e2e/fixtures/gate-payloads/subagent-with-skills.json > /tmp/global-gate-specialist.json
 ```
 
 8. Delete the probe. The container is discarded on exit anyway, but a fixture written into an agent directory is

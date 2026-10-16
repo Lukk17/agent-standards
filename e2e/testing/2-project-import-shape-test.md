@@ -169,7 +169,7 @@ Expect exit 0.
 The OpenCode and Kilo Code plugin shim landed.
 
 ```bash
-test -f /work/project/.agents/plugin/hooks.js
+test -f /work/project/.agents/plugin/hooks.js -a -f /work/project/.agents/plugin/index.js
 ```
 
 Expect exit 0.
@@ -324,10 +324,10 @@ jq -e '[.hooks.agentStop[].bash] | any(contains("no_ai_markers_check.py --format
 
 Expect exit 0.
 
-OpenCode declares the shared plugin by path, which is how the gate reaches it.
+OpenCode declares the shared plugin by its directory, which is how the gate reaches it. Every loader resolves the directory to its `index.js`.
 
 ```bash
-jq -e '[.plugin[]] | any(contains(".agents/plugin/hooks.js"))' /work/project/opencode.json
+jq -e '[.plugin[]] | any(. == "./.agents/plugin")' /work/project/opencode.json
 ```
 
 Expect exit 0.
@@ -347,7 +347,7 @@ file is a behaviour check and belongs to
 [3-project-agent-discovery-test.md](3-project-agent-discovery-test.md).
 
 ```bash
-cat /work/project/opencode.json /work/project/.kilo/kilo.jsonc 2>/dev/null | grep -qF ".agents/plugin/hooks.js"
+cat /work/project/opencode.json /work/project/.kilo/kilo.jsonc 2>/dev/null | grep -qF '"./.agents/plugin"'
 ```
 
 Expect exit 0.

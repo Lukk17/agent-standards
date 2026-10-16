@@ -105,7 +105,7 @@ Give Codex its user-scope server tables and the trust record for the bare direct
 reports nothing at all and the assertion would be measuring the trust prompt rather than the configuration.
 
 ```bash
-cp /repo/e2e/fixtures/global/codex-config.toml "$HOME/.codex/config.toml"
+cp /repo/e2e/fixtures/global/codex-config.toml "$HOME/.config/codex/config.toml"
 ```
 
 Give OpenCode its two servers. The fixture holds only an `mcp` block, and it is merged into the `opencode.json` the
@@ -132,7 +132,7 @@ mv /tmp/global-kilo.jsonc "$HOME/.config/kilo/kilo.jsonc"
 Give the Copilot command-line tool its user-scope server file.
 
 ```bash
-cp /repo/e2e/fixtures/global/copilot-mcp-config.json "$HOME/.copilot/mcp-config.json"
+cp /repo/e2e/fixtures/global/copilot-mcp-config.json "$HOME/.config/copilot/mcp-config.json"
 ```
 
 Add the one server to Claude Code at user scope. Claude Code stores user-scope servers in `~/.claude.json`, and the
@@ -312,12 +312,12 @@ in the container.
 ### Concurrency
 
 - Mutates: the container's home directory, through the install this spec inherits from
-  [6-global-install-shape-test.md](6-global-install-shape-test.md), plus `$HOME/.codex/config.toml`,
-  `$HOME/.config/opencode/opencode.json`, `$HOME/.config/kilo/kilo.jsonc`, `$HOME/.copilot/mcp-config.json`, and
+  [6-global-install-shape-test.md](6-global-install-shape-test.md), plus `$HOME/.config/codex/config.toml`,
+  `$HOME/.config/opencode/opencode.json`, `$HOME/.config/kilo/kilo.jsonc`, `$HOME/.config/copilot/mcp-config.json`, and
   `$HOME/.claude.json`, which `claude mcp add` writes. Nothing outside the
   container: `/repo` is mounted read-only and the container is discarded on exit.
 - Conflicts with: every other spec in either suite when they share a container shell. In particular
   [4-project-mcp-visibility-test.md](4-project-mcp-visibility-test.md) writes its Codex trust record into the same
-  `$HOME/.codex/config.toml` this spec fills with server tables, so those two would destroy each other. Nothing at
+  `$HOME/.config/codex/config.toml` this spec fills with server tables, so those two would destroy each other. Nothing at
   all when every spec gets its own `docker compose run --rm` container.
 - Serial: false

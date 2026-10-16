@@ -13,10 +13,10 @@ directory into which nothing has been imported.
 - Kilo Code accepts the global configuration file instead of rejecting it. That file carries the `instructions` entry
   and the `plugin` entry that loads the shared runner by `file://` URL, so a rejection takes the instruction file and
   every hook with it.
-- Both OpenCode and Kilo Code list the subagents through their links to `~/.agents/agents`, so a passing listing
+- Both OpenCode and Kilo Code list the subagents through their links to `~/.config/agents/agents`, so a passing listing
   proves each tool follows the link rather than needing a copy.
 - GitHub Copilot, asked in its own terms from the same bare directory, loads every skill in the shared tree and
-  parses all of them. Copilot reads `~/.agents/skills` natively, so this is the cleanest single proof that the shared
+  parses all of them. Copilot reads `~/.config/agents/skills` natively, so this is the cleanest single proof that the shared
   tree is doing its job globally.
 - Claude Code and Codex publish no skills or subagents listing command. Their global equivalents are the path and
   count assertions in [6-global-install-shape-test.md](6-global-install-shape-test.md). This spec says so rather than

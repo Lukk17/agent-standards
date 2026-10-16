@@ -30,6 +30,9 @@ readonly SAMPLE_SKILL="python-patterns"
 CLI_OUTPUT="$(mktemp -t sandbox-cli-XXXXXXXX)"
 readonly CLI_OUTPUT
 
+# shellcheck source=lib-opencode2.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib-opencode2.sh"
+
 PASSES=0
 FAILURES=0
 SKILL_COUNT=0
@@ -41,6 +44,7 @@ cleanup() {
   local exit_code=$?
 
   rm -f "$CLI_OUTPUT"
+  opencode2_end
 
   exit "$exit_code"
 }
@@ -320,6 +324,7 @@ verify_import() {
   assert_absent "the generator stays upstream" "tools"
   assert_file "the shared gate script landed" "$GATE"
   assert_file "the OpenCode and Kilo Code plugin landed" ".agents/plugin/hooks.js"
+  assert_file "the plugin directory entry landed beside it" ".agents/plugin/index.js"
   assert_file "the GitHub Copilot CLI's own MCP configuration landed" ".github/mcp.json"
   assert_glob_count "every canonical skill landed" ".agents/skills/*/SKILL.md" "$SKILL_COUNT"
   assert_symlinked_dir "Claude Code skills symlink resolves" ".claude/skills"
@@ -353,8 +358,8 @@ verify_claude() {
     '[.hooks[][].hooks[].command] | map(select(contains(".agents/hooks/"))) | ((length > 0) and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E")))'
   assert_json "the formatting check is wired into Stop" ".claude/settings.json" \
     '[.hooks.Stop[].hooks[].command] | any(contains("no_ai_markers_check.py"))'
-  assert_json "the formatting check is wired into SubagentStop" ".claude/settings.json" \
-    '[.hooks.SubagentStop[].hooks[].command] | any(contains("no_ai_markers_check.py"))'
+  assert_json "no reply-style check runs when a subagent stops, because reply style is checked on the main thread only" ".claude/settings.json" \
+    '[(.hooks.SubagentStop // [])[].hooks[].command] | any(contains("no_ai_markers_check.py") or contains("status_block_check.py") or contains("question_numbering_check.py")) | not'
   assert_json "the formatting fix is wired into MessageDisplay and Stop checks what it leaves" ".claude/settings.json" \
     '([.hooks.MessageDisplay[].hooks[].command] | any(contains("no_ai_markers_check.py --format claude --display "))) and ([.hooks.Stop[].hooks[].command] | any(contains("no_ai_markers_check.py --format claude --display-fixed")))'
   assert_json "the task list is wired into TaskCreated" ".claude/settings.json" \
@@ -407,8 +412,8 @@ verify_opencode() {
 
   assert_file "skills are discoverable in the directory OpenCode reads natively" \
     ".agents/skills/${SAMPLE_SKILL}/SKILL.md"
-  assert_json "the gate plugin is declared by path" "opencode.json" \
-    '[.plugin[]] | any(contains(".agents/plugin/hooks.js"))'
+  assert_json "the gate plugin is declared by its directory" "opencode.json" \
+    '[.plugin[]] | any(. == "./.agents/plugin")'
   assert_json "AGENTS.md is declared as the instruction file" "opencode.json" \
     '[.instructions[]] | any(. == "AGENTS.md")'
   assert_json "MCP servers are present in the file OpenCode reads" "opencode.json" \
@@ -420,13 +425,34 @@ verify_opencode() {
     < <(printf '%s\n' "${MCP_SERVERS[@]}")
 }
 
+# OpenCode 2.x runs in a copy of the project, because a real turn reads the
+# MCP block and the copy drops it, and because the copy carries the mock model
+# provider, a 2.x key that 1.x does not know.
+verify_opencode_v2() {
+  local probe=""
+
+  section "OpenCode 2.x"
+
+  probe="$(mktemp -d -t sandbox-opencode2-project-XXXXXXXX)"
+  cp -a "${PROJECT}/." "${probe}/"
+  rm -f "${probe}/.mcp.json"
+  jq --argjson providers "$(opencode2_providers)" 'del(.mcp) | .providers = $providers' \
+    "${PROJECT}/opencode.json" >"${probe}/opencode.json"
+
+  note "2.x runs in a copy of the project with no MCP block, against a mock model provider."
+
+  verify_opencode2 "$probe" "${probe}/.agents/plugin" "$PROJECT"
+
+  rm -rf "$probe"
+}
+
 verify_kilo() {
   section "Kilo Code"
 
   assert_file "skills are discoverable in the directory Kilo Code reads natively" \
     ".agents/skills/${SAMPLE_SKILL}/SKILL.md"
   assert_json "the gate plugin is declared in the file Kilo Code reads" "opencode.json" \
-    '[.plugin[]] | any(contains(".agents/plugin/hooks.js"))'
+    '[.plugin[]] | any(. == "./.agents/plugin")'
 
   assert_cli_lists "Kilo Code itself lists every imported subagent" kilocode agent list \
     < <(printf '%s\n' "${SUBAGENTS[@]}")
@@ -434,6 +460,42 @@ verify_kilo() {
     "Configuration is invalid" kilocode config check
   assert_cli_lists "Kilo Code itself lists the project MCP servers" kilocode mcp list \
     < <(printf '%s\n' "${MCP_SERVERS[@]}")
+}
+
+# OpenCode 1.x and Kilo Code run real turns in a copy of the project with no MCP
+# block, against the mock model, so subagent placement is measured on the
+# runtimes themselves rather than on a payload the suite made up.
+verify_reply_style() {
+  local probe="" start=""
+
+  section "OpenCode 1.x and Kilo Code reply style"
+
+  if ! opencode2_begin; then
+    fail "the mock model answers on port ${OPENCODE2_MOCK_PORT} ($(one_line "$(cat "${OPENCODE2_TMP}/mock.log" 2>/dev/null)"))"
+    return
+  fi
+
+  probe="$(mktemp -d -t sandbox-reply-style-project-XXXXXXXX)"
+  cp -a "${PROJECT}/." "${probe}/"
+  rm -f "${probe}/.mcp.json"
+  jq 'del(.mcp)' "${PROJECT}/opencode.json" >"${probe}/opencode.json"
+
+  note "1.x and Kilo Code run in a copy of the project with no MCP block, against a mock model provider."
+
+  verify_reply_style_v1 "OpenCode 1.x" opencode OPENCODE_CONFIG_CONTENT "$probe"
+  verify_reply_style_v1 "Kilo Code" kilocode KILO_CONFIG_CONTENT "$probe"
+
+  start="$(mktemp -d -t sandbox-start-folder-project-XXXXXXXX)"
+  cp -a "${probe}/." "${start}/"
+  rm -rf "${start}/.git"
+
+  note "the same copy without its .git, so the runtimes hand the plugin / as the worktree and the start folder has to be the project."
+
+  verify_start_folder_v1 "OpenCode 1.x" opencode OPENCODE_CONFIG_CONTENT "$start"
+  verify_start_folder_v1 "Kilo Code" kilocode KILO_CONFIG_CONTENT "$start"
+
+  opencode2_end
+  rm -rf "$probe" "$start"
 }
 
 verify_copilot() {
@@ -553,6 +615,7 @@ verify_gate_behaviour() {
 summary() {
   section "Result"
 
+  note_mcp_guard
   printf 'Passed: %d\n' "$PASSES"
   printf 'Failed: %d\n' "$FAILURES"
 
@@ -568,6 +631,8 @@ main() {
   verify_codex
   verify_opencode
   verify_kilo
+  verify_reply_style
+  verify_opencode_v2
   verify_copilot
   verify_gate_behaviour
   summary

@@ -28,7 +28,9 @@ ENV HOME=/home/sandbox \
     NPM_CONFIG_UPDATE_NOTIFIER=false \
     NPM_CONFIG_FUND=false \
     NPM_CONFIG_AUDIT=false \
-    PATH=/home/sandbox/.npm-global/bin:/usr/local/bin:/usr/bin:/bin \
+    OPENCODE2_PREFIX=/home/sandbox/.opencode-v2 \
+    SANDBOX_MCP_GUARD_LOG=/tmp/sandbox-mcp-guard.log \
+    PATH=/home/sandbox/.mcp-guard:/home/sandbox/.local/bin:/home/sandbox/.npm-global/bin:/usr/local/bin:/usr/bin:/bin \
     AGENT_STANDARDS_REPO=/repo \
     SANDBOX_PROJECT=/work/project \
     SANDBOX_BARE=/work/bare
@@ -40,9 +42,22 @@ RUN npm install --global --loglevel=error \
         @kilocode/cli@7.5.5 \
         @github/copilot@1.0.81
 
-COPY --chown=sandbox:sandbox entrypoint.sh setup-project.sh setup-global.sh verify-project.sh verify-global.sh /sandbox/
+# OpenCode 2.x is a separate package that also owns the opencode binary name,
+# so it gets its own prefix and reaches PATH only as the opencode2 wrapper.
+# Its postinstall script picks the native binary, so scripts stay enabled.
+RUN npm install --global --prefix /home/sandbox/.opencode-v2 --loglevel=error \
+        @opencode/cli@2.0.28
 
-RUN chmod +x /sandbox/*.sh
+COPY --chown=sandbox:sandbox entrypoint.sh setup-project.sh setup-global.sh verify-project.sh verify-global.sh \
+     lib-opencode2.sh opencode2.sh mcp-guard.sh mock-model.mjs /sandbox/
+
+# docker, npx and uvx are the only launchers the shipped MCP blocks use. The
+# guard stands first on PATH under all three names, so no agent CLI can start
+# a real MCP server, pull an image or download a package during a run.
+RUN chmod +x /sandbox/*.sh \
+    && mkdir -p /home/sandbox/.local/bin /home/sandbox/.mcp-guard \
+    && ln -s /sandbox/opencode2.sh /home/sandbox/.local/bin/opencode2 \
+    && for launcher in docker npx uvx; do ln -s /sandbox/mcp-guard.sh "/home/sandbox/.mcp-guard/${launcher}"; done
 
 WORKDIR /work
 

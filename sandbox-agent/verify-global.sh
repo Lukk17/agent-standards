@@ -29,16 +29,22 @@ readonly REPO="${AGENT_STANDARDS_REPO:-/repo}"
 readonly BARE="${SANDBOX_BARE:-/work/bare}"
 readonly SETUP="/sandbox/setup-global.sh"
 readonly CLI_TIMEOUT="${SANDBOX_CLI_TIMEOUT:-300}"
-readonly GATE="${HOME}/.agents/hooks/preflight_gate.py"
+readonly GATE="${HOME}/.config/agents/hooks/preflight_gate.py"
 readonly PROBE_NAME="e2e-no-skills-probe"
 readonly PROBE_AGENT="${HOME}/.claude/agents/${PROBE_NAME}.md"
 readonly FIXTURES="${REPO}/e2e/fixtures"
 readonly PAYLOADS="${FIXTURES}/gate-payloads"
 readonly GLOBAL_FIXTURES="${FIXTURES}/global"
 readonly GUIDE="${REPO}/docs/GLOBAL_SETUP.md"
-readonly INSTRUCTIONS="${HOME}/.claude/CLAUDE.md"
-readonly SHARED_AGENTS="${HOME}/.agents/agents"
-readonly SHARED_PLUGIN="${HOME}/.agents/plugin/hooks.js"
+readonly SHARED_PLUGIN="${HOME}/.config/agents/plugin"
+
+# The guide sets these for the user account in its step 4. The sandbox sets them
+# for this script and the installer it starts, which is the same environment an
+# agent started from a desktop session would inherit.
+export CODEX_HOME="${HOME}/.config/codex"
+export COPILOT_HOME="${HOME}/.config/copilot"
+export COPILOT_SKILLS_DIRS="${HOME}/.config/agents/skills"
+export COPILOT_CUSTOM_INSTRUCTIONS_DIRS="${HOME}/.config/agents"
 readonly OWN_SKILL="e2e-own-skill"
 
 # The per-project files whose presence in the working directory would make every
@@ -60,24 +66,24 @@ readonly PROJECT_MARKERS=(
 # re-runnable in a container that has already run it once. ~/.claude.json is on
 # the list because `claude mcp add` writes user-scope servers there.
 readonly INSTALL_PATHS=(
-  "${HOME}/.agents"
+  "${HOME}/.config/agents"
   "${HOME}/.claude"
   "${HOME}/.claude.json"
-  "${HOME}/.codex"
+  "${HOME}/.config/codex"
   "${HOME}/.config/opencode"
   "${HOME}/.config/kilo"
-  "${HOME}/.copilot"
+  "${HOME}/.config/copilot"
 )
 
 # Paths each agent owns, used by --scoped to assert that installing for one
 # agent writes that agent's paths and none of the other four's.
-# ~/.claude/CLAUDE.md is on none of these lists: it is the one instruction file
-# every agent reads, so step 3 of the guide writes it whichever agent is named.
-readonly CLAUDE_PATHS=(".claude/skills" ".claude/agents" ".claude/settings.json")
-readonly CODEX_PATHS=(".codex/agents" ".codex/AGENTS.md" ".codex/hooks.json")
-readonly OPENCODE_PATHS=(".config/opencode/agents" ".config/opencode/opencode.json")
-readonly KILO_PATHS=(".config/kilo/agents" ".config/kilo/kilo.jsonc")
-readonly COPILOT_PATHS=(".copilot/agents" ".copilot/hooks" ".copilot/copilot-instructions.md")
+# ~/.config/agents/AGENTS.md is on none of these lists: it is the one instruction
+# file every agent reads, so step 3 of the guide writes it whichever agent is named.
+readonly CLAUDE_PATHS=(".claude/CLAUDE.md" ".claude/skills" ".claude/agents" ".claude/settings.json")
+readonly CODEX_PATHS=(".config/codex/agents" ".config/codex/AGENTS.md" ".config/codex/skills" ".config/codex/hooks.json")
+readonly OPENCODE_PATHS=(".config/opencode/agents" ".config/opencode/AGENTS.md" ".config/opencode/opencode.json")
+readonly KILO_PATHS=(".config/kilo/agents" ".config/kilo/AGENTS.md" ".config/kilo/kilo.jsonc")
+readonly COPILOT_PATHS=(".config/copilot/agents" ".config/copilot/hooks")
 
 # The temporary directory every installer run clones into. The guide leaves no
 # copy of the repository behind, so it has to be empty after every run.
@@ -102,6 +108,9 @@ readonly CLI_OUTPUT
 CLI_ARCHIVE="$(mktemp -t sandbox-archive-XXXXXXXX)"
 readonly CLI_ARCHIVE
 
+# shellcheck source=lib-opencode2.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib-opencode2.sh"
+
 PASSES=0
 FAILURES=0
 SCOPED=""
@@ -119,6 +128,7 @@ cleanup() {
 
   rm -f "$CLI_OUTPUT" "$CLI_ARCHIVE"
   rm -rf "$CLONE_TMP" "$UPSTREAM_TMP"
+  opencode2_end
 
   exit "$exit_code"
 }
@@ -238,6 +248,28 @@ assert_present() {
   fi
 }
 
+# Passes when the path is a directory and not a link to one.
+assert_real_directory() {
+  local label="$1" path="$2"
+
+  if [[ -d "${HOME}/${path}" && ! -L "${HOME}/${path}" ]]; then
+    pass "${label}"
+  else
+    fail "${label} (~/${path} is missing or a link)"
+  fi
+}
+
+# Passes when the path is a regular file and not a link to one.
+assert_real_file() {
+  local label="$1" path="$2"
+
+  if [[ -f "${HOME}/${path}" && ! -L "${HOME}/${path}" ]]; then
+    pass "${label}"
+  else
+    fail "${label} (~/${path} is missing or a link)"
+  fi
+}
+
 # Passes when the path is a symlink whose target is exactly the given absolute
 # path and resolves to something, which is how the guide makes every link.
 assert_link_to() {
@@ -283,6 +315,21 @@ assert_matches_upstream() {
     pass "${label} (~/${path} equals ${upstream} at HEAD)"
   else
     fail "${label} (~/${path} differs from ${upstream} at HEAD)"
+  fi
+}
+
+# Passes when the installed file is not byte for byte the committed upstream
+# file, so a test can tell two templates apart. A file missing at HEAD fails.
+assert_differs_from_upstream() {
+  local label="$1" path="$2" upstream="$3" repo="${4:-$REPO}"
+  local committed=""
+
+  if ! committed="$(git -C "$repo" show "HEAD:${upstream}" 2>/dev/null)"; then
+    fail "${label} (${upstream} is not in HEAD)"
+  elif cmp -s - "${HOME}/${path}" <<<"$committed"; then
+    fail "${label} (~/${path} equals ${upstream} at HEAD)"
+  else
+    pass "${label} (~/${path} differs from ${upstream} at HEAD)"
   fi
 }
 
@@ -560,135 +607,152 @@ verify_install_shape() {
   assert_clone_removed "no temporary clone of the repository outlived the install"
   assert_absent "no permanent copy of the repository sits in the home directory" ".agent-standards"
   assert_matches_head "the shared folder records the commit under test as the one it was installed from" \
-    ".agents/.upstream-commit"
-  assert_absent "the shared folder holds no instruction file of its own" ".agents/AGENTS.md"
+    ".config/agents/.upstream-commit"
+  assert_absent "nothing was written to the layout before ~/.config/agents" ".agents"
 
   assert_glob_count "the shared skills tree holds every canonical skill" \
-    ".agents/skills/*/SKILL.md" "$SKILL_FILE_COUNT"
-  assert_link_to "Claude Code's skills location is a link to the shared skills" ".claude/skills" "${HOME}/.agents/skills"
-  assert_glob_count "the same skill count is reachable through that symlink" \
+    ".config/agents/skills/*/SKILL.md" "$SKILL_FILE_COUNT"
+  assert_real_directory "Claude Code's skills location is a real directory, so its synced skills stay its own" ".claude/skills"
+  assert_glob_count "every skill is reachable through a per-skill link there" \
     ".claude/skills/*/SKILL.md" "$SKILL_FILE_COUNT"
-  assert_file "the gate script landed in the shared tree" ".agents/hooks/preflight_gate.py"
-  assert_file "the reply formatting check landed beside it" ".agents/hooks/no_ai_markers_check.py"
-  assert_file "the task list hook landed beside it" ".agents/hooks/task_list_sync.py"
-  assert_file "the markdown lint hook landed too, deliberately unwired" ".agents/hooks/markdown_lint_check.py"
-  assert_matches_upstream "the POSIX updater landed in the shared folder" ".agents/bin/update-global.sh" \
+  assert_link_to "one of those links points into the shared skills" ".claude/skills/${SKILLS[0]}" \
+    "../../.config/agents/skills/${SKILLS[0]}"
+  assert_real_directory "Codex's skills location is a real directory, so its .system skills stay its own" ".config/codex/skills"
+  assert_glob_count "every skill is reachable through a per-skill link there too" \
+    ".config/codex/skills/*/SKILL.md" "$SKILL_FILE_COUNT"
+  assert_file "the gate script landed in the shared tree" ".config/agents/hooks/preflight_gate.py"
+  assert_file "the reply formatting check landed beside it" ".config/agents/hooks/no_ai_markers_check.py"
+  assert_file "the task list hook landed beside it" ".config/agents/hooks/task_list_sync.py"
+  assert_file "the skill link hook landed in its Claude Code folder" ".config/agents/hooks/claude/sync_skill_links.py"
+  assert_file "the markdown lint hook landed too, deliberately unwired" ".config/agents/hooks/markdown_lint_check.py"
+  assert_matches_upstream "the reply rules landed beside the hooks" ".config/agents/instructions/reply-rules.md" \
+    ".agents/instructions/reply-rules.md"
+  assert_matches_upstream "the POSIX updater landed in the shared folder" ".config/agents/bin/update-global.sh" \
     "global/bin/update-global.sh"
-  assert_matches_upstream "the PowerShell updater landed beside it" ".agents/bin/update-global.ps1" \
+  assert_matches_upstream "the PowerShell updater landed beside it" ".config/agents/bin/update-global.ps1" \
     "global/bin/update-global.ps1"
 
   assert_glob_count "Claude Code has every subagent in its own markdown format" \
     ".claude/agents/*.md" "${#SUBAGENTS[@]}"
   assert_glob_count "Codex has every subagent in TOML" \
-    ".codex/agents/*.toml" "${#SUBAGENTS[@]}"
+    ".config/codex/agents/*.toml" "${#SUBAGENTS[@]}"
   assert_glob_count "the shared OpenCode-format tree holds every subagent" \
-    ".agents/agents/*.md" "${#SUBAGENTS[@]}"
+    ".config/agents/agents/*.md" "${#SUBAGENTS[@]}"
   assert_link_to "OpenCode reads its subagents through a link to the shared tree" \
-    ".config/opencode/agents" "$SHARED_AGENTS"
+    ".config/opencode/agents" "../agents/agents"
   assert_glob_count "OpenCode reaches every subagent through that link" \
     ".config/opencode/agents/*.md" "${#SUBAGENTS[@]}"
   assert_link_to "Kilo Code reads its subagents through a link to the same shared tree" \
-    ".config/kilo/agents" "$SHARED_AGENTS"
+    ".config/kilo/agents" "../agents/agents"
   assert_glob_count "Kilo Code reaches every subagent through that link" \
     ".config/kilo/agents/*.md" "${#SUBAGENTS[@]}"
   assert_glob_count "GitHub Copilot has every subagent as *.agent.md" \
-    ".copilot/agents/*.agent.md" "${#SUBAGENTS[@]}"
+    ".config/copilot/agents/*.agent.md" "${#SUBAGENTS[@]}"
 
   assert_absent "the second install nested no tree inside the Claude Code one" ".claude/agents/agents"
-  assert_absent "the second install nested no tree inside the shared one" ".agents/agents/agents"
-  assert_absent "the second install nested no tree inside the shared skills" ".agents/skills/skills"
+  assert_absent "the second install nested no tree inside the shared one" ".config/agents/agents/agents"
+  assert_absent "the second install nested no tree inside the shared skills" ".config/agents/skills/skills"
 
-  assert_file_not_empty "there is one instruction file, ~/.claude/CLAUDE.md" ".claude/CLAUDE.md"
-  assert_matches_upstream "it started from the template, because none existed" ".claude/CLAUDE.md" "AGENTS.md.example"
-  assert_link_to "Codex points at it with a link" ".codex/AGENTS.md" "$INSTRUCTIONS"
-  assert_absent "OpenCode gets no global rules file, so it falls back to ~/.claude/CLAUDE.md" \
-    ".config/opencode/AGENTS.md"
-  assert_link_to "Copilot points at it with a link of its own" ".copilot/copilot-instructions.md" "$INSTRUCTIONS"
-  assert_json "Kilo Code points at it through its instructions key, by absolute path" ".config/kilo/kilo.jsonc" \
-    ".instructions == [\"${INSTRUCTIONS}\"]"
-  assert_json "Kilo Code needs no skills.paths entry, because it reads ~/.agents/skills natively" \
-    ".config/kilo/kilo.jsonc" 'has("skills") | not'
-  assert_json "Kilo Code names the shared plugin by absolute file URL" ".config/kilo/kilo.jsonc" \
+  assert_file_not_empty "there is one instruction file, ~/.config/agents/AGENTS.md" ".config/agents/AGENTS.md"
+  assert_matches_upstream "it started from the global template, because none existed" ".config/agents/AGENTS.md" "global/AGENTS.md.example"
+  assert_differs_from_upstream "and not from the per-project template" ".config/agents/AGENTS.md" "AGENTS.md.example"
+  assert_real_file "Claude Code's CLAUDE.md is a real file, which a Cowork session still reads" ".claude/CLAUDE.md"
+  assert_file_lacks "and it holds only the import of the shared file" ".claude/CLAUDE.md" "PREFLIGHT"
+  assert_link_to "Codex points at it with a link" ".config/codex/AGENTS.md" "../agents/AGENTS.md"
+  assert_link_to "OpenCode points at it with a link, because 2.x reads no ~/.claude/CLAUDE.md" \
+    ".config/opencode/AGENTS.md" "../agents/AGENTS.md"
+  assert_link_to "Kilo Code points at it with a link" ".config/kilo/AGENTS.md" "../agents/AGENTS.md"
+  assert_absent "Copilot needs no link, COPILOT_CUSTOM_INSTRUCTIONS_DIRS names the shared folder" \
+    ".config/copilot/copilot-instructions.md"
+  assert_json "Kilo Code names the shared skills in skills.paths" ".config/kilo/kilo.jsonc" \
+    '.skills.paths == ["~/.config/agents/skills"]'
+  assert_json "Kilo Code carries no instructions key" ".config/kilo/kilo.jsonc" 'has("instructions") | not'
+  assert_json "Kilo Code names the shared plugin directory by absolute file URL" ".config/kilo/kilo.jsonc" \
     ".plugin == [\"file://${SHARED_PLUGIN}\"]"
-  assert_json "OpenCode names the shared plugin by absolute path" ".config/opencode/opencode.json" \
+  assert_json "OpenCode names the shared plugin directory by absolute path" ".config/opencode/opencode.json" \
     ".plugin == [\"${SHARED_PLUGIN}\"]"
-  assert_matches_upstream "the shared plugin is the committed runner" ".agents/plugin/hooks.js" ".agents/plugin/hooks.js"
+  assert_json "OpenCode names the shared skills in skills.paths" ".config/opencode/opencode.json" \
+    ".skills.paths == [\"${HOME}/.config/agents/skills\"]"
+  assert_matches_upstream "the shared plugin is the committed runner" ".config/agents/plugin/hooks.js" ".agents/plugin/hooks.js"
+  assert_matches_upstream "the plugin directory entry is the committed index" ".config/agents/plugin/index.js" ".agents/plugin/index.js"
   assert_absent "OpenCode holds no copy of the plugin, which would load the runner twice" ".config/opencode/plugins"
   assert_absent "Kilo Code holds no copy of the plugin, which would load the runner twice" ".config/kilo/plugin"
 
   assert_matches_guide "Claude Code's user settings are the guide's block, with the home directory filled in" \
     ".claude/settings.json" '"MessageDisplay"' '"SubagentStart"'
   assert_matches_guide "Codex's user hooks are the guide's block, with the home directory filled in" \
-    ".codex/hooks.json" '"commandWindows"' '"SubagentStart"'
+    ".config/codex/hooks.json" '"commandWindows"' '"SubagentStart"'
   assert_matches_guide "Copilot's user hooks are the guide's block, with the home directory filled in" \
-    ".copilot/hooks/preflight.json" '"subagentStart"' '"userPromptTransformed"'
+    ".config/copilot/hooks/preflight.json" '"subagentStart"' '"userPromptTransformed"'
 
   assert_json "Claude Code's user settings call the gate by absolute path" ".claude/settings.json" \
-    '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.agents/hooks/preflight_gate.py") and contains("--format claude"))'
+    '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.config/agents/hooks/preflight_gate.py") and contains("--format claude"))'
   assert_json "Claude Code's user settings call the gate directly, force a zero exit, and the DEVNULL wrapper does not return" ".claude/settings.json" \
     '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py") and contains("--format claude") and endswith("; exit 0") and (contains("subprocess.DEVNULL") | not))'
   assert_json "Claude Code's user settings force a zero exit with a trailing ; exit 0" ".claude/settings.json" \
     '[.hooks.PreToolUse[].hooks[].command] | any(endswith("; exit 0"))'
   assert_json "Claude Code's user settings gate the web tools and the PowerShell tool as well as the writing ones" ".claude/settings.json" \
     '[.hooks.PreToolUse[].matcher] | any(type == "string" and test("Edit") and test("Write") and test("MultiEdit") and test("NotebookEdit") and test("Bash") and test("PowerShell") and test("WebFetch") and test("WebSearch"))'
+  assert_json "Claude Code's user settings run the skill link hook when a session starts or resumes" ".claude/settings.json" \
+    '[.hooks.SessionStart[] | select(.matcher == "startup|resume") | .hooks[].command] | any(contains("/.config/agents/hooks/claude/sync_skill_links.py"))'
   assert_json "Claude Code's user settings wire every event the project wiring wires but the markdown lint's" ".claude/settings.json" \
-    '[.hooks | keys[]] == ["MessageDisplay", "PreCompact", "PreToolUse", "SessionStart", "Stop", "SubagentStart", "SubagentStop", "TaskCompleted", "TaskCreated", "UserPromptSubmit"]'
+    '[.hooks | keys[]] == ["MessageDisplay", "PreCompact", "PreToolUse", "SessionStart", "Stop", "SubagentStart", "TaskCompleted", "TaskCreated", "UserPromptSubmit"]'
   assert_json "Claude Code's user settings tell a subagent to do its task itself, never hand it the delegating reminder" ".claude/settings.json" \
     '[.hooks.SubagentStart[].hooks[].command] | length > 0 and all(contains("PREFLIGHT for a subagent:") and (contains("Delegate investigation") | not))'
   assert_json "Claude Code's user settings inject the subagent supervision text at session start" ".claude/settings.json" \
     '[.hooks.SessionStart[].hooks[].command] | any(contains("When you launch a background subagent") and contains("every 10 minutes"))'
   assert_json "Claude Code's user settings leave the markdown lint out, because it needs a tool that never ships" ".claude/settings.json" \
     '[.hooks[][].hooks[].command] | any(contains("markdown_lint_check.py")) | not'
-  assert_json "Claude Code's user settings check the reply formatting on both stop events" ".claude/settings.json" \
-    '[[.hooks.Stop[].hooks[].command], [.hooks.SubagentStop[].hooks[].command] | map(select(contains("/.agents/hooks/no_ai_markers_check.py --format claude")))] | all(length == 1)'
+  assert_json "Claude Code's user settings check the reply formatting on the main thread's Stop only" ".claude/settings.json" \
+    '([.hooks.Stop[].hooks[].command] | map(select(contains("/.config/agents/hooks/no_ai_markers_check.py --format claude"))) | length == 1) and (.hooks | has("SubagentStop") | not)'
   assert_json "Claude Code's user settings check what the display fix leaves on Stop and fix the reply on MessageDisplay" ".claude/settings.json" \
-    '([.hooks.Stop[].hooks[].command] | any(contains("/.agents/hooks/no_ai_markers_check.py --format claude --display-fixed"))) and ([.hooks.MessageDisplay[].hooks[].command] | any(contains("/.agents/hooks/no_ai_markers_check.py --format claude --display ")))'
+    '([.hooks.Stop[].hooks[].command] | any(contains("/.config/agents/hooks/no_ai_markers_check.py --format claude --display-fixed"))) and ([.hooks.MessageDisplay[].hooks[].command] | any(contains("/.config/agents/hooks/no_ai_markers_check.py --format claude --display ")))'
   assert_json "Claude Code's user settings mirror the task list on the five events that carry it" ".claude/settings.json" \
-    '[.hooks.SessionStart[].hooks[].command, .hooks.PreCompact[].hooks[].command, .hooks.TaskCreated[].hooks[].command, .hooks.TaskCompleted[].hooks[].command, .hooks.Stop[].hooks[].command | select(contains("/.agents/hooks/task_list_sync.py")) | capture("--event (?<event>[a-z]+)").event] | sort == ["precompact", "sessionstart", "stop", "taskcompleted", "taskcreated"]'
+    '[.hooks.SessionStart[].hooks[].command, .hooks.PreCompact[].hooks[].command, .hooks.TaskCreated[].hooks[].command, .hooks.TaskCompleted[].hooks[].command, .hooks.Stop[].hooks[].command | select(contains("/.config/agents/hooks/task_list_sync.py")) | capture("--event (?<event>[a-z]+)").event] | sort == ["precompact", "sessionstart", "stop", "taskcompleted", "taskcreated"]'
   # shellcheck disable=SC2016  # the $ belongs to the hook command text the jq filter looks for
   assert_json "Claude Code's user settings resolve python3 first and fall back to python on every hook, calling the script by absolute path" ".claude/settings.json" \
     '[.hooks[][].hooks[].command | select(contains(".py"))] | length > 0 and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E /"))'
-  assert_json "Codex's user hooks call the gate by absolute path" ".codex/hooks.json" \
-    '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.agents/hooks/preflight_gate.py --format codex"))'
-  assert_json "Codex's user hooks scope the gate to the tools that can write" ".codex/hooks.json" \
+  assert_json "Codex's user hooks call the gate by absolute path" ".config/codex/hooks.json" \
+    '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.config/agents/hooks/preflight_gate.py --format codex"))'
+  assert_json "Codex's user hooks scope the gate to the tools that can write" ".config/codex/hooks.json" \
     '[.hooks.PreToolUse[].matcher] | any(type == "string" and test("Bash") and test("apply_patch"))'
-  assert_json "Codex's user hooks force a zero exit on the POSIX gate call, so a missing gate script allows rather than denies" ".codex/hooks.json" \
+  assert_json "Codex's user hooks force a zero exit on the POSIX gate call, so a missing gate script allows rather than denies" ".config/codex/hooks.json" \
     '[.hooks.PreToolUse[].hooks[] | .command] | length > 0 and all(endswith("|| exit 0"))'
-  assert_json "Codex's user hooks force a zero exit on every Windows command with a trailing ; exit 0, the PowerShell form" ".codex/hooks.json" \
+  assert_json "Codex's user hooks force a zero exit on every Windows command with a trailing ; exit 0, the PowerShell form" ".config/codex/hooks.json" \
     '[.hooks[][].hooks[] | (.commandWindows // empty)] | length > 0 and all(endswith("; exit 0"))'
-  assert_json "Codex's user hooks tell a subagent to do its task itself, never hand it the delegating reminder" ".codex/hooks.json" \
+  assert_json "Codex's user hooks tell a subagent to do its task itself, never hand it the delegating reminder" ".config/codex/hooks.json" \
     '[.hooks.SubagentStart[].hooks[].command] | length > 0 and all(contains("PREFLIGHT for a subagent:") and (contains("Delegate investigation") | not))'
-  assert_json "Codex's user hooks wire the same five events the project configuration wires" ".codex/hooks.json" \
+  assert_json "Codex's user hooks wire the same five events the project configuration wires" ".config/codex/hooks.json" \
     '[.hooks | keys[]] == ["PreToolUse", "SessionStart", "Stop", "SubagentStart", "UserPromptSubmit"]'
-  assert_json "Codex's user hooks check the reply formatting on Stop, by absolute path" ".codex/hooks.json" \
-    '[.hooks.Stop[].hooks[].command] | any(contains("/.agents/hooks/no_ai_markers_check.py --format codex"))'
-  assert_json "Codex's user hooks put the task list back at the start of a session, by absolute path" ".codex/hooks.json" \
-    '[.hooks.SessionStart[].hooks[].command] | any(contains("/.agents/hooks/task_list_sync.py --event sessionstart --format codex"))'
+  assert_json "Codex's user hooks check the reply formatting on Stop, by absolute path" ".config/codex/hooks.json" \
+    '[.hooks.Stop[].hooks[].command] | any(contains("/.config/agents/hooks/no_ai_markers_check.py --format codex"))'
+  assert_json "Codex's user hooks put the task list back at the start of a session, by absolute path" ".config/codex/hooks.json" \
+    '[.hooks.SessionStart[].hooks[].command] | any(contains("/.config/agents/hooks/task_list_sync.py --event sessionstart --format codex"))'
   # shellcheck disable=SC2016  # the $ belongs to the hook command text the jq filter looks for
-  assert_json "Codex's user hooks resolve python3 first and fall back to python on every POSIX command, calling the script by absolute path" ".codex/hooks.json" \
+  assert_json "Codex's user hooks resolve python3 first and fall back to python on every POSIX command, calling the script by absolute path" ".config/codex/hooks.json" \
     '[.hooks[][].hooks[] | (.command // empty) | select(contains(".py"))] | length > 0 and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E /"))'
   # shellcheck disable=SC2016  # the $ belongs to the hook command text the jq filter looks for
-  assert_json "Codex's user hooks move every Windows script call to the project root in PowerShell and leave it on python, the only name a python.org install puts on the path" ".codex/hooks.json" \
+  assert_json "Codex's user hooks move every Windows script call to the project root in PowerShell and leave it on python, the only name a python.org install puts on the path" ".config/codex/hooks.json" \
     '[.hooks[][].hooks[] | (.commandWindows // empty) | select(contains(".py"))] | length > 0 and all(startswith("$root = git rev-parse --show-toplevel 2>$null; if ($root) { Set-Location -LiteralPath $root }; python -S -E /"))'
-  assert_json "Codex's user hooks carry the short gate wording on the main-thread event" ".codex/hooks.json" \
+  assert_json "Codex's user hooks carry the short gate wording on the main-thread event" ".config/codex/hooks.json" \
     '[.hooks.UserPromptSubmit[].hooks[].command] | length >= 1 and all(contains("Before code work, name the skills"))'
-  assert_json "Codex's user hooks give every command a Windows sibling, because Codex picks one per platform" ".codex/hooks.json" \
+  assert_json "Codex's user hooks give every command a Windows sibling, because Codex picks one per platform" ".config/codex/hooks.json" \
     '[.hooks[][].hooks[] | select(has("command"))] | length > 0 and all(has("commandWindows"))'
-  assert_json "Copilot's user hooks call the gate by absolute path" ".copilot/hooks/preflight.json" \
-    '[.hooks.preToolUse[].bash] | any(contains("/.agents/hooks/preflight_gate.py --format copilot"))'
-  assert_json "Copilot's user hooks put the task list back at the start of a session, by absolute path" ".copilot/hooks/preflight.json" \
-    '[.hooks.sessionStart[].bash] | any(contains("/.agents/hooks/task_list_sync.py --event sessionstart --format copilot"))'
-  assert_json "Copilot's user hooks append the reminder to every prompt, by absolute path" ".copilot/hooks/preflight.json" \
-    '[.hooks.userPromptTransformed[].bash] | any(contains("/.agents/hooks/copilot/prompt_reminder.py"))'
-  assert_json "Copilot's user hooks check the reply formatting on agentStop, by absolute path" ".copilot/hooks/preflight.json" \
-    '[.hooks.agentStop[].bash] | any(contains("/.agents/hooks/no_ai_markers_check.py --format copilot"))'
+  assert_json "Copilot's user hooks call the gate by absolute path" ".config/copilot/hooks/preflight.json" \
+    '[.hooks.preToolUse[].bash] | any(contains("/.config/agents/hooks/preflight_gate.py --format copilot"))'
+  assert_json "Copilot's user hooks put the task list back at the start of a session, by absolute path" ".config/copilot/hooks/preflight.json" \
+    '[.hooks.sessionStart[].bash] | any(contains("/.config/agents/hooks/task_list_sync.py --event sessionstart --format copilot"))'
+  assert_json "Copilot's user hooks append the reminder to every prompt, by absolute path" ".config/copilot/hooks/preflight.json" \
+    '[.hooks.userPromptTransformed[].bash] | any(contains("/.config/agents/hooks/copilot/prompt_reminder.py"))'
+  assert_json "Copilot's user hooks check the reply formatting on agentStop, by absolute path" ".config/copilot/hooks/preflight.json" \
+    '[.hooks.agentStop[].bash] | any(contains("/.config/agents/hooks/no_ai_markers_check.py --format copilot"))'
   # shellcheck disable=SC2016  # the $ belongs to the hook command text the jq filter looks for
-  assert_json "Copilot's user hooks resolve python3 first and fall back to python on every bash command, calling the script by absolute path" ".copilot/hooks/preflight.json" \
+  assert_json "Copilot's user hooks resolve python3 first and fall back to python on every bash command, calling the script by absolute path" ".config/copilot/hooks/preflight.json" \
     '[.hooks[][] | (.bash // empty) | select(contains(".py"))] | length > 0 and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E /"))'
-  assert_json "Copilot's user hooks leave every PowerShell command on python, the only name a python.org install puts on the path" ".copilot/hooks/preflight.json" \
+  assert_json "Copilot's user hooks leave every PowerShell command on python, the only name a python.org install puts on the path" ".config/copilot/hooks/preflight.json" \
     '[.hooks[][] | (.powershell // empty) | select(contains(".py"))] | length > 0 and all(startswith("python -S -E /"))'
   assert_file_lacks "no project-relative hook call survived the rewrite" \
-    ".copilot/hooks/preflight.json" "-E .agents/hooks/"
+    ".config/copilot/hooks/preflight.json" "-E .agents/hooks/"
 }
 
 # --- Spec 6, the update ------------------------------------------------------
@@ -701,7 +765,7 @@ home_digest() {
 # One digest over every file the install writes, so a dry run that wrote
 # anything at all shows up as a different value.
 home_tree_digest() {
-  (cd "$HOME" && find .agents .claude .codex .copilot .config -type f -print 2>/dev/null | sort | xargs -d '\n' sha256sum) \
+  (cd "$HOME" && find .claude .config -type f -print 2>/dev/null | sort | xargs -d '\n' sha256sum) \
     | sha256sum | cut -d' ' -f1 || true
 }
 
@@ -748,33 +812,34 @@ release_synthetic_upstream() {
 
 verify_update() {
   local removed_skill="${SKILLS[-1]}" removed_agent="${SUBAGENTS[-1]}"
-  local kept_skill="" reference="" settings_before="" own_before="" tree_before="" status=0
+  local kept_skill="" reference="" home_reference="" settings_before="" own_before="" tree_before="" status=0
 
   section "Update, refreshing only what is installed"
 
   reference="$(git -C "$REPO" ls-tree -r --name-only HEAD -- .agents/skills | awk -v skip="/${removed_skill}/" \
     '!found && /^\.agents\/skills\/[^\/]+\/references\/[^\/]+\.md$/ && index($0, skip) == 0 { print; found = 1 }')"
   kept_skill="$(printf '%s' "$reference" | cut -d/ -f3)"
+  home_reference=".config/agents/${reference#.agents/}"
 
   note "the user deletes ${removed_skill} and ${removed_agent}, adds ${OWN_SKILL} and damages three installed files."
   note "the second release changes, adds and removes files across hooks, ${kept_skill} and the subagents."
 
-  rm -rf "${HOME}/.agents/skills/${removed_skill}"
+  rm -rf "${HOME}/.config/agents/skills/${removed_skill}"
   rm -f "${HOME}/.claude/agents/${removed_agent}.md"
-  mkdir -p "${HOME}/.agents/skills/${OWN_SKILL}"
+  mkdir -p "${HOME}/.config/agents/skills/${OWN_SKILL}"
   printf -- '---\nname: %s\ndescription: A skill of the user own.\n---\n' "$OWN_SKILL" \
-    >"${HOME}/.agents/skills/${OWN_SKILL}/SKILL.md"
-  printf '\n# damaged\n' >>"${HOME}/.agents/hooks/preflight_gate.py"
-  printf '\ndamaged\n' >>"${HOME}/.agents/skills/${kept_skill}/SKILL.md"
-  printf '\ndamaged\n' >>"${HOME}/.agents/agents/${SUBAGENTS[0]}.md"
+    >"${HOME}/.config/agents/skills/${OWN_SKILL}/SKILL.md"
+  printf '\n# damaged\n' >>"${HOME}/.config/agents/hooks/preflight_gate.py"
+  printf '\ndamaged\n' >>"${HOME}/.config/agents/skills/${kept_skill}/SKILL.md"
+  printf '\ndamaged\n' >>"${HOME}/.config/agents/agents/${SUBAGENTS[0]}.md"
 
   release_synthetic_upstream "$kept_skill" "$removed_skill" "$reference"
 
   settings_before="$(home_digest .claude/settings.json)"
-  own_before="$(home_digest ".agents/skills/${OWN_SKILL}/SKILL.md")"
+  own_before="$(home_digest ".config/agents/skills/${OWN_SKILL}/SKILL.md")"
   tree_before="$(home_tree_digest)"
 
-  TMPDIR="$CLONE_TMP" sh "${HOME}/.agents/bin/update-global.sh" --dry-run --source "file://${UPSTREAM}" \
+  TMPDIR="$CLONE_TMP" sh "${HOME}/.config/agents/bin/update-global.sh" --dry-run --source "file://${UPSTREAM}" \
     >"$CLI_OUTPUT" 2>&1 || status=$?
 
   assert_status "the dry run exited 0" "$status" 0
@@ -783,40 +848,40 @@ verify_update() {
   else
     fail "the dry run changed files under the home directory"
   fi
-  assert_output_line "the dry run lists an added hook" "add     ~/.agents/hooks/e2e_added_hook.py"
-  assert_output_line "the dry run lists a hook removed upstream" "remove  ~/.agents/hooks/markdown_lint_check.py"
+  assert_output_line "the dry run lists an added hook" "add     ~/.config/agents/hooks/e2e_added_hook.py"
+  assert_output_line "the dry run lists a hook removed upstream" "remove  ~/.config/agents/hooks/markdown_lint_check.py"
   assert_clone_removed "no temporary clone of the repository outlived the dry run"
 
   AGENT_STANDARDS_REPO="$UPSTREAM" TMPDIR="$CLONE_TMP" "$SETUP" --update >"$CLI_OUTPUT" 2>&1 || UPDATE_STATUS=$?
 
   assert_status "the update exited 0" "$UPDATE_STATUS" 0
   assert_clone_removed "no temporary clone of the repository outlived the update"
-  assert_matches_upstream "the update refreshed a changed hook" ".agents/hooks/preflight_gate.py" \
+  assert_matches_upstream "the update refreshed a changed hook" ".config/agents/hooks/preflight_gate.py" \
     ".agents/hooks/preflight_gate.py" "$UPSTREAM"
-  assert_matches_upstream "the update added a hook upstream added" ".agents/hooks/e2e_added_hook.py" \
+  assert_matches_upstream "the update added a hook upstream added" ".config/agents/hooks/e2e_added_hook.py" \
     ".agents/hooks/e2e_added_hook.py" "$UPSTREAM"
-  assert_absent "the update removed a hook upstream removed" ".agents/hooks/markdown_lint_check.py"
-  assert_matches_upstream "the update kept the updater itself current" ".agents/bin/update-global.sh" \
+  assert_absent "the update removed a hook upstream removed" ".config/agents/hooks/markdown_lint_check.py"
+  assert_matches_upstream "the update kept the updater itself current" ".config/agents/bin/update-global.sh" \
     "global/bin/update-global.sh" "$UPSTREAM"
-  assert_matches_upstream "the update refreshed an installed skill" ".agents/skills/${kept_skill}/SKILL.md" \
+  assert_matches_upstream "the update refreshed an installed skill" ".config/agents/skills/${kept_skill}/SKILL.md" \
     ".agents/skills/${kept_skill}/SKILL.md" "$UPSTREAM"
   assert_matches_upstream "the update added a file upstream added to an installed skill" \
-    ".agents/skills/${kept_skill}/e2e-added.md" ".agents/skills/${kept_skill}/e2e-added.md" \
+    ".config/agents/skills/${kept_skill}/e2e-added.md" ".agents/skills/${kept_skill}/e2e-added.md" \
     "$UPSTREAM"
-  assert_absent "the update removed a file upstream removed from an installed skill" "$reference"
+  assert_absent "the update removed a file upstream removed from an installed skill" "$home_reference"
   assert_matches_upstream "the update refreshed an installed subagent in the shared tree" \
-    ".agents/agents/${SUBAGENTS[0]}.md" ".agents/agents/${SUBAGENTS[0]}.md" "$UPSTREAM"
+    ".config/agents/agents/${SUBAGENTS[0]}.md" ".agents/agents/${SUBAGENTS[0]}.md" "$UPSTREAM"
   assert_matches_upstream "the update refreshed an installed Claude Code subagent" \
     ".claude/agents/${SUBAGENTS[0]}.md" ".claude/agents/${SUBAGENTS[0]}.md" "$UPSTREAM"
-  assert_absent "the update did not bring back a skill the user deleted" ".agents/skills/${removed_skill}"
+  assert_absent "the update did not bring back a skill the user deleted" ".config/agents/skills/${removed_skill}"
   assert_absent "the update did not bring back a subagent the user deleted" ".claude/agents/${removed_agent}.md"
-  assert_absent "the update did not add a skill the user never installed" ".agents/skills/e2e-new-skill"
+  assert_absent "the update did not add a skill the user never installed" ".config/agents/skills/e2e-new-skill"
   assert_output_line "the update named the Claude Code wiring as changed upstream" "  .claude/settings.json"
 
-  if [[ "$(home_digest ".agents/skills/${OWN_SKILL}/SKILL.md")" == "$own_before" ]]; then
+  if [[ "$(home_digest ".config/agents/skills/${OWN_SKILL}/SKILL.md")" == "$own_before" ]]; then
     pass "the update left the user's own skill alone"
   else
-    fail "the update changed the user's own skill ~/.agents/skills/${OWN_SKILL}"
+    fail "the update changed the user's own skill ~/.config/agents/skills/${OWN_SKILL}"
   fi
 
   if [[ "$(home_digest .claude/settings.json)" == "$settings_before" ]]; then
@@ -825,7 +890,7 @@ verify_update() {
     fail "the update rewrote ~/.claude/settings.json"
   fi
 
-  assert_matches_head "the update recorded the commit it refreshed from" ".agents/.upstream-commit" "$UPSTREAM"
+  assert_matches_head "the update recorded the commit it refreshed from" ".config/agents/.upstream-commit" "$UPSTREAM"
 
   note "a third release reverts the second, so the home is back on the commit under test for the later specs."
 
@@ -834,20 +899,69 @@ verify_update() {
   AGENT_STANDARDS_REPO="$UPSTREAM" TMPDIR="$CLONE_TMP" "$SETUP" --update >"$CLI_OUTPUT" 2>&1 || status=$?
 
   assert_status "the reverting update exited 0" "$status" 0
-  assert_absent "the reverting update removed the hook the second release added" ".agents/hooks/e2e_added_hook.py"
+  assert_absent "the reverting update removed the hook the second release added" ".config/agents/hooks/e2e_added_hook.py"
   assert_matches_upstream "the reverting update brought the removed hook back" \
-    ".agents/hooks/markdown_lint_check.py" ".agents/hooks/markdown_lint_check.py"
-  assert_matches_upstream "the reverting update restored the changed hook" ".agents/hooks/preflight_gate.py" \
+    ".config/agents/hooks/markdown_lint_check.py" ".agents/hooks/markdown_lint_check.py"
+  assert_matches_upstream "the reverting update restored the changed hook" ".config/agents/hooks/preflight_gate.py" \
     ".agents/hooks/preflight_gate.py"
-  assert_matches_upstream "the reverting update brought the removed skill file back" "$reference" "$reference"
+  assert_matches_upstream "the reverting update brought the removed skill file back" "$home_reference" "$reference"
   assert_absent "the reverting update removed the skill file the second release added" \
-    ".agents/skills/${kept_skill}/e2e-added.md"
+    ".config/agents/skills/${kept_skill}/e2e-added.md"
 
   note "the guide's way to add a skill back is to copy its one folder; the same is done here from ${REPO}."
 
-  rm -rf "${HOME}/.agents/skills/${OWN_SKILL}"
-  cp -R "${REPO}/.agents/skills/${removed_skill}" "${HOME}/.agents/skills/${removed_skill}"
+  rm -rf "${HOME}/.config/agents/skills/${OWN_SKILL}"
+  cp -R "${REPO}/.agents/skills/${removed_skill}" "${HOME}/.config/agents/skills/${removed_skill}"
   cp "${REPO}/.claude/agents/${removed_agent}.md" "${HOME}/.claude/agents/${removed_agent}.md"
+}
+
+# --- OpenCode 2.x, from the global configuration -----------------------------
+
+# 2.x reads the plugin and the subagents from the same ~/.config/opencode the
+# global install wrote for 1.x. Its probe directory holds only the mock model
+# provider, so it stays out of the bare directory, and this runs before the MCP
+# fixtures land in the user configuration.
+verify_opencode_v2() {
+  local probe=""
+
+  section "OpenCode 2.x from the global configuration"
+
+  probe="$(mktemp -d -t sandbox-opencode2-global-XXXXXXXX)"
+  git -C "$probe" init --quiet
+  jq -n --argjson providers "$(opencode2_providers)" '{providers: $providers}' >"${probe}/opencode.json"
+
+  note "2.x runs in ${probe}, which holds only a mock model provider, so the plugin and the hooks come from the home directory."
+
+  verify_opencode2 "$probe" "$SHARED_PLUGIN" "$BARE"
+
+  rm -rf "$probe"
+}
+
+# --- OpenCode 1.x and Kilo Code, from a non-git start folder ------------------
+
+# Outside a git repository both runtimes hand the plugin "/" as the worktree.
+# The start folder holds nothing, so the plugin and the hooks come from the
+# home directory, and the gate has to take the start folder as the project.
+# This runs before the MCP fixtures land in the user configuration.
+verify_start_folder() {
+  local start=""
+
+  section "OpenCode 1.x and Kilo Code from a non-git start folder"
+
+  if ! opencode2_begin; then
+    fail "the mock model answers on port ${OPENCODE2_MOCK_PORT} ($(one_line "$(cat "${OPENCODE2_TMP}/mock.log" 2>/dev/null)"))"
+    return
+  fi
+
+  start="$(mktemp -d -t sandbox-start-folder-global-XXXXXXXX)"
+
+  note "1.x and Kilo Code start in ${start}, which is no git repository and holds no per-project file."
+
+  verify_start_folder_v1 "OpenCode 1.x" opencode OPENCODE_CONFIG_CONTENT "$start"
+  verify_start_folder_v1 "Kilo Code" kilocode KILO_CONFIG_CONTENT "$start"
+
+  opencode2_end
+  rm -rf "$start"
 }
 
 # --- Spec 7, agent discovery -------------------------------------------------
@@ -899,10 +1013,10 @@ merge_json_fixture() {
 install_user_scope_mcp() {
   note "the installer writes no MCP configuration, deliberately, so the fixtures place every server here."
 
-  cp "${GLOBAL_FIXTURES}/codex-config.toml" "${HOME}/.codex/config.toml"
+  cp "${GLOBAL_FIXTURES}/codex-config.toml" "${CODEX_HOME}/config.toml"
   merge_json_fixture "${GLOBAL_FIXTURES}/opencode.json" "${HOME}/.config/opencode/opencode.json"
   merge_json_fixture "${GLOBAL_FIXTURES}/kilo.jsonc" "${HOME}/.config/kilo/kilo.jsonc"
-  cp "${GLOBAL_FIXTURES}/copilot-mcp-config.json" "${HOME}/.copilot/mcp-config.json"
+  cp "${GLOBAL_FIXTURES}/copilot-mcp-config.json" "${COPILOT_HOME}/mcp-config.json"
 
   (cd "$BARE" && timeout "$CLI_TIMEOUT" claude mcp add --transport http context7 --scope user https://mcp.context7.com/mcp </dev/null >/dev/null 2>&1)
 }
@@ -1063,13 +1177,13 @@ verify_scoped() {
 
   assert_clone_removed "no temporary clone of the repository outlived the install"
   assert_glob_count "the shared skills tree landed, because every agent needs it" \
-    ".agents/skills/*/SKILL.md" "$SKILL_FILE_COUNT"
+    ".config/agents/skills/*/SKILL.md" "$SKILL_FILE_COUNT"
   assert_glob_count "the shared subagent tree landed, because step 2 copies all four shared trees" \
-    ".agents/agents/*.md" "${#SUBAGENTS[@]}"
-  assert_file "the gate script landed in the shared tree" ".agents/hooks/preflight_gate.py"
-  assert_file "the plugin landed in the shared tree" ".agents/plugin/hooks.js"
-  assert_matches_head "the shared folder records the commit it was installed from" ".agents/.upstream-commit"
-  assert_file_not_empty "the one instruction file landed, because step 3 is shared" ".claude/CLAUDE.md"
+    ".config/agents/agents/*.md" "${#SUBAGENTS[@]}"
+  assert_file "the gate script landed in the shared tree" ".config/agents/hooks/preflight_gate.py"
+  assert_file "the plugin landed in the shared tree" ".config/agents/plugin/hooks.js"
+  assert_matches_head "the shared folder records the commit it was installed from" ".config/agents/.upstream-commit"
+  assert_file_not_empty "the one instruction file landed, because step 3 is shared" ".config/agents/AGENTS.md"
 
   mapfile -t paths < <(agent_paths "$agent")
   for path in "${paths[@]}"; do
@@ -1091,6 +1205,7 @@ verify_scoped() {
 summary() {
   section "Result"
 
+  note_mcp_guard
   printf 'Passed: %d\n' "$PASSES"
   printf 'Failed: %d\n' "$FAILURES"
 
@@ -1115,6 +1230,8 @@ main() {
   verify_install_shape
   verify_update
   verify_agent_discovery
+  verify_opencode_v2
+  verify_start_folder
   verify_mcp_visibility
   verify_gate_enforcement
   summary
