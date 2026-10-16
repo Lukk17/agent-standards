@@ -1,6 +1,9 @@
 ---
 description: "Use when auditing for WCAG 2.1 / 2.2 compliance, remediating accessibility issues, or designing inclusive components. Tests with real assistive tech in mind (screen readers, keyboard-only, voice control), not just automated scanners. Read-only: produces audit reports and remediation guidance, does not apply fixes."
 mode: subagent
+permission:
+  edit: deny
+  bash: deny
 tools:
   read: true
   grep: true

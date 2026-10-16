@@ -1,6 +1,9 @@
 ---
 description: "Use when exploring an unfamiliar or legacy codebase before refactoring, onboarding, audit, or risk review. Maps architecture, surfaces hidden contracts and dead code, scores health, and produces a prioritised action plan other agents can execute. Read-only."
 mode: subagent
+permission:
+  edit: deny
+  bash: deny
 tools:
   read: true
   grep: true

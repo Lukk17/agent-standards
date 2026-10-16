@@ -2,6 +2,9 @@
 description: "Use PROACTIVELY before any auth, payment, or sensitive-data change ships, and on demand for threat modelling, security architecture review, or vulnerability assessment. Covers threat modelling (STRIDE and attack trees), backend and frontend secure coding, and compliance gap analysis. Read-only: produces findings and remediation guidance, does not patch code itself."
 mode: subagent
 model: anthropic/claude-opus-4-7
+permission:
+  edit: deny
+  bash: deny
 tools:
   read: true
   grep: true

@@ -74,6 +74,15 @@ COPILOT_TOOLS = {
 
 READ_ONLY_TOOLS = frozenset({"read", "grep", "glob"})
 
+# OpenCode and Kilo Code read `tools` as overrides on top of everything the
+# agent already has, so a map listing only read, grep and glob still leaves
+# edit and bash on. Each write-capable permission is therefore denied outright
+# unless one of the canonical tools that grants it is listed.
+OPENCODE_WRITE_PERMISSIONS = {
+    "edit": ("write", "edit"),
+    "bash": ("bash",),
+}
+
 CLAUDE_READ_ONLY_PERMISSION_MODE = "plan"
 
 OPENCODE_MODELS = {
@@ -187,10 +196,23 @@ def emit_opencode(fm: dict, body: str) -> str:
     if model_id:
         lines.append(f"model: {model_id}")
     if fm.get("tools"):
+        denied = opencode_denied_permissions(fm["tools"])
+        if denied:
+            lines.append("permission:")
+            lines += [f"  {permission}: deny" for permission in denied]
         lines.append("tools:")
         lines += [f"  {t}: true" for t in fm["tools"]]
     lines += ["---", "", body.rstrip() + skills_block(fm.get("skills"))]
     return "\n".join(lines).rstrip() + "\n"
+
+
+def opencode_denied_permissions(tools: list[str]) -> list[str]:
+    """Every write-capable OpenCode permission that none of the listed tools grants."""
+    return [
+        permission
+        for permission, granting in OPENCODE_WRITE_PERMISSIONS.items()
+        if not any(tool in tools for tool in granting)
+    ]
 
 
 def copilot_tools(tools: list[str]) -> list[str]:

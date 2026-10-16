@@ -312,6 +312,49 @@ def test_a_read_only_agent_gets_no_write_tool(emitter, forbidden):
         assert name not in front_matter
 
 
+def test_a_read_only_agent_is_denied_edit_and_bash_on_opencode():
+    """OpenCode and Kilo Code treat `tools` as overrides, so only a permission denial makes it read-only."""
+    parsed = front_matter(gen.emit_opencode(READER, BODY))
+
+    assert parsed["permission"] == {"edit": "deny", "bash": "deny"}
+    assert parsed["tools"] == {"read": True, "grep": True, "glob": True}
+
+
+def test_an_agent_with_bash_but_no_file_tool_is_denied_only_edit_on_opencode():
+    runner = dict(READER, tools=["read", "grep", "glob", "bash"])
+
+    assert front_matter(gen.emit_opencode(runner, BODY))["permission"] == {"edit": "deny"}
+
+
+def test_an_agent_with_write_alone_keeps_edit_on_opencode():
+    drafter = dict(READER, tools=["read", "write", "grep", "glob"])
+
+    assert front_matter(gen.emit_opencode(drafter, BODY))["permission"] == {"bash": "deny"}
+
+
+def test_a_writing_agent_gets_no_permission_block_on_opencode():
+    assert "permission" not in front_matter(gen.emit_opencode(WRITER, BODY))
+
+
+def test_an_agent_declaring_no_tools_gets_no_permission_block_on_opencode():
+    inheritor = {key: value for key, value in WRITER.items() if key != "tools"}
+
+    assert "permission" not in front_matter(gen.emit_opencode(inheritor, BODY))
+
+
+def test_every_generated_read_only_opencode_agent_denies_edit():
+    for source in sorted(gen.SRC.glob("*.md")):
+        canonical = front_matter(source.read_text(encoding="utf-8"))
+
+        if set(canonical.get("tools") or []) != gen.READ_ONLY_TOOLS:
+            continue
+
+        generated = front_matter((gen.TARGETS["agents"][0] / f"{canonical['name']}.md").read_text(encoding="utf-8"))
+
+        assert generated["permission"]["edit"] == "deny", canonical["name"]
+        assert generated["permission"]["bash"] == "deny", canonical["name"]
+
+
 def test_read_only_agent_gets_plan_permission_mode_on_claude():
     assert "permissionMode: plan" in gen.emit_claude(READER, BODY)
     assert gen.CLAUDE_READ_ONLY_PERMISSION_MODE == "plan"
