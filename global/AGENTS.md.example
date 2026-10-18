@@ -15,19 +15,6 @@ This is a template. Copy it to `~/.config/agents/AGENTS.md` on Linux and macOS, 
 
 ---
 
-### Never act on my computer for testing
-
-This rule is mandatory. It beats every other rule in this file except an explicit instruction from me in the conversation.
-
-1. Every test, check, gate, test suite, experiment and probe runs only inside a container or a throwaway virtual machine, even when it only reads files. Nothing test-like runs on my real computer.
-2. Never run a downloaded program, an installer, a vendor binary, an IDE or an app on my real computer to read its help or try it. Read its options from its documentation or its files instead.
-3. Never run a package manager install, remove or upgrade, a playbook, or a role against my real computer unless I explicitly ask for that exact change in the conversation.
-4. Read-only inspection of my computer is allowed only to answer my direct question, never as a test.
-5. If a test needs a fake command, prove the fake resolves before anything runs, and run the test in a container anyway.
-6. If something on my computer was changed by mistake, stop, tell me immediately exactly what changed, and restore it from a backup before doing anything else.
-
----
-
 ### Core engineering principles
 
 These are the foundation and they outrank convenience, speed, and habit. When a request or an existing pattern would break one of them, say so and propose the version that respects them.
