@@ -3,7 +3,7 @@
 Install the shared agent configuration once into your home directory so every project on the machine gets it, even the
 ones that never ran the per-project import.
 
-This is the counterpart to the per-project import in [AGENT_TOOLING.md](AGENT_TOOLING.md). The two are additive rather
+This is the counterpart to the per-project import in [AGENT_TOOLING.md](https://github.com/Lukk17/agent-standards/blob/master/docs/AGENT_TOOLING.md). The two are additive rather
 than exclusive: an agent reads both scopes and merges them, so a project that also ran the per-project import keeps
 winning on the paths where both scopes define the same thing.
 
@@ -946,7 +946,7 @@ Check it. "Run `codex mcp list` to see configured servers" (same page):
 codex mcp list
 ```
 
-Add another server from [MCP_SETUP.md](MCP_SETUP.md) the same way, with its command and arguments after the `--`. Never pass a token on that command line with `--env`, because it then lands in your shell history. Codex has no substitution for a token, as [Codex and Copilot CLI globals](MCP_SETUP.md#codex-and-copilot-cli-globals) explains.
+Add another server from [MCP_SETUP.md](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md) the same way, with its command and arguments after the `--`. Never pass a token on that command line with `--env`, because it then lands in your shell history. Codex has no substitution for a token, as [Codex and Copilot CLI globals](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md#codex-and-copilot-cli-globals) explains.
 
 #### OpenCode
 
@@ -1043,7 +1043,7 @@ alias opencode1='XDG_DATA_HOME="$HOME/.local/share/opencode-v1" opencode1'
 
 `XDG_DATA_HOME` reaches every process 1.x starts, so a local MCP server that stores data by that variable moves with it.
 
-MCP servers go under the `mcp` key of `~/.config/opencode/opencode.json` ([config docs](https://opencode.ai/docs/config/)), or in the shared file from [Share one MCP list between OpenCode and Kilo Code](#share-one-mcp-list-between-opencode-and-kilo-code). Copy the machine-wide servers out of the shipped [opencode.json](../opencode.json) in the temporary copy with one command, naming each server you want at the end, here `context7`. It adds or replaces only the servers you name and keeps the rest of the file. Unix shell:
+MCP servers go under the `mcp` key of `~/.config/opencode/opencode.json` ([config docs](https://opencode.ai/docs/config/)), or in the shared file from [Share one MCP list between OpenCode and Kilo Code](#share-one-mcp-list-between-opencode-and-kilo-code). Copy the machine-wide servers out of the shipped [opencode.json](https://github.com/Lukk17/agent-standards/blob/master/opencode.json) in the temporary copy with one command, naming each server you want at the end, here `context7`. It adds or replaces only the servers you name and keeps the rest of the file. Unix shell:
 
 ```bash
 python3 -c 'import json,sys,pathlib;u=json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))["mcp"];p=pathlib.Path.home().joinpath(sys.argv[2]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{}).update({n:u[n] for n in sys.argv[3:]});p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' "$src/opencode.json" .config/opencode/opencode.json context7
@@ -1149,7 +1149,7 @@ MCP servers go under the `mcp` key of `~/.config/kilo/kilo.jsonc`, in the same s
 Kilo refuses it in a project config file, but resolves it in "your global config (~/.config/kilo), a config passed via
 KILO_CONFIG / KILO_CONFIG_CONTENT, or organization/MDM-managed config".
 
-Copy machine-wide servers out of the shipped [opencode.json](../opencode.json) in the temporary copy the same way as for OpenCode, naming each server at the end. Unix shell:
+Copy machine-wide servers out of the shipped [opencode.json](https://github.com/Lukk17/agent-standards/blob/master/opencode.json) in the temporary copy the same way as for OpenCode, naming each server at the end. Unix shell:
 
 ```bash
 python3 -c 'import json,sys,pathlib;u=json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))["mcp"];p=pathlib.Path.home().joinpath(sys.argv[2]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{}).update({n:u[n] for n in sys.argv[3:]});p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' "$src/opencode.json" .config/kilo/kilo.jsonc context7
@@ -1176,7 +1176,7 @@ The global file is also the place for the Context7 API key header, if you want K
 }
 ```
 
-Write it with one command. It writes the reference `{env:CONTEXT7_API_KEY}` and never the key itself, which Kilo reads from the variable you set in [Step 3 of MCP_SETUP.md](MCP_SETUP.md#step-3-set-environment-variables-system-wide). It replaces any `context7` entry already there and keeps the rest of the file. The last word names the file. For Kilo Code, Unix shell:
+Write it with one command. It writes the reference `{env:CONTEXT7_API_KEY}` and never the key itself, which Kilo reads from the variable you set in [Step 3 of MCP_SETUP.md](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md#step-3-set-environment-variables-system-wide). It replaces any `context7` entry already there and keeps the rest of the file. The last word names the file. For Kilo Code, Unix shell:
 
 ```bash
 python3 -c 'import json,sys,pathlib;p=pathlib.Path.home().joinpath(sys.argv[1]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})["context7"]={"type":"remote","url":"https://mcp.context7.com/mcp","headers":{"CONTEXT7_API_KEY":"{env:CONTEXT7_API_KEY}"},"enabled":True};p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' .config/kilo/kilo.jsonc
@@ -1214,7 +1214,7 @@ python -c 'import json,pathlib;print(sorted(json.loads((pathlib.Path.home()/".co
 
 #### Share one MCP list between OpenCode and Kilo Code
 
-Optional. Put the machine-wide servers in one file that holds nothing but an `mcp` block, for example `~/.config/agents/mcp.json`, in the `opencode.json` shape from [MCP_SETUP.md](MCP_SETUP.md). The same command as under [OpenCode](#opencode) copies the servers you name out of the shipped [opencode.json](../opencode.json) in the temporary copy into that file. Unix shell:
+Optional. Put the machine-wide servers in one file that holds nothing but an `mcp` block, for example `~/.config/agents/mcp.json`, in the `opencode.json` shape from [MCP_SETUP.md](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md). The same command as under [OpenCode](#opencode) copies the servers you name out of the shipped [opencode.json](https://github.com/Lukk17/agent-standards/blob/master/opencode.json) in the temporary copy into that file. Unix shell:
 
 ```bash
 python3 -c 'import json,sys,pathlib;u=json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))["mcp"];p=pathlib.Path.home().joinpath(sys.argv[2]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{}).update({n:u[n] for n in sys.argv[3:]});p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' "$src/opencode.json" .config/agents/mcp.json context7
@@ -1404,7 +1404,7 @@ MCP for the CLI is `~/.config/copilot/mcp-config.json`. In VS Code, run the `MCP
 the `mcp.json` in your user profile folder, which applies across every workspace. The JetBrains plugin reads one global
 file and no project file: `C:\Users\<you>\AppData\Local\github-copilot\intellij\mcp.json` on Windows and
 `~/.config/github-copilot/intellij/mcp.json` elsewhere. GitHub documents only the in-IDE interface, not the path, so
-treat that path as observed rather than documented. The manual blocks for all three are in [MCP_SETUP.md](MCP_SETUP.md).
+treat that path as observed rather than documented. The manual blocks for all three are in [MCP_SETUP.md](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md).
 
 ---
 
@@ -1627,7 +1627,7 @@ subagent to add an entry. Commit the file so the whole team gets the same list.
 
 1. MCP servers, everywhere. Which servers are machine-wide is a judgement about your machine, and most servers should
    not be global at all. Each agent's subsection above says where its user-scope MCP configuration lives, and
-   [MCP_SETUP.md](MCP_SETUP.md) has the blocks.
+   [MCP_SETUP.md](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md) has the blocks.
 2. The content of `~/.config/agents/AGENTS.md`. Editing the template down to the parts that are about you is a job only you
    can do.
 3. Reading the merged configuration files. No command above overwrites a configuration file you already have: each
