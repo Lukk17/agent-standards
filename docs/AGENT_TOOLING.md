@@ -193,10 +193,11 @@ docs say "Longer files consume more context and reduce adherence". So the root `
 [AGENTS.md.example](../AGENTS.md.example) says what may go in one: links written as "before X, read Y", and only the
 rules no test or guard catches and whose breaking is expensive. Everything else goes in `docs/`.
 
-One example of what it saves. The Pharmacy project imported every `AGENTS.md` through one `.claude/CLAUDE.md` until
-October 2026, then deleted it and shrank its 21 files to fit these limits. Measured on 2026-10-10 with Claude Code
-2.1.281, a session at the repository root dropped from 206,376 to 4,739 tokens of instructions, and work in one module
-folder from 42,757 to 6,516 tokens on average. The numbers describe that project on that day and are not kept current.
+One example of what it saves. A Gradle multi-module project imported every `AGENTS.md` through one
+`.claude/CLAUDE.md` until October 2026, then deleted it and shrank its 21 files to fit these limits. Measured on
+2026-10-10 with Claude Code 2.1.281, a session at the repository root dropped from 206,376 to 4,739 tokens of
+instructions, and work in one module folder from 42,757 to 6,516 tokens on average. The numbers describe that project
+on that day and are not kept current.
 
 List any `CLAUDE.md` your repository tracks. It should print nothing. PowerShell or Unix shell, same command:
 

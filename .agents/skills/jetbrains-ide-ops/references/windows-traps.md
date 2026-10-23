@@ -9,7 +9,7 @@ registered by hand has vanished. The rules live in [SKILL.md](../SKILL.md).
 ### The filesystem is case-insensitive
 
 NTFS matches paths without regard to case, so a command that names a file in the wrong case still finds the file.
-Deleting a stale `.idea/Pharmacy.iml` after creating `.idea/pharmacy.iml` deletes the file that was just created,
+Deleting a stale `.idea/Monorepo.iml` after creating `.idea/monorepo.iml` deletes the file that was just created,
 because to the filesystem they are one file. Git, meanwhile, tracks the two spellings as different paths, so the
 index and the working tree can disagree about which one exists.
 
@@ -22,7 +22,7 @@ ls -la .idea
 Rename a file whose only change is its case through git, so the index follows the working tree.
 
 ```bash
-git mv .idea/Pharmacy.iml .idea/pharmacy.iml
+git mv .idea/Monorepo.iml .idea/monorepo.iml
 ```
 
 ---

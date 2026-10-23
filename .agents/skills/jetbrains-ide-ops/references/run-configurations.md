@@ -42,7 +42,7 @@ Docker connection registered in the IDE, normally `Docker`.
   <configuration default="false" name="compose [rebuild recreate]" type="docker-deploy" factoryName="docker-compose.yml" server-name="Docker">
     <deployment type="docker-compose.yml">
       <settings>
-        <option name="composeProjectName" value="pharmacy" />
+        <option name="composeProjectName" value="monorepo" />
         <option name="commandLineOptions" value="--build" />
         <option name="sourceFilePath" value="docker-compose.yaml" />
         <option name="upForceRecreate" value="true" />
@@ -160,10 +160,10 @@ runs the application from the IDE's own module model, so it carries a `module` e
 holds the main class.
 
 ```xml
-<configuration default="false" name="PharmacyApplication local" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+<configuration default="false" name="BackendApplication local" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
   <option name="ACTIVE_PROFILES" value="local" />
-  <module name="pha-pharma.pha-pharma-app" />
-  <option name="SPRING_BOOT_MAIN_CLASS" value="com.revdevs.pharmacy.PharmacyApplication" />
+  <module name="backend.backend-app" />
+  <option name="SPRING_BOOT_MAIN_CLASS" value="com.example.backend.BackendApplication" />
   <method v="2">
     <option name="Make" enabled="true" />
   </method>
@@ -173,7 +173,7 @@ holds the main class.
 That `module` name is the fragile part. It has to match a module the IDE currently shows, and the module names change
 when the Gradle import switches between one module per source set and one per project, which is decided in
 `.idea/gradle.xml` and described in [gradle-monorepo.md](gradle-monorepo.md). A configuration pinned to
-`pha-pharma.pha-pharma-app.main` breaks silently the day that module stops existing, and only the configurations the
+`backend.backend-app.main` breaks silently the day that module stops existing, and only the configurations the
 IDE happened to have open are rewritten by it. Grep the rest.
 
 ```bash

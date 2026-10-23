@@ -65,7 +65,7 @@ A monorepo committed `.idea/modules.xml` listing 28 `.iml` files under `.idea/mo
 that directory. On the next machine IntelliJ read the registry, found no file behind any of the 28 entries, and
 created a placeholder module for each missing file. The Gradle import then ran, found each of its module names
 already taken by a module it had not created, and de-duplicated by prefixing the Gradle group, so
-`pha-pharma-messaging.main` gained a twin named `com.revdevs.pha-pharma.pha-pharma-messaging.main`. Every Java
+`backend-messaging.main` gained a twin named `com.example.backend.backend-messaging.main`. Every Java
 module showed twice, once empty and once real.
 
 JetBrains has the same diagnosis on record. In
@@ -117,14 +117,14 @@ tell you. Check the exact paths in both directions.
 A file you intend to track returns nothing and exits non-zero:
 
 ```bash
-git check-ignore -v .idea/pharmacy.iml
+git check-ignore -v .idea/monorepo.iml
 ```
 
 A file you still want ignored is still matched, so a broad negation has not quietly reopened the generated module
 files:
 
 ```bash
-git check-ignore -v .idea/modules/pha-pharma.pha-pharma-app.main.iml
+git check-ignore -v .idea/modules/backend.backend-app.main.iml
 ```
 
 Run both after every edit to the ignore rules, and read the rule the second command prints back rather than just

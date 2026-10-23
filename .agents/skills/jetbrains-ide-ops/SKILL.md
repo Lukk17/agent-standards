@@ -80,7 +80,7 @@ registry naming files that never arrive, and the IDE invents placeholder modules
 Pass:
 
 ```text
-.idea/modules.xml lists .idea/pharmacy.iml only, and that file is committed beside it.
+.idea/modules.xml lists .idea/monorepo.iml only, and that file is committed beside it.
 ```
 
 Fail:

@@ -19,7 +19,7 @@ the Project tree. The fix is one plain module whose content root is the reposito
   <component name="NewModuleRootManager" inherit-compiler-output="true">
     <exclude-output />
     <content url="file://$MODULE_DIR$">
-      <excludeFolder url="file://$MODULE_DIR$/pha-client/build" />
+      <excludeFolder url="file://$MODULE_DIR$/apps/mobile-client/build" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
@@ -35,7 +35,7 @@ directory, which is what makes the content root the repository. It is the only e
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/pharmacy.iml" filepath="$PROJECT_DIR$/.idea/pharmacy.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/monorepo.iml" filepath="$PROJECT_DIR$/.idea/monorepo.iml" />
     </modules>
   </component>
 </project>
@@ -55,11 +55,11 @@ open, so a fresh clone needs no hand step: the root module gives the tree, the l
 
 ```xml
 <GradleProjectSettings>
-  <option name="externalProjectPath" value="$PROJECT_DIR$/pha-cloud/gateway" />
+  <option name="externalProjectPath" value="$PROJECT_DIR$/apps/gateway" />
   <option name="resolveModulePerSourceSet" value="false" />
   <option name="modules">
     <set>
-      <option value="$PROJECT_DIR$/pha-cloud/gateway" />
+      <option value="$PROJECT_DIR$/apps/gateway" />
     </set>
   </option>
 </GradleProjectSettings>
@@ -74,7 +74,7 @@ here when a build joins the repository.
 
 `.idea/.name` holds the title the IDE shows in the window and in the recent projects list, and it overrides the
 checkout folder name whatever that folder is called. Name it in lowercase and give the root module the same name, so
-`.idea/.name` reads `pharmacy` and the module file is `.idea/pharmacy.iml`. A capitalised module beside a lowercase
+`.idea/.name` reads `monorepo` and the module file is `.idea/monorepo.iml`. A capitalised module beside a lowercase
 project name is two spellings of one thing, and on a case-insensitive filesystem it is also a trap, described in
 [windows-traps.md](windows-traps.md).
 
@@ -98,8 +98,8 @@ and on 2020-12-31 in the same issue:
 the support for this option is no longer maintained and there are no plans to improve such set ups
 ```
 
-With `false` the IDE shows `pha-pharma.pha-pharma-drug` instead of `pha-pharma.pha-pharma-drug.main` and
-`pha-pharma.pha-pharma-drug.test`. The cost is that the main and test classpaths merge into one module, and a custom
+With `false` the IDE shows `backend.backend-orders` instead of `backend.backend-orders.main` and
+`backend.backend-orders.test`. The cost is that the main and test classpaths merge into one module, and a custom
 source set such as `testFixtures` loses its own dependencies, which is
 [IDEA-235646](https://youtrack.jetbrains.com/issue/IDEA-235646), answered and closed: a dependency declared only on
 a custom configuration is reported as an unresolved import while the Gradle build itself succeeds.
