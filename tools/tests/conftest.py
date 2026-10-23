@@ -5,7 +5,11 @@ above this package, and resolving that root once here keeps the location in a
 single place. SUBPROCESS_TIMEOUT_SECONDS bounds every child a test starts, so
 a hung hook fails its test instead of stalling the run. isolated_temp_directory
 gives every test its own temp directory, so no hook state is read from or left
-in the real one.
+in the real one. isolated_home_directory does the same for the home
+directory: HOME and USERPROFILE name a fresh folder, and every variable that
+moves an agent's home or an XDG base directory elsewhere is removed, so a path
+the code builds from the environment always lands under that folder and never
+in the user's real ~/.config/codex, ~/.claude or ~/.local/state.
 """
 
 from pathlib import Path
@@ -26,6 +30,16 @@ RUNNER_DRIVER = Path(__file__).resolve().parent / "hook_runner_driver.mjs"
 SUBPROCESS_TIMEOUT_SECONDS = 60
 
 TEMP_DIRECTORY_VARIABLES = ("TMPDIR", "TEMP", "TMP")
+HOME_VARIABLES = ("HOME", "USERPROFILE")
+RELOCATING_VARIABLES = (
+    "CODEX_HOME",
+    "CLAUDE_CONFIG_DIR",
+    "COPILOT_HOME",
+    "XDG_CONFIG_HOME",
+    "XDG_STATE_HOME",
+    "XDG_DATA_HOME",
+    "XDG_CACHE_HOME",
+)
 
 
 @pytest.fixture(autouse=True)
@@ -36,3 +50,16 @@ def isolated_temp_directory(tmp_path_factory, monkeypatch):
         monkeypatch.setenv(name, str(directory))
 
     return directory
+
+
+@pytest.fixture(autouse=True)
+def isolated_home_directory(tmp_path_factory, monkeypatch):
+    home = tmp_path_factory.mktemp("home")
+
+    for name in HOME_VARIABLES:
+        monkeypatch.setenv(name, str(home))
+
+    for name in RELOCATING_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+
+    return home

@@ -3,7 +3,9 @@
 Every test builds a throwaway upstream repository and a fake home directory
 under tmp_path, installs the fake home the way docs/GLOBAL_SETUP.md does, and
 runs the updater with --home-dir pointing at it. No test reads or writes the
-real home directory: HOME and USERPROFILE point at the fake one as well.
+real home directory: HOME and USERPROFILE point at the fake one as well, and
+the isolated_home_directory fixture in conftest.py removes CODEX_HOME and the
+other variables that would send the skill link hook to a folder outside it.
 """
 
 import os
@@ -475,14 +477,14 @@ def test_an_update_brings_the_claude_code_skill_links_in_step(tmp_path, implemen
     links_after_dry_run = (home / ".claude" / "skills").exists()
     result = run_updater(implementation, home, str(repo))
 
-    # Then the dry run linked nothing and the real run linked every installed skill
+    # Then the dry run linked nothing and the real run linked every installed skill, for both agents of this home
     assert planned.returncode == 0, planned.stderr
     assert not links_after_dry_run
     assert result.returncode == 0, result.stderr
     assert "Skill links: the Claude Code and Codex skills folders checked against ~/.config/agents/skills." in result.stdout
-    links = home / ".claude" / "skills"
-    assert sorted(path.name for path in links.iterdir()) == ["alpha", "delta", "mine"]
-    assert all((links / name).is_symlink() for name in ("alpha", "delta", "mine"))
+    for links in (home / ".claude" / "skills", home / ".config" / "codex" / "skills"):
+        assert sorted(path.name for path in links.iterdir()) == ["alpha", "delta", "mine"]
+        assert all((links / name).is_symlink() for name in ("alpha", "delta", "mine"))
 
 
 @pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
