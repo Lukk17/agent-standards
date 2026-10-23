@@ -2,7 +2,7 @@
 
 Read this before attaching a data disk to the VM, mounting it, sharing it, or clearing a dirty NTFS volume. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab on 2026-10-23, on an Ubuntu Server VM whose kernel has `ntfs3` and with `ntfs-3g` 2022.10.3 installed. Every other command here is UNVERIFIED. Attaching the disk on the Proxmox host is the `proxmox` skill's ground, and it is here only as the one command the VM side depends on.
 
-Sources, fetched on 2026-10-23: the kernel's ntfs3 documentation, `Documentation/filesystems/ntfs3.rst` at https://github.com/torvalds/linux. Quoted from the owner's notes, read on 2026-10-23 and not fetched again: the chattr manual page at https://man7.org/linux/man-pages/man1/chattr.1.html, the mount manual page at https://man7.org/linux/man-pages/man8/mount.8.html, the ntfsfix manual page at https://man.archlinux.org/man/ntfsfix.8, and the Proxmox wiki page on passing a physical disk to a VM.
+Sources, fetched on 2026-10-23: the kernel's ntfs3 documentation, `Documentation/filesystems/ntfs3.rst`, and `fs/namei.c`, both on the `master` branch of https://github.com/torvalds/linux, and the chattr manual page at https://man7.org/linux/man-pages/man1/chattr.1.html. Quoted from the owner's notes, read on 2026-10-23 and not fetched again: the mount manual page at https://man7.org/linux/man-pages/man8/mount.8.html, the ntfsfix manual page at https://man.archlinux.org/man/ntfsfix.8, and the Proxmox wiki page on passing a physical disk to a VM.
 
 ---
 
@@ -42,13 +42,21 @@ findmnt /mnt/data
 sudo chattr +i /mnt/data
 ```
 
-Prove it while the disk is still not mounted. This must fail with `Operation not permitted`:
+Read the flag back. The letters before the path include an `i`:
+
+```bash
+lsattr -d /mnt/data
+```
+
+VERIFIED on the homelab on 2026-10-23 with the disk unmounted: `lsattr -d /mnt/data` printed `----i---------e-------`, and mounting the NTFS disk over the flagged folder afterwards worked.
+
+Prove the refusal while the disk is still not mounted. This must fail with `Operation not permitted`:
 
 ```bash
 sudo touch /mnt/data/test
 ```
 
-VERIFIED on the homelab. The chattr manual: "A file with the 'i' attribute cannot be modified [...] Only the superuser or a process possessing the CAP_LINUX_IMMUTABLE capability can set or clear this attribute." The mount manual: "The previous contents (if any) and owner and mode of dir become invisible". The flag needs a system file system that keeps it, ext4 does. To remove the folder one day, clear the flag first, with the disk unmounted, using `sudo chattr -i /mnt/data`.
+UNVERIFIED: the refused write was not measured on the homelab, so run the check above on every VM. It rests on two sources. The chattr manual: "A file with the 'i' attribute cannot be modified: it cannot be deleted or renamed, no link can be created to this file [...] Only the superuser or a process possessing the CAP_LINUX_IMMUTABLE capability can set or clear this attribute." The kernel's `fs/namei.c`: the comment above `may_create_dentry` lists "We can't do it if dir is immutable (done in permission())", and `inode_permission` returns `-EPERM` for a write under the comment "Nobody gets write access to an immutable file.", before it looks at who asks, so root is refused too. The mount manual: "The previous contents (if any) and owner and mode of dir become invisible", which is why the flag does not stand in the way of the mounted disk. The flag needs a system file system that keeps it, ext4 does. To remove the folder one day, clear the flag first, with the disk unmounted, using `sudo chattr -i /mnt/data`.
 
 ---
 
