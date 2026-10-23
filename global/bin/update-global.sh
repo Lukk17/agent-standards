@@ -38,6 +38,7 @@ readonly LEGACY_INSTALL_DIR='.agents'
 readonly SUBAGENT_TREES=".config/agents/agents:.agents/agents .claude/agents:.claude/agents $CODEX_HOME_DIR/agents:.codex/agents .config/copilot/agents:.github/agents"
 readonly RESERVED_SKILL_NAMES='synced .trash'
 readonly SKILL_LINK_HOOK='hooks/claude/sync_skill_links.py'
+readonly WIRING_ADVICE='Take it in with the one-line command that writes the hook file of each agent, under "Per-agent setup" in docs/GLOBAL_SETUP.md, run against a new temporary copy.'
 
 dry_run=0
 source_ref=$UPSTREAM_URL
@@ -298,7 +299,8 @@ update_subagents() {
 report_wiring() {
   if [ "$old_known" -eq 0 ]; then
     printf 'Hook wiring: the previously installed commit is unknown here, so files removed upstream were not detected\n'
-    printf 'and wiring changes could not be listed. Compare the per-agent blocks in docs/GLOBAL_SETUP.md by hand.\n'
+    printf 'and wiring changes could not be listed.\n'
+    printf '%s\n' "$WIRING_ADVICE"
     return 0
   fi
 
@@ -311,8 +313,9 @@ report_wiring() {
     return 0
   fi
 
-  printf 'Hook wiring changed upstream since %s. Merge it into your own files by hand, from docs/GLOBAL_SETUP.md:\n' "$old_commit"
+  printf 'Hook wiring changed upstream since %s.\n' "$old_commit"
   printf '%s\n' "$wiring_changed" | sed 's/^/  /'
+  printf '%s\n' "$WIRING_ADVICE"
   printf 'See the change with: git diff %s %s -- %s\n' "$old_commit" "$commit" "$WIRING_FILES"
 }
 
@@ -393,4 +396,4 @@ main() {
   report_totals
 }
 
-main "$@"
+main "$@"; exit

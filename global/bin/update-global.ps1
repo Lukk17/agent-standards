@@ -41,6 +41,7 @@ $SubagentTrees = @(
 )
 $ReservedSkillNames = @('synced', '.trash')
 $SkillLinkHook = 'hooks/claude/sync_skill_links.py'
+$WiringAdvice = 'Take it in with the one-line command that writes the hook file of each agent, under "Per-agent setup" in docs/GLOBAL_SETUP.md, run against a new temporary copy.'
 
 $Counts = @{ update = 0; add = 0; remove = 0; unchanged = 0; keep = 0; skip = 0 }
 
@@ -221,7 +222,8 @@ function Sync-InstalledSubagent {
 function Write-WiringReport {
     if (-not $script:PreviousKnown) {
         'Hook wiring: the previously installed commit is unknown here, so files removed upstream were not detected'
-        'and wiring changes could not be listed. Compare the per-agent blocks in docs/GLOBAL_SETUP.md by hand.'
+        'and wiring changes could not be listed.'
+        $WiringAdvice
         return
     }
     $changed = Get-GitOutput -GitArgument (@('-C', $script:Repo, 'diff', '--name-only', $script:PreviousCommit, $script:Commit, '--') + $WiringFiles)
@@ -232,10 +234,11 @@ function Write-WiringReport {
         "Hook wiring: unchanged upstream since $($script:PreviousCommit)."
         return
     }
-    "Hook wiring changed upstream since $($script:PreviousCommit). Merge it into your own files by hand, from docs/GLOBAL_SETUP.md:"
+    "Hook wiring changed upstream since $($script:PreviousCommit)."
     foreach ($file in $changed) {
         "  $file"
     }
+    $WiringAdvice
     "See the change with: git diff $($script:PreviousCommit) $($script:Commit) -- $($WiringFiles -join ' ')"
 }
 

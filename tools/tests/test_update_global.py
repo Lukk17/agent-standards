@@ -99,6 +99,8 @@ INSTALL_ROOTS = (".config/agents", ".config/codex", ".config/copilot", ".claude"
 
 AGENT_HOME_VARIABLES = ("CODEX_HOME", "CLAUDE_CONFIG_DIR", "COPILOT_HOME")
 
+WIRING_ADVICE = 'Take it in with the one-line command that writes the hook file of each agent, under "Per-agent setup" in docs/GLOBAL_SETUP.md, run against a new temporary copy.'
+
 USER_SETTINGS ='{"permissions": {"allow": ["mine"]}}\n'
 USER_SKILL = "---\nname: mine\ndescription: The user's own skill.\n---\n"
 
@@ -174,13 +176,13 @@ def snapshot(home: Path) -> dict[str, bytes]:
     }
 
 
-def run_updater(implementation: str, home: Path, source: str, *, dry_run: bool = False) -> subprocess.CompletedProcess:
+def run_updater(implementation: str, home: Path, source: str, *, dry_run: bool = False, updater_dir: Path = UPDATER_DIR) -> subprocess.CompletedProcess:
     if implementation == "sh":
-        command = [SH, (UPDATER_DIR / "update-global.sh").as_posix(), "--source", source, "--home-dir", home.as_posix()]
+        command = [SH, (updater_dir / "update-global.sh").as_posix(), "--source", source, "--home-dir", home.as_posix()]
         if dry_run:
             command.append("--dry-run")
     else:
-        command = [PWSH, "-NoProfile", "-NonInteractive", "-File", str(UPDATER_DIR / "update-global.ps1"), "-Source", source, "-HomeDir", str(home)]
+        command = [PWSH, "-NoProfile", "-NonInteractive", "-File", str(updater_dir / "update-global.ps1"), "-Source", source, "-HomeDir", str(home)]
         if dry_run:
             command.append("-DryRun")
 
@@ -258,8 +260,8 @@ def test_an_update_refreshes_only_what_is_installed(released, implementation):
         "keep    ~/.config/copilot/agents/c.agent.md (removed upstream, left in place)",
     ]
     assert "Updated 7, added 2, removed 3. Unchanged 2. Left alone: 5 removed upstream, 2 not from upstream." in result.stdout
-    assert f"Hook wiring changed upstream since {first}." in result.stdout
-    assert "  .claude/settings.json" in result.stdout
+    assert f"Hook wiring changed upstream since {first}.\n  .claude/settings.json\n{WIRING_ADVICE}\n" in result.stdout
+    assert "by hand" not in result.stdout
 
     files = snapshot(home)
     assert files[".config/agents/hooks/preflight_gate.py"] == b"gate v2\n"
@@ -332,6 +334,8 @@ def test_an_unknown_previous_commit_removes_nothing(released, implementation):
     assert (home / ".config" / "agents" / "hooks" / "old_hook.py").exists()
     assert "remove " not in result.stdout
     assert "the previously installed commit is unknown here" in result.stdout
+    assert f"and wiring changes could not be listed.\n{WIRING_ADVICE}\n" in result.stdout
+    assert "by hand" not in result.stdout
     assert "skip    ~/.config/agents/skills/delta (not an upstream skill)" in result.stdout
 
 
@@ -526,3 +530,41 @@ def test_the_reply_rules_are_refreshed_in_full_like_the_hooks(released, implemen
     assert result.returncode == 0, result.stderr
     assert "add     ~/.config/agents/instructions/reply-rules.md" in result.stdout
     assert (home / ".config" / "agents" / "instructions" / "reply-rules.md").read_bytes() == b"rules v2\n"
+
+
+UPDATER_SCRIPTS = {"sh": "update-global.sh", "pwsh": "update-global.ps1"}
+
+MEASURED_GROWTH_BYTES = 122
+
+
+def grow_after_first_line(script: bytes, growth: int) -> bytes:
+    """The same script with a comment line of exactly growth bytes after its first line, so every later byte shifts."""
+    first_line, rest = script.split(b"\n", 1)
+    padding = b"#" + b"-" * (growth - 2) + b"\n"
+
+    return first_line + b"\n" + padding + rest
+
+
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+def test_an_updater_that_replaces_itself_with_a_longer_copy_finishes_cleanly(tmp_path, implementation):
+    # Given an installed updater that is the copy under test, and an upstream whose copy of it is 122 bytes longer,
+    # the growth measured on 2026-10-23 when a real run ended with "line 395: ooling: command not found"
+    script = UPDATER_SCRIPTS[implementation]
+    current = (UPDATER_DIR / script).read_bytes()
+    longer = grow_after_first_line(current, MEASURED_GROWTH_BYTES)
+    repo, first = make_upstream(tmp_path)
+    home = install_home(tmp_path, repo, first)
+    installed_bin = home / ".config" / "agents" / "bin"
+    (installed_bin / script).write_bytes(current)
+    write_files(repo, {f"global/bin/{script}": longer.decode("utf-8")})
+    commit_all(repo, "a longer updater")
+
+    # When the installed copy runs and installs the longer copy over itself
+    result = run_updater(implementation, home, str(repo), updater_dir=installed_bin)
+
+    # Then it finishes as the copy it started from, and never reads the new copy at the old offset
+    assert result.returncode == 0, result.stderr
+    assert "not found" not in result.stderr
+    assert result.stdout.count("agent-standards global update") == 1
+    assert f"update  ~/.config/agents/bin/{script}" in result.stdout
+    assert (installed_bin / script).read_bytes() == longer
