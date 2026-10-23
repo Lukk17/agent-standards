@@ -1,6 +1,6 @@
 ---
 name: arch-linux
-description: 'Package and system administration on Arch Linux and Arch based distributions: pacman, the AUR with paru or yay, makepkg and PKGBUILD review, full upgrades and the pre-upgrade news check, partial upgrades and mirror 404s, .pacnew and .pacsave merging, orphans and cache cleanup, snapper snapshots and rollback, systemd units and journal triage, coredump crash diagnosis, PipeWire and WirePlumber audio, and editing configuration without touching packaged files. Use when you say "pacman -Syu", "install this from the AUR", "failed retrieving file", "unable to satisfy dependency", "No module named build", "what is this pacnew", "free up disk space", "roll back the upgrade", "this service failed", "the program crashed", "no sound", or "where do I override this config". Not for CachyOS kernels, v3 repositories, chwd or Limine, use `cachyos`, and not for Plasma panels, widgets or themes, use `kde-plasma`.'
+description: 'Package and system administration on Arch Linux and Arch based distributions: pacman, the AUR with paru or yay, makepkg and PKGBUILD review, full upgrades and the pre-upgrade news check, partial upgrades and mirror 404s, .pacnew and .pacsave merging, orphans and cache cleanup, snapper snapshots and rollback, systemd units and journal triage, coredump crash diagnosis, PipeWire and WirePlumber audio, and editing configuration without touching packaged files. Use when you say "pacman -Syu", "install this from the AUR", "failed retrieving file", "unable to satisfy dependency", "No module named build", "what is this pacnew", "free up disk space", "clean up leftovers", "roll back the upgrade", "this service failed", "the program crashed", "no sound", or "where do I override this config". Not for CachyOS kernels, v3 repositories, chwd or Limine, use `cachyos`, and not for Plasma panels, widgets or themes, use `kde-plasma`.'
 ---
 
 # Arch Linux Administration
@@ -16,7 +16,7 @@ Baseline: Arch Linux rolling, pacman 7, PipeWire 1.6 with WirePlumber 0.5, verif
 | See a 404, "failed retrieving file", "unable to satisfy dependency", a missing `.so` | [partial-upgrade-and-404.md](references/partial-upgrade-and-404.md) |
 | Find `.pacnew` or `.pacsave` files, or an upgrade printed one | [pacnew.md](references/pacnew.md) |
 | Use paru, yay or makepkg, read a PKGBUILD, see "No module named build" | [aur-and-makepkg.md](references/aur-and-makepkg.md) |
-| Free disk space, remove orphans, prune the pacman cache | [orphans-and-cleanup.md](references/orphans-and-cleanup.md) |
+| Free disk space, clean up leftovers with `scripts/cleanup-leftovers.sh`, remove orphans, prune the pacman cache | [orphans-and-cleanup.md](references/orphans-and-cleanup.md) |
 | Take a snapshot, undo a change, roll back a bad upgrade | [snapper-rollback.md](references/snapper-rollback.md) |
 | Read a failed service, a slow boot, the journal, change a unit | [systemd-journal-triage.md](references/systemd-journal-triage.md) |
 | Explain a crash, a segfault, a coredump | [crash-diagnosis.md](references/crash-diagnosis.md) |

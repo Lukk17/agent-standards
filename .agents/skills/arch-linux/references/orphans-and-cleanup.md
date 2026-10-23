@@ -6,6 +6,46 @@ The order of work: scan without deleting, report sizes, get confirmation per gro
 
 ---
 
+### Real leftovers only
+
+The default cleanup removes only what nothing on the machine uses any more. Caches of tools in use are not leftovers: JetBrains caches of installed IDEs, Gradle, npm, Cargo and browser caches stay, and this procedure does not touch them. Stopped Docker containers, named images and volumes stay too. The phases further down this page are for when the owner asks for more than leftovers.
+
+| Group | What counts as a leftover | How it is removed |
+|---|---|---|
+| a | Pacman cache files of packages no longer installed, and old versions beyond the last 2 | `sudo paccache -ruk0` and `sudo paccache -rk2` |
+| b | Orphans from `pacman -Qtdq`, without anything matching `linux*`, `*-ucode`, `linux-firmware*`, `nvidia*`, `mkinitcpio*`, `limine*`, `plymouth*`, `systemd*` or `snap*`, which are listed as kept | `sudo pacman -Rns <names>`, no `--noconfirm` |
+| c | AUR build folders in `~/.cache/paru/clone` whose package is no longer installed. The `pkgbase` and every `pkgname` in the folder's `.SRCINFO` are matched against `pacman -Qq`, so a split package folder stays while any of its packages is installed. A folder without `.SRCINFO` stays. The group is skipped while a `makepkg` or `paru` process runs | the folder is deleted |
+| d | Docker dangling images that no container uses, and the build cache | `docker image prune` without `-a`, and `docker builder prune` |
+| e | Flatpak runtimes no app needs | `flatpak uninstall --unused`, which lists and asks itself |
+| f | JetBrains version folders such as `~/.cache/JetBrains/IntelliJIdea2025.3`, also under `~/.local/share/JetBrains` and `~/.config/JetBrains`, of an IDE version that is no longer installed. Installed versions are the `dataDirectoryName` values in `product-info.json` under the Toolbox install location from `~/.local/share/JetBrains/Toolbox/.settings.json`, `/opt`, `/usr/share`, `/usr/lib` and `/snap`. Toolbox and every other folder stay, and the group is skipped when no installed IDE is found | each folder is asked one by one |
+| g | Trash in `~/.local/share/Trash` only, not the trash folders on other drives | the content of `files`, `info` and `expunged` in that folder is deleted, never `gio trash --empty`, which also empties the trash on other drives |
+| h | Thumbnails in `~/.cache/thumbnails` whose original file no longer exists, read from the `Thumb::URI` text chunk (`tEXt` or `zTXt`), `file://` only. A file on a drive that is not mounted counts as missing, and its thumbnail is made again on the next view | the thumbnail files are deleted |
+
+The script [scripts/cleanup-leftovers.sh](../scripts/cleanup-leftovers.sh) does all eight groups. A group whose tool is missing is skipped with one line saying so.
+
+1. Scan first. It prints one line per group with what was found and its size, and removes nothing. Flatpak has no dry run, so the scan only counts its runtimes.
+
+```bash
+bash scripts/cleanup-leftovers.sh
+```
+
+2. The owner runs the clean himself, as his own user. Each group with something in it shows its items and the size, asks `Remove? [y/N]`, and removes only on `y`. Steps that need root call `sudo` after the `y`, so the password prompt appears in the owner's terminal.
+
+```bash
+bash scripts/cleanup-leftovers.sh --clean
+```
+
+3. The agent runs only the scan. It never runs `--clean` and never runs `sudo`.
+4. Run the scan again afterwards and report what changed.
+
+The tests run in throwaway containers with no network and no host folder mounted, and need Docker:
+
+```bash
+bash scripts/tests/run-tests.sh
+```
+
+---
+
 ### Phase 1: scan
 
 Read-only, no root. Run these and report the numbers.
@@ -54,6 +94,7 @@ On btrfs with snapshots, deleting a file that a snapshot still references frees 
 2. Snapshots: `sudo snapper list-configs` and `sudo snapper -c <config> list`, run by the owner where listing needs root. Old snapshots are removed by the cleanup timer, or by `sudo snapper -c <config> delete <number>` after the owner agrees. Deleting a snapshot removes a rollback point, which is why it is the owner's decision.
 3. After deleting snapshots, space returns gradually while btrfs frees extents in the background.
 4. A subvolume without a snapper config, often `/home`, frees space immediately. `MACHINE.md` records which subvolumes have snapshots.
+5. Root snapshots keep old Docker data in `/var/lib/docker` and `/var/lib/containerd`, so pruning Docker frees space only after those snapshots go.
 
 ---
 
@@ -108,4 +149,8 @@ Rules for every deletion: quote paths, put `--` before them, never use a glob th
 
 ### Docker
 
-A development stack under Docker keeps its data in named volumes and recreates stopped containers empty. Never run `docker system prune`, `docker container prune` or `docker volume prune` without the owner naming exactly what goes. Safe and narrow, after showing sizes with `docker system df`: `docker image prune` for dangling images only, and `docker builder prune`.
+A development stack under Docker keeps its data in named volumes and recreates stopped containers empty. Safe and narrow, after showing sizes with `docker system df`: `docker image prune` for dangling images only, and `docker builder prune`.
+
+Stopped containers always stay. `docker container prune` and `docker system prune` are never used, and `docker volume prune` only when the owner names exactly what goes.
+
+With the containerd image store, images live in `/var/lib/containerd`, not in `/var/lib/docker`, and `docker info` shows `driver-type: io.containerd.snapshotter.v1`. Measure with `docker system df`, and the owner runs `sudo du -xsh /var/lib/containerd`.
