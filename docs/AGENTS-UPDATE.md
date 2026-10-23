@@ -53,7 +53,23 @@ python3 --version
 
 While you are here, check that `/tasks.md` and `/.agents/tasks.widget.json` are in your project's `.gitignore`.
 The task-list hook writes `tasks.md` at the project root plus the generated widget snapshot every session, and both
-are working state rather than shared history.
+are working state rather than shared history. This adds each line that is missing and leaves the rest alone. Unix shell:
+
+```bash
+for p in /tasks.md /.agents/tasks.widget.json; do grep -qxF "$p" .gitignore 2>/dev/null || printf '\n%s\n' "$p" >> .gitignore; done
+```
+
+PowerShell:
+
+```powershell
+foreach ($p in '/tasks.md', '/.agents/tasks.widget.json') { if (-not ((Test-Path .gitignore) -and (Get-Content .gitignore) -contains $p)) { Add-Content .gitignore "`n$p" } }
+```
+
+Check it. Each path prints with the `.gitignore` line that ignores it. PowerShell or Unix shell, same command:
+
+```bash
+git check-ignore -v tasks.md .agents/tasks.widget.json
+```
 
 ---
 
@@ -292,9 +308,58 @@ Who owns which half:
 
 The three MCP-only files become yours outright at import and never need to follow upstream again, unless you want a
 newly added server. The other three are split: the gate half should stay identical to upstream so the preflight rule
-keeps firing, and it shares a file with something of yours, so an upstream gate change is merged by hand rather than
-checked out. The release notes say when there is one. Read upstream's copy with
-`git show agent-standards/master:opencode.json` and paste across the block you need.
+keeps firing, and it shares a file with something of yours, so an upstream gate change is taken in on its own rather
+than checked out. The release notes say when there is one.
+
+#### Taking only the gate half
+
+Each command below replaces the gate half of one file with upstream's copy, read through `git show`, and keeps
+everything else in that file. Run them from the project root after `git fetch agent-standards`, only for the files you
+have.
+
+`.claude/settings.json`, whose `hooks` block is replaced and whose other keys stay. Unix shell:
+
+```bash
+python3 -c 'import json,subprocess;p=".claude/settings.json";u=json.loads(subprocess.check_output(["git","show","agent-standards/master:"+p],text=True,encoding="utf-8"));s=json.load(open(p,encoding="utf-8"));s["hooks"]=u["hooks"];open(p,"w",encoding="utf-8").write(json.dumps(s,indent=2)+"\n")'
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,subprocess;p=".claude/settings.json";u=json.loads(subprocess.check_output(["git","show","agent-standards/master:"+p],text=True,encoding="utf-8"));s=json.load(open(p,encoding="utf-8"));s["hooks"]=u["hooks"];open(p,"w",encoding="utf-8").write(json.dumps(s,indent=2)+"\n")'
+```
+
+`opencode.json`, whose `plugin` and `instructions` arrays are replaced and whose `mcp` block stays. Unix shell:
+
+```bash
+python3 -c 'import re,subprocess;p="opencode.json";u=subprocess.check_output(["git","show","agent-standards/master:"+p],text=True,encoding="utf-8");t=open(p,encoding="utf-8").read();[t:=re.sub(r"\x22"+k+r"\x22: \[.*?\]",lambda m,k=k:re.search(r"\x22"+k+r"\x22: \[.*?\]",u,re.S).group(0),t,count=1,flags=re.S) for k in ("plugin","instructions")];open(p,"w",encoding="utf-8").write(t)'
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import re,subprocess;p="opencode.json";u=subprocess.check_output(["git","show","agent-standards/master:"+p],text=True,encoding="utf-8");t=open(p,encoding="utf-8").read();[t:=re.sub(r"\x22"+k+r"\x22: \[.*?\]",lambda m,k=k:re.search(r"\x22"+k+r"\x22: \[.*?\]",u,re.S).group(0),t,count=1,flags=re.S) for k in ("plugin","instructions")];open(p,"w",encoding="utf-8").write(t)'
+```
+
+`.codex/config.toml`, where everything from the first `[[hooks.` table to the end of the file is replaced, and your
+`[mcp_servers.*]` tables above it stay. It relies on the hook tables coming last, as they ship, so a table of your own
+placed after them would be lost. Unix shell:
+
+```bash
+python3 -c 'import re,subprocess;p=".codex/config.toml";u=subprocess.check_output(["git","show","agent-standards/master:"+p],text=True,encoding="utf-8");t=open(p,encoding="utf-8").read();h=re.compile(r"^\[\[hooks\.",re.M);open(p,"w",encoding="utf-8").write(t[:h.search(t).start()]+u[h.search(u).start():])'
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import re,subprocess;p=".codex/config.toml";u=subprocess.check_output(["git","show","agent-standards/master:"+p],text=True,encoding="utf-8");t=open(p,encoding="utf-8").read();h=re.compile(r"^\[\[hooks\.",re.M);open(p,"w",encoding="utf-8").write(t[:h.search(t).start()]+u[h.search(u).start():])'
+```
+
+Check the result against what you had. PowerShell or Unix shell, same command:
+
+```bash
+git diff -- .claude/settings.json opencode.json .codex/config.toml
+```
 
 ---
 

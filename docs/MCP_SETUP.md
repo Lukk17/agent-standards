@@ -83,7 +83,8 @@ merged on top of that rather than replacing it. Exporting the variable is enough
 The one value that cannot arrive that way is the Context7 API key, because it travels as an HTTP header on a remote
 server rather than in the server process environment. If you have a paid Context7 key, put the whole `context7` block
 into your own global config (`~/.config/opencode/opencode.json` for OpenCode, `~/.config/kilo/kilo.jsonc` for Kilo
-Code), which is trusted config and does expand `{env:VAR}`. It cannot live in a project file: Kilo rejects any project
+Code), which is trusted config and does expand `{env:VAR}`. The command for each file is under
+[Kilo Code in GLOBAL_SETUP.md](GLOBAL_SETUP.md#kilo-code), and it writes the reference, never the key. It cannot live in a project file: Kilo rejects any project
 file that holds an environment reference, and it would throw away the MCP block and the `plugin` array declaring the
 preflight gate along with it. Without the global block, both tools talk to Context7 on the free tier, which is the
 shipped default.
@@ -108,6 +109,36 @@ Turn off a server you do not use. In [opencode.json](../opencode.json) set `"ena
 [.vscode/mcp.json](../.vscode/mcp.json), and [.github/mcp.json](../.github/mcp.json) delete the block, because those
 schemas have no enable flag. A server you never disable still spawns and still fills your log with authentication
 failures.
+
+Two commands do it from the project root, each naming the server at the end, here `mongodb`. The first sets the flag in the two files that have one and changes only that line, so the rest of each file stays as upstream wrote it. Unix shell:
+
+```bash
+python3 -c 'import re,sys;n=re.escape(sys.argv[1]);p="opencode.json";t=open(p,encoding="utf-8").read();open(p,"w",encoding="utf-8").write(re.sub(r"(\x22"+n+r"\x22: \{.*?\x22enabled\x22: )(?:true|false)",r"\1false",t,count=1,flags=re.S));p=".codex/config.toml";t=open(p,encoding="utf-8").read();open(p,"w",encoding="utf-8").write(re.sub(r"(?m)^(\[mcp_servers\."+n+r"\])$(?!\nenabled = false)",r"\1\nenabled = false",t))' mongodb
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import re,sys;n=re.escape(sys.argv[1]);p="opencode.json";t=open(p,encoding="utf-8").read();open(p,"w",encoding="utf-8").write(re.sub(r"(\x22"+n+r"\x22: \{.*?\x22enabled\x22: )(?:true|false)",r"\1false",t,count=1,flags=re.S));p=".codex/config.toml";t=open(p,encoding="utf-8").read();open(p,"w",encoding="utf-8").write(re.sub(r"(?m)^(\[mcp_servers\."+n+r"\])$(?!\nenabled = false)",r"\1\nenabled = false",t))' mongodb
+```
+
+The second deletes the block from the three files without a flag. It writes each of them back with two-space indentation, which is fine because those three files are yours outright, as [AGENTS-UPDATE.md](AGENTS-UPDATE.md#what-this-skips-and-why) explains. Unix shell:
+
+```bash
+python3 -c 'import json,sys;n=sys.argv[1];[(lambda s:(s[k].pop(n,None),open(f,"w",encoding="utf-8").write(json.dumps(s,indent=2)+"\n")))(json.load(open(f,encoding="utf-8"))) for f,k in ((".mcp.json","mcpServers"),(".vscode/mcp.json","servers"),(".github/mcp.json","mcpServers"))]' mongodb
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,sys;n=sys.argv[1];[(lambda s:(s[k].pop(n,None),open(f,"w",encoding="utf-8").write(json.dumps(s,indent=2)+"\n")))(json.load(open(f,encoding="utf-8"))) for f,k in ((".mcp.json","mcpServers"),(".vscode/mcp.json","servers"),(".github/mcp.json","mcpServers"))]' mongodb
+```
+
+Check what changed, in either shell:
+
+```bash
+git diff --stat -- opencode.json .codex/config.toml .mcp.json .vscode/mcp.json .github/mcp.json
+```
 
 The agent-standards live pipeline, which runs every agent against a real model, loads `context7` alone. It has the
 smallest tool descriptions of the nine and needs no secret, and the descriptions of all nine together pushed a
@@ -188,65 +219,144 @@ code-quality results back, otherwise read-only is enough.
 Prefer system-wide variables over per-shell ones, so every agent inherits them: Claude Code, OpenCode, Codex, the Kilo
 command-line client, the JetBrains plugins, and graphical applications alike.
 
+Every command below asks for the four keys from Step 2 in turn, through a hidden prompt, so a value is never typed on a command line and never lands in your shell history. Press Enter at a prompt to skip a key you do not use. No check below prints a value.
+
 #### Windows
 
-Set persistently for the current user. New processes see it after a restart.
+Set persistently for the current user. New processes see it after a restart. `-MaskInput` needs PowerShell 7.1 or later.
 
 ```powershell
-[Environment]::SetEnvironmentVariable('CONTEXT7_API_KEY', 'ctx7_xxxxxxxxxxxx', 'User')
+foreach ($n in 'CONTEXT7_API_KEY', 'GRAFANA_SERVICE_ACCOUNT_TOKEN', 'SONARQUBE_TOKEN', 'N8N_API_KEY') { $v = Read-Host "$n, Enter to skip" -MaskInput; if ($v) { [Environment]::SetEnvironmentVariable($n, $v, 'User') } }; Remove-Variable v
 ```
 
 System-wide, which needs an Administrator shell:
 
 ```powershell
-[Environment]::SetEnvironmentVariable('CONTEXT7_API_KEY', 'ctx7_xxxxxxxxxxxx', 'Machine')
+foreach ($n in 'CONTEXT7_API_KEY', 'GRAFANA_SERVICE_ACCOUNT_TOKEN', 'SONARQUBE_TOKEN', 'N8N_API_KEY') { $v = Read-Host "$n, Enter to skip" -MaskInput; if ($v) { [Environment]::SetEnvironmentVariable($n, $v, 'Machine') } }; Remove-Variable v
 ```
 
-Check it in a fresh PowerShell session:
+Check it in a fresh PowerShell session. It prints each name with `True` when the variable holds a value, and never the value itself:
 
 ```powershell
-$env:CONTEXT7_API_KEY
+'CONTEXT7_API_KEY', 'GRAFANA_SERVICE_ACCOUNT_TOKEN', 'SONARQUBE_TOKEN', 'N8N_API_KEY' | ForEach-Object { "$_ $([bool][Environment]::GetEnvironmentVariable($_))" }
 ```
 
 Restart your terminal, your editor, and any running agent shell after changing a system variable.
 
 #### Linux
 
-Append to `/etc/environment` for all users:
+Append to `/etc/environment` for all users. Every account on the machine can read that file, so use it only on a machine where you are the one user:
 
 ```bash
-echo 'CONTEXT7_API_KEY=ctx7_xxxxxxxxxxxx' | sudo tee -a /etc/environment
+for n in CONTEXT7_API_KEY GRAFANA_SERVICE_ACCOUNT_TOKEN SONARQUBE_TOKEN N8N_API_KEY; do printf '%s, Enter to skip: ' "$n"; IFS= read -rs v; echo; [ -n "$v" ] && printf '%s=%s\n' "$n" "$v" | sudo tee -a /etc/environment >/dev/null; done; unset v
 ```
 
-Or to `~/.profile` for your user only:
+Check it. It prints the line number and the name of each key it holds, never the value:
 
 ```bash
-echo 'GRAFANA_SERVICE_ACCOUNT_TOKEN=glsa_xxxxxxxxxxxx' >> ~/.profile
+grep -n -o -E '^(CONTEXT7_API_KEY|GRAFANA_SERVICE_ACCOUNT_TOKEN|SONARQUBE_TOKEN|N8N_API_KEY)=' /etc/environment
 ```
 
-Log out and back in to apply either one. For interactive shells only, append an `export` line to `~/.bashrc` or
-`~/.zshrc`:
+Or to `~/.profile` for your user only. The `export` makes each value reach the programs your login shell starts:
 
 ```bash
-export CONTEXT7_API_KEY=ctx7_xxxxxxxxxxxx
+for n in CONTEXT7_API_KEY GRAFANA_SERVICE_ACCOUNT_TOKEN SONARQUBE_TOKEN N8N_API_KEY; do printf '%s, Enter to skip: ' "$n"; IFS= read -rs v; echo; [ -n "$v" ] && printf "export %s='%s'\n" "$n" "$v" >> ~/.profile; done; unset v
 ```
+
+Check it:
+
+```bash
+grep -n -o -E '^export (CONTEXT7_API_KEY|GRAFANA_SERVICE_ACCOUNT_TOKEN|SONARQUBE_TOKEN|N8N_API_KEY)=' ~/.profile
+```
+
+Log out and back in to apply either one. For interactive shells only, append the same `export` lines to `~/.zshrc` or `~/.bashrc` instead. For zsh:
+
+```bash
+for n in CONTEXT7_API_KEY GRAFANA_SERVICE_ACCOUNT_TOKEN SONARQUBE_TOKEN N8N_API_KEY; do printf '%s, Enter to skip: ' "$n"; IFS= read -rs v; echo; [ -n "$v" ] && printf "export %s='%s'\n" "$n" "$v" >> ~/.zshrc; done; unset v
+```
+
+For bash:
+
+```bash
+for n in CONTEXT7_API_KEY GRAFANA_SERVICE_ACCOUNT_TOKEN SONARQUBE_TOKEN N8N_API_KEY; do printf '%s, Enter to skip: ' "$n"; IFS= read -rs v; echo; [ -n "$v" ] && printf "export %s='%s'\n" "$n" "$v" >> ~/.bashrc; done; unset v
+```
+
+Check it:
+
+```bash
+grep -n -o -E '^export (CONTEXT7_API_KEY|GRAFANA_SERVICE_ACCOUNT_TOKEN|SONARQUBE_TOKEN|N8N_API_KEY)=' ~/.zshrc ~/.bashrc 2>/dev/null
+```
+
+`read -s` hides what you type in bash and zsh. A value that itself holds a single quote would break its quoted `export` line, which no Context7, Grafana, SonarQube or n8n key does.
 
 #### macOS
 
 Append to `~/.zprofile`, which Terminal and anything started from it will load:
 
 ```bash
-echo 'export CONTEXT7_API_KEY=ctx7_xxxxxxxxxxxx' >> ~/.zprofile
+for n in CONTEXT7_API_KEY GRAFANA_SERVICE_ACCOUNT_TOKEN SONARQUBE_TOKEN N8N_API_KEY; do printf '%s, Enter to skip: ' "$n"; IFS= read -rs v; echo; [ -n "$v" ] && printf "export %s='%s'\n" "$n" "$v" >> ~/.zprofile; done; unset v
 ```
 
-For applications launched from Finder, set it through `launchctl`:
+Check it:
 
 ```bash
-launchctl setenv CONTEXT7_API_KEY ctx7_xxxxxxxxxxxx
+grep -n -o -E '^export (CONTEXT7_API_KEY|GRAFANA_SERVICE_ACCOUNT_TOKEN|SONARQUBE_TOKEN|N8N_API_KEY)=' ~/.zprofile
 ```
 
-`launchctl` values do not survive a reboot on their own. Persist them with a
-`~/Library/LaunchAgents/setenv.<name>.plist` entry, or scope them per project with [direnv](https://direnv.net/).
+For applications launched from Finder, set them through `launchctl`. This command reads the values from `~/.zprofile` in a login shell, so you never type them again, and sets each key that holds a value. `launchctl setenv` takes a value as an argument, so it shows in the process list for the moment the command runs, though never in your shell history:
+
+```bash
+zsh -lc 'for v in CONTEXT7_API_KEY GRAFANA_SERVICE_ACCOUNT_TOKEN SONARQUBE_TOKEN N8N_API_KEY; do if [ -n "${(P)v}" ]; then launchctl setenv "$v" "${(P)v}"; fi; done'
+```
+
+Check it. It prints each name with the number of characters in its value, and never the value:
+
+```bash
+for v in CONTEXT7_API_KEY GRAFANA_SERVICE_ACCOUNT_TOKEN SONARQUBE_TOKEN N8N_API_KEY; do printf '%s %s\n' "$v" "$(launchctl getenv "$v" | tr -d '\n' | wc -c)"; done
+```
+
+`launchctl` values do not survive a reboot on their own. To set them at every login, write a LaunchAgent that runs the same command. It holds no secret, because it reads `~/.zprofile` each time it runs. Create its folder:
+
+```bash
+mkdir -p ~/Library/LaunchAgents
+```
+
+Write the file. The quotes around `EOF` keep the shell from changing anything inside it:
+
+```bash
+tee ~/Library/LaunchAgents/local.mcp.environment.plist >/dev/null <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>local.mcp.environment</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-lc</string>
+    <string>for v in CONTEXT7_API_KEY GRAFANA_SERVICE_ACCOUNT_TOKEN SONARQUBE_TOKEN N8N_API_KEY; do if [ -n "${(P)v}" ]; then launchctl setenv "$v" "${(P)v}"; fi; done</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+</dict>
+</plist>
+EOF
+```
+
+Check that the file is valid. It prints the path followed by `OK`:
+
+```bash
+plutil -lint ~/Library/LaunchAgents/local.mcp.environment.plist
+```
+
+Load it once now, and launchd loads it at every login after:
+
+```bash
+launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/local.mcp.environment.plist
+```
+
+None of the macOS commands was run on a Mac for this guide. You can also scope a variable per project with [direnv](https://direnv.net/).
 
 ---
 
@@ -273,8 +383,26 @@ fallback, so only it resolves cleanly with nothing set. [opencode.json](../openc
 [.vscode/mcp.json](../.vscode/mcp.json), [.codex/config.toml](../.codex/config.toml), and
 [.github/mcp.json](../.github/mcp.json) hardcode their URLs, because `{env:VAR}` and `${env:VAR}` have no fallback
 syntax, TOML has no substitution at all, and the Copilot CLI's own project-file schema has none either. To point one
-of those at a different host, edit the literal string in your local copy. OpenCode also accepts
+of those at a different host, change the literal string in your local copy. OpenCode also accepts
 `OPENCODE_CONFIG_CONTENT` for a session-scoped override.
+
+One command changes the string in all four files from the project root, and nothing else in them. The last two words are the address the files hold now and the one you want, so put your own host in place of `http://grafana.lan:3000`. Unix shell:
+
+```bash
+python3 -c 'import sys;[(lambda t:open(f,"w",encoding="utf-8").write(t.replace(sys.argv[1],sys.argv[2])))(open(f,encoding="utf-8").read()) for f in ("opencode.json",".vscode/mcp.json",".codex/config.toml",".github/mcp.json")]' http://localhost:3000 http://grafana.lan:3000
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import sys;[(lambda t:open(f,"w",encoding="utf-8").write(t.replace(sys.argv[1],sys.argv[2])))(open(f,encoding="utf-8").read()) for f in ("opencode.json",".vscode/mcp.json",".codex/config.toml",".github/mcp.json")]' http://localhost:3000 http://grafana.lan:3000
+```
+
+Check what changed, in either shell:
+
+```bash
+git diff -- opencode.json .vscode/mcp.json .codex/config.toml .github/mcp.json
+```
 
 `opencode.json` goes one step further and carries no references at all, not even ones without a fallback, because a
 single `{env:VAR}` makes Kilo Code reject the file. Every token it used to name is now read from the environment by
@@ -289,6 +417,32 @@ under the Copilot CLI, because `.github/mcp.json` deliberately omits those three
 Authenticating one of those servers for the Copilot CLI specifically means adding the real value to that key in your
 own local, uncommitted copy of `.github/mcp.json`, the same way [Claude Desktop](#claude-desktop) below needs a
 literal value because it has no substitution either.
+
+One command does it from the project root. It reads each token from the variable you set in [Step 3](#step-3-set-environment-variables-system-wide), so the value never appears on the command line, writes it into the `env` object of its server, and skips a variable that is not set. It writes the file back with two-space indentation. Unix shell:
+
+```bash
+python3 -c 'import json,os,sys;p=".github/mcp.json";s=json.load(open(p,encoding="utf-8"));a=sys.argv[1:];[s["mcpServers"][a[i]].setdefault("env",{}).update({a[i+1]:os.environ[a[i+1]]}) for i in range(0,len(a),2) if os.environ.get(a[i+1])];open(p,"w",encoding="utf-8").write(json.dumps(s,indent=2)+"\n")' grafana GRAFANA_SERVICE_ACCOUNT_TOKEN sonarqube SONARQUBE_TOKEN n8n N8N_API_KEY
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,os,sys;p=".github/mcp.json";s=json.load(open(p,encoding="utf-8"));a=sys.argv[1:];[s["mcpServers"][a[i]].setdefault("env",{}).update({a[i+1]:os.environ[a[i+1]]}) for i in range(0,len(a),2) if os.environ.get(a[i+1])];open(p,"w",encoding="utf-8").write(json.dumps(s,indent=2)+"\n")' grafana GRAFANA_SERVICE_ACCOUNT_TOKEN sonarqube SONARQUBE_TOKEN n8n N8N_API_KEY
+```
+
+Check it. It prints each server with the names in its `env` object, and never a value. Unix shell:
+
+```bash
+python3 -c 'import json;print({k:sorted(v.get("env",{})) for k,v in json.load(open(".github/mcp.json",encoding="utf-8"))["mcpServers"].items()})'
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json;print({k:sorted(v.get("env",{})) for k,v in json.load(open(".github/mcp.json",encoding="utf-8"))["mcpServers"].items()})'
+```
+
+The file now holds secrets, so never commit it. `git status --short .github/mcp.json` shows it as modified for as long as it does.
 
 An unset token variable is a local, noisy failure and nothing worse: that one server fails to authenticate and the
 rest keep working.
@@ -306,7 +460,7 @@ Path: `~/.config/github-copilot/intellij/mcp.json`, or
 `%USERPROFILE%\.config\github-copilot\intellij\mcp.json` on Windows. Global only, no per-project equivalent. Schema key
 `servers`, same as the VS Code file, but remote servers nest their authentication under `requestInit.headers` and need
 a personal access token, because the JetBrains plugin does not do OAuth yet. Placeholder substitution is unconfirmed,
-so paste literal values and keep the file out of version control.
+so the file holds literal values. Keep it out of version control. The result looks like this:
 
 ```json
 {
@@ -321,6 +475,42 @@ so paste literal values and keep the file out of version control.
     }
   }
 }
+```
+
+The command below writes that entry and keeps every other server in the file. It reads the key from `CONTEXT7_API_KEY`, which [Step 3](#step-3-set-environment-variables-system-wide) sets. In a shell that does not have it yet, read it first through a hidden prompt. Unix shell:
+
+```bash
+printf 'CONTEXT7_API_KEY: ' && IFS= read -rs CONTEXT7_API_KEY && echo && export CONTEXT7_API_KEY
+```
+
+PowerShell:
+
+```powershell
+$env:CONTEXT7_API_KEY = Read-Host 'CONTEXT7_API_KEY' -MaskInput
+```
+
+Then write the entry. Unix shell:
+
+```bash
+python3 -c 'import json,os,pathlib;p=pathlib.Path.home()/".config/github-copilot/intellij/mcp.json";s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("servers",{})["context7"]={"url":"https://mcp.context7.com/mcp","requestInit":{"headers":{"CONTEXT7_API_KEY":os.environ["CONTEXT7_API_KEY"]}}};p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")'
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,os,pathlib;p=pathlib.Path.home()/".config/github-copilot/intellij/mcp.json";s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("servers",{})["context7"]={"url":"https://mcp.context7.com/mcp","requestInit":{"headers":{"CONTEXT7_API_KEY":os.environ["CONTEXT7_API_KEY"]}}};p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")'
+```
+
+Check it. It prints each server with its header names, and never a value. Unix shell:
+
+```bash
+python3 -c 'import json,pathlib;s=json.loads((pathlib.Path.home()/".config/github-copilot/intellij/mcp.json").read_text(encoding="utf-8"))["servers"];print({k:sorted(v.get("requestInit",{}).get("headers",{})) for k,v in s.items()})'
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,pathlib;s=json.loads((pathlib.Path.home()/".config/github-copilot/intellij/mcp.json").read_text(encoding="utf-8"))["servers"];print({k:sorted(v.get("requestInit",{}).get("headers",{})) for k,v in s.items()})'
 ```
 
 #### GitHub Copilot cloud agent
@@ -345,27 +535,38 @@ literal values and no substitution. Secrets go into the repository or organisati
 
 Path: `~/.claude.json`, same `mcpServers` schema and same `${VAR}` substitution as the project file. It applies when
 you work outside a project that defines its own [.mcp.json](../.mcp.json), and the project file wins on a name
-collision. If the file already exists, merge the `mcpServers` block by hand, because Claude Code keeps other top-level
-keys in there too.
+collision. Claude Code keeps its other settings and state in the same file, so never copy a file over it. Add the
+servers with `claude mcp add-json`, which writes one entry and leaves the rest of the file alone. The MCP docs say "You
+can use `--scope user` to add the server to your user configuration instead of the project-specific one"
+([MCP docs](https://code.claude.com/docs/en/mcp), "Add MCP servers from JSON configuration", read 2026-10-23).
 
-To populate it from the project file, PowerShell:
+To add every server of the project file at user scope, run this from the project root. A name that already exists at
+that scope is refused and left as it is: the MCP docs say running `claude mcp add` "again with the same server name at
+the same scope fails with `MCP server sentry already exists in local config`", and `add-json` is expected to behave the
+same, which was not measured. PowerShell 7.4 or later:
 
 ```powershell
-Copy-Item .mcp.json $HOME\.claude.json
+(Get-Content -Raw .mcp.json | ConvertFrom-Json).mcpServers.PSObject.Properties | ForEach-Object { claude mcp add-json $_.Name ($_.Value | ConvertTo-Json -Depth 10 -Compress) --scope user }
 ```
 
 Unix shell:
 
 ```bash
-cp .mcp.json ~/.claude.json
+python3 -c 'import json,subprocess;[subprocess.run(["claude","mcp","add-json",n,json.dumps(c),"--scope","user"]) for n,c in json.load(open(".mcp.json",encoding="utf-8"))["mcpServers"].items()]'
+```
+
+Check it, in either shell. "To check that Claude Code connected, run `claude mcp get <name>`" (MCP docs):
+
+```bash
+claude mcp get context7
 ```
 
 #### Claude Desktop
 
 Paths: `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS,
 `%APPDATA%\Claude\claude_desktop_config.json` on Windows. There is no official Linux build. Same `mcpServers` schema,
-but no environment-variable substitution at all, so replace every `${VAR}` with the real value. The file is
-personal to the machine, so inlining is fine. Never commit it.
+but no environment-variable substitution at all, so the file holds the real value. The file is personal to the
+machine, so inlining is fine. Never commit it. The result looks like this:
 
 ```json
 {
@@ -381,6 +582,30 @@ personal to the machine, so inlining is fine. Never commit it.
 }
 ```
 
+The command below writes that entry and keeps every other key in the file. It reads the key from `CONTEXT7_API_KEY`, set in [Step 3](#step-3-set-environment-variables-system-wide) or read through a hidden prompt as under [GitHub Copilot in JetBrains](#github-copilot-in-jetbrains). macOS:
+
+```bash
+python3 -c 'import json,os,sys,pathlib;p=pathlib.Path(sys.argv[1]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcpServers",{})["context7"]={"type":"http","url":"https://mcp.context7.com/mcp","headers":{"CONTEXT7_API_KEY":os.environ["CONTEXT7_API_KEY"]}};p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' "$HOME/Library/Application Support/Claude/claude_desktop_config.json"
+```
+
+Windows, PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,os,sys,pathlib;p=pathlib.Path(sys.argv[1]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcpServers",{})["context7"]={"type":"http","url":"https://mcp.context7.com/mcp","headers":{"CONTEXT7_API_KEY":os.environ["CONTEXT7_API_KEY"]}};p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' "$env:APPDATA\Claude\claude_desktop_config.json"
+```
+
+Check it. It prints each server with its header names, and never a value. macOS:
+
+```bash
+python3 -c 'import json,sys;s=json.load(open(sys.argv[1],encoding="utf-8"))["mcpServers"];print({k:sorted(v.get("headers",{})) for k,v in s.items()})' "$HOME/Library/Application Support/Claude/claude_desktop_config.json"
+```
+
+Windows, PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,sys;s=json.load(open(sys.argv[1],encoding="utf-8"))["mcpServers"];print({k:sorted(v.get("headers",{})) for k,v in s.items()})' "$env:APPDATA\Claude\claude_desktop_config.json"
+```
+
 Claude Desktop must be fully quit from the system tray and relaunched after an edit, not just closed.
 
 #### Codex and Copilot CLI globals
@@ -391,6 +616,21 @@ Codex reads `config.toml` in its home directory for global scope, `~/.config/cod
 [mcp_servers.context7]
 command = "npx"
 args = ["-y", "@upstash/context7-mcp@latest"]
+```
+
+`codex mcp add` writes that table for you, in whichever home `CODEX_HOME` names. The Codex MCP page gives the same
+example: "to add Context7 (a free MCP server for developer documentation), you can run the following command: `codex
+mcp add context7 -- npx -y @upstash/context7-mcp`" ([MCP docs](https://learn.chatgpt.com/docs/extend/mcp), read
+2026-10-23). In either shell:
+
+```bash
+codex mcp add context7 -- npx -y @upstash/context7-mcp@latest
+```
+
+Check it. "Run `codex mcp list` to see configured servers" (same page):
+
+```bash
+codex mcp list
 ```
 
 Codex has no built-in substitution. To keep a secret out of the file, wrap the command in a small script that reads it
@@ -415,6 +655,30 @@ uvx --from arch-ops-server==3.4.0 --with 'mcp<2' arch-ops-server
 ```
 
 The `--with 'mcp<2'` is not optional. Release 3.4.0 declares `mcp>=1.0.0` with no upper bound, so `uvx` resolves the newest `mcp`, and `mcp` 2.0, released on 2026-07-28, removed the decorator API the server registers its handlers with: the SDK's migration guide lists "Lowlevel decorators replaced with `on_*` constructor params" with the symptom "`AttributeError: 'Server' object has no attribute 'list_tools'`", and the server fails at start with the same `AttributeError` on `list_resources`. With `mcp<2` it starts and answers `tools/list`, measured on 2026-10-13. The last commit upstream is from 2026-03-10 and carries no fix.
+
+Add it at user scope with one command per agent. Claude Code, in either shell:
+
+```bash
+claude mcp add --scope user arch -- uvx --from arch-ops-server==3.4.0 --with 'mcp<2' arch-ops-server
+```
+
+Check it:
+
+```bash
+claude mcp get arch
+```
+
+Codex, in either shell:
+
+```bash
+codex mcp add arch -- uvx --from arch-ops-server==3.4.0 --with 'mcp<2' arch-ops-server
+```
+
+Check it:
+
+```bash
+codex mcp list
+```
 
 In a `.mcp.json` style file the same command is:
 
@@ -486,7 +750,8 @@ cloud-agent one, which ship no file.
 
 Keep the server set identical across all of them. Only the per-schema syntax is allowed to differ.
 
-To customise a single project without touching upstream, edit its local copies directly. These five files are
+To customise a single project without touching upstream, change its local copies, with the commands in this document
+where one fits. These five files are
 consumer-owned, so the routine update flow leaves every one of them alone. Picking up an upstream server change is a
 deliberate, separate step, with its own diff-and-checkout command at the end of each shell section of
 [AGENTS-UPDATE.md](AGENTS-UPDATE.md). That command covers all six configuration files together: the five MCP

@@ -202,7 +202,8 @@ treats an environment reference as a fatal error and rejects the whole file, whi
 servers and no preflight gate, so `opencode.json` ships without any. Run `kilocode config check` after editing it: it
 prints `No config warnings.` when the file is accepted. Local servers get their tokens from the environment you
 exported. Context7 therefore ships unauthenticated. For a paid key, put the full `context7` block in your global
-`~/.config/kilo/kilo.jsonc`, where environment references are allowed.
+`~/.config/kilo/kilo.jsonc`, where environment references are allowed, with the command under
+[Kilo Code in GLOBAL_SETUP.md](GLOBAL_SETUP.md#kilo-code).
 
 #### GitHub Copilot
 

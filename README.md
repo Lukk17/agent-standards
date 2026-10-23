@@ -296,7 +296,8 @@ git fetch agent-standards
 ```
 
 Then pull upstream's half back. `.codex/config.toml` stays out of it, because your MCP servers and the hook tables
-share that one file, so merge an upstream change there by hand. PowerShell:
+share that one file, so take an upstream change to its hook tables with the `.codex/config.toml` command under
+[Taking only the gate half](docs/AGENTS-UPDATE.md#taking-only-the-gate-half). PowerShell:
 
 ```powershell
 git checkout agent-standards/master -- .agents/skills .agents/hooks .codex/agents docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md

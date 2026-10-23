@@ -193,6 +193,30 @@ Three of the hook scripts get wired per agent below, and the skill link hook in 
 
 `task_list_sync.py` mirrors the agent's own task list into a file named `tasks.md` so a compaction cannot lose it, and writes the `tasks.widget.json` snapshot beside it. Both land at the project root when the working directory has an imported `.agents/hooks/` beside it. Your home directory never counts as a project, even when a linked `~/.agents` gives it a `.agents/hooks`, and the hook never writes either file there. A session that is in no project keeps both in the directory it started in, for example `~/.local/state/agents/workspace`, and a session started in your home directory keeps them in `$XDG_STATE_HOME/agents`, which is `~/.local/state/agents` when `XDG_STATE_HOME` is unset or not an absolute path. Add `tasks.md` and `tasks.widget.json` to your global gitignore if you start sessions inside repositories that do not import the hooks, so neither shows up as an untracked file.
 
+Git reads the global ignore file named by `core.excludesFile`, and without one it reads `$XDG_CONFIG_HOME/git/ignore`, which is `~/.config/git/ignore` when `XDG_CONFIG_HOME` is not set ([gitignore docs](https://git-scm.com/docs/gitignore): "If $XDG_CONFIG_HOME is either not set or empty, $HOME/.config/git/ignore is used instead"). See whether you named a file of your own. It prints nothing when you did not, in either shell:
+
+```bash
+git config --global core.excludesFile
+```
+
+When it prints nothing, add both names to `~/.config/git/ignore`, each only once. When it prints a path, use that path in the command instead. Unix shell:
+
+```bash
+mkdir -p ~/.config/git && for p in tasks.md tasks.widget.json; do grep -qxF "$p" ~/.config/git/ignore 2>/dev/null || printf '\n%s\n' "$p" >> ~/.config/git/ignore; done
+```
+
+PowerShell:
+
+```powershell
+New-Item -ItemType Directory -Force $HOME\.config\git | Out-Null; foreach ($p in 'tasks.md', 'tasks.widget.json') { if (-not ((Test-Path $HOME\.config\git\ignore) -and (Get-Content $HOME\.config\git\ignore) -contains $p)) { Add-Content $HOME\.config\git\ignore "`n$p" } }
+```
+
+Check from inside any repository. Each name prints with the file and line that ignores it:
+
+```bash
+git check-ignore -v tasks.md tasks.widget.json
+```
+
 ---
 
 ### Step 3, the always-on instructions
@@ -209,7 +233,67 @@ Unix shell:
 [ -e ~/.config/agents/AGENTS.md ] || cp "$src/global/AGENTS.md.example" ~/.config/agents/AGENTS.md
 ```
 
-Then edit the copy. Change any rule you do not want, and delete the template's own note at the top. Neither the install nor `update-global.sh` or `update-global.ps1` ever writes this file once it exists: the updaters refresh only the `hooks`, `plugin`, `instructions`, `bin`, `skills` and `agents` folders under `~/.config/agents`, so your edits survive every update, and a later change to the template reaches you only when you merge it by hand.
+Then make the copy yours. Neither the install nor `update-global.sh` or `update-global.ps1` ever writes this file once it exists: the updaters refresh only the `hooks`, `plugin`, `instructions`, `bin`, `skills` and `agents` folders under `~/.config/agents`, so your changes survive every update, and a later change to the template reaches you only when you take it in yourself with the commands below.
+
+Delete the template's own note at the top, the paragraph that starts with "This is a template". Unix shell, which keeps the previous version as `AGENTS.md.bak` beside it:
+
+```bash
+sed -i.bak '/^This is a template\. /{N;d;}' ~/.config/agents/AGENTS.md
+```
+
+PowerShell:
+
+```powershell
+(Get-Content -Raw $HOME\.config\agents\AGENTS.md) -replace '(?m)^This is a template\. .*\r?\n\r?\n', '' | Set-Content -NoNewline $HOME\.config\agents\AGENTS.md
+```
+
+Check that the note is gone. It prints nothing. Unix shell:
+
+```bash
+grep -n '^This is a template' ~/.config/agents/AGENTS.md
+```
+
+PowerShell:
+
+```powershell
+Select-String -Path $HOME\.config\agents\AGENTS.md -Pattern '^This is a template'
+```
+
+Every rule in the template is one line, so a rule you do not want goes with one command that names the words its line starts with. Put the start of your rule in place of `4\. When two rules still pull`, with a backslash before every dot. Unix shell:
+
+```bash
+sed -i.bak '/^4\. When two rules still pull/d' ~/.config/agents/AGENTS.md
+```
+
+PowerShell:
+
+```powershell
+(Get-Content $HOME\.config\agents\AGENTS.md) | Where-Object { $_ -notmatch '^4\. When two rules still pull' } | Set-Content $HOME\.config\agents\AGENTS.md
+```
+
+To change words inside a rule instead, replace them in place. Put your own words in place of `old words` and `new words`. Unix shell:
+
+```bash
+sed -i.bak 's/old words/new words/' ~/.config/agents/AGENTS.md
+```
+
+PowerShell:
+
+```powershell
+(Get-Content -Raw $HOME\.config\agents\AGENTS.md).Replace('old words', 'new words') | Set-Content -NoNewline $HOME\.config\agents\AGENTS.md
+```
+
+Check the result by searching for the words you removed or wrote. Unix shell:
+
+```bash
+grep -n 'new words' ~/.config/agents/AGENTS.md
+```
+
+PowerShell:
+
+```powershell
+Select-String -Path $HOME\.config\agents\AGENTS.md -Pattern 'new words'
+```
 
 The reply rules stay a separate file, `~/.config/agents/instructions/reply-rules.md`, and are never merged into `AGENTS.md`. A project loads its own copy through the `instructions` key of `opencode.json` on OpenCode 1.x and Kilo Code. OpenCode 2.x ignores that key, expands neither an `@path` line nor a markdown link in `AGENTS.md`, and replaces the whole base prompt when an agent's `system` names a file, so the plugin adds the rules itself there: on every model request it pushes the project's `.agents/instructions/reply-rules.md`, or this global copy when the project has none, as one more system part, which keeps the built-in prompt. It skips a session whose `parentID` marks it as a subagent, because only the main thread's reply reaches the user, and a session it cannot place still gets the rules. Measured with OpenCode 2.0.26. On OpenCode 1.x and Kilo Code the `instructions` key loads the rules into every agent, subagents included, and that stays as it is. On Claude Code, a subagent loads the same CLAUDE.md hierarchy as the main conversation, `~/.claude/CLAUDE.md` and the `AGENTS.md` it imports included, unless its definition sets `omitClaudeMd: true` ([sub-agents](https://code.claude.com/docs/en/sub-agents), "What loads at startup"), so any rule placed there reaches subagents too. On Claude Code, Codex and Copilot, whether a global install should load them is still open. TODO: decide and document the route for those three.
 
@@ -242,6 +326,12 @@ Write the file:
 printf '%s\n' 'CODEX_HOME=${HOME}/.config/codex' 'COPILOT_HOME=${HOME}/.config/copilot' 'COPILOT_SKILLS_DIRS=${HOME}/.config/agents/skills' 'COPILOT_CUSTOM_INSTRUCTIONS_DIRS=${HOME}/.config/agents' > ~/.config/environment.d/60-agents.conf
 ```
 
+Check it. It prints the four lines:
+
+```bash
+cat ~/.config/environment.d/60-agents.conf
+```
+
 That reaches everything the user manager starts, a terminal opened from the desktop included. It does not reach an SSH login or a text console: "For other instances of the shell, not launched by the user service manager, the environment they inherit is defined by the program that starts them" (same page). Source the same file from your shell's start-up file so those get it too.
 
 Skip the two lines below when your shell already imports every file in `~/.config/environment.d/`, because `60-agents.conf` then arrives with the rest and a second line only loads it twice. Check for an import first:
@@ -272,10 +362,16 @@ Without such an import, add one line for this file. For zsh, which reads `~/.zsh
 printf '%s\n' 'set -a; . "$HOME/.config/environment.d/60-agents.conf"; set +a' >> ~/.zshenv
 ```
 
-For bash and other POSIX shells, the same line goes in `~/.profile`, or in `~/.bash_profile` if you have one, because bash then skips `~/.profile`:
+For bash and other POSIX shells, the same line goes in `~/.profile`, or in `~/.bash_profile` if you have one, because bash then skips `~/.profile`. One command writes it to whichever of the two applies:
 
 ```bash
-printf '%s\n' 'set -a; . "$HOME/.config/environment.d/60-agents.conf"; set +a' >> ~/.profile
+f=~/.profile; [ -e ~/.bash_profile ] && f=~/.bash_profile; printf '%s\n' 'set -a; . "$HOME/.config/environment.d/60-agents.conf"; set +a' >> "$f"
+```
+
+Check that the line is there, in whichever of the files you wrote. It prints the line with its number:
+
+```bash
+grep -n '60-agents.conf' ~/.zshenv ~/.profile ~/.bash_profile 2>/dev/null
 ```
 
 Sign out and back in once, so the desktop session picks the file up.
@@ -288,9 +384,22 @@ A terminal shell reads `~/.zshenv`. Add the four exports there:
 printf '%s\n' 'export CODEX_HOME="$HOME/.config/codex"' 'export COPILOT_HOME="$HOME/.config/copilot"' 'export COPILOT_SKILLS_DIRS="$HOME/.config/agents/skills"' 'export COPILOT_CUSTOM_INSTRUCTIONS_DIRS="$HOME/.config/agents"' >> ~/.zshenv
 ```
 
-An application started from the Dock or Finder reads no shell file, so set the same variables for the login session with a LaunchAgent that runs `launchctl setenv` at login. Save this as `~/Library/LaunchAgents/local.agents.environment.plist`, with your real home directory:
+Check it. It prints the four lines with their numbers:
 
-```xml
+```bash
+grep -nE 'CODEX_HOME|COPILOT_' ~/.zshenv
+```
+
+An application started from the Dock or Finder reads no shell file, so set the same variables for the login session with a LaunchAgent that runs `launchctl setenv` at login. Create its folder:
+
+```bash
+mkdir -p ~/Library/LaunchAgents
+```
+
+Write the file. The quotes around `EOF` keep the shell from changing anything inside it:
+
+```bash
+tee ~/Library/LaunchAgents/local.agents.environment.plist >/dev/null <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -307,6 +416,25 @@ An application started from the Dock or Finder reads no shell file, so set the s
   <true/>
 </dict>
 </plist>
+EOF
+```
+
+Put your real home directory in place of `/Users/you`. The macOS `sed` needs the empty `''` after `-i`:
+
+```bash
+sed -i '' "s#/Users/you#$HOME#g" ~/Library/LaunchAgents/local.agents.environment.plist
+```
+
+Check that the file is valid. It prints the path followed by `OK`:
+
+```bash
+plutil -lint ~/Library/LaunchAgents/local.agents.environment.plist
+```
+
+Check that it names your home directory. It prints the four paths:
+
+```bash
+grep -o "$HOME/[^ ;<]*" ~/Library/LaunchAgents/local.agents.environment.plist
 ```
 
 Load it once now, and launchd loads it at every login after:
@@ -339,12 +467,20 @@ setx COPILOT_CUSTOM_INSTRUCTIONS_DIRS "$HOME\.config\agents"
 
 `setx` writes the user environment and does not change the shell it runs in, so open a new terminal, or sign out and back in for applications started from the Start menu.
 
+Check what the user environment now holds. It prints the four names with their values, in any shell:
+
+```powershell
+'CODEX_HOME', 'COPILOT_HOME', 'COPILOT_SKILLS_DIRS', 'COPILOT_CUSTOM_INSTRUCTIONS_DIRS' | ForEach-Object { "$_=$([Environment]::GetEnvironmentVariable($_, 'User'))" }
+```
+
 ---
 
 ### Per-agent setup
 
 Every subsection assumes steps 1 to 4 are done. Adding a second agent later is nothing more than running its
-subsection too, because the shared folder is the same files.
+subsection too, because the shared folder is the same files. The commands that write a configuration file read their
+block, or the shipped server list, out of the temporary copy from step 1, so run them before the finish step deletes
+it, and make a new copy as in step 1 when you come back later.
 
 #### Claude Code
 
@@ -372,6 +508,18 @@ Unix shell:
 
 ```bash
 [ -e ~/.claude/CLAUDE.md ] || printf '%s\n' '@~/.config/agents/AGENTS.md' > ~/.claude/CLAUDE.md
+```
+
+Check it. The first line is the import. PowerShell:
+
+```powershell
+Get-Content $HOME\.claude\CLAUDE.md -TotalCount 1
+```
+
+Unix shell:
+
+```bash
+head -n 1 ~/.claude/CLAUDE.md
 ```
 
 Give Claude Code its skills. On Linux and macOS, `~/.claude/skills` is a real directory and [the skill link hook](#the-skill-link-hook) fills it with one link per shared skill, so create it empty and let the hook run once:
@@ -404,8 +552,9 @@ cp -R "$src/.claude/agents" ~/.claude/
 ```
 
 Wire the hooks into `~/.claude/settings.json`. Hooks in that file apply to every project on the machine
-([hooks docs](https://code.claude.com/docs/en/hooks)). Replace every absolute path with your real home directory.
-Forward slashes work on Windows too and save you escaping backslashes inside JSON.
+([hooks docs](https://code.claude.com/docs/en/hooks)). The block names your home directory as `/home/you`, and the
+command below it writes your real one in its place, with forward slashes on Windows too, which work there and need no
+escaping inside JSON.
 
 This is the same event set the per-project wiring uses, minus the markdown lint pass, plus the skill link hook. Claude Code keeps the long
 preflight text with the full status block, while Codex and Copilot below use the short one-line opening.
@@ -558,7 +707,29 @@ its PowerShell tool whenever that tool is on, and the docs say "a hook that matc
 }
 ```
 
-If you already have a `~/.claude/settings.json`, merge the `hooks` block into it rather than overwriting the file.
+Write it with one command. The command reads the block above out of the temporary copy from step 1, so run it before you delete the copy. It puts your home directory in place of `/home/you` and merges the block into `~/.claude/settings.json`, or creates the file when there is none. Every other key in the file stays as it is. In each event, a hook group this install wrote earlier, recognised by a path into `agents/hooks/` or by the wording of the reminder, is replaced, and every other group of yours is kept, so running the command again changes nothing. A file that is not plain JSON stops it with an error before anything is written. The file is written back with two-space indentation. Unix shell:
+
+```bash
+python3 -c 'import json,re,sys,pathlib;h=pathlib.Path.home();g=pathlib.Path(sys.argv[1]).read_text(encoding="utf-8");b=json.loads([x for x in re.findall(r"^\x60{3}json\n(.*?)^\x60{3}$",g,re.M|re.S) if sys.argv[2] in x][0].replace("/home/you/",h.as_posix()+"/"));p=h.joinpath(sys.argv[3]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};o=lambda x:any(m in json.dumps(x) for m in ("agents/hooks/","PREFLIGHT","Before code work","background subagent"));e=s.setdefault("hooks",{});[e.update({k:[x for x in e.get(k,[]) if not o(x)]+v}) for k,v in b["hooks"].items()];[s.setdefault(k,v) for k,v in b.items()];p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' "$src/docs/GLOBAL_SETUP.md" MessageDisplay .claude/settings.json
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,re,sys,pathlib;h=pathlib.Path.home();g=pathlib.Path(sys.argv[1]).read_text(encoding="utf-8");b=json.loads([x for x in re.findall(r"^\x60{3}json\n(.*?)^\x60{3}$",g,re.M|re.S) if sys.argv[2] in x][0].replace("/home/you/",h.as_posix()+"/"));p=h.joinpath(sys.argv[3]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};o=lambda x:any(m in json.dumps(x) for m in ("agents/hooks/","PREFLIGHT","Before code work","background subagent"));e=s.setdefault("hooks",{});[e.update({k:[x for x in e.get(k,[]) if not o(x)]+v}) for k,v in b["hooks"].items()];[s.setdefault(k,v) for k,v in b.items()];p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' "$src\docs\GLOBAL_SETUP.md" MessageDisplay .claude/settings.json
+```
+
+Check it. It prints every hook script the file now runs, each under your own home directory. Unix shell:
+
+```bash
+grep -o '[^ "]*/\.config/agents/hooks/[^ "]*' ~/.claude/settings.json
+```
+
+PowerShell:
+
+```powershell
+Select-String -Path $HOME\.claude\settings.json -Pattern '[^ "]*/\.config/agents/hooks/[^ "]*' -AllMatches | ForEach-Object { $_.Matches.Value }
+```
 
 MCP at user scope is stored in `~/.claude.json`, and the supported way to write it is the CLI rather than hand-editing
 ([MCP docs](https://code.claude.com/docs/en/mcp)). One server per command, so add only the ones that genuinely are
@@ -572,6 +743,12 @@ Unix shell:
 
 ```bash
 claude mcp add --transport http context7 --scope user https://mcp.context7.com/mcp
+```
+
+Check it, in either shell. "To check that Claude Code connected, run `claude mcp get <name>`" (MCP docs):
+
+```bash
+claude mcp get context7
 ```
 
 #### Codex
@@ -634,7 +811,8 @@ cp -R "$src/.codex/agents" ~/.config/codex/
 
 Wire the hooks in `~/.config/codex/hooks.json`, which is the user-level hooks file
 ([hooks docs](https://learn.chatgpt.com/codex/hooks)). The same tables can go inline in `~/.config/codex/config.toml` instead,
-and Codex asks you to pick one form per configuration layer rather than using both. Replace every absolute path. All
+and Codex asks you to pick one form per configuration layer rather than using both. The command below the block puts
+your home directory in place of `/home/you`. All
 five events matter: `UserPromptSubmit` injects the reminder on the main thread, `SubagentStart` injects the subagent
 text inside a subagent, `PreToolUse` is the blocking half, `Stop` checks the reply formatting, and `SessionStart` puts
 the task list back. The two texts differ on purpose: the reminder tells its reader to delegate, and a subagent told
@@ -650,7 +828,7 @@ installed and Windows PowerShell otherwise, and Windows PowerShell has no `||`, 
 `rust-v0.156.1` of [openai/codex](https://github.com/openai/codex)).
 
 Codex tracks every hook by a hash of its definition: "new or changed hooks are marked for review and skipped until
-trusted" ([hooks docs](https://learn.chatgpt.com/docs/hooks)). After you paste or refresh these entries, open an
+trusted" ([hooks docs](https://learn.chatgpt.com/docs/hooks)). After you write or refresh these entries, open an
 interactive Codex session and trust them, or every changed hook, the reminder included, is silently skipped. Codex
 0.156.1 ran the unchanged `Stop` hook, skipped the edited reminder hook, and ran it only with
 `--dangerously-bypass-hook-trust`.
@@ -732,9 +910,43 @@ look for `"agent_id"` on standard input and print nothing when they find it.
 }
 ```
 
-MCP servers go in `[mcp_servers.<name>]` tables in `~/.config/codex/config.toml`, which is shared by the Codex CLI, the IDE
-extension, and the ChatGPT desktop app ([MCP docs](https://learn.chatgpt.com/codex/extend/mcp)). Copy the tables you
-want from [MCP_SETUP.md](MCP_SETUP.md).
+Write it with the same command as under [Claude Code](#claude-code), with the Codex marker and file. It reads the block above from the temporary copy, replaces only the hook groups this install wrote, and keeps the rest of your file. Unix shell:
+
+```bash
+python3 -c 'import json,re,sys,pathlib;h=pathlib.Path.home();g=pathlib.Path(sys.argv[1]).read_text(encoding="utf-8");b=json.loads([x for x in re.findall(r"^\x60{3}json\n(.*?)^\x60{3}$",g,re.M|re.S) if sys.argv[2] in x][0].replace("/home/you/",h.as_posix()+"/"));p=h.joinpath(sys.argv[3]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};o=lambda x:any(m in json.dumps(x) for m in ("agents/hooks/","PREFLIGHT","Before code work","background subagent"));e=s.setdefault("hooks",{});[e.update({k:[x for x in e.get(k,[]) if not o(x)]+v}) for k,v in b["hooks"].items()];[s.setdefault(k,v) for k,v in b.items()];p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' "$src/docs/GLOBAL_SETUP.md" commandWindows .config/codex/hooks.json
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,re,sys,pathlib;h=pathlib.Path.home();g=pathlib.Path(sys.argv[1]).read_text(encoding="utf-8");b=json.loads([x for x in re.findall(r"^\x60{3}json\n(.*?)^\x60{3}$",g,re.M|re.S) if sys.argv[2] in x][0].replace("/home/you/",h.as_posix()+"/"));p=h.joinpath(sys.argv[3]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};o=lambda x:any(m in json.dumps(x) for m in ("agents/hooks/","PREFLIGHT","Before code work","background subagent"));e=s.setdefault("hooks",{});[e.update({k:[x for x in e.get(k,[]) if not o(x)]+v}) for k,v in b["hooks"].items()];[s.setdefault(k,v) for k,v in b.items()];p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' "$src\docs\GLOBAL_SETUP.md" commandWindows .config/codex/hooks.json
+```
+
+Check it. It prints every hook script the file now runs. Unix shell:
+
+```bash
+grep -o '[^ "]*/\.config/agents/hooks/[^ "]*' ~/.config/codex/hooks.json
+```
+
+PowerShell:
+
+```powershell
+Select-String -Path $HOME\.config\codex\hooks.json -Pattern '[^ "]*/\.config/agents/hooks/[^ "]*' -AllMatches | ForEach-Object { $_.Matches.Value }
+```
+
+MCP servers go in `[mcp_servers.<name>]` tables in `~/.config/codex/config.toml`, which is shared by the Codex CLI, the IDE extension, and the ChatGPT desktop app ([MCP docs](https://learn.chatgpt.com/codex/extend/mcp)). Add each machine-wide server with `codex mcp add`, which writes the table for you. The MCP page gives this very example: "to add Context7 (a free MCP server for developer documentation), you can run the following command: `codex mcp add context7 -- npx -y @upstash/context7-mcp`" ([MCP docs](https://learn.chatgpt.com/docs/extend/mcp), read 2026-10-23). The command below pins the same `@latest` tag the shipped table uses. In either shell:
+
+```bash
+codex mcp add context7 -- npx -y @upstash/context7-mcp@latest
+```
+
+Check it. "Run `codex mcp list` to see configured servers" (same page):
+
+```bash
+codex mcp list
+```
+
+Add another server from [MCP_SETUP.md](MCP_SETUP.md) the same way, with its command and arguments after the `--`. Never pass a token on that command line with `--env`, because it then lands in your shell history. Codex has no substitution for a token, as [Codex and Copilot CLI globals](MCP_SETUP.md#codex-and-copilot-cli-globals) explains.
 
 #### OpenCode
 
@@ -778,13 +990,37 @@ Unix shell:
 ln -s ../agents/agents ~/.config/opencode/agents
 ```
 
-Name the skills folder and declare the plugin in `~/.config/opencode/opencode.json`, with your real home directory. The plugin entry is the `plugin` directory rather than `hooks.js`: every loader resolves a directory to its `index.js`, which re-exports the one default export `{ id, server, setup }` that 1.x and Kilo Code call through `server` and 2.x through `setup`. Declaring it by path rather than copying it means an update reaches OpenCode with nothing else to do.
+Name the skills folder and declare the plugin in `~/.config/opencode/opencode.json`, as the block below shows for a home directory of `/home/you`. The plugin entry is the `plugin` directory rather than `hooks.js`: every loader resolves a directory to its `index.js`, which re-exports the one default export `{ id, server, setup }` that 1.x and Kilo Code call through `server` and 2.x through `setup`. Declaring it by path rather than copying it means an update reaches OpenCode with nothing else to do.
 
 ```jsonc
 {
   "skills": { "paths": ["/home/you/.config/agents/skills"] },
   "plugin": ["/home/you/.config/agents/plugin"]
 }
+```
+
+Write it with one command, which puts your own home directory in. It merges into the file you have, or creates it, and keeps every other key. It also removes what an install made before the `~/.config/agents` layout left there: a `plugin` entry into an old `agents/plugin` folder, and an `instructions` entry that names `~/.claude/CLAUDE.md`. Running it again changes nothing. A file that is not plain JSON, for example one with comments, stops it with an error before anything is written. Unix shell:
+
+```bash
+python3 -c 'import json,pathlib;h=pathlib.Path.home();p=h/".config/opencode/opencode.json";s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};a=h.as_posix()+"/.config/agents/";k=s.setdefault("skills",{});k["paths"]=[x for x in k.get("paths",[]) if x!=a+"skills"]+[a+"skills"];s["plugin"]=[x for x in s.get("plugin",[]) if "agents/plugin" not in str(x)]+[a+"plugin"];i=[x for x in s.pop("instructions",[]) if ".claude/CLAUDE.md" not in str(x)];s.update({"instructions":i} if i else {});p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")'
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,pathlib;h=pathlib.Path.home();p=h/".config/opencode/opencode.json";s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};a=h.as_posix()+"/.config/agents/";k=s.setdefault("skills",{});k["paths"]=[x for x in k.get("paths",[]) if x!=a+"skills"]+[a+"skills"];s["plugin"]=[x for x in s.get("plugin",[]) if "agents/plugin" not in str(x)]+[a+"plugin"];i=[x for x in s.pop("instructions",[]) if ".claude/CLAUDE.md" not in str(x)];s.update({"instructions":i} if i else {});p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")'
+```
+
+Check it. It prints the file. Unix shell:
+
+```bash
+cat ~/.config/opencode/opencode.json
+```
+
+PowerShell:
+
+```powershell
+Get-Content $HOME\.config\opencode\opencode.json
 ```
 
 Leave `~/.config/opencode/plugins/` without a copy of the plugin. Files in that directory load automatically at
@@ -807,10 +1043,29 @@ alias opencode1='XDG_DATA_HOME="$HOME/.local/share/opencode-v1" opencode1'
 
 `XDG_DATA_HOME` reaches every process 1.x starts, so a local MCP server that stores data by that variable moves with it.
 
-MCP servers go under the `mcp` key of `~/.config/opencode/opencode.json`
-([config docs](https://opencode.ai/docs/config/)), or in the shared file from
-[Share one MCP list between OpenCode and Kilo Code](#share-one-mcp-list-between-opencode-and-kilo-code). Take the
-block from [MCP_SETUP.md](MCP_SETUP.md) and keep the machine-wide servers only.
+MCP servers go under the `mcp` key of `~/.config/opencode/opencode.json` ([config docs](https://opencode.ai/docs/config/)), or in the shared file from [Share one MCP list between OpenCode and Kilo Code](#share-one-mcp-list-between-opencode-and-kilo-code). Copy the machine-wide servers out of the shipped [opencode.json](../opencode.json) in the temporary copy with one command, naming each server you want at the end, here `context7`. It adds or replaces only the servers you name and keeps the rest of the file. Unix shell:
+
+```bash
+python3 -c 'import json,sys,pathlib;u=json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))["mcp"];p=pathlib.Path.home().joinpath(sys.argv[2]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{}).update({n:u[n] for n in sys.argv[3:]});p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' "$src/opencode.json" .config/opencode/opencode.json context7
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,sys,pathlib;u=json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))["mcp"];p=pathlib.Path.home().joinpath(sys.argv[2]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{}).update({n:u[n] for n in sys.argv[3:]});p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' "$src\opencode.json" .config/opencode/opencode.json context7
+```
+
+Check it. It prints the server names in the file. Unix shell:
+
+```bash
+python3 -c 'import json,pathlib;print(sorted(json.loads((pathlib.Path.home()/".config/opencode/opencode.json").read_text(encoding="utf-8")).get("mcp",{})))'
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,pathlib;print(sorted(json.loads((pathlib.Path.home()/".config/opencode/opencode.json").read_text(encoding="utf-8")).get("mcp",{})))'
+```
 
 #### Kilo Code
 
@@ -853,7 +1108,7 @@ Unix shell:
 ln -s ../agents/agents ~/.config/kilo/agents
 ```
 
-Name the skills folder and the plugin in `~/.config/kilo/kilo.jsonc`. "The `skills.paths` key accepts absolute paths, `~/` home-relative paths, or paths relative to the project root" ([skills docs](https://kilo.ai/docs/customize/skills)), and Kilo loads a local plugin named as an absolute `file:` URL ([plugins docs](https://kilo.ai/docs/automate/extending/plugins)), here the plugin directory. Merge this, with your real home directory:
+Name the skills folder and the plugin in `~/.config/kilo/kilo.jsonc`. "The `skills.paths` key accepts absolute paths, `~/` home-relative paths, or paths relative to the project root" ([skills docs](https://kilo.ai/docs/customize/skills)), and Kilo loads a local plugin named as an absolute `file:` URL ([plugins docs](https://kilo.ai/docs/automate/extending/plugins)), here the plugin directory. The block below shows the result for a Windows home directory of `C:\Users\you`:
 
 ```jsonc
 {
@@ -862,14 +1117,51 @@ Name the skills folder and the plugin in `~/.config/kilo/kilo.jsonc`. "The `skil
 }
 ```
 
+Write it with one command. It works like the OpenCode command above: it merges into the file you have or creates it, writes the `file:` URL of your own plugin folder, which is `file:///home/you/.config/agents/plugin` for a Linux home of `/home/you`, removes an old `plugin` entry and an `instructions` entry naming `~/.claude/CLAUDE.md`, and stops before writing anything when the file is not plain JSON. Unix shell:
+
+```bash
+python3 -c 'import json,pathlib;h=pathlib.Path.home();p=h/".config/kilo/kilo.jsonc";s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};d="~/.config/agents/skills";k=s.setdefault("skills",{});k["paths"]=[x for x in k.get("paths",[]) if x!=d]+[d];s["plugin"]=[x for x in s.get("plugin",[]) if "agents/plugin" not in str(x)]+[(h/".config/agents/plugin").as_uri()];i=[x for x in s.pop("instructions",[]) if ".claude/CLAUDE.md" not in str(x)];s.update({"instructions":i} if i else {});p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")'
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,pathlib;h=pathlib.Path.home();p=h/".config/kilo/kilo.jsonc";s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};d="~/.config/agents/skills";k=s.setdefault("skills",{});k["paths"]=[x for x in k.get("paths",[]) if x!=d]+[d];s["plugin"]=[x for x in s.get("plugin",[]) if "agents/plugin" not in str(x)]+[(h/".config/agents/plugin").as_uri()];i=[x for x in s.pop("instructions",[]) if ".claude/CLAUDE.md" not in str(x)];s.update({"instructions":i} if i else {});p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")'
+```
+
+Check it. It prints the file. Unix shell:
+
+```bash
+cat ~/.config/kilo/kilo.jsonc
+```
+
+PowerShell:
+
+```powershell
+Get-Content $HOME\.config\kilo\kilo.jsonc
+```
+
 Leave `~/.config/kilo/plugin/` without a copy of the plugin, for the same reason as under OpenCode: every file in that
 directory is "auto-registered at startup", so a copy there would load the runner a second time.
 
 MCP servers go under the `mcp` key of `~/.config/kilo/kilo.jsonc`, in the same shape as `opencode.json`
 ([CLI docs](https://kilo.ai/docs/code-with-ai/platforms/cli)), or in the shared file below. `{env:VAR}` works here:
 Kilo refuses it in a project config file, but resolves it in "your global config (~/.config/kilo), a config passed via
-KILO_CONFIG / KILO_CONFIG_CONTENT, or organization/MDM-managed config". This is the place for the Context7 API key
-header if you want Kilo to use your key rather than the free tier:
+KILO_CONFIG / KILO_CONFIG_CONTENT, or organization/MDM-managed config".
+
+Copy machine-wide servers out of the shipped [opencode.json](../opencode.json) in the temporary copy the same way as for OpenCode, naming each server at the end. Unix shell:
+
+```bash
+python3 -c 'import json,sys,pathlib;u=json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))["mcp"];p=pathlib.Path.home().joinpath(sys.argv[2]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{}).update({n:u[n] for n in sys.argv[3:]});p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' "$src/opencode.json" .config/kilo/kilo.jsonc context7
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,sys,pathlib;u=json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))["mcp"];p=pathlib.Path.home().joinpath(sys.argv[2]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{}).update({n:u[n] for n in sys.argv[3:]});p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' "$src\opencode.json" .config/kilo/kilo.jsonc context7
+```
+
+The global file is also the place for the Context7 API key header, if you want Kilo to use your key rather than the free tier. The entry looks like this:
 
 ```jsonc
 {
@@ -884,11 +1176,57 @@ header if you want Kilo to use your key rather than the free tier:
 }
 ```
 
+Write it with one command. It writes the reference `{env:CONTEXT7_API_KEY}` and never the key itself, which Kilo reads from the variable you set in [Step 3 of MCP_SETUP.md](MCP_SETUP.md#step-3-set-environment-variables-system-wide). It replaces any `context7` entry already there and keeps the rest of the file. The last word names the file. For Kilo Code, Unix shell:
+
+```bash
+python3 -c 'import json,sys,pathlib;p=pathlib.Path.home().joinpath(sys.argv[1]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})["context7"]={"type":"remote","url":"https://mcp.context7.com/mcp","headers":{"CONTEXT7_API_KEY":"{env:CONTEXT7_API_KEY}"},"enabled":True};p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' .config/kilo/kilo.jsonc
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,sys,pathlib;p=pathlib.Path.home().joinpath(sys.argv[1]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})["context7"]={"type":"remote","url":"https://mcp.context7.com/mcp","headers":{"CONTEXT7_API_KEY":"{env:CONTEXT7_API_KEY}"},"enabled":True};p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' .config/kilo/kilo.jsonc
+```
+
+For OpenCode, Unix shell:
+
+```bash
+python3 -c 'import json,sys,pathlib;p=pathlib.Path.home().joinpath(sys.argv[1]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})["context7"]={"type":"remote","url":"https://mcp.context7.com/mcp","headers":{"CONTEXT7_API_KEY":"{env:CONTEXT7_API_KEY}"},"enabled":True};p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' .config/opencode/opencode.json
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,sys,pathlib;p=pathlib.Path.home().joinpath(sys.argv[1]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})["context7"]={"type":"remote","url":"https://mcp.context7.com/mcp","headers":{"CONTEXT7_API_KEY":"{env:CONTEXT7_API_KEY}"},"enabled":True};p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' .config/opencode/opencode.json
+```
+
+Check the Kilo Code file. It prints the server names in it, and the OpenCode check above does the same for `opencode.json`. Unix shell:
+
+```bash
+python3 -c 'import json,pathlib;print(sorted(json.loads((pathlib.Path.home()/".config/kilo/kilo.jsonc").read_text(encoding="utf-8")).get("mcp",{})))'
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,pathlib;print(sorted(json.loads((pathlib.Path.home()/".config/kilo/kilo.jsonc").read_text(encoding="utf-8")).get("mcp",{})))'
+```
+
 #### Share one MCP list between OpenCode and Kilo Code
 
-Optional. Put the machine-wide servers in one file that holds nothing but an `mcp` block, for example
-`~/.config/agents/mcp.json`, in the `opencode.json` shape from [MCP_SETUP.md](MCP_SETUP.md). Then name it in both variables,
-for your user account rather than one shell. PowerShell:
+Optional. Put the machine-wide servers in one file that holds nothing but an `mcp` block, for example `~/.config/agents/mcp.json`, in the `opencode.json` shape from [MCP_SETUP.md](MCP_SETUP.md). The same command as under [OpenCode](#opencode) copies the servers you name out of the shipped [opencode.json](../opencode.json) in the temporary copy into that file. Unix shell:
+
+```bash
+python3 -c 'import json,sys,pathlib;u=json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))["mcp"];p=pathlib.Path.home().joinpath(sys.argv[2]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{}).update({n:u[n] for n in sys.argv[3:]});p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' "$src/opencode.json" .config/agents/mcp.json context7
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,sys,pathlib;u=json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))["mcp"];p=pathlib.Path.home().joinpath(sys.argv[2]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{}).update({n:u[n] for n in sys.argv[3:]});p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' "$src\opencode.json" .config/agents/mcp.json context7
+```
+
+Then name it in both variables, for your user account rather than one shell. PowerShell:
 
 ```powershell
 [Environment]::SetEnvironmentVariable('OPENCODE_CONFIG', "$HOME\.config\agents\mcp.json", 'User')
@@ -898,15 +1236,49 @@ for your user account rather than one shell. PowerShell:
 [Environment]::SetEnvironmentVariable('KILO_CONFIG', "$HOME\.config\agents\mcp.json", 'User')
 ```
 
+Check both. It prints the two names with their values:
+
+```powershell
+'OPENCODE_CONFIG', 'KILO_CONFIG' | ForEach-Object { "$_=$([Environment]::GetEnvironmentVariable($_, 'User'))" }
+```
+
 Linux, in the environment file from step 4:
 
 ```bash
 printf '%s\n' 'OPENCODE_CONFIG=${HOME}/.config/agents/mcp.json' 'KILO_CONFIG=${HOME}/.config/agents/mcp.json' >> ~/.config/environment.d/60-agents.conf
 ```
 
-Both tools merge that file over their own global config, so keep the `mcp` block out of `opencode.json` and
-`kilo.jsonc` to have one list. Restart the agents, or sign out and in again, so they see the variables.
-Whether Kilo Code ever writes back into a file named by `KILO_CONFIG` was not tested.
+Check it. It prints the two lines:
+
+```bash
+grep -n '_CONFIG=' ~/.config/environment.d/60-agents.conf
+```
+
+Both tools merge that file over their own global config, so keep the `mcp` block out of `opencode.json` and `kilo.jsonc` to have one list. This command removes it from both and keeps every other key. Unix shell:
+
+```bash
+python3 -c 'import json,pathlib;h=pathlib.Path.home();[p.write_text(json.dumps({k:v for k,v in json.loads(p.read_text(encoding="utf-8")).items() if k!="mcp"},indent=2)+"\n",encoding="utf-8") for p in (h/".config/opencode/opencode.json",h/".config/kilo/kilo.jsonc") if p.exists()]'
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,pathlib;h=pathlib.Path.home();[p.write_text(json.dumps({k:v for k,v in json.loads(p.read_text(encoding="utf-8")).items() if k!="mcp"},indent=2)+"\n",encoding="utf-8") for p in (h/".config/opencode/opencode.json",h/".config/kilo/kilo.jsonc") if p.exists()]'
+```
+
+Check all three files. It prints each file with the server names it holds, and only the shared file should name any. Unix shell:
+
+```bash
+python3 -c 'import json,pathlib;h=pathlib.Path.home();[print(p,sorted(json.loads(p.read_text(encoding="utf-8")).get("mcp",{}))) for p in (h/".config/agents/mcp.json",h/".config/opencode/opencode.json",h/".config/kilo/kilo.jsonc") if p.exists()]'
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,pathlib;h=pathlib.Path.home();[print(p,sorted(json.loads(p.read_text(encoding="utf-8")).get("mcp",{}))) for p in (h/".config/agents/mcp.json",h/".config/opencode/opencode.json",h/".config/kilo/kilo.jsonc") if p.exists()]'
+```
+
+Restart the agents, or sign out and in again, so they see the variables. Whether Kilo Code ever writes back into a file named by `KILO_CONFIG` was not tested.
 
 #### GitHub Copilot
 
@@ -940,8 +1312,8 @@ cp -R "$src/.github/agents/." ~/.config/copilot/agents/
 
 Wire the hooks in `~/.config/copilot/hooks/preflight.json`, the user-level hooks directory
 ([hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)). The block is
-the checkout's `.github/hooks/preflight.json` with every script path made absolute. Replace every absolute
-path. Five events matter: `sessionStart` injects the reminder and puts the task list back,
+the checkout's `.github/hooks/preflight.json` with every script path made absolute, and the command below the block
+puts your home directory in place of `/home/you`. Five events matter: `sessionStart` injects the reminder and puts the task list back,
 `subagentStart` injects the subagent text inside a subagent, `userPromptTransformed` appends the reminder to every
 prompt, `preToolUse` is the blocking half, and `agentStop` checks the reply formatting. Each entry carries `bash`
 and `powershell` as sibling string fields, because Copilot picks one per shell. The `|| exit 0` on every `bash`
@@ -998,6 +1370,30 @@ script call and the `; exit 0` on every `powershell` one are what make a missing
     ]
   }
 }
+```
+
+Write it with the same command as under [Claude Code](#claude-code), with the Copilot marker and file. It reads the block above from the temporary copy, replaces only the hook entries this install wrote, and keeps the rest of your file. Unix shell:
+
+```bash
+python3 -c 'import json,re,sys,pathlib;h=pathlib.Path.home();g=pathlib.Path(sys.argv[1]).read_text(encoding="utf-8");b=json.loads([x for x in re.findall(r"^\x60{3}json\n(.*?)^\x60{3}$",g,re.M|re.S) if sys.argv[2] in x][0].replace("/home/you/",h.as_posix()+"/"));p=h.joinpath(sys.argv[3]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};o=lambda x:any(m in json.dumps(x) for m in ("agents/hooks/","PREFLIGHT","Before code work","background subagent"));e=s.setdefault("hooks",{});[e.update({k:[x for x in e.get(k,[]) if not o(x)]+v}) for k,v in b["hooks"].items()];[s.setdefault(k,v) for k,v in b.items()];p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' "$src/docs/GLOBAL_SETUP.md" userPromptTransformed .config/copilot/hooks/preflight.json
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,re,sys,pathlib;h=pathlib.Path.home();g=pathlib.Path(sys.argv[1]).read_text(encoding="utf-8");b=json.loads([x for x in re.findall(r"^\x60{3}json\n(.*?)^\x60{3}$",g,re.M|re.S) if sys.argv[2] in x][0].replace("/home/you/",h.as_posix()+"/"));p=h.joinpath(sys.argv[3]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};o=lambda x:any(m in json.dumps(x) for m in ("agents/hooks/","PREFLIGHT","Before code work","background subagent"));e=s.setdefault("hooks",{});[e.update({k:[x for x in e.get(k,[]) if not o(x)]+v}) for k,v in b["hooks"].items()];[s.setdefault(k,v) for k,v in b.items()];p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' "$src\docs\GLOBAL_SETUP.md" userPromptTransformed .config/copilot/hooks/preflight.json
+```
+
+Check it. It prints every hook script the file now runs. Unix shell:
+
+```bash
+grep -o '[^ "]*/\.config/agents/hooks/[^ "]*' ~/.config/copilot/hooks/preflight.json
+```
+
+PowerShell:
+
+```powershell
+Select-String -Path $HOME\.config\copilot\hooks\preflight.json -Pattern '[^ "]*/\.config/agents/hooks/[^ "]*' -AllMatches | ForEach-Object { $_.Matches.Value }
 ```
 
 Do not turn on `chat.useClaudeHooks` in VS Code on top of this. With it on, the Local agent also runs the hooks in
@@ -1090,7 +1486,7 @@ An install made before this layout keeps everything in `~/.agents`, links `~/.cl
    for d in opencode kilo; do ln -sfn ../agents/agents ~/.config/$d/agents; ln -sfn ../agents/AGENTS.md ~/.config/$d/AGENTS.md; done
    ```
 
-9. Edit the configuration files by hand, since each holds settings of yours as well. In `~/.claude/settings.json`, `~/.config/codex/hooks.json` and `~/.config/copilot/hooks/preflight.json`, change every `/.agents/hooks/` to `/.config/agents/hooks/`, and add the skill link group to the Claude Code `SessionStart` from the block above. In `opencode.json` and `kilo.jsonc`, change the `plugin` entry to the `plugin` directory, add `skills.paths`, and remove the `instructions` entry that named `~/.claude/CLAUDE.md`. Then trust the changed hooks in an interactive Codex session.
+9. Rewrite the wiring in the configuration files with the commands from each agent's section, which keep every setting of yours. Make a temporary copy as in [step 1](#step-1-a-temporary-copy-of-the-repository), run the command that writes the configuration file in the section of each agent you use, [Claude Code](#claude-code), [Codex](#codex), [OpenCode](#opencode), [Kilo Code](#kilo-code) and [GitHub Copilot](#github-copilot), each followed by its check, then delete the copy as in [the finish step](#finish-delete-the-temporary-copy). In `~/.claude/settings.json`, `~/.config/codex/hooks.json` and `~/.config/copilot/hooks/preflight.json` the command replaces every hook group the old install wrote, the ones naming `/.agents/hooks/` included, with the current block, so the Claude Code `SessionStart` gains the skill link group. In `opencode.json` and `kilo.jsonc` it replaces the old `plugin` entry with the `plugin` directory, adds `skills.paths`, and removes the `instructions` entry that named `~/.claude/CLAUDE.md`. Then trust the changed hooks in an interactive Codex session.
 
 10. Run the updater from its new place, which also fills `~/.claude/skills` and `~/.config/codex/skills`:
 
@@ -1234,8 +1630,9 @@ subagent to add an entry. Commit the file so the whole team gets the same list.
    [MCP_SETUP.md](MCP_SETUP.md) has the blocks.
 2. The content of `~/.config/agents/AGENTS.md`. Editing the template down to the parts that are about you is a job only you
    can do.
-3. Merging into a configuration file you already have. Nothing above tells you to overwrite one. Where a file already
-   exists, merge the block rather than replacing the file.
+3. Reading the merged configuration files. No command above overwrites a configuration file you already have: each
+   merges into it, keeps your own keys, and is followed by a check that prints what it wrote. Read that output, because
+   only you know which of the other entries are yours.
 
 ---
 
@@ -1293,8 +1690,9 @@ What it changes:
 
 It never touches the files listed under [Files no update touches](#files-no-update-touches). When upstream changed the
 hook wiring since the recorded commit, the summary names the changed files and prints the `git diff` command that
-shows the change. Merge each changed entry into your own file by hand, taking it from the per-agent block above and
-writing your absolute paths into it. After any change to `~/.config/codex/hooks.json`, open an interactive Codex session and
+shows the change. Take each change in by running the command that writes that file, in the agent's section above,
+against a new temporary copy made as in [step 1](#step-1-a-temporary-copy-of-the-repository), then delete the copy. The
+command replaces only the hook groups the install wrote and keeps your own. After any change to `~/.config/codex/hooks.json`, open an interactive Codex session and
 trust the hooks again, because "changed hooks are marked for review and skipped until trusted"
 ([hooks docs](https://learn.chatgpt.com/codex/hooks)).
 
@@ -1400,8 +1798,8 @@ cp -R "$src/.agents/skills/research" ~/.config/agents/skills/research
 Never refreshed, on purpose, because they become yours the moment you install them: `~/.config/agents/AGENTS.md`, `~/.claude/settings.json`,
 `~/.claude/CLAUDE.md`, `~/.claude.json`, `~/.config/codex/hooks.json`, `~/.config/codex/config.toml`,
 `~/.config/opencode/opencode.json`, `~/.config/kilo/kilo.jsonc`, `~/.config/copilot/hooks/preflight.json`,
-`~/.config/copilot/mcp-config.json`, the environment file from step 4, and `~/.config/agents/mcp.json` if you made one. When upstream changes the gate wording, the
-hook wiring, or adds an MCP server, merge it into those by hand.
+`~/.config/copilot/mcp-config.json`, the environment file from step 4, and `~/.config/agents/mcp.json` if you made one. When upstream changes the gate wording or the
+hook wiring, run the command that writes the file again, from the agent's section above and against a new temporary copy. When it adds an MCP server you want, add it with the MCP command in the same section.
 
 ---
 
@@ -1427,6 +1825,30 @@ find ~/.claude/skills ~/.config/codex/skills -maxdepth 1 -type l -delete
 rm -f ~/.config/opencode/agents ~/.config/kilo/agents ~/.config/codex/AGENTS.md ~/.config/opencode/AGENTS.md ~/.config/kilo/AGENTS.md
 ```
 
+Before the shared folder goes, put your instructions back into `~/.claude/CLAUDE.md`, whose import line would otherwise name a file that no longer exists. This command replaces that one line with the content of `~/.config/agents/AGENTS.md` and keeps every other line of the file. Unix shell:
+
+```bash
+python3 -c 'import pathlib,re;h=pathlib.Path.home();p=h/".claude/CLAUDE.md";a=(h/".config/agents/AGENTS.md").read_text(encoding="utf-8").rstrip("\n");p.write_text(re.sub(r"(?m)^@~/\.config/agents/AGENTS\.md$",lambda m:a,p.read_text(encoding="utf-8")),encoding="utf-8")'
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import pathlib,re;h=pathlib.Path.home();p=h/".claude/CLAUDE.md";a=(h/".config/agents/AGENTS.md").read_text(encoding="utf-8").rstrip("\n");p.write_text(re.sub(r"(?m)^@~/\.config/agents/AGENTS\.md$",lambda m:a,p.read_text(encoding="utf-8")),encoding="utf-8")'
+```
+
+Check that the import line is gone. It prints nothing. Unix shell:
+
+```bash
+grep -n '^@~/.config/agents/AGENTS.md' ~/.claude/CLAUDE.md
+```
+
+PowerShell:
+
+```powershell
+Select-String -Path $HOME\.claude\CLAUDE.md -Pattern '^@~/.config/agents/AGENTS.md'
+```
+
 Then delete the shared folder. PowerShell:
 
 ```powershell
@@ -1439,10 +1861,101 @@ Unix shell:
 rm -rf ~/.config/agents
 ```
 
-Then, per agent, remove only what you recognise: the `agents/` directories of Claude Code, Codex and Copilot, and the environment variables from step 4. Take the gate out of
-`~/.claude/settings.json`, `~/.config/codex/hooks.json`, and `~/.config/copilot/hooks/preflight.json`, and the `plugin` and
-`skills` entries out of `opencode.json` and `kilo.jsonc`, by editing those files, since each may hold
-configuration of yours as well. `~/.claude/CLAUDE.md` now imports a file that is gone, so put your own instructions back into it.
+Then, per agent, remove only what you recognise in the `agents/` directories of Claude Code, Codex and Copilot.
+
+Take the gate out of `~/.claude/settings.json`, `~/.config/codex/hooks.json` and `~/.config/copilot/hooks/preflight.json`. Each may hold configuration of yours as well, so this command removes only the hook groups the install wrote, recognised the same way the install command recognises them, and keeps everything else. Unix shell:
+
+```bash
+python3 -c 'import json,pathlib;h=pathlib.Path.home();o=lambda x:any(m in json.dumps(x) for m in ("agents/hooks/","PREFLIGHT","Before code work","background subagent"));[p.write_text(json.dumps((lambda s:{**s,"hooks":{k:[x for x in v if not o(x)] for k,v in s.get("hooks",{}).items() if any(not o(x) for x in v)}})(json.loads(p.read_text(encoding="utf-8"))),indent=2)+"\n",encoding="utf-8") for p in (h/".claude/settings.json",h/".config/codex/hooks.json",h/".config/copilot/hooks/preflight.json") if p.exists()]'
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,pathlib;h=pathlib.Path.home();o=lambda x:any(m in json.dumps(x) for m in ("agents/hooks/","PREFLIGHT","Before code work","background subagent"));[p.write_text(json.dumps((lambda s:{**s,"hooks":{k:[x for x in v if not o(x)] for k,v in s.get("hooks",{}).items() if any(not o(x) for x in v)}})(json.loads(p.read_text(encoding="utf-8"))),indent=2)+"\n",encoding="utf-8") for p in (h/".claude/settings.json",h/".config/codex/hooks.json",h/".config/copilot/hooks/preflight.json") if p.exists()]'
+```
+
+Take the `plugin` and `skills` entries out of `opencode.json` and `kilo.jsonc` the same way, which removes only the entries that name `~/.config/agents`. Unix shell:
+
+```bash
+python3 -c 'import json,pathlib;h=pathlib.Path.home();f=lambda s:{**s,"plugin":[x for x in s.get("plugin",[]) if "agents/plugin" not in str(x)],"skills":{**s.get("skills",{}),"paths":[x for x in s.get("skills",{}).get("paths",[]) if ".config/agents/skills" not in x]}};[p.write_text(json.dumps(f(json.loads(p.read_text(encoding="utf-8"))),indent=2)+"\n",encoding="utf-8") for p in (h/".config/opencode/opencode.json",h/".config/kilo/kilo.jsonc") if p.exists()]'
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,pathlib;h=pathlib.Path.home();f=lambda s:{**s,"plugin":[x for x in s.get("plugin",[]) if "agents/plugin" not in str(x)],"skills":{**s.get("skills",{}),"paths":[x for x in s.get("skills",{}).get("paths",[]) if ".config/agents/skills" not in x]}};[p.write_text(json.dumps(f(json.loads(p.read_text(encoding="utf-8"))),indent=2)+"\n",encoding="utf-8") for p in (h/".config/opencode/opencode.json",h/".config/kilo/kilo.jsonc") if p.exists()]'
+```
+
+Check all five files. It prints the name of each file that still names `~/.config/agents`, so it prints nothing when the gate and the plugin are out. Unix shell:
+
+```bash
+grep -l 'config/agents/' ~/.claude/settings.json ~/.config/codex/hooks.json ~/.config/copilot/hooks/preflight.json ~/.config/opencode/opencode.json ~/.config/kilo/kilo.jsonc 2>/dev/null
+```
+
+PowerShell:
+
+```powershell
+Select-String -List -Path $HOME\.claude\settings.json, $HOME\.config\codex\hooks.json, $HOME\.config\copilot\hooks\preflight.json, $HOME\.config\opencode\opencode.json, $HOME\.config\kilo\kilo.jsonc -Pattern 'config/agents/' -ErrorAction SilentlyContinue | ForEach-Object { $_.Path }
+```
+
+Remove the environment variables from step 4. On Linux, delete the environment file, then the line that loads it from your shell start-up files. The `sed` keeps each previous file as a `.bak` beside it:
+
+```bash
+rm -f ~/.config/environment.d/60-agents.conf
+```
+
+```bash
+for f in ~/.zshenv ~/.profile ~/.bash_profile; do [ -f "$f" ] && sed -i.bak '/60-agents\.conf/d' "$f"; done
+```
+
+Check. It prints nothing:
+
+```bash
+grep -n '60-agents.conf' ~/.zshenv ~/.profile ~/.bash_profile 2>/dev/null
+```
+
+On macOS, remove the four exports from `~/.zshenv`, keeping the previous file as `~/.zshenv.bak`:
+
+```bash
+sed -i.bak -E '/^export (CODEX_HOME|COPILOT_HOME|COPILOT_SKILLS_DIRS|COPILOT_CUSTOM_INSTRUCTIONS_DIRS)=/d' ~/.zshenv
+```
+
+Stop the LaunchAgent and delete it:
+
+```bash
+launchctl bootout "gui/$(id -u)" ~/Library/LaunchAgents/local.agents.environment.plist
+```
+
+```bash
+rm -f ~/Library/LaunchAgents/local.agents.environment.plist
+```
+
+Clear the values it set in the running session:
+
+```bash
+for v in CODEX_HOME COPILOT_HOME COPILOT_SKILLS_DIRS COPILOT_CUSTOM_INSTRUCTIONS_DIRS; do launchctl unsetenv "$v"; done
+```
+
+Check. It prints nothing:
+
+```bash
+grep -nE 'CODEX_HOME|COPILOT_' ~/.zshenv
+```
+
+On Windows, clear each variable from your user environment, the two for the shared MCP list included:
+
+```powershell
+'CODEX_HOME', 'COPILOT_HOME', 'COPILOT_SKILLS_DIRS', 'COPILOT_CUSTOM_INSTRUCTIONS_DIRS', 'OPENCODE_CONFIG', 'KILO_CONFIG' | ForEach-Object { [Environment]::SetEnvironmentVariable($_, $null, 'User') }
+```
+
+Check. It prints each name with an empty value:
+
+```powershell
+'CODEX_HOME', 'COPILOT_HOME', 'COPILOT_SKILLS_DIRS', 'COPILOT_CUSTOM_INSTRUCTIONS_DIRS', 'OPENCODE_CONFIG', 'KILO_CONFIG' | ForEach-Object { "$_=$([Environment]::GetEnvironmentVariable($_, 'User'))" }
+```
+
+Sign out and back in, so no running application keeps the old values.
 
 ---
 
