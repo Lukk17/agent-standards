@@ -1,6 +1,6 @@
 ---
 name: kde-plasma
-description: 'Changing KDE Plasma 6 safely from the command line: panels, widgets and plasmoids through the Plasma scripting API and evaluateScript, widget plugin ids, kreadconfig6 and kwriteconfig6, which file under ~/.config holds what, KWin effects, window rules, tiling and virtual desktops, global shortcuts in kglobalshortcutsrc, color scheme, Plasma theme, cursor, icons, look-and-feel and wallpaper, konsave profiles, and restarting plasmashell. Use when you say "add a widget to the panel", "move the clock", "what is the plugin id", "change the color scheme", "bind a shortcut", "disable the blur effect", "save my desktop with konsave", "plasmashell is stuck", or "restore my panel layout". Not for packages, audio, systemd or snapshots, use `arch-linux`, and not for CachyOS defaults or the login manager, use `cachyos`.'
+description: 'Changing KDE Plasma 6 safely from the command line: panels, widgets and plasmoids through the Plasma scripting API and evaluateScript, widget plugin ids, kreadconfig6 and kwriteconfig6, which file under ~/.config holds what, KWin effects, window rules, tiling and virtual desktops, global shortcuts in kglobalshortcutsrc, color scheme, Plasma theme, cursor, icons, look-and-feel and wallpaper, konsave profiles, and restarting plasmashell. Also building, testing and publishing a plasmoid, and making a Plasma Style or Global Theme. Use when you say "add a widget to the panel", "move the clock", "what is the plugin id", "change the color scheme", "bind a shortcut", "disable the blur effect", "save my desktop with konsave", "plasmashell is stuck", "restore my panel layout", "write a plasmoid", "publish my widget on the KDE Store", "make a Plasma theme", or "build a Global Theme". Not for packages, audio, systemd or snapshots, use `arch-linux`, and not for CachyOS defaults or the login manager, use `cachyos`.'
 ---
 
 # KDE Plasma 6 Administration
@@ -19,6 +19,8 @@ Baseline: Plasma 6.7 and KWin 6.7 on Wayland, Qt 6.12, verified on one CachyOS h
 | Global shortcuts and `kglobalshortcutsrc` | [shortcuts.md](references/shortcuts.md) |
 | KWin effects, window rules, tiling, virtual desktops | [kwin.md](references/kwin.md) |
 | Save, export, import and apply konsave profiles | [konsave.md](references/konsave.md) |
+| Build, test, package and publish a Plasma 6 widget (plasmoid) | [widget-development.md](references/widget-development.md) |
+| Make a Plasma Style, color scheme, style or decoration fork, icon theme or Global Theme safely | [theme-development.md](references/theme-development.md) |
 
 ---
 
@@ -44,7 +46,6 @@ Machine-specific facts live in `MACHINE.md` next to the global `AGENTS.md`: the 
 - Installing or upgrading Plasma packages, or KDE breaking after an upgrade, use `arch-linux`
 - `cachyos-kde-settings`, `/etc/skel` or the login manager, use `cachyos`
 - Audio devices and volume routing, use `arch-linux`
-- Writing a new plasmoid in QML, which is application development rather than administration
 
 ---
 
