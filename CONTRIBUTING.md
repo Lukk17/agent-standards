@@ -117,6 +117,12 @@ Check that no `CLAUDE.md` is tracked and every `AGENTS.md` is within its size li
 python tools/check-agents-md.py
 ```
 
+Check that every skill a skill file names has a folder under `.agents/skills`:
+
+```bash
+python tools/check-skill-mentions.py
+```
+
 Check that every JSON configuration and hook file parses:
 
 ```bash

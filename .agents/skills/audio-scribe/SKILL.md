@@ -24,8 +24,9 @@ Markdown transcript.
 ### When not to activate
 
 - Pulling text out of a web page or a URL, use `research`, which hands a page that blocks a normal fetch to
-  `ascend-web-hunter`.
-- Storing a fact from the transcript so it survives the conversation, use `ascend-memory`.
+  `ascend-web-hunter` when that is installed.
+- Storing a fact from the transcript so it survives the conversation, use `ascend-memory` if it is installed. It
+  needs its own self-hosted service, so without it give the fact back to the user to keep.
 - Formatting the finished transcript into a human-facing document, use `markdown-writer`.
 
 ---
@@ -156,8 +157,8 @@ Fail: prompt the user to paste an API key so the hosted backend can run.
 ### Related skills
 
 - `research` for text that lives on a web page rather than in a recording.
-- `ascend-web-hunter` for a page behind a WAF, a CAPTCHA or a login that blocks a normal fetch.
-- `ascend-memory` for storing a durable fact you extracted from a transcript.
+- `ascend-web-hunter` for a page behind a WAF, a CAPTCHA or a login that blocks a normal fetch, when it is installed.
+- `ascend-memory` for storing a durable fact you extracted from a transcript, when it is installed.
 - `markdown-writer` for turning a raw transcript into a document a person reads.
 
 ---

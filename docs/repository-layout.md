@@ -68,6 +68,7 @@ agent-standards/
     pyproject.toml               # CANONICAL, the only pinned dependency and pytest configuration
     check-badges.py              # README badge and social card count lint used by CI
     check-agents-md.py           # AGENTS.md size limits and no tracked CLAUDE.md, used by CI
+    check-skill-mentions.py      # every skill a skill file names has a folder, used by CI
     tests/                       # CANONICAL pytest suite for the hook scripts, the linters and the global updater
   e2e/                           # Capability test specs, templates and run records, this repo only
   sandbox-agent/                 # Containerised sandbox that runs those specs, this repo only

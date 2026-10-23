@@ -75,7 +75,8 @@ Some fetch tools do not hand the page to the agent. They pass it through a small
 answer, which can compress, merge two figures, or invent a detail. Claude Code's own tool description says its web
 fetch "answers `prompt` against it using a small fast model". For a quote, a number, or a verdict, fetch the raw
 text and read it: `curl` the page, read the docs source on GitHub, or strip the HTML with a text extractor. Use the
-summarising fetch for orientation only. A page that renders only with JavaScript goes to `ascend-web-hunter`.
+summarising fetch for orientation only. A page that renders only with JavaScript is handled as in "Pages that
+block fetching" below.
 
 ```bash
 curl -sL https://example.dev/docs/page
@@ -182,7 +183,8 @@ and cross-checked against a primary source or a second independent report before
 answers age fast: check the answer date against the version in question.
 
 Some sites refuse unauthenticated automated requests. Measure the refusal (the status code) rather than assuming it,
-then try another route, such as a search restricted to that site, the Hacker News search API, or `ascend-web-hunter`.
+then try another route, such as a search restricted to that site, the Hacker News search API, or
+`ascend-web-hunter` if it is installed.
 
 ```bash
 curl -s "https://hn.algolia.com/api/v1/search?query=QUERY&tags=story"
@@ -224,6 +226,10 @@ source you did not know existed, then go and read that source. A search result s
 
 A WAF interstitial, a CAPTCHA, a login wall, or a page that renders only in a browser goes to `ascend-web-hunter`.
 Report that the page was reached through it, so the reader knows the route.
+
+`ascend-web-hunter` needs its own self-hosted service, so a project or a machine may not have it installed. Without
+it, report the page as not read, with the status code or the block you measured and the routes you tried, and never
+quote the page from a search snippet or a summarising fetch instead.
 
 ---
 

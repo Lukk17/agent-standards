@@ -24,8 +24,10 @@ returns in full belong to `research`, which hands a blocked page to this skill.
 ### When not to activate
 
 - General research, a web search, or reading a page a normal fetch returns in full, use `research`.
-- Recalling something the user told you in an earlier conversation, use `ascend-memory`.
-- Turning a recording or a video into text, use `audio-scribe`.
+- Recalling something the user told you in an earlier conversation, use `ascend-memory` if it is installed. It needs
+  its own self-hosted service, so without it ask the user.
+- Turning a recording or a video into text, use `audio-scribe` if it is installed. It needs its own self-hosted
+  service, so without it tell the user that no transcription route is available.
 - Writing or polishing the markdown you produce from a fetched page, use `markdown-writer`.
 
 ---
@@ -213,8 +215,8 @@ curl.exe -s "$BASE/api/v1/web/search?query=ascend%20ai&limit=5"
 ### Related skills
 
 - `research` for general research, web search, and every page a normal fetch can read.
-- `ascend-memory` for facts about the user that must survive across conversations.
-- `audio-scribe` for turning an audio or video recording into text.
+- `ascend-memory` for facts about the user that must survive across conversations, when it is installed.
+- `audio-scribe` for turning an audio or video recording into text, when it is installed.
 - `markdown-writer` for shaping fetched content into a human-facing document.
 
 ---

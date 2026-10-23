@@ -3275,6 +3275,7 @@ THIS_REPOSITORYS_CHECKS = (
     "python tools/check-markdown.py",
     "python tools/check-badges.py",
     "python tools/check-agents-md.py",
+    "python tools/check-skill-mentions.py",
     "python tools/gen_subagents.py --check",
 )
 

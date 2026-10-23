@@ -24,8 +24,10 @@ every request.
 ### When not to activate
 
 - Running a web search or fetching a page for information you do not have, use `research`.
-- Reading a page behind a WAF, a CAPTCHA or a login that blocks a normal fetch, use `ascend-web-hunter`.
-- Turning a recording into text before storing anything from it, use `audio-scribe`.
+- Reading a page behind a WAF, a CAPTCHA or a login that blocks a normal fetch, use `ascend-web-hunter` if it is
+  installed. It needs its own self-hosted service, so without it tell the user the page could not be read.
+- Turning a recording into text before storing anything from it, use `audio-scribe` if it is installed. It needs
+  its own self-hosted service, so without it ask the user for the text.
 - Recording an architectural decision about a codebase rather than a fact about the user, use
   `architecture-decision-records`.
 
@@ -153,8 +155,8 @@ Fail: search a second user's id to compare, or dump every hit back into the repl
 ### Related skills
 
 - `research` for information that lives on the web rather than in the user's history.
-- `ascend-web-hunter` for a page behind a WAF, a CAPTCHA or a login that blocks a normal fetch.
-- `audio-scribe` for turning a recording into text you might then store.
+- `ascend-web-hunter` for a page behind a WAF, a CAPTCHA or a login that blocks a normal fetch, when it is installed.
+- `audio-scribe` for turning a recording into text you might then store, when it is installed.
 - `architecture-decision-records` for decisions about a codebase rather than facts about a person.
 
 ---

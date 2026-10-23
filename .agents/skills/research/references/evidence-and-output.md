@@ -180,7 +180,7 @@ open issue count), and evidence date. A cell with no evidence says unknown.
 
 Answer first, in one or two sentences. Then the evidence that decides it, one item per claim with its label, quote,
 link and date. Then a short comparison table or text diagram if it helps. Then what is still unknown and what would
-settle it. The reply follows `user-communication`.
+settle it.
 
 A filled example:
 
