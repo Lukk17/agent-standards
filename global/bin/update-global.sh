@@ -7,8 +7,9 @@
 #              this updater are refreshed in full. Only the skills and subagents already installed
 #              are refreshed, and none is ever added. A file is removed only when
 #              the previously installed commit shipped it and the new one no
-#              longer does. Afterwards the Claude Code skill links in
-#              ~/.claude/skills are brought in step with the shared skills.
+#              longer does. Afterwards the skill links in ~/.claude/skills and
+#              ~/.config/codex/skills of that home are brought in step with
+#              the shared skills.
 # Usage: sh update-global.sh [--dry-run] [--source PATH|URL] [--home-dir DIR]
 # Options:
 #   --dry-run       List what would change and write nothing.
@@ -32,8 +33,9 @@ readonly UPSTREAM_URL='https://github.com/Lukk17/agent-standards.git'
 readonly UPSTREAM_PATHS='.agents/hooks .agents/plugin .agents/instructions global/bin .agents/skills .agents/agents .claude/agents .codex/agents .github/agents'
 readonly WIRING_FILES='.claude/settings.json .codex/config.toml .github/hooks/preflight.json docs/GLOBAL_SETUP.md'
 readonly INSTALL_DIR='.config/agents'
+readonly CODEX_HOME_DIR='.config/codex'
 readonly LEGACY_INSTALL_DIR='.agents'
-readonly SUBAGENT_TREES='.config/agents/agents:.agents/agents .claude/agents:.claude/agents .config/codex/agents:.codex/agents .config/copilot/agents:.github/agents'
+readonly SUBAGENT_TREES=".config/agents/agents:.agents/agents .claude/agents:.claude/agents $CODEX_HOME_DIR/agents:.codex/agents .config/copilot/agents:.github/agents"
 readonly RESERVED_SKILL_NAMES='synced .trash'
 readonly SKILL_LINK_HOOK='hooks/claude/sync_skill_links.py'
 
@@ -340,7 +342,7 @@ sync_skill_links() {
     return 0
   fi
 
-  HOME=$home_dir "$python_command" -S -E "$skill_link_hook" </dev/null || true
+  HOME=$home_dir CODEX_HOME=$home_dir/$CODEX_HOME_DIR "$python_command" -S -E "$skill_link_hook" </dev/null || true
   printf 'Skill links: the Claude Code and Codex skills folders checked against ~/%s/skills.\n' "$INSTALL_DIR"
 }
 

@@ -5,8 +5,8 @@
 .DESCRIPTION
     The install lives in ~/.config/agents. The hook scripts, the plugin, the reply rules and this updater are refreshed in full. Only
     the skills and subagents already installed are refreshed, and none is ever added. A file is removed only when the
-    previously installed commit shipped it and the new one no longer does. Afterwards the Claude Code skill links are
-    brought in step. Exits 1 when no install is found, the install predates ~/.config/agents, or a git step fails, 2
+    previously installed commit shipped it and the new one no longer does. Afterwards the skill links in ~/.claude/skills
+    and ~/.config/codex/skills of that home are brought in step. Exits 1 when no install is found, the install predates ~/.config/agents, or a git step fails, 2
     when a required command is missing.
 .PARAMETER DryRun
     List what would change and write nothing.
@@ -31,11 +31,12 @@ $PSNativeCommandUseErrorActionPreference = $true
 $UpstreamPaths = @('.agents/hooks', '.agents/plugin', '.agents/instructions', 'global/bin', '.agents/skills', '.agents/agents', '.claude/agents', '.codex/agents', '.github/agents')
 $WiringFiles = @('.claude/settings.json', '.codex/config.toml', '.github/hooks/preflight.json', 'docs/GLOBAL_SETUP.md')
 $InstallDir = '.config/agents'
+$CodexHomeDir = '.config/codex'
 $LegacyInstallDir = '.agents'
 $SubagentTrees = @(
     @('.config/agents/agents', '.agents/agents'),
     @('.claude/agents', '.claude/agents'),
-    @('.config/codex/agents', '.codex/agents'),
+    @("$CodexHomeDir/agents", '.codex/agents'),
     @('.config/copilot/agents', '.github/agents')
 )
 $ReservedSkillNames = @('synced', '.trash')
@@ -259,15 +260,18 @@ function Sync-SkillLink {
     }
     $previousHome = $env:HOME
     $previousProfile = $env:USERPROFILE
+    $previousCodexHome = $env:CODEX_HOME
     try {
         $env:HOME = $HomeDir
         $env:USERPROFILE = $HomeDir
+        $env:CODEX_HOME = Join-Relative $HomeDir $CodexHomeDir
         $PSNativeCommandUseErrorActionPreference = $false
         $null | & $python[0].Source -S -E $hook | Out-Null
     }
     finally {
         $env:HOME = $previousHome
         $env:USERPROFILE = $previousProfile
+        $env:CODEX_HOME = $previousCodexHome
     }
     "Skill links: the Claude Code and Codex skills folders checked against ~/$InstallDir/skills."
 }

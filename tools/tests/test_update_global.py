@@ -97,6 +97,8 @@ INSTALLED_TREES = {
 
 INSTALL_ROOTS = (".config/agents", ".config/codex", ".config/copilot", ".claude")
 
+AGENT_HOME_VARIABLES = ("CODEX_HOME", "CLAUDE_CONFIG_DIR", "COPILOT_HOME")
+
 USER_SETTINGS ='{"permissions": {"allow": ["mine"]}}\n'
 USER_SKILL = "---\nname: mine\ndescription: The user's own skill.\n---\n"
 
@@ -485,6 +487,29 @@ def test_an_update_brings_the_claude_code_skill_links_in_step(tmp_path, implemen
     for links in (home / ".claude" / "skills", home / ".config" / "codex" / "skills"):
         assert sorted(path.name for path in links.iterdir()) == ["alpha", "delta", "mine"]
         assert all((links / name).is_symlink() for name in ("alpha", "delta", "mine"))
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the skill link hook does nothing on Windows by design")
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+def test_an_update_of_another_home_links_nothing_into_the_callers_agent_homes(tmp_path, monkeypatch, implementation):
+    # Given a home that ships the skill link hook, and a caller whose own agent homes are stand-in folders
+    repo, first = make_upstream(tmp_path)
+    write_files(repo, {".agents/hooks/claude/sync_skill_links.py": SYNC_SKILL_LINKS_HOOK.read_text(encoding="utf-8")})
+    first = commit_all(repo, "ship the hook")
+    home = install_home(tmp_path, repo, first)
+    stand_ins = {name: tmp_path / "caller" / name.lower() for name in AGENT_HOME_VARIABLES}
+    for name, folder in stand_ins.items():
+        folder.mkdir(parents=True)
+        monkeypatch.setenv(name, str(folder))
+
+    # When
+    result = run_updater(implementation, home, str(repo))
+
+    # Then every stand-in stays empty, and the links land in the Codex home of the home that was updated
+    assert result.returncode == 0, result.stderr
+    assert {name: sorted(path.name for path in folder.rglob("*")) for name, folder in stand_ins.items()} == {name: [] for name in stand_ins}
+    codex_links = home / ".config" / "codex" / "skills"
+    assert sorted(path.name for path in codex_links.iterdir()) == ["alpha", "delta", "mine"]
 
 
 @pytest.mark.parametrize("implementation", IMPLEMENTATIONS)

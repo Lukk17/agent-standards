@@ -1032,7 +1032,7 @@ rm -rf "$src"
 
 `~/.config/agents/hooks/claude/sync_skill_links.py` keeps two folders in step with `~/.config/agents/skills`: `~/.claude/skills` when `~/.claude` exists, and `$CODEX_HOME/skills`, or `~/.config/codex/skills` when `CODEX_HOME` is unset, when that Codex home exists. In each it links every shared folder that holds a `SKILL.md` and has no entry of that name yet, and removes a link that points into the shared folder at a skill that is gone. It never touches `synced`, `.trash`, a dot entry such as Codex's `.system`, a real directory, or a link that points anywhere else, and it leaves a folder that is itself a link alone. It always exits 0 and reports to standard error, because Claude Code adds a `SessionStart` hook's standard output to the model's context.
 
-Claude Code runs it when a session starts or resumes, and both updaters run it after an update, so a Codex-only machine picks up a new skill at the next update or when you run it by hand:
+Claude Code runs it when a session starts or resumes, and both updaters run it after an update, so a Codex-only machine picks up a new skill at the next update or when you run it by hand. The updaters run it with `HOME` set to the home they update and `CODEX_HOME` set to `.config/codex` inside that home, whatever your own `CODEX_HOME` says, so an update of another home with `--home-dir` or `-HomeDir` links nothing into your own Codex home. By hand:
 
 ```bash
 python3 -S -E ~/.config/agents/hooks/claude/sync_skill_links.py
