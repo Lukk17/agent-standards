@@ -38,6 +38,7 @@ Machine-specific facts live in `MACHINE.md` next to the global `AGENTS.md`: the 
 - Global shortcuts
 - Themes, colors, cursors, icons, look-and-feel packages or wallpapers
 - konsave, or restarting, recovering or rolling back plasmashell
+- Writing, testing, packaging or publishing a plasmoid, or building a theme set
 
 ---
 
