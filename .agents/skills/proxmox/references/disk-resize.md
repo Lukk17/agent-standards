@@ -60,7 +60,7 @@ On the host shell, as root. The manual page says the size is "The new size. With
 qm disk resize <vm-id> scsi0 +<size>G
 ```
 
-`qm resize` is "An alias for qm disk resize". The wiki says "You can resize your disks online or offline with command line". The same call through the API is `PUT /nodes/<node>/qemu/<vm-id>/resize`, which needs `VM.Config.Disk` on the VM and `Datastore.AllocateSpace` on the disk's storage. The read-only token cannot do it, by design. The change token of option 2 in [api-access.md](api-access.md) can, after the owner said yes to this one resize, and the call is under "Calls that change something" there.
+`qm resize` is "An alias for qm disk resize". The wiki says "You can resize your disks online or offline with command line". The same call through the API is `PUT /nodes/<node>/qemu/<vm-id>/resize`, which needs `VM.Config.Disk` on the VM and `Datastore.AllocateSpace` on the disk's storage. The admin token in [api-access.md](api-access.md) can do it, after the owner said yes to this one resize, and the call is under "Calls that change something" there. Of the narrower alternatives there, the change token of Alternative 2 can as well, and the read-only token of Alternative 1 cannot.
 
 ---
 

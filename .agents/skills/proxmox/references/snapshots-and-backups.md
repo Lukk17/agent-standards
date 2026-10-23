@@ -21,7 +21,7 @@ A snapshot is a quick undo for the next change, never the only copy. The LVM thi
 
 ### Read snapshots
 
-Through the API with the read-only token, `/nodes/<node>/qemu/<vm-id>/snapshot`, which needs `VM.Audit`, see [api-access.md](api-access.md). On the host shell:
+Through the API with the agent's token, `/nodes/<node>/qemu/<vm-id>/snapshot`, which needs `VM.Audit`, see [api-access.md](api-access.md). On the host shell:
 
 ```bash
 qm listsnapshot <vm-id>
@@ -55,7 +55,7 @@ Delete a snapshot once the change it guarded is confirmed good, because on a thi
 qm delsnapshot <vm-id> <snapshot-name>
 ```
 
-Taking one through the API is `POST /nodes/<node>/qemu/<vm-id>/snapshot`, which needs `VM.Snapshot`, so the read-only token cannot do it. The change token of option 2 in [api-access.md](api-access.md) can, after the owner said yes to this one snapshot.
+Taking one through the API is `POST /nodes/<node>/qemu/<vm-id>/snapshot`, which needs `VM.Snapshot`. The admin token in [api-access.md](api-access.md) can do it, after the owner said yes to this one snapshot. Of the narrower alternatives there, the change token of Alternative 2 can as well, and the read-only token of Alternative 1 cannot.
 
 ---
 
@@ -78,7 +78,7 @@ Or in the web page: the VM, Backup, Backup now.
 
 ### Backup jobs
 
-The backup chapter: "You can manage the jobs in the UI under 'Datacenter' -> 'Backup' or via the `/cluster/backup` API endpoint. Both will generate job entries in `/etc/pve/jobs.cfg`, which are parsed and executed by the `pvescheduler` daemon." The read-only token can list them, because `GET /cluster/backup` needs `Sys.Audit`. Creating one needs `Sys.Modify`, so the owner does it.
+The backup chapter: "You can manage the jobs in the UI under 'Datacenter' -> 'Backup' or via the `/cluster/backup` API endpoint. Both will generate job entries in `/etc/pve/jobs.cfg`, which are parsed and executed by the `pvescheduler` daemon." Every token in [api-access.md](api-access.md) can list them, because `GET /cluster/backup` needs `Sys.Audit`. Creating one needs `Sys.Modify`, so the owner does it.
 
 Retention belongs on the job or the storage. The chapter's example is `--prune-backups keep-last=3,keep-daily=13,keep-yearly=9`, and it says "it is often more sensible to configure the setting on the storage level". It also warns that "scheduled backups miss their execution when the host was offline or the pvescheduler was disabled during the scheduled time", so read the job's last run, not only its schedule.
 
