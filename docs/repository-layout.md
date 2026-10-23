@@ -66,7 +66,7 @@ agent-standards/
     gen_subagents.py             # Emits four trees plus the two agent symlinks, validates skills and tools
     check-markdown.py            # Markdown lint used by CI, runs .agents/hooks/_check_markdown.py
     pyproject.toml               # CANONICAL, the only pinned dependency and pytest configuration
-    check-badges.py              # Badge-count lint used by CI
+    check-badges.py              # README badge and social card count lint used by CI
     check-agents-md.py           # AGENTS.md size limits and no tracked CLAUDE.md, used by CI
     tests/                       # CANONICAL pytest suite for the hook scripts, the linters and the global updater
   e2e/                           # Capability test specs, templates and run records, this repo only

@@ -93,7 +93,7 @@ Run the markdown linter to catch style issues before pushing:
 python tools/check-markdown.py
 ```
 
-Check that the README badge counts still match the tree:
+Check that the README badge counts and the counts on the social card still match the tree:
 
 ```bash
 python tools/check-badges.py
@@ -174,8 +174,9 @@ Renaming or deleting a skill is not a local change. Every canonical subagent tha
 same commit, because [tools/gen_subagents.py](tools/gen_subagents.py) exits with an error naming any skill that has
 no folder, and CI runs it with `--check`.
 
-Bump the skill-count badge in [README.md](README.md) in the same change. Counts live in the badges and nowhere else,
-so that one edit is the whole update.
+Bump the skill-count badge in [README.md](README.md) and the skill count on
+[docs/assets/social-card.svg](docs/assets/social-card.svg) in the same change. Counts live in those two places and
+nowhere else, and [tools/check-badges.py](tools/check-badges.py) fails when either one disagrees with the tree.
 
 ---
 
@@ -184,7 +185,8 @@ so that one edit is the whole update.
 Add a frontmatter-headed Markdown file under `subagents/<name>.md`. Run `python tools/gen_subagents.py` to emit
 per-tool copies in `.claude/agents/`, `.agents/agents/`, `.codex/agents/`, and `.github/agents/`. The same run repairs
 the `.opencode/agents` and `.kilo/agents` symlinks, which point at `.agents/agents` rather than holding their own copy.
-Commit the canonical source AND the generated outputs, and bump the subagent-count badge in [README.md](README.md).
+Commit the canonical source AND the generated outputs, and bump the subagent-count badge in [README.md](README.md)
+and the subagent count on [docs/assets/social-card.svg](docs/assets/social-card.svg).
 
 The generator validates before it writes. Every name in the `skills` list needs a folder under `.agents/skills/`,
 every name in `tools` has to be one it knows, and `model` has to be `opus`, `sonnet`, `haiku`, or `inherit`. A

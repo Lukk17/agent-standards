@@ -141,9 +141,9 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
 
 - **A skill or a subagent:** before adding one, read "Adding a new skill" or "Adding a new subagent" in
   [CONTRIBUTING.md](CONTRIBUTING.md). A subagent's source and its four generated trees are committed together, and
-  each kind bumps its count badge in [README.md](README.md).
+  each kind bumps its count badge in [README.md](README.md) and its count on the social card.
 - **An MCP server:** add the block to all five MCP files (the ones listed under Repo conventions), document it in
-  [docs/MCP_SETUP.md](docs/MCP_SETUP.md), and bump the MCP-count badge.
+  [docs/MCP_SETUP.md](docs/MCP_SETUP.md), and bump the MCP count in the badge and on the social card.
 - **A shipped document:** name it in UPPERCASE under `docs/`, add its path to every
   `git checkout agent-standards/master --` pathspec that delivers documents (the Quickstart and all five per-agent
   blocks in [README.md](README.md), the import in [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md), and both shell

@@ -31,6 +31,26 @@ def _load_check_badges_module():
 
 BADGES = _load_check_badges_module()
 
+CARD_TEXT_LINE = '    <text x="205" y="401" fill="#ffffff" text-anchor="middle">{text}</text>'
+
+
+def _write_card(root: Path, *, skills: int | None, subagents: int | None, mcp_servers: int | None) -> Path:
+    """Write a social card shaped like docs/assets/social-card.svg, leaving out any count passed as None."""
+    card_path = root / "docs" / "assets" / "social-card.svg"
+    card_path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        '<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640">',
+        '  <text x="80" y="240" font-size="36">One git checkout drops a shared AI coding setup</text>',
+        '  <g font-size="30" font-weight="600">',
+    ]
+    for value, words in ((skills, "skills"), (subagents, "subagents"), (mcp_servers, "MCP servers")):
+        if value is not None:
+            lines.append(CARD_TEXT_LINE.format(text=f"{value} {words}"))
+    lines.extend(["  </g>", "</svg>"])
+    card_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    return card_path
+
 
 def _build_repo(
     tmp_path: Path,
@@ -42,7 +62,7 @@ def _build_repo(
     subagents_badge: int | None,
     mcp_badge: int | None,
 ) -> Path:
-    """Build a throwaway repo root holding the four pieces check-badges.py reads."""
+    """Build a throwaway repo root holding the five pieces check-badges.py reads."""
     skills_dir = tmp_path / ".agents" / "skills"
     skills_dir.mkdir(parents=True)
     for i in range(skills_count):
@@ -73,6 +93,8 @@ def _build_repo(
         )
     lines.append("Unrelated prose mentioning the number 84 in passing.")
     (tmp_path / "README.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    _write_card(tmp_path, skills=skills_count, subagents=subagents_count, mcp_servers=mcp_count)
 
     return tmp_path
 
@@ -399,11 +421,75 @@ def test_count_subagents_raises_file_not_found_for_missing_directory(tmp_path):
         BADGES.count_subagents(subagents_dir)
 
 
-def test_real_repo_readme_matches_the_real_tree():
+def test_stale_card_counts_fail_with_useful_message(tmp_path, capsys):
+    # Given correct README badges and a card still showing older counts
+    root = _all_correct_repo(tmp_path)
+    _write_card(root, skills=84, subagents=30, mcp_servers=4)
+
+    # When
+    exit_code = BADGES.main([str(root)])
+
+    # Then every stale card count is reported, and the correct one is not
+    assert exit_code == 1
+
+    out = capsys.readouterr().out
+    assert "'skills' card count says 84, actual count is 2" in out
+    assert "'subagents' card count says 30, actual count is 3" in out
+    assert "mcp_servers' card count" not in out
+    assert "Violations: 2" in out
+
+
+@pytest.mark.parametrize("missing_label", ["skills", "subagents", "mcp_servers"])
+def test_missing_card_count_is_reported_not_silently_passed(tmp_path, capsys, missing_label):
+    # Given a card that no longer draws one of the three counts
+    root = _all_correct_repo(tmp_path)
+    counts = {"skills": 2, "subagents": 3, "mcp_servers": 4}
+    counts[missing_label] = None
+    _write_card(root, **counts)
+
+    # When
+    exit_code = BADGES.main([str(root)])
+
+    # Then
+    assert exit_code == 1
+
+    out = capsys.readouterr().out
+    assert f"missing '{missing_label}' card count in social-card.svg" in out
+
+
+def test_missing_card_file_is_reported(tmp_path, capsys):
+    # Given a repo root whose social card does not exist
+    root = _all_correct_repo(tmp_path)
+    card_path = root / "docs" / "assets" / "social-card.svg"
+    card_path.unlink()
+
+    # When
+    exit_code = BADGES.main([str(root)])
+
+    # Then the failure names the card rather than raising
+    assert exit_code == 1
+
+    out = capsys.readouterr().out
+    assert "::error" in out
+    assert str(card_path) in out
+
+
+def test_card_subagents_count_is_not_read_as_the_skills_count():
+    # Given a card line for subagents only
+    lines = [CARD_TEXT_LINE.format(text="35 subagents")]
+
+    # When
+    found = BADGES.find_card_count(lines, "skills")
+
+    # Then
+    assert found is None
+
+
+def test_real_repo_readme_and_card_match_the_real_tree():
     # Given the actual repository this test suite lives in
     # When
     exit_code = BADGES.main([str(REPO_ROOT)])
 
-    # Then the badges this task fixes must already be correct by the time
-    # the test suite is green
+    # Then the README badges and the social card counts must already be
+    # correct by the time the test suite is green
     assert exit_code == 0

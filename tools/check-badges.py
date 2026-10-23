@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Badge-count lint for README.md.
+"""Count lint for the README badges and the social card.
 
 Enforces that the three count badges in README.md (skills, subagents, MCP
-servers) match what is actually in the repository tree:
+servers), and the same three counts drawn on docs/assets/social-card.svg,
+match what is actually in the repository tree:
 
 - skills: number of directories directly under `.agents/skills/`
 - subagents: number of `*.md` files under `subagents/`, the canonical
@@ -18,23 +19,32 @@ keys on, so a badge colour change or a change to the markdown alt text
 `badge/<label>-` prefix, so an unrelated number elsewhere in the README is
 never mistaken for a badge.
 
+On the card each count is the whole content of one SVG `<text>` element,
+`>N skills<`, `>N subagents<` and `>N MCP servers<`, so matching is
+anchored to the closing `>` of the tag and the opening `<` of the next one.
+
 Pass an explicit repository root as the sole argument to check a different
 tree (used by the test suite); with no arguments the repository root is
 resolved from this script's own location.
 
 Exit codes:
-  0  All three badges match the tree.
-  1  At least one badge is missing or wrong; errors printed in GitHub
-     Actions `::error file=path,line=n::message` format so they surface in
-     PR checks and the Annotations tab.
+  0  All three badges and all three card counts match the tree.
+  1  At least one badge or card count is missing or wrong; errors printed in
+     GitHub Actions `::error file=path,line=n::message` format so they surface
+     in PR checks and the Annotations tab.
 """
 
 import json
 import re
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 CHECKS = ("skills", "subagents", "mcp_servers")
+
+CARD_WORDS = {"skills": "skills", "subagents": "subagents", "mcp_servers": "MCP servers"}
+
+CountFinder = Callable[[list[str], str], tuple[int, int] | None]
 
 
 def badge_pattern(label: str) -> re.Pattern[str]:
@@ -42,10 +52,22 @@ def badge_pattern(label: str) -> re.Pattern[str]:
     return re.compile(rf"badge/{re.escape(label)}-(\d+)-[^)]*\)")
 
 
+def card_pattern(label: str) -> re.Pattern[str]:
+    """Match the SVG text content `>N <words><` for `label`, capturing N."""
+    return re.compile(rf">\s*(\d+)\s+{re.escape(CARD_WORDS[label])}\s*<")
+
+
 def find_badge(lines: list[str], label: str) -> tuple[int, int] | None:
     """Return `(value, line_no)` for the first badge carrying `label`, or None."""
-    pattern = badge_pattern(label)
+    return find_first(lines, badge_pattern(label))
 
+
+def find_card_count(lines: list[str], label: str) -> tuple[int, int] | None:
+    """Return `(value, line_no)` for the first card count carrying `label`, or None."""
+    return find_first(lines, card_pattern(label))
+
+
+def find_first(lines: list[str], pattern: re.Pattern[str]) -> tuple[int, int] | None:
     for line_no, line in enumerate(lines, start=1):
         match = pattern.search(line)
         if match:
@@ -70,14 +92,10 @@ def count_mcp_servers(mcp_json_path: Path) -> int:
     return len(data.get("mcpServers", {}))
 
 
-def check_badges(readme_path: Path, skills_dir: Path, subagents_dir: Path, mcp_json_path: Path) -> int:
-    """Compare each badge in `readme_path` against the tree. Returns the violation count."""
-    try:
-        lines = readme_path.read_text(encoding="utf-8").splitlines()
-    except OSError as exc:
-        print(f"::error file={readme_path}::cannot read file: {exc}")
-        return 1
-
+def check_badges(
+    readme_path: Path, skills_dir: Path, subagents_dir: Path, mcp_json_path: Path, card_path: Path
+) -> int:
+    """Compare the README badges and the card counts against the tree. Returns the violation count."""
     failures = 0
     actual_counts: dict[str, int] = {}
 
@@ -99,25 +117,38 @@ def check_badges(readme_path: Path, skills_dir: Path, subagents_dir: Path, mcp_j
         print(f"::error file={mcp_json_path}::cannot read MCP server config: {exc}")
         failures += 1
 
+    failures += check_document(readme_path, find_badge, "badge", actual_counts)
+    failures += check_document(card_path, find_card_count, "card count", actual_counts)
+
+    return failures
+
+
+def check_document(path: Path, find: CountFinder, kind: str, actual_counts: dict[str, int]) -> int:
+    """Compare every count `find` locates in `path` against `actual_counts`. Returns the violation count."""
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        print(f"::error file={path}::cannot read file: {exc}")
+        return 1
+
+    failures = 0
+
     for label in CHECKS:
         if label not in actual_counts:
             continue
 
-        found = find_badge(lines, label)
+        found = find(lines, label)
 
         if found is None:
-            print(f"::error file={readme_path}::missing '{label}' badge in README.md")
+            print(f"::error file={path}::missing '{label}' {kind} in {path.name}")
             failures += 1
             continue
 
-        badge_value, line_no = found
+        value, line_no = found
         actual = actual_counts[label]
 
-        if badge_value != actual:
-            print(
-                f"::error file={readme_path},line={line_no}::"
-                f"'{label}' badge says {badge_value}, actual count is {actual}"
-            )
+        if value != actual:
+            print(f"::error file={path},line={line_no}::'{label}' {kind} says {value}, actual count is {actual}")
             failures += 1
 
     return failures
@@ -135,10 +166,11 @@ def main(argv: list[str] | None = None) -> int:
     skills_dir = repo_root / ".agents" / "skills"
     subagents_dir = repo_root / "subagents"
     mcp_json_path = repo_root / ".mcp.json"
+    card_path = repo_root / "docs" / "assets" / "social-card.svg"
 
-    failures = check_badges(readme_path, skills_dir, subagents_dir, mcp_json_path)
+    failures = check_badges(readme_path, skills_dir, subagents_dir, mcp_json_path, card_path)
 
-    print(f"\nChecked {len(CHECKS)} badges. Violations: {failures}.")
+    print(f"\nChecked {len(CHECKS)} badges and {len(CHECKS)} card counts. Violations: {failures}.")
 
     return 1 if failures else 0
 
