@@ -7,8 +7,9 @@ The commands behind the base-URL rule in the manifest. Load this file when resol
 ### Order
 
 1. `ASCEND_WEB_HUNTER_URL`, when set, is the base URL and no probe runs.
-2. `http://ascend-web-hunter.internal`, the service name on a shared network.
-3. `http://localhost:7021`, the port the local compose file publishes, with `/health` and `/ready` on it.
+2. `http://ascend-web-hunter.internal`, a `.internal` name on the local network. It carries no port, so the request
+   goes to port 80, and a reverse proxy there has to forward it to port 7021 of the `ascend-web-hunter` container.
+3. `http://localhost:7021`, the port the AscendAI compose files publish, with `/health` and `/ready` on it.
 
 A candidate counts only when `GET /health` answers with a success status inside a short timeout. When no candidate
 answers, stop and tell the user the service is down, naming the candidates tried. A silent switch to a normal fetch

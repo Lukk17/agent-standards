@@ -1,15 +1,18 @@
 ---
 name: ascend-web-hunter
-description: Page-content extraction through the self-hosted AscendWebSearch service for pages a normal fetch cannot read, covering WAF bypass, CAPTCHA escalation to a remote browser, and cached login sessions. Use when the user says "this page is behind Cloudflare", "the fetch got a bot check", "scrape this job listing that blocks bots", "this site needs a login", or "log me in to that site so you can read it". Not for general research or a web search a normal fetch can answer, use `research`, and not for recalling facts the user told you in an earlier conversation, use `ascend-memory`.
-compatibility: Requires the self-hosted AscendWebSearch service reachable over HTTP. The base URL comes from ASCEND_WEB_HUNTER_URL, else the first of http://ascend-web-hunter.internal and http://localhost:7021 whose /health answers, and appears in the examples as $BASE.
+description: Page-content extraction through the self-hosted ascend-web-hunter service of AscendAI for pages a normal fetch cannot read, covering WAF bypass, CAPTCHA escalation to a remote browser, and cached login sessions. Use when the user says "this page is behind Cloudflare", "the fetch got a bot check", "scrape this job listing that blocks bots", "this site needs a login", or "log me in to that site so you can read it". Not for general research or a web search a normal fetch can answer, use `research`, and not for recalling facts the user told you in an earlier conversation, use `ascend-memory`.
+compatibility: Requires the self-hosted ascend-web-hunter service of AscendAI (https://github.com/Lukk17/AscendAI) reachable over HTTP. The base URL comes from ASCEND_WEB_HUNTER_URL, else the first of http://ascend-web-hunter.internal and http://localhost:7021 whose /health answers, and appears in the examples as $BASE.
 ---
 
 # Ascend Web Hunter
 
-Pull page content through AscendWebSearch, which cascades from fast HTTP to FlareSolverr to a headed Playwright
-browser to a remote NoVNC session a human can drive. Use it for any page a plain fetch cannot read, and for login
-walls the user signs into once so the service can cache the session. General web search and every page a normal fetch
-returns in full belong to `research`, which hands a blocked page to this skill.
+Pull page content through ascend-web-hunter, the web reading service of
+[AscendAI](https://github.com/Lukk17/AscendAI). It lives in `apps/ascend-web-hunter`, runs as the service and the
+container `ascend-web-hunter`, and listens on port 7021. Before 2026-09-10 it was called AscendWebSearch. A read
+cascades from fast HTTP to FlareSolverr to a headed Playwright browser to a remote NoVNC session a human can drive,
+and the tiers are listed below. Use it for any page a plain fetch cannot read, and for login walls the user signs
+into once so the service can cache the session. General web search and every page a normal fetch returns in full
+belong to `research`, which hands a blocked page to this skill.
 
 ---
 
@@ -58,10 +61,11 @@ Fail: every probe fails, and the page is read with the built-in web fetch as if 
 | `/api/v2/web/session/status` | POST | Check whether a stored session for a URL is still active. |
 | `/api/v2/web/session/clear` | POST | Delete a stored session and any cached reads for that domain. |
 
-Four other endpoints exist and stay out of an agent's reach, apart from the `/health` probe above. `GET /health`
-and `GET /ready` serve orchestration.
-`POST /api/v1/blocklist/refresh` and `GET /api/v1/blocklist/status` maintain the server's blocklist, which is an
-operator action.
+The other endpoints stay out of an agent's reach, apart from the `/health` probe above. `GET /health`, `GET /ready`
+and `GET /metrics` serve orchestration and monitoring. `POST /api/v1/blocklist/refresh` and
+`GET /api/v1/blocklist/status` maintain the server's blocklist, which is an operator action. The same process also
+serves MCP at `/mcp`, with the tools `web_search`, `web_read`, `session_establish`, `session_status` and
+`session_clear` behind the same code, for a runtime that has the service configured as an MCP server.
 
 Pass: call `/api/v2/web/read` to get page text.
 
@@ -69,11 +73,40 @@ Fail: call `/api/v1/blocklist/refresh` because a page looked full of ads.
 
 ---
 
+### Know the tiers behind a read
+
+Checked on 2026-10-24 against AscendAI `master` at commit `1102fb3`, which is what a user gets from GitHub. Each tier
+name is also the `mode` value a successful read returns.
+
+| Tier | What it does |
+| --- | --- |
+| `1-beautifulsoup` | Plain HTTP with a browser fingerprint, parsed with BeautifulSoup. |
+| `2-trafilatura` | The same fetch, with the main text pulled out by Trafilatura. |
+| `3-flaresolverr` | A FlareSolverr container solves a Cloudflare challenge. |
+| `4-playwright_stealth` | A headed Chromium driven by Playwright with stealth settings. |
+| `5-crawlee_adaptive` | The adaptive crawler of Crawlee. |
+| `6-novnc` | A browser a human drives over NoVNC, answered with the 428 case below. |
+
+A read without `heavy_mode` starts at tier 1. A read with `heavy_mode: true` starts at tier 4, so FlareSolverr never
+runs for it. The request also takes a `tier` field that starts the chain at a named tier. Leave it out and let
+`heavy_mode` decide, because the tier names are changing.
+
+Coming change: on 2026-10-20 the AscendAI branch `feature/all-openspec-groups` removed the `3-flaresolverr` tier with
+its settings and its container, and on 2026-10-19 the same branch added the browser tiers `4a-patchright` and
+`4b-camoufox` after `4-playwright_stealth`. On 2026-10-24 neither change was on GitHub yet. Once they reach `master`,
+a request that names `3-flaresolverr` is refused with HTTP 400 and no tier runs.
+
+Pass: send `heavy_mode: true` and read `mode` only to report which tier answered.
+
+Fail: send `"tier": "3-flaresolverr"`, or branch on `mode` being `"3-flaresolverr"`.
+
+---
+
 ### Send heavy_mode and include_links on every read
 
-Set `heavy_mode: true` so the call skips the fast-but-shallow tier and renders the page. The fast tier drops
-JavaScript-rendered content such as most modern job boards, single-page apps, and lazy-loaded sections, and an agent
-cannot tell a partial page from a complete one. Set `include_links: true` so the response carries a `links` map for
+Set `heavy_mode: true` so the call skips tiers 1 to 3 and renders the page in a browser. The two plain HTTP tiers
+drop JavaScript-rendered content such as most modern job boards, single-page apps, and lazy-loaded sections, and an
+agent cannot tell a partial page from a complete one. Set `include_links: true` so the response carries a `links` map for
 follow-up navigation, which saves a second round trip. Narrow the result with `link_filter: "<substring>"` when only
 a subset matters, for example `"jobs/view"` on a job board.
 
@@ -84,18 +117,19 @@ Fail: send `{"url": "…"}` and treat the shallow tier's partial text as the who
 Bash:
 
 ```bash
-curl -s --max-time 90 $BASE/api/v2/web/read -X POST -H "Content-Type: application/json" -d '{"url":"https://example.com/jobs/view/123","heavy_mode":true,"include_links":true}'
+curl -s --max-time 150 $BASE/api/v2/web/read -X POST -H "Content-Type: application/json" -d '{"url":"https://example.com/jobs/view/123","heavy_mode":true,"include_links":true}'
 ```
 
 PowerShell:
 
 ```powershell
-curl.exe -s --max-time 90 $BASE/api/v2/web/read -X POST -H "Content-Type: application/json" -d '{\"url\":\"https://example.com/jobs/view/123\",\"heavy_mode\":true,\"include_links\":true}'
+curl.exe -s --max-time 150 $BASE/api/v2/web/read -X POST -H "Content-Type: application/json" -d '{\"url\":\"https://example.com/jobs/view/123\",\"heavy_mode\":true,\"include_links\":true}'
 ```
 
 Call `curl.exe` in PowerShell so the shell does not route the name to its `Invoke-WebRequest` alias, and escape the
-inner double quotes of the JSON body. Give the client a generous timeout of around 90 seconds, because a cold
-Cloudflare domain takes a while on the first hit while FlareSolverr warms up.
+inner double quotes of the JSON body. Give the client a timeout of about 150 seconds. The service checks its
+90-second read budget only before it starts each tier, so a tier that starts late runs past it, and the Crawlee tier
+alone may take 60 seconds.
 
 ---
 
@@ -103,15 +137,18 @@ Cloudflare domain takes a while on the first hit while FlareSolverr warms up.
 
 | Case | HTTP | Key fields |
 | --- | --- | --- |
-| Success | 200 | `status: "success"`, `content`, `mode` (the winning tier, for example `"3-flaresolverr"`), plus `links` when requested. |
+| Success | 200 | `status: "success"`, `content`, `mode` (the winning tier, for example `"4-playwright_stealth"`), plus `links` when requested. |
 | Error | 200 | `status: "error"`, `error`, `reason` (`"all_tiers_failed"` or `"budget_exhausted"`). |
 | Human needed | 428 | `status: "human_intervention_required"`, `intervention_type` (`"captcha"` or `"login"`), `vnc_url`, `message`. |
-| NoVNC busy | 409 | `status: "novnc_busy"`, `holder_url`, `holder_profile`, `message`. |
+| Session expired | 200 | `status: "session_expired"`, empty `content`, `profile`, `message`. |
+| NoVNC busy | 409 | `status: "novnc_busy"`, `holder_url`, `holder_profile`, `message`, and a `Retry-After: 30` header. |
 
 Link markers are woven into `content` as numbers, so `"View job [3]"` pairs with `{"3": "https://…"}` in `links`.
 The markers restart at 1 on every response and are not stable across calls. The 428 case is not a failure, so a
 client that calls `raise_for_status()` or checks `response.ok` has to unwrap it before treating the request as
-broken. The 409 case means the shared browser is already held for someone else, so wait and retry.
+broken. The session expired case means a stored login for the domain and profile no longer works, and the service
+refuses to read the page anonymously, so run `session/establish` for it and read again. The 409 case means the shared
+browser is already held for someone else, so wait the seconds in `Retry-After` and retry.
 
 Pass: read `status` out of the body and route the 428 case into the human-intervention flow.
 
@@ -124,10 +161,10 @@ Fail: call `raise_for_status()` and report the page as unreadable.
 On a 428 the service has already opened a headed browser on a machine it controls, pointed it at the target URL, and
 started monitoring it. Show `vnc_url` as a clickable link with a short prompt, for example: this page needs a CAPTCHA
 solved or a sign-in, open the link on any device and finish it, then tell me. The URL already carries
-`?autoconnect=true`, so the user lands on the live browser with no VNC password. Once they finish, the service
-captures the cookies and clearance tokens into a shared Redis cache keyed by domain. Re-call `/api/v2/web/read` with
-the same URL and the same body, and the cached session is matched with no extra parameter. Other pages on the same
-domain reuse it until the cookies expire.
+`?autoconnect=true`, so the user lands on the live browser at once. NoVNC asks for a password only when the
+operator set `VNC_PASSWORD`. Once they finish, the service captures the cookies and clearance tokens into a shared
+Redis cache keyed by domain. Re-call `/api/v2/web/read` with the same URL and the same body, and the cached session is
+matched with no extra parameter. Other pages on the same domain reuse it until the cookies expire.
 
 The service pushes no completion signal, so poll: wait around 30 seconds, retry, repeat, and stop early when the
 user says they are done. Cap the retries at about five so the loop ends when the user walks away.
@@ -225,7 +262,8 @@ curl.exe -s "$BASE/api/v1/web/search?query=ascend%20ai&limit=5"
 
 - Base URL taken from `ASCEND_WEB_HUNTER_URL`, else the first candidate whose `/health` answers, else reported down.
 - `heavy_mode` and `include_links` set on every `read`.
-- Response routed on its `status` field, with 428 and 409 handled as their own cases.
+- Response routed on its `status` field, with 428, 409 and `session_expired` handled as their own cases.
+- No `tier` sent and no decision taken on a `mode` value, because `3-flaresolverr` is leaving.
 - CAPTCHA and login walls handed to the user with `vnc_url`, then polled with a capped retry.
 - `session/establish` used only for a login wall you already know about.
 - Search run before read whenever the URL on a blocking site was not given to you, open-ended search left to `research`.

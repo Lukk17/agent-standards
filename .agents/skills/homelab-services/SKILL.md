@@ -19,7 +19,7 @@ Baseline: these images, which the owner's homelab ran on 2026-10-23: `adguard/ad
 | Set up File Browser, read its first admin password, reset it | [file-browser.md](references/file-browser.md) |
 | Run Plex, claim it, mount the media read only, lay out the libraries | [plex.md](references/plex.md) |
 | Configure the Homepage dashboard and its allowed hosts | [homepage.md](references/homepage.md) |
-| Add a proxy host for a `.internal` name, forward to a host-network service | [nginx-proxy-manager.md](references/nginx-proxy-manager.md) |
+| Add a proxy host for a `.internal` name, forward to a host-network service or the Proxmox web UI, a proxy host that answers 500 | [nginx-proxy-manager.md](references/nginx-proxy-manager.md) |
 | Attach a USB or NTFS data disk to the VM, mount it, protect the mount point, clear a dirty NTFS volume | [data-disk.md](references/data-disk.md) |
 | Explain a full disk, find what filled it, free space | [disk-full.md](references/disk-full.md) |
 
