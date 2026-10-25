@@ -14,13 +14,13 @@ Five real config files, committed and ready to use. They are not templates any m
 
 | File | Schema key | Serves | Notes |
 | --- | --- | --- | --- |
-| [.mcp.json](../.mcp.json) | `mcpServers` | Claude Code | `"type": "http"` for remote, `"type": "stdio"` for local |
+| [.mcp.json](../.mcp.json) | `mcpServers` | Claude Code and the GitHub Copilot CLI | `"type": "http"` for remote, `"type": "stdio"` for local |
 | [opencode.json](../opencode.json) | `mcp` | OpenCode and Kilo Code | `"type": "remote"` or `"type": "local"`, sits at the project root |
 | [.codex/config.toml](../.codex/config.toml) | `[mcp_servers.*]` | Codex | TOML, also carries the preflight hook tables |
 | [.vscode/mcp.json](../.vscode/mcp.json) | `servers` | GitHub Copilot in VS Code | key is `servers`, not `mcpServers` |
-| [.github/mcp.json](../.github/mcp.json) | `mcpServers` | the GitHub Copilot CLI | `"type": "http"` for remote, `"type": "local"` for a stdio server |
+| [.github/mcp.json](../.github/mcp.json) | `mcpServers` | the GitHub Copilot CLI, only in a folder that has no `.mcp.json` | a fallback, `"type": "http"` for remote, `"type": "local"` for a stdio server |
 
-Four files carry the same eight servers. [opencode.json](../opencode.json) carries those eight plus `atlassian`, nine in total. Only the file name, the schema key, the `type` value, and the
+The five files carry one server set, with two exceptions. [opencode.json](../opencode.json) also carries `atlassian`. [.github/mcp.json](../.github/mcp.json) leaves out `home-assistant`, because its schema has no enable flag, and the Copilot CLI gets that server from [.mcp.json](../.mcp.json). [opencode.json](../opencode.json) and [.codex/config.toml](../.codex/config.toml) leave it out too, so OpenCode, Kilo Code and Codex get `home-assistant` only from the user-level configuration: their project files cannot hold a path that works on every machine, and a switched-off project entry would override the user entry by name. The reasons are under [Home Assistant server](#home-assistant-server). Only the file name, the schema key, the `type` value, and the
 environment-variable syntax change between them. The V1 shape in [opencode.json](../opencode.json), flat `mcp` plus `enabled`, loads on OpenCode 1.x and on 2.0.26, measured 2026-10-15: `opencode plugin list` from the repo shows the repo plugin, and `opencode debug config` shows the same file as `mcp.servers` plus `disabled`. V2 keeps the V1 file working by change in memory. There is no per-tool overlay beyond these five: one file per agent
 surface, and that is the whole set.
 
@@ -34,29 +34,23 @@ Two surfaces get no shipped file, because there is nothing a repository could sh
   settings, not from a file in the tree. Manual block below.
 
 Of Copilot's four surfaces, VS Code reads [.vscode/mcp.json](../.vscode/mcp.json), the CLI reads
-[.github/mcp.json](../.github/mcp.json), and the other two are manual.
+[.mcp.json](../.mcp.json), and the other two are manual. The CLI reads [.github/mcp.json](../.github/mcp.json) only in
+a folder that has no `.mcp.json`.
 
 #### The CLI, `.mcp.json`, and why a fifth file exists
 
-The GitHub Copilot CLI's own documentation states it is capable of reading a project-level `.mcp.json`, in the same
-`mcpServers` schema Claude Code uses, in addition to `.github/mcp.json`. This repo does not rely on that, because
-`.mcp.json` is Claude Code's file and carries Claude Code's `${VAR:-default}` substitution syntax. The Copilot CLI
-has no substitution engine of its own for project-level files, so it would read a placeholder such as
-`${CONTEXT7_API_KEY:-}` as a literal string rather than resolving it, which is a broken header, not an empty one.
-`.github/mcp.json` exists so the CLI has a file written in its own literal-values-only schema instead.
+The GitHub Copilot CLI reads the project `.mcp.json`, the same file and the same `mcpServers` schema Claude Code uses. When it starts a server it expands `$VAR`, `${VAR}` and `${VAR:-default}` in `command`, `args`, `env`, `url` and `headers`, measured on 1.0.103 on 2026-10-25. So the `${VAR:-default}` entries in `.mcp.json` work for the CLI the same way they work for Claude Code. Two cases need care when a variable is not set:
 
-Shipping both files side by side has a real, measured consequence worth knowing before you rely on it. The Copilot
-CLI documents its own precedence rule: when `.mcp.json` and `.github/mcp.json` exist in the same directory and
-define a server with the same name, `.mcp.json` wins. All eight servers in this repo share their name across both
-files, so as things stand the CLI resolves every one of them from `.mcp.json`, not from `.github/mcp.json`. Verified
-directly against Copilot CLI 1.0.81 with both files present: `copilot mcp get context7 --json` reports
-`"sourcePath": "/work/project/.mcp.json"` and a `headers` block holding the literal, unresolved string
-`${CONTEXT7_API_KEY:-}`. Removing `.mcp.json` from the same directory made the same command report
-`"sourcePath": "/work/project/.github/mcp.json"` with no `headers` block at all, the correct unauthenticated
-default. There is no Copilot CLI flag or setting that disables one workspace source while keeping the other; the
-options that exist (`--disable-mcp-server=NAME`, `/mcp disable NAME`) disable a named server in the CLI's own
-persisted configuration, not a source file. Until `.mcp.json` and `.github/mcp.json` stop naming the same eight
-servers, `.github/mcp.json` is present, correct, and shadowed.
+1. `${VAR}` with no default stays the literal text `${VAR}`.
+2. `${VAR:-}` gives an empty value. For `context7` with no `CONTEXT7_API_KEY`, the CLI sends an empty `CONTEXT7_API_KEY` header, not the literal text. How Context7 answers an empty header was not measured.
+
+The CLI reference lists expansion only for a local server's `env`, "Supports `$VAR`, `${VAR}`, and `${VAR:-default}` expansion", and for a remote server's `headers`, "Supports variable expansion." ([CLI command reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference), "Local server configuration fields" and "Remote server configuration fields", read 2026-10-25). The measurement shows that `command`, `args` and `url` expand too. Do not check a value with `copilot mcp get NAME --json`: it prints the text of the file as written, so it does not show what the server receives.
+
+The CLI reads one project file per folder, not one entry per server name. The vendor page says "If both `.mcp.json` and `.github/mcp.json` exist in the same directory, `.mcp.json` takes precedence." ([Adding MCP servers for GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers), read 2026-10-25). Measured on 1.0.103 on 2026-10-25 with both files in one folder, the CLI did not read `.github/mcp.json` at all: a server defined only there was missing, and `copilot mcp get gh-local --json` printed `Error: Server "gh-local" not found.`. With `.mcp.json` removed, the servers of `.github/mcp.json` appeared, with `sourcePath` set to `.github/mcp.json`.
+
+So [.github/mcp.json](../.github/mcp.json) is kept only as a fallback. The CLI reads it only in a folder that has no `.mcp.json`, for example a project that pulled the Copilot files from this repository but not `.mcp.json`. In this repository, and in every project that has both files, the CLI never reads it.
+
+Every local server the CLI starts also receives the whole environment of the process that started the CLI, tokens for other servers included. [Step 4](#step-4-variables-you-can-override) says what that means.
 
 One catch with the shared OpenCode and Kilo file. Kilo Code accepts `opencode.json` as a valid project config
 filename, which is why one file serves both. Kilo does not merely leave `{env:VAR}` literal, which is what this
@@ -103,6 +97,7 @@ shipped default.
 | `redis` | Redis cache and queue introspection | a running Redis, development only |
 | `sonarqube` | Code-quality issue lookup | Docker plus a SonarQube instance and token |
 | `n8n` | n8n workflow node documentation, optional control | none for documentation only, instance plus key for control |
+| `home-assistant` | Home Assistant control and configuration | a Home Assistant instance plus a long-lived access token of an administrator user that may log in only from the local network, both keys in the credential env file, see [Home Assistant server](#home-assistant-server) |
 
 Turn off a server you do not use. In [opencode.json](../opencode.json) set `"enabled": false` on its block, and in
 [.codex/config.toml](../.codex/config.toml) set `enabled = false` in its table. In [.mcp.json](../.mcp.json),
@@ -141,9 +136,9 @@ git diff --stat -- opencode.json .codex/config.toml .mcp.json .vscode/mcp.json .
 ```
 
 The agent-standards live pipeline, which runs every agent against a real model, loads `context7` alone. It has the
-smallest tool descriptions of the nine and needs no secret, and the descriptions of all nine together pushed a
+smallest tool descriptions of the shipped servers and needs no secret, and the descriptions of all of them together pushed a
 single test past the provider's per-minute token limit. So only `context7` is proven to answer a real model there,
-and the other eight are proven to be discovered by every agent, not to answer.
+and the others are proven to be discovered by every agent, not to answer.
 
 ---
 
@@ -163,7 +158,7 @@ Unix shell:
 node --version
 ```
 
-`uv` runs the `grafana` and `redis` servers.
+`uv` runs the `grafana`, `redis` and `home-assistant` servers.
 
 Windows, PowerShell:
 
@@ -191,7 +186,7 @@ Unix shell:
 docker --version
 ```
 
-The backing services (`mongodb`, `grafana`, `redis`, `sonarqube`, `n8n`) have to be running before their server can
+The backing services (`mongodb`, `grafana`, `redis`, `sonarqube`, `n8n`, `home-assistant`) have to be running before their server can
 connect. If you do not have one, disable that server rather than leaving it to fail.
 
 ---
@@ -207,6 +202,7 @@ has a fallback for every variable, and the other four hardcode their defaults.
 | `GRAFANA_SERVICE_ACCOUNT_TOKEN` | Grafana, Administration, Service accounts, add account, add token | you use the grafana server |
 | `SONARQUBE_TOKEN` | SonarQube, My Account, Security, Generate Token | you use the sonarqube server |
 | `N8N_API_KEY` | n8n, Settings, API, Create API key | you want n8n workflow management, not just docs |
+| `HOMEASSISTANT_TOKEN` | Home Assistant, signed in as the agent user, your profile, Security, Long-lived access tokens, Create token | you use the home-assistant server. It goes into the credential env file, never into Step 3, see [Home Assistant server](#home-assistant-server) |
 
 Use read-only or least-privilege tokens. A Grafana service account needs `Viewer` for dashboards, and `Editor` only
 if you want the agent to create alerts. A SonarQube token needs `Execute Analysis` only if you also write
@@ -368,7 +364,7 @@ or a real token.
 
 | Variable | Used by | Effect when unset |
 | --- | --- | --- |
-| `CONTEXT7_API_KEY` | `context7`, and only from a global OpenCode or Kilo config, never from a project file | no header sent, Context7 free tier |
+| `CONTEXT7_API_KEY` | `context7`, from [.mcp.json](../.mcp.json) for Claude Code and the Copilot CLI, and for OpenCode and Kilo Code only from a global config, never from `opencode.json` | Context7 free tier. The Copilot CLI then sends the header with an empty value, measured on 1.0.103 on 2026-10-25, and how Context7 answers that was not measured |
 | `MONGODB_URL` | `mongodb` | falls back to `mongodb://localhost:27017` |
 | `GRAFANA_URL` | `grafana` | falls back to `http://localhost:3000` |
 | `GRAFANA_SERVICE_ACCOUNT_TOKEN` | `grafana` | token sent empty, Grafana rejects the connection |
@@ -378,11 +374,9 @@ or a real token.
 | `N8N_API_URL` | `n8n` | falls back to `http://localhost:5678` |
 | `N8N_API_KEY` | `n8n` | the n8n server runs in documentation-only mode |
 
-The asymmetry between the files matters when you are debugging. Only [.mcp.json](../.mcp.json) supports a default
-fallback, so only it resolves cleanly with nothing set. [opencode.json](../opencode.json),
-[.vscode/mcp.json](../.vscode/mcp.json), [.codex/config.toml](../.codex/config.toml), and
-[.github/mcp.json](../.github/mcp.json) hardcode their URLs, because `{env:VAR}` and `${env:VAR}` have no fallback
-syntax, TOML has no substitution at all, and the Copilot CLI's own project-file schema has none either. To point one
+The asymmetry between the files matters when you are debugging. [.mcp.json](../.mcp.json) is the only file that uses a default fallback, so it resolves cleanly with nothing set, for Claude Code and for the Copilot CLI alike. [opencode.json](../opencode.json),
+[.vscode/mcp.json](../.vscode/mcp.json) and [.codex/config.toml](../.codex/config.toml) hardcode their URLs, because `{env:VAR}` and `${env:VAR}` have no fallback
+syntax and TOML has no substitution at all. [.github/mcp.json](../.github/mcp.json) hardcodes them too. The Copilot CLI would expand `${VAR:-default}` there as well, measured on 1.0.103 on 2026-10-25, but it reads that file only in a folder that has no `.mcp.json`. To point one
 of those at a different host, change the literal string in your local copy. OpenCode also accepts
 `OPENCODE_CONFIG_CONTENT` for a session-scoped override.
 
@@ -408,41 +402,11 @@ git diff -- opencode.json .vscode/mcp.json .codex/config.toml .github/mcp.json
 single `{env:VAR}` makes Kilo Code reject the file. Every token it used to name is now read from the environment by
 the server process itself.
 
-`.github/mcp.json` cannot rely on that same inheritance for a secret. A local (`"type": "local"`) server under the
-Copilot CLI only receives `PATH` from the process that started the CLI; the CLI's own documentation states that
-every other environment variable a server needs must be listed explicitly in the server's `env` object in the config
-file. Exporting `GRAFANA_SERVICE_ACCOUNT_TOKEN`, `SONARQUBE_TOKEN`, or `N8N_API_KEY` system-wide, the way Step 3
-above recommends, reaches the same server under Claude Code, OpenCode, Kilo Code, and Codex, but does not reach it
-under the Copilot CLI, because `.github/mcp.json` deliberately omits those three keys to avoid committing a secret.
-Authenticating one of those servers for the Copilot CLI specifically means adding the real value to that key in your
-own local, uncommitted copy of `.github/mcp.json`, the same way [Claude Desktop](#claude-desktop) below needs a
-literal value because it has no substitution either.
+The Copilot CLI passes on more than its vendor page says. The page says "The `PATH` variable is automatically inherited from your environment. All other environment variables must be configured here." ([Adding MCP servers for GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers), read 2026-10-25). Measured on 1.0.103 on 2026-10-25, a local server received the whole environment of the process that started the CLI, variables that no configuration named included, in prompt mode and in interactive mode, from `.mcp.json`, `.github/mcp.json` and `~/.copilot/mcp-config.json` alike. So an exported token does reach its server under the Copilot CLI. The risk is that every local server receives every exported variable, tokens meant for other servers included.
 
-One command does it from the project root. It reads each token from the variable you set in [Step 3](#step-3-set-environment-variables-system-wide), so the value never appears on the command line, writes it into the `env` object of its server, and skips a variable that is not set. It writes the file back with two-space indentation. Unix shell:
+To give a token to a Copilot CLI server, export the variable as [Step 3](#step-3-set-environment-variables-system-wide) says, and the `${VAR:-}` entry in [.mcp.json](../.mcp.json) passes it on.
 
-```bash
-python3 -c 'import json,os,sys;p=".github/mcp.json";s=json.load(open(p,encoding="utf-8"));a=sys.argv[1:];[s["mcpServers"][a[i]].setdefault("env",{}).update({a[i+1]:os.environ[a[i+1]]}) for i in range(0,len(a),2) if os.environ.get(a[i+1])];open(p,"w",encoding="utf-8").write(json.dumps(s,indent=2)+"\n")' grafana GRAFANA_SERVICE_ACCOUNT_TOKEN sonarqube SONARQUBE_TOKEN n8n N8N_API_KEY
-```
-
-PowerShell 7.4 or later:
-
-```powershell
-python -c 'import json,os,sys;p=".github/mcp.json";s=json.load(open(p,encoding="utf-8"));a=sys.argv[1:];[s["mcpServers"][a[i]].setdefault("env",{}).update({a[i+1]:os.environ[a[i+1]]}) for i in range(0,len(a),2) if os.environ.get(a[i+1])];open(p,"w",encoding="utf-8").write(json.dumps(s,indent=2)+"\n")' grafana GRAFANA_SERVICE_ACCOUNT_TOKEN sonarqube SONARQUBE_TOKEN n8n N8N_API_KEY
-```
-
-Check it. It prints each server with the names in its `env` object, and never a value. Unix shell:
-
-```bash
-python3 -c 'import json;print({k:sorted(v.get("env",{})) for k,v in json.load(open(".github/mcp.json",encoding="utf-8"))["mcpServers"].items()})'
-```
-
-PowerShell 7.4 or later:
-
-```powershell
-python -c 'import json;print({k:sorted(v.get("env",{})) for k,v in json.load(open(".github/mcp.json",encoding="utf-8"))["mcpServers"].items()})'
-```
-
-The file now holds secrets, so never commit it. `git status --short .github/mcp.json` shows it as modified for as long as it does.
+Codex does not pass an exported variable on. It starts a local server with an empty environment and adds back only a fixed list. In the Codex source at tag `rust-v0.162.1`, read 2026-10-25, `Command::new` in [codex-rs/utils/pty/src/child_command.rs](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/utils/pty/src/child_command.rs) calls `.env_clear()`, and `create_env_for_mcp_server` in [codex-rs/rmcp-client/src/utils.rs](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/rmcp-client/src/utils.rs) then sets `DEFAULT_ENV_VARS`, which on Unix is `"HOME"`, `"LOGNAME"`, `"PATH"`, `"SHELL"`, `"USER"`, `"__CF_USER_TEXT_ENCODING"`, `"LANG"`, `"LC_ALL"`, `"TERM"`, `"TMPDIR"` and `"TZ"`, plus the certificate variables in `CUSTOM_CA_ENV_KEYS`, plus every name in the server's `env_vars`, and lays the `env` table over all of them last. The Codex MCP page says `env_vars` is "(optional): Environment variables to allow and forward" ([MCP docs](https://learn.chatgpt.com/docs/extend/mcp), read 2026-10-25). To pass an exported token to a Codex server, name it in `env_vars` and remove it from `env`, because the empty string the shipped `env` table holds for it would replace the value.
 
 An unset token variable is a local, noisy failure and nothing worse: that one server fails to authenticate and the
 rest keep working.
@@ -636,19 +600,13 @@ codex mcp list
 Codex has no built-in substitution. To keep a secret out of the file, wrap the command in a small script that reads it
 from your secrets manager.
 
-The Copilot CLI reads [.github/mcp.json](../.github/mcp.json), the file this repo ships for it, plus
-[.mcp.json](../.mcp.json), the same file Claude Code reads, because its own documentation names both as valid
-per-project sources. When both name the same server, as all eight do here, the CLI's own precedence rule makes
-`.mcp.json` win, so see [What ships](#what-ships) above for what that means in practice before assuming
-`.github/mcp.json` is the file actually in effect. Project-level sources, both of them, load only once you confirm
-you trust the directory on first launch and are silently skipped otherwise; there is no flag to skip that prompt for
-`copilot mcp list` itself. For servers you want available everywhere, the CLI also reads
+The Copilot CLI reads the project [.mcp.json](../.mcp.json), the same file Claude Code reads. It reads [.github/mcp.json](../.github/mcp.json) only in a folder that has no `.mcp.json`, because it picks one file per folder, not one entry per server name, as [The CLI, `.mcp.json`, and why a fifth file exists](#the-cli-mcpjson-and-why-a-fifth-file-exists) shows. Project files load only in a trusted folder, as [Verifying the setup](#verifying-the-setup) describes. For servers you want available everywhere, the CLI also reads
 `~/.copilot/mcp-config.json` (relocatable with `COPILOT_HOME`, so `~/.config/copilot/mcp-config.json` under the layout in [GLOBAL_SETUP.md](GLOBAL_SETUP.md)), keyed `mcpServers`, with a `tools` allowlist per
-server, no directory-trust requirement, and no substitution. Keep that one out of version control too.
+server. That file needs no folder trust, the CLI expands `$VAR`, `${VAR}` and `${VAR:-default}` in it the same way as in the project files, and a project server hides a user server of the same name, all measured on 1.0.103 on 2026-10-25. Keep that file out of version control too.
 
 #### Arch Linux operations server, not shipped
 
-`arch-ops-server` (the Arch Wiki, AUR and pacman tools from [nihalxkumar/arch-mcp](https://github.com/nihalxkumar/arch-mcp)) is not one of the eight servers, because it only helps on an Arch machine. Add it to your own user-scope configuration, and start it with both pins:
+`arch-ops-server` (the Arch Wiki, AUR and pacman tools from [nihalxkumar/arch-mcp](https://github.com/nihalxkumar/arch-mcp)) is not one of the shipped servers, because it only helps on an Arch machine. Add it to your own user-scope configuration, and start it with both pins:
 
 ```bash
 uvx --from arch-ops-server==3.4.0 --with 'mcp<2' arch-ops-server
@@ -695,6 +653,190 @@ In a `.mcp.json` style file the same command is:
 
 Remove the `mcp<2` pin, and move the version pin forward, once a release of `arch-ops-server` declares `mcp>=2` or an upper bound below 2 itself. Check its dependencies on [PyPI](https://pypi.org/project/arch-ops-server/) before you do.
 
+#### Home Assistant server
+
+`home-assistant` runs [ha-mcp](https://github.com/homeassistant-ai/ha-mcp), pinned to release 8.7.0 from [PyPI](https://pypi.org/project/ha-mcp/8.7.0/), over stdio. The server reads two keys, `HOMEASSISTANT_URL` and `HOMEASSISTANT_TOKEN`. They live in the credential env file `~/.local/state/agents/workspace/homelab.env`, never in a configuration file and never in a system-wide variable. `uvx` reads that file itself through its `--env-file` flag ("Load environment variables from a `.env` file", `uvx --help`, uv 0.13.1), so no wrapper script is needed. Release 8.7.0 declares `Requires-Python` as `<3.15,>=3.13`, and `uvx` picks a matching Python on its own.
+
+Give the agent its own Home Assistant user. The ha-mcp README suggests an account made just for ha-mcp under Settings, People, Add person, with Allow login, Local access only and Administrator switched on, so a leaked token works only from the local network. Sign in as that user and create the token under your profile, Security, Long-lived access tokens, Create token. `HOMEASSISTANT_URL` is the address of your instance, for example `http://homeassistant.local:8123`.
+
+Write both keys into the file through a hidden prompt, so a value never lands on a command line or in your shell history. Create the folder first. Unix shell:
+
+```bash
+mkdir -p ~/.local/state/agents/workspace
+```
+
+PowerShell:
+
+```powershell
+New-Item -ItemType Directory -Force -Path "$HOME\.local\state\agents\workspace" | Out-Null
+```
+
+On Linux and macOS, create the file before any key goes in, and let only your own user read it. `touch` leaves a file that already exists as it is:
+
+```bash
+touch ~/.local/state/agents/workspace/homelab.env
+```
+
+```bash
+chmod 600 ~/.local/state/agents/workspace/homelab.env
+```
+
+Add the two keys. Press Enter at a prompt to skip a key the file already holds. Unix shell:
+
+```bash
+for n in HOMEASSISTANT_URL HOMEASSISTANT_TOKEN; do printf '%s, Enter to skip: ' "$n"; IFS= read -rs v; echo; [ -n "$v" ] && printf '%s=%s\n' "$n" "$v" >> ~/.local/state/agents/workspace/homelab.env; done; unset v
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+foreach ($n in 'HOMEASSISTANT_URL', 'HOMEASSISTANT_TOKEN') { $v = Read-Host "$n, Enter to skip" -MaskInput; if ($v) { Add-Content -Path "$HOME\.local\state\agents\workspace\homelab.env" -Value "$n=$v" -Encoding utf8NoBOM } }; Remove-Variable v
+```
+
+Check it. It prints each key name the file holds, and never a value. Unix shell:
+
+```bash
+grep -n -o -E '^(HOMEASSISTANT_URL|HOMEASSISTANT_TOKEN)=' ~/.local/state/agents/workspace/homelab.env
+```
+
+PowerShell:
+
+```powershell
+Select-String -Path "$HOME\.local\state\agents\workspace\homelab.env" -Pattern '^(HOMEASSISTANT_URL|HOMEASSISTANT_TOKEN)=' | ForEach-Object { $_.Matches[0].Value }
+```
+
+Know the minus before you rely on it: `uvx` loads every key in the file into the ha-mcp process, so the server sees every lab secret the file holds, not only the two Home Assistant keys. A missing file is a hard error, so the server does not start: `uvx --env-file` on a path that does not exist stops with `Error: No environment file found at: <path>` and exit code 2, measured with uv 0.13.1 on 2026-10-25.
+
+uv does not expand `~` or `$HOME` inside that path, so each project file writes the home folder in its own way:
+
+| File | Path to the env file | State |
+| --- | --- | --- |
+| [.mcp.json](../.mcp.json) | `${HOME}/.local/state/agents/workspace/homelab.env`, which Claude Code expands, because "Environment variables can be expanded in" `command`, `args` and `env` ([MCP docs](https://code.claude.com/docs/en/mcp), "Expansion locations", read 2026-10-25). The Copilot CLI expands it too, measured on 1.0.103 on 2026-10-25 | on |
+| [.vscode/mcp.json](../.vscode/mcp.json) | `${userHome}/.local/state/agents/workspace/homelab.env`. The VS Code reference says "You can use predefined variables in the server configuration" ([MCP configuration reference](https://code.visualstudio.com/docs/agents/reference/mcp-configuration), read 2026-10-25), and `${userHome}` is the "Path of the user's home folder" ([variables reference](https://code.visualstudio.com/docs/reference/variables-reference)) | on |
+| [opencode.json](../opencode.json) | none, the server is left out, add it at user scope | not present |
+| [.codex/config.toml](../.codex/config.toml) | none, the server is left out, add it at user scope | not present |
+| [.github/mcp.json](../.github/mcp.json) | none, the server is left out | not present |
+
+`.mcp.json` uses `${HOME}` with no `:-default`, unlike its other blocks, because no default path would be right. When `HOME` is unset, Claude Code names the variable in a warning: "If a referenced environment variable isn't set and has no default value, the config still loads: Claude Code reports a missing-variable warning for that server in `claude mcp list` output and uses the unexpanded `${VAR}` text as-is" (same page, "Unset variables without a default").
+
+[opencode.json](../opencode.json) and [.codex/config.toml](../.codex/config.toml) leave the server out, so OpenCode, Kilo Code and Codex get `home-assistant` only from the user-level configuration, with the commands below. Their project files cannot hold a path that works on every machine: Kilo Code throws the whole project file away on an `{env:HOME}` token, as [What ships](#what-ships) explains, and Codex has no substitution at all. A switched-off project entry does not help either, because it would override the user entry by name, as point 3 below shows.
+
+[.github/mcp.json](../.github/mcp.json) leaves the server out, because its schema has no enable flag. The Copilot CLI reads `home-assistant` from [.mcp.json](../.mcp.json), the file it reads in place of `.github/mcp.json`, as [What ships](#what-ships) describes, and it expands `${HOME}` in `args`. Measured on 1.0.103 on 2026-10-25 with `HOME=/home/node`, a stand-in `uvx` received `--env-file /home/node/.local/state/agents/workspace/homelab.env ha-mcp==8.7.0`. So `home-assistant` starts under the Copilot CLI. The CLI reference lists expansion only for `env` and `headers`, so this rests on the measurement.
+
+Switch the server off for the Copilot CLI in one of three ways. For one run, the reference documents `--disable-mcp-server SERVER-NAME` "to disable a specific one" ([CLI command reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference), read 2026-10-25). It lasts for that one run and saves nothing, measured on 1.0.103 on 2026-10-25:
+
+```bash
+copilot --disable-mcp-server home-assistant
+```
+
+Inside a session, "`/mcp disable SERVER-NAME`. A disabled server remains configured but is not used by Copilot. This setting persists across sessions." ([Adding MCP servers for GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers), read 2026-10-25):
+
+```text
+/mcp disable home-assistant
+```
+
+From a terminal, the reference documents `copilot mcp disable`: "Enable or disable a server by name. The change persists to the user configuration and applies to future sessions." (same reference, "copilot mcp subcommand"). In either shell:
+
+```bash
+copilot mcp disable home-assistant
+```
+
+Both `/mcp disable` and `copilot mcp disable` write the name into `disabledMcpServers` in `~/.copilot/settings.json`, measured on 1.0.103 on 2026-10-25. That works by name, so the server stays off in every project. Turn it back on, in either shell:
+
+```bash
+copilot mcp enable home-assistant
+```
+
+Keep one entry per agent. The ha-mcp README warns "Configure exactly one install method per client", and says that two entries for the same server in one client are "a known cause of connection hangs". Use the name `home-assistant` in every scope, so the project entry and the user entry can never both load, because one wins by name:
+
+1. Claude Code: "Claude Code matches duplicates across the three scopes by name", and project scope ranks above user scope ([MCP docs](https://code.claude.com/docs/en/mcp), "Scope hierarchy and precedence", read 2026-10-25). In a project that ships [.mcp.json](../.mcp.json), the project entry runs.
+2. Copilot CLI: "Project-level definitions also take precedence over those in `~/.copilot/mcp-config.json`" ([Adding MCP servers for GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers), read 2026-10-25). Measured on 1.0.103 on 2026-10-25, a project server hides a user server of the same name.
+3. Codex, OpenCode and Kilo Code: a project entry wins by name over the user entry, even when the project entry is switched off. Measured on 2026-10-25 with a working user entry in a temporary configuration, while this repository's [opencode.json](../opencode.json) and [.codex/config.toml](../.codex/config.toml) still carried a switched-off `home-assistant` entry: in this repository, `codex mcp list` (Codex 0.162.1) showed `home-assistant` as `disabled`, and in an empty folder as `enabled`. `opencode mcp list` (OpenCode 2.0.26) showed it as `disabled`, and `kilocode debug config` (Kilo Code 7.8.15) showed the project block with `"enabled": false`. That is why neither file ships the server. Do not add a `home-assistant` block to a project's copies of those two files, because it would replace the user entry there.
+
+Add it at user scope with one command per agent. The shell expands `$HOME` when the command runs, so each configuration stores the absolute path. Claude Code, Unix shell:
+
+```bash
+claude mcp add --scope user home-assistant -- uvx --env-file "$HOME/.local/state/agents/workspace/homelab.env" ha-mcp==8.7.0
+```
+
+PowerShell:
+
+```powershell
+claude mcp add --scope user home-assistant -- uvx --env-file "$HOME\.local\state\agents\workspace\homelab.env" ha-mcp==8.7.0
+```
+
+Check it, in either shell. This starts the server once to test the connection:
+
+```bash
+claude mcp get home-assistant
+```
+
+Codex, Unix shell. Measured on 2026-10-25 against a temporary `CODEX_HOME`, it writes a `[mcp_servers.home-assistant]` table with that absolute path:
+
+```bash
+codex mcp add home-assistant -- uvx --env-file "$HOME/.local/state/agents/workspace/homelab.env" ha-mcp==8.7.0
+```
+
+PowerShell:
+
+```powershell
+codex mcp add home-assistant -- uvx --env-file "$HOME\.local\state\agents\workspace\homelab.env" ha-mcp==8.7.0
+```
+
+Check it, in either shell:
+
+```bash
+codex mcp list
+```
+
+OpenCode and Kilo Code expand `{env:VAR}` in their global configuration, so the entry there names `{env:HOME}` rather than a fixed path. Measured on 2026-10-25: with the block below in a temporary global configuration, `kilocode debug config` (Kilo Code 7.8.15) and `opencode debug config` (OpenCode 2.0.26) both printed the path with `{env:HOME}` replaced by the home folder. The command adds or replaces only the `home-assistant` entry and keeps the rest of the file, and the last word names the file. For Kilo Code, Unix shell:
+
+```bash
+python3 -c 'import json,sys,pathlib;p=pathlib.Path.home().joinpath(sys.argv[1]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})["home-assistant"]={"type":"local","command":["uvx","--env-file","{env:HOME}/.local/state/agents/workspace/homelab.env","ha-mcp==8.7.0"],"enabled":True};p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' .config/kilo/kilo.jsonc
+```
+
+For Kilo Code, PowerShell 7.4 or later. Windows sets `USERPROFILE` rather than `HOME`, so this one names `{env:USERPROFILE}`, which was not measured on Windows:
+
+```powershell
+python -c 'import json,sys,pathlib;p=pathlib.Path.home().joinpath(sys.argv[1]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})["home-assistant"]={"type":"local","command":["uvx","--env-file","{env:USERPROFILE}/.local/state/agents/workspace/homelab.env","ha-mcp==8.7.0"],"enabled":True};p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' .config/kilo/kilo.jsonc
+```
+
+For OpenCode, Unix shell:
+
+```bash
+python3 -c 'import json,sys,pathlib;p=pathlib.Path.home().joinpath(sys.argv[1]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})["home-assistant"]={"type":"local","command":["uvx","--env-file","{env:HOME}/.local/state/agents/workspace/homelab.env","ha-mcp==8.7.0"],"enabled":True};p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' .config/opencode/opencode.json
+```
+
+For OpenCode, PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,sys,pathlib;p=pathlib.Path.home().joinpath(sys.argv[1]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})["home-assistant"]={"type":"local","command":["uvx","--env-file","{env:USERPROFILE}/.local/state/agents/workspace/homelab.env","ha-mcp==8.7.0"],"enabled":True};p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' .config/opencode/opencode.json
+```
+
+Check Kilo Code, in either shell:
+
+```bash
+kilocode mcp list
+```
+
+Check OpenCode, in either shell:
+
+```bash
+opencode mcp list
+```
+
+On OpenCode 2.0.26, `opencode mcp list` lists MCP servers only inside a git repository (measured 2026-10-25: in a folder without git it printed `No MCP servers configured`, after `git init` in the same folder it listed `arch` and `home-assistant` as connected, and `opencode debug config` showed both global servers in both cases).
+
+`opencode mcp list` and `opencode debug config` go through the OpenCode background service when it runs (for example the one the desktop app starts), and that service starts and keeps a full set of MCP servers for each folder it is asked about. `opencode service --help` calls it the background server ("Manage the background server"), and `restart` is "Restart the background server". Clean up with this command, which on 2026-10-25, with the desktop app's `opencode-cli` 2.0.29, stopped every server the old service had started:
+
+```bash
+opencode service restart
+```
+
+When the desktop app owns the service, run the restart with the desktop app's own `opencode-cli` binary, so the service keeps its version.
+
+The ha-mcp README calls local stdio "not recommended" and warns that "stdio has known transport issues", recommending its Home Assistant custom component or an HTTP setup for real use. If the server hangs over stdio, follow the ha-mcp [Setup Wizard](https://homeassistant-ai.github.io/ha-mcp/setup/) for an HTTP setup and replace the `home-assistant` entry rather than adding a second one.
+
 ---
 
 ### Substitution support matrix
@@ -704,13 +846,14 @@ Useful when a variable is stubbornly not being picked up.
 | File | Substitution syntax | Applies to |
 | --- | --- | --- |
 | `.mcp.json` and `~/.claude.json`, Claude Code | `${VAR}`, `${VAR:-default}` | `command`, `args`, `env`, `url`, `headers` |
-| `.mcp.json`, GitHub Copilot CLI | none, literal only | inline literals, and this repo ships `.github/mcp.json` instead so this row should not matter, see the precedence caveat above |
-| `.github/mcp.json`, GitHub Copilot CLI | none, literal only | inline literals |
+| `.mcp.json`, GitHub Copilot CLI | `$VAR`, `${VAR}`, `${VAR:-default}`, measured on 1.0.103 on 2026-10-25 | `command`, `args`, `env`, `url`, `headers` |
+| `.github/mcp.json`, GitHub Copilot CLI, read only in a folder that has no `.mcp.json` | the same, measured on 1.0.103 on 2026-10-25 | the same fields |
+| `~/.copilot/mcp-config.json`, GitHub Copilot CLI user file | the same, measured on 1.0.103 on 2026-10-25 | the same fields |
 | `opencode.json`, OpenCode | `{env:VAR}` | any string value in an MCP block, though the shipped file uses none |
 | `opencode.json`, Kilo Code | none at project level, and one token invalidates the whole file | inline literals only |
 | `~/.config/opencode/opencode.json`, OpenCode global | `{env:VAR}` | any string value, global config is trusted |
 | `~/.config/kilo/kilo.jsonc`, Kilo Code global | `{env:VAR}` | any string value, global config is trusted |
-| `.vscode/mcp.json`, Copilot in VS Code | `${env:VAR}`, `${input:NAME}` | any string value in a server block |
+| `.vscode/mcp.json`, Copilot in VS Code | `${env:VAR}`, `${input:NAME}`, predefined variables such as `${userHome}` | any string value in a server block |
 | JetBrains global `mcp.json` | none documented | inline literals, token in `requestInit.headers` |
 | Copilot cloud agent, settings page | none | inline literals plus Copilot secrets |
 | `claude_desktop_config.json` | not supported | inline literals |
@@ -730,9 +873,7 @@ Restart the agent after editing configs or exporting variables, then check.
 - Codex: start `codex` and run `/mcp`. Remember the project layer loads only after you trust the project.
 - Copilot in VS Code: open Chat, switch to agent mode, open the tools picker. Every server in
   [.vscode/mcp.json](../.vscode/mcp.json) appears with its tools and a start or stop control.
-- Copilot CLI: start `copilot` and run `/mcp`, or run `copilot mcp list` from a terminal. Either way, project-level
-  sources load only after you confirm you trust the directory on first launch; an untrusted directory reports
-  `No MCP servers configured.` even with both files present and valid.
+- Copilot CLI: start `copilot` and run `/mcp`, or run `copilot mcp list` from a terminal. Either way, project files load only after you confirm on first launch that you trust the folder. Measured on 1.0.103 on 2026-10-25: an untrusted folder lists only the servers from `~/.copilot/mcp-config.json`, with no user file the CLI prints `No MCP servers configured.`, `copilot mcp list` has no flag to skip the trust prompt, and `copilot --trust-folder -p "..."` loads the project files for one prompt-mode run and saves no trust. The reference says `--trust-folder` trusts "the working directory's hooks, workspace MCP servers, and repository plugin settings for one new non-interactive session" and "The trust is not saved to `trustedFolders`" ([CLI command reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference), read 2026-10-25). `copilot mcp get NAME --json` shows the file text, not the values a server receives.
 - Claude Desktop: open the developer panel, or check the indicator in the input box.
 
 When a server fails to connect, Claude Code writes the reason to its standard log, and Claude Desktop writes per-server
@@ -748,7 +889,7 @@ Edit all five project files together: [.mcp.json](../.mcp.json), [opencode.json]
 [.github/mcp.json](../.github/mcp.json). Then update the two manual blocks in this document, the JetBrains one and the
 cloud-agent one, which ship no file.
 
-Keep the server set identical across all of them. Only the per-schema syntax is allowed to differ.
+Keep the server set identical across all of them, apart from the exceptions listed under [What ships](#what-ships), each with its reason in this document. Only the per-schema syntax is allowed to differ.
 
 To customise a single project without touching upstream, change its local copies, with the commands in this document
 where one fits. These five files are

@@ -352,31 +352,29 @@ rather than by agent.
 
 | File | Schema key | Serves | Environment-variable syntax |
 | --- | --- | --- | --- |
-| [.mcp.json](../.mcp.json) | `mcpServers` | Claude Code | `${VAR}`, `${VAR:-default}` |
+| [.mcp.json](../.mcp.json) | `mcpServers` | Claude Code and the GitHub Copilot CLI | `${VAR}`, `${VAR:-default}`, and for the Copilot CLI also `$VAR`, measured on Copilot CLI 1.0.103 on 2026-10-25 |
 | [opencode.json](../opencode.json) at the project root | `mcp` | OpenCode and Kilo Code | none, a token here voids the file for Kilo. Same flat `mcp` plus `enabled` shape loads on OpenCode 1.x and on 2.0.26, measured 2026-10-15, where `debug config` shows it as `mcp.servers` plus `disabled` |
 | [.codex/config.toml](../.codex/config.toml) | `[mcp_servers.*]` tables | Codex | none, values are literal |
 | [.vscode/mcp.json](../.vscode/mcp.json) | `servers` | GitHub Copilot in VS Code | `${env:VAR}`, `${input:NAME}` |
-| [.github/mcp.json](../.github/mcp.json) | `mcpServers` | the GitHub Copilot CLI | none, values are literal |
+| [.github/mcp.json](../.github/mcp.json) | `mcpServers` | the GitHub Copilot CLI, only in a folder that has no `.mcp.json` | `$VAR`, `${VAR}`, `${VAR:-default}`, measured on 1.0.103 on 2026-10-25, though the shipped file uses none |
 | `~/.config/github-copilot/intellij/mcp.json` | `servers` | GitHub Copilot in JetBrains, global only | none documented |
 | repository settings page | pasted JSON | GitHub Copilot cloud agent | none, values are literal |
 
-Four project files mirror the same eight servers. [opencode.json](../opencode.json) mirrors those eight plus `atlassian`, nine in total. Only the file name, the schema key, the `type`
+The project files mirror one server set, with the exceptions listed under "What ships" in [MCP_SETUP.md](MCP_SETUP.md#what-ships): [opencode.json](../opencode.json) also carries `atlassian`, and only [.mcp.json](../.mcp.json) and [.vscode/mcp.json](../.vscode/mcp.json) carry `home-assistant`. Only the file name, the schema key, the `type`
 value, and the environment-variable syntax differ. The last two rows are not project files at all, which is why they
 carry no template.
 
 Two rows ship no template and cannot. The JetBrains Copilot plugin reads MCP only from the global path above, with no
 per-project file, so a shipped file would never be read. The cloud agent takes JSON pasted into a page in the
 repository settings, so there is nothing to commit. Of the four Copilot surfaces, VS Code reads
-[.vscode/mcp.json](../.vscode/mcp.json) and the CLI reads [.github/mcp.json](../.github/mcp.json). Both manual blocks
+[.vscode/mcp.json](../.vscode/mcp.json) and the CLI reads [.mcp.json](../.mcp.json). Both manual blocks
 are written out in [MCP_SETUP.md](MCP_SETUP.md).
 
-The Copilot CLI is also documented as capable of reading a project-level `.mcp.json`, the same file and schema Claude
-Code uses, and its own precedence rule makes `.mcp.json` win over `.github/mcp.json` whenever both exist in the same
-directory and name the same server, which is true for all eight servers here. `.mcp.json` carries Claude Code's
-`${VAR:-default}` syntax, which the CLI does not evaluate, so as things stand the CLI resolves its servers from
-`.mcp.json` with every substitution left as a literal, unresolved string, not from the clean `.github/mcp.json` this
-repo ships for it. See [MCP_SETUP.md](MCP_SETUP.md#the-cli-mcpjson-and-why-a-fifth-file-exists) for the measurement
-that confirmed it and why `.github/mcp.json` still ships regardless.
+The Copilot CLI reads the project `.mcp.json`, the same file and schema Claude Code uses, and expands its
+`${VAR:-default}` entries. When `.mcp.json` and `.github/mcp.json` are in the same folder, it reads `.mcp.json` and
+not `.github/mcp.json` at all, per file and not per server name, measured on 1.0.103 on 2026-10-25. So
+`.github/mcp.json` is kept only as a fallback for a folder that has no `.mcp.json`. See
+[MCP_SETUP.md](MCP_SETUP.md#the-cli-mcpjson-and-why-a-fifth-file-exists) for the measurement and the vendor text.
 
 Kilo Code accepts `opencode.json` as a valid project config filename, which is why one file serves both it and
 OpenCode. What it does with an environment reference is where sharing the file costs something, and it is harsher than

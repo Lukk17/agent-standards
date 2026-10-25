@@ -88,14 +88,14 @@ agent-standards/
   .github/
     agents/                      # GENERATED, GitHub Copilot subagents (*.agent.md)
     hooks/preflight.json         # Copilot hook config, camelCase events
-    mcp.json                     # the GitHub Copilot CLI, key "mcpServers", no substitution syntax
+    mcp.json                     # the GitHub Copilot CLI fallback, key "mcpServers", read only where no .mcp.json exists
     workflows/                   # CI and release, both manual-trigger only
   .vscode/
     mcp.json                     # GitHub Copilot in VS Code, key "servers"
   AGENTS.md                      # This repo's own instructions, never shipped downstream
   AGENTS.md.example              # The template consumers rename to AGENTS.md
   opencode.json                  # OpenCode and Kilo Code, MCP plus the plugin declaration, no substitution tokens
-  .mcp.json                      # Claude Code, key "mcpServers"
+  .mcp.json                      # Claude Code and the GitHub Copilot CLI, key "mcpServers"
   README.md                      # Project front door, this repo only
   CONTRIBUTING.md                # Contribution rules and local checks, this repo only
   CHANGELOG.md                   # Release history, this repo only
@@ -141,9 +141,9 @@ your-project/
   .codex/config.toml             # Codex MCP servers plus the inline gate hooks
   .github/agents/                # generated Copilot subagents (*.agent.md)
   .github/hooks/preflight.json   # Copilot hook config
-  .github/mcp.json               # Copilot CLI MCP servers
+  .github/mcp.json               # Copilot CLI fallback MCP servers, read only where no .mcp.json exists
   .vscode/mcp.json               # Copilot in VS Code MCP servers
-  .mcp.json                      # Claude Code MCP servers
+  .mcp.json                      # Claude Code and Copilot CLI MCP servers
   opencode.json                  # OpenCode and Kilo Code MCP servers plus the plugin declaration
   AGENTS.md                      # renamed from AGENTS.md.example, then filled in
   tasks.md                       # written by the task-list hook, add /tasks.md to your own .gitignore

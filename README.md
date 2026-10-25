@@ -8,7 +8,7 @@ project.
 [![Agents](https://img.shields.io/badge/agents-Claude%20Code%20%7C%20Kilo%20%7C%20OpenCode%20%7C%20Codex%20%7C%20Copilot-blueviolet)](https://github.com/Lukk17/agent-standards)
 [![Skills](https://img.shields.io/badge/skills-68-blueviolet)](.agents/skills/)
 [![Subagents](https://img.shields.io/badge/subagents-35-blueviolet)](subagents/)
-[![MCP](https://img.shields.io/badge/mcp_servers-8-blueviolet)](docs/MCP_SETUP.md)
+[![MCP](https://img.shields.io/badge/mcp_servers-9-blueviolet)](docs/MCP_SETUP.md)
 [![OpenSpec](https://img.shields.io/badge/openspec-ready-blueviolet)](docs/AGENT_TOOLING.md#openspec-integration)
 [![CI](https://github.com/Lukk17/agent-standards/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/Lukk17/agent-standards/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
@@ -159,9 +159,9 @@ printf '\n/tasks.md\n' >> .gitignore
 That's it. Open the project in Claude Code, Kilo Code, OpenCode, Codex, or GitHub Copilot and skills are live.
 
 The MCP config files arrive as real files, ready to use, so nothing else needs renaming:
-[.mcp.json](.mcp.json) for Claude Code, [opencode.json](opencode.json) for OpenCode and Kilo Code,
+[.mcp.json](.mcp.json) for Claude Code and the Copilot CLI, [opencode.json](opencode.json) for OpenCode and Kilo Code,
 [.codex/config.toml](.codex/config.toml) for Codex, [.vscode/mcp.json](.vscode/mcp.json) for Copilot in VS Code, and
-[.github/mcp.json](.github/mcp.json) for the Copilot CLI. `AGENTS.md.example` is the only template left in the repo.
+[.github/mcp.json](.github/mcp.json), the Copilot CLI fallback for a folder that has no `.mcp.json`. `AGENTS.md.example` is the only template left in the repo.
 
 Human-side MCP setup (keys, environment variables, the two Copilot surfaces that get no file) lives in
 [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
@@ -455,18 +455,17 @@ neither Developer Mode nor `git config core.symlinks true`. Subagents have to be
 with camelCase event names. The JetBrains plugin reads `AGENTS.md` in agent mode too, per the March 2026 changelog,
 even though GitHub's published support matrix still leaves JetBrains out of that column.
 
-MCP is the part that splits per surface. The CLI reads its own [.github/mcp.json](.github/mcp.json), literal values
-only, because it has no substitution engine for Claude Code's `${VAR:-default}` syntax in [.mcp.json](.mcp.json). VS
+MCP is the part that splits per surface. The CLI reads [.mcp.json](.mcp.json), the file Claude Code reads, and
+expands its `${VAR:-default}` entries, measured on Copilot CLI 1.0.103 on 2026-10-25. VS
 Code needs [.vscode/mcp.json](.vscode/mcp.json). The JetBrains plugin reads a global path only and gets no project
 file at all, and the cloud agent takes JSON pasted into a repository settings page. Both manual blocks live in
 [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
 
-The CLI is also documented as capable of reading [.mcp.json](.mcp.json) itself, and its own precedence rule makes
-that file win over [.github/mcp.json](.github/mcp.json) whenever both exist in the same directory and name the same
-server, which is true for all eight servers here. The full Quickstart above pulls both files, so on a project
-imported that way the CLI currently resolves every server from [.mcp.json](.mcp.json), with its `${VAR:-default}`
-placeholders left as literal unresolved strings, rather than from the clean file shipped for it. Measurement and full
-detail: [docs/MCP_SETUP.md](docs/MCP_SETUP.md#the-cli-mcpjson-and-why-a-fifth-file-exists).
+[.github/mcp.json](.github/mcp.json) is kept only as a fallback. The CLI reads it only in a folder that has no
+[.mcp.json](.mcp.json), because when both files are in one folder it reads `.mcp.json` and not `.github/mcp.json` at
+all, measured on 1.0.103 on 2026-10-25. The full Quickstart above pulls both files, so there the CLI reads
+[.mcp.json](.mcp.json). The Copilot block below pulls only [.github/mcp.json](.github/mcp.json), so there the CLI reads
+the fallback. Measurement and full detail: [docs/MCP_SETUP.md](docs/MCP_SETUP.md#the-cli-mcpjson-and-why-a-fifth-file-exists).
 
 Pull what Copilot reads. PowerShell:
 
@@ -620,7 +619,7 @@ including what each hook surface can actually block, lives in
 | OpenCode | `AGENTS.md` (native) | `.agents/skills/` (native) | `.opencode/agents` (symlink) | shared plugin, blocks tools | `opencode.json` |
 | Kilo Code | `AGENTS.md` (native) | `.agents/skills/` (native) | `.kilo/agents` (symlink) | the same plugin, blocks tools | `opencode.json` |
 | Codex | `AGENTS.md` (native) | `.agents/skills/` (native) | `.codex/agents/` (TOML) | inline hooks in `.codex/config.toml`, blocks tools | `.codex/config.toml` |
-| GitHub Copilot | `AGENTS.md` (native) | `.agents/skills/` (native) | `.github/agents/` (`*.agent.md`) | `.github/hooks/preflight.json`, blocks tools, no agent identity | `.vscode/mcp.json`, CLI uses `.github/mcp.json` |
+| GitHub Copilot | `AGENTS.md` (native) | `.agents/skills/` (native) | `.github/agents/` (`*.agent.md`) | `.github/hooks/preflight.json`, blocks tools, no agent identity | `.vscode/mcp.json`, CLI uses `.mcp.json`, or `.github/mcp.json` where no `.mcp.json` exists |
 
 ---
 
@@ -677,14 +676,15 @@ including what each hook surface can actually block, lives in
   reads `AGENTS.md` and `.agents/skills/` natively on every surface, so no bridge instruction file ships. The
   JetBrains plugin reads `AGENTS.md` in agent mode too, per the March 2026 changelog, though GitHub's own support
   matrix still omits it.
-- MCP config: [.mcp.json](.mcp.json) (Claude Code), [opencode.json](opencode.json) (OpenCode and Kilo Code),
+- MCP config: [.mcp.json](.mcp.json) (Claude Code and the Copilot CLI), [opencode.json](opencode.json) (OpenCode and Kilo Code),
   [.codex/config.toml](.codex/config.toml) (Codex), [.vscode/mcp.json](.vscode/mcp.json) (Copilot in VS Code), and
-  [.github/mcp.json](.github/mcp.json) (the Copilot CLI). Five real files, one per agent surface, not templates.
+  [.github/mcp.json](.github/mcp.json) (the Copilot CLI fallback, read only in a folder that has no `.mcp.json`). Five real files, not templates.
 
-Server list and configuration live in [docs/MCP_SETUP.md](docs/MCP_SETUP.md). Claude Code's file uses `${VAR}` with
-defaults. The others hardcode their URLs because their substitution syntax has no fallback, and the shared OpenCode
-and Kilo file carries no substitution tokens at all, because Kilo Code rejects a whole project config file that
-contains one.
+Server list and configuration live in [docs/MCP_SETUP.md](docs/MCP_SETUP.md). Claude Code's file, which the Copilot
+CLI reads too, uses `${VAR}` with defaults. The others hardcode their URLs, because the OpenCode and VS Code syntax has
+no fallback form and Codex has no substitution, and the Copilot fallback file hardcodes them as well. The shared
+OpenCode and Kilo file carries no substitution tokens at all, because Kilo Code rejects a whole project config file
+that contains one.
 
 ---
 
@@ -692,7 +692,7 @@ contains one.
 
 There are no ports and no service to run. Everything is files, and they split into three groups.
 
-MCP servers live in five files, one per agent surface, all carrying the same eight servers and differing only in the
+MCP servers live in five files, one per agent surface, all carrying the same servers, apart from the exceptions listed in [docs/MCP_SETUP.md](docs/MCP_SETUP.md#what-ships), and differing only in the
 top-level key, the `type` value, and the substitution syntax: [.mcp.json](.mcp.json),
 [opencode.json](opencode.json), [.codex/config.toml](.codex/config.toml), [.vscode/mcp.json](.vscode/mcp.json), and
 [.github/mcp.json](.github/mcp.json). Change one, change all five. Keys, environment variables per operating system,

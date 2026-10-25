@@ -11,7 +11,7 @@ it, and five agent command-line calls run from a directory into which nothing ha
   configuration declares. Nothing in the working directory could have supplied them.
 - The scope split holds. Only the two servers that are genuinely machine-wide, Context7 and Playwright, are installed
   globally. A connection string, a Grafana address, or a SonarQube token belongs to one project and stays out of the
-  home directory, which is why the expected set here is smaller than the eight servers
+  home directory, which is why the expected set here is smaller than the full set
   [4-project-mcp-visibility-test.md](4-project-mcp-visibility-test.md) expects.
 - Codex needs the working directory trusted before it looks at anything, so the trust record here names `/work/bare`
   rather than a project.

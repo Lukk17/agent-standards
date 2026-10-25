@@ -319,12 +319,10 @@ Copilot reads this setup natively across its surfaces, so it needs no bridge ins
   published support matrix still leaves JetBrains out of the `AGENTS.md` column. The behaviour is real, the
   documentation is behind. Add a `.github/copilot-instructions.md` yourself only if you target Copilot code review or
   the editors that read nothing else (Visual Studio, Xcode, Eclipse).
-- MCP: Copilot in VS Code reads [.vscode/mcp.json](../.vscode/mcp.json), key `servers`. The Copilot CLI reads its
-  own [.github/mcp.json](../.github/mcp.json), key `mcpServers` but no substitution syntax. The CLI's own
-  documentation also names the project [.mcp.json](../.mcp.json) Claude Code uses as a valid source, and when both
-  exist and name the same server, as all eight do here, the CLI's precedence rule makes `.mcp.json` win, so see
-  [MCP_SETUP.md](MCP_SETUP.md#the-cli-mcpjson-and-why-a-fifth-file-exists) before assuming `.github/mcp.json` is the
-  file actually in effect. The JetBrains plugin reads a global file only, and the cloud agent takes JSON pasted into
+- MCP: Copilot in VS Code reads [.vscode/mcp.json](../.vscode/mcp.json), key `servers`. The Copilot CLI reads the
+  project [.mcp.json](../.mcp.json) Claude Code uses, key `mcpServers`, and expands its `${VAR:-default}` entries.
+  It reads [.github/mcp.json](../.github/mcp.json) only in a folder that has no `.mcp.json`, so that file is kept as a
+  fallback, see [MCP_SETUP.md](MCP_SETUP.md#the-cli-mcpjson-and-why-a-fifth-file-exists). The JetBrains plugin reads a global file only, and the cloud agent takes JSON pasted into
   a repository settings page. Both manual blocks are in [MCP_SETUP.md](MCP_SETUP.md).
 - Preflight: [.github/hooks/preflight.json](../.github/hooks/preflight.json), camelCase events, injecting the gate
   on `sessionStart`, telling a subagent to do its task itself on `subagentStart`, appending the gate to every prompt on
@@ -386,20 +384,20 @@ Run `/workflows` to watch the progress of a run or to stop it.
 
 ### MCP servers
 
-Five real config files ship the same eight servers, one per agent surface:
+Five real config files ship one server set, one file per agent surface, with the exceptions listed under "What ships" in [MCP_SETUP.md](MCP_SETUP.md#what-ships):
 
 | File | Schema key | Serves |
 | --- | --- | --- |
-| [.mcp.json](../.mcp.json) | `mcpServers` | Claude Code |
+| [.mcp.json](../.mcp.json) | `mcpServers` | Claude Code and the GitHub Copilot CLI |
 | [opencode.json](../opencode.json) | `mcp` | OpenCode and Kilo Code |
 | [.codex/config.toml](../.codex/config.toml) | `[mcp_servers.*]` | Codex |
 | [.vscode/mcp.json](../.vscode/mcp.json) | `servers` | GitHub Copilot in VS Code |
-| [.github/mcp.json](../.github/mcp.json) | `mcpServers` | the GitHub Copilot CLI |
+| [.github/mcp.json](../.github/mcp.json) | `mcpServers` | the GitHub Copilot CLI, only in a folder that has no `.mcp.json` |
 
 Only the file name, the schema key, the `type` value, and the environment-variable syntax differ between them.
-Nothing needs renaming, they arrive ready to use. The Copilot CLI also reads the project `.mcp.json` above, and its
-own precedence rule makes that file win whenever both name the same server, which is true for all eight servers
-here, so [.github/mcp.json](../.github/mcp.json) ships correct and is currently shadowed, see
+Nothing needs renaming, they arrive ready to use. The Copilot CLI reads the project `.mcp.json` above. When both
+files are in one folder it does not read [.github/mcp.json](../.github/mcp.json) at all, so that file is only a
+fallback for a folder that has no `.mcp.json`, see
 [MCP_SETUP.md](MCP_SETUP.md#the-cli-mcpjson-and-why-a-fifth-file-exists) for the measurement. Two Copilot surfaces
 get no file at all, the JetBrains plugin because it reads a global path only, and the cloud agent because its
 configuration lives in a repository settings page.

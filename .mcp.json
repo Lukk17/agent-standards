@@ -93,6 +93,16 @@
         "N8N_API_URL": "${N8N_API_URL:-http://localhost:5678}",
         "N8N_API_KEY": "${N8N_API_KEY:-}"
       }
+    },
+
+    "home-assistant": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--env-file",
+        "${HOME}/.local/state/agents/workspace/homelab.env",
+        "ha-mcp==8.7.0"
+      ]
     }
   }
 }

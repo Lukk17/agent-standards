@@ -38,7 +38,9 @@ FAILURES=0
 SKILL_COUNT=0
 
 SUBAGENTS=()
-MCP_SERVERS=()
+MCP_JSON_SERVERS=()
+CODEX_MCP_SERVERS=()
+OPENCODE_MCP_SERVERS=()
 
 cleanup() {
   local exit_code=$?
@@ -296,7 +298,9 @@ prepare_project() {
   fi
 
   mapfile -t SUBAGENTS < <(find "${PROJECT}/.agents/agents" -maxdepth 1 -name '*.md' -printf '%f\n' | sed 's/\.md$//' | sort)
-  mapfile -t MCP_SERVERS < <(jq -r '.mcpServers | keys[]' "${PROJECT}/.mcp.json")
+  mapfile -t MCP_JSON_SERVERS < <(jq -r '.mcpServers | keys[]' "${PROJECT}/.mcp.json")
+  mapfile -t CODEX_MCP_SERVERS < <(python3 -c 'import sys, tomllib; print("\n".join(sorted(tomllib.load(open(sys.argv[1], "rb")).get("mcp_servers", {}))))' "${PROJECT}/.codex/config.toml")
+  mapfile -t OPENCODE_MCP_SERVERS < <(jq -r '.mcp | keys[]' "${PROJECT}/opencode.json")
   SKILL_COUNT="$(cd "$PROJECT" && find .agents/skills -mindepth 1 -maxdepth 1 -type d | wc -l)"
 }
 
@@ -325,7 +329,7 @@ verify_import() {
   assert_file "the shared gate script landed" "$GATE"
   assert_file "the OpenCode and Kilo Code plugin landed" ".agents/plugin/hooks.js"
   assert_file "the plugin directory entry landed beside it" ".agents/plugin/index.js"
-  assert_file "the GitHub Copilot CLI's own MCP configuration landed" ".github/mcp.json"
+  assert_file "the GitHub Copilot CLI fallback MCP configuration landed" ".github/mcp.json"
   assert_glob_count "every canonical skill landed" ".agents/skills/*/SKILL.md" "$SKILL_COUNT"
   assert_symlinked_dir "Claude Code skills symlink resolves" ".claude/skills"
   assert_symlinked_dir "OpenCode subagents symlink resolves" ".opencode/agents"
@@ -372,7 +376,7 @@ verify_claude() {
     '(.mcpServers | length) > 0'
 
   assert_cli_lists "Claude Code itself lists the project MCP servers" claude mcp list \
-    < <(printf '%s\n' "${MCP_SERVERS[@]}")
+    < <(printf '%s\n' "${MCP_JSON_SERVERS[@]}")
 }
 
 verify_codex() {
@@ -404,7 +408,7 @@ verify_codex() {
     '(.mcp_servers | length) > 0'
 
   assert_cli_lists "Codex itself lists the project MCP servers" codex mcp list \
-    < <(printf '%s\n' "${MCP_SERVERS[@]}")
+    < <(printf '%s\n' "${CODEX_MCP_SERVERS[@]}")
 }
 
 verify_opencode() {
@@ -422,7 +426,7 @@ verify_opencode() {
   assert_cli_lists "OpenCode itself lists every imported subagent" opencode agent list \
     < <(printf '%s\n' "${SUBAGENTS[@]}")
   assert_cli_lists "OpenCode itself lists the project MCP servers" opencode mcp list \
-    < <(printf '%s\n' "${MCP_SERVERS[@]}")
+    < <(printf '%s\n' "${OPENCODE_MCP_SERVERS[@]}")
 }
 
 # OpenCode 2.x runs in a copy of the project, because a real turn reads the
@@ -459,7 +463,7 @@ verify_kilo() {
   assert_cli_lacks "Kilo Code accepts opencode.json instead of rejecting it" \
     "Configuration is invalid" kilocode config check
   assert_cli_lists "Kilo Code itself lists the project MCP servers" kilocode mcp list \
-    < <(printf '%s\n' "${MCP_SERVERS[@]}")
+    < <(printf '%s\n' "${OPENCODE_MCP_SERVERS[@]}")
 }
 
 # OpenCode 1.x and Kilo Code run real turns in a copy of the project with no MCP
@@ -524,7 +528,7 @@ verify_copilot() {
     '[.hooks[][] | (.powershell // empty)] | map(select(contains(".agents/hooks/"))) | ((length > 0) and all(contains("python -S -E")))'
   assert_json "MCP servers are present in the file Copilot in VS Code reads" ".vscode/mcp.json" \
     '(.servers | length) > 0'
-  assert_json "MCP servers are present in the GitHub Copilot CLI's own MCP configuration" ".github/mcp.json" \
+  assert_json "MCP servers are present in the GitHub Copilot CLI fallback MCP configuration" ".github/mcp.json" \
     '(.mcpServers | length) > 0'
 
   assert_cli_lists "Copilot itself lists the imported skills" copilot skill list \
@@ -534,7 +538,7 @@ verify_copilot() {
   assert_front_matter_safe "every imported subagent's front matter is one Copilot can parse" \
     ".github/agents/*.agent.md"
   assert_cli_lists "Copilot itself lists the project MCP servers" copilot mcp list \
-    < <(printf '%s\n' "${MCP_SERVERS[@]}")
+    < <(printf '%s\n' "${MCP_JSON_SERVERS[@]}")
 }
 
 # Feeds one hook payload to the gate and checks the decision it returns.

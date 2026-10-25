@@ -72,11 +72,11 @@ have disabled them, or may not have the keys set yet.
 
 The project MCP files are real files, not templates, so there is nothing to rename:
 
-- `.mcp.json` (key `mcpServers`) for Claude Code
+- `.mcp.json` (key `mcpServers`) for Claude Code and the GitHub Copilot CLI
 - `opencode.json` (key `mcp`) for OpenCode and Kilo Code
 - `.codex/config.toml` (`[mcp_servers.*]` tables) for Codex
 - `.vscode/mcp.json` (key `servers`) for GitHub Copilot in VS Code
-- `.github/mcp.json` (key `mcpServers`) for the GitHub Copilot CLI
+- `.github/mcp.json` (key `mcpServers`), the GitHub Copilot CLI fallback, read only in a folder that has no `.mcp.json`
 
 Report which of those exist. Do not assume any particular server should be present, just report what is there.
 
@@ -91,7 +91,7 @@ way as every other write below, and have it add `/tasks.md` under a heading that
 ## 5. Trim docs/MCP_SETUP.md to what this project actually uses
 
 The shipped `docs/MCP_SETUP.md` documents every server in the canonical set (Context7, MongoDB, Grafana, Playwright,
-Chrome DevTools, Redis, SonarQube, n8n). Most projects use a subset.
+Chrome DevTools, Redis, SonarQube, n8n, Home Assistant). Most projects use a subset.
 
 Diff the active server names from step 4, or the names present in the config files if none were active, against the
 servers documented in `docs/MCP_SETUP.md`. That diff is yours to work out. The edit is not: the preflight gate denies

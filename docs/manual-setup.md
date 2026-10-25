@@ -216,9 +216,9 @@ Start it inside your editor, or from a terminal:
 copilot
 ```
 
-MCP differs per surface: VS Code reads [.vscode/mcp.json](../.vscode/mcp.json), the CLI reads its own
-[.github/mcp.json](../.github/mcp.json) and also the project [.mcp.json](../.mcp.json), which wins on a name
-collision between the two, the JetBrains plugin reads a global file only, and the cloud agent takes JSON pasted into
+MCP differs per surface: VS Code reads [.vscode/mcp.json](../.vscode/mcp.json), the CLI reads the project
+[.mcp.json](../.mcp.json) and reads [.github/mcp.json](../.github/mcp.json) only in a folder that has no `.mcp.json`,
+the JetBrains plugin reads a global file only, and the cloud agent takes JSON pasted into
 a repository settings page. See [MCP_SETUP.md](MCP_SETUP.md#the-cli-mcpjson-and-why-a-fifth-file-exists).
 
 ---

@@ -126,8 +126,8 @@ Start every agent from the project root. Every one of them reads this file nativ
   `.opencode/agents` and `.kilo/agents` symlinks. Never put `{env:VAR}` in `opencode.json`: Kilo Code rejects the
   whole file and loses every MCP server and the hooks. Run `kilocode config check` after editing it.
 - GitHub Copilot: agents in `.github/agents/`, hooks in [.github/hooks/](.github/hooks/), MCP in
-  [.vscode/mcp.json](.vscode/mcp.json) for VS Code and [.github/mcp.json](.github/mcp.json) for the CLI. A root
-  `.mcp.json` entry of the same name wins over the CLI file.
+  [.vscode/mcp.json](.vscode/mcp.json) for VS Code and the root `.mcp.json` for the CLI. The CLI reads
+  [.github/mcp.json](.github/mcp.json) only in a folder that has no `.mcp.json`.
 - On Windows the symlinks need Developer Mode and `git config core.symlinks true`, or each one is checked out as a
   text file and the agent that follows it finds nothing.
 

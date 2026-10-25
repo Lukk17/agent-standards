@@ -16,12 +16,12 @@ For each of the five agents, in the agent's own terms wherever the agent offers 
 
 | Agent | Skills | Subagents | Preflight wiring | MCP servers |
 | --- | --- | --- | --- | --- |
-| Claude Code | `.claude/skills` symlink resolves to all canonical skills | `.claude/agents/*.md` count matches canonical | `.claude/settings.json` calls the gate on `PreToolUse` | `claude mcp list` names every server |
-| Codex | `.agents/skills/` read natively | `.codex/agents/*.toml` count matches canonical | `.codex/config.toml` calls the gate on `PreToolUse` | `codex mcp list` names every server |
-| OpenCode | `.agents/skills/` read natively | `opencode agent list` names every imported subagent | `opencode.json` declares the shared plugin | `opencode mcp list` names every server |
+| Claude Code | `.claude/skills` symlink resolves to all canonical skills | `.claude/agents/*.md` count matches canonical | `.claude/settings.json` calls the gate on `PreToolUse` | `claude mcp list` names every server in `.mcp.json` |
+| Codex | `.agents/skills/` read natively | `.codex/agents/*.toml` count matches canonical | `.codex/config.toml` calls the gate on `PreToolUse` | `codex mcp list` names every server in `.codex/config.toml` |
+| OpenCode | `.agents/skills/` read natively | `opencode agent list` names every imported subagent | `opencode.json` declares the shared plugin | `opencode mcp list` names every server in `opencode.json` |
 | OpenCode 2.x | the same project, run as `opencode2` | a real turn starts subagent `docs-architect` | the plugin loads from its directory entry and the gate blocks a real main-thread write | none, the probe copy drops the MCP block |
-| Kilo Code | `.agents/skills/` read natively | `kilocode agent list` names every imported subagent | `opencode.json` declares the shared plugin | `kilocode mcp list` names every server |
-| GitHub Copilot | `copilot skill list` loads every skill without a parse error | `.github/agents/*.agent.md` count matches canonical, each front matter safe for Copilot to parse | `.github/hooks/preflight.json` calls the gate on `preToolUse` | `copilot mcp list` names every server |
+| Kilo Code | `.agents/skills/` read natively | `kilocode agent list` names every imported subagent | `opencode.json` declares the shared plugin | `kilocode mcp list` names every server in `opencode.json` |
+| GitHub Copilot | `copilot skill list` loads every skill without a parse error | `.github/agents/*.agent.md` count matches canonical, each front matter safe for Copilot to parse | `.github/hooks/preflight.json` calls the gate on `preToolUse` | `copilot mcp list` names every server in `.mcp.json` |
 
 On top of that it proves the import itself behaved: `AGENTS.md.example` was renamed rather than copied, all three
 symlinks resolve to directories, and the upstream-only `subagents/` and `tools/` trees did not come along.
@@ -124,7 +124,7 @@ is a failure whatever the transcript says. Test 2 reads the subagent's own trans
 
 #### One MCP server in the live runs
 
-Each live project runs with `context7` alone, out of the eight servers the repository ships. With all eight, every
+Each live project runs with `context7` alone, out of the servers the repository ships. With all of them, every
 model request carried about 34,500 tokens of MCP tool descriptions, and Copilot's subagent test alone used 206,000
 tokens, above the 200,000 tokens per minute the OpenAI key allows. None of tests 1 to 4 needs an MCP server, so the
 others only cost tokens. One server stays so that test 6 still proves the MCP setup works against a real model.
@@ -143,6 +143,7 @@ release on 2026-09-25, and the token figure assumes four characters per token:
 | `mongodb` | 20 | 60,158 | 15,000 | Needs a running MongoDB |
 | `grafana` | 81 | 106,016 | 26,500 | Needs a Grafana instance and a token |
 | `sonarqube` | not measured | | | Exits before its handshake without `SONARQUBE_TOKEN`, so it needs a secret |
+| `home-assistant` | not measured | | | Needs a Home Assistant instance and a token in the credential env file, and `uvx` refuses to start it when that file is missing |
 
 Every agent keeps the others out through its own documented mechanism, working from a filtered copy of its own MCP
 file or from overrides, and never from an edited repository file:
@@ -155,18 +156,22 @@ file or from overrides, and never from an edited repository file:
 | Kilo Code | The same in `KILO_CONFIG_CONTENT` | `https://kilo.ai/docs/automate/mcp/using-in-kilo-code` and `https://kilo.ai/docs/getting-started/settings` |
 | GitHub Copilot | `--disable-builtin-mcps`, `--disable-mcp-server` for every other server, and `--additional-mcp-config` with a copy of `.github/mcp.json` that holds only `context7` | `https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference` |
 
-Copilot needs the extra override because it resolves `context7` from `.mcp.json`, whose `${CONTEXT7_API_KEY:-}`
-header it cannot expand, and Context7 answers that literal header with `Invalid API key`. The override outranks both
-workspace files, so the call goes out with no header and the free tier answers.
+Copilot gets the extra override because it reads `context7` from `.mcp.json`, and with no `CONTEXT7_API_KEY` set
+the `${CONTEXT7_API_KEY:-}` entry there reaches Context7 as an empty header, measured on Copilot CLI 1.0.103 on
+2026-10-25. How Context7 answers an empty header was not measured. The override is the `context7` block of
+`.github/mcp.json`, which sends no header at all, and the reference ranks `--additional-mcp-config` "(highest)" under
+"MCP server loading priority", so the call goes out with no header and the free tier answers.
 
 Test 6 reads the loaded servers where the agent records them: the `system/init` event on Claude Code and the
 `session.mcp_servers_loaded` event on Copilot. Codex, OpenCode and Kilo Code record no server list in their sessions,
 so the harness asks the agent itself with `mcp list` under the same configuration and keeps the answer beside the
 transcripts.
 
-What the live runs therefore do not prove: that any of the other seven servers starts, authenticates or answers a
+What the live runs therefore do not prove: that any of the other servers starts, authenticates or answers a
 tool call inside a real session. The containerised suite above still checks, for every agent, that its own `mcp list`
-names all eight servers, so discovery of the full set stays covered on every pull request.
+names every server in the file that agent reads: `.mcp.json` for Claude Code and GitHub Copilot, `.codex/config.toml`
+for Codex, and `opencode.json` for OpenCode and Kilo Code. So discovery of each agent's full set stays covered on
+every pull request.
 
 Test 5 runs first, as its own step, and the job stops there with one plain cause when the provider refuses. On
 Requesty the causes follow the error responses Requesty documents for its inference endpoints:

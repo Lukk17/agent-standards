@@ -7,12 +7,14 @@ own home directory so Codex will look at the project at all, and five agent comm
 
 ### What this verifies
 
-- Every one of the five agents, asked in its own terms, names every MCP server the shared templates ship. The
-  expected set is read from `.mcp.json` in the mounted repository at run time, so adding a server upstream never
-  makes this spec stale.
-- The MCP block is present in each of the five project files the agents actually read, which is what makes the
-  listings possible: `.mcp.json`, `.codex/config.toml`, `opencode.json`, `.vscode/mcp.json`, and `.github/mcp.json`,
-  the GitHub Copilot CLI's own MCP configuration.
+- Every one of the five agents, asked in its own terms, names every MCP server the file it reads ships. The
+  expected set for each agent is read at run time from that agent's own file in the mounted repository:
+  `.mcp.json` for Claude Code and the Copilot command-line tool, `.codex/config.toml` for Codex, and
+  `opencode.json` for OpenCode and Kilo Code. Adding a server upstream never makes this spec stale, and a server
+  that one file leaves out is not expected from the agents that read it.
+- The MCP block is present in each of the five project files, which is what makes the listings possible:
+  `.mcp.json`, `.codex/config.toml`, `opencode.json`, `.vscode/mcp.json`, and `.github/mcp.json`, the GitHub Copilot
+  CLI fallback, which the CLI reads only in a folder that has no `.mcp.json`.
 - Codex only sees any of its `.codex/` layer once the project is trusted. This spec writes that trust record itself,
   so the assertion measures the configuration rather than the trust prompt.
 - Out of scope, because the container is given no provider credentials and carries neither `uvx` nor `docker`: the
@@ -192,7 +194,7 @@ jq -e '(.servers | length) > 0' /work/project/.vscode/mcp.json
 
 Expect exit 0.
 
-The GitHub Copilot CLI's own MCP configuration declares at least one server.
+The GitHub Copilot CLI fallback file declares at least one server.
 
 ```bash
 jq -e '(.mcpServers | length) > 0' /work/project/.github/mcp.json
@@ -208,7 +210,7 @@ echo $?
 
 Expect `0`, read straight after run step 1.
 
-Claude Code names every server the shared templates ship. A failure prints the ones that were missing.
+Claude Code names every server in `.mcp.json`, the file it reads. A failure prints the ones that were missing.
 
 ```bash
 python3 -c "import json,sys;n=sorted(json.load(open('/repo/.mcp.json'))['mcpServers']);t=open('/tmp/claude-mcp.txt').read();m=[x for x in n if x not in t];print(m);sys.exit(1 if m else 0)"
@@ -224,10 +226,10 @@ echo $?
 
 Expect `0`, read straight after run step 2.
 
-Codex names every server, from its own TOML tables.
+Codex names every server in its own `mcp_servers` tables in `.codex/config.toml`.
 
 ```bash
-python3 -c "import json,sys;n=sorted(json.load(open('/repo/.mcp.json'))['mcpServers']);t=open('/tmp/codex-mcp.txt').read();m=[x for x in n if x not in t];print(m);sys.exit(1 if m else 0)"
+python3 -c "import tomllib,sys;n=sorted(tomllib.load(open('/repo/.codex/config.toml','rb')).get('mcp_servers',{}));t=open('/tmp/codex-mcp.txt').read();m=[x for x in n if x not in t];print(m);sys.exit(1 if m else 0)"
 ```
 
 Expect exit 0.
@@ -240,10 +242,10 @@ echo $?
 
 Expect `0`, read straight after run step 3.
 
-OpenCode names every server.
+OpenCode names every server under the `mcp` key of `opencode.json`.
 
 ```bash
-python3 -c "import json,sys;n=sorted(json.load(open('/repo/.mcp.json'))['mcpServers']);t=open('/tmp/opencode-mcp.txt').read();m=[x for x in n if x not in t];print(m);sys.exit(1 if m else 0)"
+python3 -c "import json,sys;n=sorted(json.load(open('/repo/opencode.json'))['mcp']);t=open('/tmp/opencode-mcp.txt').read();m=[x for x in n if x not in t];print(m);sys.exit(1 if m else 0)"
 ```
 
 Expect exit 0.
@@ -256,12 +258,12 @@ echo $?
 
 Expect `0`, read straight after run step 4.
 
-Kilo Code names every server. Kilo reads OpenCode-format project configuration and performs no environment-variable
-substitution, so a template that leaves `{env:VAR}` references in place is the likeliest cause of an empty listing
-here.
+Kilo Code names every server under the `mcp` key of `opencode.json`, the same file OpenCode reads. Kilo reads
+OpenCode-format project configuration and performs no environment-variable substitution, so a template that leaves
+`{env:VAR}` references in place is the likeliest cause of an empty listing here.
 
 ```bash
-python3 -c "import json,sys;n=sorted(json.load(open('/repo/.mcp.json'))['mcpServers']);t=open('/tmp/kilocode-mcp.txt').read();m=[x for x in n if x not in t];print(m);sys.exit(1 if m else 0)"
+python3 -c "import json,sys;n=sorted(json.load(open('/repo/opencode.json'))['mcp']);t=open('/tmp/kilocode-mcp.txt').read();m=[x for x in n if x not in t];print(m);sys.exit(1 if m else 0)"
 ```
 
 Expect exit 0.
@@ -286,8 +288,8 @@ Expect exit 0.
 
 ### Fixtures
 
-None. The expected server set is read from `.mcp.json` in the mounted repository at run time rather than from a
-fixture, so the spec cannot drift from the templates.
+None. Each agent's expected server set is read from its own file in the mounted repository at run time rather than
+from a fixture, so the spec cannot drift from the templates.
 
 ---
 

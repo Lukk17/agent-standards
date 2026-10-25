@@ -32,10 +32,11 @@ readonly OUTPUT_TOKENS=8192
 
 MCP_ARGS=()
 
-# Copilot resolves a server both workspace files define from .mcp.json, whose
-# ${VAR:-} header it cannot expand, so MCP_SERVER comes from the filtered
-# .github/mcp.json through --additional-mcp-config, which outranks both files.
-# Every other workspace server and the built-in GitHub server are disabled.
+# Copilot reads .mcp.json, where an unset ${CONTEXT7_API_KEY:-} becomes an
+# empty header (CLI 1.0.103), so MCP_SERVER comes from the filtered
+# .github/mcp.json, which sends no header, through --additional-mcp-config,
+# which outranks both workspace files. Every other workspace server and the
+# built-in GitHub server are disabled for this run only.
 agent_configure() {
   local mcp_config="${WORK}/mcp-live.json" name
 

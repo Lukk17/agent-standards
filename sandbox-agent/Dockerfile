@@ -40,7 +40,7 @@ RUN npm install --global --loglevel=error \
         @openai/codex@0.150.1 \
         opencode-ai@1.18.25 \
         @kilocode/cli@7.5.5 \
-        @github/copilot@1.0.81
+        @github/copilot@1.0.103
 
 # OpenCode 2.x is a separate package that also owns the opencode binary name,
 # so it gets its own prefix and reaches PATH only as the opencode2 wrapper.
