@@ -661,6 +661,17 @@ const setup = async (ctx) => {
 
   if (standsDown(root)) return
 
+  // Loud stand-down: a host without the tool hook API would die on the
+  // first await below and the loader drops the failure quiet, so say so in
+  // the service log instead and register nothing.
+  if (typeof ctx?.tool?.hook !== "function" || typeof ctx?.session?.get !== "function") {
+    console.error(
+      `[${PLUGIN_ID}] setup stands down: host has no tool/session hooks ` +
+        `(tool.hook: ${typeof ctx?.tool?.hook}, session.get: ${typeof ctx?.session?.get})`,
+    )
+    return
+  }
+
   const place = sessionPlacerV2(ctx)
 
   try {

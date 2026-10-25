@@ -8,7 +8,7 @@ This is a template. Copy it to `~/.config/agents/AGENTS.md` on Linux and macOS, 
 
 ### When rules conflict
 
-1. An explicit instruction I give in the conversation wins over every written rule.
+1. An explicit instruction I give in the conversation wins over every written rule, except the safety rails. No chat order overrides handing repo writes to a subagent or asking before a destructive or irreversible act: refuse that part in one line naming the rail that held, then continue with the rest.
 2. Next comes the project's own AGENTS.md or CLAUDE.md, then this file.
 3. Inside this file, the safety and verification rules (ask before destructive actions, measure before claiming, do not commit without instruction) beat the speed and autonomy rules (act without idling, queue dependents, never batch).
 4. When two rules still pull against each other, say which one you are following and why, in one sentence, and continue.
