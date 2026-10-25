@@ -1,6 +1,6 @@
 # Nginx Proxy Manager
 
-Read this before adding a proxy host for a `.internal` name, before forwarding one to a service that runs on host networking or on another machine, before putting the Proxmox web UI behind the proxy, or when a proxy host answers 500. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab on 2026-10-23 with `jc21/nginx-proxy-manager:2.15.1`, unless the mark names 2026-10-24. Every other command here is UNVERIFIED.
+Read this before adding a proxy host for a `.internal` name, before forwarding one to a service that runs on host networking or on another machine, before putting the Proxmox web UI behind the proxy, or when a proxy host answers 500. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab on 2026-10-23 with `jc21/nginx-proxy-manager:2.15.1`, unless the mark names another date. Every other command here is UNVERIFIED.
 
 Sources, fetched on 2026-10-23: `backend/setup.js` at tag v2.15.1 of https://github.com/NginxProxyManager/nginx-proxy-manager, and its setup page `docs/src/setup/index.md` on the `develop` branch.
 
@@ -40,7 +40,7 @@ Hosts, then Proxy Hosts, then Add Proxy Host. On the Details tab:
 3. Forward Hostname / IP: the container name on the shared network, with no port after it. The port goes in Forward Port only.
 4. Forward Port: the port inside the container, the right-hand side of its Compose port mapping, not the published port.
 5. Websockets Support on, and Block Common Exploits on.
-6. SSL: none. A `.internal` name cannot get a public certificate.
+6. SSL: none. A `.internal` name cannot get a public certificate, and `https` comes from the local CA include in [local-ca.md](local-ca.md), which needs this tab on None.
 
 VERIFIED: one proxy host per `.internal` name on the homelab. A forward port set to the published port instead of the container port is the usual reason a new proxy host answers 502.
 
@@ -92,7 +92,7 @@ Put no `proxy_set_header` line and no `location` block in Advanced. The v2.15.1 
 
 UNVERIFIED in a browser: the login over plain `http` most likely loops back to the login form. Proxmox sets its login ticket cookie with the Secure flag. `src/Utils.js` of proxmox-widget-toolkit, which ships as `proxmoxlib.js`, calls `Ext.util.Cookies.set(Proxmox.Setup.auth_cookie_name, data.ticket, null, '/', null, true, 'lax')`, and the `true` is the secure argument. The cookie draft draft-ietf-httpbis-rfc6265bis-22, step 13 of section 5.7 "Storage Model", says: "If the request-uri does not denote a "secure" connection (as defined by the user agent), and the cookie's secure-only-flag is true, then abort these steps and ignore the cookie entirely." So do one of these two:
 
-1. Give the name a certificate from a local certificate authority and select it on the SSL tab of the proxy host, so the browser opens `https://<name>.internal`.
+1. Serve the name over `https` with the local certificate authority in [local-ca.md](local-ca.md), with the SSL tab left on None, so the browser opens `https://<name>.internal`. VERIFIED on 2026-10-25: the Proxmox name answered 200 over `https` that way. The login itself has not been tried in a browser.
 2. Open Proxmox at `https://<proxmox-host>:8006` directly and keep the proxy host out of the login path.
 
 ---

@@ -1,13 +1,13 @@
 ---
 name: homelab-services
-description: 'Running a Docker Compose homelab on one VM from an agent, every change on a server asked of the owner first: AdGuard Home rewrites like a *.internal wildcard, upstreams, query log and statistics retention, ignored domains and an AdGuardHome.yaml edit, Uptime Kuma 2.x monitors, its read-only metrics key, the labelset log flood and a database edit, a Telegraf network watch with ping, DNS, HTTP and speed probes in rotated CSV files, Samba, File Browser, Plex, Homepage and Nginx Proxy Manager, deploying from a local clone, log limits per service, a USB or NTFS data disk, and a full disk. Use when you say "add a .internal name", "keep 30 days of query log", "change the monitor interval", "Added label is not included in initial labelset", "deploy the compose change", "mount the NTFS disk", or "the VM disk is full". Not for the Proxmox host or growing the VM disk, use `proxmox`, not for Syncthing, use `syncthing`, not for the router, use `asus-router`, and not for Compose design in general, use `docker-patterns`.'
+description: 'Running a Docker Compose homelab on one VM, every server change asked of the owner first: AdGuard Home rewrites like a *.internal wildcard, upstreams, query log and statistics retention, ignored domains, an AdGuardHome.yaml edit, Uptime Kuma 2.x monitors, its metrics key, the labelset log flood, a database edit, a Telegraf network watch of ping, DNS, HTTP and speed, Samba, File Browser, Plex, Homepage, Nginx Proxy Manager, a local CA for https on .internal names, deploying from a local clone, log limits, a USB or NTFS data disk, and a full disk. Use when you say "add a .internal name", "https for the .internal names", "keep 30 days of query log", "change the monitor interval", "Added label is not included in initial labelset", "deploy the compose change", "mount the NTFS disk", or "the VM disk is full". Not for the Proxmox host or growing the VM disk, use `proxmox`, not for Syncthing, use `syncthing`, not for the router, use `asus-router`, and not for Compose design in general, use `docker-patterns`.'
 ---
 
 # Homelab Services
 
 How an agent runs and repairs a small self-hosted stack: one Ubuntu Server VM, one Compose file, and the services a home network leans on, DNS first. The Compose file and the files it mounts live in a git clone on the owner's machine, and the VM holds a plain copy. Every change to a server, a service or the router is proposed to the owner first, with what can go wrong and how to undo it, and nothing changes before a yes.
 
-Baseline: these images, which the owner's homelab ran on 2026-10-23: `adguard/adguardhome:v0.107.78`, `louislam/uptime-kuma:2.5.5`, `telegraf:1.40.1`, `dockurr/samba:4.23.10`, `gtstef/filebrowser:2.0.0-stable-slim`, `plexinc/pms-docker:1.43.4.10903-e5521bd8c`, `ghcr.io/gethomepage/homepage:v1.13.2` and `jc21/nginx-proxy-manager:2.15.1`, on an Ubuntu Server VM under Proxmox VE. Facts marked VERIFIED were measured on that homelab on 2026-10-23, unless the mark names another date or says a throwaway container. The AdGuard Home file edit and the Uptime Kuma database edit were also run end to end in throwaway containers of the same images on 2026-10-23, with no network. Vendor documentation and source were fetched on 2026-10-23, and each topic file names its sources. Everything else is UNVERIFIED.
+Baseline: these images, which the owner's homelab ran on 2026-10-23: `adguard/adguardhome:v0.107.78`, `louislam/uptime-kuma:2.5.5`, `telegraf:1.40.1`, `dockurr/samba:4.23.10`, `gtstef/filebrowser:2.0.0-stable-slim`, `plexinc/pms-docker:1.43.4.10903-e5521bd8c`, `ghcr.io/gethomepage/homepage:v1.13.2` and `jc21/nginx-proxy-manager:2.15.1`, on an Ubuntu Server VM under Proxmox VE, and from 2026-10-24 also `alpine/openssl:3.5.9` for the local CA. Facts marked VERIFIED were measured on that homelab on 2026-10-23, unless the mark names another date or says a throwaway container. The AdGuard Home file edit and the Uptime Kuma database edit were also run end to end in throwaway containers of the same images on 2026-10-23, with no network. Vendor documentation and source were fetched on 2026-10-23, and each topic file names its sources. Everything else is UNVERIFIED.
 
 | You are about to | Open |
 |---|---|
@@ -20,6 +20,7 @@ Baseline: these images, which the owner's homelab ran on 2026-10-23: `adguard/ad
 | Run Plex, claim it, mount the media read only, lay out the libraries | [plex.md](references/plex.md) |
 | Configure the Homepage dashboard and its allowed hosts | [homepage.md](references/homepage.md) |
 | Add a proxy host for a `.internal` name, forward to a host-network service or the Proxmox web UI, a proxy host that answers 500 | [nginx-proxy-manager.md](references/nginx-proxy-manager.md) |
+| Give the `.internal` names `https`, make or replace the local CA, add a name to its certificate, renew it, trust the CA on a device, revoke it | [local-ca.md](references/local-ca.md) |
 | Attach a USB or NTFS data disk to the VM, mount it, protect the mount point, clear a dirty NTFS volume | [data-disk.md](references/data-disk.md) |
 | Explain a full disk, find what filled it, free space | [disk-full.md](references/disk-full.md) |
 
@@ -66,6 +67,7 @@ Addresses, host names, user names, the path of the stack folder on the VM, and t
 8. Secrets live in `.env` next to the Compose file, mode 600, written with hidden input and checked by length, never printed, never in the Compose file and never in a repository. The agent's own credentials live in an env file outside every repository, mode 600, read one key at a time with `grep` and `cut`, never sourced and never printed.
 9. Never mount NTFS with the `force` option. A dirty volume is cleared with `ntfsfix -d` after the owner says yes, or checked in Windows when its files matter more than the time.
 10. Probes and monitors target an address and port, never a `.internal` name, so a red result names one service rather than DNS, the proxy and the service at once.
+11. The local CA carries a critical name constraint permitting only `DNS:internal`, and its key lives only on the owner's computer and in `.env` on the VM. Once its include serves `https`, the SSL tab of every proxy host stays on None, because a picked certificate adds a second `listen 443` and takes that host Offline.
 
 ---
 
@@ -92,3 +94,6 @@ Addresses, host names, user names, the path of the stack folder on the VM, and t
 - [ ] `.env` is mode 600, every value was checked by length, and nothing secret was printed
 - [ ] The data disk is mounted by UUID with `nofail`, the empty mount point carries `chattr +i`, and `findmnt` showed the disk
 - [ ] `df -h /` read after any change that writes data, and the largest container logs checked when it climbs
+- [ ] The local CA was read back and shows `CA:TRUE, pathlen:0`, `Permitted: DNS:internal` and both excluded addresses, and `ca.key` is in no repository
+- [ ] Every `.internal` name with a proxy host is in `INTERNAL_DNS_NAMES`, the SSL tab of every proxy host is on None, and the proxy was restarted after the job logged `issuing a new certificate`
+- [ ] The certificate end date on the `notAfter=` line of `docker logs --tail 2 internal-ca` is more than 30 days away, or the job ran again
