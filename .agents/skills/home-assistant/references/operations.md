@@ -7,10 +7,15 @@ upgrade discipline. The automation and YAML rules live in [SKILL.md](../SKILL.md
 
 ### Backup and restore
 
-Use the built-in Backup integration or the Google Drive Backup add-on to take daily automated backups.
+Use the built-in Backup integration for automatic backups. Run them weekly and keep 4 copies. A home install does not
+need daily backups.
 
-- Keep at least 7 daily backups and 4 weekly backups offsite, on storage separate from the Home Assistant host. A
-  backup on the same SD card as the instance protects against nothing that actually happens to these boxes.
+- Before every update (Core, OS, apps, firmware), every integration removal, every device or entity deletion, and any
+  other change that writing the old value back cannot undo, take a manual full backup first.
+- Download that manual backup to the owner's computer as a second copy. Keep it encrypted as stored, set the file to
+  mode 600, and confirm the file size and that `backup.json` inside the archive says `protected`. A backup that exists
+  only on the Home Assistant host protects against nothing that actually happens to these boxes.
+- An automatic off-machine copy, to a network share or Home Assistant Cloud, is the owner's choice, not a requirement.
 - Perform a test restore to a clean instance at least quarterly. An untested backup is a hypothesis.
 - Write the retention policy into the project README, so another member of the household can restore the system
   without reverse-engineering it.
@@ -103,4 +108,5 @@ target:
   changes regularly and they are always listed.
 - Test automations on a development instance, a secondary VM or container, before applying a major update to the
   production instance.
-- Take a backup immediately before the upgrade, not on the previous night's schedule.
+- Take a manual full backup immediately before the upgrade, as "Backup and restore" describes, rather than relying
+  on the last scheduled one.
