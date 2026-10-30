@@ -97,8 +97,46 @@ READ_ONLY_FORBIDDEN_TOOLS = frozenset({"write", "edit", "task"})
 # diff*` would also match `git difftool`, so each listed command becomes an exact
 # rule plus a "command *" rule, and these denies follow them all: a git output
 # option in any spelling that keeps `--out`, anything the shell still expands,
-# any redirect, and gh opening a browser. The gate's Rule E stays the full check.
-OPENCODE_READ_ONLY_DENIES = ("*--out*", "*$*", "*>*", "gh *--web*", "gh * -w*")
+# any redirect, gh opening a browser or running a --jq or --template
+# expression, and every character the gate's Rule E refuses that a pattern
+# can name. `*` matches across lines there (the regex
+# carries the `s` flag), so a newline or a carriage return denies the whole
+# command. Three of the gate's refusals cannot be written as a rule: a single
+# quote, because the gate accepts single-quoted format strings; a backslash,
+# because Wildcard.match turns every backslash into `/` in the pattern and the
+# command alike, so `*\*` would deny every path; and `?`, which is itself a
+# one-character wildcard, so `*?*` would deny everything (core/util/wildcard.ts
+# in OpenCode 1.19.5). The gate's Rule E stays the full check.
+OPENCODE_READ_ONLY_DENIES = (
+    "*--out*",
+    "*$*",
+    "*>*",
+    "gh *--web*",
+    "gh * -w*",
+    "gh *--jq*",
+    "gh * -q*",
+    "gh *--template*",
+    "gh * -t*",
+    '*"*',
+    "*{*",
+    "*`*",
+    "*<*",
+    "*;*",
+    "*&*",
+    "*|*",
+    "*[*",
+    "*\n*",
+    "*\r*",
+)
+
+# The tools a read-only agent is denied on OpenCode and Kilo Code besides edit
+# and task, so the native map grants no more than Rule E's fixed tool set.
+# OpenCode matches a permission key "as wildcard patterns against the underlying
+# tool name, so the same syntax works for built-ins, custom tools, and MCP
+# tools", and names an MCP tool <server>_<tool> (https://opencode.ai/docs/agents/,
+# "Permissions"), so `*_*` denies every MCP tool. Each key is new to the map, so
+# it holds whatever order OpenCode merges the legacy `tools` map in.
+OPENCODE_READ_ONLY_TOOL_DENIES = ("*_*", "webfetch", "websearch", "todowrite", "lsp")
 
 # OpenCode and Kilo Code read `tools` as overrides on top of everything the
 # agent already has, so a map listing only read, grep and glob still leaves
@@ -124,11 +162,12 @@ CLAUDE_READ_ONLY_PERMISSION_MODE = "plan"
 # agents.default_subagent_model, then the parent's model.
 
 
-def installed_skills() -> set[str]:
-    """Every skill name that has a folder under .agents/skills/."""
-    if not SKILLS.is_dir():
-        sys.exit(f"ERROR missing skills dir {SKILLS}")
-    return {p.name for p in SKILLS.iterdir() if p.is_dir()}
+def installed_skills(skills_dir: pathlib.Path | None = None) -> set[str]:
+    """Every skill name that has a folder under skills_dir, by default .agents/skills/."""
+    directory = SKILLS if skills_dir is None else skills_dir
+    if not directory.is_dir():
+        sys.exit(f"ERROR missing skills dir {directory}")
+    return {p.name for p in directory.iterdir() if p.is_dir()}
 
 
 def parse(path: pathlib.Path, skills: set[str] | None = None) -> tuple[dict, str]:
@@ -318,6 +357,7 @@ def emit_opencode(fm: dict, body: str) -> str:
             # already gets task denied when its definition names no task rule
             # (tool/task.ts in OpenCode 1.19.5), and this says so explicitly.
             lines.append("  task: deny")
+            lines += [f"  {_yaml_double_quoted(tool)}: deny" for tool in OPENCODE_READ_ONLY_TOOL_DENIES]
             lines.append("  bash:")
             lines += [f"    {_yaml_double_quoted(pattern)}: {action}" for pattern, action in opencode_bash_rules(commands)]
         lines.append("tools:")

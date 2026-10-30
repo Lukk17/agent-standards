@@ -1,16 +1,23 @@
 # Plugin map for the Claude Code marketplace. tools/gen_plugins.py renders it
-# onto the `plugins` branch, and tools/tests/test_gen_plugins.py holds it to
-# these rules:
+# onto the `plugins` branch, and its check_map refuses a map that breaks one of
+# these rules, which tools/tests/test_gen_plugins.py proves case by case:
 #
 # - Every skill under .agents/skills/ and every subagent under subagents/ sits
-#   in exactly one plugin.
+#   in exactly one plugin, and every plugin, skill and subagent name is kebab-case.
 # - core holds exactly the skills that subagents in two or more plugins
-#   preload, so a skill moves in or out of core when a skill list changes.
-# - Every other skill a subagent preloads sits in that subagent's own plugin.
-# - A skill no subagent preloads goes to the domain or host group it serves.
-# - Host groups carry `defaultEnabled: false`.
-# - One plugin per server in the root .mcp.json, named mcp-<server>.
-# - mcp-all and all hold nothing and only depend on other plugins.
+#   preload, and no subagent and no dependency, so a skill moves in or out of
+#   core when a skill list changes.
+# - Every other skill a subagent preloads sits in that subagent's own plugin,
+#   and a plugin whose subagents preload a core skill depends on core.
+# - The category is development, host, mcp or bundle. Host groups carry
+#   `defaultEnabled: false` and every other plugin stays on.
+# - One plugin per server in the root .mcp.json, named mcp-<server>, holding
+#   that server and nothing else, with category mcp.
+# - A bundle holds dependencies only. mcp-all depends on every server plugin,
+#   and all installs core and every development plugin, nothing else.
+#
+# Which domain or host group a subagent or an unpreloaded skill serves is a
+# convention the tests cannot check. CONTRIBUTING.md describes it.
 
 marketplace:
   name: agent-standards
@@ -226,7 +233,7 @@ plugins:
 
   - name: all
     category: bundle
-    description: Every plugin in this marketplace in one install, including the host groups and every MCP server.
+    description: Core and every development domain in one install. Host groups and MCP servers stay separate installs.
     dependencies:
       - core
       - python
@@ -243,8 +250,3 @@ plugins:
       - embedded
       - game
       - agent-tooling
-      - linux
-      - windows-and-mac
-      - homelab
-      - personal-tools
-      - mcp-all

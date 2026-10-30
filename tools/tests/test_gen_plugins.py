@@ -33,7 +33,7 @@ def plugin_map() -> gen.PluginMap:
 
 @pytest.fixture(scope="module")
 def skills() -> set[str]:
-    return gen.installed_skills(SOURCES)
+    return gen_subagents.installed_skills(SOURCES.skills)
 
 
 @pytest.fixture(scope="module")
@@ -124,10 +124,11 @@ def test_one_plugin_per_root_server_and_mcp_all_depends_on_each(plugin_map, serv
     assert set(plugin_map.by_name()["mcp-all"].dependencies) == set(served.values())
 
 
-def test_all_pulls_in_every_other_plugin(plugin_map):
+def test_all_installs_core_and_every_development_plugin_and_nothing_else(plugin_map):
     plugins = plugin_map.by_name()
+    development = {p.name for p in plugin_map.plugins if p.category == gen.DEVELOPMENT_CATEGORY}
 
-    assert gen.dependency_closure("all", plugins) == set(plugins) - {"all"}
+    assert gen.dependency_closure(gen.ALL, plugins) == development | {gen.CORE}
 
 
 def test_bundles_hold_nothing_but_dependencies(plugin_map):
@@ -277,58 +278,189 @@ def test_main_exits_with_an_error_on_a_non_empty_directory(tmp_path):
     assert str(exc.value.code).startswith("ERROR")
 
 
-def test_load_map_rejects_an_unknown_plugin_key(tmp_path):
-    bad = tmp_path / "plugins.yaml"
-    bad.write_text(
-        "marketplace: {name: m, owner: {name: o}}\n"
-        "plugins:\n  - {name: core, description: d, category: c, skils: [x]}\n"
-    )
+GOOD_MARKETPLACE = "marketplace: {name: m, owner: {name: o}, repository: 'https://github.com/o/r'}\n"
 
-    with pytest.raises(gen.PluginMapError, match="unknown key"):
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        pytest.param(
+            GOOD_MARKETPLACE + "plugins:\n  - {name: core, description: d, category: development, skils: [x]}\n",
+            "unknown key",
+            id="an unknown plugin key",
+        ),
+        pytest.param(
+            GOOD_MARKETPLACE + "plugins:\n  - {name: core, description: d, category: development, defaultEnabled: 'false'}\n",
+            "'defaultEnabled' must be true or false",
+            id="a defaultEnabled that is not a boolean",
+        ),
+        pytest.param(
+            "marketplace: {name: m, owner: {name: o}}\nplugins: []\n",
+            "needs a 'repository'",
+            id="a marketplace with no repository",
+        ),
+        pytest.param(
+            "marketplace: {name: m, owner: {name: o}, repository: 'https://gitlab.com/o/r'}\nplugins: []\n",
+            "needs a 'repository'",
+            id="a repository that is not on GitHub",
+        ),
+    ],
+)
+def test_load_map_rejects_a_malformed_map(text, expected, tmp_path):
+    bad = tmp_path / "plugins.yaml"
+    bad.write_text(text)
+
+    with pytest.raises(gen.PluginMapError, match=expected):
         gen.load_map(bad)
 
 
-def _replace(plugin_map: gen.PluginMap, name: str, **changes) -> gen.PluginMap:
+def test_render_refuses_an_output_directory_inside_the_repository(plugin_map):
+    out = REPO_ROOT / "plugins-render-test"
+
+    with pytest.raises(gen.PluginMapError, match="inside the repository"):
+        gen.render(plugin_map, out, SOURCES)
+    assert not out.exists()
+
+
+def test_render_measures_inside_against_the_sources_root(plugin_map, tmp_path):
+    with pytest.raises(gen.PluginMapError, match="inside the repository"):
+        gen.render(plugin_map, tmp_path / "out", gen.Sources(tmp_path))
+
+
+def test_a_failed_render_leaves_the_output_directory_as_it_was(plugin_map, tmp_path, monkeypatch):
+    out = tmp_path / "out"
+    out.mkdir()
+    real = gen.render_plugin
+    calls = []
+
+    def fail_on_the_third(*args, **kwargs):
+        calls.append(args[0].name)
+        if len(calls) == 3:
+            raise gen.PluginMapError("disk full")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(gen, "render_plugin", fail_on_the_third)
+
+    with pytest.raises(gen.PluginMapError, match="disk full"):
+        gen.render(plugin_map, out, SOURCES)
+    assert list(tmp_path.iterdir()) == [out]
+    assert list(out.iterdir()) == []
+
+
+def test_executable_skill_files_stay_executable(plugin_map, rendered):
+    out, _ = rendered
+    executables = 0
+
+    for plugin in plugin_map.plugins:
+        for skill in plugin.skills:
+            for source in gen.skill_files(SOURCES.skills / skill):
+                copy = out / "plugins" / plugin.name / "skills" / skill / source.relative_to(SOURCES.skills / skill)
+                assert gen._is_executable(copy) is gen._is_executable(source), copy
+                executables += gen._is_executable(source)
+
+    assert executables > 0
+
+
+def test_readme_names_a_development_domain_and_the_repository(plugin_map, rendered):
+    out, _ = rendered
+    domain = next(p.name for p in plugin_map.plugins if p.category == gen.DEVELOPMENT_CATEGORY and p.name != gen.CORE)
+    text = (out / "README.md").read_text(encoding="utf-8")
+
+    assert f"claude plugin install {domain}@{plugin_map.marketplace['name']}\n" in text
+    assert "claude plugin marketplace add Lukk17/agent-standards#plugins\n" in text
+
+
+def _replace(plugin_map: gen.PluginMap, target: str, /, **changes) -> gen.PluginMap:
     return dataclasses.replace(
         plugin_map,
-        plugins=tuple(dataclasses.replace(p, **changes) if p.name == name else p for p in plugin_map.plugins),
+        plugins=tuple(dataclasses.replace(p, **changes) if p.name == target else p for p in plugin_map.plugins),
     )
 
 
-def _broken_maps(plugin_map: gen.PluginMap) -> list[tuple[str, gen.PluginMap, str]]:
-    plugins = plugin_map.by_name()
-    python = plugins["python"]
-    jvm = plugins["jvm"]
-    core = plugins[gen.CORE]
-    return [
-        ("a skill in two plugins", _replace(plugin_map, "jvm", skills=jvm.skills + ("pytorch-patterns",)), "sits in 2 plugins"),
-        ("a skill in no plugin", _replace(plugin_map, "python", skills=()), "'pytorch-patterns' sits in no plugin"),
-        ("an unknown skill", _replace(plugin_map, "python", skills=python.skills + ("no-such-skill",)), "does not exist"),
-        ("a subagent in no plugin", _replace(plugin_map, "python", agents=("python-pro",)), "'ml-engineer' sits in no plugin"),
-        (
-            "a subagent away from its own skill",
-            _replace(_replace(plugin_map, "python", agents=("python-pro",)), "jvm", agents=jvm.agents + ("ml-engineer",)),
-            "preloads 'pytorch-patterns' from 'python'",
-        ),
-        ("a single-use skill in core", _replace(_replace(plugin_map, "python", skills=()), gen.CORE, skills=core.skills + ("pytorch-patterns",)), "fewer than two plugins"),
-        ("a shared skill outside core", _replace(_replace(plugin_map, gen.CORE, skills=tuple(s for s in core.skills if s != "bash")), "devops", skills=plugins["devops"].skills + ("bash",)), "belongs in 'core'"),
-        ("an unknown dependency", _replace(plugin_map, "python", dependencies=("core", "nope")), "unknown plugin 'nope'"),
-        ("a dependency cycle", _replace(plugin_map, gen.CORE, dependencies=("python",)), "dependency cycle"),
-        ("a missing core dependency", _replace(plugin_map, "python", dependencies=()), "does not depend on 'core'"),
-        ("a host group switched on", _replace(plugin_map, "linux", default_enabled=True), "defaultEnabled: false"),
-        ("a server plugin under another name", _replace(plugin_map, "mcp-redis", mcp="grafana"), "sits in 2 plugins"),
-        ("a server plugin holding a skill", _replace(plugin_map, "mcp-redis", skills=("unity",)), "nothing else"),
-        ("an empty plugin", _replace(plugin_map, "mcp-all", dependencies=()), "holds nothing and depends on nothing"),
-    ]
+def _without(plugin_map: gen.PluginMap, name: str) -> gen.PluginMap:
+    return dataclasses.replace(plugin_map, plugins=tuple(p for p in plugin_map.plugins if p.name != name))
 
 
-@pytest.mark.parametrize("case", range(14))
-def test_check_map_catches_each_broken_rule(case, plugin_map, skills, agents, servers):
-    label, broken, expected = _broken_maps(plugin_map)[case]
+def _plus(plugin_map: gen.PluginMap, plugin: gen.Plugin) -> gen.PluginMap:
+    return dataclasses.replace(plugin_map, plugins=plugin_map.plugins + (plugin,))
 
-    problems = gen.check_map(broken, skills, agents, servers)
 
-    assert any(expected in problem for problem in problems), f"{label}: {problems}"
+def _get(plugin_map: gen.PluginMap, name: str) -> gen.Plugin:
+    return plugin_map.by_name()[name]
+
+
+def _add(plugin_map: gen.PluginMap, name: str, field: str, *items: str) -> gen.PluginMap:
+    return _replace(plugin_map, name, **{field: getattr(_get(plugin_map, name), field) + items})
+
+
+def _drop(plugin_map: gen.PluginMap, name: str, field: str, item: str) -> gen.PluginMap:
+    return _replace(plugin_map, name, **{field: tuple(i for i in getattr(_get(plugin_map, name), field) if i != item)})
+
+
+BROKEN_MAPS = [
+    pytest.param(lambda m: _add(m, "jvm", "skills", "pytorch-patterns"), "sits in 2 plugins", id="a skill in two plugins"),
+    pytest.param(lambda m: _replace(m, "python", skills=()), "'pytorch-patterns' sits in no plugin", id="a skill in no plugin"),
+    pytest.param(lambda m: _add(m, "python", "skills", "no-such-skill"), "does not exist", id="an unknown skill"),
+    pytest.param(lambda m: _replace(m, "python", agents=("python-pro",)), "'ml-engineer' sits in no plugin", id="a subagent in no plugin"),
+    pytest.param(
+        lambda m: _add(_replace(m, "python", agents=("python-pro",)), "jvm", "agents", "ml-engineer"),
+        "preloads 'pytorch-patterns' from 'python'",
+        id="a subagent away from its own skill",
+    ),
+    pytest.param(
+        lambda m: _add(_replace(m, "python", skills=()), gen.CORE, "skills", "pytorch-patterns"),
+        "fewer than two plugins",
+        id="a single-use skill in core",
+    ),
+    pytest.param(
+        lambda m: _add(_drop(m, gen.CORE, "skills", "bash"), "devops", "skills", "bash"),
+        "belongs in 'core'",
+        id="a shared skill outside core",
+    ),
+    pytest.param(lambda m: _replace(m, "python", dependencies=("core", "nope")), "unknown plugin 'nope'", id="an unknown dependency"),
+    pytest.param(lambda m: _replace(m, "python", dependencies=("core", "python")), "'python' depends on itself", id="a self-dependency"),
+    pytest.param(lambda m: _replace(m, gen.CORE, dependencies=("python",)), "dependency cycle", id="a dependency cycle"),
+    pytest.param(lambda m: _replace(m, "python", dependencies=()), "does not depend on 'core'", id="a missing core dependency"),
+    pytest.param(lambda m: _without(m, gen.CORE), "no 'core' plugin", id="a missing core plugin"),
+    pytest.param(lambda m: _without(m, gen.ALL), "no 'all' plugin", id="a missing all plugin"),
+    pytest.param(lambda m: _without(m, gen.MCP_ALL), "no 'mcp-all' plugin", id="a missing mcp-all plugin"),
+    pytest.param(lambda m: _plus(m, _get(m, "game")), "duplicate plugin name 'game'", id="a duplicate plugin name"),
+    pytest.param(lambda m: _replace(m, "game", name="Game"), "plugin name 'Game' is not kebab-case", id="a plugin name in capitals"),
+    pytest.param(lambda m: _replace(m, "game", name="game\n"), "is not kebab-case", id="a plugin name ending in a newline"),
+    pytest.param(lambda m: _replace(m, "game", name="game--dev"), "is not kebab-case", id="a plugin name with a double hyphen"),
+    pytest.param(lambda m: _add(m, "python", "skills", "Bad_Skill"), "skill name 'Bad_Skill' in plugin 'python' is not kebab-case", id="a skill name not in kebab-case"),
+    pytest.param(lambda m: _add(m, "python", "agents", "Python Pro"), "subagent name 'Python Pro' in plugin 'python' is not kebab-case", id="a subagent name not in kebab-case"),
+    pytest.param(lambda m: _replace(m, "game", category="games"), "unknown category 'games'", id="an unknown category"),
+    pytest.param(lambda m: _replace(m, "linux", default_enabled=True), "defaultEnabled: false", id="a host group switched on"),
+    pytest.param(lambda m: _replace(m, "game", default_enabled=False), "'game' is not a host group, so it must stay on", id="a domain switched off"),
+    pytest.param(lambda m: _replace(m, "mcp-redis", mcp="grafana"), "sits in 2 plugins", id="two plugins for one server"),
+    pytest.param(lambda m: _replace(m, "mcp-redis", skills=("unity",)), "nothing else", id="a server plugin holding a skill"),
+    pytest.param(lambda m: _replace(m, "mcp-redis", name="mcp-cache"), "must be named 'mcp-redis'", id="a server plugin named off its server"),
+    pytest.param(lambda m: _replace(m, "mcp-redis", category="development"), "exactly when it names a server", id="a server plugin outside category mcp"),
+    pytest.param(lambda m: _replace(m, "game", category="mcp"), "exactly when it names a server", id="category mcp with no server"),
+    pytest.param(lambda m: _replace(m, gen.MCP_ALL, dependencies=()), "holds nothing and depends on nothing", id="an empty plugin"),
+    pytest.param(lambda m: _replace(m, gen.MCP_ALL, category="development"), "its category must be 'bundle'", id="a bundle outside category bundle"),
+    pytest.param(lambda m: _add(_drop(m, "game", "skills", "unity"), gen.MCP_ALL, "skills", "unity"), "must hold dependencies only", id="a bundle holding a skill"),
+    pytest.param(lambda m: _replace(m, gen.CORE, dependencies=("game",)), "'core' must hold skills only", id="core with a dependency"),
+    pytest.param(
+        lambda m: _add(_replace(m, "game", agents=()), gen.CORE, "agents", "unity-game-dev"),
+        "'core' must hold skills only",
+        id="core with a subagent",
+    ),
+    pytest.param(lambda m: _drop(m, gen.MCP_ALL, "dependencies", "mcp-redis"), "every server plugin: missing mcp-redis", id="mcp-all missing a server"),
+    pytest.param(lambda m: _add(m, gen.MCP_ALL, "dependencies", "game"), "every server plugin: must not include game", id="mcp-all pulling a domain"),
+    pytest.param(lambda m: _drop(m, gen.ALL, "dependencies", "game"), "every development plugin: missing game", id="all missing a domain"),
+    pytest.param(lambda m: _add(m, gen.ALL, "dependencies", "linux"), "must not include linux", id="all pulling a host group"),
+    pytest.param(lambda m: _add(m, gen.ALL, "dependencies", gen.MCP_ALL), "must not include mcp-all", id="all pulling mcp-all"),
+    pytest.param(lambda m: _add(m, "game", "dependencies", "mcp-redis"), "must not include mcp-redis", id="all reaching a server through a domain"),
+]
+
+
+@pytest.mark.parametrize(("breaks", "expected"), BROKEN_MAPS)
+def test_check_map_catches_each_broken_rule(breaks, expected, plugin_map, skills, agents, servers):
+    problems = gen.check_map(breaks(plugin_map), skills, agents, servers)
+
+    assert any(expected in problem for problem in problems), problems
 
 
 def test_check_map_catches_a_root_server_with_no_plugin(plugin_map, skills, agents, servers):

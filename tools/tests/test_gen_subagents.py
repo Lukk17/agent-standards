@@ -10,6 +10,7 @@ functions over a frontmatter dict, so each one is exercised directly on a
 fixture rather than through the filesystem.
 """
 
+import importlib.util
 import re
 import tomllib
 
@@ -17,6 +18,19 @@ import pytest
 import yaml
 
 import gen_subagents as gen
+from tests.conftest import PREFLIGHT_GATE
+
+
+def _load_gate():
+    """The preflight gate in-process, so the native map can be held against Rule E itself."""
+    spec = importlib.util.spec_from_file_location("preflight_gate_for_gen_subagents", PREFLIGHT_GATE)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    return module
+
+
+GATE = _load_gate()
 
 SKILLS = {"coding-standards", "python-patterns", "markdown-writer"}
 
@@ -559,13 +573,47 @@ def opencode_bash_verdict(bash_map, command):
         ("git diff > src/app.py", "deny"),
         ("gh pr view 12 --web", "deny"),
         ("gh pr diff 12 -w", "deny"),
+        ("gh pr view 12 --json title --jq env", "deny"),
+        ("gh pr view 12 --json title -q env", "deny"),
+        ("gh pr view 12 --json title --template x", "deny"),
+        ("gh pr view 12 --json title -t x", "deny"),
+        ("gh pr view 12 --json title,state", "allow"),
         ("touch made.txt", "deny"),
+        ("git log --format='%h %s' -U0 HEAD~3..HEAD", "allow"),
+        ("gh pr view 12 --repo owner/name", "allow"),
+        ("git log '@{u}..HEAD'", "deny"),
+        ("git diff `touch made.txt`", "deny"),
+        ("git diff <(touch made.txt)", "deny"),
+        ("git diff; touch made.txt", "deny"),
+        ("git diff && touch made.txt", "deny"),
+        ("git diff | sh", "deny"),
+        ("git diff [ab]", "deny"),
+        ("git diff\ntouch made.txt", "deny"),
+        ("git diff\rtouch made.txt", "deny"),
     ],
 )
 def test_the_opencode_bash_map_is_no_wider_than_the_gate(command, verdict):
     bash_map = front_matter(gen.emit_opencode(REVIEWER, BODY))["permission"]["bash"]
 
     assert opencode_bash_verdict(bash_map, command) == verdict
+
+    if verdict == "allow":
+        assert GATE._read_only_command_blocked(command, False, REVIEWER_COMMANDS) is None
+
+
+def test_opencode_denies_a_read_only_agent_every_tool_outside_the_gates_set():
+    permission = front_matter(gen.emit_opencode(REVIEWER, BODY))["permission"]
+
+    assert all(permission[tool] == "deny" for tool in gen.OPENCODE_READ_ONLY_TOOL_DENIES)
+    assert opencode_match("context7_query-docs", "*_*")
+    assert not any(opencode_match(tool, "*_*") for tool in ("read", "grep", "glob", "list", "bash", "skill"))
+
+
+@pytest.mark.parametrize("pattern", ["*'*", "*\\*", "*?*"])
+def test_the_gate_refusals_opencode_cannot_express_stay_out_of_the_map(pattern):
+    """A single quote the gate accepts in a format string, and two rules OpenCode would widen to every command."""
+    assert pattern not in gen.OPENCODE_READ_ONLY_DENIES
+    assert opencode_match("git diff src/app.py", pattern) == (pattern != "*'*")
 
 
 def test_codex_carries_the_read_only_list_in_its_instructions():

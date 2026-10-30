@@ -67,7 +67,7 @@ agent-standards/
   tools/                         # Generator, linter and tests, this repo only
     gen_subagents.py             # Emits four trees plus the two agent symlinks, validates skills and tools
     gen_plugins.py               # Renders the Claude Code plugin marketplace from plugins.yaml into a given directory
-    plugins.yaml                 # CANONICAL plugin map, one plugin per skill and per subagent
+    plugins.yaml                 # CANONICAL plugin map: every skill, subagent and MCP server in exactly one plugin (domains, host groups, core, mcp-<server>)
     check-markdown.py            # Markdown lint used by CI, runs .agents/hooks/_check_markdown.py
     pyproject.toml               # CANONICAL, the only pinned dependency and pytest configuration
     check-badges.py              # README badge and social card count lint used by CI

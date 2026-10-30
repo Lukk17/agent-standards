@@ -91,8 +91,8 @@ The gate is one shared rule in [../.agents/hooks/preflight_gate.py](../.agents/h
 payload on standard input and denies five things: a write of any file resolving inside the repository working tree
 coming from the main thread, with no exemption left for markdown, configuration, or `docs/` (delegate the change to a
 subagent that owns the area instead), any tool call at all from a subagent whose own definition declares no skills
-(spawn a specialist instead), an edit or a shell command outside its own list from a subagent whose definition is
-marked read-only, a web fetch or web search called straight from the main thread on the one format whose
+(spawn a specialist instead), an edit, any tool outside a fixed read set, or a shell command outside its own list
+from a subagent whose definition is marked read-only, a web fetch or web search called straight from the main thread on the one format whose
 payload names that tool today, Claude Code, and a script or module run from the main thread, because the gate cannot see
 what a script writes. The allowlist that lifts the last rule is in
 [What the main thread may run](GLOBAL_SETUP.md#what-the-main-thread-may-run). A relative path is resolved against
@@ -164,21 +164,60 @@ Reading the tables row by row:
 - The per-agent tool permissions are the generator's `permission` block. OpenCode and Kilo Code read a subagent's
   `tools` map as overrides on top of everything it already has, so a read-only definition listing only `read`, `grep`
   and `glob` still had `edit` and `bash`. The generator now writes `edit: deny` unless `write` or `edit` is listed and
-  `bash: deny` unless `bash` is. A definition marked `readonly: true` instead gets `edit: deny`, `task: deny` and a `bash` map with
-  `"*": deny` first, its allowed commands after it, and denies for an output option, a `$`, a redirect and gh's
-  `--web` last, because OpenCode lets the last matching rule win. The same V1 front shape loads on OpenCode 2.0.26, measured 2026-10-15: `debug agents` from the repo lists 35 project agents plus 7 built in, and the live view shows the `tools` map as a `permissions` list.
+  `bash: deny` unless `bash` is. A definition marked `readonly: true` instead gets `edit: deny`, `task: deny`, denies
+  for `webfetch`, `websearch`, `todowrite`, `lsp` and `"*_*"`, and a `bash` map with `"*": deny` first, its allowed
+  commands after it, and denies last, because OpenCode lets the last matching rule win: an output option, a `$`, a
+  redirect, gh's `--web`, `-w`, `--jq`, `-q`, `--template` and `-t`, and the characters `"`, `{`, a backtick, `<`, `;`, `&`, `|`, `[`, a newline and a
+  carriage return. OpenCode matches a permission key against the tool name, "so the same syntax works for built-ins,
+  custom tools, and MCP tools", and names an MCP tool `<server>_<tool>`
+  ([agents, "Permissions"](https://opencode.ai/docs/agents/), fetched 2026-10-30), so `"*_*"` denies every MCP tool.
+  It also matches the built-in guards `external_directory` and `doom_loop`, which deny for such an agent instead of
+  asking. Three refusals of the gate have no rule: a single quote, because the gate accepts single-quoted format
+  strings; a backslash, because `Wildcard.match` rewrites every backslash to `/` in the rule and the command alike,
+  so `*\*` would deny every path; and `?`, a one-character wildcard there, so `*?*` would deny every command
+  (`packages/core/src/util/wildcard.ts` at OpenCode `v1.19.5`, whose regex also carries the `s` flag, so `*` matches
+  across lines). The gate holds all three on the plugin path. The same V1 front shape loads on OpenCode 2.0.26, measured 2026-10-15: `debug agents` from the repo lists 35 project agents plus 7 built in, and the live view shows the `tools` map as a `permissions` list.
 - As a runner-independent backstop the project also ships [.opencode/opencode.json](../.opencode/opencode.json) with `edit` denied and only `tasks.md` allowed. The plugin gate never fires on some runtimes, measured 2026-10-26, so this file blocks main-thread writes through permissions instead. Subagent rights are untouched because agent rules are appended after project rules, and Kilo Code reads the file with no warnings.
 - A read-only subagent keeps `bash` but runs only the commands listed under the "Read-only shell" heading the generator
-  writes into every format. Rule E reads that list from the definition, the way Rule B reads the skills, and denies
-  any edit, any call to spawn another agent, any command outside the list in a pipe, chain, substitution or process
-  substitution, any redirect except to the null device, any heredoc or here-string, any word holding a `$`, a
-  backslash or a brace expansion, any git output option in any abbreviation, and gh's `--web`. Unlike every other
-  rule, a command the lexer cannot parse denies here, and so does a tool the gate does not know that carries a
-  command. A heading inside a fenced code block marks nothing. On Claude Code this
+  writes into every format. Rule E reads that list from the definition, the way Rule B reads the skills. It allows
+  only the read, grep, glob and list tools under each agent's name for them, the skill loader, and a shell not
+  started on a terminal (`tty: true` denies, because Codex's `write_stdin` feeds such a shell later with no command
+  the gate can read), so an edit, an agent spawn, a web fetch and an MCP tool all deny. Before it lexes a command it
+  holds every character to a fixed set: outside single quotes only letters, digits, a blank, a newline and
+  `._/:=,@^~%+-`, inside single quotes any printable ASCII but the quote, and `2>/dev/null` and `2>&1` as the only
+  redirects. A quote, a backslash, a `$`, a backtick, a glob, a brace, a separator, a pipe, a carriage return and
+  any non-ASCII character deny there, so a format string goes in single quotes, as in `--format='%h %s'`. Every
+  command left has to match the list, no word may hold a `$`, a backslash, a brace expansion or a git output option
+  in any abbreviation, and gh may not open a browser (`--web`, `-w`, `-w=true`, `-cw`) or name another host, by a
+  URL argument or by a `HOST/` part in `-R` or `--repo`, because `--repo` takes `[HOST/]OWNER/REPO`
+  ([gh pr view](https://cli.github.com/manual/gh_pr_view)). Nor may gh run a `--jq` or `-q` expression: go-gh
+  compiles it with `gojq.WithEnvironLoader(func() []string { return os.Environ() })`
+  ([pkg/jq/jq.go at go-gh v2.13.0](https://raw.githubusercontent.com/cli/go-gh/v2.13.0/pkg/jq/jq.go), the version gh
+  2.89.0 pins, fetched 2026-10-30), and gojq's loader "allows to configure the environment variables referenced by
+  `env` and `$ENV`" ([gojq README](https://raw.githubusercontent.com/itchyny/gojq/main/README.md)), so `--jq env`
+  prints every variable, tokens included. `--template` and `-t` deny with it. A gh template has no environment function, but neither flag then
+  carries code. Every `command`, `cmd` and `script` value is judged,
+  not only the first. Unlike every other rule, any failure while lexing or matching denies here, a parse error and
+  any other exception alike, and so does a tool the gate does not know that carries a command. Rule E applies when
+  any definition the name resolves to is read-only: the calling format's own tree is read first and decides Rule B,
+  and every other tree still counts for Rule E. A plugin subagent, which Claude Code names `<plugin>:<name>`, is
+  also looked up in the plugin cache at `plugins/cache/<marketplace>/<plugin>/<version>/agents/<name>.md` under
+  `CLAUDE_CONFIG_DIR` and `~/.claude` (measured on Claude Code 2.1.314), and a name part that holds a path or is
+  `.` is refused a lookup. A `CLAUDE_CONFIG_DIR` the gate cannot expand, such as an unknown `~user`, is skipped
+  rather than allowing the call. A definition that exists but cannot be read counts as read-only with no command allowed. A
+  heading inside a fenced code block marks nothing. On Claude Code this
   is the only enforcement that holds: a subagent's `permissionMode: plan` is ignored while the session is in auto,
   `acceptEdits` or `bypassPermissions` mode, and a `tools` entry such as `Bash(git log *)` did not narrow the tool, so
-  a `touch` from either ran on Claude Code 2.1.314 under an auto-mode session. Codex has no per-agent tool field, and
-  Copilot gets no shell for such an agent, as the next item explains.
+  a `touch` from either ran on Claude Code 2.1.314 under an auto-mode session. Its `tools` list is an allowlist, so
+  such an agent gets no MCP tool there either. Codex has no per-agent tool field, and a custom agent file cannot
+  narrow the sandbox: "Other session settings, including `sandbox_mode`, `approval_policy`, `model_provider`, and
+  `mcp_servers`, don't override the parent configuration when placed in a custom agent file"
+  ([subagents, "Custom agents"](https://developers.openai.com/codex/subagents), fetched 2026-10-30). The Rule E
+  audit names Codex's `write_stdin` tool, which types into a shell `exec_command` started with `tty: true`, and the
+  name falls outside the Codex gate matcher, so the gate never sees it there (the tool itself is not measured here). Rule E denies the `tty: true` start wherever the gate sees it, and adding
+  `write_stdin` to the matcher in [.codex/config.toml](../.codex/config.toml) is a wiring change that waits for the
+  sandbox run listed under Maintenance follow-ups in `AGENTS.md`. Copilot gets no shell for such an agent, as the next
+  item explains.
 - GitHub Copilot's `preToolUse` payload carries no agent identifier at all, so caller identity there resolves to
   unknown every time and none of the gate's five rules ever fires. The hook is wired and runs, but it always allows:
   that surface is entirely unenforced by the gate, not merely weaker, and the `AGENTS.md` text plus the
@@ -233,7 +272,8 @@ the same way it does under `PowerShell`.
 Beyond the plain writers, the rule reads a hard link whose source is a project file (`ln` without `-s`, `cp -l`,
 `fsutil hardlink create`, `New-Item -ItemType HardLink`, `mklink /H`), a Windows device, extended-length or loopback
 administrative-share spelling of a project path, command substitution inside double quotes and backquotes, a line
-continuation before CR LF, a PowerShell cmdlet fed its path through the pipeline, `pushd`, `popd`, `Push-Location`,
+continuation before CR LF in PowerShell and cmd (a POSIX shell joins a line only on backslash LF, and keeps a lone
+carriage return inside its word), a PowerShell cmdlet fed its path through the pipeline, `pushd`, `popd`, `Push-Location`,
 `Pop-Location`, `env --chdir`, `sudo --chdir` and `pwsh -WorkingDirectory`, parentheses that are a subshell only in a
 POSIX shell, `xcopy`, `robocopy`, `replace`, `expand`, `esentutl`, `certutil`, `bitsadmin`, `mklink`,
 `Start-Transcript`, every `Export-*` cmdlet, `Start-Process` with its redirects and argument list,
@@ -290,14 +330,29 @@ Each of the following cannot be placed either and denies on the main thread:
 
 Read-only forms of the same tools still allow: container `ps`, `images`, `inspect`, `logs`, `stats`, `network ls`,
 `volume ls`, `compose ls`, `ps`, `logs` and `config`, `schtasks /query`, `crontab -l`, `Get-ScheduledTask`, and WMI or
-CIM queries. A top-level command the lexer cannot read still allows on the main thread, while code nested inside a
+CIM queries. A top-level command the lexer cannot read still allows on the main thread, an escape past the last
+Unicode code point and substitutions or parentheses nested more than 16 deep included, while code nested inside a
 readable command that cannot be read denies.
 
-Known limits of Rule E, accepted rather than open: a listed git command still runs any program the repository's own
-configuration names, such as `diff.external`, a `textconv` driver set through `.gitattributes`, `core.fsmonitor` on
-`git status`, and the pager when the command runs on a terminal. Rule E reads the command line, not the configuration
-it runs under, so a read-only agent is only as read-only as the repository it reviews. On OpenCode and Kilo Code the
-native permission map denies every redirect, `2>/dev/null` included, which the gate itself would allow.
+Rule E is something a definition opts into, not a defence against a repository's own configuration. Known limits of
+Rule E, accepted rather than open: a listed git command still runs any program the repository's own configuration
+names, and Rule E reads the command line, not the configuration it runs under, so a read-only agent is only as
+read-only as the repository it reviews. That covers:
+
+- `diff.external`, a `textconv` driver set through `.gitattributes`, and `core.fsmonitor` on `git status`.
+- The pager when the command runs on a terminal, which is an interactive shell escape: `less` runs `!command`.
+- `--show-signature`, `log.showSignature` and the `%G?` family of format placeholders, which run `gpg.program`.
+- A `filter.<driver>.clean` or `filter.<driver>.process` program, which `git diff` and `git status` run on the
+  working tree.
+- Submodule recursion, which reads each submodule's own configuration.
+- `git status`, which rewrites `.git/index` to refresh its stat cache, so a read-only agent still writes there.
+- `gh pr view --comments` and every other gh or git output, which is text other people wrote and reaches the agent as
+  untrusted input.
+
+On OpenCode and Kilo Code the native permission map denies every redirect and `&`, so `2>/dev/null` and `2>&1` deny
+there while the gate allows them, and a brace denies even inside single quotes, as in `git log '@{u}..HEAD'`. A gh
+`-R` with a host part has no native rule either: the map cannot tell a host from a branch name, so the gate alone
+holds it.
 
 Known limits of the write rule, accepted rather than open: a write form the gate does not know passes, a top-level
 command it cannot parse allows on the main thread, MCP tools are not gated, code run by an allowlisted tool is trusted rather than read,
@@ -318,6 +373,10 @@ workspace root" ([playwright-mcp README](https://github.com/microsoft/playwright
 `screencast_start`, `evaluate_script` and `get_network_request`, each with a path parameter "to save" into
 ([tool reference](https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/tool-reference.md), fetched
 2026-09-25).
+
+The one exception is a read-only subagent. Rule E denies it every tool outside its fixed read set, so an MCP call
+that reaches the gate, as every call does through the OpenCode and Kilo Code runner, denies. On Claude Code the
+matcher never hands the gate an MCP call, and the agent's `tools` allowlist grants it none in the first place.
 
 The canonical wording of the gate itself lives in the `## Required opening move` section of `AGENTS.md`. Every adapter
 repeats it verbatim. Change one, change all of them.

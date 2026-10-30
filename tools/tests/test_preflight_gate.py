@@ -3478,8 +3478,12 @@ def test_a_command_substitution_inside_quotes_is_judged(nest, command, tool, exp
     assert verdict_in(nest, placed(nest, command), tool=tool) == expected
 
 
+# A POSIX shell joins a line only on backslash LF. Before CR LF the backslash
+# quotes the carriage return and the LF still ends the command, so the second
+# line runs on its own: here a harmless `--`, there a real checkout.
 CONTINUATION_CASES = {
-    "posix-backslash-crlf": ("git checkout \\\r\n-- tools/x.py", "Bash", "deny"),
+    "posix-backslash-crlf-quotes-the-cr": ("git checkout \\\r\n-- tools/x.py", "Bash", "allow"),
+    "posix-backslash-crlf-ends-the-command": ("echo \\\r\ngit checkout -- tools/x.py", "Bash", "deny"),
     "powershell-backtick-crlf": ("git checkout `\r\n-- tools/x.py", "PowerShell", "deny"),
     "cmd-caret-crlf": ("cmd /c \"git checkout ^\r\n-- tools/x.py\"", "Bash", "deny"),
     "posix-backslash-lf": ("git checkout \\\n-- tools/x.py", "Bash", "deny"),
@@ -3488,7 +3492,7 @@ CONTINUATION_CASES = {
 
 
 @pytest.mark.parametrize("command,tool,expected", audit_cases(CONTINUATION_CASES))
-def test_a_line_continuation_before_crlf_joins_the_line(nest, command, tool, expected):
+def test_a_line_continuation_before_crlf_is_read_the_way_each_shell_reads_it(nest, command, tool, expected):
     (nest.project / "tools").mkdir(exist_ok=True)
     (nest.project / "tools" / "x.py").write_text("x", encoding="utf-8")
 
@@ -4522,8 +4526,22 @@ def test_read_only_subagent_may_not_write_with_the_shell_in_every_format(tmp_pat
         "git show HEAD",
         "git status --short",
         "git diff 2>/dev/null",
+        "git diff 2>&1",
         "gh pr diff 12",
         "gh pr view 12 --comments",
+        "git diff HEAD~3..HEAD -- src/app.py tools/x.py",
+        "git diff --stat -U0 main...HEAD",
+        "git log -5 --format=%H --since=2.weeks",
+        "git log --format='%h %an %s' --author=a@b.c",
+        "git log --pretty=format:'%C(auto)%h [%ad] %s' --date=short",
+        "git log '@{u}..HEAD'",
+        "git show HEAD^:src/app.py",
+        "git show HEAD~1 --name-status",
+        "git status --porcelain=v1",
+        "gh pr view 12 --repo owner/name",
+        "gh pr diff 12 -R owner/name",
+        "gh pr view 12 --repo=owner/name --json title,body",
+        "git status\ngit diff --cached",
     ],
 )
 def test_read_only_subagent_may_run_every_listed_command(tmp_path, command):
@@ -4531,18 +4549,53 @@ def test_read_only_subagent_may_run_every_listed_command(tmp_path, command):
 
 
 @pytest.mark.parametrize(
+    ("command", "refused"),
+    [
+        ("git diff; rm notes.txt", ";"),
+        ("git diff && git commit -m x", "&"),
+        ("git diff $(rm -rf src)", "$"),
+        ("git log | head -5", "|"),
+        ("git diff > out.patch", ">"),
+        ("git diff 1>/dev/null", ">"),
+        ("git diff 2>/dev/nullx", ">"),
+        ("cd sub && git log", "&"),
+        ('git log --format="%h %s"', '"'),
+        ("git diff --outpu`t=src/app.py", "`"),
+        ("git diff --outp\\ut=src/app.py", "\\"),
+        ("git diff *.py", "*"),
+        ("git diff src/?.py", "?"),
+        ("git diff [ab].py", "["),
+        ("git diff {--output=src/app.py,}", "{"),
+        ("git log @{u}..HEAD", "{"),
+        ("git log <(touch made.txt)", "<"),
+        ("git diff <<EOF\n$(touch made.txt)\nEOF\n", "<"),
+        ("git log <<< x", "<"),
+        ("git diff\rtouch made.txt", "\r"),
+        ("git diff \\\r\ntouch made.txt", "\\"),
+        ("git diff # comment", "#"),
+        ("git log --author=café", "é"),
+        ("git log --format='é'", "é"),
+        ("git log --format='%h\t%s'", "\t"),
+        ("git log --format='a\nb'", "\n"),
+        ("git diff (x)", "("),
+        ("git diff !x", "!"),
+    ],
+)
+def test_read_only_subagent_is_refused_any_character_its_commands_do_not_need(tmp_path, command, refused):
+    reason = read_only_verdict(tmp_path, shell(command))
+
+    assert f"Blocked: the character {refused!r}," in reason
+
+
+@pytest.mark.parametrize(
     ("command", "blocked"),
     [
-        ("git diff; rm notes.txt", "rm notes.txt"),
-        ("git diff && git commit -m x", "git commit -m x"),
-        ("git diff $(rm -rf src)", "git diff $"),
-        ("git log | head -5", "head -5"),
-        ("git diff > out.patch", "redirect to out.patch"),
         ("git diff --output=out.patch", "git diff --output=out.patch"),
         ("git difftool", "git difftool"),
         ("gh pr merge 12", "gh pr merge 12"),
         ("GIT_EXTERNAL_DIFF=x git diff", "GIT_EXTERNAL_DIFF=x git diff"),
-        ("cd sub && git log", "cd sub"),
+        ("git status\ntouch made.txt", "touch made.txt"),
+        ("git log '$HOME'", "git log $HOME"),
     ],
 )
 def test_read_only_subagent_may_not_run_anything_outside_its_list(tmp_path, command, blocked):
@@ -4585,6 +4638,11 @@ def read_only_verdict(tmp_path, payload):
     return verdict["permissionDecisionReason"] if verdict else None
 
 
+READ_ONLY_FIXTURE_PATTERNS = ["git diff*", "git log*", "git show*", "git status*", "gh pr diff*", "gh pr view*"]
+
+
+# The character check refuses every one of these first. The segment checks
+# behind it still hold on their own, which these cases pin.
 @pytest.mark.parametrize(
     ("command", "blocked"),
     [
@@ -4594,8 +4652,8 @@ def read_only_verdict(tmp_path, payload):
         ("git log < <(touch made.txt)", "sh -c touch made.txt"),
     ],
 )
-def test_read_only_subagent_judges_a_process_substitution_as_a_child_shell(tmp_path, command, blocked):
-    assert read_only_verdict(tmp_path, shell(command)).endswith(f"Blocked: {blocked}")
+def test_behind_the_character_check_a_process_substitution_is_still_a_child_shell(command, blocked):
+    assert GATE._read_only_segments_blocked(command, False, READ_ONLY_FIXTURE_PATTERNS) == blocked
 
 
 @pytest.mark.parametrize(
@@ -4606,19 +4664,29 @@ def test_read_only_subagent_judges_a_process_substitution_as_a_child_shell(tmp_p
         "git log <<< x",
     ],
 )
-def test_read_only_subagent_may_not_feed_a_heredoc_or_here_string(tmp_path, command):
-    assert "heredoc or here-string fed to git" in read_only_verdict(tmp_path, shell(command))
+def test_behind_the_character_check_a_heredoc_or_here_string_still_denies(command):
+    blocked = GATE._read_only_segments_blocked(command, False, READ_ONLY_FIXTURE_PATTERNS)
+
+    assert "heredoc or here-string fed to git" in blocked
 
 
-@pytest.mark.parametrize(
-    "command",
-    [
-        "touch made.txt\ngit diff '",
-        "git diff --outpu`t=src/app.py",
-    ],
-)
-def test_read_only_subagent_is_denied_a_command_the_gate_cannot_lex(tmp_path, command):
-    assert read_only_verdict(tmp_path, shell(command)).endswith(f"Blocked: {GATE._UNPLACEABLE_SHELL_TARGET}")
+def test_read_only_subagent_is_denied_a_command_the_gate_cannot_lex(tmp_path):
+    reason = read_only_verdict(tmp_path, shell("touch made.txt\ngit diff '"))
+
+    assert reason.endswith(f"Blocked: {GATE._UNPLACEABLE_SHELL_TARGET}")
+
+
+@pytest.mark.parametrize("error", [RuntimeError("boom"), RecursionError(), ValueError("chr() arg not in range")])
+def test_read_only_subagent_is_denied_when_the_lexer_fails_in_any_way(tmp_path, monkeypatch, error):
+    def failing_lex(command, dialect=GATE._POSIX):
+        raise error
+
+    root = read_only_project(tmp_path)
+    monkeypatch.setattr(GATE, "_lex", failing_lex)
+
+    verdict = read_only_decision(root, shell("git diff"))
+
+    assert verdict["permissionDecisionReason"].endswith(f"Blocked: {GATE._UNPLACEABLE_SHELL_TARGET}")
 
 
 @pytest.mark.parametrize(
@@ -4636,14 +4704,69 @@ def test_read_only_subagent_may_not_reach_an_output_option_through_the_shell(tmp
     assert read_only_verdict(tmp_path, shell(command)) is not None
 
 
-@pytest.mark.parametrize("command", ["git diff -w", "git log --output-indicator-new=+", "git log @{u}..HEAD"])
+@pytest.mark.parametrize("command", ["git diff -w", "git log --output-indicator-new=+", "git log '@{u}..HEAD'"])
 def test_read_only_subagent_keeps_options_that_write_nothing(tmp_path, command):
     assert read_only_verdict(tmp_path, shell(command)) is None
 
 
-@pytest.mark.parametrize("command", ["gh pr view 12 --web", "gh pr diff 12 -w", "gh pr view 12 -cw", "gh pr view --web=true"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "gh pr view 12 --web",
+        "gh pr diff 12 -w",
+        "gh pr view 12 -cw",
+        "gh pr view --web=true",
+        "gh pr view 12 --web=",
+        "gh pr view 12 -w=true",
+        "gh pr view 12 -cw=1",
+    ],
+)
 def test_read_only_subagent_may_not_open_a_browser_with_gh(tmp_path, command):
     assert read_only_verdict(tmp_path, shell(command)).endswith(f"Blocked: {command}")
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "gh pr view 12 -R evil.example/owner/name",
+        "gh pr view 12 --repo evil.example/owner/name",
+        "gh pr view 12 --repo=evil.example/owner/name",
+        "gh pr diff 12 -Revil.example/owner/name",
+        "gh pr diff 12 -R=evil.example/owner/name",
+        "gh pr view https://evil.example/owner/name/pull/12",
+    ],
+)
+def test_read_only_subagent_may_not_point_gh_at_another_host(tmp_path, command):
+    assert read_only_verdict(tmp_path, shell(command)).endswith(f"Blocked: {command}")
+
+
+# gh compiles every --jq expression with gojq.WithEnvironLoader(os.Environ)
+# (pkg/jq/jq.go in cli/go-gh), so `env` and `$ENV` print every variable the
+# agent's shell holds, tokens included.
+@pytest.mark.parametrize(
+    ("command", "blocked"),
+    [
+        ("gh pr view 12 --json title --jq env", "gh pr view 12 --json title --jq env"),
+        ("gh pr view 12 --json title --jq=env", "gh pr view 12 --json title --jq=env"),
+        ("gh pr view 12 --json title -q '.title'", "gh pr view 12 --json title -q .title"),
+        ("gh pr view 12 --json title -q.title", "gh pr view 12 --json title -q.title"),
+        ("gh pr view 12 --json title -cq env", "gh pr view 12 --json title -cq env"),
+        ("gh pr view 12 --json title --template x", "gh pr view 12 --json title --template x"),
+        ("gh pr view 12 --json title --template=x", "gh pr view 12 --json title --template=x"),
+        ("gh pr view 12 --json title -t x", "gh pr view 12 --json title -t x"),
+        ("gh pr view 12 --json title -ct=x", "gh pr view 12 --json title -ct=x"),
+    ],
+)
+def test_read_only_subagent_may_not_run_a_gh_jq_or_template_expression(tmp_path, command, blocked):
+    assert read_only_verdict(tmp_path, shell(command)).endswith(f"Blocked: {blocked}")
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["gh pr view 12 --json title,state", "gh pr view 12 -R owner/test", "gh pr view 12 -Rtorvalds/linux", "gh pr view 12 -c"],
+)
+def test_read_only_subagent_keeps_gh_options_that_run_no_expression(tmp_path, command):
+    assert read_only_verdict(tmp_path, shell(command)) is None
 
 
 @pytest.mark.parametrize(
@@ -4651,22 +4774,244 @@ def test_read_only_subagent_may_not_open_a_browser_with_gh(tmp_path, command):
     [
         ("sh -c 'touch made.txt'", "sh -c touch made.txt"),
         ("env git diff", "env git diff"),
-        ("git diff --name-only | xargs rm", "xargs rm"),
         ("/usr/bin/git diff", "/usr/bin/git diff"),
         ("git -c core.pager=touch diff", "git -c core.pager=touch diff"),
-        ("git diff `touch made.txt`", "sh -c touch made.txt"),
-        ("git diff >&out.txt", "redirect to out.txt"),
-        ("git diff &>out.txt", "redirect to out.txt"),
     ],
 )
 def test_read_only_subagent_is_held_to_its_list_through_every_shell_form(tmp_path, command, blocked):
     assert read_only_verdict(tmp_path, shell(command)).endswith(f"Blocked: {blocked}")
 
 
+@pytest.mark.parametrize(
+    ("command", "refused"),
+    [
+        ("git diff --name-only | xargs rm", "|"),
+        ("git diff `touch made.txt`", "`"),
+        ("git diff >&out.txt", ">"),
+        ("git diff &>out.txt", "&"),
+    ],
+)
+def test_read_only_subagent_is_refused_every_pipe_substitution_and_redirect_form(tmp_path, command, refused):
+    assert f"Blocked: the character {refused!r}," in read_only_verdict(tmp_path, shell(command))
+
+
 def test_read_only_subagent_may_not_pipe_into_a_powershell_writer(tmp_path):
     reason = read_only_verdict(tmp_path, shell("git diff | Out-File x.txt", tool="PowerShell"))
 
-    assert reason.endswith("Blocked: Out-File x.txt")
+    assert "Blocked: the character '|'," in reason
+
+
+def test_read_only_subagent_may_run_a_listed_command_from_powershell(tmp_path):
+    assert read_only_verdict(tmp_path, shell("git log -5 --format='%h %s'", tool="PowerShell")) is None
+
+
+def test_read_only_subagent_may_not_splat_a_powershell_variable(tmp_path):
+    reason = read_only_verdict(tmp_path, shell("git diff @args", tool="PowerShell"))
+
+    assert reason.endswith("Blocked: git diff @args")
+    assert read_only_verdict(tmp_path, shell("git log @~1..HEAD")) is None
+
+
+def test_read_only_subagent_may_not_start_a_shell_on_a_terminal(tmp_path):
+    payload = {"tool_name": "Bash", "tool_input": {"command": "git diff", "tty": True}}
+
+    assert "(tty)" in read_only_verdict(tmp_path, payload)
+
+
+def test_read_only_subagent_has_every_command_key_judged(tmp_path):
+    payload = {"tool_name": "Bash", "tool_input": {"command": "git diff", "script": "touch made.txt"}}
+
+    assert read_only_verdict(tmp_path, payload).endswith("Blocked: touch made.txt")
+
+
+def test_read_only_subagent_may_not_call_a_shell_with_no_command_the_gate_can_read(tmp_path):
+    payload = {"tool_name": "Bash", "tool_input": {"argv": ["touch", "made.txt"]}}
+
+    assert read_only_verdict(tmp_path, payload).endswith(f"Blocked: {GATE._UNPLACEABLE_SHELL_TARGET}")
+
+
+@pytest.mark.parametrize(
+    ("tool", "tool_input"),
+    [
+        ("WebFetch", {"url": "https://example.com", "prompt": "x"}),
+        ("WebSearch", {"query": "x"}),
+        ("mcp__playwright__browser_take_screenshot", {"filename": "src/shot.png"}),
+        ("context7_query-docs", {"libraryId": "/x/y"}),
+        ("todowrite", {"todos": []}),
+        ("NotebookEdit", {"notebook_path": "x.ipynb"}),
+        ("write_stdin", {"session_id": 1, "chars": "touch made.txt\n"}),
+    ],
+)
+def test_read_only_subagent_may_call_no_tool_outside_its_fixed_set(tmp_path, tool, tool_input):
+    reason = read_only_verdict(tmp_path, {"tool_name": tool, "tool_input": tool_input})
+
+    assert reason.endswith(f"Blocked: the {tool.lower()} tool")
+
+
+@pytest.mark.parametrize(
+    ("tool", "tool_input"),
+    [
+        ("Grep", {"pattern": "x"}),
+        ("Glob", {"pattern": "*.py"}),
+        ("list", {"path": "."}),
+        ("skill", {"name": "code-reviewer"}),
+        ("view", {"path": "src/app.py"}),
+    ],
+)
+def test_read_only_subagent_keeps_every_read_tool(tmp_path, tool, tool_input):
+    assert read_only_verdict(tmp_path, {"tool_name": tool, "tool_input": tool_input}) is None
+
+
+def test_main_thread_has_every_command_key_judged():
+    payload = {"tool_name": "Bash", "tool_input": {"command": "git status", "cmd": "rm -rf src"}}
+
+    assert decision(payload) == "deny"
+
+
+def test_an_unreadable_read_only_definition_holds_the_agent_to_no_command(tmp_path, monkeypatch):
+    root = read_only_project(tmp_path)
+    original = Path.read_text
+
+    def unreadable(self, *args, **kwargs):
+        if self.name == f"{READ_ONLY_REVIEWER['name']}.md":
+            raise PermissionError(13, "Permission denied", str(self))
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", unreadable)
+
+    assert read_only_decision(root, shell("git diff"))["permissionDecisionReason"].endswith("Blocked: git diff")
+    assert read_only_decision(root, {"tool_name": "Read", "tool_input": {"file_path": "src/app.py"}}) is None
+
+
+# H2: every definition a name resolves to counts for Rule E, and the calling
+# format's own tree decides Rule B.
+
+
+def test_a_read_only_copy_in_another_tree_still_holds_the_agent(tmp_path):
+    import gen_subagents
+
+    root = project_with_agent(tmp_path, READ_ONLY_REVIEWER["name"], WITH_SKILLS)
+    opencode = root / ".agents" / "agents"
+    opencode.mkdir(parents=True)
+    (opencode / f"{READ_ONLY_REVIEWER['name']}.md").write_text(
+        gen_subagents.render("agents", READ_ONLY_REVIEWER, "You review.\n"), encoding="utf-8"
+    )
+
+    assert read_only_decision(root, shell("touch made.txt"))["permissionDecisionReason"].endswith("Blocked: touch made.txt")
+    assert read_only_decision(root, shell("git diff")) is None
+
+
+def test_the_plain_format_judges_rule_b_by_its_own_tree_first(tmp_path):
+    root = project_with_agent(tmp_path, "drifter", WITH_SKILLS)
+    project_with_agent(root, "drifter", WITHOUT_SKILLS, agent_dir=".agents/agents")
+    envelope = {"is_subagent": True, "agent_type": "drifter", "tool_name": "edit", "cwd": str(root)}
+
+    code, out, err = run({**envelope, "tool_input": {"filePath": "src/app.py"}}, "plain", cwd=root)
+
+    assert (code, out) == (2, "")
+    assert "declares no skills" in err
+
+
+def test_the_codex_format_judges_rule_b_by_its_own_tree_first(tmp_path):
+    root = project_with_agent(tmp_path, "drifter", WITH_SKILLS)
+    project_with_agent(root, "drifter", CODEX_WITHOUT_SKILLS, agent_dir=".codex/agents")
+    payload = {**edit("src/app.py", agent_id="sub-1", agent_type="drifter"), "cwd": str(root)}
+
+    code, out, _ = run(payload, "codex", cwd=root)
+
+    assert "declares no skills" in json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"]
+
+
+# Plugin-scoped names: Claude Code calls a plugin's subagent
+# `<plugin>:<name>` and keeps it in its plugin cache.
+
+
+def install_plugin_agent(config_directory, text, plugin="review-and-security", name="fixture-reviewer"):
+    """One agent file at the plugin cache layout Claude Code 2.1.314 writes."""
+    agents = config_directory / "plugins" / "cache" / "lab-marketplace" / plugin / "1.2.3" / "agents"
+    agents.mkdir(parents=True, exist_ok=True)
+    (agents / f"{name}.md").write_text(text, encoding="utf-8")
+
+
+def plugin_decision(root, payload, agent_type="review-and-security:fixture-reviewer", env=None):
+    code, out, err = run({**payload, "agent_id": "sub-1", "agent_type": agent_type, "cwd": str(root)}, "claude", cwd=root, env=env)
+
+    assert (code, err) == (0, "")
+
+    return json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"] if out else None
+
+
+def test_a_plugin_scoped_read_only_agent_is_held_to_its_list(tmp_path, isolated_home_directory):
+    import gen_subagents
+
+    install_plugin_agent(isolated_home_directory / ".claude", gen_subagents.render("claude", READ_ONLY_REVIEWER, "You review.\n"))
+    project = tmp_path / "project"
+    project.mkdir()
+
+    assert plugin_decision(project, shell("touch made.txt")).endswith("Blocked: touch made.txt")
+    assert plugin_decision(project, shell("git diff")) is None
+
+
+def test_a_plugin_scoped_agent_with_no_skills_is_denied(tmp_path, isolated_home_directory):
+    install_plugin_agent(isolated_home_directory / ".claude", WITHOUT_SKILLS.format(name="fixture-reviewer"))
+    project = tmp_path / "project"
+    project.mkdir()
+
+    assert "declares no skills" in plugin_decision(project, edit(str(tmp_path / "elsewhere.py")))
+
+
+def test_a_plugin_cache_under_claude_config_dir_is_read(tmp_path):
+    import gen_subagents
+
+    config = tmp_path / "config"
+    install_plugin_agent(config, gen_subagents.render("claude", READ_ONLY_REVIEWER, "You review.\n"))
+    project = tmp_path / "project"
+    project.mkdir()
+
+    reason = plugin_decision(project, shell("touch made.txt"), env={"CLAUDE_CONFIG_DIR": str(config)})
+
+    assert reason.endswith("Blocked: touch made.txt")
+
+
+@pytest.mark.parametrize(
+    "agent_type",
+    [
+        "..:fixture-reviewer",
+        "review-and-security:..",
+        "a/b:fixture-reviewer",
+        "review-and-security:x/y",
+        "a:b:c",
+        ":x",
+        "x:",
+    ],
+)
+def test_a_traversing_plugin_scoped_name_reads_no_definition(tmp_path, isolated_home_directory, agent_type):
+    install_plugin_agent(isolated_home_directory / ".claude", WITHOUT_SKILLS.format(name="fixture-reviewer"))
+
+    assert GATE._agent_definitions(agent_type, "claude") == []
+
+
+def test_a_dot_plugin_name_reads_nothing_outside_the_version_layout(tmp_path, isolated_home_directory):
+    # Given a file one level above the version folder, where a plugin named `.` would land
+    agents = isolated_home_directory / ".claude" / "plugins" / "cache" / "lab-marketplace" / "stray" / "agents"
+    agents.mkdir(parents=True)
+    (agents / "fixture-reviewer.md").write_text(WITHOUT_SKILLS.format(name="fixture-reviewer"), encoding="utf-8")
+
+    # When / Then
+    assert GATE._agent_definitions(".:fixture-reviewer", "claude") == []
+
+
+def test_a_claude_config_dir_naming_an_unknown_user_still_holds_a_read_only_agent(tmp_path):
+    # Given a read-only project agent and a CLAUDE_CONFIG_DIR whose ~user cannot be expanded
+    root = read_only_project(tmp_path)
+    payload = {**shell("touch made.txt"), "agent_id": "sub-1", "agent_type": "lab:fixture-reviewer", "cwd": str(root)}
+
+    # When
+    code, out, err = run(payload, "claude", cwd=root, env={"CLAUDE_CONFIG_DIR": "~no-such-user-zz9/config"})
+
+    # Then
+    assert (code, err) == (0, "")
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"].endswith("Blocked: touch made.txt")
 
 
 def test_read_only_subagent_may_not_send_a_command_that_is_not_a_string(tmp_path):
@@ -4782,6 +5127,79 @@ def test_main_thread_unquoted_heredoc_body_runs_its_substitutions():
 @pytest.mark.parametrize("delimiter", ["'EOF'", '"EOF"', "\\EOF"])
 def test_main_thread_quoted_heredoc_body_stays_text(delimiter):
     assert decision(shell(f"cat <<{delimiter}\n$(touch src/app.py)\nEOF\n")) == "allow"
+
+
+# The shared lexer raises its own parse error, never a crash, on input past
+# what it reads. Rule A keeps allowing a top-level parse error, as documented.
+
+
+@pytest.mark.parametrize(
+    ("command", "dialect"),
+    [
+        ("echo $'\\U00110000'", "posix"),
+        ("echo $'\\UFFFFFFFF'", "posix"),
+        ('Write-Output "`u{110000}"', "powershell"),
+    ],
+)
+def test_an_escape_past_the_last_code_point_is_a_parse_error(command, dialect):
+    with pytest.raises(GATE._ShellParseError):
+        GATE._lex(command, dialect)
+
+
+@pytest.mark.parametrize("dialect", ["posix", "powershell"])
+def test_substitutions_nested_past_the_limit_are_a_parse_error(dialect):
+    command = "echo " + '"$(' * 2000
+
+    with pytest.raises(GATE._ShellParseError):
+        GATE._lex(command, dialect)
+
+
+def test_parentheses_nested_past_the_limit_are_a_parse_error():
+    with pytest.raises(GATE._ShellParseError):
+        GATE._lex('echo "$(' + "(" * 40 + ")" * 41 + '"')
+
+
+def test_substitutions_within_the_limit_still_lex():
+    segments = GATE._lex('echo "$(echo "$(echo "$(git status)")")"')
+
+    assert segments[-1].argv[0] == "echo"
+
+
+@pytest.mark.parametrize("command", ["echo $'\\U00110000'", "echo " + '"$(' * 2000])
+def test_main_thread_still_allows_a_top_level_command_it_cannot_lex(command):
+    assert decision(shell(command)) == "allow"
+
+
+def test_a_posix_carriage_return_stays_inside_its_word():
+    segments = GATE._lex("git diff\rtouch made.txt")
+
+    assert [segment.argv for segment in segments] == [("git", "diff\rtouch", "made.txt")]
+
+
+def test_a_powershell_carriage_return_still_ends_a_statement():
+    segments = GATE._lex("git diff\rtouch made.txt", GATE._POWERSHELL)
+
+    assert [segment.argv for segment in segments if segment.argv] == [("git", "diff"), ("touch", "made.txt")]
+
+
+@pytest.mark.parametrize(
+    ("target", "powershell", "expected"),
+    [
+        ("/dev/null", False, True),
+        ("/DEV/NULL", False, False),
+        (" /dev/null", False, False),
+        ("/dev/null ", False, False),
+        ("/DEV/NULL", True, True),
+        (" $NULL ", True, True),
+        ("nul", False, False),
+    ],
+)
+def test_only_the_exact_posix_null_device_is_the_device_outside_powershell(target, powershell, expected):
+    assert GATE._is_null_device(target, powershell) is expected
+
+
+def test_main_thread_redirect_to_a_spaced_null_device_name_is_a_repository_write():
+    assert decision(shell("echo x > ' /dev/null'")) == "deny"
 
 
 def test_the_gate_and_the_generator_share_the_read_only_heading():

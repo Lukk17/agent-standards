@@ -30,13 +30,19 @@ D. The main thread may not run a script or a module, because the gate cannot
    Inline code (python -c, node -e) is not a script run: the inline-code
    reader below judges it under Rule A instead.
 E. A subagent whose own definition carries a READ_ONLY_HEADING section may
-   not edit a file or spawn another agent, and may run only the shell
-   commands that section lists. Every command in a pipe, chain, substitution
-   or process substitution has to match a listed pattern, a redirect may only
-   reach the null device, no command may read a heredoc or here-string, and
-   no word may hold a `$`, a backslash, a brace expansion or a git output
-   option. A command the lexer cannot read denies here, the one rule where a
-   parse failure does. The generator writes that section from the canonical
+   call only the read tools in READ_ONLY_READ_TOOLS and a shell not started
+   on a terminal, and that shell may run only the commands the section
+   lists. A command is first held to READ_ONLY_BARE_CHARACTERS outside single
+   quotes and printable ASCII inside them, with `2>/dev/null` and `2>&1` the
+   only redirects, so no quote, escape, expansion, separator or pipe reaches
+   the lexer. Every resulting command has to match a listed pattern, no word
+   may hold a `$`, a backslash, a brace expansion or a git output option, gh
+   may not open a browser, name another host or run a --jq or --template
+   expression, and any exception while
+   lexing or matching denies, the one rule where a parse failure does. The
+   rule applies when any definition the name resolves to is read-only, a
+   plugin's installed copy included, and an unreadable one counts as
+   read-only. The generator writes that section from the canonical
    `readonly: true` marker into every format, so one rule covers them all.
 
 Rules A, C and D deny only once the caller is positively identified as the
@@ -201,6 +207,24 @@ GLOBAL_AGENT_TREES = (
     AgentTree(".config/copilot/agents", ".agent.md"),
 )
 
+# The trees each --format reads its own definitions from, looked at before
+# every other tree, so Rule B judges the file the calling agent actually runs.
+FORMAT_AGENT_TREES = {
+    "claude": (".claude/agents",),
+    "codex": (".codex/agents", ".config/codex/agents"),
+    "copilot": (".github/agents", ".config/copilot/agents"),
+    "plain": (".agents/agents", ".opencode/agents", ".kilo/agents", ".config/agents/agents"),
+}
+
+# Claude Code names a plugin's subagent `<plugin>:<name>` and installs the
+# plugin under its configuration directory, CLAUDE_CONFIG_DIR or ~/.claude, at
+# plugins/cache/<marketplace>/<plugin>/<version>/agents/<name>.md (measured
+# on Claude Code 2.1.314 with a fake HOME and with CLAUDE_CONFIG_DIR set).
+CLAUDE_CONFIG_ENVIRONMENT = "CLAUDE_CONFIG_DIR"
+CLAUDE_HOME_DIRECTORY = ".claude"
+CLAUDE_PLUGIN_CACHE = ("plugins", "cache")
+PLUGIN_AGENT_SEPARATOR = ":"
+
 FRONT_MATTER_SKILLS_RE = re.compile(r"^skills:[ \t]*(.*)$")
 SKILLS_HEADING_RE = re.compile(r"^#{1,6}[ \t]+.*\bskills\b", re.IGNORECASE)
 LIST_ITEM_RE = re.compile(r"^[ \t]*[-*][ \t]+\S")
@@ -218,8 +242,8 @@ RULE_B_REASON = (
 )
 
 RULE_E_REASON = (
-    "PREFLIGHT: subagent '{agent}' is read-only. It may not edit files, and it may run "
-    "only the shell commands its definition lists under '{heading}': {allowed}. "
+    "PREFLIGHT: subagent '{agent}' is read-only. It may only read, search and list files, "
+    "and run the shell commands its definition lists under '{heading}': {allowed}. "
     "Return anything else to the caller as a proposed command. Blocked: {blocked}"
 )
 
@@ -238,8 +262,54 @@ READ_ONLY_BRACE_RE = re.compile(r"\{[^{}]*(?:,|\.\.)[^{}]*\}")
 # The tools that start another agent. A read-only agent may not hand its work
 # to one that can write.
 READ_ONLY_SPAWN_TOOLS = frozenset({"task", "agent"})
-# gh opens a browser with --web or its short form -w, alone or in a cluster.
-READ_ONLY_GH_WEB_RE = re.compile(r"^(?:--web(?:=.*)?|-[A-Za-z]*w[A-Za-z]*)$")
+# gh opens a browser with --web or its short form -w, alone, in a cluster, or
+# handed a value, as pflag reads `-w=true` and `-cw=1` too.
+READ_ONLY_GH_WEB_RE = re.compile(r"^(?:--web(?:=.*)?|-[A-Za-z]*w(?:[A-Za-z]*|=.*))$")
+# gh's -R and --repo take [HOST/]OWNER/REPO, and a host part, like a URL
+# argument, sends the request to a server the caller names
+# (https://cli.github.com/manual/gh_pr_view).
+READ_ONLY_GH_REPO_SHORT_RE = re.compile(r"^-[A-Za-z]*R(?P<value>.*)$")
+# gh runs a caller's expression with --jq or -q, and --template or -t, alone,
+# in a cluster, or handed a value. go-gh compiles a jq expression with
+# gojq.WithEnvironLoader(os.Environ) (pkg/jq/jq.go at go-gh v2.13.0, which gh
+# 2.89.0 pins), so `env` and `$ENV` print the whole environment. A template
+# has no environment function, and is denied with it so that neither flag
+# carries code. A cluster stops at -R, whose value follows it, so
+# `-Rowner/test` stays a repository.
+READ_ONLY_GH_EXPRESSION_RE = re.compile(r"^(?:--(?:jq|template)(?:=.*)?|-[A-QS-Za-z]*[qt].*)$")
+# Rule E reads a command only once every character in it is one a listed
+# read-only command needs, so no quote, escape, expansion, glob, brace,
+# separator, redirect or non-ASCII character reaches the lexer at all. Outside
+# single quotes that is a word character, a blank, a newline between commands,
+# and the two literal stream redirects below. Inside a single-quoted span,
+# which the shell never expands, any printable ASCII character but the quote
+# is accepted, for a format string such as --format='%h %s'.
+READ_ONLY_BARE_CHARACTERS = frozenset(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 \t._/:=,@^~%+-\n"
+)
+READ_ONLY_QUOTED_CHARACTERS = frozenset(chr(code) for code in range(0x20, 0x7F)) - {"'"}
+READ_ONLY_STREAM_REDIRECTS = ("2>/dev/null", "2>&1")
+READ_ONLY_BLANKS = " \t\n"
+# The only tools a read-only subagent may call besides its shell: reading,
+# searching and listing files, and loading a skill's own text, under each
+# agent's name for them. Everything else denies, an MCP tool included.
+READ_ONLY_READ_TOOLS = frozenset(
+    {
+        "read",
+        "grep",
+        "glob",
+        "list",
+        "ls",
+        "view",
+        "search",
+        "glob_files",
+        "list_files",
+        "read_file",
+        "list_dir",
+        "grep_files",
+        "skill",
+    }
+)
 
 RULE_C_REASON = (
     "PREFLIGHT: the main thread may not run web research directly. Spawn a "
@@ -815,7 +885,7 @@ _MAX_SCRIPT_BYTES = 1 << 20
 # reaches a command line, so it cannot collide with real output.
 _UNKNOWN_INPUT = "\0"
 _UNPLACEABLE_SHELL_TARGET = "shell code (a command the gate cannot read)"
-# What _shell_command returns for a command value that is not a string. No
+# What _shell_commands holds for a command value that is not a string. No
 # real command line holds a NUL, so it cannot collide with one.
 _UNREADABLE_COMMAND = "\0"
 _UNPLACEABLE_ARGUMENT = "xargs input (arguments the gate cannot read)"
@@ -922,16 +992,41 @@ _ANSI_C_ESCAPES = {
 }
 
 
-def _line_continuation(text: str, index: int) -> int:
-    """How many characters an escaped line break at index spans, LF or CR LF, or 0."""
-    if text.startswith("\r\n", index):
+# How deep a substitution may nest inside quotes, and parentheses inside one,
+# before the lexer gives up. The readers recurse through each other, so an
+# unbounded `$("$("...` would exhaust the interpreter's stack instead of
+# raising the parse error every caller expects.
+_MAX_LEXER_NESTING = 16
+
+
+def _line_continuation(text: str, index: int, crlf: bool = True) -> int:
+    """How many characters an escaped line break at index spans, or 0.
+
+    PowerShell joins a line ending in LF or CR LF. A POSIX shell joins only
+    LF: before CR LF the escape quotes the carriage return, which stays in the
+    word, and the LF still ends the command.
+    """
+    if crlf and text.startswith("\r\n", index):
         return 2
 
     return 1 if index < len(text) and text[index] == "\n" else 0
 
 
-def _read_balanced(text: str, index: int, dialect: str) -> Tuple[str, int]:
+def _code_point(digits: str) -> str:
+    """The character a hexadecimal escape names, or a parse error past the last code point."""
+    value = int(digits, 16)
+
+    if value > sys.maxunicode:
+        raise _ShellParseError("escape beyond the last Unicode code point")
+
+    return chr(value)
+
+
+def _read_balanced(text: str, index: int, dialect: str, level: int = 0) -> Tuple[str, int]:
     """The code of a `$(...)` whose opening parenthesis sits at index, and where it ends."""
+    if level > _MAX_LEXER_NESTING:
+        raise _ShellParseError("substitutions nested too deep")
+
     depth = 0
     position = index
 
@@ -956,7 +1051,7 @@ def _read_balanced(text: str, index: int, dialect: str) -> Tuple[str, int]:
 
         if char == '"' or dialect == _POWERSHELL and char in _PS_DOUBLE_QUOTES:
             reader = _read_ps_double_quoted if dialect == _POWERSHELL else _read_double_quoted
-            _, position = reader(text, position)
+            _, position = reader(text, position, None, level + 1)
             continue
 
         if dialect == _POSIX and char == "`":
@@ -965,6 +1060,9 @@ def _read_balanced(text: str, index: int, dialect: str) -> Tuple[str, int]:
 
         if char == "(":
             depth += 1
+
+            if depth > _MAX_LEXER_NESTING:
+                raise _ShellParseError("parentheses nested too deep")
         elif char == ")":
             depth -= 1
 
@@ -998,7 +1096,9 @@ def _read_backticks(text: str, index: int) -> Tuple[str, int]:
     raise _ShellParseError("unterminated backquote")
 
 
-def _read_double_quoted(text: str, index: int, found: Optional[_Substitutions] = None) -> Tuple[str, int]:
+def _read_double_quoted(
+    text: str, index: int, found: Optional[_Substitutions] = None, level: int = 0
+) -> Tuple[str, int]:
     """A POSIX double-quoted string, with every `$(...)` and backquote in it recorded in found."""
     index += 1
     out: List[str] = []
@@ -1010,7 +1110,7 @@ def _read_double_quoted(text: str, index: int, found: Optional[_Substitutions] =
             return "".join(out), index + 1
 
         if char == "\\" and index + 1 < len(text):
-            joined = _line_continuation(text, index + 1)
+            joined = _line_continuation(text, index + 1, crlf=False)
 
             if joined:
                 index += 1 + joined
@@ -1022,7 +1122,7 @@ def _read_double_quoted(text: str, index: int, found: Optional[_Substitutions] =
                 continue
 
         if char == "$" and text.startswith("$(", index):
-            code, index = _read_balanced(text, index + 1, _POSIX)
+            code, index = _read_balanced(text, index + 1, _POSIX, level + 1)
 
             out.append(_SUBEXPRESSION)
 
@@ -1068,7 +1168,7 @@ def _read_ansi_c_quoted(text: str, index: int) -> Tuple[str, int]:
         elif follower in "xuU":
             size = {"x": 2, "u": 4, "U": 8}[follower]
             digits = re.match(r"[0-9A-Fa-f]{1,%d}" % size, text[index:])
-            out.append(chr(int(digits.group(0), 16)) if digits else "\\" + follower)
+            out.append(_code_point(digits.group(0)) if digits else "\\" + follower)
             index += len(digits.group(0)) if digits else 0
         elif follower in "01234567":
             digits = re.match(r"[0-7]{0,2}", text[index:])
@@ -1104,8 +1204,13 @@ def _read_ps_single_quoted(text: str, index: int) -> Tuple[str, int]:
     raise _ShellParseError("unterminated single quote")
 
 
-def _read_ps_double_quoted(text: str, index: int, found: Optional[_Substitutions] = None) -> Tuple[str, int]:
+def _read_ps_double_quoted(
+    text: str, index: int, found: Optional[_Substitutions] = None, level: int = 0
+) -> Tuple[str, int]:
     """A PowerShell expandable string: a backtick escapes, a backslash does not, `$(...)` runs."""
+    if level > _MAX_LEXER_NESTING:
+        raise _ShellParseError("substitutions nested too deep")
+
     index += 1
     out: List[str] = []
 
@@ -1123,7 +1228,7 @@ def _read_ps_double_quoted(text: str, index: int, found: Optional[_Substitutions
             unicode = re.match(r"u\{([0-9A-Fa-f]{1,6})\}", text[index + 1 :])
 
             if unicode:
-                out.append(chr(int(unicode.group(1), 16)))
+                out.append(_code_point(unicode.group(1)))
                 index += 1 + len(unicode.group(0))
                 continue
 
@@ -1139,7 +1244,7 @@ def _read_ps_double_quoted(text: str, index: int, found: Optional[_Substitutions
             return "".join(out), index + 1
 
         if char == "$" and text.startswith("$(", index):
-            code, index = _read_balanced(text, index + 1, _POWERSHELL)
+            code, index = _read_balanced(text, index + 1, _POWERSHELL, level + 1)
             out.append(_SUBEXPRESSION)
 
             if found is not None:
@@ -1555,7 +1660,7 @@ def _lex(command: str, dialect: str = _POSIX) -> List[ShellSegment]:
 
         if char == escape:
             follower = command[index + 1] if index + 1 < length else ""
-            joined = _line_continuation(command, index + 1)
+            joined = _line_continuation(command, index + 1, crlf=not posix)
 
             if joined:
                 index += 1 + joined
@@ -1575,8 +1680,18 @@ def _lex(command: str, dialect: str = _POSIX) -> List[ShellSegment]:
             index += 1
             continue
 
-        # A CR LF is one line break, and a lone CR is a line break of its own,
-        # the way PowerShell reads it.
+        # A POSIX shell reads a lone carriage return as part of the word it
+        # sits in, so `git diff\rx` stays one command there. Before a LF it is
+        # still dropped with the line break, which places `rm -rf ..` written
+        # with CR LF line ends as the parent PowerShell would remove, should a
+        # shell tool named Bash run PowerShell, as Codex's does on Windows.
+        if posix and char == "\r" and not command.startswith("\r\n", index):
+            add(char, False)
+            index += 1
+            continue
+
+        # A CR LF is one line break, and elsewhere a lone CR is a line break of
+        # its own, the way PowerShell reads it.
         if char == "\r" and command.startswith("\r\n", index):
             index += 1
             continue
@@ -6612,12 +6727,21 @@ def _shell_targets(command: str, dialect: str = _POSIX) -> List[str]:
 
 
 def _is_null_device(target: str, powershell: bool = False) -> bool:
-    normalized = target.strip().lower()
+    """True for the null device as the shell would name it.
 
-    if normalized == _POSIX_NULL_DEVICE:
+    A POSIX file system keeps case and blanks, so only the exact spelling is
+    the device there, and `/DEV/NULL` or ` /dev/null` is an ordinary file.
+    PowerShell's Windows spellings are read without case or blanks.
+    """
+    if target == _POSIX_NULL_DEVICE:
         return True
 
-    return powershell and normalized in _WINDOWS_NULL_DEVICE_TOKENS
+    if not powershell:
+        return False
+
+    normalized = target.strip().lower()
+
+    return normalized == _POSIX_NULL_DEVICE or normalized in _WINDOWS_NULL_DEVICE_TOKENS
 
 
 # PowerShell drives and providers that hold no files: environment variables,
@@ -7009,30 +7133,112 @@ def _roots() -> List[Path]:
     return roots
 
 
-def _read_agent_definition(agent_type: str) -> Optional[str]:
-    """The definition text for one subagent name, or None when there is none.
+def _is_safe_agent_name(name: str) -> bool:
+    """True for a name that stays one file name inside the folder it is joined to, never `.` itself."""
+    return name not in ("", ".") and not any(part in name for part in ("/", "\\", "..", "\0", PLUGIN_AGENT_SEPARATOR))
 
-    Rule B looks in every project root and in the install root as well. The
-    install root is not a project boundary, so Rule A drops it, but it is
-    where a user-level install keeps its agent trees, and Rule B has to find
-    them there.
+
+def _ordered_trees(fmt: str) -> Tuple[AgentTree, ...]:
+    """Every agent tree, the calling format's own trees first."""
+    preferred = FORMAT_AGENT_TREES.get(fmt, ())
+    trees = AGENT_TREES + GLOBAL_AGENT_TREES
+
+    return tuple(tree for tree in trees if tree.directory in preferred) + tuple(
+        tree for tree in trees if tree.directory not in preferred
+    )
+
+
+def _claude_config_directories() -> List[Path]:
+    """Where Claude Code keeps its configuration: CLAUDE_CONFIG_DIR when set, and ~/.claude."""
+    directories: List[Path] = []
+    configured = os.environ.get(CLAUDE_CONFIG_ENVIRONMENT, "").strip()
+
+    # An unknown ~user raises RuntimeError, which would reach main() and allow
+    # the call, so the setting is skipped and the other trees still decide.
+    try:
+        if configured:
+            directories.append(Path(configured).expanduser())
+    except (OSError, RuntimeError, KeyError):
+        pass
+
+    try:
+        directories.append(Path.home() / CLAUDE_HOME_DIRECTORY)
+    except (OSError, RuntimeError, KeyError):
+        pass
+
+    return directories
+
+
+def _modified_at(path: Path) -> float:
+    try:
+        return path.stat().st_mtime
+    except (OSError, ValueError):
+        return 0.0
+
+
+def _plugin_agent_paths(plugin: str, name: str) -> List[Path]:
+    """Every installed copy of one plugin's agent file, newest install first per marketplace."""
+    paths: List[Path] = []
+
+    for directory in _claude_config_directories():
+        cache = directory.joinpath(*CLAUDE_PLUGIN_CACHE)
+
+        try:
+            marketplaces = sorted(cache.iterdir())
+        except (OSError, ValueError):
+            continue
+
+        for marketplace in marketplaces:
+            try:
+                versions = sorted((marketplace / plugin).iterdir(), key=_modified_at, reverse=True)
+            except (OSError, ValueError):
+                continue
+
+            paths.extend(version / "agents" / (name + ".md") for version in versions)
+
+    return paths
+
+
+def _agent_definitions(agent_type: str, fmt: str) -> List[Optional[str]]:
+    """The text of every definition a subagent name can resolve to, the deciding one first.
+
+    The calling format's own trees come first, so Rule B judges the file that
+    agent runs, and Rule E is applied when any candidate is read-only. A
+    plugin-scoped Claude Code name, `<plugin>:<name>`, also reads the plugin's
+    installed copies ahead of the trees, and each part has to be one plain
+    file name. Every project root is read, and the install root as well: Rule
+    A drops it as a project boundary, but a user-level install keeps its agent
+    trees there. A candidate that exists but cannot be read is None, which
+    Rule E treats as read-only with no command allowed.
     """
-    if not agent_type or "/" in agent_type or "\\" in agent_type or ".." in agent_type:
-        return None
+    plugin, separator, name = agent_type.rpartition(PLUGIN_AGENT_SEPARATOR)
 
+    if not _is_safe_agent_name(name) or separator and not _is_safe_agent_name(plugin):
+        return []
+
+    paths = _plugin_agent_paths(plugin, name) if separator else []
     roots = _roots()
     install = _install_root()
 
     if install is not None and install not in roots:
         roots.append(install)
 
-    for root in roots:
-        for tree in AGENT_TREES + GLOBAL_AGENT_TREES:
-            path = root / tree.directory / (agent_type + tree.extension)
-            if path.is_file():
-                return path.read_text(encoding="utf-8", errors="replace")
+    paths += [root / tree.directory / (name + tree.extension) for tree in _ordered_trees(fmt) for root in roots]
+    definitions: List[Optional[str]] = []
 
-    return None
+    for path in dict.fromkeys(paths):
+        try:
+            if not path.is_file():
+                continue
+        except (OSError, ValueError):
+            continue
+
+        try:
+            definitions.append(path.read_text(encoding="utf-8", errors="replace"))
+        except (OSError, ValueError):
+            definitions.append(None)
+
+    return definitions
 
 
 def _front_matter_end(lines: List[str]) -> int:
@@ -7171,34 +7377,160 @@ def _opens_a_browser(argv: Tuple[str, ...]) -> bool:
     return argv[:1] == ("gh",) and any(READ_ONLY_GH_WEB_RE.match(word) for word in argv[1:])
 
 
+def _runs_gh_expression(argv: Tuple[str, ...]) -> bool:
+    """True for a gh command handed a jq or template expression, which can print the environment."""
+    return argv[:1] == ("gh",) and any(READ_ONLY_GH_EXPRESSION_RE.match(word) for word in argv[1:])
+
+
+def _gh_repository_values(argv: Tuple[str, ...]) -> List[str]:
+    """Every value a gh command hands -R or --repo, in each spelling pflag reads."""
+    values: List[str] = []
+
+    for index, word in enumerate(argv[1:], start=1):
+        following = argv[index + 1] if index + 1 < len(argv) else ""
+        short = READ_ONLY_GH_REPO_SHORT_RE.match(word)
+
+        if word == "--repo":
+            values.append(following)
+        elif word.startswith("--repo="):
+            values.append(word[len("--repo=") :])
+        elif short and not word.startswith("--"):
+            values.append(short.group("value").lstrip("=") or following)
+
+    return values
+
+
+def _names_another_host(argv: Tuple[str, ...]) -> bool:
+    """True for a gh command aimed at a server the caller names, by URL or by a HOST/ in -R."""
+    if argv[:1] != ("gh",):
+        return False
+
+    return any("://" in word for word in argv[1:]) or any(
+        value.count("/") >= 2 for value in _gh_repository_values(argv)
+    )
+
+
+def _stands_alone(command: str, start: int, end: int) -> bool:
+    """True when command[start:end] is a whole word, a blank or an edge on each side."""
+    before = command[start - 1] if start else " "
+    after = command[end] if end < len(command) else " "
+
+    return before in READ_ONLY_BLANKS and after in READ_ONLY_BLANKS
+
+
+def _refused_character(command: str) -> Optional[str]:
+    """The first character Rule E refuses before lexing a command, or None when it accepts them all.
+
+    An unterminated single quote is left to the lexer, which denies it too.
+    """
+    index = 0
+    quoted = False
+
+    while index < len(command):
+        char = command[index]
+
+        if quoted:
+            if char == "'":
+                quoted = False
+            elif char not in READ_ONLY_QUOTED_CHARACTERS:
+                return char
+            index += 1
+            continue
+
+        if char == "'":
+            quoted = True
+            index += 1
+            continue
+
+        redirect = next(
+            (
+                literal
+                for literal in READ_ONLY_STREAM_REDIRECTS
+                if command.startswith(literal, index) and _stands_alone(command, index, index + len(literal))
+            ),
+            None,
+        )
+
+        if redirect:
+            index += len(redirect)
+            continue
+
+        if char not in READ_ONLY_BARE_CHARACTERS:
+            return char
+
+        index += 1
+
+    return None
+
+
 def _read_only_blocked(tool: str, tool_input: Dict[str, Any], patterns: List[str]) -> Optional[str]:
-    """What a read-only subagent's call would do outside its allowlist, or None to allow."""
-    if tool in EDIT_TOOLS or tool in APPLY_PATCH_TOOLS or tool in READ_ONLY_SPAWN_TOOLS:
-        return f"the {tool} tool"
+    """What a read-only subagent's call would do outside its allowlist, or None to allow.
 
-    command = _shell_command(tool_input)
+    Only the read tools in READ_ONLY_READ_TOOLS and the shell pass. Every
+    other tool denies, an edit, an agent spawn, a web fetch and an MCP tool
+    alike, and a tool the gate does not know that carries a command is named
+    as unreadable shell code.
+    """
+    if tool in SHELL_TOOLS:
+        return _read_only_shell_blocked(tool, tool_input, patterns)
 
-    if command is None:
+    if tool in READ_ONLY_READ_TOOLS:
         return None
 
-    if tool not in SHELL_TOOLS:
-        return None if tool in RESEARCH_TOOLS else _UNPLACEABLE_SHELL_TARGET
+    if tool not in EDIT_TOOLS and tool not in READ_ONLY_SPAWN_TOOLS and _shell_commands(tool_input) is not None:
+        return _UNPLACEABLE_SHELL_TARGET
 
+    return f"the {tool or 'unnamed'} tool"
+
+
+def _read_only_shell_blocked(tool: str, tool_input: Dict[str, Any], patterns: List[str]) -> Optional[str]:
+    """What a read-only subagent's shell call would run outside its allowlist, or None to allow.
+
+    A shell started on a terminal denies, because its later input arrives
+    through a tool call that carries no command to read, Codex's write_stdin.
+    """
+    if tool_input.get("tty") not in (None, False):
+        return "a shell started on a terminal (tty), whose later input the gate never reads"
+
+    commands = _shell_commands(tool_input)
+
+    if commands is None:
+        return _UNPLACEABLE_SHELL_TARGET
+
+    for command in commands:
+        blocked = _read_only_command_blocked(command, tool in _POWERSHELL_SHELLS, patterns)
+
+        if blocked is not None:
+            return blocked
+
+    return None
+
+
+def _read_only_command_blocked(command: str, powershell: bool, patterns: List[str]) -> Optional[str]:
+    """What one shell command would run outside a read-only allowlist, or None to allow.
+
+    The character check comes first, so the lexer only ever reads plain words
+    and single-quoted text. Any failure after it denies, a parse error and
+    every other exception alike, because a command the gate cannot read
+    matches nothing on the list.
+    """
     if command == _UNREADABLE_COMMAND:
         return _UNPLACEABLE_SHELL_TARGET
 
-    if not command:
-        return None
+    refused = _refused_character(command)
 
-    powershell = tool in _POWERSHELL_SHELLS
+    if refused is not None:
+        return f"the character {refused!r}, which no read-only command needs (quote a format string with single quotes)"
 
     try:
-        segments = _lex(command, _POWERSHELL if powershell else _POSIX)
-    except _ShellParseError:
-        # Elsewhere a command the lexer cannot read allows. A read-only
-        # agent's shell is held to a list instead, and an unread command
-        # matches nothing on it.
+        return _read_only_segments_blocked(command, powershell, patterns)
+    except Exception:
         return _UNPLACEABLE_SHELL_TARGET
+
+
+def _read_only_segments_blocked(command: str, powershell: bool, patterns: List[str]) -> Optional[str]:
+    """What the lexed commands of one shell line run outside a read-only allowlist, or None."""
+    segments = _lex(command, _POWERSHELL if powershell else _POSIX)
 
     for segment in segments:
         for target in segment.redirects:
@@ -7218,17 +7550,25 @@ def _read_only_blocked(tool: str, tool_input: Dict[str, Any], patterns: List[str
         if any(_read_only_word_blocked(word) for word in segment.argv) or _opens_a_browser(segment.argv):
             return words
 
+        if _names_another_host(segment.argv) or _runs_gh_expression(segment.argv):
+            return words
+
+        # PowerShell splats a variable into arguments from a word opening with @.
+        if powershell and any(word.startswith("@") for word in segment.argv):
+            return words
+
         if not any(_matches_read_only(segment.argv, pattern) for pattern in patterns):
             return words
 
     return None
 
 
-def _shell_command(tool_input: Dict[str, Any]) -> Optional[str]:
-    """The command a tool call carries under any COMMAND_KEYS key, for Rules A and E.
+def _shell_commands(tool_input: Dict[str, Any]) -> Optional[List[str]]:
+    """Every command a tool call carries under any COMMAND_KEYS key, for Rules A and E.
 
-    None when it carries none, _UNREADABLE_COMMAND when a value is not a
-    string, and "" when every value is blank.
+    A runner could execute any one of them, so each is judged, not only the
+    first. None when the call carries none, [_UNREADABLE_COMMAND] when a value
+    is not a string, and an empty list when every value is blank.
     """
     values = [tool_input[key] for key in COMMAND_KEYS if tool_input.get(key) not in (None, "")]
 
@@ -7236,9 +7576,9 @@ def _shell_command(tool_input: Dict[str, Any]) -> Optional[str]:
         return None
 
     if any(not isinstance(value, str) for value in values):
-        return _UNREADABLE_COMMAND
+        return [_UNREADABLE_COMMAND]
 
-    return next((value for value in values if value.strip()), "")
+    return [value for value in values if value.strip()]
 
 
 def _decide(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Optional[str]:
@@ -7261,23 +7601,15 @@ def _apply_rules(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Opti
 
     if identity == _SUBAGENT:
         agent_type = _agent_type(payload)
-        definition = _read_agent_definition(agent_type)
+        definitions = _agent_definitions(agent_type, fmt)
 
-        if definition is None:
+        if not definitions:
             return None
 
-        if not _declares_skills(definition):
+        if definitions[0] is not None and not _declares_skills(definitions[0]):
             return RULE_B_REASON.format(agent=agent_type)
 
-        patterns = _read_only_patterns(definition)
-        blocked = None if patterns is None else _read_only_blocked(_tool_name(payload), _tool_input(payload), patterns)
-
-        if blocked is None:
-            return None
-
-        return RULE_E_REASON.format(
-            agent=agent_type, heading=READ_ONLY_HEADING, allowed=", ".join(patterns or []) or "none", blocked=blocked
-        )
+        return _read_only_reason(agent_type, definitions, payload)
 
     tool = _tool_name(payload)
     tool_input = _tool_input(payload)
@@ -7309,29 +7641,56 @@ def _apply_rules(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Opti
             return RULE_A_REASON.format(target=target)
         return None
 
-    command = _shell_command(tool_input)
+    commands = _shell_commands(tool_input)
 
-    if command is None:
+    if commands is None:
         return None
 
     # A tool the gate does not know that still carries a command is a shell
     # by another name, and a command that is not a string cannot be read.
-    if tool not in SHELL_TOOLS or command == _UNREADABLE_COMMAND:
+    if tool not in SHELL_TOOLS or _UNREADABLE_COMMAND in commands:
         return None if tool in RESEARCH_TOOLS else RULE_A_REASON.format(target=_UNPLACEABLE_SHELL_TARGET)
 
-    if not command:
-        return None
+    for command in commands:
+        try:
+            targets = _shell_targets(command, _POWERSHELL if tool in _POWERSHELL_SHELLS else _POSIX)
+        except _ShellParseError:
+            continue
 
-    try:
-        targets = _shell_targets(command, _POWERSHELL if tool in _POWERSHELL_SHELLS else _POSIX)
-    except _ShellParseError:
-        return None
+        if targets and targets[0].startswith(_SCRIPT_RUN):
+            return RULE_D_REASON.format(command=targets[0][len(_SCRIPT_RUN) :])
 
-    if targets and targets[0].startswith(_SCRIPT_RUN):
-        return RULE_D_REASON.format(command=targets[0][len(_SCRIPT_RUN) :])
+        if targets:
+            return RULE_A_REASON.format(target=targets[0])
 
-    if targets:
-        return RULE_A_REASON.format(target=targets[0])
+    return None
+
+
+def _read_only_reason(agent_type: str, definitions: List[Optional[str]], payload: Dict[str, Any]) -> Optional[str]:
+    """Rule E's deny reason when any candidate definition is read-only and the call leaves its list.
+
+    A definition that could not be read counts as read-only with no command
+    allowed. Every check runs inside one guard, so an exception denies here
+    rather than reaching main(), whose catch-all allows.
+    """
+    tool = _tool_name(payload)
+    tool_input = _tool_input(payload)
+
+    for text in definitions:
+        try:
+            patterns = [] if text is None else _read_only_patterns(text)
+
+            if patterns is None:
+                continue
+
+            blocked = _read_only_blocked(tool, tool_input, patterns)
+        except Exception:
+            patterns, blocked = [], _UNPLACEABLE_SHELL_TARGET
+
+        if blocked is not None:
+            return RULE_E_REASON.format(
+                agent=agent_type, heading=READ_ONLY_HEADING, allowed=", ".join(patterns) or "none", blocked=blocked
+            )
 
     return None
 

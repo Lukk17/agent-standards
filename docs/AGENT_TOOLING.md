@@ -173,6 +173,97 @@ is yours.
 
 ---
 
+### Claude Code plugins
+
+Claude Code can take the skills, subagents and MCP servers as plugins from the upstream marketplace instead of the checkout, so a project installs only the domains it works in. The plugins carry nothing else. The gate, its hooks, `AGENTS.md` and the [.claude/settings.json](../.claude/settings.json) wiring still arrive by Git, through the [gate-only import](#the-gate-only-import) below. Codex, GitHub Copilot, OpenCode and Kilo Code are not covered by the plugins, so they keep the full import above. Pick one route per project, because a project that has both carries two copies of every skill and subagent, one under each name.
+
+#### Installing the plugins
+
+Add the marketplace once. It lives on the upstream `plugins` branch:
+
+```bash
+claude plugin marketplace add Lukk17/agent-standards#plugins
+```
+
+Install one domain, such as `python`. Its `core` dependency comes along:
+
+```bash
+claude plugin install python@agent-standards
+```
+
+`all` installs `core` and every domain. The host groups (`linux`, `windows-and-mac`, `homelab`, `personal-tools`) and the MCP servers (one `mcp-<server>` plugin each, or `mcp-all` for every one) stay separate installs:
+
+```bash
+claude plugin install all@agent-standards
+```
+
+A host group installs switched off, so enable it after installing it:
+
+```bash
+claude plugin install linux@agent-standards
+```
+
+```bash
+claude plugin enable linux@agent-standards
+```
+
+Claude Code does not refresh this marketplace in the background. Refresh it first:
+
+```bash
+claude plugin marketplace update agent-standards
+```
+
+Then update each plugin you installed, such as:
+
+```bash
+claude plugin update python@agent-standards
+```
+
+To give everyone on the project the same set, add both keys to `.claude/settings.json`. `ref` names the branch to read the marketplace from. Claude Code registers the marketplace only after a contributor accepts the workspace trust dialog for the folder:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "agent-standards": {
+      "source": { "source": "github", "repo": "Lukk17/agent-standards", "ref": "plugins" }
+    }
+  },
+  "enabledPlugins": {
+    "python@agent-standards": true
+  }
+}
+```
+
+Every component is namespaced under its plugin, so the Python subagent is `python:python-pro` and the coding standards skill is `/core:coding-standards`.
+
+#### The gate-only import
+
+The gate-only import brings the hook scripts in [.agents/hooks/](../.agents/hooks/), the Claude Code wiring in [.claude/settings.json](../.claude/settings.json), the `AGENTS.md.example` template and the shipped documents. It leaves out `.agents/skills/`, every agent tree and `.mcp.json`, which the plugins supply. Nothing more is needed, because the wiring runs only scripts inside [.agents/hooks/](../.agents/hooks/) and the gate reads no skill.
+
+Add the read-only remote and fetch, as in [Step 1](#step-1-initial-import), then pull the gate. PowerShell or Unix shell, same command:
+
+```bash
+git checkout agent-standards/master -- .agents/hooks .claude/settings.json AGENTS.md.example docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+```
+
+Rename the template. PowerShell:
+
+```powershell
+Rename-Item AGENTS.md.example AGENTS.md
+```
+
+Unix shell:
+
+```bash
+mv AGENTS.md.example AGENTS.md
+```
+
+Then add the `extraKnownMarketplaces` and `enabledPlugins` keys above to the imported `.claude/settings.json`, beside its hooks. To update later, run the block for your shell in [AGENTS-UPDATE.md](AGENTS-UPDATE.md) up to its stop sign. It refreshes only what your tree already holds, so the skills and the agent trees stay out. Skip its last checkout, which would add `.mcp.json` and the other agents' configuration files.
+
+Until the gate understands plugin-scoped agent names, plugin-installed read-only agents are not restricted. Claude Code names a plugin subagent by its scoped identifier, such as `review-and-security:code-reviewer`, the gate finds no definition under that name, and it allows a subagent it cannot find. So `code-reviewer` and `code-archaeologist` installed from the plugins keep a full shell and can edit files, and the rule that denies a subagent declaring no skills does not reach a plugin subagent either. The rules for the main thread hold unchanged. A gate fix that reads plugin-scoped names follows.
+
+---
+
 ### Instruction files
 
 Every agent reads `AGENTS.md` natively, and loads a folder's own `AGENTS.md` only for work in that part of the tree.

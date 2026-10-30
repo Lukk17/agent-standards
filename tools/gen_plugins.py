@@ -24,6 +24,11 @@ users on a cached copy until the version string changes
 (https://code.claude.com/docs/en/plugins/host-marketplace, "Bump `version` on
 each release"), so a plugin re-versions only when something inside it changed.
 
+The output directory has to sit outside the repository, so a render can never
+land in the working tree, and the tree is rendered into a sibling temporary
+directory first and moved into place only once every plugin is written, so a
+failed render leaves nothing behind.
+
 Usage:
   python tools/gen_plugins.py <out-dir>                 render into an empty or missing directory
   python tools/gen_plugins.py <out-dir> --map <file>    render from another plugin map
@@ -35,8 +40,10 @@ import hashlib
 import json
 import pathlib
 import re
+import shutil
 import stat
 import sys
+import tempfile
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 
@@ -48,10 +55,18 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 DEFAULT_MAP = ROOT / "tools" / "plugins.yaml"
 
 CORE = "core"
+ALL = "all"
+MCP_ALL = "mcp-all"
 MCP_PREFIX = "mcp-"
+DEVELOPMENT_CATEGORY = "development"
 HOST_CATEGORY = "host"
+MCP_CATEGORY = "mcp"
+BUNDLE_CATEGORY = "bundle"
+CATEGORIES = frozenset({DEVELOPMENT_CATEGORY, HOST_CATEGORY, MCP_CATEGORY, BUNDLE_CATEGORY})
 VERSION_LENGTH = 12
-PLUGIN_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+# Kebab-case, matched whole with fullmatch: lowercase words joined by single hyphens.
+PLUGIN_NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+GITHUB_REPOSITORY = re.compile(r"https://github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/?")
 PLUGIN_KEYS = frozenset(
     {"name", "description", "category", "dependencies", "agents", "skills", "mcp", "defaultEnabled"}
 )
@@ -179,11 +194,13 @@ def load_map(path: pathlib.Path = DEFAULT_MAP) -> PluginMap:
     owner = marketplace.get("owner")
     if not isinstance(marketplace.get("name"), str) or not isinstance(owner, dict) or "name" not in owner:
         raise PluginMapError(f"{path} 'marketplace' needs a 'name' and an 'owner' with a 'name'")
+    repository = marketplace.get("repository")
+    if not isinstance(repository, str) or not GITHUB_REPOSITORY.fullmatch(repository):
+        raise PluginMapError(
+            f"{path} 'marketplace' needs a 'repository' of the form https://github.com/<owner>/<repo>, "
+            "because the branch README names the marketplace by it"
+        )
     return PluginMap(marketplace, tuple(parse_plugin(item, i) for i, item in enumerate(raw["plugins"])))
-
-
-def installed_skills(sources: Sources) -> set[str]:
-    return {path.name for path in sources.skills.iterdir() if path.is_dir()}
 
 
 def load_agents(sources: Sources, skills: set[str]) -> dict[str, Agent]:
@@ -265,6 +282,52 @@ def shared_skills(plugin_map: PluginMap, agents: dict[str, Agent]) -> set[str]:
     return {skill for skill, owners in users.items() if len(owners) >= 2}
 
 
+def _plugin_problems(plugin: Plugin, plugins: dict[str, Plugin], servers: set[str]) -> list[str]:
+    """The rules one plugin entry has to meet on its own."""
+    problems: list[str] = []
+    for dependency in plugin.dependencies:
+        if dependency == plugin.name:
+            problems.append(f"plugin {plugin.name!r} depends on itself")
+        elif dependency not in plugins:
+            problems.append(f"plugin {plugin.name!r} depends on unknown plugin {dependency!r}")
+    if plugin.category not in CATEGORIES:
+        problems.append(
+            f"plugin {plugin.name!r} has unknown category {plugin.category!r}, use one of {', '.join(sorted(CATEGORIES))}"
+        )
+    if plugin.category == HOST_CATEGORY and plugin.default_enabled:
+        problems.append(f"host group {plugin.name!r} must set defaultEnabled: false")
+    if plugin.category != HOST_CATEGORY and not plugin.default_enabled:
+        problems.append(f"plugin {plugin.name!r} is not a host group, so it must stay on: drop defaultEnabled: false")
+    if plugin.is_bundle != (plugin.category == BUNDLE_CATEGORY):
+        problems.append(
+            f"plugin {plugin.name!r} holds only dependencies, so its category must be {BUNDLE_CATEGORY!r}"
+            if plugin.is_bundle
+            else f"bundle {plugin.name!r} must hold dependencies only, with no skill, subagent or server"
+        )
+    if (plugin.mcp is not None) != (plugin.category == MCP_CATEGORY):
+        problems.append(f"plugin {plugin.name!r} must carry category {MCP_CATEGORY!r} exactly when it names a server")
+    if plugin.mcp is not None:
+        if plugin.agents or plugin.skills or plugin.dependencies:
+            problems.append(f"MCP plugin {plugin.name!r} must hold its server and nothing else")
+        if plugin.name != MCP_PREFIX + plugin.mcp:
+            problems.append(f"MCP plugin {plugin.name!r} must be named {MCP_PREFIX + plugin.mcp!r}")
+        if plugin.mcp not in servers:
+            problems.append(f"MCP plugin {plugin.name!r} names server {plugin.mcp!r}, not in the root .mcp.json")
+    if plugin.is_bundle and not plugin.dependencies:
+        problems.append(f"plugin {plugin.name!r} holds nothing and depends on nothing")
+    return problems
+
+
+def _set_problems(what: str, actual: set[str], expected: set[str]) -> list[str]:
+    """Name what a plugin set is missing and what it holds that it should not."""
+    problems = []
+    if missing := sorted(expected - actual):
+        problems.append(f"{what}: missing {', '.join(missing)}")
+    if extra := sorted(actual - expected):
+        problems.append(f"{what}: must not include {', '.join(extra)}")
+    return problems
+
+
 def check_map(
     plugin_map: PluginMap,
     skills: set[str],
@@ -278,35 +341,22 @@ def check_map(
 
     names = [plugin.name for plugin in plugin_map.plugins]
     problems += [f"duplicate plugin name {n!r}" for n in sorted({n for n in names if names.count(n) > 1})]
-    problems += [f"plugin name {n!r} is not kebab-case" for n in names if not PLUGIN_NAME.match(n)]
-    if CORE not in plugins:
-        problems.append(f"no {CORE!r} plugin")
+    problems += [f"plugin name {n!r} is not kebab-case" for n in names if not PLUGIN_NAME.fullmatch(n)]
+    for required in (CORE, ALL, MCP_ALL):
+        if required not in plugins:
+            problems.append(f"no {required!r} plugin")
 
     for kind, homes, known in (
         ("skill", _homes(plugin_map.plugins, "skills"), skills),
         ("subagent", _homes(plugin_map.plugins, "agents"), set(agents)),
     ):
+        problems += [f"{kind} name {k!r} in plugin {v[0]!r} is not kebab-case" for k, v in sorted(homes.items()) if not PLUGIN_NAME.fullmatch(k)]
         problems += [f"{kind} {k!r} sits in {len(v)} plugins: {', '.join(v)}" for k, v in sorted(homes.items()) if len(v) > 1]
         problems += [f"{kind} {k!r} in plugin {v[0]!r} does not exist" for k, v in sorted(homes.items()) if k not in known]
         problems += [f"{kind} {k!r} sits in no plugin" for k in sorted(known - set(homes))]
 
     for plugin in plugin_map.plugins:
-        for dependency in plugin.dependencies:
-            if dependency == plugin.name:
-                problems.append(f"plugin {plugin.name!r} depends on itself")
-            elif dependency not in plugins:
-                problems.append(f"plugin {plugin.name!r} depends on unknown plugin {dependency!r}")
-        if plugin.category == HOST_CATEGORY and plugin.default_enabled:
-            problems.append(f"host group {plugin.name!r} must set defaultEnabled: false")
-        if plugin.mcp is not None:
-            if plugin.agents or plugin.skills or plugin.dependencies:
-                problems.append(f"MCP plugin {plugin.name!r} must hold its server and nothing else")
-            if plugin.name != MCP_PREFIX + plugin.mcp:
-                problems.append(f"MCP plugin {plugin.name!r} must be named {MCP_PREFIX + plugin.mcp!r}")
-            if plugin.mcp not in servers:
-                problems.append(f"MCP plugin {plugin.name!r} names server {plugin.mcp!r}, not in the root .mcp.json")
-        if plugin.is_bundle and not plugin.dependencies:
-            problems.append(f"plugin {plugin.name!r} holds nothing and depends on nothing")
+        problems += _plugin_problems(plugin, plugins, servers)
 
     cycle = find_cycle(plugins)
     if cycle:
@@ -315,6 +365,15 @@ def check_map(
     served = [plugin.mcp for plugin in plugin_map.plugins if plugin.mcp]
     problems += [f"server {s!r} sits in {served.count(s)} plugins" for s in sorted(set(served)) if served.count(s) > 1]
     problems += [f"server {s!r} in the root .mcp.json has no plugin" for s in sorted(servers - set(served))]
+
+    if CORE in plugins and (plugins[CORE].agents or plugins[CORE].dependencies):
+        problems.append(f"{CORE!r} must hold skills only, with no subagents and no dependencies")
+    if MCP_ALL in plugins:
+        server_plugins = {plugin.name for plugin in plugin_map.plugins if plugin.mcp}
+        problems += _set_problems(f"{MCP_ALL!r} depends on every server plugin", set(plugins[MCP_ALL].dependencies), server_plugins)
+    if ALL in plugins:
+        development = {plugin.name for plugin in plugin_map.plugins if plugin.category == DEVELOPMENT_CATEGORY}
+        problems += _set_problems(f"{ALL!r} installs core and every development plugin", dependency_closure(ALL, plugins), development)
 
     if problems:
         return problems
@@ -450,7 +509,11 @@ def readme(plugin_map: PluginMap, versions: dict[str, str]) -> str:
     """The landing page of the generated branch, so a visitor learns where it comes from."""
     market = plugin_map.marketplace
     name = market["name"]
-    repository = str(market.get("repository", "")).removesuffix("/")
+    repository = str(market["repository"]).removesuffix("/")
+    example = next(
+        (p.name for p in plugin_map.plugins if p.category == DEVELOPMENT_CATEGORY and p.name != CORE),
+        plugin_map.plugins[0].name,
+    )
     rows = "\n".join(
         f"| `{p.name}` | {p.category} | {'on' if p.default_enabled else 'off'} | `{versions[p.name]}` | {p.description} |"
         for p in plugin_map.plugins
@@ -465,7 +528,7 @@ def readme(plugin_map: PluginMap, versions: dict[str, str]) -> str:
         "```\n\n"
         "Install one plugin, which also installs the plugins it depends on:\n\n"
         "```bash\n"
-        f"claude plugin install python@{name}\n"
+        f"claude plugin install {example}@{name}\n"
         "```\n\n"
         "| Plugin | Category | Default | Version | What it holds |\n"
         "| --- | --- | --- | --- | --- |\n"
@@ -473,17 +536,13 @@ def readme(plugin_map: PluginMap, versions: dict[str, str]) -> str:
     )
 
 
-def render(plugin_map: PluginMap, out_dir: pathlib.Path, sources: Sources = Sources()) -> dict[str, str]:
-    """Check the map, then write the whole marketplace into out_dir. Returns each plugin's version."""
-    if out_dir.exists() and (not out_dir.is_dir() or any(out_dir.iterdir())):
-        raise PluginMapError(f"{out_dir} is not an empty directory. Render into a fresh one")
-    skills = installed_skills(sources)
-    agents = load_agents(sources, skills)
-    servers = load_servers(sources)
-    problems = check_map(plugin_map, skills, agents, servers)
-    if problems:
-        raise PluginMapError("the plugin map breaks its rules:\n  " + "\n  ".join(problems))
-
+def _write_marketplace(
+    plugin_map: PluginMap,
+    out_dir: pathlib.Path,
+    sources: Sources,
+    agents: dict[str, Agent],
+    servers: dict[str, dict[str, object]],
+) -> dict[str, str]:
     versions = {
         plugin.name: render_plugin(plugin, out_dir / "plugins" / plugin.name, plugin_map.marketplace, sources, agents, servers)
         for plugin in plugin_map.plugins
@@ -491,6 +550,44 @@ def render(plugin_map: PluginMap, out_dir: pathlib.Path, sources: Sources = Sour
     _write(out_dir / MANIFEST_DIR / MARKETPLACE_MANIFEST, _json(marketplace_manifest(plugin_map)))
     _write(out_dir / "LICENSE", sources.license.read_bytes())
     _write(out_dir / "README.md", readme(plugin_map, versions).encode("utf-8"))
+    return versions
+
+
+def render(plugin_map: PluginMap, out_dir: pathlib.Path, sources: Sources = Sources()) -> dict[str, str]:
+    """Check the map, then write the whole marketplace into out_dir. Returns each plugin's version.
+
+    The tree is written into a temporary sibling of out_dir and renamed into
+    place only when every file is written, so a failure leaves out_dir as it was.
+
+    Raises:
+        PluginMapError: out_dir sits inside sources.root or is not an empty
+            directory, the map breaks a rule, or a source cannot be read.
+    """
+    if out_dir.resolve().is_relative_to(sources.root.resolve()):
+        raise PluginMapError(f"{out_dir} is inside the repository {sources.root}. Render outside it, such as ../plugins-out")
+    if out_dir.exists() and (not out_dir.is_dir() or any(out_dir.iterdir())):
+        raise PluginMapError(f"{out_dir} is not an empty directory. Render into a fresh one")
+    skills = gen_subagents.installed_skills(sources.skills)
+    agents = load_agents(sources, skills)
+    servers = load_servers(sources)
+    problems = check_map(plugin_map, skills, agents, servers)
+    if problems:
+        raise PluginMapError("the plugin map breaks its rules:\n  " + "\n  ".join(problems))
+
+    out_dir.parent.mkdir(parents=True, exist_ok=True)
+    staging = pathlib.Path(tempfile.mkdtemp(prefix=f".{out_dir.name}.", dir=out_dir.parent))
+    try:
+        staging.chmod(0o755)
+        versions = _write_marketplace(plugin_map, staging, sources, agents, servers)
+        if out_dir.exists():
+            out_dir.rmdir()
+        staging.rename(out_dir)
+    except OSError as exc:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise PluginMapError(f"cannot write the marketplace into {out_dir}: {exc}") from exc
+    except BaseException:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
     return versions
 
 

@@ -4,6 +4,12 @@ name: Plugins
 # publishes it to the `plugins` branch. Master never holds the rendered tree.
 # A pull request runs the build and the validation only, and publishing is
 # limited to a push to master.
+#
+# The build job runs only this repository's own code and the pinned Python
+# dependencies, and uploads the tree right after rendering it. The third-party
+# Claude Code CLI from npm runs in the validate job, which only reads the
+# artifact, and publish takes the tree from build and checks its digest, so
+# nothing validate does can change what is published.
 
 on:
   push:
@@ -16,16 +22,17 @@ permissions:
 
 concurrency:
   group: plugins-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CLAUDE_CODE_VERSION: "2.1.314"
-  OUT_DIR: ${{ github.workspace }}/../plugins-out
 
 jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    outputs:
+      digest: ${{ steps.pack.outputs.digest }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -42,11 +49,44 @@ jobs:
       - name: Pin pip to a version that supports dependency groups
         run: python -m pip install --upgrade "pip==26.2.1"
 
-      - name: Install the pinned generator dependencies
-        run: pip install ./tools
+      - name: Install the pinned generator and test dependencies
+        run: pip install ./tools --group ./tools/pyproject.toml:dev
+
+      - name: Check the plugin map and the generator
+        run: python -m pytest tools/tests/test_gen_plugins.py
 
       - name: Render the marketplace
-        run: python tools/gen_plugins.py "$OUT_DIR"
+        run: python tools/gen_plugins.py "${RUNNER_TEMP}/plugins-out"
+
+      - name: Pack the tree so the execute bits survive the artifact
+        id: pack
+        run: |
+          tar -C "${RUNNER_TEMP}/plugins-out" -cf "${RUNNER_TEMP}/plugins.tar" .
+          echo "digest=$(sha256sum "${RUNNER_TEMP}/plugins.tar" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Keep the packed tree for the validate and publish jobs
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: plugins
+          path: ${{ runner.temp }}/plugins.tar
+          if-no-files-found: error
+          retention-days: 7
+
+  validate:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Fetch the packed tree
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: plugins
+          path: ${{ runner.temp }}/artifact
+
+      - name: Unpack the tree
+        run: |
+          mkdir "${RUNNER_TEMP}/plugins-out"
+          tar -C "${RUNNER_TEMP}/plugins-out" -xf "${RUNNER_TEMP}/artifact/plugins.tar"
 
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -63,22 +103,13 @@ jobs:
           CLAUDE_CONFIG_DIR="$(mktemp -d)"
           export CLAUDE_CONFIG_DIR
           claude --version
-          claude plugin validate "$OUT_DIR" --strict
-          for plugin in "$OUT_DIR"/plugins/*/; do
+          claude plugin validate "${RUNNER_TEMP}/plugins-out" --strict
+          for plugin in "${RUNNER_TEMP}"/plugins-out/plugins/*/; do
             claude plugin validate "$plugin" --strict
           done
 
-      - name: Keep the rendered tree for the publish job
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: plugins
-          path: ${{ env.OUT_DIR }}
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 7
-
   publish:
-    needs: build
+    needs: [build, validate]
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -88,11 +119,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Fetch the rendered tree
+      - name: Fetch the packed tree
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: plugins
-          path: ${{ env.OUT_DIR }}
+          path: ${{ runner.temp }}/artifact
+
+      - name: Check the tree is the one build packed, then unpack it
+        env:
+          DIGEST: ${{ needs.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          echo "${DIGEST}  ${RUNNER_TEMP}/artifact/plugins.tar" | sha256sum --check --strict
+          mkdir "${RUNNER_TEMP}/plugins-out"
+          tar -C "${RUNNER_TEMP}/plugins-out" -xf "${RUNNER_TEMP}/artifact/plugins.tar"
 
       - name: Commit the tree on top of the plugins branch and push it
         run: |
@@ -107,7 +147,7 @@ jobs:
           fi
           git rm -r -q --cached --ignore-unmatch .
           find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-          cp -a "$OUT_DIR/." .
+          cp -a "${RUNNER_TEMP}/plugins-out/." .
           git add -A
           if git diff --cached --quiet; then
             echo "The plugins branch already matches ${GITHUB_SHA}."

@@ -4,6 +4,11 @@ mode: subagent
 permission:
   edit: deny
   task: deny
+  "*_*": deny
+  "webfetch": deny
+  "websearch": deny
+  "todowrite": deny
+  "lsp": deny
   bash:
     "*": deny
     "git diff": allow
@@ -19,6 +24,20 @@ permission:
     "*>*": deny
     "gh *--web*": deny
     "gh * -w*": deny
+    "gh *--jq*": deny
+    "gh * -q*": deny
+    "gh *--template*": deny
+    "gh * -t*": deny
+    "*\"*": deny
+    "*{*": deny
+    "*`*": deny
+    "*<*": deny
+    "*;*": deny
+    "*&*": deny
+    "*|*": deny
+    "*[*": deny
+    "*\n*": deny
+    "*\r*": deny
 tools:
   read: true
   grep: true
