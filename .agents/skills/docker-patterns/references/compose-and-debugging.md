@@ -1,7 +1,8 @@
 # Compose stacks, networking, and debugging
 
 A reference local development stack, the override-file pattern, network isolation, and the commands that answer
-"why can this container not reach that one". The rules live in [SKILL.md](../SKILL.md).
+"why can this container not reach that one". The rules live in [SKILL.md](../SKILL.md). Every image is pinned to a tag plus its digest,
+with `<digest>` standing in for the value `docker buildx imagetools inspect <image>:<tag>` prints.
 
 ---
 
@@ -41,7 +42,7 @@ services:
     command: npm run dev
 
   db:
-    image: postgres:18-alpine
+    image: postgres:18-alpine@sha256:<digest>
     ports:
       - "127.0.0.1:5432:5432"
     environment:
@@ -58,14 +59,14 @@ services:
       retries: 5
 
   redis:
-    image: redis:8-alpine
+    image: redis:8-alpine@sha256:<digest>
     ports:
       - "127.0.0.1:6379:6379"
     volumes:
       - redisdata:/data
 
   mailpit:
-    image: axllent/mailpit:v1
+    image: axllent/mailpit:v1@sha256:<digest>
     ports:
       - "127.0.0.1:8025:8025"
       - "127.0.0.1:1025:1025"

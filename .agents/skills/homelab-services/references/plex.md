@@ -8,11 +8,11 @@ Sources: the image README at https://github.com/plexinc/pms-docker. The Plex sup
 
 ### The container
 
-Use a version tag in place of `<version-tag>`. The README says the `beta` and `public` tags "do not have any Plex Media Server binary installed" and fetch the newest version at every start.
+Use a version tag in place of `<version-tag>`, and `<digest>` with the digest that tag resolves to, read with `docker buildx imagetools inspect plexinc/pms-docker:<version-tag>`, so a re-pushed tag cannot change what runs. The README says the `beta` and `public` tags "do not have any Plex Media Server binary installed" and fetch the newest version at every start.
 
 ```yaml
 plex:
-  image: plexinc/pms-docker:<version-tag>
+  image: plexinc/pms-docker:<version-tag>@sha256:<digest>
   network_mode: host
   cpus: 1.5
   environment:

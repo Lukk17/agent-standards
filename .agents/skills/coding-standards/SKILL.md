@@ -296,6 +296,12 @@ Default to none, with one exception. The exported surface of a published library
 per exported symbol, because the doc tool renders it and a missing entry reads as a bug. Everything else, application
 code and the internals of a library alike, defaults to none.
 
+Two language skills widen that exception where their doc tool renders every entry, and their delta wins for those
+entries only. `golang-patterns` gives every exported Go name a doc comment, application code included, because `go doc`
+and pkg.go.dev render each one. `powershell` gives every function a module exports `.SYNOPSIS`, one `.PARAMETER` per
+parameter and one `.EXAMPLE`, because `Get-Help` renders them, so for those tags rule 2 below gives way to the one-line
+cap. Unexported Go code and private PowerShell helpers keep the default of none.
+
 A doc comment is usually a sign that the code failed to explain itself. Before writing one, extract the unclear block
 into a well-named function, rename the parameters so they carry their own meaning, and tighten the types. Do that first
 and most doc comments have nothing left to say, which is the outcome you want. Code that explains itself cannot go

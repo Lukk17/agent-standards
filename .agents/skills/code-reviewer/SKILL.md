@@ -33,6 +33,20 @@ for security, and lead every finding with a `path:line` reference.
 
 ---
 
+### When run as a subagent
+
+A read-only subagent, such as the `code-reviewer` agent with its few git commands or the `security-auditor` agent with
+no shell at all, cannot run the steps below that check code out, execute code, or ask the user. It changes them so:
+
+- Review the diff the caller supplies. With no diff in the prompt and a shell that allows it, read `git diff`,
+  `git diff --staged`, `git show`, or `gh pr diff` and `gh pr view`. With neither, return the question to the caller.
+- Skip the worktree and every command that builds, tests or runs the change, and report the verification as
+  `not run`, naming the command the project's AGENTS.md documents so the caller can run it.
+- Return every question to the caller instead of asking the user, including whether to run anything from a fork.
+- Hand the security escalation of Step 4 to the caller as a named next step, since neither agent has a tool to spawn another.
+
+---
+
 ### Step 1: determine the review target
 
 A remote pull request is named by number or URL. Anything else, including "review my changes", means the local working
@@ -178,7 +192,8 @@ For a remote pull request reviewed in a worktree, ask the user at the end whethe
 
 - [ ] Review target identified: named pull request, or the local working tree.
 - [ ] A remote pull request was read with `gh pr diff`, and checked out only into a separate worktree.
-- [ ] The project's documented verification command was run, or its absence was reported.
+- [ ] The project's documented verification command was run, or its absence was reported, or as a subagent it was
+  reported as `not run`.
 - [ ] Nothing from a fork or an outside author ran without the user's approval.
 - [ ] Every pillar was considered, including doc comments.
 - [ ] Every finding cites `path:line`.

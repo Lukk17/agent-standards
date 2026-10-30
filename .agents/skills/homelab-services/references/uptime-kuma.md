@@ -7,7 +7,7 @@ Contents:
 - [The labelset log flood](#the-labelset-log-flood)
 - [Editing monitors in the database](#editing-monitors-in-the-database)
 
-Read this before changing monitors, reading `/metrics` with the API key, adding a tag, or editing the database. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab with Uptime Kuma 2. The database edit was also run end to end in a throwaway container of that image with no network. Every other command here is UNVERIFIED.
+Read this before changing monitors, reading `/metrics` with the API key, adding a tag, or editing the database. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab on one Uptime Kuma 2 release. The database edit was also run end to end in a throwaway container of that image with no network. Every other command here is UNVERIFIED.
 
 Sources in https://github.com/louislam/uptime-kuma: `server/server.js` and `server/auth.js` for the API key, `server/prometheus.js` for the tag labels, `server/database.js` for the database path and its WAL journal, `db/knex_init_db.js` for the `monitor` columns, and `docker/debian-base.dockerfile`, which installs `sqlite3` into the image. The wiki page Prometheus API Keys at https://github.com/louislam/uptime-kuma/wiki/Prometheus-API-Keys.
 
@@ -82,19 +82,19 @@ docker stop uptime-kuma
 Back up the database next to itself. `.backup` copies it consistently, WAL included:
 
 ```bash
-docker run --rm --network none -v <kuma-data-dir>:/app/data --entrypoint sqlite3 louislam/uptime-kuma:<version-tag> /app/data/kuma.db ".backup /app/data/kuma.db.bak"
+docker run --rm --network none -v <kuma-data-dir>:/app/data --entrypoint sqlite3 louislam/uptime-kuma:<version-tag>@sha256:<digest> /app/data/kuma.db ".backup /app/data/kuma.db.bak"
 ```
 
 Read the monitors first, to pick the exact names or IDs:
 
 ```bash
-docker run --rm --network none -v <kuma-data-dir>:/app/data --entrypoint sqlite3 louislam/uptime-kuma:<version-tag> -header -column /app/data/kuma.db "SELECT id, name, type, interval, retry_interval, maxretries, active FROM monitor;"
+docker run --rm --network none -v <kuma-data-dir>:/app/data --entrypoint sqlite3 louislam/uptime-kuma:<version-tag>@sha256:<digest> -header -column /app/data/kuma.db "SELECT id, name, type, interval, retry_interval, maxretries, active FROM monitor;"
 ```
 
 Change them, here one monitor to 30 seconds with 1 retry after 30 seconds:
 
 ```bash
-docker run --rm --network none -v <kuma-data-dir>:/app/data --entrypoint sqlite3 louislam/uptime-kuma:<version-tag> /app/data/kuma.db "UPDATE monitor SET interval = 30, retry_interval = 30, maxretries = 1 WHERE id = <monitor-id>;"
+docker run --rm --network none -v <kuma-data-dir>:/app/data --entrypoint sqlite3 louislam/uptime-kuma:<version-tag>@sha256:<digest> /app/data/kuma.db "UPDATE monitor SET interval = 30, retry_interval = 30, maxretries = 1 WHERE id = <monitor-id>;"
 ```
 
 Read them back with the `SELECT` above, then start it:
@@ -112,7 +112,7 @@ docker ps --filter name=uptime-kuma --format '{{.Status}}'
 To undo, stop it again, put the backup back, and start it. UNVERIFIED, the undo was not run:
 
 ```bash
-docker run --rm --network none -v <kuma-data-dir>:/app/data --entrypoint cp louislam/uptime-kuma:<version-tag> /app/data/kuma.db.bak /app/data/kuma.db
+docker run --rm --network none -v <kuma-data-dir>:/app/data --entrypoint cp louislam/uptime-kuma:<version-tag>@sha256:<digest> /app/data/kuma.db.bak /app/data/kuma.db
 ```
 
-Use the image tag the Compose file runs, so the `sqlite3` matches. `<kuma-data-dir>` is the host side of the `/app/data` mount. The columns named above exist in Uptime Kuma 2. Tags live in the tables `tag` and `monitor_tag`, and a tag added there needs the restart above as well.
+Use the image tag and digest the Compose file runs, so the `sqlite3` matches. `<kuma-data-dir>` is the host side of the `/app/data` mount. The columns named above were measured on an Uptime Kuma 2 release. Tags live in the tables `tag` and `monitor_tag`, and a tag added there needs the restart above as well.

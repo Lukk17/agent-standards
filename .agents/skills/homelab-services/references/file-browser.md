@@ -8,7 +8,7 @@ Contents:
 - [Resetting a lost admin password](#resetting-a-lost-admin-password)
 - [Check it](#check-it)
 
-Read this before setting up File Browser, reading its first admin password, or resetting that password. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab with File Browser Quantum 2 from the `gtstef/filebrowser` image. Every other command here is UNVERIFIED.
+Read this before setting up File Browser, reading its first admin password, or resetting that password. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab on one File Browser Quantum 2 release from the `gtstef/filebrowser` image. Every other command here is UNVERIFIED.
 
 Sources in https://github.com/gtsteffaniak/filebrowser: `backend/internal/state/bootstrap_admin_password.go` and `backend/pkg/settings/auth.go`, the README at the default branch, and the README of the original `filebrowser/filebrowser` at its default branch.
 
@@ -18,11 +18,11 @@ Sources in https://github.com/gtsteffaniak/filebrowser: `backend/internal/state/
 
 `gtstef/filebrowser` is File Browser Quantum, a maintained fork, with a stable channel from 2.0.0. The original `filebrowser/filebrowser` is archived, and its README says: "The last planned release has already shipped. There will be no further releases, bug fixes, or security fixes." The `-slim` tag leaves out ffmpeg, so it makes no video thumbnails, which suits a small VM where Plex owns the video work.
 
-Replace `<version>` with a release of the stable channel, so an upgrade is a deliberate change. It listens on port 80 inside the container, keeps its database and `config.yaml` in `/home/filebrowser/data`, and runs as the user the Compose file gives it:
+Replace `<version>` with a release of the stable channel, so an upgrade is a deliberate change, and `<digest>` with the digest that tag resolves to, read with `docker buildx imagetools inspect gtstef/filebrowser:<version>-stable-slim`, so a re-pushed tag cannot change what runs. It listens on port 80 inside the container, keeps its database and `config.yaml` in `/home/filebrowser/data`, and runs as the user the Compose file gives it:
 
 ```yaml
 filebrowser:
-  image: gtstef/filebrowser:<version>-stable-slim
+  image: gtstef/filebrowser:<version>-stable-slim@sha256:<digest>
   user: "1000:1000"
   ports:
     - "7782:80/tcp"

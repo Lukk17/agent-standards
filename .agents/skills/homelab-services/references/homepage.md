@@ -1,6 +1,6 @@
 # Homepage
 
-Read this before configuring the Homepage dashboard or opening it under a new name. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab with Homepage 1. Every other command here is UNVERIFIED.
+Read this before configuring the Homepage dashboard or opening it under a new name. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab on one Homepage 1 release. Every other command here is UNVERIFIED.
 
 Sources: the installation page of the Homepage documentation, `docs/installation/index.md` at https://github.com/gethomepage/homepage.
 

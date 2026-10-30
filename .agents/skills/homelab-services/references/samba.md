@@ -6,7 +6,7 @@ Contents:
 - [The login file](#the-login-file)
 - [Check it](#check-it)
 
-Read this before setting up the network drive or changing its login. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab with Samba 4 from the `dockurr/samba` image. Every other command here is UNVERIFIED.
+Read this before setting up the network drive or changing its login. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab on one Samba 4 release from the `dockurr/samba` image. Every other command here is UNVERIFIED.
 
 Sources: the image README at https://github.com/dockur/samba, and the Compose page on interpolation at https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/.
 
@@ -14,11 +14,11 @@ Sources: the image README at https://github.com/dockur/samba, and the Compose pa
 
 ### The service
 
-`dockurr/samba` is configured with environment variables: `NAME` for the share, `USER` and `PASS` for the one login, and `UID` and `GID` for the owner of every file it writes. The README's own example uses `USER: "samba"` and `PASS: "secret"`, so the Compose file refuses to start without real values instead of falling back to those. Replace `<version-tag>` with a release tag of the image:
+`dockurr/samba` is configured with environment variables: `NAME` for the share, `USER` and `PASS` for the one login, and `UID` and `GID` for the owner of every file it writes. The README's own example uses `USER: "samba"` and `PASS: "secret"`, so the Compose file refuses to start without real values instead of falling back to those. Replace `<version-tag>` with a release tag of the image and `<digest>` with the digest that tag resolves to, read with `docker buildx imagetools inspect dockurr/samba:<version-tag>`, so a re-pushed tag cannot change what runs:
 
 ```yaml
 samba:
-  image: dockurr/samba:<version-tag>
+  image: dockurr/samba:<version-tag>@sha256:<digest>
   environment:
     - NAME=files
     - USER=${SAMBA_USER:?set SAMBA_USER in .env}

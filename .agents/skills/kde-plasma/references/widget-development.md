@@ -202,7 +202,7 @@ The applet configuration lives inside the panel layout file, so it goes away wit
 
 For an own file, use a KConfig file named after the widget with `rc` at the end, such as `~/.config/weather-widgetrc`, read and written with `kreadconfig6` and `kwriteconfig6` through the executable engine below. Rules learned from a real widget that does this:
 
-1. Read the value back after every write, and treat the write as failed unless the file holds the new value. The exit status is not a reliable sign. Measured here on KConfig 6: `kwriteconfig6` on a new file in a read-only `XDG_CONFIG_HOME` exited 2, while that widget's own test image on KConfig 6.30 saw exit 0 in its read-only case.
+1. Read the value back after every write, and treat the write as failed unless the file holds the new value. The exit status is not a reliable sign. Measured here: `kwriteconfig6` on a new file in a read-only `XDG_CONFIG_HOME` exited 2, while that widget's own test image, on another KConfig 6 release, saw exit 0 in its read-only case.
 2. Run both tools inside `timeout`. Measured here on KConfig 6: `kreadconfig6` with a read-only `XDG_CONFIG_HOME` never returned and was stopped by `timeout 5` with status 124.
 3. Never put a user value into the command text. Pass it encoded, for example as base64 decoded inside the command with `base64 -d`, and check names against a strict pattern before building any command.
 4. Read the file, apply the change, then write, so two copies do not undo each other. Read it again on a timer so a change in one copy shows in the others.
@@ -217,7 +217,7 @@ Never put a key in `main.xml`, a settings file, a command line or a log. The app
 
 Save the key from QML through the KWallet D-Bus API with the Plasma QML D-Bus module `org.kde.plasma.workspace.dbus` (plasma-workspace `components/dbus`, first released in Plasma 6.1). The installed interface `kf6_org.kde.KWallet.xml` (KWallet 6) has `openAsync(wallet, wId, appid, handleSession)`, answered by the `walletAsyncOpened` signal, then `writePassword(handle, folder, key, value, appid)` and `close`. Service `org.kde.kwalletd6`, path `/modules/kwalletd6`, both present on the verified host. The module is not described on the develop.kde.org widget pages, so treat it as UNVERIFIED as a stable API and set `X-Plasma-API-Minimum-Version` to the version you tested.
 
-Read the key only inside the command that uses it, so it never enters plasmashell again. kwalletd6 gives a KWallet entry the Secret Service attributes `server` (the folder), `user` (the entry name) and `type` `plaintext` (KWallet 6 `src/runtime/kwalletd/secretserviceclient.cpp` and 237), so `secret-tool` finds it. Send it to curl on standard input. The curl 8 manual: "Using @- makes curl read the header file from stdin."
+Read the key only inside the command that uses it, so it never enters plasmashell again. kwalletd6 gives a KWallet entry the Secret Service attributes `server` (the folder), `user` (the entry name) and `type` `plaintext` (KWallet 6 `src/runtime/kwalletd/secretserviceclient.cpp`), so `secret-tool` finds it. Send it to curl on standard input. The curl 8 manual: "Using @- makes curl read the header file from stdin."
 
 ```bash
 key=$(timeout 10 secret-tool lookup server weather-widget user api.main type plaintext) && printf 'Authorization: Bearer %s\n' "$key" | timeout 25 curl --disable --fail-with-body --proto =https --max-redirs 0 --max-time 20 --max-filesize 1048576 -H @- https://api.example.org/v1/forecast
@@ -388,5 +388,5 @@ curl -s "https://api.kde-look.org/ocs/v1/content/data/<id>" | grep -o '<statusco
 | https://invent.kde.org/plasma/plasma5support | Plasma 6 | executable engine |
 | https://invent.kde.org/plasma/plasma-workspace | Plasma 6 | layout reset, QML D-Bus module, `plasmoids.knsrc` |
 | https://doc.qt.io/qt-6/qtqml-javascript-imports.html | Qt 6 | `.mjs` modules |
-| https://nodejs.org/api/test.html | Node.js 24 | `node --test` |
+| https://nodejs.org/api/test.html | Node.js 26 | `node --test` |
 | https://api.kde-look.org/ocs/v1/content/data/ | live | store API answers |

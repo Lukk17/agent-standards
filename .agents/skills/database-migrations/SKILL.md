@@ -9,7 +9,7 @@ Rules for changing a schema that is already carrying production traffic, where t
 rather than a compile error. The tool-specific commands live in the references. This file is the safety model every
 tool has to satisfy.
 
-Written for PostgreSQL 18, MySQL 8.4 LTS or a later LTS line, and the migration tools named in the reference map
+Written for PostgreSQL 18, MySQL 8.4 LTS and 9.7 LTS, and the migration tools named in the reference map
 below.
 
 ---

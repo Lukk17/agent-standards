@@ -10,8 +10,8 @@ details. The core app depends on abstract ports, and adapters implement those po
 
 This skill is the architecture authority the `coding-standards` hub defers to for its Architecture section.
 
-Examples use language features available in the current LTS or stable release of each language. Check the project's
-own toolchain file before relying on a version.
+Written for TypeScript 5, Java 25, Kotlin 2 and Go 1.27. Check the project's own toolchain file before relying on a
+language feature.
 
 ---
 

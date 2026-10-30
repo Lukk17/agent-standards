@@ -9,8 +9,10 @@ How a change reaches production without a surprise: a rollout strategy chosen on
 front of production, config validated before the process serves traffic, and a rollback that has been rehearsed. The
 pipeline is the control, not the documentation around it.
 
-Written for GitHub Actions on `ubuntu-latest`, Kubernetes 1.37 and Helm 4. Every GitHub Action here is referenced by
-its major version tag, or by its full version tag where it publishes no major tag or is still on 0.x.
+Written for GitHub Actions on `ubuntu-latest`, Kubernetes 1.37 and Helm 4. Every GitHub Action a project runs is pinned to a
+full commit SHA with its version tag in a trailing comment, such as `uses: actions/checkout@<commit-sha> # v5`, and every
+image to a tag plus digest. The examples use placeholders rather than real values, and
+[references/github-actions.md](references/github-actions.md) shows how to resolve them.
 
 ---
 
@@ -120,7 +122,8 @@ trivy image "ghcr.io/org/app:${GITHUB_SHA}" || true
 ### Least privilege in CI
 
 Authenticate to a cloud provider with OIDC, never a stored long-lived key, and declare the minimum permissions on
-every job. A compromised third-party action inherits whatever the job holds.
+every job. A compromised third-party action inherits whatever the job holds, and a tag pin lets a moved tag swap the
+code under you, so pin every action to a commit SHA.
 
 Pass:
 
@@ -143,8 +146,9 @@ automation are in [references/github-actions.md](references/github-actions.md).
 
 ### Health checks that answer different questions
 
-Expose a liveness endpoint that touches nothing and a readiness endpoint that verifies dependencies, then wire three
-probes to them. The paths are the ones `api-design` defines, `/health` and `/ready`, so use them rather than a local
+Expose a liveness endpoint that touches nothing and a readiness endpoint that reports what this instance needs to
+serve, as the readiness rule in `observability-and-logging` defines it, so a shared dependency stays out of it. Then
+wire three probes to them. The paths are the ones `api-design` defines, `/health` and `/ready`, so use them rather than a local
 variant. Pointing liveness at a dependency-checking endpoint turns a database blip into a cluster-wide restart storm.
 
 Pass:

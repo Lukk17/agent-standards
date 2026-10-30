@@ -85,12 +85,14 @@ Full reference Dockerfiles for Node, Go, and Python, plus the apt-get, OCI label
 ### Pin the base image
 
 `:latest` makes a build unreproducible and silently changes the runtime under you. Pin a tag that names the runtime
-version and the OS variant, and pin a digest where the registry supports it.
+version and the OS variant, and pin a digest where the registry supports it. The examples show `@sha256:<digest>` in
+place of a real digest. Read the digest a tag resolves to with `docker buildx imagetools inspect <image>:<tag>`, and let
+Dependabot or Renovate bump the tag and the digest together.
 
 Pass:
 
 ```dockerfile
-FROM node:26-alpine
+FROM node:26-alpine@sha256:<digest>
 ```
 
 Fail:
@@ -328,7 +330,7 @@ docker system prune -a
 
 ### Checklist
 
-- [ ] Every base image pinned to a specific tag, never `:latest`.
+- [ ] Every base image pinned to a specific tag plus its digest, never `:latest`.
 - [ ] Build split into stages, dependency manifests copied before source.
 - [ ] Runtime stage runs as a created non-root user.
 - [ ] `HEALTHCHECK` declared.

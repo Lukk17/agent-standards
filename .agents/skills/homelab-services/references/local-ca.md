@@ -47,7 +47,7 @@ Write `DNS:internal`, not `DNS:.internal`. RFC 5280 says a name made by adding l
 
 OpenSSL writes the IPv6 exclusion as an address and a mask, `IP:::/::`. `a2i_IPADDRESS_NC` in `v3_utl.c` parses the part after the slash as a second address, so `IP:::/0` is refused, with `bad ip address`. UNVERIFIED by a run.
 
-VERIFIED in throwaway containers with a test CA made this way: `openssl verify` from OpenSSL 3 answered `permitted subtree violation` for certificates signed for `example.com`, `<name>.internal.example.com` and `evilinternal`, `excluded subtree violation` for an IPv4 address, and `OK` for `files.internal`. NSS 3 `vfychain`, with the test CA trusted as `C,,`, answered `Chain is bad!` for `example.com` and `Chain is good!` for `files.internal`. NSS printed error -8157 rather than its name constraint error, so the proof is the difference between the two results, not the message.
+VERIFIED in throwaway containers with a test CA made this way: `openssl verify`, measured on an OpenSSL 3 release, answered `permitted subtree violation` for certificates signed for `example.com`, `<name>.internal.example.com` and `evilinternal`, `excluded subtree violation` for an IPv4 address, and `OK` for `files.internal`. `vfychain` from an NSS 3 release, with the test CA trusted as `C,,`, answered `Chain is bad!` for `example.com` and `Chain is good!` for `files.internal`. NSS printed error -8157 rather than its name constraint error, so the proof is the difference between the two results, not the message.
 
 Who checks the constraint on a CA you added yourself, UNVERIFIED in a browser, read in source:
 
@@ -68,14 +68,14 @@ Once, on the owner's computer, in a folder only the owner can read and never in 
 mkdir -m 700 <ca-dir>
 ```
 
-In every command and in the Compose file below, replace `<version-tag>` with one release tag of the `alpine/openssl` image, the same tag everywhere, so the CA and every later certificate come from the same openssl.
+In every command and in the Compose file below, replace `<version-tag>` with one release tag of the `alpine/openssl` image and `<digest>` with the digest that tag resolves to, read with `docker buildx imagetools inspect alpine/openssl:<version-tag>`, so a re-pushed tag cannot change what runs, the same pair everywhere, so the CA and every later certificate come from the same openssl.
 
 ```bash
-docker run --rm --network none -u "$(id -u):$(id -g)" -v <ca-dir>:/ca -w /ca alpine/openssl:<version-tag> genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out ca.key
+docker run --rm --network none -u "$(id -u):$(id -g)" -v <ca-dir>:/ca -w /ca alpine/openssl:<version-tag>@sha256:<digest> genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out ca.key
 ```
 
 ```bash
-docker run --rm --network none -u "$(id -u):$(id -g)" -v <ca-dir>:/ca -w /ca alpine/openssl:<version-tag> req -x509 -new -key ca.key -sha256 -days 3650 -subj "/CN=<ca-name>" -addext "basicConstraints=critical,CA:TRUE,pathlen:0" -addext "keyUsage=critical,keyCertSign,cRLSign" -addext "nameConstraints=critical,permitted;DNS:internal,excluded;IP:0.0.0.0/0.0.0.0,excluded;IP:::/::" -out ca.crt
+docker run --rm --network none -u "$(id -u):$(id -g)" -v <ca-dir>:/ca -w /ca alpine/openssl:<version-tag>@sha256:<digest> req -x509 -new -key ca.key -sha256 -days 3650 -subj "/CN=<ca-name>" -addext "basicConstraints=critical,CA:TRUE,pathlen:0" -addext "keyUsage=critical,keyCertSign,cRLSign" -addext "nameConstraints=critical,permitted;DNS:internal,excluded;IP:0.0.0.0/0.0.0.0,excluded;IP:::/::" -out ca.crt
 ```
 
 ```bash
@@ -85,7 +85,7 @@ chmod 600 <ca-dir>/ca.key <ca-dir>/ca.crt
 Read it back. The output must show `CA:TRUE, pathlen:0`, `Permitted: DNS:internal` and the two excluded addresses:
 
 ```bash
-docker run --rm --network none -u "$(id -u):$(id -g)" -v <ca-dir>:/ca -w /ca alpine/openssl:<version-tag> x509 -in ca.crt -noout -subject -enddate -fingerprint -sha256 -ext basicConstraints,keyUsage,nameConstraints
+docker run --rm --network none -u "$(id -u):$(id -g)" -v <ca-dir>:/ca -w /ca alpine/openssl:<version-tag>@sha256:<digest> x509 -in ca.crt -noout -subject -enddate -fingerprint -sha256 -ext basicConstraints,keyUsage,nameConstraints
 ```
 
 On Windows the same `docker run` lines work in PowerShell without the `-u` option, with the volume written `-v "<ca-dir>:/ca"`, after `New-Item -ItemType Directory <ca-dir>`.
@@ -141,7 +141,7 @@ One service, `internal-ca`, runs a POSIX shell script from the clone, `internal-
 ```yaml
 services:
   internal-ca:
-    image: alpine/openssl:<version-tag>
+    image: alpine/openssl:<version-tag>@sha256:<digest>
     container_name: internal-ca
     restart: "no"
     logging: *default-logging
@@ -234,7 +234,7 @@ A name in the list with no proxy host gets no `https`: the default server refuse
 
 ### Keep the SSL tab on None
 
-The include already gives every proxy host `listen 443 ssl` and a certificate. A certificate picked on the SSL tab adds a second `listen 443` to the same server block, and nginx refuses it with `a duplicate listen 0.0.0.0:443`, VERIFIED with nginx 1 in a throwaway container. Nginx Proxy Manager then marks the host `nginx_online: false`, renames its file to `.err` and reloads without it, so the host shows Offline. UNVERIFIED in the admin page, read in `backend/internal/nginx.js`.
+The include already gives every proxy host `listen 443 ssl` and a certificate. A certificate picked on the SSL tab adds a second `listen 443` to the same server block, and nginx refuses it with `a duplicate listen 0.0.0.0:443`, VERIFIED, measured on an nginx 1 release in a throwaway container. Nginx Proxy Manager then marks the host `nginx_online: false`, renames its file to `.err` and reloads without it, so the host shows Offline. UNVERIFIED in the admin page, read in `backend/internal/nginx.js`.
 
 So a proxy host that turned Offline after someone picked a certificate gets its SSL tab set back to None.
 
@@ -294,7 +294,7 @@ Linux system store on Arch Linux and CachyOS, read by curl and most command line
 sudo trust anchor --store <ca-dir>/ca.crt
 ```
 
-Debian and Ubuntu. The manual page at https://manpages.debian.org/trixie/ca-certificates/update-ca-certificates.8.en.html, says: "Certificates must be in PEM format and have a .crt extension in order to be included by update-ca-certificates." UNVERIFIED by a run.
+Debian and Ubuntu. The manual page at https://manpages.debian.org/trixie/ca-certificates/update-ca-certificates.8.en.html says: "Certificates must be in PEM format and have a .crt extension in order to be included by update-ca-certificates." UNVERIFIED by a run.
 
 ```bash
 sudo cp <ca-dir>/ca.crt /usr/local/share/ca-certificates/<ca-file-name>.crt
@@ -316,21 +316,21 @@ Firefox has one database per profile. With Firefox closed, run this for each pro
 certutil -d sql:<profile-dir> -A -t "C,," -n "<ca-name>" -i <ca-dir>/ca.crt
 ```
 
-Windows, from an administrator PowerShell, for every user. Chrome and Edge read this store. https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/certutil, says of `-addstore`: "Adds a certificate to the store." UNVERIFIED by a run.
+Windows, from an administrator PowerShell, for every user. Chrome and Edge read this store. https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/certutil says of `-addstore`: "Adds a certificate to the store." UNVERIFIED by a run.
 
 ```powershell
 certutil -addstore -f Root <ca-dir>\ca.crt
 ```
 
-macOS, for every user. Safari and Chrome read the System keychain. The `security` manual page at https://ss64.com/mac/security-cert.html, lists `-d` as "Add to admin cert store", with the user store as the default, and `trustRoot` as a result type. UNVERIFIED by a run.
+macOS, for every user. Safari and Chrome read the System keychain. The `security` manual page at https://ss64.com/mac/security-cert.html lists `-d` as "Add to admin cert store", with the user store as the default, and `trustRoot` as a result type. UNVERIFIED by a run.
 
 ```bash
 sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain <ca-dir>/ca.crt
 ```
 
-iPhone and iPad. Send `ca.crt` to the device by AirDrop or open it in Safari, then Settings, Profile Downloaded, Install. It is not trusted for websites until the switch is on: https://support.apple.com/en-us/102390, says "go to Settings > General > About > Certificate Trust Settings. Under "Enable full trust for root certificates," turn on trust for the certificate." UNVERIFIED by a run.
+iPhone and iPad. Send `ca.crt` to the device by AirDrop or open it in Safari, then Settings, Profile Downloaded, Install. It is not trusted for websites until the switch is on: https://support.apple.com/en-us/102390 says "go to Settings > General > About > Certificate Trust Settings. Under "Enable full trust for root certificates," turn on trust for the certificate." UNVERIFIED by a run.
 
-Android. Copy `ca.crt` to the phone, then Settings, Security, Encryption and credentials, Install a certificate, CA certificate, and the menu names differ between makers. https://developer.android.com/privacy-and-security/security-config, says: "By default, secure connections (using protocols like TLS and HTTPS) from all apps trust the pre-installed system CAs, and apps targeting Android 6.0 (API level 23) and lower also trust the user-added CA store by default." So many apps keep refusing the CA even when the browser accepts it, and nothing on the phone changes that. UNVERIFIED by a run.
+Android. Copy `ca.crt` to the phone, then Settings, Security, Encryption and credentials, Install a certificate, CA certificate, and the menu names differ between makers. https://developer.android.com/privacy-and-security/security-config says: "By default, secure connections (using protocols like TLS and HTTPS) from all apps trust the pre-installed system CAs, and apps targeting Android 6.0 (API level 23) and lower also trust the user-added CA store by default." So many apps keep refusing the CA even when the browser accepts it, and nothing on the phone changes that. UNVERIFIED by a run.
 
 ---
 

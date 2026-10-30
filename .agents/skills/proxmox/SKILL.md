@@ -1,6 +1,6 @@
 ---
 name: proxmox
-description: 'Working with a Proxmox VE 8 or 9 host from an agent, every change asked of the owner first: API tokens, listing VMs and storage, creating and deleting VMs, growing a guest disk, snapshots, vzdump backups and thin pools. Use when the user says "give the agent access to Proxmox", "grow the disk of this VM" or "snapshot this VM first". Not for containers inside a guest, use `docker-patterns`.'
+description: 'Working with a Proxmox VE 8 or 9 host from an agent, every change asked of the owner first: API tokens, listing VMs and storage, creating and deleting VMs, growing a guest disk, snapshots, vzdump backups and thin pools. Use when the user says "give the agent access to Proxmox", "grow the disk of this VM" or "snapshot this VM first". Not for the services inside the VM, use `homelab-services`.'
 ---
 
 # Proxmox VE Administration
@@ -40,6 +40,7 @@ Host names, node names, VM IDs, storage names beyond the installer defaults, and
 ### When not to activate
 
 - Software inside a guest, use the skill for that guest's operating system or application, such as `syncthing`, `docker-patterns` or `home-assistant`
+- The services running inside a VM, such as the proxy, the dashboard, DNS or monitoring, use `homelab-services`
 - Provisioning many VMs reproducibly, use `ansible`
 - Writing a script that wraps these calls, use `bash` or `powershell`
 - Judging whether a token, an exposed port or a firewall rule is acceptable, use the `security-auditor` agent

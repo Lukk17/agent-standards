@@ -1,6 +1,6 @@
 ---
 name: mongodb-patterns
-description: "MongoDB connection pooling, query and index tuning, schema design and anti-patterns, and Atlas Search, Vector Search and Hybrid Search. Use when the user says \"configure the connection pool\", \"how do I index this\", \"design this schema\", \"embed vs reference\" or \"combine keyword and semantic search\". Not for applying a schema change safely to a live cluster, use `database-migrations`."
+description: "MongoDB connection pooling, query and index tuning, schema design and anti-patterns, and Atlas Search, Vector Search and Hybrid Search. Use when the user says \"configure the connection pool\", \"how do I index this\", \"design this schema\", \"embed vs reference\" or \"combine keyword and semantic search\". Not for relational modelling on PostgreSQL, use `postgres-patterns`."
 license: Apache-2.0
 compatibility: >-
   Best with MongoDB MCP server. Uses collection-indexes, collection-schema and explain when the connection string

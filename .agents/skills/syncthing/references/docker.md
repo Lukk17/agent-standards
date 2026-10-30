@@ -1,6 +1,6 @@
 # Syncthing in Docker
 
-Read this before running Syncthing in a container, or before running `syncthing cli` against one. The rules live in [SKILL.md](../SKILL.md), and Compose and image design in general belong to the `docker-patterns` skill. Commands marked VERIFIED against the `lscr.io/linuxserver/syncthing` and `syncthing/syncthing` images of Syncthing 2 in throwaway containers on an isolated network. Every other command here is UNVERIFIED.
+Read this before running Syncthing in a container, or before running `syncthing cli` against one. The rules live in [SKILL.md](../SKILL.md), and Compose and image design in general belong to the `docker-patterns` skill. Commands marked VERIFIED ran against the `lscr.io/linuxserver/syncthing` and `syncthing/syncthing` images of Syncthing 2 in throwaway containers on an isolated network. Every other command here is UNVERIFIED.
 
 Sources: the linuxserver README at https://github.com/linuxserver/docker-syncthing, its `root/etc/s6-overlay/s6-rc.d/svc-syncthing/run`, and https://github.com/syncthing/syncthing/blob/main/README-Docker.md.
 
@@ -13,7 +13,7 @@ The linuxserver README gives this service. Here it carries placeholders for the 
 ```yaml
 services:
   syncthing:
-    image: lscr.io/linuxserver/syncthing:<version-tag>
+    image: lscr.io/linuxserver/syncthing:<version-tag>@sha256:<digest>
     container_name: syncthing
     hostname: <syncthing-host-name>
     environment:
@@ -48,7 +48,7 @@ id -u
 id -g
 ```
 
-Pin `<version-tag>` to a release tag of the image rather than `latest`, so an upgrade is a deliberate change.
+Pin `<version-tag>` to a release tag of the image rather than `latest`, so an upgrade is a deliberate change, and `<digest>` with the digest that tag resolves to, read with `docker buildx imagetools inspect lscr.io/linuxserver/syncthing:<version-tag>`, so a re-pushed tag cannot change what runs.
 
 ---
 

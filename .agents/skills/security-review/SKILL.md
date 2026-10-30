@@ -226,17 +226,18 @@ ALTER TABLE users FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY users_select_own ON users
   FOR SELECT
-  USING (id = current_setting('app.current_user_id', true)::uuid);
+  USING (id = nullif(current_setting('app.current_user_id', true), '')::uuid);
 
 CREATE POLICY users_update_own ON users
   FOR UPDATE
-  USING (id = current_setting('app.current_user_id', true)::uuid);
+  USING (id = nullif(current_setting('app.current_user_id', true), '')::uuid);
 ```
 
 Set the identity per transaction with `set_config('app.current_user_id', $1, true)` (the `SET LOCAL` form), never per
 connection, because a pooled connection serves the next user with whatever value it still holds. The second argument
-of `current_setting` makes a missing value read as null, so a request with no identity matches no row instead of
-raising. The application connects as a role that does not own the table and has no `BYPASSRLS`, because table owners
+of `current_setting` makes a setting that was never set read as null, but once a transaction that set it ends, the
+setting reads as an empty string, which a bare `::uuid` cast rejects with an error. `nullif(..., '')` turns both into
+null, so a request with no identity matches no row instead of raising. The application connects as a role that does not own the table and has no `BYPASSRLS`, because table owners
 skip the policy unless it is forced, and superusers and `BYPASSRLS` roles always skip it.
 
 ```sql
@@ -325,7 +326,8 @@ addresses and stays under any per-address limit. OWASP's Authentication Cheat Sh
 "should be associated with the account itself, rather than the source IP address". Back off on that counter, and
 alert when one address tries many accounts.
 
-This section owns that policy. Values: see the tiers table in `api-design`, which holds every number. The
+This section owns that policy. The tiers and what each one keys on are in the tiers table in `api-design`, and the
+values belong to each application, set from its own measured load. The
 implementations follow both: Spring in `springboot-patterns` under `references/security.md`, and Node in
 `node-backend-patterns` under `references/rate-limiting.md`.
 

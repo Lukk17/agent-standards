@@ -10,7 +10,7 @@ and traces show a failing dependency. The cross-cutting principles hub is the `c
 is the detailed playbook for the logging and observability rules it points to.
 
 Baseline: OpenTelemetry is the reference instrumentation API for traces, metrics, and logs. Prometheus exposition is
-the reference metrics format. Both are language-neutral, so pick the current stable SDK for your stack.
+the reference metrics format. Both are language-neutral. Written for the OpenTelemetry 1.x API and SDKs.
 
 ---
 

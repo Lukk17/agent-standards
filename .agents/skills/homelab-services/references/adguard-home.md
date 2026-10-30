@@ -9,7 +9,7 @@ Contents:
 - [Ignored domains](#ignored-domains)
 - [Editing AdGuardHome.yaml](#editing-adguardhomeyaml)
 
-Read this before adding a DNS rewrite, changing upstreams, changing how long the query log or the statistics are kept, ignoring a domain, or editing `AdGuardHome.yaml`. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab with AdGuard Home 0.107. The file edit was also run end to end in a throwaway container of that image with no network. Every other command here is UNVERIFIED.
+Read this before adding a DNS rewrite, changing upstreams, changing how long the query log or the statistics are kept, ignoring a domain, or editing `AdGuardHome.yaml`. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab on one AdGuard Home 0 release.107. The file edit was also run end to end in a throwaway container of that image with no network. Every other command here is UNVERIFIED.
 
 Sources in https://github.com/AdguardTeam/AdGuardHome: `internal/home/config.go` for the keys and defaults, `internal/home/home.go` and `internal/home/config.go` for when the file is written, `internal/querylog/querylogfile.go` for the rotation, `internal/filtering/rewrites.go` for the rewrite keys, and `docker/build.Dockerfile` for the image, which is Alpine with BusyBox.
 

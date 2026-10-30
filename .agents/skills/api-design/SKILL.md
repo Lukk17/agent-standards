@@ -237,8 +237,8 @@ checks the database, so a transient outage makes the orchestrator restart a perf
 
 ### Advertise rate limits on every response
 
-This section is the canonical definition of the rate-limit headers and the numbers in each tier for this repository.
-Other skills implement it and must not restate the values. The policy behind the tiers, what each counter is keyed on
+This section is the canonical definition of the rate-limit headers, the 429 response and the tiers for this repository.
+Every public endpoint sits in a tier and carries a limit. Other skills implement it and must not restate it. The policy behind the tiers, what each counter is keyed on
 and why authentication endpoints get their own budget, is in `security-review`.
 
 ```text
@@ -266,14 +266,19 @@ These are the de facto names. Track draft-ietf-httpapi-ratelimit-headers (`RateL
 those fields beside the `X-` ones once it is published as an RFC. Until then, implementations disagree on the value
 format of `X-RateLimit-Remaining` and `X-RateLimit-Reset`, so document the one this API sends.
 
-| Tier | Limit | Window | Applies to |
-| --- | --- | --- | --- |
-| Anonymous | 30/min | Per IP | Public endpoints |
-| Authenticated | 100/min | Per user | Standard API access |
-| Expensive | 10/min | Per user, or per IP when anonymous | Search, export, and anything that scans or fans out |
-| Authentication | 5/min | Per IP, plus a failed-attempt counter per target account with backoff | Login, password reset, signup |
-| Premium | 1000/min | Per API key | Paid plans |
-| Internal | 10000/min | Per service | Service-to-service calls |
+| Tier | Keyed on | Applies to |
+| --- | --- | --- |
+| Anonymous | Client address | Public endpoints |
+| Authenticated | User | Standard API access |
+| Expensive | User, or client address when anonymous | Search, export, and anything that scans or fans out |
+| Authentication | Client address, plus a failed-attempt counter per target account with backoff | Login, password reset, signup |
+| Premium | API key | Paid plans |
+| Internal | Calling service | Service-to-service calls |
+
+The values belong to each application, because they depend on its capacity, its cost per request and its abuse cases.
+Set them from measured load, write them into the API's own documentation, and keep the order the tiers imply:
+Expensive and Authentication stay tighter than Authenticated, and Anonymous stays tighter than Authenticated. The
+header values above are a format example, not a recommended limit.
 
 ---
 

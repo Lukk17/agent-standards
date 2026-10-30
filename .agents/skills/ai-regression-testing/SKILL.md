@@ -239,7 +239,8 @@ catch (err) {
 
 Optimistic update without rollback. The UI is updated before the request succeeds and never reverts when it does not.
 Restore only the item this call removed rather than a snapshot of the whole list, because a snapshot taken before two
-overlapping deletes brings back the one that succeeded.
+overlapping deletes brings back the one that succeeded. Record the item's index before removing it and reinsert it there, so the rollback
+leaves the list in its original order rather than moving the item to the end.
 
 Fail:
 
@@ -254,7 +255,8 @@ Pass:
 
 ```typescript
 const remove = async (id: string) => {
-  const removed = items.find(item => item.id === id)
+  const index = items.findIndex(item => item.id === id)
+  const removed = items[index]
   setItems(prev => prev.filter(item => item.id !== id))
   try {
     const res = await fetch(`/api/items/${id}`, { method: "DELETE" })
@@ -263,7 +265,7 @@ const remove = async (id: string) => {
     }
   } catch (err) {
     logger.error({ err }, "Failed to remove item, rolling back")
-    setItems(prev => (removed ? [...prev, removed] : prev))
+    setItems(prev => (removed ? [...prev.slice(0, index), removed, ...prev.slice(index)] : prev))
     setError("Could not delete the item")
   }
 }

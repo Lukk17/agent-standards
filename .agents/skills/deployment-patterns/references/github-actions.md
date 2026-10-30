@@ -3,8 +3,8 @@
 A reference pipeline, the authentication and permission rules, and the canary automation that sits on top of it. The
 strategy and gating rules live in [SKILL.md](../SKILL.md).
 
-Every action below is referenced by its major version tag. Bump majors deliberately, a major bump usually changes the
-runner Node version. An action that publishes no major tag, or is still on a 0.x release, is pinned to its full version.
+Every action below is pinned to a full 40-character commit SHA with its version tag in a trailing comment, because a
+tag can be moved to other code and a SHA cannot. The examples show `<commit-sha>` in place of a real one. Resolve the SHA for a tag with `git ls-remote https://github.com/<owner>/<repo> refs/tags/<tag> refs/tags/<tag>^{}`, taking the `^{}` line when the tag is annotated, and let Dependabot or Renovate bump the SHA and the comment together. Bump majors deliberately, a major bump usually changes the runner Node version.
 
 ---
 
@@ -41,16 +41,16 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@<commit-sha> # v5
+      - uses: actions/setup-node@<commit-sha> # v5
         with:
-          node-version: 24
+          node-version: 26
           cache: npm
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test -- --coverage
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@<commit-sha> # v4
         if: always()
         with:
           name: coverage
@@ -67,20 +67,20 @@ jobs:
     outputs:
       digest: ${{ steps.push.outputs.digest }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@<commit-sha> # v5
+      - uses: docker/setup-buildx-action@<commit-sha> # v3
+      - uses: docker/login-action@<commit-sha> # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v7
+      - uses: docker/build-push-action@<commit-sha> # v7
         with:
           load: true
           tags: ${{ env.IMAGE }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - uses: aquasecurity/trivy-action@v0.36.0
+      - uses: aquasecurity/trivy-action@<commit-sha> # v0.36.0
         with:
           image-ref: ${{ env.IMAGE }}:${{ github.sha }}
           exit-code: '1'
@@ -88,23 +88,23 @@ jobs:
           ignore-unfixed: true
           format: json
           output: trivy-report.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@<commit-sha> # v4
         if: always()
         with:
           name: trivy-report
           path: trivy-report.json
       - id: push
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@<commit-sha> # v7
         with:
           push: true
           tags: ${{ env.IMAGE }}:${{ github.sha }}
           cache-from: type=gha
-      - uses: anchore/sbom-action@v0.24.2
+      - uses: anchore/sbom-action@<commit-sha> # v0.24.2
         with:
           image: ${{ env.IMAGE }}@${{ steps.push.outputs.digest }}
           format: cyclonedx-json
           output-file: sbom.json
-      - uses: sigstore/cosign-installer@v4.1.2
+      - uses: sigstore/cosign-installer@<commit-sha> # v4.1.2
       - name: Sign the image and attest the SBOM
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
@@ -122,13 +122,13 @@ jobs:
       packages: read
       id-token: write
     steps:
-      - uses: actions/checkout@v5
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@<commit-sha> # v5
+      - uses: docker/login-action@<commit-sha> # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: sigstore/cosign-installer@v4.1.2
+      - uses: sigstore/cosign-installer@<commit-sha> # v4.1.2
       - name: Verify the image signature
         env:
           COSIGN_PUBLIC_KEY: ${{ vars.COSIGN_PUBLIC_KEY }}
@@ -142,7 +142,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@<commit-sha> # v5
       - name: Smoke test staging
         run: ./scripts/smoke-test.sh staging
 
@@ -155,13 +155,13 @@ jobs:
       packages: read
       id-token: write
     steps:
-      - uses: actions/checkout@v5
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@<commit-sha> # v5
+      - uses: docker/login-action@<commit-sha> # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: sigstore/cosign-installer@v4.1.2
+      - uses: sigstore/cosign-installer@<commit-sha> # v4.1.2
       - name: Verify the image signature
         env:
           COSIGN_PUBLIC_KEY: ${{ vars.COSIGN_PUBLIC_KEY }}
@@ -187,7 +187,7 @@ Exchange a short-lived token for a cloud role. A long-lived access key in CI sec
 and stays valid.
 
 ```yaml
-- uses: aws-actions/configure-aws-credentials@v5
+- uses: aws-actions/configure-aws-credentials@<commit-sha> # v5
   with:
     role-to-assume: arn:aws:iam::123456789:role/deploy-role
     aws-region: eu-west-1
@@ -221,7 +221,7 @@ workflow runs.
 
 ```yaml
 - name: Lint GitHub Actions workflows
-  uses: rhysd/actionlint@v1
+  uses: rhysd/actionlint@<commit-sha> # v1
 ```
 
 ---
@@ -233,7 +233,7 @@ Notify the author and a shared channel on any pipeline failure, with a link back
 ```yaml
 - name: Notify on failure
   if: failure()
-  uses: slackapi/slack-github-action@v4
+  uses: slackapi/slack-github-action@<commit-sha> # v4
   with:
     payload: |
       {

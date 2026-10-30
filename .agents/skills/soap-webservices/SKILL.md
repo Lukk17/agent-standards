@@ -9,7 +9,7 @@ Rules for integrating with SOAP services from a Java application, where the cont
 and the generated code is a build artifact. Everything here assumes contract-first: the schema is the truth and the
 Java types follow it.
 
-Written for Java 21 LTS as the minimum and Java 25 LTS as the recommended target, the `jakarta.*` namespace throughout (Jakarta XML Web Services 4, JAXB 4), Apache CXF 4, Spring-WS 4 with WSS4J, and Resilience4j 2.
+Written for Java 21 LTS as the minimum and Java 25 LTS as the recommended target, the `jakarta.*` namespace throughout (Jakarta XML Web Services 4, JAXB 4), Apache CXF 4 and Spring-WS with WSS4J, and Resilience4j 2. Match the line to the Spring generation: on Spring Boot 4 and Spring Framework 7 use Spring-WS 5 and the CXF 4.2 line, and on Spring Boot 3 and Spring Framework 6 use Spring-WS 4 and the CXF 4.1 line, because each of those lines is built against that one Spring generation.
 
 ---
 

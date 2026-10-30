@@ -56,7 +56,6 @@ Generate an NgModule only to integrate with legacy code that still requires one.
 @Component({
   selector: 'app-widget-list',
   imports: [WidgetCardComponent],
-  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `@for (widget of widgets(); track widget.id) { <app-widget-card [widget]="widget" /> }`,
 })
 export class WidgetListComponent {}
@@ -113,7 +112,7 @@ A subscription that outlives its component keeps the component, its template, an
 
 ```typescript
 // PASS: teardown is declared in the pipe, nothing to remember in a lifecycle hook
-@Component({ selector: 'app-search', changeDetection: ChangeDetectionStrategy.OnPush })
+@Component({ selector: 'app-search' })
 export class SearchComponent {
   private readonly search = inject(SearchService);
 
@@ -156,7 +155,7 @@ it works in field initialisers where a constructor parameter does not.
 
 ```typescript
 // PASS: fields declare what they need, readonly, no constructor plumbing
-@Component({ selector: 'app-profile', changeDetection: ChangeDetectionStrategy.OnPush })
+@Component({ selector: 'app-profile' })
 export class ProfileComponent {
   private readonly userService = inject(UserService);
   private readonly router = inject(Router);
@@ -242,7 +241,8 @@ error in `catchError` without logging it: re-throw, or convert it into a typed e
 
 ### Keep change detection cheap
 
-`OnPush` narrows re-rendering to the inputs and signals a component actually reads. A function call in a template
+`OnPush`, the default from Angular 22, narrows re-rendering to the inputs and signals a component actually reads. On
+a project older than Angular 22, set `changeDetection: ChangeDetectionStrategy.OnPush` on each component explicitly. A function call in a template
 runs on every check, which is what makes a template-bound method the most common Angular performance bug.
 
 ```html
@@ -277,7 +277,8 @@ Doc comments follow the Doc Comments rules in `coding-standards`, whose TSDoc ex
 
 ### Checklist
 
-- Every new component is standalone and sets `ChangeDetectionStrategy.OnPush`.
+- Every new component is standalone and runs `OnPush`, the default from Angular 22, set explicitly only on an older
+  project. `ChangeDetectionStrategy.Eager` carries a justification.
 - Synchronous UI state lives in signals, and no `BehaviorSubject` is used as a state container.
 - Every component-level subscription ends with `takeUntilDestroyed`, and no `ngOnDestroy` destroy subject remains.
 - No `subscribe` call in a component assigns a field that a signal or the `async` pipe could hold.

@@ -47,7 +47,7 @@ The build number. VERIFIED on build 386:
 nvram get buildno
 ```
 
-The full version is `firmver`, `buildno` and `extendno` together, for example 3.0.0.6, 102 and a build number for a 3.0.0.6.102 release. Build 386 printed an `extendno` with a short git hash after the number. Both VERIFIED on build 386:
+The full version is `firmver`, `buildno` and `extendno` together, for example `3.0.0.6`, `102` and an `extendno` such as `<build>`, read together as `3.0.0.6.102_<build>`. Build 386 printed an `extendno` with a short git hash after the number. Both VERIFIED on build 386:
 
 ```sh
 nvram get firmver

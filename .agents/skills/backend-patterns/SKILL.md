@@ -49,16 +49,25 @@ A caller that times out cannot tell a lost request from a lost response, so it r
 Accept a client-supplied key and claim it before the effect runs, so a concurrent second attempt finds the claim rather
 than an empty table. A `select ... for update` on a key that does not exist yet locks nothing, which is why the claim
 is an insert. Store the response once the effect finishes and replay it on a repeat. When the effect is an external
-call, such as a charge, pass the same key downstream so the provider deduplicates too.
+call, such as a charge, pass the same key downstream so the provider deduplicates too. When the effect is local, such
+as rows in the same database, run the effect and the `done` update in one transaction, so a crash between them cannot
+leave the effect applied and the key still claimed.
+
+A claim needs a lease. Record `claimed_at` with the claim, and let a retry take over a claim older than the lease,
+which is longer than the slowest successful attempt. Without it, a worker that dies after the claim leaves the key
+answering 409 forever.
 
 ```text
 on POST /orders with Idempotency-Key K:
-  insert idempotency (key = K, request_hash = hash(body), state = 'in_progress') on conflict do nothing
+  insert idempotency (key = K, request_hash = hash(body), state = 'in_progress', claimed_at = now())
+    on conflict do nothing
   if no row inserted:
     row = select from idempotency where key = K
     if row.request_hash != hash(body): return 422      # key reused for a different request
-    if row.state = 'in_progress':     return 409      # the first attempt is still running
-    return row.response                                # replay
+    if row.state = 'done':            return row.response   # replay
+    taken = update idempotency set claimed_at = now()
+              where key = K and state = 'in_progress' and claimed_at < now() - LEASE
+    if taken is 0 rows:               return 409      # the first attempt is still running
   result = perform the operation (pass K downstream as the provider's idempotency key)
   update idempotency set state = 'done', response = result where key = K
   if the operation fails: delete from idempotency where key = K   # the retry is safe, K deduplicates downstream

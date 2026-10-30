@@ -204,7 +204,7 @@ then try another route, such as a search restricted to that site, the Hacker New
 curl -s "https://hn.algolia.com/api/v1/search?query=QUERY&tags=story"
 ```
 
-Reddit answered its JSON API with 403 and its RSS feeds with 200 when, and it rate limits unauthenticated readers to roughly one request every few seconds (`x-ratelimit-remaining: 0` on a 429). Space the requests and read a thread with its top comments through the feed.
+Reddit answered its JSON API with 403 and its RSS feeds with 200 when measured, and it rate limits unauthenticated readers to roughly one request every few seconds (`x-ratelimit-remaining: 0` on a 429). Space the requests and read a thread with its top comments through the feed.
 
 ```bash
 curl -s -A "Mozilla/5.0" "https://www.reddit.com/r/SUBREDDIT/search.rss?q=QUERY&restrict_sr=1&sort=top&t=year"

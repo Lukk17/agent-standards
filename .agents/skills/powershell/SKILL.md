@@ -130,8 +130,8 @@ FunctionsToExport = '*'
 Comment-based help follows "Doc Comments" in `coding-standards`, so private helpers and script-local functions carry
 none. The PowerShell delta is one carve-out: help on a function exported from a module is machine consumed, because
 `Get-Help` renders it, so an exported function always carries `.SYNOPSIS`, one `.PARAMETER` per parameter and one
-`.EXAMPLE` for the common invocation, even where the names already say it. Each `.PARAMETER` still has to earn its
-line with units, a valid range, or who owns the argument afterwards. Add `.OUTPUTS` when the emitted type is
+`.EXAMPLE` for the common invocation, even where the names already say it. Keep each `.PARAMETER` to one line, and spend it on units, a valid range, or
+who owns the argument afterwards wherever one of those applies. Add `.OUTPUTS` when the emitted type is
 non-obvious, and name every terminating error a caller can catch under `.NOTES`, since nothing in the signature
 declares it.
 

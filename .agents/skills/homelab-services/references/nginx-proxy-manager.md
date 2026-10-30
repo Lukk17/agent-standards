@@ -10,11 +10,9 @@ Contents:
 - [The Proxmox web UI behind the proxy](#the-proxmox-web-ui-behind-the-proxy)
 - [Check a proxy host](#check-a-proxy-host)
 
-Read this before adding a proxy host for a `.internal` name, before forwarding one to a service that runs on host networking or on another machine, before putting the Proxmox web UI behind the proxy, or when a proxy host answers 500. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab with Nginx Proxy Manager 2. Every other command here is UNVERIFIED.
+Read this before adding a proxy host for a `.internal` name, before forwarding one to a service that runs on host networking or on another machine, before putting the Proxmox web UI behind the proxy, or when a proxy host answers 500. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab on one Nginx Proxy Manager 2 release. Every other command here is UNVERIFIED.
 
-Sources: `backend/setup.js` of https://github.com/NginxProxyManager/nginx-proxy-manager, and its setup page `docs/src/setup/index.md` on the `develop` branch.
-
-Sources: `backend/templates/proxy_host.conf` and `docker/rootfs/etc/nginx/conf.d/include/proxy.conf`, the nginx proxy module page https://nginx.org/en/docs/http/ngx_http_proxy_module.html, the Proxmox wiki page "Web Interface Via Nginx Proxy" at https://pve.proxmox.com/wiki/Web_Interface_Via_Nginx_Proxy, `src/Utils.js` of https://git.proxmox.com/?p=proxmox-widget-toolkit.git on its default branch, and https://www.ietf.org/archive/id/draft-ietf-httpbis-rfc6265bis-22.txt.
+Sources: in the nginx-proxy-manager repository at https://github.com/NginxProxyManager/nginx-proxy-manager, `backend/setup.js`, `backend/templates/proxy_host.conf`, `docker/rootfs/etc/nginx/conf.d/include/proxy.conf` and the setup page `docs/src/setup/index.md` on the `develop` branch. Also the nginx proxy module page https://nginx.org/en/docs/http/ngx_http_proxy_module.html, the Proxmox wiki page "Web Interface Via Nginx Proxy" at https://pve.proxmox.com/wiki/Web_Interface_Via_Nginx_Proxy, `src/Utils.js` of https://git.proxmox.com/?p=proxmox-widget-toolkit.git on its default branch, and https://www.ietf.org/archive/id/draft-ietf-httpbis-rfc6265bis-22.txt.
 
 ---
 

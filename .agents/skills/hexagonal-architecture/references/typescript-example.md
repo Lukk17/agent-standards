@@ -18,7 +18,8 @@ them. Read this when you want the concrete shape rather than the rule.
 
 ```typescript
 export interface OrderRepositoryPort {
-  save(order: Order): Promise<void>;
+  create(order: Order): Promise<void>;
+  saveAuthorization(order: Order): Promise<void>;
   findById(orderId: string): Promise<Order | null>;
 }
 
@@ -52,7 +53,7 @@ export class CreateOrderUseCase {
 
   async execute(input: CreateOrderInput): Promise<CreateOrderOutput> {
     const order = Order.create({ id: input.orderId, amountCents: input.amountCents });
-    await this.orderRepository.save(order);
+    await this.orderRepository.create(order);
 
     const auth = await this.paymentGateway.authorize({
       orderId: order.id,
@@ -60,7 +61,7 @@ export class CreateOrderUseCase {
       idempotencyKey: order.id,
     });
 
-    await this.orderRepository.save(order.markAuthorized(auth.authorizationId));
+    await this.orderRepository.saveAuthorization(order.markAuthorized(auth.authorizationId));
 
     return {
       orderId: order.id,
@@ -76,11 +77,17 @@ export class CreateOrderUseCase {
 export class PostgresOrderRepository implements OrderRepositoryPort {
   constructor(private readonly db: SqlClient) {}
 
-  async save(order: Order): Promise<void> {
+  async create(order: Order): Promise<void> {
     await this.db.query(
-      "insert into orders (id, amount_cents, status, authorization_id) values ($1, $2, $3, $4) " +
-        "on conflict (id) do update set status = excluded.status, authorization_id = excluded.authorization_id",
-      [order.id, order.amountCents, order.status, order.authorizationId]
+      "insert into orders (id, amount_cents, status) values ($1, $2, $3) on conflict (id) do nothing",
+      [order.id, order.amountCents, order.status]
+    );
+  }
+
+  async saveAuthorization(order: Order): Promise<void> {
+    await this.db.query(
+      "update orders set status = $2, authorization_id = $3 where id = $1 and status = 'pending'",
+      [order.id, order.status, order.authorizationId]
     );
   }
 
@@ -111,7 +118,9 @@ export const buildCreateOrderUseCase = (deps: { db: SqlClient; stripe: StripeCli
   crash between the two calls leaves a pending order rather than a charge with no order, and a client retry reuses
   the same key, so the provider authorizes once.
 - `markAuthorized` returns a new `Order` rather than mutating one, so no caller holds a half-updated entity.
-- `save` is an upsert, so the second save after authorization updates the row the first one wrote.
+- `create` inserts with `on conflict (id) do nothing`, so a client retry with the same order id never overwrites an
+  order that already moved on, and `saveAuthorization` updates only a row still `pending`, so a late or repeated
+  authorization cannot move an order back or over a later status.
 - The adapter is the only place a SQL string appears, and the only place a database row becomes a domain object.
 - The composition root is a plain function. Swapping `PostgresOrderRepository` for an in-memory fake in a test needs no
   container and no framework.

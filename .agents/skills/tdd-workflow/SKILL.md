@@ -305,13 +305,15 @@ Gate the commit on tests and lint.
 npm test && npm run lint
 ```
 
-In CI, run with coverage and upload the report.
+In CI, run with coverage and upload the report. The upload action is pinned to a full commit SHA with its tag in a
+trailing comment, `<commit-sha>` standing in for a real one, resolved with
+`git ls-remote https://github.com/codecov/codecov-action refs/tags/<tag> refs/tags/<tag>^{}`.
 
 ```yaml
 - name: Run tests
   run: npm test -- --coverage
 - name: Upload coverage
-  uses: codecov/codecov-action@v7
+  uses: codecov/codecov-action@<commit-sha> # v7
 ```
 
 ---

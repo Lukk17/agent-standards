@@ -141,7 +141,7 @@ FallbackTheme=breeze
 
 KWin removed its contrast effect in Plasma 6.5, in the KWin change "Remove the contrast effect", message "main parts are inside blur right now". Since then the blur effect applies one fixed color matrix, with the saturation from `kwinrc` `[Effect-blur] Saturation` (default 150, meaning 1.5) and contrast 1.0 (`src/plugins/blur/blur.cpp`, `src/plugins/blur/blur.kcfg`). libplasma still sends the style's contrast values to the compositor (`plasmawindow.cpp`, `dialog.cpp`), and no code in the KWin sources reads them. Inferred, high confidence: on 6.5 and later `[ContrastEffect]` no longer changes panels and popups.
 
-It still changes desktop widgets. `BasicAppletContainer.qml` apply `backgroundContrast - 1.0` and `backgroundSaturation - 1.0` to plasmashell's own wallpaper blur, whatever `enabled` says. With the missing-key defaults that is a darker, stronger colored blur. `contrast=1` and `saturation=1` give a neutral blur of the real wallpaper.
+It still changes desktop widgets. `BasicAppletContainer.qml` applies `backgroundContrast - 1.0` and `backgroundSaturation - 1.0` to plasmashell's own wallpaper blur, whatever `enabled` says. With the missing-key defaults that is a darker, stronger colored blur. `contrast=1` and `saturation=1` give a neutral blur of the real wallpaper.
 
 ---
 
@@ -213,7 +213,7 @@ theme=Glass
 What applying does, read in plasma-workspace 6:
 
 1. Each value is written to `~/.config/kdedefaults/<file>`, and the user's own value of the same key in `~/.config/<file>` is removed (`klookandfeelmanager.cpp`). The theme id goes to `~/.config/kdedefaults/package`.
-2. A file the package lacks comes from `org.kde.breeze.desktop` (`lookandfeel.cpp` to 61). A package with no splash screen therefore switches the splash to the Breeze one.
+2. A file the package lacks comes from `org.kde.breeze.desktop` (`lookandfeel.cpp`). A package with no splash screen therefore switches the splash to the Breeze one.
 3. A color scheme named in `defaults` is found by a changed form of its name (`colorSchemeFile`, `klookandfeelmanager.cpp`). Ship the scheme as `contents/colors` so the right one is used.
 
 ---
@@ -238,20 +238,20 @@ Read the current Global Theme and keep the name for the undo:
 kreadconfig6 --file kdeglobals --group KDE --key LookAndFeelPackage
 ```
 
-Save and export a konsave profile, see [konsave.md](konsave.md):
+Save and export a konsave profile, see [konsave.md](konsave.md), with today's date in place of `<YYYYMMDD>`:
 
 ```bash
-konsave -s before-glass-20261023 -f
+konsave -s before-glass-<YYYYMMDD> -f
 ```
 
 ```bash
-konsave -e before-glass-20261023 -d ~
+konsave -e before-glass-<YYYYMMDD> -d ~
 ```
 
 Check the profile really holds the layout file. konsave 2 catches its own errors and writes them to `~/.cache/konsave_log.txt` (`konsave/funcs.py`), and a real theme set measured exit status 0 for a failed save in a container:
 
 ```bash
-test -f ~/.config/konsave/profiles/before-glass-20261023/configs/plasma-org.kde.plasma.desktop-appletsrc
+test -f ~/.config/konsave/profiles/before-glass-<YYYYMMDD>/configs/plasma-org.kde.plasma.desktop-appletsrc
 ```
 
 Apply the look only, or the look and the layout. `lookandfeeltool` is a link to `plasma-apply-lookandfeel` (measured). UNVERIFIED, these change the session:
@@ -271,7 +271,7 @@ plasma-apply-lookandfeel --apply org.kde.breezedark.desktop
 ```
 
 ```bash
-konsave -a before-glass-20261023
+konsave -a before-glass-<YYYYMMDD>
 ```
 
 ```bash

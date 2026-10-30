@@ -9,7 +9,7 @@ Contents:
 - [The speed test and its traffic](#the-speed-test-and-its-traffic)
 - [Keep the probe name out of AdGuard Home](#keep-the-probe-name-out-of-adguard-home)
 
-Read this before setting up the per-second network probes, changing their config, reading their CSV files after a drop, or changing the speed test. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab with Telegraf 1. Every other command here is UNVERIFIED.
+Read this before setting up the per-second network probes, changing their config, reading their CSV files after a drop, or changing the speed test. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab on one Telegraf 1 release. Every other command here is UNVERIFIED.
 
 Sources in https://github.com/influxdata/telegraf: `plugins/inputs/ping/README.md`, `plugins/inputs/internet_speed/README.md`, `plugins/outputs/file/README.md`, `plugins/serializers/csv/README.md`, `docs/CONFIGURATION.md`, and `config/config.go` for the default of `round_interval`.
 
@@ -32,11 +32,11 @@ Write the files into a folder Syncthing sends to the owner's PC, so the record l
 
 ### The config
 
-Run the container with `network_mode: host` and as user 1000, and mount the config file read only and the output folder. Replace `<version-tag>` with a Telegraf 1 release tag:
+Run the container with `network_mode: host` and as user 1000, and mount the config file read only and the output folder. Replace `<version-tag>` with a Telegraf 1 release tag and `<digest>` with the digest that tag resolves to, read with `docker buildx imagetools inspect telegraf:<version-tag>`, so a re-pushed tag cannot change what runs:
 
 ```yaml
 telegraf:
-  image: telegraf:<version-tag>
+  image: telegraf:<version-tag>@sha256:<digest>
   network_mode: host
   user: "1000:1000"
   volumes:
@@ -130,7 +130,7 @@ A full disk stops the writes, and the rows of that time are lost. VERIFIED: the 
 
 `[[inputs.internet_speed]]` runs a real speedtest.net test, so every test moves real data. The README warns: "This plugin downloads many MB of data each time it is run. As such consider setting a higher interval for this plugin to reduce the demand on your internet connection."
 
-VERIFIED with Telegraf 1, measured with `telegraf --test --input-filter internet_speed` in a container on its own bridge network, reading `/proc/net/dev` afterwards: one test received 282,184,059 bytes and sent 402,764,399 bytes, about 685 MB, at about 200 Mbit/s, and filled the line for about 40 seconds. The test runs for a fixed time, so a faster line moves more data. At one test an hour that is about 16 GB a day, and at one every 10 minutes about 100 GB a day.
+VERIFIED, measured on a Telegraf 1 release with `telegraf --test --input-filter internet_speed` in a container on its own bridge network, reading `/proc/net/dev` afterwards: one test received 282,184,059 bytes and sent 402,764,399 bytes, about 685 MB, at about 200 Mbit/s, and filled the line for about 40 seconds. The test runs for a fixed time, so a faster line moves more data. At one test an hour that is about 16 GB a day, and at one every 10 minutes about 100 GB a day.
 
 ```toml
 [[inputs.internet_speed]]
