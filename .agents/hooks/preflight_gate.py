@@ -2,7 +2,7 @@
 """Shared preflight gate for every agent surface.
 
 Reads one hook payload as JSON on stdin and decides whether a tool call may
-proceed. Three rules:
+proceed. Five rules:
 
 A. The main thread may not write any file. It delegates the change to a
    subagent that owns the area. This covers the edit tools and the shell: a
@@ -30,14 +30,18 @@ D. The main thread may not run a script or a module, because the gate cannot
    Inline code (python -c, node -e) is not a script run: the inline-code
    reader below judges it under Rule A instead.
 E. A subagent whose own definition carries a READ_ONLY_HEADING section may
-   not edit a file, and may run only the shell commands that section lists.
-   Every command in a pipe, chain or substitution has to match a listed
-   pattern, a redirect may only reach the null device, and no option may
-   start with --output. The generator writes that section from the canonical
+   not edit a file or spawn another agent, and may run only the shell
+   commands that section lists. Every command in a pipe, chain, substitution
+   or process substitution has to match a listed pattern, a redirect may only
+   reach the null device, no command may read a heredoc or here-string, and
+   no word may hold a `$`, a backslash, a brace expansion or a git output
+   option. A command the lexer cannot read denies here, the one rule where a
+   parse failure does. The generator writes that section from the canonical
    `readonly: true` marker into every format, so one rule covers them all.
 
-Every rule above denies only once the caller is positively identified as the
-main thread. A format whose payload carries nothing that could identify the
+Rules A, C and D deny only once the caller is positively identified as the
+main thread, and rules B and E only once it is positively identified as a
+subagent. A format whose payload carries nothing that could identify the
 caller (currently Copilot, and a runner envelope with no is_subagent, see
 _caller_identity) is left ungated rather than guessed at: denying blind risks
 blocking a legitimate subagent as often as it blocks the main thread, and an
@@ -63,7 +67,9 @@ cannot resolve fails toward True, which denies rather than allows, because
 the whole point of those helpers is to decide what Rule A protects. A write
 the gate recognises but cannot place (nesting past _MAX_NESTING, code piped
 from a program whose output it cannot read, an unreadable sourced file, a
-process spawned from inline code) is treated the same way and denies.
+process spawned from inline code) is treated the same way and denies, and
+so is a command Rule E cannot lex, because a read-only agent's shell is held
+to a list and a command the gate cannot read matches nothing on it.
 
 Rule A protects a project, not the whole filesystem, and the boundary is
 every root in _roots(): the process working directory, the project root the
@@ -223,7 +229,17 @@ RULE_E_REASON = (
 READ_ONLY_HEADING = "Read-only shell"
 READ_ONLY_HEADING_RE = re.compile(r"^#{1,6}[ \t]+" + re.escape(READ_ONLY_HEADING) + r"[ \t]*$", re.IGNORECASE)
 READ_ONLY_ITEM_RE = re.compile(r"^[ \t]*[-*][ \t]+`([^`]+)`[ \t]*$")
-READ_ONLY_FORBIDDEN_OPTION = "--output"
+# A fence opening or closing a code block, inside which a heading is example
+# text rather than the generator's section.
+READ_ONLY_FENCE_RE = re.compile(r"^ {0,3}(?:`{3,}|~{3,})")
+# A word bash would still expand into something else: brace expansion turns
+# `{--output=x,}` into `--output=x`.
+READ_ONLY_BRACE_RE = re.compile(r"\{[^{}]*(?:,|\.\.)[^{}]*\}")
+# The tools that start another agent. A read-only agent may not hand its work
+# to one that can write.
+READ_ONLY_SPAWN_TOOLS = frozenset({"task", "agent"})
+# gh opens a browser with --web or its short form -w, alone or in a cluster.
+READ_ONLY_GH_WEB_RE = re.compile(r"^(?:--web(?:=.*)?|-[A-Za-z]*w[A-Za-z]*)$")
 
 RULE_C_REASON = (
     "PREFLIGHT: the main thread may not run web research directly. Spawn a "
@@ -339,7 +355,7 @@ def _tool_input(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 # One of "subagent", "main_thread", or "unknown". "unknown" means this
 # format's payload carries nothing that could tell a subagent from the main
-# thread, so neither rule A, B nor C may fire: a positive identification is
+# thread, so none of the five rules may fire: a positive identification is
 # required to deny, per the module docstring.
 _SUBAGENT = "subagent"
 _MAIN_THREAD = "main_thread"
@@ -799,6 +815,9 @@ _MAX_SCRIPT_BYTES = 1 << 20
 # reaches a command line, so it cannot collide with real output.
 _UNKNOWN_INPUT = "\0"
 _UNPLACEABLE_SHELL_TARGET = "shell code (a command the gate cannot read)"
+# What _shell_command returns for a command value that is not a string. No
+# real command line holds a NUL, so it cannot collide with one.
+_UNREADABLE_COMMAND = "\0"
 _UNPLACEABLE_ARGUMENT = "xargs input (arguments the gate cannot read)"
 
 # Commands that take their operand away from where it was: deleting it, or
@@ -1210,9 +1229,14 @@ def _read_ps_here_string(text: str, index: int) -> Optional[Tuple[str, int]]:
     return text[line_end + 1 : close], close + 3
 
 
-def _read_word(text: str, index: int) -> Tuple[str, int]:
-    """Read one bare word, honouring quotes. Used for heredoc delimiters."""
+def _read_word(text: str, index: int) -> Tuple[str, int, bool]:
+    """Read one bare word, honouring quotes. Used for heredoc delimiters.
+
+    Returns the word, where it ends, and whether any part of it was quoted or
+    escaped, which is what stops bash expanding the heredoc body it closes.
+    """
     word = ""
+    quoted = False
 
     while index < len(text):
         char = text[index]
@@ -1226,27 +1250,75 @@ def _read_word(text: str, index: int) -> Tuple[str, int]:
                 raise _ShellParseError("unterminated single quote")
             word += text[index + 1 : close]
             index = close + 1
+            quoted = True
             continue
 
         if char == '"':
             piece, index = _read_double_quoted(text, index)
             word += piece
+            quoted = True
+            continue
+
+        if char == "\\" and index + 1 < len(text):
+            word += text[index + 1]
+            index += 2
+            quoted = True
             continue
 
         word += char
         index += 1
 
-    return word, index
+    return word, index, quoted
 
 
 class _Heredoc(NamedTuple):
     delimiter: str
     strip_tabs: bool
     body: List[str]
+    expands: bool = False
 
 
-def _consume_heredocs(text: str, index: int, pending: List[_Heredoc]) -> int:
-    """Read every pending heredoc body into the segment that declared it."""
+def _expanded_substitutions(text: str) -> _Substitutions:
+    """Every `$(...)` and backquote bash runs while expanding an unquoted heredoc body.
+
+    Quotes are literal in such a body, and a backslash escapes only the next
+    character, so only the substitutions themselves need reading.
+    """
+    found: _Substitutions = []
+    index = 0
+
+    while index < len(text):
+        char = text[index]
+
+        if char == "\\":
+            index += 2
+            continue
+
+        if text.startswith("$(", index):
+            code, index = _read_balanced(text, index + 1, _POSIX)
+
+            if not code.startswith("("):
+                found.append((_POSIX, code))
+            continue
+
+        if char == "`":
+            code, index = _read_backticks(text, index)
+            found.append((_POSIX, code))
+            continue
+
+        index += 1
+
+    return found
+
+
+def _consume_heredocs(text: str, index: int, pending: List[_Heredoc]) -> Tuple[int, _Substitutions]:
+    """Read every pending heredoc body into the segment that declared it.
+
+    Returns where the bodies end and the substitutions bash runs while
+    expanding a body whose delimiter was not quoted.
+    """
+    found: _Substitutions = []
+
     while pending:
         heredoc = pending.pop(0)
 
@@ -1263,7 +1335,10 @@ def _consume_heredocs(text: str, index: int, pending: List[_Heredoc]) -> int:
 
             heredoc.body.append(line + "\n")
 
-    return index
+        if heredoc.expands:
+            found.extend(_expanded_substitutions("".join(heredoc.body)))
+
+    return index, found
 
 
 def _literal_tilde(piece: str, started: bool) -> str:
@@ -1368,7 +1443,17 @@ def _lex(command: str, dialect: str = _POSIX) -> List[ShellSegment]:
         end_segment()
         cmd_quoted = argv_quoted = False
 
-        return _consume_heredocs(command, index + 1, heredocs) if posix else index + 1
+        if not posix:
+            return index + 1
+
+        resume, expanded = _consume_heredocs(command, index + 1, heredocs)
+
+        # bash expands an unquoted heredoc body before the command reads it,
+        # so each substitution in it is judged as a child shell of its own.
+        for _, code in expanded:
+            segments.extend((ShellSegment(control="("), ShellSegment(("sh", "-c", code)), ShellSegment(control=")")))
+
+        return resume
 
     while index < length:
         char = command[index]
@@ -1571,6 +1656,16 @@ def _lex(command: str, dialect: str = _POSIX) -> List[ShellSegment]:
             index += 1
             continue
 
+        if posix and char in "<>" and command.startswith("(", index + 1):
+            # Process substitution: bash runs the code in a child shell and
+            # hands the command a path to its output or input, so the code is
+            # judged like a `$(...)` and the word stands for an unknown path.
+            flush()
+            code, index = _read_balanced(command, index + 1, _POSIX)
+            substitutions.append((_POSIX, code))
+            add(_SUBEXPRESSION, False)
+            continue
+
         if char == ">":
             if started and (token.isdigit() or (powershell and token == "*")):
                 token = ""
@@ -1629,11 +1724,11 @@ def _lex(command: str, dialect: str = _POSIX) -> List[ShellSegment]:
                 while index < length and command[index] in " \t":
                     index += 1
 
-                delimiter, index = _read_word(command, index)
+                delimiter, index, delimiter_quoted = _read_word(command, index)
 
                 if delimiter:
                     body: List[str] = []
-                    heredocs.append(_Heredoc(delimiter, strip_tabs, body))
+                    heredocs.append(_Heredoc(delimiter, strip_tabs, body, not delimiter_quoted))
                     bodies.append(body)
 
                 continue
@@ -7011,13 +7106,22 @@ def _read_only_patterns(text: str) -> Optional[List[str]]:
 
     A definition is read-only when any heading reads READ_ONLY_HEADING, and the
     backticked list items under that heading are its allowlist. An empty list
-    still marks the agent read-only, with no shell command allowed.
+    still marks the agent read-only, with no shell command allowed. A heading
+    inside a fenced code block is example text and counts for nothing.
     """
     patterns: List[str] = []
     found = False
     in_section = False
+    fenced = False
 
     for line in text.splitlines():
+        if READ_ONLY_FENCE_RE.match(line):
+            fenced = not fenced
+            continue
+
+        if fenced:
+            continue
+
         if line.startswith("#"):
             in_section = bool(READ_ONLY_HEADING_RE.match(line))
             found = found or in_section
@@ -7052,20 +7156,36 @@ def _matches_read_only(argv: Tuple[str, ...], pattern: str) -> bool:
     return open_ended or len(argv) == len(words)
 
 
+def _read_only_word_blocked(word: str) -> bool:
+    """True when the shell or git could still turn one word into something unlisted.
+
+    A `$` or a backslash means the shell has not finished with the word, a
+    brace expansion becomes other words, and a git output option, abbreviated
+    or not, writes a file.
+    """
+    return "$" in word or "\\" in word or bool(READ_ONLY_BRACE_RE.search(word)) or _git_output_option(word) is not None
+
+
+def _opens_a_browser(argv: Tuple[str, ...]) -> bool:
+    """True for a gh command handed --web or -w, which opens a browser instead of printing."""
+    return argv[:1] == ("gh",) and any(READ_ONLY_GH_WEB_RE.match(word) for word in argv[1:])
+
+
 def _read_only_blocked(tool: str, tool_input: Dict[str, Any], patterns: List[str]) -> Optional[str]:
     """What a read-only subagent's call would do outside its allowlist, or None to allow."""
-    if tool in EDIT_TOOLS or tool in APPLY_PATCH_TOOLS:
+    if tool in EDIT_TOOLS or tool in APPLY_PATCH_TOOLS or tool in READ_ONLY_SPAWN_TOOLS:
         return f"the {tool} tool"
 
-    if tool not in SHELL_TOOLS:
+    command = _shell_command(tool_input)
+
+    if command is None:
         return None
 
-    values = [tool_input[key] for key in COMMAND_KEYS if tool_input.get(key) not in (None, "")]
+    if tool not in SHELL_TOOLS:
+        return None if tool in RESEARCH_TOOLS else _UNPLACEABLE_SHELL_TARGET
 
-    if any(not isinstance(value, str) for value in values):
+    if command == _UNREADABLE_COMMAND:
         return _UNPLACEABLE_SHELL_TARGET
-
-    command = next((value for value in values if value.strip()), "")
 
     if not command:
         return None
@@ -7075,25 +7195,50 @@ def _read_only_blocked(tool: str, tool_input: Dict[str, Any], patterns: List[str
     try:
         segments = _lex(command, _POWERSHELL if powershell else _POSIX)
     except _ShellParseError:
-        return None
+        # Elsewhere a command the lexer cannot read allows. A read-only
+        # agent's shell is held to a list instead, and an unread command
+        # matches nothing on it.
+        return _UNPLACEABLE_SHELL_TARGET
 
     for segment in segments:
         for target in segment.redirects:
             if not _names_no_file(target, powershell):
                 return f"redirect to {target}"
 
+        words = " ".join(segment.argv)
+
+        if segment.stdin:
+            # No listed command reads its input, and an unquoted heredoc
+            # body runs every substitution in it.
+            return f"heredoc or here-string fed to {words or 'the shell'}"
+
         if not segment.argv:
             continue
 
-        words = " ".join(segment.argv)
-
-        if any(word.startswith(READ_ONLY_FORBIDDEN_OPTION) for word in segment.argv):
+        if any(_read_only_word_blocked(word) for word in segment.argv) or _opens_a_browser(segment.argv):
             return words
 
         if not any(_matches_read_only(segment.argv, pattern) for pattern in patterns):
             return words
 
     return None
+
+
+def _shell_command(tool_input: Dict[str, Any]) -> Optional[str]:
+    """The command a tool call carries under any COMMAND_KEYS key, for Rules A and E.
+
+    None when it carries none, _UNREADABLE_COMMAND when a value is not a
+    string, and "" when every value is blank.
+    """
+    values = [tool_input[key] for key in COMMAND_KEYS if tool_input.get(key) not in (None, "")]
+
+    if not values:
+        return None
+
+    if any(not isinstance(value, str) for value in values):
+        return _UNREADABLE_COMMAND
+
+    return next((value for value in values if value.strip()), "")
 
 
 def _decide(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Optional[str]:
@@ -7164,14 +7309,15 @@ def _apply_rules(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Opti
             return RULE_A_REASON.format(target=target)
         return None
 
-    values = [tool_input[key] for key in COMMAND_KEYS if tool_input.get(key) not in (None, "")]
+    command = _shell_command(tool_input)
+
+    if command is None:
+        return None
 
     # A tool the gate does not know that still carries a command is a shell
     # by another name, and a command that is not a string cannot be read.
-    if tool not in SHELL_TOOLS or any(not isinstance(value, str) for value in values):
-        return RULE_A_REASON.format(target=_UNPLACEABLE_SHELL_TARGET) if values and tool not in RESEARCH_TOOLS else None
-
-    command = next((value for value in values if value.strip()), "")
+    if tool not in SHELL_TOOLS or command == _UNREADABLE_COMMAND:
+        return None if tool in RESEARCH_TOOLS else RULE_A_REASON.format(target=_UNPLACEABLE_SHELL_TARGET)
 
     if not command:
         return None

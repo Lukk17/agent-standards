@@ -4535,7 +4535,7 @@ def test_read_only_subagent_may_run_every_listed_command(tmp_path, command):
     [
         ("git diff; rm notes.txt", "rm notes.txt"),
         ("git diff && git commit -m x", "git commit -m x"),
-        ("git diff $(rm -rf src)", "rm -rf src"),
+        ("git diff $(rm -rf src)", "git diff $"),
         ("git log | head -5", "head -5"),
         ("git diff > out.patch", "redirect to out.patch"),
         ("git diff --output=out.patch", "git diff --output=out.patch"),
@@ -4578,6 +4578,212 @@ def test_the_main_thread_is_not_held_to_a_read_only_list():
     assert decision(shell("git log | head -5")) == "allow"
 
 
+def read_only_verdict(tmp_path, payload):
+    """The deny reason Rule E gives the read-only fixture, or None when it allows."""
+    verdict = read_only_decision(read_only_project(tmp_path), payload)
+
+    return verdict["permissionDecisionReason"] if verdict else None
+
+
+@pytest.mark.parametrize(
+    ("command", "blocked"),
+    [
+        ("git log <(touch git log)", "sh -c touch git log"),
+        ("git diff <(rm git diff -rf src)", "sh -c rm git diff -rf src"),
+        ("git log >(touch made.txt)", "sh -c touch made.txt"),
+        ("git log < <(touch made.txt)", "sh -c touch made.txt"),
+    ],
+)
+def test_read_only_subagent_judges_a_process_substitution_as_a_child_shell(tmp_path, command, blocked):
+    assert read_only_verdict(tmp_path, shell(command)).endswith(f"Blocked: {blocked}")
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git diff <<EOF\n$(touch made.txt)\nEOF\n",
+        "git diff <<'EOF'\nplain text\nEOF\n",
+        "git log <<< x",
+    ],
+)
+def test_read_only_subagent_may_not_feed_a_heredoc_or_here_string(tmp_path, command):
+    assert "heredoc or here-string fed to git" in read_only_verdict(tmp_path, shell(command))
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "touch made.txt\ngit diff '",
+        "git diff --outpu`t=src/app.py",
+    ],
+)
+def test_read_only_subagent_is_denied_a_command_the_gate_cannot_lex(tmp_path, command):
+    assert read_only_verdict(tmp_path, shell(command)).endswith(f"Blocked: {GATE._UNPLACEABLE_SHELL_TARGET}")
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git diff ${U:---output=src/app.py}",
+        "git diff --outp\\ut=src/app.py",
+        "git diff {--output=src/app.py,}",
+        "git diff --out=src/app.py",
+        "git diff --output-directory=out",
+        "git log '$HOME'",
+    ],
+)
+def test_read_only_subagent_may_not_reach_an_output_option_through_the_shell(tmp_path, command):
+    assert read_only_verdict(tmp_path, shell(command)) is not None
+
+
+@pytest.mark.parametrize("command", ["git diff -w", "git log --output-indicator-new=+", "git log @{u}..HEAD"])
+def test_read_only_subagent_keeps_options_that_write_nothing(tmp_path, command):
+    assert read_only_verdict(tmp_path, shell(command)) is None
+
+
+@pytest.mark.parametrize("command", ["gh pr view 12 --web", "gh pr diff 12 -w", "gh pr view 12 -cw", "gh pr view --web=true"])
+def test_read_only_subagent_may_not_open_a_browser_with_gh(tmp_path, command):
+    assert read_only_verdict(tmp_path, shell(command)).endswith(f"Blocked: {command}")
+
+
+@pytest.mark.parametrize(
+    ("command", "blocked"),
+    [
+        ("sh -c 'touch made.txt'", "sh -c touch made.txt"),
+        ("env git diff", "env git diff"),
+        ("git diff --name-only | xargs rm", "xargs rm"),
+        ("/usr/bin/git diff", "/usr/bin/git diff"),
+        ("git -c core.pager=touch diff", "git -c core.pager=touch diff"),
+        ("git diff `touch made.txt`", "sh -c touch made.txt"),
+        ("git diff >&out.txt", "redirect to out.txt"),
+        ("git diff &>out.txt", "redirect to out.txt"),
+    ],
+)
+def test_read_only_subagent_is_held_to_its_list_through_every_shell_form(tmp_path, command, blocked):
+    assert read_only_verdict(tmp_path, shell(command)).endswith(f"Blocked: {blocked}")
+
+
+def test_read_only_subagent_may_not_pipe_into_a_powershell_writer(tmp_path):
+    reason = read_only_verdict(tmp_path, shell("git diff | Out-File x.txt", tool="PowerShell"))
+
+    assert reason.endswith("Blocked: Out-File x.txt")
+
+
+def test_read_only_subagent_may_not_send_a_command_that_is_not_a_string(tmp_path):
+    payload = {"tool_name": "Bash", "tool_input": {"command": ["git", "diff"]}}
+
+    assert read_only_verdict(tmp_path, payload).endswith(f"Blocked: {GATE._UNPLACEABLE_SHELL_TARGET}")
+
+
+@pytest.mark.parametrize("key", ["command", "cmd", "script"])
+def test_read_only_subagent_may_not_run_a_command_through_an_unknown_tool(tmp_path, key):
+    payload = {"tool_name": "RunInSandbox", "tool_input": {key: "git diff"}}
+
+    assert read_only_verdict(tmp_path, payload).endswith(f"Blocked: {GATE._UNPLACEABLE_SHELL_TARGET}")
+
+
+@pytest.mark.parametrize("tool", ["Task", "Agent", "task"])
+def test_read_only_subagent_may_not_spawn_another_agent(tmp_path, tool):
+    payload = {"tool_name": tool, "tool_input": {"subagent_type": "python-pro", "prompt": "touch made.txt"}}
+
+    assert read_only_verdict(tmp_path, payload).endswith(f"Blocked: the {tool.lower()} tool")
+
+
+READ_ONLY_HEADING_ONLY = """---
+name: fixture-reviewer
+skills:
+  - code-reviewer
+---
+
+You review.
+
+### Read-only shell
+
+This agent runs no shell command at all.
+"""
+
+READ_ONLY_HEADING_IN_A_FENCE = """---
+name: fixture-reviewer
+skills:
+  - code-reviewer
+---
+
+You write definitions. A read-only one looks like this:
+
+```markdown
+### Read-only shell
+
+- `git diff*`
+```
+"""
+
+
+def test_a_read_only_heading_with_no_items_denies_every_command(tmp_path):
+    root = project_with_agent(tmp_path, "fixture-reviewer", READ_ONLY_HEADING_ONLY)
+    verdict = read_only_decision(root, shell("git status"))
+
+    assert verdict["permissionDecisionReason"].endswith("Blocked: git status")
+    assert read_only_decision(root, {"tool_name": "Read", "tool_input": {"file_path": "x.py"}}) is None
+
+
+def test_a_read_only_heading_inside_a_code_fence_marks_nothing(tmp_path):
+    root = project_with_agent(tmp_path, "fixture-reviewer", READ_ONLY_HEADING_IN_A_FENCE)
+
+    assert GATE._read_only_patterns(READ_ONLY_HEADING_IN_A_FENCE) is None
+    assert read_only_decision(root, shell("touch made.txt")) is None
+
+
+def test_a_read_only_definition_found_only_under_the_install_root_is_enforced(tmp_path, monkeypatch):
+    import gen_subagents
+
+    home, project = tmp_path / "home", tmp_path / "project"
+    agents = home / ".config" / "agents" / "agents"
+    agents.mkdir(parents=True)
+    project.mkdir()
+    (agents / "fixture-reviewer.md").write_text(gen_subagents.render("agents", READ_ONLY_REVIEWER, "You review.\n"), encoding="utf-8")
+    monkeypatch.setattr(GATE, "_install_root", lambda: home)
+
+    assert read_only_decision(project, shell("git diff")) is None
+    assert read_only_decision(project, shell("touch made.txt"))["permissionDecision"] == "deny"
+
+
+def test_rule_e_reaches_the_plain_runner_envelope(tmp_path):
+    root = read_only_project(tmp_path, "agents", ".agents/agents", ".md")
+    envelope = {"is_subagent": True, "agent_type": READ_ONLY_REVIEWER["name"], "tool_name": "bash", "cwd": str(root)}
+
+    code, out, err = run({**envelope, "tool_input": {"command": "touch made.txt"}}, "plain", cwd=root)
+
+    assert (code, out) == (2, "")
+    assert err.endswith("Blocked: touch made.txt")
+    assert run({**envelope, "tool_input": {"command": "git diff"}}, "plain", cwd=root) == (0, "", "")
+
+
+def test_rule_e_reaches_the_codex_payload(tmp_path):
+    root = read_only_project(tmp_path, "codex", ".codex/agents", ".toml")
+    payload = {"agent_id": "sub-1", "agent_type": READ_ONLY_REVIEWER["name"], "tool_name": "Bash", "cwd": str(root)}
+
+    code, out, err = run({**payload, "tool_input": {"command": "touch made.txt"}}, "codex", cwd=root)
+
+    assert (code, err) == (0, "")
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"].endswith("Blocked: touch made.txt")
+    assert run({**payload, "tool_input": {"command": "git log -1"}}, "codex", cwd=root) == (0, "", "")
+
+
+def test_main_thread_process_substitution_is_read_as_a_child_shell():
+    assert decision(shell("cat <(rm -rf src)")) == "deny"
+    assert decision(shell("diff <(git show HEAD:README.md) README.md")) == "allow"
+
+
+def test_main_thread_unquoted_heredoc_body_runs_its_substitutions():
+    assert decision(shell("cat <<EOF\n$(touch src/app.py)\nEOF\n")) == "deny"
+    assert decision(shell("cat <<EOF\n`touch src/app.py`\nEOF\n")) == "deny"
+
+
+@pytest.mark.parametrize("delimiter", ["'EOF'", '"EOF"', "\\EOF"])
+def test_main_thread_quoted_heredoc_body_stays_text(delimiter):
+    assert decision(shell(f"cat <<{delimiter}\n$(touch src/app.py)\nEOF\n")) == "allow"
+
+
 def test_the_gate_and_the_generator_share_the_read_only_heading():
     import gen_subagents
 
@@ -4589,7 +4795,12 @@ def test_the_gate_and_the_generator_share_the_read_only_heading():
     [("code-reviewer", ["gh pr diff*", "gh pr view*"]), ("code-archaeologist", [])],
 )
 def test_the_shipped_read_only_agents_carry_their_list_in_every_tree(agent, extras):
-    for directory, extension in [(".claude/agents", ".md"), (".agents/agents", ".md"), (".codex/agents", ".toml")]:
+    for directory, extension in [
+        (".claude/agents", ".md"),
+        (".agents/agents", ".md"),
+        (".codex/agents", ".toml"),
+        (".github/agents", ".agent.md"),
+    ]:
         text = (REPO_ROOT / directory / f"{agent}{extension}").read_text(encoding="utf-8")
 
         assert GATE._read_only_patterns(text) == ["git diff*", "git log*", "git show*", "git status*", *extras]

@@ -470,6 +470,11 @@ def read_only_section(text):
         ("readonly: true\ntools: [read, edit, bash]", "may not list edit"),
         ("readonly: true\ntools: [read, task, bash]", "may not list task"),
         ("readonly: true\ntools: [read, grep]", "list bash"),
+        ("readonly: true\nreadonly-commands: [\"*\"]\ntools: [read, bash]", "starts with a wildcard"),
+        ("readonly: true\nreadonly-commands: [\"g* status\"]\ntools: [read, bash]", "starts with a wildcard"),
+        ("readonly: true\nreadonly-commands: [\"gh pr * view\"]\ntools: [read, bash]", "only as its last character"),
+        ("readonly: true\nreadonly-commands: [\"gh pr vie?\"]\ntools: [read, bash]", "only as its last character"),
+        ("readonly: true\nreadonly-commands: [\"gh pr view `x`\"]\ntools: [read, bash]", "holds a backtick"),
     ],
 )
 def test_parse_rejects_a_read_only_marker_it_cannot_honour(tmp_path, frontmatter, message):
@@ -494,6 +499,12 @@ def test_parse_accepts_a_read_only_marker_with_extra_commands(tmp_path):
     assert gen.read_only_commands(frontmatter) == ["git diff*", "git log*", "git show*", "git status*", "gh pr view*"]
 
 
+def test_read_only_commands_drop_an_extra_that_repeats_the_built_in_list():
+    marked = {**REVIEWER, "readonly-commands": ["git diff*", "gh pr view*", "gh pr view*"]}
+
+    assert gen.read_only_commands(marked) == ["git diff*", "git log*", "git show*", "git status*", "gh pr view*"]
+
+
 def test_claude_keeps_bash_and_plan_mode_for_a_read_only_agent():
     rendered = gen.emit_claude(REVIEWER, BODY)
     head = front_matter(rendered)
@@ -506,12 +517,55 @@ def test_claude_keeps_bash_and_plan_mode_for_a_read_only_agent():
 def test_opencode_denies_edit_and_every_command_but_the_list_for_a_read_only_agent():
     rendered = gen.emit_opencode(REVIEWER, BODY)
     permission = front_matter(rendered)["permission"]
+    allowed = [rule for command in REVIEWER_COMMANDS for rule in (command[:-1], command[:-1] + " *")]
 
     assert permission["edit"] == "deny"
-    assert list(permission["bash"]) == ["*", *REVIEWER_COMMANDS]
+    assert permission["task"] == "deny"
+    assert list(permission["bash"]) == ["*", *allowed, *gen.OPENCODE_READ_ONLY_DENIES]
     assert permission["bash"]["*"] == "deny"
-    assert all(permission["bash"][command] == "allow" for command in REVIEWER_COMMANDS)
+    assert all(permission["bash"][rule] == "allow" for rule in allowed)
+    assert all(permission["bash"][rule] == "deny" for rule in gen.OPENCODE_READ_ONLY_DENIES)
     assert read_only_section(rendered) == REVIEWER_COMMANDS
+
+
+def opencode_match(text, pattern):
+    """OpenCode 1.19.5 Wildcard.match (packages/opencode/src/util/wildcard.ts), ported line for line."""
+    text, pattern = text.replace("\\", "/"), pattern.replace("\\", "/")
+    escaped = re.sub(r"[.+^${}()|[\]\\]", lambda m: "\\" + m.group(0), pattern).replace("*", ".*").replace("?", ".")
+
+    if escaped.endswith(" .*"):
+        escaped = escaped[:-3] + "( .*)?"
+
+    return re.fullmatch(escaped, text, re.S) is not None
+
+
+def opencode_bash_verdict(bash_map, command):
+    """OpenCode's Permission.evaluate for one bash pattern: the last matching rule wins."""
+    return [action for pattern, action in bash_map.items() if opencode_match(command, pattern)][-1]
+
+
+@pytest.mark.parametrize(
+    ("command", "verdict"),
+    [
+        ("git diff", "allow"),
+        ("git diff HEAD~1", "allow"),
+        ("git log --oneline", "allow"),
+        ("gh pr view 12 --comments", "allow"),
+        ("git difftool --extcmd=touch", "deny"),
+        ("git diff --output=src/app.py", "deny"),
+        ("git diff --out=src/app.py", "deny"),
+        ('git diff "--output=src/app.py"', "deny"),
+        ("git diff ${U:---output=src/app.py}", "deny"),
+        ("git diff > src/app.py", "deny"),
+        ("gh pr view 12 --web", "deny"),
+        ("gh pr diff 12 -w", "deny"),
+        ("touch made.txt", "deny"),
+    ],
+)
+def test_the_opencode_bash_map_is_no_wider_than_the_gate(command, verdict):
+    bash_map = front_matter(gen.emit_opencode(REVIEWER, BODY))["permission"]["bash"]
+
+    assert opencode_bash_verdict(bash_map, command) == verdict
 
 
 def test_codex_carries_the_read_only_list_in_its_instructions():

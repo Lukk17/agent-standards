@@ -590,7 +590,9 @@ verify_gate_behaviour() {
   local main_source_edit='{"tool_name":"Edit","tool_input":{"file_path":"src/app.py"},"is_subagent":false}'
   local main_doc_edit='{"tool_name":"Edit","tool_input":{"file_path":"README.md"}}'
   local main_shell_write='{"tool_name":"Bash","tool_input":{"command":"echo x > src/app.py"}}'
-  local specialist='{"agent_id":"a1","agent_type":"code-reviewer","tool_name":"Edit","tool_input":{"file_path":"src/app.py"}}'
+  local specialist='{"agent_id":"a1","agent_type":"python-pro","tool_name":"Edit","tool_input":{"file_path":"src/app.py"}}'
+  local reviewer_edit='{"agent_id":"a1","agent_type":"code-reviewer","tool_name":"Edit","tool_input":{"file_path":"src/app.py"}}'
+  local reviewer_diff='{"agent_id":"a1","agent_type":"code-reviewer","tool_name":"Bash","tool_input":{"command":"git diff"}}'
   local generalist='{"agent_id":"a1","agent_type":"sandbox-no-skills-probe","tool_name":"Edit","tool_input":{"file_path":"src/app.py"}}'
 
   section "Preflight gate behaviour"
@@ -607,6 +609,8 @@ verify_gate_behaviour() {
   assert_gate "rule A denies a main-thread markdown edit too, now that it covers any write inside the working tree" claude deny "$main_doc_edit"
   assert_gate "rule A denies a shell redirect into a source file" claude deny "$main_shell_write"
   assert_gate "a subagent that declares skills is allowed" claude allow "$specialist"
+  assert_gate "rule E denies the read-only code-reviewer an edit" claude deny "$reviewer_edit"
+  assert_gate "rule E allows the read-only code-reviewer a listed git diff" claude allow "$reviewer_diff"
 
   write_probe_agent
   assert_gate "rule B denies a subagent that declares no skills" claude deny "$generalist"

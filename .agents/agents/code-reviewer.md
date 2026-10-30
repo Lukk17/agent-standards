@@ -3,14 +3,26 @@ description: "Use when the user says \"review my changes\", \"review PR #123\" o
 mode: subagent
 permission:
   edit: deny
+  task: deny
   bash:
     "*": deny
-    "git diff*": allow
-    "git log*": allow
-    "git show*": allow
-    "git status*": allow
-    "gh pr diff*": allow
-    "gh pr view*": allow
+    "git diff": allow
+    "git diff *": allow
+    "git log": allow
+    "git log *": allow
+    "git show": allow
+    "git show *": allow
+    "git status": allow
+    "git status *": allow
+    "gh pr diff": allow
+    "gh pr diff *": allow
+    "gh pr view": allow
+    "gh pr view *": allow
+    "*--out*": deny
+    "*$*": deny
+    "*>*": deny
+    "gh *--web*": deny
+    "gh * -w*": deny
 tools:
   read: true
   grep: true

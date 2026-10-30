@@ -90,6 +90,16 @@ READ_ONLY_COMMANDS = ("git diff*", "git log*", "git show*", "git status*")
 READ_ONLY_HEADING = "Read-only shell"
 READ_ONLY_FORBIDDEN_TOOLS = frozenset({"write", "edit", "task"})
 
+# OpenCode matches a bash rule against the command's own source text, quotes
+# and redirects included, with `*` matching "zero or more of any character" and
+# "the last matching rule winning" (https://opencode.ai/docs/permissions/,
+# Wildcard.match and Permission.evaluate in OpenCode 1.19.5). A listed `git
+# diff*` would also match `git difftool`, so each listed command becomes an exact
+# rule plus a "command *" rule, and these denies follow them all: a git output
+# option in any spelling that keeps `--out`, anything the shell still expands,
+# any redirect, and gh opening a browser. The gate's Rule E stays the full check.
+OPENCODE_READ_ONLY_DENIES = ("*--out*", "*$*", "*>*", "gh *--web*", "gh * -w*")
+
 # OpenCode and Kilo Code read `tools` as overrides on top of everything the
 # agent already has, so a map listing only read, grep and glob still leaves
 # edit and bash on. Each write-capable permission is therefore denied outright
@@ -168,6 +178,10 @@ def validate_read_only(path: pathlib.Path, fm: dict) -> None:
         sys.exit(f"ERROR {path}: 'readonly-commands' needs 'readonly: true'")
     if extra is not None and not (isinstance(extra, list) and all(isinstance(c, str) and c.strip() for c in extra)):
         sys.exit(f"ERROR {path}: 'readonly-commands' must be a list of command patterns")
+    for command in extra or []:
+        problem = read_only_pattern_problem(command)
+        if problem:
+            sys.exit(f"ERROR {path}: readonly-commands entry {command!r} {problem}")
     granted = READ_ONLY_FORBIDDEN_TOOLS.intersection(fm.get("tools") or [])
     if readonly and granted:
         sys.exit(f"ERROR {path}: a readonly agent may not list {', '.join(sorted(granted))}")
@@ -175,11 +189,42 @@ def validate_read_only(path: pathlib.Path, fm: dict) -> None:
         sys.exit(f"ERROR {path}: 'readonly: true' limits bash, so list bash or drop the marker")
 
 
+def read_only_pattern_problem(command: str) -> str:
+    """Why one readonly-commands entry cannot be held to the same meaning everywhere, or "".
+
+    The gate reads a trailing `*` as "any further arguments" and nothing else,
+    while OpenCode reads `*` and `?` anywhere, so only a trailing `*` means the
+    same on both. A wildcard first word would allow every program, and a
+    backtick would end the backticked list item the gate reads.
+    """
+    words = command.split()
+    if "`" in command:
+        return "holds a backtick, which the gate's list item cannot carry"
+    if "*" in words[0] or "?" in words[0]:
+        return "starts with a wildcard, which would allow any program"
+    if "?" in command or "*" in command[:-1]:
+        return "may hold a wildcard only as its last character"
+    return ""
+
+
 def read_only_commands(fm: dict) -> list[str]:
-    """The shell commands a read-only agent may run, or an empty list when it is not read-only."""
+    """The shell commands a read-only agent may run, deduplicated, or an empty list when it is not read-only."""
     if not fm.get("readonly"):
         return []
-    return [*READ_ONLY_COMMANDS, *(fm.get("readonly-commands") or [])]
+    return list(dict.fromkeys([*READ_ONLY_COMMANDS, *(fm.get("readonly-commands") or [])]))
+
+
+def opencode_bash_rules(commands: list[str]) -> list[tuple[str, str]]:
+    """The OpenCode bash map for a read-only agent, in order: deny all, allow the list, deny the escapes."""
+    rules = [("*", "deny")]
+    for command in commands:
+        if command.endswith("*"):
+            base = command[:-1].rstrip()
+            rules += [(base, "allow"), (base + " *", "allow")]
+        else:
+            rules.append((command, "allow"))
+    rules += [(pattern, "deny") for pattern in OPENCODE_READ_ONLY_DENIES]
+    return list(dict.fromkeys(rules))
 
 
 def read_only_block(fm: dict, shell: bool = True) -> str:
@@ -268,10 +313,13 @@ def emit_opencode(fm: dict, body: str) -> str:
             lines += [f"  {permission}: deny" for permission in denied]
         if commands:
             # OpenCode evaluates "with the last matching rule winning", so the
-            # catch-all deny goes first (https://opencode.ai/docs/permissions/).
+            # catch-all deny goes first and the escape denies last
+            # (https://opencode.ai/docs/permissions/). A subagent session
+            # already gets task denied when its definition names no task rule
+            # (tool/task.ts in OpenCode 1.19.5), and this says so explicitly.
+            lines.append("  task: deny")
             lines.append("  bash:")
-            lines.append('    "*": deny')
-            lines += [f"    {_yaml_double_quoted(c)}: allow" for c in commands]
+            lines += [f"    {_yaml_double_quoted(pattern)}: {action}" for pattern, action in opencode_bash_rules(commands)]
         lines.append("tools:")
         lines += [f"  {t}: true" for t in fm["tools"]]
     lines += ["---", "", body_with_blocks(fm, body)]

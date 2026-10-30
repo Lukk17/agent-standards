@@ -3,12 +3,22 @@ description: "Use when the user says \"map this codebase\", \"I just inherited t
 mode: subagent
 permission:
   edit: deny
+  task: deny
   bash:
     "*": deny
-    "git diff*": allow
-    "git log*": allow
-    "git show*": allow
-    "git status*": allow
+    "git diff": allow
+    "git diff *": allow
+    "git log": allow
+    "git log *": allow
+    "git show": allow
+    "git show *": allow
+    "git status": allow
+    "git status *": allow
+    "*--out*": deny
+    "*$*": deny
+    "*>*": deny
+    "gh *--web*": deny
+    "gh * -w*": deny
 tools:
   read: true
   grep: true

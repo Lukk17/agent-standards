@@ -100,8 +100,9 @@ whatever a leading `cd` in the command moved to, so changing directory first buy
 repository, the null device, `tasks.md` at the project root, and switching a git branch stay allowed, and the main
 thread keeps full use of git otherwise. Caller identity is a tri-state, subagent, main thread, or unknown when a payload
 carries nothing that could tell the two apart, and none of the five rules fires on an unknown caller. Every failure path
-also allows the call, because a broken gate must never break a session, with one deliberate exception: a path none of
-the three repository-boundary helpers can resolve is treated as inside, which denies.
+also allows the call, because a broken gate must never break a session, with two deliberate exceptions: a path none of
+the three repository-boundary helpers can resolve is treated as inside, which denies, and a command a read-only subagent
+sends that the lexer cannot read denies, because it matches nothing on that agent's list.
 
 Three more hooks live beside it in [../.agents/hooks/](../.agents/hooks/) and ride the same wirings:
 `no_ai_markers_check.py` checks the reply, `markdown_lint_check.py` lints a file just after it was edited, and
@@ -163,13 +164,17 @@ Reading the tables row by row:
 - The per-agent tool permissions are the generator's `permission` block. OpenCode and Kilo Code read a subagent's
   `tools` map as overrides on top of everything it already has, so a read-only definition listing only `read`, `grep`
   and `glob` still had `edit` and `bash`. The generator now writes `edit: deny` unless `write` or `edit` is listed and
-  `bash: deny` unless `bash` is. A definition marked `readonly: true` instead gets `edit: deny` and a `bash` map with
-  `"*": deny` first and its allowed commands after it, because OpenCode lets the last matching rule win. The same V1 front shape loads on OpenCode 2.0.26, measured 2026-10-15: `debug agents` from the repo lists 35 project agents plus 7 built in, and the live view shows the `tools` map as a `permissions` list.
+  `bash: deny` unless `bash` is. A definition marked `readonly: true` instead gets `edit: deny`, `task: deny` and a `bash` map with
+  `"*": deny` first, its allowed commands after it, and denies for an output option, a `$`, a redirect and gh's
+  `--web` last, because OpenCode lets the last matching rule win. The same V1 front shape loads on OpenCode 2.0.26, measured 2026-10-15: `debug agents` from the repo lists 35 project agents plus 7 built in, and the live view shows the `tools` map as a `permissions` list.
 - As a runner-independent backstop the project also ships [.opencode/opencode.json](../.opencode/opencode.json) with `edit` denied and only `tasks.md` allowed. The plugin gate never fires on some runtimes, measured 2026-10-26, so this file blocks main-thread writes through permissions instead. Subagent rights are untouched because agent rules are appended after project rules, and Kilo Code reads the file with no warnings.
 - A read-only subagent keeps `bash` but runs only the commands listed under the "Read-only shell" heading the generator
   writes into every format. Rule E reads that list from the definition, the way Rule B reads the skills, and denies
-  any edit, any command outside the list in a pipe, chain or substitution, any redirect except to the null device, and
-  any `--output` option. A command the lexer cannot parse allows, like every other parse failure. On Claude Code this
+  any edit, any call to spawn another agent, any command outside the list in a pipe, chain, substitution or process
+  substitution, any redirect except to the null device, any heredoc or here-string, any word holding a `$`, a
+  backslash or a brace expansion, any git output option in any abbreviation, and gh's `--web`. Unlike every other
+  rule, a command the lexer cannot parse denies here, and so does a tool the gate does not know that carries a
+  command. A heading inside a fenced code block marks nothing. On Claude Code this
   is the only enforcement that holds: a subagent's `permissionMode: plan` is ignored while the session is in auto,
   `acceptEdits` or `bypassPermissions` mode, and a `tools` entry such as `Bash(git log *)` did not narrow the tool, so
   a `touch` from either ran on Claude Code 2.1.314 under an auto-mode session. Codex has no per-agent tool field, and
@@ -285,11 +290,17 @@ Each of the following cannot be placed either and denies on the main thread:
 
 Read-only forms of the same tools still allow: container `ps`, `images`, `inspect`, `logs`, `stats`, `network ls`,
 `volume ls`, `compose ls`, `ps`, `logs` and `config`, `schtasks /query`, `crontab -l`, `Get-ScheduledTask`, and WMI or
-CIM queries. A top-level command the lexer cannot read still allows, while code nested inside a readable command that
-cannot be read denies.
+CIM queries. A top-level command the lexer cannot read still allows on the main thread, while code nested inside a
+readable command that cannot be read denies.
+
+Known limits of Rule E, accepted rather than open: a listed git command still runs any program the repository's own
+configuration names, such as `diff.external`, a `textconv` driver set through `.gitattributes`, `core.fsmonitor` on
+`git status`, and the pager when the command runs on a terminal. Rule E reads the command line, not the configuration
+it runs under, so a read-only agent is only as read-only as the repository it reviews. On OpenCode and Kilo Code the
+native permission map denies every redirect, `2>/dev/null` included, which the gate itself would allow.
 
 Known limits of the write rule, accepted rather than open: a write form the gate does not know passes, a top-level
-command it cannot parse allows, MCP tools are not gated, code run by an allowlisted tool is trusted rather than read,
+command it cannot parse allows on the main thread, MCP tools are not gated, code run by an allowlisted tool is trusted rather than read,
 Copilot's main thread is not gated, the risky variable and option lists come from knowledge rather than vendor
 documentation, and a loopback share whose folder cannot be determined denies. Re-audit only when the rule changes, and
 record a new limit here rather than chasing it.

@@ -34,8 +34,8 @@ The gate is enforcing, not advisory. One shared rule in
   only inside a subagent. An unknown caller is allowed: GitHub Copilot on every call, and an OpenCode or Kilo Code
   call whose session the plugin could not read.
 - It fails open: a parse error, a missing key, an unexpected payload, an unknown `--format`, or a top-level command
-  it cannot lex allows the call. The exception is a path or write target the gate cannot place, such as the `$f` in
-  `rm $f`, which denies on the main thread. The list is in [docs/agent-compatibility.md](docs/agent-compatibility.md).
+  it cannot lex allows the call. The exceptions are a path or write target the gate cannot place, such as the `$f` in
+  `rm $f`, which denies on the main thread, and a command it cannot lex from a read-only subagent, which denies. The list is in [docs/agent-compatibility.md](docs/agent-compatibility.md).
 - No MCP tool is gated, and `playwright` and `chrome-devtools` in [.mcp.json](.mcp.json) can write local files. The
   vendor quotes are in [docs/agent-compatibility.md](docs/agent-compatibility.md).
 - Known limits of the write rule are accepted rather than open, and listed under "What the gate cannot place" in
