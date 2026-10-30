@@ -1,18 +1,12 @@
 ---
 name: ascend-web-hunter
-description: Page-content extraction through the self-hosted ascend-web-hunter service of AscendAI for pages a normal fetch cannot read, covering WAF bypass, CAPTCHA escalation to a remote browser, and cached login sessions. Use when the user says "this page is behind Cloudflare", "the fetch got a bot check", "scrape this job listing that blocks bots", "this site needs a login", or "log me in to that site so you can read it". Not for general research or a web search a normal fetch can answer, use `research`, and not for recalling facts the user told you in an earlier conversation, use `ascend-memory`.
+description: 'Page-content extraction through the self-hosted ascend-web-hunter service for pages a normal fetch cannot read: WAF bypass, CAPTCHA escalation to a remote browser and cached login sessions. Use when the user says "this page is behind Cloudflare", "the fetch got a bot check" or "this site needs a login". Not for a search a normal fetch can answer, use `research`.'
 compatibility: Requires the self-hosted ascend-web-hunter service of AscendAI (https://github.com/Lukk17/AscendAI) reachable over HTTP. The base URL comes from ASCEND_WEB_HUNTER_URL, else the first of http://ascend-web-hunter.internal and http://localhost:7021 whose /health answers, and appears in the examples as $BASE.
 ---
 
 # Ascend Web Hunter
 
-Pull page content through ascend-web-hunter, the web reading service of
-[AscendAI](https://github.com/Lukk17/AscendAI). It lives in `apps/ascend-web-hunter`, runs as the service and the
-container `ascend-web-hunter`, and listens on port 7021. Before 2026-09-10 it was called AscendWebSearch. A read
-cascades from fast HTTP to FlareSolverr to a headed Playwright browser to a remote NoVNC session a human can drive,
-and the tiers are listed below. Use it for any page a plain fetch cannot read, and for login walls the user signs
-into once so the service can cache the session. General web search and every page a normal fetch returns in full
-belong to `research`, which hands a blocked page to this skill.
+Pull page content through ascend-web-hunter, the web reading service of [AscendAI](https://github.com/Lukk17/AscendAI). It lives in `apps/ascend-web-hunter`, runs as the service and the container `ascend-web-hunter`, and listens on port 7021. It was formerly called AscendWebSearch. A read cascades from fast HTTP to FlareSolverr to a headed Playwright browser to a remote NoVNC session a human can drive, and the tiers are listed below. Use it for any page a plain fetch cannot read, and for login walls the user signs into once so the service can cache the session. General web search and every page a normal fetch returns in full belong to `research`, which hands a blocked page to this skill.
 
 ---
 
@@ -21,6 +15,7 @@ belong to `research`, which hands a blocked page to this skill.
 - A plain fetch already returned a Cloudflare interstitial, a WAF challenge, a CAPTCHA, or a bot check.
 - The target page is known to block normal fetching, such as a job board or a shop that rejects automated clients.
 - The target page sits behind a login the user can complete once on a phone or a laptop.
+- The user says "scrape this job listing that blocks bots" or "log me in to that site so you can read it".
 
 ---
 
@@ -75,8 +70,7 @@ Fail: call `/api/v1/blocklist/refresh` because a page looked full of ads.
 
 ### Know the tiers behind a read
 
-Checked on 2026-10-24 against AscendAI `master` at commit `1102fb3`, which is what a user gets from GitHub. Each tier
-name is also the `mode` value a successful read returns.
+The tiers on the AscendAI `master` branch, which is what a user gets from GitHub. Each tier name is also the `mode` value a successful read returns.
 
 | Tier | What it does |
 | --- | --- |
@@ -91,10 +85,7 @@ A read without `heavy_mode` starts at tier 1. A read with `heavy_mode: true` sta
 runs for it. The request also takes a `tier` field that starts the chain at a named tier. Leave it out and let
 `heavy_mode` decide, because the tier names are changing.
 
-Coming change: on 2026-10-20 the AscendAI branch `feature/all-openspec-groups` removed the `3-flaresolverr` tier with
-its settings and its container, and on 2026-10-19 the same branch added the browser tiers `4a-patchright` and
-`4b-camoufox` after `4-playwright_stealth`. On 2026-10-24 neither change was on GitHub yet. Once they reach `master`,
-a request that names `3-flaresolverr` is refused with HTTP 400 and no tier runs.
+Coming change: the AscendAI branch `feature/all-openspec-groups` removes the `3-flaresolverr` tier with its settings and its container, and adds the browser tiers `4a-patchright` and `4b-camoufox` after `4-playwright_stealth`. Once that reaches `master`, a request that names `3-flaresolverr` is refused with HTTP 400 and no tier runs. Read the `mode` values the service returns rather than this table when the two disagree.
 
 Pass: send `heavy_mode: true` and read `mode` only to report which tier answered.
 

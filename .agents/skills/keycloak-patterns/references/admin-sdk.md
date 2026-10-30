@@ -1,5 +1,11 @@
 # Admin REST API SDK
 
+Contents:
+
+- [Hand-Written SDK](#hand-written-sdk)
+- [Kiota-Generated Client](#kiota-generated-client)
+- [Access Token Management](#access-token-management)
+
 Two client options for the Keycloak Admin REST API:
 
 | Package | Description |

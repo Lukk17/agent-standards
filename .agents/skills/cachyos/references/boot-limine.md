@@ -57,7 +57,7 @@ When no entry boots. Needs a CachyOS live USB from `https://cachyos.org/download
 4. Exit the chroot, reboot, remove the USB.
 5. Prefer rolling back to a snapshot over repairing in a chroot when an upgrade caused it.
 
-UNVERIFIED. The package and tool names were verified on 2026-10-13, and the steps follow the CachyOS documentation.
+UNVERIFIED. The package and tool names were verified on one host, and the steps follow the CachyOS documentation.
 
 ---
 

@@ -1,5 +1,21 @@
 # Source Order
 
+Contents:
+
+- [Check the toolbox first](#check-the-toolbox-first)
+- [The tiers at a glance](#the-tiers-at-a-glance)
+- [Read raw text for anything load-bearing](#read-raw-text-for-anything-load-bearing)
+- [Tier 1: Context7 MCP](#tier-1-context7-mcp)
+- [Tier 2: Vendor documentation and product pages](#tier-2-vendor-documentation-and-product-pages)
+- [Tier 3: Vendor source code](#tier-3-vendor-source-code)
+- [Tier 4: Changelogs and release notes](#tier-4-changelogs-and-release-notes)
+- [Tier 5: Issue trackers](#tier-5-issue-trackers)
+- [Tier 6: Community sources](#tier-6-community-sources)
+- [Tier 7: Sector and industry pages, standards](#tier-7-sector-and-industry-pages-standards)
+- [Tier 8: General web search](#tier-8-general-web-search)
+- [Pages that block fetching](#pages-that-block-fetching)
+- [Optional search tools: Firecrawl and Exa MCP](#optional-search-tools-firecrawl-and-exa-mcp)
+
 The tiers in the order to try them, what each one is good and bad at, and the command that queries it. Load this
 file when picking where to look next or when a tier returns nothing useful.
 
@@ -82,9 +98,7 @@ block fetching" below.
 curl -sL https://example.dev/docs/page
 ```
 
-Community report behind this rule (r/ClaudeAI, 2026-08-08, 80 comments): a user found fabricated statistics and a
-framework name absent from the cited paper, switched subagents to raw `curl`, and caught 17 errors across about 30
-papers. https://www.reddit.com/r/ClaudeAI/comments/1vim8b7/psa_be_careful_letting_claude_use_webfetch_for/
+Community report behind this rule (r/ClaudeAI, 80 comments): a user found fabricated statistics and a framework name absent from the cited paper, switched subagents to raw `curl`, and caught 17 errors across about 30 papers. https://www.reddit.com/r/ClaudeAI/comments/1vim8b7/psa_be_careful_letting_claude_use_webfetch_for/
 
 ---
 
@@ -190,9 +204,7 @@ then try another route, such as a search restricted to that site, the Hacker New
 curl -s "https://hn.algolia.com/api/v1/search?query=QUERY&tags=story"
 ```
 
-Reddit answered its JSON API with 403 and its RSS feeds with 200 when measured on 2026-09-24, and it rate limits
-unauthenticated readers to roughly one request every few seconds (`x-ratelimit-remaining: 0` on a 429). Space the
-requests and read a thread with its top comments through the feed.
+Reddit answered its JSON API with 403 and its RSS feeds with 200 when, and it rate limits unauthenticated readers to roughly one request every few seconds (`x-ratelimit-remaining: 0` on a 429). Space the requests and read a thread with its top comments through the feed.
 
 ```bash
 curl -s -A "Mozilla/5.0" "https://www.reddit.com/r/SUBREDDIT/search.rss?q=QUERY&restrict_sr=1&sort=top&t=year"
@@ -256,7 +268,4 @@ date filters make it a good route to the newest sources when recency decides the
 Exa's hosted server accepts an API key on the URL as `?exaApiKey=`. Authenticate with OAuth or a header set from the
 environment instead, because a key in a URL lands in a configuration file and in logs.
 
-Tool names as documented on 2026-09-25 in https://github.com/firecrawl/firecrawl-mcp-server (section "When to Use
-This Server") and https://github.com/exa-labs/exa-mcp-server (section "Available Tools"). Older guides name Exa's
-fetch tool `crawling_exa`, which the current README no longer lists, so check the connected server's own tool list
-before calling one.
+Tool names as documented in https://github.com/firecrawl/firecrawl-mcp-server (section "When to Use This Server") and https://github.com/exa-labs/exa-mcp-server (section "Available Tools"). Older guides name Exa's fetch tool `crawling_exa`, which the current README no longer lists, so check the connected server's own tool list before calling one.

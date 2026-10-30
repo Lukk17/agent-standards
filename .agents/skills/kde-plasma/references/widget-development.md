@@ -1,8 +1,24 @@
 # Widget Development
 
+Contents:
+
+- [Project layout](#project-layout)
+- [metadata.json](#metadatajson)
+- [QML entry point](#qml-entry-point)
+- [Configuration](#configuration)
+- [Data that must survive a reset](#data-that-must-survive-a-reset)
+- [Secrets in KWallet](#secrets-in-kwallet)
+- [Running local commands](#running-local-commands)
+- [Tests](#tests)
+- [Making the .plasmoid file](#making-the-plasmoid-file)
+- [Installing and upgrading](#installing-and-upgrading)
+- [Installing by KDE Store id](#installing-by-kde-store-id)
+- [Publishing on store.kde.org](#publishing-on-storekdeorg)
+- [Sources](#sources)
+
 How to build, test, package and publish a Plasma 6 widget (plasmoid). The rules live in [SKILL.md](../SKILL.md). Placing an installed widget on a panel is in [panels-and-widgets.md](panels-and-widgets.md), finding its id in [widget-plugin-ids.md](widget-plugin-ids.md).
 
-Checked on 2026-10-23 against libplasma, plasma-workspace, plasma5support and KWin v6.7.5, KPackage, KNewStuff, KWallet and frameworkintegration v6.31.0, and the develop.kde.org widget pages. Sources are listed at the end. Commands that were not executed are marked UNVERIFIED.
+Checked against the Plasma 6 sources of libplasma, plasma-workspace, plasma5support and KWin, the KDE Frameworks 6 sources of KPackage, KNewStuff, KWallet and frameworkintegration, and the develop.kde.org widget pages. Sources are listed at the end. Commands that were not executed are marked UNVERIFIED.
 
 ---
 
@@ -177,7 +193,7 @@ KCM.SimpleKCM {
 
 ### Data that must survive a reset
 
-The applet configuration lives inside the panel layout file, so it goes away with the layout. Applying a Global Theme layout runs `ShellCorona::loadLookAndFeelDefaultLayout`, which deletes every group of `plasma-org.kde.plasma.desktop-appletsrc` (plasma-workspace v6.7.5 `shell/shellcorona.cpp` lines 705 to 710). Removing the widget and adding it again starts it empty, and a second copy of the widget has its own separate configuration.
+The applet configuration lives inside the panel layout file, so it goes away with the layout. Applying a Global Theme layout runs `ShellCorona::loadLookAndFeelDefaultLayout`, which deletes every group of `plasma-org.kde.plasma.desktop-appletsrc` (plasma-workspace 6 `shell/shellcorona.cpp`). Removing the widget and adding it again starts it empty, and a second copy of the widget has its own separate configuration.
 
 | Keep in the applet configuration | Keep in an own settings file |
 |---|---|
@@ -186,8 +202,8 @@ The applet configuration lives inside the panel layout file, so it goes away wit
 
 For an own file, use a KConfig file named after the widget with `rc` at the end, such as `~/.config/weather-widgetrc`, read and written with `kreadconfig6` and `kwriteconfig6` through the executable engine below. Rules learned from a real widget that does this:
 
-1. Read the value back after every write, and treat the write as failed unless the file holds the new value. The exit status is not a reliable sign. Measured here on KConfig 6.31.0: `kwriteconfig6` on a new file in a read-only `XDG_CONFIG_HOME` exited 2, while that widget's own test image on KConfig 6.30 saw exit 0 in its read-only case.
-2. Run both tools inside `timeout`. Measured here on KConfig 6.31.0: `kreadconfig6` with a read-only `XDG_CONFIG_HOME` never returned and was stopped by `timeout 5` with status 124.
+1. Read the value back after every write, and treat the write as failed unless the file holds the new value. The exit status is not a reliable sign. Measured here on KConfig 6: `kwriteconfig6` on a new file in a read-only `XDG_CONFIG_HOME` exited 2, while that widget's own test image on KConfig 6.30 saw exit 0 in its read-only case.
+2. Run both tools inside `timeout`. Measured here on KConfig 6: `kreadconfig6` with a read-only `XDG_CONFIG_HOME` never returned and was stopped by `timeout 5` with status 124.
 3. Never put a user value into the command text. Pass it encoded, for example as base64 decoded inside the command with `base64 -d`, and check names against a strict pattern before building any command.
 4. Read the file, apply the change, then write, so two copies do not undo each other. Read it again on a timer so a change in one copy shows in the others.
 5. Migrate once: when the file has no value yet and the applet configuration has one, copy it into the file and leave the old copy untouched.
@@ -199,9 +215,9 @@ For an own file, use a KConfig file named after the widget with `rc` at the end,
 
 Never put a key in `main.xml`, a settings file, a command line or a log. The applet configuration is plain text that backup tools and dotfile repositories copy.
 
-Save the key from QML through the KWallet D-Bus API with the Plasma QML D-Bus module `org.kde.plasma.workspace.dbus` (plasma-workspace `components/dbus`, first released in Plasma 6.1). The installed interface `kf6_org.kde.KWallet.xml` (KWallet 6.31.0) has `openAsync(wallet, wId, appid, handleSession)`, answered by the `walletAsyncOpened` signal, then `writePassword(handle, folder, key, value, appid)` and `close`. Service `org.kde.kwalletd6`, path `/modules/kwalletd6`, both present on the verified host. The module is not described on the develop.kde.org widget pages read on 2026-10-23, so treat it as UNVERIFIED as a stable API and set `X-Plasma-API-Minimum-Version` to the version you tested.
+Save the key from QML through the KWallet D-Bus API with the Plasma QML D-Bus module `org.kde.plasma.workspace.dbus` (plasma-workspace `components/dbus`, first released in Plasma 6.1). The installed interface `kf6_org.kde.KWallet.xml` (KWallet 6) has `openAsync(wallet, wId, appid, handleSession)`, answered by the `walletAsyncOpened` signal, then `writePassword(handle, folder, key, value, appid)` and `close`. Service `org.kde.kwalletd6`, path `/modules/kwalletd6`, both present on the verified host. The module is not described on the develop.kde.org widget pages, so treat it as UNVERIFIED as a stable API and set `X-Plasma-API-Minimum-Version` to the version you tested.
 
-Read the key only inside the command that uses it, so it never enters plasmashell again. kwalletd6 gives a KWallet entry the Secret Service attributes `server` (the folder), `user` (the entry name) and `type` `plaintext` (KWallet v6.31.0 `src/runtime/kwalletd/secretserviceclient.cpp` lines 28, 95, 236 and 237), so `secret-tool` finds it. Send it to curl on standard input. The curl 8.22.0 manual: "Using @- makes curl read the header file from stdin."
+Read the key only inside the command that uses it, so it never enters plasmashell again. kwalletd6 gives a KWallet entry the Secret Service attributes `server` (the folder), `user` (the entry name) and `type` `plaintext` (KWallet 6 `src/runtime/kwalletd/secretserviceclient.cpp` and 237), so `secret-tool` finds it. Send it to curl on standard input. The curl 8 manual: "Using @- makes curl read the header file from stdin."
 
 ```bash
 key=$(timeout 10 secret-tool lookup server weather-widget user api.main type plaintext) && printf 'Authorization: Bearer %s\n' "$key" | timeout 25 curl --disable --fail-with-body --proto =https --max-redirs 0 --max-time 20 --max-filesize 1048576 -H @- https://api.example.org/v1/forecast
@@ -213,7 +229,7 @@ UNVERIFIED as written, the pattern runs in a real widget. Known limits: at save 
 
 ### Running local commands
 
-`Plasma5Support.DataSource` with `engine: "executable"` runs each source name as a shell command. In plasma5support v6.7.5 `src/dataengines/executable/executable.cpp` lines 26 to 49, the source name goes to `KProcess::setShellCommand`, and the result arrives in `onNewData` with the keys `exit code`, `exit status`, `stdout` and `stderr`.
+`Plasma5Support.DataSource` with `engine: "executable"` runs each source name as a shell command. In plasma5support 6 `src/dataengines/executable/executable.cpp`, the source name goes to `KProcess::setShellCommand`, and the result arrives in `onNewData` with the keys `exit code`, `exit status`, `stdout` and `stderr`.
 
 ```qml
 import QtQuick
@@ -282,7 +298,7 @@ UNVERIFIED as written, the pattern runs in a real widget's suite. On the desktop
 
 ### Making the .plasmoid file
 
-A `.plasmoid` file is a zip archive of the package. Measured here with KPackage 6.31.0: an archive with `metadata.json` and `contents/` at the top level installs, and so does one whose only top-level entry is a folder holding them, because KPackage steps into a single top folder (`src/kpackage/private/packagejobthread.cpp` lines 190 to 232). It also accepts tar archives. Put `metadata.json` at the top level, as the release archive of a published widget does. From inside `package/`:
+A `.plasmoid` file is a zip archive of the package. Measured here with KPackage 6: an archive with `metadata.json` and `contents/` at the top level installs, and so does one whose only top-level entry is a folder holding them, because KPackage steps into a single top folder (`src/kpackage/private/packagejobthread.cpp`). It also accepts tar archives. Put `metadata.json` at the top level, as the release archive of a published widget does. From inside `package/`:
 
 ```bash
 zip -r ../org.example.weather-1.0.0.plasmoid metadata.json contents
@@ -298,7 +314,7 @@ Leave tests, screenshots, `.git` and build scripts out of the archive.
 
 ### Installing and upgrading
 
-All three were measured here in a throwaway `XDG_DATA_HOME` with kpackagetool6 from KPackage 6.31.0:
+All three were measured here in a throwaway `XDG_DATA_HOME` with kpackagetool6 from KPackage 6:
 
 ```bash
 kpackagetool6 -t Plasma/Applet -i org.example.weather-1.0.0.plasmoid
@@ -313,7 +329,7 @@ kpackagetool6 -t Plasma/Applet -r org.example.weather
 ```
 
 1. `-i` on an installed id fails with `already exists` and exit 4.
-2. `-u` (`--upgrade`) removes the installed copy and installs the new one (`src/kpackagetool/kpackagetool.cpp` lines 535 to 547). It worked with an unchanged `Version`, and it exits 2 with `Plugin ... is not installed` when there is nothing to upgrade.
+2. `-u` (`--upgrade`) removes the installed copy and installs the new one (`src/kpackagetool/kpackagetool.cpp`). It worked with an unchanged `Version`, and it exits 2 with `Plugin ... is not installed` when there is nothing to upgrade.
 3. Both take a `.plasmoid` file or the `package/` folder. Never use `--global`.
 
 Then restart plasmashell so it loads the new QML. A running plasmashell keeps the old QML, an observation from a real widget, UNVERIFIED in source:
@@ -326,17 +342,17 @@ systemctl --user restart plasma-plasmashell
 
 ### Installing by KDE Store id
 
-`/usr/lib/kf6/kpackagehandlers/knshandler` comes from frameworkintegration. It takes one `kns://<knsrc file>/<provider>/<entry id>` address. The widget knsrc file is `plasmoids.knsrc` (plasma-workspace 6.7.5, `KPackageStructure=Plasma/Applet`), and the provider id of the KDE Store is `api.kde-look.org`, from https://autoconfig.kde.org/ocs/providers.xml, the KNewStuff default provider list (`src/core/enginebase.cpp` line 163).
+`/usr/lib/kf6/kpackagehandlers/knshandler` comes from frameworkintegration. It takes one `kns://<knsrc file>/<provider>/<entry id>` address. The widget knsrc file is `plasmoids.knsrc` (plasma-workspace 6, `KPackageStructure=Plasma/Applet`), and the provider id of the KDE Store is `api.kde-look.org`, from https://autoconfig.kde.org/ocs/providers.xml, the KNewStuff default provider list (`src/core/enginebase.cpp`).
 
 ```bash
 /usr/lib/kf6/kpackagehandlers/knshandler kns://plasmoids.knsrc/api.kde-look.org/<id>
 ```
 
-UNVERIFIED, not run here because it installs into the real home. Read in frameworkintegration v6.31.0 `src/kpackage-install-handlers/kns/main.cpp`:
+UNVERIFIED, not run here because it installs into the real home. Read in frameworkintegration 6 `src/kpackage-install-handlers/kns/main.cpp`:
 
-1. The knsrc file is found by the host part of the address (lines 79 to 89), and the path must be exactly provider and id (line 92).
-2. It installs only an entry the store reports as downloadable, and prints `already installed.` for every other state (lines 169 to 186). So it does not upgrade an installed widget. Use `kpackagetool6 -u` with the new file, or Get New Widgets.
-3. Every run also creates `~/.local/share/knewstuff3/window-decorations.knsregistry` and the link `aurorae.knsregistry` when they are missing (lines 39 to 63).
+1. The knsrc file is found by the host part of the address, and the path must be exactly provider and id.
+2. It installs only an entry the store reports as downloadable, and prints `already installed.` for every other state. So it does not upgrade an installed widget. Use `kpackagetool6 -u` with the new file, or Get New Widgets.
+3. Every run also creates `~/.local/share/knewstuff3/window-decorations.knsregistry` and the link `aurorae.knsregistry` when they are missing.
 
 ---
 
@@ -348,7 +364,7 @@ UNVERIFIED, not run here because it installs into the real home. Read in framewo
 4. Logo: a square PNG, for example 512 by 512 pixels rendered from an SVG. The API lists the logo as the first preview picture, before the gallery (measured).
 5. Gallery: screenshots rendered in an isolated container from the widget code, with invented accounts, names and numbers only. Never a screenshot of a real desktop, which shows names, e-mail addresses, notifications and keys.
 6. Files tab: upload the `.plasmoid` file. Afterwards the API shows its file name, `download_version1` and `downloadtags1` `data##mimetype=application/zip` (measured on two live widgets).
-7. The Files tab has a "Download lock for archived files" box. Its effect is not documented anywhere found on 2026-10-23. Leave it at its default and do not rely on it. UNVERIFIED.
+7. The Files tab has a "Download lock for archived files" box. Its effect is not documented anywhere found. Leave it at its default and do not rely on it. UNVERIFIED.
 
 Check the product through the OCS API, which Get New Widgets and knshandler read:
 
@@ -356,23 +372,21 @@ Check the product through the OCS API, which Get New Widgets and knshandler read
 curl -s "https://api.kde-look.org/ocs/v1/content/data/<id>" | grep -o '<statuscode>[0-9]*</statuscode>'
 ```
 
-`https://api.kde-look.org/ocs/v1/content/data/<id>` answers `statuscode` 999 with `unknown request` for an id that does not exist yet and for a wrong id (measured on 2026-10-23 with id 999999999), so 999 alone cannot tell them apart. Check the id on the product page, `https://store.kde.org/p/<id>`, and wait for `statuscode` 100 before testing an install from the store.
+`https://api.kde-look.org/ocs/v1/content/data/<id>` answers `statuscode` 999 with `unknown request` for an id that does not exist yet and for a wrong id (measured with id 999999999), so 999 alone cannot tell them apart. Check the id on the product page, `https://store.kde.org/p/<id>`, and wait for `statuscode` 100 before testing an install from the store.
 
 ---
 
 ### Sources
 
-Fetched or cloned on 2026-10-23.
-
 | Source | Version | Used for |
 |---|---|---|
-| https://invent.kde.org/documentation/develop-kde-org, `content/docs/plasma/widget/` (setup, configuration, porting_kf6, testing, properties) | master at 9e4ad7ab | metadata keys, PlasmoidItem, config pages, testing tools |
-| https://invent.kde.org/frameworks/kpackage | v6.31.0 | archive install, id pattern, `--upgrade` |
-| https://invent.kde.org/frameworks/frameworkintegration | v6.31.0 | knshandler |
-| https://invent.kde.org/frameworks/knewstuff | v6.31.0 | default provider, `kns://` address form |
-| https://invent.kde.org/frameworks/kwallet | v6.31.0 | Secret Service attributes |
-| https://invent.kde.org/plasma/plasma5support | v6.7.5 | executable engine |
-| https://invent.kde.org/plasma/plasma-workspace | v6.7.5 | layout reset, QML D-Bus module, `plasmoids.knsrc` |
-| https://doc.qt.io/qt-6/qtqml-javascript-imports.html | Qt 6.12 | `.mjs` modules |
+| https://invent.kde.org/documentation/develop-kde-org, `content/docs/plasma/widget/` (setup, configuration, porting_kf6, testing, properties) | master | metadata keys, PlasmoidItem, config pages, testing tools |
+| https://invent.kde.org/frameworks/kpackage | KDE Frameworks 6 | archive install, id pattern, `--upgrade` |
+| https://invent.kde.org/frameworks/frameworkintegration | KDE Frameworks 6 | knshandler |
+| https://invent.kde.org/frameworks/knewstuff | KDE Frameworks 6 | default provider, `kns://` address form |
+| https://invent.kde.org/frameworks/kwallet | KDE Frameworks 6 | Secret Service attributes |
+| https://invent.kde.org/plasma/plasma5support | Plasma 6 | executable engine |
+| https://invent.kde.org/plasma/plasma-workspace | Plasma 6 | layout reset, QML D-Bus module, `plasmoids.knsrc` |
+| https://doc.qt.io/qt-6/qtqml-javascript-imports.html | Qt 6 | `.mjs` modules |
 | https://nodejs.org/api/test.html | Node.js 24 | `node --test` |
 | https://api.kde-look.org/ocs/v1/content/data/ | live | store API answers |

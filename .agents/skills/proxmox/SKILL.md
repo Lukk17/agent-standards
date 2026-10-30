@@ -1,13 +1,13 @@
 ---
 name: proxmox
-description: 'Working with a Proxmox VE 8 or 9 host from an agent, every change and every delete asked of the owner first: the main option is an admin token for a user of its own, PVEAdmin on / and a custom Sys.AccessNetwork role on the node for ISO downloads, made with pveum or in the web page, narrower tokens as alternatives, the secret in an env file outside any repository, curl with a pinned certificate, listing nodes, VMs and storage use, creating and deleting VMs, growing a VM disk and the partition and file system in a Linux or Windows guest, the free space Ubuntu Server leaves in its volume group, snapshots, vzdump backups and backup jobs, and LVM thin pool data and metadata use. Use when you say "give the agent access to Proxmox", "let the agent manage my VMs", "list my VMs", "grow the disk of this VM", "the guest still shows the old size", "take a snapshot first", "back up this VM", or "how full is local-lvm". Not for Syncthing or containers inside a guest, use `syncthing` or `docker-patterns`.'
+description: 'Working with a Proxmox VE 8 or 9 host from an agent, every change asked of the owner first: API tokens, listing VMs and storage, creating and deleting VMs, growing a guest disk, snapshots, vzdump backups and thin pools. Use when the user says "give the agent access to Proxmox", "grow the disk of this VM" or "snapshot this VM first". Not for containers inside a guest, use `docker-patterns`.'
 ---
 
 # Proxmox VE Administration
 
 How an agent works on a Proxmox VE host through the API, and how a change the owner approved is done in the right order. The main option is an admin token for a user of its own. It can create, change and delete VMs and storage content, manage storages and SDN, create users and groups but not grant permissions, and download ISO files. Narrower tokens are described as alternatives in [api-access.md](references/api-access.md). Whatever the token, anything that changes a VM, a storage or the host is proposed to the owner first, with what can go wrong and how to undo it.
 
-Baseline: Proxmox VE 9.2, released on 21 May 2026 on Debian 13.5, with the `qm` and `pveum` manual pages at version 9.2.13, the admin guide sources, the wiki and the API schema fetched on 2026-10-23. No agent executed a Proxmox command for this skill, because no Proxmox host may be touched for a test. The owner ran the admin token commands in [api-access.md](references/api-access.md) on Proxmox VE 8.3.2 on 2026-10-23 and measured what the token holds. Every other command is UNVERIFIED unless a topic file says otherwise. API paths and the permission each one needs were checked against the API schema of the API viewer. The tokens, roles and API calls in [api-access.md](references/api-access.md) were also checked against the Proxmox VE 8.x sources, with the role contents measured on 8.3.2, and that file lists what differs between 8.x and 9.x. The other topic files were checked against 9.x only.
+Written for Proxmox VE 8 and 9, from the `qm` and `pveum` manual pages, the admin guide sources, the wiki and the API schema. No agent executed a Proxmox command for this skill, because no Proxmox host may be touched for a test. The owner ran the admin token commands in [api-access.md](references/api-access.md) on a Proxmox VE 8 host and measured what the token holds. Every other command is UNVERIFIED unless a topic file says otherwise. API paths and the permission each one needs were checked against the API schema of the API viewer. The tokens, roles and API calls in [api-access.md](references/api-access.md) were also checked against the Proxmox VE 8 sources, and that file lists what differs between 8 and 9. The other topic files were checked against 9 only.
 
 | You are about to | Open |
 |---|---|
@@ -29,9 +29,11 @@ Host names, node names, VM IDs, storage names beyond the installer defaults, and
 - Giving an agent or a script access to a Proxmox VE host
 - Listing nodes, VMs, a VM's hardware, or storage use
 - A guest that runs out of disk space, or a resize that the guest does not show
-- Taking a snapshot or a backup before a risky change inside a guest
+- Snapshotting or backing up a Proxmox VM before a risky change inside the guest
 - Letting the agent create or delete VMs
 - Judging whether `local-lvm` or another thin pool is close to full
+- Also covers the main access option, an admin token for a user of its own, PVEAdmin on / and a custom Sys.AccessNetwork role on the node for ISO downloads, made with pveum or in the web page, narrower tokens as alternatives, the secret in an env file outside any repository, curl with a pinned certificate, listing nodes, VMs and storage use, creating and deleting VMs, growing a VM disk and the partition and file system in a Linux or Windows guest, the free space Ubuntu Server leaves in its volume group, snapshots, vzdump backups and backup jobs, and LVM thin pool data and metadata use
+- The user says "let the agent manage my VMs", "list my VMs", "the guest still shows the old size", "snapshot this VM first", "back up this VM" or "how full is local-lvm"
 
 ---
 
@@ -40,7 +42,7 @@ Host names, node names, VM IDs, storage names beyond the installer defaults, and
 - Software inside a guest, use the skill for that guest's operating system or application, such as `syncthing`, `docker-patterns` or `home-assistant`
 - Provisioning many VMs reproducibly, use `ansible`
 - Writing a script that wraps these calls, use `bash` or `powershell`
-- Judging whether a token, an exposed port or a firewall rule is acceptable, use `security-review`
+- Judging whether a token, an exposed port or a firewall rule is acceptable, use the `security-auditor` agent
 
 ---
 
@@ -64,7 +66,7 @@ Host names, node names, VM IDs, storage names beyond the installer defaults, and
 - `home-assistant` owns Home Assistant OS once it runs in a VM
 - `docker-patterns` owns containers inside a guest
 - `windows` owns the Windows guest beyond Disk Management and `Resize-Partition`
-- `security-review` owns judging tokens, roles and exposed ports
+- The `security-auditor` agent owns judging tokens, roles and exposed ports
 - `bash` and `powershell` own scripts that wrap these calls
 
 ---

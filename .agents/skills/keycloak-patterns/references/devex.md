@@ -1,5 +1,12 @@
 # Developer Experience
 
+Contents:
+
+- [.NET Aspire Integration](#net-aspire-integration)
+- [Project Templates](#project-templates)
+- [OpenTelemetry](#opentelemetry)
+- [Logging](#logging)
+
 ---
 
 ### .NET Aspire Integration

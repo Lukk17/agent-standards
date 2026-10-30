@@ -24,7 +24,7 @@ NTFS is case-insensitive by default, so `Readme.md` and `README.md` are one file
 
 Windows tools write CRLF, Linux tools expect LF. A shell script with CRLF fails in bash with `$'\r': command not found`.
 
-1. Let the repository decide, through `.gitattributes`, for example `* text=auto eol=lf` and `*.ps1 text eol=crlf` where the project wants that. The `git-workflow` skill owns the policy.
+1. Let the repository decide, through `.gitattributes`, for example `* text=auto eol=lf` and `*.ps1 text eol=crlf` where the project wants that. The `git-workflow` skill owns the policy, in its `references/git-config.md` under "Line endings, symlinks and case".
 2. `core.autocrlf` is a per-machine guess. Read it with `git config --show-origin --get core.autocrlf` before blaming a file.
 3. Check a file's endings from Git Bash or WSL with `file <path>`, which reports "with CRLF line terminators".
 4. A PowerShell 5.1 redirect writes UTF-16LE, which looks like a binary file to Linux tools, see [powershell-editions.md](powershell-editions.md).

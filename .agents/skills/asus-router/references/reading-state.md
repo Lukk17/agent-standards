@@ -1,10 +1,23 @@
 # Reading the Router's State
 
+Contents:
+
+- [How to run a command on the router](#how-to-run-a-command-on-the-router)
+- [Model, firmware and uptime](#model-firmware-and-uptime)
+- [Where the system log lives](#where-the-system-log-lives)
+- [The clock in the log is not one clock](#the-clock-in-the-log-is-not-one-clock)
+- [What the WAN lines look like](#what-the-wan-lines-look-like)
+- [The WAN type and interface names](#the-wan-type-and-interface-names)
+- [The PPPoE keep alive settings](#the-pppoe-keep-alive-settings)
+- [The WAN port link](#the-wan-port-link)
+- [Addresses, routes and counters](#addresses-routes-and-counters)
+- [Ping from the router](#ping-from-the-router)
+
 Read this before reading the system log, the WAN settings, the WAN port or the uptime of an ASUS router. Every command here only prints. The rules live in [SKILL.md](../SKILL.md), and rule 4 there matters most on this page: never `nvram show`, never a value or a file that holds a secret.
 
-Sources, fetched on 2026-10-23: the stock firmware image for the GT-AX6000, version 3.0.0.6.102_37437, unpacked in a throwaway container and read but never run, which is where every tool name and every log text below was found, the Asuswrt-Merlin source at tag `3006.102.9` of https://github.com/RMerl/asuswrt-merlin.ng (`release/src/router/rc/services.c`, `rc/wanduck.c`, `rc/wan.c`, `rc/ppp.c`, `rc/pppd.c`, `rc/udhcpc.c`, `shared/misc.c`, `shared/rtstate.h`, `shared/defaults.c`, `rom/apps_scripts/getrealip.sh` and `pppd/pppd/lcp.c`), and the ASUS FAQ "How to save System Log in my ASUS router?" at https://www.asus.com/support/faq/1044954/, last updated 2026/04/07.
+Sources: a 3.0.0.6.102 stock firmware image for the GT-AX6000, unpacked in a throwaway container and read but never run, which is where every tool name and every log text below was found, the Asuswrt-Merlin 3006.102 source of https://github.com/RMerl/asuswrt-merlin.ng (`release/src/router/rc/services.c`, `rc/wanduck.c`, `rc/wan.c`, `rc/ppp.c`, `rc/pppd.c`, `rc/udhcpc.c`, `shared/misc.c`, `shared/rtstate.h`, `shared/defaults.c`, `rom/apps_scripts/getrealip.sh` and `pppd/pppd/lcp.c`), and the ASUS FAQ "How to save System Log in my ASUS router?" at https://www.asus.com/support/faq/1044954/.
 
-Commands and log lines marked VERIFIED were run or seen by the owner on 2026-10-23 on a GT-AX6000 with stock firmware whose `nvram get buildno` printed `386`. Every other command here is UNVERIFIED.
+Commands and log lines marked VERIFIED were run or seen by the owner on a GT-AX6000 with stock firmware whose `nvram get buildno` printed `386`. Every other command here is UNVERIFIED.
 
 ---
 
@@ -16,7 +29,7 @@ Each block below shows only the part that runs on the router. Wrap it in the con
 ssh -o BatchMode=yes -i "$HOMELAB_SSH_KEY" -p "$ASUS_ROUTER_SSH_PORT" "$ASUS_ROUTER_SSH" 'uptime'
 ```
 
-The router's shell is BusyBox 1.24.1 `ash`. It has `grep`, `sed`, `awk`, `tail`, `head`, `sort` and `wc`, and no `uniq`, so bring the text back to the agent's machine and count it there.
+The router's shell is BusyBox `ash`. It has `grep`, `sed`, `awk`, `tail`, `head`, `sort` and `wc`, and no `uniq`, so bring the text back to the agent's machine and count it there.
 
 ---
 
@@ -34,7 +47,7 @@ The build number. VERIFIED on build 386:
 nvram get buildno
 ```
 
-The full version is `firmver`, `buildno` and `extendno` together, for example 3.0.0.6, 102 and 37437 for 3.0.0.6.102_37437. Build 386 printed an `extendno` with a short git hash after the number. Both VERIFIED on build 386:
+The full version is `firmver`, `buildno` and `extendno` together, for example 3.0.0.6, 102 and a build number for a 3.0.0.6.102 release. Build 386 printed an `extendno` with a short git hash after the number. Both VERIFIED on build 386:
 
 ```sh
 nvram get firmver
@@ -114,7 +127,7 @@ So before you match a log line against a ping log or against another machine:
 
 ### What the WAN lines look like
 
-`logmessage` in `shared/misc.c` sends each firmware message with its title as the tag. The source of 3006.102.9 turns the space in a title into an underscore, `WAN_Connection`, and build 386 showed `WAN Connection` with a space, so match both. The texts below were all found in the stock image of 3.0.0.6.102_37437, in `/sbin/rc`, `/usr/sbin/pppd`, `/usr/lib/pppd/rp-pppoe.so` and the kernel module `bcm_enet.ko`, unless the row says it was seen on build 386.
+`logmessage` in `shared/misc.c` sends each firmware message with its title as the tag. The Asuswrt-Merlin 3006.102 source turns the space in a title into an underscore, `WAN_Connection`, and build 386 showed `WAN Connection` with a space, so match both. The texts below were all found in the 3.0.0.6.102 stock image, in `/sbin/rc`, `/usr/sbin/pppd`, `/usr/lib/pppd/rp-pppoe.so` and the kernel module `bcm_enet.ko`, unless the row says it was seen on build 386.
 
 | Line | Comes from | Means |
 |---|---|---|
@@ -263,7 +276,7 @@ Speed and duplex with Broadcom's own tool, `/bin/ethctl`. VERIFIED on build 386,
 ethctl <wan-port> media-type
 ```
 
-Do not count on `ethtool`. Build 386 answered `sh: ethtool: not found`, VERIFIED, although the 3.0.0.6.102_37437 image carries `/usr/sbin/ethtool`. Use it only where `which ethtool` finds it:
+Do not count on `ethtool`. Build 386 answered `sh: ethtool: not found`, VERIFIED, although the 3.0.0.6.102 image carries `/usr/sbin/ethtool`. Use it only where `which ethtool` finds it:
 
 ```sh
 which ethtool

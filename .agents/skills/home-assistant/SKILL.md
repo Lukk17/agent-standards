@@ -1,6 +1,6 @@
 ---
 name: home-assistant
-description: Home Assistant standards for YAML style, entity_id references, native conditions, event-driven automations, automation modes, secrets, MCP exposure limits, and backup discipline. Use when you say "write an automation for this motion sensor", "my automation retriggers and cancels itself", "move these tokens into secrets.yaml", "expose these entities to the assistant", or "why did my template condition fail silently". Not for writing a custom integration in Python, use `python-patterns`.
+description: 'Home Assistant standards for YAML style, entity_id references, native conditions, event-driven automations, automation modes, secrets, MCP exposure limits and backups. Use when the user says "write an automation for this motion sensor", "my automation retriggers and cancels itself" or "move these tokens into secrets.yaml". Not for a custom integration in Python, use `python-patterns`.'
 ---
 
 # Home Assistant Standards
@@ -9,7 +9,7 @@ How a Home Assistant configuration stays reviewable and survives a device being 
 Most breakage here is not a bug, it is a reference that pointed at something transient or a condition that only
 failed at runtime.
 
-Baseline: Home Assistant Core current stable on the monthly 2026.x release train, and YAML 1.2 parsing rules.
+Written for Home Assistant Core on its monthly release train, and YAML 1.2 parsing rules.
 
 ---
 
@@ -21,6 +21,7 @@ Baseline: Home Assistant Core current stable on the monthly 2026.x release train
 - Deciding which entities an assistant or MCP client may see.
 - Naming entities, or cleaning up entity IDs after a device rename.
 - Planning backups, integration cleanup, or a core upgrade.
+- The user says "expose these entities to the assistant" or "why did my template condition fail silently".
 
 ---
 
@@ -30,7 +31,7 @@ Baseline: Home Assistant Core current stable on the monthly 2026.x release train
 - Writing a standalone script that talks to the REST API from outside, use `bash` or `powershell`.
 - Designing the network, reverse proxy, or container the instance runs in, use `docker-patterns`.
 - Building an external service that consumes Home Assistant events, use `backend-patterns`.
-- Reviewing the security posture of an internet-exposed instance, use `security-review`.
+- Reviewing the security posture of an internet-exposed instance, use the `security-auditor` agent.
 
 ---
 
@@ -216,9 +217,7 @@ mqtt:
 
 ### MCP exposure
 
-Home Assistant's MCP server speaks Streamable HTTP, and the current Claude Code CLI connects to remote MCP servers
-over HTTP and SSE directly. A `stdio` proxy is only needed for a client that still supports nothing but `stdio`, so
-check the client before adding one rather than assuming it.
+Home Assistant's MCP server speaks Streamable HTTP, and Claude Code connects to remote MCP servers over HTTP and SSE directly. A `stdio` proxy is only needed for a client that still supports nothing but `stdio`, so check the client before adding one rather than assuming it.
 
 Expose only what the assistant needs. Locks, garage doors, alarm panels, and anything else whose actuation has a
 physical security consequence stay unexposed, whatever the client is.
@@ -279,7 +278,7 @@ Group entities with the area registry rather than repeating the area inside the 
 ### Related skills
 
 - `python-patterns` for building and testing a custom integration in Python.
-- `security-review` before exposing the instance, its API, or a new entity set to anything outside the LAN.
+- The `security-auditor` agent before exposing the instance, its API, or a new entity set to anything outside the LAN.
 - `docker-patterns` for the container and network the instance runs in.
 - `bash` and `powershell` for external scripts driving the REST API.
 - `observability-and-logging` for anything long-running that consumes the event stream.

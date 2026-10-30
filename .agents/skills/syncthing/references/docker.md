@@ -1,8 +1,8 @@
 # Syncthing in Docker
 
-Read this before running Syncthing in a container, or before running `syncthing cli` against one. The rules live in [SKILL.md](../SKILL.md), and Compose and image design in general belong to the `docker-patterns` skill. Commands marked VERIFIED ran on 2026-10-23 against `lscr.io/linuxserver/syncthing:v2.1.7-ls233` and `syncthing/syncthing:2.1.7` in throwaway containers on an isolated network. Every other command here is UNVERIFIED.
+Read this before running Syncthing in a container, or before running `syncthing cli` against one. The rules live in [SKILL.md](../SKILL.md), and Compose and image design in general belong to the `docker-patterns` skill. Commands marked VERIFIED against the `lscr.io/linuxserver/syncthing` and `syncthing/syncthing` images of Syncthing 2 in throwaway containers on an isolated network. Every other command here is UNVERIFIED.
 
-Sources, fetched on 2026-10-23: the linuxserver README at https://github.com/linuxserver/docker-syncthing, its `root/etc/s6-overlay/s6-rc.d/svc-syncthing/run`, release `v2.1.7-ls233` published on 2026-10-21, and https://github.com/syncthing/syncthing/blob/v2.1.7/README-Docker.md.
+Sources: the linuxserver README at https://github.com/linuxserver/docker-syncthing, its `root/etc/s6-overlay/s6-rc.d/svc-syncthing/run`, and https://github.com/syncthing/syncthing/blob/main/README-Docker.md.
 
 ---
 
@@ -48,7 +48,7 @@ id -u
 id -g
 ```
 
-Pin `<version-tag>` to a release tag such as `v2.1.7-ls233` rather than `latest`, so an upgrade is a deliberate change.
+Pin `<version-tag>` to a release tag of the image rather than `latest`, so an upgrade is a deliberate change.
 
 ---
 
@@ -78,7 +78,7 @@ The official image `syncthing/syncthing` instead runs as UID 1000 and sets `STGU
 docker exec -u 1000 <container> env -u STGUIADDRESS syncthing cli show system
 ```
 
-Neither image created a Default Folder in 2.1.7, VERIFIED with `config folders list`.
+Neither image created a Default Folder in Syncthing 2, VERIFIED with `config folders list`.
 
 ---
 

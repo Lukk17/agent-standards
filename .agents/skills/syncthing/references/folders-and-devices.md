@@ -1,8 +1,20 @@
 # Folders and Devices
 
-Read this before setting the folder layout, pairing a device, adding or sharing a folder, or moving one. The rules live in [SKILL.md](../SKILL.md). Commands marked VERIFIED ran on Syncthing 2.1.7 between two throwaway containers on an isolated Docker network on 2026-10-23. Every other command here, every PowerShell command included, is UNVERIFIED.
+Contents:
 
-Sources, fetched on 2026-10-23: https://docs.syncthing.net/users/config.html, https://docs.syncthing.net/users/foldertypes.html, https://docs.syncthing.net/advanced/folder-ignoredelete.html, https://docs.syncthing.net/users/introducer.html, https://docs.syncthing.net/users/faq.html, the 2.0.0 release notes at https://github.com/syncthing/syncthing/releases/tag/v2.0.0, and `lib/model/model.go` at tag v2.1.7.
+- [The layout](#the-layout)
+- [The Default Folder from 1.x](#the-default-folder-from-1x)
+- [Pair two devices](#pair-two-devices)
+- [Introducer and autoAcceptFolders stay off](#introducer-and-autoacceptfolders-stay-off)
+- [Add a folder by its folder ID](#add-a-folder-by-its-folder-id)
+- [Choose the folder type](#choose-the-folder-type)
+- [Keep files that the sender deletes](#keep-files-that-the-sender-deletes)
+- [Move a folder to a new path](#move-a-folder-to-a-new-path)
+- [Remove a device or a folder](#remove-a-device-or-a-folder)
+
+Read this before setting the folder layout, pairing a device, adding or sharing a folder, or moving one. The rules live in [SKILL.md](../SKILL.md). Commands marked VERIFIED ran on Syncthing 2 between two throwaway containers on an isolated Docker network. Every other command here, every PowerShell command included, is UNVERIFIED.
+
+Sources: https://docs.syncthing.net/users/config.html, https://docs.syncthing.net/users/foldertypes.html, https://docs.syncthing.net/advanced/folder-ignoredelete.html, https://docs.syncthing.net/users/introducer.html, https://docs.syncthing.net/users/faq.html, the 2.0.0 release notes at https://github.com/syncthing/syncthing/releases/tag/v2.0.0, and `lib/model/model.go`.
 
 ---
 
@@ -15,7 +27,7 @@ Every synced folder gets its own directory under one base, never the home folder
 | Linux and macOS | `~/Documents/sync` | `~/Documents/sync/<folder-label>` |
 | Windows | `%USERPROFILE%\Documents\sync` | `%USERPROFILE%\Documents\sync\<folder-label>` |
 
-Point the default folder path at the base, so a folder accepted later lands there too. Syncthing expands a leading `~` to the home folder of the user it runs as: a folder added with the path `~/Documents/sync/<folder-label>` was created under the container user's home. VERIFIED, and in the measured 2.1.7 container the default path was empty before this:
+Point the default folder path at the base, so a folder accepted later lands there too. Syncthing expands a leading `~` to the home folder of the user it runs as: a folder added with the path `~/Documents/sync/<folder-label>` was created under the container user's home. VERIFIED, and in the measured container the default path was empty before this:
 
 ```bash
 syncthing cli config defaults folder path set '~/Documents/sync'
@@ -199,7 +211,7 @@ Deleted items are not kept in the database forever either. The 2.0.0 release not
 
 ### Move a folder to a new path
 
-The web page offers no way to change the path of an existing folder: in 2.1.7 the Folder Path field carries `ng-readonly="editingFolderExisting()"`, read in `gui/default/syncthing/folder/editFolderModalView.html`. The FAQ says "Syncthing doesn't have a direct way to do this" and describes the manual route: stop Syncthing, move the folder "including the `.stfolder` marker", edit the path in `config.xml`, start again. It also says to do it "when the folder is already in sync between your devices".
+The web page offers no way to change the path of an existing folder: in Syncthing 2 the Folder Path field carries `ng-readonly="editingFolderExisting()"`, read in `gui/default/syncthing/folder/editFolderModalView.html`. The FAQ says "Syncthing doesn't have a direct way to do this" and describes the manual route: stop Syncthing, move the folder "including the `.stfolder` marker", edit the path in `config.xml`, start again. It also says to do it "when the folder is already in sync between your devices".
 
 The command line does the same without stopping Syncthing: pause the folder, move the directory with its `.stfolder` marker, set the new path, resume. Measured on a `receiveonly` folder: after resuming it was `idle` with all files and nothing needed. VERIFIED:
 

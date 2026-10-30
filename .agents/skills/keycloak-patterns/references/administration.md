@@ -1,55 +1,32 @@
 # Keycloak Administration
 
+Contents:
+
+- [Start development mode with a pinned image](#start-development-mode-with-a-pinned-image)
+- [Build once, then start optimized in production](#build-once-then-start-optimized-in-production)
+- [Understand the object model before configuring it](#understand-the-object-model-before-configuring-it)
+- [Configure a client for SSO](#configure-a-client-for-sso)
+- [Add MFA through a copied flow, never the built-in one](#add-mfa-through-a-copied-flow-never-the-built-in-one)
+- [Connect LDAP or Active Directory](#connect-ldap-or-active-directory)
+- [Administer from the CLI for anything repeatable](#administer-from-the-cli-for-anything-repeatable)
+- [Production defaults worth setting on day one](#production-defaults-worth-setting-on-day-one)
+- [Where to go next](#where-to-go-next)
+- [Checklist](#checklist)
+
 Operating and configuring a Keycloak server: realms, clients, flows, federation, and the hardening a production
 deployment needs. This is the server side of the identity boundary, not the application code that validates its tokens.
 
-Baseline version, current as of September 2026: Keycloak 26.
-
----
-
-### When to activate
-
-- Standing up a Keycloak instance, or moving one from development mode to production.
-- Creating a realm, a client, or a role model for an application.
-- Configuring an authentication flow, MFA, identity brokering, or social login.
-- Federating users from LDAP or Active Directory.
-- Diagnosing a login failure, a token rejection, or a session that ends too soon.
-
----
-
-### When not to activate
-
-- Integrating the .NET Keycloak.AuthServices library: see [dotnet-auth-services.md](dotnet-auth-services.md).
-- Verifying a JWT inside a Node service: use `node-backend-patterns`.
-- Spring Security resource-server configuration: use `springboot-patterns`.
-- Designing the API contract the tokens protect: use `api-design`.
-- Threat modelling the wider application: use the `security-auditor` agent.
-
----
-
-### Reference map
-
-| Task | Open |
-| --- | --- |
-| Realms, users, groups, attributes, sessions | [realm-management.md](realm-management.md) |
-| OIDC and SAML clients, scopes, mappers, service accounts | [client-configuration.md](client-configuration.md) |
-| Auth flows, MFA, identity brokering, social login | [authentication-sso.md](authentication-sso.md) |
-| Roles, UMA fine-grained authorization, policies | [authorization-rbac.md](authorization-rbac.md) |
-| LDAP and AD integration, sync, mappers | [user-federation.md](user-federation.md) |
-| Password policy, brute force, TLS, audit, production checklist | [security-hardening.md](security-hardening.md) |
-| Clustering, database tuning, caching, monitoring, backup | [ha-scalability.md](ha-scalability.md) |
-| Login failures, token issues, LDAP sync, session problems | [administration-troubleshooting.md](administration-troubleshooting.md) |
-| .NET integration examples and token validation on any platform | [integration-examples.md](integration-examples.md) |
+Written for Keycloak 26.
 
 ---
 
 ### Start development mode with a pinned image
 
 ```bash
-docker run -d --name keycloak -p 8080:8080 -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin quay.io/keycloak/keycloak:26.0 start-dev
+docker run -d --name keycloak -p 8080:8080 -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin quay.io/keycloak/keycloak:<major.minor> start-dev
 ```
 
-Pass: a pinned major tag such as `26.0`, so a rebuild six months from now produces the same server.
+Pass: a pinned minor version tag in place of `<major.minor>`, so a rebuild picks up patch fixes and never crosses a minor or major version unannounced. Move the tag deliberately.
 
 Fail: `quay.io/keycloak/keycloak:latest`, which silently upgrades across a major version and can change flow defaults,
 admin console behaviour, and database schema in one `docker pull`.
@@ -203,7 +180,7 @@ An export contains client secrets. Treat the directory as a secret, not as a con
 
 ### Checklist
 
-- [ ] The container image is pinned to a major version, never `latest`.
+- [ ] The container image is pinned to a minor version tag, never `latest`.
 - [ ] Bootstrap admin credentials are replaced by a real admin account and removed.
 - [ ] Applications run against their own realm, not master.
 - [ ] Every client has exact redirect URIs and no wildcard.

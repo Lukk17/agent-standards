@@ -1,8 +1,25 @@
 # API Access for an Agent
 
-Read this before giving an agent access to a Proxmox VE host, or before calling its API. The main way is an admin token for a user of its own, described first. Narrower tokens follow at the end of the file as alternatives, for an owner who chose one of them instead. The rules live in [SKILL.md](../SKILL.md), and rule 4 there holds for every token: the agent asks the owner before every change, and rule 9 before every delete. The admin token commands and its permission list were measured on Proxmox VE 8.3.2, as that section says. Every other command here is UNVERIFIED. The API paths and the privilege each one needs were checked against the API schema of the API viewer on 2026-10-23.
+Contents:
 
-Sources, fetched on 2026-10-23: the user management chapter https://pve.proxmox.com/pve-docs/chapter-pveum.html and its source `pveum.adoc`, the manual page https://pve.proxmox.com/pve-docs/pveum.1.html at version 9.2.13, the API viewer https://pve.proxmox.com/pve-docs/api-viewer/, the certificate section of https://pve.proxmox.com/pve-docs/chapter-sysadmin.html, `src/PVE/AccessControl.pm` in `pve-access-control` at commit `dff26b45` of 2026-09-17, `src/PVE/API2/Qemu.pm` in `qemu-server` at commit `71ea0ac7` of 2026-10-20, `www/manager6/dc/Config.js`, `www/manager6/dc/ACLView.js` and `www/manager6/dc/TokenEdit.js` in `pve-manager` at commit `f643ce4b`, and the curl manual https://curl.se/docs/manpage.html. The API viewer's schema file was last modified on 2026-09-24, the same day as the 9.2.13 manual page.
+- [What a token is](#what-a-token-is)
+- [Proxmox VE 8 and 9](#proxmox-ve-8-and-9)
+- [The admin token](#the-admin-token)
+- [The env file](#the-env-file)
+- [Verify the certificate](#verify-the-certificate)
+- [Call the API without the secret on the command line](#call-the-api-without-the-secret-on-the-command-line)
+- [Reading](#reading)
+- [Calls that change something](#calls-that-change-something)
+- [Create and delete a VM](#create-and-delete-a-vm)
+- [pvesh is for the host, not the agent](#pvesh-is-for-the-host-not-the-agent)
+- [Alternatives: narrower tokens](#alternatives-narrower-tokens)
+- [Alternative 1: a read-only token](#alternative-1-a-read-only-token)
+- [Alternative 2: a token that can also change VMs](#alternative-2-a-token-that-can-also-change-vms)
+- [Alternative 3: a token that can also create and delete VMs](#alternative-3-a-token-that-can-also-create-and-delete-vms)
+
+Read this before giving an agent access to a Proxmox VE host, or before calling its API. The main way is an admin token for a user of its own, described first. Narrower tokens follow at the end of the file as alternatives, for an owner who chose one of them instead. The rules live in [SKILL.md](../SKILL.md), and rule 4 there holds for every token: the agent asks the owner before every change, and rule 9 before every delete. The admin token commands and its permission list were measured on Proxmox VE 8.3.2, as that section says. Every other command here is UNVERIFIED. The API paths and the privilege each one needs were checked against the API schema of the API viewer.
+
+Sources: the user management chapter https://pve.proxmox.com/pve-docs/chapter-pveum.html and its source `pveum.adoc`, the manual page https://pve.proxmox.com/pve-docs/pveum.1.html, the API viewer https://pve.proxmox.com/pve-docs/api-viewer/, the certificate section of https://pve.proxmox.com/pve-docs/chapter-sysadmin.html, `src/PVE/AccessControl.pm` in `pve-access-control`, `src/PVE/API2/Qemu.pm` in `qemu-server`, `www/manager6/dc/Config.js`, `www/manager6/dc/ACLView.js` and `www/manager6/dc/TokenEdit.js` in `pve-manager`, and the curl manual https://curl.se/docs/manpage.html.
 
 ---
 
@@ -16,12 +33,12 @@ The chapter also says: "The token value is only displayed/returned once when the
 
 ### Proxmox VE 8 and 9
 
-Every `pveum` command and every API call in this file works on Proxmox VE 8.x and 9.x, except that an early 8.x host lacks `Sys.AccessNetwork`, which the download role of the admin token and of Alternative 3 uses, as "Proxmox VE 8 and 9 for this alternative" under Alternative 3 says. What differs between the two is what the built-in roles contain, and one extra check on rollback. Checked on 2026-10-23 against the 8.x branches, `stable-bookworm` of `pve-access-control` at commit `0f258e71`, of `qemu-server` at `5ccd363e` and of `pve-docs` at `fa0b4f6b`, and `stable-8` of `pve-manager` at `5aee9c09`, beside the 9.x sources named above.
+Every `pveum` command and every API call in this file works on Proxmox VE 8.x and 9.x, except that an early 8.x host lacks `Sys.AccessNetwork`, which the download role of the admin token and of Alternative 3 uses, as "Proxmox VE 8 and 9 for this alternative" under Alternative 3 says. What differs between the two is what the built-in roles contain, and one extra check on rollback. Checked against the 8.x branches, `stable-bookworm` of `pve-access-control` at commit `0f258e71`, of `qemu-server` at `5ccd363e` and of `pve-docs` at `fa0b4f6b`, and `stable-8` of `pve-manager` at `5aee9c09`, beside the 9.x sources named above.
 
 | Item | 8.x | 9.x |
 |---|---|---|
 | `pveum acl modify` options | `--users`, `--tokens`, `--roles`, `--propagate` | the same |
-| The short form `-user`, `-token`, `-role` | works, and `-user`, `-role`, `-comment`, `-privsep` and `-privs` were measured on 8.3.2 | works, inferred from the source, not measured |
+| The short form `-user`, `-token`, `-role` | works, and `-user`, `-role`, `-comment`, `-privsep` and `-privs` were measured on Proxmox VE 8 | works, inferred from the source, not measured |
 | `pveum user token add` with `--privsep` and `--expire` | yes | yes |
 | `pveum user token permissions` | yes | yes |
 | `VM.Monitor` in `PVEVMAdmin` | yes | no, the privilege is gone |
@@ -42,7 +59,7 @@ The token belongs to a user of its own and holds `PVEAdmin` on `/`. It can creat
 
 The token is made with `-privsep 0`, so its permissions are the user's own. On a dedicated user that holds nothing but this token, that gives the same result as privilege separation with the same ACLs given to the token.
 
-On the host shell, as root, in the short form the owner ran on Proxmox VE 8.3.2 on 2026-10-23. The user, with no password, because the token is the only way in:
+On the host shell, as root, in the short form the owner ran on Proxmox VE 8. The user, with no password, because the token is the only way in:
 
 ```bash
 pveum user add <user>@pve -comment "AI agent"
@@ -83,7 +100,7 @@ In the web page, under Datacenter, Permissions, the names from `Config.js`, `Tok
 
 #### What the token holds
 
-VERIFIED on Proxmox VE 8.3.2 on 2026-10-23, through this token with `GET /access/permissions`:
+VERIFIED on Proxmox VE 8, through this token with `GET /access/permissions`:
 
 | Path | Effective privileges |
 |---|---|
@@ -142,7 +159,7 @@ For each custom role nothing else uses, such as `AgentISO` from Alternative 3:
 pveum role delete <custom-role>
 ```
 
-The owner did exactly this on 8.3.2, coming from `PVEAuditor` on `/`, `PVEDatastoreUser` on `/storage` and a custom VM role on `/vms`. An alternative's token was made with privilege separation. Remove it with `pveum user token remove` as above and add the new one with `-privsep 0`, then give the user the ACLs above. Skip `pveum role add AgentDownload` when Alternative 3 already made that role.
+The owner did exactly this on Proxmox VE 8, coming from `PVEAuditor` on `/`, `PVEDatastoreUser` on `/storage` and a custom VM role on `/vms`. An alternative's token was made with privilege separation. Remove it with `pveum user token remove` as above and add the new one with `-privsep 0`, then give the user the ACLs above. Skip `pveum role add AgentDownload` when Alternative 3 already made that role.
 
 ---
 
@@ -426,7 +443,7 @@ Three roles, each on the path it is needed on, read from `create_roles` in `Acce
 
 The table is the 9.x content. On 8.x, `PVEVMAdmin` has `VM.Monitor`, which the 8.x chapter describes as "access to VM monitor (kvm)", and has none of `VM.GuestAgent.*` or `VM.Replicate`. `PVEAuditor` there has no `VM.GuestAgent.Audit`.
 
-VERIFIED on Proxmox VE 8.3.2 with `GET /access/permissions`, for a user given exactly these three ACLs and read through one of its tokens with privilege separation off, so the list is the user's own:
+VERIFIED on Proxmox VE 8 with `GET /access/permissions`, for a user given exactly these three ACLs and read through one of its tokens with privilege separation off, so the list is the user's own:
 
 | Path | Effective privileges |
 |---|---|
@@ -525,11 +542,11 @@ For an owner who chose this, for an agent that should build a whole VM itself: p
 
 Alternative 2's token can already delete any VM, and can already create a VM without a network device, because `PVEVMAdmin` on `/vms` holds `VM.Allocate`. What Alternative 3 adds is a network device on a bridge, and an ISO the agent uploads or downloads itself.
 
-Sources, read on 2026-10-23. For 9.x the `master` branches: `qemu-server` at `71ea0ac7` of 2026-10-20, `pve-access-control` at `dff26b45` of 2026-09-17, `pve-storage` at `75b36a49` of 2026-10-09, `pve-manager` at `f643ce4b` of 2026-10-19 and `pve-guest-common` at `a9e15736` of 2026-07-06. For 8.x: `stable-bookworm` of `qemu-server` at `5ccd363e` of 2026-08-17 and of `pve-access-control` at `0f258e71` of 2026-04-21, `stable-8` of `pve-storage` at `9aab8f6f` and of `pve-manager` at `5aee9c09`, both of 2026-08-24, and `pve-guest-common` at `58ad183`, the 5.2.2 release of 2025-04-08, the last one before 6.0 for 9.x, because that repository has no 8.x branch. Also the API viewer schema, last modified on 2026-09-24, and `pveum.adoc` on both `pve-docs` branches. Line numbers below are 9.x first, then 8.x.
+Sources. For 9.x the `master` branches of `qemu-server`, `pve-access-control`, `pve-storage`, `pve-manager` and `pve-guest-common`. For 8.x the `stable-bookworm` branches of `qemu-server` and `pve-access-control`, the `stable-8` branches of `pve-storage` and `pve-manager`, and the last 5.x release of `pve-guest-common`, because that repository has no 8.x branch. Also the API viewer schema, and `pveum.adoc` on both `pve-docs` branches. Where a file is named below, the 9.x and the 8.x copy agree unless the text says otherwise.
 
 #### The risk, in plain words
 
-1. This token can delete every VM on every node, VMs added later included, because the ACL on `/vms` propagates. The schema describes `DELETE /nodes/{node}/qemu/{vmid}` as "Destroy the VM and all used/owned volumes". `destroy_vm` in `QemuServer.pm`, line 1882 and 2267, removes every disk "owned by this VM (referenced in the config)" and the saved state of its snapshots. A `vzdump` backup on a backup storage is not part of the VM's configuration and stays. So a deleted VM has no undo except restoring such a backup. That a backup survives the delete is read from the source, not measured.
+1. This token can delete every VM on every node, VMs added later included, because the ACL on `/vms` propagates. The schema describes `DELETE /nodes/{node}/qemu/{vmid}` as "Destroy the VM and all used/owned volumes". `destroy_vm` in `QemuServer.pm`, removes every disk "owned by this VM (referenced in the config)" and the saved state of its snapshots. A `vzdump` backup on a backup storage is not part of the VM's configuration and stays. So a deleted VM has no undo except restoring such a backup. That a backup survives the delete is read from the source, not measured.
 2. It can create VMs until a storage is full. A full thin pool returns write errors to every guest on it, see [storage.md](storage.md).
 3. With the optional download role, the host fetches any URL the agent names, addresses on the owner's own network included. The schema says the download call "allows one to probe the (local!) host network indirectly".
 
@@ -542,11 +559,11 @@ The protection flag, which stops a delete made by mistake, is under "Create and 
 
 | Step | Call | Privilege and path | Granted by |
 |---|---|---|---|
-| Pick a free VM ID | `GET /cluster/nextid` | none, the schema says `"user": "all"`, `Cluster.pm` line 1018 and 887 | any token |
-| See the bridges | `GET /nodes/<node>/network?type=any_bridge` | any user, but a bridge is listed only with `SDN.Audit` or `SDN.Use` on `/sdn/zones/localnetwork/<bridge>`, `Network.pm` line 472 to 482 and 416 to 426 | `PVEAuditor` on `/`, Alternative 1 and Alternative 2 |
+| Pick a free VM ID | `GET /cluster/nextid` | none, the schema says `"user": "all"`, `Cluster.pm` | any token |
+| See the bridges | `GET /nodes/<node>/network?type=any_bridge` | any user, but a bridge is listed only with `SDN.Audit` or `SDN.Use` on `/sdn/zones/localnetwork/<bridge>`, `Network.pm` | `PVEAuditor` on `/`, Alternative 1 and Alternative 2 |
 | See the ISOs on a storage | `GET /nodes/<node>/storage/<iso-storage>/content?content=iso` | `Datastore.Audit` or `Datastore.AllocateSpace` on `/storage/<iso-storage>` | `PVEDatastoreUser`, Alternative 2 |
-| Upload an ISO | `POST /nodes/<node>/storage/<iso-storage>/upload` | `Datastore.AllocateTemplate` on `/storage/<iso-storage>`, `Status.pm` line 524 and 434 | `AgentISO`, new here |
-| Download an ISO by URL | `POST /nodes/<node>/storage/<iso-storage>/download-url` | `Datastore.AllocateTemplate` on `/storage/<iso-storage>`, and either `Sys.AccessNetwork` on `/nodes/<node>` or both `Sys.Audit` and `Sys.Modify` on `/`, `Status.pm` line 748 to 755 and 658 to 665 | `AgentISO` and `AgentDownload`, new here, optional |
+| Upload an ISO | `POST /nodes/<node>/storage/<iso-storage>/upload` | `Datastore.AllocateTemplate` on `/storage/<iso-storage>`, `Status.pm` | `AgentISO`, new here |
+| Download an ISO by URL | `POST /nodes/<node>/storage/<iso-storage>/download-url` | `Datastore.AllocateTemplate` on `/storage/<iso-storage>`, and either `Sys.AccessNetwork` on `/nodes/<node>` or both `Sys.Audit` and `Sys.Modify` on `/`, `Status.pm` | `AgentISO` and `AgentDownload`, new here, optional |
 | Create the VM | `POST /nodes/<node>/qemu` | `VM.Allocate` on `/vms/<vm-id>`, then one check per parameter, see the next table | `PVEVMAdmin`, `PVEDatastoreUser` and `PVESDNUser` |
 | Start it | `POST /nodes/<node>/qemu/<vm-id>/status/start` | `VM.PowerMgmt` on `/vms/<vm-id>` | `PVEVMAdmin`, Alternative 2 |
 | Delete a VM | `DELETE /nodes/<node>/qemu/<vm-id>` | `VM.Allocate` on `/vms/<vm-id>` | `PVEVMAdmin`, Alternative 2 |
@@ -555,46 +572,46 @@ The schema sums up the create call as: "You need 'VM.Allocate' permissions on /v
 
 | Parameter | Check | Where |
 |---|---|---|
-| `vmid` | `VM.Allocate` on `/vms/<vm-id>`, or on `/pool/<pool>` when `pool` is set | `Qemu.pm` line 1334 and 1248 |
-| a new disk, `scsi0=<storage>:<size-in-GiB>` | `Datastore.AllocateSpace` on `/storage/<storage>` | `check_storage_access`, `Qemu.pm` line 190 and 180 |
-| an ISO, `ide2=<iso-storage>:iso/<file>.iso,media=cdrom` | `Datastore.AllocateSpace` or `Datastore.Audit` on `/storage/<iso-storage>`, because `check_volume_access` in `Storage.pm` asks for one of them for `iso` content | `Qemu.pm` line 195 and 185, `Storage.pm` line 632 to 638 and 562 to 568 |
-| a network device, `net0=virtio,bridge=<bridge>` | `VM.Config.Network`, and `SDN.Use` on `/sdn/zones/localnetwork/<bridge>`. With a VLAN tag the path is `/sdn/zones/localnetwork/<bridge>/<tag>`, which an ACL on the bridge covers when it propagates. A bridge that is an SDN VNet is checked on `/sdn/zones/<zone>/<vnet>` instead | `check_bridge_access`, `Qemu.pm` line 1397 and 1303, calling `check_vnet_access` in `GuestHelpers.pm`, line 419 and 415 |
+| `vmid` | `VM.Allocate` on `/vms/<vm-id>`, or on `/pool/<pool>` when `pool` is set | `Qemu.pm` |
+| a new disk, `scsi0=<storage>:<size-in-GiB>` | `Datastore.AllocateSpace` on `/storage/<storage>` | `check_storage_access`, `Qemu.pm` |
+| an ISO, `ide2=<iso-storage>:iso/<file>.iso,media=cdrom` | `Datastore.AllocateSpace` or `Datastore.Audit` on `/storage/<iso-storage>`, because `check_volume_access` in `Storage.pm` asks for one of them for `iso` content | `Qemu.pm`, `Storage.pm` |
+| a network device, `net0=virtio,bridge=<bridge>` | `VM.Config.Network`, and `SDN.Use` on `/sdn/zones/localnetwork/<bridge>`. With a VLAN tag the path is `/sdn/zones/localnetwork/<bridge>/<tag>`, which an ACL on the bridge covers when it propagates. A bridge that is an SDN VNet is checked on `/sdn/zones/<zone>/<vnet>` instead | `check_bridge_access`, `Qemu.pm`, calling `check_vnet_access` in `GuestHelpers.pm` |
 | `cores`, `sockets`, `cpu` | `VM.Config.CPU`, and `Mapping.Use` on `/mapping/cpu/<name>` for a custom CPU model | `check_vm_modify_config_perm` and `check_cpu_model_access` |
 | `memory`, `balloon` | `VM.Config.Memory` | `check_vm_modify_config_perm` |
 | `name`, `ostype`, `onboot`, `agent`, `bios`, `protection` | `VM.Config.Options`, and `Sys.Modify` on `/` for `startup`, which this alternative does not give | `check_vm_modify_config_perm` |
 | `scsihw`, `machine`, `vga` | `VM.Config.HWType` | `check_vm_modify_config_perm` |
 | `boot` | `VM.Config.Disk` | `check_vm_modify_config_perm` |
 | cloud-init settings, `ciuser`, `cipassword`, `sshkeys`, `ipconfig0` | `VM.Config.Cloudinit`. On 9.x `nameserver` and `searchdomain` take that or `VM.Config.Network`, and on 8.x every cloud-init setting takes either one | `check_vm_modify_config_perm` |
-| a cloud-init drive, `ide0=<storage>:cloudinit` | nothing beyond `VM.Allocate`, because `check_storage_access` skips a `cloudinit` volume | `Qemu.pm` line 178 to 184 and 168 to 174 |
-| `start=1` | `VM.PowerMgmt`, checked before the VM is made on 9.x only | `Qemu.pm` line 1331 |
-| `ha-managed=1`, 9.x only | `Sys.Console` on `/`, which this alternative does not give | `Qemu.pm` line 1326 |
+| a cloud-init drive, `ide0=<storage>:cloudinit` | nothing beyond `VM.Allocate`, because `check_storage_access` skips a `cloudinit` volume | `Qemu.pm` |
+| `start=1` | `VM.PowerMgmt`, checked before the VM is made on 9.x only | `Qemu.pm` |
+| `ha-managed=1`, 9.x only | `Sys.Console` on `/`, which this alternative does not give | `Qemu.pm` |
 
 The guest agent is the `agent=1` setting above. Talking to it later takes `VM.GuestAgent.Audit` or more on 9.x and `VM.Monitor` on 8.x, all in `PVEVMAdmin`.
 
-Some things no token can set, because the check ends in "only root can set", for example a USB or PCI device passed through by its host ID rather than by a resource mapping, a serial port on a real device, and any setting in none of the lists, which the source comments as "catches args, lock, etc.", `Qemu.pm` line 1059 and 989. A custom cloud-init file in `cicustom` is the owner's job as well: the upload call takes only `iso`, `vztmpl` and `import`, so a snippet cannot be put on a storage through the API, and on 9.x since `qemu-server` 9.2.11 of 2026-10-09 the snippet also needs `Datastore.AllocateSpace` on its storage. Deleting an ISO needs `Datastore.Allocate`, which the schema gives for `DELETE /nodes/{node}/storage/{storage}/content/{volume}` as "You need 'Datastore.Allocate' privilege on the storage", so old ISOs are the owner's to remove.
+Some things no token can set, because the check ends in "only root can set", for example a USB or PCI device passed through by its host ID rather than by a resource mapping, a serial port on a real device, and any setting in none of the lists, which the source comments as "catches args, lock, etc.", `Qemu.pm`. A custom cloud-init file in `cicustom` is the owner's job as well: the upload call takes only `iso`, `vztmpl` and `import`, so a snippet cannot be put on a storage through the API, and on recent 9.x releases of `qemu-server` the snippet also needs `Datastore.AllocateSpace` on its storage. Deleting an ISO needs `Datastore.Allocate`, which the schema gives for `DELETE /nodes/{node}/storage/{storage}/content/{volume}` as "You need 'Datastore.Allocate' privilege on the storage", so old ISOs are the owner's to remove.
 
 #### Why a custom role and not PVEDatastoreAdmin
 
-No built-in role holds `Datastore.AllocateTemplate` without `Datastore.Allocate`. `create_roles` in `AccessControl.pm`, line 1175 and 1171, builds `PVEDatastoreAdmin` from the whole admin group of the storage privileges, and that group is `'Datastore.Allocate', 'Datastore.AllocateTemplate'` on one line, 1107 and 1103. `PVEDatastoreUser` stops at `Datastore.AllocateSpace`, and apart from `PVEDatastoreAdmin` only `PVEAdmin` and `Administrator` carry the admin group.
+No built-in role holds `Datastore.AllocateTemplate` without `Datastore.Allocate`. `create_roles` in `AccessControl.pm`, builds `PVEDatastoreAdmin` from the whole admin group of the storage privileges, and that group is `'Datastore.Allocate', 'Datastore.AllocateTemplate'` on one line. `PVEDatastoreUser` stops at `Datastore.AllocateSpace`, and apart from `PVEDatastoreAdmin` only `PVEAdmin` and `Administrator` carry the admin group.
 
-`Datastore.Allocate` is much more than an ISO. The chapter describes it as "create/modify/remove a datastore and delete volumes". The schema asks for it on `/storage` to create, change or remove a storage configuration, `POST /storage`, `PUT /storage/{storage}` and `DELETE /storage/{storage}`, which is `Config.pm` line 205, 305 and 422 on 9.x and 205, 305 and 410 on 8.x. And `check_volume_access` in `Storage.pm` returns at once for anyone holding it, line 630 and 560, so that token could use any disk or backup of any VM on that storage. A custom role with `Datastore.AllocateTemplate` alone gives the upload and the download and nothing else. The chapter says "Roles starting with `PVE` are always builtin, custom roles are not allowed use this reserved prefix."
+`Datastore.Allocate` is much more than an ISO. The chapter describes it as "create/modify/remove a datastore and delete volumes". The schema asks for it on `/storage` to create, change or remove a storage configuration, `POST /storage`, `PUT /storage/{storage}` and `DELETE /storage/{storage}`, in `Config.pm`. And `check_volume_access` in `Storage.pm` returns at once for anyone holding it, so that token could use any disk or backup of any VM on that storage. A custom role with `Datastore.AllocateTemplate` alone gives the upload and the download and nothing else. The chapter says "Roles starting with `PVE` are always builtin, custom roles are not allowed use this reserved prefix."
 
-The same holds for the download. `Sys.AccessNetwork` sits in the root group of the system privileges, `AccessControl.pm` line 1094 and 1090, commented "for, e.g., downloading ISOs from any URL", and no role but `Administrator` carries that group. The other way the download call accepts, `Sys.Modify` on `/`, is what the chapter lists as "create/modify/remove node network parameters" and warns about. On `/nodes/<node>`, `Sys.AccessNetwork` also opens `query-url-metadata` and `query-oci-repo-tags` on that node, and on 9.x `oci-registry-pull` together with `Datastore.AllocateTemplate`. Each of those fetches something from a network address and changes nothing else. The checks that ask for it in the notification calls are on `/`, which this ACL does not reach.
+The same holds for the download. `Sys.AccessNetwork` sits in the root group of the system privileges, `AccessControl.pm`, commented "for, e.g., downloading ISOs from any URL", and no role but `Administrator` carries that group. The other way the download call accepts, `Sys.Modify` on `/`, is what the chapter lists as "create/modify/remove node network parameters" and warns about. On `/nodes/<node>`, `Sys.AccessNetwork` also opens `query-url-metadata` and `query-oci-repo-tags` on that node, and on 9.x `oci-registry-pull` together with `Datastore.AllocateTemplate`. Each of those fetches something from a network address and changes nothing else. The checks that ask for it in the notification calls are on `/`, which this ACL does not reach.
 
 #### A deeper permission replaces the one above it
 
-The chapter, section "Inheritance": "Permissions on deeper levels replace those inherited from an upper level." In `roles` in `AccessControl.pm` that is `$roles = $new; # overwrite previous settings`, line 1847 and 1837. So an ACL on `/storage/<iso-storage>` with only `AgentISO` would take `PVEDatastoreUser` away on that storage, and an ACL on `/nodes/<node>` with only `AgentDownload` would take `PVEAuditor` away on that node. That is why both commands below name the inherited role again beside the new one. `PVESDNUser` holds `SDN.Audit` as well as `SDN.Use`, the `user` and `audit` groups of the SDN privileges as `create_roles` builds it, so the bridge needs nothing beside it.
+The chapter, section "Inheritance": "Permissions on deeper levels replace those inherited from an upper level." In `roles` in `AccessControl.pm` that is `$roles = $new; # overwrite previous settings`. So an ACL on `/storage/<iso-storage>` with only `AgentISO` would take `PVEDatastoreUser` away on that storage, and an ACL on `/nodes/<node>` with only `AgentDownload` would take `PVEAuditor` away on that node. That is why both commands below name the inherited role again beside the new one. `PVESDNUser` holds `SDN.Audit` as well as `SDN.Use`, the `user` and `audit` groups of the SDN privileges as `create_roles` builds it, so the bridge needs nothing beside it.
 
 #### Proxmox VE 8 and 9 for this alternative
 
 | Item | 8.x | 9.x |
 |---|---|---|
-| `PVESDNUser` with `SDN.Use` and `SDN.Audit` | yes, `AccessControl.pm` line 1118 | yes, line 1122 |
-| `SDN.Use` checked on the bridge when a VM is created | yes, since `qemu-server` commit `9cfd06d9` of 2023-06-07 | yes |
+| `PVESDNUser` with `SDN.Use` and `SDN.Audit` | yes, `AccessControl.pm` | yes |
+| `SDN.Use` checked on the bridge when a VM is created | yes, on later 8.x releases | yes |
 | `Datastore.AllocateTemplate` for upload and download | yes | yes |
-| `Sys.AccessNetwork` | only from `libpve-access-control` 8.1.2 of 2024-02-28, and the download call accepts it only from `libpve-storage-perl` 8.1.0 of 2024-03-06. An older host refuses the role with "invalid privilege" | yes |
-| `VM.PowerMgmt` checked before the VM is made with `start=1` | no | yes, since commit `5086f472` of 2026-04-30 |
-| `Datastore.AllocateSpace` on the snippet storage for `cicustom` | not checked | yes, since `qemu-server` 9.2.11 |
+| `Sys.AccessNetwork` | only from `libpve-access-control` 8.1.2, and the download call accepts it only from `libpve-storage-perl` 8.1.0. An older host refuses the role with "invalid privilege" | yes |
+| `VM.PowerMgmt` checked before the VM is made with `start=1` | no | yes |
+| `Datastore.AllocateSpace` on the snippet storage for `cicustom` | not checked | yes, on recent 9.x releases |
 | `ha-managed` when creating | not there | needs `Sys.Console` on `/` |
 
 On an 8.x host the owner reads the two package versions before choosing the download role:

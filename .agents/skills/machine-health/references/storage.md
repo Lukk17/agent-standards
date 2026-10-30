@@ -1,6 +1,6 @@
 # Storage
 
-SMART and NVMe health, filesystem errors, free space, mount options and encryption state. The rules live in [SKILL.md](../SKILL.md). Linux commands below were executed read-only on CachyOS on 2026-10-13 unless marked otherwise, macOS and Windows commands are UNVERIFIED.
+SMART and NVMe health, filesystem errors, free space, mount options and encryption state. The rules live in [SKILL.md](../SKILL.md). Linux commands below were executed read-only on CachyOS unless marked otherwise, macOS and Windows commands are UNVERIFIED.
 
 ---
 
@@ -47,7 +47,7 @@ When the owner pastes `smartctl` output, read these. The interpretation is commo
 | Windows | `fsutil dirty query C:` | `Volume C: is dirty`. Likely needs elevation | UNVERIFIED |
 | Windows | `Get-Volume \| Select-Object DriveLetter,FileSystemLabel,FileSystem,HealthStatus,SizeRemaining,Size` | `HealthStatus` other than `Healthy` | UNVERIFIED |
 
-Microsoft describes the dirty bit: "When a volume's dirty bit is set, autochk automatically checks the volume for errors the next time the computer is restarted", and lists "Corruption was detected on the volume" among its causes (<https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/fsutil-dirty>, fetched 2026-10-13). Never run `fsutil dirty set`, `chkdsk /f`, `chkdsk /r`, `fsck`, `ntfsfix` or `btrfs check --repair`. A read-only `chkdsk C: /scan` needs elevation and goes to the owner.
+Microsoft describes the dirty bit: "When a volume's dirty bit is set, autochk automatically checks the volume for errors the next time the computer is restarted", and lists "Corruption was detected on the volume" among its causes (<https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/fsutil-dirty>). Never run `fsutil dirty set`, `chkdsk /f`, `chkdsk /r`, `fsck`, `ntfsfix` or `btrfs check --repair`. A read-only `chkdsk C: /scan` needs elevation and goes to the owner.
 
 A `FILE CORRUPTED` line from fs-verity names an inode. Mapping it to a path needs `sudo btrfs inspect-internal inode-resolve <inode> /`, which goes to Needs root. Treat it as `fail` until the owner knows which file it is. If `MACHINE.md` records RAM above its rated speed, mention it next to any checksum or corruption finding.
 

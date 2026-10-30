@@ -27,7 +27,7 @@ multilib
 
 ### The ISA question
 
-The CachyOS wiki page "Optimized Repositories" (`https://wiki.cachyos.org/features/optimized_repos/`, fetched 2026-10-13) defines three sets:
+The CachyOS wiki page "Optimized Repositories" (`https://wiki.cachyos.org/features/optimized_repos/`) defines three sets:
 
 | Set | Repositories | Detection |
 |---|---|---|

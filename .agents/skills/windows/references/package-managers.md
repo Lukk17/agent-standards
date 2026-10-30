@@ -31,7 +31,7 @@ Check which are present with `Get-Command winget, choco, scoop -ErrorAction Sile
 
 ### winget
 
-Microsoft Learn, "Use WinGet to install and manage applications" (updated 2026-07-19): "When running WinGet without administrator privileges, some applications may require elevation to install. When the installer runs, Windows will prompt you to elevate." and "When running WinGet in an Administrator Command Prompt, you will not see elevation prompts if the application requires it."
+Microsoft Learn, "Use WinGet to install and manage applications": "When running WinGet without administrator privileges, some applications may require elevation to install. When the installer runs, Windows will prompt you to elevate." and "When running WinGet in an Administrator Command Prompt, you will not see elevation prompts if the application requires it."
 
 Search, then install by exact id from one source. The `install` page says "The best way to limit the selection to one file is to use the id of the application combined with the exact query option":
 

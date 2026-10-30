@@ -1,6 +1,6 @@
 ---
 name: jira-integration
-description: 'Jira mechanics from a coding session: fetching an issue and its comments, running JQL, adding progress comments, transitioning status through the project workflow, and linking branches back to the key, through the Atlassian MCP server or the REST v3 API. Use when you say "pull up PROJ-1234", "move this ticket to In Review", "comment the PR link on the ticket", or "find my open issues this sprint". Not for how a work item should be written or closed, use `project-tracking`.'
+description: 'Jira mechanics from a coding session through the Atlassian MCP server or the REST v3 API: fetching an issue, running JQL, progress comments, status transitions and linking branches to the key. Use when the user says "pull up PROJ-1234", "move this ticket to In Review", "comment the PR link on the ticket" or "find my open issues this sprint". Not for writing a work item, use `project-tracking`.'
 ---
 
 # Jira Integration
@@ -89,10 +89,7 @@ produces a 401 that reads like a permissions problem.
 | `getJiraBoardSprintData` | Everything in the active sprint of a board |
 | `createJiraIssueLink` | Blocks, relates to, duplicates |
 
-These names come from Atlassian's
-[supported tools](https://support.atlassian.com/atlassian-rovo-mcp-server/docs/supported-tools/) page. A client
-connected before the current server version can still list older names, such as `getTransitionsForJiraIssue` and
-`addCommentToJiraIssue`, so call the name the connected server actually lists.
+These names come from Atlassian's [supported tools](https://support.atlassian.com/atlassian-rovo-mcp-server/docs/supported-tools/) page. A client connected to an older server version can still list older names, such as `getTransitionsForJiraIssue` and `addCommentToJiraIssue`, so call the name the connected server actually lists.
 
 ---
 
@@ -139,10 +136,16 @@ Fetch the comment thread separately, because it is large and usually not needed:
 curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" "$JIRA_URL/rest/api/3/issue/PROJ-1234?fields=comment" | jq '.fields.comment.comments[] | {author: .author.displayName, created: .created[:10], body: .body}'
 ```
 
-Search with JQL:
+Search with JQL through `/rest/api/3/search/jql`. The older `/rest/api/3/search` is marked deprecated in the [issue search reference](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/), which says "Endpoint is currently being removed". The new endpoint returns issue IDs only unless `fields` names what you want, its reference says "By default, this resource returns IDs only", and it pages with `nextPageToken` rather than `startAt`. The query must be bounded, so keep a project or assignee restriction in it.
 
 ```bash
-curl -s -G -u "$JIRA_EMAIL:$JIRA_API_TOKEN" --data-urlencode "jql=project = PROJ AND status = 'In Progress'" "$JIRA_URL/rest/api/3/search"
+curl -s -G -u "$JIRA_EMAIL:$JIRA_API_TOKEN" --data-urlencode "jql=project = PROJ AND status = 'In Progress'" --data-urlencode "fields=summary,status,assignee" "$JIRA_URL/rest/api/3/search/jql" | jq '.issues[] | {key, summary: .fields.summary, status: .fields.status.name}'
+```
+
+Fail:
+
+```bash
+curl -s -G -u "$JIRA_EMAIL:$JIRA_API_TOKEN" --data-urlencode "jql=project = PROJ" "$JIRA_URL/rest/api/3/search"
 ```
 
 ---

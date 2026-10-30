@@ -1,6 +1,6 @@
 # A full disk on the VM
 
-Read this before explaining services that stopped writing, a Syncthing folder that stopped, or a root file system near 100 percent. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab on 2026-10-22 and 2026-10-23. Every other command here is UNVERIFIED.
+Read this before explaining services that stopped writing, a Syncthing folder that stopped, or a root file system near 100 percent. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab. Every other command here is UNVERIFIED.
 
 ---
 

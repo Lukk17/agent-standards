@@ -1,8 +1,15 @@
 # Uptime Kuma
 
-Read this before changing monitors, reading `/metrics` with the API key, adding a tag, or editing the database. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab on 2026-10-23 with `louislam/uptime-kuma:2.5.5`. The database edit was also run end to end on 2026-10-23 in a throwaway container of that image with no network. Every other command here is UNVERIFIED.
+Contents:
 
-Sources, read on 2026-10-23 at tag 2.5.5 of https://github.com/louislam/uptime-kuma: `server/server.js` and `server/auth.js` for the API key, `server/prometheus.js` for the tag labels, `server/database.js` for the database path and its WAL journal, `db/knex_init_db.js` for the `monitor` columns, and `docker/debian-base.dockerfile`, which installs `sqlite3` into the image. The wiki page Prometheus API Keys at https://github.com/louislam/uptime-kuma/wiki/Prometheus-API-Keys.
+- [Monitors and their intervals](#monitors-and-their-intervals)
+- [The read-only API key](#the-read-only-api-key)
+- [The labelset log flood](#the-labelset-log-flood)
+- [Editing monitors in the database](#editing-monitors-in-the-database)
+
+Read this before changing monitors, reading `/metrics` with the API key, adding a tag, or editing the database. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab with Uptime Kuma 2. The database edit was also run end to end in a throwaway container of that image with no network. Every other command here is UNVERIFIED.
+
+Sources in https://github.com/louislam/uptime-kuma: `server/server.js` and `server/auth.js` for the API key, `server/prometheus.js` for the tag labels, `server/database.js` for the database path and its WAL journal, `db/knex_init_db.js` for the `monitor` columns, and `docker/debian-base.dockerfile`, which installs `sqlite3` into the image. The wiki page Prometheus API Keys at https://github.com/louislam/uptime-kuma/wiki/Prometheus-API-Keys.
 
 ---
 
@@ -62,7 +69,7 @@ A log limit, from [deploy-and-logs.md](deploy-and-logs.md#log-limits-on-every-se
 
 ### Editing monitors in the database
 
-When the agent has no login to the web page, it changes monitors in the SQLite database, `/app/data/kuma.db` inside the container. Uptime Kuma keeps the database open in WAL mode and holds the monitors in memory, so it is stopped first, the database is backed up, the change is made, and it is started again. The image ships `sqlite3`, so a one-off container of the same image does the work, and nothing is installed on the VM. VERIFIED on 2026-10-23 on the homelab, and in a throwaway container of the same image, with the commands below.
+When the agent has no login to the web page, it changes monitors in the SQLite database, `/app/data/kuma.db` inside the container. Uptime Kuma keeps the database open in WAL mode and holds the monitors in memory, so it is stopped first, the database is backed up, the change is made, and it is started again. The image ships `sqlite3`, so a one-off container of the same image does the work, and nothing is installed on the VM. VERIFIED on the homelab, and in a throwaway container of the same image, with the commands below.
 
 Ask the owner first. Every monitor is silent while it is stopped.
 
@@ -75,19 +82,19 @@ docker stop uptime-kuma
 Back up the database next to itself. `.backup` copies it consistently, WAL included:
 
 ```bash
-docker run --rm --network none -v <kuma-data-dir>:/app/data --entrypoint sqlite3 louislam/uptime-kuma:2.5.5 /app/data/kuma.db ".backup /app/data/kuma.db.bak"
+docker run --rm --network none -v <kuma-data-dir>:/app/data --entrypoint sqlite3 louislam/uptime-kuma:<version-tag> /app/data/kuma.db ".backup /app/data/kuma.db.bak"
 ```
 
 Read the monitors first, to pick the exact names or IDs:
 
 ```bash
-docker run --rm --network none -v <kuma-data-dir>:/app/data --entrypoint sqlite3 louislam/uptime-kuma:2.5.5 -header -column /app/data/kuma.db "SELECT id, name, type, interval, retry_interval, maxretries, active FROM monitor;"
+docker run --rm --network none -v <kuma-data-dir>:/app/data --entrypoint sqlite3 louislam/uptime-kuma:<version-tag> -header -column /app/data/kuma.db "SELECT id, name, type, interval, retry_interval, maxretries, active FROM monitor;"
 ```
 
 Change them, here one monitor to 30 seconds with 1 retry after 30 seconds:
 
 ```bash
-docker run --rm --network none -v <kuma-data-dir>:/app/data --entrypoint sqlite3 louislam/uptime-kuma:2.5.5 /app/data/kuma.db "UPDATE monitor SET interval = 30, retry_interval = 30, maxretries = 1 WHERE id = <monitor-id>;"
+docker run --rm --network none -v <kuma-data-dir>:/app/data --entrypoint sqlite3 louislam/uptime-kuma:<version-tag> /app/data/kuma.db "UPDATE monitor SET interval = 30, retry_interval = 30, maxretries = 1 WHERE id = <monitor-id>;"
 ```
 
 Read them back with the `SELECT` above, then start it:
@@ -105,7 +112,7 @@ docker ps --filter name=uptime-kuma --format '{{.Status}}'
 To undo, stop it again, put the backup back, and start it. UNVERIFIED, the undo was not run:
 
 ```bash
-docker run --rm --network none -v <kuma-data-dir>:/app/data --entrypoint cp louislam/uptime-kuma:2.5.5 /app/data/kuma.db.bak /app/data/kuma.db
+docker run --rm --network none -v <kuma-data-dir>:/app/data --entrypoint cp louislam/uptime-kuma:<version-tag> /app/data/kuma.db.bak /app/data/kuma.db
 ```
 
-Use the image tag the Compose file runs, so the `sqlite3` matches. `<kuma-data-dir>` is the host side of the `/app/data` mount. The columns named above exist in 2.5.5. Tags live in the tables `tag` and `monitor_tag`, and a tag added there needs the restart above as well.
+Use the image tag the Compose file runs, so the `sqlite3` matches. `<kuma-data-dir>` is the host side of the `/app/data` mount. The columns named above exist in Uptime Kuma 2. Tags live in the tables `tag` and `monitor_tag`, and a tag added there needs the restart above as well.

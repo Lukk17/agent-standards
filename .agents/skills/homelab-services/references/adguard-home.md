@@ -1,8 +1,17 @@
 # AdGuard Home
 
-Read this before adding a DNS rewrite, changing upstreams, changing how long the query log or the statistics are kept, ignoring a domain, or editing `AdGuardHome.yaml`. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab on 2026-10-23 with `adguard/adguardhome:v0.107.78`. The file edit was also run end to end on 2026-10-23 in a throwaway container of that image with no network. Every other command here is UNVERIFIED.
+Contents:
 
-Sources, read on 2026-10-23 at tag v0.107.78 of https://github.com/AdguardTeam/AdGuardHome: `internal/home/config.go` for the keys and defaults, `internal/home/home.go` and `internal/home/config.go` for when the file is written, `internal/querylog/querylogfile.go` for the rotation, `internal/filtering/rewrites.go` for the rewrite keys, and `docker/build.Dockerfile` for the image, which is Alpine 3.23 with BusyBox.
+- [Ports and first run](#ports-and-first-run)
+- [A wildcard rewrite for .internal names](#a-wildcard-rewrite-for-internal-names)
+- [Upstreams](#upstreams)
+- [Query log and statistics retention](#query-log-and-statistics-retention)
+- [Ignored domains](#ignored-domains)
+- [Editing AdGuardHome.yaml](#editing-adguardhomeyaml)
+
+Read this before adding a DNS rewrite, changing upstreams, changing how long the query log or the statistics are kept, ignoring a domain, or editing `AdGuardHome.yaml`. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab with AdGuard Home 0.107. The file edit was also run end to end in a throwaway container of that image with no network. Every other command here is UNVERIFIED.
+
+Sources in https://github.com/AdguardTeam/AdGuardHome: `internal/home/config.go` for the keys and defaults, `internal/home/home.go` and `internal/home/config.go` for when the file is written, `internal/querylog/querylogfile.go` for the rotation, `internal/filtering/rewrites.go` for the rewrite keys, and `docker/build.Dockerfile` for the image, which is Alpine with BusyBox.
 
 ---
 
@@ -49,7 +58,7 @@ A service that is not web traffic, Samba for one, answers on the VM's address di
 
 ### Upstreams
 
-Settings, then DNS settings. Give several encrypted upstreams from different providers, one per line, and choose Parallel requests, so a dead provider costs no wait. Give one or two plain fallback servers for the moment every upstream has failed. In the file these are `dns.upstream_dns`, `dns.upstream_mode`, `dns.fallback_dns` and `dns.upstream_timeout`. VERIFIED on the homelab on 2026-10-09: three encrypted upstreams in parallel mode with a 3 second timeout, and ad domains still answered `0.0.0.0`, since the blocklists act before any upstream is asked.
+Settings, then DNS settings. Give several encrypted upstreams from different providers, one per line, and choose Parallel requests, so a dead provider costs no wait. Give one or two plain fallback servers for the moment every upstream has failed. In the file these are `dns.upstream_dns`, `dns.upstream_mode`, `dns.fallback_dns` and `dns.upstream_timeout`. VERIFIED on the homelab: three encrypted upstreams in parallel mode with a 3 second timeout, and ad domains still answered `0.0.0.0`, since the blocklists act before any upstream is asked.
 
 The router hands out the VM as the only DNS server. A public resolver in the second slot gets roughly half the `.internal` lookups and answers them with NXDOMAIN. The router side belongs to the `asus-router` skill.
 
@@ -57,7 +66,7 @@ The router hands out the VM as the only DNS server. A public resolver in the sec
 
 ### Query log and statistics retention
 
-The defaults at v0.107.78 are 90 days for the query log and 1 day for the statistics, `querylog.interval` and `statistics.interval`. The version writes a whole number of days as `30d` and also reads hours, `720h`.
+The defaults in 0.107 are 90 days for the query log and 1 day for the statistics, `querylog.interval` and `statistics.interval`. That release line writes a whole number of days as `30d` and also reads hours, `720h`.
 
 The query log rotates by age, not by size. When AdGuard Home starts, and then once an hour (`periodicRotate`), it reads the time of the oldest entry in `querylog.json`. When that entry is older than the interval, it renames `querylog.json` to `querylog.json.1` and replaces the older `querylog.json.1`. The two files together hold between one and two intervals. VERIFIED: at 90 days the two files held 4.0 GB.
 
@@ -83,13 +92,13 @@ Clear query logs on the same card deletes both files and the entries held in mem
 
 A probe that asks the same name every second, such as the network watch in [telegraf-network-watch.md](telegraf-network-watch.md), drowns every other query in the log and the statistics. The Logs card and the Statistics card each have their own Ignored domains field, so the domain goes into both. VERIFIED: one entry per card hides the probe's name, whichever client asks.
 
-In the file the lists are `querylog.ignored` and `statistics.ignored`. At v0.107.78 each block also carries `ignored_enabled`, which the source describes as "whether hosts from the ignored list should be ignored", default false, so a list written by hand needs `ignored_enabled: true` beside it. UNVERIFIED.
+In the file the lists are `querylog.ignored` and `statistics.ignored`. In 0.107 each block also carries `ignored_enabled`, which the source describes as "whether hosts from the ignored list should be ignored", default false, so a list written by hand needs `ignored_enabled: true` beside it. UNVERIFIED.
 
 ---
 
 ### Editing AdGuardHome.yaml
 
-When the agent has no AdGuard login, it edits the file. The file sits in the conf mount, owned by root with mode 600, so the agent works through `docker exec` rather than `sudo`. AdGuard Home reads the file at start, writes it back at start, and writes the whole file again every time a setting is saved in the web page. A change made by hand while it runs therefore survives only until the next save in the web page, so nobody may save a setting between the edit and the restart. VERIFIED on 2026-10-23 on the homelab, and in a throwaway container of the same image, with the commands below.
+When the agent has no AdGuard login, it edits the file. The file sits in the conf mount, owned by root with mode 600, so the agent works through `docker exec` rather than `sudo`. AdGuard Home reads the file at start, writes it back at start, and writes the whole file again every time a setting is saved in the web page. A change made by hand while it runs therefore survives only until the next save in the web page, so nobody may save a setting between the edit and the restart. VERIFIED on the homelab, and in a throwaway container of the same image, with the commands below.
 
 Ask the owner first. The restart leaves the whole network without DNS for a few seconds.
 

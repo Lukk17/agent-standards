@@ -1,6 +1,6 @@
 ---
 name: project-tracking
-description: 'Tracker-independent standards for planning and tracking work: kinds of work, sizing and splitting, epics as outcomes, a governed label taxonomy, statuses and how closure is recorded, testable acceptance criteria, dependency and duplicate links, bounded work in progress, and tying an item back to the code. Use when you say "write this ticket", "split this story", "are these criteria testable", "can we close this", or "triage the backlog". Not for Jira API mechanics, use `jira-integration`.'
+description: 'Tracker-independent standards for planning and tracking work: kinds of work, sizing and splitting, epics as outcomes, labels, statuses and closure, testable acceptance criteria, links and bounded work in progress. Use when the user says "write this ticket", "split this story", "are these criteria testable" or "can we close this". Not for Jira API mechanics, use `jira-integration`.'
 ---
 
 # Project Tracking
@@ -15,6 +15,9 @@ leaves the tool free to provide it however it does.
 |---|---|
 | Acting inside a named tracker, where per-tool field and status behaviour matters | [tracker-mechanics.md](references/tracker-mechanics.md) |
 | Writing or reviewing the implementation plan for an item, with phases, rollback and risk | [implementation-plans.md](references/implementation-plans.md) |
+| Adding a label, auditing the label list, or judging whether a label earns its place | [classification.md](references/classification.md) |
+| Closing an item as a duplicate, or deciding between duplicate, follow-up and superseded | [links-and-duplicates.md](references/links-and-duplicates.md) |
+| Moving these rules to a tracker not covered here, or checking one before adopting it | [tracker-mechanics.md](references/tracker-mechanics.md) |
 
 ---
 
@@ -27,6 +30,7 @@ leaves the tool free to provide it however it does.
 - Checking that a branch, commit or merge-request title carries the item id
 - When a dependency, a duplicate or a parent relationship needs recording
 - Before proposing a change to a board, a workflow, a status set or a cadence
+- The user says "triage the backlog"
 
 ---
 
@@ -147,39 +151,7 @@ is out of scope.
 
 ### Classification
 
-Labels are free text in most trackers, with no administration screen and no validation, so near-duplicates get
-created silently and nobody notices until a filter quietly returns the wrong set. Governance is what replaces the
-validation the tool does not provide.
-
-The rule has four parts.
-
-A documented list, extended deliberately. Every label that may be used is written down in one documented place, and
-adding a label is a deliberate act that puts it on that list rather than someone typing a new string into an item.
-The list is meant to grow. What matters is that it grows by decision rather than by accident, because the failure
-mode is not a list that is too short, it is two spellings of one idea splitting every filter in half.
-
-Two families. One family says which part of the system the work touches, which is what makes "what is outstanding in
-this area" answerable. The other says what nature of work it is, which is what makes "how much of the backlog is
-security work" answerable. Requiring at least one from the first family and at most one from the second keeps both
-questions answerable without turning labels into a second description.
-
-A size of roughly ten to twenty labels in total. Below that the labels are too coarse to filter anything. Above it
-people stop reading the list, start guessing, and the near-duplicates begin.
-
-A named owner and a periodic audit. One person decides what enters the list, and someone compares the labels
-actually in use against the documented list on a regular cadence. Without both, the list is a document about the
-past.
-
-Four kinds of label do not earn their place:
-
-- A label duplicating the kind of work, such as bug or spike. A field already answers that, and two answers to one
-  question drift apart.
-- A synonym of an existing label, such as documentation beside docs, or refactor beside tech-debt. Two spellings
-  split every filter in half without telling anyone.
-- A label so broad it filters nothing, such as backend or integration. If it matches most of the backlog it carries
-  no information.
-- A label naming a file format rather than a kind of work, or duplicating a field that already answers more
-  precisely. Either one spreads across unrelated items, because nobody can tell from the name when it applies.
+Labels are free text in most trackers, so near-duplicates appear silently and split every filter in half. Govern them: one documented list that grows by decision, two families (the part of the system touched, and the nature of the work), roughly ten to twenty labels, and a named owner who audits use against the list. The rules, and the four kinds of label that do not earn their place, are in [classification.md](references/classification.md).
 
 ---
 
@@ -275,23 +247,7 @@ Do not use a blocking link for the case where two items touch the same file. A b
 stall, so a wrong one reports work as unstartable when it is merely inconvenient to do in parallel, and people plan
 around a constraint that does not exist. Merge conflicts are a coordination problem, not a dependency.
 
-Before closing anything as a duplicate, prove it is one. A matching summary is not evidence: the same words get used
-for different work all the time, and two items can share a title while describing opposite halves of a problem. Read
-both descriptions and all comments on both first.
-
-Most trackers have no merge operation. Closing a duplicate carries nothing across, not the description text, not the
-comments, not the attachments and not the links. So anything the survivor lacks has to be copied over before the
-close, or it is not merged, it is buried in a closed item nobody will search.
-
-| Verdict | What you found | What to do |
-|---|---|---|
-| Same title only | Similar words, different work | Rename one so the titles stop colliding, keep both, link as related if they are |
-| True duplicate | Same work, described twice | Merge anything unique into the survivor, then link and close the other, recording closure as duplicate |
-| Follow-up | One is done, the open one carries scope that was never delivered | Keep both, link as related, keep the open one open |
-| Superseded | A later decision replaced the approach | Close as deliberately not delivered, link to the item carrying the new approach |
-
-The survivor is normally the older item, unless the newer one is materially better described, in which case keep
-that one and say so in a comment on both.
+Before closing anything as a duplicate, read both descriptions and all comments, because a matching summary is not evidence, and copy anything the survivor lacks before the close, because most trackers have no merge. The four verdicts and what to do for each are in [links-and-duplicates.md](references/links-and-duplicates.md).
 
 ---
 
@@ -343,39 +299,7 @@ Branch naming, commit message format and merge strategy are not this skill's sub
 
 ### Porting This to Any Tracker
 
-Ask five questions of any candidate tracker before assuming a rule above still lands. Per-tool answers for seven
-common trackers are in [tracker-mechanics.md](references/tracker-mechanics.md).
-
-How is the kind of work carried? A type field, a fixed type set, a single-select field, or nothing at all. Where
-there is nothing, one governed label has to carry it and be governed as strictly as a field would be.
-
-How is an impediment marked? Some tools have a dedicated flag field, some expect a shared tag, some offer only a
-status. If the only mechanism is a status, the rule that blocking is not a status has to be satisfied some other
-way, or the age and cycle-time measurements it protects are lost.
-
-How is closure recorded, separately from the status a person reads? Some tools carry a second field that can
-disagree with the status. Some derive closure from a property on the status value itself, in which case there is no
-second field to disagree and the delivered-versus-abandoned distinction has to live in the status name. That
-difference decides whether a single Done status is safe.
-
-How is backlog order stored? A hidden total-ordering field, a manual sort within a board cell, and a numeric column
-all behave differently, and some of them are silently discarded when a filter carries its own sort. If the tool has
-no total ordering, deciding what comes next needs a different mechanism.
-
-How does the tool group statuses for reporting? A grouping layer between a status and a board column is what makes
-"looks done to a person, open to every query" possible in the first place. A tool without one fails differently, and
-a tool with one needs the mapping checked whenever a status is added.
-
-Three portability rules fall out of comparing real trackers. Where closure is derived from the status value rather
-than recorded separately, the difference between delivered and abandoned has to live in the status name, which means
-two terminal statuses rather than one. Where containment is a link rather than a typed level, nothing stops an
-inverted or nonsensical hierarchy, so the discipline has to come from the team rather than from the tool. And where
-classification is free text with no administration screen, the documented list is the only validation that exists.
-
-One more thing to check rather than assume: whether an item id survives a migration at all. An item whose only
-identity is its id is fragile across a tool change. Two mitigations are cheap. Carry the original id inside the item
-body or in a dedicated field, and keep a committed id-to-summary mapping file in the repository, so a code marker
-naming an item stays resolvable even if the id it names does not survive.
+Before assuming a rule above lands in a new tracker, run the five porting questions and the id-migration check in [tracker-mechanics.md](references/tracker-mechanics.md), which also answers them for seven common trackers.
 
 ---
 

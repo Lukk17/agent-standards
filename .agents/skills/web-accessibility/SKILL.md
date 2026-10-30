@@ -1,6 +1,6 @@
 ---
 name: web-accessibility
-description: Accessibility for web interfaces to WCAG 2.2 AA, covering semantic HTML, keyboard operability, focus management, correct ARIA, colour contrast, accessible forms and images, target size, and reduced motion. Use when you say "is this component accessible", "audit this page against WCAG", "trap focus in this modal", "the screen reader skips my error message", or "check these colours for contrast". Not for the visual direction a palette expresses, use `frontend-design`.
+description: 'Accessibility for web interfaces to WCAG 2.2 AA: semantic HTML, keyboard operability, focus management, correct ARIA, colour contrast, accessible forms and images, target size and reduced motion. Use when the user says "is this component accessible", "audit this page against WCAG" or "trap focus in this modal". Not for the visual direction a palette expresses, use `frontend-design`.'
 license: Apache-2.0
 ---
 
@@ -9,7 +9,7 @@ license: Apache-2.0
 Make web interfaces usable by people who navigate with a keyboard, a screen reader, voice control, or a magnifier.
 The target is WCAG 2.2 AA, treated as a default, not a final-sprint audit.
 
-Baseline: WCAG 2.2 Level AA, the current stable recommendation.
+Written for WCAG 2.2 Level AA.
 
 ---
 
@@ -20,6 +20,7 @@ Baseline: WCAG 2.2 Level AA, the current stable recommendation.
 - Designing forms, modals, navigation, or any interactive widget.
 - Deciding whether a pattern needs ARIA, and which role is correct.
 - Checking a palette or a focus indicator against contrast minimums.
+- The user says "the screen reader skips my error message" or "check these colours for contrast".
 
 ---
 

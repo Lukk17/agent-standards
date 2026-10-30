@@ -1,5 +1,14 @@
 # Troubleshooting & Diagnostics
 
+Contents:
+
+- [Login Failures](#login-failures)
+- [Token Issues](#token-issues)
+- [LDAP/Federation Issues](#ldapfederation-issues)
+- [Session Problems](#session-problems)
+- [Performance Issues](#performance-issues)
+- [Logging & Diagnostics](#logging--diagnostics)
+
 ---
 
 ### Login Failures

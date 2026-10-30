@@ -1,13 +1,13 @@
 ---
 name: machine-health
-description: 'Checking the health and configuration of one computer on Linux, macOS or Windows, saving a dated baseline into MACHINE.md on the first run and reporting drift against it on every later run: CPU microcode, governor, temperatures and throttling, RAM speed against the module rating and the CPU vendor''s supported speed, mixed kits, channels and memory errors, SMART and NVMe health, filesystem errors, free space, mount options, encryption, failed units, crashes and error logs, PATH duplicates, shadowed binaries and env file placement, pending updates, GPU driver, display refresh rate, audio, network, firewall, time sync, Secure Boot. Use when you say "check the health of this machine", "take a baseline", "what drifted since last time", "is my RAM at the right speed", "is this disk dying", "why is PATH so long", "is the firewall on", or "how do I run a memory test". Not for the first full inventory, use the bootstrap prompt, and not for fixing a finding, use `arch-linux`, `cachyos`, `windows` or `macos`.'
+description: 'Read-only health and configuration check of one Linux, macOS or Windows computer, writing a baseline into MACHINE.md on the first run and reporting drift on later runs: CPU, RAM, disks, errors, PATH, updates and devices. Use when the user says "check the health of this machine", "what drifted since last time" or "is this disk dying". Not for fixing a finding on Arch, use `arch-linux`.'
 ---
 
 # Machine Health
 
 A read-only health and configuration check for one computer, run after setup and again whenever the owner asks. The first run writes a dated baseline into the Health section of `MACHINE.md`. Every later run compares against that baseline and reports drift. The agent finds and reports. It fixes nothing on its own, it never elevates, and it hands every root command and every fix to the owner.
 
-Baseline: Linux commands executed read-only on CachyOS (kernel 7.2.9, systemd 262, smartmontools 7.5, pacman-contrib 1.13.1, Plasma 6.7.5) on 2026-10-13, and each one that ran says so. macOS and Windows commands were not executed and are marked UNVERIFIED wherever they appear.
+Linux commands were executed read-only on one CachyOS host with systemd and Plasma 6, and each one that ran says so. macOS and Windows commands were not executed and are marked UNVERIFIED wherever they appear.
 
 | Task | Open |
 |---|---|
@@ -30,6 +30,8 @@ Baseline: Linux commands executed read-only on CachyOS (kernel 7.2.9, systemd 26
 - A crash, a slow boot, a freeze or a disk warning needs a structured look before anyone changes anything
 - A question about whether RAM, a disk, the GPU driver or a display is running the way it should
 - `MACHINE.md` exists and its Health section is missing or older than the owner wants
+- Also covers CPU microcode, governor, temperatures and throttling, RAM speed against the module rating and the CPU vendor's supported speed, mixed kits, channels and memory errors, SMART and NVMe health, filesystem errors, free space, mount options, encryption, failed units, crashes and error logs, PATH duplicates, shadowed binaries and env file placement, pending updates, GPU driver, display refresh rate, audio, network, firewall, time sync, Secure Boot
+- The user says "take a baseline", "is my RAM at the right speed", "why is PATH so long", "is the firewall on" or "how do I run a memory test"
 
 ---
 
@@ -75,7 +77,7 @@ Baseline: Linux commands executed read-only on CachyOS (kernel 7.2.9, systemd 26
 - `macos` owns fixing what the macOS checks find
 - `research` owns looking up and quoting the vendor limits the RAM and CPU checks compare against
 - `automation-inventory` owns auditing the automations that run on the machine
-- `security-review` owns judging whether a security finding is acceptable
+- The `security-auditor` agent owns judging whether a security finding is acceptable
 
 ---
 
@@ -86,8 +88,8 @@ Baseline: Linux commands executed read-only on CachyOS (kernel 7.2.9, systemd 26
 - [ ] Every root or elevated command written to Needs root with the row it fills
 - [ ] Every vendor limit quoted with its URL and fetch date
 - [ ] Every command not executed in this run marked UNVERIFIED
-- [ ] Variables and PATH entries both graphical applications and terminals need live in `~/.config/environment.d/*.conf`, `~/.zshenv` only imports them, sets `ZDOTDIR` and deduplicates PATH, interactive-only setup sits in `.zshrc`, `~/.profile` holds nothing while zsh is the login shell, and the graphical session's environment matches the terminal's
-- [ ] zsh files live in `$ZDOTDIR`, `~/.config/zsh`, with `~/.zshenv` the only one left in the home directory
+- [ ] On Linux with a systemd user session and zsh as the login shell: variables and PATH entries both graphical applications and terminals need live in `~/.config/environment.d/*.conf`, `~/.zshenv` only imports them, sets `ZDOTDIR` and deduplicates PATH, interactive-only setup sits in `.zshrc`, `~/.profile` holds nothing while zsh is the login shell, and the graphical session's environment matches the terminal's
+- [ ] On Linux with a systemd user session and zsh as the login shell: zsh files live in `$ZDOTDIR`, `~/.config/zsh`, with `~/.zshenv` the only one left in the home directory
 - [ ] Baseline written on the first run, drift against it on every later run
 - [ ] Findings handed to the owner with evidence, fix and undo, none applied
 - [ ] Change log entry added for the run

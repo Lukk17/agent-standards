@@ -1,6 +1,6 @@
 ---
 name: architecture-decision-records
-description: "Capturing an architectural decision as a numbered ADR with context, the decision, rejected alternatives and honest consequences, plus the directory layout, the index, the status lifecycle and how to detect a decision moment in a working session. Use when you say \"record this decision\", \"ADR this\", \"we decided Postgres over Mongo\", \"why did we choose this framework\", or \"write up the trade-off we just settled\". Not for the implementation plan that follows the decision, use `project-tracking`."
+description: 'Capturing an architectural decision as a numbered ADR with context, the decision, rejected alternatives and honest consequences, plus the index and the status lifecycle. Use when the user says "record this decision", "ADR this", "we decided Postgres over Mongo" or "why did we choose this framework". Not for the implementation plan that follows the decision, use `project-tracking`.'
 ---
 
 # Architecture Decision Records
@@ -18,6 +18,7 @@ reconstruct it or repeat the argument.
 - The user states a rationale out loud, in the form of a reason for doing X instead of Y
 - The user asks why a past choice was made, which means reading the existing records
 - Trade-offs are being weighed during planning, before anything is built
+- The user says "write up the trade-off we just settled"
 
 ---
 
@@ -128,8 +129,8 @@ The index is one table, newest appended at the bottom:
 ```markdown
 | ADR | Title | Status | Date |
 |---|---|---|---|
-| [0001](0001-use-nextjs.md) | Use Next.js as the frontend framework | accepted | 2026-01-15 |
-| [0002](0002-postgres-over-mongo.md) | PostgreSQL over MongoDB for the primary datastore | accepted | 2026-01-20 |
+| [0001](0001-use-nextjs.md) | Use Next.js as the frontend framework | accepted | YYYY-MM-DD |
+| [0002](0002-postgres-over-mongo.md) | PostgreSQL over MongoDB for the primary datastore | accepted | YYYY-MM-DD |
 ```
 
 ---

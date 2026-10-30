@@ -1,5 +1,15 @@
 # Vault discovery
 
+Contents:
+
+- [Where obsidian.json lives](#where-obsidianjson-lives)
+- [What the file holds](#what-the-file-holds)
+- [List vaults with the CLI](#list-vaults-with-the-cli)
+- [Read the file directly on Windows](#read-the-file-directly-on-windows)
+- [Read the file directly on macOS](#read-the-file-directly-on-macos)
+- [Read the file directly on Linux](#read-the-file-directly-on-linux)
+- [A headless machine with no Obsidian installed](#a-headless-machine-with-no-obsidian-installed)
+
 Where Obsidian keeps its vault list on each platform, what the file holds, and how to read it without guessing.
 
 ---
@@ -24,7 +34,7 @@ spelling finds it. Linux paths are case sensitive, and the folder there is lower
 `notesmd-cli` searches the same list in the same order on Linux: the XDG path first, then Flatpak, then Snap, then
 any numbered Snap revision folder. Under WSL it asks `cmd.exe` for `%APPDATA%` and reads the Windows file.
 
-Sources, fetched 2026-09-25:
+Sources:
 
 - `https://help.obsidian.md/data-storage`, section Global settings
 - `https://github.com/Yakitrak/notesmd-cli/blob/main/pkg/config/obsidian_path.go`

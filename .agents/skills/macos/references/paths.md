@@ -2,7 +2,7 @@
 
 Read this when looking for an application's settings, caches or logs, before deleting anything to "reset" an app, and when a cross-platform tool cannot find its configuration. The rules live in [SKILL.md](../SKILL.md).
 
-Source: Apple's "macOS Library Directory Details" in the File System Programming Guide, fetched on 2026-10-13. That guide is archived, and the layout it describes is still the one apps use.
+Source: Apple's "macOS Library Directory Details" in the File System Programming Guide. That guide is archived, and the layout it describes is still the one apps use.
 
 ---
 

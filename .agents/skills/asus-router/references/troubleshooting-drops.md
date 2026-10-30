@@ -2,7 +2,7 @@
 
 Read this before explaining why the internet behind an ASUS router drops now and then, and before saying whose fault it is. The answer comes from two sources read side by side: the router's log, which says what the router saw, and a ping log kept on a machine in the LAN, which says when traffic really stopped. The log lines and the commands that read them are in [reading-state.md](reading-state.md). The rules live in [SKILL.md](../SKILL.md), and rule 8 there holds here: no verdict without the lines and times that show it.
 
-Sources, fetched on 2026-10-23: the same source files and stock image as [reading-state.md](reading-state.md), and `pppd/pppd/lcp.c` in the Asuswrt-Merlin source at tag `3006.102.9`. The ping log command was run on 2026-10-23 with `ping` from iputils 20240905 in a throwaway Debian 13 container, against a local address and against an address that never answers. The patterns marked VERIFIED were seen by the owner on 2026-10-23 on a GT-AX6000 with stock firmware build 386 and PPPoE on a VLAN, over about 4.5 days of log. Every router command is UNVERIFIED unless [reading-state.md](reading-state.md) marks it.
+Sources: the same source files and stock image as [reading-state.md](reading-state.md), and `pppd/pppd/lcp.c` in the Asuswrt-Merlin 3006.102 source. The ping log command was run with `ping` from iputils in a throwaway Debian 13 container, against a local address and against an address that never answers. The patterns marked VERIFIED were seen by the owner on a GT-AX6000 with stock firmware build 386 and PPPoE on a VLAN, over about 4.5 days of log. Every router command is UNVERIFIED unless [reading-state.md](reading-state.md) marks it.
 
 ---
 

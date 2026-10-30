@@ -29,7 +29,7 @@ Record the default kernel and the fallback in `MACHINE.md`.
 
 ### The flavors
 
-Listed with `pacman -Ssq '^linux-cachyos'` on 2026-10-13. Each flavor also has `-headers`, NVIDIA module and `-zfs` packages, and most have `-lto` and `-r8125` siblings. Read `pacman -Si <pkg>` for the current description, because the default scheduler has changed over time and older web pages disagree.
+Listed with `pacman -Ssq '^linux-cachyos'`, which prints the flavors the repository carries today. Each flavor also has `-headers`, NVIDIA module and `-zfs` packages, and most have `-lto` and `-r8125` siblings. Read `pacman -Si <pkg>` for the current description, because the default scheduler has changed over time and older web pages disagree.
 
 | Package | What it is | Typical use |
 |---|---|---|

@@ -1,20 +1,28 @@
 # File Browser
 
-Read this before setting up File Browser, reading its first admin password, or resetting that password. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab on 2026-10-23 with `gtstef/filebrowser:2.0.0-stable-slim`. Every other command here is UNVERIFIED.
+Contents:
 
-Sources, fetched on 2026-10-23 at tag v2.0.0-stable of https://github.com/gtsteffaniak/filebrowser: `backend/internal/state/bootstrap_admin_password.go` and `backend/pkg/settings/auth.go`, the README at the default branch, and the README of the original `filebrowser/filebrowser` at its default branch.
+- [Which image](#which-image)
+- [config.yaml before the first start](#configyaml-before-the-first-start)
+- [The first admin password](#the-first-admin-password)
+- [Resetting a lost admin password](#resetting-a-lost-admin-password)
+- [Check it](#check-it)
+
+Read this before setting up File Browser, reading its first admin password, or resetting that password. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab with File Browser Quantum 2 from the `gtstef/filebrowser` image. Every other command here is UNVERIFIED.
+
+Sources in https://github.com/gtsteffaniak/filebrowser: `backend/internal/state/bootstrap_admin_password.go` and `backend/pkg/settings/auth.go`, the README at the default branch, and the README of the original `filebrowser/filebrowser` at its default branch.
 
 ---
 
 ### Which image
 
-`gtstef/filebrowser` is File Browser Quantum, a maintained fork, with a stable channel from 2.0.0. The original `filebrowser/filebrowser` says in its README: "File Browser is archived on 2026-09-01. The last planned release has already shipped. There will be no further releases, bug fixes, or security fixes." The `-slim` tag leaves out ffmpeg, so it makes no video thumbnails, which suits a small VM where Plex owns the video work.
+`gtstef/filebrowser` is File Browser Quantum, a maintained fork, with a stable channel from 2.0.0. The original `filebrowser/filebrowser` is archived, and its README says: "The last planned release has already shipped. There will be no further releases, bug fixes, or security fixes." The `-slim` tag leaves out ffmpeg, so it makes no video thumbnails, which suits a small VM where Plex owns the video work.
 
-It listens on port 80 inside the container, keeps its database and `config.yaml` in `/home/filebrowser/data`, and runs as the user the Compose file gives it:
+Replace `<version>` with a release of the stable channel, so an upgrade is a deliberate change. It listens on port 80 inside the container, keeps its database and `config.yaml` in `/home/filebrowser/data`, and runs as the user the Compose file gives it:
 
 ```yaml
 filebrowser:
-  image: gtstef/filebrowser:2.0.0-stable-slim
+  image: gtstef/filebrowser:<version>-stable-slim
   user: "1000:1000"
   ports:
     - "7782:80/tcp"

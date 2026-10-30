@@ -1,18 +1,18 @@
 # Plex
 
-Read this before running Plex in the stack, claiming it, mounting the media, or adding a library. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab on 2026-10-23 with `plexinc/pms-docker:1.43.4.10903-e5521bd8c`. Every other command here is UNVERIFIED.
+Read this before running Plex in the stack, claiming it, mounting the media, or adding a library. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab with the `plexinc/pms-docker` image. Every other command here is UNVERIFIED.
 
-Sources, fetched on 2026-10-23: the image README at https://github.com/plexinc/pms-docker. The Plex support articles "Requirements for Remote Playback of Personal Media" and "Network" at https://support.plex.tv are quoted from the owner's notes, read on 2026-10-10, and were not fetched again.
+Sources: the image README at https://github.com/plexinc/pms-docker. The Plex support articles "Requirements for Remote Playback of Personal Media" and "Network" at https://support.plex.tv are quoted from the owner's notes, and were not fetched again.
 
 ---
 
 ### The container
 
-Use a version tag. The README says the `beta` and `public` tags "do not have any Plex Media Server binary installed" and fetch the newest version at every start.
+Use a version tag in place of `<version-tag>`. The README says the `beta` and `public` tags "do not have any Plex Media Server binary installed" and fetch the newest version at every start.
 
 ```yaml
 plex:
-  image: plexinc/pms-docker:1.43.4.10903-e5521bd8c
+  image: plexinc/pms-docker:<version-tag>
   network_mode: host
   cpus: 1.5
   environment:

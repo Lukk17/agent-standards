@@ -1,5 +1,19 @@
 # Organization Authorization (Multi-Tenancy)
 
+Contents:
+
+- [Setup](#setup)
+- [Token Claim Formats](#token-claim-formats)
+- [OrganizationMembership Model](#organizationmembership-model)
+- [ClaimsPrincipal Extension Methods](#claimsprincipal-extension-methods)
+- [Declarative Authorization (Endpoint Extensions)](#declarative-authorization-endpoint-extensions)
+- [Policy Builder API](#policy-builder-api)
+- [Imperative Authorization](#imperative-authorization)
+- [Configuration](#configuration)
+- [Pluggable Parameter Resolvers](#pluggable-parameter-resolvers)
+- [Keycloak Setup](#keycloak-setup)
+- [Multi-Tenancy Patterns](#multi-tenancy-patterns)
+
 Keycloak 26+ Organizations provide built-in multi-tenancy. The library offers declarative and imperative authorization
 based on organization membership claims.
 

@@ -6,7 +6,7 @@ Read this before installing or updating anything from the AUR, before running `m
 
 ### What the AUR is
 
-The AUR holds PKGBUILD recipes written by anyone. A PKGBUILD is a shell script that runs as your user during the build, and a `.install` file runs as root at install time. Nothing is vetted. Arch News on 2026-06-12, "Active AUR malicious packages incident", told users to review every PKGBUILD and install script change, and that advice stands. List the foreign packages on the machine with `pacman -Qm`.
+The AUR holds PKGBUILD recipes written by anyone. A PKGBUILD is a shell script that runs as your user during the build, and a `.install` file runs as root at install time. Nothing is vetted. The Arch News item "Active AUR malicious packages incident" told users to review every PKGBUILD and install script change, and that advice stands. List the foreign packages on the machine with `pacman -Qm`.
 
 ---
 
@@ -31,7 +31,7 @@ Python AUR packages build with `python -m build` and install with `installer`, u
 2. If `pyenv global` or a `.python-version` file names a pyenv version, the shim runs that interpreter, which has none of the pacman-installed modules.
 3. The build dies with `No module named build`.
 
-Demonstrate it without changing anything: `PYENV_VERSION=<a pyenv version> python -m build --version` fails with `No module named build`, while `PYENV_VERSION=system python -m build --version` prints the version. Verified on one host on 2026-10-13.
+Demonstrate it without changing anything: `PYENV_VERSION=<a pyenv version> python -m build --version` fails with `No module named build`, while `PYENV_VERSION=system python -m build --version` prints the version. Verified on one host.
 
 What to do:
 

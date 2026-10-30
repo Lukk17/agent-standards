@@ -1,8 +1,8 @@
 # Homepage
 
-Read this before configuring the Homepage dashboard or opening it under a new name. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab on 2026-10-23 with `ghcr.io/gethomepage/homepage:v1.13.2`. Every other command here is UNVERIFIED.
+Read this before configuring the Homepage dashboard or opening it under a new name. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab with Homepage 1. Every other command here is UNVERIFIED.
 
-Sources, fetched on 2026-10-23: the installation page of the Homepage documentation, `docs/installation/index.md` at https://github.com/gethomepage/homepage.
+Sources: the installation page of the Homepage documentation, `docs/installation/index.md` at https://github.com/gethomepage/homepage.
 
 ---
 

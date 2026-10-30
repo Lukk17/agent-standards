@@ -1,6 +1,6 @@
 ---
 name: research
-description: 'How an agent researches a question it cannot answer from the repository: which sources to try in which order (Context7, vendor docs, vendor source, changelogs, issue trackers, community, standards, general web), how to quote and date the deciding sentence, when to measure instead of read, how to label each claim verified or inferred with a confidence, and how to report a like-for-like comparison. Use when you say "look this up", "research X", "does tool Y support Z", "what is the current version", "compare these options", "is this a known bug", "find a workaround", "deep dive into X", "what is the current state of X", or "check the docs". Not for reading a page that blocks normal fetching, use `ascend-web-hunter` if it is installed.'
+description: 'How an agent researches a question the repository cannot answer: source order from Context7 to the web, quoting the deciding sentence, measuring instead of reading, labelling each claim, and like-for-like comparisons. Use when the user says "look this up", "does tool Y support Z", "compare these options" or "is this a known bug". Not for a page that blocks a normal fetch, use `ascend-web-hunter`.'
 ---
 
 # Research
@@ -24,6 +24,7 @@ Training memory is a lead to follow, never a source, because tools change betwee
 - Two or more options have to be compared before a decision
 - A failure looks like a known bug and needs its issue, its status and a workaround
 - A claim in a document or a review has no source behind it
+- The user says "research X", "what is the current version", "find a workaround", "deep dive into X", "what is the current state of X" or "check the docs"
 
 ---
 

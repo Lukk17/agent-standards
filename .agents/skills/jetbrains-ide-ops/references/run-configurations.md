@@ -1,5 +1,16 @@
 # Run Configurations
 
+Contents:
+
+- [Where the files live](#where-the-files-live)
+- [How to get an option name right](#how-to-get-an-option-name-right)
+- [Docker Compose deploy](#docker-compose-deploy)
+- [Docker image build and run](#docker-image-build-and-run)
+- [Python](#python)
+- [Gradle](#gradle)
+- [Spring Boot](#spring-boot)
+- [Shell script](#shell-script)
+
 The XML the IDE actually honours for each kind of run configuration, read out of live `.run/` directories rather
 than reconstructed from the dialog. Load this file when creating or repairing one, or when one shows up under an
 Unknown category or with an empty interpreter field. The rules live in [SKILL.md](../SKILL.md).

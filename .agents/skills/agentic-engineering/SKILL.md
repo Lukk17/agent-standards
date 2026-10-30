@@ -1,6 +1,6 @@
 ---
 name: agentic-engineering
-description: 'Running engineering work where agents write most of the code and a human holds the quality bar: eval-first execution, agent-sized decomposition, capability-tier routing, approval and escalation, context budgeting, and multi-agent coordination. Use when you say "plan this work for agents", "which tier should run this", "split this into agent-sized units", or "set up evals before we start". Not for building the regression suite itself, use `ai-regression-testing`.'
+description: 'Running engineering work where agents write most of the code and a human holds the quality bar: eval-first execution, agent-sized units, capability-tier routing, approval gates, context budgets and subagents. Use when the user says "plan this work for agents", "which tier should run this" or "split this into agent-sized units". Not for the regression suite itself, use `ai-regression-testing`.'
 ---
 
 # Agentic Engineering
@@ -19,6 +19,7 @@ yes before anything proceeds.
 - Setting up the measurement that will say whether the work succeeded
 - Coordinating a parent agent and its subagents on one task
 - Deciding whether to continue a session, start a fresh one, or compact
+- The user says "set up evals before we start"
 
 ---
 
@@ -110,6 +111,8 @@ Unit 1: add order cancellation end to end, migration through UI.
 Match the strength of the model to what the unit actually demands, and describe the tier by what it is for rather
 than by a product name, because names change and a skill that hardcodes them goes stale.
 
+Pick the tier when you spawn the unit. A subagent definition never pins a model, so the same subagent runs on a small tier for a mechanical edit and on the strongest tier for a design review.
+
 | Tier | Use it for | Signal you picked wrong |
 |---|---|---|
 | Small and fast | Lookups, classification, mechanical transforms, narrow single-file edits | It gets the answer right but you did not need it that fast |
@@ -199,6 +202,8 @@ The requirements were unclear so I picked the interpretation that seemed most li
 Do not create task lists, walkthroughs, summaries, notes files or one-shot validation scripts in the repository.
 They read as project documentation to the next person and are wrong within a week. Where something is genuinely
 worth keeping, update the document that already owns that subject.
+
+One exception: `tasks.md` at the project root and `.agents/tasks.widget.json` are runtime state, not process files. The task-list hook keeps them, git-ignored, and the model updates `tasks.md` as work moves. Keep them current and never delete or commit them.
 
 Pass:
 

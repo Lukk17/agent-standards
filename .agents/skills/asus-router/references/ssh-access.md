@@ -1,10 +1,19 @@
 # SSH Access for an Agent
 
+Contents:
+
+- [What answers on port 22](#what-answers-on-port-22)
+- [The fields in the web page](#the-fields-in-the-web-page)
+- [The key](#the-key)
+- [The env file](#the-env-file)
+- [Connect](#connect)
+- [Taking it back](#taking-it-back)
+
 Read this before giving an agent SSH access to an ASUS router, before the first connection, and before taking the access back. The rules live in [SKILL.md](../SKILL.md). The owner does the steps in the web page. The agent only receives the values in the env file and connects with them.
 
-Sources, fetched on 2026-10-23: the ASUS FAQ "How to log in ASUS router via Telnet?" at https://www.asus.com/support/faq/1048201/, last updated 2025/04/30, the stock firmware `FW_GT-AX6000_300610237437.zip` from https://dlcdnets.asus.com/pub/ASUS/wireless/GT-AX6000/ with SHA-256 `785dba9b1e89042f5445ce5c14e3f08955d3649ff71d41f350ace0c74f4a56c8`, unpacked in a throwaway container and read but never run, the Asuswrt-Merlin source at tag `3006.102.9` of https://github.com/RMerl/asuswrt-merlin.ng (`release/src/router/rc/ssh.c`, `release/src/router/www/Advanced_System_Content.asp`, `release/src/router/www/EN.dict`, `release/src/router/shared/defaults.c`, `release/src/router/dropbear/CHANGES` and `release/src/router/dropbear/src/default_options.h`), and the wiki page https://github.com/RMerl/asuswrt-merlin.ng/wiki/SSH, last changed 2024-12-18.
+Sources: the ASUS FAQ "How to log in ASUS router via Telnet?" at https://www.asus.com/support/faq/1048201/, a 3.0.0.6.102 stock firmware archive for the GT-AX6000 from https://dlcdnets.asus.com/pub/ASUS/wireless/GT-AX6000/, unpacked in a throwaway container and read but never run, the Asuswrt-Merlin 3006.102 source of https://github.com/RMerl/asuswrt-merlin.ng (`release/src/router/rc/ssh.c`, `release/src/router/www/Advanced_System_Content.asp`, `release/src/router/www/EN.dict`, `release/src/router/shared/defaults.c`, `release/src/router/dropbear/CHANGES` and `release/src/router/dropbear/src/default_options.h`), and the wiki page https://github.com/RMerl/asuswrt-merlin.ng/wiki/SSH.
 
-Commands marked VERIFIED were run by the owner on 2026-10-23 on a GT-AX6000 with stock firmware whose `nvram get buildno` printed `386`. Every other command here is UNVERIFIED.
+Commands marked VERIFIED were run by the owner on a GT-AX6000 with stock firmware whose `nvram get buildno` printed `386`. Every other command here is UNVERIFIED.
 
 ---
 
@@ -14,13 +23,13 @@ The router's SSH server is Dropbear. The Asuswrt-Merlin wiki says: "The router c
 
 | Firmware | Dropbear | ed25519 user key |
 |---|---|---|
-| Stock 3.0.0.6.102_37437 for the GT-AX6000, released 2026-10-20 | 2020.81, the version string inside `/usr/bin/dropbearmulti` of the image | The binary carries the `ssh-ed25519` algorithm, and Dropbear's own changelog says under 2020.79: "Support ed25519 hostkeys and authorized_keys" |
+| Stock 3.0.0.6.102 for the GT-AX6000 | 2020.81, the version string inside `/usr/bin/dropbearmulti` of the image | The binary carries the `ssh-ed25519` algorithm, and Dropbear's own changelog says under 2020.79: "Support ed25519 hostkeys and authorized_keys" |
 | Stock, the tested build 386 | not read | VERIFIED: an ed25519 key logged in, and the router logged `Pubkey auth succeeded for '<router-admin-user>' with key sha1!! <fingerprint>` |
-| Asuswrt-Merlin 3006.102.9 | 2026.94, from `CHANGES` | `#define DROPBEAR_ED25519 1` in `default_options.h`, and `rc/ssh.c` creates an ed25519 host key |
+| Asuswrt-Merlin 3006.102 | 2026.94, from `CHANGES` | `#define DROPBEAR_ED25519 1` in `default_options.h`, and `rc/ssh.c` creates an ed25519 host key |
 
 The wiki page names only "a RSA or ECDSA public key", which is older than ed25519 support and not a limit of current firmware. If a router ever answers `Permission denied (publickey)` to a correct ed25519 key, fall back to ECDSA as described under "The key" below.
 
-Dropbear 2020.81 predates the Strict KEX mitigation that Dropbear added in 2024.84 for CVE-2023-48795. Dropbear's own note says "At present the flaw does not seem to reduce Dropbear's security", and with SSH on the LAN only the exposure is the LAN. Asuswrt-Merlin 3006.102.9 ships 2026.94, which has the mitigation.
+Dropbear 2020.81 predates the Strict KEX mitigation that Dropbear added in 2024.84 for CVE-2023-48795. Dropbear's own note says "At present the flaw does not seem to reduce Dropbear's security", and with SSH on the LAN only the exposure is the LAN. Asuswrt-Merlin 3006.102 ships 2026.94, which has the mitigation.
 
 The OpenSSH client may print a warning that the connection is not using a post-quantum key exchange algorithm. That is the client describing the router's older Dropbear. It does not stop the login and needs no action.
 

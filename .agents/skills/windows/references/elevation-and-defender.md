@@ -30,7 +30,7 @@ Never start an elevated process from the agent with `Start-Process -Verb RunAs`,
 
 ### sudo for Windows
 
-From Microsoft Learn, "Sudo for Windows" (page dated 2024-11-21, updated 2026-02-26): "The Sudo for Windows command is available in Windows 11, version 24H2 or higher." It is enabled in Settings, System, Advanced, "Enable sudo". `sudo.exe` was present in `C:\Windows\System32` on the inspected Windows 11 disk, which says nothing about whether it is enabled.
+From Microsoft Learn, "Sudo for Windows": "The Sudo for Windows command is available in Windows 11, version 24H2 or higher." It is enabled in Settings, System, Advanced, "Enable sudo". `sudo.exe` was present in `C:\Windows\System32` on the inspected Windows 11 disk, which says nothing about whether it is enabled.
 
 Three modes:
 

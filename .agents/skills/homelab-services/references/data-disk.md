@@ -1,8 +1,16 @@
 # A USB or NTFS data disk in the VM
 
-Read this before attaching a data disk to the VM, mounting it, sharing it, or clearing a dirty NTFS volume. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab on 2026-10-23, on an Ubuntu Server VM whose kernel has `ntfs3` and with `ntfs-3g` 2022.10.3 installed. Every other command here is UNVERIFIED. Attaching the disk on the Proxmox host is the `proxmox` skill's ground, and it is here only as the one command the VM side depends on.
+Contents:
 
-Sources, fetched on 2026-10-23: the kernel's ntfs3 documentation, `Documentation/filesystems/ntfs3.rst`, and `fs/namei.c`, both on the `master` branch of https://github.com/torvalds/linux, and the chattr manual page at https://man7.org/linux/man-pages/man1/chattr.1.html. Quoted from the owner's notes, read on 2026-10-23 and not fetched again: the mount manual page at https://man7.org/linux/man-pages/man8/mount.8.html, the ntfsfix manual page at https://man.archlinux.org/man/ntfsfix.8, and the Proxmox wiki page on passing a physical disk to a VM.
+- [Attach it by its stable name](#attach-it-by-its-stable-name)
+- [Protect the empty mount point](#protect-the-empty-mount-point)
+- [Mount an NTFS disk as it is](#mount-an-ntfs-disk-as-it-is)
+- [A dirty NTFS volume](#a-dirty-ntfs-volume)
+- [When the disk is missing](#when-the-disk-is-missing)
+
+Read this before attaching a data disk to the VM, mounting it, sharing it, or clearing a dirty NTFS volume. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab, on an Ubuntu Server VM whose kernel has `ntfs3` and with `ntfs-3g` installed. Every other command here is UNVERIFIED. Attaching the disk on the Proxmox host is the `proxmox` skill's ground, and it is here only as the one command the VM side depends on.
+
+Sources: the kernel's ntfs3 documentation, `Documentation/filesystems/ntfs3.rst`, and `fs/namei.c`, both on the `master` branch of https://github.com/torvalds/linux, and the chattr manual page at https://man7.org/linux/man-pages/man1/chattr.1.html. Quoted from the owner's notes and not fetched again: the mount manual page at https://man7.org/linux/man-pages/man8/mount.8.html, the ntfsfix manual page at https://man.archlinux.org/man/ntfsfix.8, and the Proxmox wiki page on passing a physical disk to a VM.
 
 ---
 
@@ -48,7 +56,7 @@ Read the flag back. The letters before the path include an `i`:
 lsattr -d /mnt/data
 ```
 
-VERIFIED on the homelab on 2026-10-23 with the disk unmounted: `lsattr -d /mnt/data` printed `----i---------e-------`, and mounting the NTFS disk over the flagged folder afterwards worked.
+VERIFIED on the homelab with the disk unmounted: `lsattr -d /mnt/data` printed `----i---------e-------`, and mounting the NTFS disk over the flagged folder afterwards worked.
 
 Prove the refusal while the disk is still not mounted. This must fail with `Operation not permitted`:
 

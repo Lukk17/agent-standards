@@ -1,8 +1,8 @@
 # Connections
 
-Read this before deciding why a transfer is slow, giving a peer a fixed address, or connecting to a peer that runs in Docker. The rules live in [SKILL.md](../SKILL.md). Commands marked VERIFIED ran on Syncthing 2.1.7 between two throwaway containers on 2026-10-23. Every other command here, every PowerShell command included, is UNVERIFIED.
+Read this before deciding why a transfer is slow, giving a peer a fixed address, or connecting to a peer that runs in Docker. The rules live in [SKILL.md](../SKILL.md). Commands marked VERIFIED ran on Syncthing 2 between two throwaway containers. Every other command here, every PowerShell command included, is UNVERIFIED.
 
-Sources, fetched on 2026-10-23: https://docs.syncthing.net/rest/system-connections-get.html, https://docs.syncthing.net/users/relaying.html, https://docs.syncthing.net/users/config.html, https://docs.syncthing.net/users/firewall.html, and https://github.com/syncthing/syncthing/blob/v2.1.7/README-Docker.md.
+Sources: https://docs.syncthing.net/rest/system-connections-get.html, https://docs.syncthing.net/users/relaying.html, https://docs.syncthing.net/users/config.html, https://docs.syncthing.net/users/firewall.html, and https://github.com/syncthing/syncthing/blob/main/README-Docker.md.
 
 ---
 

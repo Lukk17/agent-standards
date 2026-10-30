@@ -1,8 +1,16 @@
 # Troubleshooting
 
-Read this before explaining a folder that shows Stopped, a disk space error, a peer that shows 0 files, or a warning in the log. The rules live in [SKILL.md](../SKILL.md). Commands marked VERIFIED ran on Syncthing 2.1.7 in throwaway containers on 2026-10-23. Every other command here, every PowerShell command included, is UNVERIFIED.
+Contents:
 
-Sources, fetched on 2026-10-23: https://docs.syncthing.net/rest/system-error-get.html, https://docs.syncthing.net/rest/folder-errors-get.html, https://docs.syncthing.net/rest/db-completion-get.html, https://docs.syncthing.net/users/config.html, and at tag v2.1.7 of `syncthing/syncthing`: `lib/model/folder.go`, `lib/config/size.go` and `gui/default/syncthing/core/syncthingController.js`.
+- [Read the errors first](#read-the-errors-first)
+- [A folder shows Stopped](#a-folder-shows-stopped)
+- [insufficient space on disk for database](#insufficient-space-on-disk-for-database)
+- [A peer shows 0 global files with sequence 0](#a-peer-shows-0-global-files-with-sequence-0)
+- [Log lines and what they mean](#log-lines-and-what-they-mean)
+
+Read this before explaining a folder that shows Stopped, a disk space error, a peer that shows 0 files, or a warning in the log. The rules live in [SKILL.md](../SKILL.md). Commands marked VERIFIED ran on Syncthing 2 in throwaway containers. Every other command here, every PowerShell command included, is UNVERIFIED.
+
+Sources: https://docs.syncthing.net/rest/system-error-get.html, https://docs.syncthing.net/rest/folder-errors-get.html, https://docs.syncthing.net/rest/db-completion-get.html, https://docs.syncthing.net/users/config.html, and in `syncthing/syncthing`: `lib/model/folder.go`, `lib/config/size.go` and `gui/default/syncthing/core/syncthingController.js`.
 
 ---
 
@@ -111,4 +119,4 @@ printf 'X-API-Key: %s\n' "$st_key" | curl -s -H @- "http://127.0.0.1:8384/rest/d
 | `insufficient space on disk for database` | the database disk is below `minHomeDiskFree` | this page |
 | a relay listener `Service failed` with a DNS error | no internet access, harmless on a LAN-only device | [connections.md](connections.md) |
 
-All six lines in that table appeared in the container logs on 2026-10-23.
+All six lines in that table appeared in the container logs.

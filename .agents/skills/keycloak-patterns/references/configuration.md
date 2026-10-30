@@ -1,5 +1,16 @@
 # Configuration Reference
 
+Contents:
+
+- [Configuration Section](#configuration-section)
+- [KeycloakAuthenticationOptions](#keycloakauthenticationoptions)
+- [KeycloakAuthorizationOptions](#keycloakauthorizationoptions)
+- [KeycloakAdminClientOptions](#keycloakadminclientoptions)
+- [KeycloakProtectionClientOptions](#keycloakprotectionclientoptions)
+- [Naming Conventions](#naming-conventions)
+- [Adapter File](#adapter-file)
+- [Resolving Options](#resolving-options)
+
 ---
 
 ### Configuration Section

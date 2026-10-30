@@ -1,5 +1,18 @@
 # AI Tells in Technical Prose
 
+Contents:
+
+- [Cadence uniformity](#cadence-uniformity)
+- [Stacked parallel structures](#stacked-parallel-structures)
+- [Negative parallelisms](#negative-parallelisms)
+- [Filler intensifiers and transitions](#filler-intensifiers-and-transitions)
+- [Boilerplate closers](#boilerplate-closers)
+- [Hedging stacks](#hedging-stacks)
+- [Rigid paragraph structure](#rigid-paragraph-structure)
+- [Marketing adjectives with no payoff](#marketing-adjectives-with-no-payoff)
+- [Rhythm chains](#rhythm-chains)
+- [Audit procedure](#audit-procedure)
+
 The patterns below are the ones a reader notices first when a document was generated rather than written. Each entry
 names the pattern, says why it reads as machine output, and gives the repair. Load this file when auditing prose for
 voice, or when a draft feels flat and you need a name for what is wrong with it.

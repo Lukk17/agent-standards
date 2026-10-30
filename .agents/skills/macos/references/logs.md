@@ -2,7 +2,7 @@
 
 Read this when you need evidence for a failure on a Mac: a crash, a job that would not start, a permission denial, a slow login. The rules live in [SKILL.md](../SKILL.md). Every command here is UNVERIFIED.
 
-Source: the `log(1)` man page as shipped with Xcode 27.2 beta 2, read through `https://keith.github.io/xcode-man-pages/log.1.html` on 2026-10-13. Options move between releases, so confirm with `man log` on the machine.
+Source: the `log(1)` man page as shipped with Xcode, read through `https://keith.github.io/xcode-man-pages/log.1.html`. Options move between releases, so confirm with `man log` on the machine.
 
 ---
 

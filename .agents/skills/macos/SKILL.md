@@ -1,13 +1,13 @@
 ---
 name: macos
-description: 'Administering a Mac from an agent: Homebrew first (formula for CLI, cask for GUI), Brewfiles, launchd with launchctl, LaunchAgents and LaunchDaemons, the defaults command and preference domains, Gatekeeper and the quarantine attribute, TCC privacy permissions and Full Disk Access, the Keychain and the security tool, Time Machine and APFS local snapshots, softwareupdate, the unified log with log show and log stream, and where files live under ~/Library against ~/.config. Use when you say "brew install or brew install --cask", "run this at login", "launchctl load is deprecated", "change a hidden setting with defaults write", "app is damaged and cannot be opened", "remove the quarantine flag", "Terminal needs Full Disk Access", "read a password from the keychain", "take a local snapshot first", "install macOS updates from the terminal", "show me the logs for this app", or "where does this app keep its settings". Not for writing shell scripts, use `bash`, and not for building or signing Apple apps.'
+description: 'Administering a Mac from an agent: Homebrew formulae and casks, launchd, defaults and preference domains, Gatekeeper and TCC permissions, the Keychain, Time Machine and local snapshots, softwareupdate and the unified log. Use when the user says "run this at login", "app is damaged and cannot be opened" or "show me the logs for this app". Not for writing shell scripts, use `bash`.'
 ---
 
 # macOS Administration
 
 How to change a Mac without fighting System Integrity Protection, the privacy prompts or the preferences cache, and with a snapshot behind any risky change. Behaviour moves between macOS releases, so check the version first and prefer the tool's own man page over memory.
 
-Baseline: macOS 15 and later on Apple silicon, from Apple support and developer pages and the man pages shipped with Xcode 27.2 beta 2, fetched on 2026-10-13. No command in this skill was executed, so every command is UNVERIFIED unless a topic file says otherwise.
+Written for macOS 15 and later on Apple silicon, from Apple support and developer pages and the man pages shipped with Xcode. No command in this skill was executed, so every command is UNVERIFIED unless a topic file says otherwise.
 
 | Task | Open |
 |---|---|
@@ -38,6 +38,8 @@ Machine-specific facts live in `MACHINE.md` next to the global `AGENTS.md`: the 
 - Reading or storing a credential in the Keychain
 - Time Machine, local snapshots, or macOS updates
 - Reading the unified log to explain a failure
+- Also covers Homebrew first (formula for CLI, cask for GUI), Brewfiles, launchd with launchctl, LaunchAgents and LaunchDaemons, the defaults command and preference domains, Gatekeeper and the quarantine attribute, TCC privacy permissions and Full Disk Access, the Keychain and the security tool, Time Machine and APFS local snapshots, softwareupdate, the unified log with log show and log stream, and where files live under ~/Library against ~/.config
+- The user says "brew install or brew install --cask", "launchctl load is deprecated", "change a hidden setting with defaults write", "remove the quarantine flag", "Terminal needs Full Disk Access", "read a password from the keychain", "take a local snapshot first", "install macOS updates from the terminal" or "where does this app keep its settings"
 
 ---
 
@@ -66,8 +68,8 @@ Machine-specific facts live in `MACHINE.md` next to the global `AGENTS.md`: the 
 ### Related skills
 
 - `bash` owns the shell scripts that wrap these commands
-- `security-review` owns judging whether an unsigned app or a third party tap is acceptable
-- `git-workflow` owns repository settings such as case sensitivity and line endings
+- The `security-auditor` agent owns judging whether an unsigned app or a third party tap is acceptable
+- `git-workflow` owns repository settings such as case sensitivity and line endings, in its `references/git-config.md`
 - `ansible` owns provisioning Macs reproducibly
 
 ---

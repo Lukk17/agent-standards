@@ -1,13 +1,13 @@
 ---
 name: arch-linux
-description: 'Package and system administration on Arch Linux and Arch based distributions: pacman, the AUR with paru or yay, makepkg and PKGBUILD review, full upgrades and the pre-upgrade news check, partial upgrades and mirror 404s, .pacnew and .pacsave merging, orphans and cache cleanup, snapper snapshots and rollback, systemd units and journal triage, coredump crash diagnosis, PipeWire and WirePlumber audio, and editing configuration without touching packaged files. Use when you say "pacman -Syu", "install this from the AUR", "failed retrieving file", "unable to satisfy dependency", "No module named build", "what is this pacnew", "free up disk space", "clean up leftovers", "roll back the upgrade", "this service failed", "the program crashed", "no sound", or "where do I override this config". Not for CachyOS kernels, v3 repositories, chwd or Limine, use `cachyos`, and not for Plasma panels, widgets or themes, use `kde-plasma`.'
+description: 'Package and system administration on Arch Linux and Arch-based distributions: pacman and the AUR, upgrades and mirror errors, .pacnew files, cleanup, snapper rollback, systemd and journal triage, crashes and audio. Use when the user says "pacman -Syu", "install this from the AUR", "what is this pacnew" or "roll back the upgrade". Not for CachyOS kernels, repositories or Limine, use `cachyos`.'
 ---
 
 # Arch Linux Administration
 
 How to change an Arch based system without leaving it half upgraded, without editing what a package owns, and without losing the way back. Generic Arch knowledge applies everywhere. Derivatives add their own layer, so check which one the machine runs before applying a recipe.
 
-Baseline: Arch Linux rolling, pacman 7, PipeWire 1.6 with WirePlumber 0.5, verified on one CachyOS host on 2026-10-13. Commands that were not executed are marked UNVERIFIED in the topic files.
+Written for Arch Linux rolling, pacman 7, PipeWire 1 with WirePlumber 0.5. The commands that ran were run on one CachyOS host, and commands that were not executed are marked UNVERIFIED in the topic files.
 
 | You are about to | Open |
 |---|---|
@@ -39,6 +39,8 @@ Machine-specific facts live in `MACHINE.md` next to the global `AGENTS.md`: disk
 - Disk space, orphans, caches, snapshots or a rollback
 - A failed systemd unit, a journal question, a crash, a coredump
 - Any audio problem on PipeWire, WirePlumber or ALSA
+- Also covers pacman, the AUR with paru or yay, makepkg and PKGBUILD review, full upgrades and the pre-upgrade news check, partial upgrades and mirror 404s, .pacnew and .pacsave merging, orphans and cache cleanup, snapper snapshots and rollback, systemd units and journal triage, coredump crash diagnosis, PipeWire and WirePlumber audio, and editing configuration without touching packaged files
+- The user says "failed retrieving file", "unable to satisfy dependency", "No module named build", "free up disk space", "clean up leftovers", "this service failed", "the program crashed", "no sound" or "where do I override this config"
 
 ---
 
@@ -69,7 +71,7 @@ Machine-specific facts live in `MACHINE.md` next to the global `AGENTS.md`: disk
 - `kde-plasma` owns the Plasma desktop configuration
 - `ansible` owns provisioning the same changes reproducibly
 - `bash` owns scripts that wrap these commands
-- `security-review` owns judging whether an AUR package or a third party repository is trustworthy enough
+- The `security-auditor` agent owns judging whether an AUR package or a third party repository is trustworthy enough
 
 ---
 

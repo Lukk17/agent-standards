@@ -1,5 +1,12 @@
 # Worked spec examples
 
+Contents:
+
+- [Example 1: pure curl, `1-hello-api-test.md`](#example-1-pure-curl-1-hello-api-testmd)
+- [Example 2: MCP tool round trip, `1-mcp-tool-test.md`](#example-2-mcp-tool-round-trip-1-mcp-tool-testmd)
+- [Example 3: fixture upload and retrieval, `4-rag-canary-test.md`](#example-3-fixture-upload-and-retrieval-4-rag-canary-testmd)
+- [What to copy from which](#what-to-copy-from-which)
+
 Three complete specs at increasing setup cost, matching the classes in [SKILL.md](../SKILL.md). Copy the closest one and
 replace the endpoints, commands and assertions. Every one keeps the same seven sections in the same order.
 

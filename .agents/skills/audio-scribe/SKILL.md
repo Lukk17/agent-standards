@@ -1,6 +1,6 @@
 ---
 name: audio-scribe
-description: Speech-to-text through the self-hosted AudioScribe service, covering a local faster-whisper backend, hosted API backends, and chronological speaker merging for multi-track Audacity or Craig recordings. Use when the user says "transcribe this", "what is said in this audio", "turn this recording into text", "write up this meeting", or hands you a path ending in .mp3, .wav, .m4a, .ogg, .flac, .mp4, or .webm, or a multi-track Audacity or Craig .zip. Not for reading a web page, use `research`, which hands a page that blocks a normal fetch to `ascend-web-hunter`.
+description: 'Speech-to-text through the self-hosted AudioScribe service, with a local faster-whisper backend, hosted API backends, and speaker merging for multi-track Audacity or Craig recordings. Use when the user says "transcribe this", "turn this recording into text" or "write up this meeting", or hands over an audio or video file or a multi-track .zip. Not for reading a web page, use `research`.'
 compatibility: Requires the self-hosted AudioScribe service reachable over HTTP. Its base URL is configured by the user and appears in the examples as the placeholder $BASE, for example `http://audio-scribe.local:8080`. No default base URL is assumed.
 ---
 
@@ -18,6 +18,7 @@ Markdown transcript.
 - The user asks for meeting notes, action items, or a summary from a recording rather than from text.
 - The file is a multi-track `.zip` from Audacity or a Craig bot dump and needs speaker attribution.
 - The user asks for timestamps against spoken content.
+- The user says "what is said in this audio".
 
 ---
 

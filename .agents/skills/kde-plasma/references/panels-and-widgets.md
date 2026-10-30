@@ -1,8 +1,16 @@
 # Panels and Widgets
 
+Contents:
+
+- [Calling it](#calling-it)
+- [Read the live layout](#read-the-live-layout)
+- [Scripting API](#scripting-api)
+- [Recipes](#recipes)
+- [plasma-apply tools](#plasma-apply-tools)
+
 Read this before reading or changing a panel, a widget or a desktop containment. The rules live in [SKILL.md](../SKILL.md).
 
-The entry point is the D-Bus service `org.kde.plasmashell`, object `/PlasmaShell`, method `evaluateScript(QString)`, which returns whatever the script `print()`s. Check it exists with `qdbus6 org.kde.plasmashell /PlasmaShell`. API names were checked against `https://develop.kde.org/docs/plasma/scripting/api/` on 2026-10-13.
+The entry point is the D-Bus service `org.kde.plasmashell`, object `/PlasmaShell`, method `evaluateScript(QString)`, which returns whatever the script `print()`s. Check it exists with `qdbus6 org.kde.plasmashell /PlasmaShell`. API names were checked against `https://develop.kde.org/docs/plasma/scripting/api/`.
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: seo
-description: Search visibility work across technical SEO, on-page optimisation, structured data, Core Web Vitals, keyword mapping, and internal linking. Use when you say "audit this site for SEO", "why is this page not indexed", "add schema markup to the product pages", "write titles and meta descriptions for these routes", or "map these keywords to URLs". Not for the page performance work behind Core Web Vitals, use `performance-optimization`.
+description: 'Search visibility work across technical SEO, on-page optimisation, structured data, Core Web Vitals, keyword mapping and internal linking. Use when the user says "audit this site for SEO", "why is this page not indexed", "add schema markup to the product pages" or "map these keywords to URLs". Not for the performance work behind Core Web Vitals, use `performance-optimization`.'
 license: Apache-2.0
 ---
 
@@ -9,8 +9,7 @@ license: Apache-2.0
 Improve search visibility through technical correctness, performance, and content relevance, not gimmicks. Every
 recommendation here ties to a specific page or asset, because advice that names no URL cannot be implemented.
 
-Baseline: current stable search guidance, meaning mobile-first indexing and the Core Web Vitals set of LCP, INP, and
-CLS.
+Written for search guidance built on mobile-first indexing and the Core Web Vitals set of LCP, INP, and CLS.
 
 ---
 
@@ -22,6 +21,7 @@ CLS.
 - Diagnosing Core Web Vitals against search requirements.
 - Doing keyword research and mapping keywords to URLs.
 - Planning internal linking, sitemap, or robots changes.
+- The user says "write titles and meta descriptions for these routes".
 
 ---
 
@@ -134,7 +134,7 @@ what is actually rendered.
   "headline": "Freight Insurance Pricing Explained",
   "author": { "@type": "Person", "name": "Marta Nowak" },
   "publisher": { "@type": "Organization", "name": "Atlas" },
-  "datePublished": "2026-04-12"
+  "datePublished": "YYYY-MM-DD"
 }
 ```
 

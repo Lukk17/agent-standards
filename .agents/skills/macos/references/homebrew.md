@@ -1,8 +1,19 @@
 # Homebrew
 
+Contents:
+
+- [Install order](#install-order)
+- [Prefix and support](#prefix-and-support)
+- [Never sudo brew](#never-sudo-brew)
+- [Formula or cask](#formula-or-cask)
+- [Upgrades](#upgrades)
+- [Brewfile](#brewfile)
+- [brew services](#brew-services)
+- [Diagnose](#diagnose)
+
 Read this before installing, upgrading or removing software, or before writing a Brewfile. The rules live in [SKILL.md](../SKILL.md). Every command here is UNVERIFIED.
 
-Sources: the Homebrew documentation in the `Homebrew/brew` repository, `docs/Installation.md`, `docs/FAQ.md`, `docs/Manpage.md` and `docs/Brew-Bundle-and-Brewfile.md`, fetched raw on 2026-10-13.
+Sources: the Homebrew documentation in the `Homebrew/brew` repository, `docs/Installation.md`, `docs/FAQ.md`, `docs/Manpage.md` and `docs/Brew-Bundle-and-Brewfile.md`, fetched raw.
 
 ---
 
@@ -11,7 +22,7 @@ Sources: the Homebrew documentation in the `Homebrew/brew` repository, `docs/Ins
 This is rule 2 in [SKILL.md](../SKILL.md), and it decides the route before anything else on this page does.
 
 1. Homebrew for everything it carries: a formula for a command line tool, a cask for a GUI application. Search with `brew search <term>` and confirm the kind with `brew info <name>`, as under "Formula or cask" below.
-2. Only when Homebrew has neither a formula nor a cask, the App Store or the vendor's own installer. The App Store route from a terminal is `mas`, which is itself a formula: formulae.brew.sh lists `mas` as "Mac App Store command-line interface", installed with `brew install mas`, stable 7.0.0 on 2026-10-13. Every `mas` subcommand is UNVERIFIED here.
+2. Only when Homebrew has neither a formula nor a cask, the App Store or the vendor's own installer. The App Store route from a terminal is `mas`, which is itself a formula: formulae.brew.sh lists `mas` as "Mac App Store command-line interface", installed with `brew install mas`. Every `mas` subcommand is UNVERIFIED here.
 3. A vendor installer, a DMG or a pkg, is downloaded from the vendor's site, and a pkg that asks for an administrator password is the owner's to run.
 
 An application already installed another way stays with that route. An app installed from the vendor's DMG and later as a cask leaves two copies and two update paths.

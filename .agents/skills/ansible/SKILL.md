@@ -1,6 +1,6 @@
 ---
 name: ansible
-description: Ansible standards for role structure, FQCN modules, idempotency, Vault secrets, least-privilege become, block rescue recovery, collection pinning, and the ansible-lint plus Molecule gate. Use when you say "write an Ansible role for this", "this playbook is not idempotent", "encrypt these variables with Vault", "add Molecule tests to this role", or "why does my shell task always report changed". Not for one-off host scripting, use `bash`.
+description: 'Ansible standards for role structure, FQCN modules, idempotency, Vault secrets, least-privilege become, collection pinning and the ansible-lint plus Molecule gate. Use when the user says "write an Ansible role for this", "this playbook is not idempotent", "encrypt these variables with Vault" or "add Molecule tests to this role". Not for one-off host scripting, use `bash`.'
 ---
 
 # Ansible Standards
@@ -9,8 +9,7 @@ How a playbook stays safe to run twice: every task declares the state it wants, 
 a role proves itself in Molecule before it touches a real host. Ansible's failure mode is a play that appears to
 succeed while quietly doing nothing, or doing it again every run.
 
-Baseline: ansible-core current stable, with ansible-lint and Molecule at their current stable releases. Pin the exact
-versions in the repository so every contributor and every CI run resolves the same toolchain.
+Written for ansible-core 2, with ansible-lint and Molecule. Pin the exact versions in the repository so every contributor and every CI run resolves the same toolchain.
 
 ---
 
@@ -22,6 +21,7 @@ versions in the repository so every contributor and every CI run resolves the sa
 - Adding `ansible-lint`, `--check`, or Molecule to CI.
 - Pinning collections in `requirements.yml`.
 - Targeting more than one operating system from a single role.
+- The user says "why does my shell task always report changed".
 
 ---
 
@@ -270,7 +270,7 @@ reports any change. That is the only mechanical proof the idempotency rule above
 - `deployment-patterns` for the pipeline that runs Ansible and the approval gate in front of production.
 - `docker-patterns` for the container images Ansible deploys.
 - `observability-and-logging` for the health and readiness signals a deployed service must expose.
-- `security-review` before any change that touches credentials, privilege escalation, or a public listener.
+- The `security-auditor` agent before any change that touches credentials, privilege escalation, or a public listener. `security-review` covers application code only.
 
 ---
 

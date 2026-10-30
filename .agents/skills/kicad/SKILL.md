@@ -1,6 +1,6 @@
 ---
 name: kicad
-description: KiCad board design standards for board setup and custom DRC rules, IPC-2221 trace sizing, decoupling and placement, ground pours and thermal reliefs, ERC on hierarchical schematics, BOM fields, Gerber and drill export, and Git handling of project files. Use when you say "route this board", "check my DRC", "export gerbers for JLCPCB", "write a kicad_dru rule for mains clearance", or "generate a BOM with LCSC part numbers". Not for the firmware that runs on the board, use `embedded-c-arduino`.
+description: 'KiCad board design standards for board setup and custom DRC rules, IPC-2221 trace sizing, decoupling and placement, ground pours, ERC, BOM fields, Gerber export and Git handling of project files. Use when the user says "route this board", "check my DRC", "export gerbers for JLCPCB" or "generate a BOM with LCSC part numbers". Not for the firmware that runs on the board, use `embedded-c-arduino`.'
 ---
 
 # KiCad PCB Design Standards
@@ -9,8 +9,7 @@ How a board gets from schematic to fabrication without a respin: rules configure
 that are actually enabled, and an export that matches what the fabricator expects. Most board failures trace back to
 a constraint that existed only in someone's head.
 
-Baseline: KiCad 10, current stable (10.0.6 as of September 2026). Custom design rules in `.kicad_dru` and the
-`kicad-cli` command-line exporter are both standard on this baseline.
+Written for KiCad 10. Custom design rules in `.kicad_dru` and the `kicad-cli` command-line exporter are both standard in that version.
 
 ---
 
@@ -22,6 +21,7 @@ Baseline: KiCad 10, current stable (10.0.6 as of September 2026). Custom design 
 - Creating or verifying footprints and 3D models.
 - Generating a BOM, Gerbers, or drill files for fabrication.
 - Deciding what of a KiCad project goes into Git and how a release is tagged.
+- The user says "write a kicad_dru rule for mains clearance".
 
 ---
 

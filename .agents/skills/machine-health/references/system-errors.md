@@ -1,6 +1,6 @@
 # System Errors
 
-Failed units, crashes, error level log lines since boot, kernel warnings and taint, and the Windows and macOS equivalents. The rules live in [SKILL.md](../SKILL.md). Linux commands below were executed read-only on CachyOS with systemd 262 on 2026-10-13, macOS and Windows commands are UNVERIFIED.
+Failed units, crashes, error level log lines since boot, kernel warnings and taint, and the Windows and macOS equivalents. The rules live in [SKILL.md](../SKILL.md). Linux commands below were executed read-only on CachyOS with systemd 262, macOS and Windows commands are UNVERIFIED.
 
 ---
 
@@ -18,7 +18,7 @@ Failed units, crashes, error level log lines since boot, kernel warnings and tai
 | Kernel warnings | `journalctl -k -b -p warning --no-pager -q -o cat \| grep -v 'UFW BLOCK' \| sort \| uniq -c \| sort -rn \| head -20` | `WARNING:`, `BUG:`, `Oops`, call traces, firmware load failures. Firewall block lines are excluded because they are expected noise | verified, `grep -v` was needed because UFW block lines filled the output |
 | Kernel taint | `cat /proc/sys/kernel/tainted` | Any value outside the baseline. Decode the bits before judging | verified, `12288` |
 
-Decode taint with the kernel's own table: "If that returns `0`, the kernel is not tainted; any other number indicates the reasons why it is", with bit 12 "externally-built (out-of-tree) module was loaded" (4096) and bit 13 "unsigned module was loaded" (8192), and bit 9 "kernel issued warning" (512) (<https://docs.kernel.org/admin-guide/tainted-kernels.html>, fetched 2026-10-13). On the test machine `12288` is 4096 plus 8192, which an out of tree GPU driver produces, so it is `ok` when the baseline says the same. Bit 9 appearing is `warn` and the kernel warning lines above say why.
+Decode taint with the kernel's own table: "If that returns `0`, the kernel is not tainted; any other number indicates the reasons why it is", with bit 12 "externally-built (out-of-tree) module was loaded" (4096) and bit 13 "unsigned module was loaded" (8192), and bit 9 "kernel issued warning" (512) (<https://docs.kernel.org/admin-guide/tainted-kernels.html>). On the test machine `12288` is 4096 plus 8192, which an out of tree GPU driver produces, so it is `ok` when the baseline says the same. Bit 9 appearing is `warn` and the kernel warning lines above say why.
 
 The journal can miss the first minutes of a boot, and `dmesg` is root only while `kernel.dmesg_restrict` is 1, both measured on the test machine. When an early boot problem is suspected, put `needs: sudo dmesg --level=err,warn` into Needs root.
 

@@ -1,6 +1,6 @@
 ---
 name: markdown-writer
-description: "Human-facing markdown: README structure, an honest voice with no AI tells, Mermaid diagrams, badges, audit passes over stale docs, and translated copies. Use when you say \"fix my README\", \"write a README for this repo\", \"this reads like AI wrote it\", \"add an architecture diagram to the docs\", or \"polish docs/INGESTION.md\". Not for architecture decision records, which keep their own template, use `architecture-decision-records`."
+description: 'Human-facing markdown: README structure, an honest voice with no AI tells, Mermaid diagrams, badges, audit passes over stale docs, and translated copies. Use when the user says "fix my README", "write a README for this repo", "this reads like AI wrote it" or "add an architecture diagram to the docs". Not for architecture decision records, use `architecture-decision-records`.'
 ---
 
 # Markdown Writer
@@ -25,6 +25,7 @@ before rewriting anything.
 - Adding a Mermaid architecture or request-flow diagram to a document
 - Polishing any document under a `docs/` directory that a person reads
 - Producing or refreshing a locale-suffixed copy of an existing document
+- The user says "polish docs/INGESTION.md"
 
 ---
 

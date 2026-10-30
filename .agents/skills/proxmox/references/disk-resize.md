@@ -1,8 +1,21 @@
 # Grow a VM Disk
 
+Contents:
+
+- [The three layers](#the-three-layers)
+- [Before the host step](#before-the-host-step)
+- [Ubuntu Server often has free space already](#ubuntu-server-often-has-free-space-already)
+- [The host step](#the-host-step)
+- [Linux guest: make the kernel see the new size](#linux-guest-make-the-kernel-see-the-new-size)
+- [Linux guest: grow the partition](#linux-guest-grow-the-partition)
+- [Linux guest with LVM: grow the volume and the file system](#linux-guest-with-lvm-grow-the-volume-and-the-file-system)
+- [Linux guest without LVM: grow the file system](#linux-guest-without-lvm-grow-the-file-system)
+- [Windows guest](#windows-guest)
+- [After every resize](#after-every-resize)
+
 Read this before growing the virtual disk of a VM, or when a guest still shows the old size after a resize. The rules live in [SKILL.md](../SKILL.md). Every step changes a VM, so the owner approves it first. Every command here is UNVERIFIED.
 
-Sources, fetched on 2026-10-23: the wiki page https://pve.proxmox.com/wiki/Resize_disks, last edited on 17 July 2026, the manual page https://pve.proxmox.com/pve-docs/qm.1.html at version 9.2.13, `subiquity/common/storage/sizes.py` (last changed on 2026-07-02), `subiquity/server/controllers/storage.py` and `subiquity/common/types/storage.py` on the `main` branch of `canonical/subiquity`, `bin/growpart` in `canonical/cloud-utils`, the lvextend manual https://man7.org/linux/man-pages/man8/lvextend.8.html, `drivers/scsi/scsi_sysfs.c` in the Linux kernel, and the Microsoft pages https://learn.microsoft.com/en-us/powershell/module/storage/resize-partition and https://learn.microsoft.com/en-us/powershell/module/storage/update-hoststoragecache.
+Sources: the wiki page https://pve.proxmox.com/wiki/Resize_disks, the manual page https://pve.proxmox.com/pve-docs/qm.1.html, `subiquity/common/storage/sizes.py`, `subiquity/server/controllers/storage.py` and `subiquity/common/types/storage.py` on the `main` branch of `canonical/subiquity`, `bin/growpart` in `canonical/cloud-utils`, the lvextend manual https://man7.org/linux/man-pages/man8/lvextend.8.html, `drivers/scsi/scsi_sysfs.c` in the Linux kernel, and the Microsoft pages https://learn.microsoft.com/en-us/powershell/module/storage/resize-partition and https://learn.microsoft.com/en-us/powershell/module/storage/update-hoststoragecache.
 
 ---
 
@@ -36,7 +49,7 @@ The Ubuntu Server installer's guided LVM layout does not give the whole volume g
 | 20 to 200 GiB | half |
 | 200 GiB and more | 100 GiB |
 
-The code comment says this is done "to leave room for snapshots and such". The volume group is `ubuntu-vg` and the root volume `ubuntu-lv`, from `storage.py`. Read this in the subiquity source on 2026-10-23, so confidence is high for installs made with a current installer and medium for older releases, which may have shipped a different version of this function. Check the guest before anything else. `VFree` is space that only needs `lvextend`:
+The code comment says this is done "to leave room for snapshots and such". The volume group is `ubuntu-vg` and the root volume `ubuntu-lv`, from `storage.py`. Read this in the subiquity source, so confidence is high for installs made with a recent installer and medium for older releases, which may have shipped a different version of this function. Check the guest before anything else. `VFree` is space that only needs `lvextend`:
 
 ```bash
 sudo vgs

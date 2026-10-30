@@ -1,6 +1,6 @@
 ---
 name: jetbrains-ide-ops
-description: 'JetBrains IDE project configuration for a multi-module monorepo: run configurations under `.run/`, which `.idea/` files are committed and which are ignored, the root module and per-build Gradle links, module naming, and the rename checklist that keeps the IDE, Compose and monitoring naming the same thing. Use when you say "add a run configuration for this service", "this run configuration shows as Unknown", "the interpreter field is empty", "the Gradle window shows the module twice", "which .idea files do we commit", or "I renamed a module, what else has to change". Not for the Dockerfile or Compose file itself, use `docker-patterns`, and not for ignore patterns outside `.idea/`, use `git-workflow`.'
+description: 'JetBrains IDE project configuration for a multi-module monorepo: run configurations under `.run/`, which `.idea/` files are committed, Gradle module links, module naming and the rename checklist. Use when the user says "add a run configuration for this service", "which .idea files do we commit" or "I renamed a module, what else has to change". Not for the Compose file, use `docker-patterns`.'
 ---
 
 # JetBrains IDE Ops
@@ -10,8 +10,7 @@ authored and which are generated, what a run configuration has to say to actuall
 touch so the IDE, Compose and monitoring keep naming the same thing. Everything here was read out of live projects
 rather than out of the dialog, because the dialog hides the half that goes wrong.
 
-Baseline: IntelliJ IDEA 2026.2 on Windows 11 (verified locally). The XML shapes are stable across recent releases,
-the cache directory under `%LOCALAPPDATA%` is the part that moves with the version.
+Written for IntelliJ IDEA on Windows 11. The XML shapes are stable across releases, and the cache directory under `%LOCALAPPDATA%` is the part that moves with the version.
 
 | Task | Open |
 |---|---|
@@ -31,6 +30,7 @@ the cache directory under `%LOCALAPPDATA%` is the part that moves with the versi
 - Module names in the project tree do not match the directories on disk, or the Gradle tool window shows duplicates
 - Deciding which `.idea/` files belong in version control, or repairing a half-committed set
 - Renaming a module, container or image, and keeping IDE-built image names in step with Compose
+- The user says "this run configuration shows as Unknown", "the interpreter field is empty" or "the Gradle window shows the module twice"
 
 ---
 

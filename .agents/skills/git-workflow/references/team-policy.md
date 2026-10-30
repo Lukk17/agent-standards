@@ -1,5 +1,17 @@
 # Team Git Policy
 
+Contents:
+
+- [Commit Signing](#commit-signing)
+- [Secret Scanning Pre-commit Hook](#secret-scanning-pre-commit-hook)
+- [Pull Request Template](#pull-request-template)
+- [Code Review Standards](#code-review-standards)
+- [Merge Strategy by Scenario](#merge-strategy-by-scenario)
+- [Changelog](#changelog)
+- [Git LFS](#git-lfs)
+- [Branch Lifecycle Policy](#branch-lifecycle-policy)
+- [Monorepo Configuration](#monorepo-configuration)
+
 Policy a team adopts once and applies across every repository: commit signing, secret scanning, the pull request
 template, review turnaround, merge strategy, changelog generation, large files, branch lifecycle and code ownership.
 Load this file when setting up a repository or when a policy question comes up, rather than on every commit.

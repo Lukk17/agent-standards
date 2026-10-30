@@ -2,7 +2,7 @@
 
 Read this before reading or changing an application or system preference. The rules live in [SKILL.md](../SKILL.md). Every command here is UNVERIFIED.
 
-Sources: the `defaults(1)` man page as shipped with Xcode 27.2 beta 2, read through `https://keith.github.io/xcode-man-pages/defaults.1.html` on 2026-10-13, and Apple's "macOS Library Directory Details" in the File System Programming Guide.
+Sources: the `defaults(1)` man page as shipped with Xcode, read through `https://keith.github.io/xcode-man-pages/defaults.1.html`, and Apple's "macOS Library Directory Details" in the File System Programming Guide.
 
 ---
 

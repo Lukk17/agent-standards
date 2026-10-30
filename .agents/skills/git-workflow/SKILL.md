@@ -1,6 +1,6 @@
 ---
 name: git-workflow
-description: 'Git practice for a team: branching strategy, conventional commit messages, merge versus rebase, branch naming and cleanup, pull request content, and conflict prevention. Use when you say "what should I name this branch", "write the commit message for this", "merge or rebase here", "I have a conflict in this file", or "set up our git workflow". Not for issues, pull requests and releases on the hosting platform, use `github-ops`.'
+description: 'Git practice for a team: branching strategy, conventional commits, merge versus rebase, branch naming and cleanup, pull request content, conflicts, and line endings, symlinks and case across systems. Use when the user says "what should I name this branch", "write the commit message", "merge or rebase here" or "set up .gitattributes". Not for issues and releases on the host, use `github-ops`.'
 ---
 
 # Git Workflow
@@ -14,6 +14,7 @@ repository and the shared history, so operating the hosting platform belongs to 
 | Picking or changing a branching strategy for a repository | [branching-strategies.md](references/branching-strategies.md) |
 | Running an operation and needing the exact commands | [recipes.md](references/recipes.md) |
 | Setting up identity, defaults, aliases and ignore patterns | [git-config.md](references/git-config.md) |
+| Line endings and `.gitattributes`, `core.autocrlf`, symlinks and case-only renames across operating systems | [git-config.md](references/git-config.md) |
 | Adopting signing, secret scanning, review turnaround, LFS or code ownership | [team-policy.md](references/team-policy.md) |
 
 ---
@@ -27,6 +28,8 @@ repository and the shared history, so operating the hosting platform belongs to 
 - Naming a branch, or cleaning up branches after a merge
 - Resolving a conflict, or reducing how often conflicts happen
 - Undoing a mistake in local or shared history
+- Setting line endings, `.gitattributes`, `core.symlinks` or handling case sensitivity across operating systems
+- The user says "write the commit message for this", "I have a conflict in this file" or "set up our git workflow"
 
 ---
 

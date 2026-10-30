@@ -1,13 +1,13 @@
 ---
 name: kde-plasma
-description: 'Changing KDE Plasma 6 safely from the command line: panels, widgets and plasmoids through the Plasma scripting API and evaluateScript, widget plugin ids, kreadconfig6 and kwriteconfig6, which file under ~/.config holds what, KWin effects, window rules, tiling and virtual desktops, global shortcuts in kglobalshortcutsrc, color scheme, Plasma theme, cursor, icons, look-and-feel and wallpaper, konsave profiles, and restarting plasmashell. Also building, testing and publishing a plasmoid, and making a Plasma Style or Global Theme. Use when you say "add a widget to the panel", "move the clock", "what is the plugin id", "change the color scheme", "bind a shortcut", "disable the blur effect", "save my desktop with konsave", "plasmashell is stuck", "restore my panel layout", "write a plasmoid", "publish my widget on the KDE Store", "make a Plasma theme", or "build a Global Theme". Not for packages, audio, systemd or snapshots, use `arch-linux`, and not for CachyOS defaults or the login manager, use `cachyos`.'
+description: 'Changing KDE Plasma 6 safely from the command line: panels and widgets through the scripting API, kwriteconfig6, KWin effects and rules, shortcuts, themes and konsave, plus building and publishing plasmoids and themes. Use when the user says "add a widget to the panel", "bind a shortcut", "plasmashell is stuck" or "write a plasmoid". Not for packages, audio or systemd, use `arch-linux`.'
 ---
 
 # KDE Plasma 6 Administration
 
 How to read and change a Plasma 6 desktop through its live interfaces, so a change applies at once, is easy to read back, and has a snapshot behind it. Plasma rewrites several of its own files while it runs, which is why the live API comes first and a hand edit comes last.
 
-Baseline: Plasma 6.7 and KWin 6.7 on Wayland, Qt 6.12, verified on one CachyOS host on 2026-10-13. Commands that were not executed are marked UNVERIFIED in the topic files.
+Written for Plasma 6 and KWin 6 on Wayland, with Qt 6. The commands that ran were run on one CachyOS host, and commands that were not executed are marked UNVERIFIED in the topic files.
 
 | Task | Open |
 |---|---|
@@ -39,6 +39,8 @@ Machine-specific facts live in `MACHINE.md` next to the global `AGENTS.md`: the 
 - Themes, colors, cursors, icons, look-and-feel packages or wallpapers
 - konsave, or restarting, recovering or rolling back plasmashell
 - Writing, testing, packaging or publishing a plasmoid, or building a theme set
+- Also covers panels, widgets and plasmoids through the Plasma scripting API and evaluateScript, widget plugin ids, kreadconfig6 and kwriteconfig6, which file under ~/.config holds what, KWin effects, window rules, tiling and virtual desktops, global shortcuts in kglobalshortcutsrc, color scheme, Plasma theme, cursor, icons, look-and-feel and wallpaper, konsave profiles, and restarting plasmashell. Also building, testing and publishing a plasmoid, and making a Plasma Style or Global Theme
+- The user says "move the clock", "what is the plugin id", "change the color scheme", "disable the blur effect", "save my desktop with konsave", "restore my panel layout", "publish my widget on the KDE Store", "make a Plasma theme" or "build a Global Theme"
 
 ---
 

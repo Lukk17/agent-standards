@@ -1,6 +1,6 @@
 ---
 name: frontend-design
-description: Give an interface a committed visual direction, covering composition, typography, colour, background atmosphere, and motion. Use when you say "make this page look designed", "this dashboard looks generic", "pick a visual direction for the landing page", "turn this card grid into something intentional", or "it works but it has no point of view". Not for token architecture, theming, and styling structure, use `design-system`.
+description: 'Giving an interface a committed visual direction, covering composition, typography, colour, background atmosphere and motion. Use when the user says "make this page look designed", "this dashboard looks generic", "pick a visual direction for the landing page" or "it works but it has no point of view". Not for token architecture, theming and styling structure, use `design-system`.'
 license: Apache-2.0
 ---
 
@@ -18,6 +18,7 @@ not "make it work" but "make it look designed", on landing pages, dashboards, ap
 - Translating a product concept into a concrete visual direction.
 - Implementing a frontend where typography, composition, and motion carry the product.
 - Reviewing a UI that works but reads as generic template output.
+- The user says "turn this card grid into something intentional".
 
 ---
 

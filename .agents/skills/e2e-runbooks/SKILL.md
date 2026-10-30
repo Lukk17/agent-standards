@@ -1,6 +1,6 @@
 ---
 name: e2e-runbooks
-description: Capability testing against a live stack, one feature per immutable spec, with behaviour-only assertions, canary fixtures, setup-cost ordering, per-run token and duration accounting, and parallel subagent orchestration. Use when you say "add an e2e test for the upload flow", "run the e2e sweep", "test that the MCP tool actually fires", "smoke test against the staging stack", or "verify this capability end to end". Not for Playwright browser UI testing, use `e2e-testing`.
+description: 'Capability testing against a live stack, one feature per immutable spec, with behaviour-only assertions, canary fixtures, setup-cost ordering, token and duration accounting, and parallel subagents. Use when the user says "add an e2e test for the upload flow", "run the e2e sweep" or "verify this capability end to end". Not for Playwright browser UI testing, use `e2e-testing`.'
 ---
 
 # E2E Runbooks
@@ -18,6 +18,7 @@ timestamped run record with token and duration accounting.
 - Verifying that an MCP tool, a background ingestion job, or a multi-service flow works end to end.
 - Smoke testing a deployment before promoting it.
 - Setting up the `e2e/` directory tree in a project that has none.
+- The user says "test that the MCP tool actually fires" or "smoke test against the staging stack".
 
 ---
 
@@ -219,8 +220,8 @@ Name each run record with the sweep timestamp and the spec it came from. Use ISO
 the filename is safe on Windows, macOS and Linux.
 
 ```text
-2026-05-12T17-23-36_1-weather-mcp-tasks.md
-2026-05-12T17-23-36_2-image-description-tasks.md
+YYYY-MM-DDTHH-MM-SS_1-weather-mcp-tasks.md
+YYYY-MM-DDTHH-MM-SS_2-image-description-tasks.md
 ```
 
 One timestamp equals one full sweep, so every record from a sweep shares a prefix and a mixed-timestamp directory reads

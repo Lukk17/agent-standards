@@ -1,6 +1,6 @@
 ---
 name: soap-webservices
-description: Contract-first SOAP integration in Java, covering WSDL and XSD as the source of truth, JAXB binding files, CXF code generation, XXE prevention, WS-Security, fault taxonomy, PII-safe logging, Resilience4j retries, and MTOM. Use when you say "generate Java classes from this WSDL", "call a partner SOAP service", "add WS-Security UsernameToken", "stub a SOAP endpoint in tests", or "our SOAP client hangs". Not for REST contracts, use `api-design`.
+description: 'Contract-first SOAP integration in Java: WSDL and XSD as the source of truth, JAXB bindings, CXF code generation, XXE prevention, WS-Security, fault taxonomy, PII-safe logging, retries and MTOM. Use when the user says "generate Java classes from this WSDL", "call a partner SOAP service", "add WS-Security UsernameToken" or "our SOAP client hangs". Not for REST contracts, use `api-design`.'
 ---
 
 # SOAP Web Service Standards
@@ -9,8 +9,7 @@ Rules for integrating with SOAP services from a Java application, where the cont
 and the generated code is a build artifact. Everything here assumes contract-first: the schema is the truth and the
 Java types follow it.
 
-Baseline versions, current as of September 2026: Java 21 LTS, the `jakarta.*` namespace throughout (Jakarta XML Web
-Services 4, JAXB 4), Apache CXF 4, Spring-WS 4 with WSS4J, and Resilience4j 2.
+Written for Java 21 LTS as the minimum and Java 25 LTS as the recommended target, the `jakarta.*` namespace throughout (Jakarta XML Web Services 4, JAXB 4), Apache CXF 4, Spring-WS 4 with WSS4J, and Resilience4j 2.
 
 ---
 
@@ -21,6 +20,7 @@ Services 4, JAXB 4), Apache CXF 4, Spring-WS 4 with WSS4J, and Resilience4j 2.
 - Adding WS-Security, whether UsernameToken or X.509 signing and encryption.
 - Mapping SOAP faults onto application exceptions, or designing the fault taxonomy.
 - Stubbing a SOAP endpoint for tests, or handling MTOM attachments.
+- The user says "stub a SOAP endpoint in tests".
 
 ---
 

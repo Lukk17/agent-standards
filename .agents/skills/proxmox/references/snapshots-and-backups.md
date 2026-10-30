@@ -2,7 +2,7 @@
 
 Read this before taking or rolling back a snapshot, running a backup, or planning a backup job. The rules live in [SKILL.md](../SKILL.md). Taking, rolling back and deleting a snapshot and running a backup all change the host, so the owner approves each one first. Every command here is UNVERIFIED.
 
-Sources, fetched on 2026-10-23: the manual page https://pve.proxmox.com/pve-docs/qm.1.html at version 9.2.13, the backup chapter https://pve.proxmox.com/pve-docs/chapter-vzdump.html and its source `vzdump.adoc`, the snapshot section of `qm.adoc`, the LVM thin page https://pve.proxmox.com/wiki/Storage:_LVM_Thin, and the API schema of https://pve.proxmox.com/pve-docs/api-viewer/.
+Sources: the manual page https://pve.proxmox.com/pve-docs/qm.1.html, the backup chapter https://pve.proxmox.com/pve-docs/chapter-vzdump.html and its source `vzdump.adoc`, the snapshot section of `qm.adoc`, the LVM thin page https://pve.proxmox.com/wiki/Storage:_LVM_Thin, and the API schema of https://pve.proxmox.com/pve-docs/api-viewer/.
 
 ---
 

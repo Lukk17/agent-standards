@@ -1,11 +1,21 @@
 # Tracker Mechanics
 
+Contents:
+
+- [Concept Map](#concept-map)
+- [Jira](#jira)
+- [YouTrack](#youtrack)
+- [Linear](#linear)
+- [Azure DevOps Boards](#azure-devops-boards)
+- [GitHub Issues and Projects](#github-issues-and-projects)
+- [GitLab Issues](#gitlab-issues)
+- [Trello](#trello)
+- [Porting to Any Tracker](#porting-to-any-tracker)
+
 Companion reference for the [project-tracking](../SKILL.md) skill. Load it only when you have to act inside a
 named tracker and need to know which feature carries which rule there.
 
-Nothing here changes a rule. The rules live in the skill and hold whatever tool is in use. This file records how
-seven trackers express them, so a reader on any of those tools can act without translating first. A tracker not
-listed here is covered by the five porting questions at the end of the skill.
+Nothing here changes a rule. The rules live in the skill and hold whatever tool is in use. This file records how seven trackers express them, so a reader on any of those tools can act without translating first. A tracker not listed here is covered by the five porting questions at the end of this file.
 
 ---
 
@@ -225,3 +235,23 @@ a power-up, and no commit-message syntax exists.
 
 The trap: neither closure mechanism distinguishes delivered from abandoned, so that distinction has to be carried
 entirely by which list a card finishes in.
+
+---
+
+### Porting to Any Tracker
+
+Ask five questions of any candidate tracker before assuming a rule in the skill still lands. The per-tool sections above answer them for seven common trackers.
+
+How is the kind of work carried? A type field, a fixed type set, a single-select field, or nothing at all. Where there is nothing, one governed label has to carry it and be governed as strictly as a field would be.
+
+How is an impediment marked? Some tools have a dedicated flag field, some expect a shared tag, some offer only a status. If the only mechanism is a status, the rule that blocking is not a status has to be satisfied some other way, or the age and cycle-time measurements it protects are lost.
+
+How is closure recorded, separately from the status a person reads? Some tools carry a second field that can disagree with the status. Some derive closure from a property on the status value itself, in which case there is no second field to disagree and the delivered-versus-abandoned distinction has to live in the status name. That difference decides whether a single Done status is safe.
+
+How is backlog order stored? A hidden total-ordering field, a manual sort within a board cell, and a numeric column all behave differently, and some of them are silently discarded when a filter carries its own sort. If the tool has no total ordering, deciding what comes next needs a different mechanism.
+
+How does the tool group statuses for reporting? A grouping layer between a status and a board column is what makes "looks done to a person, open to every query" possible in the first place. A tool without one fails differently, and a tool with one needs the mapping checked whenever a status is added.
+
+Three portability rules fall out of comparing real trackers. Where closure is derived from the status value rather than recorded separately, the difference between delivered and abandoned has to live in the status name, which means two terminal statuses rather than one. Where containment is a link rather than a typed level, nothing stops an inverted or nonsensical hierarchy, so the discipline has to come from the team rather than from the tool. And where classification is free text with no administration screen, the documented list is the only validation that exists.
+
+One more thing to check rather than assume: whether an item id survives a migration at all. An item whose only identity is its id is fragile across a tool change. Two mitigations are cheap. Carry the original id inside the item body or in a dedicated field, and keep a committed id-to-summary mapping file in the repository, so a code marker naming an item stays resolvable even if the id it names does not survive.

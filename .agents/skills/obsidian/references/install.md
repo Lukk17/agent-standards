@@ -1,16 +1,26 @@
 # Installing notesmd-cli
 
+Contents:
+
+- [Windows with Scoop](#windows-with-scoop)
+- [Windows from a release archive](#windows-from-a-release-archive)
+- [macOS and Linux with Homebrew](#macos-and-linux-with-homebrew)
+- [Arch Linux](#arch-linux)
+- [Linux from a release archive](#linux-from-a-release-archive)
+- [Any platform from source](#any-platform-from-source)
+- [Check the install](#check-the-install)
+- [Migrating from obsidian-cli](#migrating-from-obsidian-cli)
+
 `notesmd-cli` is the project formerly named `obsidian-cli`, by Yakitrak, written in Go and MIT licensed. Each release
 ships prebuilt archives for Windows amd64 and arm64, Linux amd64 and arm64, and one universal macOS archive, plus a
 `checksums.txt`.
 
-Sources, fetched 2026-09-25:
+Sources:
 
 - `https://github.com/Yakitrak/notesmd-cli`, README sections Install and Migrating from Obsidian CLI
-- `https://github.com/Yakitrak/notesmd-cli/releases/tag/v0.3.7`, the latest release, published 2026-09-01
+- `https://github.com/Yakitrak/notesmd-cli/releases`, the release page with the binaries and `checksums.txt`
 
-No winget package exists: `winget search notesmd` and `winget search obsidian-cli` both returned no match on
-2026-09-25.
+No winget package exists: `winget search notesmd` and `winget search obsidian-cli` both returned no match when checked. Search again before telling the owner there is none.
 
 ---
 
@@ -106,15 +116,13 @@ Use the `linux_arm64` archive on an Arm machine. On macOS the same steps work wi
 
 ### Any platform from source
 
-Needs Go. The README says Go 1.19 or later, but `go.mod` on the main branch declares `go 1.25.8`, so use a current
-Go release. The module path is `github.com/Yakitrak/notesmd-cli` with `main.go` at its root:
+Needs Go. The README says Go 1.19 or later, but `go.mod` on the main branch declares a much newer Go, so install the Go release that `go.mod` names. The module path is `github.com/Yakitrak/notesmd-cli` with `main.go` at its root:
 
 ```bash
 go install github.com/Yakitrak/notesmd-cli@latest
 ```
 
-The README documents `git clone` and `go build` rather than `go install`. The Go module proxy resolves `@latest` to
-v0.3.7 and `go.mod` has no `replace` directive, so `go install` should work, but it was not run here.
+The README documents `git clone` and `go build` rather than `go install`. The module has no `replace` directive in `go.mod`, so `go install` should work, but it was not run here.
 
 ---
 

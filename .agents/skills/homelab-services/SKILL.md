@@ -1,13 +1,13 @@
 ---
 name: homelab-services
-description: 'Running a Docker Compose homelab on one VM, every server change asked of the owner first: AdGuard Home rewrites like a *.internal wildcard, upstreams, query log and statistics retention, ignored domains, an AdGuardHome.yaml edit, Uptime Kuma 2.x monitors, its metrics key, the labelset log flood, a database edit, a Telegraf network watch of ping, DNS, HTTP and speed, Samba, File Browser, Plex, Homepage, Nginx Proxy Manager, a local CA for https on .internal names, deploying from a local clone, log limits, a USB or NTFS data disk, and a full disk. Use when you say "add a .internal name", "https for the .internal names", "keep 30 days of query log", "change the monitor interval", "Added label is not included in initial labelset", "deploy the compose change", "mount the NTFS disk", or "the VM disk is full". Not for the Proxmox host or growing the VM disk, use `proxmox`, not for Syncthing, use `syncthing`, not for the router, use `asus-router`, and not for Compose design in general, use `docker-patterns`.'
+description: 'Running a Docker Compose homelab on one VM, every change asked of the owner first: AdGuard Home, Uptime Kuma, Telegraf, Samba, File Browser, Plex, Homepage, Nginx Proxy Manager, a local CA for .internal names, and data disks. Use when the user says "add a .internal name", "https for the .internal names", "deploy the compose change" or "the VM disk is full". Not for the Proxmox host, use `proxmox`.'
 ---
 
 # Homelab Services
 
 How an agent runs and repairs a small self-hosted stack: one Ubuntu Server VM, one Compose file, and the services a home network leans on, DNS first. The Compose file and the files it mounts live in a git clone on the owner's machine, and the VM holds a plain copy. Every change to a server, a service or the router is proposed to the owner first, with what can go wrong and how to undo it, and nothing changes before a yes.
 
-Baseline: these images, which the owner's homelab ran on 2026-10-23: `adguard/adguardhome:v0.107.78`, `louislam/uptime-kuma:2.5.5`, `telegraf:1.40.1`, `dockurr/samba:4.23.10`, `gtstef/filebrowser:2.0.0-stable-slim`, `plexinc/pms-docker:1.43.4.10903-e5521bd8c`, `ghcr.io/gethomepage/homepage:v1.13.2` and `jc21/nginx-proxy-manager:2.15.1`, on an Ubuntu Server VM under Proxmox VE, and from 2026-10-24 also `alpine/openssl:3.5.9` for the local CA. Facts marked VERIFIED were measured on that homelab on 2026-10-23, unless the mark names another date or says a throwaway container. The AdGuard Home file edit and the Uptime Kuma database edit were also run end to end in throwaway containers of the same images on 2026-10-23, with no network. Vendor documentation and source were fetched on 2026-10-23, and each topic file names its sources. Everything else is UNVERIFIED.
+Written for AdGuard Home 0.107, Uptime Kuma 2, Telegraf 1, Samba 4, File Browser 2 (`gtstef/filebrowser`), Plex Media Server, Homepage 1 and Nginx Proxy Manager 2 as containers on an Ubuntu Server VM under Proxmox VE, with OpenSSL 3 in a throwaway container for the local CA. Facts marked VERIFIED were measured on the owner's homelab, or in throwaway containers where the mark says so. The AdGuard Home file edit and the Uptime Kuma database edit were also run end to end in throwaway containers of the same images, with no network. Each topic file names its sources. Everything else is UNVERIFIED.
 
 | You are about to | Open |
 |---|---|
@@ -41,6 +41,8 @@ Addresses, host names, user names, the path of the stack folder on the VM, and t
 - Reading the network watch files after an internet drop
 - Attaching a data disk, sharing it over Samba and File Browser, or pointing Plex at it
 - A VM whose root file system is full, or services that stopped writing
+- Also covers AdGuard Home rewrites like a *.internal wildcard, upstreams, query log and statistics retention, ignored domains, an AdGuardHome.yaml edit, Uptime Kuma 2 monitors, its metrics key, the labelset log flood, a database edit, a Telegraf network watch of ping, DNS, HTTP and speed, Samba, File Browser, Plex, Homepage, Nginx Proxy Manager, a local CA for https on .internal names, deploying from a local clone, log limits, a USB or NTFS data disk, and a full disk
+- The user says "keep 30 days of query log", "change the monitor interval", "Added label is not included in initial labelset" or "mount the NTFS disk"
 
 ---
 
@@ -50,7 +52,7 @@ Addresses, host names, user names, the path of the stack folder on the VM, and t
 - Syncthing itself, its folders, devices and its disk space error, use `syncthing`
 - The router, its DHCP DNS setting, its log and WAN drops, use `asus-router`
 - Writing a Dockerfile, choosing a base image or designing a Compose stack in general, use `docker-patterns`
-- Judging an exposed port, a token or a password policy, use `security-review`
+- Judging an exposed port, a token or a password policy, use the `security-auditor` agent
 - Checking the health of the owner's own computer, use `machine-health`
 
 ---
@@ -77,7 +79,7 @@ Addresses, host names, user names, the path of the stack folder on the VM, and t
 - `syncthing` owns Syncthing in its container, including the folder that carries the network watch files
 - `asus-router` owns the router's DHCP DNS server setting and reading WAN drops from its log
 - `docker-patterns` owns Compose and image design in general
-- `security-review` owns judging exposed ports, tokens and passwords
+- The `security-auditor` agent owns judging exposed ports, tokens and passwords
 - `bash` owns scripts that wrap these commands
 
 ---

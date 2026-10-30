@@ -1,6 +1,6 @@
 # Devices and Network
 
-GPU driver, displays and the refresh rate actually applied, audio devices, network and firewall state, time sync and the dual boot clock. The rules live in [SKILL.md](../SKILL.md). Linux commands below were executed read-only on CachyOS with KDE Plasma 6.7.5 on Wayland and an NVIDIA RTX 2080 on 2026-10-13, macOS and Windows commands are UNVERIFIED.
+GPU driver, displays and the refresh rate actually applied, audio devices, network and firewall state, time sync and the dual boot clock. The rules live in [SKILL.md](../SKILL.md). Linux commands below were executed read-only on CachyOS with KDE Plasma 6 on Wayland and an NVIDIA RTX 2080, macOS and Windows commands are UNVERIFIED.
 
 ---
 
@@ -9,7 +9,7 @@ GPU driver, displays and the refresh rate actually applied, audio devices, netwo
 | OS | Command | Wrong looks like | Status |
 |---|---|---|---|
 | Linux | `lspci -nnk \| grep -A3 -E 'VGA\|3D\|Display'` | `Kernel driver in use` missing, or a fallback driver such as `nouveau` or `simpledrm` where the baseline had the vendor driver, `fail` | verified, `nvidia` |
-| Linux, NVIDIA | `cat /proc/driver/nvidia/version` and `nvidia-smi --query-gpu=name,driver_version,pstate --format=csv` | The kernel module version differs from the user space version, which happens after an upgrade without a reboot and makes `nvidia-smi` fail, `fail` | verified, both 615.78.08 |
+| Linux, NVIDIA | `cat /proc/driver/nvidia/version` and `nvidia-smi --query-gpu=name,driver_version,pstate --format=csv` | The kernel module version differs from the user space version, which happens after an upgrade without a reboot and makes `nvidia-smi` fail, `fail` | verified, both versions matched on the test machine |
 | Linux, Arch | `pacman -Q \| grep -E '^(nvidia\|linux.*nvidia)'` | A kernel without its matching prebuilt driver package, or a DKMS package with no module built for the running kernel | verified |
 | Linux, AMD or Intel | `glxinfo -B` or `vulkaninfo --summary` where installed | Renderer `llvmpipe`, which is software rendering, `fail` | UNVERIFIED |
 | macOS | `system_profiler SPDisplaysDataType` | GPU missing from the list, Metal support missing | UNVERIFIED |
