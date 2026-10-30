@@ -1,6 +1,6 @@
 ---
 name: docker-patterns
-description: Docker and Compose standards for multi-stage builds, pinned base images, non-root runtime users, named volumes, network isolation, build-time and runtime secrets, and the Trivy, SBOM and cosign supply-chain gate. Use when you say "write a Dockerfile for this service", "set up compose for local dev", "my container cannot reach the database", "shrink this image", or "scan and sign this image before we push". Not for Kubernetes manifests and rollout strategy, use `deployment-patterns`.
+description: Docker and Compose standards for multi-stage builds, pinned base images, non-root users, network isolation, secrets, and the Trivy, SBOM and cosign supply-chain gate. Use when the user says "write a Dockerfile for this service", "set up compose for local dev", "shrink this image" or "scan and sign this image". Not for Kubernetes manifests and rollout strategy, use `deployment-patterns`.
 ---
 
 # Docker Patterns
@@ -9,8 +9,8 @@ How a container image stays small, reproducible, and safe to run: a pinned base,
 non-root user, no secret baked into a layer, and a scan plus a signature before it is trusted anywhere. Compose then
 wires those images into a local stack that behaves like the real one.
 
-Baseline: Docker Engine 29.3 and Docker Compose v5.1 (both verified locally). The Compose v1 `docker-compose`
-command is gone, every command below is `docker compose`.
+Written for Docker Engine 29 and Docker Compose v5. The Compose v1 `docker-compose` command is gone, every command
+below is `docker compose`.
 
 ---
 
@@ -84,13 +84,13 @@ Full reference Dockerfiles for Node, Go, and Python, plus the apt-get, OCI label
 
 ### Pin the base image
 
-`:latest` makes a build unreproducible and silently changes the runtime under you. Pin a specific tag, and pin a
-digest where the registry supports it.
+`:latest` makes a build unreproducible and silently changes the runtime under you. Pin a tag that names the runtime
+version and the OS variant, and pin a digest where the registry supports it.
 
 Pass:
 
 ```dockerfile
-FROM node:24.11-alpine3.23
+FROM node:26-alpine
 ```
 
 Fail:
@@ -104,8 +104,8 @@ Pick the smallest base that can actually run the artefact:
 | Workload | Preferred base |
 |---|---|
 | Compiled binaries (Go, Rust) | `gcr.io/distroless/static-debian13:nonroot` or `scratch` |
-| JVM (Spring Boot) | `gcr.io/distroless/java21-debian13:nonroot` |
-| Node.js | `node:24.11-alpine3.23` |
+| JVM (Spring Boot) | `gcr.io/distroless/java25-debian13:nonroot` |
+| Node.js | `node:26-alpine` |
 | Python | `python:3.14-slim` |
 
 Distroless publishes no version tags, only `latest`, `nonroot` and their `debug` variants, so its pin is the Debian
@@ -261,22 +261,26 @@ Generate a Software Bill of Materials after push:
 syft myimage:tag -o cyclonedx-json > sbom.json
 ```
 
-Attach it to the pushed image as a signed attestation, so the SBOM travels with the image in the registry:
+Sign, attest, and verify the image by the digest the push reported, never by tag. A tag can move between the push and
+the signature, so signing by tag can sign a different image, and cosign warns when it is given one. The pipeline
+form, which reads the digest from the build step, is in `deployment-patterns`.
+
+Attach the SBOM to the pushed image as a signed attestation, so it travels with the image in the registry:
 
 ```bash
-cosign attest --key cosign.key --type cyclonedx --predicate sbom.json myregistry/myimage:tag
+cosign attest --key cosign.key --type cyclonedx --predicate sbom.json myregistry/myimage@sha256:<digest>
 ```
 
 Sign every production image after push:
 
 ```bash
-cosign sign --key cosign.key myregistry/myimage:tag
+cosign sign --key cosign.key myregistry/myimage@sha256:<digest>
 ```
 
 Verify before deploy, in the pipeline, not by hand:
 
 ```bash
-cosign verify --key cosign.pub myregistry/myimage:tag
+cosign verify --key cosign.pub myregistry/myimage@sha256:<digest>
 ```
 
 A signature nothing verifies proves nothing. The verify step belongs in the deploy job, gating it, and a cluster
@@ -334,5 +338,5 @@ docker system prune -a
 - [ ] Internal services on their own network, published ports bound to loopback or omitted.
 - [ ] `cap_drop: [ALL]`, `no-new-privileges`, and a read-only root filesystem where the process allows it.
 - [ ] Trivy scan gates the push, the report is archived, and an SBOM is generated and attested to the image.
-- [ ] Production images are signed and the signature is verified by the deploy job.
+- [ ] Production images are signed by digest and the signature is verified by the deploy job.
 - [ ] Registry retention enforced by a lifecycle policy.

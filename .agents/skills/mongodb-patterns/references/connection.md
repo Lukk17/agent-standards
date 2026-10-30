@@ -6,6 +6,27 @@ environment and requirements, avoiding the common pitfall of blindly applying ar
 
 ---
 
+### Contents
+
+- [Core Principle: Context Before Configuration](#core-principle-context-before-configuration)
+- [Understanding How Connection Pools Work](#understanding-how-connection-pools-work)
+- [Configuration Design](#configuration-design)
+  - [Calculating Initial Pool Size](#calculating-initial-pool-size)
+  - [Configuration Scenarios](#configuration-scenarios)
+- [Troubleshooting Connection Issues](#troubleshooting-connection-issues)
+  - [Guidelines](#guidelines)
+  - [Pool Exhaustion](#pool-exhaustion)
+  - [Connection Timeouts (ECONNREFUSED, SocketTimeout)](#connection-timeouts-econnrefused-sockettimeout)
+  - [Connection Churn](#connection-churn)
+  - [High Latency](#high-latency)
+- [Environmental Context (MANDATORY)](#environmental-context-mandatory)
+  - [Parameters that inform a pool configuration](#parameters-that-inform-a-pool-configuration)
+- [Advising on Monitoring & Iteration](#advising-on-monitoring--iteration)
+- [When creating code](#when-creating-code)
+- [Where to go next](#where-to-go-next)
+
+---
+
 ### Core Principle: Context Before Configuration
 
 NEVER add connection pool parameters or timeout settings without first understanding the application's context.

@@ -5,6 +5,13 @@ impactDescription: "Reduces active collection size, improves query performance, 
 tags: schema, patterns, archive, data-lifecycle, merge, ttl, online-archive
 ---
 
+### Contents
+
+- [Use Archive Pattern for Historical Data](#use-archive-pattern-for-historical-data)
+- [Verify with](#verify-with)
+
+---
+
 ### Use Archive Pattern for Historical Data
 
 Storing old data alongside recent data degrades performance. As collections grow with historical data that's rarely

@@ -1,6 +1,6 @@
 ---
 name: deployment-patterns
-description: Deployment and CI/CD standards covering rolling, blue-green and canary rollouts, an approval gate before production, GitHub Actions with OIDC and least-privilege permissions, health probes, config validation, rollback, and Kubernetes defaults. Use when you say "set up a CI/CD pipeline", "add a canary rollout", "why did merging to main deploy to prod", "add readiness and liveness probes", or "how do we roll this back". Not for writing the Dockerfile itself, use `docker-patterns`.
+description: Deployment and CI/CD standards for rolling, blue-green and canary rollouts, a production approval gate, GitHub Actions with OIDC and least privilege, health probes, config validation, rollback and Kubernetes defaults. Use when the user says "set up a CI/CD pipeline", "add a canary rollout" or "how do we roll this back". Not for writing the Dockerfile itself, use `docker-patterns`.
 ---
 
 # Deployment Patterns
@@ -9,8 +9,8 @@ How a change reaches production without a surprise: a rollout strategy chosen on
 front of production, config validated before the process serves traffic, and a rollback that has been rehearsed. The
 pipeline is the control, not the documentation around it.
 
-Baseline: GitHub Actions on `ubuntu-latest`, Kubernetes 1.34, and Helm 4 (both verified locally). Every GitHub
-Action referenced here is pinned to its current major.
+Written for GitHub Actions on `ubuntu-latest`, Kubernetes 1.37 and Helm 4. Every GitHub Action here is referenced by
+its major version tag, or by its full version tag where it publishes no major tag or is still on 0.x.
 
 ---
 
@@ -19,6 +19,7 @@ Action referenced here is pinned to its current major.
 - Setting up or reviewing a CI/CD pipeline.
 - Choosing a rollout strategy, or adding a canary or blue-green path.
 - Adding health checks, probes, or a readiness gate to a deployment.
+- Finding out why a merge to `main` deployed straight to production.
 - Handling environment configuration and validating it at startup.
 - Planning or rehearsing a rollback.
 - Preparing a service for its first production release.
@@ -186,7 +187,7 @@ Pass:
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "staging", "production"]),
   PORT: z.coerce.number().default(3000),
-  DATABASE_URL: z.string().url(),
+  DATABASE_URL: z.url(),
   JWT_SECRET: z.string().min(32),
 });
 

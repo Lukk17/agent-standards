@@ -1,6 +1,6 @@
 ---
 name: postgres-patterns
-description: PostgreSQL working reference for index selection, data types, row-level security, cursor pagination, queue processing, anti-pattern detection queries, server configuration, replica routing, alert thresholds, backups, and erasure. Use when you say "which index does this query need", "why is this query slow", "write an RLS policy for this table", "should this be numeric or float", or "find our unindexed foreign keys". Not for applying a schema change safely, use `database-migrations`.
+description: PostgreSQL working reference for index selection, data types, row-level security, cursor pagination, queues, anti-pattern queries, server settings, backups and erasure. Use when the user says "which index does this query need", "why is this query slow", "write an RLS policy for this table" or "find our unindexed foreign keys". Not for applying a schema change safely, use `database-migrations`.
 ---
 
 # PostgreSQL Patterns
@@ -9,8 +9,8 @@ A working reference for PostgreSQL decisions that come up while writing queries 
 type, which lock, and which query will tell you what the database is actually doing. For a full review of an existing
 data layer, hand the work to the `database-expert` subagent.
 
-Baseline version, current as of September 2026: PostgreSQL 18. PostgreSQL 14 is the oldest release still supported,
-until November 12, 2026, so treat anything older as a version to upgrade rather than a version to target.
+Written for PostgreSQL 18. Confirm the server version with `SELECT version();` before relying on a feature, and treat a
+release that has left community support as a version to upgrade rather than a version to target.
 
 Based on Supabase Agent Skills (credit: Supabase team), MIT License.
 
@@ -19,7 +19,7 @@ Based on Supabase Agent Skills (credit: Supabase team), MIT License.
 ### When to activate
 
 - Choosing an index for a query, or deciding whether one is even needed.
-- Picking a column type for identifiers, money, timestamps, or flags.
+- Picking a column type for identifiers, money, timestamps, or flags, such as numeric against float.
 - Writing or reviewing a row-level security policy.
 - Diagnosing a slow query, table bloat, or a missing foreign-key index.
 - Setting connection limits, statement timeouts, or monitoring thresholds.
@@ -138,16 +138,18 @@ RETURNING *;
 
 ### Detect the common anti-patterns with a query
 
-Unindexed foreign keys, which make every parent delete scan the child table:
+Unindexed foreign keys, which make every parent delete scan the child table. A foreign key counts as covered only when
+its columns are the leading columns of a non-partial index, which is what the slice of `indkey` checks:
 
 ```sql
-SELECT conrelid::regclass, a.attname
+SELECT c.conrelid::regclass AS table_name, c.conname AS foreign_key
 FROM pg_constraint c
-JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey)
 WHERE c.contype = 'f'
   AND NOT EXISTS (
     SELECT 1 FROM pg_index i
-    WHERE i.indrelid = c.conrelid AND a.attnum = ANY(i.indkey)
+    WHERE i.indrelid = c.conrelid
+      AND i.indpred IS NULL
+      AND (i.indkey::int2[])[0:cardinality(c.conkey) - 1] @> c.conkey
   );
 ```
 
@@ -173,18 +175,40 @@ ORDER BY n_dead_tup DESC;
 
 ### Set the timeouts before you need them
 
+Settings a reload applies, cluster-wide:
+
 ```sql
-ALTER SYSTEM SET max_connections = 100;
 ALTER SYSTEM SET work_mem = '8MB';
 ALTER SYSTEM SET idle_in_transaction_session_timeout = '30s';
-ALTER SYSTEM SET statement_timeout = '30s';
-CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
-REVOKE ALL ON SCHEMA public FROM public;
 SELECT pg_reload_conf();
 ```
 
+Set `statement_timeout` on the application role, never cluster-wide. A global value also kills migrations,
+`CREATE INDEX CONCURRENTLY`, `pg_dump` and maintenance jobs, and the PostgreSQL manual calls setting it in
+`postgresql.conf` not recommended because it affects all sessions.
+
+```sql
+ALTER ROLE app_user SET statement_timeout = '30s';
+```
+
+`max_connections` and `shared_preload_libraries` take effect only at server start, so `pg_reload_conf()` leaves them
+unchanged. `pg_stat_statements` needs its library preloaded before `CREATE EXTENSION` does anything useful, and
+`ALTER SYSTEM SET shared_preload_libraries` replaces the whole list, so include any library already in it.
+
+```sql
+ALTER SYSTEM SET max_connections = 100;
+ALTER SYSTEM SET shared_preload_libraries = 'pg_stat_statements';
+```
+
+Restart the server, then:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+```
+
 `work_mem` is per sort node, not per connection, so a single complex query can use several multiples of it. Size
-`max_connections` for the machine and put a pooler in front rather than raising it.
+`max_connections` for the machine and put a pooler in front rather than raising it. Revoke the default rights on the
+`public` schema as well, with `REVOKE ALL ON SCHEMA public FROM public;`.
 
 ---
 
@@ -226,8 +250,8 @@ EXPLAIN ANALYZE UPDATE orders SET status = 'active' WHERE created_at > '2024-01-
 ROLLBACK;
 ```
 
-This is the same gate `database-migrations` states for schema changes, deliberately worded identically so a change that
-crosses both skills is reviewed once against one rule.
+This is the one statement of the gate. `database-migrations` applies it to data migrations and points here rather than
+restating it.
 
 ---
 
@@ -245,7 +269,8 @@ A backup nobody has restored is a hypothesis.
 
 ### Erase personal data within the legal window
 
-GDPR right to erasure runs to 30 days. Two workable shapes:
+GDPR requires an answer to an erasure request without undue delay and within one month of receipt, extendable by two
+further months for complex or numerous requests (Article 12(3)). Two workable shapes:
 
 1. Soft delete then purge: set `deleted_at`, exclude the row everywhere, delete it for real after the window.
 2. Pseudonymize in place: overwrite the identifying columns with a non-reversible value, keeping the row for referential
@@ -274,8 +299,8 @@ audit trail destroys the evidence that the erasure was lawful.
 - [ ] Identifiers, money, and timestamps use the correct type, never `float` for money.
 - [ ] Row-level security policies wrap the auth call in a subquery and filter on an indexed column.
 - [ ] Pagination is cursor-based on anything unbounded.
-- [ ] `statement_timeout` and `idle_in_transaction_session_timeout` are set.
-- [ ] `pg_stat_statements` is enabled and someone reads it.
+- [ ] `statement_timeout` is set on the application role and `idle_in_transaction_session_timeout` cluster-wide.
+- [ ] `pg_stat_statements` is preloaded, the extension created, and someone reads it.
 - [ ] `EXPLAIN ANALYZE` output is attached when either trigger above applies.
 - [ ] Backups are encrypted, off-account, and restored on a schedule.
 - [ ] Erasure requests have a documented path that respects audit retention.

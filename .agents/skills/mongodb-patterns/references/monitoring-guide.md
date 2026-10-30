@@ -6,6 +6,17 @@ connection-related issues.
 
 ---
 
+### Contents
+
+- [Driver Events](#driver-events)
+  - [Driver-Level Metrics to Watch](#driver-level-metrics-to-watch)
+- [Server-Level Metrics to Watch](#server-level-metrics-to-watch)
+  - [`connections.current`](#connectionscurrent)
+  - [`connections.available`](#connectionsavailable)
+  - [`connections.totalCreated`](#connectionstotalcreated)
+
+---
+
 ### Driver Events
 All MongoDB drivers implement the
 [Connection Monitoring and Pooling specification](https://github.com/mongodb/specifications/blob/master/source/connection-monitoring-and-pooling/connection-monitoring-and-pooling.md),

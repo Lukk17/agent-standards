@@ -7,8 +7,7 @@ hybrid-search.md.
 
 ---
 
-### Table of Contents
-
+### Contents
 - [Vector Search Index Definition](#vector-search-index-definition)
 - [Index Configuration Parameters](#index-configuration-parameters)
 - [Filter Fields (Pre-filtering)](#filter-fields-pre-filtering)

@@ -1,6 +1,6 @@
 ---
 name: database-migrations
-description: Safe, reversible schema and data migrations for production databases, covering lock-free column and index changes, expand-contract renames, batched backfills, explicit constraint names, rollback strategy, and the review gates a migration must pass. Use when you say "add a column to this table", "create this index without downtime", "rename a column safely", "backfill ten million rows", or "how do we roll this migration back". Not for index choice and query tuning, use `postgres-patterns`.
+description: Safe, reversible schema and data migrations for production databases, covering lock-free column, index and constraint changes, expand-contract renames, batched backfills and rollback. Use when the user says "add a column to this table", "create this index without downtime", "rename a column safely" or "backfill ten million rows". Not for index choice and query tuning, use `postgres-patterns`.
 ---
 
 # Database Migrations
@@ -9,8 +9,8 @@ Rules for changing a schema that is already carrying production traffic, where t
 rather than a compile error. The tool-specific commands live in the references. This file is the safety model every
 tool has to satisfy.
 
-Baseline versions, current as of September 2026: PostgreSQL 18, MySQL 8.4 LTS, and the migration tools named in the
-reference map below.
+Written for PostgreSQL 18, MySQL 8.4 LTS or a later LTS line, and the migration tools named in the reference map
+below.
 
 ---
 
@@ -21,6 +21,7 @@ reference map below.
 - Planning a schema change that must survive a rolling deploy.
 - Choosing or configuring migration tooling on a new project.
 - Reviewing a migration before it reaches a production database.
+- Writing the rollback path for a migration.
 
 ---
 
@@ -140,20 +141,47 @@ END $$;
 
 Make the batch resumable by selecting on the condition the update clears, so a killed backfill can simply be restarted.
 
+The `COMMIT` inside `DO` works only when the block runs in its own transaction. Most migration tools wrap each file in
+one, and there the `COMMIT` raises `invalid transaction termination`. Run the file with the tool's no-transaction
+opt-out, the same one `CONCURRENTLY` needs, or drive the batches from application code with one transaction each.
+
 ---
 
 ### Name every constraint explicitly
 
-An auto-generated name differs between environments and cannot be dropped reliably in a later migration.
+An auto-generated name differs between environments and cannot be dropped reliably in a later migration. On an
+existing table, add each constraint in the form that does not lock writes for the length of a full scan.
 
 ```sql
+-- FAIL: ACCESS EXCLUSIVE on orders for the whole scan and index build, plus a lock on customers
 ALTER TABLE orders
   ADD CONSTRAINT ck_orders_amount_positive CHECK (amount > 0),
   ADD CONSTRAINT uq_orders_reference UNIQUE (reference_number),
-  ADD CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(id);
-
-CREATE INDEX idx_orders_status ON orders (status) WHERE status != 'completed';
+  ADD CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers (id);
 ```
+
+```sql
+-- PASS, first migration: add the constraints without scanning the existing rows
+ALTER TABLE orders ADD CONSTRAINT ck_orders_amount_positive CHECK (amount > 0) NOT VALID;
+ALTER TABLE orders ADD CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers (id) NOT VALID;
+```
+
+```sql
+-- PASS, next migration: validate under a lock that lets writes continue
+ALTER TABLE orders VALIDATE CONSTRAINT ck_orders_amount_positive;
+ALTER TABLE orders VALIDATE CONSTRAINT fk_orders_customer;
+```
+
+```sql
+-- PASS: build the unique index concurrently, then attach it as the constraint, which is a fast catalogue change
+CREATE UNIQUE INDEX CONCURRENTLY uq_orders_reference ON orders (reference_number);
+ALTER TABLE orders ADD CONSTRAINT uq_orders_reference UNIQUE USING INDEX uq_orders_reference;
+CREATE INDEX CONCURRENTLY idx_orders_status ON orders (status) WHERE status <> 'completed';
+```
+
+`VALIDATE CONSTRAINT` takes only a `SHARE UPDATE EXCLUSIVE` lock, which is why it sits in a later migration than the
+`ADD`: in one wrapped file the transaction would keep the stronger `ADD` lock for the whole scan. The `CONCURRENTLY`
+file needs the tool's no-transaction opt-out, as in the index section above.
 
 Prefixes: `ck_` check, `uq_` unique, `fk_` foreign key, `idx_` index.
 
@@ -200,25 +228,11 @@ million rows.
 
 ---
 
-### Run EXPLAIN ANALYZE before the change lands
+### Attach EXPLAIN ANALYZE output
 
-Two triggers, either one of which requires the plan in the change description:
-
-- Any migration that touches data in an existing table, meaning `UPDATE`, `DELETE`, `INSERT ... SELECT`, or a
-  concurrent index build.
-- Any query expected to touch more than 10,000 rows.
-
-`EXPLAIN ANALYZE` executes the statement it plans, so on an `UPDATE`, `DELETE` or `INSERT` it changes the data. Run
-it inside a transaction and roll back:
-
-```sql
-BEGIN;
-EXPLAIN ANALYZE UPDATE orders SET status = 'active' WHERE created_at > '2024-01-01';
-ROLLBACK;
-```
-
-This is the same gate `postgres-patterns` states for query changes, deliberately worded identically so a change that
-crosses both skills is reviewed once against one rule.
+A migration that touches data in an existing table, meaning `UPDATE`, `DELETE`, `INSERT ... SELECT`, or a concurrent
+index build, carries its plan in the change description. The gate, its two triggers, and how to run it without
+changing data are stated once in `postgres-patterns`, under "Run EXPLAIN ANALYZE before the change lands".
 
 ---
 
@@ -229,6 +243,7 @@ crosses both skills is reviewed once against one rule.
 | Manual SQL in production | No audit trail, unrepeatable | Always a migration file |
 | Editing a deployed migration | Environments drift silently | Write a new migration |
 | NOT NULL with no default | Exclusive lock, full rewrite | Nullable, backfill, then validate |
+| Constraint added with a scan on a large table | Writes blocked for the whole scan | `NOT VALID`, then `VALIDATE CONSTRAINT` |
 | Inline index on a large table | Blocks writes during the build | `CREATE INDEX CONCURRENTLY` |
 | Schema and data in one file | Long transaction, hard to roll back | Separate migrations |
 | Dropping a column before removing the code | The running release errors | Remove references, deploy, then drop |
@@ -238,7 +253,7 @@ crosses both skills is reviewed once against one rule.
 
 ### Related skills
 
-- `postgres-patterns` for index choice, query plans, and the matching EXPLAIN ANALYZE gate.
+- `postgres-patterns` for index choice, query plans, and the EXPLAIN ANALYZE gate this skill applies.
 - `springboot-patterns` for the JPA entity mapping that has to move with the schema.
 - `mongodb-patterns` for the document-model equivalent of these changes.
 - `deployment-patterns` for sequencing a migration inside a rolling deploy.
@@ -256,5 +271,5 @@ crosses both skills is reviewed once against one rule.
 - [ ] Backfills are batched, committed per batch, and resumable.
 - [ ] Every constraint and index has an explicit, prefixed name.
 - [ ] The migration was run against a copy of production-sized data.
-- [ ] `EXPLAIN ANALYZE` output is attached when either trigger above applies.
+- [ ] `EXPLAIN ANALYZE` output is attached when the `postgres-patterns` gate applies.
 - [ ] The rollback path is written down, not assumed.

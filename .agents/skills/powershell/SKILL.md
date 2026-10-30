@@ -1,6 +1,6 @@
 ---
 name: powershell
-description: PowerShell 7 scripting standards covering strict error handling, advanced functions and parameter validation, module layout, comment-based help, secret handling, PSScriptAnalyzer, Pester v5, and cross-platform rules. Use when you say "write a PowerShell script for this", "my script ignores when git fails", "turn this into a proper cmdlet", "add Pester tests for this module", or "make PSScriptAnalyzer clean". Not for POSIX shell scripting, use `bash`.
+description: PowerShell 7 scripting standards for strict error handling, advanced functions, parameter validation, module layout, secret handling, PSScriptAnalyzer and Pester 6. Use when the user says "write a PowerShell script for this", "my script ignores when git fails", "turn this into a proper cmdlet" or "add Pester tests for this module". Not for POSIX shell scripting, use `bash`.
 ---
 
 # PowerShell Standards
@@ -8,8 +8,7 @@ description: PowerShell 7 scripting standards covering strict error handling, ad
 How a PowerShell script fails loudly, validates its inputs at the boundary, and stays testable. The defaults are the
 problem: PowerShell continues after most errors and ignores a native command's exit code unless told otherwise.
 
-Baseline: PowerShell 7.6 (verified locally), Pester v5, and PSScriptAnalyzer current stable. Target PowerShell 7.4
-LTS or newer and declare it with `#Requires -Version 7.4`.
+Written for PowerShell 7.6 LTS, Pester 6 and PSScriptAnalyzer. Declare the floor with `#Requires -Version 7.6`.
 
 ---
 
@@ -19,7 +18,7 @@ LTS or newer and declare it with `#Requires -Version 7.4`.
 - Turning a loose script into an advanced function or a module.
 - Fixing a script that keeps running after a cmdlet or a native command failed.
 - Adding parameter validation, `-WhatIf` support, or comment-based help.
-- Writing Pester v5 tests or clearing PSScriptAnalyzer findings.
+- Writing Pester tests or clearing PSScriptAnalyzer findings.
 - Making a Windows-only script run on Linux or macOS.
 
 ---
@@ -128,33 +127,13 @@ FunctionsToExport = '*'
 
 ### Comment-Based Help
 
-Default to none. A comment-based help block is usually a sign that the code failed to explain itself. Before writing
-one, extract the unclear block into a well-named function, rename the parameters so they carry their own meaning, and
-tighten the types. Do that first and most help blocks have nothing left to say, which is the outcome you want. Code
-that explains itself cannot go stale, a comment can.
-
-One exception to the default, and only one. Comment-based help on a function exported from a module is machine
-consumed: `Get-Help` renders it, so an exported function carries `.SYNOPSIS`, one `.PARAMETER` per parameter, and one
-`.EXAMPLE`, even where the names already say it, because a missing entry reads as a bug in the module. One
-`.EXAMPLE` showing the common invocation is enough, a second needs a reason and a third is padding. Everything not
-exported, meaning private helpers and script-local functions, follows the default of none. Inside the block the
-`.SYNOPSIS` and `.DESCRIPTION` prose is capped at five lines and is usually one, every other entry is capped at one
-line, and the four rules below still decide what it says.
-
-1. Prose. One sentence saying what it does, then only what a caller cannot infer from the signature. Nothing more.
-2. `.PARAMETER` on an exported function is required by the help system, so make it earn the line anyway: units,
-   nullability, a valid range, or who owns the argument afterwards. `The vault name` under `-VaultName` is noise even
-   when the help system demands the entry exists.
-3. `.OUTPUTS` only when the emitted type is non-obvious, which on a pipeline-producing function it usually is.
-4. Document every terminating error a caller can catch, always, under `.NOTES` or in the synopsis line that names
-   the failure. PowerShell puts nothing about throwing in the signature, so this one is genuinely contract.
-
-Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
-example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you
-justify in review, not a budget to spend. The one-line cap on an entry line has no exception at all: shorten it or
-delete it.
-
-Pass, an exported function, one line per entry, nothing restated twice:
+Comment-based help follows "Doc Comments" in `coding-standards`, so private helpers and script-local functions carry
+none. The PowerShell delta is one carve-out: help on a function exported from a module is machine consumed, because
+`Get-Help` renders it, so an exported function always carries `.SYNOPSIS`, one `.PARAMETER` per parameter and one
+`.EXAMPLE` for the common invocation, even where the names already say it. Each `.PARAMETER` still has to earn its
+line with units, a valid range, or who owns the argument afterwards. Add `.OUTPUTS` when the emitted type is
+non-obvious, and name every terminating error a caller can catch under `.NOTES`, since nothing in the signature
+declares it.
 
 ```powershell
 function Get-BackupSet {
@@ -171,26 +150,13 @@ function Get-BackupSet {
 }
 ```
 
-Fail, an internal helper carrying help that nothing will ever render:
-
-```powershell
-function Get-BackupSetInternal {
-    <#
-    .SYNOPSIS
-        Gets the backup set internal.
-    .PARAMETER VaultName
-        The vault name.
-    #>
-}
-```
-
 ---
 
 ### Logging through the right stream
 
 `Write-Verbose` for diagnostics, `Write-Warning` for a recoverable issue, `Write-Error` for a non-terminating error,
-`throw` for a terminating one. `Write-Host` bypasses the pipeline and cannot be captured, so it never appears in
-library or module code.
+`throw` for a terminating one. `Write-Host` writes to the information stream for display, not to the output pipeline,
+so a caller cannot consume what it prints as data. It never appears in library or module code.
 
 Pass:
 
@@ -226,7 +192,7 @@ Fail:
 
 ---
 
-### PSScriptAnalyzer and Pester v5
+### PSScriptAnalyzer and Pester 6
 
 Run PSScriptAnalyzer in CI with the PSGallery ruleset and a zero-finding policy. Suppress a rule only with
 `[Diagnostics.CodeAnalysis.SuppressMessageAttribute]` plus a justification.
@@ -244,7 +210,10 @@ Invoke-ScriptAnalyzer -Path ./src -ExcludeRule PSAvoidUsingPlainTextForPassword
 ```
 
 Structure tests with `Describe` / `Context` / `It`, mock dependencies with `Mock` and verify with `Should -Invoke`,
-and use `BeforeAll` / `AfterAll` for shared setup rather than repeating expensive work in `BeforeEach`.
+and use `BeforeAll` / `AfterAll` for shared setup rather than repeating expensive work in `BeforeEach`. Pester 6
+allows one of each setup and teardown block per `Describe` or `Context` and throws on a duplicate, and it removed
+`Assert-MockCalled`, so `Should -Invoke` is the call-count check. Classic `Should -Be` keeps working, and the newer
+`Should-*` assertions are optional.
 
 ---
 
@@ -321,5 +290,5 @@ Invoke-WebRequest $Url
 - [ ] No `Write-Host` in module or library code.
 - [ ] Secrets are `[SecureString]` or `[PSCredential]`, never a command-line argument.
 - [ ] PSScriptAnalyzer passes with zero findings, every suppression justified.
-- [ ] Pester v5 tests exist and mocks are verified with `Should -Invoke`.
+- [ ] Pester 6 tests exist and mocks are verified with `Should -Invoke`.
 - [ ] Paths built with `Join-Path`, Windows-only cmdlets guarded by `$IsWindows`.

@@ -3,8 +3,21 @@
 A reference pipeline, the authentication and permission rules, and the canary automation that sits on top of it. The
 strategy and gating rules live in [SKILL.md](../SKILL.md).
 
-Every action below is pinned to its current major. Bump majors deliberately, a major bump usually changes the runner
-Node version. An action that publishes no major tag, or is still on a 0.x release, is pinned to its full version.
+Every action below is referenced by its major version tag. Bump majors deliberately, a major bump usually changes the
+runner Node version. An action that publishes no major tag, or is still on a 0.x release, is pinned to its full version.
+
+---
+
+### Contents
+
+- [Standard pipeline](#standard-pipeline)
+- [OIDC instead of static credentials](#oidc-instead-of-static-credentials)
+- [Job-level permissions](#job-level-permissions)
+- [Workflow linting](#workflow-linting)
+- [Failure notifications](#failure-notifications)
+- [Matrix builds](#matrix-builds)
+- [Pipeline SLA](#pipeline-sla)
+- [Canary rollout automation](#canary-rollout-automation)
 
 ---
 

@@ -5,6 +5,13 @@ impactDescription: "Reduces write overhead and WiredTiger cache pressure from un
 tags: schema, antipattern, indexes, performance, atlas-suggestion
 ---
 
+### Contents
+
+- [Avoid Unnecessary Indexes](#avoid-unnecessary-indexes)
+- [Verify with](#verify-with)
+
+---
+
 ### Avoid Unnecessary Indexes
 
 Every index has a write cost. On insert, update, and delete, MongoDB must update ALL indexes on the collection. Unused

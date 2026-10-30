@@ -5,6 +5,17 @@ A reference local development stack, the override-file pattern, network isolatio
 
 ---
 
+### Contents
+
+- [A standard web application stack](#a-standard-web-application-stack)
+- [Override files](#override-files)
+- [Networking](#networking)
+- [Volume strategies](#volume-strategies)
+- [Debugging](#debugging)
+- [Debugging a network problem](#debugging-a-network-problem)
+
+---
+
 ### A standard web application stack
 
 ```yaml

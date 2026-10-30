@@ -1,6 +1,6 @@
 ---
 name: mongodb-patterns
-description: "MongoDB across connection pooling, query optimisation and indexing, schema design and anti-patterns, and Atlas Search, Vector Search and Hybrid Search. Use when you say \"configure the connection pool\", \"why do I get ECONNREFUSED or pool exhaustion\", \"how do I optimize this query\", \"how do I index this\", \"what are the slow queries on my cluster\", \"design this schema\", \"embed vs reference\", \"unbounded arrays\", \"16MB limit\", \"schema validation\", \"time series\", \"polymorphic\", \"document versioning\", \"add autocomplete or fuzzy matching\", \"build RAG over this collection\", or \"combine keyword and semantic search\". Not for applying a schema change safely to a live cluster, use `database-migrations`."
+description: "MongoDB connection pooling, query and index tuning, schema design and anti-patterns, and Atlas Search, Vector Search and Hybrid Search. Use when the user says \"configure the connection pool\", \"how do I index this\", \"design this schema\", \"embed vs reference\" or \"combine keyword and semantic search\". Not for applying a schema change safely to a live cluster, use `database-migrations`."
 license: Apache-2.0
 compatibility: >-
   Best with MongoDB MCP server. Uses collection-indexes, collection-schema and explain when the connection string
@@ -22,7 +22,7 @@ Four facts change what the right answer is, so establish them before advising an
 
 - The deployment shape. Serverless functions, a long-running server, and an analytical job need different pools.
 - The topology. Pools are per client and per server, so a replica set or a sharded cluster multiplies the total.
-- The server version. MongoDB 8.0 adds `defaultMaxTimeMS` on Atlas, `$rankFusion` needs 8.0 and `$scoreFusion` 8.2.
+- The server version. MongoDB 8.0 adds `defaultMaxTimeMS` on Atlas, `$rankFusion` needs 8.0 and `$scoreFusion` 8.3.
 - The workload. Read and write access patterns decide the document model, the indexes, and the pool size alike.
 
 ---
@@ -34,6 +34,7 @@ Four facts change what the right answer is, so establish them before advising an
 - Asking why a query is slow, which index it needs, or what the slow queries on a cluster are.
 - Designing a new schema, reviewing an existing one, or migrating a relational model into documents.
 - Hitting the 16MB document limit, an unbounded array, or an Atlas Schema Suggestion.
+- Adding schema validation, or modelling time series, polymorphic, or versioned documents.
 - Building full-text search, autocomplete, fuzzy matching, faceted filtering, or semantic and hybrid search.
 - Adding embeddings and retrieval for a RAG application on top of a collection.
 
@@ -120,14 +121,56 @@ shutdown. Account for the monitoring connections when planning capacity: the tot
 
 ### Which reference to open for which task
 
-Each entry below lists the deeper files for its own area, so open the entry first and let it route you further.
+Every reference is listed here, so open the file for the task directly rather than routing through another reference.
+
+Connections:
 
 | Task | Reference |
 | --- | --- |
-| Pool sizing, timeouts, serverless reuse, connection errors, churn, pool monitoring | [references/connection.md](references/connection.md) |
-| Slow queries, `explain` output, index choice, aggregation tuning, Performance Advisor | [references/query-optimizer.md](references/query-optimizer.md) |
-| Embed versus reference, document model, validation, the 16MB limit, design patterns | [references/schema-design.md](references/schema-design.md) |
-| Atlas Search, autocomplete and fuzzy matching, Vector Search, RAG, hybrid search | [references/search-and-ai.md](references/search-and-ai.md) |
+| Pool sizing, timeouts, serverless reuse, connection errors, churn | [references/connection.md](references/connection.md) |
+| Driver events, pool metrics, and the server connection counters to alert on | [references/monitoring-guide.md](references/monitoring-guide.md) |
+
+Queries and indexes:
+
+| Task | Reference |
+| --- | --- |
+| Slow queries, `explain` output, Performance Advisor, the diagnosis order | [references/query-optimizer.md](references/query-optimizer.md) |
+| Compound index order, sort direction, collation, covered queries | [references/core-indexing-principles.md](references/core-indexing-principles.md) |
+| Index anti-patterns with the bad and the good form side by side | [references/antipattern-examples.md](references/antipattern-examples.md) |
+| Aggregation pipeline stage order, memory limits, disk spilling | [references/aggregation-optimization.md](references/aggregation-optimization.md) |
+| Oplog-efficient updates and common update anti-patterns | [references/update-query-examples.md](references/update-query-examples.md) |
+
+Schema design, starting from the principles in [references/schema-design.md](references/schema-design.md):
+
+| Task | Reference |
+| --- | --- |
+| Embedding against referencing, relationship shapes, trees | [references/fundamental-embed-vs-reference.md](references/fundamental-embed-vs-reference.md) |
+| Moving a relational model into documents | [references/fundamental-document-model.md](references/fundamental-document-model.md) |
+| The 16MB limit and oversized documents | [references/fundamental-document-size.md](references/fundamental-document-size.md) |
+| Schema validation on new or existing collections | [references/fundamental-schema-validation.md](references/fundamental-schema-validation.md) |
+| Homogeneous data split across many collections | [references/antipattern-unnecessary-collections.md](references/antipattern-unnecessary-collections.md) |
+| Over-normalised collections and frequent `$lookup` | [references/antipattern-excessive-lookups.md](references/antipattern-excessive-lookups.md) |
+| Overlapping or unused indexes, and the hide, monitor, drop process | [references/antipattern-unnecessary-indexes.md](references/antipattern-unnecessary-indexes.md) |
+| High-frequency counters that can be approximate | [references/pattern-approximation.md](references/pattern-approximation.md) |
+| Moving historical data to cold storage | [references/pattern-archive.md](references/pattern-archive.md) |
+| Many optional fields collapsed into key-value attributes | [references/pattern-attribute.md](references/pattern-attribute.md) |
+| Grouping time-series or IoT data into buckets | [references/pattern-bucket.md](references/pattern-bucket.md) |
+| Pre-computing expensive aggregations | [references/pattern-computed.md](references/pattern-computed.md) |
+| Historical document state for audit and rollback | [references/pattern-document-versioning.md](references/pattern-document-versioning.md) |
+| Caching fields from a referenced entity | [references/pattern-extended-reference.md](references/pattern-extended-reference.md) |
+| A few documents far larger than the rest | [references/pattern-outlier.md](references/pattern-outlier.md) |
+| Different entity types in one collection | [references/pattern-polymorphic.md](references/pattern-polymorphic.md) |
+| Schema evolution, drift, and online migrations | [references/pattern-schema-versioning.md](references/pattern-schema-versioning.md) |
+| Native time series collections | [references/pattern-time-series-collections.md](references/pattern-time-series-collections.md) |
+
+Search, starting from the decision rules in [references/search-and-ai.md](references/search-and-ai.md):
+
+| Task | Reference |
+| --- | --- |
+| Atlas Search index definitions, analyzers, autocomplete and fuzzy fields | [references/lexical-search-indexing.md](references/lexical-search-indexing.md) |
+| Atlas Search query operators, compound queries, pagination, facets | [references/lexical-search-querying.md](references/lexical-search-querying.md) |
+| Vector Search indexes, pre-filtering, and `$vectorSearch` queries for RAG | [references/vector-search.md](references/vector-search.md) |
+| `$rankFusion`, `$scoreFusion`, and lexical prefilters for hybrid search | [references/hybrid-search.md](references/hybrid-search.md) |
 
 ---
 

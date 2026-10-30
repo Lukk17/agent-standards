@@ -5,6 +5,13 @@ impactDescription: "Keeps related entities in one collection while preserving ty
 tags: schema, patterns, polymorphic, discriminator, flexible-schema, indexing, single-collection
 ---
 
+### Contents
+
+- [Use Polymorphic Pattern for Heterogeneous Documents](#use-polymorphic-pattern-for-heterogeneous-documents)
+- [Verify with](#verify-with)
+
+---
+
 ### Use Polymorphic Pattern for Heterogeneous Documents
 
 Store related but different document shapes in one collection with a type discriminator. This keeps shared queries and

@@ -4,6 +4,15 @@ Read this when running migrations with Kysely and kysely-ctl on a TypeScript or 
 
 ---
 
+### Contents
+
+- [Workflow](#workflow)
+- [Migration file](#migration-file)
+- [Programmatic migrator](#programmatic-migrator)
+- [Related skills](#related-skills)
+
+---
+
 ### Workflow
 
 Create the configuration file:

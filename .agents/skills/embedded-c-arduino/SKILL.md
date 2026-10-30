@@ -1,6 +1,6 @@
 ---
 name: embedded-c-arduino
-description: Embedded C and Arduino standards for heap-free memory discipline, bounded loops and watchdogs, non-blocking millis state machines, ISR flag-and-return, fixed-width integer types, MISRA C 2012 style, a hardware abstraction layer, and host-side unit tests. Use when you say "replace this delay with a state machine", "write the ISR for this encoder", "my sketch runs out of SRAM", "unit test this firmware on the host", or "add a watchdog". Not for the PCB the firmware runs on, use `kicad`.
+description: Embedded C and Arduino standards for heap-free memory, bounded loops and watchdogs, non-blocking millis state machines, flag-and-return ISRs, MISRA C:2012 rules, a hardware abstraction layer and host-side unit tests. Use when the user says "replace this delay with a state machine", "write the ISR for this encoder" or "my sketch runs out of SRAM". Not for the PCB the firmware runs on, use `kicad`.
 ---
 
 # Embedded C and Arduino Standards
@@ -9,8 +9,8 @@ How firmware stays predictable on a part with a few kilobytes of RAM and no oper
 allocates, nothing blocks, and nothing that runs in an interrupt does real work. The rules read as restrictive
 because every one of them removes a failure that is untraceable once the device is in the field.
 
-Baseline: C11 with MISRA C:2012 as the rule set, Arduino AVR and ESP32 cores at current stable, and Ceedling with
-Unity and CMock for host-side tests.
+Written for C11 with MISRA C:2012 as the rule set, the Arduino AVR and ESP32 cores, and Ceedling with Unity and CMock
+for host-side tests.
 
 ---
 
@@ -22,6 +22,7 @@ Unity and CMock for host-side tests.
 - Chasing an SRAM exhaustion, a stack overflow, or a corrupted buffer.
 - Introducing a hardware abstraction layer so logic can be tested off-target.
 - Setting up Ceedling, Unity, or CMock for host-side unit tests.
+- Adding a hardware watchdog to a sketch that can hang.
 
 ---
 
@@ -78,8 +79,9 @@ Fail:
 while (!sensor_ready()) { }
 ```
 
-No `goto`, no `setjmp` or `longjmp`, and no direct or indirect recursion (MISRA C:2012 Required rules 15.2 and
-17.2). Recursion has no bounded stack cost you can compute at review time.
+No `goto` (MISRA C:2012 Rule 15.1, Advisory, adopted here as mandatory), no `setjmp` or `longjmp` (Rule 21.4,
+Required, which bans `<setjmp.h>`), and no direct or indirect recursion (Rule 17.2, Required). Recursion has no bounded
+stack cost you can compute at review time.
 
 ---
 
@@ -206,6 +208,25 @@ the main loop never sees the change. `pulse_count` is 32-bit, so an 8-bit core r
 interrupt landing between them yields a torn value: that is why the copy sits inside `noInterrupts()` /
 `interrupts()`, and why that section contains nothing but the copy.
 
+`ISR(INT0_vect)` and `noInterrupts()` are the AVR form. On a dual-core ESP32, disabling interrupts masks only the
+calling core, so the other core can still touch the shared state. Attach the handler with `attachInterrupt`, place it
+in IRAM with `IRAM_ATTR`, and guard the shared state with a `portMUX_TYPE` spinlock, taking it with
+`taskENTER_CRITICAL_ISR` inside the handler and `taskENTER_CRITICAL` in the main loop.
+
+```c
+static portMUX_TYPE pulse_mux = portMUX_INITIALIZER_UNLOCKED;
+
+void IRAM_ATTR on_pulse(void) {
+  taskENTER_CRITICAL_ISR(&pulse_mux);
+  pulse_count++;
+  pulse_pending = true;
+  taskEXIT_CRITICAL_ISR(&pulse_mux);
+}
+```
+
+The main loop makes the same copy as above between `taskENTER_CRITICAL(&pulse_mux)` and
+`taskEXIT_CRITICAL(&pulse_mux)`.
+
 ---
 
 ### Fixed-width integer types
@@ -231,49 +252,16 @@ Use `size_t` for buffer lengths and for indices into arrays.
 
 ### Doc Comments
 
-Default to none. A Doxygen block is usually a sign that the code failed to explain itself. Before writing one, extract
-the unclear block into a well-named function, rename the parameters so they carry their own meaning, and tighten the
-types. Do that first and most Doxygen blocks have nothing left to say, which is the outcome you want. Code that
-explains itself cannot go stale, a comment can.
-
-When one is still genuinely needed, the prose is capped at five lines and is usually one. Every tag line is capped at
-one line, `@brief` and `@param` and `@return` alike, and only appears when it genuinely adds something: if the note
-does not fit on a single line, shorten it or drop the tag. Four rules decide what goes in. On a constrained target the
-header is often the only contract a caller reads, which raises the bar for the prose, not the line count.
-
-1. Prose. One `@brief` line saying what it does, then only what a caller cannot infer from the signature. Nothing
-   more.
-2. `@param` only when the name and the type do not already convey it, meaning units, a valid range, whether a pointer
-   may be null, and who owns the buffer afterwards. Always mark the direction, `@param[in]` or `@param[out]`, because
-   a bare pointer type does not say it.
-3. `@return` only when it is non-obvious. Naming the status codes a caller can branch on counts as non-obvious.
-4. Document every error path always, every status code or errno a caller can act on. C has no exceptions and the
-   return type alone rarely names them, so this one is genuinely contract rather than decoration.
-
-Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
-example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you
-justify in review, not a budget to spend. The one-line cap on a tag line has no exception at all: shorten it or delete
-it.
-
-Pass, one line of brief, then only what the signature cannot say:
+Doxygen blocks follow "Doc Comments" in `coding-standards`. The C delta: write the prose as one `@brief` line, mark
+every pointer `@param[in]` or `@param[out]` because a bare pointer type does not say which, say whether it may be null
+and who owns the buffer afterwards, and name every status code or errno a caller can branch on, since C has no
+exceptions and the return type rarely names them.
 
 ```c
 /**
  * @brief Reads one temperature sample from the sensor.
  * @param[out] out_celsius Written only when the call returns SENSOR_OK.
  * @return SENSOR_TIMEOUT when the bus does not answer within 50 ms.
- */
-sensor_status_t sensor_read(sensor_handle_t *handle, float *out_celsius);
-```
-
-Fail, every tag restates the signature:
-
-```c
-/**
- * @brief Reads the sensor.
- * @param handle The handle.
- * @param out_celsius The output.
- * @return The status.
  */
 sensor_status_t sensor_read(sensor_handle_t *handle, float *out_celsius);
 ```
@@ -350,7 +338,8 @@ arduino-cli upload --fqbn arduino:avr:uno --port COM3
 - [ ] No `goto`, `setjmp`, `longjmp`, or recursion.
 - [ ] No `delay()`, timing done by a `millis()` state machine using subtraction for elapsed time.
 - [ ] Every ISR sets a `volatile` flag and returns, no printing, blocking, or allocation.
-- [ ] Multi-byte shared variables read inside the shortest possible `noInterrupts()` section.
+- [ ] Multi-byte shared variables read inside the shortest possible `noInterrupts()` section, or a spinlock critical
+  section on ESP32.
 - [ ] Every register and protocol value uses a `<stdint.h>` type.
 - [ ] MISRA C:2012 Required rules met, deviations documented.
 - [ ] All register access sits behind the HAL.

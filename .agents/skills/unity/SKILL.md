@@ -1,6 +1,6 @@
 ---
 name: unity
-description: Unity and C# standards for allocation-free per-frame code, object pooling, Addressables load and release pairing, cached component lookups, script execution order, ScriptableObject architecture, and the Unity Test Framework. Use when you say "why does my game stutter every few seconds", "pool these bullets", "load this asset with Addressables", "cache this GetComponent call", or "write an edit mode test for this". Not for engine-agnostic C# and SOLID rules, use `coding-standards`.
+description: Unity and C# standards for allocation-free per-frame code, object pooling, Addressables load and release pairing, cached component lookups, ScriptableObject architecture and the Unity Test Framework. Use when the user says "why does my game stutter every few seconds", "pool these bullets" or "load this asset with Addressables". Not for engine-agnostic C# and SOLID rules, use `coding-standards`.
 ---
 
 # Unity Game Development Standards
@@ -9,8 +9,7 @@ How a Unity project keeps a stable frame time and stays testable: nothing alloca
 is looked up by search at runtime, and configuration lives in assets rather than in code. Most Unity stutter is a
 garbage collection pause caused by a single allocating line inside `Update`.
 
-Baseline: Unity 6.3 LTS, the current supported LTS (verified locally as 6000.3). Everything below assumes the
-Addressables, Input System, and Test Framework packages from that release.
+Written for Unity 6 LTS, with the Addressables, Input System, and Test Framework packages that ship for it.
 
 ---
 
@@ -135,8 +134,9 @@ about to need and content updates stay incremental.
 
 ### Cache component lookups
 
-`GetComponent<T>()` and the `FindObjectOfType<T>()` family are searches. Run them once in `Awake` or `Start` and
-hold the reference.
+`GetComponent<T>()`, `FindFirstObjectByType<T>()` and `FindAnyObjectByType<T>()` are searches. Run them once in
+`Awake` or `Start` and hold the reference. `FindObjectOfType<T>()` is deprecated in Unity 6: use
+`FindFirstObjectByType<T>()`, or the faster `FindAnyObjectByType<T>()` when any instance will do.
 
 Pass:
 
@@ -236,46 +236,15 @@ public properties are `PascalCase`, constants and `static readonly` are `PascalC
 
 ### Doc Comments
 
-Default to none. A doc comment is usually a sign that the code failed to explain itself. Before writing one, extract
-the unclear block into a well-named method, rename the parameters so they carry their own meaning, and tighten the
-types. Do that first and most doc comments have nothing left to say, which is the outcome you want. Code that explains
-itself cannot go stale, a comment can.
-
-When one is still genuinely needed, the prose is capped at five lines and is usually one. Every tag line is capped at
-one line, `<param>` and `<returns>` and `<exception>` alike, and only appears when it genuinely adds something: if the
-note does not fit on a single line, shorten it or drop the tag. Four rules decide what goes in. Keep `<summary>` on
-one physical line, the expanded three-line form says no more and reads as filler.
-
-1. Prose. One sentence saying what it does, then only what a caller cannot infer from the signature. Nothing more.
-2. `<param>` only when the name and the type do not already convey it, meaning units, nullability, a valid range, or
-   who owns the object afterwards (whether the caller must return it to the pool is exactly that). `<param
-   name="speed">The speed.</param>` is noise, delete it.
-3. `<returns>` only when it is non-obvious.
-4. `<exception>` always, for every exception a caller can act on. C# keeps throwing out of the signature, so this one
-   is genuinely contract rather than decoration.
-
-Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
-example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you
-justify in review, not a budget to spend. The one-line cap on a tag line has no exception at all: shorten it or delete
-it.
-
-Pass, single-line summary, then only what the signature cannot say:
+XML doc comments follow "Doc Comments" in `coding-standards`. The C# delta: keep `<summary>` on one physical line,
+because the expanded three-line form says no more, write `<exception>` for every exception a caller can act on, since
+C# keeps throwing out of the signature, and use `<param>` for pool ownership, whether the caller must return the
+object to the pool being exactly the kind of fact the signature cannot carry.
 
 ```csharp
 /// <summary>Spawns a pooled projectile at the muzzle and arms it.</summary>
 /// <param name="speed">Metres per second, clamped to the weapon maximum.</param>
 /// <exception cref="InvalidOperationException">Thrown when the pool is exhausted.</exception>
-public Projectile Fire(float speed) { }
-```
-
-Fail, three lines to say what the method name already said:
-
-```csharp
-/// <summary>
-/// Fires a projectile.
-/// </summary>
-/// <param name="speed">The speed.</param>
-/// <returns>A projectile.</returns>
 public Projectile Fire(float speed) { }
 ```
 
@@ -360,7 +329,7 @@ public IEnumerator Player_TakesDamage() { SceneManager.LoadScene("Level_01_Produ
 - [ ] No string concatenation in a per-frame or tight loop.
 - [ ] Runtime spawning goes through a pre-warmed pool, no `Instantiate` or `Destroy` in gameplay.
 - [ ] No `Resources.Load`, and every `LoadAssetAsync` has a matching `Release`.
-- [ ] Every `GetComponent` and `FindObjectOfType` cached in `Awake` or `Start`.
+- [ ] Every `GetComponent`, `FindFirstObjectByType` and `FindAnyObjectByType` cached in `Awake` or `Start`.
 - [ ] Producer systems ordered ahead of consumers with `[DefaultExecutionOrder]` or the project setting.
 - [ ] `NonAlloc` physics queries with a field-level buffer.
 - [ ] Inspector fields are `[SerializeField] private`, every script in a project namespace.

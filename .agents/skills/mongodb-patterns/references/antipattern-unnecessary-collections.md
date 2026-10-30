@@ -5,6 +5,13 @@ impactDescription: "Reduces avoidable joins when related data is repeatedly quer
 tags: schema, collections, anti-pattern, embedding, normalization, atlas-suggestion
 ---
 
+### Contents
+
+- [Reduce Unnecessary Collections](#reduce-unnecessary-collections)
+- [Verify with](#verify-with)
+
+---
+
 ### Reduce Unnecessary Collections
 
 Collection count alone is not the anti-pattern. The anti-pattern is using collections as a substitute for indexes,

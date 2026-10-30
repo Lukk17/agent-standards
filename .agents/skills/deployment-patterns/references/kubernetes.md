@@ -3,7 +3,22 @@
 Cluster-side defaults every production workload carries, and the Helm conventions that package them. The pipeline
 and strategy rules live in [SKILL.md](../SKILL.md).
 
-Baseline: Kubernetes 1.34 and Helm 4 (both verified locally).
+Written for Kubernetes 1.37 and Helm 4.
+
+---
+
+### Contents
+
+- [Probes](#probes)
+- [Pod security context, required on every deployment](#pod-security-context-required-on-every-deployment)
+- [PodDisruptionBudget, required for every production deployment](#poddisruptionbudget-required-for-every-production-deployment)
+- [NetworkPolicy, default deny](#networkpolicy-default-deny)
+- [Autoscaling](#autoscaling)
+- [Resource governance](#resource-governance)
+- [Metrics scraping](#metrics-scraping)
+- [Policy enforcement](#policy-enforcement)
+- [Stateful workload protection](#stateful-workload-protection)
+- [Helm charts](#helm-charts)
 
 ---
 

@@ -5,6 +5,14 @@ failure, and how the suite runs in a pipeline.
 
 ---
 
+### Contents
+
+- [One config for the whole suite](#one-config-for-the-whole-suite)
+- [Artifacts](#artifacts)
+- [CI wiring](#ci-wiring)
+
+---
+
 ### One config for the whole suite
 
 The config owns the base URL, the retry policy, the artifact policy, the browser matrix, and how the app under test is
@@ -114,5 +122,5 @@ jobs:
 `if: always()` on the upload step is the part people forget. Without it the report is uploaded only when the suite
 passes, which is exactly when nobody needs it.
 
-Pin the Node version to the current LTS rather than `latest`, so a runner image update cannot change the runtime under
+Pin the Node version to an LTS major rather than `latest`, so a runner image update cannot change the runtime under
 the suite without a commit.

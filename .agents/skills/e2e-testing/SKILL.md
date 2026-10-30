@@ -1,6 +1,6 @@
 ---
 name: e2e-testing
-description: Playwright browser end-to-end testing, covering suite layout, the Page Object Model, configuration, semantic locators, the canonical flaky-test policy, artifacts, and CI wiring. Use when you say "write a Playwright test for the login flow", "our e2e suite is flaky", "set up playwright.config.ts", "add e2e tests to CI", or "test the checkout journey in a browser". Not for backend capability sweeps against a live stack, use `e2e-runbooks`.
+description: Playwright browser end-to-end testing, covering suite layout, the Page Object Model, configuration, semantic locators, the canonical flaky-test policy, artifacts and CI wiring. Use when the user says "write a Playwright test for the login flow", "our e2e suite is flaky" or "add e2e tests to CI". Not for backend capability sweeps against a live stack, use `e2e-runbooks`.
 ---
 
 # E2E Testing Patterns
@@ -15,6 +15,7 @@ end-to-end testing and is the canonical home of the flaky-test policy that the o
 - Writing or restructuring Playwright tests for a user journey through the browser.
 - A browser suite is flaky, slow, or full of hardcoded waits, and needs a policy as well as a fix.
 - Setting up `playwright.config.ts`, choosing projects and reporters, or wiring the suite into CI.
+- Testing a checkout or another money-moving journey in a browser.
 - Deciding how a UI test should locate elements, or where its page objects live.
 - Another testing skill has deferred a flaky-test decision to this one.
 
@@ -62,7 +63,9 @@ tests/
 ### Page Object Model
 
 Put selectors and waiting behind a page object so a markup change costs one edit rather than twenty. A page object
-exposes intent (`search`, `submitOrder`) and never leaks a raw selector into a spec.
+exposes intent (`search`, `submitOrder`) and never leaks a raw selector into a spec. Start waiting for a response
+before the action that triggers it, and assert with web-first assertions such as `toHaveCount` and `toBeVisible`,
+which retry until they pass, rather than `expect(await locator.count())`, which reads once and moves on.
 
 Fail: the spec owns the selectors and the waits.
 
@@ -94,12 +97,9 @@ export class ItemsPage {
   }
 
   async search(query: string) {
+    const response = this.page.waitForResponse(resp => resp.url().includes('/api/search'))
     await this.searchInput.fill(query)
-    await this.page.waitForResponse(resp => resp.url().includes('/api/search'))
-  }
-
-  async itemCount() {
-    return this.itemCards.count()
+    await response
   }
 }
 ```
@@ -116,7 +116,7 @@ test.describe('Item search', () => {
   test('finds items by keyword', async () => {
     await itemsPage.search('test')
 
-    expect(await itemsPage.itemCount()).toBeGreaterThan(0)
+    await expect(itemsPage.itemCards).not.toHaveCount(0)
     await expect(itemsPage.itemCards.first()).toContainText(/test/i)
   })
 
@@ -124,7 +124,7 @@ test.describe('Item search', () => {
     await itemsPage.search('xyznonexistent123')
 
     await expect(page.getByTestId('no-results')).toBeVisible()
-    expect(await itemsPage.itemCount()).toBe(0)
+    await expect(itemsPage.itemCards).toHaveCount(0)
   })
 })
 ```
@@ -180,51 +180,44 @@ Confirm a suspected flake before spending time on it.
 npx playwright test tests/search.spec.ts --repeat-each=10
 ```
 
-The three causes worth knowing. Race conditions: assert through an auto-waiting locator rather than a bare click on a
-possibly unmounted element.
+The two causes worth knowing.
+
+A response the test needs, awaited after the action that triggers it. A fast response can arrive before the listener
+exists, and the wait then hangs until the timeout. Create the promise first, without `await`, then act, then await it.
 
 Fail:
 
 ```typescript
-await page.click('[data-testid="submit"]')
-```
-
-Pass:
-
-```typescript
-await page.getByTestId('submit').click()
-```
-
-Network timing: wait for the response the UI depends on, never for a wall-clock guess.
-
-Fail:
-
-```typescript
-await page.waitForTimeout(5000)
-```
-
-Pass:
-
-```typescript
+await page.getByRole('button', { name: 'Load more' }).click()
 await page.waitForResponse(resp => resp.url().includes('/api/data') && resp.ok())
 ```
 
-Animation timing: wait for the element to be stable before interacting with it.
+Pass:
+
+```typescript
+const response = page.waitForResponse(resp => resp.url().includes('/api/data') && resp.ok())
+await page.getByRole('button', { name: 'Load more' }).click()
+await response
+```
+
+An assertion that does not retry. `expect(await locator.isVisible())` and `expect(await locator.count())` read the
+page once, so they fail whenever the UI is a frame behind. A web-first assertion waits and retries until the condition
+holds or the timeout expires. A wall-clock wait such as `page.waitForTimeout(5000)` is never the fix.
 
 Fail:
 
 ```typescript
-await page.click('[data-testid="menu-item"]')
+expect(await page.getByTestId('menu-item').isVisible()).toBe(true)
 ```
 
 Pass:
 
 ```typescript
-const item = page.getByTestId('menu-item')
-await item.waitFor({ state: 'visible' })
-await item.click()
+await expect(page.getByTestId('menu-item')).toBeVisible()
 ```
 
+Prefer `locator.click()` over `page.click(selector)`, which Playwright discourages. Both wait for the element to be
+actionable, so a flaky click is usually a wrong locator or a missing web-first assertion, not a missing wait.
 
 ---
 
@@ -283,11 +276,12 @@ test('user completes checkout', async ({ page }) => {
 
   await expect(page.getByTestId('order-total')).toContainText('49.98')
 
-  await page.getByRole('button', { name: 'Place order' }).click()
-  await page.waitForResponse(
+  const order = page.waitForResponse(
     resp => resp.url().includes('/api/orders') && resp.status() === 201,
     { timeout: 30000 },
   )
+  await page.getByRole('button', { name: 'Place order' }).click()
+  await order
 
   await expect(page.getByTestId('order-confirmation')).toBeVisible()
 })
@@ -319,6 +313,8 @@ test('user completes checkout', async ({ page }) => {
 - [ ] No raw selector appears in a spec file.
 - [ ] Every locator is role, label, or test-id based.
 - [ ] No `waitForTimeout` anywhere in the suite.
+- [ ] Every `waitForResponse` promise is created before the action that triggers it.
+- [ ] Assertions are web-first, never `expect(await locator.count())` or `expect(await locator.isVisible())`.
 - [ ] Base URL and every environment value come from the environment.
 - [ ] Trace, screenshot and video kept on failure, all under one artifact directory.
 - [ ] Every quarantined test carries a tracking issue and a quarantine date.

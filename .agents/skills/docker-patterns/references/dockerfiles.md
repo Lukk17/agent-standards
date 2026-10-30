@@ -8,28 +8,39 @@ declares a `HEALTHCHECK`.
 
 ---
 
+### Contents
+
+- [Node.js, development and production from one file](#nodejs-development-and-production-from-one-file)
+- [Go](#go)
+- [Python](#python)
+- [apt-get in one layer](#apt-get-in-one-layer)
+- [OCI image labels](#oci-image-labels)
+- [Build-time secrets](#build-time-secrets)
+
+---
+
 ### Node.js, development and production from one file
 
 ```dockerfile
-FROM node:24.11-alpine3.23 AS deps
+FROM node:26-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-FROM node:24.11-alpine3.23 AS dev
+FROM node:26-alpine AS dev
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 EXPOSE 3000
 CMD ["npm", "run", "dev"]
 
-FROM node:24.11-alpine3.23 AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build && npm prune --production
 
-FROM node:24.11-alpine3.23 AS production
+FROM node:26-alpine AS production
 WORKDIR /app
 RUN addgroup -g 1001 -S appgroup && adduser -S appuser -u 1001
 USER appuser
@@ -57,19 +68,18 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /server ./cmd/server
 
-FROM alpine:3.23 AS runner
-RUN apk --no-cache add ca-certificates
-RUN adduser -D -u 1001 appuser
-USER appuser
+FROM gcr.io/distroless/static-debian13:nonroot AS runner
 COPY --from=builder /server /server
 EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://localhost:8080/health || exit 1
-CMD ["/server"]
+HEALTHCHECK --interval=30s --timeout=3s CMD ["/server", "healthcheck"]
+ENTRYPOINT ["/server"]
 ```
 
-`CGO_ENABLED=0` produces a static binary, which is what lets the runtime stage be Alpine or, better still,
-`gcr.io/distroless/static`. Adding `ca-certificates` is the one thing a scratch or distroless-static image still
-needs for outbound TLS.
+`CGO_ENABLED=0` produces a static binary, which is what lets the runtime stage be `distroless/static`. That image
+already carries CA certificates and tzdata, and the `nonroot` tag runs as an unprivileged user, so no `USER` line is
+needed. It has no shell and no `wget`, so `ENTRYPOINT` and `HEALTHCHECK` use the exec form, and the health check calls
+a `healthcheck` subcommand the server implements as a probe of its own `/health` endpoint. On `scratch`, copy
+`/etc/ssl/certs/ca-certificates.crt` from the builder for outbound TLS and add a `USER` line.
 
 ---
 

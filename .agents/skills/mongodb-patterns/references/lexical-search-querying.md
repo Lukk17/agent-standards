@@ -4,8 +4,7 @@ This guide covers query patterns and optimization techniques for MongoDB Atlas S
 
 ---
 
-### Table of Contents
-
+### Contents
 - [$search vs $searchMeta](#search-vs-searchmeta)
 - [Query Patterns](#query-patterns)
 - [Query Optimization](#query-optimization)

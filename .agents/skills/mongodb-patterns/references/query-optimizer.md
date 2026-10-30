@@ -2,6 +2,23 @@
 
 ---
 
+### Contents
+
+- [When this skill is invoked](#when-this-skill-is-invoked)
+- [High Level Workflow](#high-level-workflow)
+  - [General Performance Help](#general-performance-help)
+  - [Help with a Specific Query](#help-with-a-specific-query)
+- [MCP: available tools](#mcp-available-tools)
+  - [1\. DB connection string works for MongoDB MCP](#1-db-connection-string-works-for-mongodb-mcp)
+  - [2\. Atlas API access works for MongoDB MCP](#2-atlas-api-access-works-for-mongodb-mcp)
+- [Example workflow 1 (help with specific query)](#example-workflow-1-help-with-specific-query)
+- [Example workflow 2 (general database performance help)](#example-workflow-2-general-database-performance-help)
+- [Load references](#load-references)
+- [Output](#output)
+- [Where to go next](#where-to-go-next)
+
+---
+
 ### When this skill is invoked
 
 Invoke only when the user wants:

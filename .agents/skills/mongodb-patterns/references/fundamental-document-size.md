@@ -5,6 +5,20 @@ impactDescription: "Hard 16MB BSON limit; oversized documents fail writes and de
 tags: schema, fundamentals, document-size, 16mb, bson-limit, arrays, anti-pattern, performance, indexing, subset-pattern, working-set, hot-data, cold-data, atlas-suggestion
 ---
 
+### Contents
+
+- [Keep Documents Small](#keep-documents-small)
+  - [How documents get too large](#how-documents-get-too-large)
+  - [Solution 1: move unbounded or large data to a separate collection](#solution-1-move-unbounded-or-large-data-to-a-separate-collection)
+  - [Solution 2: split hot and cold fields (Subset Pattern)](#solution-2-split-hot-and-cold-fields-subset-pattern)
+  - [Solution 3: projection (when you can't refactor)](#solution-3-projection-when-you-cant-refactor)
+  - [Prevention strategies](#prevention-strategies)
+  - [Workload signals](#workload-signals)
+  - [When keeping data together is fine](#when-keeping-data-together-is-fine)
+- [Verify with](#verify-with)
+
+---
+
 ### Keep Documents Small
 
 MongoDB documents cannot exceed 16 megabytes. This is a hard BSON limit, not a guideline, writes fail once a document

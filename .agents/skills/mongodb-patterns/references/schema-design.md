@@ -5,6 +5,24 @@ MongoDB performance and cost issues-queries and indexes cannot fix a fundamental
 
 ---
 
+### Contents
+
+- [When to Apply](#when-to-apply)
+- [Quick Reference](#quick-reference)
+  - [1. Schema Anti-Patterns - 3 rules](#1-schema-anti-patterns---3-rules)
+  - [2. Schema Fundamentals - 4 rules](#2-schema-fundamentals---4-rules)
+  - [3. Design Patterns - 11 rules](#3-design-patterns---11-rules)
+- [Key Principle](#key-principle)
+- [Embed/Reference Decision Framework](#embedreference-decision-framework)
+- [How to Use](#how-to-use)
+- [How These Rules Work](#how-these-rules-work)
+  - [MongoDB MCP Integration](#mongodb-mcp-integration)
+  - [⚠️ Action Policy](#-action-policy)
+  - [Working Together](#working-together)
+- [Where to go next](#where-to-go-next)
+
+---
+
 ### When to Apply
 
 Reference these guidelines when:

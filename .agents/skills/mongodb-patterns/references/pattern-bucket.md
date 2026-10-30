@@ -5,6 +5,13 @@ impactDescription: "Reduces document count and can align storage with applicatio
 tags: schema, patterns, bucket, grouping, pagination, arrays
 ---
 
+### Contents
+
+- [Use Bucket Pattern to Group Related Data](#use-bucket-pattern-to-group-related-data)
+- [Verify with](#verify-with)
+
+---
+
 ### Use Bucket Pattern to Group Related Data
 
 Group a series of related items into bounded arrays within a single document. The bucket pattern separates long series
