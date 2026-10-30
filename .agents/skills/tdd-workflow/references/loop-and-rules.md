@@ -1,0 +1,301 @@
+# Loop and Rules
+
+Contents:
+
+- [The loop](#the-loop)
+- [The RED gate](#the-red-gate)
+- [Coverage gate](#coverage-gate)
+- [Test layers](#test-layers)
+- [Test naming](#test-naming)
+- [Test structure](#test-structure)
+- [Test what the user observes](#test-what-the-user-observes)
+- [Mocking boundaries](#mocking-boundaries)
+- [Flaky tests](#flaky-tests)
+- [Continuous testing](#continuous-testing)
+
+The red-green-refactor loop and every testing rule in SKILL.md in full, with the reasoning, the commands, the Jest coverage key, the CI upload pin, and the pass and fail forms. Load this file when applying a rule and the one-line summary in SKILL.md is not enough.
+
+---
+
+### The loop
+
+Write the user journey, turn it into test cases, watch them fail, implement the minimum, watch them pass, then refactor
+under green.
+
+State the journey in one sentence before writing any test, because a test suite that cannot be traced back to a journey
+usually tests the implementation instead.
+
+```text
+As a signed-in customer, I want to search the catalogue by keyword,
+so that I can find a product without knowing its exact name.
+```
+
+Turn the journey into cases that name the behaviour and the condition.
+
+```typescript
+describe('catalogue search', () => {
+  it('returns matching products for a keyword', async () => {})
+  it('returns an empty list for a query that matches nothing', async () => {})
+  it('falls back to substring matching when the search index is unavailable', async () => {})
+  it('orders results by relevance score, highest first', async () => {})
+})
+```
+
+---
+
+### The RED gate
+
+Running the new test and seeing it fail is mandatory before any production code changes. A test that was written but
+never executed proves nothing, and a failure caused by a typo proves nothing either.
+
+```bash
+npm test
+```
+
+A valid RED state is one of two things. Runtime RED: the target compiles, the new test actually executes, and the result
+is a failure. Compile-time RED: the new test references code that does not exist yet, and the compile failure is itself
+the signal.
+
+In both cases the failure must be caused by the missing implementation or the bug under repair, not by unrelated syntax
+errors, broken setup, missing dependencies, or a pre-existing regression elsewhere.
+
+Fail: the failure is real but proves nothing about the behaviour under test.
+
+```text
+FAIL  src/search.test.ts
+  Cannot find module '@/lib/testing/helpers'
+```
+
+Pass: the failure is the behaviour the test was written to demand.
+
+```text
+FAIL  src/search.test.ts > returns an empty list for a query that matches nothing
+  expected [] but received undefined
+```
+
+Do not touch production code until a valid RED state is confirmed. Then implement the minimum that turns it green, rerun
+the same target, and only refactor once green.
+
+```bash
+npm test
+```
+
+Refactoring under green means removing duplication, improving names, and simplifying structure, with the suite rerun
+after each step.
+
+---
+
+### Coverage gate
+
+Around 90 percent line coverage of real logic, across unit, integration and end-to-end tests combined. Branch coverage
+sits at 70 to 80 percent. Critical logic reaches 100 percent where that genuinely adds value rather than as a ritual. No
+exclusion pattern may be added to dodge a meaningful test, and every edge case, error path, and boundary condition is
+covered.
+
+Enforce it as a CI gate so a pull request that drops coverage below the threshold is blocked.
+
+Fail: the config key is plural, so Jest ignores the whole block and the gate never fires.
+
+```json
+{
+  "jest": {
+    "coverageThresholds": {
+      "global": { "branches": 70, "functions": 90, "lines": 90, "statements": 90 }
+    }
+  }
+}
+```
+
+Pass: the key Jest actually reads.
+
+```json
+{
+  "jest": {
+    "coverageThreshold": {
+      "global": { "branches": 70, "functions": 90, "lines": 90, "statements": 90 }
+    }
+  }
+}
+```
+
+Verify locally before pushing.
+
+```bash
+npm run test:coverage
+```
+
+---
+
+### Test layers
+
+Three layers, with the bulk of the suite at the bottom. The proportions and the tooling per layer are in
+[advanced-testing.md](advanced-testing.md).
+
+- Unit. Individual functions, pure logic, component behaviour, helpers. No input or output.
+- Integration. Endpoints, data access, service interactions, external boundaries, run against real engines through
+  Testcontainers.
+- End-to-end. Critical user journeys through the real UI. `e2e-testing` owns this layer entirely, including the
+  Playwright patterns, locator rules, and CI wiring. Write the journeys there and reference them from here.
+
+---
+
+### Test naming
+
+Descriptive names in the project's existing style win. A reader who has never seen the code should learn the behaviour
+and the condition from the name alone.
+
+Match what the project already does. Where a project has no convention, use the natural-language form from
+`coding-standards`, which is the canonical rule: a sentence describing the behaviour and the condition that triggers it.
+
+Fail: names that describe nothing.
+
+```typescript
+test('works', () => {})
+test('test search 2', () => {})
+test('happyPath', () => {})
+```
+
+Pass: natural-language form, the default.
+
+```typescript
+test('returns an empty list when no product matches the query', () => {})
+test('throws when the API key is missing', () => {})
+```
+
+Pass: the `<method>_<scenario>_<expectedResult>` form, which is the same rule spelled differently and is idiomatic in
+JUnit codebases. Use it when the project already uses it, not as a second convention alongside the first.
+
+```java
+@Test
+void calculateTotal_withEmptyCart_returnsZero() { }
+
+@Test
+void processPayment_whenCardDeclined_throwsPaymentException() { }
+```
+
+The two forms are alternatives, never a mix inside one codebase.
+
+---
+
+### Test structure
+
+The three-phase shape and how its phases are labelled follow `coding-standards`, which holds the canonical rule. This
+section adds the isolation that goes with it.
+
+One behaviour per test. Several assertions are fine when they all verify that one behaviour, and each test builds its
+own data so the order tests run in never matters.
+
+Fail: the second test depends on the first.
+
+```typescript
+test('creates a user', () => { createUser('alice') })
+test('updates the same user', () => { updateUser('alice', { name: 'Alicia' }) })
+```
+
+Pass: each test owns its setup.
+
+```typescript
+test('creates a user', () => {
+  const user = createTestUser()
+  expect(findUser(user.id)).toBeDefined()
+})
+
+test('updates a user', () => {
+  const user = createTestUser()
+  updateUser(user.id, { name: 'Alicia' })
+  expect(findUser(user.id).name).toBe('Alicia')
+})
+```
+
+---
+
+### Test what the user observes
+
+Assert the behaviour the caller can see, not the internal state that produced it. A test coupled to internals fails on
+every refactor and passes through real defects.
+
+Fail:
+
+```typescript
+expect(component.state.count).toBe(5)
+```
+
+Pass:
+
+```typescript
+expect(screen.getByText('Count: 5')).toBeInTheDocument()
+```
+
+Never weaken an assertion to make a test pass. Fix the code, or fix the setup that was wrong.
+
+---
+
+### Mocking boundaries
+
+Mock only what you own, and only in unit tests. Do not mock the database when you can exercise it: integration tests run
+against a real engine through Testcontainers, never a shared staging instance. For third-party HTTP clients, ORMs, and
+cloud SDKs, prefer a real instance, the library's own official test double, or an HTTP-level fake such as WireMock or
+MSW. The detail behind both rules is in [advanced-testing.md](advanced-testing.md).
+
+The mocks below replace interfaces the project owns (its repository and its client wrapper), never the vendor SDK
+underneath them, and they are not a substitute for exercising the real datastore.
+
+A repository, mocked at the interface the application defines.
+
+```typescript
+jest.mock('@/lib/repositories/product-repository', () => ({
+  productRepository: {
+    findByKeyword: jest.fn(async () => [{ id: 1, name: 'Test Product' }]),
+    findById: jest.fn(async () => ({ id: 1, name: 'Test Product' })),
+  },
+}))
+```
+
+An external HTTP client, mocked at the project's own wrapper rather than at the vendor SDK.
+
+```typescript
+jest.mock('@/lib/clients/search-client', () => ({
+  searchClient: {
+    query: jest.fn(async () => [{ id: 'test-product', score: 0.95 }]),
+    health: jest.fn(async () => ({ reachable: true })),
+  },
+}))
+```
+
+Note what both examples have in common: the seam is an interface the project defines, so the mock stays valid when the
+vendor library changes underneath it.
+
+---
+
+### Flaky tests
+
+`e2e-testing` holds the canonical flaky-test policy: the fix-or-quarantine SLA, the maximum quarantine period, what
+happens when it expires, the prohibited sleep patterns, and when a framework retry is allowed. It applies to every
+layer, not only browser tests. Do not restate it here, and do not adopt a second policy alongside it.
+
+---
+
+### Continuous testing
+
+Run the suite in watch mode while developing.
+
+```bash
+npm test -- --watch
+```
+
+Gate the commit on tests and lint.
+
+```bash
+npm test && npm run lint
+```
+
+In CI, run with coverage and upload the report. The upload action is pinned to a full commit SHA with its tag in a
+trailing comment, `<commit-sha>` standing in for a real one, resolved with
+`git ls-remote https://github.com/codecov/codecov-action refs/tags/<tag> refs/tags/<tag>^{}`.
+
+```yaml
+- name: Run tests
+  run: npm test -- --coverage
+- name: Upload coverage
+  uses: codecov/codecov-action@<commit-sha> # v7
+```
