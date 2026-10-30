@@ -34,125 +34,22 @@ yes before anything proceeds.
 
 ---
 
-### Define completion before execution
+### Reference files
 
-Write the done condition before any code is generated. An agent given a goal but no completion test explores widely
-and retries, which burns time and produces work nobody asked for.
-
-Pass:
-
-```text
-Done when POST /orders rejects a negative quantity with 422 and the existing order tests still pass.
-```
-
-Fail:
-
-```text
-Done when the order endpoint handles bad input properly.
-```
+| Task | Open |
+|---|---|
+| The done condition, capability and regression evals, unit sizing, the tier table, external interfaces, with examples | [references/planning-the-work.md](references/planning-the-work.md) |
+| Approval, questions, process files, the tool table, context budget, subagents, escalation, cost, code checks, review | [references/running-the-work.md](references/running-the-work.md) |
 
 ---
 
-### Run a capability eval and a regression eval
+### Plan the work
 
-Two different measurements answer two different questions. A capability eval asks whether the new behaviour now
-works, and it is expected to fail before the change. A regression eval asks whether anything that already worked
-stopped working, and it is expected to pass before and after. Running only the first ships breakage. Running only the
-second ships nothing.
-
-Take a rate limiter added to a login endpoint.
-
-Capability eval, expected to fail at baseline and pass afterwards:
-
-```text
-Send 11 login attempts for one account in 60 seconds. Expect the 11th to return 429 with a Retry-After header.
-```
-
-Regression eval, expected to pass at baseline and still pass afterwards:
-
-```text
-Send 1 valid login. Expect 200 and a session cookie. Send 1 wrong password. Expect 401 and no cookie.
-```
-
-The loop is: define both, run both to capture the baseline and the failure signature, implement, re-run both, and
-compare the deltas rather than reading the final run alone.
-
-Fail:
-
-```text
-Wrote the rate limiter, ran the full suite once at the end, it was green, shipped.
-```
-
----
-
-### Size units so one agent can finish and verify one
-
-Aim at a unit an agent can complete in roughly a quarter of an hour of work. Each unit is independently verifiable,
-carries a single dominant risk, and exposes a clear done condition. A unit with two risks fails in a way that takes
-longer to diagnose than the unit took to write.
-
-Pass:
-
-```text
-Unit 1: add the migration adding orders.cancelled_at, nullable, with a down migration. Risk: migration lock time.
-Unit 2: expose cancelled_at on the order response DTO. Risk: contract change for existing clients.
-```
-
-Fail:
-
-```text
-Unit 1: add order cancellation end to end, migration through UI.
-```
-
----
-
-### Route by capability tier, not by habit
-
-Match the strength of the model to what the unit actually demands, and describe the tier by what it is for rather
-than by a product name, because names change and a skill that hardcodes them goes stale.
-
-Pick the tier when you spawn the unit. A subagent definition never pins a model, so the same subagent runs on a small tier for a mechanical edit and on the strongest tier for a design review.
-
-| Tier | Use it for | Signal you picked wrong |
-|---|---|---|
-| Small and fast | Lookups, classification, mechanical transforms, narrow single-file edits | It gets the answer right but you did not need it that fast |
-| Mid capability | Bounded implementation, refactors inside known boundaries, test writing | It loops on the same failure without new reasoning |
-| Strongest available | Architecture, root-cause analysis, cross-file invariants, final review | You are paying design rates for a rename |
-
-Escalate a tier only after the lower tier fails with a visible reasoning gap, and say what the gap was. Escalating on
-the first error teaches you nothing about whether the task was actually hard.
-
-Pass:
-
-```text
-Small tier rewrote the 40 import paths. Mid tier implemented the handler. Strongest tier reviewed the transaction boundary.
-```
-
-Fail:
-
-```text
-Used the strongest tier for everything because it is the safest choice.
-```
-
----
-
-### Verify external interfaces before using them
-
-Before implementing against an external API, SDK or library, check the current documentation. Training data goes
-stale and an invented method signature costs more to debug than it costs to look up. When documentation is
-unavailable, state the assumption out loud before writing code against it.
-
-Pass:
-
-```text
-Checked the current SDK reference: the client takes a config object, not positional args, since v4. Implementing that.
-```
-
-Fail:
-
-```text
-The client constructor takes the API key as the first argument.
-```
+1. Write a testable done condition before any code is generated, such as "POST /orders rejects a negative quantity with 422 and the existing order tests still pass".
+2. Define a capability eval, expected to fail before the change, and a regression eval, expected to pass before and after. Run both for a baseline, implement, re-run both, and compare the deltas.
+3. Size each unit so one agent finishes it in roughly a quarter of an hour, verifiable on its own, with one dominant risk and a clear done condition.
+4. Route each unit by the capability tier it demands (small and fast, mid, strongest), named by purpose rather than product. Pick the tier at spawn time, because a subagent definition never pins a model. Escalate only after a lower tier fails with a visible reasoning gap, and name the gap.
+5. Check the current documentation before implementing against an external API, SDK or library. Without documentation, state the assumption out loud first.
 
 ---
 
@@ -162,184 +59,19 @@ Never infer approval from earlier context. Agreement to a design is not agreemen
 agreement to one step is not agreement to the next. Before any configuration change, infrastructure change or
 destructive operation, list the worst-case side effects and the rollback procedure, then wait.
 
-Pass:
-
-```text
-Next step drops the legacy index. Worst case: 40s table lock on a 12M row table. Rollback: recreate from the DDL below. Proceed?
-```
-
-Fail:
-
-```text
-You approved the migration plan, so I also applied it to staging.
-```
-
 ---
 
-### Answer your own questions, then number what remains
+### Run the work
 
-Research anything you can determine yourself before asking. For what genuinely remains open, number each question,
-give your best reasoning for each, and wait rather than picking an interpretation silently. An ambiguous request
-resolved by guessing costs more than the round trip.
-
-Pass:
-
-```text
-1. Should cancelled orders stay in the list endpoint? My reading: yes, with a status filter. Confirm?
-2. Retention for cancelled rows? No policy found in the repo. Need your answer.
-```
-
-Fail:
-
-```text
-The requirements were unclear so I picked the interpretation that seemed most likely and built it.
-```
-
----
-
-### Do not leave process files behind
-
-Do not create task lists, walkthroughs, summaries, notes files or one-shot validation scripts in the repository.
-They read as project documentation to the next person and are wrong within a week. Where something is genuinely
-worth keeping, update the document that already owns that subject.
-
-One exception: `tasks.md` at the project root and `.agents/tasks.widget.json` are runtime state, not process files. The task-list hook keeps them, git-ignored, and the model updates `tasks.md` as work moves. Keep them current and never delete or commit them.
-
-Pass:
-
-```text
-Updated the existing README section on the new flag. No new files.
-```
-
-Fail:
-
-```text
-Added IMPLEMENTATION_SUMMARY.md, Walkthrough.md and check_migration.py at the repo root.
-```
-
----
-
-### Prefer the purpose-built tool over the shell
-
-Every agent runtime exposes some set of purpose-built tools alongside a general shell. Reach for the specific one
-first: the file reader for reading, the editor for modifying, the file writer for creating, the file-pattern search
-for locating files, the content search for locating text. Reserve the shell for work with no dedicated equivalent,
-such as running tests, invoking the build, installing packages, or version control. Tool names differ between
-runtimes, so match the capability rather than a name from another tool's documentation.
-
-| Operation | Reach for | Rather than |
-|---|---|---|
-| Read a file | The file reader | `cat`, `head`, `tail` |
-| Modify a file | The editor | `sed`, `awk`, a heredoc rewrite |
-| Create a file | The file writer | `echo >`, `tee` |
-| Find files by name | The file-pattern search | `find`, `ls` |
-| Find text in files | The content search | `grep`, `rg` |
-| Run tests, build, install, version control | The shell | no dedicated equivalent exists |
-
-A runtime whose operator has explicitly asked for shell-first behaviour overrides this table. Follow the operator.
-
----
-
-### Budget the context window
-
-At around seventy percent utilisation, stop adding and start compressing: summarise what is finished, reduce prior
-research to its findings, split what remains into scoped sub-tasks, and push large isolated work to a subagent so the
-main thread keeps room to reason. Compact after a milestone, never in the middle of active debugging, because the
-detail you drop is the detail the diagnosis needs.
-
-Pass:
-
-```text
-Phase 1 done and committed. Compacting to the summary, then starting phase 2 in a fresh session.
-```
-
-Fail:
-
-```text
-Context is nearly full and the bug is half diagnosed. Compacting now.
-```
-
----
-
-### Parent validates, subagent reports
-
-A subagent reports and the parent decides. Validate a subagent's output before folding it into the main task, and
-investigate anything unexpected rather than assuming it is correct. Give each subagent the full context its task
-needs, because implicit shared state does not cross the boundary. A subagent takes no irreversible action, including
-pushing, deploying or deleting, without explicit authorisation from the parent or the user.
-
-Pass:
-
-```text
-Subagent reported the migration applied. Checked the schema myself before running the dependent unit.
-```
-
-Fail:
-
-```text
-Subagent said it was done, so I moved on and started the next unit against its output.
-```
-
----
-
-### Escalate instead of brute-forcing
-
-Stop and ask the user on any of: unexpected state such as files, branches or config that should not exist, three
-failed attempts at the same approach, a next action that is destructive or irreversible, or a scope ambiguity where
-the wrong reading would waste real effort.
-
-Pass:
-
-```text
-Third failure on the same import resolution. Stopping. The tsconfig paths and the bundler alias disagree. Which is authoritative?
-```
-
-Fail:
-
-```text
-Attempt 7 at the same fix with a slightly different regex.
-```
-
----
-
-### Track the cost of each unit
-
-Record per unit: the tier used, a token estimate, retries, wall-clock time, and success or failure. Without the
-record there is no evidence about which tier was actually needed, and routing stays a matter of taste.
-
----
-
-### Check the code before presenting it
-
-Trace the logic end to end before output. Look for type errors, null dereferences, off-by-one boundaries, missing
-awaits and unclosed resources. Fix what you find rather than shipping code you already know is wrong.
-
-Pass:
-
-```typescript
-async function getUser(id: string) {
-  const user = await db.findById(id)
-  if (!user) throw new Error(`User ${id} not found`)
-  return user.name
-}
-```
-
-Fail:
-
-```typescript
-async function getUser(id: string) {
-  const user = await db.findById(id)
-  return user.name
-}
-```
-
----
-
-### Review what agents get wrong, not what linters catch
-
-Spend review attention on invariants and edge cases, error boundaries, security and authentication assumptions,
-hidden coupling, and rollout risk. Do not spend review cycles on style where an automated formatter and linter
-already decide the answer.
+1. Research what you can answer yourself. Number each question that remains, give your best reasoning for each, and wait rather than picking an interpretation silently.
+2. Create no task lists, walkthroughs, summaries, notes or one-shot validation scripts in the repository. Update the document that already owns the subject. The exception is `tasks.md` at the project root and `.agents/tasks.widget.json`, runtime state the task-list hook keeps git-ignored: keep them current and never delete or commit them.
+3. Prefer the purpose-built tool (file reader, editor, writer, file-pattern and content search) over the shell, matched by capability rather than name. Keep the shell for tests, builds, installs and version control. An operator who asks for shell-first behaviour overrides this.
+4. At around seventy percent context use, compress: summarise finished work, reduce research to findings, split what remains, and push large isolated work to a subagent. Compact after a milestone, never mid-debugging.
+5. A subagent reports and the parent decides: validate its output before use, give it the full context it needs, and let it take no irreversible action (push, deploy, delete) without explicit authorisation from the parent or the user.
+6. Stop and ask the user on unexpected state, three failed attempts at one approach, a destructive or irreversible next action, or a scope ambiguity where the wrong reading wastes real effort.
+7. Record per unit the tier, a token estimate, retries, wall-clock time, and success or failure.
+8. Trace code end to end before presenting it, looking for type errors, null dereferences, off-by-one boundaries, missing awaits and unclosed resources, and fix what you find.
+9. Spend review on invariants, edge cases, error boundaries, security and authentication assumptions, hidden coupling and rollout risk, not on style a formatter and linter already decide.
 
 ---
 

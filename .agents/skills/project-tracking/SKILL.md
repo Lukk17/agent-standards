@@ -5,19 +5,16 @@ description: 'Tracker-independent standards for planning and tracking work: kind
 
 # Project Tracking
 
-Rules for keeping a backlog a truthful record of what is planned, what is in flight, and what actually shipped.
-
-Every rule below is stated as a property of the work rather than as a feature of a tool, so it survives a change of
-tracker. Where a rule needs a mechanism the tool has to provide, the rule says what that mechanism must do and
-leaves the tool free to provide it however it does.
+Rules for keeping a backlog a truthful record of what is planned, what is in flight, and what actually shipped. Each rule is a property of the work rather than a feature of a tool, so it survives a change of tracker.
 
 | Task | Open |
 |---|---|
-| Acting inside a named tracker, where per-tool field and status behaviour matters | [tracker-mechanics.md](references/tracker-mechanics.md) |
+| Choosing the kind, shaping an epic, splitting an item, or writing acceptance criteria | [work-items.md](references/work-items.md) |
+| Designing statuses, recording closure, ordering the backlog, limiting work in progress, linking, or tying an item to code | [flow-and-links.md](references/flow-and-links.md) |
+| Acting inside a named tracker, or porting these rules to a tracker not covered | [tracker-mechanics.md](references/tracker-mechanics.md) |
 | Writing or reviewing the implementation plan for an item, with phases, rollback and risk | [implementation-plans.md](references/implementation-plans.md) |
 | Adding a label, auditing the label list, or judging whether a label earns its place | [classification.md](references/classification.md) |
 | Closing an item as a duplicate, or deciding between duplicate, follow-up and superseded | [links-and-duplicates.md](references/links-and-duplicates.md) |
-| Moving these rules to a tracker not covered here, or checking one before adopting it | [tracker-mechanics.md](references/tracker-mechanics.md) |
 
 ---
 
@@ -45,241 +42,37 @@ leaves the tool free to provide it however it does.
 
 ---
 
-### Kinds of Work
+### Rules
 
-Pick the kind from what the work is, not from how large it feels.
-
-| Kind | What it is | The test |
-|---|---|---|
-| Story | A user-facing behaviour | A person outside the team could notice the difference after it ships |
-| Task | Technical work with no user-facing story | Nobody outside the team sees a change, but the system is measurably different |
-| Bug | A defect in behaviour that already shipped | The behaviour exists, and it is wrong |
-| Spike | Research that ends in a decision | It names a question and produces a named artefact |
-| Epic | A deliverable outcome made of several items | Something will have shipped when its children are done |
-| Subtask | A step inside one item, with no value on its own | Shipping it alone would deliver nothing to anyone |
-
-Trackers carry the kind differently. Some have a type field, some fix the available types when the project is
-created, and some have no type concept at all. Exactly one mechanism has to carry it: a type field where one exists,
-otherwise a single-select field, otherwise one label drawn from a governed list. Two mechanisms answering the same
-question drift apart, and no mechanism at all means the distinction lives only in people's heads.
-
-A Story is written as one sentence in the form "As a persona, I want goal, so that benefit". If that sentence cannot
-be written without inventing a persona, the item is a Task.
-
-A Spike carries the question it answers and the artefact it produces. Timeboxing one is a separate decision. What is
-not optional is the named output, because a Spike with no named output cannot be closed on evidence and turns into
-open-ended reading.
-
-Failure modes to check for before saving:
-
-- A Task whose summary is a user story. Re-type it to Story, or rewrite the summary as the technical change.
-- A summary that starts with the word SPIKE. A field carries the kind, so the summary does not have to.
-- A Spike that is really a body of work. If its research is a sequence of changes someone will implement, it is an
-  epic with children, and calling it a Spike hides the size.
-- A subtask created under a parent that is already closed. Either the parent is not actually done, or the subtask is
-  independent work and needs its own item.
-
----
-
-### Epics Are Outcomes, Never Categories
-
-An epic names something that will have shipped. It carries a definition of done, and it gets closed when that
-definition is met. A definition of done that works: every child is done, and anything discovered later becomes a
-Phase 2 epic rather than being added to this one. Without a rule of that shape an epic accretes children forever and
-never closes, which makes it useless for tracking progress.
-
-Epics named after an activity do not work: Refactoring, Documentation, Bugs, Technical Debt, Maintenance. None of
-them can ever be finished, so none of them can ever be closed, and an item parked under one loses the connection to
-the thing it is actually changing. The activity becomes a label, and the item lives in the epic of the feature or
-component being changed. A catch-all epic for work that fits nowhere fails the same way, plus one more: it hides the
-fact that the work has no home, which is usually the more interesting problem.
-
-Every item except an epic has a parent epic, and the parent is set when the item is created, not sorted out later.
-A Subtask takes its item as parent instead. When no existing epic fits, ask which outcome the work belongs to before
-creating the item. Never create it without a parent, and never park it under a catch-all epic to fill the field. The
-same rule makes a search for parentless items, epics aside, a hygiene check that should always return nothing.
-
----
-
-### Size and Splitting
-
-An item is the right size when one person can finish it comfortably inside the team's normal cycle and it can be
-verified on its own. Size is the lever behind every measure further down this file. Small items finish sooner, they
-age less, and they make a count of finished items mean something.
-
-Six properties test an item before it is accepted. It should be independent of other items, negotiable in how it is
-done, valuable to somebody, estimable, small, and testable. An item failing more than one of those is usually two
-items badly joined.
-
-Split along observable behaviour, never along technical layers. A split into a backend item and a frontend item
-produces two items neither of which can be shipped or verified alone, so both sit unfinished until the other lands
-and neither reports anything useful about progress. Split lines that do work: one step of a workflow, one rule out
-of a set of rules, one data variation, the happy path separately from the error paths, or one platform.
-
-An item that cannot be split without leaving something unverifiable is a genuine unit, which is not a licence to
-leave it large. If it is also too big to finish in a cycle, it is an epic and the split is its children.
-
----
-
-### Acceptance Criteria
-
-Note the spelling: one criterion, several criteria.
-
-Each criterion has to be clear, testable, outcome-focused, measurable and independent. In practice that means each
-one maps onto something you could execute as a test and get an unambiguous pass or fail from.
-
-Describe the result, not the recipe. "The order list returns at most 20 rows per page" is a result. "Add a pageSize
-parameter to the repository method" is a recipe, and a recipe locks in an implementation before anyone has thought
-about alternatives.
-
-If two criteria only make sense when read together, they are one criterion split badly. Rewrite them as one, or make
-each stand alone. A criterion that cannot be evaluated by itself cannot be checked off by itself either.
-
-Pick one form per project and stay with it, either a flat checklist or Given, When, Then. Do not mix the two inside
-one tracker, because a reader then has to work out which convention a given item follows before they can read it,
-and the two forms carry different implicit promises about how much detail is present.
-
-An item is now routinely the whole specification handed to a coding agent, which raises the cost of vagueness. An
-underspecified item does not make an agent stop and ask. It makes the agent explore widely and retry, burning time
-and producing work nobody asked for. Criteria a test could evaluate are the boundary that stops that.
-
-Use whatever description template the tracker or the project already defines, rather than one invented here. Where a
-project has none, the description still has to answer three things: the outcome, how it will be verified, and what
-is out of scope.
-
----
-
-### Classification
-
-Labels are free text in most trackers, so near-duplicates appear silently and split every filter in half. Govern them: one documented list that grows by decision, two families (the part of the system touched, and the nature of the work), roughly ten to twenty labels, and a named owner who audits use against the list. The rules, and the four kinds of label that do not earn their place, are in [classification.md](references/classification.md).
-
----
-
-### Status and Closure
-
-Every status has to be one somebody actually transitions an item through. Each extra one is a drag step on every
-item and a board column nobody reads, so a status earns its place by being a state the team can genuinely tell apart
-from its neighbours. There is no correct number, only the set the team can name without looking it up.
-
-Delivered and deliberately abandoned are two different terminal states, and both are needed. Keeping them as two
-named statuses, rather than as one status plus a field that distinguishes them, is the arrangement most likely to
-survive a tracker change, because a status name travels and an auxiliary field may not. If the board maps both to
-the same Done column, someone will eventually drag a cancelled card and it will be recorded as delivered. Map them
-to different columns.
-
-Blocked is not a status. A blocked item keeps the status describing what the work was actually doing, and gains a
-separate marker saying it is impeded. Two things break if blocking becomes a status. The information about where the
-work stood when it stalled is destroyed, so nobody knows what resuming involves. And the time an item takes becomes
-meaningless, because time sitting in a Blocked column is indistinguishable from time being worked.
-
-Closure is often decided by something other than the status a person reads. The two can disagree, and when they do
-the disagreement is invisible on the board. An item sitting in Done with no closure recorded is still returned by
-every open-items filter and still counts against every measure of what is outstanding: it looks finished to a person
-and unfinished to every query. The reverse is worse, because a cancelled item recorded as delivered is counted as
-output in every burndown chart and every report of what shipped.
-
-The rule: every transition into a terminal status records closure in the same operation, with the value that matches
-the status, and every transition back out of a terminal status clears it.
-
-Two warnings apply specifically when writing through an application programming interface rather than clicking
-through a web interface, which is the normal case for an agent. A programmatic write skips whatever screen the tool
-would use to prompt for the closure value, so an agent that transitions an item and does not set closure in the same
-request produces exactly the empty-field state above. And a commit-message command that resolves an item usually
-moves the status only, so an item closed that way needs closure set separately.
-
----
-
-### Ordering, Flow and Bounded Work in Progress
-
-Order the backlog rather than bucketing it. An explicit ordering is a total ordering: every item sits above or below
-every other item, so the question of what comes next always has exactly one answer. A five-level priority field
-cannot do that, because it puts hundreds of items into five buckets and says nothing about the order within a
-bucket. A priority field still earns its place as a severity signal on a Bug, answering how badly the defect hurts
-rather than when it gets scheduled.
-
-A five-level priority field drifts for a mechanical reason worth knowing: the middle value is usually the default on
-the create screen. An item reading Medium is therefore indistinguishable from an item nobody ever prioritised, so
-once a majority of the backlog reads Medium the field has stopped carrying information and cannot be repaired by
-sorting on it.
-
-Work in progress has to be bounded. Unbounded work in progress means everything is started, nothing is finished, and
-every estimate of when anything will be done is guesswork. A fixed iteration bounds it by capacity per iteration, a
-flow approach bounds it by an explicit per-stage limit written on the board, and neither bounds it by good
-intentions. Set the limit from measurement rather than from opinion, and do not raise it because the team keeps
-hitting it. Hitting the limit is the mechanism, not a malfunction, because it is what forces the team to finish
-something before starting the next thing.
-
-Four measures go with that, and they need nothing beyond a start date and a finish date on each item.
-
-| Measure | What it is | What it is for |
-|---|---|---|
-| Work in progress | Items started and not finished | The thing the limit applies to |
-| Work item age | Elapsed time since an unfinished item started | The only one you can still act on |
-| Cycle time | Elapsed time from start to finish, per finished item | How long things took, after the fact |
-| Throughput | Items finished per unit of time | How much gets done, counted rather than estimated |
-
-Work item age is the one most often missing and the one worth adding first. Cycle time and throughput describe items
-that already finished, which is too late to help those items, whereas an item ageing past the usual cycle time is a
-warning while there is still something to do about it. Age also finds work that has quietly stalled without anyone
-marking it blocked.
-
-Throughput counts finished items without weighting them by size, which is what makes it usable without an estimation
-ritual behind it. That only holds if items are kept small and similar, which is the section on size above.
-
----
-
-### Links and Duplicates
-
-Every dependency stated in prose must also exist as a link. A dependency written only in a description is invisible
-to the board: it cannot show a stalled item, it cannot be filtered on, and it cannot warn anyone that starting one
-item needs another finished first. Prose is for the explanation, the link is for the machine.
-
-Four relationships cover almost everything, and every tracker expresses them in some form.
-
-| Relationship | Use when |
-|---|---|
-| Duplicate | The two items describe identical work |
-| Blocking | One is a genuine precondition of the other |
-| Related | Partial overlap, neither contains the other |
-| Parent | One item is contained by the other |
-
-Do not use a blocking link for the case where two items touch the same file. A blocking link makes the board show a
-stall, so a wrong one reports work as unstartable when it is merely inconvenient to do in parallel, and people plan
-around a constraint that does not exist. Merge conflicts are a coordination problem, not a dependency.
-
-Before closing anything as a duplicate, read both descriptions and all comments, because a matching summary is not evidence, and copy anything the survivor lacks before the close, because most trackers have no merge. The four verdicts and what to do for each are in [links-and-duplicates.md](references/links-and-duplicates.md).
-
----
-
-### Tying an Item to the Code
-
-The item id goes in three places, always uppercase: the branch name, the commit message, and the merge-request
-title. A lowercase id usually links nothing, because id matching is commonly case-sensitive.
-
-All three are needed because different integrations read different artefacts. A branch link reads the branch name, a
-commit link reads the commit message, a merge-request link reads its title or its source branch, and a deployment
-link usually reads the commit message. The consequence worth remembering: a squash merge rewrites the commit
-message, so an id that lived only in the merge-request title leaves the squashed commit carrying no id at all, and
-the deployment link is lost even though the merge request was linked correctly the whole time.
-
-Branch naming, commit message format and merge strategy are not this skill's subject. They belong to the
-`git-workflow` skill.
+1. Pick the kind (Story, Task, Bug, Spike, Epic, Subtask) from what the work is, not how large it feels, and carry it in exactly one mechanism: a type field, else a single-select field, else one governed label.
+2. A Story is one "As a persona, I want goal, so that benefit" sentence, or it is a Task. A Spike names its question and its output artefact.
+3. An epic names an outcome that will ship and closes on its definition of done. Activity epics (Refactoring, Bugs, Technical Debt) and catch-all epics are forbidden: the activity becomes a label.
+4. Every item except an epic gets a parent epic at creation, a Subtask its item. When no epic fits, ask which outcome the work belongs to before creating it.
+5. An item is small enough for one person to finish in a normal cycle and verifiable alone. Split along observable behaviour, never along technical layers.
+6. Each acceptance criterion is testable on its own and describes the result, not the recipe. One form per project: a flat checklist or Given, When, Then.
+7. Use the project's description template. Without one, the description still states the outcome, the verification and what is out of scope.
+8. Govern labels: one documented list in two families (area and nature of work), roughly ten to twenty, with a named owner.
+9. Keep only statuses somebody actually transitions through. Delivered and abandoned are two terminal statuses on two board columns. Blocked is a marker, never a status.
+10. Every transition into a terminal status records closure in the same operation, and every transition out clears it. An API write or a commit-message resolve skips the closure prompt, so set it explicitly.
+11. Order the backlog totally rather than bucketing by priority. Priority stays only as a severity signal on a Bug.
+12. Bound work in progress with a measured limit, never raised because the team hits it, and track work in progress, work item age, cycle time and throughput.
+13. Every dependency stated in prose also exists as a link (duplicate, blocking, related, parent). Touching the same file is not a blocking dependency.
+14. Before closing a duplicate, read both items in full and copy what the survivor lacks before the close.
+15. The uppercase item id goes in the branch name, the commit message and the merge-request title, so a squash merge keeps the deployment link.
 
 ---
 
 ### Checklist Before Creating an Item
 
-1. The kind matches what the work is, tested against the table above, and one mechanism carries it.
+1. The kind matches what the work is, tested against the table in [work-items.md](references/work-items.md#kinds-of-work), and one mechanism carries it.
 2. A Story carries its "As a, I want, so that" sentence, and a Task does not.
 3. A Spike names its question and its output artefact.
 4. A search for an existing item covering the same work found none.
-5. The description follows whatever template the project already defines, and answers the outcome, the verification
-   and the scope boundary either way.
+5. The description follows whatever template the project already defines, and answers the outcome, the verification and the scope boundary either way.
 6. Acceptance criteria are testable and independent, in the project's one chosen form.
 7. The item is small enough to finish in a normal cycle and to verify on its own, or it is an epic with children.
 8. At least one area label, and at most one nature-of-work label, both from the documented lists.
-9. The item has a parent set at creation: an epic that is an outcome, or its item for a Subtask. An epic alone has
-   none.
+9. The item has a parent set at creation: an epic that is an outcome, or its item for a Subtask. An epic alone has none.
 10. Every dependency mentioned in the text also exists as a link.
 
 ---
@@ -291,15 +84,8 @@ Branch naming, commit message format and merge strategy are not this skill's sub
 3. Closure is recorded in the same operation as the status transition, with the value matching the status.
 4. No subtask is still open.
 5. Nothing that blocks another item was left undone, and any link to a dependency that is gone is cleared.
-6. If closing as a duplicate, the surviving item already has everything unique from this one, merged before the
-   close rather than after.
+6. If closing as a duplicate, the surviving item already has everything unique from this one, merged before the close rather than after.
 7. The branch and the merge request carry the id, so the deployment link survives the merge.
-
----
-
-### Porting This to Any Tracker
-
-Before assuming a rule above lands in a new tracker, run the five porting questions and the id-migration check in [tracker-mechanics.md](references/tracker-mechanics.md), which also answers them for seven common trackers.
 
 ---
 

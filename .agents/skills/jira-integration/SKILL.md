@@ -32,222 +32,35 @@ skill defers to them rather than restating them.
 
 ---
 
-### Add Atlassian's remote MCP server yourself
+### Reference files
 
-No MCP configuration file in this repository declares a Jira server. The MCP tools below come from Atlassian's own
-remote MCP server, which each user adds to the MCP file or command their agent tool uses, following
-[Getting started with the Atlassian MCP Server](https://support.atlassian.com/atlassian-rovo-mcp-server/docs/getting-started-with-the-atlassian-remote-mcp-server/).
-Atlassian hosts it, so there is no package to install or pin. It signs in through an OAuth 2.1 browser flow, or
-through an API token in an `Authorization` header for a headless client.
-
-One rule holds regardless of tool. A token comes from the process environment or a secrets manager, never as a
-literal value inside a configuration file that can be committed.
-
-Pass:
-
-```text
-Server added with the OAuth sign-in. No token in any committed file.
-```
-
-Fail:
-
-```json
-{"headers": {"Authorization": "Basic the-real-token-pasted-into-a-committed-file"}}
-```
-
-Create the token at the Atlassian account security page, store it in the environment or a secrets manager, and scope
-it to the projects you actually need. Rotate it immediately if it ever reaches git history.
-
----
-
-### Fall back to REST v3 when no MCP server is available
-
-The REST API answers the same questions over `curl`. It needs the same three environment variables.
-
-| Variable | What it holds |
+| Task | Open |
 |---|---|
-| `JIRA_URL` | The instance base URL |
-| `JIRA_EMAIL` | The Atlassian account email |
-| `JIRA_API_TOKEN` | The API token, from the environment only |
-
-Validate that all three are set before the first call and fail with a clear message if not, because an unset variable
-produces a 401 that reads like a permissions problem.
+| Adding the MCP server, the REST v3 variables, the MCP tool table, transition, fetch, JQL and comment commands, troubleshooting | [references/access-and-calls.md](references/access-and-calls.md) |
+| Examples of a correctly scoped new issue, the update-point table, and the deferral to `project-tracking` | [references/issue-updates.md](references/issue-updates.md) |
 
 ---
 
-### Know which MCP tool answers which question
-
-| Tool | Use it for |
-|---|---|
-| `searchJiraIssuesUsingJql` | JQL queries across a project |
-| `getJiraIssue` | Full detail for one key |
-| `createJiraIssue` | Creating a Task, Bug, Story or Epic |
-| `editJiraIssue` | Changing summary, description or assignee |
-| `listJiraIssueTransitions` | The transitions valid for this issue right now |
-| `transitionJiraIssue` | Moving status |
-| `addOrEditJiraIssueComment` | Progress updates |
-| `getJiraBoardSprintData` | Everything in the active sprint of a board |
-| `createJiraIssueLink` | Blocks, relates to, duplicates |
-
-These names come from Atlassian's [supported tools](https://support.atlassian.com/atlassian-rovo-mcp-server/docs/supported-tools/) page. A client connected to an older server version can still list older names, such as `getTransitionsForJiraIssue` and `addCommentToJiraIssue`, so call the name the connected server actually lists.
-
----
-
-### Read a transition ID before transitioning
-
-Transition IDs are per project workflow and change between projects, so an ID that worked on one board fails on the
-next. Ask for the available transitions first, match on the name, then execute.
-
-Read the available transitions:
-
-```bash
-curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" "$JIRA_URL/rest/api/3/issue/PROJ-1234/transitions" | jq '.transitions[] | {id, name}'
-```
-
-Then execute the one you matched:
-
-```bash
-curl -s -X POST -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -H "Content-Type: application/json" -d '{"transition": {"id": "31"}}' "$JIRA_URL/rest/api/3/issue/PROJ-1234/transitions"
-```
-
-Pass:
-
-```text
-Fetched transitions, "In Review" is id 31 on this board, transitioned with 31.
-```
-
-Fail:
-
-```text
-Used transition id 21 because that was "In Review" on the last project.
-```
-
----
-
-### Fetch an issue with the fields you need
-
-```bash
-curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" "$JIRA_URL/rest/api/3/issue/PROJ-1234" | jq '{key, summary: .fields.summary, status: .fields.status.name, type: .fields.issuetype.name, labels: .fields.labels, description: .fields.description}'
-```
-
-Fetch the comment thread separately, because it is large and usually not needed:
-
-```bash
-curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" "$JIRA_URL/rest/api/3/issue/PROJ-1234?fields=comment" | jq '.fields.comment.comments[] | {author: .author.displayName, created: .created[:10], body: .body}'
-```
-
-Search with JQL through `/rest/api/3/search/jql`. The older `/rest/api/3/search` is marked deprecated in the [issue search reference](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/), which says "Endpoint is currently being removed". The new endpoint returns issue IDs only unless `fields` names what you want, its reference says "By default, this resource returns IDs only", and it pages with `nextPageToken` rather than `startAt`. The query must be bounded, so keep a project or assignee restriction in it.
-
-```bash
-curl -s -G -u "$JIRA_EMAIL:$JIRA_API_TOKEN" --data-urlencode "jql=project = PROJ AND status = 'In Progress'" --data-urlencode "fields=summary,status,assignee" "$JIRA_URL/rest/api/3/search/jql" | jq '.issues[] | {key, summary: .fields.summary, status: .fields.status.name}'
-```
-
-Fail:
-
-```bash
-curl -s -G -u "$JIRA_EMAIL:$JIRA_API_TOKEN" --data-urlencode "jql=project = PROJ" "$JIRA_URL/rest/api/3/search"
-```
-
----
-
-### Post a comment in Atlassian document format
-
-The v3 comment endpoint takes a structured document, not a plain string. A plain string is rejected with a 400 that
-does not say why.
-
-```bash
-curl -s -X POST -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -H "Content-Type: application/json" -d '{"body":{"version":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Branch feat/PROJ-1234 pushed."}]}]}}' "$JIRA_URL/rest/api/3/issue/PROJ-1234/comment"
-```
-
-Pass:
-
-```text
-Comment body wrapped in the doc structure with a paragraph node.
-```
-
-Fail:
-
-```json
-{"body": "Branch pushed."}
-```
-
----
-
-### Write the parent and labels, and only the other fields the user named
+### Ask before acting
 
 Create or modify an issue only when the user asked for it, and create each new issue only after the user approved
-that one issue. A new issue always gets its parent epic and the labels the project's tracking conventions require: at
-least one area label and at most one nature-of-work label, taken only from the project's own documented label list and
-never invented. Every other field, meaning priority, components, sprint and assignee, is set only when the user names
-it. Adding one of those on your own edits somebody else's board, and the change is invisible until a filter returns
-the wrong set. Take the description template from the tracker rather than inventing one.
-
-Pass:
-
-```text
-Asked for a bug in PROJ with that summary and description. Created it with those two fields, the parent epic and the area label from the project's list.
-```
-
-Fail:
-
-```text
-Created it with no parent, invented a "misc" label, and added priority High and the current sprint, since that seemed right.
-```
+that one issue. Every transition or comment is a proposal, not an action: tell the user the transition or the comment
+you would make, and run it only after they approve that one action.
 
 ---
 
-### Propose updates as you go, at the points that carry information
+### Rules
 
-Every row below is a proposal, not an action. Tell the user the transition or the comment you would make, and run it
-only after they approve that one action.
-
-| Moment in the work | What to propose for the issue |
-|---|---|
-| Work starts | Transition to the in-progress status |
-| Branch created | Comment with the branch name |
-| Tests written | Comment with what they cover |
-| Pull request opened | Comment with the link, and link the issue |
-| Pull request merged | Transition to the next status in the workflow |
-
-Keep each comment short and link outward rather than pasting content. A comment that reproduces a test report goes
-stale the moment the report is regenerated, and a link never does.
-
-Pass:
-
-```text
-PR opened: <link>. 6 tests added covering the 429 path. Ready for review.
-```
-
-Fail:
-
-```text
-[400 lines of pasted test output]
-```
-
----
-
-### Defer the content of the item to project-tracking
-
-What a good acceptance criterion looks like, how to size and split an item, which label taxonomy is allowed, and what
-has to be true before an item closes are all owned by `project-tracking`. Read that skill before you write a
-description, criteria or a closure comment, and use this skill only for getting that content into and out of Jira.
-
-Where criteria are vague, ask before writing code rather than inventing an interpretation, and check linked issues
-first so you understand the full scope of the feature.
-
----
-
-### Troubleshooting
-
-| Symptom | Cause | Fix |
-|---|---|---|
-| `401 Unauthorized` | Token invalid, expired, or not exported into the agent's process | Check the environment, regenerate if needed |
-| `403 Forbidden` | Token lacks permission on that project | Check token scope and project access |
-| `404 Not Found` | Wrong key or wrong base URL | Verify `JIRA_URL` and the issue key |
-| `400` on a comment | Body sent as a plain string | Wrap it in the Atlassian document structure |
-| Transition rejected | ID belongs to a different workflow | Read the transitions for this issue first |
-| Connection timeout | Network or VPN | Check VPN and firewall rules |
-| MCP tools missing or asking to sign in | Server URL not in the agent's MCP file, or the OAuth sign-in never finished | Add the remote server URL, then finish the browser sign-in |
+1. Add Atlassian's hosted remote MCP server yourself, signed in by OAuth 2.1 or an API token in an `Authorization` header. No configuration file in this repository declares one.
+2. A token comes from the process environment or a secrets manager, never as a literal in a configuration file that can be committed. Scope it to the projects you need and rotate it at once if it reaches git history.
+3. Without an MCP server, use REST v3 with `JIRA_URL`, `JIRA_EMAIL` and `JIRA_API_TOKEN`, and check all three are set before the first call, because an unset one reads as a 401.
+4. Call the MCP tool name the connected server actually lists, since older servers list older names.
+5. Read the available transitions for this issue and match on the name before transitioning. Transition IDs differ per workflow.
+6. Fetch only the fields you need, and the comment thread separately. Search through `/rest/api/3/search/jql` with `fields` named and a bounded query, never the deprecated `/rest/api/3/search`.
+7. A v3 comment body is an Atlassian document (`doc` with a paragraph node), never a plain string.
+8. A new issue gets its parent epic and at least one area label and at most one nature-of-work label from the project's documented list, never invented. Priority, components, sprint and assignee are set only when the user names them. Take the description template from the tracker.
+9. Propose updates at the points that carry information (work starts, branch created, tests written, pull request opened, pull request merged), and keep comments short, linking outward rather than pasting reports.
+10. Item content (criteria, sizing, labels, closure) follows `project-tracking`. Where criteria are vague, ask before writing code, and check linked issues first.
 
 ---
 

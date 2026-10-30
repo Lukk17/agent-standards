@@ -5,7 +5,7 @@ description: 'Read-only health and configuration check of one Linux, macOS or Wi
 
 # Machine Health
 
-A read-only health and configuration check for one computer, run after setup and again whenever the owner asks. The first run writes a dated baseline into the Health section of `MACHINE.md`. Every later run compares against that baseline and reports drift. The agent finds and reports. It fixes nothing on its own, it never elevates, and it hands every root command and every fix to the owner.
+A read-only health and configuration check for one computer, run after setup and again whenever the owner asks. The first run writes a dated baseline into the Health section of `MACHINE.md`. Every later run compares against that baseline and reports drift. The agent reports, fixes nothing on its own, never elevates, and hands every root command and every fix to the owner.
 
 Linux commands were executed read-only on one CachyOS host with systemd and Plasma 6, and each one that ran says so. macOS and Windows commands were not executed and are marked UNVERIFIED wherever they appear.
 
@@ -16,7 +16,7 @@ Linux commands were executed read-only on one CachyOS host with systemd and Plas
 | RAM modules, speed against rating and vendor support, mixed kits, channels, memory errors, memory tests | [memory.md](references/memory.md) |
 | SMART and NVMe health, filesystem errors, free space, mount options, encryption | [storage.md](references/storage.md) |
 | Failed units, coredumps, error logs, kernel warnings and taint | [system-errors.md](references/system-errors.md) |
-| PATH duplicates, missing entries, shadowed binaries, which file sets what, where variables and zsh files belong, whether graphical applications see the terminal's variables | [paths-and-environment.md](references/paths-and-environment.md) |
+| PATH duplicates, missing entries, shadowed binaries, which file sets what, where variables and zsh files belong, whether graphical apps see them | [paths-and-environment.md](references/paths-and-environment.md) |
 | Pending and partial upgrades, `.pacnew` and friends, orphans, caches | [packages.md](references/packages.md) |
 | GPU driver, display refresh, audio, network, firewall, time sync and the dual boot clock | [devices-and-network.md](references/devices-and-network.md) |
 | Firewall, Secure Boot, disk encryption, pending security updates in one view | [security-baseline.md](references/security-baseline.md) |

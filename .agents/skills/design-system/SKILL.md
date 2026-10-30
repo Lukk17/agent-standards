@@ -37,209 +37,33 @@ Written for Tailwind CSS v4, which is configured in CSS through `@theme` and no 
 
 ---
 
+### Reference files
+
+| Task | Open |
+| --- | --- |
+| The three modes in full, and pass and fail code for tokens, naming, spacing, Tailwind v4, 7-1 layout, dark mode, media queries | [references/modes-and-tokens.md](references/modes-and-tokens.md) |
+
+---
+
 ### Working modes
 
-This skill runs in one of three modes. Say which one you want, or the intent will be inferred from the request.
+Say which mode you want, or the intent is inferred from the request.
 
-Generate builds a system from what the codebase already does. Scan the CSS, Tailwind classes, and styled-components
-for existing values, extract the colours, type scale, spacing, radii, shadows, and breakpoints actually in use, then
-propose a consolidated token set with a reason for each decision. The output is a written design document, a token
-file in both JSON and CSS custom properties, and a self-contained preview page that renders every token so the set
-can be reviewed without running the application.
-
-Audit scores an existing interface across ten dimensions, each out of ten: colour consistency, type hierarchy,
-spacing rhythm, component consistency, responsive behaviour, dark mode completeness, purposefulness of animation,
-accessibility, information density, and polish, meaning hover, transition, loading, and empty states. Every score
-comes with concrete examples and a fix pinned to a file and line. A score with no file reference is not a finding.
-
-Slop check hunts the token-level tells of a system nobody designed: raw hex values and one-off gradients in component
-files, spacing and sizes off the scale, a radius or shadow defined once and never reused, a font stack declared inline
-rather than as a token, and near-duplicate colours that should be one token. Report each hit with its location and the
-token it bypasses. Whether the interface looks generic, meaning purple-to-blue defaults, glass morphism with no
-purpose, or a centred hero over a stock gradient, is a direction question, and `frontend-design` owns it.
+- Generate: extract the colours, type scale, spacing, radii, shadows and breakpoints the codebase already uses, and propose a consolidated token set with a reason per decision. Output a design document, a token file in JSON and CSS custom properties, and a self-contained preview page rendering every token.
+- Audit: score ten dimensions out of ten (colour, type hierarchy, spacing rhythm, component consistency, responsive behaviour, dark mode, purposeful animation, accessibility, information density, polish). Every score carries examples and a fix pinned to a file and line, or it is not a finding.
+- Slop check: report raw hex values and one-off gradients in components, off-scale spacing and sizes, a radius or shadow used once, inline font stacks, and near-duplicate colours, each with its location and the token it bypasses. Whether a UI looks generic is a direction question for `frontend-design`.
 
 ---
 
-### Put every visual value in a token
+### Rules
 
-A hex code inside a component file cannot be themed, cannot be audited, and will be copied slightly wrong the next
-time someone needs it. Define the value once and reference it everywhere.
-
-```css
-/* PASS: tokens/colors.css owns the values */
-:root {
-  --color-primary-500: #2563eb;
-  --color-surface-default: #ffffff;
-  --color-text-primary: #111827;
-  --color-feedback-error: #dc2626;
-}
-```
-
-```tsx
-// PASS: the component references the token
-<Button style={{ background: 'var(--color-primary-500)' }} />
-
-// FAIL: the value is welded into the component
-<Button style={{ background: '#2563eb' }} />
-```
-
----
-
-### Name tokens by category, variant, and scale
-
-A token name describes the role, never the value. A name carrying a pixel count or a colour word breaks the moment
-the value changes, which is the one thing tokens exist to make easy.
-
-```css
-/* PASS: role-based names that survive a value change */
---color-primary-500: #2563eb;
---color-surface-default: #ffffff;
---color-text-muted: #6b7280;
---shadow-card-default: 0 1px 3px rgb(0 0 0 / 0.1);
---radius-button-default: 0.5rem;
---spacing-section-gap: 4rem;
-```
-
-```css
-/* FAIL: the name encodes the value, so it lies after the first change */
---padding-16px: 16px;
---color-blue: #2563eb;
---shadow-light-grey: 0 1px 3px rgb(0 0 0 / 0.1);
-```
-
-The shape is `--{category}-{variant}-{scale}`.
-
----
-
-### Keep spacing on one rhythm
-
-Every margin, padding, gap, and component height is a multiple of 8px, with 4px available for micro-adjustments such
-as icon gutters and badge offsets. One rhythm is what makes unrelated components look like they belong together.
-
-```css
-/* PASS: on the rhythm */
-padding: 16px 24px;
-gap: 8px;
-height: 48px;
-```
-
-```css
-/* FAIL: values picked by eye, nothing lines up across components */
-padding: 13px 19px;
-gap: 6px;
-height: 47px;
-```
-
----
-
-### Configure Tailwind v4 in CSS
-
-Tailwind v4 no longer auto-detects `tailwind.config.js`. A project may still load one with the `@config` directive, so search the stylesheets for `@config` before treating a config file as dead. The [upgrade guide](https://tailwindcss.com/docs/upgrade-guide) says "JavaScript config files are still supported for backward compatibility, but they are no longer detected automatically in v4". New configuration lives in the `@theme` block, and every token defined there becomes both a CSS custom property and a Tailwind utility.
-
-```css
-/* PASS: styles/main.css, one source for the theme */
-@import "tailwindcss";
-
-@theme {
-  --color-primary: #2563eb;
-  --color-primary-foreground: #ffffff;
-  --font-sans: "Inter Variable", sans-serif;
-  --radius-md: 0.5rem;
-  --spacing-18: 4.5rem;
-}
-
-@layer components {
-  .btn-primary {
-    @apply bg-[--color-primary] text-[--color-primary-foreground] rounded-[--radius-md] px-4 py-2;
-  }
-}
-```
-
-```javascript
-// FAIL: a v3 config file that Tailwind v4 does not read
-module.exports = {
-  theme: { extend: { colors: { primary: '#2563eb' } } },
-}
-```
-
----
-
-### Organise stylesheets with the 7-1 pattern
-
-Seven folders and one entry file, so a reader knows where a rule lives before opening anything.
-
-```text
-styles/
-├── abstracts/    Variables, functions, mixins, placeholders
-├── base/         Reset, typography, base element styles
-├── components/   Component styles, BEM named
-├── layout/       Grid, header, footer, sidebar
-├── pages/        Page-specific overrides
-├── themes/       Light and dark token overrides
-├── vendors/      Third-party overrides
-└── main.scss     Imports only, no rules of its own
-```
-
-```scss
-// PASS: abstracts holds logic only, and main.scss only imports
-// abstracts/_spacing.scss
-@function space($step) { @return $step * 8px; }
-
-// FAIL: abstracts emitting CSS, and a rule written straight into main.scss
-// abstracts/_spacing.scss
-.container { padding: 16px; }
-```
-
-`abstracts/` emits no CSS, `components/` is never imported into `abstracts/`, and component classes follow
-`.block__element--modifier`.
-
----
-
-### Build dark mode on day one
-
-Retrofitting dark mode means auditing every component for hardcoded colour. Building it in means overriding a handful
-of semantic tokens. Do the second.
-
-```css
-/* PASS: semantic tokens, one override block per theme */
-:root {
-  --color-surface-default: #ffffff;
-  --color-text-primary: #111827;
-}
-
-[data-theme="dark"] {
-  --color-surface-default: #0f172a;
-  --color-text-primary: #f8fafc;
-}
-```
-
-```tsx
-// FAIL: an arbitrary value that no theme can override
-<div className="bg-[#ffffff] text-[#111827]" />
-```
-
-Both themes get exercised before a pull request lands, in a component workbench or the running application.
-
----
-
-### Write mobile-first media queries
-
-Base styles target the smallest viewport and each query adds to them. Mixing `min-width` and `max-width` produces
-overlapping ranges and a cascade nobody can predict.
-
-```css
-/* PASS: mobile-first, one direction only */
-.card { padding: 16px; }
-@media (min-width: 768px) { .card { padding: 24px; } }
-```
-
-```css
-/* FAIL: desktop-first, subtracting styles back out */
-.card { padding: 24px; }
-@media (max-width: 767px) { .card { padding: 16px; } }
-```
-
-Standard breakpoints: `sm: 640px`, `md: 768px`, `lg: 1024px`, `xl: 1280px`.
+1. Put every visual value in a token, defined once and referenced everywhere, never a hex code in a component file.
+2. Name tokens by role as `--{category}-{variant}-{scale}`, never by value, pixel count or colour word.
+3. Every margin, padding, gap and component height is a multiple of 8px, with 4px for micro-adjustments.
+4. Tailwind v4 configuration lives in `@theme`, where each token becomes a custom property and a utility. v4 does not auto-detect `tailwind.config.js`, but `@config` can still load one, so search for `@config` before treating a config file as dead.
+5. Organise stylesheets 7-1: `abstracts/`, `base/`, `components/`, `layout/`, `pages/`, `themes/`, `vendors/` and an imports-only `main.scss`. `abstracts/` emits no CSS, `components/` is never imported into it, and component classes are BEM.
+6. Build dark mode on day one by overriding semantic tokens per theme, never arbitrary values, and view both themes before a pull request lands.
+7. Write mobile-first `min-width` queries only, on the breakpoints `sm: 640px`, `md: 768px`, `lg: 1024px`, `xl: 1280px`.
 
 ---
 

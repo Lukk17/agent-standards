@@ -7,7 +7,7 @@ description: 'Working with a Proxmox VE 8 or 9 host from an agent, every change 
 
 How an agent works on a Proxmox VE host through the API, and how a change the owner approved is done in the right order. The main option is an admin token for a user of its own. It can create, change and delete VMs and storage content, manage storages and SDN, create users and groups but not grant permissions, and download ISO files. Narrower tokens are described as alternatives in [api-access.md](references/api-access.md). Whatever the token, anything that changes a VM, a storage or the host is proposed to the owner first, with what can go wrong and how to undo it.
 
-Written for Proxmox VE 8 and 9, from the `qm` and `pveum` manual pages, the admin guide sources, the wiki and the API schema. No agent executed a Proxmox command for this skill, because no Proxmox host may be touched for a test. The owner ran the admin token commands in [api-access.md](references/api-access.md) on a Proxmox VE 8 host and measured what the token holds. Every other command is UNVERIFIED unless a topic file says otherwise. API paths and the permission each one needs were checked against the API schema of the API viewer. The tokens, roles and API calls in [api-access.md](references/api-access.md) were also checked against the Proxmox VE 8 sources, and that file lists what differs between 8 and 9. The other topic files were checked against 9 only.
+Written for Proxmox VE 8 and 9, from the `qm` and `pveum` manual pages, the admin guide sources, the wiki and the API schema. Only the admin token commands were run on a real host. How far each command is verified is in [conventions.md](references/conventions.md#verification).
 
 | You are about to | Open |
 |---|---|
@@ -15,12 +15,13 @@ Written for Proxmox VE 8 and 9, from the `qm` and `pveum` manual pages, the admi
 | Grow a VM disk, then the partition and the file system in a Linux or Windows guest | [disk-resize.md](references/disk-resize.md) |
 | Take or roll back a snapshot, run a backup, read or plan a backup job | [snapshots-and-backups.md](references/snapshots-and-backups.md) |
 | Read storage use, thin pool data and metadata, judge whether a pool is too full | [storage.md](references/storage.md) |
+| Name a host, node, VM or storage in a command or note, or judge how verified a command is | [conventions.md](references/conventions.md) |
 
 ---
 
 ### Facts about one setup
 
-Host names, node names, VM IDs, storage names beyond the installer defaults, and LAN addresses of a real setup belong in the owner's own notes, for example `MACHINE.md` next to the global `AGENTS.md`, never in this skill and never in a shared repository. Every example uses placeholders in angle brackets: `<proxmox-host>`, `<node>`, `<vm-id>`, `<storage>`, `<user>@<realm>`, `<token-id>`.
+Setup facts belong in the owner's notes, never here. Examples use `<placeholders>`, listed in [conventions.md](references/conventions.md#facts-about-one-setup).
 
 ---
 
@@ -32,7 +33,6 @@ Host names, node names, VM IDs, storage names beyond the installer defaults, and
 - Snapshotting or backing up a Proxmox VM before a risky change inside the guest
 - Letting the agent create or delete VMs
 - Judging whether `local-lvm` or another thin pool is close to full
-- Also covers the main access option, an admin token for a user of its own, PVEAdmin on / and a custom Sys.AccessNetwork role on the node for ISO downloads, made with pveum or in the web page, narrower tokens as alternatives, the secret in an env file outside any repository, curl with a pinned certificate, listing nodes, VMs and storage use, creating and deleting VMs, growing a VM disk and the partition and file system in a Linux or Windows guest, the free space Ubuntu Server leaves in its volume group, snapshots, vzdump backups and backup jobs, and LVM thin pool data and metadata use
 - The user says "let the agent manage my VMs", "list my VMs", "the guest still shows the old size", "snapshot this VM first", "back up this VM" or "how full is local-lvm"
 
 ---
