@@ -16,6 +16,8 @@ import os
 import re
 import shutil
 import subprocess
+import sys
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -776,3 +778,316 @@ def test_the_agents_that_share_the_openai_key_never_run_at_the_same_time():
     assert match is not None
     assert set(json.loads(match.group(1))) == {"codex", "copilot"}
     assert concurrency["cancel-in-progress"] is False
+
+
+# --- Agent-specific checks: payload capture, read-only probe, preload canary ---
+
+CLAUDE_ADAPTER = REPO_ROOT / "sandbox-agent" / "live" / "claude-code.sh"
+PLUGIN_AGENT = "review-and-security:code-reviewer"
+READ_ONLY_PROBE = "readonly-probe.txt"
+
+
+def claude_subagent_payload(agent_type: str | None = PLUGIN_AGENT, agent_id: str | None = "a-1", command: str = f"touch {READ_ONLY_PROBE}") -> dict:
+    """A Claude Code PreToolUse payload of a Bash call, in the shape the hooks page documents."""
+    payload = {
+        "session_id": "s1",
+        "transcript_path": "/x/t.jsonl",
+        "cwd": "/work/plugin-project",
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "tool_input": {"command": command, "description": "probe"},
+    }
+    if agent_id is not None:
+        payload["agent_id"] = agent_id
+    if agent_type is not None:
+        payload["agent_type"] = agent_type
+    return payload
+
+
+def capture(tmp_path: Path, payloads: list) -> list[dict]:
+    """Write the capture hook with lib.sh, feed it each payload as a hook would, and return what it recorded."""
+    script = tmp_path / "capture.py"
+    log = tmp_path / "capture.ndjson"
+    written = run_bounded([BASH, "-c", f"source '{LIB.as_posix()}'; write_payload_capture '{script.as_posix()}'"], capture_output=True, text=True)
+    assert written.returncode == 0, written.stderr
+
+    for payload in payloads:
+        stdin = payload if isinstance(payload, str) else json.dumps(payload)
+        result = run_bounded(["python3", "-S", "-E", str(script), str(log), READ_ONLY_PROBE], input=stdin, capture_output=True, text=True)
+        assert (result.returncode, result.stdout) == (0, "")
+
+    return [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+
+
+@pytest.mark.skipif(shutil.which("python3") is None, reason="the hook runs python3")
+def test_the_capture_hook_records_key_names_and_the_agent_type_only(tmp_path):
+    # Given a subagent's probe call and the main thread's spawn whose prompt names the probe
+    spawn = {**claude_subagent_payload(None, None), "tool_name": "Agent", "tool_input": {"subagent_type": PLUGIN_AGENT, "prompt": f"Run touch {READ_ONLY_PROBE}"}}
+
+    # When
+    probe, spawned = capture(tmp_path, [claude_subagent_payload(), spawn])
+
+    # Then
+    assert probe == {
+        "event": "PreToolUse",
+        "tool": "Bash",
+        "keys": ["agent_id", "agent_type", "cwd", "hook_event_name", "session_id", "tool_input", "tool_name", "transcript_path"],
+        "tool_input_keys": ["command", "description"],
+        "agent_id": True,
+        "agent_type": PLUGIN_AGENT,
+        "probe": True,
+    }
+    assert (spawned["agent_id"], spawned["agent_type"], spawned["probe"]) == (False, None, False)
+    assert "touch" not in (tmp_path / "capture.ndjson").read_text(encoding="utf-8")
+
+
+@pytest.mark.skipif(shutil.which("python3") is None, reason="the hook runs python3")
+def test_the_capture_hook_allows_a_payload_it_cannot_read(tmp_path):
+    assert capture(tmp_path, ["not json", "[1]"]) == [{"type": "NoneType"}, {"type": "list"}]
+
+
+def test_the_capture_hook_command_refuses_a_work_directory_it_would_have_to_quote(tmp_path):
+    work = tmp_path / "it's here"
+    work.mkdir()
+
+    result = run_bounded([BASH, "-c", f"source '{LIB.as_posix()}'; WORK=\"$1\"; install_payload_capture", "_", work.as_posix()], capture_output=True, text=True)
+
+    assert (result.returncode, result.stdout) == (2, "")
+
+
+def judge_read_only(work: Path, payloads: list[dict], calls: list[dict], transcript: str = "", landed: bool = False, missing_verdict: str = "KNOWN-GAP") -> str:
+    """Run judge_read_only_probe over a recorded case with the real count_calls and gate markers."""
+    case = work / "cases" / "8-plugin-type"
+    project = work / "project"
+    (case / "transcripts").mkdir(parents=True)
+    project.mkdir()
+    (case / "payloads.ndjson").write_text("".join(json.dumps(p) + "\n" for p in payloads), encoding="utf-8", newline="\n")
+    (case / "calls.ndjson").write_text("".join(json.dumps(c) + "\n" for c in calls), encoding="utf-8", newline="\n")
+    (case / "transcripts" / "stream.jsonl").write_text(transcript, encoding="utf-8", newline="\n")
+    if landed:
+        (project / READ_ONLY_PROBE).write_text("", encoding="utf-8")
+
+    script = (
+        f"source '{LIB.as_posix()}'; "
+        f"AGENT_LABEL=test; PROJECT='{project.as_posix()}'; "
+        "SPAWN_TOOL_RE='^(Task|Agent)$'; WRITE_TOOL_RE='^(Write|Edit|Bash)$'; "
+        "record() { printf '%s|%s' \"$2\" \"$3\"; }; "
+        f"judge_read_only_probe 'n' '{case.as_posix()}' '{PLUGIN_AGENT}' '{missing_verdict}'"
+    )
+    result = run_bounded([BASH, "-c", script], capture_output=True, text=True)
+
+    assert result.returncode == 0, result.stderr
+
+    return result.stdout
+
+
+def probe_record(agent_type: str | None = PLUGIN_AGENT, agent_id: bool = True) -> dict:
+    return {"event": "PreToolUse", "tool": "Bash", "keys": ["agent_id", "agent_type"], "agent_id": agent_id, "agent_type": agent_type, "probe": True}
+
+
+SPAWN = {"actor": "main", "tool": "Agent", "input": json.dumps({"subagent_type": PLUGIN_AGENT}), "result": "done", "error": False}
+SUB_TOUCH = {"actor": "subagent", "tool": "Bash", "input": json.dumps({"command": f"touch {READ_ONLY_PROBE}"}), "result": "denied", "error": True}
+MAIN_TOUCH = {"actor": "main", "tool": "Bash", "input": json.dumps({"command": f"touch {READ_ONLY_PROBE}"}), "result": "denied", "error": True}
+
+
+def denial(rule: str) -> str:
+    return json.dumps({"type": "tool_result", "output": gate_reasons()[rule]}) + "\n"
+
+
+@needs_jq
+@pytest.mark.parametrize(
+    ("payloads", "calls", "transcript", "landed", "missing_verdict", "expected"),
+    [
+        pytest.param([probe_record()], [SPAWN, SUB_TOUCH], denial("RULE_E_REASON"), False, "FAIL", "PASS", id="type-arrived-and-rule-e-denied"),
+        pytest.param([probe_record()], [SPAWN, SUB_TOUCH], denial("RULE_E_REASON"), True, "FAIL", "FAIL", id="type-arrived-but-touch-landed"),
+        pytest.param([probe_record()], [SPAWN, SUB_TOUCH], denial("RULE_A_REASON"), False, "FAIL", "FAIL", id="only-a-rule-a-denial"),
+        pytest.param([probe_record(None)], [SPAWN, SUB_TOUCH], "", True, "KNOWN-GAP", "KNOWN-GAP", id="codex-agent-id-without-type"),
+        pytest.param([probe_record("code-reviewer")], [SPAWN, SUB_TOUCH], "", True, "FAIL", "FAIL", id="plugin-type-unscoped"),
+        pytest.param([probe_record(None, False)], [SPAWN, SUB_TOUCH], denial("RULE_A_REASON"), False, "KNOWN-GAP", "FAIL", id="no-agent-id-is-read-as-the-main-thread"),
+        pytest.param([probe_record(None, False)], [SPAWN, MAIN_TOUCH], denial("RULE_A_REASON"), False, "KNOWN-GAP", "INCONCLUSIVE", id="main-thread-ran-the-probe"),
+        pytest.param([{**probe_record(), "probe": False}], [SPAWN], "", False, "FAIL", "INCONCLUSIVE", id="subagent-never-ran-the-probe"),
+        pytest.param([], [SPAWN, SUB_TOUCH], "", False, "FAIL", "INCONCLUSIVE", id="capture-hook-never-ran"),
+        pytest.param([probe_record()], [], "", False, "FAIL", "INCONCLUSIVE", id="never-spawned"),
+        pytest.param([probe_record()], [{**SPAWN, "error": True}], "", False, "FAIL", "FAIL", id="spawn-rejected"),
+    ],
+)
+def test_the_read_only_probe_verdict(tmp_path, payloads, calls, transcript, landed, missing_verdict, expected):
+    verdict = judge_read_only(tmp_path, payloads, calls, transcript, landed, missing_verdict)
+
+    assert verdict.split("|")[0] == expected, verdict
+
+
+@needs_jq
+def test_the_read_only_probe_pass_quotes_the_payload_keys(tmp_path):
+    verdict = judge_read_only(tmp_path, [probe_record()], [SPAWN, SUB_TOUCH], denial("RULE_E_REASON"))
+
+    assert f"keys agent_id,agent_type, agent_id present, agent_type {PLUGIN_AGENT}" in verdict
+
+
+def judge_canary(work: Path, calls: list[dict], context: str = "") -> str:
+    """Run judge_preloaded_canary over recorded calls and a stubbed subagent context."""
+    case = work / "cases" / "9-plugin-preload"
+    case.mkdir(parents=True)
+    (case / "calls.ndjson").write_text("".join(json.dumps(c) + "\n" for c in calls), encoding="utf-8", newline="\n")
+
+    script = (
+        f"source '{LIB.as_posix()}'; "
+        "AGENT_LABEL=test; SPAWN_TOOL_RE='^(Task|Agent)$'; SKILL_TOOL_RE='^Skill$'; "
+        f"agent_subagent_context() {{ printf '%s' '{context}'; }}; "
+        "record() { printf '%s|%s' \"$2\" \"$3\"; }; "
+        f"judge_preloaded_canary 'n' '{case.as_posix()}' '{PLUGIN_AGENT}' security-review live-canary-123"
+    )
+    result = run_bounded([BASH, "-c", script], capture_output=True, text=True)
+
+    assert result.returncode == 0, result.stderr
+
+    return result.stdout.split("|")[0]
+
+
+@needs_jq
+@pytest.mark.parametrize(
+    ("calls", "context", "expected"),
+    [
+        pytest.param([{**SPAWN, "result": "live-canary-123"}], "", "PASS", id="repeated"),
+        pytest.param([SPAWN], '{"attachment":"live-canary-123"}', "PASS", id="in-the-recorded-context"),
+        pytest.param(
+            [{**SPAWN, "result": "live-canary-123"}, {"actor": "subagent", "tool": "Skill", "input": '{"skill":"core:security-review"}', "result": "", "error": False}],
+            "",
+            "INCONCLUSIVE",
+            id="loaded-at-run-time",
+        ),
+        pytest.param(
+            [{**SPAWN, "result": "live-canary-123"}, {"actor": "subagent", "tool": "Read", "input": '{"file_path":"/c/core/1/skills/security-review/SKILL.md"}', "result": "", "error": False}],
+            "",
+            "INCONCLUSIVE",
+            id="read-at-run-time",
+        ),
+        pytest.param([{**SPAWN, "result": "I have no canary."}], "", "FAIL", id="missing"),
+        pytest.param([], "", "INCONCLUSIVE", id="never-spawned"),
+    ],
+)
+def test_the_preload_canary_verdict(tmp_path, calls, context, expected):
+    assert judge_canary(tmp_path, calls, context) == expected
+
+
+def test_the_rendered_plugin_reviewer_preloads_the_core_skill_that_carries_the_canary(tmp_path):
+    # Given the marketplace the generator renders from tools/plugins.yaml
+    market = tmp_path / "market"
+
+    # When claude-code.sh renders it with this interpreter, which has the tools package, and plants the canary
+    script = (
+        f"source '{loadable_adapter(CLAUDE_ADAPTER, tmp_path).as_posix()}'; "
+        f"LIVE_PYTHON='{Path(sys.executable).as_posix()}'; "
+        f"render_plugin_marketplace '{market.as_posix()}' '{(tmp_path / 'render.log').as_posix()}' && printf '%s' \"$CANARY\""
+    )
+    result = run_bounded([BASH, "-c", script], capture_output=True, text=True)
+
+    # Then
+    assert result.returncode == 0, result.stderr + (tmp_path / "render.log").read_text(encoding="utf-8")
+    canary = result.stdout
+    assert re.fullmatch(r"live-canary-\d+", canary)
+    core_skill = (market / "plugins" / "core" / "skills" / "security-review" / "SKILL.md").read_text(encoding="utf-8")
+    assert core_skill.rstrip().endswith(canary)
+    assert canary not in (REPO_ROOT / ".agents" / "skills" / "security-review" / "SKILL.md").read_text(encoding="utf-8")
+    preloaded = run_bounded(
+        [BASH, "-c", f"source '{loadable_adapter(CLAUDE_ADAPTER, tmp_path).as_posix()}'; agent_preloads \"$1\" security-review && ! agent_preloads \"$1\" kicad", "_",
+         (market / "plugins" / "review-and-security" / "agents" / "code-reviewer.md").as_posix()],
+        capture_output=True,
+        text=True,
+    )
+    assert preloaded.returncode == 0, preloaded.stderr
+
+
+def loadable_adapter(adapter_path: Path, directory: Path) -> Path:
+    """An agent script with lib.sh pointed at the checkout and the final live_main call removed."""
+    adapter = adapter_path.read_text(encoding="utf-8")
+    adapter = adapter.replace('"$(dirname "${BASH_SOURCE[0]}")/lib.sh"', f"'{LIB.as_posix()}'")
+    adapter = adapter.replace('\nlive_main "$@"\n', "\n")
+    loadable = directory / f"{adapter_path.stem}-loadable.sh"
+    loadable.write_text(adapter, encoding="utf-8", newline="\n")
+
+    return loadable
+
+
+def test_the_codex_capture_hook_lands_in_codex_home_as_a_pre_tool_use_hook(tmp_path):
+    # Given the throwaway CODEX_HOME config agent_configure writes, which ends in a projects table
+    home = tmp_path / "codex-home"
+    home.mkdir()
+    (home / "config.toml").write_text('model = "m"\n\n[projects."/work/project"]\ntrust_level = "trusted"\n', encoding="utf-8")
+
+    # When
+    script = (
+        f"source '{loadable_adapter(CODEX_ADAPTER, tmp_path).as_posix()}'; "
+        f"WORK='{tmp_path.as_posix()}'; CODEX_HOME='{home.as_posix()}'; codex_install_payload_capture"
+    )
+    result = run_bounded([BASH, "-c", script], capture_output=True, text=True)
+
+    # Then
+    assert result.returncode == 0, result.stderr
+    config = tomllib.loads((home / "config.toml").read_text(encoding="utf-8"))
+    assert config["projects"]["/work/project"]["trust_level"] == "trusted"
+    (hook,) = config["hooks"]["PreToolUse"]
+    assert "matcher" not in hook
+    assert hook["hooks"][0]["command"] == f"python3 -S -E {tmp_path.as_posix()}/payload-capture.py {tmp_path.as_posix()}/payload-capture.ndjson {READ_ONLY_PROBE}"
+    assert (tmp_path / "payload-capture.py").is_file()
+
+
+def test_run_suite_runs_the_agent_checks_after_the_shared_six():
+    stubs = "; ".join(
+        f"{name}() {{ printf '%s ' {name}; }}"
+        for name in (
+            "health_check", "record", "install_agent", "prepare_workspace", "prepare_project", "agent_configure",
+            "test_gate_blocks_main_thread", "test_subagent_writes_file", "test_skill_is_loaded",
+            "test_reminder_reaches_model", "test_mcp_server_answers", "agent_extra_tests", "summary",
+        )
+    )
+
+    result = run_lib("requesty", f"HEALTH_FORMAT=chat; {stubs}; section() {{ :; }}; run_suite")
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.split()[-3:] == ["test_mcp_server_answers", "agent_extra_tests", "summary"]
+
+
+@pytest.mark.parametrize("adapter", [CLAUDE_ADAPTER, CODEX_ADAPTER])
+def test_the_claude_code_and_codex_scripts_define_their_own_checks(tmp_path, adapter):
+    result = run_bounded([BASH, "-c", f"source '{loadable_adapter(adapter, tmp_path).as_posix()}'; declare -F agent_extra_tests"], capture_output=True, text=True)
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_the_claude_code_job_installs_the_tooling_the_plugin_render_needs():
+    # Given
+    steps = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]["live"]["steps"]
+    setup = next(step for step in steps if str(step.get("uses", "")).startswith("actions/setup-python@"))
+    install = next(step for step in steps if "pip install ./tools" in str(step.get("run", "")))
+    run_agent = next(index for index, step in enumerate(steps) if "${{ matrix.agent }}.sh run" in str(step.get("run", "")))
+
+    # Then
+    assert re.fullmatch(r"actions/setup-python@[0-9a-f]{40}", setup["uses"])
+    for step in (setup, install):
+        assert step["if"] == "matrix.agent == 'claude-code'"
+        assert steps.index(step) < run_agent
+
+
+@pytest.mark.parametrize("install", ["codex_install_payload_capture", "claude_install_payload_capture"])
+def test_a_captured_case_keeps_what_the_installed_hook_recorded(tmp_path, install):
+    # Given each agent script's install step, and a case whose agent call fires the hook once
+    adapter = CODEX_ADAPTER if install.startswith("codex") else CLAUDE_ADAPTER
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / "config.toml").write_text('model = "m"\n', encoding="utf-8")
+    (home / "settings.json").write_text("{}\n", encoding="utf-8")
+    script = (
+        f"set -euo pipefail; source '{loadable_adapter(adapter, tmp_path).as_posix()}'; "
+        f"WORK='{tmp_path.as_posix()}'; CASES='{(tmp_path / 'cases').as_posix()}'; "
+        f"CODEX_HOME='{home.as_posix()}'; PLUGIN_CONFIG_DIR='{home.as_posix()}'; "
+        "run_case() { mkdir -p \"${CASES}/$1\"; printf '%s\\n' '{\"probe\": true}' >> \"$PAYLOAD_CAPTURE\"; }; "
+        f"{install}; run_captured_case 7-payload prompt"
+    )
+
+    # When
+    result = run_bounded([BASH, "-c", script], capture_output=True, text=True)
+
+    # Then
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "cases" / "7-payload" / "payloads.ndjson").read_text(encoding="utf-8") == '{"probe": true}\n'

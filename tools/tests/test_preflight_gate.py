@@ -5024,6 +5024,172 @@ def test_rule_e_keeps_a_codex_workdir_in_a_plain_project_folder(tmp_path):
     assert codex_read_only_reason(root, root / "src" / "app") is None
 
 
+def linked_worktree(root, checkout="wt", name="wt", pointer=None):
+    """The layout `git worktree add` leaves: a .git file in the checkout and its folder under the project's .git/worktrees.
+
+    The worktree folder holds HEAD, a commondir of `../..` and a gitdir back-pointer,
+    and the checkout's .git file holds `gitdir: <that folder>`, as git 2.43.0 writes them.
+    """
+    gitdir = root / ".git" / "worktrees" / name
+    gitdir.mkdir(parents=True)
+    (gitdir / "HEAD").write_text("ref: refs/heads/wt\n", encoding="utf-8")
+    (gitdir / "commondir").write_text("../..\n", encoding="utf-8")
+    folder = root / checkout
+    folder.mkdir(parents=True, exist_ok=True)
+    (gitdir / "gitdir").write_text(f"{folder / '.git'}\n", encoding="utf-8")
+    (folder / ".git").write_text(pointer if pointer is not None else f"gitdir: {gitdir}\n", encoding="utf-8")
+
+    return folder
+
+
+def worktree_project(tmp_path):
+    root = read_only_project(tmp_path / "project", "codex", ".codex/agents", ".toml")
+    for part in ("objects", "refs"):
+        (root / ".git" / part).mkdir(parents=True)
+    (root / ".git" / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+
+    return root
+
+
+@pytest.mark.parametrize("checkout", ["wt", ".claude/worktrees/agent-1"])
+def test_rule_e_keeps_a_codex_workdir_in_a_linked_worktree_of_the_project(tmp_path, checkout):
+    root = worktree_project(tmp_path)
+    folder = linked_worktree(root, checkout)
+    (folder / "src").mkdir()
+
+    assert codex_read_only_reason(root, folder) is None
+    assert codex_read_only_reason(root, folder / "src") is None
+
+
+def test_rule_e_keeps_a_codex_workdir_in_a_relative_linked_worktree(tmp_path):
+    root = worktree_project(tmp_path)
+    folder = linked_worktree(root, pointer="gitdir: ../.git/worktrees/wt\n")
+
+    assert codex_read_only_reason(root, folder) is None
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="needs git to add a real worktree")
+def test_rule_e_keeps_a_codex_workdir_in_a_worktree_git_itself_added(tmp_path):
+    root = read_only_project(tmp_path / "project", "codex", ".codex/agents", ".toml")
+    git = ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "init.defaultBranch=main", "-C", str(root)]
+    for command in (["init", "--quiet"], ["commit", "--quiet", "--allow-empty", "-m", "x"], ["worktree", "add", "--quiet", "-b", "wt", "wt"]):
+        subprocess.run([*git, *command], check=True, capture_output=True)
+
+    assert (root / "wt" / ".git").is_file()
+    assert codex_read_only_reason(root, root / "wt") is None
+
+
+def _outside_gitdir(root):
+    """A worktree-shaped git folder outside the project, its commondir leading to a repository there."""
+    outside = root.parent / "elsewhere" / ".git" / "worktrees" / "wt"
+    outside.mkdir(parents=True)
+    (outside / "HEAD").write_text("ref: refs/heads/wt\n", encoding="utf-8")
+    (outside / "commondir").write_text("../..\n", encoding="utf-8")
+
+    return outside
+
+
+def _plant_pointer_elsewhere(root):
+    linked_worktree(root, pointer=f"gitdir: {_outside_gitdir(root)}\n")
+
+
+def _plant_dot_dot_escape(root):
+    _outside_gitdir(root)
+    linked_worktree(root, pointer="gitdir: ../.git/worktrees/../../../elsewhere/.git/worktrees/wt\n")
+
+
+def _plant_symlinked_worktree_folder(root):
+    outside = _outside_gitdir(root)
+    linked_worktree(root, name="real")
+    (root / ".git" / "worktrees" / "wt").symlink_to(outside, target_is_directory=True)
+    (root / "wt" / ".git").write_text(f"gitdir: {root / '.git' / 'worktrees' / 'wt'}\n", encoding="utf-8")
+
+
+def _plant_missing_target(root):
+    linked_worktree(root, pointer=f"gitdir: {root / '.git' / 'worktrees' / 'ghost'}\n")
+
+
+def _plant_commondir_outside(root):
+    linked_worktree(root)
+    elsewhere = root.parent / "elsewhere" / ".git"
+    elsewhere.mkdir(parents=True)
+    (root / ".git" / "worktrees" / "wt" / "commondir").write_text(f"{elsewhere}\n", encoding="utf-8")
+
+
+def _plant_commondir_missing(root):
+    linked_worktree(root)
+    (root / ".git" / "worktrees" / "wt" / "commondir").unlink()
+
+
+def _plant_git_directory(root):
+    (root / "wt" / ".git").mkdir(parents=True)
+
+
+def _plant_bare_repository_target(root):
+    bare_repository(root / "evil")
+    linked_worktree(root, pointer=f"gitdir: {root / 'evil'}\n")
+
+
+def _plant_nested_target(root):
+    folder = linked_worktree(root)
+    deeper = root / ".git" / "worktrees" / "wt" / "deeper"
+    deeper.mkdir()
+    (deeper / "commondir").write_text("../../..\n", encoding="utf-8")
+    (folder / ".git").write_text(f"gitdir: {deeper}\n", encoding="utf-8")
+
+
+def _plant_extra_line(root):
+    linked_worktree(root, pointer=f"gitdir: {root / '.git' / 'worktrees' / 'wt'}\n[core]\n")
+
+
+def _plant_no_space(root):
+    linked_worktree(root, pointer=f"gitdir:{root / '.git' / 'worktrees' / 'wt'}\n")
+
+
+def _plant_symlinked_pointer(root):
+    folder = linked_worktree(root)
+    real = root.parent / "pointer"
+    real.write_text((folder / ".git").read_text(encoding="utf-8"), encoding="utf-8")
+    (folder / ".git").unlink()
+    (folder / ".git").symlink_to(real)
+
+
+def _plant_project_git_is_a_file(root):
+    linked_worktree(root)
+    for part in ("objects", "refs", "HEAD"):
+        target = root / ".git" / part
+        shutil.rmtree(target) if target.is_dir() else target.unlink()
+    shutil.move(str(root / ".git"), str(root.parent / "moved-git"))
+    (root / ".git").write_text(f"gitdir: {root.parent / 'moved-git'}\n", encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "plant",
+    [
+        _plant_pointer_elsewhere,
+        _plant_dot_dot_escape,
+        _plant_symlinked_worktree_folder,
+        _plant_missing_target,
+        _plant_commondir_outside,
+        _plant_commondir_missing,
+        _plant_git_directory,
+        _plant_bare_repository_target,
+        _plant_nested_target,
+        _plant_extra_line,
+        _plant_no_space,
+        _plant_symlinked_pointer,
+        _plant_project_git_is_a_file,
+    ],
+)
+def test_rule_e_denies_a_codex_workdir_in_a_worktree_that_is_not_the_projects_own(tmp_path, plant):
+    root = worktree_project(tmp_path)
+    plant(root)
+
+    reason = codex_read_only_reason(root, root / "wt")
+
+    assert reason is not None and "another git repository" in reason
+
+
 def test_read_only_subagent_may_not_call_a_shell_with_no_command_the_gate_can_read(tmp_path):
     payload = {"tool_name": "Bash", "tool_input": {"argv": ["touch", "made.txt"]}}
 

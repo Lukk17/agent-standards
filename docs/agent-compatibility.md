@@ -194,7 +194,12 @@ Reading the tables row by row:
   directory ("Local tool cwd for hook stdin ... The hook process still runs in `cwd`",
   [pre_tool_use.rs at rust-v0.166.0](https://raw.githubusercontent.com/openai/codex/rust-v0.166.0/codex-rs/hooks/src/events/pre_tool_use.rs),
   fetched 2026-10-30), so a `cwd` outside the project, or below it inside a folder that holds `.git` or is itself a
-  git directory such as a committed bare repository, denies. Before it lexes a command it holds every character to a
+  git directory such as a committed bare repository, denies. The one folder with a `.git` that passes is a linked
+  worktree of the project's own repository: its `.git` is a file holding exactly `gitdir: <path>`, that path resolves,
+  symlinks and `..` followed, to a folder directly under the project's own `.git/worktrees/`, and the `commondir` file
+  there resolves back to the project's `.git`, which is the layout `git worktree add` writes (measured on git 2.43.0).
+  A `.git` directory, a pointer that leads anywhere else, a missing target and a missing or foreign `commondir` still
+  deny. Before it lexes a command it holds every character to a
   fixed set: letters, digits, a blank, a newline and `._/:=,@^~%+-`, with `2>/dev/null` and `2>&1` as the only
   redirects. A quote of either kind, a backslash, a `$`, a backtick, a glob, a brace, a separator, a pipe, a carriage
   return and any non-ASCII character deny there. No quote is accepted, because each shell an agent may run reads a

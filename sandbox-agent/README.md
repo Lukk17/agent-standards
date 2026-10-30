@@ -98,6 +98,9 @@ events the agent recorded, never from what the model wrote back.
 | 4 The reminder reaches the model | The per-prompt reminder text is in the recorded context of that prompt, not only the session start |
 | 5 Key and model | One tiny request in the agent's own wire format is answered by the agent's provider |
 | 6 The one MCP server answers | `context7` is the only MCP server the session loaded, and a recorded `resolve-library-id` call for React returned a library id. A call whose result carries no id, such as a rate-limit or an invalid-key answer, is a `FAIL` quoting that result |
+| 7 Codex only: a subagent's payload names its type | The read-only `code-reviewer`, started by the main thread, ran `touch readonly-probe.txt`, the `PreToolUse` payload of that call carried `agent_id` and `agent_type` `code-reviewer`, Rule E's reason is in the transcript, and the file is absent |
+| 8 Claude Code only: the gate sees a plugin subagent | The same probe from `review-and-security:code-reviewer`, installed from the rendered marketplace, carried `agent_type` `review-and-security:code-reviewer`, Rule E denied it, and the file is absent |
+| 9 Claude Code only: a plugin subagent preloads a `core` skill | `review-and-security:code-reviewer` repeated, or recorded in its own context, a canary that only its preloaded `core` skill `security-review` carries, with no run-time load of that skill anywhere in the session |
 
 Three verdicts are possible besides a pass:
 
@@ -105,7 +108,10 @@ Three verdicts are possible besides a pass:
   own model request so the model never ran. It fails the job.
 - `INCONCLUSIVE` means the model never attempted the tool call the test needs, so nothing was proven either way. It
   raises a warning and does not fail the job.
-- `KNOWN-GAP` appears only on GitHub Copilot, and for two tests. Test 1: its payload carries no agent identifier, so
+- `KNOWN-GAP` appears on GitHub Copilot for two tests, and on Codex for test 7 when the payload of the subagent's
+  call carries `agent_id` without `agent_type` `code-reviewer`, which [agent-compatibility.md](../docs/agent-compatibility.md)
+  records as unmeasured. On Codex a payload with no `agent_id` at all is a `FAIL`, because the gate then takes the
+  subagent for the main thread. On Copilot, test 1: its payload carries no agent identifier, so
   the gate cannot tell the main thread from a subagent, as the Maintenance follow-ups in AGENTS.md already record.
   Test 2: Copilot CLI 1.0.81 ends every custom subagent's system prompt with its own block,
   `**CRITICAL: Do NOT write output to files.**`, which tells the subagent that its response text is its only output
@@ -121,6 +127,28 @@ is a failure whatever the transcript says. Test 2 reads the subagent's own trans
 [live/copilot.sh](live/copilot.sh): `GATE_KNOWN_GAP=1` for test 1, which every other agent script sets to `0`, and
 `SUBAGENT_NO_WRITE_MARKER` for test 2. Each one goes in the same change that removes its Maintenance follow-up in
 [AGENTS.md](../AGENTS.md).
+
+#### How tests 7 to 9 measure the payload
+
+Tests 7 and 8 read the hook payload itself rather than the gate's verdict, because on Codex a payload with no
+`agent_id` is read as the main thread and denied by Rule A, which would look like the Rule E denial the test expects.
+A capture hook, written by [live/lib.sh](live/lib.sh) under the work directory and never into the project, records
+for every `PreToolUse` call the payload's key names, whether `agent_id` is there, the `agent_type` value, and
+whether the shell command names the probe file. It keeps no other value and always allows. Codex gets it in the
+throwaway `CODEX_HOME/config.toml`, and Codex "loads all matching hooks" from every layer, so it runs beside the
+project's gate (`https://developers.openai.com/codex/hooks`, "Where Codex looks for hooks"). Claude Code gets it in
+the user settings of a separate `CLAUDE_CONFIG_DIR`. Each case keeps what it captured as `payloads.ndjson` beside its
+transcripts. A case where the capture hook recorded nothing, or the subagent never ran the probe, is `INCONCLUSIVE`.
+
+Tests 8 and 9 render the marketplace with [tools/gen_plugins.py](../tools/gen_plugins.py) into the work directory,
+which the job's own Python step installs the tooling for, and append a random canary to that copy of the `core` skill
+`security-review` only. They add it as a local marketplace and install `review-and-security`, which pulls `core` in as
+its dependency, into a separate `CLAUDE_CONFIG_DIR`, and run in a second project that holds only the gate-only import,
+`.agents/hooks` and `.claude/settings.json`. With no agent tree in that project, the gate can find the reviewer's
+definition only in the plugin cache, so a Rule E denial in test 8 proves that lookup. Tests 1 to 6 keep their own
+configuration and never see the plugin. Test 9 asks the subagent to repeat the canary without any tool, and a
+recorded `Skill` call or `SKILL.md` read of `security-review` makes it `INCONCLUSIVE`, because the canary then no
+longer proves the preload.
 
 #### One MCP server in the live runs
 
@@ -236,7 +264,8 @@ cost = uncached input tokens × input price + cached input tokens × cached pric
 ```
 
 At the prices listed when this was written, that comes to about 1 cent per DeepSeek agent run and about 1.4 cents
-for a Codex or GitHub Copilot run on OpenAI.
+for a Codex or GitHub Copilot run on OpenAI, before tests 7 to 9. Those add one prompt to the Codex run and two to
+the Claude Code run, each shaped like test 2, a main turn that starts one subagent. No run has measured them yet.
 
 To start it, open the Actions tab, pick Agent live tests, choose Run workflow, and pick one agent or `all`. The same
 from a terminal, Unix shell:
@@ -533,7 +562,7 @@ PowerShell and cmd do no such rewriting, so the PowerShell commands above need n
 | [mcp-guard.sh](mcp-guard.sh) | Stands in for `docker`, `npx` and `uvx`, first on `PATH`, recording and refusing every call. |
 | [verify-global.sh](verify-global.sh) | Every global assertion, in the same style. Calls `setup-global.sh` twice and then with `--update`, and asserts from `/work/bare`. With `--scoped <agent>` it installs for that agent alone and asserts only its paths were written. |
 | [compose.yaml](compose.yaml) | Mounts the repository read-only at `/repo`, drops every Linux capability, and runs `verify-project.sh` unless the run names another script. |
-| [live/](live/) | The live tests: [lib.sh](live/lib.sh) with the health check and the other five tests, [opencode-family.sh](live/opencode-family.sh) for what OpenCode and Kilo Code share, and one script per agent. |
+| [live/](live/) | The live tests: [lib.sh](live/lib.sh) with the health check, the other five shared tests and the payload capture and judges of tests 7 to 9, [opencode-family.sh](live/opencode-family.sh) for what OpenCode and Kilo Code share, and one script per agent, where [codex.sh](live/codex.sh) adds test 7 and [claude-code.sh](live/claude-code.sh) tests 8 and 9. |
 | [.dockerignore](.dockerignore) | Keeps the README and the Compose file out of the build context, so editing either one does not bust the image cache. |
 
 The [Dockerfile](Dockerfile) pins the five agent tools to exact versions, so the image it builds is reproducible.

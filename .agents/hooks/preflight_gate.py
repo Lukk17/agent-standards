@@ -33,7 +33,8 @@ E. A subagent whose own definition carries a READ_ONLY_HEADING section may
    call only the read tools in READ_ONLY_READ_TOOLS and a shell not started
    on a terminal, and that shell may run only the commands the section
    lists. The call may carry no tool_input key outside READ_ONLY_SHELL_KEYS
-   and no working directory in another repository or outside the project.
+   and no working directory in another repository or outside the project,
+   where a linked worktree of the project's own repository is not another.
    A command is first held to READ_ONLY_CHARACTERS, with `2>/dev/null` and
    `2>&1` the only redirects, so no quote, escape, expansion, separator or
    pipe reaches the lexer. Every resulting command has to match a listed
@@ -7517,6 +7518,78 @@ def _is_git_location(folder: Path) -> bool:
     return os.path.lexists(folder / "HEAD") and (folder / "objects").is_dir() and (folder / "refs").is_dir()
 
 
+# The key git's read_gitfile_gently() requires at the start of a .git file.
+_GITDIR_KEY = "gitdir: "
+# Far above any path git writes into a .git or commondir file, so a larger file is not one git wrote.
+_GIT_POINTER_LIMIT = 4096
+
+
+def _git_pointer_value(path: Path) -> Optional[str]:
+    """The one line a small regular file holds, without its closing newline, or None.
+
+    A symlink, a missing or oversized file, undecodable bytes, a carriage
+    return, a NUL, a second line or an empty value all give None, so a .git or
+    commondir file counts only in the exact one-line shape git writes.
+    """
+    try:
+        if os.path.islink(path) or not os.path.isfile(path):
+            return None
+
+        with open(path, "rb") as handle:
+            data = handle.read(_GIT_POINTER_LIMIT + 1)
+
+        text = data.decode("utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+
+    if len(data) > _GIT_POINTER_LIMIT:
+        return None
+
+    text = text[:-1] if text.endswith("\n") else text
+
+    if not text or any(character in text for character in "\n\r\0"):
+        return None
+
+    return text
+
+
+def _resolved_existing(base: Path, value: str) -> Optional[Path]:
+    """value resolved against base with every symlink and `..` followed, or None when it is missing or unreadable."""
+    try:
+        return (base / value).resolve(strict=True)
+    except (OSError, RuntimeError, ValueError):
+        return None
+
+
+def _is_project_worktree(folder: Path, project: Path) -> bool:
+    """True when folder is a linked worktree of the project's own repository, the one .git file Rule E accepts.
+
+    `git worktree add` leaves a .git file holding exactly `gitdir: <path>`,
+    where <path> is <project>/.git/worktrees/<name>, and a commondir file there
+    leading back to <project>/.git, so git reads the project's own
+    configuration in that folder. project is already resolved, and both paths
+    are resolved with symlinks and `..` followed before they are compared, so a
+    pointer that escapes, a symlinked worktree folder, a missing target, a
+    deeper folder, a commondir that is missing or leads anywhere else, and a
+    project whose own .git or .git/worktrees is a symlink or a file all fail.
+    """
+    project_git = project / ".git"
+    worktrees = project_git / "worktrees"
+    pointer = _git_pointer_value(folder / ".git")
+
+    if pointer is None or not pointer.startswith(_GITDIR_KEY):
+        return False
+
+    gitdir = _resolved_existing(folder, pointer[len(_GITDIR_KEY):])
+
+    if gitdir is None or gitdir.parent != worktrees or not gitdir.is_dir():
+        return False
+
+    common = _git_pointer_value(gitdir / "commondir")
+
+    return common is not None and _resolved_existing(gitdir, common) == project_git
+
+
 def _read_only_location_blocked(payload_cwd: Any) -> Optional[str]:
     """Where a read-only shell call would run outside the repository the gate runs in, or None.
 
@@ -7527,7 +7600,10 @@ def _read_only_location_blocked(payload_cwd: Any) -> Optional[str]:
     from there upward, so a folder below this one that is a repository of its
     own runs a listed command under that repository's configuration. A cwd
     equal to the gate's own working directory, or a plain folder inside it,
-    passes, and a missing cwd means the call runs where the gate does.
+    passes, and a missing cwd means the call runs where the gate does. So does
+    a folder inside a linked worktree of the project's own repository, where
+    git stops looking and reads the project's configuration
+    (_is_project_worktree).
     """
     if payload_cwd is None or payload_cwd == "":
         return None
@@ -7548,6 +7624,8 @@ def _read_only_location_blocked(payload_cwd: Any) -> Optional[str]:
 
     while folder != here:
         if _is_git_location(folder):
+            if _is_project_worktree(folder, here):
+                return None
             return f"a working directory inside another git repository ({payload_cwd})"
         folder = folder.parent
 

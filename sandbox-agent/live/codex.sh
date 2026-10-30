@@ -208,4 +208,38 @@ agent_subagent_context() {
   done
 }
 
+# Adds the capture hook to the throwaway CODEX_HOME, never to the project.
+# Codex loads every hook source, and "Higher-precedence config layers don't
+# replace lower-precedence hooks" (https://developers.openai.com/codex/hooks,
+# "Where Codex looks for hooks"), so it runs beside the project's gate. With
+# no matcher it sees every PreToolUse call.
+codex_install_payload_capture() {
+  install_payload_capture || return
+  printf '\n[[hooks.PreToolUse]]\n\n[[hooks.PreToolUse.hooks]]\ntype = "command"\ntimeout = 10\ncommand = "%s"\n' \
+    "$PAYLOAD_CAPTURE_COMMAND" >> "${CODEX_HOME}/config.toml"
+}
+
+# Measures whether the PreToolUse payload of a call made inside a custom
+# subagent carries agent_id and agent_type, which the hooks page documents only
+# for SubagentStart and SubagentStop, by having the read-only code-reviewer try
+# a touch. KNOWN-GAP is the state docs/agent-compatibility.md records today.
+test_subagent_payload_names_its_type() {
+  local name="7 a Codex subagent's PreToolUse payload names its agent_type" dir="${CASES}/7-payload"
+
+  if ! codex_install_payload_capture; then
+    record "$name" INCONCLUSIVE "the work directory ${WORK} holds a character the hook command cannot carry unquoted"
+    return
+  fi
+
+  run_captured_case "7-payload" "$(read_only_probe_prompt "$READ_ONLY_SUBAGENT")"
+  record_model_failure "$name" "$dir" && return
+
+  judge_read_only_probe "$name" "$dir" "$READ_ONLY_SUBAGENT" KNOWN-GAP
+}
+
+agent_extra_tests() {
+  section "7 against the real model"
+  test_subagent_payload_names_its_type
+}
+
 live_main "$@"
