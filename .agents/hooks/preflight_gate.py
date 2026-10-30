@@ -32,13 +32,16 @@ D. The main thread may not run a script or a module, because the gate cannot
 E. A subagent whose own definition carries a READ_ONLY_HEADING section may
    call only the read tools in READ_ONLY_READ_TOOLS and a shell not started
    on a terminal, and that shell may run only the commands the section
-   lists. A command is first held to READ_ONLY_BARE_CHARACTERS outside single
-   quotes and printable ASCII inside them, with `2>/dev/null` and `2>&1` the
-   only redirects, so no quote, escape, expansion, separator or pipe reaches
-   the lexer. Every resulting command has to match a listed pattern, no word
-   may hold a `$`, a backslash, a brace expansion or a git output option, gh
-   may not open a browser, name another host or run a --jq or --template
-   expression, and any exception while
+   lists. The call may carry no tool_input key outside READ_ONLY_SHELL_KEYS
+   and no working directory in another repository or outside the project.
+   A command is first held to READ_ONLY_CHARACTERS, with `2>/dev/null` and
+   `2>&1` the only redirects, so no quote, escape, expansion, separator or
+   pipe reaches the lexer. Every resulting command has to match a listed
+   pattern, and no word, nor any comma-separated part of one, may hold a `$`,
+   a backslash, a brace expansion or a git output option, open with `@` or
+   with a zsh negated glob, or be PowerShell's `--%`. gh may not open a
+   browser, name a URL, take a repository other than OWNER/REPO, or run a
+   --jq or --template expression, and any exception while
    lexing or matching denies, the one rule where a parse failure does. The
    rule applies when any definition the name resolves to is read-only, a
    plugin's installed copy included, and an unreadable one counts as
@@ -267,8 +270,10 @@ READ_ONLY_SPAWN_TOOLS = frozenset({"task", "agent"})
 READ_ONLY_GH_WEB_RE = re.compile(r"^(?:--web(?:=.*)?|-[A-Za-z]*w(?:[A-Za-z]*|=.*))$")
 # gh's -R and --repo take [HOST/]OWNER/REPO, and a host part, like a URL
 # argument, sends the request to a server the caller names
-# (https://cli.github.com/manual/gh_pr_view).
+# (https://cli.github.com/manual/gh_pr_view). A read-only agent may hand them
+# OWNER/REPO and nothing else, which also refuses an scp-style git@host:o/r.
 READ_ONLY_GH_REPO_SHORT_RE = re.compile(r"^-[A-Za-z]*R(?P<value>.*)$")
+READ_ONLY_GH_REPO_VALUE_RE = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
 # gh runs a caller's expression with --jq or -q, and --template or -t, alone,
 # in a cluster, or handed a value. go-gh compiles a jq expression with
 # gojq.WithEnvironLoader(os.Environ) (pkg/jq/jq.go at go-gh v2.13.0, which gh
@@ -279,17 +284,32 @@ READ_ONLY_GH_REPO_SHORT_RE = re.compile(r"^-[A-Za-z]*R(?P<value>.*)$")
 READ_ONLY_GH_EXPRESSION_RE = re.compile(r"^(?:--(?:jq|template)(?:=.*)?|-[A-QS-Za-z]*[qt].*)$")
 # Rule E reads a command only once every character in it is one a listed
 # read-only command needs, so no quote, escape, expansion, glob, brace,
-# separator, redirect or non-ASCII character reaches the lexer at all. Outside
-# single quotes that is a word character, a blank, a newline between commands,
-# and the two literal stream redirects below. Inside a single-quoted span,
-# which the shell never expands, any printable ASCII character but the quote
-# is accepted, for a format string such as --format='%h %s'.
-READ_ONLY_BARE_CHARACTERS = frozenset(
+# separator, redirect or non-ASCII character reaches the lexer at all: a word
+# character, a blank, a newline between commands, and the two literal stream
+# redirects below. No quote is accepted either, because a quoted span is read
+# differently by every shell an agent may run, so a git format string spells
+# a space %x20 and a newline %n instead.
+READ_ONLY_CHARACTERS = frozenset(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 \t._/:=,@^~%+-\n"
 )
-READ_ONLY_QUOTED_CHARACTERS = frozenset(chr(code) for code in range(0x20, 0x7F)) - {"'"}
 READ_ONLY_STREAM_REDIRECTS = ("2>/dev/null", "2>&1")
 READ_ONLY_BLANKS = " \t\n"
+# PowerShell's stop-parsing token, after which the rest of the line reaches the
+# program unparsed but with cmd-style %VAR% expansion.
+READ_ONLY_STOP_PARSING = "--%"
+# The tool_input keys a read-only shell call may carry. Any other key can move
+# the command or change the shell that runs it, which no check of the command
+# text sees: `workdir` on OpenCode 1.19.5 and Kilo Code 7.8.18, and `workdir`,
+# `shell` and `login` on Codex's exec_command. Claude Code 2.1.314 sends
+# command, description, timeout and run_in_background, OpenCode and Kilo Code
+# command, description and timeout, and Codex's hook payload command alone.
+READ_ONLY_SHELL_KEYS = frozenset(
+    {"command", "cmd", "description", "timeout", "yield_time_ms", "max_output_tokens", "run_in_background"}
+)
+# Keys a read-only shell call may carry only when they are null or false: a
+# terminal, whose later input arrives through a tool call carrying no command
+# (Codex's write_stdin), and Claude Code's sandbox override.
+READ_ONLY_SHELL_OFF_KEYS = frozenset({"tty", "dangerouslyDisableSandbox"})
 # The only tools a read-only subagent may call besides its shell: reading,
 # searching and listing files, and loading a skill's own text, under each
 # agent's name for them. Everything else denies, an MCP tool included.
@@ -7367,9 +7387,49 @@ def _read_only_word_blocked(word: str) -> bool:
 
     A `$` or a backslash means the shell has not finished with the word, a
     brace expansion becomes other words, and a git output option, abbreviated
-    or not, writes a file.
+    or not, writes a file. A word opening with `@` is a splat or a hashtable
+    in PowerShell, and READ_ONLY_STOP_PARSING hands PowerShell's line on
+    unparsed. A `^` is a negated glob in zsh with EXTENDED_GLOB, which can
+    expand a word into any file name it does not exclude, so it is refused at
+    the start of a word and anywhere in a word opening with `-`, where the
+    names it expands to could be options. Measured on zsh 5.9 with the files
+    `--out` and `--output=pwned` present: `--out^x` expanded to both, while
+    `HEAD^:path` expanded only to a name starting with HEAD.
     """
-    return "$" in word or "\\" in word or bool(READ_ONLY_BRACE_RE.search(word)) or _git_output_option(word) is not None
+    return (
+        "$" in word
+        or "\\" in word
+        or bool(READ_ONLY_BRACE_RE.search(word))
+        or _git_output_option(word) is not None
+        or word == READ_ONLY_STOP_PARSING
+        or word.startswith("@")
+        or ("^" in word and word[:1] in ("^", "-"))
+    )
+
+
+def _with_comma_parts(argv: Tuple[str, ...]) -> Tuple[str, ...]:
+    """The words of a command, each followed by its comma-separated parts when it holds a comma.
+
+    PowerShell reads an unquoted `a,b` as a two-item array for a cmdlet, a
+    function or an alias, a `git` a profile wraps included, though about_Parsing
+    says a native program gets the comma inside its string. The OpenCode and
+    Kilo Code bash tool may run either shell under one name, so Rule E checks
+    every part as a word of its own, in both dialects, as well as the whole
+    word. A part stays beside the word it came from, so a value that
+    follows an option inside one word, as in `x,-R,o/r`, still follows it here.
+    The PowerShell lexer marks such a comma with _ARRAY_SEPARATOR, read here
+    as the comma it was.
+    """
+    words: List[str] = []
+
+    for word in argv:
+        word = word.replace(_ARRAY_SEPARATOR, ",")
+        words.append(word)
+
+        if "," in word:
+            words.extend(word.split(","))
+
+    return tuple(words)
 
 
 def _opens_a_browser(argv: Tuple[str, ...]) -> bool:
@@ -7400,13 +7460,13 @@ def _gh_repository_values(argv: Tuple[str, ...]) -> List[str]:
     return values
 
 
-def _names_another_host(argv: Tuple[str, ...]) -> bool:
-    """True for a gh command aimed at a server the caller names, by URL or by a HOST/ in -R."""
+def _names_another_repository(argv: Tuple[str, ...]) -> bool:
+    """True for a gh command aimed at a server by URL, or handed -R or --repo with anything but OWNER/REPO."""
     if argv[:1] != ("gh",):
         return False
 
     return any("://" in word for word in argv[1:]) or any(
-        value.count("/") >= 2 for value in _gh_repository_values(argv)
+        not READ_ONLY_GH_REPO_VALUE_RE.match(value) for value in _gh_repository_values(argv)
     )
 
 
@@ -7419,29 +7479,10 @@ def _stands_alone(command: str, start: int, end: int) -> bool:
 
 
 def _refused_character(command: str) -> Optional[str]:
-    """The first character Rule E refuses before lexing a command, or None when it accepts them all.
-
-    An unterminated single quote is left to the lexer, which denies it too.
-    """
+    """The first character Rule E refuses before lexing a command, or None when it accepts them all."""
     index = 0
-    quoted = False
 
     while index < len(command):
-        char = command[index]
-
-        if quoted:
-            if char == "'":
-                quoted = False
-            elif char not in READ_ONLY_QUOTED_CHARACTERS:
-                return char
-            index += 1
-            continue
-
-        if char == "'":
-            quoted = True
-            index += 1
-            continue
-
         redirect = next(
             (
                 literal
@@ -7455,15 +7496,80 @@ def _refused_character(command: str) -> Optional[str]:
             index += len(redirect)
             continue
 
-        if char not in READ_ONLY_BARE_CHARACTERS:
-            return char
+        if command[index] not in READ_ONLY_CHARACTERS:
+            return command[index]
 
         index += 1
 
     return None
 
 
-def _read_only_blocked(tool: str, tool_input: Dict[str, Any], patterns: List[str]) -> Optional[str]:
+def _is_git_location(folder: Path) -> bool:
+    """True when git would take this folder for a repository: it holds .git, or it is a git directory itself.
+
+    A git directory is what git's own is_git_directory() checks for, a HEAD
+    beside an objects and a refs folder, which is all a bare repository
+    committed into a project needs to bring its own configuration along.
+    """
+    if os.path.lexists(folder / ".git"):
+        return True
+
+    return os.path.lexists(folder / "HEAD") and (folder / "objects").is_dir() and (folder / "refs").is_dir()
+
+
+def _read_only_location_blocked(payload_cwd: Any) -> Optional[str]:
+    """Where a read-only shell call would run outside the repository the gate runs in, or None.
+
+    Codex from rust-v0.166.0 hands the hook only {"command": ...} and puts the
+    call's own working directory, its `workdir` resolved, in the payload's cwd
+    while the hook process stays in the session's directory (tool_cwd in
+    codex-rs/hooks/src/events/pre_tool_use.rs). git looks for its repository
+    from there upward, so a folder below this one that is a repository of its
+    own runs a listed command under that repository's configuration. A cwd
+    equal to the gate's own working directory, or a plain folder inside it,
+    passes, and a missing cwd means the call runs where the gate does.
+    """
+    if payload_cwd is None or payload_cwd == "":
+        return None
+
+    if not isinstance(payload_cwd, str):
+        return "a working directory the gate cannot read"
+
+    here = Path(os.getcwd()).resolve()
+    there = _native_path(payload_cwd.strip()).resolve()
+
+    if there == here:
+        return None
+
+    if here not in there.parents:
+        return f"a working directory outside the project ({payload_cwd})"
+
+    folder = there
+
+    while folder != here:
+        if _is_git_location(folder):
+            return f"a working directory inside another git repository ({payload_cwd})"
+        folder = folder.parent
+
+    return None
+
+
+def _read_only_key_blocked(tool_input: Dict[str, Any]) -> Optional[str]:
+    """The first tool_input key a read-only shell call may not carry, named for the deny reason, or None."""
+    for key in sorted(tool_input):
+        value = tool_input[key]
+
+        if key in READ_ONLY_SHELL_KEYS or (key in READ_ONLY_SHELL_OFF_KEYS and (value is None or value is False)):
+            continue
+
+        return f"the {key!r} key, which a read-only shell call may not carry (run from the project root and leave it out)"
+
+    return None
+
+
+def _read_only_blocked(
+    tool: str, tool_input: Dict[str, Any], patterns: List[str], payload_cwd: Any = None
+) -> Optional[str]:
     """What a read-only subagent's call would do outside its allowlist, or None to allow.
 
     Only the read tools in READ_ONLY_READ_TOOLS and the shell pass. Every
@@ -7472,7 +7578,7 @@ def _read_only_blocked(tool: str, tool_input: Dict[str, Any], patterns: List[str
     as unreadable shell code.
     """
     if tool in SHELL_TOOLS:
-        return _read_only_shell_blocked(tool, tool_input, patterns)
+        return _read_only_shell_blocked(tool, tool_input, patterns, payload_cwd)
 
     if tool in READ_ONLY_READ_TOOLS:
         return None
@@ -7483,14 +7589,24 @@ def _read_only_blocked(tool: str, tool_input: Dict[str, Any], patterns: List[str
     return f"the {tool or 'unnamed'} tool"
 
 
-def _read_only_shell_blocked(tool: str, tool_input: Dict[str, Any], patterns: List[str]) -> Optional[str]:
+def _read_only_shell_blocked(
+    tool: str, tool_input: Dict[str, Any], patterns: List[str], payload_cwd: Any = None
+) -> Optional[str]:
     """What a read-only subagent's shell call would run outside its allowlist, or None to allow.
 
     A shell started on a terminal denies, because its later input arrives
     through a tool call that carries no command to read, Codex's write_stdin.
+    So does any key outside READ_ONLY_SHELL_KEYS, and a working directory
+    _read_only_location_blocked refuses, because both change what a listed
+    command does without changing its text.
     """
     if tool_input.get("tty") not in (None, False):
         return "a shell started on a terminal (tty), whose later input the gate never reads"
+
+    blocked = _read_only_key_blocked(tool_input) or _read_only_location_blocked(payload_cwd)
+
+    if blocked is not None:
+        return blocked
 
     commands = _shell_commands(tool_input)
 
@@ -7520,7 +7636,15 @@ def _read_only_command_blocked(command: str, powershell: bool, patterns: List[st
     refused = _refused_character(command)
 
     if refused is not None:
-        return f"the character {refused!r}, which no read-only command needs (quote a format string with single quotes)"
+        return (
+            f"the character {refused!r}, which no read-only command needs "
+            "(quote nothing, and spell a space in a git format %x20 and a newline %n)"
+        )
+
+    # The PowerShell lexer consumes the stop-parsing token itself, so it is
+    # refused here, in both dialects, before any lexer reads the line.
+    if READ_ONLY_STOP_PARSING in command.split():
+        return command
 
     try:
         return _read_only_segments_blocked(command, powershell, patterns)
@@ -7537,7 +7661,7 @@ def _read_only_segments_blocked(command: str, powershell: bool, patterns: List[s
             if not _names_no_file(target, powershell):
                 return f"redirect to {target}"
 
-        words = " ".join(segment.argv)
+        words = " ".join(segment.argv).replace(_ARRAY_SEPARATOR, ",")
 
         if segment.stdin:
             # No listed command reads its input, and an unquoted heredoc
@@ -7547,14 +7671,12 @@ def _read_only_segments_blocked(command: str, powershell: bool, patterns: List[s
         if not segment.argv:
             continue
 
-        if any(_read_only_word_blocked(word) for word in segment.argv) or _opens_a_browser(segment.argv):
+        parts = _with_comma_parts(segment.argv)
+
+        if any(_read_only_word_blocked(word) for word in parts) or _opens_a_browser(parts):
             return words
 
-        if _names_another_host(segment.argv) or _runs_gh_expression(segment.argv):
-            return words
-
-        # PowerShell splats a variable into arguments from a word opening with @.
-        if powershell and any(word.startswith("@") for word in segment.argv):
+        if _names_another_repository(parts) or _runs_gh_expression(parts):
             return words
 
         if not any(_matches_read_only(segment.argv, pattern) for pattern in patterns):
@@ -7683,7 +7805,7 @@ def _read_only_reason(agent_type: str, definitions: List[Optional[str]], payload
             if patterns is None:
                 continue
 
-            blocked = _read_only_blocked(tool, tool_input, patterns)
+            blocked = _read_only_blocked(tool, tool_input, patterns, payload.get("cwd"))
         except Exception:
             patterns, blocked = [], _UNPLACEABLE_SHELL_TARGET
 

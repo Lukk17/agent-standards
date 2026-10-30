@@ -98,7 +98,7 @@ is the human's or another agent's job.
 
 ### Read-only shell
 
-This agent is read-only. Edit no file, and run only these shell commands, from the project root, with no redirect to a file and no pipe into another program. Return any other command to the caller as a proposal. The preflight gate denies everything else.
+This agent is read-only. Edit no file, and run only these shell commands, from the project root, with no redirect to a file and no pipe into another program. Quote nothing: spell a space in a git format `%x20` and a newline `%n`, as in `git log --format=%h%x20%s`, and name an upstream branch, such as `origin/main..HEAD`, rather than `@{u}`. Return any other command to the caller as a proposal. The preflight gate denies everything else.
 
 - `git diff*`
 - `git log*`

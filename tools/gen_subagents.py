@@ -99,14 +99,15 @@ READ_ONLY_FORBIDDEN_TOOLS = frozenset({"write", "edit", "task"})
 # option in any spelling that keeps `--out`, anything the shell still expands,
 # any redirect, gh opening a browser or running a --jq or --template
 # expression, and every character the gate's Rule E refuses that a pattern
-# can name. `*` matches across lines there (the regex
+# can name, a single quote included. `*` matches across lines there (the regex
 # carries the `s` flag), so a newline or a carriage return denies the whole
-# command. Three of the gate's refusals cannot be written as a rule: a single
-# quote, because the gate accepts single-quoted format strings; a backslash,
-# because Wildcard.match turns every backslash into `/` in the pattern and the
-# command alike, so `*\*` would deny every path; and `?`, which is itself a
-# one-character wildcard, so `*?*` would deny everything (core/util/wildcard.ts
-# in OpenCode 1.19.5). The gate's Rule E stays the full check.
+# command. Two of the gate's refusals cannot be written as a rule: a
+# backslash, because Wildcard.match turns every backslash into `/` in the
+# pattern and the command alike, so `*\*` would deny every path; and `?`,
+# which is itself a one-character wildcard, so `*?*` would deny everything
+# (core/util/wildcard.ts in OpenCode 1.19.5). This map is therefore no
+# security boundary on its own: the gate's Rule E, through the plugin, is the
+# full check.
 OPENCODE_READ_ONLY_DENIES = (
     "*--out*",
     "*$*",
@@ -118,6 +119,7 @@ OPENCODE_READ_ONLY_DENIES = (
     "gh *--template*",
     "gh * -t*",
     '*"*',
+    "*'*",
     "*{*",
     "*`*",
     "*<*",
@@ -284,8 +286,10 @@ def read_only_block(fm: dict, shell: bool = True) -> str:
         f"\n\n### {READ_ONLY_HEADING}\n\n"
         "This agent is read-only. Edit no file, and run only these shell commands, from "
         "the project root, with no redirect to a file and no pipe into another program. "
-        "Return any other command to the caller as a proposal. The preflight gate denies "
-        "everything else.\n\n"
+        "Quote nothing: spell a space in a git format `%x20` and a newline `%n`, as in "
+        "`git log --format=%h%x20%s`, and name an upstream branch, such as "
+        "`origin/main..HEAD`, rather than `@{u}`. Return any other command to the caller "
+        "as a proposal. The preflight gate denies everything else.\n\n"
         f"{items}\n"
     )
 

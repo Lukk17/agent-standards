@@ -4532,9 +4532,12 @@ def test_read_only_subagent_may_not_write_with_the_shell_in_every_format(tmp_pat
         "git diff HEAD~3..HEAD -- src/app.py tools/x.py",
         "git diff --stat -U0 main...HEAD",
         "git log -5 --format=%H --since=2.weeks",
-        "git log --format='%h %an %s' --author=a@b.c",
-        "git log --pretty=format:'%C(auto)%h [%ad] %s' --date=short",
-        "git log '@{u}..HEAD'",
+        "git log --format=%h%x20%an%x20%s --author=a@b.c",
+        "git log -1 --format=%h%n%s",
+        "git log --pretty=format:%Cred%h%Creset%x20%ad%x20%s --date=short",
+        "git log origin/main..HEAD",
+        "git log -L10,20:src/app.py",
+        "git show HEAD^",
         "git show HEAD^:src/app.py",
         "git show HEAD~1 --name-status",
         "git status --porcelain=v1",
@@ -4574,9 +4577,10 @@ def test_read_only_subagent_may_run_every_listed_command(tmp_path, command):
         ("git diff \\\r\ntouch made.txt", "\\"),
         ("git diff # comment", "#"),
         ("git log --author=café", "é"),
-        ("git log --format='é'", "é"),
-        ("git log --format='%h\t%s'", "\t"),
-        ("git log --format='a\nb'", "\n"),
+        ("git log --format='%h %s'", "'"),
+        ("git log '@{u}..HEAD'", "'"),
+        ("git log '$HOME'", "'"),
+        ("git log --format=%h' '%s", "'"),
         ("git diff (x)", "("),
         ("git diff !x", "!"),
     ],
@@ -4595,7 +4599,6 @@ def test_read_only_subagent_is_refused_any_character_its_commands_do_not_need(tm
         ("gh pr merge 12", "gh pr merge 12"),
         ("GIT_EXTERNAL_DIFF=x git diff", "GIT_EXTERNAL_DIFF=x git diff"),
         ("git status\ntouch made.txt", "touch made.txt"),
-        ("git log '$HOME'", "git log $HOME"),
     ],
 )
 def test_read_only_subagent_may_not_run_anything_outside_its_list(tmp_path, command, blocked):
@@ -4670,10 +4673,10 @@ def test_behind_the_character_check_a_heredoc_or_here_string_still_denies(comman
     assert "heredoc or here-string fed to git" in blocked
 
 
-def test_read_only_subagent_is_denied_a_command_the_gate_cannot_lex(tmp_path):
+def test_read_only_subagent_is_refused_an_unterminated_quote_before_the_lexer(tmp_path):
     reason = read_only_verdict(tmp_path, shell("touch made.txt\ngit diff '"))
 
-    assert reason.endswith(f"Blocked: {GATE._UNPLACEABLE_SHELL_TARGET}")
+    assert "Blocked: the character \"'\"," in reason
 
 
 @pytest.mark.parametrize("error", [RuntimeError("boom"), RecursionError(), ValueError("chr() arg not in range")])
@@ -4704,7 +4707,9 @@ def test_read_only_subagent_may_not_reach_an_output_option_through_the_shell(tmp
     assert read_only_verdict(tmp_path, shell(command)) is not None
 
 
-@pytest.mark.parametrize("command", ["git diff -w", "git log --output-indicator-new=+", "git log '@{u}..HEAD'"])
+@pytest.mark.parametrize(
+    "command", ["git diff -w", "git log --output-indicator-new=+", "git log origin/main..HEAD", "git log -L10,20:src/app.py"]
+)
 def test_read_only_subagent_keeps_options_that_write_nothing(tmp_path, command):
     assert read_only_verdict(tmp_path, shell(command)) is None
 
@@ -4740,6 +4745,31 @@ def test_read_only_subagent_may_not_point_gh_at_another_host(tmp_path, command):
     assert read_only_verdict(tmp_path, shell(command)).endswith(f"Blocked: {command}")
 
 
+# N5: a repository value is OWNER/REPO and nothing else, so an scp-style
+# git@host:owner/repo, a bare name and an empty value all deny.
+@pytest.mark.parametrize(
+    "command",
+    [
+        "gh pr view 1 -R git@h:o/r",
+        "gh pr view 1 --repo git@github.com:owner/name",
+        "gh pr view 1 --repo=h:o/r",
+        "gh pr view 1 -Rowner",
+        "gh pr view 1 --repo owner/",
+        "gh pr view 1 -R",
+        "gh pr view 1 --repo=owner/na+me",
+    ],
+)
+def test_read_only_subagent_may_hand_gh_only_an_owner_and_repo(tmp_path, command):
+    assert read_only_verdict(tmp_path, shell(command)).endswith(f"Blocked: {command}")
+
+
+@pytest.mark.parametrize(
+    "command", ["gh pr view 12 --repo owner/name", "gh pr view 12 -R my-org.x/repo_1.js", "gh pr diff 12 --repo=a/b"]
+)
+def test_read_only_subagent_keeps_an_owner_and_repo_for_gh(tmp_path, command):
+    assert read_only_verdict(tmp_path, shell(command)) is None
+
+
 # gh compiles every --jq expression with gojq.WithEnvironLoader(os.Environ)
 # (pkg/jq/jq.go in cli/go-gh), so `env` and `$ENV` print every variable the
 # agent's shell holds, tokens included.
@@ -4748,7 +4778,7 @@ def test_read_only_subagent_may_not_point_gh_at_another_host(tmp_path, command):
     [
         ("gh pr view 12 --json title --jq env", "gh pr view 12 --json title --jq env"),
         ("gh pr view 12 --json title --jq=env", "gh pr view 12 --json title --jq=env"),
-        ("gh pr view 12 --json title -q '.title'", "gh pr view 12 --json title -q .title"),
+        ("gh pr view 12 --json title -q .title", "gh pr view 12 --json title -q .title"),
         ("gh pr view 12 --json title -q.title", "gh pr view 12 --json title -q.title"),
         ("gh pr view 12 --json title -cq env", "gh pr view 12 --json title -cq env"),
         ("gh pr view 12 --json title --template x", "gh pr view 12 --json title --template x"),
@@ -4772,7 +4802,7 @@ def test_read_only_subagent_keeps_gh_options_that_run_no_expression(tmp_path, co
 @pytest.mark.parametrize(
     ("command", "blocked"),
     [
-        ("sh -c 'touch made.txt'", "sh -c touch made.txt"),
+        ("sh -c git diff", "sh -c git diff"),
         ("env git diff", "env git diff"),
         ("/usr/bin/git diff", "/usr/bin/git diff"),
         ("git -c core.pager=touch diff", "git -c core.pager=touch diff"),
@@ -4802,14 +4832,79 @@ def test_read_only_subagent_may_not_pipe_into_a_powershell_writer(tmp_path):
 
 
 def test_read_only_subagent_may_run_a_listed_command_from_powershell(tmp_path):
-    assert read_only_verdict(tmp_path, shell("git log -5 --format='%h %s'", tool="PowerShell")) is None
+    assert read_only_verdict(tmp_path, shell("git log -5 --format=%h%x20%s", tool="PowerShell")) is None
 
 
 def test_read_only_subagent_may_not_splat_a_powershell_variable(tmp_path):
     reason = read_only_verdict(tmp_path, shell("git diff @args", tool="PowerShell"))
 
     assert reason.endswith("Blocked: git diff @args")
-    assert read_only_verdict(tmp_path, shell("git log @~1..HEAD")) is None
+
+
+# N7: a word opening with @ is a splat or a hashtable in PowerShell, and the
+# OpenCode and Kilo Code bash tool may run either dialect, so it denies in
+# both. A reviewer names the upstream branch instead of @{u} or @~1.
+@pytest.mark.parametrize("tool", ["Bash", "PowerShell"])
+@pytest.mark.parametrize("command", ["git log @~1..HEAD", "git diff @args", "git log x,@args"])
+def test_read_only_subagent_may_not_open_a_word_with_an_at_sign(tmp_path, tool, command):
+    assert read_only_verdict(tmp_path, shell(command, tool=tool)).endswith(f"Blocked: {command}")
+
+
+@pytest.mark.parametrize("tool", ["Bash", "PowerShell"])
+def test_read_only_subagent_keeps_an_at_sign_inside_a_word(tmp_path, tool):
+    assert read_only_verdict(tmp_path, shell("git log --author=a@b.c", tool=tool)) is None
+
+
+# N3: PowerShell's stop-parsing token hands the rest of the line to the
+# program unparsed, with cmd-style %VAR% expansion, so it denies in both dialects.
+@pytest.mark.parametrize("tool", ["Bash", "PowerShell"])
+def test_read_only_subagent_may_not_stop_powershell_parsing(tmp_path, tool):
+    command = "git log --% --format=%h"
+
+    assert read_only_verdict(tmp_path, shell(command, tool=tool)).endswith(f"Blocked: {command}")
+
+
+# N2: PowerShell reads `a,b` as an array for a cmdlet, function or alias, a
+# wrapped `git` included, so every comma-separated part of a word is held to the
+# option checks too, in both dialects, because the OpenCode bash tool may run
+# either shell.
+@pytest.mark.parametrize("tool", ["Bash", "PowerShell"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git log -1 --format=X --outpu,.git/hooks/pre-commit",
+        "git diff x,--output=src/app.py",
+        "git diff x,--out,src/app.py",
+        "gh pr view 12 x,--web",
+        "gh pr view 12 x,-w",
+        "gh pr view 12 --json title x,--jq=env",
+        "gh pr view 12 --json title x,-q,env",
+        "gh pr view 12 x,-R,evil.example/o/r",
+        "gh pr view 12 x,https://evil.example/o/r/pull/1",
+    ],
+)
+def test_read_only_subagent_has_every_comma_part_of_a_word_checked(tmp_path, tool, command):
+    assert read_only_verdict(tmp_path, shell(command, tool=tool)).endswith(f"Blocked: {command}")
+
+
+@pytest.mark.parametrize("tool", ["Bash", "PowerShell"])
+@pytest.mark.parametrize("command", ["git log -L10,20:src/app.py", "gh pr view 12 --json title,body,state"])
+def test_read_only_subagent_keeps_a_comma_that_names_no_option(tmp_path, tool, command):
+    assert read_only_verdict(tmp_path, shell(command, tool=tool)) is None
+
+
+# N6: zsh with EXTENDED_GLOB reads ^ as a negated glob. Measured on zsh 5.9 in a
+# folder holding the files `--out` and `--output=pwned`: `^nothing` and
+# `--out^x` both expanded to those names, while `HEAD^` and `HEAD^:path`
+# expanded only to a name starting with HEAD.
+@pytest.mark.parametrize("command", ["git log ^main HEAD", "git diff ^x", "git diff --out^x", "git diff -^x", "git log x,^y"])
+def test_read_only_subagent_may_not_hand_zsh_a_negated_glob(tmp_path, command):
+    assert read_only_verdict(tmp_path, shell(command)).endswith(f"Blocked: {command}")
+
+
+@pytest.mark.parametrize("command", ["git show HEAD^", "git show HEAD^:src/app.py", "git diff HEAD^^ HEAD^"])
+def test_read_only_subagent_keeps_a_caret_inside_a_revision(tmp_path, command):
+    assert read_only_verdict(tmp_path, shell(command)) is None
 
 
 def test_read_only_subagent_may_not_start_a_shell_on_a_terminal(tmp_path):
@@ -4819,15 +4914,123 @@ def test_read_only_subagent_may_not_start_a_shell_on_a_terminal(tmp_path):
 
 
 def test_read_only_subagent_has_every_command_key_judged(tmp_path):
-    payload = {"tool_name": "Bash", "tool_input": {"command": "git diff", "script": "touch made.txt"}}
+    payload = {"tool_name": "Bash", "tool_input": {"command": "git diff", "cmd": "touch made.txt"}}
 
     assert read_only_verdict(tmp_path, payload).endswith("Blocked: touch made.txt")
+
+
+# N1: a shell call's other keys can move the command or swap the shell that
+# runs it, which no check of the command text sees: OpenCode 1.19.5 and Kilo
+# Code 7.8.18 take `workdir`, Codex's exec_command takes `workdir`, `shell` and
+# `login`, and Claude Code 2.1.314 takes `dangerouslyDisableSandbox`.
+@pytest.mark.parametrize(
+    "tool_input",
+    [
+        {"command": "git show HEAD", "workdir": "evil"},
+        {"command": "git log", "shell": "pwsh"},
+        {"command": "git log", "login": True},
+        {"command": "git log", "cwd": "evil"},
+        {"command": "git log", "dir": "evil"},
+        {"command": "git log", "script": "git diff"},
+        {"command": "git log", "sandbox_permissions": "require_escalated"},
+        {"command": "git log", "allowed_domains": ["evil.example"]},
+        {"command": "git log", "dangerouslyDisableSandbox": True},
+        {"command": "git log", "tty": "yes"},
+    ],
+)
+def test_read_only_subagent_may_send_no_shell_key_outside_the_fixed_set(tmp_path, tool_input):
+    reason = read_only_verdict(tmp_path, {"tool_name": "Bash", "tool_input": tool_input})
+    key = next(key for key in tool_input if key != "command")
+
+    assert reason is not None
+    assert repr(key) in reason or "(tty)" in reason
+
+
+def test_read_only_subagent_keeps_every_shell_key_in_the_fixed_set(tmp_path):
+    tool_input = {
+        "command": "git log -1",
+        "cmd": "git status",
+        "description": "Show the last commit",
+        "timeout": 120000,
+        "yield_time_ms": 1000,
+        "max_output_tokens": 2000,
+        "run_in_background": True,
+        "tty": False,
+        "dangerouslyDisableSandbox": False,
+    }
+
+    assert read_only_verdict(tmp_path, {"tool_name": "Bash", "tool_input": tool_input}) is None
+
+
+def test_rule_e_denies_a_workdir_through_the_plain_runner_envelope(tmp_path):
+    root = read_only_project(tmp_path, "agents", ".agents/agents", ".md")
+    envelope = {"is_subagent": True, "agent_type": READ_ONLY_REVIEWER["name"], "tool_name": "bash", "cwd": str(root)}
+
+    code, out, err = run({**envelope, "tool_input": {"command": "git show HEAD", "workdir": "evil"}}, "plain", cwd=root)
+
+    assert (code, out) == (2, "")
+    assert "'workdir'" in err
+
+
+def bare_repository(directory):
+    """The three entries git's is_git_directory() looks for, which is all a planted bare repository needs."""
+    directory.mkdir(parents=True)
+    (directory / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    (directory / "objects").mkdir()
+    (directory / "refs").mkdir()
+
+    return directory
+
+
+def codex_read_only_reason(root, payload_cwd, command="git show HEAD"):
+    payload = {"agent_id": "sub-1", "agent_type": READ_ONLY_REVIEWER["name"], "tool_name": "Bash", "cwd": str(payload_cwd)}
+    code, out, err = run({**payload, "tool_input": {"command": command}}, "codex", cwd=root)
+
+    assert (code, err) == (0, "")
+
+    return json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"] if out else None
+
+
+# N1 on Codex: from rust-v0.166.0 the PreToolUse input carries only
+# {"command": cmd}, and the payload's cwd is the call's workdir resolved while
+# the hook still runs in the session directory (tool_cwd in
+# codex-rs/hooks/src/events/pre_tool_use.rs).
+@pytest.mark.parametrize("planted", ["evil", "evil/refs", "nested/work"])
+def test_rule_e_denies_a_codex_workdir_inside_another_repository(tmp_path, planted):
+    root = read_only_project(tmp_path, "codex", ".codex/agents", ".toml")
+    bare_repository(root / "evil")
+    (root / "nested" / "work" / ".git").mkdir(parents=True)
+    target = (root / planted).resolve()
+    target.mkdir(parents=True, exist_ok=True)
+
+    reason = codex_read_only_reason(root, target)
+
+    assert reason is not None and "another git repository" in reason
+
+
+def test_rule_e_denies_a_codex_workdir_outside_the_project(tmp_path):
+    root = read_only_project(tmp_path / "project", "codex", ".codex/agents", ".toml")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+
+    assert "outside the project" in codex_read_only_reason(root, elsewhere)
+
+
+def test_rule_e_keeps_a_codex_workdir_in_a_plain_project_folder(tmp_path):
+    root = read_only_project(tmp_path, "codex", ".codex/agents", ".toml")
+    (root / "src" / "app").mkdir(parents=True)
+
+    assert codex_read_only_reason(root, root) is None
+    assert codex_read_only_reason(root, root / "src" / "app") is None
 
 
 def test_read_only_subagent_may_not_call_a_shell_with_no_command_the_gate_can_read(tmp_path):
     payload = {"tool_name": "Bash", "tool_input": {"argv": ["touch", "made.txt"]}}
 
-    assert read_only_verdict(tmp_path, payload).endswith(f"Blocked: {GATE._UNPLACEABLE_SHELL_TARGET}")
+    assert "Blocked: the 'argv' key," in read_only_verdict(tmp_path, payload)
+    assert read_only_verdict(tmp_path, {"tool_name": "Bash", "tool_input": {}}).endswith(
+        f"Blocked: {GATE._UNPLACEABLE_SHELL_TARGET}"
+    )
 
 
 @pytest.mark.parametrize(

@@ -579,9 +579,12 @@ def opencode_bash_verdict(bash_map, command):
         ("gh pr view 12 --json title -t x", "deny"),
         ("gh pr view 12 --json title,state", "allow"),
         ("touch made.txt", "deny"),
-        ("git log --format='%h %s' -U0 HEAD~3..HEAD", "allow"),
+        ("git log --format=%h%x20%s -U0 HEAD~3..HEAD", "allow"),
+        ("git log -L10,20:src/app.py", "allow"),
         ("gh pr view 12 --repo owner/name", "allow"),
         ("git log '@{u}..HEAD'", "deny"),
+        ("git log --format='%h %s'", "deny"),
+        ("git diff '--output=src/app.py'", "deny"),
         ("git diff `touch made.txt`", "deny"),
         ("git diff <(touch made.txt)", "deny"),
         ("git diff; touch made.txt", "deny"),
@@ -609,17 +612,32 @@ def test_opencode_denies_a_read_only_agent_every_tool_outside_the_gates_set():
     assert not any(opencode_match(tool, "*_*") for tool in ("read", "grep", "glob", "list", "bash", "skill"))
 
 
-@pytest.mark.parametrize("pattern", ["*'*", "*\\*", "*?*"])
+@pytest.mark.parametrize("pattern", ["*\\*", "*?*"])
 def test_the_gate_refusals_opencode_cannot_express_stay_out_of_the_map(pattern):
-    """A single quote the gate accepts in a format string, and two rules OpenCode would widen to every command."""
+    """Two rules OpenCode would widen to every command, so the plugin gate alone holds a backslash and a `?`."""
     assert pattern not in gen.OPENCODE_READ_ONLY_DENIES
-    assert opencode_match("git diff src/app.py", pattern) == (pattern != "*'*")
+    assert opencode_match("git diff src/app.py", pattern)
+
+
+def test_the_opencode_map_denies_a_single_quote_now_the_gate_refuses_one():
+    assert "*'*" in gen.OPENCODE_READ_ONLY_DENIES
+    assert GATE._read_only_command_blocked("git log --format='%h'", False, REVIEWER_COMMANDS) is not None
 
 
 def test_codex_carries_the_read_only_list_in_its_instructions():
     instructions = tomllib.loads(gen.emit_codex(REVIEWER, BODY))["developer_instructions"]
 
     assert read_only_section(instructions) == REVIEWER_COMMANDS
+
+
+@pytest.mark.parametrize("target", ["claude", "agents", "codex"])
+def test_a_read_only_shell_section_shows_the_unquoted_forms_the_gate_accepts(target):
+    rendered = gen.render(target, REVIEWER, BODY)
+    example = re.search(r"as in `([^`]+)`", rendered).group(1)
+
+    assert "Quote nothing" in rendered and "@{u}" in rendered
+    assert GATE._read_only_command_blocked(example, False, REVIEWER_COMMANDS) is None
+    assert GATE._read_only_command_blocked("git log origin/main..HEAD", False, REVIEWER_COMMANDS) is None
 
 
 def test_copilot_drops_the_shell_for_a_read_only_agent():
