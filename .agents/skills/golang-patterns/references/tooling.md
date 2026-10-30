@@ -3,7 +3,19 @@
 The commands a Go project runs and the `golangci-lint` v2 configuration that backs them. Open this when setting a
 repository up, or when a v1 configuration file has started failing.
 
-Baseline: Go 1.25 and golangci-lint v2. Confirm both with `go version` and `golangci-lint version` before assuming.
+Written for Go 1.27 and golangci-lint v2. Confirm both with `go version` and `golangci-lint version` before assuming.
+
+---
+
+### Contents
+
+- Build, run, and format
+- Vet and lint
+- Modernise after a toolchain bump
+- golangci-lint v2 configuration
+- Test and race
+- Modules and supply chain
+- CI gate
 
 ---
 
@@ -54,6 +66,16 @@ Apply the fixes the enabled linters can make safely:
 
 ```bash
 golangci-lint run --fix
+```
+
+---
+
+### Modernise after a toolchain bump
+
+`go fix` is the home of Go's modernizers. After raising the `go` line in `go.mod`, run it once and review the diff as its own commit, so its rewrites to the newer idioms and library APIs are not buried in a feature change:
+
+```bash
+go fix ./...
 ```
 
 ---

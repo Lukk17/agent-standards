@@ -4,6 +4,15 @@ Mutations that run on the server, work without client JavaScript, and invalidate
 
 ---
 
+### Contents
+
+- Shape of an action
+- Actions as form handlers
+- Rules that keep actions safe
+- Pairing with the client
+
+---
+
 ### Shape of an action
 
 Mark the module or the function with `'use server'`, validate the input, do the work, invalidate what the work
@@ -13,12 +22,12 @@ dirtied, and return a typed result the caller can branch on. Never return a raw 
 // app/actions/cart.ts
 'use server'
 
-import { revalidateTag } from 'next/cache'
+import { updateTag } from 'next/cache'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 
-const addToCartSchema = z.object({ productId: z.string().uuid() })
+const addToCartSchema = z.object({ productId: z.uuid() })
 
 export async function addToCart(productId: string) {
   const parsed = addToCartSchema.safeParse({ productId })
@@ -40,7 +49,7 @@ export async function addToCart(productId: string) {
       create: { sessionId, productId, quantity: 1 },
     })
 
-    revalidateTag('cart')
+    updateTag('cart')
     return { success: true }
   } catch {
     return { error: 'Failed to add item to cart' }
@@ -106,8 +115,7 @@ export default function CheckoutPage() {
 - Authorise inside the action. A hidden button does not stop anyone from calling the action directly.
 - Never accept an identifier that the server can derive itself. Read the session from `cookies()` rather than
   trusting a `userId` argument.
-- Invalidate in the same function that mutates. `revalidateTag` for a data set, `revalidatePath` for a specific
-  route, both when the change touches both.
+- Invalidate in the same function that mutates. `updateTag` for a data set the user must see their own write in, `revalidateTag(tag, 'max')` where a stale read during the refresh is fine, `revalidatePath` for a specific route, and a tag plus a path when the change touches both. Never the single-argument `revalidateTag(tag)`, which Next.js 16 deprecated.
 - Return a discriminated result, never an exception message. Leaking a database error to the client is an
   information disclosure bug.
 

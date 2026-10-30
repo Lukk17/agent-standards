@@ -5,6 +5,16 @@ moving work off the request thread, decoupling components with events, or adding
 
 ---
 
+### Contents
+
+- Redis cache manager
+- Asynchronous work
+- Intra-service events
+- Background jobs
+- Request filters
+
+---
+
 ### Redis cache manager
 
 Caching needs `@EnableCaching` on a configuration class. Give every cache a time to live and disable null caching,

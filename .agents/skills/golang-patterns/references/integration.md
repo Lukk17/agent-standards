@@ -5,6 +5,17 @@ this when a unit test would only be testing a fake.
 
 ---
 
+### Contents
+
+- Separate the slow set with a build tag
+- Start the dependency once per package with TestMain
+- Isolate each test inside a transaction
+- Test the router, not the handler, when routing is the point
+- Assert on the contract, not on the whole body
+- Keep the integration suite honest in CI
+
+---
+
 ### Separate the slow set with a build tag
 
 A build tag keeps integration tests out of the default `go test ./...` run and needs no naming convention anybody has

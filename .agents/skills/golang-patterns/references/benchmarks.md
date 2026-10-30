@@ -3,7 +3,21 @@
 Turning a performance claim into a number, finding the input nobody thought of, and reading a coverage profile.
 Open this before optimising anything or when a parser handles untrusted bytes.
 
-Baseline: Go 1.25, so `b.Loop` is available and is the form to use.
+Written for Go 1.27, so `b.Loop` is available and is the form to use.
+
+---
+
+### Contents
+
+- Write the benchmark with b.Loop
+- Report allocations, because they are usually the answer
+- Allocate once when the size is known
+- Compare implementations with sub-benchmarks
+- Compare runs with benchstat, not by eye
+- Profile when the benchmark says there is something to find
+- Fuzz anything that parses untrusted input
+- Read the coverage profile, not the headline
+- Detect a flaky test by repeating it
 
 ---
 

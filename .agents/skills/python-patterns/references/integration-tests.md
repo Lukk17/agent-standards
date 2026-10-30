@@ -5,6 +5,18 @@ when adding the first integration test to a project or when a hub rule points he
 
 ---
 
+### Contents
+
+- Lay the suite out by kind
+- Group with a class only when the tests share setup
+- Test an async FastAPI app through ASGITransport
+- Override a dependency instead of patching it
+- Roll the database back instead of mocking it
+- Run the real engine, not SQLite standing in for Postgres
+- Assert on behaviour, not on the response shape you happen to get
+
+---
+
 ### Lay the suite out by kind
 
 Splitting by kind lets the fast set run on every save and the slow set run in CI, without a naming convention nobody

@@ -5,6 +5,18 @@ the web.
 
 ---
 
+### Contents
+
+- Design and styling
+- Semantics widgets
+- Images and icons
+- Web accessibility
+- Responsive and adaptive as accessibility
+- Validating
+- Checklist
+
+---
+
 ### Design and styling
 
 Flutter scales font sizes from the OS accessibility settings automatically. Your job is to leave room for it.

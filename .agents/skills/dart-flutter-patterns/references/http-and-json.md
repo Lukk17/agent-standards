@@ -5,6 +5,18 @@ large payloads off the UI isolate.
 
 ---
 
+### Contents
+
+- Rules that apply to both clients
+- Choosing the client
+- package:http
+- package:dio
+- JSON serialization
+- Parsing large payloads off the main isolate
+- Checklist
+
+---
+
 ### Rules that apply to both clients
 
 - Use HTTPS. iOS and Android block cleartext by default. If a debug build genuinely needs plain HTTP, scope it to

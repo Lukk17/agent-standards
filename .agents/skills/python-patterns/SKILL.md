@@ -1,6 +1,6 @@
 ---
 name: python-patterns
-description: Idiomatic Python for production code and the pytest suite that proves it, covering type hints, error handling, dataclasses, context managers, concurrency choice, package layout, fixtures, mocking boundaries, and the coverage gate. Use when writing a new Python module, reviewing Python code, adding type hints to a legacy file, choosing between threads, processes and asyncio, writing tests for new code, fixing a flaky pytest suite, or mocking an external API. Not for training loops, tensor code, and CUDA placement, use `pytorch-patterns`.
+description: "Idiomatic Python 3.14 for production code and the pytest suite that proves it, covering type hints, error handling, dataclasses, concurrency choice, package layout, fixtures, mocking boundaries and the coverage gate. Use when the user says \"review this Python module\", \"add type hints to this file\" or \"fix this flaky pytest suite\". Not for training loops and tensor code, use `pytorch-patterns`."
 ---
 
 # Python Development Patterns
@@ -9,14 +9,14 @@ Language-level rules for production Python and the test suite that proves it: ho
 loudly, model data, lay a package out, and test it. The hub carries the rules that decide most reviews, and each
 reference file carries the depth for one area.
 
-Baseline: Python 3.13 or newer, with 3.14 the current release, and the current stable pytest. Every example assumes
-that floor, so builtin generics, `X | None`, `match`, and `asyncio.TaskGroup` appear without a compatibility note.
+Written for Python 3.14 and pytest 9. Every example assumes them, so builtin generics, `X | None`, `match`, and `asyncio.TaskGroup` appear without a compatibility note.
 
 ---
 
 ### When to activate
 
 - Writing a new Python module, package, or service.
+- The user says "review this Python module", "add type hints to this file", "threads, processes or asyncio", "write tests for this", "fix this flaky pytest suite", or "mock this external API".
 - Reviewing or refactoring existing Python code.
 - Adding type hints to an untyped file and choosing how strict to be.
 - Deciding between threads, processes, and asyncio for a workload.
@@ -64,32 +64,11 @@ config = ReportConfig.model_validate(raw)
 
 ---
 
-### Docstrings: default to none
+### Docstrings
 
-A docstring is usually a sign that the code failed to explain itself. Before writing one, extract the unclear block
-into a well-named function, rename the arguments so they carry their own meaning, and tighten the types. Do that first
-and most docstrings have nothing left to say, which is the outcome you want. Code that explains itself cannot go
-stale, a comment can.
-
-When one is still genuinely needed, the prose is capped at five lines and is usually one. Every entry under `Args:`,
-`Returns:` or `Raises:` is capped at one line and only appears when it genuinely adds something: if the entry does not
-fit on a single line, shorten it or drop it. Four rules decide what goes in.
-
-1. Prose. One sentence saying what it does, then only what a caller cannot infer from the signature. Nothing more.
-2. `Args:` only when the name and the annotation do not already convey it, meaning units, nullability, a valid range,
-   or who owns the argument afterwards. `user_id: The user identifier` is noise, delete it, and never restate a type
-   the annotation already declares.
-3. `Returns:` only when it is non-obvious.
-4. `Raises:` always, for every exception a caller can act on. Python puts nothing about raising in the signature, so
-   this one is genuinely contract rather than decoration.
-
-Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
-example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you
-justify in review, not a budget to spend. The one-line cap on an entry line has no exception at all: shorten it or
-delete it.
+Docstrings follow the Doc Comments rules in `coding-standards`. Python delta: use the Google `Args:`, `Returns:` and `Raises:` sections, and treat `Raises:` as the contract slot, written for every exception a caller can act on, because nothing about raising appears in a Python signature. Never restate a type an annotation already declares.
 
 ```python
-# GOOD. One sentence, then only what the signature cannot carry, one line per entry.
 def reserve_stock(order_id: OrderId, hold_for: timedelta) -> Reservation:
     """Reserve stock for an order and hold it until the payment window closes.
 
@@ -100,10 +79,6 @@ def reserve_stock(order_id: OrderId, hold_for: timedelta) -> Reservation:
         InsufficientStockError: when the warehouse cannot cover the order.
     """
 ```
-
-The failing shape is the same function documented as `Reserve stock.` with an `Args:` block restating both
-annotations and a `Returns:` line saying `Reservation: The reservation.` Best of all, naming and annotations carry
-it and no docstring is needed at all.
 
 ---
 
@@ -288,7 +263,7 @@ here and do not invent a local variant.
 
 - Every public function and method has annotated parameters and a return type.
 - No `Any` outside a boundary adapter, and every boundary narrows it immediately.
-- Docstrings are absent, or one sentence plus only the entries the signature cannot carry.
+- Docstrings follow `coding-standards`, in the Google `Args:` / `Returns:` / `Raises:` form.
 - `Raises:` documents every exception a caller can act on.
 - Exceptions are specific, chained with `from`, and rooted in one application base class.
 - No bare `except`, no silent `pass`, no `return None` standing in for a failure.

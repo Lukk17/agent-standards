@@ -1,6 +1,6 @@
 ---
 name: golang-patterns
-description: Idiomatic Go for production services and the test suite that proves them, covering zero values, interface design, error wrapping, context and cancellation, dependency injection, allocation discipline, golangci-lint v2, table-driven tests, hand-written fakes, benchmarks, and fuzzing. Use when writing a new Go package, reviewing Go code, fixing a goroutine leak, designing an interface at the consumer, setting up Go linting, converting copy-pasted tests into a table, testing an HTTP handler, or benchmarking a hot path. Not for the language-neutral SOLID, DRY, and naming floor, use `coding-standards`.
+description: "Idiomatic Go 1.27 for production services and their tests, covering zero values, interfaces at the consumer, error wrapping, context and goroutine lifetimes, golangci-lint v2, table tests, hand-written fakes, benchmarks and fuzzing. Use when the user says \"review this Go package\" or \"fix this goroutine leak\". Not for the language-neutral SOLID, DRY and naming floor, use `coding-standards`."
 ---
 
 # Go Development Patterns
@@ -10,14 +10,14 @@ how goroutines are stopped, how a module is laid out, and how it is tested. Go r
 reader should follow control flow top to bottom without unwinding a closure. The hub carries the rules that decide
 most reviews, each reference file the depth for one area.
 
-Baseline: Go 1.25, the current stable toolchain. Confirm with `go version` before assuming an older release: the
-examples use per-iteration loop variables, `any`, `log/slog`, and `testing/synctest` with no compatibility note.
+Written for Go 1.27. Confirm with `go version` before assuming an older release: the examples use per-iteration loop variables, `any`, `log/slog`, `testing/synctest`, `sync.WaitGroup.Go`, and `errors.AsType` with no compatibility note.
 
 ---
 
 ### When to activate
 
 - Writing, reviewing, or refactoring a Go package, command, or service.
+- The user says "review this Go package", "fix this goroutine leak", "design this interface", "set up Go linting", "turn these tests into a table", "test this HTTP handler", or "benchmark this hot path".
 - Designing an interface, a constructor, or a package boundary, or chasing a goroutine leak or a data race.
 - Setting up `golangci-lint`, `go vet`, and the formatting gate.
 - Writing table tests, fakes, benchmarks, or fuzz targets, or raising coverage on a package.
@@ -93,48 +93,22 @@ func ProcessData(r io.Reader) (*Result, error)
 
 ---
 
-### Doc comments: default to none
+### Doc comments on every exported name
 
-A doc comment is usually a sign that the code failed to explain itself. Before writing one, extract the unclear block
-into a well-named function, rename the parameters so they carry their own meaning, and tighten the types. Do that
-first and most doc comments have nothing left to say, which is the outcome you want. Code that explains itself cannot
-go stale, a comment can.
-
-When one is still genuinely needed, the prose is capped at five lines and is usually one. Every note you add about a
-parameter, the result, or an error is capped at one line and only appears when it genuinely adds something: if the
-note does not fit on a single line, shorten it or drop it. Four rules decide what goes in. Exported identifiers are
-not an automatic exception: a linter wanting a comment on every exported name is not a reason to write a sentence
-that adds nothing.
-
-1. Prose. One sentence, starting with the identifier name, saying what it does, then only what a caller cannot infer
-   from the signature. Nothing more.
-2. Describe a parameter only when the name and the type do not already convey it, meaning units, nullability, a valid
-   range, or who owns it afterwards. `orderID is the order identifier` is noise, delete it.
-3. Describe the result only when it is non-obvious.
-4. Describe the error conditions always, every one a caller can act on, and name the sentinel errors it can match
-   with `errors.Is`. The signature says only `error`, so this one is genuinely contract rather than decoration.
-
-Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
-example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you
-justify in review, not a budget to spend. The one-line cap on a note line has no exception at all: shorten it or
-delete it.
+Doc comments follow the Doc Comments rules in `coding-standards`, with one Go delta that overrides its default of none: every exported name gets a doc comment, because `go doc` and pkg.go.dev render it and the Go project asks for one on every exported identifier. Start it with the name, keep it to one sentence plus only what the signature cannot carry, and name the error conditions and the sentinels a caller can match with `errors.Is`, since the signature says only `error`. Unexported code follows the default of none.
 
 ```go
-// GOOD. One sentence, then only what the signature cannot carry, one line per note.
 // Reserve holds stock for an order until the payment window closes.
 // holdFor is capped at 15 minutes.
 // Returns ErrInsufficientStock when the warehouse cannot cover the order.
 func (w *Warehouse) Reserve(orderID OrderID, holdFor time.Duration) (Reservation, error)
 ```
 
-The failing shape on the same function is `Reserve reserves stock. It takes an order ID and a hold duration and
-returns a reservation and an error.`, which restates the signature and says nothing about the failure mode.
-
 ---
 
 ### Wrap every error with context
 
-`%w` keeps the original error matchable by `errors.Is` and `errors.As` while adding the operation that failed. Naked
+`%w` keeps the original error matchable by `errors.Is` and `errors.AsType` while adding the operation that failed. Naked
 returns of a library error give a caller a message with no idea which call produced it. Write the wrap message as a
 lowercase operation phrase with no trailing punctuation, so the chain reads as one sentence when it is finally
 printed. `_` on an error is a decision to continue with unknown state: handle it, wrap it, or, where nothing can be
@@ -255,6 +229,8 @@ logger.Info("\n" + buildStartupLog())
 | Mixing value and pointer receivers on one type | Pick one and use it for every method |
 | `interface{}` in a new signature | `any`, or a concrete type or type parameter |
 | `time.Sleep` to wait for a goroutine | A channel, a `WaitGroup`, or a context deadline |
+| `wg.Add(1)` then `go func() { defer wg.Done() ... }()` | `wg.Go(func() { ... })` |
+| `var target *T` then `errors.As(err, &target)` | `target, ok := errors.AsType[*T](err)` |
 | `time.Sleep` to wait in a test | `testing/synctest`, or a channel the test blocks on |
 
 ---
@@ -263,7 +239,7 @@ logger.Info("\n" + buildStartupLog())
 
 | Open this | For |
 | --- | --- |
-| [references/errors.md](references/errors.md) | Sentinels, custom error types, `errors.Is`/`As`, joining, panics |
+| [references/errors.md](references/errors.md) | Sentinels, custom error types, `errors.Is` and `errors.AsType`, joining, panics |
 | [references/concurrency.md](references/concurrency.md) | Worker pools, `errgroup`, channels, shutdown, `sync.Pool` |
 | [references/project-layout.md](references/project-layout.md) | Module layout, package naming, options pattern, embedding |
 | [references/tooling.md](references/tooling.md) | Build and test commands, `golangci-lint` v2 configuration, CI |
@@ -290,7 +266,7 @@ logger.Info("\n" + buildStartupLog())
 
 - Every exported type has a useful zero value, or an unexported field and a constructor.
 - Functions accept interfaces and return concrete types, and interfaces are declared at the consumer.
-- Doc comments are absent, or one sentence plus only the notes the signature cannot carry.
+- Every exported name has a doc comment that starts with its name, and unexported code follows the default of none.
 - Every error a caller can act on is documented, including the sentinels it can match.
 - Every returned error is wrapped with `%w` and a lowercase operation phrase, and none is silently dropped. An
   explicit `_ =` assignment appears only where nothing can be done.

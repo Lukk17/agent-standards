@@ -5,6 +5,19 @@ error needs to be more than a wrapped message.
 
 ---
 
+### Contents
+
+- Define sentinels for conditions a caller branches on
+- Use a custom type when the error carries data
+- Match with errors.Is and errors.AsType
+- Wrap with %w, format with %v
+- Join independent failures
+- Return errors, do not panic
+- Keep the error path unindented
+- Log an error once, at the boundary
+
+---
+
 ### Define sentinels for conditions a caller branches on
 
 A sentinel is a package-level `error` a caller can match with `errors.Is` through any depth of wrapping. Declare one
@@ -66,10 +79,9 @@ func Validate(u User) *ValidationError {
 
 ---
 
-### Match with errors.Is and errors.As
+### Match with errors.Is and errors.AsType
 
-`errors.Is` compares against a sentinel. `errors.As` extracts a typed error from anywhere in the chain. Neither works
-on a `==` comparison once the error has been wrapped, which is why wrapping and matching go together.
+`errors.Is` compares against a sentinel. `errors.AsType` extracts a typed error from anywhere in the chain and returns it with a boolean, which is the generic, type-safe form of `errors.As`. Neither works on a `==` comparison once the error has been wrapped, which is why wrapping and matching go together.
 
 ```go
 func handle(err error) {
@@ -77,8 +89,7 @@ func handle(err error) {
         return
     }
 
-    var validationErr *ValidationError
-    if errors.As(err, &validationErr) {
+    if validationErr, ok := errors.AsType[*ValidationError](err); ok {
         slog.Warn("invalid input", "field", validationErr.Field)
         return
     }
@@ -87,7 +98,7 @@ func handle(err error) {
 }
 ```
 
-Pass the address of a pointer variable to `errors.As`. Passing the value itself panics.
+Fail: `var validationErr *ValidationError` followed by `errors.As(err, &validationErr)` in new code. It needs a pre-declared target and panics when handed the value instead of its address, two mistakes `errors.AsType` cannot make.
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: springboot-patterns
-description: "Spring Boot services end to end on blocking Spring MVC: controller, service and repository layering, RFC 7807 errors, RestClient wrapped in Resilience4j, caching and events, Spring Security 6 authentication, authorization, headers and rate limiting, JPA mapping, N+1 and HikariCP, JUnit 5 and Testcontainers tests, and the pre-merge build, scan and coverage pipeline. Use when you say \"structure this Spring Boot API\", \"add JWT auth to this endpoint\", \"lock this down to admins\", \"why does this query run two hundred times\", \"write a @WebMvcTest for this controller\", \"rate limit this endpoint\", or \"verify this before I open the PR\". Not for Java language style, naming, records and Optional usage, use `java-coding-standards`."
+description: "Spring Boot 4 services on blocking Spring MVC, covering layering, RFC 9457 errors, RestClient with Resilience4j, caching and events, Spring Security 7, JPA and HikariCP, Testcontainers tests and the pre-merge pipeline. Use when the user says \"structure this Spring Boot API\" or \"add JWT auth to this endpoint\". Not for Java language style, naming and records, use `java-coding-standards`."
 license: Apache-2.0
 ---
 
@@ -13,15 +13,14 @@ around it, the tests, and the pipeline that ships it. Each reference below carri
 
 ### Baseline
 
-Java 21 LTS is the minimum and Java 25 LTS is the recommended target, so records, sealed types, pattern matching,
-and virtual threads are all available and expected. Spring Boot 3.x throughout, with Spring Security 6.x and the
-Hibernate 6 that ships with it. This targets blocking Spring MVC on virtual threads, and WebFlux is out of scope.
+Written for Spring Boot 4, with the Spring Security 7, Hibernate 7, Jackson 3 and JUnit 6 that ship with it. The Java version and the language features it unlocks follow `java-coding-standards`. A Spring Boot 3 project is an upgrade target rather than a second baseline: `@MockBean` and `@SpyBean` are removed in 4, and Jackson moved to the `tools.jackson` packages. This targets blocking Spring MVC on virtual threads, and WebFlux is out of scope.
 
 ---
 
 ### When to activate
 
 - Building or restructuring a REST API on Spring MVC, and layering its controllers, services, and repositories.
+- The user says "structure this Spring Boot API", "add JWT auth to this endpoint", "lock this down to admins", "why does this query run two hundred times", "write a @WebMvcTest for this controller", "rate limit this endpoint", or "verify this before I open the PR".
 - Adding validation, exception handling, or pagination to endpoints.
 - Configuring caching, asynchronous processing, or Spring events.
 - Calling another service over HTTP and making that call survive the other service.
@@ -85,7 +84,7 @@ somebody adds later.
 
 ---
 
-### Return RFC 7807 problem details
+### Return RFC 9457 problem details
 
 Every error response is `application/problem+json` built from Spring's `ProblemDetail`, with `type`, `title`,
 `status`, and `detail` set, and field errors carried as a problem property. An ad-hoc error shape means each client
@@ -193,46 +192,7 @@ Testcontainers wiring, builders, and the JaCoCo gate are in [references/testing.
 
 ### Javadoc
 
-Default to none. A Javadoc block is usually a sign that the code failed to explain itself. Before writing one, extract
-the unclear block into a well-named method, rename the parameters so they carry their own meaning, and tighten the
-types. Do that first and most Javadoc blocks have nothing left to say, which is the outcome you want. Code that
-explains itself cannot go stale, a comment can.
-
-When one is still genuinely needed, the prose is capped at five lines and is usually one. Every tag line is capped at
-one line, `@param` and `@return` and `@throws` alike, and only appears when it genuinely adds something: if the note
-does not fit on a single line, shorten it or drop the tag. Four rules decide what goes in.
-
-1. Prose. One sentence saying what it does, then only what a caller cannot infer from the signature. Nothing more.
-2. `@param` only when the name and the type do not already convey it, meaning units, nullability, a valid range, or
-   who owns the argument afterwards. `@param orderId the wholesale order identifier` is noise, delete it.
-3. `@return` only when it is non-obvious.
-4. `@throws` always, for every exception a caller can act on. Unchecked exceptions never appear in the signature, so
-   this one is genuinely contract rather than decoration.
-
-Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
-example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you
-justify in review, not a budget to spend. The one-line cap on a tag line has no exception at all: shorten it or delete
-it.
-
-```java
-// GOOD: one sentence, then only what the signature cannot say
-/**
- * Publishes the order to the fulfilment topic once the transaction commits.
- *
- * @throws OrderPublishException when the broker rejects the message
- */
-public void publish(OrderId orderId) { ... }
-
-// BAD: restates the signature, and the first tag wraps onto a second line
-/**
- * Publishes an order.
- *
- * @param orderId the identifier of the order that should be published to the
- *                fulfilment topic
- * @return nothing
- */
-public void publish(OrderId orderId) { ... }
-```
+Javadoc follows `java-coding-standards`, which carries the Java delta of the `coding-standards` Doc Comments rules. Nothing about Spring changes it.
 
 ---
 
@@ -305,5 +265,5 @@ fires before those runners.
 - [ ] No association is eager, every paged query has a sort, and no N+1 is left as a follow-up.
 - [ ] Every behaviour change started with a test that failed for the right reason, in the narrowest slice.
 - [ ] Repository tests run against the production database engine through Testcontainers.
-- [ ] Javadoc is absent by default, and every surviving block clears the caps above.
+- [ ] Javadoc follows `java-coding-standards`.
 - [ ] The verification pipeline ran in order and every gate is green before the pull request opens.

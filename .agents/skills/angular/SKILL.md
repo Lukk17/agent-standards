@@ -1,6 +1,6 @@
 ---
 name: angular
-description: Angular application standards covering standalone components, signals and RxJS interop, dependency injection with inject(), OnPush change detection, functional guards and interceptors, typed reactive forms, and global error handling. Use when you say "build this Angular component", "replace this BehaviorSubject with a signal", "my subscription leaks", "write a functional auth guard", or "add an HTTP error interceptor". Not for React and Next.js work, use `react-patterns`.
+description: "Angular 22 application standards, covering standalone components, signals and RxJS interop, inject(), OnPush change detection, functional guards and interceptors, typed reactive forms, global error handling and Vitest tests. Use when the user says \"build this Angular component\" or \"my subscription leaks\". Not for React and Next.js work, use `react-patterns`."
 license: Apache-2.0
 ---
 
@@ -10,14 +10,14 @@ Architecture and code standards for Angular applications: how components are dec
 dependencies arrive, and how errors are handled. Every rule here has a modern form and a legacy form, and the legacy
 form is the one to remove on sight.
 
-Baseline: current stable Angular. Standalone components, signals, RxJS interop, `inject()`, functional guards and
-interceptors, and typed reactive forms are all stable, so nothing below is gated behind a flag.
+Written for Angular 22. Standalone components, signals, RxJS interop, `inject()`, functional guards and interceptors, and typed reactive forms are all stable, so nothing below is gated behind a flag.
 
 ---
 
 ### When to activate
 
 - Building or reviewing any Angular component, service, guard, interceptor, or form.
+- The user says "build this Angular component", "replace this BehaviorSubject with a signal", "my subscription leaks", "write a functional auth guard", or "add an HTTP error interceptor".
 - Choosing between a signal and an observable for a piece of state.
 - Fixing a subscription leak or a change-detection performance problem.
 - Migrating NgModules to standalone components, or class-based guards and interceptors to functional ones.
@@ -253,57 +253,13 @@ runs on every check, which is what makes a template-bound method the most common
 <p>{{ calculateTotalPrice(items) }}</p>
 ```
 
-Defer heavy sections with `@defer` so they load on interaction or when they enter the viewport rather than on first
-paint. Keep constructors free of work and put initialisation in `ngOnInit`, except for wiring that needs the injection
-context, such as `takeUntilDestroyed()`, `toSignal` and `effect`, which belongs in the constructor. Follow the Angular
-style guide for file names: dashes between words, `feature.type.ts`, and a file name matching the class it exports.
+Defer heavy sections with `@defer` so they load on interaction or when they enter the viewport rather than on first paint. Keep constructors free of work and put initialisation in `ngOnInit`, except for wiring that needs the injection context, such as `takeUntilDestroyed()`, `toSignal` and `effect`, which belongs in the constructor. Follow the Angular style guide for file names: hyphens between words, and a file name matching the class it exports, so a `UserProfile` component lives in `user-profile.ts` with `user-profile.html`, `user-profile.css` and `user-profile.spec.ts` beside it. Keep a `.component.ts` type suffix only in a project that already uses that convention throughout.
 
 ---
 
 ### Doc Comments
 
-Default to none. A doc comment is usually a sign that the code failed to explain itself. Before writing one, extract
-the unclear block into a well-named method or small service, rename the parameters so they carry their own meaning,
-and tighten the types. Do that first and most doc comments have nothing left to say, which is the outcome you want.
-Code that explains itself cannot go stale, a comment can.
-
-When one is still genuinely needed, the prose is capped at five lines and is usually one. Every tag line is capped at
-one line, `@param` and `@returns` and `@throws` alike, and only appears when it genuinely adds something: if the note
-does not fit on a single line, shorten it or drop the tag. Four rules decide what goes in.
-
-1. Prose. One sentence saying what it does, then only what a caller cannot infer from the signature. Nothing more.
-2. `@param` only when the name and the type do not already convey it, meaning units, nullability, a valid range, or
-   who owns the argument afterwards. `@param userId - The user identifier` is noise, delete it, and never restate a
-   type TypeScript already declares.
-3. `@returns` only when it is non-obvious. For an `Observable`, whether it completes, replays, or has to be
-   unsubscribed is exactly the kind of thing that counts as non-obvious.
-4. `@throws` always, for every error a caller can act on. TypeScript keeps throws out of the signature, so this one is
-   genuinely contract rather than decoration.
-
-Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
-example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you
-justify in review, not a budget to spend. The one-line cap on a tag line has no exception at all: shorten it or delete
-it.
-
-```typescript
-// PASS: one sentence, then only what the signature cannot say
-/**
- * Loads the current user's dashboard widgets.
- *
- * @returns a cold Observable that completes after one emission
- * @throws {HttpErrorResponse} when the widget endpoint rejects the session
- */
-loadWidgets(): Observable<Widget[]> { ... }
-
-// FAIL: restates the signature
-/**
- * Loads widgets.
- *
- * @param userId - The user identifier
- * @returns An observable of widgets
- */
-loadWidgets(userId: string): Observable<Widget[]> { ... }
-```
+Doc comments follow the Doc Comments rules in `coding-standards`, whose TSDoc examples already cover TypeScript. Angular delta: an `Observable` return is non-obvious by nature, so `@returns` says whether it completes, replays, or has to be unsubscribed, for example `@returns a cold Observable that completes after one emission`.
 
 ---
 
@@ -330,4 +286,4 @@ loadWidgets(userId: string): Observable<Widget[]> { ... }
 - Every reactive form is typed, and no untyped form variant remains.
 - A custom `ErrorHandler` is registered, and no `catchError` discards an error without logging it.
 - No template binds to a method call.
-- No doc comment restates a signature, and every recoverable error is documented with `@throws`.
+- Doc comments follow `coding-standards`, and every `Observable` return says whether it completes, replays, or must be unsubscribed.

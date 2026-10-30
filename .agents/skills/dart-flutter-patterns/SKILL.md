@@ -1,6 +1,6 @@
 ---
 name: dart-flutter-patterns
-description: Dart 3 and Flutter patterns across architecture, layout, routing, forms, networking, persistence, concurrency, animation, accessibility, localization, native interop, app size, and testing. Use when you say "build a Flutter screen", "why does my Column overflow", "set up GoRouter with an auth guard", "parse this JSON without jank", or "write a widget test for this form". Not for language-neutral SOLID, naming, and error-handling rules, use `coding-standards`.
+description: "Dart 3 and Flutter 3 patterns across architecture, layout, routing, forms, networking, persistence, concurrency, animation, accessibility, localization, native interop, app size and testing. Use when the user says \"build a Flutter screen\", \"why does my Column overflow\" or \"write a widget test for this form\". Not for language-neutral SOLID, naming and error-handling rules, use `coding-standards`."
 ---
 
 # Dart and Flutter Patterns
@@ -12,8 +12,7 @@ file per topic. The hub carries the rules that apply everywhere, and each refere
 
 ### Baseline
 
-Assume Dart 3 and current stable Flutter. Verified here with `flutter --version` against Flutter 3.44.1 and Dart
-3.12.1. Four defaults follow and change how code is written:
+Written for Dart 3 and Flutter 3. Confirm the installed SDK with `flutter --version`. Four defaults follow and change how code is written:
 
 - Material 3 is the default for `ThemeData`. Do not set `useMaterial3`, it is the only behaviour left.
 - Impeller is the default renderer on iOS and Android. Profile jank against Impeller, not the retired Skia path.
@@ -30,6 +29,7 @@ than by review. The exact block is in [references/architecture.md](references/ar
 ### When to activate
 
 - Writing or reviewing any Dart or Flutter code, including plain Dart packages with no widgets.
+- The user says "build a Flutter screen", "why does my Column overflow", "set up GoRouter with an auth guard", "parse this JSON without jank", or "write a widget test for this form".
 - Structuring a new Flutter project, or refactoring one whose layers have blurred.
 - Debugging a layout overflow, a jank frame, a rebuild storm, or a `setState() called after dispose()` crash.
 - Wiring navigation, deep links, forms, HTTP clients, local databases, or platform channels.
@@ -251,42 +251,7 @@ return Semantics(label: AppLocalizations.of(context).deleteItem, child: const Ic
 
 ### Doc comments
 
-Default to none. A `///` block is usually a sign that the code failed to explain itself. Extract the unclear block
-into a well-named method or widget class, rename the parameters so they carry their own meaning, and tighten the
-types. Do that first and most doc comments have nothing left to say. Code that explains itself cannot go stale, a
-comment can. When one is genuinely needed, the prose is capped at five lines and is usually one. Every note about
-a parameter, the return, or a thrown exception is capped at one line and only appears when it adds something. If
-it does not fit on one line, shorten it or drop it. `public_member_api_docs` demanding a comment on every public
-member is not a reason to write a sentence that adds nothing. Four rules decide what goes in.
-
-1. Prose. One sentence saying what it does, then only what a caller cannot infer from the signature. Nothing more.
-2. Describe a parameter, referenced as `[holdFor]`, only when the name and the type do not already convey it,
-   meaning units, nullability, a valid range, or who owns it afterwards. `[orderId] the order identifier` is
-   noise, delete it.
-3. Describe the return only when it is non-obvious.
-4. Describe every exception a caller can act on, always. Dart has no checked exceptions and puts nothing about
-   throwing in the signature, so this one is genuinely contract rather than decoration.
-
-Going past the five-line prose cap is allowed only when the contract cannot be stated in fewer lines, for example
-a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you justify in
-review. The one-line cap on a note line has no exception: shorten it or delete it.
-
-```dart
-/// GOOD. One sentence, then only what the signature cannot say, one line per note.
-/// Reserves stock for an order and holds it until the payment window closes.
-///
-/// [holdFor] is capped at 15 minutes.
-/// Throws [InsufficientStockException] when the warehouse cannot cover it.
-Future<Reservation> reserve(OrderId orderId, Duration holdFor);
-
-/// BAD. Restates the signature and says nothing about the failure mode.
-/// Reserves stock.
-///
-/// [orderId] the order identifier.
-/// [holdFor] the hold duration.
-/// Returns a reservation.
-Future<Reservation> reserve(OrderId orderId, Duration holdFor);
-```
+Doc comments follow the Doc Comments rules in `coding-standards`. Dart delta: write them as `///` and refer to a parameter or a type in square brackets, such as `[holdFor]` or `[InsufficientStockException]`, so `dart doc` links it. Dart has no tags and no checked exceptions, so every exception a caller can act on gets a plain `Throws [SomeException] when ...` line, which is the contract slot. The `public_member_api_docs` lint wanting a comment on every public member is not a reason to write a sentence that adds nothing.
 
 ---
 
@@ -332,5 +297,5 @@ Future<Reservation> reserve(OrderId orderId, Duration holdFor);
 - [ ] One HTTP client, matching `pubspec.yaml`, with URLs built through `Uri.https` or dio's `baseUrl`.
 - [ ] No user-facing literal anywhere, including validators and semantics labels.
 - [ ] Every disposable (`AnimationController`, `TextEditingController`, `StreamSubscription`) is disposed.
-- [ ] Doc comments follow the four rules above, and none merely restate a signature.
+- [ ] Doc comments follow `coding-standards`, use `///` with `[name]` references, and name every exception under a `Throws` line.
 - [ ] `flutter analyze` is clean and `flutter test --coverage` passes at around 90% of real logic.

@@ -1,6 +1,6 @@
 ---
 name: node-backend-patterns
-description: Node.js server-side patterns for Express and Next.js route handlers, covering repository and service layering, query batching, RFC 7807 errors, typed config, pino logging, and graceful shutdown. Use when you say "structure my Express API", "fix the N+1 in this route", "cache this Prisma query", "rate limit this endpoint", or "my Node app never exits on SIGTERM". Not for language-neutral backend design, use `backend-patterns`.
+description: "Node.js server-side patterns for Express and Next.js route handlers, covering service and repository layering, query batching, RFC 9457 errors, typed config, pino logging, caching, rate limiting and graceful shutdown. Use when the user says \"structure my Express API\" or \"my Node app never exits on SIGTERM\". Not for language-neutral backend design, use `backend-patterns`."
 ---
 
 # Node Backend Patterns
@@ -9,13 +9,14 @@ Server-side patterns for Node.js services built on Express or Next.js route hand
 process shutdown. Everything here is TypeScript on the Node runtime, so the rules assume a single-threaded event loop
 and the npm ecosystem.
 
-Baseline versions, current as of September 2026: Node.js 24 LTS, Express 5, Next.js 16, TypeScript 5.
+Written for Node.js 26, Express 5, Next.js 16 and TypeScript 7, with Zod 4 for schemas.
 
 ---
 
 ### When to activate
 
 - Structuring an Express app or a Next.js `app/api` route into handler, service, and repository layers.
+- The user says "structure my Express API", "fix the N+1 in this route", "cache this Prisma query", "rate limit this endpoint", or "my Node app never exits on SIGTERM".
 - Removing an N+1 query or a `SELECT *` from a Node data-access path.
 - Adding Redis caching, a rate limiter, or a background queue to a Node service.
 - Wiring typed configuration, pino logging, or a graceful shutdown handler.
@@ -121,7 +122,7 @@ hours after deploy. Parse the whole environment once against a schema so the pro
 // PASS: one schema, parsed once, exported as the only way to read configuration
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  DATABASE_URL: z.string().url(),
+  DATABASE_URL: z.url(),
   JWT_SECRET: z.string().min(32),
   PORT: z.coerce.number().default(3000),
 })
@@ -134,8 +135,7 @@ Fail: `const port = Number(process.env.PORT) || 3000` repeated in four files, wi
 
 ### Return every error through one handler, as problem+json
 
-One function turns a thrown error into a response, so the shape is identical across every route and no stack trace
-leaks. Use `application/problem+json` per RFC 7807, which is the contract `api-design` defines.
+One function turns a thrown error into a response, so the shape is identical across every route and no stack trace leaks. Use `application/problem+json` per RFC 9457, which obsoletes RFC 7807 and is the contract `api-design` defines.
 
 ```typescript
 export function toProblemResponse(error: unknown, path: string): Response {
@@ -213,47 +213,7 @@ Fail: `console.error('failed', error)` inside a catch block, with no request ide
 
 ### Doc comments
 
-Default to none. A doc comment is usually a sign that the code failed to explain itself. Before writing one, extract the
-unclear block into a well-named function, rename the parameters so they carry their own meaning, and tighten the types.
-Do that first and most doc comments have nothing left to say, which is the outcome you want. Code that explains itself
-cannot go stale, a comment can.
-
-When one is still genuinely needed, the prose is capped at five lines and is usually one. Every tag line is capped at
-one line, `@param` and `@returns` and `@throws` alike, and only appears when it genuinely adds something: if the note
-does not fit on a single line, shorten it or drop the tag. Four rules decide what goes in.
-
-1. Prose. One sentence saying what it does, then only what a caller cannot infer from the signature. Nothing more.
-2. `@param` only when the name and the type do not already convey it, meaning units, nullability, a valid range, or who
-   owns the argument afterwards. `@param userId - The user identifier` is noise, delete it, and never restate a type
-   TypeScript already declares.
-3. `@returns` only when it is non-obvious.
-4. `@throws` always, for every error a caller can act on. TypeScript keeps throws out of the signature, so this one is
-   genuinely contract rather than decoration.
-
-Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
-example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you justify
-in review, not a budget to spend. The one-line cap on a tag line has no exception at all: shorten it or delete it.
-
-```typescript
-// PASS: one sentence, then only what the signature cannot say
-/**
- * Charges the saved payment method and records the receipt.
- *
- * @param amountMinor amount in minor units, never a float
- * @throws {PaymentDeclinedError} when the processor declines the charge
- */
-export async function chargeCustomer(customerId: string, amountMinor: number): Promise<Receipt> { ... }
-
-// FAIL: restates the signature and leaves the unit of amountMinor a guess
-/**
- * Charges a customer.
- *
- * @param customerId - The customer id
- * @param amountMinor - The amount
- * @returns A receipt
- */
-export async function chargeCustomer(customerId: string, amountMinor: number): Promise<Receipt> { ... }
-```
+Doc comments follow the Doc Comments rules in `coding-standards`, whose TSDoc examples already cover TypeScript on Node. Node delta: an async function documents the errors its promise rejects with under `@throws`, because a rejection is the Node form of a throw and the signature says only `Promise<T>`.
 
 ---
 

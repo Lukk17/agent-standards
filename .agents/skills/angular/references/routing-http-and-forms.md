@@ -5,6 +5,14 @@ form in all three.
 
 ---
 
+### Contents
+
+- Write guards and resolvers as functions
+- Write interceptors as functions
+- Type every reactive form
+
+---
+
 ### Write guards and resolvers as functions
 
 A functional guard is a plain function that returns a decision. It composes, it tests with no component fixture,

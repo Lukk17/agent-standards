@@ -5,6 +5,18 @@ it.
 
 ---
 
+### Contents
+
+- Size concepts
+- Generating a size report
+- Reading the report
+- Estimating the real iOS download size
+- Reducing size
+- Runtime performance
+- Checklist
+
+---
+
 ### Size concepts
 
 - Never measure a debug build. Debug includes VM overhead, skips ahead-of-time compilation, and does no tree

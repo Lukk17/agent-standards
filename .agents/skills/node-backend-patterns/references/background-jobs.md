@@ -5,6 +5,20 @@ disappears.
 
 ---
 
+### Contents
+
+- An in-process array is not a queue
+- Enqueue the identifier, not the object
+- Every handler must be idempotent
+- Publish through an outbox when the job must follow a committed write
+- Bound every retry and terminate on a dead-letter queue
+- Give the worker its own timeout and its own shutdown
+- Log the job like a request
+- Scheduled work needs a lock
+- Related skills
+
+---
+
 ### An in-process array is not a queue
 
 A module-level array loses every pending job when the process restarts, and a serverless function may be frozen the

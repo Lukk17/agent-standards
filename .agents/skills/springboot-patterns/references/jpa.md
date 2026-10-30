@@ -1,9 +1,22 @@
 # JPA and Hibernate
 
-Data modeling, repositories, and query performance for the persistence layer. Open this when designing entities and
-table mappings, choosing a fetch strategy, chasing an N+1 query, setting transaction boundaries or auditing on the
-data layer, paging a repository method, or tuning HikariCP. Every rule assumes the Hibernate 6 that ships with the
-Spring Boot baseline in the hub.
+Data modeling, repositories, and query performance for the persistence layer. Open this when designing entities and table mappings, choosing a fetch strategy, chasing an N+1 query, setting transaction boundaries or auditing on the data layer, paging a repository method, or tuning HikariCP. Every rule assumes the Hibernate 7 that ships with Spring Boot 4.
+
+---
+
+### Contents
+
+- Map entities explicitly
+- Keep associations lazy and fetch what you need per query
+- Project the columns a read path uses
+- Javadoc
+- Put one transaction around one unit of work
+- Page with a stable sort
+- Index for the queries you actually run
+- Cache only what you can invalidate
+- Migrate schema through Flyway or Liquibase
+- Test data access against the real engine
+- Checklist
 
 ---
 

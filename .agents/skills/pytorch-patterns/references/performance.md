@@ -5,6 +5,19 @@ large, after the data pipeline has been ruled out.
 
 ---
 
+### Contents
+
+- Measure before changing anything
+- Mixed precision with autocast and a scaler
+- Trade compute for memory with gradient checkpointing
+- Compile the model
+- Profile the step
+- Remove the hidden synchronisation points
+- Diagnose out-of-memory before lowering the batch size
+- Set the matmul precision
+
+---
+
 ### Measure before changing anything
 
 There are three usual bottlenecks and they need different fixes: the data loader starving the GPU, the step itself

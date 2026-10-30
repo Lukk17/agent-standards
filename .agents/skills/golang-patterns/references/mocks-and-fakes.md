@@ -5,6 +5,19 @@ telling the truth. Open this when a test needs a dependency it cannot run.
 
 ---
 
+### Contents
+
+- Declare the interface at the consumer
+- Stub with function fields
+- Fake with a real, simple implementation
+- Spy when the call itself is the behaviour
+- Assert the fake still matches the interface
+- Fake an HTTP dependency with httptest.Server
+- Test a handler with httptest.NewRecorder
+- Do not fake what you can run
+
+---
+
 ### Declare the interface at the consumer
 
 The interface exists so the test can substitute. It belongs in the package that calls it, listing only the methods

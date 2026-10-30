@@ -5,6 +5,18 @@ Open this when starting a module or when a package has stopped having one job.
 
 ---
 
+### Contents
+
+- Standard module layout
+- Name packages for what they provide
+- Keep the import graph acyclic and shallow
+- Functional options for a constructor with many settings
+- Embed for composition, not for inheritance
+- Keep the exported surface small
+- One module unless there is a reason for more
+
+---
+
 ### Standard module layout
 
 ```text

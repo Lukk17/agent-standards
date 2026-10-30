@@ -5,6 +5,18 @@ that bite on iOS and in tests.
 
 ---
 
+### Contents
+
+- Configuration
+- ARB resources
+- App integration
+- Placeholders, plurals, and selects
+- Adding a language
+- Troubleshooting
+- Checklist
+
+---
+
 ### Configuration
 
 Add the localization dependencies and turn on generation in `pubspec.yaml`:

@@ -1,20 +1,19 @@
 ---
 name: java-coding-standards
-description: "Java language standards for Spring Boot services: naming, Lombok and constructor injection, immutability and records, Optional, streams, exceptions, generics, null safety, SLF4J logging, and Javadoc discipline. Use when you say \"review this Java class\", \"should this be a record\", \"is this Optional usage correct\", \"rename these methods properly\", or \"set up Checkstyle and SpotBugs\". Not for Spring Boot wiring and REST structure, use `springboot-patterns`."
+description: "Java language standards for Spring Boot services, covering naming, Lombok and constructor injection, records, Optional, streams, exceptions, generics, null safety, SLF4J logging and Javadoc. Use when the user says \"review this Java class\" or \"should this be a record\", or asks to set up Checkstyle and SpotBugs. Not for Spring Boot wiring and REST structure, use `springboot-patterns`."
 license: Apache-2.0
 ---
 
 # Java Coding Standards
 
-How Java itself is written in a Spring Boot service, from naming through to Javadoc. Java 21 LTS is the minimum and
-Java 25 LTS, released September 2025, is the recommended target, so records, sealed types, pattern matching, and
-virtual threads are all available and expected.
+How Java itself is written in a Spring Boot service, from naming through to Javadoc. Written for Java 25, with Java 21 as the minimum, so records, sealed types, pattern matching, and virtual threads are all available and expected.
 
 ---
 
 ### When to activate
 
 - Writing or reviewing Java in a Spring Boot project.
+- The user says "review this Java class", "should this be a record", "is this Optional usage correct", "rename these methods properly", or "set up Checkstyle and SpotBugs".
 - Deciding between a record, a class, and a sealed hierarchy.
 - Enforcing naming, immutability, or exception conventions in review.
 - Reviewing use of `Optional`, streams, or generics.
@@ -207,51 +206,7 @@ Levels: `ERROR` for unhandled exceptions, `WARN` for recoverable problems, `INFO
 
 ### Javadoc
 
-Default to none. A Javadoc block is usually a sign that the code failed to explain itself. Before writing one, extract
-the unclear block into a well-named method, rename the parameters so they carry their own meaning, and tighten the
-types. Do that first and most Javadoc blocks have nothing left to say, which is the outcome you want. Code that
-explains itself cannot go stale, a comment can.
-
-When one is still genuinely needed, the prose is capped at five lines and is usually one. Every tag line is capped at
-one line, `@param` and `@return` and `@throws` alike, and only appears when it genuinely adds something: if the note
-does not fit on a single line, shorten it or drop the tag. Four rules decide what goes in.
-
-1. Prose. One sentence saying what it does, then only what a caller cannot infer from the signature. Nothing more.
-2. `@param` only when the name and the type do not already convey it, meaning units, nullability, a valid range, or
-   who owns the argument afterwards. `@param orderId the wholesale order identifier` is noise, delete it.
-3. `@return` only when it is non-obvious.
-4. `@throws` always, for every exception a caller can act on. Unchecked exceptions never appear in the signature, so
-   this one is genuinely contract rather than decoration.
-
-Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
-example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you
-justify in review, not a budget to spend. The one-line cap on a tag line has no exception at all: shorten it or delete
-it.
-
-```java
-// GOOD: one sentence, then only what the signature cannot say
-/**
- * Reserves stock for an order and holds it until the payment window closes.
- *
- * @param holdFor how long the reservation survives, at most 15 minutes
- * @throws InsufficientStockException when the warehouse cannot cover the order
- */
-public Reservation reserve(OrderId orderId, Duration holdFor) { ... }
-
-// BAD: restates the signature, and the first tag wraps onto a second line
-/**
- * Reserves stock.
- *
- * @param orderId the identifier of the order that stock is being reserved
- *                against, taken from the inbound request
- * @param holdFor the hold duration
- * @return the reservation
- */
-public Reservation reserve(OrderId orderId, Duration holdFor) { ... }
-
-// BEST: naming and types carry it, no Javadoc needed
-public Reservation reserveStockUntilPaymentWindowCloses(OrderId orderId, Duration holdFor) { ... }
-```
+Javadoc follows the Doc Comments rules in `coding-standards`. Java delta: write `@throws` for every unchecked exception a caller can act on, because unchecked exceptions never appear in the signature, and give a declared checked exception a `@throws` line only when it names the condition.
 
 ---
 
@@ -290,4 +245,4 @@ public Reservation reserveStockUntilPaymentWindowCloses(OrderId orderId, Duratio
 - [ ] No raw types anywhere.
 - [ ] Nullability annotations are present on public signatures and enforced in CI.
 - [ ] Logging goes through `@Slf4j` with parameterised messages, never concatenation.
-- [ ] Javadoc is absent by default, and every surviving block clears the caps above.
+- [ ] Javadoc follows the `coding-standards` Doc Comments rules, with `@throws` on every unchecked exception a caller can act on.

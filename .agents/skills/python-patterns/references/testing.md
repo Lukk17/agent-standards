@@ -5,7 +5,24 @@ what may be mocked, and what the coverage gate means. The hub carries the three 
 this file carries the rest. Fixture, configuration, and integration depth sits in the sibling files listed at the
 bottom.
 
-Baseline: Python 3.13 or newer, with 3.14 the current release, and the current stable pytest.
+Written for Python 3.14 and pytest 9.
+
+---
+
+### Contents
+
+- Write the failing test first
+- Give each test one behaviour and three phases
+- Name the test after the behaviour, not the function
+- Assert with plain `assert` and `pytest.raises`
+- Parametrize instead of copying a test
+- Isolate every test
+- Test async code in auto mode
+- Patch where the name is used
+- Register markers and keep slow tests separable
+- Run the whole suite from the project root
+- Sibling references
+- Checklist
 
 ---
 

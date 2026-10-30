@@ -4,6 +4,17 @@ Where a component runs, when its output is produced, and how long that output st
 
 ---
 
+### Contents
+
+- Rendering modes
+- Choosing the boundary
+- Server Component with search params
+- Client Component at the leaf
+- Streaming with Suspense
+- Caching layers
+
+---
+
 ### Rendering modes
 
 | Mode | Where it runs | Reach for it when |
@@ -203,16 +214,15 @@ fetch(url, { next: { revalidate: 60 } })
 fetch(url, { next: { tags: ['products'] } })
 ```
 
-Time-based revalidation suits data that goes stale on a schedule. Tag-based invalidation suits data that goes stale
-when something specific happens, and the mutation that causes it is the right place to trigger it.
+Time-based revalidation suits data that goes stale on a schedule. Tag-based invalidation suits data that goes stale when something specific happens, and the mutation that causes it is the right place to trigger it. Inside a Server Action, `updateTag` expires the tag at once so the user who made the change sees it on the next request. Everywhere else, and wherever a stale read is acceptable, call `revalidateTag` with a profile: `revalidateTag(tag, 'max')` serves stale content while it refreshes. The single-argument `revalidateTag(tag)` is deprecated in Next.js 16 and fails type-checking.
 
 ```typescript
 'use server'
-import { revalidateTag, revalidatePath } from 'next/cache'
+import { updateTag, revalidatePath } from 'next/cache'
 
 export async function updateProduct(id: string, data: ProductData) {
   await db.product.update({ where: { id }, data })
-  revalidateTag('products')
+  updateTag('products')
   revalidatePath('/products')
 }
 ```

@@ -6,6 +6,17 @@ response shape needs to be settled.
 
 ---
 
+### Contents
+
+- Controller
+- Request and response types
+- Pagination envelope
+- Global exception handler
+- Version in the path, and deprecate with a real date
+- OpenAPI
+
+---
+
 ### Controller
 
 ```java

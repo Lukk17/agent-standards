@@ -1,6 +1,6 @@
 ---
 name: pytorch-patterns
-description: PyTorch patterns for reproducible deep learning, covering device-agnostic code, seeding, nn.Module structure, training and validation loops, DataLoader throughput, checkpointing, mixed precision, torch.compile, and distributed training with DDP. Use when writing a training loop, building an nn.Module, speeding up a starved DataLoader, adding mixed precision, or scaling training across several GPUs. Not for general Python idioms and typing, use `python-patterns`.
+description: "PyTorch 2 patterns for reproducible deep learning, covering device-agnostic code, seeding, nn.Module structure, training and validation loops, DataLoader throughput, checkpointing, mixed precision, torch.compile and DDP. Use when the user says \"write a training loop\", \"my GPU is starved\" or \"scale this to several GPUs\". Not for general Python idioms and typing, use `python-patterns`."
 ---
 
 # PyTorch Development Patterns
@@ -8,14 +8,14 @@ description: PyTorch patterns for reproducible deep learning, covering device-ag
 Rules for PyTorch code that runs the same way twice, survives a restart, and uses the hardware it was given. The
 long-form training, data, performance, and distributed material lives in the reference files listed near the bottom.
 
-Baseline: the current stable PyTorch release, the 2.x line, on Python 3.13 or newer. The examples use `torch.amp`,
-`torch.compile`, and `weights_only=True` without a compatibility note.
+Written for PyTorch 2 on Python 3.14. The examples use `torch.amp`, `torch.compile`, and `weights_only=True` without a compatibility note.
 
 ---
 
 ### When to activate
 
 - Writing or reviewing a model, a training loop, or a data pipeline.
+- The user says "write a training loop", "build this nn.Module", "my GPU is starved", "add mixed precision", or "scale this to several GPUs".
 - Debugging a training run that will not reproduce, will not converge, or runs out of memory.
 - Speeding up training that is starved on data loading or is not using the GPU well.
 - Adding checkpointing, resumption, or evaluation to an existing script.
@@ -191,8 +191,7 @@ optimizer.zero_grad()
 
 ### Checkpoint the whole training state
 
-A file holding only the weights cannot resume a run: the optimizer momentum, the scheduler position, the AMP scaler,
-and the epoch are all gone. Load with `weights_only=True`, because `torch.load` otherwise unpickles arbitrary code.
+A file holding only the weights cannot resume a run: the optimizer momentum, the scheduler position, the AMP scaler, and the epoch are all gone. Load with `weights_only=True` spelled out. It has been the `torch.load` default since PyTorch 2.6, and writing it explicitly keeps the script safe on an older 2.x install and stops a later edit from opting back into full unpickling, which runs arbitrary code from the file.
 
 Pass:
 

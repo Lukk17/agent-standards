@@ -4,6 +4,16 @@ The typed API client, the hooks and loaders that consume it, and the two renderi
 
 ---
 
+### Contents
+
+- The API client
+- The async data hook
+- Render props loader
+- Code splitting
+- Virtualisation
+
+---
+
 ### The API client
 
 One module owns the base URL, the headers, the auth, and the response typing. Components and hooks call it. Nothing
@@ -58,30 +68,46 @@ export function useQuery<T>(
   options?: UseQueryOptions<T>
 ) {
   const [state, setState] = useState<AsyncState<T>>({ status: 'idle' })
-
-  const refetch = useCallback(async () => {
-    setState({ status: 'loading' })
-
-    try {
-      const data = await fetcher()
-      setState({ status: 'success', data })
-      options?.onSuccess?.(data)
-    } catch (err) {
-      const reason = err as Error
-      setState({ status: 'error', reason })
-      options?.onError?.(reason)
-    }
-  }, [fetcher, options])
+  const [attempt, setAttempt] = useState(0)
+  const latest = useRef({ fetcher, options })
+  const enabled = options?.enabled !== false
 
   useEffect(() => {
-    if (options?.enabled !== false) {
-      refetch()
-    }
-  }, [key, options?.enabled])
+    latest.current = { fetcher, options }
+  })
 
+  useEffect(() => {
+    if (!enabled) return
+    let active = true
+    setState({ status: 'loading' })
+
+    latest.current
+      .fetcher()
+      .then((data) => {
+        if (!active) return
+        setState({ status: 'success', data })
+        latest.current.options?.onSuccess?.(data)
+      })
+      .catch((err: unknown) => {
+        if (!active) return
+        const reason = err instanceof Error ? err : new Error(String(err))
+        setState({ status: 'error', reason })
+        latest.current.options?.onError?.(reason)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [key, enabled, attempt])
+
+  const refetch = useCallback(() => setAttempt((n) => n + 1), [])
   return { state, refetch }
 }
 ```
+
+The `active` flag, set to false in the cleanup, drops a response that lands after `key` changed, because network responses can arrive in a different order than they were sent, and without it a slow answer for the old key overwrites the new one. `fetcher` and the callbacks sit in a ref, so an inline arrow or an options object literal does not re-run the effect on every render. Only `key`, `enabled`, and an explicit `refetch` do.
+
+Fail: the fetch started from a `useCallback` that depends on `[fetcher, options]`, with no cleanup flag, so every render with an inline `options` object builds a new callback and an old response can still win the race.
 
 Write this yourself only for something small. Caching across components, deduplication, and background revalidation
 are why SWR and React Query exist, and reimplementing them is not a good use of a sprint.

@@ -1,6 +1,6 @@
 ---
 name: react-patterns
-description: React patterns for component composition, custom hooks, async state, a typed API client, memoisation, code splitting, virtualisation, forms, and animation. Use when you say "build a React component", "write a custom hook", "this list re-renders on every keystroke", "lazy load this chart", or "animate this list on mount". Not for Next.js rendering, routing, and caching, use `nextjs-app-router-patterns`.
+description: "React 19 patterns for component composition, custom hooks, async state, a typed API client, memoisation under React Compiler, code splitting, virtualisation, forms and animation. Use when the user says \"build a React component\", \"write a custom hook\" or \"this list re-renders on every keystroke\". Not for Next.js rendering, routing and caching, use `nextjs-app-router-patterns`."
 license: Apache-2.0
 ---
 
@@ -10,14 +10,14 @@ React patterns for maintainable, performant user interfaces, covering compositio
 performance, forms, and animation. Everything here is framework-agnostic React that works the same inside or outside a
 meta-framework.
 
-Baseline: React 19 with TypeScript. Server Components, streaming, and route-level caching belong to
-`nextjs-app-router-patterns`, and this skill defers to it on all three.
+Written for React 19 with TypeScript and React Compiler. Server Components, streaming, and route-level caching belong to `nextjs-app-router-patterns`, and this skill defers to it on all three.
 
 ---
 
 ### When to activate
 
 - Building React components: composition, props, rendering, compound components.
+- The user says "build a React component", "write a custom hook", "this list re-renders on every keystroke", "lazy load this chart", or "animate this list on mount".
 - Managing state with `useState`, `useReducer`, Context, or a store such as Zustand.
 - Implementing client-side data fetching with SWR, React Query, or a typed API client.
 - Optimising rendering: memoisation, virtualisation, code splitting.
@@ -52,16 +52,15 @@ Baseline: React 19 with TypeScript. Server Components, streaming, and route-leve
 
 ### Declare components as named functions
 
-Named declarations hoist, give clearer stack traces and DevTools names, and read consistently across a file. Reserve
-arrow functions for callbacks and inline handlers.
+Named declarations hoist and read consistently across a file. Reserve arrow functions for callbacks and inline handlers. The component name is not the reason: an arrow assigned to a const infers its name from the variable, so DevTools and stack traces show it either way.
 
 ```typescript
-// PASS: named declaration, name survives into DevTools and stack traces
+// PASS: named declaration, hoisted, and shaped like every other component in the file
 export function MarketCard({ market }: MarketCardProps) {
   return <article className="market-card">{market.name}</article>
 }
 
-// FAIL: anonymous arrow assigned to a const, worse traces and no hoisting
+// FAIL: arrow assigned to a const, not hoisted, and inconsistent with the rest of the file
 export const MarketCard = ({ market }: MarketCardProps) => (
   <article className="market-card">{market.name}</article>
 )
@@ -131,14 +130,14 @@ The client module itself is in [references/data-fetching.md](references/data-fet
 
 ---
 
-### Memoise only what you measured
+### Let the compiler memoise, and measure the rest
 
-`useMemo`, `useCallback`, and `React.memo` each add a dependency array to maintain and a cache to hold, and a wrong
-dependency list is its own class of bug. Reaching for them reflexively on cheap work costs more than it saves. Note
-also that `Array.prototype.sort` mutates, so copy before sorting or you mutate a prop.
+With React Compiler enabled, which is stable and React's recommendation for new code, do not hand-write `useMemo`, `useCallback`, or `React.memo`. The compiler memoises components and values for you. Keep the hooks only as escape hatches for precise control, the common case being a value used as an effect dependency that must not change identity on every render. In existing code, leave current memoisation in place unless a test proves removing it is safe, because removing it can change what the compiler emits.
+
+Without the compiler, memoise only what you measured. `useMemo`, `useCallback`, and `React.memo` each add a dependency array to maintain and a cache to hold, and a wrong dependency list is its own class of bug. Either way, `Array.prototype.sort` mutates, so copy before sorting or you mutate a prop.
 
 ```typescript
-// PASS: a measured expensive transform, and a copy before sorting
+// PASS: no project compiler, so a measured expensive transform is memoised, and copied before sorting
 const sortedMarkets = useMemo(() => [...markets].sort((a, b) => b.volume - a.volume), [markets])
 
 // FAIL: memoising a string concatenation, and sorting the prop in place
@@ -185,46 +184,7 @@ placeholder, button, and message is looked up by key.
 
 ### Doc Comments
 
-Default to none. A doc comment is usually a sign that the code failed to explain itself. Before writing one, extract
-the unclear block into a well-named component or hook, rename the props so they carry their own meaning, and tighten
-the types. Do that first and most doc comments have nothing left to say, which is the outcome you want. Code that
-explains itself cannot go stale, a comment can.
-
-When one is still genuinely needed, the prose is capped at five lines and is usually one. Every tag line is capped at
-one line, `@param` and `@returns` and `@throws` alike, and only appears when it genuinely adds something: if the note
-does not fit on a single line, shorten it or drop the tag. Four rules decide what goes in.
-
-1. Prose. One sentence saying what it does, then only what a caller cannot infer from the signature. Nothing more.
-2. `@param` only when the name and the type do not already convey it, meaning units, nullability, a valid range, or
-   who owns the argument afterwards. `@param userId - The user identifier` is noise, delete it, and never restate a
-   type TypeScript already declares.
-3. `@returns` only when it is non-obvious.
-4. `@throws` always, for every error a caller can act on. TypeScript keeps throws out of the signature, so this one is
-   genuinely contract rather than decoration.
-
-Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
-example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you
-justify in review, not a budget to spend. The one-line cap on a tag line has no exception at all: shorten it or delete
-it.
-
-```typescript
-// PASS: one sentence, then only what the signature cannot say
-/**
- * Subscribes to live price updates for one market.
- *
- * @returns null until the first message arrives
- */
-export function useMarketPrice(marketId: string): Price | null { ... }
-
-// FAIL: restates the signature and the hook name
-/**
- * Hook for market price.
- *
- * @param marketId - The market id
- * @returns The price
- */
-export function useMarketPrice(marketId: string): Price | null { ... }
-```
+Doc comments follow the Doc Comments rules in `coding-standards`, whose TSDoc examples already cover TypeScript. React delta: props are the parameters of a component, so a prop that needs a note gets it on its field in the props type, where the editor shows it at every call site, and never as a `@param` on the component function. A hook documents its return only when it is non-obvious, such as `null` until the first message arrives.
 
 ---
 
@@ -250,9 +210,9 @@ export function useMarketPrice(marketId: string): Price | null { ... }
 - Component families are composed, not configured through a growing flag surface.
 - Every async operation exposes one `AsyncState` union, not separate data, loading, and error flags.
 - No component or hook calls `fetch` directly, and every endpoint lives in the typed API client.
-- Every `useMemo`, `useCallback`, and `React.memo` traces back to a measurement.
+- With React Compiler on, a hand-written `useMemo`, `useCallback`, or `React.memo` is an escape hatch with a stated reason. Without it, each traces back to a measurement.
 - No sort, splice, or reverse mutates a prop or a state value in place.
 - Heavy client-only modules are lazy loaded, and lists past a few hundred rows are virtualised.
 - Every user-facing string goes through the i18n layer.
 - Every animation respects `prefers-reduced-motion`.
-- No doc comment restates a signature, and every recoverable error is documented with `@throws`.
+- Doc comments follow `coding-standards`, and a prop is documented on its props type, never as a `@param` on the component.

@@ -8,20 +8,32 @@ implementation of both.
 
 ---
 
+### Contents
+
+- Count in a shared store once you run more than one process
+- Choose the subject before the algorithm
+- Fixed window is fine, sliding window is better at the edges
+- Always emit the headers, not only on rejection
+- Limit the expensive endpoints separately
+- Never let the limiter take the service down
+- Related skills
+
+---
+
 ### Count in a shared store once you run more than one process
 
 An in-memory counter resets on deploy and counts each instance separately, so a limit of 100 becomes 100 times the
 instance count. Use it only for a single-process development server or as a last-resort local circuit breaker.
 
-Pass: a Redis counter keyed by subject and window, shared by every instance.
+Pass: a Redis counter keyed by subject and window, shared by every instance, with the increment and the expiry sent as one `MULTI` transaction. Sent as two calls, a process that dies between them leaves a key with no expiry behind.
 
 ```typescript
 async function hit(redis: RedisClient, subject: string, windowMs: number, max: number) {
   const window = Math.floor(Date.now() / windowMs)
   const key = `rl:${subject}:${window}`
 
-  const count = await redis.incr(key)
-  if (count === 1) await redis.pExpire(key, windowMs)
+  const [reply] = await redis.multi().incr(key).pExpire(key, windowMs).exec()
+  const count = Number(reply)
 
   return { allowed: count <= max, remaining: Math.max(0, max - count), resetMs: (window + 1) * windowMs - Date.now() }
 }
@@ -45,31 +57,36 @@ When the subject is the client address, behind a proxy trust only the hop you co
 
 ### Fixed window is fine, sliding window is better at the edges
 
-A fixed window lets a caller send `2 * max` requests across a window boundary. When that burst matters, keep a sorted
-set of timestamps per subject and trim it on each hit.
+A fixed window lets a caller send `2 * max` requests across a window boundary. When that burst matters, keep a sorted set of timestamps per subject and trim it on each hit. The trim, the count and the add must run as one atomic Redis operation, a Lua script sent with `EVAL`, or N instances that all read `count < max` at once all add, and admit up to N times the limit.
 
 ```typescript
+const SLIDING_WINDOW = `
+local key, now, window, max = KEYS[1], tonumber(ARGV[1]), tonumber(ARGV[2]), tonumber(ARGV[3])
+redis.call('ZREMRANGEBYSCORE', key, 0, now - window)
+local count = redis.call('ZCARD', key)
+if count >= max then return -1 end
+redis.call('ZADD', key, now, ARGV[4])
+redis.call('PEXPIRE', key, window)
+return max - count - 1
+`
+
 async function slidingHit(redis: RedisClient, subject: string, windowMs: number, max: number) {
   const now = Date.now()
-  const key = `rl:sw:${subject}`
-
-  await redis.zRemRangeByScore(key, 0, now - windowMs)
-  const count = await redis.zCard(key)
-  if (count >= max) return { allowed: false, remaining: 0 }
-
-  await redis.zAdd(key, { score: now, value: `${now}:${Math.random()}` })
-  await redis.pExpire(key, windowMs)
-  return { allowed: true, remaining: max - count - 1 }
+  const remaining = Number(await redis.eval(SLIDING_WINDOW, {
+    keys: [`rl:sw:${subject}`],
+    arguments: [String(now), String(windowMs), String(max), `${now}:${crypto.randomUUID()}`],
+  }))
+  return { allowed: remaining >= 0, remaining: Math.max(0, remaining) }
 }
 ```
+
+Fail: `zRemRangeByScore`, `zCard` and `zAdd` sent as three separate awaits, which reads the count on one round trip and adds on another, so concurrent requests on different instances all pass the check.
 
 ---
 
 ### Always emit the headers, not only on rejection
 
-A client cannot back off from a limit it cannot see. Set `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and
-`X-RateLimit-Reset` on every rate-limited response, and add `Retry-After` plus an RFC 7807 body on the 429.
-`X-RateLimit-Reset` is the window end as a UTC epoch in seconds, while `Retry-After` is the seconds left.
+A client cannot back off from a limit it cannot see. Set `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` on every rate-limited response, and add `Retry-After` plus an RFC 9457 problem body on the 429. `X-RateLimit-Reset` is the window end as a UTC epoch in seconds, while `Retry-After` is the seconds left.
 
 ```typescript
 export async function GET(request: Request) {

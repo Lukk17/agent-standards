@@ -1,6 +1,6 @@
 ---
 name: nextjs-app-router-patterns
-description: Next.js App Router architecture covering Server and Client Components, caching, streaming, Server Actions, route handlers, metadata, images, and Turbopack dev tuning. Use when you say "build a Next.js page", "server or client component", "revalidate this fetch", "add a server action", "parallel routes for a dashboard", or "next dev is slow". Not for framework-agnostic React state, hooks, and animation, use `react-patterns`.
+description: "Next.js 16 App Router architecture, covering the Server and Client Component split, caching and revalidation, streaming, Server Actions, route handlers, metadata, images and Turbopack dev tuning. Use when the user says \"build a Next.js page\", \"server or client component\" or \"add a server action\". Not for framework-agnostic React state, hooks and animation, use `react-patterns`."
 license: Apache-2.0
 ---
 
@@ -9,14 +9,14 @@ license: Apache-2.0
 Architecture rules for Next.js applications built on the App Router, from the Server and Client Component split down
 to caching, mutations, and dev-server tuning. Every rule here is about where code runs and when its output goes stale.
 
-Baseline: current stable Next.js on the App Router, meaning Next.js 16 or newer, where Turbopack is the default dev
-bundler and `params` and `searchParams` arrive as promises.
+Written for Next.js 16 on the App Router, where Turbopack is the default dev bundler and `params` and `searchParams` arrive as promises.
 
 ---
 
 ### When to activate
 
 - Building or reviewing any route, layout, or component in an `app/` directory.
+- The user says "build a Next.js page", "server or client component", "revalidate this fetch", "add a server action", "parallel routes for a dashboard", or "next dev is slow".
 - Deciding whether a component belongs on the server or the client.
 - Choosing a caching or revalidation strategy for fetched data.
 - Adding a Server Action, a route handler, or per-route metadata.
@@ -109,8 +109,7 @@ return <ProductDetail product={product} reviews={reviews} />
 
 ### Mutate through Server Actions, not client fetch calls
 
-A Server Action runs on the server, works without client JavaScript, and invalidates its own caches inside the same
-function. A client `fetch` to your own route handler gives up all three.
+A Server Action runs on the server, works without client JavaScript, and invalidates its own caches inside the same function. A client `fetch` to your own route handler gives up all three. Use `updateTag` there when the user must see their own write on the next request, and `revalidateTag(tag, 'max')` when a stale read during the refresh is fine. The single-argument `revalidateTag(tag)` is deprecated.
 
 ```typescript
 // PASS: mutation and invalidation live together
@@ -119,7 +118,7 @@ export async function addToCart(productId: string) {
   const parsed = addToCartSchema.safeParse({ productId })
   if (!parsed.success) return { error: 'Invalid product' }
   await db.cart.create({ data: parsed.data })
-  revalidateTag('cart')
+  updateTag('cart')
   return { success: true }
 }
 
@@ -181,8 +180,8 @@ export const metadata = { title: 'Product', description: 'A product page' }
 does not shift. Anything heavy and below the fold loads dynamically instead of riding in the first bundle.
 
 ```typescript
-// PASS: sized, prioritised above the fold, heavy chart deferred
-<Image src={product.image} alt={product.name} width={1200} height={630} priority />
+// PASS: sized, fetched first above the fold, heavy chart deferred
+<Image src={product.image} alt={product.name} width={1200} height={630} loading="eager" fetchPriority="high" />
 const Chart = dynamic(() => import('./RevenueChart'))
 
 // FAIL: unsized raw tag plus a charting library in the entry bundle
@@ -212,46 +211,7 @@ plugin problem worth fixing rather than a default worth changing.
 
 ### Doc Comments
 
-Default to none. A doc comment is usually a sign that the code failed to explain itself. Before writing one, extract
-the unclear block into a well-named function, rename the parameters so they carry their own meaning, and tighten the
-types. Do that first and most doc comments have nothing left to say, which is the outcome you want. Code that explains
-itself cannot go stale, a comment can.
-
-When one is still genuinely needed, the prose is capped at five lines and is usually one. Every tag line is capped at
-one line, `@param` and `@returns` and `@throws` alike, and only appears when it genuinely adds something: if the note
-does not fit on a single line, shorten it or drop the tag. Four rules decide what goes in.
-
-1. Prose. One sentence saying what it does, then only what a caller cannot infer from the signature. Nothing more.
-2. `@param` only when the name and the type do not already convey it, meaning units, nullability, a valid range, or
-   who owns the argument afterwards. `@param userId - The user identifier` is noise, delete it, and never restate a
-   type TypeScript already declares.
-3. `@returns` only when it is non-obvious.
-4. `@throws` always, for every error a caller can act on. TypeScript keeps throws out of the signature, so this one is
-   genuinely contract rather than decoration.
-
-Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
-example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you
-justify in review, not a budget to spend. The one-line cap on a tag line has no exception at all: shorten it or delete
-it.
-
-```typescript
-// PASS: one sentence, then only what the signature cannot say
-/**
- * Creates a product and revalidates every cached listing that shows it.
- *
- * @returns `{ error }` when the submitted form fails validation, never a thrown error
- */
-export async function createProduct(formData: FormData): Promise<CreateProductResult> { ... }
-
-// FAIL: restates the signature and the file name
-/**
- * Server action that creates a product.
- *
- * @param formData - The form data
- * @returns The result
- */
-export async function createProduct(formData: FormData): Promise<CreateProductResult> { ... }
-```
+Doc comments follow the Doc Comments rules in `coding-standards`, whose TSDoc examples already cover TypeScript. Next.js delta: a Server Action returns its failure as a value rather than throwing it across the network boundary, so its error contract goes in `@returns`, for example `@returns { error } when the form fails validation`.
 
 ---
 
@@ -275,7 +235,7 @@ export async function createProduct(formData: FormData): Promise<CreateProductRe
 - Every mutation is a Server Action that invalidates the caches it dirties.
 - Every route handler parses its input through a schema and returns a meaningful status code.
 - Every dynamic route derives its metadata from its own data.
-- Every image goes through `next/image` with explicit dimensions, and above-the-fold images set `priority`.
+- Every image goes through `next/image` with explicit dimensions, and the above-the-fold LCP image sets `loading="eager"` and `fetchPriority="high"`, never the deprecated `priority`.
 - Every heavy client-only module is loaded dynamically.
 - `next dev` runs on Turbopack, with any webpack fallback justified in writing.
-- No doc comment restates a signature, and every recoverable error is documented with `@throws`.
+- Doc comments follow `coding-standards`, and a Server Action that returns its error documents that in `@returns`.

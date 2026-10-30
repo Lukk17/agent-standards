@@ -1,8 +1,23 @@
 # Spring Boot Security
 
-Authentication, authorization, and the hardening around them for a Spring Boot service. Open this when adding
-authentication, locking an endpoint down, validating input at the edge, setting response headers or CORS, handling
-secrets, or rate limiting. Every rule assumes Spring Security 6.x on the baseline in the hub.
+Authentication, authorization, and the hardening around them for a Spring Boot service. Open this when adding authentication, locking an endpoint down, validating input at the edge, setting response headers or CORS, handling secrets, or rate limiting. Every rule assumes the Spring Security 7 that ships with Spring Boot 4.
+
+---
+
+### Contents
+
+- Authenticate statelessly, validate every claim
+- Deny by default, then authorize per method
+- Validate input at the edge
+- Parameterise every query
+- Hash passwords with a memory-hard function
+- Pick a CSRF posture and write down why
+- Set response headers, and leave the ones Spring already decides
+- Rate limit with Bucket4j, refilling greedily
+- Keep secrets out of the source tree
+- Validate uploads before you store them
+- Keep dependencies patched
+- Checklist
 
 ---
 
@@ -137,10 +152,7 @@ http.headers(headers -> headers
     .httpStrictTransportSecurity(hsts -> hsts.maxAgeInSeconds(63072000).includeSubDomains(true).preload(true)));
 ```
 
-Fail: re-enabling the legacy XSS auditor with `.xssProtection(Customizer.withDefaults())`. Spring Security 6 sends
-`X-XSS-Protection: 0` on purpose, because the browser auditors that header controlled were themselves exploitable
-and every current browser has removed them. Turning it back on asks for a filter that no longer exists and signals
-the wrong thing to a reviewer. CSP is the control that replaced it.
+Fail: re-enabling the legacy XSS auditor with `.xssProtection(Customizer.withDefaults())`. Spring Security sends `X-XSS-Protection: 0` on purpose, because the browser auditors that header controlled were themselves exploitable and every current browser has removed them. Turning it back on asks for a filter that no longer exists and signals the wrong thing to a reviewer. CSP is the control that replaced it.
 
 The full header block, the CORS source bean, and mutual TLS for service-to-service calls are in
 [headers-cors-mtls.md](headers-cors-mtls.md).

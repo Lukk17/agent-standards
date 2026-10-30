@@ -5,6 +5,17 @@ nested sub-flow, and handling deep links.
 
 ---
 
+### Contents
+
+- Core concepts
+- Imperative navigation
+- Declarative navigation with GoRouter
+- Nested navigation
+- Deep linking
+- Checklist
+
+---
+
 ### Core concepts
 
 - A route is a widget. It plays the role that `Activity` plays on Android and `ViewController` on iOS.

@@ -32,9 +32,7 @@ Notes that decide whether this block actually protects anything:
   which is what the `frameOptions` line above emits.
 - HSTS with `preload` is a commitment. Once the domain is on a preload list, every subdomain must serve HTTPS, and
   removal takes months. Set `includeSubDomains` only when every subdomain is ready.
-- Do not add `.xssProtection(Customizer.withDefaults())`. Spring Security 6 sends `X-XSS-Protection: 0`
-  deliberately, because the browser auditors that header enabled were themselves exploitable and current browsers
-  removed them. CSP replaced it.
+- Do not add `.xssProtection(Customizer.withDefaults())`. Spring Security sends `X-XSS-Protection: 0` deliberately, because the browser auditors that header enabled were themselves exploitable and current browsers removed them. CSP replaced it.
 
 ---
 

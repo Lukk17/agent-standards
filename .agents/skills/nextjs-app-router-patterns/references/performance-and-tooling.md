@@ -1,6 +1,15 @@
 # Performance and Tooling
 
-Images, bundle size, and the dev server. Baseline: Next.js 16 or newer, where Turbopack is the default dev bundler.
+Images, bundle size, and the dev server. Written for Next.js 16, where Turbopack is the default dev bundler.
+
+---
+
+### Contents
+
+- Images
+- Bundle splitting
+- Turbopack
+- Bundle analysis
 
 ---
 
@@ -19,7 +28,8 @@ export function ProductHero({ product }: { product: Product }) {
       alt={product.name}
       width={1200}
       height={630}
-      priority
+      loading="eager"
+      fetchPriority="high"
       placeholder="blur"
       blurDataURL={product.blurDataUrl}
       sizes="(min-width: 1024px) 50vw, 100vw"
@@ -28,7 +38,7 @@ export function ProductHero({ product }: { product: Product }) {
 }
 ```
 
-- `priority` on the largest above-the-fold image, and on nothing else. Marking everything priority defeats it.
+- `loading="eager"` and `fetchPriority="high"` on the largest above-the-fold image, and on nothing else. Marking everything high priority defeats it. The `priority` prop is deprecated in Next.js 16, and its replacement `preload` is for the rarer case of starting the download from the `<head>`, never alongside `loading` or `fetchPriority`.
 - `sizes` whenever the rendered width varies by breakpoint, otherwise the browser downloads the largest candidate.
 - `placeholder="blur"` for content images, so the space is filled rather than blank while loading.
 - A real `alt` that says what the image conveys, or `alt=""` when it is purely decorative.

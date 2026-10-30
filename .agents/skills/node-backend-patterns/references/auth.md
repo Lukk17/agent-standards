@@ -5,6 +5,21 @@ trusts the client.
 
 ---
 
+### Contents
+
+- Verify the token, never decode it
+- Check issuer, audience, and expiry, then check the subject exists
+- Authenticate once at the edge, authorize per resource
+- Return 404 when disclosing existence is itself a leak
+- Keep the permission table in one place
+- Deny by default
+- Store refresh tokens server-side and rotate them
+- Never log a token, and never put one in a URL
+- Return RFC 9457 problem bodies for auth failures
+- Related skills
+
+---
+
 ### Verify the token, never decode it
 
 `jwt.decode` reads a token without checking the signature, so anything it returns is attacker-controlled. Always call
@@ -121,7 +136,7 @@ browser history.
 
 ---
 
-### Return RFC 7807 problem bodies for auth failures
+### Return RFC 9457 problem bodies for auth failures
 
 401 means the credential is missing or invalid, 403 means the credential is fine and the caller still may not do this.
 Use `WWW-Authenticate` on the 401 and keep the detail generic: an error that says which half of the credential was wrong

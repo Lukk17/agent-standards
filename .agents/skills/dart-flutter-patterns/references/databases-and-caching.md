@@ -5,6 +5,20 @@ synchronization, and the caching layers above it (files, images, scroll extents,
 
 ---
 
+### Contents
+
+- Picking a store
+- Repositories and services
+- SQLite service
+- Offline-first synchronization
+- Image caching
+- Scroll caching
+- Widget caching
+- Pre-warming the Android FlutterEngine
+- Checklist
+
+---
+
 ### Picking a store
 
 | Data | Store |
