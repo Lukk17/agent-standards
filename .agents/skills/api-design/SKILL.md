@@ -1,6 +1,6 @@
 ---
 name: api-design
-description: HTTP and GraphQL contract design covering resource naming, method and status-code semantics, RFC 7807 error bodies, pagination, idempotency, conditional requests, health endpoints, rate-limit headers and tiers, and versioning. Use when you say "design this endpoint", "what status code should this return", "review our API contract", "add cursor pagination to this list", or "how do we deprecate v1". Not for the service code behind the endpoint, use `backend-patterns`.
+description: 'HTTP and GraphQL contract design: resource naming, method and status semantics, RFC 9457 problem details, pagination, idempotency keys, conditional requests, health paths, rate-limit headers and tiers, and versioning. Use when the user says "design this endpoint", "what status code should this return", or "how do we deprecate v1". Not for the service code behind it, use `backend-patterns`.'
 ---
 
 # API Design
@@ -9,8 +9,8 @@ Conventions for HTTP and GraphQL contracts that stay predictable as an API grows
 contract is the deliverable here, so everything is about what goes on the wire and nothing about the code that produces
 it.
 
-Standards baseline, current as of September 2026: HTTP semantics per RFC 9110, problem responses per RFC 7807,
-descriptions written in OpenAPI 3.1, GraphQL over the `graphql-ws` transport.
+HTTP semantics per RFC 9110, problem details per RFC 9457, contracts described in the OpenAPI version the project's
+toolchain supports, GraphQL subscriptions over the `graphql-ws` protocol.
 
 ---
 
@@ -21,6 +21,8 @@ descriptions written in OpenAPI 3.1, GraphQL over the `graphql-ws` transport.
 - Adding pagination, filtering, or sorting to a collection endpoint.
 - Planning a versioning or deprecation path for a public or partner API.
 - Deciding what an endpoint must accept to be safe to retry.
+- The user says "design this endpoint", "what status code should this return", "review our API contract", "add
+  cursor pagination to this list", or "how do we deprecate v1".
 
 ---
 
@@ -112,30 +114,30 @@ the body before it knows whether the call worked, and defeats caches, proxies, a
 
 ### Return errors as problem+json
 
-Every error body uses `Content-Type: application/problem+json` and the RFC 7807 shape, so one client-side handler covers
-every endpoint.
+Every error body uses `Content-Type: application/problem+json` and the RFC 9457 problem details shape, so one
+client-side handler covers every endpoint. This is the one error shape the `coding-standards` error rule points to.
 
 ```json
 {
   "type": "https://example.com/errors/validation",
   "title": "Validation Failed",
   "status": 422,
-  "detail": "3 fields failed validation",
+  "detail": "1 field failed validation",
   "instance": "/orders/123",
   "errors": [
-    { "field": "email", "message": "Invalid format", "code": "INVALID_EMAIL" }
+    { "detail": "must be a valid email", "pointer": "#/email" }
   ]
 }
 ```
 
-| Field | Required | Meaning |
+| Field | We send it | Meaning |
 | --- | --- | --- |
-| `type` | Yes | URI identifying the problem class, stable across releases |
-| `title` | Yes | Short human-readable summary of the class |
-| `status` | Yes | The HTTP status code, repeated for clients that lost it |
-| `detail` | No | What went wrong on this occurrence |
-| `instance` | No | URI of this specific occurrence |
-| `errors` | No | Extension array of field-level failures |
+| `type` | Always (optional in RFC 9457, so clients must not require it) | URI identifying the problem class, stable across releases. Absent means `about:blank` |
+| `title` | Always (optional in RFC 9457, so clients must not require it) | Short human-readable summary of the class |
+| `status` | Always | The HTTP status code repeated. Advisory only, the status line is authoritative |
+| `detail` | When it helps the caller | What went wrong on this occurrence |
+| `instance` | When it helps the caller | URI of this specific occurrence |
+| `errors` | On validation failures | Extension array, each entry a `detail` and a JSON `pointer` into the request body |
 
 Fail: a body carrying a stack trace, an SQL fragment, or an upstream vendor's error text. `detail` is for the caller,
 not for your logs.
@@ -175,6 +177,9 @@ Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000
 - Store the response for 24 hours, keyed by the idempotency key.
 - The same key with the same request body replays the stored response without re-executing.
 - The same key with a different body returns 422.
+- The same key while the first request is still running returns 409, and the client retries later.
+
+How the key is claimed and stored behind the contract is in `backend-patterns`.
 
 ---
 
@@ -186,7 +191,7 @@ same `ETag` in `If-Match` on a PUT or PATCH gives you optimistic concurrency for
 ```text
 HTTP/1.1 200 OK
 ETag: "33a64df551425fcc55e4d42a148795d9f25f89d4"
-Last-Modified: Tue, 15 Jan 2025 10:30:00 GMT
+Last-Modified: Wed, 15 Jan 2025 10:30:00 GMT
 ```
 
 ---
@@ -213,11 +218,12 @@ domain requires it, and say which behaviour applies in the documentation.
 ### Keep liveness and readiness separate
 
 This section is the canonical definition of the health endpoint paths for this repository. Other skills probe or
-implement these two paths and must not rename them.
+implement these two paths and must not rename them. What readiness checks, and which shared dependencies stay out of
+it, is owned by `observability-and-logging`.
 
 ```text
 GET /health   liveness:  200 while the process runs, checks nothing external
-GET /ready    readiness: 200 when dependencies are usable, 503 otherwise
+GET /ready    readiness: 200 when this instance can serve, 503 otherwise
 ```
 
 ```json
@@ -231,8 +237,9 @@ checks the database, so a transient outage makes the orchestrator restart a perf
 
 ### Advertise rate limits on every response
 
-This section is the canonical definition of the rate-limit headers and tiers for this repository. Other skills
-implement it and must not restate the values.
+This section is the canonical definition of the rate-limit headers and the numbers in each tier for this repository.
+Other skills implement it and must not restate the values. The policy behind the tiers, what each counter is keyed on
+and why authentication endpoints get their own budget, is in `security-review`.
 
 ```text
 HTTP/1.1 200 OK
@@ -255,10 +262,16 @@ Content-Type: application/problem+json
 `X-RateLimit-Reset` is a UTC epoch in seconds. Send the three headers on successful responses too, because a client
 cannot back off from a budget it cannot see.
 
+These are the de facto names. Track draft-ietf-httpapi-ratelimit-headers (`RateLimit`, `RateLimit-Policy`), and add
+those fields beside the `X-` ones once it is published as an RFC. Until then, implementations disagree on the value
+format of `X-RateLimit-Remaining` and `X-RateLimit-Reset`, so document the one this API sends.
+
 | Tier | Limit | Window | Applies to |
 | --- | --- | --- | --- |
 | Anonymous | 30/min | Per IP | Public endpoints |
 | Authenticated | 100/min | Per user | Standard API access |
+| Expensive | 10/min | Per user, or per IP when anonymous | Search, export, and anything that scans or fans out |
+| Authentication | 5/min | Per IP, plus a failed-attempt counter per target account with backoff | Login, password reset, signup |
 | Premium | 1000/min | Per API key | Paid plans |
 | Internal | 10000/min | Per service | Service-to-service calls |
 
@@ -288,10 +301,10 @@ which changes need a version at all, is in [references/versioning.md](references
 - [ ] Resource URLs are plural, kebab-case nouns with no verbs outside genuine state transitions.
 - [ ] The method matches the semantics, and PATCH bodies describe a target state.
 - [ ] Status codes are used semantically, never 200 for a failure.
-- [ ] Every error body is `application/problem+json` and leaks no internal detail.
+- [ ] Every error body is RFC 9457 `application/problem+json`, and leaks no internal detail.
 - [ ] The success envelope is consistent across every endpoint on the surface.
 - [ ] List endpoints paginate, default to cursors when unbounded, and cap page size server-side.
-- [ ] Non-idempotent POST and PATCH require `Idempotency-Key`.
+- [ ] Non-idempotent POST and PATCH require `Idempotency-Key`, with 409 while the first attempt is in flight.
 - [ ] Cacheable GETs return `ETag` and `Last-Modified` and honour the conditional headers.
 - [ ] Bulk endpoints return 207 with per-item results and bound the batch.
 - [ ] `/health` and `/ready` exist, are separate, and sit outside the versioned path.

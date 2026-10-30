@@ -1,6 +1,6 @@
 ---
 name: performance-optimization
-description: Measure-first performance work for application code and data access, covering profiling, N+1 queries, fetch and index discipline, caching with an invalidation rule, streaming, and concurrent IO. Use when you say "this endpoint is slow", "the page takes four seconds to load", "profile this before I change anything", "did my change regress latency", or "this query runs inside a loop". Not for schema and index design on Postgres itself, use `postgres-patterns`, and not for Core Web Vitals in a Next.js app, use `nextjs-app-router-patterns`.
+description: 'Measure-first performance work for application code and data access: profiling, N+1 queries, fetch and index discipline, when a cache is justified, streaming, and bounded concurrent IO. Use when the user says "this endpoint is slow", "profile this before I change anything", or "this query runs inside a loop". Not for schema and index design on Postgres itself, use `postgres-patterns`.'
 ---
 
 # Performance Optimization
@@ -16,6 +16,8 @@ cross-cutting principles hub is the `coding-standards` skill and this skill is t
 - You need a baseline before optimising, or want to confirm an optimisation actually moved the metric.
 - Reviewing a change for an obvious performance trap: a query inside a loop, an unbounded fetch, sequential awaits of
   unrelated calls.
+- The user says "this endpoint is slow", "the page takes four seconds to load", "profile this before I change
+  anything", "did my change regress latency", or "this query runs inside a loop".
 
 ---
 
@@ -104,36 +106,21 @@ SELECT id, kind, created_at FROM events WHERE tenant_id = $1 AND (created_at, id
 
 ---
 
-### Cache with a stated invalidation rule
+### Add a cache only after a profile justifies it
 
-Cache where reads dominate and the data tolerates slight staleness. Name the staleness you accept and the event that
-clears the entry, because a cache without an invalidation story is a correctness bug waiting to surface.
+Add a cache only after a profile shows a read-dominated hot path, and follow `backend-patterns` for the invalidation
+rule, which it owns. A cache added on a guess hides the real bottleneck and adds a staleness bug on top of it.
 
-Fail: no expiry and no invalidation, so a rename never reaches readers.
+Fail: the diagnosis is a feeling, and the cache has no invalidation rule.
 
-```python
-_cache: dict[str, Product] = {}
-
-def get_product(product_id: str) -> Product:
-    if product_id not in _cache:
-        _cache[product_id] = product_repository.get(product_id)
-    return _cache[product_id]
+```text
+The product page feels slow, so I cached get_product in a module-level dict.
 ```
 
-Pass: bounded lifetime, and the write path clears the entry it invalidated.
+Pass: the profile names the hot path, and the cache follows the `backend-patterns` rule.
 
-```python
-def get_product(product_id: str) -> Product:
-    cached = cache.get(f"product:{product_id}")
-    if cached is not None:
-        return cached
-    product = product_repository.get(product_id)
-    cache.set(f"product:{product_id}", product, ttl_seconds=300)
-    return product
-
-def rename_product(product_id: str, name: str) -> None:
-    product_repository.rename(product_id, name)
-    cache.delete(f"product:{product_id}")
+```text
+get_product is 71% of request time at p95 and is read 40 times per write. Cached with eviction on rename, per backend-patterns. p95 went from 620 ms to 140 ms.
 ```
 
 ---
@@ -222,6 +209,7 @@ the fan-out so a batch of 10,000 ids does not open 10,000 sockets.
 - `coding-standards` is the hub for the shared engineering floor this skill sits on.
 - `postgres-patterns` owns schema, index, and query design in Postgres itself.
 - `database-migrations` owns applying an index or a schema change safely.
+- `backend-patterns` owns the cache invalidation rule a justified cache follows.
 - `observability-and-logging` owns the metrics and traces that give you the baseline to measure against.
 - `tdd-workflow` owns the regression test that keeps the optimisation from silently reverting.
 - `code-reviewer` is the entry point when performance is one concern among several in a review.
@@ -235,7 +223,7 @@ the fan-out so a batch of 10,000 ids does not open 10,000 sockets.
 - [ ] No query runs inside a loop over rows a previous query returned.
 - [ ] Queries select named columns and page their results.
 - [ ] Every index added is confirmed used by the query plan.
-- [ ] Every cache has a stated staleness budget and a stated invalidation event.
+- [ ] Every cache was justified by a profile and follows the `backend-patterns` invalidation rule.
 - [ ] Large payloads stream rather than materialise.
 - [ ] Independent IO runs concurrently with a bounded fan-out.
 - [ ] The metric moved, and the change did not just move the cost elsewhere.

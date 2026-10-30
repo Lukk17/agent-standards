@@ -1,5 +1,17 @@
 # Advanced testing standards
 
+Contents:
+
+- [Test pyramid](#test-pyramid)
+- [Test data factory](#test-data-factory)
+- [Contract testing](#contract-testing)
+- [Mutation testing](#mutation-testing)
+- [Performance gates](#performance-gates)
+- [Coverage configuration on the JVM](#coverage-configuration-on-the-jvm)
+- [Do not mock what you do not own](#do-not-mock-what-you-do-not-own)
+- [Testcontainers mandate](#testcontainers-mandate)
+- [Run the whole suite](#run-the-whole-suite)
+
 Depth behind [SKILL.md](../SKILL.md): the pyramid proportions, the test data factory pattern, contract and mutation
 testing, performance gates, the coverage configuration for JVM projects, and the two rules that decide what may be
 mocked.
@@ -62,8 +74,10 @@ of builder calls.
 
 ### Contract testing
 
-Every HTTP API consumed across a service boundary needs consumer-driven contract tests, because a green suite on both
-sides still lets a provider break a consumer it never runs against.
+Every internal HTTP API whose consumers you can name needs consumer-driven contract tests, because a green suite on
+both sides still lets a provider break a consumer it never runs against. A public API, whose consumers cannot be
+individually identified, uses a schema-diff gate on its OpenAPI description instead, since a consumer-driven contract
+needs a known consumer to write it.
 
 ```groovy
 Contract.make {
@@ -165,18 +179,22 @@ Every integration test that touches a database, message queue, cache, or cloud s
 owns.
 
 ```java
+import org.testcontainers.postgresql.PostgreSQLContainer;
+
 @Testcontainers
+@SpringBootTest
 class OrderRepositoryTest {
 
   @Container
-  static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:18-alpine");
-
-  @DynamicPropertySource
-  static void props(DynamicPropertyRegistry registry) {
-    registry.add("spring.datasource.url", postgres::getJdbcUrl);
-  }
+  @ServiceConnection
+  static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:18-alpine");
 }
 ```
+
+`@ServiceConnection` hands Spring Boot the URL, the username and the password together. Outside Spring Boot, register
+the URL, username and password from the container yourself, because the container creates its own user and a URL alone
+fails authentication. The class shown is the Testcontainers 2 one, which moved each module into its own package and
+dropped the generic type parameter.
 
 Never point automated tests at a shared staging database. Tests must be hermetic and reproducible, and a shared instance
 makes them neither: results depend on whoever else was running at the time.

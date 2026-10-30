@@ -1,6 +1,6 @@
 ---
 name: hexagonal-architecture
-description: Ports and adapters design covering domain and use-case boundaries, inbound and outbound ports, dependency inversion, adapters, the composition root, and per-boundary testing in TypeScript, Java, Kotlin and Go. Use when you say "restructure this around ports and adapters", "my domain imports the ORM", "test this use case without a database", or "swap this payment provider". Not for HTTP contract design, use `api-design`.
+description: 'Ports and adapters design: use-case boundaries, inbound and outbound ports, dependency inversion, adapters, the composition root, and per-boundary testing in TypeScript, Java, Kotlin and Go. Use when the user says "restructure this around ports and adapters", "my domain imports the ORM", or "swap this payment provider". Not for HTTP contract design, use `api-design`.'
 ---
 
 # Hexagonal Architecture
@@ -10,8 +10,8 @@ details. The core app depends on abstract ports, and adapters implement those po
 
 This skill is the architecture authority the `coding-standards` hub defers to for its Architecture section.
 
-Language baselines the examples assume, current as of September 2026: TypeScript 5 on Node.js 24 LTS, Java 21 LTS,
-Kotlin 2.2, and Go 1.25.
+Examples use language features available in the current LTS or stable release of each language. Check the project's
+own toolchain file before relying on a version.
 
 ---
 
@@ -21,6 +21,8 @@ Kotlin 2.2, and Go 1.25.
 - Refactoring layered or framework-heavy code where domain logic is mixed with I/O concerns.
 - Supporting multiple interfaces for the same use case (HTTP, CLI, queue workers, cron jobs).
 - Replacing infrastructure (database, external APIs, message bus) without rewriting business rules.
+- The user says "restructure this around ports and adapters", "my domain imports the ORM", "test this use case
+  without a database", or "swap this payment provider".
 
 Use this skill when the request involves boundaries, domain-centric design, refactoring tightly coupled services, or
 decoupling application logic from specific libraries.

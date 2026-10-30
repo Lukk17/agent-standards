@@ -1,6 +1,6 @@
 ---
 name: backend-patterns
-description: Language-neutral backend service design covering idempotency keys, timeouts and capped retries, the transactional outbox, cache invalidation, pagination of large reads, and graceful shutdown with liveness and readiness. Use when you say "make this endpoint safe to retry", "our webhook fired twice", "design the job queue", "this list endpoint times out on page 900", or "we drop requests during a deploy". Not for runtime-specific code, use `node-backend-patterns` or `springboot-patterns`.
+description: 'Language-neutral backend service design: idempotency keys, timeouts and capped retries, the transactional outbox, the cache invalidation rule, cursor reads, and graceful shutdown. Use when the user says "make this endpoint safe to retry", "our webhook fired twice", or "we drop requests during a deploy". Not for the HTTP contract itself, use `api-design`.'
 ---
 
 # Backend Patterns
@@ -9,11 +9,12 @@ Design rules for backend services that hold regardless of language or framework:
 what a retry may and may not do, and how a service stays correct while it is being replaced. Every example is
 pseudocode, because the decision is the deliverable and the syntax belongs in a runtime skill.
 
-This skill owns the design of timeouts, capped retries, circuit breakers, and graceful shutdown.
+This skill owns the design of timeouts, capped retries, circuit breakers, graceful shutdown, and the cache
+invalidation rule.
 `observability-and-logging` owns the logs, metrics, and traces that watch them, and does not restate these rules.
 
-Standards baseline, current as of September 2026: HTTP semantics per RFC 9110, error bodies per RFC 7807, service
-contracts described in OpenAPI 3.1.
+HTTP semantics per RFC 9110, problem details per RFC 9457, contracts described in the OpenAPI version the project's
+toolchain supports.
 
 ---
 
@@ -25,6 +26,8 @@ contracts described in OpenAPI 3.1.
 - Adding a cache and needing an invalidation rule rather than a TTL guess.
 - Paginating a list endpoint that has outgrown offsets.
 - Making a deployment or a restart invisible to callers.
+- The user says "make this endpoint safe to retry", "our webhook fired twice", "design the job queue", "this list
+  endpoint times out on page 900", or "we drop requests during a deploy".
 
 ---
 
@@ -43,19 +46,26 @@ contracts described in OpenAPI 3.1.
 ### Make every non-idempotent operation replayable
 
 A caller that times out cannot tell a lost request from a lost response, so it retries, and the charge happens twice.
-Accept a client-supplied key, store it with the result inside the same transaction as the effect, and replay the stored
-response on a repeat.
+Accept a client-supplied key and claim it before the effect runs, so a concurrent second attempt finds the claim rather
+than an empty table. A `select ... for update` on a key that does not exist yet locks nothing, which is why the claim
+is an insert. Store the response once the effect finishes and replay it on a repeat. When the effect is an external
+call, such as a charge, pass the same key downstream so the provider deduplicates too.
 
 ```text
 on POST /orders with Idempotency-Key K:
-  begin transaction
-    row = select from idempotency where key = K for update
-    if row exists and row.request_hash == hash(body): return row.response      # replay
-    if row exists and row.request_hash != hash(body): return 422               # key reused
-    result = perform the operation
-    insert idempotency (key = K, request_hash = hash(body), response = result)
-  commit
+  insert idempotency (key = K, request_hash = hash(body), state = 'in_progress') on conflict do nothing
+  if no row inserted:
+    row = select from idempotency where key = K
+    if row.request_hash != hash(body): return 422      # key reused for a different request
+    if row.state = 'in_progress':     return 409      # the first attempt is still running
+    return row.response                                # replay
+  result = perform the operation (pass K downstream as the provider's idempotency key)
+  update idempotency set state = 'done', response = result where key = K
+  if the operation fails: delete from idempotency where key = K   # the retry is safe, K deduplicates downstream
 ```
+
+The 409 for a request still in flight follows the IETF Idempotency-Key draft, which says a retry "while the original
+request is still being processed" SHOULD get a 409 (draft-ietf-httpapi-idempotency-key-header, section 2.7).
 
 Fail: keying the record on the request body alone, so two genuinely distinct orders for the same amount collapse into
 one. The key comes from the caller and identifies the attempt, not the content.
@@ -72,6 +82,7 @@ timeout   = 2s per attempt
 attempts  = 3 maximum
 backoff   = min(2^n * 200ms + random(0..200ms), 10s)
 retry on  = timeout, connection error, 429, 502, 503, 504
+honour    = Retry-After on 429 and 503 when present, capped by the budget
 never on  = 400, 401, 403, 404, 409, 422
 budget    = total time across attempts < the caller's own deadline
 ```
@@ -123,6 +134,9 @@ crash between the two lines.
 
 ### A cache needs an invalidation rule, not just a TTL
 
+This section is the canonical cache invalidation rule. `performance-optimization` decides when a measurement justifies
+adding a cache at all, and follows this rule once it does.
+
 Decide what the cache is allowed to be wrong about before you decide how long it holds. Write the invalidation in the
 same function that performs the write, and treat the TTL as the backstop for the key you forgot.
 
@@ -163,11 +177,12 @@ Return the cursor opaque, so its encoding stays yours to change.
 
 Liveness answers whether the process should be restarted. Readiness answers whether it should receive traffic. Merging
 them makes a transient dependency failure trigger a restart loop that fixes nothing. The two paths are the ones
-`api-design` defines.
+`api-design` defines, and what readiness checks, including which dependencies stay out of it, is owned by
+`observability-and-logging`.
 
 ```text
 GET /health   -> 200 while the process is alive; checks nothing external
-GET /ready    -> 200 when dependencies are usable, 503 otherwise; body lists each check
+GET /ready    -> 200 when this instance can serve; 503 while starting or draining; body lists each check
 
 on SIGTERM:
   mark /ready as 503                 # the load balancer stops sending new work
@@ -211,6 +226,8 @@ bodies, pagination parameters, versioning, and the rate-limit headers and tiers.
 - [ ] Work that may not be lost goes through a durable queue with a dead-letter destination.
 - [ ] Messages that must follow a committed write are published from an outbox, not inline.
 - [ ] Every cached key has a named invalidation trigger, and cache failure degrades throughput only.
+- [ ] Idempotency keys are claimed before the effect, a request still in flight gets 409, and the key goes downstream.
+- [ ] Retries honour `Retry-After` on 429 and 503.
 - [ ] List endpoints over unbounded data use cursor pagination with a server-side maximum page size.
 - [ ] `/health` and `/ready` are separate, and `SIGTERM` drains before exit.
 - [ ] Layering follows `hexagonal-architecture` and the contract follows `api-design`.

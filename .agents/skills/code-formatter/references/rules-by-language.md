@@ -1,5 +1,19 @@
 # Formatting Rules by Language
 
+Contents:
+
+- [Brace every inline if (x) return y; / if (x) throw z;](#brace-every-inline-if-x-return-y--if-x-throw-z)
+- [Empty lines around try / catch / finally](#empty-lines-around-try--catch--finally)
+- [Empty line above significant standalone await / async I/O](#empty-line-above-significant-standalone-await--async-io)
+- [Empty line above return when it ends a multi-statement block](#empty-line-above-return-when-it-ends-a-multi-statement-block)
+- [Blank line below return inside a try that has catch / finally](#blank-line-below-return-inside-a-try-that-has-catch--finally)
+- [Empty line above operation-terminating calls](#empty-line-above-operation-terminating-calls)
+- [Comments above the line they describe, never trailing](#comments-above-the-line-they-describe-never-trailing)
+- [Doc comments sit on the declaration they document](#doc-comments-sit-on-the-declaration-they-document)
+- [One concept per blank-line-separated paragraph](#one-concept-per-blank-line-separated-paragraph)
+- [Method chains: line-break before each .](#method-chains-line-break-before-each-)
+- [Single-expression bodies stay on one line](#single-expression-bodies-stay-on-one-line)
+
 The full body of each formatting rule, with the wrong and right form in every language the rule applies to. Load
 this file when applying or reviewing a specific rule, or when a rule's intent is unclear from its one-line summary in
 SKILL.md.
@@ -55,7 +69,7 @@ if (rows.isEmpty) {
 ### Empty lines around `try` / `catch` / `finally`
 
 A `try` block is a control-flow landmark: it tells the reader "things can go wrong here." Give it room to breathe
-before and after so the eye treats it as a phase, not buried text. Same for each `catch` / `finally` clause's body.
+before and after so the eye treats it as a phase, not buried text.
 
 Java
 
@@ -211,8 +225,7 @@ Java (wrong)
 try {
     String xml = xmlGenerationService.generateXml(documents);
 
-    log.info("audit xml.generation success documentType={} bytes={}",
-            documentType, subject, xml.length());
+    log.info("audit xml.generation success documentType={} subject={} bytes={}", documentType, subject, xml.length());
 
     return xml;
 } catch (XmlMappingException ex) {
@@ -228,8 +241,7 @@ Java (right)
 try {
     String xml = xmlGenerationService.generateXml(documents);
 
-    log.info("audit xml.generation success documentType={} bytes={}",
-            documentType, subject, xml.length());
+    log.info("audit xml.generation success documentType={} subject={} bytes={}", documentType, subject, xml.length());
 
     return xml;
 
@@ -442,6 +454,11 @@ Each paragraph reads as a phase: capture context, build and persist, mounted-gua
 Fluent / functional pipelines (filter, map, reduce, take, toList, collect) read top-down, one transformation per
 line. Easier to diff, easier to insert or remove a step.
 
+This rule applies only where the project's formatter does not own line breaking. ruff format, black, dart format and
+google-java-format all reflow a chain to fit the line, joining a short one back onto a single line, so where one of
+them runs, its output wins and this rule does not apply. Writing against the formatter only produces a diff it reverts
+on the next save and a `--check` failure in CI.
+
 Java
 
 ```java
@@ -453,17 +470,11 @@ var activeNames = exercises.stream()
 
 Python
 
-Python's idiomatic equivalent is a comprehension, so reach for that first. When you do chain (e.g. with a `pipe` helper
-or pandas), keep one step per line:
+Python's idiomatic equivalent is a comprehension, so reach for that first. A Python project almost always runs ruff
+format or black, which own how any chain wraps, so this rule rarely applies to Python at all.
 
 ```python
 active_names = [e.name for e in exercises if e.is_active]
-
-active_names = (pipe(exercises)
-    .filter(lambda e: e.is_active)
-    .map(lambda e: e.name)
-    .to_list()
-)
 ```
 
 Dart
@@ -476,7 +487,7 @@ final activeNames = exercises
 ```
 
 The prefer chains over loops part is a coding-standards rule, not a formatter one. The formatter point here is:
-when you do chain, one step per line.
+when you do chain and no formatter owns the wrapping, one step per line.
 
 ### Single-expression bodies stay on one line
 
@@ -487,10 +498,11 @@ Java
 
 ```java
 Function<Integer, Integer> doubled = x -> x * 2;
-record Exercise(String id, String name) {
-    boolean isActive() { return !name.isBlank(); }
-}
+Comparator<Exercise> byName = Comparator.comparing(Exercise::name);
 ```
+
+A Java method body keeps its braces on their own lines, as Google Java Style requires, so only a lambda stays on one
+line.
 
 Python
 

@@ -1,99 +1,143 @@
 # TypeScript and JavaScript Examples
 
+Contents:
+
+- [Variable naming](#variable-naming)
+- [Function naming](#function-naming)
+- [Immutability](#immutability)
+- [Error handling](#error-handling)
+- [Independent async calls](#independent-async-calls)
+- [Type safety](#type-safety)
+
 Worked pass and fail pairs for the language-neutral rules in SKILL.md, written in TypeScript. Load this file when you
 want a concrete example of a rule rather than its statement, or when the code under review is TypeScript or
-JavaScript.
+JavaScript. Every pass example compiles under `strict`, given the domain types it names.
 
 ---
 
-### Variable Naming
+### Variable naming
+
+Pass:
 
 ```typescript
-// PASS: GOOD: Descriptive names
 const marketSearchQuery = 'election'
-const isUserAuthenticated = true
-const totalRevenue = 1000
+const isUserAuthenticated = session !== null
+const totalRevenueCents = orders.reduce((sum, order) => sum + order.totalCents, 0)
+```
 
-// FAIL: BAD: Unclear names
+Fail:
+
+```typescript
 const q = 'election'
-const flag = true
-const x = 1000
+const flag = session !== null
+const x = orders.reduce((sum, order) => sum + order.totalCents, 0)
 ```
 
 ---
 
-### Function Naming
+### Function naming
+
+Verb then noun, and a boolean-returning function reads as a question.
+
+Pass:
 
 ```typescript
-// PASS: GOOD: Verb-noun pattern
-async function fetchMarketData(marketId: string) { }
-function calculateSimilarity(a: number[], b: number[]) { }
-function isValidEmail(email: string): boolean { }
-
-// FAIL: BAD: Unclear or noun-only
-async function market(id: string) { }
-function similarity(a, b) { }
-function email(e) { }
-```
-
----
-
-### Immutability Pattern (CRITICAL)
-
-```typescript
-// PASS: ALWAYS use spread operator
-const updatedUser = {
-  ...user,
-  name: 'New Name'
+async function fetchMarketData(marketId: string): Promise<Market> {
+  return marketClient.get(marketId)
 }
 
-const updatedArray = [...items, newItem]
+function isValidEmail(email: string): boolean {
+  return EMAIL_PATTERN.test(email)
+}
+```
 
-// FAIL: NEVER mutate directly
-user.name = 'New Name'  // BAD
-items.push(newItem)     // BAD
+Fail:
+
+```typescript
+async function market(id: string): Promise<Market> {
+  return marketClient.get(id)
+}
+
+function email(e: string): boolean {
+  return EMAIL_PATTERN.test(e)
+}
 ```
 
 ---
 
-### Error Handling
+### Immutability
+
+Return a new value instead of mutating state that other code holds. Spread is a shallow copy, so a nested object
+still shared with the original needs its own copy.
+
+Pass:
 
 ```typescript
-// PASS: GOOD: Comprehensive error handling
-async function fetchData(url: string) {
+const renamedUser = { ...user, name: 'New Name' }
+const movedUser = { ...user, address: { ...user.address, city: 'Lyon' } }
+const extendedItems = [...items, newItem]
+```
+
+Fail, for state another component or caller still holds:
+
+```typescript
+user.name = 'New Name'
+user.address.city = 'Lyon'
+items.push(newItem)
+```
+
+A local array built and returned inside one function is not shared state, and pushing to it is fine.
+
+---
+
+### Error handling
+
+Throw a specific error type, keep no local `try` unless it translates a failure into a domain error, and let the caller
+or the global handler decide what happens next.
+
+Pass:
+
+```typescript
+async function fetchMarket(url: string): Promise<Market> {
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new MarketFetchError(response.status, url)
+  }
+  return MarketSchema.parse(await response.json())
+}
+```
+
+Fail, a generic error, caught by its own function and wrapped a second time:
+
+```typescript
+async function fetchMarket(url: string): Promise<Market> {
   try {
     const response = await fetch(url)
-
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
-
     return await response.json()
   } catch (error) {
     throw new Error('Failed to fetch data', { cause: error })
   }
 }
-
-// FAIL: BAD: No error handling
-async function fetchData(url) {
-  const response = await fetch(url)
-  return response.json()
-}
 ```
 
 ---
 
-### Async/Await Best Practices
+### Independent async calls
+
+Run calls that do not depend on each other concurrently.
+
+Pass:
 
 ```typescript
-// PASS: GOOD: Parallel execution when possible
-const [users, markets, stats] = await Promise.all([
-  fetchUsers(),
-  fetchMarkets(),
-  fetchStats()
-])
+const [users, markets, stats] = await Promise.all([fetchUsers(), fetchMarkets(), fetchStats()])
+```
 
-// FAIL: BAD: Sequential when unnecessary
+Fail:
+
+```typescript
 const users = await fetchUsers()
 const markets = await fetchMarkets()
 const stats = await fetchStats()
@@ -101,23 +145,29 @@ const stats = await fetchStats()
 
 ---
 
-### Type Safety
+### Type safety
+
+Model the domain with precise types, and keep `any` out of every signature.
+
+Pass:
 
 ```typescript
-// PASS: GOOD: Proper types
 interface Market {
   id: string
   name: string
   status: 'active' | 'resolved' | 'closed'
-  created_at: Date
+  createdAt: Date
 }
 
-function getMarket(id: string): Promise<Market> {
-  // Implementation
+async function getMarket(id: string): Promise<Market> {
+  return MarketSchema.parse(await marketClient.get(id))
 }
+```
 
-// FAIL: BAD: Using 'any'
-function getMarket(id: any): Promise<any> {
-  // Implementation
+Fail:
+
+```typescript
+async function getMarket(id: any): Promise<any> {
+  return marketClient.get(id)
 }
 ```

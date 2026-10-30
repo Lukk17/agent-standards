@@ -7,17 +7,21 @@ repair. Load this file during a review pass, or when a function feels wrong and 
 
 ### 1. Long Functions
 
-```typescript
-// FAIL: BAD: Function > 50 lines
-function processMarketData() {
-  // 100 lines of code
-}
+Fail, one function doing every phase:
 
-// PASS: GOOD: Split into smaller functions
-function processMarketData() {
-  const validated = validateData()
-  const transformed = transformData(validated)
-  return saveData(transformed)
+```typescript
+function processMarketData(raw: RawMarket[]): void {
+  // validation, transformation and persistence, 100 lines in one body
+}
+```
+
+Pass, one function per phase, and the top level reads as the summary:
+
+```typescript
+function processMarketData(raw: RawMarket[]): Promise<void> {
+  const validated = validateMarkets(raw)
+  const transformed = toMarketRecords(validated)
+  return saveMarketRecords(transformed)
 }
 ```
 
@@ -25,53 +29,63 @@ function processMarketData() {
 
 ### 2. Deep Nesting
 
+Fail, five levels before the work starts:
+
 ```typescript
-// FAIL: BAD: 5+ levels of nesting
-if (user) {
-  if (user.isAdmin) {
-    if (market) {
-      if (market.isActive) {
-        if (hasPermission) {
-          // Do something
+function closeMarket(user: User | null, market: Market | null, hasPermission: boolean): void {
+  if (user) {
+    if (user.isAdmin) {
+      if (market) {
+        if (market.isActive) {
+          if (hasPermission) {
+            marketService.close(market.id)
+          }
         }
       }
     }
   }
 }
+```
 
-// PASS: GOOD: Early returns
-if (!user) {
-  return
-}
-if (!user.isAdmin) {
-  return
-}
-if (!market) {
-  return
-}
-if (!market.isActive) {
-  return
-}
-if (!hasPermission) {
-  return
-}
+Pass, guard clauses and early returns:
 
-// Do something
+```typescript
+function closeMarket(user: User | null, market: Market | null, hasPermission: boolean): void {
+  if (!user?.isAdmin) {
+    return
+  }
+  if (!market?.isActive) {
+    return
+  }
+  if (!hasPermission) {
+    return
+  }
+
+  marketService.close(market.id)
+}
 ```
 
 ---
 
 ### 3. Magic Numbers
 
-```typescript
-// FAIL: BAD: Unexplained numbers
-if (retryCount > 3) { }
-setTimeout(callback, 500)
+Fail:
 
-// PASS: GOOD: Named constants
+```typescript
+if (retryCount > 3) {
+  giveUp()
+}
+setTimeout(callback, 500)
+```
+
+Pass:
+
+```typescript
 const MAX_RETRIES = 3
 const DEBOUNCE_DELAY_MS = 500
 
-if (retryCount > MAX_RETRIES) { }
+if (retryCount > MAX_RETRIES) {
+  giveUp()
+}
 setTimeout(callback, DEBOUNCE_DELAY_MS)
 ```

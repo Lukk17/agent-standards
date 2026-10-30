@@ -1,5 +1,16 @@
 # Pagination, filtering, sorting, and search
 
+Contents:
+
+- [Offset pagination](#offset-pagination)
+- [Cursor pagination, the default for unbounded data](#cursor-pagination-the-default-for-unbounded-data)
+- [Choosing between them](#choosing-between-them)
+- [Filtering](#filtering)
+- [Sorting](#sorting)
+- [Full-text search](#full-text-search)
+- [Sparse fieldsets](#sparse-fieldsets)
+- [Related skills](#related-skills)
+
 Read this when designing the query-parameter surface of a collection endpoint, or when a list endpoint slows down as
 the table grows.
 

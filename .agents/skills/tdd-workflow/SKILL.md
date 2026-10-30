@@ -1,6 +1,6 @@
 ---
 name: tdd-workflow
-description: Test-driven development discipline covering the red-green-refactor loop with an enforced RED gate, the test pyramid, mocking boundaries, test naming and structure, and a CI coverage gate of around 90 percent line coverage of real logic. Use when you say "write this feature test first", "add tests for this bug fix", "our coverage gate is failing", "what should I mock here", or "refactor this without breaking behaviour". Not for browser journeys and the flaky-test policy, use `e2e-testing`.
+description: 'Test-driven development: the red-green-refactor loop with an enforced RED gate, the test pyramid, mocking boundaries, test naming and isolation, and a CI coverage gate of around 90 percent of real logic. Use when the user says "write this feature test first", "add tests for this bug fix", or "what should I mock here". Not for browser journeys and the flaky-test policy, use `e2e-testing`.'
 ---
 
 # Test-Driven Development Workflow
@@ -13,10 +13,11 @@ per-stack mechanics.
 
 ### When to activate
 
-- Writing a new feature, an endpoint, or a component.
-- Fixing a bug, where the test that reproduces it comes first.
-- Refactoring, where the existing tests are the safety net that has to stay green.
-- The coverage gate is failing, or a pull request is blocked on it.
+- Writing a new feature, an endpoint, or a component, or the user says "write this feature test first".
+- Fixing a bug, where the test that reproduces it comes first, or the user says "add tests for this bug fix".
+- Refactoring, where the existing tests are the safety net that has to stay green, or the user says "refactor this
+  without breaking behaviour".
+- The coverage gate is failing, or a pull request is blocked on it, or the user says "our coverage gate is failing".
 - Deciding what to mock, or whether a test belongs at the unit, integration, or end-to-end layer.
 
 ---
@@ -194,9 +195,8 @@ The two forms are alternatives, never a mix inside one codebase.
 
 ### Test structure
 
-Every test sets up state, performs one action, then asserts the observable outcome. Which words label the three phases
-is the project's choice: `Arrange` / `Act` / `Assert` and `Given` / `When` / `Then` are the common spellings. Read the
-existing tests and match them.
+The three-phase shape and how its phases are labelled follow `coding-standards`, which holds the canonical rule. This
+section adds the isolation that goes with it.
 
 One behaviour per test. Several assertions are fine when they all verify that one behaviour, and each test builds its
 own data so the order tests run in never matters.
@@ -253,8 +253,8 @@ against a real engine through Testcontainers, never a shared staging instance. F
 cloud SDKs, prefer a real instance, the library's own official test double, or an HTTP-level fake such as WireMock or
 MSW. The detail behind both rules is in [references/advanced-testing.md](references/advanced-testing.md).
 
-The mocks below are unit-test doubles for a boundary the test does not own, not a substitute for exercising the real
-datastore.
+The mocks below replace interfaces the project owns (its repository and its client wrapper), never the vendor SDK
+underneath them, and they are not a substitute for exercising the real datastore.
 
 A repository, mocked at the interface the application defines.
 

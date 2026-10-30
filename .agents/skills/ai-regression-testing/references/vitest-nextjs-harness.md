@@ -1,5 +1,13 @@
 # Vitest and Next.js regression harness
 
+Contents:
+
+- [Test runner configuration](#test-runner-configuration)
+- [Sandbox setup file](#sandbox-setup-file)
+- [Request helper](#request-helper)
+- [A test using the harness](#a-test-using-the-harness)
+- [Equivalents on other stacks](#equivalents-on-other-stacks)
+
 The setup behind the examples in [SKILL.md](../SKILL.md). It runs Next.js App Router route handlers directly in Node,
 with the project's sandbox mode forced on, so a full API regression suite needs no database, no HTTP server, and no
 browser. On another stack, keep the assertions from the skill and swap this harness for the framework's own test client.
@@ -36,7 +44,8 @@ export default defineConfig({
 
 The setup file runs before every test file and is the single place the sandbox flag is forced. Blanking the database
 credentials is deliberate: if a handler ever falls through to the production path, it fails loudly instead of quietly
-reaching a real datastore.
+reaching a real datastore. This setup covers the sandbox run only. The production-branch run of the same contract tests
+uses a separate setup that leaves the flag off and points `DATABASE_URL` at a Testcontainers database.
 
 ```typescript
 process.env.SANDBOX_MODE = "true"
@@ -51,7 +60,10 @@ Name the variables the way the project names them. The point is that the product
 ### Request helper
 
 One helper builds every request, so a test reads as its scenario rather than as request plumbing. The sandbox user id
-travels as a header, which is what lets one suite exercise several fixture users against the same handler.
+travels as a header, which is what lets one suite exercise several fixture users against the same handler. The handler
+reads that header only on the sandbox branch, and the sandbox branch refuses to start under `NODE_ENV=production`, as
+the skill's parity section requires. Outside the sandbox, identity comes from the verified session and never from a
+header the caller sets.
 
 ```typescript
 import { NextRequest } from "next/server"

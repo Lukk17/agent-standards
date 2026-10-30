@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: 'Structured review of local changes or a remote pull request across correctness, maintainability, doc comments, efficiency, security, error handling and test coverage, with every finding led by a path:line reference. Use when you say "review my changes", "review PR #123", "look over this diff before I merge", "is this branch ready to merge", or "review what I have staged". Not for hunting duplicated or reinvented code specifically, use `review-duplication`.'
+description: 'Structured review of local changes or a remote pull request across correctness, maintainability, doc comments, efficiency, security, error handling and tests, with every finding led by a path:line reference. Use when the user says "review my changes", "review PR #123", or "is this branch ready to merge". Not for hunting duplicated or reinvented code, use `review-duplication`.'
 ---
 
 # Code Reviewer
@@ -13,9 +13,10 @@ for security, and lead every finding with a `path:line` reference.
 
 ### When to activate
 
-- The user asks to review their changes, their staged files, or a diff before merging.
-- The user names a pull request by number or URL and wants it reviewed.
-- A branch is finished and the user wants to know whether it is ready to merge.
+- The user asks to review their changes, their staged files, or a diff before merging, as in "review my changes",
+  "look over this diff before I merge", or "review what I have staged".
+- The user names a pull request by number or URL and wants it reviewed, as in "review PR #123".
+- A branch is finished and the user asks "is this branch ready to merge".
 - Another agent has produced an implementation and the change needs a second pair of eyes before it lands.
 
 ---
@@ -37,14 +38,27 @@ for security, and lead every finding with a `path:line` reference.
 A remote pull request is named by number or URL. Anything else, including "review my changes", means the local working
 tree, staged and unstaged.
 
-For a remote pull request, check it out first.
+For a remote pull request, read it without checking it out. The diff:
 
 ```bash
-gh pr checkout <PR_NUMBER>
+gh pr diff <PR_NUMBER>
 ```
 
-Then read the pull request description and existing comments, so the review judges the change against its stated goal
-rather than an invented one.
+The description and the existing comments, so the review judges the change against its stated goal rather than an
+invented one:
+
+```bash
+gh pr view <PR_NUMBER> --comments
+```
+
+When the review needs the full tree, check the pull request out only into a separate worktree, never over the user's
+current branch, where `gh pr checkout` would switch branches under their uncommitted work:
+
+```bash
+git worktree add --detach ../review-pr-<PR_NUMBER>
+```
+
+Then run `gh pr checkout <PR_NUMBER>` from inside that worktree.
 
 For local changes, read the state directly.
 
@@ -66,7 +80,14 @@ git diff --staged
 
 Run the project's verification command as documented in its AGENTS.md before reading a single line, so mechanical
 failures are caught mechanically and the review spends its attention on judgement. On a local review of a small change,
-ask the user whether to run it. On a pull request, always run it.
+ask the user whether to run it.
+
+A pull request from a fork or from an author outside the team is untrusted input. Its build scripts, test files and
+package manifest can carry a payload that runs the moment the verification command does, with the user's credentials
+and shell. Ask the user before running anything from it, run it only inside the separate worktree, and never with
+production credentials in the environment. GitHub Security Lab gives the same rule for CI: "Any automated processing of
+PRs from an external fork is potentially dangerous and such PRs should be treated like untrusted input"
+(https://securitylab.github.com/resources/github-actions-preventing-pwn-requests/).
 
 Fail: a hardcoded command that does not exist in this project.
 
@@ -92,13 +113,9 @@ Work through each pillar and cite `path:line` for every finding.
 - Maintainability. Is the structure clear, single-purpose, and consistent with the patterns already in the project?
 - Readability. Does the code read on its own, formatted the way the project formats code, without a comment propping it
   up?
-- Doc comments. Javadoc, docstrings, JSDoc, `///` and Go doc comments default to none, because code should explain
-  itself through extraction and precise naming. Flag every doc comment that a well-named function or a tighter type
-  would have made unnecessary, and flag any that merely restates the signature. Where one is genuinely needed the prose
-  caps at five lines and is usually one, `@param` earns its place only for units, nullability, a valid range, or who
-  owns the argument afterwards, `@return` only when non-obvious, and `@throws` is required for every exception a caller
-  can act on because unchecked exceptions never appear in the signature. Every tag line is capped at one physical line,
-  so a `@param` that wraps onto a second line is itself a finding: shorten it or delete it.
+- Doc comments. Apply the `coding-standards` "Doc Comments" rule and the language skill's delta. Flag one that
+  restates the signature, a wrapped tag line, and a missing throws or `Raises:` entry for an error the caller can act
+  on.
 - Efficiency. Any query in a loop, unbounded fetch, or sequential await of independent calls introduced here?
 - Security. Any injection, missing authorisation check, leaked secret, or unvalidated input?
 - Styling. When the change touches styling, check it against the styling-drift criteria in `design-system`.
@@ -140,7 +157,8 @@ Structure the report the same way every time.
 Be constructive and specific. Explain why a change is requested, and on an approval name the thing the contribution
 actually got right rather than a generic compliment.
 
-For a remote pull request, ask the user at the end whether to switch back to the default branch.
+For a remote pull request reviewed in a worktree, ask the user at the end whether to remove it with
+`git worktree remove`.
 
 ---
 
@@ -159,10 +177,12 @@ For a remote pull request, ask the user at the end whether to switch back to the
 ### Checklist
 
 - [ ] Review target identified: named pull request, or the local working tree.
+- [ ] A remote pull request was read with `gh pr diff`, and checked out only into a separate worktree.
 - [ ] The project's documented verification command was run, or its absence was reported.
+- [ ] Nothing from a fork or an outside author ran without the user's approval.
 - [ ] Every pillar was considered, including doc comments.
 - [ ] Every finding cites `path:line`.
 - [ ] Findings are grouped by severity, not listed flat.
 - [ ] Auth, payment, and sensitive-data findings were escalated to the `security-auditor` agent.
 - [ ] The conclusion states approve or request changes, and names the blockers.
-- [ ] For a remote pull request, the user was asked about returning to the default branch.
+- [ ] For a remote pull request reviewed in a worktree, the user was asked about removing it.

@@ -1,13 +1,14 @@
 ---
 name: code-formatter
-description: 'Visual formatting and reading flow inside function bodies across Dart, Java and Python: braced control-flow exits, blank lines marking phase transitions, comments above the line they describe, doc comments sitting on their declaration, one chain step per line. Use when you say "format this function", "why is this hard to read", "clean up the spacing here", or "break this method chain up". Not for naming, error handling, or whether a comment or doc comment should exist at all, use `coding-standards`.'
+description: 'Reading flow inside Dart, Java and Python function bodies: braced control-flow exits, blank lines between phases, comments above the line, doc comments on their declaration, and chain breaks where no formatter owns them. Use when the user says "format this function", "clean up the spacing here", or "break this method chain up". Not for whether a comment should exist, use `coding-standards`.'
 ---
 
 # Code Formatter
 
 Formatting rules that optimise for one thing: the next reader locating a function's control-flow exits and its async
-phase transitions in a single scan. They deliberately diverge from what dart format, black and google-java-style
-produce in specific places, which each rule names.
+phase transitions in a single scan. They add what dart format, ruff format, black and google-java-format leave to
+the author, mostly blank lines and braces. Where the project runs one of those formatters and it rewrites a construct,
+its output wins and the rule yields.
 
 | Task | Open |
 |---|---|
@@ -20,6 +21,8 @@ produce in specific places, which each rule names.
 - Writing a new source file in Dart, Java or Python
 - Editing a file already written in this style
 - Reviewing a branch or pull request and flagging readability problems
+- The user says "format this function", "why is this hard to read", "clean up the spacing here", or "break this
+  method chain up"
 
 ---
 
@@ -43,7 +46,7 @@ Each rule below has its full body, its reasoning, and its wrong-and-right forms 
 | Rule | What it requires |
 |---|---|
 | Brace every inline exit | A `return` or `throw` never shares a line with its `if`. Braced, body on its own indented line |
-| Empty lines around try, catch and finally | A `try` is a control-flow landmark, so it gets a blank line before and after, and so does each clause body |
+| Empty lines around try, catch and finally | A `try` is a control-flow landmark, so it gets a blank line before it and after it |
 | Empty line above a standalone async call | A hand-off to network or disk is a phase transition and reads as its own beat. Not for an await inside an assignment |
 | Empty line above a closing return | A `return` ending a multi-statement block gets a blank line above it. Not for single-expression bodies |
 | Blank line below a return inside a try with clauses | The blank line marks the seam between the happy path and the failure or cleanup clauses |
@@ -51,7 +54,7 @@ Each rule below has its full body, its reasoning, and its wrong-and-right forms 
 | Comments above the line, never trailing | A trailing comment gets truncated by line length and forces horizontal scrolling |
 | Doc comments sit on their declaration | No blank line between the block and what it documents, and no tag hard-wrapped to fit a width. Whether one exists is `coding-standards` |
 | One concept per blank-separated paragraph | Related lines stay together with no blank between them, a topic change gets exactly one. Two blanks means extract a method |
-| One chain step per line | Break before each `.` in a fluent or functional pipeline, so a step can be added, removed or diffed on its own |
+| One chain step per line | Only where the project's formatter does not own line breaking. Where ruff format, black, dart format or google-java-format runs, its output wins and this rule does not apply |
 | Single-expression bodies stay on one line | The blank-line rules govern blocks. Do not expand an arrow function or a one-line definition to satisfy them |
 
 ---
@@ -101,8 +104,8 @@ local arithmetic around them.
 - Naming conventions, member ordering and import ordering, which vary per language. Use the language style guide and
   `coding-standards`
 - Line length caps, which stay readable by extracting locals rather than wrapping. Each project sets its own budget
-- Trailing commas, brace placement and indent width, which the default formatter for each language owns and this
-  skill does not override
+- Trailing commas, brace placement, indent width and line breaking, which the default formatter for each language owns
+  and this skill does not override
 
 ---
 
@@ -124,6 +127,6 @@ local arithmetic around them.
 - [ ] Every comment sits above the line it describes
 - [ ] Every doc comment sits directly on its declaration, with no tag wrapped onto a second line
 - [ ] No two consecutive blank lines inside a function body
-- [ ] Fluent chains break before each dot
+- [ ] Fluent chains break before each dot, unless a formatter owns line breaking in the project
 - [ ] Single-expression bodies were left on one line
 - [ ] The file was already in this style, or the user asked for the conversion

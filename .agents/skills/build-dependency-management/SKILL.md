@@ -1,6 +1,6 @@
 ---
 name: build-dependency-management
-description: "Build files and dependency versions: one central version catalog, bill-of-materials imports, shared build logic, locked reproducible installs, and deliberate dependency admission. Use when you say \"add this dependency\", \"set up the Gradle build\", \"centralise our versions\", \"import the Spring Boot BOM\", or \"why do two modules use different versions of the same library\". Not for Java language style, use `java-coding-standards`."
+description: 'Build files and dependency versions: one version catalog, bill-of-materials imports, shared build logic, lock files, release-age cooldowns, hash verification, and deliberate dependency admission. Use when the user says "add this dependency", "centralise our versions", or "import the Spring Boot BOM". Not for Java language style, use `java-coding-standards`.'
 license: Apache-2.0
 ---
 
@@ -17,6 +17,8 @@ is the `coding-standards` skill, and this skill is the build-layer detail undern
 - Setting up or refactoring build files for a new module or project.
 - Centralising versions or build configuration across a multi-module repository.
 - Reviewing a change that touches build or dependency files.
+- The user says "add this dependency", "set up the Gradle build", "centralise our versions", "import the Spring Boot
+  BOM", or "why do two modules use different versions of the same library".
 
 ---
 
@@ -67,8 +69,11 @@ dependencies {
 }
 ```
 
-Pin exact versions so a clean checkout builds the same artifacts tomorrow, and commit the lock file the build tool
-produces. A range turns every build into a different build.
+An application pins through a committed lock file, so a clean checkout builds the same artifacts tomorrow. A published
+library declares the compatible range it is tested against and leaves pinning to the application, because a library
+that pins exact versions forces a resolver conflict on every consumer that needs a different patch. The PyPA guidance
+says the same of `install_requires`: pinning there "is overly-restrictive, and prevents the user from gaining the
+benefit of dependency upgrades".
 
 ---
 
@@ -135,18 +140,23 @@ Fail: a utility library appears in the diff with no mention in the description.
 
 Honor any explicit list of allowed or forbidden libraries for the project, including license constraints such as
 forbidding copyleft licenses in distributed code. Review and update dependencies on a schedule with a vulnerability
-scan, and never through an automatic trigger. Enabling a self-scanning bot or auto-merging a version bump is an
-approval-gated decision.
+scan. Automated update pull requests are allowed once approved, auto-merge never is.
+
+Refuse versions younger than the package manager's release-age cooldown (pnpm `minimumReleaseAge`, Renovate
+`minimumReleaseAge`, uv `exclude-newer`), so a freshly published malicious version has time to be caught before it
+reaches the build. Verify artifact hashes from the lock file (`pip --require-hashes`, Gradle dependency verification),
+so the artifact installed is the one that was reviewed.
 
 ---
 
-### Never commit generated sources
+### Never hand-edit a generated file
 
-Regenerate generated sources and build output from their input, and never hand-edit a generated file. Change the
-input and run the generator. A generated file in version control drifts from its source the first time somebody
-edits it by hand.
+Never hand-edit a generated file. Change the input and rerun the generator. Commit the output only when consumers
+cannot run the generator (lock files, `go generate` output, published clients), and gate it in CI by regenerating and
+diffing. Everything else is generated in the build and its output directory is ignored.
 
-Pass: the generator runs in the build, and the output directory is ignored.
+Pass: the generator runs in the build and its output directory is ignored, or the committed output is regenerated in
+CI and the job fails on any diff.
 
 Fail: a generated client is committed, then patched by hand to fix one field.
 
@@ -168,7 +178,8 @@ Fail: a generated client is committed, then patched by hand to fix one field.
 
 - [ ] Every version lives in one catalog, and no module hardcodes a version string.
 - [ ] Every managed family comes from an imported bill of materials, with no member pinned by hand.
-- [ ] The lock file is committed and the build is reproducible from a clean checkout.
+- [ ] An application commits its lock file and builds reproducibly from a clean checkout, a library declares ranges.
+- [ ] New versions wait out a release-age cooldown, and installs verify hashes from the lock file.
 - [ ] Shared build configuration lives in one convention plugin or parent definition.
 - [ ] Each new dependency has a stated purpose, a license check, and prior approval.
-- [ ] No generated source or build output is committed.
+- [ ] No generated file is hand-edited, and any committed generated output is regenerated and diffed in CI.

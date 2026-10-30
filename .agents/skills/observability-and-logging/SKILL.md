@@ -1,6 +1,6 @@
 ---
 name: observability-and-logging
-description: Structured logging and production observability for services, covering log levels, correlation IDs, health checks, metrics, tracing, SLOs, and the startup readiness banner. Use when you say "add logging to this service", "my logs have no trace id", "add a readiness endpoint", "alert on our error budget", or "print a startup banner when the app is up". Not for CI/CD pipelines, release gating, or Kubernetes probe manifests, use `deployment-patterns`.
+description: 'Structured logging and production observability: log levels, key-value fields, trace correlation, what liveness and readiness check, metrics, tracing, SLO alerts, and the startup readiness banner. Use when the user says "add logging to this service", "my logs have no trace id", or "alert on our error budget". Not for Kubernetes probe manifests or CI pipelines, use `deployment-patterns`.'
 ---
 
 # Observability and Logging
@@ -20,6 +20,8 @@ the reference metrics format. Both are language-neutral, so pick the current sta
 - Instrumenting a service with health checks, metrics, or tracing.
 - Defining SLOs, alerts, or dashboards.
 - Writing the startup readiness banner.
+- The user says "add logging to this service", "my logs have no trace id", "add a readiness endpoint", "alert on our
+  error budget", or "print a startup banner when the app is up".
 
 ---
 
@@ -56,16 +58,17 @@ private static final org.apache.logging.log4j.core.Logger log = new Log4jContext
 ### Use levels that mean something
 
 Informational for major steps, warning for recoverable trouble, error with the full stack trace for a real failure.
-An expected, handled condition is not an error. Begin each line with a service or component tag and carry a
-correlation or trace identifier so one request can be followed across services.
+An expected, handled condition is not an error. Put every variable in a key-value field rather than in the message
+text, so a pipeline can filter on it. Identify the service through the logger's resource (`service.name`), and let the
+log appender attach `trace_id` and `span_id` from the active span, so one request can be followed across services.
 
 Pass:
 
 ```java
-log.warn("[orders] payment declined, retrying, orderId={} attempt={}", orderId, attempt);
+log.atWarn().setMessage("payment declined, retrying").addKeyValue("orderId", orderId).addKeyValue("attempt", attempt).log();
 ```
 
-Fail:
+Fail, the wrong level and nothing to filter on:
 
 ```java
 log.error("payment declined");
@@ -80,13 +83,13 @@ Mask credentials, tokens, decrypted payloads, and personal data everywhere they 
 Pass:
 
 ```java
-log.info("[auth] token issued, subject={} tokenSuffix=***{}", subject, tokenSuffix);
+log.atInfo().setMessage("token issued").addKeyValue("subject", subject).addKeyValue("tokenSuffix", "***" + tokenSuffix).log();
 ```
 
 Fail:
 
 ```java
-log.info("[auth] token issued: {}", accessToken);
+log.info("token issued: {}", accessToken);
 ```
 
 ---
@@ -99,14 +102,14 @@ Pass:
 
 ```java
 if (log.isDebugEnabled()) {
-    log.debug("[cart] snapshot={}", renderExpensiveSnapshot(cart));
+    log.atDebug().setMessage("cart snapshot").addKeyValue("snapshot", renderExpensiveSnapshot(cart)).log();
 }
 ```
 
 Fail:
 
 ```java
-log.debug("[cart] snapshot=" + renderExpensiveSnapshot(cart));
+log.debug("cart snapshot=" + renderExpensiveSnapshot(cart));
 ```
 
 The error-handling rules (specific exception types, chaining to preserve the cause, central handling, structured
@@ -117,9 +120,12 @@ raised.
 
 ### Expose two separate health checks
 
-Liveness reports only that the process is alive and never touches a dependency. Readiness verifies the database,
-cache, and external dependencies and reports unhealthy when one is degraded. Keep both outside the versioned API
-path, so a version bump cannot move the probe URL. The generic paths are `/health` and `/ready`, defined by
+Liveness reports only that the process is alive and never touches a dependency. Readiness reports what this
+instance needs to serve: startup finished, pools open, and dependencies it does not share with other instances. A
+shared dependency behind a circuit breaker or fallback stays out of readiness and shows up in metrics and alerts
+instead, because when every instance checks it, one downstream failure takes every instance out of rotation at once
+and turns a degraded service into a total outage. This skill owns that rule, and `api-design` and `backend-patterns`
+point to it. Keep both outside the versioned API path, so a version bump cannot move the probe URL. The generic paths are `/health` and `/ready`, defined by
 `api-design`. Spring Boot Actuator serves the same two checks under its own paths, shown below. This skill owns what
 each endpoint reports. The probe manifests that point Kubernetes at them belong to `deployment-patterns`.
 
@@ -127,13 +133,13 @@ Pass:
 
 ```text
 GET /actuator/health/liveness    200 while the process runs, touches no dependency
-GET /actuator/health/readiness   200 when the database, cache, and downstream services answer, 503 otherwise
+GET /actuator/health/readiness   200 once startup finished and this instance's own pools are open, 503 otherwise
 ```
 
 Fail:
 
 ```text
-GET /api/v1/health/full   one versioned endpoint that checks every dependency and answers both probes
+GET /api/v1/health/full   one versioned endpoint that checks every shared dependency and answers both probes
 ```
 
 ---
@@ -141,14 +147,19 @@ GET /api/v1/health/full   one versioned endpoint that checks every dependency an
 ### Emit metrics that drive action
 
 Request rate, error rate, latency percentiles, and saturation of the resources that actually constrain the service.
-Propagate a trace context across every hop. Define SLOs in terms a user would recognise, a fast response or a
+Propagate W3C Trace Context (`traceparent`, `tracestate`) on every hop, and put `trace_id` and `span_id` on every log
+record. Define SLOs in terms a user would recognise, a fast response or a
 successful request, and alert on the SLO burn rate rather than every transient blip.
 
 Pass:
 
 ```promql
-sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m])) / sum(rate(http_server_requests_seconds_count[5m]))
+sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m])) / sum(rate(http_server_request_duration_seconds_count[5m]))
 ```
+
+The series comes from the stable OpenTelemetry metric `http.server.request.duration` and its attribute
+`http.response.status_code`. The exported name depends on the exporter's name translation, so check it against the
+service's `/metrics` output before copying the query into an alert.
 
 Fail:
 
@@ -162,8 +173,10 @@ process_cpu_seconds_total
 
 Every long-running service prints one canonical multi-line INFO entry the moment it starts accepting traffic, in a
 single log call with a leading newline. Per-line emission lets other threads interleave and rips the block apart.
-The full convention, the ANSI Shadow banner, the section order, the probe timeouts, and the per-stack hooks live in
-the reference below.
+The banner is for the text encoder. Under a JSON encoder the service emits one structured `service.ready` event with
+the same fields instead, and either way a dependency URL is printed without its credentials or query string. The full
+convention, the ANSI Shadow banner, the section order, the probe timeouts, and the per-stack hooks live in the
+reference below.
 
 Pass:
 
@@ -201,9 +214,10 @@ buildStartupLog().lines().forEach(log::info);
 ### Checklist
 
 - [ ] Business code logs through one abstraction, no concrete backend at a call site.
-- [ ] Every log line carries a component tag and a correlation or trace identifier.
+- [ ] Variables are key-value fields, the service is named in the resource, and every record carries `trace_id`.
 - [ ] No secret, credential, decrypted payload, or personal field reaches a log.
 - [ ] Expensive message construction is guarded or lazy.
-- [ ] Liveness and readiness are separate endpoints outside the versioned API path.
+- [ ] Liveness and readiness are separate endpoints outside the versioned API path, and readiness leaves out shared
+  dependencies that have a fallback.
 - [ ] Rate, error, latency, and saturation metrics are exported and an SLO burn-rate alert exists.
 - [ ] The startup readiness block is emitted in one log call with a leading newline.

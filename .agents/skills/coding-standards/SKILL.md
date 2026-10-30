@@ -1,6 +1,6 @@
 ---
 name: coding-standards
-description: 'The cross-project engineering floor: SOLID, DRY, KISS, YAGNI, FIRST, intention-revealing naming, guard clauses, immutability, structured errors, layering, feature flags, and code that explains itself rather than carrying comments. Use when you say "review this for quality", "start this module properly", "refactor to our conventions", "should this have a comment", or "set up our naming rules". Not for stack-specific patterns, use a framework skill such as `springboot-patterns`.'
+description: 'The cross-project engineering floor: SOLID as heuristics under KISS and YAGNI, DRY without coincidental merges, naming, guard clauses, one error shape, layering, feature flags, and when a comment or doc comment belongs. Use when the user says "review this for quality", "refactor to our conventions", or "should this have a comment". Not for stack-specific patterns, use `springboot-patterns`.'
 ---
 
 # Coding Standards
@@ -19,13 +19,15 @@ one that needs fixing.
 
 ### When to activate
 
-- Starting a new project or module
-- Reviewing code for quality and maintainability
-- Refactoring existing code toward the conventions
-- Enforcing naming, structure or control-flow consistency
+- Starting a new project or module, or the user says "start this module properly"
+- Reviewing code for quality and maintainability, or the user says "review this for quality"
+- Refactoring existing code toward the conventions, or the user says "refactor to our conventions"
+- Enforcing naming, structure or control-flow consistency, or the user says "set up our naming rules"
 - Setting up linting, formatting or type-checking rules
 - Onboarding a contributor to the conventions
-- Deciding whether a comment or a doc comment belongs in the code at all
+- Deciding whether a comment or a doc comment belongs in the code at all, or the user asks "should this have a
+  comment"
+- Deciding whether to introduce an abstraction or merge two similar blocks
 
 ---
 
@@ -45,12 +47,15 @@ one that needs fixing.
 
 ### Core principles
 
-These are the floor. A request or an existing pattern that breaks one of them is a defect, the same as a failing
-test, so say so and propose the version that respects it.
+These are the floor. When two of them pull in opposite directions, KISS and YAGNI win until a second real use case
+appears. A request or an existing pattern that ignores the floor with no such reason is worth naming, with the version
+that respects it.
 
-- SOLID. One reason to change per unit. Extend rather than edit working code. A subtype works anywhere its base type
-  does. Many small interfaces beat one large one. Depend on abstractions, never on concrete implementations.
-- DRY. Every piece of knowledge has one source of truth. Extract shared logic into one well-named place.
+- SOLID, as heuristics rather than laws. One reason to change per unit. Prefer adding a new implementation over growing
+  a conditional inside a stable one. A subtype works anywhere its base type does. Keep interfaces small. Introduce an
+  abstraction at a boundary you actually need to swap or test (I/O, a vendor, a clock), not in front of every class.
+- DRY. Every piece of knowledge has one source of truth. Two blocks that look alike but change for different reasons
+  are not duplication. Extract on the third real occurrence, or when the copies must change together.
 - KISS. The simplest solution that fully works wins.
 - YAGNI. Build only what is needed now. No speculative abstraction, no configurability nobody asked for.
 - FIRST for tests. Fast, isolated, repeatable, self-validating, timely, written with the code and ideally before it.
@@ -68,32 +73,50 @@ Fail:
 Added the second payment provider with an if-else on provider name inside the existing gateway class.
 ```
 
+Fail, the opposite mistake:
+
+```text
+Put a PriceCalculator interface in front of the only calculator. No second implementation, no test needs a fake.
+```
+
 ---
 
 ### Naming and control flow
 
 Names explain themselves, so logic that needs a comment to say what it does gets extracted into a well-named function
 instead. Functions read verb then noun. Booleans start with is, has or can. No magic number or string survives
-outside a named constant. Guard clauses and early returns replace deep nesting. Prefer an explicit type name where
-the language allows one, except where the idiom requires inference. Use imports rather than inline fully-qualified
-names. Keep functions short and single-purpose. The codebase is English only, so translate a foreign-language name at
-the boundary.
+outside a named constant. Guard clauses and early returns replace deep nesting. Annotate every public signature
+(parameters and return types). For locals, follow the language's idiom: infer where the initializer makes the type
+obvious, and name the type where it does not. Use imports rather than inline fully-qualified names. Keep functions
+short and single-purpose. The codebase is English only, so translate a foreign-language name at the boundary.
 
 Pass:
 
 ```typescript
-function calculateTotalRevenue(orders: Order[]): Money { }
-const isUserAuthenticated = session !== null
 const MAX_RETRIES = 3
+
+function calculateTotalRevenueCents(orders: Order[]): number {
+  return orders.reduce((sum, order) => sum + order.totalCents, 0)
+}
+
+const isUserAuthenticated = session !== null
 ```
 
 Fail:
 
 ```typescript
-function revenue(o) { }
-const flag = true
-if (retryCount > 3) { }
+function revenue(o: Order[]): number {
+  return o.reduce((s, x) => s + x.totalCents, 0)
+}
+
+const flag: boolean = session !== null
+if (retryCount > 3) {
+  retry()
+}
 ```
+
+Adopt the language's default formatter and linter, run both as a CI check, and let them settle every layout question
+they own. Neither a reviewer nor a skill argues with their output.
 
 ---
 
@@ -126,28 +149,33 @@ for e in exercises:
 
 Never swallow an exception and never write an empty catch that hides a failure. Use specific exception types. Handle
 errors centrally rather than wrapping every method in its own try block, and let a global handler turn an error into
-the right response. Chain exceptions so the original cause and its stack survive. Do not handle situations that
-cannot happen. Return a consistent structured error shape with a code and a message, map each type to the right
-status code for a web service, and leak no internal detail, no stack trace and no fact about whether an account
-exists. Log through one logging abstraction rather than a concrete backend in business code, with structured output,
+the right response. Catch locally only to translate a low-level failure into a domain error, and chain the cause so the
+original stack survives. Do not handle situations that cannot happen. Return one structured error shape across the
+surface, which for an HTTP API is the problem details format defined in `api-design` (RFC 9457), and map each error
+type to its status code there. Leak no internal detail, no stack trace and no fact about whether an account exists.
+Log through one logging abstraction rather than a concrete backend in business code, with structured output,
 meaningful levels and a correlation identifier, and never log a secret, a credential or personal data.
 
 Pass:
 
 ```typescript
-try {
-  return await fetchOrder(id)
-} catch (error) {
-  throw new OrderLookupError(`Order ${id} unavailable`, { cause: error })
+async function loadOrder(id: string): Promise<Order> {
+  try {
+    return await fetchOrder(id)
+  } catch (error) {
+    throw new OrderLookupError(`Order ${id} unavailable`, { cause: error })
+  }
 }
 ```
 
 Fail:
 
 ```typescript
-try {
-  return await fetchOrder(id)
-} catch (e) {
+async function loadOrder(id: string): Promise<Order | undefined> {
+  try {
+    return await fetchOrder(id)
+  } catch (error) {
+  }
 }
 ```
 
@@ -157,11 +185,12 @@ The full logging and observability playbook lives in `observability-and-logging`
 
 ### Architecture
 
-Depend on abstractions and contracts, not on concrete implementations. Keep business logic separate from frameworks,
-from input and output, and from storage, so it can be tested alone and moved without dragging the rest with it. Layer
-the system so dependencies point one way, toward the core, and enforce that direction with an automated check where
-the toolchain has one. Inject dependencies through the constructor and avoid hidden global state. Validate input at
-the entry of a method and fail fast. Model state explicitly, as exactly one of several named states, never as a bag
+Keep business logic separate from frameworks, from input and output, and from storage, so it can be tested alone and
+moved without dragging the rest with it. At those boundaries the core depends on a contract it owns rather than on the
+concrete adapter. Layer the system so dependencies point one way, toward the core, and enforce that direction with an
+automated check where the toolchain has one. Inject dependencies through the constructor and avoid hidden global
+state. Validate untrusted input once at the boundary into a typed value, and assert invariants in constructors. Model
+state explicitly, as exactly one of several named states, never as a bag
 of flags that can contradict each other.
 
 Pass:
@@ -191,15 +220,23 @@ the check at the edge of the feature, in one place.
 Pass:
 
 ```typescript
-if (!flags.isEnabled('checkout-v2')) {
-  return renderLegacyCheckout()
+function renderCheckout(): Page {
+  if (!flags.isEnabled('checkout-v2')) {
+    return renderLegacyCheckout()
+  }
+  return renderCheckoutV2()
 }
 ```
 
 Fail:
 
 ```typescript
-if (process.env.CHECKOUT_V2 === 'true' && user.id % 2 === 0) { }
+function renderCheckout(): Page {
+  if (process.env.CHECKOUT_V2 === 'true' && user.id % 2 === 0) {
+    return renderCheckoutV2()
+  }
+  return renderLegacyCheckout()
+}
 ```
 
 ---
@@ -251,10 +288,18 @@ count++
 
 ### Doc Comments
 
-Default to none. A doc comment is usually a sign that the code failed to explain itself. Before writing one, extract
-the unclear block into a well-named function, rename the parameters so they carry their own meaning, and tighten the
-types. Do that first and most doc comments have nothing left to say, which is the outcome you want. Code that explains
-itself cannot go stale, a comment can.
+This is the one canonical doc-comment rule. Each language skill points here and adds only its own delta, such as the
+tag spelling (`Args:` and `Raises:` in Python, `.PARAMETER` in PowerShell) or what its doc tool renders. The tag names
+below use the JSDoc spelling.
+
+Default to none, with one exception. The exported surface of a published library or SDK carries a one-line doc comment
+per exported symbol, because the doc tool renders it and a missing entry reads as a bug. Everything else, application
+code and the internals of a library alike, defaults to none.
+
+A doc comment is usually a sign that the code failed to explain itself. Before writing one, extract the unclear block
+into a well-named function, rename the parameters so they carry their own meaning, and tighten the types. Do that first
+and most doc comments have nothing left to say, which is the outcome you want. Code that explains itself cannot go
+stale, a comment can.
 
 When one is still genuinely needed, the prose is capped at five lines and is usually one. Every tag line is capped at
 one line, `@param` and `@returns` and `@throws` alike, and only appears when it genuinely adds something: if the note
@@ -263,18 +308,19 @@ does not fit on a single line, shorten it or drop the tag. Four rules decide wha
 1. Prose. One sentence saying what it does, then only what a caller cannot infer from the signature. Nothing more.
 2. `@param` only when the name and the type do not already convey it, meaning units, nullability, a valid range, or
    who owns the argument afterwards. `@param userId - The user identifier` is noise, delete it, and never restate a
-   type TypeScript already declares.
+   type the signature already declares.
 3. `@returns` only when it is non-obvious.
-4. `@throws` always, for every error a caller can act on. TypeScript keeps throws out of the signature, so this one is
-   genuinely contract rather than decoration.
+4. `@throws` always, for every error a caller can act on. Most languages keep thrown errors out of the signature
+   (TypeScript, Python, unchecked Java exceptions), so this one is genuinely contract rather than decoration.
 
 Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
 example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you
 justify in review, not a budget to spend. The one-line cap on a tag line has no exception at all: shorten it or delete
 it.
 
+Pass, one sentence, then only what the signature cannot say:
+
 ```typescript
-// PASS: GOOD: One sentence, then only what the signature cannot say
 /**
  * Searches markets using semantic similarity.
  *
@@ -282,11 +328,14 @@ it.
  * @returns matches ordered by descending similarity
  * @throws {ServiceUnavailableError} when the embedding backend is unreachable
  */
-export async function searchMarkets(query: string, limit: number = 10): Promise<Market[]> {
-  // Implementation
+export async function searchMarkets(query: string, limit = 10): Promise<Market[]> {
+  return marketIndex.nearest(query, Math.min(limit, MAX_SEARCH_RESULTS))
 }
+```
 
-// FAIL: BAD: Restates the signature, wraps a tag onto a second line, pads with an example nobody maintains
+Fail, restates the signature, wraps a tag onto a second line, and pads with an example nobody maintains:
+
+```typescript
 /**
  * Searches markets.
  *
@@ -298,15 +347,21 @@ export async function searchMarkets(query: string, limit: number = 10): Promise<
  * @example
  * const results = await searchMarkets('election', 5)
  */
-export async function searchMarkets(query: string, limit: number = 10): Promise<Market[]> {
-  // Implementation
-}
-
-// PASS: BEST: Extraction and naming removed the need for a doc comment entirely
-export async function searchMarketsBySimilarity(query: string, maxResults = 10): Promise<Market[]> {
-  // Implementation
+export async function searchMarkets(query: string, limit = 10): Promise<Market[]> {
+  return marketIndex.nearest(query, Math.min(limit, MAX_SEARCH_RESULTS))
 }
 ```
+
+Best, naming carried the parameter and the ordering, so only the contract the signature cannot carry is left:
+
+```typescript
+/** @throws {ServiceUnavailableError} when the embedding backend is unreachable */
+export async function searchMarketsBySimilarity(query: string, maxResults = 10): Promise<Market[]> {
+  return marketIndex.nearest(query, Math.min(maxResults, MAX_SEARCH_RESULTS))
+}
+```
+
+A function that cannot throw anything a caller acts on needs no doc comment at all once naming has done that work.
 
 ---
 
@@ -321,24 +376,10 @@ treatment lives in `performance-optimization`.
 
 ### Test structure
 
-Every test sets up state, performs one action, then asserts the observable outcome. Which words label the three
-phases is the project's choice: Arrange, Act, Assert and Given, When, Then are the two common spellings, and a
-project may have its own. Read how existing tests are labelled and match them, and pick a convention only when the
-project has none. Name a test for the behaviour and the condition, so a failure report reads as a sentence.
-
-Pass:
-
-```typescript
-test('returns an empty array when no markets match the query', () => { })
-```
-
-Fail:
-
-```typescript
-test('works', () => { })
-```
-
-The detailed testing playbook lives in `tdd-workflow`, `python-patterns`, `golang-patterns` and
+Every test sets up state, performs one action, then asserts the observable outcome, labelled the way the project's
+existing tests label the three phases (Arrange, Act, Assert or Given, When, Then, or the project's own words). Name a
+test for the behaviour and the condition, so a failure report reads as a sentence. Worked examples, test isolation and
+the two naming forms are in `tdd-workflow`, and the per-language mechanics in `python-patterns`, `golang-patterns` and
 `springboot-patterns`.
 
 ---
@@ -349,31 +390,6 @@ Watch for long functions, deep nesting, magic numbers, and any block that needs 
 those calls for restructuring rather than for a comment. The failing and repaired forms are in
 [code-smells.md](references/code-smells.md).
 
-Pass:
-
-```typescript
-if (!user) {
-  return
-}
-if (!user.isAdmin) {
-  return
-}
-if (!market.isActive) {
-  return
-}
-```
-
-Fail:
-
-```typescript
-if (user) {
-  if (user.isAdmin) {
-    if (market.isActive) {
-    }
-  }
-}
-```
-
 ---
 
 ### Related skills
@@ -382,6 +398,8 @@ if (user) {
   body, and leaves brace placement and indent width to each language's default formatter
 - `react-patterns` owns React composition, hooks, state and rendering
 - `backend-patterns` and `api-design` own service structure, endpoints and contracts
+- `api-design` owns the HTTP error shape, RFC 9457 problem details, that the error rule above points to
+- `review-duplication` applies the DRY rule, coincidental lookalikes included, to a change under review
 - `hexagonal-architecture` owns ports, adapters and dependency direction in depth
 - `observability-and-logging` owns structured logging, tracing, metrics and health
 - `performance-optimization` owns profiling and the measure-first loop
@@ -394,13 +412,18 @@ if (user) {
 ### Checklist
 
 - [ ] Every name reveals intent, no single letters, no bare nouns for functions
+- [ ] Public signatures annotated, locals typed the way the language's idiom says
 - [ ] No magic number or string outside a named constant
 - [ ] Guard clauses used instead of deep nesting
+- [ ] No abstraction without a second real use case or a boundary that needs swapping or testing
+- [ ] No merge of two blocks that only look alike and change for different reasons
+- [ ] The default formatter and linter run in CI
 - [ ] No swallowed exception, no empty catch, causes chained
-- [ ] Errors returned in one structured shape, no internal detail leaked
+- [ ] Errors returned in one structured shape, problem details on HTTP, no internal detail leaked
+- [ ] Untrusted input validated once at the boundary into a typed value
 - [ ] Business logic separable from framework, input and output, and storage
 - [ ] State modelled as one of several named states, not a bag of flags
 - [ ] Every feature flag has an owner and a removal date
 - [ ] Every deliberate gap carries a ticketed task marker
-- [ ] No comment states what the code already says
+- [ ] No comment states what the code already says, and the exported surface of a published library is documented
 - [ ] Significant design decisions recorded outside the source files

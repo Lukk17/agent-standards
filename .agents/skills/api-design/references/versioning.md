@@ -53,10 +53,13 @@ tolerate unknown values from the start. Say so in the documentation on day one, 
 - Announce the retirement on the response itself, so a client that never reads the changelog still finds out.
 
 ```text
-Deprecation: true
-Sunset: Sat, 01 Jan 2026 00:00:00 GMT
+Deprecation: @1782864000
+Sunset: Fri, 01 Jan 2027 00:00:00 GMT
 Link: <https://docs.example.com/migrate-v2>; rel="deprecation"
 ```
+
+`Deprecation` is a Structured Field Date per RFC 9745, an `@` followed by a Unix timestamp, here 2026-07-01 00:00:00 UTC.
+The `Deprecation: true` form is not valid under it. `Sunset` stays an HTTP date per RFC 8594.
 
 - Return 410 Gone after the sunset date, not 404. The distinction tells the caller the endpoint was removed on purpose.
 

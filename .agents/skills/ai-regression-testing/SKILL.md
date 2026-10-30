@@ -1,6 +1,6 @@
 ---
 name: ai-regression-testing
-description: "Regression testing for the blind spots of AI-assisted development: bug-driven test selection, response-contract assertions, sandbox and production path parity, and a mechanical check step before any AI review. Use when you say \"an agent changed my API routes\", \"write a regression test for this bug\", \"the same bug keeps coming back\", \"test this without a database\", or \"the sandbox path drifted from production\". Not for the red-green-refactor loop and the coverage gate, use `tdd-workflow`."
+description: 'Regression testing for the blind spots of AI-assisted development: bug-driven test selection, response-contract assertions, sandbox and production path parity, and mechanical checks before any AI review. Use when the user says "an agent changed my API routes", "the same bug keeps coming back", or "test this route without a shared database". Not for the red-green-refactor loop, use `tdd-workflow`.'
 ---
 
 # AI Regression Testing
@@ -19,11 +19,13 @@ another stack, translate the harness and keep the assertion. The equivalents are
 
 ### When to activate
 
-- An AI agent has modified API routes, serialisers, or backend logic and the change needs a mechanical check.
-- A bug was just found and fixed, and it must not come back.
-- The project has a sandbox or mock mode that lets an API be tested without a database.
-- The same defect has appeared more than once in the same area.
-- Multiple code paths exist for one behaviour: sandbox against production, or a feature flag with two branches.
+- An AI agent has modified API routes, serialisers, or backend logic and the change needs a mechanical check, or the
+  user says "an agent changed my API routes".
+- A bug was just found and fixed, and it must not come back, or the user says "write a regression test for this bug".
+- The project has a sandbox or mock mode that lets a route be tested without a shared database.
+- The same defect has appeared more than once in the same area, or the user says "the same bug keeps coming back".
+- Multiple code paths exist for one behaviour: sandbox against production, or a feature flag with two branches, or
+  the user says "the sandbox path drifted from production".
 
 ---
 
@@ -54,7 +56,8 @@ Fix 3: widened the projection. Fixed the production path, left the sandbox path 
 Fix 4: a test asserting the field is present failed on the first run and located it immediately.
 ```
 
-Path inconsistency between a sandbox branch and a production branch is the single most common AI-introduced regression.
+Path inconsistency between a sandbox branch and a production branch is a common AI-introduced regression, and the one
+this skill is built around.
 A test asserting the response contract catches it in milliseconds and never gets bored.
 
 ---
@@ -164,10 +167,23 @@ if (isSandboxMode()) {
 return { data: { id, email, full_name, phone, role, created_at, avatar_url, notification_settings } }
 ```
 
-The test that enforces it runs against the sandbox branch, since the test environment forces the flag on.
+The sandbox branch must be unreachable in production. Refuse to start when the sandbox flag is set together with
+`NODE_ENV=production`, never read identity from a request header outside the sandbox, and prefer injecting a fake
+repository over branching inside the handler. A branch left reachable is debug code shipped enabled (CWE-489), and a
+sandbox identity header in production lets any caller choose any user.
 
 ```typescript
-it("returns the same fields in sandbox mode", async () => {
+if (process.env.SANDBOX_MODE === "true" && process.env.NODE_ENV === "production") {
+  throw new Error("SANDBOX_MODE must never be set in production")
+}
+```
+
+Run the same contract test twice: once with the sandbox flag on, and once against the production branch backed by a
+Testcontainers database, as `tdd-workflow` requires for integration tests. Parity means both runs pass. The sandbox run
+alone only proves the branch that never ships.
+
+```typescript
+it("returns every contract field", async () => {
   const res = await GET(createTestRequest("/api/user/profile"))
   const { json } = await parseResponse(res)
 
@@ -222,6 +238,8 @@ catch (err) {
 ```
 
 Optimistic update without rollback. The UI is updated before the request succeeds and never reverts when it does not.
+Restore only the item this call removed rather than a snapshot of the whole list, because a snapshot taken before two
+overlapping deletes brings back the one that succeeded.
 
 Fail:
 
@@ -236,7 +254,7 @@ Pass:
 
 ```typescript
 const remove = async (id: string) => {
-  const previous = items
+  const removed = items.find(item => item.id === id)
   setItems(prev => prev.filter(item => item.id !== id))
   try {
     const res = await fetch(`/api/items/${id}`, { method: "DELETE" })
@@ -245,7 +263,7 @@ const remove = async (id: string) => {
     }
   } catch (err) {
     logger.error({ err }, "Failed to remove item, rolling back")
-    setItems(previous)
+    setItems(prev => (removed ? [...prev, removed] : prev))
     setError("Could not delete the item")
   }
 }
@@ -256,7 +274,7 @@ build time to run time. Assert the field is not undefined rather than trusting t
 
 | Pattern | Test strategy | Priority |
 | --- | --- | --- |
-| Sandbox and production mismatch | Assert the full contract in sandbox mode | High |
+| Sandbox and production mismatch | Assert the full contract in sandbox mode and against the production branch | High |
 | Projection omission | Assert every required field is present in the response | High |
 | Error state leakage | Assert stale state is cleared on the error path | Medium |
 | Missing rollback | Assert state is restored after a failed request | Medium |
@@ -319,8 +337,9 @@ for.
 - [ ] The test suite and the type check ran before any review by reading.
 - [ ] Every fixed defect gained a regression test named after the bug it prevents.
 - [ ] Response contracts are asserted as a declared field list, not one field at a time.
-- [ ] Both sides of every sandbox or feature-flag branch satisfy the same contract.
+- [ ] Both sides of every sandbox or feature-flag branch satisfy the same contract, each proven by its own run.
+- [ ] The sandbox branch refuses to start in production and reads no identity header outside the sandbox.
 - [ ] Query projections were checked whenever a response field was added.
 - [ ] Error paths clear the state they invalidate.
-- [ ] Optimistic updates capture the previous state and restore it on failure.
+- [ ] Optimistic updates restore only the item they removed, so an overlapping update is not undone.
 - [ ] Test selection follows the bug trail, and the `tdd-workflow` coverage gate is still met.

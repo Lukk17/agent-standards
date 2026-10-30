@@ -1,6 +1,6 @@
 ---
 name: security-review
-description: Application security review covering secrets, input validation, injection, authentication and session handling, authorization with row-level security, XSS and CSP, CSRF, rate limiting, data exposure, and dependency risk. Use when you say "add login to this app", "review this endpoint before it ships", "we are taking payments now", "is this file upload safe", or "check this for injection". Not for container and image hardening, use `docker-patterns`.
+description: 'Application security review: secrets, input validation, injection, authentication and sessions, authorization with row-level security, XSS and CSP, CSRF, rate-limit policy, data exposure, and dependency risk. Use when the user says "review this endpoint before it ships", "is this file upload safe", or "check this for injection". Not for container and image hardening, use `docker-patterns`.'
 ---
 
 # Security Review
@@ -19,6 +19,8 @@ lives in `docker-patterns`, and the `security-auditor` agent takes over for thre
 - Implementing payments, or storing and transmitting personal data.
 - Integrating a third-party API that holds or returns sensitive data.
 - Reviewing a change that touches any of the above, as the security pillar of `code-reviewer`.
+- The user says "add login to this app", "review this endpoint before it ships", "we are taking payments now", "is
+  this file upload safe", or "check this for injection".
 - Hardening cloud IAM, network rules, pipeline scanning, or a CDN, through
   [references/cloud-infrastructure-security.md](references/cloud-infrastructure-security.md).
 
@@ -78,7 +80,7 @@ Pass: parsed and rejected at the edge.
 
 ```typescript
 const CreateUserSchema = z.object({
-  email: z.string().email(),
+  email: z.email(),
   name: z.string().min(1).max(100),
   age: z.number().int().min(0).max(150),
 })
@@ -89,8 +91,9 @@ export async function createUser(input: unknown) {
 }
 ```
 
-File uploads need size, declared type, extension, and the binary signature, because the first three are all attacker
-controlled.
+File uploads need size, declared type, extension, and the binary signature, and no one of them is sufficient alone. The
+first three are attacker controlled, and OWASP's File Upload Cheat Sheet says of signature validation that it "should
+not be used on its own, as bypassing it is pretty common and easy".
 
 Fail: extension only.
 
@@ -99,18 +102,27 @@ def validate_upload(filename: str) -> bool:
     return filename.lower().endswith((".jpg", ".png"))
 ```
 
-Pass: the bytes decide.
+Pass: every check, none sufficient alone. The server or proxy caps the request body before it is read, so an oversized
+upload never reaches this function, and the signature is read from the first bytes only.
 
 ```python
 import magic
 
-def validate_upload(file_bytes: bytes, filename: str, allowed_types: list[str]) -> bool:
-    if len(file_bytes) > 5 * 1024 * 1024:
+ALLOWED_EXTENSIONS = (".jpg", ".jpeg", ".png", ".gif")
+SIGNATURE_BYTES = 2048
+
+
+def validate_upload(head: bytes, filename: str, declared_type: str, allowed_types: set[str]) -> bool:
+    if not filename.lower().endswith(ALLOWED_EXTENSIONS):
         return False
-    if not filename.lower().endswith((".jpg", ".jpeg", ".png", ".gif")):
+    if declared_type not in allowed_types:
         return False
-    return magic.from_buffer(file_bytes, mime=True) in allowed_types
+    return magic.from_buffer(head[:SIGNATURE_BYTES], mime=True) in allowed_types
 ```
+
+Store the file under a generated name outside the web root and serve it through a handler, so an attacker-chosen
+filename never reaches the filesystem or a URL. Re-encode images where the type allows it, which drops any payload
+hidden in the original.
 
 Error messages returned to the caller must not leak which field failed for a reason that reveals internal structure.
 
@@ -157,8 +169,9 @@ res.setHeader('Set-Cookie', `token=${token}; HttpOnly; Secure; SameSite=Strict; 
 ```
 
 Hash passwords with Argon2id as the primary choice (`argon2-cffi` in Python, `Argon2PasswordEncoder` in Spring). BCrypt
-with a cost factor of 12 or more is an acceptable fallback. MD5, SHA-1, unsalted SHA-256, and PBKDF2 under 100,000
-iterations are prohibited.
+with a cost factor of 12 or more is an acceptable fallback. PBKDF2 is allowed only where FIPS-140 requires it, at
+600,000 or more iterations of HMAC-SHA-256, the OWASP Password Storage Cheat Sheet floor. MD5, SHA-1 and unsalted
+SHA-256 are prohibited.
 
 ```python
 from argon2 import PasswordHasher
@@ -209,19 +222,29 @@ operation. It is defence in depth: a missing check in one handler no longer expo
 
 ```sql
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY users_select_own ON users
   FOR SELECT
-  USING (id = current_setting('app.current_user_id')::uuid);
+  USING (id = current_setting('app.current_user_id', true)::uuid);
 
 CREATE POLICY users_update_own ON users
   FOR UPDATE
-  USING (id = current_setting('app.current_user_id')::uuid);
+  USING (id = current_setting('app.current_user_id', true)::uuid);
 ```
 
-The session variable is set per connection from the authenticated identity. Managed platforms expose their own
-equivalent, such as an `auth.uid()` function, and the policy shape is the same either way. Row-level security is an
-addition to application authorization checks, never a replacement for them.
+Set the identity per transaction with `set_config('app.current_user_id', $1, true)` (the `SET LOCAL` form), never per
+connection, because a pooled connection serves the next user with whatever value it still holds. The second argument
+of `current_setting` makes a missing value read as null, so a request with no identity matches no row instead of
+raising. The application connects as a role that does not own the table and has no `BYPASSRLS`, because table owners
+skip the policy unless it is forced, and superusers and `BYPASSRLS` roles always skip it.
+
+```sql
+SELECT set_config('app.current_user_id', $1, true);
+```
+
+Managed platforms expose their own equivalent, such as an `auth.uid()` function, and the policy shape is the same
+either way. Row-level security is an addition to application authorization checks, never a replacement for them.
 
 ---
 
@@ -269,14 +292,14 @@ export async function POST(request: Request) {
 }
 ```
 
-Pass:
+Pass: the session is loaded first, so the token is checked against the session it was issued for.
 
 ```typescript
 export async function POST(request: Request) {
-  if (!csrf.verify(request.headers.get('X-CSRF-Token'))) {
+  const session = await getSession(request)
+  if (!csrf.verify(session.id, request.headers.get('X-CSRF-Token'))) {
     return NextResponse.json({ error: 'Invalid CSRF token' }, { status: 403 })
   }
-  const session = await getSession(request)
   return updateProfile(session.userId, await request.json())
 }
 ```
@@ -297,22 +320,18 @@ the client address where there is not, because an address-only limit punishes sh
 does nothing to anonymous abuse. Keep the counters in a store every instance shares once the service runs more than
 one process, because a per-process counter multiplies the limit by the instance count.
 
-This section owns that policy. The implementations follow it: Spring in `springboot-patterns` under
-`references/security.md`, and Node in `node-backend-patterns` under `references/rate-limiting.md`.
+Login needs a second counter keyed on the target account, because credential stuffing spreads its attempts across many
+addresses and stays under any per-address limit. OWASP's Authentication Cheat Sheet says the failed-login counter
+"should be associated with the account itself, rather than the source IP address". Back off on that counter, and
+alert when one address tries many accounts.
 
-Fail: the search and login endpoints share the global budget, and every counter is keyed on the client address.
+This section owns that policy. Values: see the tiers table in `api-design`, which holds every number. The
+implementations follow both: Spring in `springboot-patterns` under `references/security.md`, and Node in
+`node-backend-patterns` under `references/rate-limiting.md`.
 
-```text
-/api/**            100 requests per 15 minutes, keyed on client address
-```
+Fail: search and login share the global budget, and the only login counter is keyed on the client address.
 
-Pass: expensive and authentication endpoints get their own tighter budgets, keyed on the user when there is one.
-
-```text
-/api/**            100 requests per 15 minutes, keyed on user, or on client address when anonymous
-/api/search        10 requests per minute, keyed the same way
-/api/auth/login    5 requests per minute, keyed on client address, since no user is authenticated yet
-```
+Pass: search and login each get their own tier from `api-design`, and login also counts failures per target account.
 
 ---
 
@@ -330,7 +349,7 @@ return NextResponse.json({ error: error.message, stack: error.stack }, { status:
 Pass:
 
 ```typescript
-logger.info({ email, userId }, 'user login')
+logger.info({ userId }, 'user login')
 logger.error({ err: error }, 'internal error')
 return NextResponse.json({ error: 'An error occurred. Please try again.' }, { status: 500 })
 ```
@@ -419,16 +438,20 @@ Run before any production deployment.
 - [ ] No hardcoded secret in the working tree or the git history.
 - [ ] Every secret read from the environment, with a startup check.
 - [ ] Every input validated against a schema at the boundary.
-- [ ] File uploads checked on size, extension, declared type, and magic bytes.
+- [ ] File uploads checked on size, extension, declared type, and magic bytes, stored under a generated name outside
+  the web root.
 - [ ] Every query parameterised, in SQL and in every other interpreted target.
 - [ ] Tokens in `HttpOnly`, `Secure`, `SameSite` cookies.
-- [ ] Passwords hashed with Argon2id, or BCrypt at cost 12 or higher.
+- [ ] Passwords hashed with Argon2id, or BCrypt at cost 12 or higher, or PBKDF2-HMAC-SHA256 at 600,000 iterations
+  where FIPS-140 requires it.
 - [ ] Authorization checked server-side against the session identity, before the operation.
-- [ ] Row-level security enabled where the database supports it, as defence in depth.
+- [ ] Row-level security enabled and forced where the database supports it, identity set per transaction, as defence
+  in depth.
 - [ ] User HTML sanitised with an explicit allowlist.
 - [ ] CSP shipped with no `unsafe-inline` and no `unsafe-eval`.
-- [ ] CSRF defence on every cookie-authenticated state change.
-- [ ] Rate limits on every endpoint, tighter on expensive and auth endpoints.
+- [ ] CSRF defence on every cookie-authenticated state change, with the token bound to the session.
+- [ ] Rate limits on every endpoint at the `api-design` tiers, tighter on expensive and auth endpoints, with a
+  per-account failed-login counter.
 - [ ] No secret in a log, no stack trace in a response.
 - [ ] Dependency scan clean at high and critical, lock file committed, CI installs from it.
 - [ ] Rejection paths covered by tests, not only the happy path.

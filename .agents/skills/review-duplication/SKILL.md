@@ -1,6 +1,6 @@
 ---
 name: review-duplication
-description: Investigate a change for duplicated logic, reinvented utilities, and missed reuse of the project's existing helpers, patterns and installed libraries, then report what should have been reused and how. Use when you say "check this PR for duplication", "did we already have a function for this", "is this reinventing something", "why is there a second date formatter", or "review this for reuse before I approve it". Not for a full multi-pillar review pass, use `code-reviewer`.
+description: 'Investigates a change for duplicated logic, reinvented utilities and missed reuse of existing helpers and installed libraries, and leaves coincidental lookalikes alone. Use when the user says "check this PR for duplication", "did we already have a function for this", or "is this reinventing something". Not for a full multi-pillar review pass, use `code-reviewer`.'
 ---
 
 # Review Duplication
@@ -18,6 +18,7 @@ skill, live in the `coding-standards` hub.
 - The user asks whether something already exists in the project, or why two similar things now exist.
 - A reviewer's instinct says "we have this somewhere", and the location needs to be found before the review is
   finalised.
+- The user says "why is there a second date formatter" or "review this for reuse before I approve it".
 
 ---
 
@@ -109,6 +110,24 @@ it.
 When the change introduces a genuinely new pattern, say so explicitly and compare it against the documented standard,
 rather than letting a second way of doing the same thing land silently.
 
+Before recommending a merge, confirm the two copies encode the same rule and change for the same reason. Coincidental
+similarity across features is not a finding. A checkout formatter and a reporting formatter that match today but answer
+to different owners stay separate, because a shared helper between them grows a flag for every caller. The DRY rule
+behind this, including when to extract, is in `coding-standards`.
+
+Fail: two lookalikes merged on shape alone.
+
+```text
+formatCheckoutTotal and formatReportTotal have the same body. Merge them into formatTotal.
+```
+
+Pass: the shared reason is shown before the merge is proposed.
+
+```text
+formatCheckoutTotal and formatInvoiceTotal both render the amount a customer is charged, and the last two changes touched
+both. Merge them into formatChargedAmount.
+```
+
 ---
 
 ### Step 5: report what should have been reused
@@ -157,5 +176,6 @@ consistency, maintenance, or edge cases the existing code already handles.
 - [ ] The manifest was checked for an installed library that already solves the problem.
 - [ ] Open-ended searching was delegated to `code-archaeologist`, a read-only search subagent, or a general subagent.
 - [ ] Convention bypasses were checked, not only copied code.
+- [ ] Every proposed merge shows the two copies encode the same rule and change for the same reason.
 - [ ] Every finding names the reusable symbol, its path, and how to call it.
 - [ ] Findings were folded back into the `code-reviewer` report.
