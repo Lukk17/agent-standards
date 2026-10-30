@@ -11,6 +11,12 @@ Enforces a subset of the `markdown-writer` skill rules:
   into a sibling skill, or out of the skills tree, can be dead downstream.
   Another skill is named in backticks instead.
 
+- A skill manifest, `.agents/skills/<name>/SKILL.md`, stays at or under
+  8,000 characters, front matter included, which is about 2,000 tokens. The
+  manifest loads in full whenever the skill activates, and a subagent preloads
+  it on every run, while a file under `references/` loads only on demand, so
+  depth past the limit moves there.
+
 - No dated or "current version" baseline in an agent-facing file: a skill
   file under `.agents/skills/`, a `subagents/<name>.md` source, or a file in a
   generated agent tree. "Current as of", "as of <Month> <Year>", "as of
@@ -113,6 +119,7 @@ SKILLS_DIRECTORY = "skills"
 SUBAGENTS_DIRECTORY = "subagents"
 SKILL_ALLOWED_KEYS = ("name", "description", "license", "compatibility", "metadata")
 MAX_DESCRIPTION = 1024
+MAX_SKILL_MANIFEST_CHARACTERS = 8000
 YAML_INDICATORS = "*&!%@`[{>|\"'"
 QUOTES = "\"'"
 KEY_LINE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
@@ -562,6 +569,30 @@ def check_front_matter(lines: list[str], path: Path) -> int:
     return failures
 
 
+def check_skill_manifest_size(text: str, path: Path) -> int:
+    """Report a skill manifest over the size limit. Returns the violation count.
+
+    The size is the character count of the whole file, front matter included,
+    because the agent loads all of it. Every other path returns 0.
+    """
+    target = front_matter_target(path)
+
+    if target is None or target[0] != "skill":
+        return 0
+
+    size = len(text)
+
+    if size <= MAX_SKILL_MANIFEST_CHARACTERS:
+        return 0
+
+    return _violation(
+        path,
+        1,
+        f"skill manifest is {size} characters, over the {MAX_SKILL_MANIFEST_CHARACTERS} character limit; "
+        "keep the rules, checklist and routing table here and move the depth into references/",
+    )
+
+
 def check_file(path: Path) -> int:
     """Read one file, lint it and validate its front matter. Returns the violation count.
 
@@ -582,7 +613,13 @@ def check_file(path: Path) -> int:
     if generated_agent_file(path):
         return check_dated_baselines(lines, path) + pins
 
-    return check_lines(lines, path) + check_front_matter(lines, path) + check_dated_baselines(lines, path) + pins
+    return (
+        check_lines(lines, path)
+        + check_front_matter(lines, path)
+        + check_skill_manifest_size(text, path)
+        + check_dated_baselines(lines, path)
+        + pins
+    )
 
 
 def default_targets(repo_root: Path) -> list[Path]:

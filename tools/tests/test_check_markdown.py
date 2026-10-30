@@ -377,6 +377,55 @@ description: {"d" * MARKDOWN.MAX_DESCRIPTION}
     assert capsys.readouterr().out == ""
 
 
+def _pad_to(path, size):
+    text = path.read_text(encoding="utf-8")
+    path.write_text(text + "x" * (size - len(text) - 1) + "\n", encoding="utf-8")
+
+
+def test_skill_manifest_over_the_size_limit_is_reported(tmp_path, capsys):
+    # Given a clean skill manifest one character past the limit, front matter included
+    path = _write_skill(tmp_path, CLEAN_SKILL_FRONT_MATTER)
+    _pad_to(path, MARKDOWN.MAX_SKILL_MANIFEST_CHARACTERS + 1)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the message names the size, the limit and where the depth goes
+    out = capsys.readouterr().out
+    assert failures == 1
+    assert "skill manifest is 8001 characters, over the 8000 character limit" in out
+    assert "references/" in out
+
+
+def test_skill_manifest_exactly_at_the_size_limit_passes(tmp_path, capsys):
+    # Given a clean skill manifest of exactly the limit
+    path = _write_skill(tmp_path, CLEAN_SKILL_FRONT_MATTER)
+    _pad_to(path, MARKDOWN.MAX_SKILL_MANIFEST_CHARACTERS)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the limit is inclusive
+    assert failures == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_reference_file_over_the_size_limit_is_not_reported(tmp_path, capsys):
+    # Given a reference file past the manifest limit, which loads only on demand
+    directory = tmp_path / ".agents" / "skills" / "demo-skill" / "references"
+    directory.mkdir(parents=True)
+    path = directory / "depth.md"
+    path.write_text(BODY, encoding="utf-8")
+    _pad_to(path, MARKDOWN.MAX_SKILL_MANIFEST_CHARACTERS * 2)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 0
+    assert capsys.readouterr().out == ""
+
+
 def test_skill_key_outside_the_specification_is_reported(tmp_path, capsys):
     # Given a manifest carrying a key the Agent Skills specification does not define
     front_matter = """---
