@@ -1,6 +1,6 @@
 ---
 name: angular-expert
-description: "Use when building or reviewing Angular code. Applies Angular 22 defaults (standalone components, signals, signal inputs, zoneless and OnPush change detection, control flow, `inject()`) and RxJS discipline. Implementer, not architect: defers cross-service design to `backend-architect` and design-system work to `design-system-architect`."
+description: 'Use when the user says "build this Angular component", "migrate this to signals" or "review this Angular code". Applies Angular 22 defaults, standalone components, signals and signal inputs, zoneless change detection, control flow and inject(), with RxJS discipline, as an implementer. Not for design tokens and the shared component library, use `design-system-architect`.'
 tools: [read, write, edit, grep, glob, bash]
 skills:
   - angular
@@ -64,7 +64,7 @@ When reviewing Angular code, raise:
 
 ### Skills to load on demand
 
-Load when the change touches that stack, reading `.agents/skills/<name>/SKILL.md`: `design-system` for tokens and shared components, `web-accessibility` for per-component accessibility, `api-design` for an HTTP layer, `security-review` for auth, interceptors or user HTML, `e2e-testing` for a browser journey, `performance-optimization` for a measured slowdown, `observability-and-logging` for client logging or tracing, `build-dependency-management` for a dependency bump, `architecture-decision-records` for a design decision, `git-workflow` when committing.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `design-system` for tokens and shared components, `web-accessibility` for per-component accessibility, `api-design` for an HTTP layer, `security-review` for auth, interceptors or user HTML, `e2e-testing` for a browser journey, `performance-optimization` for a measured slowdown, `observability-and-logging` for client logging or tracing, `build-dependency-management` for a dependency bump, `architecture-decision-records` for a design decision, `git-workflow` when committing.
 
 ### Done when
 

@@ -4453,3 +4453,143 @@ def test_a_path_that_resolves_to_a_loopback_share_is_mapped_after_resolving(monk
 
     # When/Then
     assert GATE._resolves_inside_repo(str(link / "x.py"))
+
+
+# Rule E: a read-only subagent. The definitions are rendered by the generator
+# itself, so a change to its read-only section that the gate cannot read fails
+# here rather than in a live session.
+
+READ_ONLY_REVIEWER = {
+    "name": "fixture-reviewer",
+    "description": "Use when the user says review this diff.",
+    "tools": ["read", "grep", "glob", "bash"],
+    "readonly": True,
+    "readonly-commands": ["gh pr diff*", "gh pr view*"],
+    "skills": ["code-reviewer"],
+}
+
+READ_ONLY_TARGETS = [
+    ("claude", ".claude/agents", ".md"),
+    ("agents", ".agents/agents", ".md"),
+    ("codex", ".codex/agents", ".toml"),
+    ("copilot", ".github/agents", ".agent.md"),
+]
+
+
+def read_only_project(tmp_path, target="claude", directory=".claude/agents", extension=".md"):
+    """A throwaway project holding the read-only fixture as the generator renders it for one target."""
+    import gen_subagents
+
+    agents = tmp_path.joinpath(*directory.split("/"))
+    agents.mkdir(parents=True, exist_ok=True)
+    rendered = gen_subagents.render(target, READ_ONLY_REVIEWER, "You review.\n")
+    (agents / f"{READ_ONLY_REVIEWER['name']}{extension}").write_text(rendered, encoding="utf-8")
+
+    return tmp_path
+
+
+def read_only_decision(root, payload):
+    payload = {**payload, "agent_id": "sub-1", "agent_type": READ_ONLY_REVIEWER["name"]}
+    code, out, err = run(payload, "claude", cwd=root)
+
+    assert (code, err) == (0, "")
+
+    return json.loads(out)["hookSpecificOutput"] if out else None
+
+
+@pytest.mark.parametrize(("target", "directory", "extension"), READ_ONLY_TARGETS)
+def test_read_only_subagent_may_run_a_listed_git_command_in_every_format(tmp_path, target, directory, extension):
+    root = read_only_project(tmp_path, target, directory, extension)
+
+    assert read_only_decision(root, shell("git diff HEAD~1")) is None
+
+
+@pytest.mark.parametrize(("target", "directory", "extension"), READ_ONLY_TARGETS)
+def test_read_only_subagent_may_not_write_with_the_shell_in_every_format(tmp_path, target, directory, extension):
+    root = read_only_project(tmp_path, target, directory, extension)
+
+    verdict = read_only_decision(root, shell("touch made.txt"))
+
+    assert verdict["permissionDecision"] == "deny"
+    assert "read-only" in verdict["permissionDecisionReason"]
+    assert "touch made.txt" in verdict["permissionDecisionReason"]
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git log --oneline",
+        "git show HEAD",
+        "git status --short",
+        "git diff 2>/dev/null",
+        "gh pr diff 12",
+        "gh pr view 12 --comments",
+    ],
+)
+def test_read_only_subagent_may_run_every_listed_command(tmp_path, command):
+    assert read_only_decision(read_only_project(tmp_path), shell(command)) is None
+
+
+@pytest.mark.parametrize(
+    ("command", "blocked"),
+    [
+        ("git diff; rm notes.txt", "rm notes.txt"),
+        ("git diff && git commit -m x", "git commit -m x"),
+        ("git diff $(rm -rf src)", "rm -rf src"),
+        ("git log | head -5", "head -5"),
+        ("git diff > out.patch", "redirect to out.patch"),
+        ("git diff --output=out.patch", "git diff --output=out.patch"),
+        ("git difftool", "git difftool"),
+        ("gh pr merge 12", "gh pr merge 12"),
+        ("GIT_EXTERNAL_DIFF=x git diff", "GIT_EXTERNAL_DIFF=x git diff"),
+        ("cd sub && git log", "cd sub"),
+    ],
+)
+def test_read_only_subagent_may_not_run_anything_outside_its_list(tmp_path, command, blocked):
+    verdict = read_only_decision(read_only_project(tmp_path), shell(command))
+
+    assert verdict["permissionDecision"] == "deny"
+    assert verdict["permissionDecisionReason"].endswith(f"Blocked: {blocked}")
+
+
+@pytest.mark.parametrize("tool", ["Edit", "Write", "apply_patch"])
+def test_read_only_subagent_may_not_edit(tmp_path, tool):
+    payload = {"tool_name": tool, "tool_input": {"file_path": "src/app.py"}}
+
+    verdict = read_only_decision(read_only_project(tmp_path), payload)
+
+    assert verdict["permissionDecision"] == "deny"
+
+
+def test_read_only_subagent_keeps_its_read_tools(tmp_path):
+    payload = {"tool_name": "Read", "tool_input": {"file_path": "src/app.py"}}
+
+    assert read_only_decision(read_only_project(tmp_path), payload) is None
+
+
+def test_a_writing_subagent_is_not_held_to_a_read_only_list(tmp_path):
+    root = project_with_agent(tmp_path, "python-pro", WITH_SKILLS)
+    payload = {**shell("touch made.txt"), "agent_id": "sub-1", "agent_type": "python-pro"}
+
+    assert run(payload, "claude", cwd=root) == (0, "", "")
+
+
+def test_the_main_thread_is_not_held_to_a_read_only_list():
+    assert decision(shell("git log | head -5")) == "allow"
+
+
+def test_the_gate_and_the_generator_share_the_read_only_heading():
+    import gen_subagents
+
+    assert GATE.READ_ONLY_HEADING == gen_subagents.READ_ONLY_HEADING
+
+
+@pytest.mark.parametrize(
+    ("agent", "extras"),
+    [("code-reviewer", ["gh pr diff*", "gh pr view*"]), ("code-archaeologist", [])],
+)
+def test_the_shipped_read_only_agents_carry_their_list_in_every_tree(agent, extras):
+    for directory, extension in [(".claude/agents", ".md"), (".agents/agents", ".md"), (".codex/agents", ".toml")]:
+        text = (REPO_ROOT / directory / f"{agent}{extension}").read_text(encoding="utf-8")
+
+        assert GATE._read_only_patterns(text) == ["git diff*", "git log*", "git show*", "git status*", *extras]

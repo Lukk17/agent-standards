@@ -1,6 +1,6 @@
 ---
 name: ml-engineer
-description: "Use when writing or reviewing PyTorch training and inference code: model and dataset modules, the training loop, checkpointing, the evaluation harness, mixed precision and device placement, and packaging a trained model for serving. Implementer, not researcher: it builds and hardens the pipeline rather than proposing the architecture."
+description: 'Use when the user says "write the training loop", "add checkpointing", "review this PyTorch model" or "package the model for serving". Builds and hardens PyTorch pipelines, model and dataset modules, the training loop, checkpointing, the evaluation harness, mixed precision, device placement and serving, rather than proposing the architecture. Not for general Python services, use `python-pro`.'
 tools: [read, write, edit, grep, glob, bash]
 skills:
   - pytorch-patterns
@@ -73,7 +73,7 @@ a metric implemented twice, `model.train()` left on during validation, a checkpo
 
 ### Skills to load on demand
 
-Load when the change touches that stack, reading `.agents/skills/<name>/SKILL.md`: `docker-patterns` for the serving container, `performance-optimization` for profiling the input pipeline or the step, `observability-and-logging` for run logging and serving metrics, `git-workflow` when committing.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `docker-patterns` for the serving container, `performance-optimization` for profiling the input pipeline or the step, `observability-and-logging` for run logging and serving metrics, `git-workflow` when committing.
 
 ### Done when
 

@@ -1,5 +1,5 @@
 ---
-description: "Use when drafting privacy policies, terms of service, cookie policies, data-processing agreements, or other compliance documentation. Produces drafts for a qualified attorney to review, never legal advice. Tuned for EU and UK GDPR, CCPA / CPRA, Brazil's LGPD, Polish UODO rules, COPPA, CAN-SPAM and CASL, and any jurisdiction outside those needs explicit confirmation first."
+description: "Use when the user says \"draft our privacy policy\", \"write the terms of service\", \"we need a cookie policy\" or \"draft a DPA\". Drafts compliance documents for a qualified attorney to review, never legal advice, tuned for EU and UK GDPR, CCPA and CPRA, LGPD, Polish UODO rules, COPPA, CAN-SPAM and CASL. Not for a technical compliance gap analysis, use `security-auditor`."
 mode: subagent
 permission:
   bash: deny
@@ -118,6 +118,6 @@ document commits them to.
 
 ### Preloaded skills
 
-Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns, and this prompt only defines persona and scope.
+Load and follow these skills before acting. Load a skill by name, or read `<name>/SKILL.md` from the skills folder this agent was installed with: `.agents/skills/` in a project, the global skills folder otherwise. A skill this prompt names to load on demand is found the same way. The skills contain the reusable procedure and patterns, and this prompt only defines persona and scope.
 
 - `markdown-writer`

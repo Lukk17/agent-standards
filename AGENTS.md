@@ -22,6 +22,8 @@ The gate is enforcing, not advisory. One shared rule in
   [docs/agent-compatibility.md](docs/agent-compatibility.md) under "Hook enforcement".
 - It denies any tool call from a subagent whose own definition declares no skills. An unknown or unreadable
   `agent_type` allows rather than denies.
+- It holds a subagent whose definition is marked read-only to the commands listed under its "Read-only shell" heading,
+  and denies it any edit. The per-format detail is under "Adding a new subagent" in [CONTRIBUTING.md](CONTRIBUTING.md).
 - It denies the main thread a web fetch or web search tool on Claude Code, the one format whose tool names are
   confirmed. Codex has no confirmed tool name for this yet. The main thread spawns a subagent to do the research.
 - It denies the main thread running a script or a module, because the gate cannot see what a script writes, unless

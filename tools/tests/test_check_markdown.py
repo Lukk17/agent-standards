@@ -744,6 +744,13 @@ DATED_BASELINE_HITS = [
     "Python 3.13 or newer, with 3.14 the current release.",
     "JDK 25 is the current LTS.",
     "Go 1.25, the current stable toolchain.",
+    "Last verified: October 2026.",
+    "Verified: 2026-10-23 on the build host.",
+    "The default changed as of Q3 2026.",
+    "Supported as of mid-2026.",
+    "This is the recommended flag as of today.",
+    "The latest stable release is 3.14.",
+    "The current Python release is 3.14.",
 ]
 
 DATED_BASELINE_NON_HITS = [
@@ -757,6 +764,9 @@ DATED_BASELINE_NON_HITS = [
     "Tested in staging before release.",
     "Released in 2024 and still supported.",
     "Timeout as of 200 ms is too short.",
+    "v2 is the current version of the API.",
+    "The latest release notes list every change.",
+    "Checked: the flag is on.",
 ]
 
 
@@ -876,3 +886,81 @@ def test_no_subagent_source_or_generated_agent_states_a_dated_baseline(capsys):
 
     # Then
     assert failures == 0, capsys.readouterr().out
+
+
+REAL_SHA = "0123456789abcdef0123456789abcdef01234567"
+REAL_DIGEST = "sha256:" + "ab" * 32
+
+HASH_PIN_HITS = [
+    f"      - uses: actions/checkout@{REAL_SHA} # v5",
+    f"  uses: codecov/codecov-action@{REAL_SHA}",
+    f"- uses: 'docker/login-action@{REAL_SHA}'",
+    f"    image: postgres:18-alpine@{REAL_DIGEST}",
+    f"FROM node:26-alpine@{REAL_DIGEST} AS build",
+    f"cosign verify myregistry/app@{REAL_DIGEST}",
+]
+
+HASH_PIN_NON_HITS = [
+    "      - uses: actions/checkout@<commit-sha> # v5",
+    "    image: postgres:18-alpine@sha256:<digest>",
+    "FROM node:26-alpine AS build",
+    f"Commit {REAL_SHA} fixed the race.",
+    "      - uses: actions/checkout@v5",
+    "The image digest is printed by `docker buildx imagetools inspect <image>:<tag>`.",
+    f"      - uses: actions/checkout@{REAL_SHA}0 # not a 40-character SHA",
+]
+
+
+def _write_fenced_skill_reference(tmp_path, line):
+    return _write_skill_reference(tmp_path, f"Example:\n\n```yaml\n{line}\n```")
+
+
+@pytest.mark.parametrize("line", HASH_PIN_HITS)
+def test_a_real_hash_pin_in_a_skill_is_reported_even_inside_a_fence(tmp_path, capsys, line):
+    # Given a skill reference whose example shows a real commit SHA or digest
+    path = _write_fenced_skill_reference(tmp_path, line)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the pin is reported once, with the placeholder form to use instead
+    assert failures == 1
+    assert "real hash pin" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("line", HASH_PIN_NON_HITS)
+def test_a_placeholder_pin_or_a_prose_sha_is_not_a_hash_pin(tmp_path, capsys, line):
+    # Given a skill reference with a placeholder pin or a commit named in prose
+    path = _write_fenced_skill_reference(tmp_path, line)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 0, capsys.readouterr().out
+
+
+def test_a_real_hash_pin_outside_agent_files_is_not_reported(tmp_path, capsys):
+    # Given a human-facing document under docs/, outside the skill and subagent scope
+    path = tmp_path / "docs" / "CI.md"
+    path.parent.mkdir(parents=True)
+    path.write_text(f"# CI\n\n```yaml\n      - uses: actions/checkout@{REAL_SHA} # v5\n```\n", encoding="utf-8")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the repository's own pinned workflows can be documented as they are
+    assert failures == 0, capsys.readouterr().out
+
+
+def test_a_real_digest_in_a_subagent_source_is_reported(tmp_path, capsys):
+    # Given a clean subagent source whose body shows a real image digest
+    path = _write_subagent(tmp_path, CLEAN_SUBAGENT_FRONT_MATTER)
+    path.write_text(path.read_text(encoding="utf-8") + f"\nRun `app@{REAL_DIGEST}`.\n", encoding="utf-8")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 1
+    assert "real hash pin" in capsys.readouterr().out

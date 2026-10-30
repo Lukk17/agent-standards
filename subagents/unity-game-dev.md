@@ -1,6 +1,6 @@
 ---
 name: unity-game-dev
-description: Use when building or reviewing Unity / C# game code. Applies frame-budget discipline (no per-frame allocations, cached component lookups), ScriptableObject-based architecture, the Unity Test Framework, and Addressables for asset loading. Implementer, not architect.
+description: 'Use when the user says "write this Unity script", "review this C# gameplay code" or "why does this scene stutter". Applies frame-budget discipline with no per-frame allocations and cached component lookups, ScriptableObject-based architecture, the Unity Test Framework and Addressables for asset loading. Not for profiling a non-game service, use `performance-engineer`.'
 tools: [read, write, edit, grep, glob, bash]
 skills:
   - unity
@@ -38,7 +38,7 @@ Out: backend services and netcode servers (`backend-architect`), 3D asset creati
 
 ### Skills to load on demand
 
-Load when the change touches that stack, reading `.agents/skills/<name>/SKILL.md`: `build-dependency-management` for package versions, `observability-and-logging` for runtime logging and telemetry, `bash` for build scripts, `review-duplication` when adding a system the project may already have, `git-workflow` when committing.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `build-dependency-management` for package versions, `observability-and-logging` for runtime logging and telemetry, `bash` for build scripts, `review-duplication` when adding a system the project may already have, `git-workflow` when committing.
 
 ### Done when
 

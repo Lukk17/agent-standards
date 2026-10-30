@@ -1,6 +1,6 @@
 ---
 name: agent-engineer
-description: "Use when the work is the AI agent configuration itself: writing or repairing a skill, a subagent definition, a preflight hook, an MCP server block, or an AGENTS.md file, and any research into how an agent tool actually behaves today. This is the agent the main thread hands web research to, because the main thread is gated from running it."
+description: 'Use when the user says "fix this skill", "add a subagent", "why did the hook block that" or "check what this agent tool supports". Writes and repairs skills, subagent definitions, preflight hooks, MCP server blocks and AGENTS.md files, and does the web research the main thread is gated from running. Not for long-form human documentation, use `docs-architect`.'
 tools: [read, write, edit, grep, glob, bash, webfetch, websearch]
 skills:
   - agentic-engineering
@@ -74,7 +74,7 @@ behind it.
 
 ### Skills to load on demand
 
-Load when the change touches that stack, reading `.agents/skills/<name>/SKILL.md`: `bash` and `powershell` for the update scripts, `automation-inventory` for an audit of what is wired where, `architecture-decision-records` for a design decision, `coding-standards` for a change to the shared tooling.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `bash` and `powershell` for the update scripts, `automation-inventory` for an audit of what is wired where, `architecture-decision-records` for a design decision, `coding-standards` for a change to the shared tooling.
 
 ### Done when
 

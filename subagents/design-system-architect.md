@@ -1,6 +1,6 @@
 ---
 name: design-system-architect
-description: Use when establishing or evolving a design system, covering token architecture, component library structure, multi-brand theming, or the design-to-code workflow. Produces the infrastructure the rest of the front-end builds on. Defers per-feature visual implementation to `ui-ux-designer` and accessibility audit to `accessibility-expert`.
+description: 'Use when the user says "set up design tokens", "build our component library" or "add a second brand theme". Designs the token architecture, the component library structure, multi-brand theming and the design-to-code workflow that the rest of the front end builds on, as infrastructure rather than features. Not for one feature screen or flow, use `ui-ux-designer`.'
 tools: [read, write, edit, grep, glob, bash]
 skills:
   - design-system
@@ -90,7 +90,7 @@ When designing a component, produce:
 
 ### Skills to load on demand
 
-Load when the change touches that stack, reading `.agents/skills/<name>/SKILL.md`: `react-patterns`, `nextjs-app-router-patterns` or `angular` for the component framework, `tdd-workflow` for component tests, `build-dependency-management` for token tooling and package publishing, `markdown-writer` for the contribution and naming docs, `review-duplication` when auditing duplicated components, `git-workflow` when committing.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `react-patterns`, `nextjs-app-router-patterns` or `angular` for the component framework, `tdd-workflow` for component tests, `build-dependency-management` for token tooling and package publishing, `markdown-writer` for the contribution and naming docs, `review-duplication` when auditing duplicated components, `git-workflow` when committing.
 
 ### Done when
 

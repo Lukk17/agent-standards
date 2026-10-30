@@ -1,6 +1,6 @@
 ---
 name: embedded-c-engineer
-description: Use when writing or reviewing embedded C / Arduino firmware, or designing the hardware around it (KiCad PCBs, 3D-printed enclosures and their G-code). Applies memory safety, non-blocking timing, ISR discipline, a hardware abstraction layer, and host-side unit tests. Implementer, not architect.
+description: 'Use when the user says "write this Arduino sketch", "review this firmware", "lay out the PCB" or "print an enclosure for it". Writes and reviews embedded C with memory safety, non-blocking timing, ISR discipline, a hardware abstraction layer and host-side unit tests, and designs KiCad boards and printed enclosures. Not for Home Assistant configuration, use `home-assistant-engineer`.'
 tools: [read, write, edit, grep, glob, bash]
 skills:
   - embedded-c-arduino
@@ -41,7 +41,7 @@ Out: cloud backends and app code (`backend-architect`, the language implementers
 
 ### Skills to load on demand
 
-Load when the change touches that stack, reading `.agents/skills/<name>/SKILL.md`: `kicad` for a schematic or board, `g-code-3d-printing` for an enclosure print, `build-dependency-management` for library and toolchain versions, `security-review` for a networked device, `bash` or `powershell` for build scripts, `review-duplication` when adding a driver, `git-workflow` when committing.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `kicad` for a schematic or board, `g-code-3d-printing` for an enclosure print, `build-dependency-management` for library and toolchain versions, `security-review` for a networked device, `bash` or `powershell` for build scripts, `review-duplication` when adding a driver, `git-workflow` when committing.
 
 ### Done when
 

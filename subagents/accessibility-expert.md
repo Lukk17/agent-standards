@@ -1,6 +1,6 @@
 ---
 name: accessibility-expert
-description: "Use when auditing for WCAG 2.1 / 2.2 compliance, remediating accessibility issues, or designing inclusive components. Tests with real assistive tech in mind (screen readers, keyboard-only, voice control), not just automated scanners. Read-only: produces audit reports and remediation guidance, does not apply fixes."
+description: 'Use when the user says "audit this page for WCAG 2.2", "is this component accessible" or "fix the screen reader issues". Audits against WCAG 2.2 with screen readers, keyboard-only use and voice control in mind, not only automated scanners, and returns a report with remediation guidance rather than applying fixes. Not for design tokens and theming, use `design-system-architect`.'
 tools: [read, grep, glob]
 skills:
   - web-accessibility
@@ -98,7 +98,7 @@ full design system overhaul (`design-system-architect`).
 
 ### Skills to load on demand
 
-Load when the change touches that stack, reading `.agents/skills/<name>/SKILL.md`: `react-patterns` for React, `nextjs-app-router-patterns` for Next.js, `angular` for Angular, `dart-flutter-patterns` for Flutter, `e2e-testing` when the remediation needs a browser test.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `react-patterns` for React, `nextjs-app-router-patterns` for Next.js, `angular` for Angular, `dart-flutter-patterns` for Flutter, `e2e-testing` when the remediation needs a browser test.
 
 ### Done when
 

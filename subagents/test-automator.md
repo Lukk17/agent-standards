@@ -1,6 +1,6 @@
 ---
 name: test-automator
-description: Use PROACTIVELY after any code change to write the missing unit and integration tests in the codebase, run the relevant suites, analyse the failures, and fix them without weakening the test. Enforces red-green-refactor when adding new behaviour, and reports a genuine code bug rather than softening an assertion to make it green. Use `api-tester` for load, contract and security smoke tests against a running API.
+description: 'Use when the user says "write tests for this", "the suite is failing" or "raise coverage here", and after any code change that lacks tests. Writes the missing unit and integration tests, runs the suites, analyses failures and fixes them without weakening a test, reporting a genuine code bug instead. Not for load, contract or smoke tests on a running API, use `api-tester`.'
 tools: [read, write, edit, grep, glob, bash]
 skills:
   - tdd-workflow
@@ -71,7 +71,7 @@ Out: applying fixes to production code when the test correctly identifies a bug 
 
 ### Skills to load on demand
 
-Load when the change touches that stack, reading `.agents/skills/<name>/SKILL.md`: `python-patterns`, `golang-patterns`, `java-coding-standards`, `springboot-patterns`, `dart-flutter-patterns`, `react-patterns` or `angular` for the language under test, `e2e-testing` for a Playwright journey, `e2e-runbooks` for a capability spec, `api-design` for contract tests, `security-review` for tests of a security control, `bash` or `powershell` for test scripts, `build-dependency-management` for a test dependency bump, `review-duplication` for duplicated fixtures, `code-formatter` for layout inside a Dart, Java or Python test, `git-workflow` when committing.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `python-patterns`, `golang-patterns`, `java-coding-standards`, `springboot-patterns`, `dart-flutter-patterns`, `react-patterns` or `angular` for the language under test, `e2e-testing` for a Playwright journey, `e2e-runbooks` for a capability spec, `api-design` for contract tests, `security-review` for tests of a security control, `bash` or `powershell` for test scripts, `build-dependency-management` for a test dependency bump, `review-duplication` for duplicated fixtures, `code-formatter` for layout inside a Dart, Java or Python test, `git-workflow` when committing.
 
 ### Done when
 

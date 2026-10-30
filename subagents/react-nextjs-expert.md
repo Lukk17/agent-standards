@@ -1,6 +1,6 @@
 ---
 name: react-nextjs-expert
-description: "Use when building or reviewing React 19 / Next.js 16 code with the App Router. Applies Server Components by default, Client Components only where interactivity demands them, Server Actions for mutations, and Suspense for streaming. Implementer, not architect: defers cross-service design and design-system work to the specialised agents."
+description: 'Use when the user says "build this Next.js page", "review this React component" or "move this to a Server Action". Applies React 19 and Next.js 16 App Router defaults, Server Components first, Client Components only where interactivity needs them, Server Actions for mutations and Suspense for streaming. Not for design tokens and shared components, use `design-system-architect`.'
 tools: [read, write, edit, grep, glob, bash]
 skills:
   - nextjs-app-router-patterns
@@ -70,7 +70,7 @@ When reviewing Next.js code, raise:
 
 ### Skills to load on demand
 
-Load when the change touches that stack, reading `.agents/skills/<name>/SKILL.md`: `node-backend-patterns` for anything on the Node side of a route handler or Server Action, `design-system` for tokens and shared components, `api-design` for a route handler contract, `seo` for metadata and structured data, `e2e-testing` for a Playwright journey, `web-accessibility` for per-component accessibility, `security-review` for auth, Server Actions or user HTML, `database-migrations` for a schema change, `performance-optimization` for Core Web Vitals, `build-dependency-management` for a dependency bump, `review-duplication` when adding a component the project may already have, `git-workflow` when committing.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `node-backend-patterns` for anything on the Node side of a route handler or Server Action, `design-system` for tokens and shared components, `api-design` for a route handler contract, `seo` for metadata and structured data, `e2e-testing` for a Playwright journey, `web-accessibility` for per-component accessibility, `security-review` for auth, Server Actions or user HTML, `database-migrations` for a schema change, `performance-optimization` for Core Web Vitals, `build-dependency-management` for a dependency bump, `review-duplication` when adding a component the project may already have, `git-workflow` when committing.
 
 ### Done when
 

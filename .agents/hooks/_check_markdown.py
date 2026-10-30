@@ -139,16 +139,32 @@ _DATE = (
 )
 _RELEASE_NOUN = r"(?:(?:stable|lts|latest|supported)\s+)*(?:release|version|toolchain|lts)\b"
 _CAPITALISED_NAME = r"(?-i:[A-Z])[\w.+#-]*"
+_PERIOD = rf"(?:{_DATE}|{_YEAR}|q[1-4]\s+{_YEAR}|(?:early|mid|late)[\s-]+{_YEAR}|today\b)"
+_NOW = r"(?:current|latest)"
+# "v2 is the current version of the API" names the project's own API version, not a release of a tool.
+_NOT_OWN_VERSION = r"(?!\s+of\s+(?:the|this|our|its|your)\b)"
 DATED_BASELINES = (
     re.compile(r"\bcurrent\s+as\s+of\b", re.IGNORECASE),
-    re.compile(rf"\bas\s+of\s+(?:{_DATE}|{_YEAR})", re.IGNORECASE),
-    re.compile(rf"\b(?:verified|checked|tested|confirmed)\s+(?:on\s+|in\s+)?{_DATE}", re.IGNORECASE),
+    re.compile(rf"\bas\s+of\s+{_PERIOD}", re.IGNORECASE),
+    re.compile(rf"\b(?:verified|checked|tested|confirmed)\s*:?\s+(?:on\s+|in\s+)?{_DATE}", re.IGNORECASE),
     re.compile(
-        rf"\bthe\s+current\s+{_RELEASE_NOUN}(?:\s+of\s+{_CAPITALISED_NAME}(?:\s+{_CAPITALISED_NAME})?)?"
+        rf"\bthe\s+{_NOW}\s+(?:{_CAPITALISED_NAME}\s+)?{_RELEASE_NOUN}"
+        rf"(?:\s+of\s+{_CAPITALISED_NAME}(?:\s+{_CAPITALISED_NAME})?)?"
         rf"\s+is\s+(?:v?\d|{_CAPITALISED_NAME}(?:\s+{_CAPITALISED_NAME})?\s+v?\d)",
         re.IGNORECASE,
     ),
-    re.compile(rf"\bv?\d+(?:\.\d+)*,?\s+(?:is\s+|as\s+)?the\s+current\s+{_RELEASE_NOUN}", re.IGNORECASE),
+    re.compile(
+        rf"\bv?\d+(?:\.\d+)*,?\s+(?:is\s+|as\s+)?the\s+{_NOW}\s+{_RELEASE_NOUN}{_NOT_OWN_VERSION}", re.IGNORECASE
+    ),
+)
+
+
+# A skill tells a project to pin every action to a commit SHA and every image to
+# a digest, but shows the pin as a placeholder such as `<commit-sha>` or
+# `<digest>`: a real value in a skill is stale the day the upstream re-tags.
+HASH_PINS = (
+    re.compile(r"\buses:\s*['\"]?[^\s'\"#]+@[0-9a-fA-F]{40}(?![0-9a-zA-Z])"),
+    re.compile(r"\bsha256:[0-9a-fA-F]{64}(?![0-9a-zA-Z])"),
 )
 
 
@@ -316,6 +332,33 @@ def dated_baseline_scope(path: Path) -> bool:
     return skill_folder(path) is not None or front_matter_target(path) is not None or generated_agent_file(path)
 
 
+def check_hash_pins(lines: list[str], path: Path) -> int:
+    """Report every real commit SHA in a `uses:` line and every real sha256 digest. Returns the count.
+
+    Code fences are checked too, because that is where a workflow or a Compose
+    file shows its pins. A placeholder such as `<commit-sha>` or `<digest>` passes.
+    """
+    if not dated_baseline_scope(path):
+        return 0
+
+    failures = 0
+
+    for line_no, line in enumerate(lines, start=1):
+        for pattern in HASH_PINS:
+            match = pattern.search(line)
+
+            if match:
+                failures += _violation(
+                    path,
+                    line_no,
+                    f'real hash pin "{match.group(0)}"; show the pin as a placeholder such as '
+                    "`@<commit-sha> # v5` or `@sha256:<digest>`, with the command that resolves it",
+                )
+                break
+
+    return failures
+
+
 def check_dated_baselines(lines: list[str], path: Path) -> int:
     """Report every dated or "current version" baseline outside code. Returns the count.
 
@@ -338,7 +381,7 @@ def check_dated_baselines(lines: list[str], path: Path) -> int:
                     path,
                     line_no,
                     f'dated or "current version" baseline "{match.group(0)}"; it goes stale unseen, '
-                    "so state only the major version the content is written for",
+                    "so state only the major version or versions the content is written for",
                 )
                 break
 
@@ -534,10 +577,12 @@ def check_file(path: Path) -> int:
 
     lines = text.splitlines()
 
-    if generated_agent_file(path):
-        return check_dated_baselines(lines, path)
+    pins = check_hash_pins(lines, path)
 
-    return check_lines(lines, path) + check_front_matter(lines, path) + check_dated_baselines(lines, path)
+    if generated_agent_file(path):
+        return check_dated_baselines(lines, path) + pins
+
+    return check_lines(lines, path) + check_front_matter(lines, path) + check_dated_baselines(lines, path) + pins
 
 
 def default_targets(repo_root: Path) -> list[Path]:

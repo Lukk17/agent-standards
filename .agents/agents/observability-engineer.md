@@ -1,5 +1,5 @@
 ---
-description: "Use when designing or extending production observability: logs, metrics, traces, SLOs, alerts, dashboards. Builds toward signals that drive action rather than vanity dashboards. Defers incident response to `devops-troubleshooter` and end-to-end performance tuning to `performance-engineer`."
+description: "Use when the user says \"add tracing\", \"define our SLOs\", \"these alerts are noise\" or \"build a dashboard for this service\". Designs and extends logs, metrics, traces, SLOs, alerts and dashboards toward signals that drive an action rather than vanity charts, wired into the code and the deployment. Not for responding to a live incident, use `devops-troubleshooter`."
 mode: subagent
 tools:
   read: true
@@ -62,7 +62,7 @@ When reviewing observability, raise:
 
 ### Skills to load on demand
 
-Load when the change touches that stack, reading `.agents/skills/<name>/SKILL.md`: `deployment-patterns` for collector and agent rollout, `docker-patterns` for a containerised stack, `backend-patterns` for service instrumentation, `performance-optimization` for latency SLOs, `architecture-decision-records` for a tooling choice, `automation-inventory` before consolidating alerts, `github-ops` for CI alerts, `bash` or `powershell` for exporters and scripts, `markdown-writer` for runbooks, `tdd-workflow` for instrumentation tests, `review-duplication` for duplicated metrics, `code-formatter` for layout inside a Dart, Java or Python function, `git-workflow` when committing.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `deployment-patterns` for collector and agent rollout, `docker-patterns` for a containerised stack, `backend-patterns` for service instrumentation, `performance-optimization` for latency SLOs, `architecture-decision-records` for a tooling choice, `automation-inventory` before consolidating alerts, `github-ops` for CI alerts, `bash` or `powershell` for exporters and scripts, `markdown-writer` for runbooks, `tdd-workflow` for instrumentation tests, `review-duplication` for duplicated metrics, `code-formatter` for layout inside a Dart, Java or Python function, `git-workflow` when committing.
 
 ### Done when
 
@@ -72,7 +72,7 @@ least once.
 
 ### Preloaded skills
 
-Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns, and this prompt only defines persona and scope.
+Load and follow these skills before acting. Load a skill by name, or read `<name>/SKILL.md` from the skills folder this agent was installed with: `.agents/skills/` in a project, the global skills folder otherwise. A skill this prompt names to load on demand is found the same way. The skills contain the reusable procedure and patterns, and this prompt only defines persona and scope.
 
 - `observability-and-logging`
 - `security-review`

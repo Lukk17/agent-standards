@@ -88,17 +88,18 @@ a generated tree.
 ### Hook enforcement, what each agent can actually block
 
 The gate is one shared rule in [../.agents/hooks/preflight_gate.py](../.agents/hooks/preflight_gate.py). It reads a hook
-payload on standard input and denies four things: a write of any file resolving inside the repository working tree
+payload on standard input and denies five things: a write of any file resolving inside the repository working tree
 coming from the main thread, with no exemption left for markdown, configuration, or `docs/` (delegate the change to a
 subagent that owns the area instead), any tool call at all from a subagent whose own definition declares no skills
-(spawn a specialist instead), a web fetch or web search called straight from the main thread on the one format whose
+(spawn a specialist instead), an edit or a shell command outside its own list from a subagent whose definition is
+marked read-only, a web fetch or web search called straight from the main thread on the one format whose
 payload names that tool today, Claude Code, and a script or module run from the main thread, because the gate cannot see
 what a script writes. The allowlist that lifts the last rule is in
 [What the main thread may run](GLOBAL_SETUP.md#what-the-main-thread-may-run). A relative path is resolved against
 whatever a leading `cd` in the command moved to, so changing directory first buys nothing. A write outside the
 repository, the null device, `tasks.md` at the project root, and switching a git branch stay allowed, and the main
 thread keeps full use of git otherwise. Caller identity is a tri-state, subagent, main thread, or unknown when a payload
-carries nothing that could tell the two apart, and none of the four rules fires on an unknown caller. Every failure path
+carries nothing that could tell the two apart, and none of the five rules fires on an unknown caller. Every failure path
 also allows the call, because a broken gate must never break a session, with one deliberate exception: a path none of
 the three repository-boundary helpers can resolve is treated as inside, which denies.
 
@@ -162,10 +163,19 @@ Reading the tables row by row:
 - The per-agent tool permissions are the generator's `permission` block. OpenCode and Kilo Code read a subagent's
   `tools` map as overrides on top of everything it already has, so a read-only definition listing only `read`, `grep`
   and `glob` still had `edit` and `bash`. The generator now writes `edit: deny` unless `write` or `edit` is listed and
-  `bash: deny` unless `bash` is. The same V1 front shape loads on OpenCode 2.0.26, measured 2026-10-15: `debug agents` from the repo lists 35 project agents plus 7 built in, and the live view shows the `tools` map as a `permissions` list.
+  `bash: deny` unless `bash` is. A definition marked `readonly: true` instead gets `edit: deny` and a `bash` map with
+  `"*": deny` first and its allowed commands after it, because OpenCode lets the last matching rule win. The same V1 front shape loads on OpenCode 2.0.26, measured 2026-10-15: `debug agents` from the repo lists 35 project agents plus 7 built in, and the live view shows the `tools` map as a `permissions` list.
 - As a runner-independent backstop the project also ships [.opencode/opencode.json](../.opencode/opencode.json) with `edit` denied and only `tasks.md` allowed. The plugin gate never fires on some runtimes, measured 2026-10-26, so this file blocks main-thread writes through permissions instead. Subagent rights are untouched because agent rules are appended after project rules, and Kilo Code reads the file with no warnings.
+- A read-only subagent keeps `bash` but runs only the commands listed under the "Read-only shell" heading the generator
+  writes into every format. Rule E reads that list from the definition, the way Rule B reads the skills, and denies
+  any edit, any command outside the list in a pipe, chain or substitution, any redirect except to the null device, and
+  any `--output` option. A command the lexer cannot parse allows, like every other parse failure. On Claude Code this
+  is the only enforcement that holds: a subagent's `permissionMode: plan` is ignored while the session is in auto,
+  `acceptEdits` or `bypassPermissions` mode, and a `tools` entry such as `Bash(git log *)` did not narrow the tool, so
+  a `touch` from either ran on Claude Code 2.1.314 under an auto-mode session. Codex has no per-agent tool field, and
+  Copilot gets no shell for such an agent, as the next item explains.
 - GitHub Copilot's `preToolUse` payload carries no agent identifier at all, so caller identity there resolves to
-  unknown every time and none of the gate's four rules ever fires. The hook is wired and runs, but it always allows:
+  unknown every time and none of the gate's five rules ever fires. The hook is wired and runs, but it always allows:
   that surface is entirely unenforced by the gate, not merely weaker, and the `AGENTS.md` text plus the
   `sessionStart` and `userPromptTransformed` injections carry the whole weight instead.
 - Copilot in JetBrains fires only six events, has no subagent event at all, and reads hook configuration only from

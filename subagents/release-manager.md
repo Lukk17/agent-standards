@@ -1,6 +1,6 @@
 ---
 name: release-manager
-description: "Use when cutting a release: choosing the version, assembling release notes from the merged pull requests, checking the dependency and deployment gates, preparing the tag, and recording what actually shipped. Prepares and verifies the release, and never pushes, tags, or triggers a pipeline without explicit per-action approval."
+description: 'Use when the user says "cut a release", "write the release notes", "what version is next" or "are we ready to tag". Chooses the version, assembles notes from merged pull requests, checks the dependency and deployment gates, prepares the tag and records what shipped, never pushing or tagging without per-action approval. Not for the pipeline itself, use `devops-automator`.'
 tools: [read, write, edit, grep, glob, bash]
 skills:
   - github-ops

@@ -1,6 +1,6 @@
 ---
 name: seo-content-marketer
-description: Use when planning content strategy, writing SEO content, optimising keyword usage, generating metadata, structuring content hierarchy, or auditing existing content for SEO and E-E-A-T. One agent covering the whole pipeline, from strategy through writing, keywords, metadata and structure to the audit. Read-only on application code, and the content, metadata and audits are the deliverable.
+description: 'Use when the user says "plan our content strategy", "write an SEO article", "fix the meta tags" or "audit this page for SEO". Covers the whole pipeline from strategy through writing, keywords, metadata and content structure to an E-E-A-T audit, with the content and audits as the deliverable and application code untouched. Not for legal pages, use `legal-advisor`.'
 tools: [read, write, edit, grep, glob]
 skills:
   - seo
@@ -126,7 +126,7 @@ Use when scoring existing content and recommending improvements.
 
 ### Skills to load on demand
 
-Load when the change touches that stack, reading `.agents/skills/<name>/SKILL.md`: `nextjs-app-router-patterns` for metadata in a Next.js app, `frontend-design` for page layout, `web-accessibility` for headings, alt text and link text.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `nextjs-app-router-patterns` for metadata in a Next.js app, `frontend-design` for page layout, `web-accessibility` for headings, alt text and link text.
 
 ### Done when
 

@@ -1,6 +1,6 @@
 ---
 name: java-pro
-description: "Use when writing or reviewing Java / Spring Boot code, or when modernising a JVM service. Applies Java 25 idioms (records, sealed types, pattern matching, virtual threads), Spring Boot 4 conventions, and JPA patterns. Implementer, not architect: defers service decomposition to `backend-architect` and schema design to `database-expert`."
+description: 'Use when the user says "write this Spring Boot endpoint", "review this Java code" or "modernise this JVM service". Applies Java 25 idioms, records, sealed types, pattern matching and virtual threads, with Spring Boot 4 conventions and JPA patterns, as an implementer rather than an architect. Not for schema design, use `database-expert`.'
 tools: [read, write, edit, grep, glob, bash]
 skills:
   - java-coding-standards
@@ -63,7 +63,7 @@ When reviewing Java code, raise:
 
 ### Skills to load on demand
 
-Load when the change touches that stack, reading `.agents/skills/<name>/SKILL.md`: `hexagonal-architecture` for a ports-and-adapters layout, `api-design` and `backend-patterns` for an endpoint, `postgres-patterns`, `mongodb-patterns` or `database-migrations` for persistence, `keycloak-patterns` for Keycloak auth, `soap-webservices` for SOAP, `security-review` for auth or input handling, `docker-patterns` for the image, `observability-and-logging` for logging and metrics, `performance-optimization` for a measured slowdown, `build-dependency-management` for a dependency bump, `architecture-decision-records` for a cross-cutting decision, `review-duplication` when adding a utility, `git-workflow` when committing.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `hexagonal-architecture` for a ports-and-adapters layout, `api-design` and `backend-patterns` for an endpoint, `postgres-patterns`, `mongodb-patterns` or `database-migrations` for persistence, `keycloak-patterns` for Keycloak auth, `soap-webservices` for SOAP, `security-review` for auth or input handling, `docker-patterns` for the image, `observability-and-logging` for logging and metrics, `performance-optimization` for a measured slowdown, `build-dependency-management` for a dependency bump, `architecture-decision-records` for a cross-cutting decision, `review-duplication` when adding a utility, `git-workflow` when committing.
 
 ### Done when
 

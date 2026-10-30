@@ -1,6 +1,6 @@
 ---
 name: database-expert
-description: "Use when designing a new data layer, choosing a database technology, modelling a schema, planning a migration, or tuning queries and indexes on an existing system. Two modes: design (greenfield or re-architecture) and optimisation (existing). Read-only on shared and production schemas: it measures on a database the caller names as disposable and hands migrations to an implementer."
+description: 'Use when the user says "design the schema", "which database should we use", "plan this migration" or "this query is slow". Designs a data layer or tunes an existing one, measuring only on a database the caller names as disposable and handing migrations to an implementer, read-only on shared and production schemas. Not for a bottleneck not yet located, use `performance-engineer`.'
 tools: [read, grep, glob, bash]
 skills:
   - postgres-patterns
@@ -120,7 +120,7 @@ Routine.
 
 ### Skills to load on demand
 
-Load when the change touches that stack, reading `.agents/skills/<name>/SKILL.md`: `mongodb-patterns` for MongoDB, `hexagonal-architecture` and `backend-patterns` for the repository layer, `springboot-patterns` for JPA and Hikari settings, `docker-patterns` for a disposable database container, `deployment-patterns` for a migration rollout, `security-review` for row-level security, roles or personal data.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `mongodb-patterns` for MongoDB, `hexagonal-architecture` and `backend-patterns` for the repository layer, `springboot-patterns` for JPA and Hikari settings, `docker-patterns` for a disposable database container, `deployment-patterns` for a migration rollout, `security-review` for row-level security, roles or personal data.
 
 ### Done when
 

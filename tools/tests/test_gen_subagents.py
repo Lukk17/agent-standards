@@ -440,3 +440,136 @@ def test_every_generated_agent_runs_on_the_session_model():
             header = tomllib.loads(rendered) if tool == "codex" else front_matter(rendered)
 
             assert "model" not in header, f"{tool}: {name}"
+
+
+REVIEWER = {
+    "name": "fixture-reviewer",
+    "description": "Use when the user says review this diff.",
+    "tools": ["read", "grep", "glob", "bash"],
+    "readonly": True,
+    "readonly-commands": ["gh pr diff*", "gh pr view*"],
+    "skills": ["markdown-writer"],
+}
+
+REVIEWER_COMMANDS = ["git diff*", "git log*", "git show*", "git status*", "gh pr diff*", "gh pr view*"]
+
+
+def read_only_section(text):
+    """The backticked items under the read-only heading, in order."""
+    section = text.split(f"### {gen.READ_ONLY_HEADING}\n", 1)[1].split("\n### ", 1)[0]
+
+    return re.findall(r"^- `([^`]+)`$", section, re.M)
+
+
+@pytest.mark.parametrize(
+    ("frontmatter", "message"),
+    [
+        ("readonly: yes-please\ntools: [read, bash]", "must be true or false"),
+        ("readonly-commands: [\"gh pr view*\"]\ntools: [read, bash]", "needs 'readonly: true'"),
+        ("readonly: true\nreadonly-commands: gh pr view\ntools: [read, bash]", "must be a list"),
+        ("readonly: true\ntools: [read, edit, bash]", "may not list edit"),
+        ("readonly: true\ntools: [read, task, bash]", "may not list task"),
+        ("readonly: true\ntools: [read, grep]", "list bash"),
+    ],
+)
+def test_parse_rejects_a_read_only_marker_it_cannot_honour(tmp_path, frontmatter, message):
+    path = write_agent(tmp_path, "marked", f"name: marked\ndescription: Use when marked.\n{frontmatter}")
+
+    with pytest.raises(SystemExit) as exc:
+        gen.parse(path, SKILLS)
+
+    assert "marked.md" in str(exc.value)
+    assert message in str(exc.value)
+
+
+def test_parse_accepts_a_read_only_marker_with_extra_commands(tmp_path):
+    path = write_agent(
+        tmp_path,
+        "marked",
+        'name: marked\ndescription: Use when marked.\ntools: [read, bash]\nreadonly: true\nreadonly-commands: ["gh pr view*"]',
+    )
+
+    frontmatter, _ = gen.parse(path, SKILLS)
+
+    assert gen.read_only_commands(frontmatter) == ["git diff*", "git log*", "git show*", "git status*", "gh pr view*"]
+
+
+def test_claude_keeps_bash_and_plan_mode_for_a_read_only_agent():
+    rendered = gen.emit_claude(REVIEWER, BODY)
+    head = front_matter(rendered)
+
+    assert head["tools"] == "Read, Grep, Glob, Bash"
+    assert head["permissionMode"] == "plan"
+    assert read_only_section(rendered) == REVIEWER_COMMANDS
+
+
+def test_opencode_denies_edit_and_every_command_but_the_list_for_a_read_only_agent():
+    rendered = gen.emit_opencode(REVIEWER, BODY)
+    permission = front_matter(rendered)["permission"]
+
+    assert permission["edit"] == "deny"
+    assert list(permission["bash"]) == ["*", *REVIEWER_COMMANDS]
+    assert permission["bash"]["*"] == "deny"
+    assert all(permission["bash"][command] == "allow" for command in REVIEWER_COMMANDS)
+    assert read_only_section(rendered) == REVIEWER_COMMANDS
+
+
+def test_codex_carries_the_read_only_list_in_its_instructions():
+    instructions = tomllib.loads(gen.emit_codex(REVIEWER, BODY))["developer_instructions"]
+
+    assert read_only_section(instructions) == REVIEWER_COMMANDS
+
+
+def test_copilot_drops_the_shell_for_a_read_only_agent():
+    rendered = gen.emit_copilot(REVIEWER, BODY)
+
+    assert front_matter(rendered)["tools"] == ["read", "search"]
+    assert "gets no shell on this agent" in rendered
+    assert read_only_section(rendered) == REVIEWER_COMMANDS
+
+
+def test_an_agent_without_the_marker_gets_no_read_only_section():
+    for tool in gen.TARGETS:
+        assert gen.READ_ONLY_HEADING not in gen.render(tool, WRITER, BODY)
+
+
+@pytest.mark.parametrize("agent", ["code-reviewer", "code-archaeologist"])
+def test_the_shipped_reviewers_are_read_only_with_bash(agent):
+    canonical = front_matter((gen.SRC / f"{agent}.md").read_text(encoding="utf-8"))
+    opencode = front_matter((gen.TARGETS["agents"][0] / f"{agent}.md").read_text(encoding="utf-8"))
+
+    assert canonical["readonly"] is True
+    assert "bash" in canonical["tools"]
+    assert opencode["permission"]["edit"] == "deny"
+    assert opencode["permission"]["bash"]["*"] == "deny"
+
+
+def test_the_skills_block_names_no_project_only_path():
+    block = gen.skills_block(["markdown-writer"])
+
+    assert "Load a skill by name" in block
+    assert "`.agents/skills/` in a project, the global skills folder otherwise" in block
+    assert "from `.agents/skills/` before acting" not in block
+
+
+def test_no_canonical_body_hard_codes_a_skill_path():
+    for source in sorted(gen.SRC.glob("*.md")):
+        assert ".agents/skills/" not in source.read_text(encoding="utf-8"), source.name
+
+
+DESCRIPTION_LIMITS = (300, 400)
+
+
+@pytest.mark.parametrize("source", sorted(gen.SRC.glob("*.md")), ids=lambda path: path.stem)
+def test_every_subagent_description_follows_the_contributing_rule(source):
+    """CONTRIBUTING.md, "Adding a new subagent": third person, 300 to 400 characters, one "Not for" pointer."""
+    description = front_matter(source.read_text(encoding="utf-8"))["description"]
+
+    assert description.startswith("Use when the user "), description
+    assert DESCRIPTION_LIMITS[0] <= len(description) <= DESCRIPTION_LIMITS[1], len(description)
+    assert description.count("Not for ") == 1, description
+    pointer = re.search(r"Not for [^.]+, use `([a-z0-9-]+)`\.$", description)
+
+    assert pointer, description
+    assert pointer.group(1) != source.stem, "the pointer names the agent itself"
+    assert (gen.SRC / f"{pointer.group(1)}.md").is_file(), pointer.group(1)

@@ -1,6 +1,6 @@
 ---
 name: legal-advisor
-description: Use when drafting privacy policies, terms of service, cookie policies, data-processing agreements, or other compliance documentation. Produces drafts for a qualified attorney to review, never legal advice. Tuned for EU and UK GDPR, CCPA / CPRA, Brazil's LGPD, Polish UODO rules, COPPA, CAN-SPAM and CASL, and any jurisdiction outside those needs explicit confirmation first.
+description: 'Use when the user says "draft our privacy policy", "write the terms of service", "we need a cookie policy" or "draft a DPA". Drafts compliance documents for a qualified attorney to review, never legal advice, tuned for EU and UK GDPR, CCPA and CPRA, LGPD, Polish UODO rules, COPPA, CAN-SPAM and CASL. Not for a technical compliance gap analysis, use `security-auditor`.'
 tools: [read, write, grep, glob]
 skills:
   - markdown-writer

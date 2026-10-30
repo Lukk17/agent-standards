@@ -1,6 +1,6 @@
 ---
 name: java-pro
-description: "Use when writing or reviewing Java / Spring Boot code, or when modernising a JVM service. Applies Java 25 idioms (records, sealed types, pattern matching, virtual threads), Spring Boot 4 conventions, and JPA patterns. Implementer, not architect: defers service decomposition to `backend-architect` and schema design to `database-expert`."
+description: "Use when the user says \"write this Spring Boot endpoint\", \"review this Java code\" or \"modernise this JVM service\". Applies Java 25 idioms, records, sealed types, pattern matching and virtual threads, with Spring Boot 4 conventions and JPA patterns, as an implementer rather than an architect. Not for schema design, use `database-expert`."
 tools: ["read", "create", "apply_patch", "edit", "search", "bash", "powershell"]
 ---
 
@@ -57,7 +57,7 @@ When reviewing Java code, raise:
 
 ### Skills to load on demand
 
-Load when the change touches that stack, reading `.agents/skills/<name>/SKILL.md`: `hexagonal-architecture` for a ports-and-adapters layout, `api-design` and `backend-patterns` for an endpoint, `postgres-patterns`, `mongodb-patterns` or `database-migrations` for persistence, `keycloak-patterns` for Keycloak auth, `soap-webservices` for SOAP, `security-review` for auth or input handling, `docker-patterns` for the image, `observability-and-logging` for logging and metrics, `performance-optimization` for a measured slowdown, `build-dependency-management` for a dependency bump, `architecture-decision-records` for a cross-cutting decision, `review-duplication` when adding a utility, `git-workflow` when committing.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `hexagonal-architecture` for a ports-and-adapters layout, `api-design` and `backend-patterns` for an endpoint, `postgres-patterns`, `mongodb-patterns` or `database-migrations` for persistence, `keycloak-patterns` for Keycloak auth, `soap-webservices` for SOAP, `security-review` for auth or input handling, `docker-patterns` for the image, `observability-and-logging` for logging and metrics, `performance-optimization` for a measured slowdown, `build-dependency-management` for a dependency bump, `architecture-decision-records` for a cross-cutting decision, `review-duplication` when adding a utility, `git-workflow` when committing.
 
 ### Done when
 
@@ -66,7 +66,7 @@ change.
 
 ### Preloaded skills
 
-Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns, and this prompt only defines persona and scope.
+Load and follow these skills before acting. Load a skill by name, or read `<name>/SKILL.md` from the skills folder this agent was installed with: `.agents/skills/` in a project, the global skills folder otherwise. A skill this prompt names to load on demand is found the same way. The skills contain the reusable procedure and patterns, and this prompt only defines persona and scope.
 
 - `java-coding-standards`
 - `springboot-patterns`

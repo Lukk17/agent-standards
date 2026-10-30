@@ -81,6 +81,15 @@ COPILOT_TOOLS = {
 
 READ_ONLY_TOOLS = frozenset({"read", "grep", "glob"})
 
+# A canonical `readonly: true` keeps bash but limits it to these commands, plus
+# any the definition adds under `readonly-commands`. Every target gets the list
+# as a READ_ONLY_HEADING body section, which the preflight gate's Rule E reads
+# and enforces on every format whose hook names the subagent. OpenCode and Kilo
+# Code also enforce it natively through the bash permission map below.
+READ_ONLY_COMMANDS = ("git diff*", "git log*", "git show*", "git status*")
+READ_ONLY_HEADING = "Read-only shell"
+READ_ONLY_FORBIDDEN_TOOLS = frozenset({"write", "edit", "task"})
+
 # OpenCode and Kilo Code read `tools` as overrides on top of everything the
 # agent already has, so a map listing only read, grep and glob still leaves
 # edit and bash on. Each write-capable permission is therefore denied outright
@@ -90,6 +99,12 @@ OPENCODE_WRITE_PERMISSIONS = {
     "bash": ("bash",),
 }
 
+# Plan mode is a native layer only. Claude Code ignores a subagent's
+# permissionMode while the main conversation is in auto, acceptEdits or
+# bypassPermissions mode (https://code.claude.com/docs/en/sub-agents, "Permission
+# modes"), and a `touch` from a plan-mode subagent ran under an auto-mode session
+# on Claude Code 2.1.314. Rule E in the preflight gate is what enforces a
+# read-only agent there.
 CLAUDE_READ_ONLY_PERMISSION_MODE = "plan"
 
 # Subagents never pin a model, and every target omits the key. Each agent then
@@ -126,6 +141,7 @@ def parse(path: pathlib.Path, skills: set[str] | None = None) -> tuple[dict, str
         sys.exit(
             f"ERROR {path}: unknown tool(s) {unknown_tools!r}. Valid: {valid}"
         )
+    validate_read_only(path, fm)
     declared = fm.get("skills")
     if declared is not None and not isinstance(declared, list):
         sys.exit(
@@ -140,6 +156,54 @@ def parse(path: pathlib.Path, skills: set[str] | None = None) -> tuple[dict, str
             f"{', '.join(dangling)}"
         )
     return fm, m.group(2).lstrip("\n")
+
+
+def validate_read_only(path: pathlib.Path, fm: dict) -> None:
+    """Reject a `readonly` marker the generator could not honour on every target."""
+    readonly = fm.get("readonly", False)
+    extra = fm.get("readonly-commands")
+    if not isinstance(readonly, bool):
+        sys.exit(f"ERROR {path}: 'readonly' must be true or false, got {readonly!r}")
+    if extra is not None and not readonly:
+        sys.exit(f"ERROR {path}: 'readonly-commands' needs 'readonly: true'")
+    if extra is not None and not (isinstance(extra, list) and all(isinstance(c, str) and c.strip() for c in extra)):
+        sys.exit(f"ERROR {path}: 'readonly-commands' must be a list of command patterns")
+    granted = READ_ONLY_FORBIDDEN_TOOLS.intersection(fm.get("tools") or [])
+    if readonly and granted:
+        sys.exit(f"ERROR {path}: a readonly agent may not list {', '.join(sorted(granted))}")
+    if readonly and "bash" not in (fm.get("tools") or []):
+        sys.exit(f"ERROR {path}: 'readonly: true' limits bash, so list bash or drop the marker")
+
+
+def read_only_commands(fm: dict) -> list[str]:
+    """The shell commands a read-only agent may run, or an empty list when it is not read-only."""
+    if not fm.get("readonly"):
+        return []
+    return [*READ_ONLY_COMMANDS, *(fm.get("readonly-commands") or [])]
+
+
+def read_only_block(fm: dict, shell: bool = True) -> str:
+    """The body section the gate's Rule E reads, worded for a target with or without a shell."""
+    commands = read_only_commands(fm)
+    if not commands:
+        return ""
+    items = "\n".join(f"- `{c}`" for c in commands)
+    if not shell:
+        return (
+            f"\n\n### {READ_ONLY_HEADING}\n\n"
+            "This agent is read-only and gets no shell on this agent, because nothing here "
+            "could hold the shell to the read-only commands below. Work from the diff and "
+            "context the caller supplies and the files you can read. Elsewhere it runs only:\n\n"
+            f"{items}\n"
+        )
+    return (
+        f"\n\n### {READ_ONLY_HEADING}\n\n"
+        "This agent is read-only. Edit no file, and run only these shell commands, from "
+        "the project root, with no redirect to a file and no pipe into another program. "
+        "Return any other command to the caller as a proposal. The preflight gate denies "
+        "everything else.\n\n"
+        f"{items}\n"
+    )
 
 
 def _yaml_double_quoted(value: str) -> str:
@@ -157,11 +221,19 @@ def skills_block(skills: list[str] | None) -> str:
     items = "\n".join(f"- `{s}`" for s in skills)
     return (
         "\n\n### Preloaded skills\n\n"
-        "Load and follow these skills from `.agents/skills/` before acting. "
-        "They contain the reusable procedure and patterns, and this prompt "
-        "only defines persona and scope.\n\n"
+        "Load and follow these skills before acting. Load a skill by name, or read "
+        "`<name>/SKILL.md` from the skills folder this agent was installed with: "
+        "`.agents/skills/` in a project, the global skills folder otherwise. A skill "
+        "this prompt names to load on demand is found the same way. The skills "
+        "contain the reusable procedure and patterns, and this prompt only defines "
+        "persona and scope.\n\n"
         f"{items}\n"
     )
+
+
+def body_with_blocks(fm: dict, body: str, shell: bool = True) -> str:
+    """The prompt body with the read-only section and the skills section appended."""
+    return body.rstrip() + read_only_block(fm, shell) + skills_block(fm.get("skills"))
 
 
 def emit_claude(fm: dict, body: str) -> str:
@@ -173,12 +245,12 @@ def emit_claude(fm: dict, body: str) -> str:
     tools = [CLAUDE_TOOLS.get(t, t) for t in fm.get("tools", [])]
     if tools:
         lines.append("tools: " + ", ".join(tools))
-    if set(fm.get("tools") or []) == READ_ONLY_TOOLS:
+    if set(fm.get("tools") or []) == READ_ONLY_TOOLS or fm.get("readonly"):
         lines.append("permissionMode: " + CLAUDE_READ_ONLY_PERMISSION_MODE)
     if fm.get("skills"):
         lines.append("skills:")
         lines += [f"  - {s}" for s in fm["skills"]]
-    lines += ["---", "", body.rstrip() + skills_block(fm.get("skills"))]
+    lines += ["---", "", body_with_blocks(fm, body)]
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -190,12 +262,19 @@ def emit_opencode(fm: dict, body: str) -> str:
     ]
     if fm.get("tools"):
         denied = opencode_denied_permissions(fm["tools"])
-        if denied:
+        commands = read_only_commands(fm)
+        if denied or commands:
             lines.append("permission:")
             lines += [f"  {permission}: deny" for permission in denied]
+        if commands:
+            # OpenCode evaluates "with the last matching rule winning", so the
+            # catch-all deny goes first (https://opencode.ai/docs/permissions/).
+            lines.append("  bash:")
+            lines.append('    "*": deny')
+            lines += [f"    {_yaml_double_quoted(c)}: allow" for c in commands]
         lines.append("tools:")
         lines += [f"  {t}: true" for t in fm["tools"]]
-    lines += ["---", "", body.rstrip() + skills_block(fm.get("skills"))]
+    lines += ["---", "", body_with_blocks(fm, body)]
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -231,13 +310,17 @@ def emit_copilot(fm: dict, body: str) -> str:
         f"description: {_yaml_double_quoted(fm['description'].strip())}",
     ]
     canonical = fm.get("tools") or []
+    if fm.get("readonly"):
+        # Copilot grants `bash` whole and its preToolUse payload names no agent,
+        # so nothing could hold a read-only agent to its command list there.
+        canonical = [t for t in canonical if t != "bash"]
     tools = copilot_tools(canonical)
     if canonical:
         lines.append("tools: [" + ", ".join(f'"{t}"' for t in tools) + "]")
     lines += [
         "---",
         "",
-        body.rstrip() + skills_block(fm.get("skills")),
+        body_with_blocks(fm, body, shell=not fm.get("readonly")),
     ]
     return "\n".join(lines).rstrip() + "\n"
 
@@ -248,7 +331,7 @@ def _toml_basic(s: str) -> str:
 
 
 def emit_codex(fm: dict, body: str) -> str:
-    content = body.rstrip() + skills_block(fm.get("skills"))
+    content = body_with_blocks(fm, body)
     if "'''" in content:
         sys.exit(f"ERROR {fm['name']}: body contains ''' which breaks the Codex TOML literal string")
     lines = [

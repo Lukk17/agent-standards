@@ -1,6 +1,6 @@
 ---
 name: docs-architect
-description: "Use when producing long-form technical documentation from a codebase: architecture manuals, system handbooks, onboarding guides, technical deep-dives. Reads the actual code and the git history, captures the why, and organises it for different audiences. The documentation is the deliverable, not a code change."
+description: 'Use when the user says "write the architecture manual", "document how this system works" or "we need an onboarding guide". Reads the actual code and its git history, captures why the system is built the way it is, and organises long-form documentation for each audience, with the documentation as the deliverable. Not for API reference docs, use `api-documenter`.'
 tools: [read, write, edit, grep, glob, bash]
 skills:
   - markdown-writer
@@ -69,7 +69,7 @@ Use this as the default skeleton for a comprehensive system handbook. Add or dro
 
 ### Skills to load on demand
 
-Load when the change touches that stack, reading `.agents/skills/<name>/SKILL.md`: `api-design` for an API chapter, `backend-patterns` for service internals, `react-patterns` for a front end, `security-review` for the security model, `deployment-patterns` and `observability-and-logging` for operations, `performance-optimization` for performance characteristics, `postgres-patterns` for the data model.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `api-design` for an API chapter, `backend-patterns` for service internals, `react-patterns` for a front end, `security-review` for the security model, `deployment-patterns` and `observability-and-logging` for operations, `performance-optimization` for performance characteristics, `postgres-patterns` for the data model.
 
 ### Done when
 

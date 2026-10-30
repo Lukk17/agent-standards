@@ -1,6 +1,6 @@
 ---
 name: ui-ux-designer
-description: "Use when designing user flows, interface components, or layouts, or when planning user research and synthesising results the caller supplies. Two modes: UX research to understand the user, and interaction design to shape the flow. Produces specs and rationale that a framework agent then implements, never the implementation itself."
+description: 'Use when the user says "design this flow", "lay out this screen", "plan the user research" or "what do these interview notes tell us". Works in two modes, UX research to understand the user and interaction design to shape the flow, and produces specs and rationale a framework agent implements. Not for design tokens and the component library, use `design-system-architect`.'
 tools: [read, write, edit, grep, glob]
 skills:
   - frontend-design

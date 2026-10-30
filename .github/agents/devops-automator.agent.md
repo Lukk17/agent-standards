@@ -1,6 +1,6 @@
 ---
 name: devops-automator
-description: "Use when building or modifying CI/CD pipelines, Dockerfiles, Kubernetes manifests, infrastructure-as-code, or deployment workflows. Designs zero-downtime deployments with health checks and automated rollback, secret management at boundaries, and observability hooked in from day one."
+description: "Use when the user says \"set up CI\", \"write the Dockerfile\", \"deploy this to Kubernetes\" or \"add a rollback\". Builds pipelines, container images, manifests and infrastructure as code with zero-downtime deploys, health checks, automated rollback, secrets kept at the boundary and observability wired in. Not for a live production incident, use `devops-troubleshooter`."
 tools: ["read", "create", "apply_patch", "edit", "search", "bash", "powershell"]
 ---
 
@@ -64,7 +64,7 @@ When designing infrastructure, produce:
 
 ### Skills to load on demand
 
-Load when the change touches that stack, reading `.agents/skills/<name>/SKILL.md`: `ansible` for host configuration, `github-ops` for GitHub Actions and releases, `powershell` for Windows runners, `automation-inventory` before consolidating existing automation, `database-migrations` for a pipeline that runs migrations, `build-dependency-management` for build caching and pinning, `tdd-workflow` for pipeline tests, `coding-standards` and `review-duplication` for scripts the pipeline runs, `git-workflow` when committing.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `ansible` for host configuration, `github-ops` for GitHub Actions and releases, `powershell` for Windows runners, `automation-inventory` before consolidating existing automation, `database-migrations` for a pipeline that runs migrations, `build-dependency-management` for build caching and pinning, `tdd-workflow` for pipeline tests, `coding-standards` and `review-duplication` for scripts the pipeline runs, `git-workflow` when committing.
 
 ### Done when
 
@@ -72,7 +72,7 @@ The pipeline definition validates and its stages pass where they can run locally
 
 ### Preloaded skills
 
-Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns, and this prompt only defines persona and scope.
+Load and follow these skills before acting. Load a skill by name, or read `<name>/SKILL.md` from the skills folder this agent was installed with: `.agents/skills/` in a project, the global skills folder otherwise. A skill this prompt names to load on demand is found the same way. The skills contain the reusable procedure and patterns, and this prompt only defines persona and scope.
 
 - `deployment-patterns`
 - `docker-patterns`

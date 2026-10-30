@@ -29,6 +29,12 @@ D. The main thread may not run a script or a module, because the gate cannot
    MAIN_THREAD_ALLOWLIST, or of the project's own ALLOWLIST_FILE, in full.
    Inline code (python -c, node -e) is not a script run: the inline-code
    reader below judges it under Rule A instead.
+E. A subagent whose own definition carries a READ_ONLY_HEADING section may
+   not edit a file, and may run only the shell commands that section lists.
+   Every command in a pipe, chain or substitution has to match a listed
+   pattern, a redirect may only reach the null device, and no option may
+   start with --output. The generator writes that section from the canonical
+   `readonly: true` marker into every format, so one rule covers them all.
 
 Every rule above denies only once the caller is positively identified as the
 main thread. A format whose payload carries nothing that could identify the
@@ -204,6 +210,20 @@ RULE_B_REASON = (
     "a specialist. Spawn a subagent that declares the skills the task needs and "
     "delegate the work to it."
 )
+
+RULE_E_REASON = (
+    "PREFLIGHT: subagent '{agent}' is read-only. It may not edit files, and it may run "
+    "only the shell commands its definition lists under '{heading}': {allowed}. "
+    "Return anything else to the caller as a proposed command. Blocked: {blocked}"
+)
+
+# Rule E reads its allowlist from the definition text itself, the way Rule B
+# reads the skills list, so every generated format carries it the same way:
+# the Claude, OpenCode and Copilot bodies, and the Codex developer_instructions.
+READ_ONLY_HEADING = "Read-only shell"
+READ_ONLY_HEADING_RE = re.compile(r"^#{1,6}[ \t]+" + re.escape(READ_ONLY_HEADING) + r"[ \t]*$", re.IGNORECASE)
+READ_ONLY_ITEM_RE = re.compile(r"^[ \t]*[-*][ \t]+`([^`]+)`[ \t]*$")
+READ_ONLY_FORBIDDEN_OPTION = "--output"
 
 RULE_C_REASON = (
     "PREFLIGHT: the main thread may not run web research directly. Spawn a "
@@ -6986,6 +7006,96 @@ def _declares_skills(text: str) -> bool:
     return _body_declares_skills(lines, end + 1 if end else 0)
 
 
+def _read_only_patterns(text: str) -> Optional[List[str]]:
+    """The commands a read-only definition allows, or None when it is not read-only.
+
+    A definition is read-only when any heading reads READ_ONLY_HEADING, and the
+    backticked list items under that heading are its allowlist. An empty list
+    still marks the agent read-only, with no shell command allowed.
+    """
+    patterns: List[str] = []
+    found = False
+    in_section = False
+
+    for line in text.splitlines():
+        if line.startswith("#"):
+            in_section = bool(READ_ONLY_HEADING_RE.match(line))
+            found = found or in_section
+            continue
+
+        match = READ_ONLY_ITEM_RE.match(line) if in_section else None
+
+        if match:
+            patterns.append(match.group(1).strip())
+
+    return patterns if found else None
+
+
+def _matches_read_only(argv: Tuple[str, ...], pattern: str) -> bool:
+    """True when one command's words match one pattern, word by word.
+
+    A trailing `*` accepts any further arguments, so `git diff*` matches
+    `git diff` and `git diff HEAD~1` but never `git difftool`, and a program
+    spelled with a path or behind a variable assignment matches nothing.
+    """
+    words = pattern.split()
+    open_ended = bool(words) and words[-1].endswith("*")
+
+    if open_ended:
+        words[-1] = words[-1][:-1]
+        if not words[-1]:
+            words.pop()
+
+    if not words or list(argv[: len(words)]) != words:
+        return False
+
+    return open_ended or len(argv) == len(words)
+
+
+def _read_only_blocked(tool: str, tool_input: Dict[str, Any], patterns: List[str]) -> Optional[str]:
+    """What a read-only subagent's call would do outside its allowlist, or None to allow."""
+    if tool in EDIT_TOOLS or tool in APPLY_PATCH_TOOLS:
+        return f"the {tool} tool"
+
+    if tool not in SHELL_TOOLS:
+        return None
+
+    values = [tool_input[key] for key in COMMAND_KEYS if tool_input.get(key) not in (None, "")]
+
+    if any(not isinstance(value, str) for value in values):
+        return _UNPLACEABLE_SHELL_TARGET
+
+    command = next((value for value in values if value.strip()), "")
+
+    if not command:
+        return None
+
+    powershell = tool in _POWERSHELL_SHELLS
+
+    try:
+        segments = _lex(command, _POWERSHELL if powershell else _POSIX)
+    except _ShellParseError:
+        return None
+
+    for segment in segments:
+        for target in segment.redirects:
+            if not _names_no_file(target, powershell):
+                return f"redirect to {target}"
+
+        if not segment.argv:
+            continue
+
+        words = " ".join(segment.argv)
+
+        if any(word.startswith(READ_ONLY_FORBIDDEN_OPTION) for word in segment.argv):
+            return words
+
+        if not any(_matches_read_only(segment.argv, pattern) for pattern in patterns):
+            return words
+
+    return None
+
+
 def _decide(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Optional[str]:
     """Return a deny reason, or None to allow."""
     global _PAYLOAD_ROOT
@@ -7011,10 +7121,18 @@ def _apply_rules(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Opti
         if definition is None:
             return None
 
-        if _declares_skills(definition):
+        if not _declares_skills(definition):
+            return RULE_B_REASON.format(agent=agent_type)
+
+        patterns = _read_only_patterns(definition)
+        blocked = None if patterns is None else _read_only_blocked(_tool_name(payload), _tool_input(payload), patterns)
+
+        if blocked is None:
             return None
 
-        return RULE_B_REASON.format(agent=agent_type)
+        return RULE_E_REASON.format(
+            agent=agent_type, heading=READ_ONLY_HEADING, allowed=", ".join(patterns or []) or "none", blocked=blocked
+        )
 
     tool = _tool_name(payload)
     tool_input = _tool_input(payload)

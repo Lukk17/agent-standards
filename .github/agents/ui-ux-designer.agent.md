@@ -1,6 +1,6 @@
 ---
 name: ui-ux-designer
-description: "Use when designing user flows, interface components, or layouts, or when planning user research and synthesising results the caller supplies. Two modes: UX research to understand the user, and interaction design to shape the flow. Produces specs and rationale that a framework agent then implements, never the implementation itself."
+description: "Use when the user says \"design this flow\", \"lay out this screen\", \"plan the user research\" or \"what do these interview notes tell us\". Works in two modes, UX research to understand the user and interaction design to shape the flow, and produces specs and rationale a framework agent implements. Not for design tokens and the component library, use `design-system-architect`."
 tools: ["read", "create", "apply_patch", "edit", "search"]
 ---
 
@@ -74,7 +74,7 @@ the accessibility annotations sit inline.
 
 ### Preloaded skills
 
-Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns, and this prompt only defines persona and scope.
+Load and follow these skills before acting. Load a skill by name, or read `<name>/SKILL.md` from the skills folder this agent was installed with: `.agents/skills/` in a project, the global skills folder otherwise. A skill this prompt names to load on demand is found the same way. The skills contain the reusable procedure and patterns, and this prompt only defines persona and scope.
 
 - `frontend-design`
 - `design-system`

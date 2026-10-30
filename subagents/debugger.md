@@ -1,6 +1,6 @@
 ---
 name: debugger
-description: Use when an error, test failure, or unexpected behaviour needs root-cause analysis. Reproduces the failure, isolates the cause, applies the minimal fix, and verifies it. Returns a short diagnosis report plus the fix.
+description: 'Use when the user says "this test fails", "why does this throw" or "it worked yesterday". Reproduces the failure, isolates the root cause, applies the smallest fix that removes it, verifies the fix against the reproduction, and returns a short diagnosis together with the change. Not for an error pattern spread across logs and services, use `error-detective`.'
 tools: [read, edit, grep, glob, bash]
 skills:
   - coding-standards
@@ -67,7 +67,7 @@ which belongs to `test-automator`. Refactoring anything the fix did not force yo
 
 ### Skills to load on demand
 
-Load when the change touches that stack, reading `.agents/skills/<name>/SKILL.md`: `python-patterns`, `java-coding-standards`, `springboot-patterns`, `golang-patterns`, `dart-flutter-patterns`, `angular`, `nextjs-app-router-patterns` or `react-patterns` for the language of the failing code, `backend-patterns` for a service, `bash` or `powershell` for a script, `docker-patterns` for a container, `security-review` when the bug touches auth or input handling, `performance-optimization` for a slowdown, `git-workflow` for a bisect, `code-formatter` for layout inside a Dart, Java or Python function.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `python-patterns`, `java-coding-standards`, `springboot-patterns`, `golang-patterns`, `dart-flutter-patterns`, `angular`, `nextjs-app-router-patterns` or `react-patterns` for the language of the failing code, `backend-patterns` for a service, `bash` or `powershell` for a script, `docker-patterns` for a container, `security-review` when the bug touches auth or input handling, `performance-optimization` for a slowdown, `git-workflow` for a bisect, `code-formatter` for layout inside a Dart, Java or Python function.
 
 ### Done when
 
