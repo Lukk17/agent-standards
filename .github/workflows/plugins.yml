@@ -1,0 +1,117 @@
+name: Plugins
+
+# Renders the Claude Code plugin marketplace from tools/plugins.yaml and
+# publishes it to the `plugins` branch. Master never holds the rendered tree.
+# A pull request runs the build and the validation only, and publishing is
+# limited to a push to master.
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plugins-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CLAUDE_CODE_VERSION: "2.1.314"
+  OUT_DIR: ${{ github.workspace }}/../plugins-out
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: tools/pyproject.toml
+
+      - name: Pin pip to a version that supports dependency groups
+        run: python -m pip install --upgrade "pip==26.2.1"
+
+      - name: Install the pinned generator dependencies
+        run: pip install ./tools
+
+      - name: Render the marketplace
+        run: python tools/gen_plugins.py "$OUT_DIR"
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+
+      - name: Install the pinned Claude Code CLI
+        run: npm install --global "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+
+      - name: Validate the marketplace and every plugin, warnings as errors
+        env:
+          DISABLE_AUTOUPDATER: "1"
+        run: |
+          CLAUDE_CONFIG_DIR="$(mktemp -d)"
+          export CLAUDE_CONFIG_DIR
+          claude --version
+          claude plugin validate "$OUT_DIR" --strict
+          for plugin in "$OUT_DIR"/plugins/*/; do
+            claude plugin validate "$plugin" --strict
+          done
+
+      - name: Keep the rendered tree for the publish job
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: plugins
+          path: ${{ env.OUT_DIR }}
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Fetch the rendered tree
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: plugins
+          path: ${{ env.OUT_DIR }}
+
+      - name: Commit the tree on top of the plugins branch and push it
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin plugins >/dev/null; then
+            git fetch --no-tags --depth=1 origin plugins
+            git checkout --force -B plugins FETCH_HEAD
+          else
+            git checkout --orphan plugins
+          fi
+          git rm -r -q --cached --ignore-unmatch .
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a "$OUT_DIR/." .
+          git add -A
+          if git diff --cached --quiet; then
+            echo "The plugins branch already matches ${GITHUB_SHA}."
+            exit 0
+          fi
+          git commit -q -m "build: plugins from ${GITHUB_SHA}"
+          git push origin plugins

@@ -523,6 +523,69 @@ start adding or removing skills locally, switch to the selective refresh in
 
 ---
 
+### Claude Code plugins
+
+Claude Code can also take the skills, subagents and MCP servers as plugins from a marketplace, so a project installs only the domains it works in. The plugins carry skills, subagents and MCP servers and nothing else. The preflight gate and its hooks, `AGENTS.md`, `.claude/settings.json` permissions and the other project files still come from the checkout above or from the global install in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md). Codex, GitHub Copilot, OpenCode and Kilo Code are not covered by the plugins yet, so they keep the checkout.
+
+The marketplace lives on the `plugins` branch, which CI rebuilds from [tools/plugins.yaml](tools/plugins.yaml) on every push to `master`. A plugin's version is a hash of its own content, so an update moves only the plugins that changed.
+
+| Plugin | What it holds |
+| --- | --- |
+| `core` | The skills that subagents in two or more domains preload. Every domain plugin depends on it, so it installs on its own |
+| `python`, `jvm`, `go`, `backend`, `data`, `web-frontend`, `mobile`, `devops`, `review-and-security`, `testing`, `docs-and-product`, `embedded`, `game`, `agent-tooling` | One domain each: its subagents and the skills only they use |
+| `linux`, `windows-and-mac`, `homelab`, `personal-tools` | Host and tool skill groups. They install switched off |
+| `mcp-context7`, `mcp-grafana` and the other `mcp-<server>` plugins | One MCP server each, the same block as [.mcp.json](.mcp.json) |
+| `mcp-all` | Every MCP server plugin |
+| `all` | Every plugin above |
+
+Add the marketplace once, from the `plugins` branch:
+
+```bash
+claude plugin marketplace add Lukk17/agent-standards#plugins
+```
+
+Install one domain. Its `core` dependency comes along:
+
+```bash
+claude plugin install python@agent-standards
+```
+
+A host group installs switched off, so turn it on after installing it:
+
+```bash
+claude plugin install linux@agent-standards
+```
+
+```bash
+claude plugin enable linux@agent-standards
+```
+
+Install everything in one go. A plugin that an enabled plugin depends on starts enabled, so `all` also switches on every host group and starts every MCP server, including SonarQube's `docker run --pull=always`:
+
+```bash
+claude plugin install all@agent-standards
+```
+
+To give everyone on a project the same set, commit both keys to that project's `.claude/settings.json`. Claude Code registers the marketplace only after a contributor accepts the workspace trust dialog for the folder:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "agent-standards": {
+      "source": { "source": "github", "repo": "Lukk17/agent-standards", "ref": "plugins" }
+    }
+  },
+  "enabledPlugins": {
+    "python@agent-standards": true,
+    "devops@agent-standards": true
+  }
+}
+```
+
+Every component is namespaced under its plugin, so the Python subagent is `python:python-pro` and the coding standards skill is `/core:coding-standards`. Each skill name lives in exactly one plugin, so the bare skill names a subagent preloads never point at two skills. A project that both imports the checkout and enables the plugins carries two copies of each skill and subagent, one under each name, so pick one route per project.
+
+---
+
 ### Architecture
 
 ```mermaid

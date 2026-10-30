@@ -1,0 +1,250 @@
+# Plugin map for the Claude Code marketplace. tools/gen_plugins.py renders it
+# onto the `plugins` branch, and tools/tests/test_gen_plugins.py holds it to
+# these rules:
+#
+# - Every skill under .agents/skills/ and every subagent under subagents/ sits
+#   in exactly one plugin.
+# - core holds exactly the skills that subagents in two or more plugins
+#   preload, so a skill moves in or out of core when a skill list changes.
+# - Every other skill a subagent preloads sits in that subagent's own plugin.
+# - A skill no subagent preloads goes to the domain or host group it serves.
+# - Host groups carry `defaultEnabled: false`.
+# - One plugin per server in the root .mcp.json, named mcp-<server>.
+# - mcp-all and all hold nothing and only depend on other plugins.
+
+marketplace:
+  name: agent-standards
+  description: Skills, subagents and MCP servers from agent-standards, split by domain so a project installs only what it uses.
+  owner:
+    name: Łukasz Sarna
+    url: https://github.com/Lukk17
+  repository: https://github.com/Lukk17/agent-standards
+  license: MIT
+
+plugins:
+  - name: core
+    category: development
+    description: Skills that subagents in two or more domains preload, such as coding standards, security review, TDD, logging and git practice. Every domain plugin depends on it.
+    skills:
+      - architecture-decision-records
+      - bash
+      - build-dependency-management
+      - code-formatter
+      - coding-standards
+      - git-workflow
+      - github-ops
+      - hexagonal-architecture
+      - markdown-writer
+      - observability-and-logging
+      - performance-optimization
+      - python-patterns
+      - security-review
+      - tdd-workflow
+
+  - name: python
+    category: development
+    description: Python and machine learning, with the python-pro and ml-engineer subagents and the PyTorch skill.
+    dependencies: [core]
+    agents: [python-pro, ml-engineer]
+    skills: [pytorch-patterns]
+
+  - name: jvm
+    category: development
+    description: Java and Spring Boot, with the java-pro subagent and the Java, Spring Boot and SOAP skills.
+    dependencies: [core]
+    agents: [java-pro]
+    skills: [java-coding-standards, springboot-patterns, soap-webservices]
+
+  - name: go
+    category: development
+    description: Go services, with the go-pro subagent and the Go patterns skill.
+    dependencies: [core]
+    agents: [go-pro]
+    skills: [golang-patterns]
+
+  - name: backend
+    category: development
+    description: Backend services and HTTP APIs, with the backend-architect, api-documenter and api-tester subagents and the API design, backend, Node.js and Keycloak skills.
+    dependencies: [core]
+    agents: [backend-architect, api-documenter, api-tester]
+    skills: [api-design, backend-patterns, node-backend-patterns, keycloak-patterns]
+
+  - name: data
+    category: development
+    description: Databases, with the database-expert subagent and the PostgreSQL, migration and MongoDB skills.
+    dependencies: [core]
+    agents: [database-expert]
+    skills: [postgres-patterns, database-migrations, mongodb-patterns]
+
+  - name: web-frontend
+    category: development
+    description: Web interfaces, with the Angular, React and Next.js, accessibility, design system and UI subagents and their skills.
+    dependencies: [core]
+    agents: [angular-expert, react-nextjs-expert, accessibility-expert, design-system-architect, ui-ux-designer]
+    skills: [angular, nextjs-app-router-patterns, react-patterns, frontend-design, design-system, web-accessibility]
+
+  - name: mobile
+    category: development
+    description: Flutter and Dart apps, with the flutter-expert subagent and the Dart and Flutter skill.
+    dependencies: [core]
+    agents: [flutter-expert]
+    skills: [dart-flutter-patterns]
+
+  - name: devops
+    category: development
+    description: Delivery and operations, with the devops, incident, observability and release subagents and the deployment, Docker and Ansible skills.
+    dependencies: [core]
+    agents: [devops-automator, devops-troubleshooter, error-detective, observability-engineer, release-manager]
+    skills: [deployment-patterns, docker-patterns, ansible]
+
+  - name: review-and-security
+    category: development
+    description: Code review, security audit, codebase mapping and legacy migration, with four subagents and the review and duplication skills.
+    dependencies: [core]
+    agents: [code-reviewer, security-auditor, code-archaeologist, legacy-modernizer]
+    skills: [code-reviewer, review-duplication]
+
+  - name: testing
+    category: development
+    description: Tests, debugging and performance measurement, with four subagents and the regression, end-to-end runbook and Playwright skills.
+    dependencies: [core]
+    agents: [test-automator, debugger, e2e-runner, performance-engineer]
+    skills: [ai-regression-testing, e2e-runbooks, e2e-testing]
+
+  - name: docs-and-product
+    category: development
+    description: Documentation, legal drafts, SEO and project tracking, with four subagents and the SEO, tracking and Jira skills.
+    dependencies: [core]
+    agents: [docs-architect, legal-advisor, seo-content-marketer, project-manager]
+    skills: [seo, project-tracking, jira-integration]
+
+  - name: embedded
+    category: development
+    description: Embedded C and hardware, with the embedded-c-engineer subagent and the Arduino, KiCad and 3D printing skills.
+    dependencies: [core]
+    agents: [embedded-c-engineer]
+    skills: [embedded-c-arduino, kicad, g-code-3d-printing]
+
+  - name: game
+    category: development
+    description: Unity games, with the unity-game-dev subagent and the Unity skill.
+    dependencies: [core]
+    agents: [unity-game-dev]
+    skills: [unity]
+
+  - name: agent-tooling
+    category: development
+    description: Agent configuration and research, with the agent-engineer subagent and the agentic engineering, research and automation inventory skills.
+    dependencies: [core]
+    agents: [agent-engineer]
+    skills: [agentic-engineering, research, automation-inventory]
+
+  - name: linux
+    category: host
+    description: Linux desktop administration on Arch, CachyOS and KDE Plasma. Off until you enable it.
+    defaultEnabled: false
+    skills: [arch-linux, cachyos, kde-plasma]
+
+  - name: windows-and-mac
+    category: host
+    description: Windows and macOS administration and PowerShell scripting. Off until you enable it.
+    defaultEnabled: false
+    skills: [windows, macos, powershell]
+
+  - name: homelab
+    category: host
+    description: Homelab hosts and services, with the home-assistant-engineer subagent and the Proxmox, router, Syncthing and machine health skills. Off until you enable it.
+    defaultEnabled: false
+    dependencies: [core]
+    agents: [home-assistant-engineer]
+    skills: [home-assistant, proxmox, homelab-services, asus-router, syncthing, machine-health]
+
+  - name: personal-tools
+    category: host
+    description: Obsidian, JetBrains IDE configuration and the self-hosted AscendMemory, ascend-web-hunter and AudioScribe services. Off until you enable it.
+    defaultEnabled: false
+    skills: [obsidian, jetbrains-ide-ops, ascend-memory, ascend-web-hunter, audio-scribe]
+
+  - name: mcp-context7
+    category: mcp
+    description: The Context7 documentation MCP server.
+    mcp: context7
+
+  - name: mcp-mongodb
+    category: mcp
+    description: The MongoDB MCP server, read-only, started with npx.
+    mcp: mongodb
+
+  - name: mcp-grafana
+    category: mcp
+    description: The Grafana MCP server, started with uvx.
+    mcp: grafana
+
+  - name: mcp-playwright
+    category: mcp
+    description: The Playwright browser MCP server, started with npx. It can write local files.
+    mcp: playwright
+
+  - name: mcp-chrome-devtools
+    category: mcp
+    description: The Chrome DevTools MCP server, started with npx. It can write local files.
+    mcp: chrome-devtools
+
+  - name: mcp-redis
+    category: mcp
+    description: The Redis MCP server, started with uvx.
+    mcp: redis
+
+  - name: mcp-sonarqube
+    category: mcp
+    description: The SonarQube MCP server, started with docker run, which pulls the image on every start.
+    mcp: sonarqube
+
+  - name: mcp-n8n
+    category: mcp
+    description: The n8n MCP server, started with npx.
+    mcp: n8n
+
+  - name: mcp-home-assistant
+    category: mcp
+    description: The Home Assistant MCP server, started with uvx and reading its settings from an env file in your home directory.
+    mcp: home-assistant
+
+  - name: mcp-all
+    category: bundle
+    description: Every MCP server plugin in one install.
+    dependencies:
+      - mcp-context7
+      - mcp-mongodb
+      - mcp-grafana
+      - mcp-playwright
+      - mcp-chrome-devtools
+      - mcp-redis
+      - mcp-sonarqube
+      - mcp-n8n
+      - mcp-home-assistant
+
+  - name: all
+    category: bundle
+    description: Every plugin in this marketplace in one install, including the host groups and every MCP server.
+    dependencies:
+      - core
+      - python
+      - jvm
+      - go
+      - backend
+      - data
+      - web-frontend
+      - mobile
+      - devops
+      - review-and-security
+      - testing
+      - docs-and-product
+      - embedded
+      - game
+      - agent-tooling
+      - linux
+      - windows-and-mac
+      - homelab
+      - personal-tools
+      - mcp-all

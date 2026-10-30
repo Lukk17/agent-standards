@@ -16,6 +16,8 @@ Three categories, and mixing them up is the one mistake that breaks a rebuild.
 | Canonical | `subagents/*.md`, `.agents/skills/*/SKILL.md` and their `references/*.md`, `.agents/hooks/*.py`, `.agents/hooks/claude/sync_skill_links.py`, `.agents/plugin/hooks.js`, `.agents/plugin/index.js`, `docs/*.md` | edit directly |
 | Canonical config | `.mcp.json`, `opencode.json`, `.codex/config.toml`, `.vscode/mcp.json`, `.github/mcp.json`, `.claude/settings.json`, `.github/hooks/preflight.json` | edit directly, keep the server set and the gate wording in sync |
 | Generated | `.claude/agents/*.md`, `.agents/agents/*.md`, `.codex/agents/*.toml`, `.github/agents/*.agent.md` | never hand-edit, run `python tools/gen_subagents.py` |
+| Canonical, this repo only | `tools/plugins.yaml`, the plugin map: which Claude Code plugin holds each skill, subagent and MCP server | edit directly, verified by `tools/tests/test_gen_plugins.py`, never shipped |
+| Generated, `plugins` branch only | `.claude-plugin/marketplace.json` and `plugins/<name>/` | never hand-edit and never on `master`. The `Plugins` workflow runs `python tools/gen_plugins.py <out-dir>` on every push to `master` and commits the result to the `plugins` branch |
 | Symlink | `.opencode/agents`, `.kilo/agents`, `.claude/skills` | never edit through the link, fix the link itself |
 | Canonical, global install only | `global/bin/update-global.sh`, `global/bin/update-global.ps1` | edit both together, verified by `tools/tests/test_update_global.py`, shipped to `~/.config/agents/bin` by the global install and never by a project import |
 | Canonical, this repo only | `main-thread-allowlist.txt` | edit directly, verified by the pytest suite under `tools/tests/`, never shipped |
@@ -64,6 +66,8 @@ agent-standards/
   subagents/                     # CANONICAL subagent sources, this repo only, inside the markdown lint scope
   tools/                         # Generator, linter and tests, this repo only
     gen_subagents.py             # Emits four trees plus the two agent symlinks, validates skills and tools
+    gen_plugins.py               # Renders the Claude Code plugin marketplace from plugins.yaml into a given directory
+    plugins.yaml                 # CANONICAL plugin map, one plugin per skill and per subagent
     check-markdown.py            # Markdown lint used by CI, runs .agents/hooks/_check_markdown.py
     pyproject.toml               # CANONICAL, the only pinned dependency and pytest configuration
     check-badges.py              # README badge and social card count lint used by CI
@@ -89,7 +93,7 @@ agent-standards/
     agents/                      # GENERATED, GitHub Copilot subagents (*.agent.md)
     hooks/preflight.json         # Copilot hook config, camelCase events
     mcp.json                     # the GitHub Copilot CLI fallback, key "mcpServers", read only where no .mcp.json exists
-    workflows/                   # CI and release, both manual-trigger only
+    workflows/                   # CI, release, live agent tests, and plugins.yml, which builds the plugins branch
   .vscode/
     mcp.json                     # GitHub Copilot in VS Code, key "servers"
   AGENTS.md                      # This repo's own instructions, never shipped downstream

@@ -225,6 +225,30 @@ refuses to load it.
 
 ---
 
+### Placing a skill or a subagent in the plugin map
+
+Every skill and every subagent also lives in exactly one Claude Code plugin, named in [tools/plugins.yaml](tools/plugins.yaml). Add a new one to the map in the same change that adds it, because [tools/tests/test_gen_plugins.py](tools/tests/test_gen_plugins.py) fails on a skill or a subagent that sits in no plugin, or in two. Place it by these rules. The same tests enforce the first four:
+
+1. A subagent goes into the domain plugin whose work it does, and that plugin lists `core` under `dependencies`.
+2. A skill the subagent preloads goes into the subagent's own plugin, unless subagents in another plugin preload it too. Then it goes into `core`. `core` holds exactly the skills that subagents in two or more plugins preload, so a change to a `skills` list can move a skill into `core` or back out of it, and the test names the move.
+3. A skill no subagent preloads goes into the domain it serves, or into a host group when it administers a machine or a personal tool. A host group carries `category: host` and `defaultEnabled: false`.
+4. A new server in [.mcp.json](.mcp.json) gets its own `mcp-<server>` plugin holding only `mcp: <server>`, and joins the `dependencies` of `mcp-all`. A new plugin of any other kind joins the `dependencies` of `all`.
+5. Add no plugin for a single subagent with no skill of its own. Put that subagent into the nearest domain instead.
+
+Check the map and render it into a scratch directory outside the repository:
+
+```bash
+python -m pytest tools/tests/test_gen_plugins.py
+```
+
+```bash
+python tools/gen_plugins.py ../plugins-out
+```
+
+The rendered tree is never committed on `master`. On every push to `master`, [.github/workflows/plugins.yml](.github/workflows/plugins.yml) renders it, runs `claude plugin validate --strict` on the marketplace and on each plugin, and commits the result to the `plugins` branch.
+
+---
+
 ### Changing the preflight wiring
 
 The gate lives in one shared script, and each agent wires that script to its own hook surface. If your change touches
