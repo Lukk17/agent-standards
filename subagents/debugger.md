@@ -2,7 +2,6 @@
 name: debugger
 description: Use when an error, test failure, or unexpected behaviour needs root-cause analysis. Reproduces the failure, isolates the cause, applies the minimal fix, and verifies it. Returns a short diagnosis report plus the fix.
 tools: [read, grep, glob, bash]
-model: opus
 skills:
   - coding-standards
   - code-formatter

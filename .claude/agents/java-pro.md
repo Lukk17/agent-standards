@@ -2,7 +2,6 @@
 name: java-pro
 description: "Use when writing or reviewing Java / Spring Boot code, or when modernising a JVM service. Applies Java 21+ idioms (records, sealed types, pattern matching, virtual threads), Spring Boot 3 conventions, and JPA patterns. Implementer, not architect: defers service decomposition to `backend-architect` and schema design to `database-expert`."
 tools: Read, Write, Edit, Grep, Glob, Bash
-model: inherit
 skills:
   - java-coding-standards
   - springboot-patterns

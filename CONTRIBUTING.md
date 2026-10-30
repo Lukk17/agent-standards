@@ -195,7 +195,9 @@ Commit the canonical source AND the generated outputs, and bump the subagent-cou
 and the subagent count on [docs/assets/social-card.svg](docs/assets/social-card.svg).
 
 The generator validates before it writes. Every name in the `skills` list needs a folder under `.agents/skills/`,
-every name in `tools` has to be one it knows, and `model` has to be `opus`, `sonnet`, `haiku`, or `inherit`. A
+every name in `tools` has to be one it knows, and a `model` key is rejected outright: a subagent never pins a model,
+and no generated file carries one either, so every agent falls back to the user's own subagent default, such as
+`CLAUDE_CODE_SUBAGENT_MODEL` on Claude Code, and otherwise to the model the session is on. A
 `tools` list of exactly `read`, `grep` and `glob` also earns `permissionMode: plan` in the Claude Code output, which
 is how a read-only agent stays read-only. `subagents/*.md` is inside the markdown lint scope, so run
 `python tools/check-markdown.py` on the new file too. That check also validates the front matter: it has to parse as

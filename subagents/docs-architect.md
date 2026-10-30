@@ -2,7 +2,6 @@
 name: docs-architect
 description: "Use when producing long-form technical documentation from a codebase: architecture manuals, system handbooks, onboarding guides, technical deep-dives. Reads the actual code and the git history, captures the why, and organises it for different audiences. The documentation is the deliverable, not a code change."
 tools: [read, write, edit, grep, glob, bash]
-model: inherit
 skills:
   - markdown-writer
   - architecture-decision-records

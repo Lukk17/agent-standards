@@ -1,7 +1,6 @@
 ---
 description: "Use when an error, test failure, or unexpected behaviour needs root-cause analysis. Reproduces the failure, isolates the cause, applies the minimal fix, and verifies it. Returns a short diagnosis report plus the fix."
 mode: subagent
-model: anthropic/claude-opus-4-7
 permission:
   edit: deny
 tools:

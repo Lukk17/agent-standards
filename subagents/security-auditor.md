@@ -2,7 +2,6 @@
 name: security-auditor
 description: "Use PROACTIVELY before any auth, payment, or sensitive-data change ships, and on demand for threat modelling, security architecture review, or vulnerability assessment. Covers threat modelling (STRIDE and attack trees), backend and frontend secure coding, and compliance gap analysis. Read-only: produces findings and remediation guidance, does not patch code itself."
 tools: [read, grep, glob]
-model: opus
 skills:
   - security-review
   - keycloak-patterns

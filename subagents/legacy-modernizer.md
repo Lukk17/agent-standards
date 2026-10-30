@@ -2,7 +2,6 @@
 name: legacy-modernizer
 description: Use when migrating frameworks, upgrading dependencies across breaking versions, decomposing a monolith, or paying down structural tech debt. Plans the migration in phases with tests added before each refactor, preserves backward compatibility behind feature flags, and documents rollback for every phase.
 tools: [read, write, edit, grep, glob, bash]
-model: opus
 skills:
   - review-duplication
   - hexagonal-architecture

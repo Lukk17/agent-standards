@@ -2,7 +2,6 @@
 name: backend-architect
 description: "Use when designing a new backend service or revising an API contract, whether REST, GraphQL, gRPC, or event-driven. Produces an authoritative spec (OpenAPI or GraphQL schema) plus service boundaries, auth, resilience, and observability decisions. Read-only: the spec is the deliverable, implementation happens elsewhere."
 tools: [read, grep, glob]
-model: opus
 skills:
   - api-design
   - backend-patterns

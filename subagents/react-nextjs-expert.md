@@ -2,7 +2,6 @@
 name: react-nextjs-expert
 description: "Use when building or reviewing React 19 / Next.js 14+ code with the App Router. Applies Server Components by default, Client Components only where interactivity demands them, Server Actions for mutations, and Suspense for streaming. Implementer, not architect: defers cross-service design and design-system work to the specialised agents."
 tools: [read, write, edit, grep, glob, bash]
-model: inherit
 skills:
   - nextjs-app-router-patterns
   - react-patterns

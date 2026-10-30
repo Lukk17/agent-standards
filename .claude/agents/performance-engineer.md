@@ -2,7 +2,6 @@
 name: performance-engineer
 description: "Use when an application is slow, a deployment regressed performance, or you need a baseline before optimisation. Measures first, identifies the actual bottleneck with evidence, proposes the smallest change that moves the metric, and verifies the result. Read-only on production code, so it proposes diffs rather than applying them."
 tools: Read, Grep, Glob, Bash
-model: opus
 skills:
   - performance-optimization
   - coding-standards

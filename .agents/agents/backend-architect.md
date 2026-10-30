@@ -1,7 +1,6 @@
 ---
 description: "Use when designing a new backend service or revising an API contract, whether REST, GraphQL, gRPC, or event-driven. Produces an authoritative spec (OpenAPI or GraphQL schema) plus service boundaries, auth, resilience, and observability decisions. Read-only: the spec is the deliverable, implementation happens elsewhere."
 mode: subagent
-model: anthropic/claude-opus-4-7
 permission:
   edit: deny
   bash: deny

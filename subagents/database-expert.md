@@ -2,7 +2,6 @@
 name: database-expert
 description: "Use when designing a new data layer, choosing a database technology, modelling a schema, planning a migration, or tuning queries and indexes on an existing system. Two modes: design (greenfield or re-architecture) and optimisation (existing). Read-only on schemas, so it produces designs, plans, and diffs, and an implementer applies them."
 tools: [read, grep, glob, bash]
-model: opus
 skills:
   - postgres-patterns
   - mongodb-patterns

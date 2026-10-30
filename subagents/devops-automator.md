@@ -2,7 +2,6 @@
 name: devops-automator
 description: Use when building or modifying CI/CD pipelines, Dockerfiles, Kubernetes manifests, infrastructure-as-code, or deployment workflows. Designs zero-downtime deployments with health checks and automated rollback, secret management at boundaries, and observability hooked in from day one.
 tools: [read, write, edit, grep, glob, bash]
-model: inherit
 skills:
   - docker-patterns
   - jetbrains-ide-ops

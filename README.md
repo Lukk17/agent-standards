@@ -651,8 +651,8 @@ including what each hook surface can actually block, lives in
   generator emits four subagent trees ([.agents/agents/](.agents/agents/), [.claude/agents/](.claude/agents/),
   [.codex/agents/](.codex/agents/), [.github/agents/](.github/agents/)) and maintains the `.opencode/agents` and
   `.kilo/agents` symlinks. It also emits a per-format tools list, including Copilot's own tool names, sets
-  `permissionMode: plan` on Claude Code for the read-only agents, and accepts `model: inherit` for an agent that should
-  run on whatever the session already uses.
+  `permissionMode: plan` on Claude Code for the read-only agents, and refuses a source that names a `model`, so no
+  generated agent pins one and each runs on the user's subagent default or the session's model.
 - [.claude/](.claude/): Claude Code's own folder, with a `skills` symlink, a generated `agents/` tree, and the hooks
   in `settings.json`. It holds no `CLAUDE.md`, because any `CLAUDE.md` stops Claude Code reading `AGENTS.md`.
 - [.claude/workflows/skill-audit.js](.claude/workflows/skill-audit.js): a saved Claude Code workflow, run as

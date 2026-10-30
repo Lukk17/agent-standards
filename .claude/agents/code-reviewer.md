@@ -2,7 +2,6 @@
 name: code-reviewer
 description: "Use PROACTIVELY after any code change before merging. Runs a severity-tagged review across correctness, security, performance, architecture, and tests. Read-only: produces a report with file:line citations, does not apply fixes."
 tools: Read, Grep, Glob
-model: opus
 permissionMode: plan
 skills:
   - code-reviewer

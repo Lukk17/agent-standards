@@ -45,7 +45,6 @@ CLEAN_SUBAGENT_FRONT_MATTER = """---
 name: demo-agent
 description: Demo subagent for the lint tests.
 tools: Read, Grep, Glob
-model: inherit
 skills: [coding-standards]
 ---
 """

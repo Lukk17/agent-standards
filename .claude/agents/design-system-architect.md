@@ -2,7 +2,6 @@
 name: design-system-architect
 description: "Use when establishing or evolving a design system, covering token architecture, component library structure, multi-brand theming, or the design-to-code workflow. Produces the infrastructure the rest of the front-end builds on. Defers per-feature visual implementation to `ui-ux-designer` and accessibility audit to `accessibility-expert`."
 tools: Read, Write, Edit, Grep, Glob
-model: inherit
 skills:
   - design-system
   - frontend-design

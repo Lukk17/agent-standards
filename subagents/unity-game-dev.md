@@ -2,7 +2,6 @@
 name: unity-game-dev
 description: Use when building or reviewing Unity / C# game code. Applies frame-budget discipline (no per-frame allocations, cached component lookups), ScriptableObject-based architecture, the Unity Test Framework, and Addressables for asset loading. Implementer, not architect.
 tools: [read, write, edit, grep, glob, bash]
-model: inherit
 skills:
   - unity
   - coding-standards

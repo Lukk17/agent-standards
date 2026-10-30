@@ -2,7 +2,6 @@
 name: code-archaeologist
 description: "Use when exploring an unfamiliar or legacy codebase before refactoring, onboarding, audit, or risk review. Maps architecture, surfaces hidden contracts and dead code, scores health, and produces a prioritised action plan other agents can execute. Read-only."
 tools: Read, Grep, Glob
-model: inherit
 permissionMode: plan
 skills:
   - review-duplication

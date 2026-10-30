@@ -26,7 +26,6 @@ WRITER = {
     "name": "fixture-writer",
     "description": "Use when a fixture needs writing.",
     "tools": ["read", "write", "edit", "grep", "glob", "bash"],
-    "model": "sonnet",
     "skills": ["coding-standards", "python-patterns"],
 }
 
@@ -34,7 +33,6 @@ TRICKY = {
     "name": "fixture-tricky",
     "description": 'Use when auditing a "live" system. Read-only: produces a report, applies no fix.',
     "tools": ["read", "grep", "glob"],
-    "model": "sonnet",
     "skills": ["markdown-writer"],
 }
 
@@ -44,7 +42,6 @@ READER = {
     "name": "fixture-reader",
     "description": "Use when a fixture needs reading only.",
     "tools": ["read", "grep", "glob"],
-    "model": "opus",
     "skills": ["markdown-writer"],
 }
 
@@ -135,13 +132,21 @@ def test_parse_rejects_an_unknown_tool(tmp_path):
     assert "telepathy" in str(exc.value)
 
 
-def test_parse_rejects_an_unknown_model(tmp_path):
-    path = write_agent(tmp_path, "bad-model", "name: bad-model\ndescription: Use when broken.\nmodel: gpt-9")
+@pytest.mark.parametrize("model", ["inherit", "opus", "sonnet", "gpt-9"])
+def test_parse_rejects_any_model_key(tmp_path, model):
+    # Given a canonical agent that pins a model, even the one that means the session model
+    path = write_agent(tmp_path, "pinned", f"name: pinned\ndescription: Use when pinned.\nmodel: {model}")
 
+    # When
     with pytest.raises(SystemExit) as exc:
         gen.parse(path, SKILLS)
 
-    assert "gpt-9" in str(exc.value)
+    # Then the message names the file and says why no model is allowed
+    message = str(exc.value)
+
+    assert "pinned.md" in message
+    assert "remove the 'model' key" in message
+    assert "session model" in message
 
 
 def test_parse_accepts_websearch_as_a_tool(tmp_path):
@@ -175,27 +180,25 @@ def test_generating_two_agents_with_the_same_name_fails(tmp_path, monkeypatch):
     assert "duplicate agent name: clash" in str(exc.value)
 
 
-def test_claude_emits_name_tools_model_and_skills():
+def test_claude_emits_name_tools_and_skills():
     rendered = gen.emit_claude(WRITER, BODY)
     head = rendered.split("---\n")[1].splitlines()
 
     assert head[0] == "name: fixture-writer"
     assert head[1] == 'description: "Use when a fixture needs writing."'
     assert head[2] == "tools: Read, Write, Edit, Grep, Glob, Bash"
-    assert head[3] == "model: sonnet"
-    assert head[4:] == ["skills:", "  - coding-standards", "  - python-patterns"]
+    assert head[3:] == ["skills:", "  - coding-standards", "  - python-patterns"]
     assert "permissionMode" not in rendered
 
 
-def test_opencode_emits_a_pinned_model_and_a_tool_map():
+def test_opencode_emits_no_model_and_a_tool_map():
     rendered = gen.emit_opencode(WRITER, BODY)
     head = rendered.split("---\n")[1].splitlines()
 
     assert head[0] == 'description: "Use when a fixture needs writing."'
     assert head[1] == "mode: subagent"
-    assert head[2] == "model: anthropic/claude-sonnet-4-6"
-    assert head[3] == "tools:"
-    assert head[4:] == [f"  {tool}: true" for tool in WRITER["tools"]]
+    assert head[2] == "tools:"
+    assert head[3:] == [f"  {tool}: true" for tool in WRITER["tools"]]
 
 
 def test_opencode_no_longer_emits_a_permissions_block():
@@ -370,33 +373,46 @@ def test_codex_grants_no_tools_at_all():
     assert set(parsed) == {"name", "description", "developer_instructions"}
 
 
-def test_the_opencode_model_ids_are_pinned_in_one_constant():
-    assert gen.OPENCODE_MODELS == {
-        "opus": "anthropic/claude-opus-4-7",
-        "sonnet": "anthropic/claude-sonnet-4-6",
-        "haiku": "anthropic/claude-haiku-4-5",
-        "inherit": None,
-    }
-    assert gen.MODEL["opencode"] is gen.OPENCODE_MODELS
-    assert set(gen.OPENCODE_MODELS) == set(gen.MODEL["claude"])
+def test_the_generator_keeps_no_model_table():
+    assert not hasattr(gen, "OPENCODE_MODELS")
+    assert not hasattr(gen, "MODEL")
+    assert not hasattr(gen, "CLAUDE_MODEL_LINE")
 
 
-def test_inherit_is_passed_through_on_claude():
-    assert "model: inherit" in gen.emit_claude({**WRITER, "model": "inherit"}, BODY)
+@pytest.mark.parametrize("fixture", [WRITER, READER, TRICKY], ids=["writer", "reader", "tricky"])
+def test_claude_emits_no_model_line(fixture):
+    """An explicit `model: inherit` would outrank the user's CLAUDE_CODE_SUBAGENT_MODEL default."""
+    assert "model" not in front_matter(gen.emit_claude(fixture, BODY))
 
 
-def test_inherit_omits_the_model_line_on_opencode():
-    rendered = gen.emit_opencode({**WRITER, "model": "inherit"}, BODY)
-
-    assert "model:" not in rendered.split("---\n")[1]
-
-
-def test_inherit_survives_a_round_trip_through_parse(tmp_path):
-    path = write_agent(
-        tmp_path, "inheritor", "name: inheritor\ndescription: Use when inheriting.\nmodel: inherit\ntools: [read]"
-    )
-
+@pytest.mark.parametrize("tool", ["claude", "agents", "codex", "copilot"])
+def test_every_target_emits_no_model(tmp_path, tool):
+    # Given a parsed canonical agent with no model key
+    path = write_agent(tmp_path, "plain", "name: plain\ndescription: Use when plain.\ntools: [read]")
     frontmatter, body = gen.parse(path, SKILLS)
 
-    assert gen.render("claude", frontmatter, body).count("model: inherit") == 1
-    assert "model:" not in gen.render("agents", frontmatter, body).split("---\n")[1]
+    # When
+    rendered = gen.render(tool, frontmatter, body)
+
+    # Then the target falls back on the user's subagent default or the session model
+    header = tomllib.loads(rendered) if tool == "codex" else front_matter(rendered)
+
+    assert "model" not in header
+
+
+def test_every_generated_agent_runs_on_the_session_model():
+    sources = sorted(gen.SRC.glob("*.md"))
+
+    assert sources, f"no canonical agents under {gen.SRC}"
+
+    for source in sources:
+        canonical = front_matter(source.read_text(encoding="utf-8"))
+        name = canonical["name"]
+
+        assert "model" not in canonical, f"{source.name} pins a model"
+
+        for tool, (outdir, extension) in gen.TARGETS.items():
+            rendered = (outdir / f"{name}{extension}").read_text(encoding="utf-8")
+            header = tomllib.loads(rendered) if tool == "codex" else front_matter(rendered)
+
+            assert "model" not in header, f"{tool}: {name}"

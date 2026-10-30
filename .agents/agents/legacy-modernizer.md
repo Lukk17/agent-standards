@@ -1,7 +1,6 @@
 ---
 description: "Use when migrating frameworks, upgrading dependencies across breaking versions, decomposing a monolith, or paying down structural tech debt. Plans the migration in phases with tests added before each refactor, preserves backward compatibility behind feature flags, and documents rollback for every phase."
 mode: subagent
-model: anthropic/claude-opus-4-7
 tools:
   read: true
   write: true

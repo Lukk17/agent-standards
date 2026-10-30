@@ -2,7 +2,6 @@
 name: angular-expert
 description: "Use when building or reviewing Angular code. Applies modern Angular (standalone components, signals, control flow, `inject()`), RxJS discipline, and OnPush change detection. Implementer, not architect: defers cross-service design to `backend-architect` and design-system work to `design-system-architect`."
 tools: [read, write, edit, grep, glob, bash]
-model: inherit
 skills:
   - angular
   - react-patterns

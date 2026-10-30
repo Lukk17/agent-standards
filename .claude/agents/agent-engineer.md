@@ -2,7 +2,6 @@
 name: agent-engineer
 description: "Use when the work is the AI agent configuration itself: writing or repairing a skill, a subagent definition, a preflight hook, an MCP server block, or an AGENTS.md file, and any research into how an agent tool actually behaves today. This is the agent the main thread hands web research to, because the main thread is gated from running it."
 tools: Read, Write, Edit, Grep, Glob, Bash, WebFetch, WebSearch
-model: inherit
 skills:
   - agentic-engineering
   - automation-inventory

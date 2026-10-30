@@ -85,22 +85,11 @@ OPENCODE_WRITE_PERMISSIONS = {
 
 CLAUDE_READ_ONLY_PERMISSION_MODE = "plan"
 
-OPENCODE_MODELS = {
-    "opus": "anthropic/claude-opus-4-7",
-    "sonnet": "anthropic/claude-sonnet-4-6",
-    "haiku": "anthropic/claude-haiku-4-5",
-    "inherit": None,
-}
-
-MODEL = {
-    "claude": {
-        "opus": "opus",
-        "sonnet": "sonnet",
-        "haiku": "haiku",
-        "inherit": "inherit",
-    },
-    "opencode": OPENCODE_MODELS,
-}
+# Subagents never pin a model, and every target omits the key. Each agent then
+# falls back to the user's configured subagent default, else the session model:
+# Claude Code reads CLAUDE_CODE_SUBAGENT_MODEL, then the main conversation's model
+# (https://code.claude.com/docs/en/sub-agents, "Choose a model"), and Codex reads
+# agents.default_subagent_model, then the parent's model.
 
 
 def installed_skills() -> set[str]:
@@ -119,10 +108,11 @@ def parse(path: pathlib.Path, skills: set[str] | None = None) -> tuple[dict, str
     for req in ("name", "description"):
         if req not in fm:
             sys.exit(f"ERROR {path} missing required field '{req}'")
-    model = fm.get("model", "sonnet")
-    if model not in MODEL["claude"]:
-        valid = ", ".join(sorted(MODEL["claude"]))
-        sys.exit(f"ERROR {path}: unknown model {model!r}. Valid: {valid}")
+    if "model" in fm:
+        sys.exit(
+            f"ERROR {path}: remove the 'model' key. Subagents never pin a model, "
+            "so every agent runs on the user's session model."
+        )
     unknown_tools = [t for t in fm.get("tools", []) if t not in CLAUDE_TOOLS]
     if unknown_tools:
         valid = ", ".join(sorted(CLAUDE_TOOLS))
@@ -176,7 +166,6 @@ def emit_claude(fm: dict, body: str) -> str:
     tools = [CLAUDE_TOOLS.get(t, t) for t in fm.get("tools", [])]
     if tools:
         lines.append("tools: " + ", ".join(tools))
-    lines.append("model: " + MODEL["claude"][fm.get("model", "sonnet")])
     if set(fm.get("tools") or []) == READ_ONLY_TOOLS:
         lines.append("permissionMode: " + CLAUDE_READ_ONLY_PERMISSION_MODE)
     if fm.get("skills"):
@@ -192,9 +181,6 @@ def emit_opencode(fm: dict, body: str) -> str:
         f"description: {_yaml_double_quoted(fm['description'].strip())}",
         "mode: subagent",
     ]
-    model_id = MODEL["opencode"][fm.get("model", "sonnet")]
-    if model_id:
-        lines.append(f"model: {model_id}")
     if fm.get("tools"):
         denied = opencode_denied_permissions(fm["tools"])
         if denied:

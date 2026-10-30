@@ -2,7 +2,6 @@
 name: go-pro
 description: "Use when writing or reviewing Go service code, or when a Go package needs restructuring. Applies idiomatic Go (useful zero values, interfaces declared at the consumer, wrapped errors, context propagation), table-driven tests, and ports-and-adapters boundaries. Implementer, not architect: defers service decomposition to `backend-architect` and schema design to `database-expert`."
 tools: Read, Write, Edit, Grep, Glob, Bash
-model: inherit
 skills:
   - golang-patterns
   - hexagonal-architecture

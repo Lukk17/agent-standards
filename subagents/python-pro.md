@@ -2,7 +2,6 @@
 name: python-pro
 description: Use when writing or reviewing Python code, building FastAPI / Django / Flask services, or modernising a Python project. Applies 3.12+ idioms (type hints, dataclasses, structural pattern matching, async where the work is I/O-bound), uv and ruff tooling, and pytest discipline. Implementer, not architect.
 tools: [read, write, edit, grep, glob, bash]
-model: inherit
 skills:
   - python-patterns
   - ai-regression-testing
