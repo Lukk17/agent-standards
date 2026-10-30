@@ -14,14 +14,7 @@ You execute one end-to-end capability test end-to-end against a live stack and r
 author specs, you do not refactor templates, you do not run sweeps yourself. The main session is the sweep orchestrator.
 You are one cell in its fan-out.
 
-### Fan-out policy the caller follows
-
-The main session is the orchestrator and spawns one e2e-runner per test. The default concurrency cap is 5, confirmed
-with the user before the fan-out starts, and typically between 3 and 10 depending on what the test environment can
-take. Anything over the cap is queued rather than launched. You never start a second runner yourself.
-
-Authoring is not your job either. A new or edited spec is written in the main session with the `e2e-runbooks` skill,
-and a Playwright browser journey belongs to the `e2e-testing` skill and its own runner.
+You never start a second runner yourself. The fan-out policy, the parallel cap included, belongs to the caller and lives in the `e2e-runbooks` skill. A Playwright browser journey belongs to the `e2e-testing` skill and its own runner.
 
 ### Inputs you expect from the caller
 
@@ -32,7 +25,7 @@ The caller spawns you with at minimum:
 - Optional: any project-specific environment context (auth profile, base URL override) that the spec does not encode
   itself.
 
-If any of those are missing, ask the caller before doing anything else. Do not invent values.
+If any of those are missing, stop and return the missing item to the caller before doing anything else. Do not invent values.
 
 ### Execution contract
 
@@ -50,8 +43,7 @@ If any of those are missing, ask the caller before doing anything else. Do not i
 6. After the last Expected assertion is checked or definitively failed, record `End (UTC)` in the run file.
 7. Compute `Duration = End - Start` as `HH:MM:SS`. Wall-clock for the whole test (prereqs + reset + run + verify), NOT
    just the API client invocation.
-8. Fill `Input tokens` and `Output tokens` with your best estimate of LLM API tokens consumed during this run. Leave
-   blank if exact numbers aren't available. Do not invent.
+8. Fill `Input tokens` and `Output tokens` with the LLM API token counts for this run. Leave them blank unless the runtime reports exact counts. Do not estimate.
 9. Write the Result summary paragraph (one short paragraph anchored to the Expected assertions) and the Verdict (PASS or
    FAIL).
 10. If you did anything off-spec (extra diagnostics, manual log inspection, a retry with a different input), log it
@@ -107,8 +99,7 @@ the caller) or you misunderstood the task.
 
 ### On the startup-readiness banner
 
-Before the first prerequisite check, glance at the service's startup readiness banner (the `coding-standards` skill
-canonical convention) if your tools can reach it. Any `[FAILED]` row under External dependencies in the banner is the
+Before the first prerequisite check, glance at the service's startup readiness banner (the `observability-and-logging` skill convention, which you load from `.agents/skills/observability-and-logging/SKILL.md` when a banner is present) if your tools can reach it. Any `[FAILED]` row under External dependencies in the banner is the
 next diagnostic step on a failure, so surface it in your report under Additional tasks I did. Do not abort solely
 because of a `[FAILED]` line. The spec's own prerequisite checks are authoritative for what your test actually needs.
 
@@ -131,6 +122,5 @@ source file was modified.
 Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns, and this prompt only defines persona and scope.
 
 - `e2e-runbooks`
-- `coding-standards`
-- `markdown-writer`
 - `bash`
+- `markdown-writer`

@@ -11,6 +11,14 @@ Enforces a subset of the `markdown-writer` skill rules:
   into a sibling skill, or out of the skills tree, can be dead downstream.
   Another skill is named in backticks instead.
 
+- No dated or "current version" baseline in an agent-facing file: a skill
+  file under `.agents/skills/`, a `subagents/<name>.md` source, or a file in a
+  generated agent tree. "Current as of", "as of <Month> <Year>", "as of
+  <Year>", "verified <Month> <Year>" and "the current stable release is X" are
+  stale the day after they are written, and an agent reads them as fact. State
+  the major version the content is written for instead. Fenced code and inline
+  code spans are exempt, so a specimen such as SQL `AS OF` stays legal.
+
 There is no line-length rule. Prose is never hard-wrapped, so a paragraph is
 one physical line however long it runs.
 
@@ -35,10 +43,11 @@ exactly that, and the block parses as a nested mapping instead of a string.
 Scope: README.md, AGENTS.md.example, docs/*.md, .agents/skills/**/*.md, the
 global install's global/*.md and global/*.md.example, and the canonical
 subagents/*.md source. The four generated subagent trees
-(.claude/agents/, .agents/agents/, .codex/agents/, .github/agents/) and the
-.opencode/agents and .kilo/agents symlinks into .agents/agents/ are NOT
-checked: they are rendered from the canonical source, so linting them would
-report the same violation five times.
+(.claude/agents/, .agents/agents/, .codex/agents/, .github/agents/) get the
+dated-baseline rule only, because a consumer receives them without the
+canonical source; every other rule skips them, since they are rendered from
+that source and would report the same violation five times. The .opencode/agents
+and .kilo/agents symlinks into .agents/agents/ are never walked.
 
 Pass explicit file paths as arguments to lint only those files; with no
 arguments the default target set above is linted.
@@ -108,6 +117,40 @@ YAML_INDICATORS = "*&!%@`[{>|\"'"
 QUOTES = "\"'"
 KEY_LINE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
 
+GENERATED_AGENT_TREES = (
+    (".claude", "agents"),
+    (".agents", "agents"),
+    (".codex", "agents"),
+    (".github", "agents"),
+    (".opencode", "agents"),
+    (".kilo", "agents"),
+)
+GENERATED_AGENT_SUFFIXES = (".md", ".toml")
+
+_MONTH = (
+    r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?"
+    r"|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?"
+)
+_YEAR = r"(?:19|20)\d{2}\b"
+_DATE = (
+    rf"(?:{_MONTH}\s+(?:\d{{1,2}},?\s+)?{_YEAR}"
+    rf"|\d{{1,2}}\s+{_MONTH}\s+{_YEAR}"
+    r"|(?:19|20)\d{2}-\d{2}(?:-\d{2})?\b)"
+)
+_RELEASE_NOUN = r"(?:(?:stable|lts|latest|supported)\s+)*(?:release|version|toolchain|lts)\b"
+_CAPITALISED_NAME = r"(?-i:[A-Z])[\w.+#-]*"
+DATED_BASELINES = (
+    re.compile(r"\bcurrent\s+as\s+of\b", re.IGNORECASE),
+    re.compile(rf"\bas\s+of\s+(?:{_DATE}|{_YEAR})", re.IGNORECASE),
+    re.compile(rf"\b(?:verified|checked|tested|confirmed)\s+(?:on\s+|in\s+)?{_DATE}", re.IGNORECASE),
+    re.compile(
+        rf"\bthe\s+current\s+{_RELEASE_NOUN}(?:\s+of\s+{_CAPITALISED_NAME}(?:\s+{_CAPITALISED_NAME})?)?"
+        rf"\s+is\s+(?:v?\d|{_CAPITALISED_NAME}(?:\s+{_CAPITALISED_NAME})?\s+v?\d)",
+        re.IGNORECASE,
+    ),
+    re.compile(rf"\bv?\d+(?:\.\d+)*,?\s+(?:is\s+|as\s+)?the\s+current\s+{_RELEASE_NOUN}", re.IGNORECASE),
+)
+
 
 def skill_folder(path: Path) -> Path | None:
     """The `.agents/skills/<name>` folder holding the file, None outside one."""
@@ -165,28 +208,18 @@ def _skill_link_violations(line: str, line_no: int, path: Path, folder: Path | N
     return failures
 
 
-def check_lines(lines: list[str], path: Path) -> int:
-    """Pure linter. Returns the violation count for one file's lines.
+def _outside_fences(lines: list[str], first_index: int = 0):
+    """Yield (line number, line) for every line outside a fenced code block.
 
-    Separated from file I/O so unit tests can pass synthetic `lines`
-    without touching the filesystem.
+    Lines before `first_index` are skipped. Fences follow CommonMark: a closer
+    uses the opener's character, is at least as long, and has no info string.
     """
     in_fence = False
     fence_char = ""
     fence_marker_len = 0
-    failures = 0
-    folder = skill_folder(path)
-
-    # Skip a leading YAML frontmatter block; it is metadata, not prose.
-    fm_end = -1
-    if lines and lines[0].strip() == "---":
-        for i in range(1, len(lines)):
-            if lines[i].strip() == "---":
-                fm_end = i
-                break
 
     for line_no, line in enumerate(lines, start=1):
-        if line_no - 1 <= fm_end:
+        if line_no - 1 < first_index:
             continue
 
         m = FENCE_OPEN.match(line)
@@ -219,6 +252,27 @@ def check_lines(lines: list[str], path: Path) -> int:
         if in_fence:
             continue
 
+        yield line_no, line
+
+
+def check_lines(lines: list[str], path: Path) -> int:
+    """Pure linter. Returns the violation count for one file's lines.
+
+    Separated from file I/O so unit tests can pass synthetic `lines`
+    without touching the filesystem.
+    """
+    failures = 0
+    folder = skill_folder(path)
+
+    # Skip a leading YAML frontmatter block; it is metadata, not prose.
+    fm_end = -1
+    if lines and lines[0].strip() == "---":
+        for i in range(1, len(lines)):
+            if lines[i].strip() == "---":
+                fm_end = i
+                break
+
+    for line_no, line in _outside_fences(lines, fm_end + 1):
         failures += _skill_link_violations(line, line_no, path, folder)
 
         if TABLE_ROW.match(line):
@@ -246,6 +300,47 @@ def check_lines(lines: list[str], path: Path) -> int:
                 f"em-dash or en-dash found: {preview}"
             )
             failures += 1
+
+    return failures
+
+
+def generated_agent_file(path: Path) -> bool:
+    """True for a file inside one of the generated subagent trees."""
+    parts = path.parts
+
+    return len(parts) >= 3 and tuple(parts[-3:-1]) in GENERATED_AGENT_TREES and path.suffix in GENERATED_AGENT_SUFFIXES
+
+
+def dated_baseline_scope(path: Path) -> bool:
+    """True for an agent-facing file: a skill file, a subagent source, or a generated agent."""
+    return skill_folder(path) is not None or front_matter_target(path) is not None or generated_agent_file(path)
+
+
+def check_dated_baselines(lines: list[str], path: Path) -> int:
+    """Report every dated or "current version" baseline outside code. Returns the count.
+
+    The front matter is checked too, because the description is what an agent
+    reads first.
+    """
+    if not dated_baseline_scope(path):
+        return 0
+
+    failures = 0
+
+    for line_no, line in _outside_fences(lines):
+        prose = INLINE_CODE.sub("", line)
+
+        for pattern in DATED_BASELINES:
+            match = pattern.search(prose)
+
+            if match:
+                failures += _violation(
+                    path,
+                    line_no,
+                    f'dated or "current version" baseline "{match.group(0)}"; it goes stale unseen, '
+                    "so state only the major version the content is written for",
+                )
+                break
 
     return failures
 
@@ -439,7 +534,10 @@ def check_file(path: Path) -> int:
 
     lines = text.splitlines()
 
-    return check_lines(lines, path) + check_front_matter(lines, path)
+    if generated_agent_file(path):
+        return check_dated_baselines(lines, path)
+
+    return check_lines(lines, path) + check_front_matter(lines, path) + check_dated_baselines(lines, path)
 
 
 def default_targets(repo_root: Path) -> list[Path]:
@@ -452,6 +550,18 @@ def default_targets(repo_root: Path) -> list[Path]:
     targets.extend(sorted((repo_root / "global").glob("*.md")))
     targets.extend(sorted((repo_root / "global").glob("*.md.example")))
     targets.extend(sorted((repo_root / "subagents").glob("*.md")))
+    targets.extend(generated_agent_targets(repo_root))
+
+    return targets
+
+
+def generated_agent_targets(repo_root: Path) -> list[Path]:
+    """Every file of the four generated subagent trees, symlinked trees excluded."""
+    targets: list[Path] = []
+
+    for tree in (".claude", ".agents", ".codex", ".github"):
+        directory = repo_root / tree / "agents"
+        targets.extend(sorted(p for p in directory.glob("*") if p.suffix in GENERATED_AGENT_SUFFIXES))
 
     return targets
 

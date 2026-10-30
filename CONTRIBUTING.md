@@ -166,14 +166,14 @@ Drop a folder under `.agents/skills/<name>/` containing a `SKILL.md`. The folder
 match. Pattern-match an existing skill (e.g. [coding-standards](.agents/skills/coding-standards/SKILL.md)) for shape.
 
 The front matter carries `name` and `description` and nothing else, beyond an optional `license` or `compatibility`,
-following the open [Agent Skills specification](https://agentskills.io/specification). Write the description in
-trigger form: what the skill covers, then the phrases a user would actually say, then what it is not for and which
-skill owns that instead. Keep the manifest short and push the depth into a `references/` subdirectory. When a topic
-grows into several near-siblings, make it one hub with a reference file per topic rather than a family of skills
-competing to match the same phrase.
+following the open [Agent Skills specification](https://agentskills.io/specification). Write the description in the third person and in trigger form, at about 300 to 400 characters: what the skill covers, then the phrases a user would actually say ("Use when the user says ..."), then one "Not for" pointer naming the skill that owns the nearest neighbouring job. Keep it short, because every skill description in a project shares one listing budget in Claude Code, which "scales at 1% of the model's context window", and once the listing overflows Claude Code drops the descriptions of the skills used least ([Claude Code skills, "Skill descriptions are cut short"](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)).
+
+Keep the manifest short and push the depth into a `references/` subdirectory. A reference file over 100 lines opens with a Contents list linking its sections, so an agent can jump to the part it needs instead of reading the whole file. When a topic grows into several near-siblings, make it one hub with a reference file per topic rather than a family of skills competing to match the same phrase.
+
+State a version only where it changes the advice, and then only the major version the content is written for, such as "Spring Boot 4" or "Java 25". No "current as of", no date, no "the current release is X", no commit-hash pin, and no new exact patch-version pin: each one is stale the day after it is written, and an agent reads it as fact. The markdown linter fails on the dated and "current version" forms in skill files, subagent sources and the generated agent trees.
 
 If the skill is human-facing prose, follow the [markdown-writer](.agents/skills/markdown-writer/SKILL.md) rules
-(em-dash ban, 120-char wrap, divider per section, link every file/folder mention). If the skill is machine-facing
+(em-dash ban, no hard wrap, divider per section, link every file/folder mention). If the skill is machine-facing
 reference for a tool or stack, the voice rules relax, so just stay consistent with the existing skills in that genre.
 
 Renaming or deleting a skill is not a local change. Every canonical subagent that lists it has to be updated in the
@@ -193,6 +193,10 @@ per-tool copies in `.claude/agents/`, `.agents/agents/`, `.codex/agents/`, and `
 the `.opencode/agents` and `.kilo/agents` symlinks, which point at `.agents/agents` rather than holding their own copy.
 Commit the canonical source AND the generated outputs, and bump the subagent-count badge in [README.md](README.md)
 and the subagent count on [docs/assets/social-card.svg](docs/assets/social-card.svg).
+
+Write the description the way a skill description is written: third person, about 300 to 400 characters, the phrases a user would say ("Use when the user says ..."), and one "Not for" pointer naming the agent that owns the nearest neighbouring job. The version rule for skills applies here unchanged: the major version the agent targets where it matters, and no date, no "current" claim, no commit-hash pin and no new exact patch-version pin.
+
+List in `skills` only the three to six skills the role uses on every run. Claude Code preloads every listed skill and "the full skill content is injected, not only the description" ([Claude Code subagents, frontmatter fields](https://code.claude.com/docs/en/sub-agents)), so a long list spends the context window before the agent reads any code. Name a stack skill in the body instead, as one to read from `.agents/skills/<name>/SKILL.md` when the change touches that stack. Give the agent every tool its routine needs and no other, and never promise work in the body that needs a tool the `tools` list does not grant. A subagent cannot ask the user mid-run, so it stops and returns the open question to its caller, and it stops and returns the proposed command for anything that changes production, deploys, rolls back, kills, evicts, sends load or attack traffic, or closes or merges a tracker item.
 
 The generator validates before it writes. Every name in the `skills` list needs a folder under `.agents/skills/`,
 every name in `tools` has to be one it knows, and a `model` key is rejected outright: a subagent never pins a model,

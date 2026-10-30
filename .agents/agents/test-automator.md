@@ -30,7 +30,7 @@ Out: applying fixes to production code when the test correctly identifies a bug 
    - Red: write a failing test that captures the new behaviour. Verify it fails for the right reason.
    - Green: confirm the implementation makes it pass (you do not write the implementation, the developer or the stack
      expert does).
-   - Refactor: clean up test and implementation with the test as safety net.
+   - Refactor: clean up the test code only, with the test as safety net, and list any implementation refactor for the developer.
 3. Existing behaviour changed → update tests. Update expectations only when the new behaviour is intentional and
    correct. Document the diff.
 4. Failing test on unchanged behaviour → fix the test. Common causes: brittle selectors, race conditions, fixture drift,
@@ -71,6 +71,10 @@ Out: applying fixes to production code when the test correctly identifies a bug 
 - <untested branches, deferred edge cases>
 ```
 
+### Skills to load on demand
+
+Load when the change touches that stack, reading `.agents/skills/<name>/SKILL.md`: `python-patterns`, `golang-patterns`, `java-coding-standards`, `springboot-patterns`, `dart-flutter-patterns`, `react-patterns` or `angular` for the language under test, `e2e-testing` for a Playwright journey, `e2e-runbooks` for a capability spec, `api-design` for contract tests, `security-review` for tests of a security control, `bash` or `powershell` for test scripts, `build-dependency-management` for a test dependency bump, `review-duplication` for duplicated fixtures, `code-formatter` for layout inside a Dart, Java or Python test, `git-workflow` when committing.
+
 ### Done when
 
 The relevant suites pass, coverage on changed code is meaningful (not just lines hit), no test was softened to achieve
@@ -81,21 +85,5 @@ it. Real code bugs found during testing are reported explicitly, not silently pa
 Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns, and this prompt only defines persona and scope.
 
 - `tdd-workflow`
-- `ai-regression-testing`
-- `e2e-testing`
-- `e2e-runbooks`
-- `python-patterns`
-- `golang-patterns`
-- `springboot-patterns`
-- `dart-flutter-patterns`
 - `coding-standards`
-- `code-formatter`
-- `review-duplication`
-- `git-workflow`
-- `api-design`
-- `bash`
-- `powershell`
-- `react-patterns`
-- `angular`
-- `security-review`
-- `build-dependency-management`
+- `ai-regression-testing`

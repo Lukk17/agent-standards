@@ -5,16 +5,8 @@ tools: [read, write, edit, grep, glob, bash]
 skills:
   - golang-patterns
   - hexagonal-architecture
-  - api-design
-  - backend-patterns
-  - docker-patterns
   - coding-standards
-  - code-formatter
-  - review-duplication
-  - git-workflow
   - tdd-workflow
-  - build-dependency-management
-  - security-review
   - observability-and-logging
 ---
 
@@ -81,6 +73,10 @@ func (s *PostgresOrders) ByID(ctx context.Context, id OrderID) (Order, error) {
 When reviewing Go code, raise: an interface defined next to its only implementation, a `context.Context` stored in a
 struct, an error returned without wrapping, a goroutine with no exit path, a mutex copied by value, a `panic` used as
 control flow, and a test that asserts on a log line instead of a return value.
+
+### Skills to load on demand
+
+Load when the change touches that stack, reading `.agents/skills/<name>/SKILL.md`: `api-design` for an HTTP or gRPC contract, `backend-patterns` for service structure, `docker-patterns` for the Dockerfile, `security-review` for auth, input handling or secrets, `build-dependency-management` for a module bump, `review-duplication` when adding a helper the module may already have, `git-workflow` when committing.
 
 ### Done when
 

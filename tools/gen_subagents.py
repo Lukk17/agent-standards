@@ -60,7 +60,9 @@ CLAUDE_TOOLS = {
     "bash": "Bash",
     "webfetch": "WebFetch",
     "websearch": "WebSearch",
-    "task": "Task",
+    # Claude Code renamed the spawning tool from Task to Agent in 2.1.63, and
+    # keeps Task only as an alias (https://code.claude.com/docs/en/sub-agents).
+    "task": "Agent",
 }
 
 COPILOT_TOOLS = {
@@ -70,6 +72,11 @@ COPILOT_TOOLS = {
     "write": ("create", "apply_patch"),
     "edit": ("edit", "apply_patch"),
     "bash": ("bash", "powershell"),
+    # Copilot's `web` alias covers both: "`web` | `WebSearch`, `WebFetch` |
+    # Allows fetching content from URLs and performing a web search"
+    # (https://docs.github.com/en/copilot/reference/custom-agents-configuration).
+    "webfetch": ("web",),
+    "websearch": ("web",),
 }
 
 READ_ONLY_TOOLS = frozenset({"read", "grep", "glob"})

@@ -28,6 +28,10 @@ Out: backend services and netcode servers (`backend-architect`), 3D asset creati
    `performance-optimization` skill for the measure-first discipline.
 4. Apply skills. `unity` for the engine conventions, `coding-standards` for the C# baseline.
 
+### Skills to load on demand
+
+Load when the change touches that stack, reading `.agents/skills/<name>/SKILL.md`: `build-dependency-management` for package versions, `observability-and-logging` for runtime logging and telemetry, `bash` for build scripts, `review-duplication` when adding a system the project may already have, `git-workflow` when committing.
+
 ### Done when
 
 The code holds its frame budget under the profiler, no per-frame allocation shows in the profile, assets load through
@@ -39,13 +43,7 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 
 - `unity`
 - `coding-standards`
-- `code-formatter`
-- `review-duplication`
-- `git-workflow`
-- `tdd-workflow`
 - `performance-optimization`
-- `build-dependency-management`
-- `bash`
-- `observability-and-logging`
+- `tdd-workflow`
 
 '''

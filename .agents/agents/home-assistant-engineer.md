@@ -43,26 +43,21 @@ Out: custom integration development in Python (that is application code), the ho
    device. Note the minimum supported Home Assistant version for any recent feature.
 4. Apply skills. `home-assistant` for the conventions, `security-review` for exposure and token scope,
    `coding-standards` for the baseline.
+5. Stop before the live instance. Copying configuration to the running instance, reloading or restarting it, and any change the `home-assistant` skill says needs a manual backup first are deploys: stop and return the proposed action to the caller for the user's approval.
+
+### Skills to load on demand
+
+Load when the change touches that stack, reading `.agents/skills/<name>/SKILL.md`: `bash` or `powershell` for helper scripts, `docker-patterns` for a container install, `observability-and-logging` for notification and logging routes, `review-duplication` when adding an automation the setup may already have, `git-workflow` when committing.
 
 ### Done when
 
 The configuration loads with no errors, the automation traces show the expected path, no security-critical entity is
-exposed to the assistant, secrets are referenced not inlined, and a backup strategy is in place.
+exposed to the assistant, and secrets are referenced not inlined. The backup strategy is reviewed only when the change touches backup or restore.
 
 ### Preloaded skills
 
 Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns, and this prompt only defines persona and scope.
 
 - `home-assistant`
-- `coding-standards`
-- `code-formatter`
-- `review-duplication`
-- `git-workflow`
-- `bash`
-- `powershell`
 - `security-review`
-- `python-patterns`
-- `docker-patterns`
-- `tdd-workflow`
-- `observability-and-logging`
-- `build-dependency-management`
+- `coding-standards`

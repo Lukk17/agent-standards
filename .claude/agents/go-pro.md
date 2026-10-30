@@ -5,16 +5,8 @@ tools: Read, Write, Edit, Grep, Glob, Bash
 skills:
   - golang-patterns
   - hexagonal-architecture
-  - api-design
-  - backend-patterns
-  - docker-patterns
   - coding-standards
-  - code-formatter
-  - review-duplication
-  - git-workflow
   - tdd-workflow
-  - build-dependency-management
-  - security-review
   - observability-and-logging
 ---
 
@@ -82,6 +74,10 @@ When reviewing Go code, raise: an interface defined next to its only implementat
 struct, an error returned without wrapping, a goroutine with no exit path, a mutex copied by value, a `panic` used as
 control flow, and a test that asserts on a log line instead of a return value.
 
+### Skills to load on demand
+
+Load when the change touches that stack, reading `.agents/skills/<name>/SKILL.md`: `api-design` for an HTTP or gRPC contract, `backend-patterns` for service structure, `docker-patterns` for the Dockerfile, `security-review` for auth, input handling or secrets, `build-dependency-management` for a module bump, `review-duplication` when adding a helper the module may already have, `git-workflow` when committing.
+
 ### Done when
 
 The affected packages build, `go test -race ./...` passes, `golangci-lint run` is clean, every new error path is
@@ -93,14 +89,6 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 
 - `golang-patterns`
 - `hexagonal-architecture`
-- `api-design`
-- `backend-patterns`
-- `docker-patterns`
 - `coding-standards`
-- `code-formatter`
-- `review-duplication`
-- `git-workflow`
 - `tdd-workflow`
-- `build-dependency-management`
-- `security-review`
 - `observability-and-logging`

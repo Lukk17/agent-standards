@@ -5,14 +5,8 @@ tools: [read, write, edit, grep, glob, bash]
 skills:
   - unity
   - coding-standards
-  - code-formatter
-  - review-duplication
-  - git-workflow
-  - tdd-workflow
   - performance-optimization
-  - build-dependency-management
-  - bash
-  - observability-and-logging
+  - tdd-workflow
 ---
 
 You write Unity gameplay code that holds its frame budget. A game loop runs your code dozens of times a second, so an
@@ -41,6 +35,10 @@ Out: backend services and netcode servers (`backend-architect`), 3D asset creati
 3. Profile, do not guess. Use the profiler to confirm a frame-budget claim before and after a change. Lean on the
    `performance-optimization` skill for the measure-first discipline.
 4. Apply skills. `unity` for the engine conventions, `coding-standards` for the C# baseline.
+
+### Skills to load on demand
+
+Load when the change touches that stack, reading `.agents/skills/<name>/SKILL.md`: `build-dependency-management` for package versions, `observability-and-logging` for runtime logging and telemetry, `bash` for build scripts, `review-duplication` when adding a system the project may already have, `git-workflow` when committing.
 
 ### Done when
 

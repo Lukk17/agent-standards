@@ -5,12 +5,8 @@ tools: Read, Write, Edit, Grep, Glob, Bash
 skills:
   - pytorch-patterns
   - python-patterns
-  - docker-patterns
-  - performance-optimization
-  - observability-and-logging
   - coding-standards
   - code-formatter
-  - git-workflow
 ---
 
 You build training pipelines somebody else can rerun and get the same number. A result that cannot be reproduced is
@@ -75,6 +71,10 @@ When reviewing this kind of code, raise: an unseeded run, normalisation statisti
 a metric implemented twice, `model.train()` left on during validation, a checkpoint that saves weights only, a
 `DataLoader` with `num_workers=0` on a GPU run, and a tensor moved to a device inside the training loop's hot path.
 
+### Skills to load on demand
+
+Load when the change touches that stack, reading `.agents/skills/<name>/SKILL.md`: `docker-patterns` for the serving container, `performance-optimization` for profiling the input pipeline or the step, `observability-and-logging` for run logging and serving metrics, `git-workflow` when committing.
+
 ### Done when
 
 A fresh clone reproduces the reported metric from the recorded configuration and seed, the tests around the dataset,
@@ -87,9 +87,5 @@ Load and follow these skills from `.agents/skills/` before acting. They contain 
 
 - `pytorch-patterns`
 - `python-patterns`
-- `docker-patterns`
-- `performance-optimization`
-- `observability-and-logging`
 - `coding-standards`
 - `code-formatter`
-- `git-workflow`

@@ -237,8 +237,32 @@ def test_a_copilot_writing_agent_can_write_on_a_model_that_edits_with_apply_patc
     assert "apply_patch" in front_matter(generated)["tools"]
 
 
-def test_copilot_drops_a_tool_it_has_no_confirmed_name_for():
-    assert gen.copilot_tools(["read", "webfetch", "websearch", "task"]) == ["read"]
+def test_copilot_drops_a_tool_it_has_no_mapping_for():
+    assert gen.copilot_tools(["read", "task"]) == ["read"]
+
+
+def test_copilot_maps_webfetch_and_websearch_onto_its_single_web_tool():
+    """Copilot documents one `web` alias covering both WebSearch and WebFetch."""
+    assert gen.copilot_tools(["read", "webfetch", "websearch"]) == ["read", "web"]
+
+
+def test_a_copilot_research_agent_renders_with_the_web_tool():
+    researcher = dict(WRITER, tools=["read", "grep", "webfetch", "websearch"])
+
+    assert front_matter(gen.emit_copilot(researcher, BODY))["tools"] == ["read", "search", "web"]
+
+
+def test_the_generated_copilot_research_agent_carries_the_web_tool():
+    generated = (gen.TARGETS["copilot"][0] / "agent-engineer.agent.md").read_text(encoding="utf-8")
+
+    assert "web" in front_matter(generated)["tools"]
+
+
+def test_claude_renders_task_as_the_agent_spawning_tool():
+    """Claude Code renamed Task to Agent and keeps Task only as an alias."""
+    orchestrator = dict(WRITER, tools=["read", "task"])
+
+    assert front_matter(gen.emit_claude(orchestrator, BODY))["tools"] == "Read, Agent"
 
 
 def test_copilot_emits_an_empty_list_when_every_tool_maps_to_nothing():
@@ -247,7 +271,7 @@ def test_copilot_emits_an_empty_list_when_every_tool_maps_to_nothing():
     An agent whose whole canonical list has no Copilot name would otherwise be
     handed the full tool set, which is the opposite of what it declared.
     """
-    researcher = dict(WRITER, tools=["webfetch", "websearch", "task"])
+    researcher = dict(WRITER, tools=["task"])
 
     front_matter = gen.emit_copilot(researcher, BODY).split("---\n")[1]
 
