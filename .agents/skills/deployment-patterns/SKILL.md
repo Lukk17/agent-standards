@@ -5,14 +5,16 @@ description: Deployment and CI/CD standards for rolling, blue-green and canary r
 
 # Deployment Patterns
 
-How a change reaches production without a surprise: a rollout strategy chosen on purpose, an explicit human gate in
-front of production, config validated before the process serves traffic, and a rollback that has been rehearsed. The
-pipeline is the control, not the documentation around it.
+How a change reaches production without a surprise: a rollout strategy chosen on purpose, an explicit human gate in front of production, config validated before the process serves traffic, and a rehearsed rollback. The pipeline is the control, not the documentation around it.
 
-Written for GitHub Actions on `ubuntu-latest`, Kubernetes 1.37 and Helm 4. Every GitHub Action a project runs is pinned to a
-full commit SHA with its version tag in a trailing comment, such as `uses: actions/checkout@<commit-sha> # v5`, and every
-image to a tag plus digest. The examples use placeholders rather than real values, and
-[references/github-actions.md](references/github-actions.md) shows how to resolve them.
+Written for GitHub Actions on `ubuntu-latest`, Kubernetes 1.37 and Helm 4. Every GitHub Action a project runs is pinned to a full commit SHA with its version tag in a trailing comment, such as `uses: actions/checkout@<commit-sha> # v5`, and every image to a tag plus digest. The examples use placeholders rather than real values, and [references/github-actions.md](references/github-actions.md) shows how to resolve them.
+
+| Task | Open |
+|---|---|
+| The strategy table, the Pass and Fail form, and the reasoning behind any rule below | [references/rules-and-examples.md](references/rules-and-examples.md) |
+| The full reference pipeline, OIDC, job permissions, actionlint, failure alerts, matrix builds, and canary automation | [references/github-actions.md](references/github-actions.md) |
+| Probes, pod security context, PDB, NetworkPolicy, HPA, ResourceQuota and LimitRange, ServiceMonitor, policy enforcement, and Helm | [references/kubernetes.md](references/kubernetes.md) |
+| IAM, network isolation, Terraform state, tagging, cost controls, audit posture, disaster recovery, and the production readiness checklist | [references/cloud-and-operations.md](references/cloud-and-operations.md) |
 
 ---
 
@@ -39,239 +41,22 @@ image to a tag plus digest. The examples use placeholders rather than real value
 
 ---
 
-### Choose the rollout strategy on purpose
-
-| Strategy | How it works | Cost | Use when |
-|---|---|---|---|
-| Rolling | Replace instances in batches, both versions live during the rollout | Requires backward-compatible changes | The default, for a backward-compatible change |
-| Blue-green | Two identical environments, traffic switched atomically | Double the infrastructure during the switch | Critical services where rollback must be instant |
-| Canary | A small traffic share on the new version first, widened on healthy metrics | Traffic splitting plus real metric gating | High traffic, or a change you do not fully trust |
-
-Pass, a rolling update that cannot take the service below capacity:
-
-```yaml
-strategy:
-  type: RollingUpdate
-  rollingUpdate:
-    maxUnavailable: 0
-    maxSurge: 1
-```
-
-Fail:
-
-```yaml
-strategy:
-  type: Recreate
-```
-
-Rolling means two versions run at once, so the change has to be backward compatible with the previous version and
-with the database schema it is running against. If it is not, the strategy is blue-green, not rolling.
-
----
-
-### Merging to main never deploys to production
-
-A merge may build the image, deploy to staging, and run smoke tests automatically. Promotion to production is a
-separate, explicitly approved step: a GitHub environment protection rule with required reviewers, or a manually
-triggered `workflow_dispatch` run.
-
-Pass:
-
-```yaml
-deploy-production:
-  needs: smoke-test
-  environment: production
-```
-
-Fail:
-
-```yaml
-deploy-production:
-  needs: build
-  if: github.ref == 'refs/heads/main'
-```
-
-The failing version has no gate at all. The passing version only gates once the `production` environment carries a
-required-reviewer protection rule, so configure that rule and treat the `environment:` key as the hook into it.
-
-The pipeline shape is: pull request runs lint, typecheck, unit tests, integration tests, and a preview deploy. Merge
-runs the same set plus image build, staging deploy, and smoke tests. Then the gate. Then production.
-
----
-
-### Build the image through docker-patterns
-
-Image construction, base image pinning, the non-root user, and the Trivy, SBOM, and cosign supply-chain gate are
-owned by `docker-patterns` and are not restated here. The pipeline's job is to invoke them and to fail on their
-findings.
-
-Pass:
-
-```bash
-trivy image --exit-code 1 --severity CRITICAL,HIGH "ghcr.io/org/app:${GITHUB_SHA}"
-```
-
-Fail:
-
-```bash
-trivy image "ghcr.io/org/app:${GITHUB_SHA}" || true
-```
-
----
-
-### Least privilege in CI
-
-Authenticate to a cloud provider with OIDC, never a stored long-lived key, and declare the minimum permissions on
-every job. A compromised third-party action inherits whatever the job holds, and a tag pin lets a moved tag swap the
-code under you, so pin every action to a commit SHA.
-
-Pass:
-
-```yaml
-permissions:
-  contents: read
-  id-token: write
-```
-
-Fail:
-
-```yaml
-permissions: write-all
-```
-
-The full reference pipeline, the OIDC exchange, `actionlint`, failure notifications, matrix rules, and the canary
-automation are in [references/github-actions.md](references/github-actions.md).
-
----
-
-### Health checks that answer different questions
-
-Expose a liveness endpoint that touches nothing and a readiness endpoint that reports what this instance needs to
-serve, as the readiness rule in `observability-and-logging` defines it, so a shared dependency stays out of it. Then
-wire three probes to them. The paths are the ones `api-design` defines, `/health` and `/ready`, so use them rather than a local
-variant. Pointing liveness at a dependency-checking endpoint turns a database blip into a cluster-wide restart storm.
-
-Pass:
-
-```yaml
-livenessProbe:
-  httpGet:
-    path: /health
-    port: 3000
-readinessProbe:
-  httpGet:
-    path: /ready
-    port: 3000
-```
-
-Fail:
-
-```yaml
-livenessProbe:
-  httpGet:
-    path: /health/detailed
-    port: 3000
-```
-
-This skill owns the probe manifests. Probe timings, the `startupProbe`, and what each one does to a pod are in
-[references/kubernetes.md](references/kubernetes.md). What the endpoints should report is owned by
-`observability-and-logging`.
-
----
-
-### Configuration from the environment, validated at startup
-
-Every environment-varying value comes from an environment variable, and the process validates the whole set before
-it serves a request. A missing or malformed value should kill the process at boot, not surface as a 500 an hour
-later.
-
-Pass:
-
-```typescript
-const envSchema = z.object({
-  NODE_ENV: z.enum(["development", "staging", "production"]),
-  PORT: z.coerce.number().default(3000),
-  DATABASE_URL: z.url(),
-  JWT_SECRET: z.string().min(32),
-});
-
-export const env = envSchema.parse(process.env);
-```
-
-Fail:
-
-```typescript
-const port = Number(process.env.PORT) || 3000;
-const dbUrl = process.env.DATABASE_URL!;
-```
-
-Secrets are injected by a secrets manager at runtime, never committed and never baked into an image.
-
----
-
-### Rollback is a rehearsed path
-
-Every release has a way back that someone has actually executed. The pipeline owns it so it takes seconds and leaves
-a record.
-
-Pass:
-
-```bash
-kubectl rollout undo deployment/app
-```
-
-Fail:
-
-```bash
-git revert HEAD && git push
-```
-
-Reverting and rebuilding is not a rollback, it is another deployment with the same lead time as the one that broke.
-Before a release, confirm all of it:
-
-- The previous image or artefact is still available and tagged.
-- The database migration is backward compatible, with no destructive change, so the previous version still runs.
-- New behaviour is behind a feature flag that can be turned off without a deploy.
-- Alerts on error rate will fire before a user reports it.
-- The rollback has been executed in staging, not just written down.
-
----
-
-### Kubernetes defaults
-
-Every production workload carries a non-root security context, a PodDisruptionBudget, a default-deny NetworkPolicy
-in its namespace, resource requests and limits, and an HPA with a minimum of two replicas. Enforce them at admission
-with Kyverno or OPA Gatekeeper rather than at review time.
-
-Pass:
-
-```yaml
-securityContext:
-  runAsNonRoot: true
-  readOnlyRootFilesystem: true
-  allowPrivilegeEscalation: false
-  capabilities:
-    drop: [ALL]
-```
-
-Fail:
-
-```yaml
-securityContext: {}
-```
-
-The manifests for each of those, plus Helm chart standards, are in
-[references/kubernetes.md](references/kubernetes.md).
-
----
-
-### Reference files
-
-| Open this | For |
-|---|---|
-| [references/github-actions.md](references/github-actions.md) | The full reference pipeline, OIDC, job permissions, actionlint, failure alerts, matrix builds, and canary automation |
-| [references/kubernetes.md](references/kubernetes.md) | Probes, pod security context, PDB, NetworkPolicy, HPA, ResourceQuota and LimitRange, ServiceMonitor, policy enforcement, and Helm |
-| [references/cloud-and-operations.md](references/cloud-and-operations.md) | IAM, network isolation, Terraform state, tagging, cost controls, audit posture, disaster recovery, and the production readiness checklist |
+### Rules
+
+1. Choose the rollout on purpose. Rolling replaces instances in batches and is the default for a backward-compatible change, with `maxUnavailable: 0` and `maxSurge: 1`, never `Recreate`.
+2. Rolling runs two versions at once, so the change must be backward compatible with the previous version and its database schema. If not, use blue-green: two identical environments, traffic switched atomically, for critical services needing instant rollback.
+3. Canary puts a small traffic share on the new version first and widens it on healthy metrics, for high traffic or a change you do not fully trust. It costs traffic splitting plus real metric gating.
+4. A merge to `main` never deploys to production. It may build, deploy to staging and run smoke tests, then production is a separate approved step: an `environment: production` with a required-reviewer protection rule, or a manual `workflow_dispatch`. The `environment:` key gates nothing until that rule exists.
+5. Pipeline shape: a pull request runs lint, typecheck, unit and integration tests and a preview deploy. Merge runs the same plus image build, staging deploy and smoke tests. Then the gate, then production.
+6. Image build, base pinning, the non-root user and the Trivy, SBOM and cosign gate belong to `docker-patterns`. The pipeline invokes them and fails on their findings, never with `|| true`.
+7. Authenticate to a cloud with OIDC, never a stored long-lived key, and declare minimum `permissions` on every job, never `write-all`, because a compromised action inherits what the job holds. Pin every action to a commit SHA, since a moved tag swaps the code.
+8. Liveness touches nothing and readiness reports what this instance needs to serve, per `observability-and-logging`, keeping shared dependencies out. Use the `api-design` paths `/health` and `/ready`. Liveness on a dependency-checking endpoint turns a database blip into a restart storm.
+9. This skill owns the probe manifests. Probe timings and the `startupProbe` are in the Kubernetes reference, and what the endpoints report is owned by `observability-and-logging`.
+10. Every environment-varying value comes from an environment variable, and the process validates the whole set against a schema before serving, so a missing value kills it at boot rather than surfacing as a 500 later.
+11. Secrets are injected by a secrets manager at runtime, never committed and never baked into an image.
+12. Rollback is a rehearsed pipeline path such as `kubectl rollout undo`. Revert-and-rebuild is another deployment with the same lead time as the one that broke.
+13. Before a release confirm: the previous artefact is still available and tagged, the migration is backward compatible with no destructive change, new behaviour is behind a flag that turns off without a deploy, error-rate alerts fire before a user reports, and the rollback ran in staging.
+14. Every production workload carries a non-root, read-only, no-escalation, `drop: [ALL]` security context, a PodDisruptionBudget, a default-deny NetworkPolicy in its namespace, requests and limits, and an HPA with at least two replicas, enforced at admission with Kyverno or OPA Gatekeeper.
 
 ---
 

@@ -5,8 +5,12 @@ description: Playwright browser end-to-end testing, covering suite layout, the P
 
 # E2E Testing Patterns
 
-Build Playwright suites that stay stable, fast, and readable as the UI changes underneath them. This skill owns browser
-end-to-end testing and is the canonical home of the flaky-test policy that the other testing skills defer to.
+Build Playwright suites that stay stable, fast, and readable as the UI changes underneath them. This skill owns browser end-to-end testing and is the canonical home of the flaky-test policy that the other testing skills defer to.
+
+| Task | Open |
+| --- | --- |
+| The suite tree, a full page object, the Pass and Fail code behind any rule below, provider stubs, and the checkout test | [references/patterns-and-examples.md](references/patterns-and-examples.md) |
+| Write `playwright.config.ts`, decide the retry and artifact policy, wire the suite into CI | [references/config-and-ci.md](references/config-and-ci.md) |
 
 ---
 
@@ -24,276 +28,36 @@ end-to-end testing and is the canonical home of the flaky-test policy that the o
 ### When not to activate
 
 - Verifying a deployed backend capability with an API client rather than a browser. Use `e2e-runbooks`.
-- Unit and integration tests inside the codebase, and the red-green-refactor loop. Use `tdd-workflow`, or the language
-  testing skill (`python-patterns`, `golang-patterns`, `springboot-patterns`).
+- Unit and integration tests inside the codebase, and the red-green-refactor loop. Use `tdd-workflow`, or the language testing skill (`python-patterns`, `golang-patterns`, `springboot-patterns`).
 - Sandbox-mode API regression tests that need no browser and no database. Use `ai-regression-testing`.
 - Auditing a page for keyboard operability and screen-reader behaviour. Use `web-accessibility`.
 - Load, soak, or chaos testing. Out of scope here, which is about correctness rather than capacity.
 
 ---
 
-### Suite layout
+### Rules
 
-Group specs by the journey they exercise, keep fixtures separate from specs, and keep page objects out of the spec tree
-so a spec file only reads as a scenario.
-
-```text
-tests/
-├── e2e/
-│   ├── auth/
-│   │   ├── login.spec.ts
-│   │   ├── logout.spec.ts
-│   │   └── register.spec.ts
-│   ├── features/
-│   │   ├── browse.spec.ts
-│   │   ├── search.spec.ts
-│   │   └── checkout.spec.ts
-│   └── api/
-│       └── endpoints.spec.ts
-├── fixtures/
-│   ├── auth.ts
-│   └── data.ts
-├── pages/
-│   └── ItemsPage.ts
-└── playwright.config.ts
-```
-
----
-
-### Page Object Model
-
-Put selectors and waiting behind a page object so a markup change costs one edit rather than twenty. A page object
-exposes intent (`search`, `submitOrder`) and never leaks a raw selector into a spec. Start waiting for a response
-before the action that triggers it, and assert with web-first assertions such as `toHaveCount` and `toBeVisible`,
-which retry until they pass, rather than `expect(await locator.count())`, which reads once and moves on.
-
-Fail: the spec owns the selectors and the waits.
-
-```typescript
-test('search', async ({ page }) => {
-  await page.goto('/items')
-  await page.locator('[data-testid="search-input"]').fill('test')
-  await page.waitForTimeout(500)
-  expect(await page.locator('[data-testid="item-card"]').count()).toBeGreaterThan(0)
-})
-```
-
-Pass: the page object owns them, and the spec reads as the journey.
-
-```typescript
-export class ItemsPage {
-  readonly page: Page
-  readonly searchInput: Locator
-  readonly itemCards: Locator
-
-  constructor(page: Page) {
-    this.page = page
-    this.searchInput = page.getByTestId('search-input')
-    this.itemCards = page.getByTestId('item-card')
-  }
-
-  async goto() {
-    await this.page.goto('/items')
-  }
-
-  async search(query: string) {
-    const response = this.page.waitForResponse(resp => resp.url().includes('/api/search'))
-    await this.searchInput.fill(query)
-    await response
-  }
-}
-```
-
-```typescript
-test.describe('Item search', () => {
-  let itemsPage: ItemsPage
-
-  test.beforeEach(async ({ page }) => {
-    itemsPage = new ItemsPage(page)
-    await itemsPage.goto()
-  })
-
-  test('finds items by keyword', async () => {
-    await itemsPage.search('test')
-
-    await expect(itemsPage.itemCards).not.toHaveCount(0)
-    await expect(itemsPage.itemCards.first()).toContainText(/test/i)
-  })
-
-  test('shows the empty state when nothing matches', async ({ page }) => {
-    await itemsPage.search('xyznonexistent123')
-
-    await expect(page.getByTestId('no-results')).toBeVisible()
-    await expect(itemsPage.itemCards).toHaveCount(0)
-  })
-})
-```
-
----
-
-### Locators
-
-Locate by role, label, or an explicit test id. A locator tied to a generated class name breaks on the next styling
-change and tells the reader nothing.
-
-Fail: brittle and meaningless.
-
-```typescript
-await page.click('.css-1x7hj2k > div:nth-child(3) button')
-```
-
-Pass: semantic, and stable across restyling.
-
-```typescript
-await page.getByRole('button', { name: 'Submit order' }).click()
-await page.getByTestId('submit-order').click()
-```
-
+1. Group specs under `tests/e2e/` by the journey they exercise (`auth/`, `features/`, `api/`), with fixtures in `tests/fixtures/` and page objects in `tests/pages/`, out of the spec tree, so a spec reads only as a scenario.
+2. Put selectors and waiting behind a page object, so a markup change costs one edit rather than twenty. A page object exposes intent (`search`, `submitOrder`) and never leaks a raw selector into a spec.
+3. Locate by role, label, or an explicit test id (`getByRole`, `getByLabel`, `getByTestId`). A locator tied to a generated class name or `nth-child` breaks on the next restyle and tells the reader nothing.
+4. Create a `waitForResponse` promise, without `await`, before the action that triggers it, then await it. Awaited after the action, a fast response can arrive before the listener exists and the wait hangs until the timeout.
+5. Assert web-first (`await expect(locator).toBeVisible()`, `toHaveCount`), which retries until the condition holds. `expect(await locator.isVisible())` and `expect(await locator.count())` read once and fail whenever the UI is a frame behind.
+6. Prefer `locator.click()` over the discouraged `page.click(selector)`. Both wait for actionability, so a flaky click is usually a wrong locator or a missing web-first assertion, not a missing wait.
+7. Stub a third-party provider (identity provider, payment widget, analytics beacon) at the browser boundary with `context.route`, or `context.addInitScript` before navigation for an injected global. It keeps the test hermetic and fast and is the only way to reach the failure paths.
+8. A money-moving flow never runs against production (`test.skip` on it), asserts the confirmation state rather than the click, and waits on the settlement response rather than a timeout.
 
 ---
 
 ### Flaky tests, the canonical policy
 
-A flaky test is a blocking defect, not background noise. It costs more than a failing test because it teaches the team
-to ignore red. This section is the project-wide policy: `tdd-workflow` and the language testing skills defer to it
-rather than restating it.
+A flaky test is a blocking defect, not background noise. It costs more than a failing test because it teaches the team to ignore red. This section is the project-wide policy: `tdd-workflow` and the language testing skills defer to it rather than restating it.
 
-| Rule | Value |
-| --- | --- |
-| Fix or quarantine SLA | 2 business days from the first observed flake |
-| Maximum quarantine period | 2 sprints |
-| Action when quarantine expires | Delete the test and rewrite it from scratch |
-| Prohibited in assertions | `Thread.sleep()`, `time.sleep()`, `setTimeout`, `page.waitForTimeout` |
-| Allowed retry | Framework-level retry (`retries` in Playwright, `@RetryingTest` in JUnit) only for genuinely non-deterministic integration paths, never to paper over a race |
-
-Quarantine explicitly and link the tracking issue, so the test cannot quietly rot.
-
-```typescript
-test('complex search', async ({ page }) => {
-  test.fixme(true, 'Flaky, tracked in issue #123')
-})
-```
-
-Confirm a suspected flake before spending time on it.
-
-```bash
-npx playwright test tests/search.spec.ts --repeat-each=10
-```
-
-The two causes worth knowing.
-
-A response the test needs, awaited after the action that triggers it. A fast response can arrive before the listener
-exists, and the wait then hangs until the timeout. Create the promise first, without `await`, then act, then await it.
-
-Fail:
-
-```typescript
-await page.getByRole('button', { name: 'Load more' }).click()
-await page.waitForResponse(resp => resp.url().includes('/api/data') && resp.ok())
-```
-
-Pass:
-
-```typescript
-const response = page.waitForResponse(resp => resp.url().includes('/api/data') && resp.ok())
-await page.getByRole('button', { name: 'Load more' }).click()
-await response
-```
-
-An assertion that does not retry. `expect(await locator.isVisible())` and `expect(await locator.count())` read the
-page once, so they fail whenever the UI is a frame behind. A web-first assertion waits and retries until the condition
-holds or the timeout expires. A wall-clock wait such as `page.waitForTimeout(5000)` is never the fix.
-
-Fail:
-
-```typescript
-expect(await page.getByTestId('menu-item').isVisible()).toBe(true)
-```
-
-Pass:
-
-```typescript
-await expect(page.getByTestId('menu-item')).toBeVisible()
-```
-
-Prefer `locator.click()` over `page.click(selector)`, which Playwright discourages. Both wait for the element to be
-actionable, so a flaky click is usually a wrong locator or a missing web-first assertion, not a missing wait.
-
----
-
-### External providers and third-party widgets
-
-A journey that depends on a third-party provider (an identity provider, a payment widget, an analytics beacon) should
-stub the provider at the browser boundary. Stubbing keeps the test hermetic and fast, and it is the only way to make the
-failure paths reachable.
-
-Fail: the test drives the real provider, so it is slow, rate limited, and untestable for the declined case.
-
-```typescript
-test('user signs in', async ({ page }) => {
-  await page.goto('/login')
-  await page.getByLabel('Email').fill(process.env.REAL_TEST_ACCOUNT!)
-  await page.getByRole('button', { name: 'Continue with provider' }).click()
-})
-```
-
-Pass: the provider is stubbed, the app under test is real, and both outcomes are reachable.
-
-```typescript
-test('user signs in with the external provider', async ({ page, context }) => {
-  await context.route('**/oauth/token', route =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ access_token: 'test-token', expires_in: 3600 }),
-    }),
-  )
-
-  await page.goto('/login')
-  await page.getByRole('button', { name: 'Continue with provider' }).click()
-
-  await expect(page.getByTestId('user-menu')).toContainText('Signed in')
-})
-```
-
-The same shape covers any browser-injected global a widget provides: install the stub with `context.addInitScript`
-before navigation, then assert on what the application does with it.
-
----
-
-### Critical flows that move money
-
-A checkout, a payment, or anything that debits a real account gets three extra rules: it never runs against production,
-it asserts the confirmation state rather than the click, and it waits on the settlement response rather than a timeout.
-
-```typescript
-test('user completes checkout', async ({ page }) => {
-  test.skip(process.env.NODE_ENV === 'production', 'Never charge a real account from a test')
-
-  await page.goto('/cart')
-  await page.getByTestId('quantity').fill('2')
-  await page.getByRole('button', { name: 'Go to checkout' }).click()
-
-  await expect(page.getByTestId('order-total')).toContainText('49.98')
-
-  const order = page.waitForResponse(
-    resp => resp.url().includes('/api/orders') && resp.status() === 201,
-    { timeout: 30000 },
-  )
-  await page.getByRole('button', { name: 'Place order' }).click()
-  await order
-
-  await expect(page.getByTestId('order-confirmation')).toBeVisible()
-})
-```
-
----
-
-### Reference map
-
-| Task | Open |
-| --- | --- |
-| Write `playwright.config.ts`, decide the retry and artifact policy, wire the suite into CI | [references/config-and-ci.md](references/config-and-ci.md) |
+- Fix or quarantine within 2 business days of the first observed flake.
+- Quarantine for at most 2 sprints. When it expires, delete the test and rewrite it from scratch.
+- Quarantine explicitly with `test.fixme` and a linked tracking issue, so the test cannot quietly rot.
+- Prohibited in assertions: `Thread.sleep()`, `time.sleep()`, `setTimeout`, `page.waitForTimeout`. A wall-clock wait is never the fix.
+- Framework-level retry (`retries` in Playwright, `@RetryingTest` in JUnit) only for genuinely non-deterministic integration paths, never to paper over a race.
+- Confirm a suspected flake with `npx playwright test <spec> --repeat-each=10` before spending time on it.
 
 ---
 

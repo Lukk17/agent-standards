@@ -5,11 +5,15 @@ description: Unity and C# standards for allocation-free per-frame code, object p
 
 # Unity Game Development Standards
 
-How a Unity project keeps a stable frame time and stays testable: nothing allocates in the per-frame path, nothing
-is looked up by search at runtime, and configuration lives in assets rather than in code. Most Unity stutter is a
-garbage collection pause caused by a single allocating line inside `Update`.
+How a Unity project keeps a stable frame time and stays testable: nothing allocates in the per-frame path, nothing is looked up by search at runtime, and configuration lives in assets rather than in code. Most Unity stutter is a garbage collection pause caused by a single allocating line inside `Update`.
 
 Written for Unity 6 LTS, with the Addressables, Input System, and Test Framework packages that ship for it.
+
+| Task | Open |
+|---|---|
+| The Pass and Fail code behind any rule below, and the reasoning behind each rule | [references/rules-and-examples.md](references/rules-and-examples.md) |
+| Full ScriptableObject data-container and event-channel examples, and Edit Mode versus Play Mode test structure | [references/architecture-and-testing.md](references/architecture-and-testing.md) |
+| Git and LFS setup, serialisation mode, IL2CPP and stripping, the CI build matrix, the Input System, and UI Toolkit versus UGUI | [references/project-and-build.md](references/project-and-build.md) |
 
 ---
 
@@ -26,8 +30,7 @@ Written for Unity 6 LTS, with the Addressables, Input System, and Test Framework
 
 ### When not to activate
 
-- Engine-agnostic C# design, SOLID and error handling, use `coding-standards`. Unity-specific C# naming is owned
-  here.
+- Engine-agnostic C# design, SOLID and error handling, use `coding-standards`. Unity-specific C# naming is owned here.
 - Designing the backend a multiplayer or live-ops game talks to, use `backend-patterns`.
 - Building the CI pipeline itself rather than the Unity build settings, use `deployment-patterns`.
 - Writing the test strategy and coverage policy, use `tdd-workflow`.
@@ -35,281 +38,29 @@ Written for Unity 6 LTS, with the Addressables, Input System, and Test Framework
 
 ---
 
-### Nothing allocates per frame
+### Rules
 
-Any managed allocation inside `Update`, `FixedUpdate`, or `LateUpdate` accumulates until the collector runs, and the
-collector running mid-frame is the stutter. Build strings with `StringBuilder`, never with `+` in a loop.
-
-Pass:
-
-```csharp
-private readonly StringBuilder _hud = new StringBuilder(64);
-
-private void Update()
-{
-    _hud.Clear();
-    _hud.Append("HP ").Append(_health);
-    _hudLabel.text = _hud.ToString();
-}
-```
-
-Fail:
-
-```csharp
-private void Update() => _hudLabel.text = "HP " + _health + " / " + _maxHealth;
-```
-
-Use `GarbageCollector.GCMode.Manual` only for a critical, predictable segment with a bounded allocation budget, a
-racing lap for example, and always re-enable incremental GC afterwards. Leaving it off invites the operating system
-to kill the process for memory pressure.
-
----
-
-### Pool instead of Instantiate
-
-`Instantiate` and `Destroy` during gameplay allocate and produce garbage. Pre-warm a pool at scene load and
-activate out of it. An empty pool is a sizing defect: log it and raise the pool size, never fall back to
-`Instantiate`.
-
-Pass:
-
-```csharp
-for (int i = 0; i < poolSize; i++)
-    _pool.Enqueue(Instantiate(prefab));
-
-if (_pool.Count == 0)
-{
-    Debug.LogWarning($"{prefab.name} pool is empty, raise poolSize");
-    return;
-}
-var obj = _pool.Dequeue();
-obj.SetActive(true);
-```
-
-Release by deactivating and returning to the pool, never by destroying:
-
-```csharp
-obj.SetActive(false);
-_pool.Enqueue(obj);
-```
-
-Fail:
-
-```csharp
-private void Fire() => Destroy(Instantiate(bulletPrefab), 3f);
-```
-
----
-
-### Addressables, and every load has a release
-
-`Resources.Load` pulls its whole folder into the build and gives no control over memory. Use Addressables, and pair
-every `LoadAssetAsync` with a `Release` when the asset is no longer needed, so the reference count reaches zero and
-the bundle actually unloads.
-
-Pass:
-
-```csharp
-var handle = Addressables.LoadAssetAsync<Sprite>("ui/icons/health");
-await handle.Task;
-_healthIcon.sprite = handle.Result;
-```
-
-Then release it when the screen closes:
-
-```csharp
-Addressables.Release(handle);
-```
-
-Fail:
-
-```csharp
-_healthIcon.sprite = Resources.Load<Sprite>("icons/health");
-```
-
-Organise groups by load context, `UI`, `Level_01`, `Shared_Audio`, so a download is scoped to what the player is
-about to need and content updates stay incremental.
-
----
-
-### Cache component lookups
-
-`GetComponent<T>()`, `FindFirstObjectByType<T>()` and `FindAnyObjectByType<T>()` are searches. Run them once in
-`Awake` or `Start` and hold the reference. `FindObjectOfType<T>()` is deprecated in Unity 6: use
-`FindFirstObjectByType<T>()`, or the faster `FindAnyObjectByType<T>()` when any instance will do.
-
-Pass:
-
-```csharp
-private Rigidbody _rb;
-
-private void Awake() => _rb = GetComponent<Rigidbody>();
-```
-
-Fail:
-
-```csharp
-private void Update() => GetComponent<Rigidbody>().AddForce(Vector3.up);
-```
-
-Keep heavy initialisation out of `Awake` unless it is synchronous and fast, defer the rest to `Start` or an async
-path so scene loading is not blocked. Null-check a cached reference in `OnEnable` where the component can be
-destroyed and re-enabled, because the reference does not survive a scene reload.
-
----
-
-### Make execution order explicit
-
-Systems that produce data, input and physics results, must run before the systems that consume them. Relying on
-Unity's arbitrary default order produces a one-frame lag that only shows up under load.
-
-Pass:
-
-```csharp
-[DefaultExecutionOrder(-100)]
-public class InputManager : MonoBehaviour { }
-```
-
-Fail:
-
-```csharp
-public class InputManager : MonoBehaviour { }
-```
-
-Project Settings, Script Execution Order does the same job for cases where the attribute is impractical. Use one of
-the two, not neither.
-
----
-
-### Physics without allocation
-
-`Physics.RaycastAll` allocates an array per call. The `NonAlloc` variants write into a buffer you own.
-
-Pass:
-
-```csharp
-private readonly RaycastHit[] _hits = new RaycastHit[10];
-
-private void Update()
-{
-    int count = Physics.RaycastNonAlloc(transform.position, transform.forward, _hits, 10f);
-    for (int i = 0; i < count; i++) { /* process _hits[i] */ }
-}
-```
-
-Fail:
-
-```csharp
-private void Update()
-{
-    foreach (var hit in Physics.RaycastAll(transform.position, transform.forward, 10f)) { }
-}
-```
-
-Set position and rotation together with `Transform.SetPositionAndRotation()` rather than assigning each, which
-triggers two internal transform updates. Pass custom structs in tight math loops by `ref` or `in` to avoid copying.
-
----
-
-### C# naming
-
-A `MonoBehaviour` class name matches its filename exactly, or Unity cannot bind the script. Expose Inspector fields
-with `[SerializeField] private`, never by making a field public.
-
-Pass:
-
-```csharp
-[SerializeField] private float _moveSpeed = 5f;
-```
-
-Fail:
-
-```csharp
-public float moveSpeed = 5f;
-```
-
-Wrap every script in a project namespace such as `MyGame.Core` or `MyGame.UI`. Private fields are `_camelCase`,
-public properties are `PascalCase`, constants and `static readonly` are `PascalCase` rather than
-`UPPER_SNAKE_CASE`, interfaces are prefixed `I`, abstract bases are prefixed `Base`.
+1. Nothing allocates in `Update`, `FixedUpdate` or `LateUpdate`, because the collector running mid-frame is the stutter. Build strings with a reused `StringBuilder`, never with `+` in a loop.
+2. Use `GarbageCollector.GCMode.Manual` only for a critical, predictable segment with a bounded allocation budget, such as a racing lap, and always re-enable incremental GC afterwards, or the OS may kill the process for memory pressure.
+3. No `Instantiate` or `Destroy` during gameplay. Pre-warm a pool at scene load, activate out of it, and release by deactivating and returning to the pool. An empty pool is a sizing defect: log it and raise the pool size, never fall back to `Instantiate`.
+4. No `Resources.Load`, which pulls its whole folder into the build. Use Addressables and pair every `LoadAssetAsync` with a `Release`, so the reference count reaches zero and the bundle unloads.
+5. Organise Addressables groups by load context (`UI`, `Level_01`, `Shared_Audio`), so a download is scoped to what the player is about to need and content updates stay incremental.
+6. `GetComponent<T>()`, `FindFirstObjectByType<T>()` and `FindAnyObjectByType<T>()` are searches: run them once in `Awake` or `Start` and hold the reference. `FindObjectOfType<T>()` is deprecated in Unity 6, so use `FindFirstObjectByType<T>()`, or the faster `FindAnyObjectByType<T>()` when any instance will do.
+7. Keep heavy initialisation out of `Awake` unless it is synchronous and fast, and defer the rest to `Start` or an async path. Null-check a cached reference in `OnEnable` where the component can be destroyed and re-enabled, because it does not survive a scene reload.
+8. Producers (input, physics results) run before consumers. Set the order with `[DefaultExecutionOrder]` or Project Settings, Script Execution Order, one of the two and never neither, or a one-frame lag shows up under load.
+9. Use the `NonAlloc` physics queries with a field-level buffer, never `Physics.RaycastAll`. Set both with `Transform.SetPositionAndRotation()` rather than two assignments, and pass custom structs in tight math loops by `ref` or `in`.
+10. A `MonoBehaviour` class name matches its filename exactly, or Unity cannot bind the script. Expose Inspector fields with `[SerializeField] private`, never a public field.
+11. Wrap every script in a project namespace such as `MyGame.Core`. Private fields are `_camelCase`, public properties `PascalCase`, constants and `static readonly` `PascalCase` rather than `UPPER_SNAKE_CASE`, interfaces prefixed `I`, abstract bases prefixed `Base`.
+12. Put configuration in ScriptableObject assets so a designer tunes it without a recompile, and decouple systems with ScriptableObject event channels instead of direct references or static events.
+13. Never store runtime mutable state in a ScriptableObject: it persists between Play Mode sessions in the Editor and produces a bug that only reproduces on the second run.
+14. Tests live in a dedicated `Tests/` assembly definition. Edit Mode covers pure logic, ScriptableObject configuration, utilities and data validation. Play Mode covers gameplay, physics, coroutines, component lifecycle and integration.
+15. Mock through interfaces and hand-written doubles, and build a minimal scene per test rather than loading a production one, which breaks whenever a designer moves something.
 
 ---
 
 ### Doc Comments
 
-XML doc comments follow "Doc Comments" in `coding-standards`. The C# delta: keep `<summary>` on one physical line,
-because the expanded three-line form says no more, write `<exception>` for every exception a caller can act on, since
-C# keeps throwing out of the signature, and use `<param>` for pool ownership, whether the caller must return the
-object to the pool being exactly the kind of fact the signature cannot carry.
-
-```csharp
-/// <summary>Spawns a pooled projectile at the muzzle and arms it.</summary>
-/// <param name="speed">Metres per second, clamped to the weapon maximum.</param>
-/// <exception cref="InvalidOperationException">Thrown when the pool is exhausted.</exception>
-public Projectile Fire(float speed) { }
-```
-
----
-
-### ScriptableObject architecture
-
-Put configuration in ScriptableObject assets rather than hardcoding it in MonoBehaviours, so a designer can tune it
-without a recompile, and use ScriptableObject event channels to decouple systems instead of direct references or
-static events. Never store runtime mutable state in one: it persists between Play Mode sessions in the Editor and
-produces a bug that only reproduces on the second run. Full data-container and event-channel examples are in
-[references/architecture-and-testing.md](references/architecture-and-testing.md).
-
-Pass:
-
-```csharp
-[CreateAssetMenu(menuName = "Game/WeaponData")]
-public class WeaponData : ScriptableObject
-{
-    [SerializeField] private float _damage;
-    [SerializeField] private float _fireRate;
-
-    public float Damage => _damage;
-    public float FireRate => _fireRate;
-}
-```
-
-Fail:
-
-```csharp
-[CreateAssetMenu(menuName = "Game/PlayerState")]
-public class PlayerState : ScriptableObject { public int currentHealth; }
-```
-
----
-
-### Testing with the Unity Test Framework
-
-Tests live in a dedicated `Tests/` assembly definition. Edit Mode for pure logic, ScriptableObject configuration,
-utilities, and data validation, which need no scene and run fastest. Play Mode for gameplay, physics, coroutines,
-component lifecycle, and integration. Mock through interfaces and hand-written doubles, and build a minimal scene
-per test rather than loading a production one, which breaks whenever a designer moves something.
-
-Pass:
-
-```csharp
-[Test]
-public void WeaponData_DamageIsPositive() => Assert.Greater(_weaponData.Damage, 0f);
-```
-
-Fail:
-
-```csharp
-[UnityTest]
-public IEnumerator Player_TakesDamage() { SceneManager.LoadScene("Level_01_Production"); yield return null; }
-```
-
----
-
-### Reference files
-
-| Open this | For |
-|---|---|
-| [references/project-and-build.md](references/project-and-build.md) | Git and LFS setup, serialisation mode, IL2CPP and stripping, the CI build matrix, the Input System, and UI Toolkit versus UGUI |
-| [references/architecture-and-testing.md](references/architecture-and-testing.md) | Full ScriptableObject data-container and event-channel examples, and Edit Mode versus Play Mode test structure |
+XML doc comments follow "Doc Comments" in `coding-standards`. The C# delta: keep `<summary>` on one physical line, because the expanded three-line form says no more, write `<exception>` for every exception a caller can act on, since C# keeps throwing out of the signature, and use `<param>` for pool ownership, whether the caller must return the object to the pool being exactly the kind of fact the signature cannot carry.
 
 ---
 
