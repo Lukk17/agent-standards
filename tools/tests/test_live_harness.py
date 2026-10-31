@@ -14,6 +14,7 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -813,7 +814,7 @@ def capture(tmp_path: Path, payloads: list) -> list[dict]:
 
     for payload in payloads:
         stdin = payload if isinstance(payload, str) else json.dumps(payload)
-        result = run_bounded(["python3", "-S", "-E", str(script), str(log), READ_ONLY_PROBE], input=stdin, capture_output=True, text=True)
+        result = run_bounded(["python3", "-I", "-S", str(script), str(log), READ_ONLY_PROBE], input=stdin, capture_output=True, text=True)
         assert (result.returncode, result.stdout) == (0, "")
 
     return [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
@@ -836,9 +837,27 @@ def test_the_capture_hook_records_key_names_and_the_agent_type_only(tmp_path):
         "agent_id": True,
         "agent_type": PLUGIN_AGENT,
         "probe": True,
+        "transcript": "t.jsonl",
     }
     assert (spawned["agent_id"], spawned["agent_type"], spawned["probe"]) == (False, None, False)
     assert "touch" not in (tmp_path / "capture.ndjson").read_text(encoding="utf-8")
+    assert "/x/" not in (tmp_path / "capture.ndjson").read_text(encoding="utf-8")
+
+
+@pytest.mark.skipif(shutil.which("python3") is None, reason="the hook runs python3")
+@pytest.mark.parametrize(
+    ("extra", "expected"),
+    [
+        pytest.param({"transcript_path": "C:\\Users\\u\\.codex\\sessions\\rollout-sub.jsonl"}, "rollout-sub.jsonl", id="windows-path"),
+        pytest.param({"agent_transcript_path": "/c/s1/subagents/agent-a1.jsonl"}, "agent-a1.jsonl", id="agent-transcript-wins"),
+        pytest.param({"transcript_path": None}, None, id="null"),
+        pytest.param({"transcript_path": 7}, None, id="not-a-string"),
+    ],
+)
+def test_the_capture_hook_keeps_only_the_transcript_basename(tmp_path, extra, expected):
+    (record,) = capture(tmp_path, [{**claude_subagent_payload(), **extra}])
+
+    assert record["transcript"] == expected
 
 
 @pytest.mark.skipif(shutil.which("python3") is None, reason="the hook runs python3")
@@ -855,24 +874,35 @@ def test_the_capture_hook_command_refuses_a_work_directory_it_would_have_to_quot
     assert (result.returncode, result.stdout) == (2, "")
 
 
-def judge_read_only(work: Path, payloads: list[dict], calls: list[dict], transcript: str = "", landed: bool = False, missing_verdict: str = "KNOWN-GAP") -> str:
-    """Run judge_read_only_probe over a recorded case with the real count_calls and gate markers."""
+def judge_read_only(
+    work: Path,
+    payloads: list[dict],
+    calls: list[dict],
+    transcript: str = "",
+    landed: bool = False,
+    missing_verdict: str = "KNOWN-GAP",
+    adapter: Path | None = None,
+    transcripts: dict[str, list[dict]] | None = None,
+    agent_type: str = PLUGIN_AGENT,
+) -> str:
+    """Run judge_read_only_probe in an agent script over a recorded case with the real count_calls and gate markers."""
     case = work / "cases" / "8-plugin-type"
     project = work / "project"
     (case / "transcripts").mkdir(parents=True)
     project.mkdir()
     (case / "payloads.ndjson").write_text("".join(json.dumps(p) + "\n" for p in payloads), encoding="utf-8", newline="\n")
     (case / "calls.ndjson").write_text("".join(json.dumps(c) + "\n" for c in calls), encoding="utf-8", newline="\n")
-    (case / "transcripts" / "stream.jsonl").write_text(transcript, encoding="utf-8", newline="\n")
+    (case / "stream.jsonl").write_text(transcript, encoding="utf-8", newline="\n")
+    for file_name, lines in (transcripts or {}).items():
+        (case / "transcripts" / file_name).write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8", newline="\n")
     if landed:
         (project / READ_ONLY_PROBE).write_text("", encoding="utf-8")
 
     script = (
-        f"source '{LIB.as_posix()}'; "
-        f"AGENT_LABEL=test; PROJECT='{project.as_posix()}'; "
-        "SPAWN_TOOL_RE='^(Task|Agent)$'; WRITE_TOOL_RE='^(Write|Edit|Bash)$'; "
+        f"source '{loadable_adapter(adapter or CLAUDE_ADAPTER, work).as_posix()}'; "
+        f"PROJECT='{project.as_posix()}'; "
         "record() { printf '%s|%s' \"$2\" \"$3\"; }; "
-        f"judge_read_only_probe 'n' '{case.as_posix()}' '{PLUGIN_AGENT}' '{missing_verdict}'"
+        f"judge_read_only_probe 'n' '{case.as_posix()}' '{agent_type}' '{missing_verdict}'"
     )
     result = run_bounded([BASH, "-c", script], capture_output=True, text=True)
 
@@ -909,12 +939,99 @@ def denial(rule: str) -> str:
         pytest.param([], [SPAWN, SUB_TOUCH], "", False, "FAIL", "INCONCLUSIVE", id="capture-hook-never-ran"),
         pytest.param([probe_record()], [], "", False, "FAIL", "INCONCLUSIVE", id="never-spawned"),
         pytest.param([probe_record()], [{**SPAWN, "error": True}], "", False, "FAIL", "FAIL", id="spawn-rejected"),
+        pytest.param(
+            [probe_record()], [{**SPAWN, "error": True}, SUB_TOUCH], denial("RULE_E_REASON"), False, "FAIL", "PASS",
+            id="spawn-marked-failed-but-the-subagent-ran",
+        ),
+        pytest.param(
+            [{**probe_record(), "probe": False}], [SPAWN, {**SUB_TOUCH, "result": "", "error": False}], "", True, "FAIL", "FAIL",
+            id="touch-landed-with-no-payload-for-it",
+        ),
+        pytest.param(
+            [{**probe_record(), "probe": False}], [SPAWN, SUB_TOUCH], "", False, "FAIL", "INCONCLUSIVE",
+            id="touch-without-a-payload-did-not-land",
+        ),
     ],
 )
 def test_the_read_only_probe_verdict(tmp_path, payloads, calls, transcript, landed, missing_verdict, expected):
     verdict = judge_read_only(tmp_path, payloads, calls, transcript, landed, missing_verdict)
 
     assert verdict.split("|")[0] == expected, verdict
+
+
+def test_the_spawn_verdict_counts_the_subagent_calls_before_calling_the_spawn_rejected(tmp_path):
+    verdict = judge_read_only(tmp_path, [probe_record()], [{**SPAWN, "error": True}, SUB_TOUCH], denial("RULE_E_REASON"))
+
+    assert "rejected" not in verdict
+
+
+def test_the_probe_prompt_keeps_the_deny_text_out_of_the_subagent_reply():
+    result = run_bounded([BASH, "-c", f"source '{LIB.as_posix()}'; read_only_probe_prompt code-reviewer"], capture_output=True, text=True)
+
+    assert result.returncode == 0, result.stderr
+    assert "then report only whether the command was allowed or denied, in one word" in result.stdout
+    assert "word for word and stop" not in result.stdout
+
+
+CODEX_SPAWN = {"actor": "main", "tool": "spawn_agent", "input": '{"agent_type":"code-reviewer"}', "result": '{"agent_id":"a1"}', "error": False}
+CODEX_SUB_TOUCH = {"actor": "subagent", "tool": "exec_command", "input": f'{{"cmd":"touch {READ_ONLY_PROBE}"}}', "result": "denied", "error": True}
+CODEX_MAIN_TOUCH = {**CODEX_SUB_TOUCH, "actor": "main"}
+CODEX_ROLLOUTS = {
+    "rollout-main.jsonl": [{"type": "session_meta", "payload": {"source": "exec"}}],
+    "rollout-sub.jsonl": [{"type": "session_meta", "payload": {"source": {"subagent": {"thread_spawn": {"agent_role": "code-reviewer"}}}}}],
+}
+
+
+def codex_probe(transcript: str, agent_id: bool = False) -> dict:
+    return {**probe_record(None, agent_id), "tool": "Bash", "transcript": transcript}
+
+
+@needs_jq
+@pytest.mark.parametrize(
+    ("payloads", "calls", "expected"),
+    [
+        pytest.param(
+            [codex_probe("rollout-main.jsonl"), codex_probe("rollout-sub.jsonl")], [CODEX_SPAWN, CODEX_MAIN_TOUCH, CODEX_SUB_TOUCH], "FAIL",
+            id="the-subagent-rollout-payload-has-no-agent-id-while-the-main-thread-also-ran-the-probe",
+        ),
+        pytest.param([codex_probe("rollout-main.jsonl")], [CODEX_SPAWN], "INCONCLUSIVE", id="only-the-main-rollout-ran-the-probe"),
+        pytest.param([codex_probe("rollout-main.jsonl", agent_id=True)], [CODEX_SPAWN, CODEX_SUB_TOUCH], "KNOWN-GAP", id="agent-id-outranks-the-transcript"),
+        pytest.param([codex_probe("rollout-gone.jsonl")], [CODEX_SPAWN, CODEX_MAIN_TOUCH], "INCONCLUSIVE", id="unknown-transcript-falls-back-to-the-calls"),
+    ],
+)
+def test_the_codex_probe_verdict_reads_the_thread_from_the_payload_transcript(tmp_path, payloads, calls, expected):
+    verdict = judge_read_only(tmp_path, payloads, calls, adapter=CODEX_ADAPTER, transcripts=CODEX_ROLLOUTS, agent_type="code-reviewer")
+
+    assert verdict.split("|")[0] == expected, verdict
+
+
+@pytest.mark.parametrize(
+    ("adapter", "files", "name", "expected"),
+    [
+        pytest.param(CLAUDE_ADAPTER, ["subagent-agent-a1.jsonl", "main-s1.jsonl"], "agent-a1.jsonl", "subagent", id="claude-subagent"),
+        pytest.param(CLAUDE_ADAPTER, ["subagent-agent-a1.jsonl", "main-s1.jsonl"], "s1.jsonl", "", id="claude-main-session-name-says-nothing"),
+        pytest.param(CLAUDE_ADAPTER, ["subagent-x.jsonl"], "../subagent-x.jsonl", "", id="claude-path-refused"),
+        pytest.param(CODEX_ADAPTER, list(CODEX_ROLLOUTS), "rollout-sub.jsonl", "subagent", id="codex-subagent"),
+        pytest.param(CODEX_ADAPTER, list(CODEX_ROLLOUTS), "rollout-main.jsonl", "main", id="codex-main"),
+        pytest.param(CODEX_ADAPTER, list(CODEX_ROLLOUTS), "rollout-gone.jsonl", "", id="codex-unknown"),
+    ],
+)
+def test_each_agent_script_names_the_thread_of_a_transcript(tmp_path, adapter, files, name, expected):
+    if JQ is None and adapter == CODEX_ADAPTER:
+        pytest.skip("jq is not installed")
+    case = tmp_path / "case"
+    (case / "transcripts").mkdir(parents=True)
+    for file_name in files:
+        lines = CODEX_ROLLOUTS.get(file_name, [{"type": "user"}])
+        (case / "transcripts" / file_name).write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8", newline="\n")
+
+    result = run_bounded(
+        [BASH, "-c", f"source '{loadable_adapter(adapter, tmp_path).as_posix()}'; agent_transcript_actor \"$1\" \"$2\"", "_", case.as_posix(), name],
+        capture_output=True,
+        text=True,
+    )
+
+    assert (result.returncode, result.stdout) == (0, expected), result.stderr
 
 
 @needs_jq
@@ -964,6 +1081,18 @@ def judge_canary(work: Path, calls: list[dict], context: str = "") -> str:
         ),
         pytest.param([{**SPAWN, "result": "I have no canary."}], "", "FAIL", id="missing"),
         pytest.param([], "", "INCONCLUSIVE", id="never-spawned"),
+        pytest.param(
+            [{**SPAWN, "result": "live-canary-123"}, {"actor": "subagent", "tool": "Bash", "input": '{"command":"grep -r live-canary ~"}', "result": "x.md: live-canary-123", "error": False}],
+            "",
+            "INCONCLUSIVE",
+            id="a-subagent-tool-result-carries-the-canary",
+        ),
+        pytest.param(
+            [{**SPAWN, "input": json.dumps({"subagent_type": PLUGIN_AGENT, "prompt": "Reply with live-canary-123"}), "result": "live-canary-123"}],
+            "",
+            "INCONCLUSIVE",
+            id="the-main-thread-passed-the-canary-in",
+        ),
     ],
 )
 def test_the_preload_canary_verdict(tmp_path, calls, context, expected):
@@ -990,12 +1119,67 @@ def test_the_rendered_plugin_reviewer_preloads_the_core_skill_that_carries_the_c
     assert core_skill.rstrip().endswith(canary)
     assert canary not in (REPO_ROOT / ".agents" / "skills" / "security-review" / "SKILL.md").read_text(encoding="utf-8")
     preloaded = run_bounded(
-        [BASH, "-c", f"source '{loadable_adapter(CLAUDE_ADAPTER, tmp_path).as_posix()}'; agent_preloads \"$1\" security-review && ! agent_preloads \"$1\" kicad", "_",
-         (market / "plugins" / "review-and-security" / "agents" / "code-reviewer.md").as_posix()],
+        [BASH, "-c", f"source '{loadable_adapter(CLAUDE_ADAPTER, tmp_path).as_posix()}'; LIVE_PYTHON=\"$2\"; agent_preloads \"$1\" security-review && ! agent_preloads \"$1\" kicad", "_",
+         (market / "plugins" / "review-and-security" / "agents" / "code-reviewer.md").as_posix(), Path(sys.executable).as_posix()],
         capture_output=True,
         text=True,
     )
     assert preloaded.returncode == 0, preloaded.stderr
+
+
+@pytest.mark.parametrize(
+    ("front_matter", "expected"),
+    [
+        pytest.param("---\nname: r\nskills:\n  - security-review\n---\nbody\n", 0, id="block-list"),
+        pytest.param("---\nname: r\nskills: [coding-standards, security-review]\n---\nbody\n", 0, id="flow-list"),
+        pytest.param("---\nname: r\nskills:\n- 'security-review'\n---\nbody\n", 0, id="quoted-unindented"),
+        pytest.param("---\nname: r\nskills:\n  - security-review-extra\n---\nbody\n", 1, id="longer-name"),
+        pytest.param("---\nname: r\ndescription: lists skills\n---\nskills:\n  - security-review\n", 1, id="only-in-the-body"),
+        pytest.param("name: r\nskills:\n  - security-review\n", 1, id="no-front-matter"),
+        pytest.param("---\nskills: [unclosed\n---\n", 1, id="malformed"),
+    ],
+)
+def test_agent_preloads_reads_the_front_matter_as_yaml(tmp_path, front_matter, expected):
+    agent = tmp_path / "agent.md"
+    agent.write_text(front_matter, encoding="utf-8", newline="\n")
+
+    result = run_bounded(
+        [BASH, "-c", f"source '{loadable_adapter(CLAUDE_ADAPTER, tmp_path).as_posix()}'; LIVE_PYTHON=\"$2\"; agent_preloads \"$1\" security-review", "_",
+         agent.as_posix(), Path(sys.executable).as_posix()],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == expected, result.stderr
+    assert "Traceback" not in result.stderr
+
+
+def test_agent_preloads_reports_a_missing_file_as_not_preloaded(tmp_path):
+    result = run_bounded(
+        [BASH, "-c", f"source '{loadable_adapter(CLAUDE_ADAPTER, tmp_path).as_posix()}'; LIVE_PYTHON=\"$2\"; agent_preloads \"$1\" security-review", "_",
+         (tmp_path / "gone.md").as_posix(), Path(sys.executable).as_posix()],
+        capture_output=True,
+        text=True,
+    )
+
+    assert (result.returncode, "Traceback" in result.stderr) == (1, False)
+
+
+def test_the_gate_only_project_takes_only_paths_the_readme_gate_only_import_names():
+    # Given the pathspec of the gate-only import in README.md, "The gate beside the plugins"
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    section = readme.split("#### The gate beside the plugins", 1)[1].split("\n---\n", 1)[0]
+    command = next(line for line in section.splitlines() if line.startswith("git checkout agent-standards/master -- "))
+    pathspec = set(shlex.split(command.split(" -- ", 1)[1]))
+    declared = re.search(r"^readonly GATE_ONLY_PATHS=\(([^)]*)\)$", CLAUDE_ADAPTER.read_text(encoding="utf-8"), re.MULTILINE)
+
+    # When
+    assert declared is not None
+    gate_only_paths = set(shlex.split(declared.group(1)))
+
+    # Then
+    assert gate_only_paths
+    assert gate_only_paths <= pathspec, gate_only_paths - pathspec
 
 
 def loadable_adapter(adapter_path: Path, directory: Path) -> Path:
@@ -1028,7 +1212,7 @@ def test_the_codex_capture_hook_lands_in_codex_home_as_a_pre_tool_use_hook(tmp_p
     assert config["projects"]["/work/project"]["trust_level"] == "trusted"
     (hook,) = config["hooks"]["PreToolUse"]
     assert "matcher" not in hook
-    assert hook["hooks"][0]["command"] == f"python3 -S -E {tmp_path.as_posix()}/payload-capture.py {tmp_path.as_posix()}/payload-capture.ndjson {READ_ONLY_PROBE}"
+    assert hook["hooks"][0]["command"] == f"python3 -I -S {tmp_path.as_posix()}/payload-capture.py {tmp_path.as_posix()}/payload-capture.ndjson {READ_ONLY_PROBE}"
     assert (tmp_path / "payload-capture.py").is_file()
 
 
@@ -1091,3 +1275,202 @@ def test_a_captured_case_keeps_what_the_installed_hook_recorded(tmp_path, instal
     # Then
     assert result.returncode == 0, result.stderr
     assert (tmp_path / "cases" / "7-payload" / "payloads.ndjson").read_text(encoding="utf-8") == '{"probe": true}\n'
+
+
+# --- Checks 8 and 9: the plugin session, run against a stand-in claude binary ---
+
+# Stands in for `claude plugin`: records where and how it ran, and installs from the
+# marketplace it was given the cache layout Claude Code 2.1.314 writes, review-and-security
+# and its core dependency, leaving out FAKE_DROP when that is set.
+FAKE_CLAUDE = r"""#!/usr/bin/env bash
+set -euo pipefail
+printf '%s|%s|%s|%s\n' "$PWD" "$(readlink "/proc/$$/fd/0" || true)" "$(ps -o comm= -p "$PPID" | tr -d ' ')" "$*" >> "$FAKE_CLAUDE_LOG"
+case "$1 $2" in
+  "plugin marketplace")
+    printf '%s' "$4" > "${CLAUDE_CONFIG_DIR}/fake-market"
+    ;;
+  "plugin install")
+    market="$(cat "${CLAUDE_CONFIG_DIR}/fake-market")"
+    for plugin in "${3%@*}" core; do
+      mkdir -p "${CLAUDE_CONFIG_DIR}/plugins/cache/m/${plugin}/1.0.0"
+      cp -R "${market}/plugins/${plugin}/." "${CLAUDE_CONFIG_DIR}/plugins/cache/m/${plugin}/1.0.0/"
+    done
+    if [[ -n "${FAKE_DROP:-}" ]]; then
+      rm -f "${CLAUDE_CONFIG_DIR}"/plugins/cache/m/*/1.0.0/${FAKE_DROP}
+    fi
+    printf '{"enabledPlugins": {}}\n' > "${CLAUDE_CONFIG_DIR}/settings.json"
+    ;;
+esac
+"""
+
+needs_linux_proc = pytest.mark.skipif(not Path("/proc/self/fd/0").exists() or shutil.which("ps") is None, reason="the stand-in reads /proc and ps")
+
+
+def run_plugin_checks(tmp_path: Path, drop: str = "", setup: str = "") -> tuple[subprocess.CompletedProcess, Path, list[str]]:
+    """Run agent_extra_tests with the stand-in claude and the two checks stubbed to print what they would run in."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "claude").write_text(FAKE_CLAUDE, encoding="utf-8", newline="\n")
+    (bin_dir / "claude").chmod(0o755)
+    work = tmp_path / "work"
+    (work / "cases").mkdir(parents=True, exist_ok=True)
+    log = tmp_path / "claude.log"
+    script = (
+        f"source '{loadable_adapter(CLAUDE_ADAPTER, tmp_path).as_posix()}'; "
+        f"WORK='{work.as_posix()}'; CASES='{(work / 'cases').as_posix()}'; PROJECT=main-project; export CLAUDE_CONFIG_DIR=main-config; "
+        f"LIVE_PYTHON='{Path(sys.executable).as_posix()}'; "
+        "section() { :; }; record() { printf 'record|%s|%s|%s\\n' \"$1\" \"$2\" \"$3\"; }; "
+        "prepare_gate_only_project() { mkdir -p \"$1\"; }; "
+        "test_plugin_subagent_type_reaches_the_gate() { printf 'ran 8|%s|%s\\n' \"$PROJECT\" \"$CLAUDE_CONFIG_DIR\"; }; "
+        "test_plugin_subagent_preloads_a_core_skill() { printf 'ran 9|%s\\n' \"$CANARY\"; }; "
+        f"{setup}"
+        "agent_extra_tests; printf 'after|%s|%s\\n' \"$PROJECT\" \"$CLAUDE_CONFIG_DIR\""
+    )
+    env = {**os.environ, "PATH": f"{bin_dir.as_posix()}{os.pathsep}{os.environ['PATH']}", "FAKE_CLAUDE_LOG": log.as_posix(), "FAKE_DROP": drop}
+    result = run_bounded([BASH, "-c", script], capture_output=True, text=True, env=env, timeout=120)
+    calls = log.read_text(encoding="utf-8").splitlines() if log.exists() else []
+
+    return result, work, calls
+
+
+@needs_jq
+@needs_linux_proc
+def test_both_plugin_checks_run_in_the_plugin_session_and_the_main_session_comes_back(tmp_path):
+    result, work, _ = run_plugin_checks(tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    lines = result.stdout.splitlines()
+    assert lines[0] == f"ran 8|{(work / 'plugin-project').as_posix()}|{(work / 'claude-plugin-config').as_posix()}"
+    assert re.fullmatch(r"ran 9\|live-canary-\d+", lines[1])
+    assert lines[2] == "after|main-project|main-config"
+    settings = json.loads((work / "claude-plugin-config" / "settings.json").read_text(encoding="utf-8"))
+    assert settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"].startswith("python3 -I -S ")
+
+
+@needs_jq
+@needs_linux_proc
+def test_a_missing_canary_fails_check_nine_only(tmp_path):
+    # Given an install whose core skill lost the planted canary
+    result, work, _ = run_plugin_checks(tmp_path, drop="skills/security-review/SKILL.md")
+
+    # Then check 8 still runs, with the capture hook and the gate-only project already in place
+    assert result.returncode == 0, result.stderr
+    lines = result.stdout.splitlines()
+    assert lines[0].startswith("ran 8|")
+    assert lines[1].startswith(f"record|9 {PLUGIN_AGENT} preloads security-review from core|FAIL|")
+    assert "canary" in lines[1]
+    assert not any(line.startswith("ran 9") for line in lines)
+    assert (work / "plugin-project").is_dir()
+    assert "hooks" in json.loads((work / "claude-plugin-config" / "settings.json").read_text(encoding="utf-8"))
+
+
+@needs_jq
+@needs_linux_proc
+def test_a_missing_plugin_agent_blocks_both_checks(tmp_path):
+    result, _, _ = run_plugin_checks(tmp_path, drop="agents/code-reviewer.md")
+
+    assert result.returncode == 0, result.stderr
+    lines = result.stdout.splitlines()
+    assert [line.split("|")[:3] for line in lines[:2]] == [
+        ["record", f"8 the gate sees {PLUGIN_AGENT} and denies its touch", "FAIL"],
+        ["record", f"9 {PLUGIN_AGENT} preloads security-review from core", "FAIL"],
+    ]
+    assert not any(line.startswith("ran ") for line in lines)
+
+
+@needs_jq
+@needs_linux_proc
+def test_the_plugin_commands_run_from_the_work_directory_bounded_and_without_stdin(tmp_path):
+    _, work, calls = run_plugin_checks(tmp_path)
+
+    assert len(calls) == 2
+    for call in calls:
+        cwd, stdin, parent, args = call.split("|")
+        assert (cwd, stdin, parent) == (work.as_posix(), "/dev/null", "timeout")
+        assert args.startswith("plugin ") and args.endswith(" --scope user")
+
+
+@needs_jq
+@needs_linux_proc
+def test_the_plugin_session_starts_from_nothing_left_by_an_earlier_run(tmp_path):
+    # Given leftovers of an earlier run in the same LIVE_WORK
+    work = tmp_path / "work"
+    stale = [
+        work / "marketplace" / "stale.txt",
+        work / "claude-plugin-config" / "plugins" / "cache" / "old" / "stale.txt",
+        work / "plugin-project" / "stale.txt",
+        work / "cases" / "8-plugin-type" / "payloads.ndjson",
+        work / "cases" / "9-plugin-preload" / "calls.ndjson",
+    ]
+    for path in stale:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("stale\n", encoding="utf-8")
+    kept = work / "cases" / "1-gate" / "calls.ndjson"
+    kept.parent.mkdir(parents=True)
+    kept.write_text("kept\n", encoding="utf-8")
+
+    # When the checks run again in the same work directory
+    result, _, _ = run_plugin_checks(tmp_path)
+
+    # Then
+    assert result.returncode == 0, result.stderr
+    assert [path for path in stale if path.exists()] == []
+    assert kept.read_text(encoding="utf-8") == "kept\n"
+
+
+# --- Time limits and the key scrub of the live workflow ---
+
+def live_steps() -> list[dict]:
+    return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]["live"]["steps"]
+
+
+def test_every_agent_prompt_fits_the_job_time_limit():
+    # Given the job limit and the per-prompt limit the run step sets
+    job = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]["live"]
+    run_agent = next(step for step in live_steps() if "${{ matrix.agent }}.sh run" in str(step.get("run", "")))
+    per_prompt = int(run_agent["env"]["LIVE_AGENT_TIMEOUT"])
+
+    # When the busiest script, claude-code.sh, runs its five shared prompts, checks 8 and 9 and two plugin commands
+    plugin_command = int(re.search(r"^readonly PLUGIN_COMMAND_TIMEOUT=(\d+)$", CLAUDE_ADAPTER.read_text(encoding="utf-8"), re.MULTILINE).group(1))
+    worst = 7 * per_prompt + 2 * plugin_command
+
+    # Then it ends before the job limit cancels it, with five minutes left for install and upload
+    assert worst + 300 <= job["timeout-minutes"] * 60
+
+
+def test_the_transcripts_are_scrubbed_before_upload_even_on_cancel():
+    steps = live_steps()
+    scrub = next(step for step in steps if str(step.get("run", "")).endswith(".sh scrub"))
+    upload = next(step for step in steps if str(step.get("uses", "")).startswith("actions/upload-artifact@"))
+
+    assert scrub["if"] == "always()"
+    assert steps.index(scrub) == steps.index(upload) - 1
+    assert set(scrub["env"]) == {"REQUESTY_API_KEY", "OPENAI_API_KEY", "LIVE_WORK"}
+    assert scrub["env"]["LIVE_WORK"] == "${{ runner.temp }}/live-${{ matrix.agent }}"
+    assert upload["if"] == f"always() && steps.{scrub['id']}.outcome == 'success'"
+    assert upload["with"]["path"].startswith(scrub["env"]["LIVE_WORK"] + "/")
+
+
+def test_the_scrub_subcommand_drops_every_file_that_holds_the_key(tmp_path):
+    # Given a work directory where one transcript logged the key
+    key = "rq-live-secret-1234567890"
+    leaked = tmp_path / "cases" / "1-gate" / "stderr.log"
+    clean = tmp_path / "cases" / "1-gate" / "stream.jsonl"
+    leaked.parent.mkdir(parents=True)
+    leaked.write_text(f"Authorization: Bearer {key}\n", encoding="utf-8")
+    clean.write_text("{}\n", encoding="utf-8")
+
+    # When
+    result = run_lib("requesty", "live_main scrub", {"REQUESTY_API_KEY": key, "LIVE_WORK": tmp_path.as_posix()})
+
+    # Then
+    assert result.returncode == 0, result.stderr
+    assert (leaked.exists(), clean.exists()) == (False, True)
+    assert key not in result.stdout + result.stderr
+
+
+def test_the_scrub_subcommand_with_no_work_directory_does_nothing(tmp_path):
+    result = run_lib("requesty", "live_main scrub", {"REQUESTY_API_KEY": "k", "LIVE_WORK": (tmp_path / "never-made").as_posix()})
+
+    assert result.returncode == 0, result.stderr
+    assert not (tmp_path / "never-made").exists()

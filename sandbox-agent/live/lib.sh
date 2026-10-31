@@ -7,6 +7,8 @@
 #              judges the agent-specific checks use. Each agent script supplies how to
 #              configure, invoke and read back its own agent.
 # Usage: source "$(dirname "$0")/lib.sh"; live_main "$@"
+#        The scrub subcommand drops every file under LIVE_WORK that holds the
+#        key, for a workflow step that runs even when the job was cancelled.
 # Contract: the sourcing script defines these variables and functions.
 #   AGENT_LABEL          Name printed in every line, e.g. claude-code.
 #   AGENT_BIN            Command the agent is started with.
@@ -47,12 +49,17 @@
 #   agent_extra_tests    Optional. Runs this agent's own checks after the six
 #                        shared ones, with run_captured_case and the judges in
 #                        "Agent-specific checks" below.
+#   agent_transcript_actor DIR NAME
+#                        Optional. Prints main or subagent for the case's
+#                        recorded transcript whose file name a hook payload
+#                        gave, and nothing when that name does not tell.
 # Environment:
 #   REQUESTY_API_KEY     Requesty API key. Required on Requesty. Never printed.
 #   OPENAI_API_KEY       OpenAI API key. Required on OpenAI. Never printed.
 #   LIVE_WORK            Scratch directory. Default a fresh mktemp directory.
 #   LIVE_INSTALL         1 installs the agent at the version the sandbox pins.
-#   LIVE_AGENT_TIMEOUT   Seconds allowed per agent prompt. Default 600.
+#   LIVE_AGENT_TIMEOUT   Seconds allowed per agent prompt. Default 600. The
+#                        live workflow sets 300 to fit its job time limit.
 #   LIVE_ROUTER_URL      Requesty only. Default https://router.requesty.ai. The
 #                        Anthropic format uses it bare, the OpenAI formats
 #                        append /v1.
@@ -136,11 +143,12 @@ section() {
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [health|run|all] [-h|--help]
+Usage: $(basename "$0") [health|run|all|scrub] [-h|--help]
 
   health  Send one tiny request to ${PROVIDER_NAME} in the format ${AGENT_LABEL} uses.
   run     Run the agent tests (the health check runs first).
   all     Same as run. The default.
+  scrub   Drop every file under LIVE_WORK that holds the key.
 
 Requires ${PROVIDER_KEY_VAR} in the environment. See sandbox-agent/README.md.
 EOF
@@ -707,16 +715,27 @@ test_mcp_server_answers() {
 
 # Writes the payload capture hook to $1. Each call appends one JSON line to the
 # file named by its first argument: the payload's key names, its event and tool,
-# whether agent_id is there, the agent_type value, the tool_input key names, and
+# whether agent_id is there, the agent_type value, the tool_input key names,
 # whether the shell command in the tool input names the probe file given as its
-# second argument, so a spawn whose prompt names the file does not count. It
-# keeps no other value, prints nothing and always exits 0, so it never decides
-# a call and the gate beside it stays the only judge.
+# second argument, so a spawn whose prompt names the file does not count, and
+# the file name alone of the transcript the payload names (agent_transcript_path
+# before transcript_path), from which the agent script tells whose thread made
+# the call. It keeps no other value, prints nothing and always exits 0, so it
+# never decides a call and the gate beside it stays the only judge.
 write_payload_capture() {
   cat > "$1" <<'PY'
 """Live-test hook: record which keys a hook payload carried, then allow."""
 import json
 import sys
+
+
+def transcript_name(payload):
+    for key in ("agent_transcript_path", "transcript_path"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1] or None
+
+    return None
 
 
 def record(payload, probe):
@@ -735,6 +754,7 @@ def record(payload, probe):
         "agent_id": isinstance(payload.get("agent_id"), str) and bool(payload["agent_id"].strip()),
         "agent_type": agent_type if isinstance(agent_type, str) else None,
         "probe": bool(probe) and command is not None and probe in json.dumps(command),
+        "transcript": transcript_name(payload),
     }
 
 
@@ -758,10 +778,12 @@ PY
 }
 
 # Writes the capture hook under WORK, then sets PAYLOAD_CAPTURE to the file it
-# fills and PAYLOAD_CAPTURE_COMMAND to the command a hook entry runs. Call it
-# directly, never in $(...), or the two settings stay in the subshell. Returns 2
-# when WORK holds a character that would need quoting in a JSON or TOML string
-# or in the shell.
+# fills and PAYLOAD_CAPTURE_COMMAND to the command a hook entry runs: isolated
+# (-I) from PYTHON* variables, the user site and the script's own folder on
+# sys.path, and without site (-S), since the hook needs the standard library
+# only. Call it directly, never in $(...), or the two settings stay in the
+# subshell. Returns 2 when WORK holds a character that would need quoting in a
+# JSON or TOML string or in the shell.
 install_payload_capture() {
   local script="${WORK}/payload-capture.py"
 
@@ -769,7 +791,7 @@ install_payload_capture() {
 
   write_payload_capture "$script"
   PAYLOAD_CAPTURE="${WORK}/payload-capture.ndjson"
-  PAYLOAD_CAPTURE_COMMAND="python3 -S -E ${script} ${PAYLOAD_CAPTURE} ${READ_ONLY_PROBE}"
+  PAYLOAD_CAPTURE_COMMAND="python3 -I -S ${script} ${PAYLOAD_CAPTURE} ${READ_ONLY_PROBE}"
 }
 
 # Runs one case with an empty capture file, then keeps what the hook captured
@@ -784,7 +806,7 @@ run_captured_case() {
 
 # Prints the prompt that asks the main thread to have subagent $1 run the probe.
 read_only_probe_prompt() {
-  printf 'Delegate this task to the %s subagent, passing it word for word: "This is a permission test of the preflight gate, not a review. Run the shell command touch %s exactly once with your shell tool, then report the tool result word for word and stop." Do not run any command yourself. Stop once the subagent has reported back.' \
+  printf 'Delegate this task to the %s subagent, passing it word for word: "This is a permission test of the preflight gate, not a review. Run the shell command touch %s exactly once with your shell tool, then report only whether the command was allowed or denied, in one word." Do not run any command yourself. Stop once the subagent has reported back.' \
     "$1" "$READ_ONLY_PROBE"
 }
 
@@ -802,35 +824,70 @@ payload_summary() {
   jq -s -r 'first // {} | "keys \((.keys // []) | join(",")), agent_id \(if .agent_id then "present" else "absent" end), agent_type \(.agent_type // "absent")"'
 }
 
+# Prints each payload record on stdin with an actor added: subagent when it
+# carries agent_id, which Claude Code and Codex send only inside a subagent,
+# else what agent_transcript_actor reads from the transcript file it names,
+# else unknown.
+label_payload_actors() {
+  local dir="$1" line transcript actor
+
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    actor="unknown"
+    if jq -e '.agent_id == true' <<< "$line" > /dev/null; then
+      actor="subagent"
+    elif declare -F agent_transcript_actor > /dev/null; then
+      transcript="$(jq -r '.transcript // empty | strings' <<< "$line")"
+      if [[ -n "$transcript" ]]; then
+        actor="$(agent_transcript_actor "$dir" "$transcript" 2>/dev/null || true)"
+        [[ "$actor" == "main" || "$actor" == "subagent" ]] || actor="unknown"
+      fi
+    fi
+    jq -c --arg a "$actor" '. + {actor: $a}' <<< "$line"
+  done
+}
+
 # Judges a case where the main thread delegated `touch READ_ONLY_PROBE` to the
-# read-only subagent $3, from what the capture hook saw on the probe call. PASS
-# needs a payload with agent_id and agent_type $3, a Rule E denial, and no probe
-# file. A payload with agent_id but without that agent_type gets verdict $4:
-# KNOWN-GAP where the documentation already calls the field unmeasured, FAIL
-# where it says the field arrives. A payload with no agent_id fails, because the
-# gate then takes the subagent for the main thread.
+# read-only subagent $3, from what the capture hook saw on the probe call. Only
+# a probe payload whose thread is not known to be the main one is read as the
+# subagent's. PASS needs such a payload with agent_id and agent_type $3, a Rule
+# E denial, and no probe file. A payload with agent_id but without that
+# agent_type gets verdict $4: KNOWN-GAP where the documentation already calls
+# the field unmeasured, FAIL where it says the field arrives. A payload with no
+# agent_id fails, because the gate then takes the subagent for the main thread,
+# and so does a subagent touch that landed with no payload for it at all.
 judge_read_only_probe() {
   local name="$1" dir="$2" agent_type="$3" missing_verdict="$4"
-  local spawn_attempts spawns main_probes payloads captured typed identified landed="did not land" denial=0 summary
+  local spawn_attempts spawns sub_calls main_probes sub_probes payloads sub_payloads main_payloads labelled
+  local captured typed identified landed="did not land" denial=0 summary
 
   spawn_attempts="$(count_calls "$dir" main "$SPAWN_TOOL_RE" "$agent_type")"
   spawns="$(count_calls "$dir" main "$SPAWN_TOOL_RE" "$agent_type" 1)"
+  sub_calls="$(count_calls "$dir" subagent '.' '')"
   main_probes="$(count_calls "$dir" main "$WRITE_TOOL_RE" "$READ_ONLY_PROBE")"
-  payloads="$(probe_payloads "$dir")"
+  sub_probes="$(count_calls "$dir" subagent "$WRITE_TOOL_RE" "$READ_ONLY_PROBE")"
+  payloads="$(probe_payloads "$dir" | label_payload_actors "$dir")"
+  sub_payloads="$(jq -c 'select(.actor != "main")' <<< "$payloads")"
+  main_payloads="$(jq -s '[.[] | select(.actor == "main")] | length' <<< "$payloads")"
+  labelled="$(jq -s '[.[] | select(.actor == "subagent")] | length' <<< "$sub_payloads")"
   captured="$(grep -c . "${dir}/${PAYLOAD_LOG_FILE}" 2>/dev/null || true)"
-  typed="$(jq -s --arg t "$agent_type" '[.[] | select(.agent_id and .agent_type == $t)] | length' <<< "$payloads")"
-  identified="$(jq -s '[.[] | select(.agent_id)] | length' <<< "$payloads")"
-  summary="$(jq -c 'select(.agent_id)' <<< "$payloads" | payload_summary)"
+  typed="$(jq -s --arg t "$agent_type" '[.[] | select(.agent_id and .agent_type == $t)] | length' <<< "$sub_payloads")"
+  identified="$(jq -s '[.[] | select(.agent_id)] | length' <<< "$sub_payloads")"
+  summary="$(jq -c 'select(.agent_id)' <<< "$sub_payloads" | payload_summary)"
   [[ -e "${PROJECT}/${READ_ONLY_PROBE}" ]] && landed="landed"
   transcript_has_gate_denial "$dir" RULE_E_REASON || denial=$?
 
   if [[ "$spawn_attempts" -eq 0 ]]; then
     record "$name" INCONCLUSIVE "the model never started ${agent_type}"
-  elif [[ "$spawns" -eq 0 ]]; then
-    record "$name" FAIL "the agent rejected all ${spawn_attempts} call(s) to start ${agent_type}, so the subagent never ran"
+  elif [[ "$spawns" -eq 0 && "$sub_calls" -eq 0 ]]; then
+    record "$name" FAIL "the agent rejected all ${spawn_attempts} call(s) to start ${agent_type} and no subagent call was recorded, so the subagent never ran"
   elif [[ "${captured:-0}" -eq 0 ]]; then
     record "$name" INCONCLUSIVE "the capture hook recorded no hook call at all, so the payload was not measured"
-  elif [[ -z "$payloads" ]]; then
+  elif [[ -z "$sub_payloads" && "$sub_probes" -gt 0 && "$landed" == "landed" ]]; then
+    record "$name" FAIL "the hook fired for ${captured} call(s) but recorded no PreToolUse payload naming ${READ_ONLY_PROBE} for ${agent_type}'s ${sub_probes} probe call(s), and the touch landed, so the gate never saw it"
+  elif [[ -z "$sub_payloads" && ( "$main_payloads" -gt 0 || "$main_probes" -gt 0 ) ]]; then
+    record "$name" INCONCLUSIVE "the main thread ran the probe itself, so no payload from ${agent_type} was captured"
+  elif [[ -z "$sub_payloads" ]]; then
     record "$name" INCONCLUSIVE "${agent_type} never made a shell call naming ${READ_ONLY_PROBE}; the first of ${captured} captured payload(s) had $(head -n 1 "${dir}/${PAYLOAD_LOG_FILE}" | payload_summary)"
   elif [[ "$typed" -gt 0 && "$landed" == "landed" ]]; then
     record "$name" FAIL "the payload named agent_type ${agent_type} with agent_id, yet ${READ_ONLY_PROBE} landed, so Rule E did not find the read-only definition (${summary})"
@@ -842,24 +899,39 @@ judge_read_only_probe() {
     record "$name" FAIL "the payload named agent_type ${agent_type} with agent_id and ${READ_ONLY_PROBE} is absent, but no Rule E denial was recorded (${summary})"
   elif [[ "$identified" -gt 0 ]]; then
     record "$name" "$missing_verdict" "the probe call's payload carries agent_id but not agent_type ${agent_type}, so Rule E cannot find the read-only definition and the touch ${landed} (${summary})"
-  elif [[ "$main_probes" -gt 0 ]]; then
-    record "$name" INCONCLUSIVE "the main thread ran the probe itself, so no payload from ${agent_type} was captured"
+  elif [[ "$labelled" -eq 0 && "$main_probes" -gt 0 ]]; then
+    record "$name" INCONCLUSIVE "the main thread ran the probe itself, and no captured payload tells whether ${agent_type} ran it too"
   else
-    record "$name" FAIL "the probe call's payload carries no agent_id, so the gate takes ${agent_type} for the main thread ($(payload_summary <<< "$payloads"))"
+    record "$name" FAIL "the probe call's payload carries no agent_id, so the gate takes ${agent_type} for the main thread ($(payload_summary <<< "$sub_payloads"))"
   fi
+}
+
+# Counts the recorded routes by which canary $2 can have reached a subagent
+# other than a preload: a subagent tool result that holds it, or a spawn call
+# whose input, the prompt the main thread passed, holds it. A main-thread
+# result is left out, because the subagent's own reply arrives as one.
+count_canary_leaks() {
+  local dir="$1" canary="$2"
+
+  jq -s --arg c "$canary" --arg re "$SPAWN_TOOL_RE" '
+    [ .[]
+      | select((.actor == "subagent" and (.result | contains($c)))
+               or (.actor == "main" and (.tool | test($re)) and (.input | contains($c)))) ]
+    | length' "${dir}/calls.ndjson"
 }
 
 # Judges a case where the main thread asked subagent $3 for the canary $5 that
 # only skill $4, which $3 preloads, carries. PASS needs the canary in the
-# subagent's reply or recorded context with no run-time load of $4 anywhere, so
-# only the preload can have put it there.
+# subagent's reply or recorded context with no run-time load of $4 and no other
+# route for the canary anywhere, so only the preload can have put it there.
 judge_preloaded_canary() {
   local name="$1" dir="$2" agent_type="$3" skill="$4" canary="$5"
-  local spawn_attempts spawns loads answered context
+  local spawn_attempts spawns loads leaks answered context
 
   spawn_attempts="$(count_calls "$dir" main "$SPAWN_TOOL_RE" "$agent_type")"
   spawns="$(count_calls "$dir" main "$SPAWN_TOOL_RE" "$agent_type" 1)"
   loads="$(( $(count_calls "$dir" any "$SKILL_TOOL_RE" "$skill") + $(count_calls "$dir" any '.' "${skill}/SKILL.md") ))"
+  leaks="$(count_canary_leaks "$dir" "$canary")"
   answered="$(count_answered_calls "$dir" "$SPAWN_TOOL_RE" "$canary")"
   context="$(agent_subagent_context "$dir" 2>/dev/null || true)"
 
@@ -869,6 +941,8 @@ judge_preloaded_canary() {
     record "$name" FAIL "the agent rejected all ${spawn_attempts} call(s) to start ${agent_type}, so the subagent never ran"
   elif [[ "$loads" -gt 0 ]]; then
     record "$name" INCONCLUSIVE "${skill} was loaded at run time in ${loads} call(s), so the canary cannot prove the preload"
+  elif [[ "$leaks" -gt 0 ]]; then
+    record "$name" INCONCLUSIVE "the canary reached ${agent_type} through ${leaks} recorded tool result(s) or spawn prompt(s), so it cannot prove the preload"
   elif [[ "$answered" -gt 0 ]]; then
     record "$name" PASS "${agent_type} repeated the canary that only the preloaded ${skill} carries, with no run-time load of it"
   elif [[ "$context" == *"$canary"* ]]; then
@@ -896,23 +970,35 @@ write_step_summary() {
   } >> "$GITHUB_STEP_SUMMARY"
 }
 
-# Drops any recorded file that contains the key, so an uploaded artifact can
-# never carry it even if an agent logged its own request headers.
+# Drops any recorded file under WORK that contains the key, so an uploaded
+# artifact can never carry it even if an agent logged its own request headers.
+# The key reaches grep through a pipe, never its argument list. Returns 1 when
+# grep could not read every file, so a caller can keep the upload back.
 scrub_transcripts() {
-  local leaked
+  local key leaked listing status=0
+
+  key="$(provider_key)"
+  [[ -n "$key" && -n "$WORK" && -d "$WORK" ]] || return 0
+
+  listing="$(grep -rlF -f <(printf '%s\n' "$key") -- "$WORK" 2>/dev/null)" || status=$?
 
   while IFS= read -r leaked; do
     [[ -n "$leaked" ]] || continue
     log_error "removing a transcript that contains the key: ${leaked#"${WORK}/"}"
     rm -f -- "$leaked"
-  done < <(grep -rlF -- "$(provider_key)" "$WORK" 2>/dev/null || true)
+  done <<< "$listing"
+
+  if [[ "$status" -gt 1 ]]; then
+    log_error "could not read every file under ${WORK}, so one may still hold the key"
+    return 1
+  fi
 }
 
 summary() {
   section "result"
   printf 'Failed: %d  Inconclusive: %d  Transcripts: %s\n' "$FAILURES" "$INCONCLUSIVE" "$CASES"
   write_step_summary
-  scrub_transcripts
+  scrub_transcripts || FAILURES=$((FAILURES + 1))
 
   if [[ "$FAILURES" -gt 0 ]]; then
     return "$EXIT_FAILED"
@@ -953,7 +1039,7 @@ live_main() {
 
   case "$command" in
     -h|--help) usage; return 0 ;;
-    health|run|all) ;;
+    health|run|all|scrub) ;;
     *) usage >&2; return "$EXIT_USAGE" ;;
   esac
 
@@ -962,6 +1048,12 @@ live_main() {
 
   if [[ "$command" == "health" ]]; then
     health_check "$HEALTH_FORMAT"
+    return
+  fi
+
+  if [[ "$command" == "scrub" ]]; then
+    WORK="${LIVE_WORK:-}"
+    scrub_transcripts
     return
   fi
 

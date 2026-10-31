@@ -163,15 +163,41 @@ agent_mcp_servers() {
 # message, so only developer messages count as hook text.
 readonly HOOK_TEXT_FILTER='select(.type == "response_item" and .payload.type? == "message" and .payload.role? == "developer")'
 
+# Returns 0 when the rollout $1 belongs to a spawned agent: its first
+# session_meta names a subagent source.
+codex_rollout_is_subagent() {
+  local source
+
+  source="$(jq -R -s -r '[split("\n")[] | fromjson? | select(.type == "session_meta") | .payload.source | tostring] | first // ""' "$1")"
+  [[ "${source,,}" == *subagent* ]]
+}
+
+# A hook payload's transcript_path names the rollout of the thread the hook
+# fired in (inferred from PreToolUseRequest.transcript_path in
+# codex-rs/hooks/src/events/pre_tool_use.rs at rust-v0.166.0, and recorded by
+# check 7), so the rollout of that name in the case says whose call it was.
+agent_transcript_actor() {
+  local dir="$1" name="$2" file
+
+  [[ -n "$name" && "$name" != */* && "$name" != .* ]] || return 0
+  file="${dir}/transcripts/${name}"
+  [[ -f "$file" ]] || return 0
+
+  if codex_rollout_is_subagent "$file"; then
+    printf 'subagent'
+  else
+    printf 'main'
+  fi
+}
+
 # Codex injects the reminder only through UserPromptSubmit on the main thread
 # (SubagentStart carries the subagent text), so its text in a main rollout is the proof.
 agent_reminder_seen() {
-  local dir="$1" file source
+  local dir="$1" file
 
   for file in "${dir}"/transcripts/*.jsonl; do
     [[ -f "$file" ]] || continue
-    source="$(jq -R -s -r '[split("\n")[] | fromjson? | select(.type == "session_meta") | .payload.source | tostring] | first // ""' "$file")"
-    [[ "${source,,}" == *subagent* ]] && continue
+    codex_rollout_is_subagent "$file" && continue
     jq -R -s -e --arg r "$REMINDER_MARKER" \
       "[split(\"\n\")[] | fromjson? | objects | ${HOOK_TEXT_FILTER} | tojson | select(contains(\$r))] | length > 0" \
       "$file" > /dev/null && return 0
@@ -184,7 +210,7 @@ agent_reminder_seen() {
 # included, so a line that a main rollout also holds, timestamps aside, is the
 # parent's and is left out.
 agent_subagent_context() {
-  local dir="$1" file source seen
+  local dir="$1" file seen
   local -a subagent_files=()
 
   seen="${dir}/.main-lines"
@@ -192,8 +218,7 @@ agent_subagent_context() {
   : > "$seen"
   for file in "${dir}"/transcripts/*.jsonl; do
     [[ -f "$file" ]] || continue
-    source="$(jq -R -s -r '[split("\n")[] | fromjson? | select(.type == "session_meta") | .payload.source | tostring] | first // ""' "$file")"
-    if [[ "${source,,}" == *subagent* ]]; then
+    if codex_rollout_is_subagent "$file"; then
       subagent_files+=("$file")
     else
       jq -R -c 'fromjson? | objects | del(.timestamp)' "$file" >> "$seen"

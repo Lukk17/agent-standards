@@ -106,6 +106,7 @@ import io
 import json
 import os
 import re
+import stat
 import sys
 from pathlib import Path, PurePosixPath
 from typing import AbstractSet, Any, Callable, Dict, FrozenSet, List, NamedTuple, Optional, Set, TextIO, Tuple
@@ -7520,29 +7521,66 @@ def _is_git_location(folder: Path) -> bool:
 
 # The key git's read_gitfile_gently() requires at the start of a .git file.
 _GITDIR_KEY = "gitdir: "
-# Far above any path git writes into a .git or commondir file, so a larger file is not one git wrote.
+# Far above any path git writes into a .git, commondir or gitdir file, so a larger file is not one git wrote.
 _GIT_POINTER_LIMIT = 4096
+# Opens a pointer file without following a final symlink and without waiting on a named pipe. Windows has
+# neither flag, and there the islink check before the open is the only symlink guard.
+_GIT_POINTER_OPEN_FLAGS = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0)
+
+
+def _read_small_regular_file(path: Path) -> Optional[bytes]:
+    """Up to _GIT_POINTER_LIMIT + 1 bytes of path, or None unless the descriptor opened is a regular file.
+
+    The type is checked with fstat on the descriptor that is read, so a file
+    swapped for a symlink, a pipe or a device after a path check is refused.
+    """
+    try:
+        if os.path.islink(path):
+            return None
+
+        descriptor = os.open(path, _GIT_POINTER_OPEN_FLAGS)
+    except (OSError, ValueError):
+        return None
+
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            return None
+
+        chunks: List[bytes] = []
+        size = 0
+
+        while size <= _GIT_POINTER_LIMIT:
+            chunk = os.read(descriptor, _GIT_POINTER_LIMIT + 1 - size)
+
+            if not chunk:
+                break
+
+            chunks.append(chunk)
+            size += len(chunk)
+
+        return b"".join(chunks)
+    except OSError:
+        return None
+    finally:
+        os.close(descriptor)
 
 
 def _git_pointer_value(path: Path) -> Optional[str]:
     """The one line a small regular file holds, without its closing newline, or None.
 
-    A symlink, a missing or oversized file, undecodable bytes, a carriage
-    return, a NUL, a second line or an empty value all give None, so a .git or
-    commondir file counts only in the exact one-line shape git writes.
+    A symlink, anything but a regular file, a missing or oversized file,
+    undecodable bytes, a carriage return, a NUL, a second line or an empty
+    value all give None, so a .git, commondir or gitdir file counts only in the
+    exact one-line shape git writes.
     """
-    try:
-        if os.path.islink(path) or not os.path.isfile(path):
-            return None
+    data = _read_small_regular_file(path)
 
-        with open(path, "rb") as handle:
-            data = handle.read(_GIT_POINTER_LIMIT + 1)
-
-        text = data.decode("utf-8")
-    except (OSError, UnicodeDecodeError):
+    if data is None or len(data) > _GIT_POINTER_LIMIT:
         return None
 
-    if len(data) > _GIT_POINTER_LIMIT:
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
         return None
 
     text = text[:-1] if text.endswith("\n") else text
@@ -7565,13 +7603,16 @@ def _is_project_worktree(folder: Path, project: Path) -> bool:
     """True when folder is a linked worktree of the project's own repository, the one .git file Rule E accepts.
 
     `git worktree add` leaves a .git file holding exactly `gitdir: <path>`,
-    where <path> is <project>/.git/worktrees/<name>, and a commondir file there
+    where <path> is <project>/.git/worktrees/<name>, a commondir file there
     leading back to <project>/.git, so git reads the project's own
-    configuration in that folder. project is already resolved, and both paths
-    are resolved with symlinks and `..` followed before they are compared, so a
-    pointer that escapes, a symlinked worktree folder, a missing target, a
-    deeper folder, a commondir that is missing or leads anywhere else, and a
-    project whose own .git or .git/worktrees is a symlink or a file all fail.
+    configuration in that folder, and a gitdir file there leading back to this
+    folder's .git, which ties the worktree folder to one checkout. project and
+    folder are already resolved, and every pointer is resolved with symlinks
+    and `..` followed before it is compared, so a pointer that escapes, a
+    symlinked worktree folder, a missing target, a deeper folder, a commondir
+    that is missing or leads anywhere else, a back-pointer that is missing or
+    names another checkout, and a project whose own .git or .git/worktrees is a
+    symlink or a file all fail.
     """
     project_git = project / ".git"
     worktrees = project_git / "worktrees"
@@ -7587,7 +7628,12 @@ def _is_project_worktree(folder: Path, project: Path) -> bool:
 
     common = _git_pointer_value(gitdir / "commondir")
 
-    return common is not None and _resolved_existing(gitdir, common) == project_git
+    if common is None or _resolved_existing(gitdir, common) != project_git:
+        return False
+
+    back = _git_pointer_value(gitdir / "gitdir")
+
+    return back is not None and _resolved_existing(gitdir, back) == folder / ".git"
 
 
 def _read_only_location_blocked(payload_cwd: Any) -> Optional[str]:

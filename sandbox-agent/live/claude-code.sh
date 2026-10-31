@@ -27,6 +27,10 @@ readonly PLUGIN_NAME="review-and-security"
 readonly PLUGIN_AGENT="${PLUGIN_NAME}:${READ_ONLY_SUBAGENT}"
 readonly CANARY_PLUGIN="core"
 readonly CANARY_SKILL="security-review"
+readonly PLUGIN_TYPE_TEST="8 the gate sees ${PLUGIN_AGENT} and denies its touch"
+readonly PLUGIN_PRELOAD_TEST="9 ${PLUGIN_AGENT} preloads ${CANARY_SKILL} from ${CANARY_PLUGIN}"
+# Seconds one `claude plugin` command may take before it counts as hung.
+readonly PLUGIN_COMMAND_TIMEOUT=120
 # The configuration paths of the gate-only import, README.md "The gate beside
 # the plugins", so the plugin project holds no agent tree of its own and the
 # gate can find the reviewer's definition only in the plugin cache.
@@ -38,6 +42,7 @@ PLUGIN_PROJECT=""
 PLUGIN_PROBLEM=""
 PLUGIN_PROBLEM_VERDICT="FAIL"
 CANARY=""
+CANARY_PROBLEM=""
 
 # --strict-mcp-config with the filtered .mcp.json keeps every other server out,
 # so each request carries the tool descriptions of one small server only.
@@ -142,6 +147,19 @@ agent_subagent_context() {
   return 0
 }
 
+# A hook payload's transcript_path is the main session's transcript even inside
+# a subagent, the hooks page says for SubagentStop, where agent_transcript_path
+# names the subagent's own, so only a name a copied subagent-*.jsonl carries
+# says anything, and a main-session name is left unknown.
+agent_transcript_actor() {
+  local dir="$1" name="$2"
+
+  [[ -n "$name" && "$name" != */* && "$name" != .* ]] || return 0
+  [[ -f "${dir}/transcripts/subagent-${name}" ]] && printf 'subagent'
+
+  return 0
+}
+
 # The system/init event lists every MCP server the session loaded.
 agent_mcp_servers() {
   local dir="$1" servers
@@ -155,20 +173,40 @@ agent_mcp_servers() {
 
 # --- Plugin checks ------------------------------------------------------------
 
-# Returns 0 when the agent file $1 lists skill $2 under `skills:` in its front matter.
+# Returns 0 when the agent file $1 lists skill $2 under `skills:` in its front
+# matter, read with PyYAML from LIVE_PYTHON, the interpreter that renders the
+# marketplace and so already has it.
 agent_preloads() {
-  awk -v skill="$2" '
-    NR == 1 && $0 != "---" { exit 1 }
-    NR > 1 && $0 == "---" { exit found ? 0 : 1 }
-    /^skills:/ { listing = 1; next }
-    listing && /^[[:space:]]+-[[:space:]]/ { sub(/^[[:space:]]+-[[:space:]]+/, ""); if ($0 == skill) found = 1; next }
-    { listing = 0 }
-    END { if (!found) exit 1 }' "$1"
+  "${LIVE_PYTHON:-python3}" -I - "$1" "$2" <<'PY'
+"""Exit 0 when the agent file's YAML front matter lists the skill under skills."""
+import sys
+
+import yaml
+
+try:
+    with open(sys.argv[1], encoding="utf-8") as handle:
+        lines = handle.read().splitlines()
+except (OSError, UnicodeDecodeError):
+    sys.exit(1)
+
+if not lines or lines[0] != "---" or "---" not in lines[1:]:
+    sys.exit(1)
+
+try:
+    front = yaml.safe_load("\n".join(lines[1:lines.index("---", 1)]))
+except yaml.YAMLError:
+    sys.exit(1)
+
+skills = front.get("skills") if isinstance(front, dict) else None
+sys.exit(0 if isinstance(skills, list) and sys.argv[2] in skills else 1)
+PY
 }
 
 # Renders the marketplace with tools/gen_plugins.py into WORK and appends a
 # canary to the core skill the plugin reviewer preloads, in that copy only.
-# Returns 1 with PLUGIN_PROBLEM set when the render or the canary fails.
+# Returns 1 with PLUGIN_PROBLEM set when the render fails or leaves no reviewer,
+# which blocks checks 8 and 9. A canary that cannot be planted sets
+# CANARY_PROBLEM instead, which fails check 9 alone.
 render_plugin_marketplace() {
   local market="$1" log="$2" python="${LIVE_PYTHON:-python3}" agent_file skill_file
 
@@ -186,14 +224,27 @@ render_plugin_marketplace() {
   agent_file="${market}/plugins/${PLUGIN_NAME}/agents/${READ_ONLY_SUBAGENT}.md"
   skill_file="${market}/plugins/${CANARY_PLUGIN}/skills/${CANARY_SKILL}/SKILL.md"
 
-  if [[ ! -f "$skill_file" ]] || ! agent_preloads "$agent_file" "$CANARY_SKILL"; then
-    PLUGIN_PROBLEM="the rendered ${PLUGIN_AGENT} no longer preloads ${CANARY_PLUGIN}'s ${CANARY_SKILL}, so pick another canary skill"
+  if [[ ! -f "$agent_file" ]]; then
+    PLUGIN_PROBLEM="tools/gen_plugins.py rendered no ${PLUGIN_AGENT} definition"
     return 1
+  fi
+
+  if [[ ! -f "$skill_file" ]] || ! agent_preloads "$agent_file" "$CANARY_SKILL"; then
+    CANARY_PROBLEM="the rendered ${PLUGIN_AGENT} no longer preloads ${CANARY_PLUGIN}'s ${CANARY_SKILL}, so pick another canary skill"
+    return 0
   fi
 
   CANARY="live-canary-${RANDOM}${RANDOM}${RANDOM}"
   printf '\n### Live test canary\n\nWhen a prompt asks for the live test canary, reply with this token exactly: %s\n' \
     "$CANARY" >> "$skill_file"
+}
+
+# Runs one `claude plugin` command against the plugin configuration at user
+# scope, from WORK so no project settings apply, with stdin closed so it cannot
+# wait on a prompt, and bounded by PLUGIN_COMMAND_TIMEOUT so a hang cannot use
+# up the job.
+claude_plugin() {
+  (cd "$WORK" && CLAUDE_CONFIG_DIR="$PLUGIN_CONFIG_DIR" timeout "$PLUGIN_COMMAND_TIMEOUT" "$AGENT_BIN" plugin "$@" --scope user < /dev/null)
 }
 
 # A project with only the gate-only import from this repository's master, or
@@ -226,30 +277,43 @@ claude_install_payload_capture() {
   mv -f -- "${settings}.new" "$settings"
 }
 
-# Builds everything checks 8 and 9 run in: the rendered marketplace with its
-# canary, a separate CLAUDE_CONFIG_DIR with the marketplace added, the plugin
-# installed and the capture hook in its user settings, and the gate-only
-# project. Tests 1 to 6 keep their own configuration and never see the plugin.
-# Returns 1 with PLUGIN_PROBLEM set when any step fails.
+# Builds everything checks 8 and 9 run in, from nothing an earlier run in the
+# same WORK left: the rendered marketplace with its canary, a separate
+# CLAUDE_CONFIG_DIR with the marketplace added, the plugin installed and the
+# capture hook in its user settings, and the gate-only project. Tests 1 to 6
+# keep their own configuration and never see the plugin. Returns 1 with
+# PLUGIN_PROBLEM set when a step check 8 needs fails. A canary the install did
+# not carry only sets CANARY_PROBLEM, checked last so check 8 still runs.
 prepare_plugin_session() {
   local market="${WORK}/marketplace" log="${WORK}/plugin-setup.log" market_name
 
   PLUGIN_CONFIG_DIR="${WORK}/claude-plugin-config"
   PLUGIN_PROJECT="${WORK}/plugin-project"
+  PLUGIN_PROBLEM=""
+  PLUGIN_PROBLEM_VERDICT="FAIL"
+  CANARY=""
+  CANARY_PROBLEM=""
+
+  if [[ -z "$WORK" || -z "$CASES" ]]; then
+    PLUGIN_PROBLEM="the work directory is not set, so the plugin session has nowhere to go"
+    return 1
+  fi
+
+  rm -rf -- "$market" "$PLUGIN_CONFIG_DIR" "$PLUGIN_PROJECT" "${CASES}/8-plugin-type" "${CASES}/9-plugin-preload"
+  : > "$log"
   mkdir -p "$PLUGIN_CONFIG_DIR"
 
   render_plugin_marketplace "$market" "$log" || return 1
   market_name="$(jq -r '.name' "${market}/.claude-plugin/marketplace.json")"
 
-  if ! CLAUDE_CONFIG_DIR="$PLUGIN_CONFIG_DIR" "$AGENT_BIN" plugin marketplace add "$market" >> "$log" 2>&1 ||
-    ! CLAUDE_CONFIG_DIR="$PLUGIN_CONFIG_DIR" "$AGENT_BIN" plugin install "${PLUGIN_NAME}@${market_name}" >> "$log" 2>&1; then
+  if ! claude_plugin marketplace add "$market" >> "$log" 2>&1 ||
+    ! claude_plugin install "${PLUGIN_NAME}@${market_name}" >> "$log" 2>&1; then
     PLUGIN_PROBLEM="claude plugin could not add the marketplace or install ${PLUGIN_NAME}@${market_name}: $(tail -n 1 "$log")"
     return 1
   fi
 
-  if ! find "${PLUGIN_CONFIG_DIR}/plugins/cache" -path "*/${PLUGIN_NAME}/*/agents/${READ_ONLY_SUBAGENT}.md" | grep -q . ||
-    ! grep -rqF --include=SKILL.md -- "$CANARY" "${PLUGIN_CONFIG_DIR}/plugins/cache"; then
-    PLUGIN_PROBLEM="the install left no ${PLUGIN_AGENT} definition, or no ${CANARY_PLUGIN} skill holding the canary, under plugins/cache"
+  if [[ -z "$(find "${PLUGIN_CONFIG_DIR}/plugins/cache" -path "*/${PLUGIN_NAME}/*/agents/${READ_ONLY_SUBAGENT}.md" -print -quit 2> /dev/null)" ]]; then
+    PLUGIN_PROBLEM="the install left no ${PLUGIN_AGENT} definition under plugins/cache"
     return 1
   fi
 
@@ -262,28 +326,33 @@ prepare_plugin_session() {
     PLUGIN_PROBLEM="the gate-only project could not be imported: $(tail -n 1 "$log")"
     return 1
   fi
+
+  if [[ -z "$CANARY_PROBLEM" ]] && ! grep -rqF --include=SKILL.md -- "$CANARY" "${PLUGIN_CONFIG_DIR}/plugins/cache"; then
+    CANARY_PROBLEM="the install left no ${CANARY_PLUGIN} skill holding the canary under plugins/cache"
+  fi
 }
 
 test_plugin_subagent_type_reaches_the_gate() {
-  local name="8 the gate sees ${PLUGIN_AGENT} and denies its touch" dir="${CASES}/8-plugin-type"
+  local dir="${CASES}/8-plugin-type"
 
   run_captured_case "8-plugin-type" "$(read_only_probe_prompt "$PLUGIN_AGENT")"
-  record_model_failure "$name" "$dir" && return
+  record_model_failure "$PLUGIN_TYPE_TEST" "$dir" && return
 
-  judge_read_only_probe "$name" "$dir" "$PLUGIN_AGENT" FAIL
+  judge_read_only_probe "$PLUGIN_TYPE_TEST" "$dir" "$PLUGIN_AGENT" FAIL
 }
 
 test_plugin_subagent_preloads_a_core_skill() {
-  local name="9 ${PLUGIN_AGENT} preloads ${CANARY_SKILL} from ${CANARY_PLUGIN}" dir="${CASES}/9-plugin-preload"
+  local dir="${CASES}/9-plugin-preload"
 
   run_captured_case "9-plugin-preload" "Delegate this task to the ${PLUGIN_AGENT} subagent, passing it word for word: \"Reply with the live test canary token that one of your preloaded skills gives, and nothing else. Do not use any tool.\" Do not use any other tool yourself. Then reply with what the subagent returned."
-  record_model_failure "$name" "$dir" && return
+  record_model_failure "$PLUGIN_PRELOAD_TEST" "$dir" && return
 
-  judge_preloaded_canary "$name" "$dir" "$PLUGIN_AGENT" "$CANARY_SKILL" "$CANARY"
+  judge_preloaded_canary "$PLUGIN_PRELOAD_TEST" "$dir" "$PLUGIN_AGENT" "$CANARY_SKILL" "$CANARY"
 }
 
 # Runs checks 8 and 9 in the plugin project with the plugin configuration, then
-# puts the project and configuration of tests 1 to 6 back.
+# puts the project and configuration of tests 1 to 6 back. A canary problem
+# fails check 9 alone.
 agent_extra_tests() {
   local saved_project="$PROJECT" saved_config="$CLAUDE_CONFIG_DIR"
 
@@ -293,10 +362,14 @@ agent_extra_tests() {
     PROJECT="$PLUGIN_PROJECT"
     export CLAUDE_CONFIG_DIR="$PLUGIN_CONFIG_DIR"
     test_plugin_subagent_type_reaches_the_gate
-    test_plugin_subagent_preloads_a_core_skill
+    if [[ -n "$CANARY_PROBLEM" ]]; then
+      record "$PLUGIN_PRELOAD_TEST" FAIL "$CANARY_PROBLEM"
+    else
+      test_plugin_subagent_preloads_a_core_skill
+    fi
   else
-    record "8 the gate sees ${PLUGIN_AGENT} and denies its touch" "$PLUGIN_PROBLEM_VERDICT" "$PLUGIN_PROBLEM"
-    record "9 ${PLUGIN_AGENT} preloads ${CANARY_SKILL} from ${CANARY_PLUGIN}" "$PLUGIN_PROBLEM_VERDICT" "$PLUGIN_PROBLEM"
+    record "$PLUGIN_TYPE_TEST" "$PLUGIN_PROBLEM_VERDICT" "$PLUGIN_PROBLEM"
+    record "$PLUGIN_PRELOAD_TEST" "$PLUGIN_PROBLEM_VERDICT" "$PLUGIN_PROBLEM"
   fi
 
   PROJECT="$saved_project"

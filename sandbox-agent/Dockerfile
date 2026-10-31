@@ -36,8 +36,8 @@ ENV HOME=/home/sandbox \
     SANDBOX_BARE=/work/bare
 
 RUN npm install --global --loglevel=error \
-        @anthropic-ai/claude-code@2.1.250 \
-        @openai/codex@0.150.1 \
+        @anthropic-ai/claude-code@2.1.314 \
+        @openai/codex@0.166.0 \
         opencode-ai@1.18.25 \
         @kilocode/cli@7.5.5 \
         @github/copilot@1.0.103

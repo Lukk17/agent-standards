@@ -133,12 +133,24 @@ is a failure whatever the transcript says. Test 2 reads the subagent's own trans
 Tests 7 and 8 read the hook payload itself rather than the gate's verdict, because on Codex a payload with no
 `agent_id` is read as the main thread and denied by Rule A, which would look like the Rule E denial the test expects.
 A capture hook, written by [live/lib.sh](live/lib.sh) under the work directory and never into the project, records
-for every `PreToolUse` call the payload's key names, whether `agent_id` is there, the `agent_type` value, and
-whether the shell command names the probe file. It keeps no other value and always allows. Codex gets it in the
+for every `PreToolUse` call the payload's key names, whether `agent_id` is there, the `agent_type` value, whether
+the shell command names the probe file, and the file name alone of the transcript the payload names. It keeps no other
+value and always allows, and runs as `python3 -I -S`, so no `PYTHON*` variable, user site or module beside the
+script reaches it. Codex gets it in the
 throwaway `CODEX_HOME/config.toml`, and Codex "loads all matching hooks" from every layer, so it runs beside the
 project's gate (`https://developers.openai.com/codex/hooks`, "Where Codex looks for hooks"). Claude Code gets it in
 the user settings of a separate `CLAUDE_CONFIG_DIR`. Each case keeps what it captured as `payloads.ndjson` beside its
 transcripts. A case where the capture hook recorded nothing, or the subagent never ran the probe, is `INCONCLUSIVE`.
+
+A payload with `agent_id` is the subagent's, since both agents send it only inside one. A payload without it is
+placed by its transcript name: on Codex the rollout of that name says whether the thread was the main one or a spawned
+agent, and on Claude Code only a copied subagent transcript counts, because there `transcript_path` is the main
+session's transcript and a subagent's own sits in `agent_transcript_path` (`https://code.claude.com/docs/en/hooks`,
+SubagentStop). So a main thread that ran the probe itself never hides a subagent payload without `agent_id`, which
+still fails. A subagent touch that landed while the hook recorded no payload for it fails too, because the gate never
+saw the call. The prompt has the subagent answer only "allowed" or "denied", so the gate's reason stays in the
+subagent's own transcript rather than in the spawn result, where the Codex parser reads `PREFLIGHT:` as an error. A
+spawn the transcript marks as failed while the subagent's own calls are recorded is not reported as rejected.
 
 Tests 8 and 9 render the marketplace with [tools/gen_plugins.py](../tools/gen_plugins.py) into the work directory,
 which the job's own Python step installs the tooling for, and append a random canary to that copy of the `core` skill
@@ -147,8 +159,12 @@ its dependency, into a separate `CLAUDE_CONFIG_DIR`, and run in a second project
 `.agents/hooks` and `.claude/settings.json`. With no agent tree in that project, the gate can find the reviewer's
 definition only in the plugin cache, so a Rule E denial in test 8 proves that lookup. Tests 1 to 6 keep their own
 configuration and never see the plugin. Test 9 asks the subagent to repeat the canary without any tool, and a
-recorded `Skill` call or `SKILL.md` read of `security-review` makes it `INCONCLUSIVE`, because the canary then no
-longer proves the preload.
+recorded `Skill` call or `SKILL.md` read of `security-review`, a subagent tool result holding the canary, or a spawn
+prompt holding it makes it `INCONCLUSIVE`, because the canary then no longer proves the preload. Each run first clears
+the marketplace, the plugin configuration, the plugin project and cases 8 and 9 that an earlier run in the same
+`LIVE_WORK` left, and runs both `claude plugin` commands from the work directory at `--scope user`, with stdin closed
+and a 120 second limit. A missing reviewer definition, capture hook or gate-only project blocks both tests. A canary
+that could not be planted or did not survive the install fails test 9 alone, and test 8 still runs.
 
 #### One MCP server in the live runs
 
@@ -233,7 +249,12 @@ On OpenAI they follow the error codes OpenAI documents for its API:
 
 No key is ever written into a committed file. The committed [opencode.json](../opencode.json) stays free of
 substitution tokens, and every transcript is scanned for the key and dropped if it holds it before the job uploads the
-transcripts as an artifact.
+transcripts as an artifact. The scan runs in its own `if: always()` step, `live/<agent>.sh scrub`, so it also runs
+after a cancel or a job timeout, which "Causes the step to always execute, and returns `true`, even when canceled"
+(`https://docs.github.com/en/actions/reference/workflows-and-actions/expressions`, "always", fetched 2026-10-30). The
+upload runs only when that step succeeded, and the step fails when grep could not read every file. The run step sets
+`LIVE_AGENT_TIMEOUT` to 300 seconds per prompt, so the seven prompts and two plugin commands of the Claude Code job,
+the longest, end within its 45 minute job limit with time left to scrub and upload.
 
 Two providers serve the models. Requesty (REQUESTY LTD, London) is an LLM router at `https://router.requesty.ai/v1`
 that speaks Chat Completions, Responses and Anthropic Messages. OpenAI's own API at `https://api.openai.com/v1` serves

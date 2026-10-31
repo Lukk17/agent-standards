@@ -5154,6 +5154,29 @@ def _plant_symlinked_pointer(root):
     (folder / ".git").symlink_to(real)
 
 
+def _plant_back_pointer_elsewhere(root):
+    """Another checkout's .git file claims the project's worktree folder, whose gitdir file names that checkout."""
+    linked_worktree(root)
+    other = root / "other"
+    other.mkdir()
+    (other / ".git").write_text(f"gitdir: {root / '.git' / 'worktrees' / 'wt'}\n", encoding="utf-8")
+    (root / ".git" / "worktrees" / "wt" / "gitdir").write_text(f"{other / '.git'}\n", encoding="utf-8")
+
+
+def _plant_back_pointer_missing(root):
+    linked_worktree(root)
+    (root / ".git" / "worktrees" / "wt" / "gitdir").unlink()
+
+
+def _plant_back_pointer_symlinked(root):
+    linked_worktree(root)
+    back = root / ".git" / "worktrees" / "wt" / "gitdir"
+    real = root.parent / "back-pointer"
+    real.write_text(back.read_text(encoding="utf-8"), encoding="utf-8")
+    back.unlink()
+    back.symlink_to(real)
+
+
 def _plant_project_git_is_a_file(root):
     linked_worktree(root)
     for part in ("objects", "refs", "HEAD"):
@@ -5179,6 +5202,9 @@ def _plant_project_git_is_a_file(root):
         _plant_no_space,
         _plant_symlinked_pointer,
         _plant_project_git_is_a_file,
+        _plant_back_pointer_elsewhere,
+        _plant_back_pointer_missing,
+        _plant_back_pointer_symlinked,
     ],
 )
 def test_rule_e_denies_a_codex_workdir_in_a_worktree_that_is_not_the_projects_own(tmp_path, plant):
@@ -5188,6 +5214,69 @@ def test_rule_e_denies_a_codex_workdir_in_a_worktree_that_is_not_the_projects_ow
     reason = codex_read_only_reason(root, root / "wt")
 
     assert reason is not None and "another git repository" in reason
+
+
+def test_rule_e_denies_the_checkout_whose_worktree_folder_a_planted_back_pointer_names(tmp_path):
+    # Given a real linked worktree, and a second checkout whose .git file names the same worktree folder
+    root = worktree_project(tmp_path)
+    linked_worktree(root)
+    other = root / "other"
+    other.mkdir()
+    (other / ".git").write_text(f"gitdir: {root / '.git' / 'worktrees' / 'wt'}\n", encoding="utf-8")
+
+    # Then only the checkout the back-pointer names passes
+    assert codex_read_only_reason(root, root / "wt") is None
+    assert "another git repository" in codex_read_only_reason(root, other)
+
+
+def test_rule_e_keeps_a_linked_worktree_whose_back_pointer_is_relative(tmp_path):
+    # Given the relative back-pointer git writes under worktree.useRelativePaths
+    root = worktree_project(tmp_path)
+    linked_worktree(root)
+    (root / ".git" / "worktrees" / "wt" / "gitdir").write_text("../../../wt/.git\n", encoding="utf-8")
+
+    assert codex_read_only_reason(root, root / "wt") is None
+
+
+@pytest.mark.skipif(not hasattr(os, "O_NOFOLLOW"), reason="needs O_NOFOLLOW")
+def test_a_git_pointer_swapped_for_a_symlink_after_the_check_is_not_read(tmp_path, monkeypatch):
+    # Given a .git symlink to a well-formed pointer, and a lstat that already ran and saw a plain file
+    real = tmp_path / "pointer"
+    real.write_text("gitdir: /x/.git/worktrees/wt\n", encoding="utf-8")
+    link = tmp_path / ".git"
+    link.symlink_to(real)
+    monkeypatch.setattr(GATE.os.path, "islink", lambda _path: False)
+
+    # When/Then the open itself refuses to follow it
+    assert GATE._git_pointer_value(link) is None
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs a named pipe")
+def test_a_git_pointer_that_is_a_named_pipe_is_refused_without_blocking(tmp_path):
+    fifo = tmp_path / ".git"
+    os.mkfifo(fifo)
+
+    result = run_bounded(
+        [sys.executable, "-I", "-c", "import importlib.util, sys\n"
+         "spec = importlib.util.spec_from_file_location('g', sys.argv[1]); g = importlib.util.module_from_spec(spec); spec.loader.exec_module(g)\n"
+         "from pathlib import Path; print(g._git_pointer_value(Path(sys.argv[2])))", str(PREFLIGHT_GATE), str(fifo)],
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+
+    assert (result.returncode, result.stdout.strip()) == (0, "None"), result.stderr
+
+
+def test_a_git_pointer_reads_the_exact_one_line_shape(tmp_path):
+    pointer = tmp_path / ".git"
+    pointer.write_bytes(b"gitdir: /p/.git/worktrees/wt\n")
+
+    assert GATE._git_pointer_value(pointer) == "gitdir: /p/.git/worktrees/wt"
+
+    pointer.write_bytes(b"x" * 5000)
+
+    assert GATE._git_pointer_value(pointer) is None
 
 
 def test_read_only_subagent_may_not_call_a_shell_with_no_command_the_gate_can_read(tmp_path):
