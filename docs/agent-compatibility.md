@@ -100,9 +100,11 @@ whatever a leading `cd` in the command moved to, so changing directory first buy
 repository, the null device, `tasks.md` at the project root, and switching a git branch stay allowed, and the main
 thread keeps full use of git otherwise. Caller identity is a tri-state, subagent, main thread, or unknown when a payload
 carries nothing that could tell the two apart, and none of the five rules fires on an unknown caller. Every failure path
-also allows the call, because a broken gate must never break a session, with two deliberate exceptions: a path none of
-the three repository-boundary helpers can resolve is treated as inside, which denies, and a command a read-only subagent
-sends that the lexer cannot read denies, because it matches nothing on that agent's list.
+also allows the call, because a broken gate must never break a session, with three deliberate exceptions: a path none of
+the three repository-boundary helpers can resolve is treated as inside, which denies, a command a read-only subagent
+sends that the lexer cannot read denies, because it matches nothing on that agent's list, and so does a working
+directory a read-only subagent's call reports that does not exist or cannot be resolved, because the gate cannot tell
+which repository a command run there would read.
 
 Three more hooks live beside it in [../.agents/hooks/](../.agents/hooks/) and ride the same wirings:
 `no_ai_markers_check.py` checks the reply, `markdown_lint_check.py` lints a file just after it was edited, and
@@ -193,8 +195,16 @@ Reading the tables row by row:
   only `{"command": ...}` and reports the call's resolved `workdir` as `cwd` while the hook still runs in the session
   directory ("Local tool cwd for hook stdin ... The hook process still runs in `cwd`",
   [pre_tool_use.rs at rust-v0.166.0](https://raw.githubusercontent.com/openai/codex/rust-v0.166.0/codex-rs/hooks/src/events/pre_tool_use.rs),
-  fetched 2026-10-30), so a `cwd` outside the project, or below it inside a folder that holds `.git` or is itself a
-  git directory such as a committed bare repository, denies. The one folder with a `.git` that passes is a linked
+  fetched 2026-10-30), so a `cwd` that does not exist, lies outside the project, or sits in or below a folder that
+  holds a `.git` or any entry named `HEAD`, denies. The `cwd` is checked exactly as sent, blanks included, so a
+  folder named `evil` with a trailing blank is never mistaken for a plain `evil` beside it. Any `HEAD` counts because
+  git's `is_git_directory()` needs only a valid `HEAD` in the folder itself, and looks for `objects` and `refs` under
+  the folder a `commondir` file names, testing each with `access(path.buf, X_OK)` rather than for a directory
+  ([setup.c at v2.43.0](https://raw.githubusercontent.com/git/git/v2.43.0/setup.c), fetched 2026-10-31). A committed
+  bare repository therefore needs nothing beside its `HEAD` but a `commondir` file, or `objects` and `refs` as
+  executable regular files: git 2.43.0 took both layouts for a bare repository, from the folder itself and from a
+  folder below it, and read the planted `config`. A plain folder that happens to hold a file named `HEAD` denies
+  too. The one folder with a `.git` that passes is a linked
   worktree of the project's own repository: its `.git` is a regular file, opened without following a symlink and
   checked on the open descriptor, holding exactly `gitdir: <path>`, that path resolves, symlinks and `..` followed, to
   a folder directly under the project's own `.git/worktrees/`, the `commondir` file there resolves back to the
@@ -391,6 +401,38 @@ read-only as the repository it reviews. That covers:
 - `git status`, which rewrites `.git/index` to refresh its stat cache, so a read-only agent still writes there.
 - `gh pr view --comments` and every other gh or git output, which is text other people wrote and reaches the agent as
   untrusted input.
+
+Rule E's working-directory check, which keeps a read-only agent out of a repository planted inside the project, has
+known limits of its own, accepted rather than open:
+
+- The gate checks the folder before the command runs, so a `HEAD`, `.git` or pointer file planted between the check
+  and the run is not seen. A read-only agent cannot write, so that needs another process writing at the same moment.
+- Windows has no `O_NOFOLLOW`, so the only symlink guard on a `.git`, `commondir` or `gitdir` pointer there is the
+  link check before the open, which a swap between the two can pass. `fstat` on the opened descriptor still refuses a
+  pipe, a device and a directory.
+- A hard link is read as the regular file it is. A checkout cannot create one, so a pull request cannot plant one.
+- Configuration the user wrote that reaches into the working tree is trusted, at the project root as much as in a
+  subfolder. A relative `include.path` "is considered to be relative to the configuration file in which the include
+  directive was found" ([git-config at v2.43.0](https://raw.githubusercontent.com/git/git/v2.43.0/Documentation/config.txt),
+  "Includes", fetched 2026-10-31), so one in `.git/config` can name a tracked file a pull request edits, and an
+  `includeIf "onbranch:..."` include is met by whatever branch name the pull request picks.
+- A committed `.gitattributes` can route any file through a `diff`, `filter` or `merge` driver the user configured
+  for their own use, so a listed command runs that driver on content the pull request chose. The gate reads no
+  attributes.
+- A submodule's configuration lives under `.git/modules`, which no pull request can write, so it is the user's own and
+  not checked.
+
+As defence in depth, a consumer who uses no bare repository can run the command below once, after which git "only
+works with bare repositories specified via the top-level `--git-dir` command-line option, or the `GIT_DIR` environment
+variable" ([safe.bareRepository at v2.43.0](https://raw.githubusercontent.com/git/git/v2.43.0/Documentation/config/safe.txt),
+fetched 2026-10-31). Git reads the setting only from protected configuration, so a repository cannot switch it off:
+"This config setting is only respected in protected configuration ... This prevents untrusted repositories from
+tampering with this value". On git 2.43.0 the planted `commondir` layout then fails with
+`cannot use bare repository ... (safe.bareRepository is 'explicit')`.
+
+```bash
+git config --global safe.bareRepository explicit
+```
 
 On OpenCode and Kilo Code the native permission map denies every redirect and `&`, so `2>/dev/null` and `2>&1` deny
 there while the gate allows them. A gh `-R` with a host part, a comma-joined option, a leading `^` or `@`, a backslash

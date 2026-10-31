@@ -4982,6 +4982,39 @@ def bare_repository(directory):
     return directory
 
 
+def commondir_bare_repository(directory):
+    """A bare repository whose commondir file sends git's objects and refs check to a common folder below it.
+
+    git's is_git_directory() wants only a valid HEAD in the folder itself and
+    looks for objects and refs under get_common_dir(), so nothing but HEAD and
+    commondir sits beside each other, and the common folder carries the config.
+    """
+    common = directory / "common"
+    for part in ("objects", "refs"):
+        (common / part).mkdir(parents=True)
+        (common / part / ".keep").write_text("", encoding="utf-8")
+    (directory / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    (directory / "commondir").write_text("common\n", encoding="utf-8")
+    (common / "config").write_text("[core]\n\trepositoryformatversion = 0\n\tbare = true\n", encoding="utf-8")
+
+    return directory
+
+
+def file_bare_repository(directory):
+    """A bare repository whose objects and refs are mode-755 regular files, which git tests with access(X_OK) only.
+
+    The common/objects folder below it is a plain folder, so a workdir there
+    is one git discovery walks up out of into the planted repository.
+    """
+    (directory / "common" / "objects").mkdir(parents=True)
+    (directory / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    for part in ("objects", "refs"):
+        (directory / part).write_text("", encoding="utf-8")
+        (directory / part).chmod(0o755)
+
+    return directory
+
+
 def codex_read_only_reason(root, payload_cwd, command="git show HEAD"):
     payload = {"agent_id": "sub-1", "agent_type": READ_ONLY_REVIEWER["name"], "tool_name": "Bash", "cwd": str(payload_cwd)}
     code, out, err = run({**payload, "tool_input": {"command": command}}, "codex", cwd=root)
@@ -5077,6 +5110,78 @@ def test_rule_e_keeps_a_codex_workdir_in_a_worktree_git_itself_added(tmp_path):
 
     assert (root / "wt" / ".git").is_file()
     assert codex_read_only_reason(root, root / "wt") is None
+
+
+# A planted bare repository git accepts with no objects or refs folder beside
+# its HEAD: a commondir file leading elsewhere, or objects and refs as
+# executable regular files (is_git_directory() in setup.c at git v2.43.0 tests
+# them with access(X_OK)). A workdir in it, or in a folder below it, runs a
+# listed command under the planted config, under the main checkout and under a
+# linked worktree of the project alike.
+@pytest.mark.parametrize("layout", [commondir_bare_repository, file_bare_repository])
+@pytest.mark.parametrize("workdir", ["evil", "evil/common/objects"])
+@pytest.mark.parametrize("checkout", ["", "wt"])
+def test_rule_e_denies_a_codex_workdir_in_a_bare_repository_without_local_objects_and_refs(
+    tmp_path, layout, workdir, checkout
+):
+    root = worktree_project(tmp_path)
+    base = linked_worktree(root, checkout) if checkout else root
+    layout(base / "evil")
+
+    reason = codex_read_only_reason(root, base / workdir)
+
+    assert reason is not None and "another git repository" in reason
+
+
+def _isolated_git_environment():
+    """os.environ without any variable that points git at a repository, and with no global or system config."""
+    environment = {
+        name: value
+        for name, value in os.environ.items()
+        if name not in {"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY", "GIT_CEILING_DIRECTORIES"}
+    }
+
+    return {**environment, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="needs git to discover the planted repository")
+@pytest.mark.parametrize("layout", [commondir_bare_repository, file_bare_repository])
+@pytest.mark.parametrize("workdir", ["evil", "evil/common/objects"])
+def test_rule_e_denies_the_workdir_in_which_git_itself_finds_a_planted_bare_repository(tmp_path, layout, workdir):
+    # Given a planted bare repository that git discovers from the workdir
+    root = worktree_project(tmp_path)
+    layout(root / "evil")
+    found = subprocess.run(
+        ["git", "-C", str(root / workdir), "rev-parse", "--absolute-git-dir"],
+        capture_output=True,
+        text=True,
+        env=_isolated_git_environment(),
+    )
+
+    assert found.returncode == 0, found.stderr
+    assert Path(found.stdout.strip()).resolve() == (root / "evil").resolve()
+
+    # Then the gate denies that workdir
+    assert "another git repository" in codex_read_only_reason(root, root / workdir)
+
+
+def test_rule_e_checks_the_workdir_it_was_given_with_its_blanks_kept(tmp_path):
+    # Given a plain folder `evil` and a planted bare repository in `evil ` beside it
+    root = worktree_project(tmp_path)
+    (root / "evil").mkdir()
+    bare_repository(root / "evil ")
+
+    reason = codex_read_only_reason(root, f"{root / 'evil'} ")
+
+    assert reason is not None and "another git repository" in reason
+
+
+def test_rule_e_denies_a_codex_workdir_that_does_not_exist(tmp_path):
+    root = worktree_project(tmp_path)
+
+    reason = codex_read_only_reason(root, root / "ghost")
+
+    assert reason is not None and "does not exist" in reason
 
 
 def _outside_gitdir(root):

@@ -33,8 +33,10 @@ E. A subagent whose own definition carries a READ_ONLY_HEADING section may
    call only the read tools in READ_ONLY_READ_TOOLS and a shell not started
    on a terminal, and that shell may run only the commands the section
    lists. The call may carry no tool_input key outside READ_ONLY_SHELL_KEYS
-   and no working directory in another repository or outside the project,
-   where a linked worktree of the project's own repository is not another.
+   and no working directory outside the project, missing, or in or below a
+   folder that holds a .git or any entry named HEAD, which git may take for a
+   repository of its own. A linked worktree of the project's own repository
+   is the one .git that passes.
    A command is first held to READ_ONLY_CHARACTERS, with `2>/dev/null` and
    `2>&1` the only redirects, so no quote, escape, expansion, separator or
    pipe reaches the lexer. Every resulting command has to match a listed
@@ -79,7 +81,9 @@ the gate recognises but cannot place (nesting past _MAX_NESTING, code piped
 from a program whose output it cannot read, an unreadable sourced file, a
 process spawned from inline code) is treated the same way and denies, and
 so is a command Rule E cannot lex, because a read-only agent's shell is held
-to a list and a command the gate cannot read matches nothing on it.
+to a list and a command the gate cannot read matches nothing on it, and a
+working directory Rule E cannot resolve, because the gate cannot tell which
+repository a command run there would read.
 
 Rule A protects a project, not the whole filesystem, and the boundary is
 every root in _roots(): the process working directory, the project root the
@@ -7507,16 +7511,16 @@ def _refused_character(command: str) -> Optional[str]:
 
 
 def _is_git_location(folder: Path) -> bool:
-    """True when git would take this folder for a repository: it holds .git, or it is a git directory itself.
+    """True when git could take this folder for a repository: it holds .git, or any entry named HEAD.
 
-    A git directory is what git's own is_git_directory() checks for, a HEAD
-    beside an objects and a refs folder, which is all a bare repository
-    committed into a project needs to bring its own configuration along.
+    git's own is_git_directory() needs only a valid HEAD in the folder itself.
+    It looks for objects and refs under the folder a commondir file names, and
+    tests them with access(X_OK), so a committed bare repository brings its own
+    configuration along with no objects or refs folder beside its HEAD, or with
+    both as executable regular files. Any HEAD therefore counts, and a plain
+    folder that happens to hold a file named HEAD denies too.
     """
-    if os.path.lexists(folder / ".git"):
-        return True
-
-    return os.path.lexists(folder / "HEAD") and (folder / "objects").is_dir() and (folder / "refs").is_dir()
+    return os.path.lexists(folder / ".git") or os.path.lexists(folder / "HEAD")
 
 
 # The key git's read_gitfile_gently() requires at the start of a .git file.
@@ -7649,7 +7653,8 @@ def _read_only_location_blocked(payload_cwd: Any) -> Optional[str]:
     passes, and a missing cwd means the call runs where the gate does. So does
     a folder inside a linked worktree of the project's own repository, where
     git stops looking and reads the project's configuration
-    (_is_project_worktree).
+    (_is_project_worktree). The cwd is checked exactly as sent, blanks
+    included, because the call runs there, and one that does not exist denies.
     """
     if payload_cwd is None or payload_cwd == "":
         return None
@@ -7658,7 +7663,11 @@ def _read_only_location_blocked(payload_cwd: Any) -> Optional[str]:
         return "a working directory the gate cannot read"
 
     here = Path(os.getcwd()).resolve()
-    there = _native_path(payload_cwd.strip()).resolve()
+
+    try:
+        there = _native_path(payload_cwd).resolve(strict=True)
+    except (OSError, RuntimeError, ValueError):
+        return f"a working directory that does not exist or cannot be resolved ({payload_cwd})"
 
     if there == here:
         return None
