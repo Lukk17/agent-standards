@@ -1390,6 +1390,45 @@ def test_the_plugin_commands_run_from_the_work_directory_bounded_and_without_std
         assert args.startswith("plugin ") and args.endswith(" --scope user")
 
 
+# Stands in for `codex mcp list --json`: records where and how it ran, then lists one enabled server.
+FAKE_CODEX = r"""#!/usr/bin/env bash
+set -euo pipefail
+printf '%s|%s|%s|%s\n' "$PWD" "$(readlink "/proc/$$/fd/0" || true)" "$(ps -o comm= -p "$PPID" | tr -d ' ')" "$*" >> "$FAKE_CODEX_LOG"
+printf '[{"name": "context7", "enabled": true}, {"name": "playwright", "enabled": false}]\n'
+"""
+
+
+@needs_jq
+@needs_linux_proc
+def test_the_codex_mcp_list_runs_in_the_project_bounded_and_without_stdin(tmp_path):
+    # Given a stand-in codex, and a caller whose stdin is an open pipe it could wait on
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "codex").write_text(FAKE_CODEX, encoding="utf-8", newline="\n")
+    (bin_dir / "codex").chmod(0o755)
+    project = tmp_path / "project"
+    project.mkdir()
+    case_dir = tmp_path / "case"
+    case_dir.mkdir()
+    log = tmp_path / "codex.log"
+    script = (
+        f"source '{loadable_adapter(CODEX_ADAPTER, tmp_path).as_posix()}'; "
+        f"PROJECT='{project.as_posix()}'; MCP_ARGS=(-c 'mcp_servers.playwright.enabled=false'); "
+        f"agent_mcp_servers '{case_dir.as_posix()}'"
+    )
+    env = {**os.environ, "PATH": f"{bin_dir.as_posix()}{os.pathsep}{os.environ['PATH']}", "FAKE_CODEX_LOG": log.as_posix()}
+
+    # When
+    result = run_bounded([BASH, "-c", script], input="", capture_output=True, text=True, env=env)
+
+    # Then
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "context7\tenabled\n"
+    cwd, stdin, parent, args = log.read_text(encoding="utf-8").strip().split("|")
+    assert (cwd, stdin, parent) == (project.as_posix(), "/dev/null", "timeout")
+    assert args == "-c mcp_servers.playwright.enabled=false mcp list --json"
+
+
 @needs_jq
 @needs_linux_proc
 def test_the_plugin_session_starts_from_nothing_left_by_an_earlier_run(tmp_path):

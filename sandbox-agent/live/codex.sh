@@ -26,6 +26,7 @@ readonly SPAWN_TOOL_RE='^spawn_agent$'
 readonly SKILL_TOOL_RE='^(skill|load_skill)$'
 readonly GATE_KNOWN_GAP=0
 readonly MCP_STARTUP_TIMEOUT_SEC=60
+readonly MCP_LIST_TIMEOUT=60
 
 MCP_ARGS=()
 
@@ -150,11 +151,14 @@ agent_calls() {
 }
 
 # The rollout does not record which MCP servers loaded, so the list comes from
-# Codex itself, asked with the same overrides in the project the case ran in.
+# Codex itself, asked with the same overrides in the project the case ran in,
+# with no stdin to wait on and bounded by MCP_LIST_TIMEOUT so a hang cannot use
+# up the job.
 agent_mcp_servers() {
   local dir="$1"
 
-  (cd "$PROJECT" && "$AGENT_BIN" "${MCP_ARGS[@]}" mcp list --json) > "${dir}/mcp-list.json" 2>> "${dir}/stderr.log" || return 1
+  (cd "$PROJECT" && timeout "$MCP_LIST_TIMEOUT" "$AGENT_BIN" "${MCP_ARGS[@]}" mcp list --json < /dev/null) \
+    > "${dir}/mcp-list.json" 2>> "${dir}/stderr.log" || return 1
   jq -r '.[] | select(.enabled) | "\(.name)\tenabled"' "${dir}/mcp-list.json"
 }
 

@@ -298,7 +298,8 @@ All notable changes to this project are documented here. The format follows
 - The pinned agent CLI versions in `sandbox-agent/Dockerfile`: Claude Code to 2.1.250, Codex to 0.150.1, OpenCode to
   1.18.25, Kilo Code to 7.5.5, and GitHub Copilot CLI to 1.0.81. Claude Code later moved to 2.1.314, the release the
   plugin subagent lookup was measured on, and Codex to 0.166.0, the first release whose `PreToolUse` payload carries a
-  shell call's `workdir` as `cwd`, both checked on the npm registry on 2026-10-30.
+  shell call's `workdir` as `cwd`, both checked on the npm registry on 2026-10-30. GitHub Copilot CLI later moved to
+  1.0.103, the release the MCP behaviour under Fixed was measured on.
 - The runner label, from the floating `ubuntu-latest` to the exact `ubuntu-24.04` it resolves to today. Ubuntu 26.04 is
   in preview, and when it reaches general availability GitHub moves the `-latest` label over one to two months. With no
   Dependabot to open a pull request, a floating label is the one version in this repo that could change under us
