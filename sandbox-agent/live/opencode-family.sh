@@ -30,6 +30,13 @@ agent_configure() {
   export XDG_CACHE_HOME="${WORK}/xdg/cache"
   mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME"
 
+  # OpenCode 1.x refuses to start on the 2.x permissions list in the shipped
+  # .opencode/opencode.json, so the 1.x run copies the 1.x variant over it, the
+  # way docs/AGENT_TOOLING.md tells a 1.x user to. Kilo Code keeps the default.
+  if [[ "$AGENT_BIN" == "opencode" ]]; then
+    cp "${PROJECT}/.opencode/opencode.json.v1" "${PROJECT}/.opencode/opencode.json"
+  fi
+
   disabled="$(jq -c --arg s "$MCP_SERVER" '.mcp // {} | with_entries(select(.key != $s) | .value += {enabled: false})' "${PROJECT}/opencode.json")"
 
   config="$(jq -cn --arg id "$PROVIDER_ID" --arg url "$PROVIDER_V1_URL" --arg m "$MODEL" --argjson mcp "$disabled" '{

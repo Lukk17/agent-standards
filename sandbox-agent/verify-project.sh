@@ -41,12 +41,17 @@ SUBAGENTS=()
 MCP_JSON_SERVERS=()
 CODEX_MCP_SERVERS=()
 OPENCODE_MCP_SERVERS=()
+OPENCODE_V1_PROJECT=""
 
 cleanup() {
   local exit_code=$?
 
   rm -f "$CLI_OUTPUT"
   opencode2_end
+
+  if [[ -n "$OPENCODE_V1_PROJECT" ]]; then
+    rm -rf "$OPENCODE_V1_PROJECT"
+  fi
 
   exit "$exit_code"
 }
@@ -225,10 +230,11 @@ PY
 
 # Runs an agent CLI inside the project with stdout and stderr captured into
 # CLI_OUTPUT. Returns the exit status the CLI reported.
+# Runs an agent CLI in the project, or in CLI_DIR when the caller sets it.
 capture_cli() {
   local status=0
 
-  (cd "$PROJECT" && timeout "$CLI_TIMEOUT" "$@" </dev/null >"$CLI_OUTPUT" 2>&1) || status=$?
+  (cd "${CLI_DIR:-$PROJECT}" && timeout "$CLI_TIMEOUT" "$@" </dev/null >"$CLI_OUTPUT" 2>&1) || status=$?
 
   return "$status"
 }
@@ -411,8 +417,25 @@ verify_codex() {
     < <(printf '%s\n' "${CODEX_MCP_SERVERS[@]}")
 }
 
+# The imported project as an OpenCode 1.x user runs it, with
+# .opencode/opencode.json.v1 copied over the shipped 2.x default. Built once,
+# MCP block included, so the 1.x listings see every imported server.
+opencode_v1_project() {
+  if [[ -z "$OPENCODE_V1_PROJECT" ]]; then
+    OPENCODE_V1_PROJECT="$(mktemp -d -t sandbox-opencode1-project-XXXXXXXX)"
+    cp -a "${PROJECT}/." "${OPENCODE_V1_PROJECT}/"
+    opencode_use_v1_backstop "$OPENCODE_V1_PROJECT"
+  fi
+}
+
 verify_opencode() {
   section "OpenCode"
+
+  assert_file "the native edit backstop landed in its 2.x form" ".opencode/opencode.json"
+  assert_file "the OpenCode 1.x form of the backstop landed beside it" ".opencode/opencode.json.v1"
+
+  opencode_v1_project
+  note "OpenCode 1.x runs in ${OPENCODE_V1_PROJECT}, a copy of the project with .opencode/opencode.json.v1 in place, as a 1.x user sets it up."
 
   assert_file "skills are discoverable in the directory OpenCode reads natively" \
     ".agents/skills/${SAMPLE_SKILL}/SKILL.md"
@@ -423,9 +446,9 @@ verify_opencode() {
   assert_json "MCP servers are present in the file OpenCode reads" "opencode.json" \
     '(.mcp | length) > 0'
 
-  assert_cli_lists "OpenCode itself lists every imported subagent" opencode agent list \
+  CLI_DIR="$OPENCODE_V1_PROJECT" assert_cli_lists "OpenCode itself lists every imported subagent" opencode agent list \
     < <(printf '%s\n' "${SUBAGENTS[@]}")
-  assert_cli_lists "OpenCode itself lists the project MCP servers" opencode mcp list \
+  CLI_DIR="$OPENCODE_V1_PROJECT" assert_cli_lists "OpenCode itself lists the project MCP servers" opencode mcp list \
     < <(printf '%s\n' "${OPENCODE_MCP_SERVERS[@]}")
 }
 
@@ -445,7 +468,8 @@ verify_opencode_v2() {
 
   note "2.x runs in a copy of the project with no MCP block, against a mock model provider."
 
-  verify_opencode2 "$probe" "${probe}/.agents/plugin" "$PROJECT"
+  opencode_v1_project
+  verify_opencode2 "$probe" "${probe}/.agents/plugin" "$OPENCODE_V1_PROJECT"
 
   rm -rf "$probe"
 }
@@ -470,7 +494,7 @@ verify_kilo() {
 # block, against the mock model, so subagent placement is measured on the
 # runtimes themselves rather than on a payload the suite made up.
 verify_reply_style() {
-  local probe="" start=""
+  local probe="" start="" probe_v1="" start_v1=""
 
   section "OpenCode 1.x and Kilo Code reply style"
 
@@ -484,22 +508,29 @@ verify_reply_style() {
   rm -f "${probe}/.mcp.json"
   jq 'del(.mcp)' "${PROJECT}/opencode.json" >"${probe}/opencode.json"
 
-  note "1.x and Kilo Code run in a copy of the project with no MCP block, against a mock model provider."
+  probe_v1="$(mktemp -d -t sandbox-reply-style-project-v1-XXXXXXXX)"
+  cp -a "${probe}/." "${probe_v1}/"
+  opencode_use_v1_backstop "$probe_v1"
 
-  verify_reply_style_v1 "OpenCode 1.x" opencode OPENCODE_CONFIG_CONTENT "$probe"
+  note "1.x and Kilo Code run in a copy of the project with no MCP block, against a mock model provider. 1.x gets its own copy with .opencode/opencode.json.v1 in place."
+
+  verify_reply_style_v1 "OpenCode 1.x" opencode OPENCODE_CONFIG_CONTENT "$probe_v1"
   verify_reply_style_v1 "Kilo Code" kilocode KILO_CONFIG_CONTENT "$probe"
 
   start="$(mktemp -d -t sandbox-start-folder-project-XXXXXXXX)"
   cp -a "${probe}/." "${start}/"
   rm -rf "${start}/.git"
+  start_v1="$(mktemp -d -t sandbox-start-folder-project-v1-XXXXXXXX)"
+  cp -a "${start}/." "${start_v1}/"
+  opencode_use_v1_backstop "$start_v1"
 
-  note "the same copy without its .git, so the runtimes hand the plugin / as the worktree and the start folder has to be the project."
+  note "the same copies without their .git, so the runtimes hand the plugin / as the worktree and the start folder has to be the project."
 
-  verify_start_folder_v1 "OpenCode 1.x" opencode OPENCODE_CONFIG_CONTENT "$start"
+  verify_start_folder_v1 "OpenCode 1.x" opencode OPENCODE_CONFIG_CONTENT "$start_v1"
   verify_start_folder_v1 "Kilo Code" kilocode KILO_CONFIG_CONTENT "$start"
 
   opencode2_end
-  rm -rf "$probe" "$start"
+  rm -rf "$probe" "$start" "$probe_v1" "$start_v1"
 }
 
 verify_copilot() {

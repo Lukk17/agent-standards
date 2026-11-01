@@ -156,7 +156,9 @@ Unix shell:
 printf '\n/tasks.md\n' >> .gitignore
 ```
 
-That's it. Open the project in Claude Code, Kilo Code, OpenCode, Codex, or GitHub Copilot and skills are live.
+That's it. Open the project in Claude Code, Kilo Code, OpenCode, Codex, or GitHub Copilot and skills are live. On
+OpenCode 1.x, first copy `.opencode/opencode.json.v1` over `.opencode/opencode.json`, as the OpenCode section below
+shows, because 1.x refuses to start on the 2.x form the default ships in.
 
 The MCP config files arrive as real files, ready to use, so nothing else needs renaming:
 [.mcp.json](.mcp.json) for Claude Code and the Copilot CLI, [opencode.json](opencode.json) for OpenCode and Kilo Code,
@@ -314,7 +316,11 @@ git checkout agent-standards/master -- .agents/skills .agents/hooks .codex/agent
 OpenCode reads `AGENTS.md` and [.agents/skills/](.agents/skills/) natively. Subagents arrive through the
 `.opencode/agents` symlink into [.agents/agents/](.agents/agents/). [opencode.json](opencode.json) at the
 project root declares the gate plugin by path in its `plugin` array and carries the MCP servers under its `mcp` key.
-That file has to stay at the root, because inside `.opencode/` it is ignored.
+That file has to stay at the root, because Kilo Code reads only the root one.
+[.opencode/opencode.json](.opencode/opencode.json) carries nothing but a native edit backstop, which denies the main
+session an edit of any project file but `tasks.md` where the plugin gate never fires. It is written in the OpenCode 2.x
+`permissions` form, which OpenCode 1.x refuses to start on, so
+[.opencode/opencode.json.v1](.opencode/opencode.json.v1) ships beside it with the same rule in the 1.x form.
 
 `.opencode/agents` is a symlink, so Windows needs Developer Mode on (Settings, System, For developers) and git told to
 honour symlinks, or OpenCode ends up with no subagents. PowerShell:
@@ -347,6 +353,19 @@ Unix shell:
 
 ```bash
 mv AGENTS.md.example AGENTS.md
+```
+
+On OpenCode 1.x, put the 1.x backstop in place, and again after any checkout that names `.opencode`. OpenCode 2.x and
+Kilo Code need nothing here. PowerShell:
+
+```powershell
+Copy-Item .opencode/opencode.json.v1 .opencode/opencode.json
+```
+
+Unix shell:
+
+```bash
+cp .opencode/opencode.json.v1 .opencode/opencode.json
 ```
 
 To update later, fetch first. PowerShell:

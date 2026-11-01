@@ -118,6 +118,22 @@ Unix shell:
 printf '\n/tasks.md\n/.agents/tasks.widget.json\n' >> .gitignore
 ```
 
+On OpenCode 1.x only, put the 1.x form of the edit backstop in place. The default
+[.opencode/opencode.json](../.opencode/opencode.json) is written for OpenCode 2.x and Kilo Code ignores it, but 1.x
+refuses to start on it with "V2 permissions are not supported by OpenCode V1", so
+[.opencode/opencode.json.v1](../.opencode/opencode.json.v1) carries the same rule in the form 1.x reads. Copy it again
+after any later checkout that names `.opencode`. PowerShell:
+
+```powershell
+Copy-Item .opencode/opencode.json.v1 .opencode/opencode.json
+```
+
+Unix shell:
+
+```bash
+cp .opencode/opencode.json.v1 .opencode/opencode.json
+```
+
 That is the whole setup. Commit when you are ready.
 
 What you just pulled:
@@ -129,6 +145,10 @@ What you just pulled:
   Code hooks, and the `workflows/` folder holding the [skill audit](#auditing-the-skills). It holds no `CLAUDE.md`, on
   purpose, see [instruction files](#instruction-files).
 - `.opencode/agents` and `.kilo/agents`: symlinks into [.agents/agents/](../.agents/agents/). One tree, two agents.
+- [.opencode/opencode.json](../.opencode/opencode.json) and [.opencode/opencode.json.v1](../.opencode/opencode.json.v1):
+  a native edit backstop that denies the main session an edit of any project file but `tasks.md`, for a runtime where
+  the plugin gate never fires. The first is the OpenCode 2.x form, the second the OpenCode 1.x form, and Kilo Code
+  reads neither.
 - [.codex/](../.codex/): the generated TOML custom agents and `config.toml`, which holds both the Codex MCP servers
   and the Codex gate hooks inline.
 - [.github/agents/](../.github/agents/) and [.github/hooks/preflight.json](../.github/hooks/preflight.json): Copilot

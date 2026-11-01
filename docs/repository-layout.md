@@ -14,7 +14,7 @@ Three categories, and mixing them up is the one mistake that breaks a rebuild.
 | Category | Paths | How to change it |
 | --- | --- | --- |
 | Canonical | `subagents/*.md`, `.agents/skills/*/SKILL.md` and their `references/*.md`, `.agents/hooks/*.py`, `.agents/hooks/claude/sync_skill_links.py`, `.agents/plugin/hooks.js`, `.agents/plugin/index.js`, `docs/*.md` | edit directly |
-| Canonical config | `.mcp.json`, `opencode.json`, `.codex/config.toml`, `.vscode/mcp.json`, `.github/mcp.json`, `.claude/settings.json`, `.github/hooks/preflight.json` | edit directly, keep the server set and the gate wording in sync |
+| Canonical config | `.mcp.json`, `opencode.json`, `.opencode/opencode.json`, `.opencode/opencode.json.v1`, `.codex/config.toml`, `.vscode/mcp.json`, `.github/mcp.json`, `.claude/settings.json`, `.github/hooks/preflight.json` | edit directly, keep the server set and the gate wording in sync |
 | Generated | `.claude/agents/*.md`, `.agents/agents/*.md`, `.codex/agents/*.toml`, `.github/agents/*.agent.md` | never hand-edit, run `python tools/gen_subagents.py` |
 | Canonical, this repo only | `tools/plugins.yaml`, the plugin map: which Claude Code plugin holds each skill, subagent and MCP server | edit directly, verified by `tools/tests/test_gen_plugins.py`, never shipped |
 | Generated, `plugins` branch only | `.claude-plugin/marketplace.json` and `plugins/<name>/` | never hand-edit and never on `master`. The `Plugins` workflow runs `python tools/gen_plugins.py <out-dir>` on every push to `master` and commits the result to the `plugins` branch |
@@ -84,6 +84,8 @@ agent-standards/
     workflows/skill-audit.js     # CANONICAL, read-only skill audit, a saved Claude Code workflow
   .opencode/
     agents -> ../.agents/agents  # SYMLINK maintained by the generator
+    opencode.json                # native edit backstop, OpenCode 2.x permissions form, refused by 1.x
+    opencode.json.v1             # the same backstop in the 1.x permission form, copied over the default on 1.x
   .kilo/
     agents -> ../.agents/agents  # SYMLINK maintained by the generator
   .codex/
@@ -140,6 +142,8 @@ your-project/
   .claude/agents/                # generated Claude-format subagents
   .claude/workflows/skill-audit.js # read-only skill audit, a saved Claude Code workflow
   .opencode/agents               # symlink to ../.agents/agents
+  .opencode/opencode.json        # native edit backstop for OpenCode 2.x
+  .opencode/opencode.json.v1     # the OpenCode 1.x form, copy it over .opencode/opencode.json on 1.x
   .kilo/agents                   # symlink to ../.agents/agents
   .codex/agents/                 # generated Codex custom agents (*.toml)
   .codex/config.toml             # Codex MCP servers plus the inline gate hooks
@@ -216,11 +220,13 @@ loading alongside it. That is why no project file here ships a `CLAUDE.md`, and 
 7. Managed config files (system directories)
 ```
 
-The one `opencode.json` sits at the project root, because that is also the only place Kilo Code will look for it.
-OpenCode would additionally read a project file at `.opencode/opencode.json` and deep-merge it over the root one, but
-this repo ships none: a second file that only one of the two tools reads is a second place for the server set to
-drift, and there is no longer any value that needs it. [.opencode/](../.opencode/) therefore holds nothing but the
-`agents` symlink. `AGENTS.md` is auto-read from the project root, falling back to `CLAUDE.md` when no `AGENTS.md`
+The one `opencode.json` that carries the MCP servers and the plugin declaration sits at the project root, because that
+is also the only place Kilo Code will look for it. OpenCode 1.x and 2.x also read
+[.opencode/opencode.json](../.opencode/opencode.json) and merge it over the root one, and this repo ships it with one
+thing only, the native edit backstop, in the OpenCode 2.x `permissions` form. Kilo Code ignores it. OpenCode 1.x
+refuses to start on that form, so [.opencode/opencode.json.v1](../.opencode/opencode.json.v1) ships beside it with the
+same rule in the 1.x `permission` form, for a 1.x user to copy over the default. Why the rule takes two files and stays
+out of the root one is under "Hook enforcement" in [agent-compatibility.md](agent-compatibility.md). `AGENTS.md` is auto-read from the project root, falling back to `CLAUDE.md` when no `AGENTS.md`
 exists.
 
 #### Kilo Code
