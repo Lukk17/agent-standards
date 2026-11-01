@@ -68,7 +68,7 @@ The project suite also drives OpenCode 1.x and Kilo Code through real turns agai
 
 The last mock section of the project suite proves on every pull request that a subagent really writes a file, for all six runtimes: Claude Code, Codex, the GitHub Copilot CLI, OpenCode 2.x, OpenCode 1.x with the `.v1` backstop, and Kilo Code. Each one is the binary the [Dockerfile](Dockerfile) pins, run headless in its own copy of the imported project, with the hooks, the gate and the generated subagents as imported. Only the model is replaced, by [e2e-mock/server.mjs](e2e-mock/server.mjs), a stdlib Node server that replays a scripted conversation, so a run needs no key and costs nothing. [e2e-mock/subagent-write.sh](e2e-mock/subagent-write.sh) drives it, and [verify-project.sh](verify-project.sh) sources it.
 
-Each agent runs two scripted cases. In the first, the main thread is asked to have `python-pro` create `e2e-subagent-proof.txt`. The mock answers the main thread with that agent's own spawn tool call, answers the subagent's first turn with a write tool call carrying the fixed content, and ends both turns with text. On Codex, whose `spawn_agent` returns at once, the main thread also calls `wait_agent` on the id the spawn returned. In the second, the main thread is asked to write a file itself, and the mock answers with the write call the gate has to refuse.
+Each agent runs two scripted cases. In the first, the main thread is asked to have `python-pro` create `e2e-subagent-proof.txt`. The mock answers the main thread with that agent's own spawn tool call, answers the subagent's first turn with a write tool call carrying the fixed content, and ends both turns with text. On Codex, whose `spawn_agent` returns at once, the main thread also calls `wait_agent` on the id the spawn returned. In the second, the main thread is asked to write a file itself, and the mock answers with the write call the gate has to refuse. Claude Code runs a third: the main thread starts the project's `code-reviewer`, whose definition preloads `security-review`, and the mock ends the subagent's first turn at once, so that request shows what Claude Code preloaded.
 
 | Agent | Wire format and route | How the binary reaches the mock | Spawn call | Write call | Header that marks a subagent request |
 | --- | --- | --- | --- | --- | --- |
@@ -85,12 +85,14 @@ An agent passes when all of these hold, each its own `PASS` or `FAIL` line:
 - `e2e-subagent-proof.txt` exists with exactly the scripted content
 - the main thread's spawn call got a result, a request that both the marker and the headers place in the subagent got the result of the write call, no main-thread request carries a write of that file, and the agent's own record agrees: [e2e-mock/records.py](e2e-mock/records.py) reads the Claude Code subagent transcript, the Codex rollout whose `session_meta` names a subagent, the Copilot event carrying a `parentToolCallId`, the OpenCode 1.x and Kilo Code export of the child session, or the 2.x `session_v2` row with a `parent_id`, and finds the write there and not in the main session
 - every subagent turn carries `python-pro`'s own definition in its system text
-- every subagent turn carries the subagent text, `PREFLIGHT for a subagent:`, and none carries a main-thread reminder. Both texts are read from the imported project, the subagent opening and the reminder from `.agents/hooks/copilot/prompt_reminder.py` and the Claude Code reminder from `.claude/settings.json`, so a change of wording moves the check with it
+- every main-thread turn carries that agent's own main-thread reminder: the Claude Code reminder from `.claude/settings.json` on Claude Code, and on every other agent the `REMINDER` of `.agents/hooks/copilot/prompt_reminder.py`, which Codex and Copilot inject from their wiring and the OpenCode plugin reads from that file
+- every subagent turn carries the subagent text, `PREFLIGHT for a subagent:`, and none carries either main-thread reminder. Every text is read from the imported project, the subagent opening from `.agents/hooks/copilot/prompt_reminder.py`, so a change of wording moves the check with it
 - the main thread's own write is refused with the gate's `RULE_A_REASON`, read from the imported gate, and the file was never created
+- on Claude Code, every `code-reviewer` turn carries the first prose line of the project's `.agents/skills/security-review/SKILL.md`, read at run time, and none carries the opening of the built-in `/security-review` command's prompt, `You are a senior security engineer conducting a focused security review of the changes on this branch.`, read from the pinned 2.1.314 binary. The check first confirms that line is still in the `claude` binary it runs, so its absence from the request means the project skill won the name
 
-GitHub Copilot reports `KNOWN-GAP` in two places, the way the live tests do, and neither fails the run. The main thread's own write lands, because the Copilot `preToolUse` payload carries no agent identifier, as the Maintenance follow-ups in [AGENTS.md](../AGENTS.md) record. The subagent write is a `KNOWN-GAP` only when the subagent's request carries the CLI's own `CRITICAL: Do NOT write output to files` block and the CLI offered that subagent no write tool at all, since a scripted model ignores prompt text. Measured on Copilot CLI 1.0.103 on 2026-11-01, the block was absent from the subagent's request and `create` wrote the file.
+GitHub Copilot reports one `KNOWN-GAP`, the way live test 1 does, and it does not fail the run: the main thread's own write lands, because the Copilot `preToolUse` payload carries no agent identifier, as the Maintenance follow-ups in [AGENTS.md](../AGENTS.md) record. A Copilot subagent that does not write the file is a plain `FAIL`.
 
-Measured on 2026-11-01 without Docker, with Claude Code 2.1.314, Codex 0.166.0, Copilot CLI 1.0.103, OpenCode 1.18.25, OpenCode 2.0.28 and Kilo Code 7.5.5, the twelve runs took 52 to 55 seconds together, over three repeats with the same result. Each OpenCode 1.x and Kilo Code case keeps its own data directory, because on Kilo Code 7.5.5 a run in a data directory where `kilocode export` had read a child session hung before its first model request in 2 of 4 tries. To run the check on its own against a project that was already imported, from the repository root, Unix shell:
+Measured on 2026-11-01 without Docker, with Claude Code 2.1.314, Codex 0.166.0, Copilot CLI 1.0.103, OpenCode 1.18.25, OpenCode 2.0.28 and Kilo Code 7.5.5, the twelve runs took 52 to 55 seconds together, over three repeats with the same result. The main-thread reminder and `code-reviewer` checks were added the same day and passed on the same versions. With the plugin as it stood before the reminder was restored, OpenCode 1.x, OpenCode 2.x and Kilo Code each failed the main-thread reminder check with 0 of 2 turns. Each OpenCode 1.x and Kilo Code case keeps its own data directory, because on Kilo Code 7.5.5 a run in a data directory where `kilocode export` had read a child session hung before its first model request in 2 of 4 tries. To run the check on its own against a project that was already imported, from the repository root, Unix shell:
 
 ```bash
 bash sandbox-agent/e2e-mock/subagent-write.sh /work/project
@@ -135,7 +137,7 @@ events the agent recorded, never from what the model wrote back.
 | 1 Gate blocks the main thread | The main thread tried to write a file, the gate's denial is in the transcript, and the file is absent or was written only by a subagent the model started after the denial |
 | 2 A named subagent writes | The main thread started `docs-architect`, the recorded write of the file came from the subagent, and what the agent's hooks injected into the subagent carries the subagent text (`PREFLIGHT for a subagent:`) and not the main-thread reminder. A project `AGENTS.md`, a tool result, the model's own text and history a Codex fork inherited from the main thread are not hook output and do not count |
 | 3 A skill is loaded | The main thread loaded the `kicad` skill through its skill tool or by reading its `SKILL.md` |
-| 4 The reminder reaches the model | The per-prompt reminder text is in the recorded context of that prompt, not only the session start. OpenCode and Kilo Code inject no main-thread reminder, so there it reports `KNOWN-GAP` unless an injected prompt part carries it |
+| 4 The reminder reaches the model | The per-prompt reminder text is in the recorded context of that prompt, not only the session start. On OpenCode and Kilo Code only a synthetic part the plugin added to the main-session user message that carries this prompt's nonce counts, never the typed prompt or the model's reply |
 | 5 Key and model | One tiny request in the agent's own wire format is answered by the agent's provider |
 | 6 The one MCP server answers | `context7` is the only MCP server the session loaded, and a recorded `resolve-library-id` call for React returned a library id. A call whose result carries no id, such as a rate-limit or an invalid-key answer, is a `FAIL` quoting that result |
 | 7 Codex only: a subagent's payload names its type | The read-only `code-reviewer`, started by the main thread, ran `touch readonly-probe.txt`, the `PreToolUse` payload of that call carried `agent_id` and `agent_type` `code-reviewer`, Rule E's reason is in the transcript, and the file is absent |
@@ -148,25 +150,19 @@ Three verdicts are possible besides a pass:
   own model request so the model never ran. It fails the job.
 - `INCONCLUSIVE` means the model never attempted the tool call the test needs, so nothing was proven either way. It
   raises a warning and does not fail the job.
-- `KNOWN-GAP` appears on OpenCode and Kilo Code for test 4, on GitHub Copilot for two tests, and on Codex for test 7 when the payload of the subagent's
+- `KNOWN-GAP` appears on GitHub Copilot for test 1, and on Codex for test 7 when the payload of the subagent's
   call carries `agent_id` without `agent_type` `code-reviewer`, which [agent-compatibility.md](../docs/agent-compatibility.md)
   records as unmeasured. On Codex a payload with no `agent_id` at all is a `FAIL`, because the gate then takes the
   subagent for the main thread. On Copilot, test 1: its payload carries no agent identifier, so
   the gate cannot tell the main thread from a subagent, as the Maintenance follow-ups in AGENTS.md already record.
-  Test 2: Copilot CLI 1.0.81 ends every custom subagent's system prompt with its own block,
-  `**CRITICAL: Do NOT write output to files.**`, which tells the subagent that its response text is its only output
-  channel. In live run 36176881215 docs-architect was offered `apply_patch`, made no tool call, and reported that it
-  could not create the file. The verdict is `KNOWN-GAP` only when the case records that block and the subagent never
-  tried to write. A write the subagent attempted and lost, or a missing file without that block, is still a `FAIL`.
   It does not fail the job.
 
 Test 1 counts any gate denial as the block, whichever rule gave it, because [live/lib.sh](live/lib.sh) reads the fixed
 text of every `RULE_*_REASON` out of the gate itself, so a new rule needs no harness change. A probe file that landed
 is a failure whatever the transcript says. Test 2 reads what the hooks injected into the subagent through the
-`agent_subagent_context` function each agent script supplies. Both Copilot expectations are switches in
-[live/copilot.sh](live/copilot.sh): `GATE_KNOWN_GAP=1` for test 1, which every other agent script sets to `0`, and
-`SUBAGENT_NO_WRITE_MARKER` for test 2. Each one goes in the same change that removes its Maintenance follow-up in
-[AGENTS.md](../AGENTS.md).
+`agent_subagent_context` function each agent script supplies. The Copilot expectation is a switch in
+[live/copilot.sh](live/copilot.sh), `GATE_KNOWN_GAP=1` for test 1, which every other agent script sets to `0`. It goes
+in the same change that removes its Maintenance follow-up in [AGENTS.md](../AGENTS.md).
 
 #### How tests 7 to 9 measure the payload
 

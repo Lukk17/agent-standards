@@ -8,7 +8,10 @@
 #              conversation: the main thread starts python-pro, python-pro
 #              writes e2e-subagent-proof.txt, and both turns end. A second
 #              scripted case has the main thread write a file itself, which the
-#              gate has to deny. Only the model is mocked.
+#              gate has to deny. On Claude Code a third case starts the
+#              code-reviewer subagent headless and checks that it preloaded the
+#              project's security-review skill, not the built-in
+#              /security-review command. Only the model is mocked.
 # Usage: sourced by verify-project.sh, which defines pass, fail, note and
 #        one_line, sources lib-opencode2.sh first, calls
 #        verify_subagent_write <project> and calls e2e_end from its EXIT trap.
@@ -42,10 +45,15 @@ readonly E2E_AGENTS=(claude-code codex copilot opencode2 opencode kilo-code)
 # them, and every tool name one starts a subagent with, as server.mjs offers.
 readonly E2E_WRITE_TOOLS='["Write","Edit","MultiEdit","Bash","create","edit","write","apply_patch","exec_command","shell","bash"]'
 readonly E2E_SPAWN_TOOLS='["Agent","Task","task","subagent","spawn_agent"]'
-# The Copilot CLI's own subagent prompt block, AGENTS.md "Maintenance
-# follow-ups", and the gap its preToolUse payload leaves, the same switches
-# live/copilot.sh carries.
-readonly E2E_COPILOT_NO_WRITE_MARKER="CRITICAL: Do NOT write output to files"
+# The Claude Code review case: the subagent started, the skill its definition
+# preloads, and the opening of the prompt of Claude Code's own built-in
+# /security-review command, read from the pinned 2.1.314 binary, which the
+# check confirms is still in the binary it runs.
+readonly E2E_REVIEWER="code-reviewer"
+readonly E2E_REVIEW_SKILL="security-review"
+readonly E2E_REVIEW_FILE="e2e-review-target.txt"
+readonly E2E_REVIEW_TOKEN="e2e-review"
+readonly E2E_BUILTIN_REVIEW_MARKER="You are a senior security engineer conducting a focused security review of the changes on this branch."
 
 E2E_TMP=""
 E2E_PID=""
@@ -53,12 +61,15 @@ E2E_PORT=""
 E2E_LABEL=""
 E2E_BIN=""
 # The texts the checks look for, read from the imported project itself by
-# e2e_read_needles: the subagent opening, each main-thread reminder, the first
-# line of python-pro's definition, and the gate's main-thread write refusal.
+# e2e_read_needles: the subagent opening, each main-thread reminder (Claude
+# Code's first, then the one every other agent injects), the first line of
+# python-pro's definition, the gate's main-thread write refusal, and the first
+# prose line of the project's security-review skill.
 E2E_SUBAGENT_TEXT=""
 E2E_MAIN_TEXTS="[]"
 E2E_DEFINITION=""
 E2E_GATE_TEXT=""
+E2E_SKILL_LINE=""
 
 e2e_known_gap() { printf 'KNOWN-GAP  %s\n' "$*"; }
 
@@ -106,7 +117,7 @@ e2e_end() {
 e2e_read_needles() {
   local project="$1" needles=""
 
-  needles="$(python3 -I -S - "$project" <<'PY'
+  needles="$(python3 -I -S - "$project" "$E2E_REVIEW_SKILL" <<'PY'
 import ast
 import json
 import sys
@@ -138,14 +149,21 @@ claude = next(
     for hook in entry["hooks"]
     if "echo '" in hook.get("command", "")
 )
-lines = (root / ".claude/agents/python-pro.md").read_text(encoding="utf-8").splitlines()
-body = lines[lines.index("---", 1) + 1:]
+
+
+def body(path):
+    lines = path.read_text(encoding="utf-8").splitlines()
+    return lines[lines.index("---", 1) + 1:]
+
+
+skill = root / ".agents/skills" / sys.argv[2] / "SKILL.md"
 
 print(json.dumps({
     "subagent": reminder["SUBAGENT_OPENING"],
     "main": [first_sentence(claude), first_sentence(reminder["REMINDER"])],
-    "definition": next(line for line in body if line.strip()),
+    "definition": next(line for line in body(root / ".claude/agents/python-pro.md") if line.strip()),
     "gate": first_sentence(gate["RULE_A_REASON"]),
+    "skill": next(line for line in body(skill) if line.strip() and not line.startswith("#")),
 }))
 PY
   )" || return 1
@@ -154,6 +172,17 @@ PY
   E2E_MAIN_TEXTS="$(jq -c '.main' <<<"$needles")"
   E2E_DEFINITION="$(jq -r '.definition' <<<"$needles")"
   E2E_GATE_TEXT="$(jq -r '.gate' <<<"$needles")"
+  E2E_SKILL_LINE="$(jq -r '.skill' <<<"$needles")"
+}
+
+# The main-thread reminder this agent injects: Claude Code's own, or the one
+# Codex, Copilot and the OpenCode plugin share.
+e2e_own_main_text() {
+  if [[ "$1" == "claude-code" ]]; then
+    jq -r '.[0]' <<<"$E2E_MAIN_TEXTS"
+  else
+    jq -r '.[1]' <<<"$E2E_MAIN_TEXTS"
+  fi
 }
 
 # The agent's label and binary, set into E2E_LABEL and E2E_BIN.
@@ -312,21 +341,22 @@ e2e_invoke() {
 # Facts over one case's request log, one line: "<spawns answered> <subagent
 # writes answered> <main-thread writes> <role conflicts> <subagent turns>
 # <subagent turns with the subagent text> <subagent turns with a main-thread
-# reminder> <subagent turns with python-pro's definition> <subagent turns
-# carrying the Copilot no-write block> <subagent turns offered no write tool>
-# <gate refusals of a main-thread write>". A subagent turn is a request the
-# marker and the headers both place in the subagent and that offers tools.
-# Each request repeats its session's history, so only zero or not zero
-# matters for the counts of calls. An unreadable log counts as all zeros, so
-# every check that needs a fact fails rather than passing on a parse error.
+# reminder> <subagent turns with python-pro's definition> <main-thread turns>
+# <main-thread turns with this agent's own reminder> <gate refusals of a
+# main-thread write>". A turn is a request the marker and the headers both
+# place in the same session and that offers tools. Each request repeats its
+# session's history, so only zero or not zero matters for the counts of calls.
+# An unreadable log counts as all zeros, so every check that needs a fact fails
+# rather than passing on a parse error.
 e2e_facts() {
-  local log="$1" path="$2"
+  local log="$1" path="$2" own="$3" facts=""
 
-  jq -rs --arg path "$path" --argjson writes "$E2E_WRITE_TOOLS" --argjson spawns "$E2E_SPAWN_TOOLS" \
+  facts="$(jq -rs --arg path "$path" --argjson writes "$E2E_WRITE_TOOLS" --argjson spawns "$E2E_SPAWN_TOOLS" \
     --arg sub "$E2E_SUBAGENT_TEXT" --argjson mains "$E2E_MAIN_TEXTS" --arg def "$E2E_DEFINITION" \
-    --arg nowrite "$E2E_COPILOT_NO_WRITE_MARKER" --arg gate "$E2E_GATE_TEXT" '
+    --arg own "$own" --arg gate "$E2E_GATE_TEXT" '
     def wrote: .calls[] | select((.name as $n | $writes | index($n)) and (.args | tojson | contains($path)));
     map(select(.role == "subagent" and .header_role == "subagent" and .tool_count > 0)) as $turns
+    | map(select(.role == "main" and .header_role == "main" and .tool_count > 0)) as $mainturns
     | [ (map(select(.role == "main") | [.calls[] | select((.name as $n | $spawns | index($n)) and .result != null)] | length) | add // 0),
         ($turns | map([wrote | select(.result != null)] | length) | add // 0),
         (map(select(.role == "main") | [wrote] | length) | add // 0),
@@ -335,18 +365,68 @@ e2e_facts() {
         ($turns | map(select(.context | contains($sub))) | length),
         ($turns | map(select(.context as $c | any($mains[]; . as $m | $c | contains($m)))) | length),
         ($turns | map(select(.system | contains($def))) | length),
-        ($turns | map(select(.context | contains($nowrite))) | length),
-        ($turns | map(select((.reply.text // "") | startswith("E2E: the request offers no write"))) | length),
+        ($mainturns | length),
+        ($mainturns | map(select(.context | contains($own))) | length),
         (map(select(.role == "main") | [wrote | select((.result // "") | contains($gate))] | length) | add // 0)
-      ] | map(tostring) | join(" ")' "$log" 2>/dev/null || echo "0 0 0 0 0 0 0 0 0 0 0"
+      ] | map(tostring) | join(" ")' "$log" 2>/dev/null)" || facts="0 0 0 0 0 0 0 0 0 0 0"
+  printf '%s\n' "$facts"
 }
 
-# The two scripted cases and every check, for one agent.
+# Facts over the review case's request log, one line: "<subagent turns>
+# <subagent turns with the skill line> <subagent turns with the built-in
+# command's prompt> <spawns answered>". All zeros when the log is unreadable.
+e2e_review_facts() {
+  local log="$1" facts=""
+
+  facts="$(jq -rs --arg skill "$E2E_SKILL_LINE" --arg builtin "$E2E_BUILTIN_REVIEW_MARKER" --argjson spawns "$E2E_SPAWN_TOOLS" '
+    map(select(.role == "subagent" and .header_role == "subagent" and .tool_count > 0)) as $turns
+    | [ ($turns | length),
+        ($turns | map(select(.context | contains($skill))) | length),
+        ($turns | map(select(.context | contains($builtin))) | length),
+        (map(select(.role == "main") | [.calls[] | select((.name as $n | $spawns | index($n)) and .result != null)] | length) | add // 0)
+      ] | map(tostring) | join(" ")' "$log" 2>/dev/null)" || facts="0 0 0 0"
+  printf '%s\n' "$facts"
+}
+
+# Returns 0 when the agent binary on PATH, or the package it was installed
+# from, still holds the built-in command's prompt, so its absence from a
+# request means something.
+e2e_binary_holds() {
+  local marker="$1" binary=""
+
+  binary="$(readlink -f "$(command -v "$E2E_BIN")" 2>/dev/null)" || return 1
+  [[ -f "$binary" ]] || return 1
+  grep -aqF -- "$marker" "$binary" || grep -raqF -- "$marker" "$(dirname "$binary")/.."
+}
+
+# Claude Code only: the main thread starts the project's code-reviewer, whose
+# definition preloads security-review, and the subagent answers at once. Its
+# requests must carry the project skill's own line and never the prompt of the
+# built-in /security-review command of the same name.
+e2e_check_review() {
+  local dir="$1" status=0 turns=0 with_skill=0 with_builtin=0 spawns=0
+
+  e2e_invoke claude-code "$dir" \
+    "E2E-REVIEW ${E2E_REVIEWER} ${dir}/project/${E2E_REVIEW_FILE} ${E2E_REVIEW_TOKEN}" review || status=$?
+  IFS=' ' read -r turns with_skill with_builtin spawns <<<"$(e2e_review_facts "${dir}/review.requests.jsonl")"
+
+  if ! e2e_binary_holds "$E2E_BUILTIN_REVIEW_MARKER"; then
+    fail "${E2E_LABEL}: the built-in /security-review prompt is still in the ${E2E_BIN} binary, so its absence below proves something (not found: '${E2E_BUILTIN_REVIEW_MARKER}')"
+  fi
+
+  if [[ "$spawns" -gt 0 && "$turns" -gt 0 && "$with_skill" -eq "$turns" && "$with_builtin" -eq 0 ]]; then
+    pass "${E2E_LABEL}: ${E2E_REVIEWER} preloads the project's ${E2E_REVIEW_SKILL} skill and not the built-in /${E2E_REVIEW_SKILL} command (${turns} of ${turns} turns)"
+  else
+    fail "${E2E_LABEL}: ${E2E_REVIEWER} preloads the project's ${E2E_REVIEW_SKILL} skill and not the built-in /${E2E_REVIEW_SKILL} command (exit ${status}, ${spawns} spawn(s) answered, ${turns} subagent turn(s), ${with_skill} with '${E2E_SKILL_LINE}', ${with_builtin} with the built-in prompt)"
+  fi
+}
+
+# The scripted cases and every check, for one agent.
 e2e_check_agent() {
   local agent="$1" project="$2"
-  local dir="${E2E_TMP}/${agent}" status=0 records="" proof="" denied=""
-  local spawns=0 sub_writes=0 main_writes=0 conflicts=0 turns=0 with_sub=0 with_main=0 with_def=0 nowrite=0 nowriter=0 refusals=0
-  local rec_sub=0 rec_main=0
+  local dir="${E2E_TMP}/${agent}" status=0 records="" proof="" denied="" own=""
+  local spawns=0 sub_writes=0 main_writes=0 conflicts=0 turns=0 with_sub=0 with_main=0 with_def=0
+  local main_turns=0 main_with_own=0 refusals=0 rec_sub=0 rec_main=0
 
   e2e_identify "$agent"
 
@@ -358,18 +438,17 @@ e2e_check_agent() {
   e2e_prepare "$agent" "$project" "$dir"
   proof="${dir}/project/${E2E_PROOF}"
   denied="${dir}/project/${E2E_MAIN_PROOF}"
+  own="$(e2e_own_main_text "$agent")"
 
   e2e_invoke "$agent" "$dir" "E2E-SPAWN ${E2E_SUBAGENT} ${proof} ${E2E_CONTENT}" spawn || status=$?
   # Both verify scripts set IFS to newline and tab, so each read names its own separator.
-  IFS=' ' read -r spawns sub_writes main_writes conflicts turns with_sub with_main with_def nowrite nowriter refusals \
-    <<<"$(e2e_facts "${dir}/spawn.requests.jsonl" "$proof")"
+  IFS=' ' read -r spawns sub_writes main_writes conflicts turns with_sub with_main with_def main_turns main_with_own refusals \
+    <<<"$(e2e_facts "${dir}/spawn.requests.jsonl" "$proof" "$own")"
   records="$(python3 -I -S "$E2E_RECORDS" "$agent" "${dir}/state" "$proof" 2>&1)" || records="unreadable: ${records}"
   IFS=' ' read -r rec_sub rec_main <<<"$records"
 
   if [[ -f "$proof" ]] && printf '%s\n' "$E2E_CONTENT" | cmp -s - "$proof"; then
     pass "${E2E_LABEL}: ${E2E_SUBAGENT} wrote ${E2E_PROOF} with the exact content"
-  elif [[ ! -f "$proof" && "$agent" == "copilot" && "$nowrite" -gt 0 && "$nowriter" -gt 0 ]]; then
-    e2e_known_gap "${E2E_LABEL}: ${E2E_SUBAGENT} was offered no write tool under the CLI's own subagent block (${E2E_COPILOT_NO_WRITE_MARKER}), as AGENTS.md records"
   elif [[ -f "$proof" ]]; then
     fail "${E2E_LABEL}: ${E2E_SUBAGENT} wrote ${E2E_PROOF} with the exact content (it holds '$(one_line "$(head -c 200 "$proof")")')"
   else
@@ -389,6 +468,12 @@ e2e_check_agent() {
     fail "${E2E_LABEL}: every subagent turn ran under ${E2E_SUBAGENT}'s own definition (${with_def} of ${turns})"
   fi
 
+  if [[ "$main_turns" -gt 0 && "$main_with_own" -eq "$main_turns" ]]; then
+    pass "${E2E_LABEL}: every main-thread turn carries the main-thread reminder (${main_turns} of ${main_turns})"
+  else
+    fail "${E2E_LABEL}: every main-thread turn carries the main-thread reminder (${main_with_own} of ${main_turns} with '${own}')"
+  fi
+
   if [[ "$turns" -gt 0 && "$with_sub" -eq "$turns" && "$with_main" -eq 0 ]]; then
     pass "${E2E_LABEL}: every subagent turn carries the subagent text and none the main-thread reminder (${turns} turns)"
   else
@@ -397,8 +482,8 @@ e2e_check_agent() {
 
   status=0
   e2e_invoke "$agent" "$dir" "E2E-MAIN-WRITE ${denied} ${E2E_MAIN_CONTENT}" main-write || status=$?
-  IFS=' ' read -r spawns sub_writes main_writes conflicts turns with_sub with_main with_def nowrite nowriter refusals \
-    <<<"$(e2e_facts "${dir}/main-write.requests.jsonl" "$denied")"
+  IFS=' ' read -r spawns sub_writes main_writes conflicts turns with_sub with_main with_def main_turns main_with_own refusals \
+    <<<"$(e2e_facts "${dir}/main-write.requests.jsonl" "$denied" "$own")"
 
   if [[ "$main_writes" -gt 0 && "$refusals" -gt 0 && ! -e "$denied" ]]; then
     pass "${E2E_LABEL}: the gate denies the main thread's own write, and the file was never created"
@@ -406,6 +491,10 @@ e2e_check_agent() {
     e2e_known_gap "${E2E_LABEL}: the main thread's own write landed, as AGENTS.md records: the Copilot preToolUse payload carries no agent identifier, so the gate cannot tell the main thread from a subagent"
   else
     fail "${E2E_LABEL}: the gate denies the main thread's own write (exit ${status}, ${main_writes} main-thread write call(s), ${refusals} carrying '${E2E_GATE_TEXT}', file present: $([[ -e "$denied" ]] && echo yes || echo no))"
+  fi
+
+  if [[ "$agent" == "claude-code" ]]; then
+    e2e_check_review "$dir"
   fi
 }
 

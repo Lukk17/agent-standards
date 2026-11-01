@@ -16,7 +16,6 @@ readonly SKILL_TOOL_RE='^skill$'
 readonly HEALTH_FORMAT="chat"
 readonly GATE_KNOWN_GAP=0
 readonly PROVIDER_ID="requesty"
-readonly REMINDER_KNOWN_GAP="the plugin injects no per-prompt reminder on the main thread of OpenCode or Kilo Code (docs/hooks-contract.md)"
 
 # The provider travels in an environment variable, never in the committed
 # opencode.json, and names the key by {env:} reference rather than carrying it.
@@ -114,19 +113,20 @@ agent_calls() {
   done
 }
 
-# The plugin injects no per-prompt reminder on the main thread, so the check
-# reports REMINDER_KNOWN_GAP unless a synthetic part of a main-session user
-# message carries the reminder, the shape an injection takes. AGENTS.md reaches
-# the model as system text the export does not hold, and the model's own echo
-# of it does not count.
+# The plugin's chat.message handler appends the main-thread reminder to every
+# user message of a root session as a synthetic text part, so only a synthetic
+# part of the main-session user message that carries this prompt's nonce
+# counts. AGENTS.md reaches the model as system text the export does not hold,
+# and neither the typed prompt nor the model's own echo of the wording counts.
 agent_reminder_seen() {
-  local dir="$1" file found
+  local dir="$1" nonce="$2" file found
 
   for file in "${dir}"/transcripts/main-*.json; do
     [[ -f "$file" ]] || continue
-    found="$(jq --arg r "$REMINDER_MARKER" '
-      [.messages[]? | select(.info.role? == "user") | .parts[]?
-       | select(.type == "text" and .synthetic == true) | .text | select(contains($r))] | length' "$file" 2>/dev/null || echo 0)"
+    found="$(jq --arg r "$REMINDER_MARKER" --arg n "$nonce" '
+      [.messages[]? | select(.info.role? == "user")
+       | select(any(.parts[]?; .type == "text" and (.synthetic // false) != true and ((.text // "") | contains($n))))
+       | .parts[]? | select(.type == "text" and .synthetic == true) | .text | select(contains($r))] | length' "$file" 2>/dev/null || echo 0)"
     [[ "$found" -gt 0 ]] && return 0
   done
 

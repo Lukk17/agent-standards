@@ -32,12 +32,15 @@
 // the hooks no assistant text, so no reply check can block it. A session that
 // could not be placed keeps both, and the gate runs for every session.
 //
-// A session placed as a subagent is told it is one: SUBAGENT_TEXT, the same
-// words Claude Code, Codex and Copilot inject on their subagent-start events,
-// goes on every user message of a child session (chat.message on 1.x and Kilo
-// Code) and on every model request of one (the session context hook on 2.x).
-// A root session and a session that could not be placed get no text from the
-// plugin, so the main-thread reminder never reaches a subagent from here.
+// Every session the plugin can place gets one per-prompt text, on every user
+// message (chat.message on 1.x and Kilo Code) and on every model request (the
+// session context hook on 2.x). A root session gets the main-thread reminder,
+// read from the REMINDER constant of copilot/prompt_reminder.py beside the
+// hooks this project runs, the same text Codex and Copilot inject on every
+// prompt. A child session gets SUBAGENT_TEXT, the same words Claude Code, Codex
+// and Copilot inject on their subagent-start events, and never the reminder,
+// which tells its reader to delegate. A session that could not be placed gets
+// neither.
 //
 // Imports nothing from @opencode-ai/plugin or @kilocode/plugin so one file
 // serves both runtimes.
@@ -78,6 +81,15 @@ const SUBAGENT_TEXT =
   "so do not hand this task on and do not refuse it for that reason. " +
   "The preflight gate still checks every tool call you make. " +
   "Report back what you changed and how you verified it."
+
+// Where the main-thread reminder is read from, under the hooks directory, and
+// the shape its constant is written in: one parenthesised run of plain
+// double-quoted literals, one per sentence. Anything else yields no reminder.
+// tools/tests/test_reminder_plugin.py holds what this reads equal to the
+// constant Python loads.
+const REMINDER_HOOK = join("copilot", "prompt_reminder.py")
+const REMINDER_CONSTANT = /^REMINDER = \(\n((?:[ \t]+"[^"\\\n]*"\n)+)\)$/m
+const REMINDER_LITERAL = /"([^"\\\n]*)"/g
 
 const PART_PREFIX = "prt_"
 const PART_RANDOM_CHARS = 14
@@ -451,22 +463,54 @@ const partID = () => {
   return PART_PREFIX + time + random
 }
 
-// Adds SUBAGENT_TEXT as a synthetic text part to a user message of a session
-// placed as a subagent. The runtime saves the parts after the handler returns
-// and sends every text part that is not `ignored` to the model, and a
-// synthetic part stays out of the visible transcript. A root session, a
-// session that could not be placed, and a message the part cannot be tied to
-// get nothing.
-const tellSubagent = async (input, output, place) => {
+// The main-thread reminder, or "" when the hooks directory holds no
+// copilot/prompt_reminder.py or its constant is not in the expected shape.
+// Re-read on every call, like the hooks, so an update lands without a restart.
+const mainReminder = (root) => {
+  const dir = hooksDirectory(root)
+
+  if (!dir) return ""
+
+  try {
+    const source = readFileSync(join(dir, REMINDER_HOOK), "utf8").replace(/\r\n/g, "\n")
+    const match = REMINDER_CONSTANT.exec(source)
+
+    return match ? Array.from(match[1].matchAll(REMINDER_LITERAL), (literal) => literal[1]).join("") : ""
+  } catch {
+    return ""
+  }
+}
+
+// The per-prompt text for a placed session: SUBAGENT_TEXT for a child session,
+// the main-thread reminder for a root session, "" for a session that could not
+// be placed or a root session with no reminder to read.
+const promptText = async (root, place, sessionID) => {
+  const subagent = await place(sessionID)
+
+  if (subagent === true) return SUBAGENT_TEXT
+  if (subagent === false) return mainReminder(root)
+
+  return ""
+}
+
+// Adds the per-prompt text as a synthetic text part to a user message. The
+// runtime saves the parts after the handler returns and sends every text part
+// that is not `ignored` to the model, and a synthetic part stays out of the
+// visible transcript. A message that already carries the text, or that the
+// part cannot be tied to, gets nothing.
+const remind = async (root, input, output, place) => {
   const parts = output?.parts
   const sessionID = output?.message?.sessionID || input?.sessionID
   const messageID = output?.message?.id || input?.messageID
 
   if (!Array.isArray(parts) || !sessionID || !messageID) return
-  if ((await place(sessionID)) !== true) return
-  if (parts.some((part) => part?.type === "text" && part.text === SUBAGENT_TEXT)) return
 
-  parts.push({ id: partID(), sessionID, messageID, type: "text", text: SUBAGENT_TEXT, synthetic: true })
+  const text = await promptText(root, place, sessionID)
+
+  if (!text) return
+  if (parts.some((part) => part?.type === "text" && part.text === text)) return
+
+  parts.push({ id: partID(), sessionID, messageID, type: "text", text, synthetic: true })
 }
 
 // Inside a git repository `worktree` is the project root and `directory` only
@@ -563,7 +607,7 @@ export const Preflight = async ({ directory, worktree, client } = {}) => {
   return {
     [MESSAGE_EVENT]: async (input, output) => {
       try {
-        await tellSubagent(input, output, (sessionID) => placeSession(client, placed, sessionID))
+        await remind(root, input, output, (sessionID) => placeSession(client, placed, sessionID))
       } catch {
         return
       }
@@ -701,26 +745,31 @@ const replyRules = (root) => {
   }
 }
 
-// Adds one more system part on every model request and keeps the built-in
-// prompt. The main thread gets the reply rules. A session placed as a subagent
-// gets SUBAGENT_TEXT instead and no reply rules, because nobody reads its reply
-// style and the rules cost tokens on every request. A session that could not be
-// placed still gets the rules and never the subagent text. Any failure adds
-// nothing.
+// Adds system parts on every model request and keeps the built-in prompt. A
+// session placed as a subagent gets SUBAGENT_TEXT alone, no reply rules,
+// because nobody reads its reply style and the rules cost tokens on every
+// request. A root session gets the reply rules, then the main-thread reminder,
+// the same per-prompt text 1.x and Kilo Code add through chat.message. A
+// session that could not be placed still gets the rules, and neither the
+// reminder nor the subagent text. Any failure adds nothing more.
 const addSessionContext = (root, place) => async (event) => {
   try {
     if (!Array.isArray(event?.system)) return
 
-    if ((await place(event?.sessionID)) === true) {
+    const subagent = await place(event?.sessionID)
+
+    if (subagent === true) {
       event.system.push({ type: "text", text: SUBAGENT_TEXT })
       return
     }
 
     const path = replyRules(root)
 
-    if (!path) return
+    if (path) event.system.push({ type: "text", text: "Instructions from: " + path + "\n" + readFileSync(path, "utf8") })
 
-    event.system.push({ type: "text", text: "Instructions from: " + path + "\n" + readFileSync(path, "utf8") })
+    const reminder = subagent === false ? mainReminder(root) : ""
+
+    if (reminder) event.system.push({ type: "text", text: reminder })
   } catch {
     return
   }
@@ -728,8 +777,8 @@ const addSessionContext = (root, place) => async (event) => {
 
 // OpenCode 2.x entry point. Its only hook that can refuse anything is the tool
 // execute.before hook, so the gate and the reply checks all ride it. The
-// session context hook carries the reply rules to the main thread and the
-// subagent text to a subagent. Reply rules and reply checks are for the main
+// session context hook carries the reply rules and the main-thread reminder to
+// the main thread and the subagent text to a subagent. Reply rules and reply checks are for the main
 // thread only: a session placed as a subagent gets no rules and hands the hooks
 // no assistant text, so no reply check can block it. The gate itself still runs
 // for every session.

@@ -23,6 +23,12 @@
 //                                        wait for it where the spawn tool
 //                                        returns at once, then finish
 //   E2E-SUBAGENT-WRITE <path> <token>    subagent: write <path>, then finish
+//   E2E-REVIEW <agent> <path> <token>    main thread: start <agent> with
+//                                        E2E-SUBAGENT-REPORT <path> <token>,
+//                                        then finish, as E2E-SPAWN does
+//   E2E-SUBAGENT-REPORT <path> <token>   subagent: finish at once with text,
+//                                        so its first request shows what the
+//                                        agent preloaded into it
 //   E2E-MAIN-WRITE <path> <token>        main thread: write <path> itself,
 //                                        then finish
 //
@@ -36,7 +42,7 @@ import { pathToFileURL } from "node:url"
 
 import { answer as chatAnswer, completion as chatCompletion, stream as chatStream } from "../mock-model.mjs"
 
-const MARKER_RE = /E2E-(SPAWN ([\w.-]+)|SUBAGENT-WRITE|MAIN-WRITE) ([\w./-]+) ([\w-]+)/g
+const MARKER_RE = /E2E-((?:SPAWN|REVIEW) ([\w.-]+)|SUBAGENT-WRITE|SUBAGENT-REPORT|MAIN-WRITE) ([\w./-]+) ([\w-]+)/g
 const SPAWN_TOOLS = ["Agent", "Task", "task", "subagent", "spawn_agent"]
 const WAIT_TOOLS = ["wait_agent"]
 // Native file writers first, a shell only where the agent offers no writer.
@@ -176,7 +182,9 @@ export const formatOf = (method, url) => {
 
 // --- The script ----------------------------------------------------------------
 
-const ROLE_OF = { SPAWN: "main", "MAIN-WRITE": "main", "SUBAGENT-WRITE": "subagent" }
+const ROLE_OF = { SPAWN: "main", REVIEW: "main", "MAIN-WRITE": "main", "SUBAGENT-WRITE": "subagent", "SUBAGENT-REPORT": "subagent" }
+// The prompt each spawning marker hands the subagent it starts.
+const SUBAGENT_MARKER_OF = { SPAWN: "SUBAGENT-WRITE", REVIEW: "SUBAGENT-REPORT" }
 
 // The newest user entry carrying a marker decides the session. A subagent's
 // prompt is a user message only inside its own session, while the main thread
@@ -282,6 +290,8 @@ export const plan = ({ entries, tools }, headers = {}) => {
     return { session, reply: { kind: "text", text: `E2E: role conflict, marker says ${session.role}, headers say ${session.headerRole}` } }
   }
 
+  if (session.marker === "SUBAGENT-REPORT") return { session, reply: finish(session.role) }
+
   if (session.role === "subagent" || session.marker === "MAIN-WRITE") {
     if (results.length > 0) return { session, reply: finish(session.role) }
 
@@ -290,10 +300,10 @@ export const plan = ({ entries, tools }, headers = {}) => {
     return { session, reply: tool ? callReply(tool, writeArgs(tool, session.path, content)) : missing("write") }
   }
 
-  if (session.marker === "SPAWN") {
+  if (session.marker in SUBAGENT_MARKER_OF) {
     if (results.length === 0) {
       const tool = toolFrom(tools, SPAWN_TOOLS)
-      const prompt = `E2E-SUBAGENT-WRITE ${session.path} ${session.token}`
+      const prompt = `E2E-${SUBAGENT_MARKER_OF[session.marker]} ${session.path} ${session.token}`
 
       return { session, reply: tool ? callReply(tool, spawnArgs(tool, session.agent, prompt)) : missing("spawn") }
     }

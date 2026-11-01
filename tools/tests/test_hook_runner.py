@@ -1297,8 +1297,10 @@ def user_message(parts=None, message_id="msg_1", session=ROOT_SESSION):
     }
 
 
-def test_a_main_thread_message_adds_no_synthetic_part(tmp_path):
-    # Given the user's own text part in the root session
+# The reminder a root session gets, and the rest of the per-prompt text, are
+# covered in test_reminder_plugin.py. Here the project ships no reminder hook.
+def test_a_main_thread_message_with_no_reminder_to_read_adds_no_synthetic_part(tmp_path):
+    # Given the user's own text part in the root session, and no copilot/prompt_reminder.py anywhere
     typed = {"id": "prt_0", "sessionID": ROOT_SESSION, "messageID": "msg_1", "type": "text", "text": "Hi"}
 
     # When
@@ -1309,7 +1311,7 @@ def test_a_main_thread_message_adds_no_synthetic_part(tmp_path):
 
 
 def test_only_the_child_prompt_gains_the_subagent_text(tmp_path):
-    # Given one root prompt and one child prompt with no parts
+    # Given one root prompt and one child prompt with no parts, and no reminder hook to read
     steps = [user_message(session=ROOT_SESSION), user_message(message_id="msg_2", session=CHILD_SESSION)]
 
     # When
@@ -1380,7 +1382,7 @@ def test_the_hooks_object_exposes_exactly_four_keys(tmp_path):
     # When
     results = drive(tmp_path, [{"kind": "keys"}])
 
-    # Then chat.message carries the subagent text, and todo.updated feeds the task list sync
+    # Then chat.message carries the per-prompt text, and todo.updated feeds the task list sync
     assert sorted(results[0]["keys"]) == [
         "chat.message",
         "experimental.text.complete",

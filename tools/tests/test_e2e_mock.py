@@ -297,6 +297,111 @@ def test_the_log_never_records_the_authorization_header(mock):
     assert "secret-value" not in json.dumps(line)
 
 
+@needs_node
+def test_the_review_marker_starts_the_named_subagent_with_the_report_marker(mock):
+    body = {"stream": True, "tools": anthropic_tools("Agent", "Write"),
+            "messages": [{"role": "user", "content": f"E2E-REVIEW code-reviewer {PATH} e2e-review"}]}
+    text, line = mock.post("/v1/messages", body, CLAUDE_MAIN)
+    call = anthropic_tool_use(text)
+    assert (call["name"], call["input"]["subagent_type"]) == ("Agent", "code-reviewer")
+    assert call["input"]["prompt"] == f"E2E-SUBAGENT-REPORT {PATH} e2e-review"
+    assert (line["role"], line["marker"], line["agent"]) == ("main", "REVIEW", "code-reviewer")
+
+
+@needs_node
+def test_a_reporting_subagent_finishes_with_text_and_makes_no_call(mock):
+    body = {"stream": False, "tools": anthropic_tools("Write"),
+            "messages": [{"role": "user", "content": f"E2E-SUBAGENT-REPORT {PATH} e2e-review"}]}
+    text, line = mock.post("/v1/messages", body, CLAUDE_SUBAGENT)
+    assert json.loads(text)["content"] == [{"type": "text", "text": "E2E subagent finished"}]
+    assert (line["role"], line["header_role"], line["marker"]) == ("subagent", "subagent", "SUBAGENT-REPORT")
+
+
+def driver(script: str) -> subprocess.CompletedProcess:
+    """Sources the driver and runs script after it, with the check helpers stubbed."""
+    stubs = "pass() { printf 'PASS %s\\n' \"$*\"; }; fail() { printf 'FAIL %s\\n' \"$*\"; }; note() { :; }; "
+    return subprocess.run(
+        ["bash", "-c", f"source '{DRIVER.as_posix()}'; {stubs}{script}"],
+        capture_output=True, text=True, timeout=SUBPROCESS_TIMEOUT_SECONDS,
+    )
+
+
+def log_line(role: str, header_role: str, context: str, system: str = "", calls: list | None = None) -> str:
+    return json.dumps({"role": role, "header_role": header_role, "tool_count": 2, "context": context,
+                       "system": system, "calls": calls or [], "reply": {"kind": "text", "text": "ok"}}) + "\n"
+
+
+NEEDLES = (
+    "E2E_SUBAGENT_TEXT='PREFLIGHT for a subagent:'; E2E_MAIN_TEXTS='[\"PREFLIGHT: before\",\"Before code work\"]'; "
+    "E2E_DEFINITION='You write Python'; E2E_GATE_TEXT='may not write'; "
+)
+
+
+def test_the_facts_count_main_thread_turns_carrying_the_agent_own_reminder(tmp_path):
+    # Given two main-thread turns, one carrying the shared reminder, and one subagent turn carrying none
+    log = tmp_path / "requests.jsonl"
+    log.write_text(
+        log_line("main", "main", "E2E-SPAWN x\nBefore code work, name it")
+        + log_line("main", "main", "E2E-SPAWN x")
+        + log_line("subagent", "subagent", "PREFLIGHT for a subagent: go", "You write Python"),
+        encoding="utf-8",
+    )
+
+    # When
+    result = driver(f"{NEEDLES}e2e_facts '{log.as_posix()}' /p 'Before code work'")
+
+    # Then: 1 subagent turn with the subagent text and the definition, 2 main turns, 1 with the reminder
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.split() == ["0", "0", "0", "0", "1", "1", "0", "1", "2", "1", "0"]
+
+
+def test_the_facts_count_a_main_thread_reminder_leaked_into_a_subagent_turn(tmp_path):
+    log = tmp_path / "requests.jsonl"
+    log.write_text(log_line("subagent", "subagent", "PREFLIGHT for a subagent: go\nPREFLIGHT: before code work"), encoding="utf-8")
+
+    result = driver(f"{NEEDLES}e2e_facts '{log.as_posix()}' /p 'Before code work'")
+
+    assert result.stdout.split()[4:7] == ["1", "1", "1"]
+
+
+def test_an_unreadable_log_gives_all_zero_facts(tmp_path):
+    result = driver(f"{NEEDLES}e2e_facts '{(tmp_path / 'missing.jsonl').as_posix()}' /p x; e2e_review_facts /nope")
+
+    assert result.stdout.split() == ["0"] * 15
+
+
+def test_the_review_facts_tell_the_project_skill_from_the_built_in_command(tmp_path):
+    # Given one subagent turn with the project skill line and one with the built-in prompt
+    log = tmp_path / "requests.jsonl"
+    spawn = [{"name": "Agent", "args": {}, "result": "done"}]
+    log.write_text(
+        log_line("main", "main", "E2E-REVIEW code-reviewer", calls=spawn)
+        + log_line("subagent", "subagent", "Check application code against the failure modes")
+        + log_line("subagent", "subagent", "You are a senior security engineer conducting a focused security review of the changes on this branch."),
+        encoding="utf-8",
+    )
+
+    # When
+    result = driver(f"E2E_SKILL_LINE='Check application code'; e2e_review_facts '{log.as_posix()}'")
+
+    # Then: 2 subagent turns, 1 with the skill line, 1 with the built-in prompt, 1 spawn answered
+    assert result.stdout.split() == ["2", "1", "1", "1"]
+
+
+def test_the_needles_are_read_from_the_project_itself():
+    result = driver(f"e2e_read_needles '{REPO_ROOT.as_posix()}' && printf '%s\\n' \"$E2E_SKILL_LINE\" \"$(e2e_own_main_text codex)\" \"$(e2e_own_main_text claude-code)\"")
+
+    skill_line, shared, claude = result.stdout.splitlines()
+    assert skill_line.startswith("Check application code against the failure modes")
+    assert skill_line in (REPO_ROOT / ".agents" / "skills" / "security-review" / "SKILL.md").read_text(encoding="utf-8")
+    assert shared.startswith("Before code work, name the skills")
+    assert claude.startswith("PREFLIGHT: before code work, name the skills")
+
+
+def test_the_driver_has_no_copilot_subagent_no_write_allowance():
+    assert "NO_WRITE" not in DRIVER.read_text(encoding="utf-8")
+
+
 def test_the_driver_parses_as_bash():
     result = subprocess.run(["bash", "-n", str(DRIVER)], capture_output=True, text=True, timeout=SUBPROCESS_TIMEOUT_SECONDS)
     assert result.returncode == 0, result.stderr

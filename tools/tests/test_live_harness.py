@@ -254,6 +254,7 @@ def test_a_spawn_that_succeeded_without_the_file_is_still_reported_as_started(tm
 # Recorded by Copilot CLI 1.0.81 in live run 36176881215, test 2. The CLI appended
 # this block to the docs-architect subagent's system prompt, the subagent was
 # offered apply_patch, made no tool call and reported the file as not created.
+# The harness no longer excuses it: a subagent that wrote nothing fails test 2.
 COPILOT_SUBAGENT_PROMPT_TAIL = (
     "**CRITICAL: Do NOT write output to files.**\n"
     "- Return ALL findings directly in your response text \u2014 never write results to a file\n"
@@ -267,14 +268,11 @@ COPILOT_TASK_CALL = {
     "result": 'Correction: "Skills/subagents: None apply. This is a one-line file creation task, with no separate investigation or review needed."',
     "error": False,
 }
-COPILOT_TEST_TWO = (
-    "SPAWN_TOOL_RE='^task$'; WRITE_TOOL_RE='^(create|edit|apply_patch|bash)$'; "
-    "SUBAGENT_NO_WRITE_MARKER='CRITICAL: Do NOT write output to files'; "
-)
+COPILOT_TEST_TWO = "SPAWN_TOOL_RE='^task$'; WRITE_TOOL_RE='^(create|edit|apply_patch|bash)$'; "
 
 
 @needs_jq
-def test_a_subagent_the_cli_told_not_to_write_is_a_known_gap(tmp_path):
+def test_a_subagent_the_cli_told_not_to_write_fails_test_two(tmp_path):
     # Given the recorded test 2 case: the subagent started, never tried to write, under the CLI's no-write block
     transcript = json.dumps(COPILOT_SUBAGENT_SYSTEM_EVENT) + "\n"
 
@@ -282,12 +280,12 @@ def test_a_subagent_the_cli_told_not_to_write_is_a_known_gap(tmp_path):
     verdict = judge_test_two_from_calls(tmp_path, [COPILOT_TASK_CALL], COPILOT_TEST_TWO, transcript)
 
     # Then
-    assert verdict.startswith("KNOWN-GAP|")
-    assert "Do NOT write output to files" in verdict
+    assert verdict.startswith("FAIL|"), verdict
+    assert "docs-architect was started" in verdict
 
 
 @needs_jq
-def test_a_subagent_write_that_failed_is_still_a_failure_under_the_no_write_block(tmp_path):
+def test_a_subagent_write_that_failed_is_a_failure(tmp_path):
     # Given the same case, but the subagent did try apply_patch and the call failed
     transcript = json.dumps(COPILOT_SUBAGENT_SYSTEM_EVENT) + "\n"
     failed_write = {"actor": "subagent", "tool": "apply_patch", "input": "*** Add File: live-probe/subagent-note.md", "result": "denied", "error": True}
@@ -299,25 +297,11 @@ def test_a_subagent_write_that_failed_is_still_a_failure_under_the_no_write_bloc
     assert verdict.startswith("FAIL|")
 
 
-@needs_jq
-def test_a_missing_file_without_the_no_write_block_is_still_a_failure(tmp_path):
-    # Given the recorded calls but a transcript that never carried the CLI's no-write block
-    transcript = json.dumps({"type": "system.message", "data": {"content": "You write the documentation."}}) + "\n"
+def test_no_live_script_carries_a_subagent_no_write_allowance():
+    scripts = sorted(LIB.parent.glob("*.sh"))
 
-    # When
-    verdict = judge_test_two_from_calls(tmp_path, [COPILOT_TASK_CALL], COPILOT_TEST_TWO, transcript)
-
-    # Then
-    assert verdict.startswith("FAIL|")
-    assert "docs-architect was started" in verdict
-
-
-def test_the_copilot_adapter_names_the_no_write_block_the_cli_recorded():
-    adapter = COPILOT_ADAPTER.read_text(encoding="utf-8")
-    match = re.search(r"^readonly SUBAGENT_NO_WRITE_MARKER='([^']+)'$", adapter, re.MULTILINE)
-
-    assert match is not None
-    assert match.group(1) in COPILOT_SUBAGENT_PROMPT_TAIL
+    assert scripts
+    assert [script.name for script in scripts if "NO_WRITE" in script.read_text(encoding="utf-8")] == []
 
 
 def codex_calls_filter() -> str:
@@ -1696,12 +1680,18 @@ def test_opencode_family_check_two_fails_the_recorded_child_session_with_no_suba
 
 
 def judge_test_four(tmp_path: Path, adapter: Path, main_session: dict) -> str:
+    """Run test_reminder_reaches_model over one exported main session, "{nonce}" replaced by the case's nonce."""
     cases = tmp_path / "cases"
     (cases / "4-reminder" / "transcripts").mkdir(parents=True)
-    (cases / "4-reminder" / "transcripts" / "main-ses_main.json").write_text(json.dumps(main_session), encoding="utf-8")
+    template = tmp_path / "main-session.json"
+    template.write_text(json.dumps(main_session), encoding="utf-8")
+    exported = cases / "4-reminder" / "transcripts" / "main-ses_main.json"
     script = (
         f"source '{loadable_adapter(adapter, tmp_path).as_posix()}'; "
-        f"CASES='{cases.as_posix()}'; run_case() {{ :; }}; record() {{ printf '%s|%s' \"$2\" \"$3\"; }}; "
+        f"CASES='{cases.as_posix()}'; "
+        f"run_case() {{ local n; n=\"$(grep -o 'live-nonce-[0-9]*' <<< \"$2\")\"; "
+        f"sed \"s/{{nonce}}/${{n}}/g\" '{template.as_posix()}' > '{exported.as_posix()}'; }}; "
+        "record() { printf '%s|%s' \"$2\" \"$3\"; }; "
         "test_reminder_reaches_model"
     )
     result = run_bounded([BASH, "-c", script], capture_output=True, text=True)
@@ -1713,25 +1703,53 @@ def judge_test_four(tmp_path: Path, adapter: Path, main_session: dict) -> str:
 
 @needs_jq
 @pytest.mark.parametrize("adapter", [OPENCODE_ADAPTER, KILO_ADAPTER], ids=["opencode", "kilo-code"])
-def test_opencode_family_check_four_is_the_documented_gap_when_no_reminder_was_injected(tmp_path, adapter):
+def test_opencode_family_check_four_fails_when_no_reminder_was_injected(tmp_path, adapter):
     # Given the run 41255837007 main session, plus a reply that echoes the AGENTS.md wording
     echo = "I will name the skills and subagents that own this task and invoke them."
     session = {"messages": [
-        {"info": {"role": "user"}, "parts": [{"type": "text", "text": "Reply with ready."}]},
+        {"info": {"role": "user"}, "parts": [{"type": "text", "text": "Reply with ready. {nonce}"}]},
         {"info": {"role": "assistant"}, "parts": [{"type": "text", "text": echo}]},
     ]}
 
     verdict = judge_test_four(tmp_path, adapter, session)
 
-    assert verdict.startswith("KNOWN-GAP|") and "docs/hooks-contract.md" in verdict, verdict
+    assert verdict.startswith("FAIL|"), verdict
 
 
 @needs_jq
-def test_opencode_family_check_four_passes_on_an_injected_reminder_part(tmp_path):
+@pytest.mark.parametrize("adapter", [OPENCODE_ADAPTER, KILO_ADAPTER], ids=["opencode", "kilo-code"])
+def test_opencode_family_check_four_passes_on_a_reminder_part_injected_on_the_nonce_prompt(tmp_path, adapter):
     part = {"type": "text", "synthetic": True, "text": canonical_reminder()}
-    session = {"messages": [{"info": {"role": "user"}, "parts": [{"type": "text", "text": "Reply."}, part]}]}
+    session = {"messages": [{"info": {"role": "user"}, "parts": [{"type": "text", "text": "Reply. {nonce}"}, part]}]}
 
-    assert judge_test_four(tmp_path, OPENCODE_ADAPTER, session).startswith("PASS|")
+    assert judge_test_four(tmp_path, adapter, session).startswith("PASS|")
+
+
+@needs_jq
+@pytest.mark.parametrize(
+    "parts",
+    [
+        [{"type": "text", "text": "Reply. {nonce} " + canonical_reminder()}],
+        [{"type": "text", "text": "Reply. {nonce}"}, {"type": "text", "synthetic": False, "text": canonical_reminder()}],
+    ],
+    ids=["typed-in-the-prompt", "not-synthetic"],
+)
+def test_opencode_family_check_four_counts_only_an_injected_part(tmp_path, parts):
+    session = {"messages": [{"info": {"role": "user"}, "parts": parts}]}
+
+    assert judge_test_four(tmp_path, OPENCODE_ADAPTER, session).startswith("FAIL|")
+
+
+@needs_jq
+def test_opencode_family_check_four_ignores_a_reminder_on_another_prompt(tmp_path):
+    # Given the reminder injected on an earlier prompt only, not on the one carrying this case's nonce
+    part = {"type": "text", "synthetic": True, "text": canonical_reminder()}
+    session = {"messages": [
+        {"info": {"role": "user"}, "parts": [{"type": "text", "text": "An earlier prompt."}, part]},
+        {"info": {"role": "user"}, "parts": [{"type": "text", "text": "Reply. {nonce}"}]},
+    ]}
+
+    assert judge_test_four(tmp_path, OPENCODE_ADAPTER, session).startswith("FAIL|")
 
 
 def test_the_probe_prompt_tells_the_subagent_to_make_the_call_rather_than_predict_it():
