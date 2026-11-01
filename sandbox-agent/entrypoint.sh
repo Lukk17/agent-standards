@@ -95,18 +95,19 @@ trust_mounted_repo() {
   done
 }
 
-# Every *.sh and *.mjs basename present in either copy, listed once, sorted. Derived from
-# the directories rather than from a list, so a script added to the Dockerfile's
-# COPY is covered without editing anything here, and a script that exists only
-# on one side still counts as a difference.
+# Every *.sh and *.mjs file present in either copy, and every file in its
+# e2e-mock/ directory, as a path relative to that copy, listed once, sorted.
+# Derived from the directories rather than from a list, so a script added to
+# the Dockerfile's COPY is covered without editing anything here, and a script
+# that exists only on one side still counts as a difference.
 script_names() {
   local directory path
 
   for directory in "$IMAGE_SCRIPTS" "$REPO_SCRIPTS"; do
-    for path in "$directory"/*.sh "$directory"/*.mjs; do
+    for path in "$directory"/*.sh "$directory"/*.mjs "$directory"/e2e-mock/*; do
       [[ -f "$path" ]] || continue
 
-      basename "$path"
+      printf '%s\n' "${path#"${directory}/"}"
     done
   done | sort -u
 }

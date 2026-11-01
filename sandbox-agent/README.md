@@ -64,14 +64,54 @@ The project suite also drives OpenCode 1.x and Kilo Code through real turns agai
 
 ---
 
+### A real subagent writes a real file, on every agent
+
+The last mock section of the project suite proves on every pull request that a subagent really writes a file, for all six runtimes: Claude Code, Codex, the GitHub Copilot CLI, OpenCode 2.x, OpenCode 1.x with the `.v1` backstop, and Kilo Code. Each one is the binary the [Dockerfile](Dockerfile) pins, run headless in its own copy of the imported project, with the hooks, the gate and the generated subagents as imported. Only the model is replaced, by [e2e-mock/server.mjs](e2e-mock/server.mjs), a stdlib Node server that replays a scripted conversation, so a run needs no key and costs nothing. [e2e-mock/subagent-write.sh](e2e-mock/subagent-write.sh) drives it, and [verify-project.sh](verify-project.sh) sources it.
+
+Each agent runs two scripted cases. In the first, the main thread is asked to have `python-pro` create `e2e-subagent-proof.txt`. The mock answers the main thread with that agent's own spawn tool call, answers the subagent's first turn with a write tool call carrying the fixed content, and ends both turns with text. On Codex, whose `spawn_agent` returns at once, the main thread also calls `wait_agent` on the id the spawn returned. In the second, the main thread is asked to write a file itself, and the mock answers with the write call the gate has to refuse.
+
+| Agent | Wire format and route | How the binary reaches the mock | Spawn call | Write call | Header that marks a subagent request |
+| --- | --- | --- | --- | --- | --- |
+| Claude Code | Anthropic Messages, `/v1/messages` | `ANTHROPIC_BASE_URL`, every model alias variable, `--strict-mcp-config` with no server, `--permission-mode acceptEdits` | `Agent` | `Write` | `x-claude-code-agent-id` |
+| Codex | OpenAI Responses, `/v1/responses` | a throwaway `CODEX_HOME/config.toml` provider with `wire_api = "responses"`, a trust record, and `-c mcp_servers.<name>.enabled=false` for every server | `spawn_agent` in the `multi_agent_v1` namespace, `fork_context` false | `exec_command` with a shell redirect, the only writer Codex offers a model it has no metadata for | `thread_source` `subagent` in `x-codex-turn-metadata` |
+| GitHub Copilot CLI | OpenAI Responses, `/v1/responses` | `COPILOT_PROVIDER_*` with `COPILOT_OFFLINE`, as [live/copilot.sh](live/copilot.sh) sets them, and `--disable-mcp-server` for every server | `task` in `sync` mode | `create` | `x-interaction-type: conversation-subagent` |
+| OpenCode 2.x | OpenAI Chat Completions | the `providers` block from [lib-opencode2.sh](lib-opencode2.sh), MCP block removed | `subagent` | `write` | `x-parent-session-id` |
+| OpenCode 1.x, Kilo Code | OpenAI Chat Completions | `OPENCODE_CONFIG_CONTENT` and `KILO_CONFIG_CONTENT` from `v1_config`, MCP block removed | `task` | `write` | `x-parent-session-id` |
+
+The mock places every request twice. The newest user message carrying a scripted marker says which session it belongs to, because a subagent's prompt is a user message only inside its own session. The headers in the table say it independently, measured on the pinned binaries. A request whose two answers disagree gets text only, so a mixed-up session can never make the scripted write. Every request is logged with both answers, the tool calls since the marker paired with the results the agent sent back, and its flattened system and message text.
+
+An agent passes when all of these hold, each its own `PASS` or `FAIL` line:
+
+- `e2e-subagent-proof.txt` exists with exactly the scripted content
+- the main thread's spawn call got a result, a request that both the marker and the headers place in the subagent got the result of the write call, no main-thread request carries a write of that file, and the agent's own record agrees: [e2e-mock/records.py](e2e-mock/records.py) reads the Claude Code subagent transcript, the Codex rollout whose `session_meta` names a subagent, the Copilot event carrying a `parentToolCallId`, the OpenCode 1.x and Kilo Code export of the child session, or the 2.x `session_v2` row with a `parent_id`, and finds the write there and not in the main session
+- every subagent turn carries `python-pro`'s own definition in its system text
+- every subagent turn carries the subagent text, `PREFLIGHT for a subagent:`, and none carries a main-thread reminder. Both texts are read from the imported project, the subagent opening and the reminder from `.agents/hooks/copilot/prompt_reminder.py` and the Claude Code reminder from `.claude/settings.json`, so a change of wording moves the check with it
+- the main thread's own write is refused with the gate's `RULE_A_REASON`, read from the imported gate, and the file was never created
+
+GitHub Copilot reports `KNOWN-GAP` in two places, the way the live tests do, and neither fails the run. The main thread's own write lands, because the Copilot `preToolUse` payload carries no agent identifier, as the Maintenance follow-ups in [AGENTS.md](../AGENTS.md) record. The subagent write is a `KNOWN-GAP` only when the subagent's request carries the CLI's own `CRITICAL: Do NOT write output to files` block and the CLI offered that subagent no write tool at all, since a scripted model ignores prompt text. Measured on Copilot CLI 1.0.103 on 2026-11-01, the block was absent from the subagent's request and `create` wrote the file.
+
+Measured on 2026-11-01 without Docker, with Claude Code 2.1.314, Codex 0.166.0, Copilot CLI 1.0.103, OpenCode 1.18.25, OpenCode 2.0.28 and Kilo Code 7.5.5, the twelve runs took 52 to 55 seconds together, over three repeats with the same result. Each OpenCode 1.x and Kilo Code case keeps its own data directory, because on Kilo Code 7.5.5 a run in a data directory where `kilocode export` had read a child session hung before its first model request in 2 of 4 tries. To run the check on its own against a project that was already imported, from the repository root, Unix shell:
+
+```bash
+bash sandbox-agent/e2e-mock/subagent-write.sh /work/project
+```
+
+PowerShell:
+
+```powershell
+bash sandbox-agent/e2e-mock/subagent-write.sh /work/project
+```
+
+Name agents after the project to run only those, out of `claude-code`, `codex`, `copilot`, `opencode2`, `opencode` and `kilo-code`. `SANDBOX_E2E_KEEP=1` keeps the work directory with every request log, stream and record, and `SANDBOX_E2E_TIMEOUT` bounds each run, 120 seconds by default.
+
+---
+
 ### What it cannot prove
 
-Driving a real agent session needs provider credentials, so none of this happens in the container:
+A real model needs provider credentials, so none answers in the container:
 
-- No agent is asked to answer a prompt, so nothing here proves a model obeys the gate text it was shown.
-- The `PreToolUse` and `preToolUse` hooks are never fired by the agent runtime itself. The sandbox proves the wiring
-  points at the gate script and proves the gate script denies the right payloads. It does not prove the runtime
-  delivers that payload in the shape the script expects.
+- Every turn the container drives is answered by a scripted mock, which makes the tool calls it was scripted to make whatever text it was shown, so nothing here proves a real model obeys the gate text or delegates on its own.
+- The subagent-write section fires every hook through the agent runtime itself, on all six runtimes, and proves there that the gate lets a subagent's write through and, on every runtime but the Copilot CLI, whose payload carries no agent identifier, refuses a main-thread write. The rest of the suite drives the gate script directly with the payload each adapter would send, so only the rules that section exercises, rule A and a skilled subagent's write, are proven on the payload the runtime really delivers.
 - Skill selection quality is untested. Discovery is not the same as the agent choosing the right skill.
 - The two GitHub Copilot surfaces that read no project file (JetBrains and the cloud agent) are out of reach, as is
   Copilot inside VS Code. Only the Copilot command-line tool is exercised.
@@ -458,13 +498,13 @@ docker compose run --rm --build sandbox /bin/bash
 The image carries ShellCheck, so it can lint its own scripts. Unix shell:
 
 ```bash
-docker compose run --rm --build --entrypoint shellcheck sandbox /sandbox/entrypoint.sh /sandbox/setup-project.sh /sandbox/setup-global.sh /sandbox/verify-project.sh /sandbox/verify-global.sh
+docker compose run --rm --build --entrypoint shellcheck sandbox /sandbox/entrypoint.sh /sandbox/setup-project.sh /sandbox/setup-global.sh /sandbox/verify-project.sh /sandbox/verify-global.sh /sandbox/e2e-mock/subagent-write.sh
 ```
 
 PowerShell:
 
 ```powershell
-docker compose run --rm --build --entrypoint shellcheck sandbox /sandbox/entrypoint.sh /sandbox/setup-project.sh /sandbox/setup-global.sh /sandbox/verify-project.sh /sandbox/verify-global.sh
+docker compose run --rm --build --entrypoint shellcheck sandbox /sandbox/entrypoint.sh /sandbox/setup-project.sh /sandbox/setup-global.sh /sandbox/verify-project.sh /sandbox/verify-global.sh /sandbox/e2e-mock/subagent-write.sh
 ```
 
 ---
@@ -476,9 +516,7 @@ Those are two separate copies of the same files, and `docker compose run` on its
 script and running again asserts against the copy baked into the image rather than the one you just edited. That has
 already produced two false failures against a script that had been fixed hours earlier.
 
-[entrypoint.sh](entrypoint.sh) closes the gap. Before anything else it hashes every `*.sh` in `/sandbox` against the
-file of the same name in `/repo/sandbox-agent`, and refuses the run with exit code 3 when any pair differs, or when a
-script exists on only one side:
+[entrypoint.sh](entrypoint.sh) closes the gap. Before anything else it hashes every `*.sh` and `*.mjs` in `/sandbox`, and every file in `/sandbox/e2e-mock`, against the file of the same path in `/repo/sandbox-agent`, and refuses the run with exit code 3 when any pair differs, or when a script exists on only one side:
 
 ```text
 ==============================================================
@@ -579,7 +617,10 @@ PowerShell and cmd do no such rewriting, so the PowerShell commands above need n
 | [verify-project.sh](verify-project.sh) | Every per-project assertion, one `PASS` or `FAIL` line each, exit 1 if any failed. Calls `setup-project.sh` first unless `SANDBOX_SKIP_SETUP=1`. |
 | [lib-opencode2.sh](lib-opencode2.sh) | The OpenCode 2.x assertions, sourced by both verify scripts, and the OpenCode 1.x and Kilo Code reply style turns the project suite runs. |
 | [opencode2.sh](opencode2.sh) | The `opencode2` wrapper, which runs 2.x from its own prefix with its own data directory. |
-| [mock-model.mjs](mock-model.mjs) | A scripted OpenAI-compatible model the 2.x, 1.x and Kilo Code turns run against, logging every request body. |
+| [mock-model.mjs](mock-model.mjs) | A scripted OpenAI-compatible model the 2.x, 1.x and Kilo Code turns run against, logging every request body. Its chat completions helpers are exported for [e2e-mock/server.mjs](e2e-mock/server.mjs), and it starts a server only when node runs it directly. |
+| [e2e-mock/server.mjs](e2e-mock/server.mjs) | The scripted model of the subagent-write section, speaking Anthropic Messages, OpenAI Responses and OpenAI Chat Completions, placing each request by its marker and its headers, and logging both. A chat request with no marker of its own gets the [mock-model.mjs](mock-model.mjs) answer. |
+| [e2e-mock/subagent-write.sh](e2e-mock/subagent-write.sh) | The subagent-write section: one copy of the project per agent, the two scripted cases, and every check, sourced by [verify-project.sh](verify-project.sh) or run on its own. |
+| [e2e-mock/records.py](e2e-mock/records.py) | Counts the write calls each agent recorded on disk for one path, split into subagent and main-thread sessions, the second witness beside the request log. |
 | [mcp-guard.sh](mcp-guard.sh) | Stands in for `docker`, `npx` and `uvx`, first on `PATH`, recording and refusing every call. |
 | [verify-global.sh](verify-global.sh) | Every global assertion, in the same style. Calls `setup-global.sh` twice and then with `--update`, and asserts from `/work/bare`. With `--scoped <agent>` it installs for that agent alone and asserts only its paths were written. |
 | [compose.yaml](compose.yaml) | Mounts the repository read-only at `/repo`, drops every Linux capability, and runs `verify-project.sh` unless the run names another script. |

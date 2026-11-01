@@ -7,6 +7,10 @@
 //
 // Usage: node mock-model.mjs <port> <request log>
 //
+// e2e-mock/server.mjs imports the chat completions helpers below rather than
+// keeping a second copy, so the server only starts when this file is the one
+// node was asked to run.
+//
 // Markers, each answered only once per conversation, the turn after a tool
 // result always being plain text:
 //   SANDBOX-WRITE-PROBE <path>    a write tool call creating <path>
@@ -21,11 +25,9 @@
 //                                      starting <agent>, whose session does
 //                                      the same with CHILD_PROSE
 
-import { appendFileSync } from "node:fs"
+import { appendFileSync, realpathSync } from "node:fs"
 import { createServer } from "node:http"
-
-const [, , portArgument, logPath] = process.argv
-const port = Number(portArgument)
+import { pathToFileURL } from "node:url"
 
 const WRITE_RE = /SANDBOX-WRITE-PROBE ([\w./-]+)/
 const TASK_RE = /SANDBOX-TASK-PROBE ([\w-]+)/
@@ -36,14 +38,14 @@ const CHILD_TEXT_MARKER = "SANDBOX-CHILD-TEXT-PROBE"
 const PROBE_PROSE = "Main prose — SANDBOX-MAIN-PROSE; Should I go on?"
 const CHILD_PROSE = "Child prose — SANDBOX-CHILD-PROSE; Should I go on?"
 
-const textOf = (content) => {
+export const textOf = (content) => {
   if (typeof content === "string") return content
   if (!Array.isArray(content)) return ""
 
   return content.map((part) => (typeof part?.text === "string" ? part.text : "")).join("\n")
 }
 
-const toolNamed = (tools, wanted) =>
+export const toolNamed = (tools, wanted) =>
   (Array.isArray(tools) ? tools : []).map((tool) => tool?.function?.name).find((name) => name === wanted)
 
 // One session's prose then two globs, keyed on how many tool results it holds.
@@ -86,7 +88,7 @@ const writeArgs = (tools, path) => {
   return { [key]: path, content: "written by the sandbox probe\n" }
 }
 
-const answer = (body) => {
+export const answer = (body) => {
   const messages = Array.isArray(body?.messages) ? body.messages : []
   const last = messages[messages.length - 1]
   const replyStyle = replyStyleAnswer(body)
@@ -124,9 +126,9 @@ const chunk = (delta, finish = null) =>
   }) +
   "\n\n"
 
-const stream = (reply) => {
+export const stream = (reply) => {
   if (reply.tool) {
-    const call = { index: 0, id: "call_sandbox", type: "function", function: { name: reply.tool, arguments: JSON.stringify(reply.args) } }
+    const call = { index: 0, id: reply.id ?? "call_sandbox", type: "function", function: { name: reply.tool, arguments: JSON.stringify(reply.args) } }
     const prose = reply.text ? chunk({ role: "assistant", content: reply.text }) : ""
 
     return prose + chunk({ role: "assistant", tool_calls: [call] }) + chunk({}, "tool_calls") + "data: [DONE]\n\n"
@@ -135,7 +137,22 @@ const stream = (reply) => {
   return chunk({ role: "assistant", content: reply.text }) + chunk({}, "stop") + "data: [DONE]\n\n"
 }
 
-const server = createServer((request, response) => {
+// The non-streamed chat completion for a reply from answer().
+export const completion = (reply) => {
+  const message = reply.tool
+    ? { role: "assistant", content: reply.text ?? null, tool_calls: [{ id: reply.id ?? "call_sandbox", type: "function", function: { name: reply.tool, arguments: JSON.stringify(reply.args) } }] }
+    : { role: "assistant", content: reply.text }
+
+  return {
+    id: "chatcmpl-sandbox",
+    object: "chat.completion",
+    created: 0,
+    model: "sandbox-model",
+    choices: [{ index: 0, message, finish_reason: reply.tool ? "tool_calls" : "stop" }],
+  }
+}
+
+const serve = (port, logPath) => createServer((request, response) => {
   let raw = ""
 
   request.setEncoding("utf8")
@@ -167,21 +184,17 @@ const server = createServer((request, response) => {
       return
     }
 
-    const message = reply.tool
-      ? { role: "assistant", content: reply.text ?? null, tool_calls: [{ id: "call_sandbox", type: "function", function: { name: reply.tool, arguments: JSON.stringify(reply.args) } }] }
-      : { role: "assistant", content: reply.text }
-
     response.writeHead(200, { "content-type": "application/json" })
-    response.end(
-      JSON.stringify({
-        id: "chatcmpl-sandbox",
-        object: "chat.completion",
-        created: 0,
-        model: "sandbox-model",
-        choices: [{ index: 0, message, finish_reason: reply.tool ? "tool_calls" : "stop" }],
-      }),
-    )
+    response.end(JSON.stringify(completion(reply)))
   })
-})
+}).listen(port, "127.0.0.1")
 
-server.listen(port, "127.0.0.1")
+const invokedDirectly = () => {
+  try {
+    return import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href
+  } catch {
+    return false
+  }
+}
+
+if (invokedDirectly()) serve(Number(process.argv[2]), process.argv[3])

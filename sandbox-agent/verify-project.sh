@@ -3,8 +3,11 @@
 # Script: verify-project.sh
 # Description: Asserts that every supported agent discovers the shared skills,
 #              its own subagent tree, its preflight wiring and its MCP servers
-#              in the imported throwaway project, and that the preflight gate
-#              really denies what it claims to deny.
+#              in the imported throwaway project, that the preflight gate
+#              really denies what it claims to deny, and that on every agent a
+#              real python-pro subagent writes a real file while the gate
+#              denies the main thread's own write, against a scripted mock
+#              model (e2e-mock/subagent-write.sh).
 # Usage: verify-project.sh
 # Environment:
 #   SANDBOX_PROJECT     Throwaway project directory. Default /work/project.
@@ -32,6 +35,8 @@ readonly CLI_OUTPUT
 
 # shellcheck source=lib-opencode2.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib-opencode2.sh"
+# shellcheck source=e2e-mock/subagent-write.sh
+source "$(dirname "${BASH_SOURCE[0]}")/e2e-mock/subagent-write.sh"
 
 PASSES=0
 FAILURES=0
@@ -48,6 +53,7 @@ cleanup() {
 
   rm -f "$CLI_OUTPUT"
   opencode2_end
+  e2e_end
 
   if [[ -n "$OPENCODE_V1_PROJECT" ]]; then
     rm -rf "$OPENCODE_V1_PROJECT"
@@ -572,6 +578,15 @@ verify_copilot() {
     < <(printf '%s\n' "${MCP_JSON_SERVERS[@]}")
 }
 
+# Every agent binary runs a real main thread and a real python-pro subagent in
+# its own copy of the project, against the scripted mock model, after every
+# other mock section has stopped its server, because they share the port.
+verify_subagent_writes() {
+  section "A real subagent writes a real file, every agent, scripted mock model"
+
+  verify_subagent_write "$PROJECT"
+}
+
 # Feeds one hook payload to the gate and checks the decision it returns.
 # Arguments: label, gate --format value, expected decision, payload, optional
 # extra flag such as --subagent.
@@ -673,6 +688,7 @@ main() {
   verify_reply_style
   verify_opencode_v2
   verify_copilot
+  verify_subagent_writes
   verify_gate_behaviour
   summary
 }

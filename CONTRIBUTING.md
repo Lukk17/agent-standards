@@ -28,10 +28,7 @@ Three jobs run in parallel, and none of them waits on another:
 - `actionlint` lints the workflow YAML, including a ShellCheck pass over every `run:` block.
 - `validate` runs the JSON and TOML checks, the generator drift check, the markdown linter, the badge-count check, and
   the pytest suite. Every one of those is a command you can run locally, listed further down this page.
-- `sandbox` builds the container image once and then runs the containerised suite three times over: the per-project
-  import assertions, a global install run twice against the container's own home to prove it is idempotent, and a
-  scoped single-agent install to prove it writes only that agent's paths. This is the slow job, several minutes against
-  the other two, which is why it runs alongside them rather than behind them.
+- `sandbox` builds the container image once and then runs the containerised suite three times over: the per-project import assertions, a global install run twice against the container's own home to prove it is idempotent, and a scoped single-agent install to prove it writes only that agent's paths. The per-project run includes the subagent-write section, where each pinned agent binary has a real `python-pro` subagent write a real file and the gate refuse the main thread's own write, against a scripted mock model, as [sandbox-agent/README.md](sandbox-agent/README.md) describes under "A real subagent writes a real file, on every agent". This is the slow job, several minutes against the other two, which is why it runs alongside them rather than behind them.
 
 The scoped check names the individual files the installer writes rather than asserting that `~/.claude` and its
 siblings are absent. Asking each agent command-line tool for its version, which the container does on startup, already

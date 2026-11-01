@@ -51,6 +51,9 @@ RUN npm install --global --prefix /home/sandbox/.opencode-v2 --loglevel=error \
 COPY --chown=sandbox:sandbox entrypoint.sh setup-project.sh setup-global.sh verify-project.sh verify-global.sh \
      lib-opencode2.sh opencode2.sh mcp-guard.sh mock-model.mjs /sandbox/
 
+# The subagent-write check and its scripted model, sourced by verify-project.sh.
+COPY --chown=sandbox:sandbox e2e-mock/ /sandbox/e2e-mock/
+
 # docker, npx and uvx are the only launchers the shipped MCP blocks use. The
 # guard stands first on PATH under all three names, so no agent CLI can start
 # a real MCP server, pull an image or download a package during a run.
