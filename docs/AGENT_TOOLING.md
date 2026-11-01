@@ -361,8 +361,8 @@ Each agent wires that same script through its own hook surface:
 | --- | --- | --- |
 | Claude Code | [.claude/settings.json](../.claude/settings.json) | blocks the tool call, injects the gate at session start and every turn, tells a subagent to do its task itself on subagent start, lints markdown after an edit, blocks a main-thread reply on `Stop`, and mirrors the task list |
 | Codex | inline `[[hooks.*]]` tables in [.codex/config.toml](../.codex/config.toml) | blocks the tool call, injects the gate every turn, tells a subagent to do its task itself on subagent start, runs the formatting check on `Stop`, and seeds the task list at session start |
-| OpenCode | plugin [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), declared by its directory in [opencode.json](../opencode.json), serving 1.x and 2.x | blocks the tool call, injects the gate on every main-thread prompt through `chat.message` and the subagent text in a subagent's session |
-| Kilo Code | the same plugin, the same declaration | blocks the tool call, injects the gate on every main-thread prompt through `chat.message` and the subagent text in a subagent's session |
+| OpenCode | plugin [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), declared by its directory in [opencode.json](../opencode.json), serving 1.x and 2.x | blocks the tool call and tells a subagent to do its task itself in a subagent's session, with no per-prompt reminder on the main thread |
+| Kilo Code | the same plugin, the same declaration | blocks the tool call and tells a subagent to do its task itself in a subagent's session, with no per-prompt reminder on the main thread |
 | GitHub Copilot | [.github/hooks/preflight.json](../.github/hooks/preflight.json) | fires on the tool call but always allows, caller identity is always unknown there; injects the gate at session start and on every prompt through `userPromptTransformed`, and tells a subagent to do its task itself on subagent start |
 
 Only Claude Code has task events, so `tasks.md` is written from them there and merely injected at session start

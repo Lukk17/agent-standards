@@ -16,6 +16,7 @@ readonly SKILL_TOOL_RE='^skill$'
 readonly HEALTH_FORMAT="chat"
 readonly GATE_KNOWN_GAP=0
 readonly PROVIDER_ID="requesty"
+readonly REMINDER_KNOWN_GAP="the plugin injects no per-prompt reminder on the main thread of OpenCode or Kilo Code (docs/hooks-contract.md)"
 
 # The provider travels in an environment variable, never in the committed
 # opencode.json, and names the key by {env:} reference rather than carrying it.
@@ -113,29 +114,37 @@ agent_calls() {
   done
 }
 
-# OpenCode and Kilo Code inject no per-prompt reminder. The check passes when the
-# recorded main session carries the shared instructions marker from AGENTS.md.
+# The plugin injects no per-prompt reminder on the main thread, so the check
+# reports REMINDER_KNOWN_GAP unless a synthetic part of a main-session user
+# message carries the reminder, the shape an injection takes. AGENTS.md reaches
+# the model as system text the export does not hold, and the model's own echo
+# of it does not count.
 agent_reminder_seen() {
   local dir="$1" file found
 
   for file in "${dir}"/transcripts/main-*.json; do
     [[ -f "$file" ]] || continue
     found="$(jq --arg r "$REMINDER_MARKER" '
-      [.messages[]? | .parts[]? | select(.type == "text")
-       | .text | select(contains($r))] | length' "$file" 2>/dev/null || echo 0)"
+      [.messages[]? | select(.info.role? == "user") | .parts[]?
+       | select(.type == "text" and .synthetic == true) | .text | select(contains($r))] | length' "$file" 2>/dev/null || echo 0)"
     [[ "$found" -gt 0 ]] && return 0
   done
 
   return 1
 }
 
-# Every child session the case started is exported as subagent-*.json, and the
-# plugin puts the subagent text into that session's user message.
+# Every child session the case started is exported as subagent-*.json. The
+# plugin's chat.message handler appends the subagent text to each user message
+# of a child session as a synthetic text part, so the synthetic text parts of
+# its user messages are what the wiring injected. The task prompt the main
+# thread wrote, tool output and the subagent's own replies are left out.
 agent_subagent_context() {
   local dir="$1" file
 
   for file in "${dir}"/transcripts/subagent-*.json; do
-    [[ -f "$file" ]] && cat -- "$file"
+    [[ -f "$file" ]] || continue
+    jq -c '.messages[]? | select(.info.role? == "user") | .parts[]?
+           | select(.type == "text" and .synthetic == true)' "$file" 2>/dev/null || true
   done
 
   return 0

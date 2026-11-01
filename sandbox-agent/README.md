@@ -93,9 +93,9 @@ events the agent recorded, never from what the model wrote back.
 | Test | Passes when |
 | --- | --- |
 | 1 Gate blocks the main thread | The main thread tried to write a file, the gate's denial is in the transcript, and the file is absent or was written only by a subagent the model started after the denial |
-| 2 A named subagent writes | The main thread started `docs-architect`, the recorded write of the file came from the subagent, and the subagent's own transcript carries the subagent text (`PREFLIGHT for a subagent:`) and not the main-thread reminder |
+| 2 A named subagent writes | The main thread started `docs-architect`, the recorded write of the file came from the subagent, and what the agent's hooks injected into the subagent carries the subagent text (`PREFLIGHT for a subagent:`) and not the main-thread reminder. A project `AGENTS.md`, a tool result, the model's own text and history a Codex fork inherited from the main thread are not hook output and do not count |
 | 3 A skill is loaded | The main thread loaded the `kicad` skill through its skill tool or by reading its `SKILL.md` |
-| 4 The reminder reaches the model | The per-prompt reminder text is in the recorded context of that prompt, not only the session start |
+| 4 The reminder reaches the model | The per-prompt reminder text is in the recorded context of that prompt, not only the session start. OpenCode and Kilo Code inject no main-thread reminder, so there it reports `KNOWN-GAP` unless an injected prompt part carries it |
 | 5 Key and model | One tiny request in the agent's own wire format is answered by the agent's provider |
 | 6 The one MCP server answers | `context7` is the only MCP server the session loaded, and a recorded `resolve-library-id` call for React returned a library id. A call whose result carries no id, such as a rate-limit or an invalid-key answer, is a `FAIL` quoting that result |
 | 7 Codex only: a subagent's payload names its type | The read-only `code-reviewer`, started by the main thread, ran `touch readonly-probe.txt`, the `PreToolUse` payload of that call carried `agent_id` and `agent_type` `code-reviewer`, Rule E's reason is in the transcript, and the file is absent |
@@ -108,7 +108,7 @@ Three verdicts are possible besides a pass:
   own model request so the model never ran. It fails the job.
 - `INCONCLUSIVE` means the model never attempted the tool call the test needs, so nothing was proven either way. It
   raises a warning and does not fail the job.
-- `KNOWN-GAP` appears on GitHub Copilot for two tests, and on Codex for test 7 when the payload of the subagent's
+- `KNOWN-GAP` appears on OpenCode and Kilo Code for test 4, on GitHub Copilot for two tests, and on Codex for test 7 when the payload of the subagent's
   call carries `agent_id` without `agent_type` `code-reviewer`, which [agent-compatibility.md](../docs/agent-compatibility.md)
   records as unmeasured. On Codex a payload with no `agent_id` at all is a `FAIL`, because the gate then takes the
   subagent for the main thread. On Copilot, test 1: its payload carries no agent identifier, so
@@ -122,7 +122,7 @@ Three verdicts are possible besides a pass:
 
 Test 1 counts any gate denial as the block, whichever rule gave it, because [live/lib.sh](live/lib.sh) reads the fixed
 text of every `RULE_*_REASON` out of the gate itself, so a new rule needs no harness change. A probe file that landed
-is a failure whatever the transcript says. Test 2 reads the subagent's own transcript through the
+is a failure whatever the transcript says. Test 2 reads what the hooks injected into the subagent through the
 `agent_subagent_context` function each agent script supplies. Both Copilot expectations are switches in
 [live/copilot.sh](live/copilot.sh): `GATE_KNOWN_GAP=1` for test 1, which every other agent script sets to `0`, and
 `SUBAGENT_NO_WRITE_MARKER` for test 2. Each one goes in the same change that removes its Maintenance follow-up in
@@ -153,8 +153,8 @@ subagent's own transcript rather than in the spawn result, where the Codex parse
 spawn the transcript marks as failed while the subagent's own calls are recorded is not reported as rejected.
 
 Tests 8 and 9 render the marketplace with [tools/gen_plugins.py](../tools/gen_plugins.py) into the work directory,
-which the job's own Python step installs the tooling for, and append a random canary to that copy of the `core` skill
-`security-review` only. They add it as a local marketplace and install `review-and-security`, which pulls `core` in as
+which the job's own Python step installs the tooling for, and append a random preload marker, the canary, to that copy of the `core` skill
+`security-review` only. Each plugin subagent preloads its skills by their full plugin name, such as `core:security-review`, because a bare `security-review` resolved to the built-in `/security-review` command in live run 41255837007. They add it as a local marketplace and install `review-and-security`, which pulls `core` in as
 its dependency, into a separate `CLAUDE_CONFIG_DIR`, and run in a second project that holds only the gate-only import,
 `.agents/hooks` and `.claude/settings.json`. With no agent tree in that project, the gate can find the reviewer's
 definition only in the plugin cache, so a Rule E denial in test 8 proves that lookup. Tests 1 to 6 keep their own

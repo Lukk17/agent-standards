@@ -210,9 +210,13 @@ agent_reminder_seen() {
   return 1
 }
 
-# A subagent rollout can replay the parent history, the main-thread reminder
-# included, so a line that a main rollout also holds, timestamps aside, is the
-# parent's and is left out.
+# A subagent spawned as a full-history fork replays the parent's turns, the
+# main-thread reminder included, as history no hook of the subagent produced.
+# Codex 0.166.0 marks each replayed line metadata.inherited_user_message true
+# and gives every line its own ordinal, so the replayed line differs from the
+# parent's copy (live run 41255837007). A marked line is left out, and so is a
+# line whose type and payload a main rollout also holds, for a Codex that marks
+# nothing. Only developer messages count, where the hooks put their text.
 agent_subagent_context() {
   local dir="$1" file seen
   local -a subagent_files=()
@@ -225,14 +229,15 @@ agent_subagent_context() {
     if codex_rollout_is_subagent "$file"; then
       subagent_files+=("$file")
     else
-      jq -R -c 'fromjson? | objects | del(.timestamp)' "$file" >> "$seen"
+      jq -R -c 'fromjson? | objects | {type, payload}' "$file" >> "$seen"
     fi
   done
 
   for file in "${subagent_files[@]}"; do
     jq -R -s -c --slurpfile main "$seen" '
       [split("\n")[] | fromjson? | objects] | .[]
-      | select(del(.timestamp) as $line | any($main[]; . == $line) | not)
+      | select((.metadata.inherited_user_message? // false) != true)
+      | select({type, payload} as $line | any($main[]; . == $line) | not)
       | '"${HOOK_TEXT_FILTER}" "$file"
   done
 }

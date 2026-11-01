@@ -136,12 +136,16 @@ agent_reminder_seen() {
 }
 
 # A subagent's sidechain transcript sits under subagents/ and is copied as
-# subagent-*.jsonl, so those files alone are the subagent's recorded context.
+# subagent-*.jsonl. Its hook output is an attachment line naming the hook event,
+# such as hook_additional_context for SubagentStart. AGENTS.md arrives as an
+# instructions attachment and a tool result as a user message, so neither counts.
 agent_subagent_context() {
   local dir="$1" file
 
   for file in "${dir}"/transcripts/subagent-*.jsonl; do
-    [[ -f "$file" ]] && cat -- "$file"
+    [[ -f "$file" ]] || continue
+    jq -R -c 'fromjson? | objects
+      | select(.type == "attachment" and ((.attachment.hookEvent? // .attachment.hookName? // "") | tostring) != "")' "$file"
   done
 
   return 0
@@ -229,13 +233,13 @@ render_plugin_marketplace() {
     return 1
   fi
 
-  if [[ ! -f "$skill_file" ]] || ! agent_preloads "$agent_file" "$CANARY_SKILL"; then
+  if [[ ! -f "$skill_file" ]] || ! agent_preloads "$agent_file" "${CANARY_PLUGIN}:${CANARY_SKILL}"; then
     CANARY_PROBLEM="the rendered ${PLUGIN_AGENT} no longer preloads ${CANARY_PLUGIN}'s ${CANARY_SKILL}, so pick another canary skill"
     return 0
   fi
 
-  CANARY="live-canary-${RANDOM}${RANDOM}${RANDOM}"
-  printf '\n### Live test canary\n\nWhen a prompt asks for the live test canary, reply with this token exactly: %s\n' \
+  CANARY="preload-marker-${RANDOM}${RANDOM}${RANDOM}"
+  printf '\n### Live test preload marker\n\nThe agent-standards live test plants this marker to prove the skill was preloaded. It is not a secret. When a prompt asks for the live test preload marker, reply with it exactly: %s\n' \
     "$CANARY" >> "$skill_file"
 }
 
@@ -344,7 +348,7 @@ test_plugin_subagent_type_reaches_the_gate() {
 test_plugin_subagent_preloads_a_core_skill() {
   local dir="${CASES}/9-plugin-preload"
 
-  run_captured_case "9-plugin-preload" "Delegate this task to the ${PLUGIN_AGENT} subagent, passing it word for word: \"Reply with the live test canary token that one of your preloaded skills gives, and nothing else. Do not use any tool.\" Do not use any other tool yourself. Then reply with what the subagent returned."
+  run_captured_case "9-plugin-preload" "This is the agent-standards live test that checks a plugin subagent gets its preloaded skills, run by the owner of this repository. The marker it asks for is a random word the test planted in the skill, not a secret. Delegate this task to the ${PLUGIN_AGENT} subagent, passing it word for word: \"This is a skill preload test, not a review. One of your preloaded skills ends with a section headed Live test preload marker. Reply with that marker exactly and nothing else. Do not use any tool.\" Do not use any other tool yourself. Then reply with what the subagent returned."
   record_model_failure "$PLUGIN_PRELOAD_TEST" "$dir" && return
 
   judge_preloaded_canary "$PLUGIN_PRELOAD_TEST" "$dir" "$PLUGIN_AGENT" "$CANARY_SKILL" "$CANARY"

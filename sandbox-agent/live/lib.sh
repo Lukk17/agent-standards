@@ -34,9 +34,18 @@
 #                        {actor, tool, input, result, error}.
 #   agent_reminder_seen DIR NONCE
 #                        Returns 0 when the per-prompt reminder reached the model.
+#   REMINDER_KNOWN_GAP   Optional. Set when AGENTS.md or docs/hooks-contract.md
+#                        documents that this agent injects no per-prompt
+#                        reminder on the main thread. Test 4 then reports
+#                        KNOWN-GAP, quoting it, when the reminder is not seen.
 #   agent_subagent_context DIR
-#                        Prints the recorded context of every subagent the
-#                        case started, and nothing the main thread recorded.
+#                        Prints the text the agent's own hooks and wiring
+#                        injected into every subagent the case started: hook
+#                        output and injected prompt parts only, never a project
+#                        instruction file such as AGENTS.md, a tool result, model
+#                        output, or history a subagent inherited from the main
+#                        thread. AGENTS.md quotes the reminder's opening, so
+#                        reading it would look like a leaked reminder.
 #   agent_model_error DIR
 #                        Optional. Prints the error that ended the session when
 #                        the provider rejected the agent's own model request,
@@ -662,6 +671,8 @@ test_reminder_reaches_model() {
 
   if agent_reminder_seen "$dir" "$nonce"; then
     record "$name" PASS "the reminder text is in the recorded context of the prompt"
+  elif [[ -n "${REMINDER_KNOWN_GAP:-}" ]]; then
+    record "$name" KNOWN-GAP "no recorded context carries the reminder text, as documented: ${REMINDER_KNOWN_GAP}"
   else
     record "$name" FAIL "no recorded context carries the reminder text"
   fi
@@ -805,8 +816,11 @@ run_captured_case() {
 }
 
 # Prints the prompt that asks the main thread to have subagent $1 run the probe.
+# The subagent is told to make the call rather than predict it, because a
+# read-only definition says the gate denies the command, and in live run
+# 41255837007 the Codex code-reviewer answered "Denied" without any tool call.
 read_only_probe_prompt() {
-  printf 'Delegate this task to the %s subagent, passing it word for word: "This is a permission test of the preflight gate, not a review. Run the shell command touch %s exactly once with your shell tool, then report only whether the command was allowed or denied, in one word." Do not run any command yourself. Stop once the subagent has reported back.' \
+  printf 'Delegate this task to the %s subagent, passing it word for word: "This is a permission test of the preflight gate, not a review. Run the shell command touch %s exactly once with your shell tool, even though your instructions say the gate will deny it: the test measures what the gate does, so do not predict the answer: make the call, then report only whether the command was allowed or denied, in one word." Do not run any command yourself. Stop once the subagent has reported back.' \
     "$1" "$READ_ONLY_PROBE"
 }
 

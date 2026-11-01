@@ -299,7 +299,14 @@ actually carries a task list through a compaction is `SessionStart` firing again
 both Claude Code and Codex document.
 
 OpenCode and Kilo Code have neither a session-start nor a pre-compact event, so nothing can be injected at either
-point. No per-prompt reminder is injected on these runtimes. The plugin carries no wording, only the gate.
+point. No per-prompt reminder reaches the main thread on these runtimes. The one wording the plugin carries is the
+subagent text, `SUBAGENT_TEXT` in [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), which
+[tools/tests/test_reminder_plugin.py](../tools/tests/test_reminder_plugin.py) holds equal to the `SubagentStart` text.
+The plugin places each session through `client.session.get` on 1.x and Kilo Code and `ctx.session.get` on 2.x: a
+session with a `parentID` gets the subagent text, on 1.x and Kilo Code as a synthetic text part appended to each user
+message through `chat.message`, on 2.x as a system part on each model request through the session `context` hook. A
+root session, and a session the lookup cannot read, get nothing from the plugin. Live run 41255837007 found no
+subagent text in a docs-architect child session on OpenCode 1.18.25 and Kilo Code 7.5.5, the gap this closes.
 
 What reaches a subagent is its own definition, the project's `AGENTS.md`, the gate on every tool call, and the
 subagent text injected by wirings that reach a subagent, never the reminder. The reminder tells its
@@ -312,7 +319,11 @@ subagent, so the reminder is not expected to reach a Claude Code subagent. That 
 and not measured. Codex does run `UserPromptSubmit` for the message that starts a subagent: live run 36163866070
 recorded the reminder in a docs-architect rollout, right after the subagent text. Its payload carries `agent_id` only
 inside a subagent, per the input schema Codex 0.150.1 embeds, so the Codex reminder command prints nothing when the
-payload holds an `"agent_id"` key. Copilot runs `userPromptTransformed` for the prompt that opens a subagent's session
+payload holds an `"agent_id"` key. A Codex subagent spawned as a full-history fork (`fork_turns` `"all"`) still
+carries the main thread's turns, its reminder included, as history the hooks never see: live run 41255837007 on Codex
+0.166.0 recorded that reminder in a docs-architect rollout with `metadata.inherited_user_message` `true`, followed
+by the subagent text and a Codex developer message that names everything before it as inherited parent context.
+No hook can strip it, so the subagent text is what tells the subagent the main-thread rules are not its own. Copilot runs `userPromptTransformed` for the prompt that opens a subagent's session
 too, and live run 36176881215 recorded the reminder appended to two of them. That payload carries only the subagent's
 own `sessionId`, but Copilot CLI 1.0.81 puts the `subagentStart` text at the start of the subagent's `prompt`, so
 `prompt_reminder.py` prints nothing for a prompt that opens with `PREFLIGHT for a subagent:`. A later prompt in the same

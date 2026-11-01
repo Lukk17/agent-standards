@@ -1114,12 +1114,12 @@ def test_the_rendered_plugin_reviewer_preloads_the_core_skill_that_carries_the_c
     # Then
     assert result.returncode == 0, result.stderr + (tmp_path / "render.log").read_text(encoding="utf-8")
     canary = result.stdout
-    assert re.fullmatch(r"live-canary-\d+", canary)
+    assert re.fullmatch(r"preload-marker-\d+", canary)
     core_skill = (market / "plugins" / "core" / "skills" / "security-review" / "SKILL.md").read_text(encoding="utf-8")
     assert core_skill.rstrip().endswith(canary)
     assert canary not in (REPO_ROOT / ".agents" / "skills" / "security-review" / "SKILL.md").read_text(encoding="utf-8")
     preloaded = run_bounded(
-        [BASH, "-c", f"source '{loadable_adapter(CLAUDE_ADAPTER, tmp_path).as_posix()}'; LIVE_PYTHON=\"$2\"; agent_preloads \"$1\" security-review && ! agent_preloads \"$1\" kicad", "_",
+        [BASH, "-c", f"source '{loadable_adapter(CLAUDE_ADAPTER, tmp_path).as_posix()}'; LIVE_PYTHON=\"$2\"; agent_preloads \"$1\" core:security-review && ! agent_preloads \"$1\" security-review && ! agent_preloads \"$1\" kicad", "_",
          (market / "plugins" / "review-and-security" / "agents" / "code-reviewer.md").as_posix(), Path(sys.executable).as_posix()],
         capture_output=True,
         text=True,
@@ -1186,6 +1186,7 @@ def loadable_adapter(adapter_path: Path, directory: Path) -> Path:
     """An agent script with lib.sh pointed at the checkout and the final live_main call removed."""
     adapter = adapter_path.read_text(encoding="utf-8")
     adapter = adapter.replace('"$(dirname "${BASH_SOURCE[0]}")/lib.sh"', f"'{LIB.as_posix()}'")
+    adapter = adapter.replace('"$(dirname "${BASH_SOURCE[0]}")/opencode-family.sh"', f"'{(LIB.parent / 'opencode-family.sh').as_posix()}'")
     adapter = adapter.replace('\nlive_main "$@"\n', "\n")
     loadable = directory / f"{adapter_path.stem}-loadable.sh"
     loadable.write_text(adapter, encoding="utf-8", newline="\n")
@@ -1341,7 +1342,7 @@ def test_both_plugin_checks_run_in_the_plugin_session_and_the_main_session_comes
     assert result.returncode == 0, result.stderr
     lines = result.stdout.splitlines()
     assert lines[0] == f"ran 8|{(work / 'plugin-project').as_posix()}|{(work / 'claude-plugin-config').as_posix()}"
-    assert re.fullmatch(r"ran 9\|live-canary-\d+", lines[1])
+    assert re.fullmatch(r"ran 9\|preload-marker-\d+", lines[1])
     assert lines[2] == "after|main-project|main-config"
     settings = json.loads((work / "claude-plugin-config" / "settings.json").read_text(encoding="utf-8"))
     assert settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"].startswith("python3 -I -S ")
@@ -1513,3 +1514,228 @@ def test_the_scrub_subcommand_with_no_work_directory_does_nothing(tmp_path):
 
     assert result.returncode == 0, result.stderr
     assert not (tmp_path / "never-made").exists()
+
+
+# --- Test 2 and 4 on the shapes live run 41255837007 recorded ---
+#
+# Every agent's subagent read or was handed the project's AGENTS.md, which
+# quotes the reminder's opening, and each adapter used to hand the judge that
+# text as if a hook had injected it. The subagent context is now the hook
+# output alone, so these cases hold a recorded AGENTS.md copy beside the
+# injected text and expect the verdict the injected text alone deserves.
+
+OPENCODE_ADAPTER = REPO_ROOT / "sandbox-agent" / "live" / "opencode.sh"
+KILO_ADAPTER = REPO_ROOT / "sandbox-agent" / "live" / "kilo-code.sh"
+AGENTS_MD_EXAMPLE = (REPO_ROOT / "AGENTS.md.example").read_text(encoding="utf-8")
+CLAUDE_MAIN_REMINDER = json.loads((REPO_ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
+
+
+def lib_constant(name: str) -> str:
+    return re.search(rf'^readonly {name}="([^"]+)"$', LIB.read_text(encoding="utf-8"), re.MULTILINE).group(1)
+
+
+def test_the_project_agents_md_quotes_the_reminder_marker_so_it_must_never_count_as_hook_output():
+    assert lib_constant("REMINDER_MARKER") in AGENTS_MD_EXAMPLE
+
+
+def adapter_subagent_context(tmp_path: Path, adapter: Path, files: dict[str, str]) -> str:
+    case = tmp_path / "case"
+    (case / "transcripts").mkdir(parents=True)
+    for name, content in files.items():
+        target = case / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8", newline="\n")
+
+    result = run_bounded(
+        [BASH, "-c", f"source '{loadable_adapter(adapter, tmp_path).as_posix()}'; agent_subagent_context \"$1\"", "_", case.as_posix()],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+
+    return result.stdout
+
+
+def verdict_for(tmp_path: Path, adapter: Path, files: dict[str, str]) -> str:
+    context = adapter_subagent_context(tmp_path / "adapter", adapter, files)
+    (tmp_path / "judge").mkdir()
+
+    return judge_test_two(tmp_path / "judge", context)
+
+
+def jsonl(*objects: dict) -> str:
+    return "".join(json.dumps(item) + "\n" for item in objects)
+
+
+CLAUDE_SUBAGENT_RECORD = [
+    {"type": "attachment", "attachment": {"type": "hook_additional_context", "hookEvent": "SubagentStart", "hookName": "SubagentStart", "content": [canonical_subagent_reminder()]}},
+    {"type": "attachment", "attachment": {"type": "instructions", "content": [{"path": "/project/AGENTS.md", "type": "Project", "content": AGENTS_MD_EXAMPLE}]}},
+    {"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "t1", "content": AGENTS_MD_EXAMPLE}]}},
+]
+
+
+@needs_jq
+def test_claude_code_check_two_passes_on_the_recorded_subagent_that_loaded_agents_md(tmp_path):
+    verdict = verdict_for(tmp_path, CLAUDE_ADAPTER, {"transcripts/subagent-agent-a1.jsonl": jsonl(*CLAUDE_SUBAGENT_RECORD)})
+
+    assert verdict.startswith("PASS|"), verdict
+
+
+@needs_jq
+def test_claude_code_check_two_still_fails_a_reminder_a_hook_put_into_the_subagent(tmp_path):
+    leaked = {"type": "attachment", "attachment": {"type": "hook_success", "hookEvent": "UserPromptSubmit", "content": CLAUDE_MAIN_REMINDER}}
+
+    verdict = verdict_for(tmp_path, CLAUDE_ADAPTER, {"transcripts/subagent-agent-a1.jsonl": jsonl(*CLAUDE_SUBAGENT_RECORD, leaked)})
+
+    assert verdict.startswith("FAIL|") and "main-thread reminder" in verdict, verdict
+
+
+def codex_line(ordinal: int, role: str, text: str, message_id: str, inherited: bool = False) -> dict:
+    line = {"timestamp": f"2026-11-01T00:14:{ordinal:02d}.000Z", "ordinal": ordinal, **rollout_message(role, text, message_id)}
+    if inherited:
+        line["metadata"] = {"client_authored": False, "inherited_user_message": True}
+    return line
+
+
+CODEX_MAIN_RECORD = [
+    {"type": "session_meta", "ordinal": 0, "payload": {"source": "exec"}},
+    codex_line(7, "user", AGENTS_MD_EXAMPLE, "msg-agents"),
+    codex_line(13, "developer", canonical_reminder(), "msg-reminder"),
+]
+CODEX_FORK_RECORD = [
+    {"type": "session_meta", "ordinal": 0, "payload": {"source": {"subagent": {"thread_spawn": {"agent_role": "docs-architect"}}}}},
+    codex_line(8, "user", AGENTS_MD_EXAMPLE, "msg-agents", inherited=True),
+    codex_line(12, "developer", canonical_reminder(), "msg-reminder", inherited=True),
+    codex_line(33, "developer", canonical_subagent_reminder(), "msg-subagent"),
+]
+
+
+@needs_jq
+def test_codex_check_two_passes_on_the_recorded_full_history_fork(tmp_path):
+    # Given the Codex 0.166.0 fork shape: the parent's reminder replayed with its own ordinal and the inherited mark
+    files = {"transcripts/rollout-main.jsonl": jsonl(*CODEX_MAIN_RECORD), "transcripts/rollout-sub.jsonl": jsonl(*CODEX_FORK_RECORD)}
+
+    # When/Then
+    assert verdict_for(tmp_path, CODEX_ADAPTER, files).startswith("PASS|")
+
+
+@needs_jq
+def test_codex_check_two_drops_a_replayed_parent_line_that_carries_no_inherited_mark(tmp_path):
+    unmarked = [{k: v for k, v in line.items() if k != "metadata"} for line in CODEX_FORK_RECORD]
+    files = {"transcripts/rollout-main.jsonl": jsonl(*CODEX_MAIN_RECORD), "transcripts/rollout-sub.jsonl": jsonl(*unmarked)}
+
+    assert verdict_for(tmp_path, CODEX_ADAPTER, files).startswith("PASS|")
+
+
+@needs_jq
+def test_codex_check_two_fails_a_reminder_the_hook_injected_into_the_subagent_itself(tmp_path):
+    own = codex_line(34, "developer", canonical_reminder(), "msg-own-reminder")
+    files = {"transcripts/rollout-main.jsonl": jsonl(*CODEX_MAIN_RECORD), "transcripts/rollout-sub.jsonl": jsonl(*CODEX_FORK_RECORD, own)}
+
+    verdict = verdict_for(tmp_path, CODEX_ADAPTER, files)
+
+    assert verdict.startswith("FAIL|") and "main-thread reminder" in verdict, verdict
+
+
+COPILOT_AGENT = "07f799cf-82f3-4408-b0d5-ad5787573cce"
+COPILOT_SUBAGENT_RECORD = [
+    {"type": "hook.end", "agentId": None, "data": {"hookType": "subagentStart", "success": True, "output": {"additionalContext": canonical_subagent_reminder()}}},
+    {"type": "user.message", "agentId": COPILOT_AGENT, "data": {"content": canonical_subagent_reminder() + "\n\nCreate the note.", "transformedContent": canonical_subagent_reminder() + "\n\nCreate the note."}},
+    {"type": "tool.execution_complete", "agentId": COPILOT_AGENT, "data": {"toolCallId": "c1", "success": True, "result": {"content": AGENTS_MD_EXAMPLE}}},
+    {"type": "user.message", "agentId": None, "data": {"content": "Delegate this task.\n" + canonical_reminder()}},
+]
+
+
+@needs_jq
+def test_copilot_check_two_passes_on_the_recorded_subagent_that_read_agents_md(tmp_path):
+    events = jsonl(*COPILOT_SUBAGENT_RECORD)
+
+    verdict = verdict_for(tmp_path, COPILOT_ADAPTER, {"stream.jsonl": events, "transcripts/session-events.jsonl": events})
+
+    assert verdict.startswith("PASS|"), verdict
+
+
+@needs_jq
+def test_copilot_check_two_fails_a_reminder_appended_to_the_subagent_prompt(tmp_path):
+    leaked = {"type": "user.message", "agentId": COPILOT_AGENT, "data": {"content": "Fix the format.\n" + canonical_reminder()}}
+    events = jsonl(*COPILOT_SUBAGENT_RECORD, leaked)
+
+    verdict = verdict_for(tmp_path, COPILOT_ADAPTER, {"stream.jsonl": events, "transcripts/session-events.jsonl": events})
+
+    assert verdict.startswith("FAIL|") and "main-thread reminder" in verdict, verdict
+
+
+def opencode_child(*parts: dict) -> str:
+    return json.dumps({
+        "info": {"id": "ses_child", "parentID": "ses_main"},
+        "messages": [
+            {"info": {"role": "user", "agent": "docs-architect"}, "parts": [{"type": "text", "text": "Create the note."}, *parts]},
+            {"info": {"role": "assistant", "agent": "docs-architect"}, "parts": [{"type": "tool", "tool": "read", "state": {"output": AGENTS_MD_EXAMPLE}}, {"type": "text", "text": "Done."}]},
+        ],
+    })
+
+
+@needs_jq
+@pytest.mark.parametrize("adapter", [OPENCODE_ADAPTER, KILO_ADAPTER], ids=["opencode", "kilo-code"])
+def test_opencode_family_check_two_passes_when_the_plugin_added_the_subagent_text(tmp_path, adapter):
+    part = {"type": "text", "synthetic": True, "text": canonical_subagent_reminder()}
+
+    verdict = verdict_for(tmp_path, adapter, {"transcripts/subagent-ses_child.json": opencode_child(part)})
+
+    assert verdict.startswith("PASS|"), verdict
+
+
+@needs_jq
+@pytest.mark.parametrize("adapter", [OPENCODE_ADAPTER, KILO_ADAPTER], ids=["opencode", "kilo-code"])
+def test_opencode_family_check_two_fails_the_recorded_child_session_with_no_subagent_text(tmp_path, adapter):
+    # Given the run 41255837007 child session: the task prompt alone, then a tool result holding AGENTS.md
+    verdict = verdict_for(tmp_path, adapter, {"transcripts/subagent-ses_child.json": opencode_child()})
+
+    assert verdict.startswith("FAIL|") and "PREFLIGHT for a subagent:" in verdict, verdict
+
+
+def judge_test_four(tmp_path: Path, adapter: Path, main_session: dict) -> str:
+    cases = tmp_path / "cases"
+    (cases / "4-reminder" / "transcripts").mkdir(parents=True)
+    (cases / "4-reminder" / "transcripts" / "main-ses_main.json").write_text(json.dumps(main_session), encoding="utf-8")
+    script = (
+        f"source '{loadable_adapter(adapter, tmp_path).as_posix()}'; "
+        f"CASES='{cases.as_posix()}'; run_case() {{ :; }}; record() {{ printf '%s|%s' \"$2\" \"$3\"; }}; "
+        "test_reminder_reaches_model"
+    )
+    result = run_bounded([BASH, "-c", script], capture_output=True, text=True)
+
+    assert result.returncode == 0, result.stderr
+
+    return result.stdout
+
+
+@needs_jq
+@pytest.mark.parametrize("adapter", [OPENCODE_ADAPTER, KILO_ADAPTER], ids=["opencode", "kilo-code"])
+def test_opencode_family_check_four_is_the_documented_gap_when_no_reminder_was_injected(tmp_path, adapter):
+    # Given the run 41255837007 main session, plus a reply that echoes the AGENTS.md wording
+    echo = "I will name the skills and subagents that own this task and invoke them."
+    session = {"messages": [
+        {"info": {"role": "user"}, "parts": [{"type": "text", "text": "Reply with ready."}]},
+        {"info": {"role": "assistant"}, "parts": [{"type": "text", "text": echo}]},
+    ]}
+
+    verdict = judge_test_four(tmp_path, adapter, session)
+
+    assert verdict.startswith("KNOWN-GAP|") and "docs/hooks-contract.md" in verdict, verdict
+
+
+@needs_jq
+def test_opencode_family_check_four_passes_on_an_injected_reminder_part(tmp_path):
+    part = {"type": "text", "synthetic": True, "text": canonical_reminder()}
+    session = {"messages": [{"info": {"role": "user"}, "parts": [{"type": "text", "text": "Reply."}, part]}]}
+
+    assert judge_test_four(tmp_path, OPENCODE_ADAPTER, session).startswith("PASS|")
+
+
+def test_the_probe_prompt_tells_the_subagent_to_make_the_call_rather_than_predict_it():
+    # Given the Codex run 41255837007 code-reviewer, which answered "Denied" with no tool call
+    result = run_bounded([BASH, "-c", f"source '{LIB.as_posix()}'; read_only_probe_prompt code-reviewer"], capture_output=True, text=True)
+
+    assert "do not predict the answer: make the call" in result.stdout

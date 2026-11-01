@@ -3,7 +3,8 @@
 
 Source of truth:  tools/plugins.yaml              which plugin holds which skills, subagents and MCP server
                   .agents/skills/<name>/          copied byte for byte
-                  subagents/<name>.md             rendered with gen_subagents.emit_claude
+                  subagents/<name>.md             rendered with gen_subagents.emit_claude, every
+                                                  preloaded skill named <plugin>:<skill>
                   .mcp.json                       one server block per MCP plugin
 Generated:        <out>/.claude-plugin/marketplace.json
                   <out>/plugins/<plugin>/.claude-plugin/plugin.json
@@ -18,6 +19,16 @@ Every file is a real copy. Claude Code's validator does not follow symlinks
 (https://code.claude.com/docs/en/plugins/cli-reference, "plugin validate"), and
 a plugin cannot reach files outside its own directory
 (https://code.claude.com/docs/en/plugins/loading).
+
+A plugin subagent names each skill it preloads by its full plugin name, such
+as `core:security-review`. Claude Code namespaces every plugin component
+(https://code.claude.com/docs/en/plugins-reference, "name": "Claude Code
+namespaces every component under it"), and the bare name of a plugin skill
+runs it only "unless another command already uses that name"
+(https://code.claude.com/docs/en/skills, "How a skill gets its command name").
+`/security-review` is a built-in command, so a bare `security-review` preloaded
+the built-in, whose `!` git commands need an `origin` remote, and Claude Code
+2.1.314 refused to start the reviewer (live run 41255837007).
 
 Each plugin's `version` is a hash of its own rendered content. Claude Code keeps
 users on a cached copy until the version string changes
@@ -139,7 +150,13 @@ class PluginMap:
 class Agent:
     name: str
     skills: tuple[str, ...]
-    rendered: str
+    front_matter: dict[str, object]
+    body: str
+
+    def rendered(self, skill_home: dict[str, str]) -> str:
+        """The Claude render with every preloaded skill named by its home plugin."""
+        qualified = [f"{skill_home[skill]}:{skill}" for skill in self.skills]
+        return gen_subagents.emit_claude({**self.front_matter, "skills": qualified}, self.body)
 
 
 def _string_list(raw: object, where: str) -> tuple[str, ...]:
@@ -204,7 +221,7 @@ def load_map(path: pathlib.Path = DEFAULT_MAP) -> PluginMap:
 
 
 def load_agents(sources: Sources, skills: set[str]) -> dict[str, Agent]:
-    """Every canonical subagent, rendered exactly as gen_subagents writes .claude/agents/."""
+    """Every canonical subagent, parsed the way gen_subagents parses it for .claude/agents/."""
     agents: dict[str, Agent] = {}
     for path in sorted(sources.subagents.glob("*.md")):
         front_matter, body = gen_subagents.parse(path, skills)
@@ -212,9 +229,15 @@ def load_agents(sources: Sources, skills: set[str]) -> dict[str, Agent]:
         agents[name] = Agent(
             name=name,
             skills=tuple(front_matter.get("skills") or ()),
-            rendered=gen_subagents.emit_claude(front_matter, body),
+            front_matter=front_matter,
+            body=body,
         )
     return agents
+
+
+def skill_homes(plugin_map: PluginMap) -> dict[str, str]:
+    """The one plugin each skill sits in, which check_map guarantees."""
+    return {skill: homes[0] for skill, homes in _homes(plugin_map.plugins, "skills").items()}
 
 
 def load_servers(sources: Sources) -> dict[str, dict[str, object]]:
@@ -378,7 +401,7 @@ def check_map(
     if problems:
         return problems
 
-    skill_home = {skill: home[0] for skill, home in _homes(plugin_map.plugins, "skills").items()}
+    skill_home = skill_homes(plugin_map)
     for plugin in plugin_map.plugins:
         closure = dependency_closure(plugin.name, plugins)
         for agent_name in plugin.agents:
@@ -467,6 +490,7 @@ def render_plugin(
     sources: Sources,
     agents: dict[str, Agent],
     servers: dict[str, dict[str, object]],
+    skill_home: dict[str, str],
 ) -> str:
     """Write one plugin directory and return the version it was stamped with."""
     for skill in plugin.skills:
@@ -475,7 +499,7 @@ def render_plugin(
             target = plugin_dir / "skills" / skill / path.relative_to(source)
             _write(target, path.read_bytes(), _is_executable(path))
     for agent_name in plugin.agents:
-        _write(plugin_dir / "agents" / f"{agent_name}.md", agents[agent_name].rendered.encode("utf-8"))
+        _write(plugin_dir / "agents" / f"{agent_name}.md", agents[agent_name].rendered(skill_home).encode("utf-8"))
     if plugin.mcp:
         _write(plugin_dir / MCP_FILE, _json({"mcpServers": {plugin.mcp: servers[plugin.mcp]}}))
     manifest_path = plugin_dir / MANIFEST_DIR / PLUGIN_MANIFEST
@@ -543,8 +567,11 @@ def _write_marketplace(
     agents: dict[str, Agent],
     servers: dict[str, dict[str, object]],
 ) -> dict[str, str]:
+    skill_home = skill_homes(plugin_map)
     versions = {
-        plugin.name: render_plugin(plugin, out_dir / "plugins" / plugin.name, plugin_map.marketplace, sources, agents, servers)
+        plugin.name: render_plugin(
+            plugin, out_dir / "plugins" / plugin.name, plugin_map.marketplace, sources, agents, servers, skill_home
+        )
         for plugin in plugin_map.plugins
     }
     _write(out_dir / MANIFEST_DIR / MARKETPLACE_MANIFEST, _json(marketplace_manifest(plugin_map)))

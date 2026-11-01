@@ -30,6 +30,7 @@ from tests.conftest import (
     TASK_LIST_SYNC_HOOK,
 )
 from tests.process_tree import run_bounded
+from tests.reminder_support import CLAUDE_MARKER, MARKER, canonical_subagent_reminder
 
 NODE = shutil.which("node")
 
@@ -1296,26 +1297,29 @@ def user_message(parts=None, message_id="msg_1", session=ROOT_SESSION):
     }
 
 
-def test_a_user_message_adds_no_synthetic_part(tmp_path):
-    # Given the user's own text part
+def test_a_main_thread_message_adds_no_synthetic_part(tmp_path):
+    # Given the user's own text part in the root session
     typed = {"id": "prt_0", "sessionID": ROOT_SESSION, "messageID": "msg_1", "type": "text", "text": "Hi"}
 
     # When
     results = drive(tmp_path, [user_message([typed])])
 
-    # Then the parts pass through unchanged with nothing injected
+    # Then the parts pass through unchanged: no reminder and no subagent text
     assert results[0]["parts"] == [typed]
 
 
-def test_an_empty_user_message_stays_empty(tmp_path):
+def test_only_the_child_prompt_gains_the_subagent_text(tmp_path):
     # Given one root prompt and one child prompt with no parts
     steps = [user_message(session=ROOT_SESSION), user_message(message_id="msg_2", session=CHILD_SESSION)]
 
     # When
     results = drive(tmp_path, steps)
 
-    # Then neither prompt gains a synthetic part
-    assert [result["parts"] for result in results] == [[], []]
+    # Then the root prompt stays empty and the child prompt gains exactly the subagent text
+    root_parts, child_parts = (result["parts"] for result in results)
+
+    assert root_parts == []
+    assert [part["text"] for part in child_parts] == [canonical_subagent_reminder()]
 
 
 @pytest.mark.parametrize(
@@ -1334,23 +1338,55 @@ def test_a_malformed_message_gets_no_reminder_and_no_error(tmp_path, output, exp
     assert results == [{"ok": True, "parts": expected}]
 
 
-def test_a_child_session_message_gets_no_subagent_text(tmp_path):
+def test_a_subagent_task_prompt_gets_the_subagent_text_and_never_the_reminder(tmp_path):
     # Given the task prompt a subagent receives in its child session
     typed = {"id": "prt_0", "sessionID": CHILD_SESSION, "messageID": "msg_1", "type": "text", "text": "Write x"}
 
     # When
     parts = drive(tmp_path, [user_message([typed], session=CHILD_SESSION)])[0]["parts"]
 
-    # Then the task passes through with nothing injected
-    assert parts == [typed]
+    # Then the task is followed by one synthetic part on the same message, the subagent text alone
+    added = parts[-1]
+
+    assert parts[0] == typed
+    assert len(parts) == 2
+    assert (added["type"], added["synthetic"]) == ("text", True)
+    assert (added["sessionID"], added["messageID"]) == (CHILD_SESSION, "msg_1")
+    assert added["id"].startswith("prt_") and added["id"] != typed["id"]
+    assert added["text"] == canonical_subagent_reminder()
+    assert MARKER not in added["text"] and CLAUDE_MARKER not in added["text"]
 
 
-def test_the_hooks_object_exposes_exactly_three_keys(tmp_path):
+def test_a_child_prompt_that_already_carries_the_subagent_text_is_left_alone(tmp_path):
+    # Given a child prompt whose parts already hold the subagent text
+    held = {"id": "prt_0", "sessionID": CHILD_SESSION, "messageID": "msg_1", "type": "text", "text": canonical_subagent_reminder()}
+
+    # When
+    parts = drive(tmp_path, [user_message([held], session=CHILD_SESSION)])[0]["parts"]
+
+    # Then it is not added twice
+    assert parts == [held]
+
+
+def test_the_subagent_text_follows_the_session_parent_in_the_wrapped_response_style(tmp_path):
+    # When the session lookup answers wrapped in { data }
+    results = drive(tmp_path, [user_message(session=CHILD_SESSION)], wrapped=True)
+
+    # Then the child prompt is still placed as a subagent
+    assert [part["text"] for part in results[0]["parts"]] == [canonical_subagent_reminder()]
+
+
+def test_the_hooks_object_exposes_exactly_four_keys(tmp_path):
     # When
     results = drive(tmp_path, [{"kind": "keys"}])
 
-    # Then no chat.message handler remains, and todo.updated feeds the task list sync
-    assert sorted(results[0]["keys"]) == ["experimental.text.complete", "todo.updated", "tool.execute.before"]
+    # Then chat.message carries the subagent text, and todo.updated feeds the task list sync
+    assert sorted(results[0]["keys"]) == [
+        "chat.message",
+        "experimental.text.complete",
+        "todo.updated",
+        "tool.execute.before",
+    ]
 
 
 def test_a_todo_update_hands_every_hook_the_todo_list(tmp_path):
@@ -1393,8 +1429,8 @@ def test_a_prompt_in_a_session_that_cannot_be_placed_gets_no_reminder(tmp_path):
     assert results == [{"ok": True, "parts": []}]
 
 
-# A user message no longer touches the session store, so no lookup runs for it.
-def test_a_user_message_runs_no_session_lookup(tmp_path):
+# A session's parent never changes, so one lookup places it for every later message.
+def test_a_session_is_looked_up_once_for_many_messages(tmp_path):
     # Given
     steps = [user_message(), user_message(message_id="msg_2"), {"kind": "lookups"}]
 
@@ -1402,7 +1438,7 @@ def test_a_user_message_runs_no_session_lookup(tmp_path):
     results = drive(tmp_path, steps)
 
     # Then
-    assert results[-1] == {"ok": True, "count": 0}
+    assert results[-1] == {"ok": True, "count": 1}
 
 
 # experimental.text.complete hands every finished text part to the same hooks,
@@ -1933,15 +1969,22 @@ def write_global_rules(root):
     return home, rules
 
 
-def test_opencode_2_adds_no_reply_rules_to_a_subagent_session(tmp_path):
+def test_opencode_2_gives_a_subagent_session_the_subagent_text_and_no_reply_rules(tmp_path):
     # Given reply rules on disk and a request from a child session
     home, _ = write_global_rules(tmp_path)
 
     # When
     results = drive_v2(tmp_path, [{"kind": "context", "sessionID": CHILD_SESSION}], home=home)
 
-    # Then the subagent's request carries no reply rules
-    assert results[0]["system"] == []
+    # Then the subagent's request carries the subagent text alone, never the reminder or the rules
+    assert results[0]["system"] == [{"type": "text", "text": canonical_subagent_reminder()}]
+    assert MARKER not in results[0]["system"][0]["text"]
+
+
+def test_opencode_2_never_gives_the_main_session_the_subagent_text(tmp_path):
+    results = drive_v2(tmp_path, [{"kind": "context", "sessionID": ROOT_SESSION}, {"kind": "context", "sessionID": "unknown"}])
+
+    assert [result["system"] for result in results] == [[], []]
 
 
 def test_opencode_2_adds_the_reply_rules_to_the_main_session(tmp_path):

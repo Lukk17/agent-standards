@@ -12,9 +12,11 @@ import dataclasses
 import json
 import os
 import pathlib
+import re
 from collections import Counter
 
 import pytest
+import yaml
 
 import gen_plugins as gen
 import gen_subagents
@@ -149,15 +151,50 @@ def test_skill_copies_are_byte_identical_to_their_sources(plugin_map, rendered):
             assert _files(copy) == _files(SOURCES.skills / skill), skill
 
 
-def test_agent_copies_equal_the_claude_render_and_the_generated_tree(plugin_map, rendered, skills):
+def _qualified(name: str, home: dict[str, str]) -> str:
+    return f"{home[name]}:{name}"
+
+
+def test_agent_copies_equal_the_claude_render_with_qualified_skill_names(plugin_map, rendered, skills):
     out, _ = rendered
+    home = {skill: p.name for p in plugin_map.plugins for skill in p.skills}
 
     for plugin in plugin_map.plugins:
         for agent in plugin.agents:
-            copy = (out / "plugins" / plugin.name / "agents" / f"{agent}.md").read_bytes()
+            copy = (out / "plugins" / plugin.name / "agents" / f"{agent}.md").read_text(encoding="utf-8")
             front_matter, body = gen_subagents.parse(SOURCES.subagents / f"{agent}.md", skills)
-            assert copy == gen_subagents.emit_claude(front_matter, body).encode("utf-8"), agent
-            assert copy == (REPO_ROOT / ".claude" / "agents" / f"{agent}.md").read_bytes(), agent
+            qualified = [_qualified(s, home) for s in front_matter.get("skills") or ()]
+            assert copy == gen_subagents.emit_claude({**front_matter, "skills": qualified}, body), agent
+
+
+def test_plugin_agents_differ_from_the_project_tree_only_in_the_skill_names(plugin_map, rendered):
+    out, _ = rendered
+    home = {skill: p.name for p in plugin_map.plugins for skill in p.skills}
+
+    for plugin in plugin_map.plugins:
+        for agent in plugin.agents:
+            copy = (out / "plugins" / plugin.name / "agents" / f"{agent}.md").read_text(encoding="utf-8")
+            project = (REPO_ROOT / ".claude" / "agents" / f"{agent}.md").read_text(encoding="utf-8")
+            for skill in sorted(home, key=len, reverse=True):
+                project = re.sub(rf"(?m)^(  - |- `){re.escape(skill)}(`?)$", rf"\g<1>{_qualified(skill, home)}\g<2>", project)
+            assert copy == project, agent
+
+
+def test_every_plugin_agent_preloads_skills_by_their_full_plugin_name(plugin_map, rendered):
+    # Given the built-in /security-review that a bare security-review resolved to in live run 41255837007
+    out, _ = rendered
+    home = {skill: p.name for p in plugin_map.plugins for skill in p.skills}
+    plugins = plugin_map.by_name()
+
+    for plugin in plugin_map.plugins:
+        installed = {plugin.name} | gen.dependency_closure(plugin.name, plugins)
+        for agent in plugin.agents:
+            text = (out / "plugins" / plugin.name / "agents" / f"{agent}.md").read_text(encoding="utf-8")
+            front = yaml.safe_load(text.split("---\n")[1])
+            for entry in front.get("skills") or []:
+                owner, _, skill = entry.partition(":")
+                assert skill and home.get(skill) == owner, f"{agent} preloads {entry!r}"
+                assert owner in installed, f"{agent} preloads {entry!r} from a plugin {plugin.name!r} does not install"
 
 
 def test_each_server_plugin_mcp_file_equals_its_root_block(plugin_map, rendered, servers):

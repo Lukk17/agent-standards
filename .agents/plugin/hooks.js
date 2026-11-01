@@ -32,10 +32,18 @@
 // the hooks no assistant text, so no reply check can block it. A session that
 // could not be placed keeps both, and the gate runs for every session.
 //
+// A session placed as a subagent is told it is one: SUBAGENT_TEXT, the same
+// words Claude Code, Codex and Copilot inject on their subagent-start events,
+// goes on every user message of a child session (chat.message on 1.x and Kilo
+// Code) and on every model request of one (the session context hook on 2.x).
+// A root session and a session that could not be placed get no text from the
+// plugin, so the main-thread reminder never reaches a subagent from here.
+//
 // Imports nothing from @opencode-ai/plugin or @kilocode/plugin so one file
 // serves both runtimes.
 
 import { spawn } from "node:child_process"
+import { randomBytes } from "node:crypto"
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs"
 import { homedir } from "node:os"
 import { isAbsolute, join, relative, resolve, sep } from "node:path"
@@ -61,8 +69,23 @@ const REPLY_RULES = join(".agents", "instructions", "reply-rules.md")
 // ships in its own .agents/hooks/.
 const OPT_OUT = join(".agents", "no-global-hooks")
 
+// The subagent text, word for word the SubagentStart text in
+// .claude/settings.json. tools/tests/test_reminder_plugin.py compares the two.
+const SUBAGENT_TEXT =
+  "PREFLIGHT for a subagent: you are a subagent, and the main thread delegated this task to you. " +
+  "Do the work yourself with your own tools and load the skills your definition names. " +
+  "The rules that the main thread must delegate and may not write files apply to the main thread only, " +
+  "so do not hand this task on and do not refuse it for that reason. " +
+  "The preflight gate still checks every tool call you make. " +
+  "Report back what you changed and how you verified it."
+
+const PART_PREFIX = "prt_"
+const PART_RANDOM_CHARS = 14
+const BASE62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+
 const CONTRACT = 3
 const EVENT = "tool.execute.before"
+const MESSAGE_EVENT = "chat.message"
 const TEXT_EVENT = "experimental.text.complete"
 const TODO_EVENT = "todo.updated"
 
@@ -407,6 +430,45 @@ const freshAssistantText = (messages, seen, sessionID) => {
   return text
 }
 
+// A part id in the runtime's own ascending shape: prefix, 12 hex digits of
+// millisecond time and a per-millisecond counter, then random base62.
+let lastStamp = 0
+let stampCounter = 0
+
+const partID = () => {
+  const now = Date.now()
+
+  if (now !== lastStamp) {
+    lastStamp = now
+    stampCounter = 0
+  }
+
+  stampCounter++
+
+  const time = (BigInt(now) * 0x1000n + BigInt(stampCounter)).toString(16).padStart(12, "0").slice(-12)
+  const random = Array.from(randomBytes(PART_RANDOM_CHARS), (byte) => BASE62[byte % 62]).join("")
+
+  return PART_PREFIX + time + random
+}
+
+// Adds SUBAGENT_TEXT as a synthetic text part to a user message of a session
+// placed as a subagent. The runtime saves the parts after the handler returns
+// and sends every text part that is not `ignored` to the model, and a
+// synthetic part stays out of the visible transcript. A root session, a
+// session that could not be placed, and a message the part cannot be tied to
+// get nothing.
+const tellSubagent = async (input, output, place) => {
+  const parts = output?.parts
+  const sessionID = output?.message?.sessionID || input?.sessionID
+  const messageID = output?.message?.id || input?.messageID
+
+  if (!Array.isArray(parts) || !sessionID || !messageID) return
+  if ((await place(sessionID)) !== true) return
+  if (parts.some((part) => part?.type === "text" && part.text === SUBAGENT_TEXT)) return
+
+  parts.push({ id: partID(), sessionID, messageID, type: "text", text: SUBAGENT_TEXT, synthetic: true })
+}
+
 // Inside a git repository `worktree` is the project root and `directory` only
 // the session's start folder, a subdirectory whenever the runtime was started
 // deeper in the tree. Anchoring on the root is what keeps .agents/hooks/
@@ -499,6 +561,14 @@ export const Preflight = async ({ directory, worktree, client } = {}) => {
   const placed = new Map()
 
   return {
+    [MESSAGE_EVENT]: async (input, output) => {
+      try {
+        await tellSubagent(input, output, (sessionID) => placeSession(client, placed, sessionID))
+      } catch {
+        return
+      }
+    },
+
     [TEXT_EVENT]: async (input, output) => {
       try {
         if (typeof output?.text !== "string" || !output.text) return
@@ -631,18 +701,24 @@ const replyRules = (root) => {
   }
 }
 
-// Adds the reply rules as one more system part on every model request of the
-// main thread and keeps the built-in prompt. A session placed as a subagent
-// gets nothing, because nobody reads its reply style and the rules cost tokens
-// on every request. A session that could not be placed still gets them. Any
-// failure adds nothing.
-const addReplyRules = (root, place) => async (event) => {
+// Adds one more system part on every model request and keeps the built-in
+// prompt. The main thread gets the reply rules. A session placed as a subagent
+// gets SUBAGENT_TEXT instead and no reply rules, because nobody reads its reply
+// style and the rules cost tokens on every request. A session that could not be
+// placed still gets the rules and never the subagent text. Any failure adds
+// nothing.
+const addSessionContext = (root, place) => async (event) => {
   try {
-    if ((await place(event?.sessionID)) === true) return
+    if (!Array.isArray(event?.system)) return
+
+    if ((await place(event?.sessionID)) === true) {
+      event.system.push({ type: "text", text: SUBAGENT_TEXT })
+      return
+    }
 
     const path = replyRules(root)
 
-    if (!path || !Array.isArray(event?.system)) return
+    if (!path) return
 
     event.system.push({ type: "text", text: "Instructions from: " + path + "\n" + readFileSync(path, "utf8") })
   } catch {
@@ -652,10 +728,11 @@ const addReplyRules = (root, place) => async (event) => {
 
 // OpenCode 2.x entry point. Its only hook that can refuse anything is the tool
 // execute.before hook, so the gate and the reply checks all ride it. The
-// session context hook carries the reply rules. Reply rules and reply checks
-// are for the main thread only: a session placed as a subagent gets no rules
-// and hands the hooks no assistant text, so no reply check can block it. The
-// gate itself still runs for every session.
+// session context hook carries the reply rules to the main thread and the
+// subagent text to a subagent. Reply rules and reply checks are for the main
+// thread only: a session placed as a subagent gets no rules and hands the hooks
+// no assistant text, so no reply check can block it. The gate itself still runs
+// for every session.
 const setup = async (ctx) => {
   const root = ctx?.location?.project?.directory || ctx?.location?.directory || process.cwd()
 
@@ -675,7 +752,7 @@ const setup = async (ctx) => {
   const place = sessionPlacerV2(ctx)
 
   try {
-    await ctx.session?.hook?.("context", addReplyRules(root, place))
+    await ctx.session?.hook?.("context", addSessionContext(root, place))
   } catch {
     // Without the hook the rules are simply not added, which never blocks anything.
   }
