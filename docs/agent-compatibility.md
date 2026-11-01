@@ -220,7 +220,14 @@ Reading the tables row by row:
   redirects. A quote of either kind, a backslash, a `$`, a backtick, a glob, a brace, a separator, a pipe, a carriage
   return and any non-ASCII character deny there. No quote is accepted, because each shell an agent may run reads a
   quoted span its own way, so a git format spells a space `%x20` and a newline `%n`, as in
-  `git log --format=%h%x20%an%x20%s` (measured on git 2.43.0). Every command left has to match the list. No word,
+  `git --no-pager log --format=%h%x20%an%x20%s` (measured on git 2.43.0). Every command left has to match the list.
+  A git command also has to open with `git --no-pager`, whatever the list says, because git on a terminal pipes its
+  output into a pager, and `less` runs any command typed after `!`. `--no-pager` sets `use_pager = 0` in
+  `handle_options`, and `commit_pager_choice` then sets `GIT_PAGER` to `cat`, so neither `core.pager` nor
+  `pager.<cmd>` can start one ([git.c at v2.43.0](https://raw.githubusercontent.com/git/git/v2.43.0/git.c), fetched
+  2026-11-01). Measured on git 2.43.0 under a pseudo-terminal from `script`: `git log`, `git show` and `git diff HEAD`
+  each started `GIT_PAGER`, while `git --no-pager` with `log`, `diff`, `show` or `status` did not, `pager.status=true`
+  included. Only the long form passes, so `-P`, `--paginate` and a `-c` before the subcommand deny. No word,
   nor any comma-separated part of one, may hold a `$`, a backslash, a brace expansion or a git output option in any
   abbreviation, open with `@`, or be PowerShell's stop-parsing `--%`, after which PowerShell still substitutes
   "environment variables that use standard Windows notation, such as `%USERPROFILE%`". That holds in both dialects,
@@ -233,7 +240,7 @@ Reading the tables row by row:
   negated glob: in a folder holding the files `--out` and `--output=pwned`, zsh 5.9 expanded `--out^x` to both names,
   while `HEAD^:src/app.py` matched only names starting with `HEAD`. A word opening with `@` is a splat or a hashtable
   in PowerShell, so `@{u}` and `@~1` deny too, and a read-only reviewer names the upstream branch instead, as in
-  `git log origin/main..HEAD`. gh may not open a browser (`--web`, `-w`, `-w=true`, `-cw`) or name another host by a
+  `git --no-pager log origin/main..HEAD`. gh may not open a browser (`--web`, `-w`, `-w=true`, `-cw`) or name another host by a
   URL argument, and `-R` or `--repo` must be exactly `OWNER/REPO` of letters, digits, `.`, `_` and `-`, because
   `--repo` takes `[HOST/]OWNER/REPO` ([gh pr view](https://cli.github.com/manual/gh_pr_view)), so a host part and
   an scp-style `git@host:owner/repo` deny alike. Nor may gh run a `--jq` or `-q` expression: go-gh
@@ -242,7 +249,17 @@ Reading the tables row by row:
   2.89.0 pins, fetched 2026-10-30), and gojq's loader "allows to configure the environment variables referenced by
   `env` and `$ENV`" ([gojq README](https://raw.githubusercontent.com/itchyny/gojq/main/README.md)), so `--jq env`
   prints every variable, tokens included. `--template` and `-t` deny with it. A gh template has no environment function, but neither flag then
-  carries code. Every `command` and `cmd` value is judged, not only the first. Unlike every other rule, any failure while lexing or matching denies here, a parse error and
+  carries code. On the `codex` format a read-only agent runs no gh command at all. gh sends its output to a pager
+  whenever stdout is a terminal: "`GH_PAGER`, `PAGER` (in order of precedence): a terminal paging program to send
+  standard output to, e.g. `less`" (`gh help environment`, gh 2.89.0), `StartPager` returns early only when that
+  program is empty or `cat` or stdout is no terminal
+  ([pkg/iostreams/iostreams.go at v2.89.0](https://raw.githubusercontent.com/cli/cli/v2.89.0/pkg/iostreams/iostreams.go)),
+  and `gh pr view` starts it before it writes `--json` output
+  ([pkg/cmd/pr/view/view.go at v2.89.0](https://raw.githubusercontent.com/cli/cli/v2.89.0/pkg/cmd/pr/view/view.go),
+  both fetched 2026-11-01). No flag turns it off, and the environment prefix or `gh config set pager` that would are
+  refused. Claude Code, OpenCode and Kilo Code hand the gate the call's `tty` key, which Rule E denies, but Codex hands
+  its hook the command alone, so there a listed gh command could open a pager that `write_stdin` then types into.
+  Every `command` and `cmd` value is judged, not only the first. Unlike every other rule, any failure while lexing or matching denies here, a parse error and
   any other exception alike, and so does a tool the gate does not know that carries a command. Rule E applies when
   any definition the name resolves to is read-only: the calling format's own tree is read first and decides Rule B,
   and every other tree still counts for Rule E. A plugin subagent, which Claude Code names `<plugin>:<name>`, is
@@ -257,12 +274,16 @@ Reading the tables row by row:
   such an agent gets no MCP tool there either. Codex has no per-agent tool field, and a custom agent file cannot
   narrow the sandbox: "Other session settings, including `sandbox_mode`, `approval_policy`, `model_provider`, and
   `mcp_servers`, don't override the parent configuration when placed in a custom agent file"
-  ([subagents, "Custom agents"](https://developers.openai.com/codex/subagents), fetched 2026-10-30). Read-only is
-  not confirmed as enforced on Codex, because whether its `PreToolUse` payload carries `agent_type` is unmeasured:
-  the hooks page lists `agent_id` and `agent_type` only for `SubagentStart` and `SubagentStop`
-  ([hooks](https://learn.chatgpt.com/docs/hooks), fetched 2026-10-30), the generated schema lists both as optional
-  `PreToolUse` fields, and no run here has seen them arrive. A payload without them is allowed. Even where they
-  arrive, Codex's own `PreToolUse` input for a shell call is `serde_json::json!({ "command": args.cmd })`
+  ([subagents, "Custom agents"](https://developers.openai.com/codex/subagents), fetched 2026-10-30). Codex does name
+  the subagent on `PreToolUse`, although the hooks page lists `agent_id` and `agent_type` only for `SubagentStart` and
+  `SubagentStop` ([hooks](https://learn.chatgpt.com/docs/hooks), fetched 2026-10-30) and the generated schema lists
+  both as optional: in live run 41348146352 on Codex 0.166.0, the payload of a call the read-only `code-reviewer`
+  made from its own rollout carried the keys `agent_id`, `agent_type`, `cwd`, `hook_event_name`, `model`,
+  `permission_mode`, `session_id`, `tool_input`, `tool_name`, `tool_use_id`, `transcript_path` and `turn_id`, with
+  `agent_type` `code-reviewer`, while the main thread's payloads carried neither field. Rule E therefore finds the
+  read-only definition there. That run's reviewer never tried the probe touch, so a Rule E denial on Codex is proven
+  by the gate's own tests on that payload shape, not yet by a live run. A payload without the fields is still
+  allowed. Even so, Codex's own `PreToolUse` input for a shell call is `serde_json::json!({ "command": args.cmd })`
   (`exec_command.rs` at `rust-v0.156.1` and at `main` on 2026-10-30), so `tty`, `shell` and `login` never reach the
   gate there, and before `rust-v0.166.0` neither does `workdir`. Its `write_stdin` tool, which types into a shell
   started with `tty: true`, "doesn't run `PreToolUse` again when it sends input or polls a command that already
@@ -391,7 +412,6 @@ names, and Rule E reads the command line, not the configuration it runs under, s
 read-only as the repository it reviews. That covers:
 
 - `diff.external`, a `textconv` driver set through `.gitattributes`, and `core.fsmonitor` on `git status`.
-- The pager when the command runs on a terminal, which is an interactive shell escape: `less` runs `!command`.
 - `--show-signature`, `log.showSignature` and the `%G?` family of format placeholders, which run `gpg.program`.
 - A `filter.<driver>.clean` or `filter.<driver>.process` program, which `git diff` and `git status` run on the
   working tree.
@@ -401,7 +421,8 @@ read-only as the repository it reviews. That covers:
   assumed to behave the same, not measured.
 - On Codex before `rust-v0.166.0`, a call's `workdir` never reaches the gate, and on every Codex version `tty`,
   `shell` and `login` do not either, so a read-only agent there can still run a listed command in another folder,
-  under another shell, or on a terminal it then types into through `write_stdin`.
+  under another shell, or on a terminal it then types into through `write_stdin`. No listed command opens a pager
+  there, because git runs only as `git --no-pager` and gh not at all, so the terminal holds no pager to escape from.
 - `git status`, which rewrites `.git/index` to refresh its stat cache, so a read-only agent still writes there.
 - `gh pr view --comments` and every other gh or git output, which is text other people wrote and reaches the agent as
   untrusted input.

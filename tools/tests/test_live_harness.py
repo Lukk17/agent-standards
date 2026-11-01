@@ -1050,7 +1050,7 @@ def judge_canary(work: Path, calls: list[dict], context: str = "") -> str:
     ("calls", "context", "expected"),
     [
         pytest.param([{**SPAWN, "result": "live-canary-123"}], "", "PASS", id="repeated"),
-        pytest.param([SPAWN], '{"attachment":"live-canary-123"}', "PASS", id="in-the-recorded-context"),
+        pytest.param([SPAWN], '{"attachment":"live-canary-123"}', "INCONCLUSIVE", id="a-hook-injected-it"),
         pytest.param(
             [{**SPAWN, "result": "live-canary-123"}, {"actor": "subagent", "tool": "Skill", "input": '{"skill":"core:security-review"}', "result": "", "error": False}],
             "",
@@ -1081,6 +1081,291 @@ def judge_canary(work: Path, calls: list[dict], context: str = "") -> str:
 )
 def test_the_preload_canary_verdict(tmp_path, calls, context, expected):
     assert judge_canary(tmp_path, calls, context) == expected
+
+
+# Live run 41348146352 (Claude Code 2.1.314, Codex 0.166.0): minimal, scrubbed
+# copies of the record shapes the run kept, with ids, paths and model text
+# replaced and every key the judges read kept as recorded.
+
+CANARY = "live-canary-123"
+ASYNC_LAUNCH = (
+    "Async agent launched successfully.\nagentId: a1 (internal ID - do not mention to user.)\n"
+    "The agent is working in the background. You will be notified automatically when it completes."
+)
+BACKGROUND_SPAWN = {
+    "actor": "main",
+    "tool": "Agent",
+    "input": json.dumps({"description": "Skill preload marker test", "prompt": "Reply with the marker exactly.", "subagent_type": PLUGIN_AGENT}),
+    "result": ASYNC_LAUNCH,
+    "error": False,
+}
+
+
+def claude_text(role: str, text: str, **extra) -> dict:
+    return {"type": role, "isSidechain": True, "agentId": "a1", **extra, "message": {"role": role, "content": [{"type": "text", "text": text}]}}
+
+
+def claude_subagent_lines(reply: str = CANARY, skill_text: str = CANARY) -> list[dict]:
+    """The subagent transcript: prompt, SubagentStart hook text, the preloaded skill as a meta user message, an empty turn, the reply."""
+    return [
+        {"type": "user", "isSidechain": True, "agentId": "a1", "message": {"role": "user", "content": "Reply with the marker exactly."}},
+        {"type": "attachment", "isSidechain": True, "agentId": "a1", "attachment": {"type": "hook_additional_context", "content": ["PREFLIGHT for a subagent: x"], "hookName": "SubagentStart", "hookEvent": "SubagentStart"}},
+        {
+            "type": "user",
+            "isSidechain": True,
+            "agentId": "a1",
+            "isMeta": True,
+            "message": {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "<command-message>core:security-review</command-message>\n<command-name>core:security-review</command-name>"},
+                    {"type": "text", "text": f"Base directory for this skill: /m/plugins/core/skills/security-review\n\n# Security Review\n\nCheck application code against\n\n### Live test preload marker\n\n{skill_text}"},
+                ],
+            },
+        },
+        {"type": "assistant", "isSidechain": True, "agentId": "a1", "attributionAgent": PLUGIN_AGENT, "message": {"role": "assistant", "content": [{"type": "thinking", "thinking": ""}]}},
+        {"type": "user", "isSidechain": True, "agentId": "a1", "isMeta": True, "message": {"role": "user", "content": "[Your previous response had no visible output.]"}},
+        claude_text("assistant", reply, attributionAgent=PLUGIN_AGENT),
+    ]
+
+
+def claude_task_notification(result: str = CANARY, kind: str = "task-notification") -> dict:
+    """The main-session user message Claude Code adds when a background subagent finishes."""
+    return {
+        "type": "user",
+        "origin": {"kind": kind, "producer": "session-task"},
+        "message": {
+            "role": "user",
+            "content": f"<task-notification>\n<task-id>a1</task-id>\n<status>completed</status>\n<summary>Agent \"Skill preload marker test\" finished</summary>\n<result>{result}</result>\n</task-notification>",
+        },
+    }
+
+
+def claude_stream_lines(result: str = CANARY, main_text: str = "") -> list[dict]:
+    """The stream: the subagent's reply under its parent tool use, the task_notification event, the main thread's own reply."""
+    return [
+        {"type": "assistant", "parent_tool_use_id": "t1", "agent_id": "a1", "subagent_type": PLUGIN_AGENT, "message": {"content": [{"type": "text", "text": result}]}},
+        {"type": "system", "subtype": "task_notification", "task_id": "a1", "tool_use_id": "t1", "status": "completed", "summary": result},
+        {"type": "assistant", "parent_tool_use_id": None, "message": {"content": [{"type": "text", "text": main_text or "The subagent returned it."}]}},
+    ]
+
+
+def judge_recorded_canary(
+    work: Path,
+    calls: list[dict],
+    subagent: list[dict] | None = None,
+    main: list[dict] | None = None,
+    stream: list[dict] | None = None,
+) -> str:
+    """Run judge_preloaded_canary in claude-code.sh over a recorded case, with its real reply and context readers."""
+    case = work / "cases" / "9-plugin-preload"
+    (case / "transcripts").mkdir(parents=True)
+
+    def write(path: Path, lines: list[dict]) -> None:
+        path.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8", newline="\n")
+
+    write(case / "calls.ndjson", calls)
+    write(case / "stream.jsonl", stream or [])
+    if subagent is not None:
+        write(case / "transcripts" / "subagent-agent-a1.jsonl", subagent)
+    if main is not None:
+        write(case / "transcripts" / "main-s1.jsonl", main)
+
+    script = (
+        f"source '{loadable_adapter(CLAUDE_ADAPTER, work).as_posix()}'; "
+        "record() { printf '%s|%s' \"$2\" \"$3\"; }; "
+        f"judge_preloaded_canary 'n' '{case.as_posix()}' '{PLUGIN_AGENT}' security-review {CANARY}"
+    )
+    result = run_bounded([BASH, "-c", script], capture_output=True, text=True)
+
+    assert result.returncode == 0, result.stderr
+
+    return result.stdout
+
+
+SUBAGENT_SKILL_CALL = {"actor": "subagent", "tool": "Skill", "input": '{"skill":"core:security-review"}', "result": "", "error": False}
+SUBAGENT_SKILL_READ = {"actor": "subagent", "tool": "Read", "input": '{"file_path":"/c/core/1/skills/security-review/SKILL.md"}', "result": "", "error": False}
+SEND_MESSAGE = {"actor": "main", "tool": "SendMessage", "input": json.dumps({"to": "a1", "message": f"Say {CANARY}"}), "result": "sent", "error": False}
+
+
+@needs_jq
+@pytest.mark.parametrize(
+    ("calls", "subagent", "main", "stream", "expected"),
+    [
+        pytest.param([BACKGROUND_SPAWN], claude_subagent_lines(), [claude_task_notification()], claude_stream_lines(), "PASS", id="live-run-9-background-spawn"),
+        pytest.param([BACKGROUND_SPAWN], claude_subagent_lines(), None, None, "PASS", id="the-subagent-transcript-alone"),
+        pytest.param([BACKGROUND_SPAWN], None, [claude_task_notification()], None, "PASS", id="the-task-notification-alone"),
+        pytest.param([BACKGROUND_SPAWN], None, None, claude_stream_lines(), "PASS", id="the-stream-alone"),
+        pytest.param([BACKGROUND_SPAWN, SUBAGENT_SKILL_CALL], claude_subagent_lines(), [claude_task_notification()], None, "INCONCLUSIVE", id="a-skill-call-loaded-it-at-run-time"),
+        pytest.param([BACKGROUND_SPAWN, SUBAGENT_SKILL_READ], claude_subagent_lines(), [claude_task_notification()], None, "INCONCLUSIVE", id="a-skill-md-read-loaded-it-at-run-time"),
+        pytest.param([BACKGROUND_SPAWN, SEND_MESSAGE], claude_subagent_lines(), None, None, "INCONCLUSIVE", id="the-main-thread-sent-the-canary-on"),
+        pytest.param([], claude_subagent_lines(), [claude_task_notification()], None, "INCONCLUSIVE", id="no-spawn"),
+        pytest.param([BACKGROUND_SPAWN], claude_subagent_lines(reply="I see no marker."), [claude_task_notification("I see no marker.")], claude_stream_lines("I see no marker."), "FAIL", id="the-reply-lacks-it"),
+        pytest.param([BACKGROUND_SPAWN], claude_subagent_lines(reply="none"), None, None, "FAIL", id="the-preloaded-skill-text-is-no-reply"),
+        pytest.param([BACKGROUND_SPAWN], None, None, claude_stream_lines("none", main_text=CANARY), "FAIL", id="the-main-threads-own-text-is-no-reply"),
+        pytest.param([BACKGROUND_SPAWN], None, [claude_task_notification(kind="user")], None, "FAIL", id="a-result-tag-outside-a-task-notification"),
+    ],
+)
+def test_the_preload_canary_verdict_reads_the_subagents_own_reply(tmp_path, calls, subagent, main, stream, expected):
+    verdict = judge_recorded_canary(tmp_path, calls, subagent, main, stream)
+
+    assert verdict.split("|")[0] == expected, verdict
+
+
+@needs_jq
+def test_a_canary_a_hook_injected_cannot_prove_the_preload(tmp_path):
+    subagent = claude_subagent_lines()
+    subagent[1]["attachment"]["content"] = [f"PREFLIGHT for a subagent: {CANARY}"]
+
+    verdict = judge_recorded_canary(tmp_path, [BACKGROUND_SPAWN], subagent)
+
+    assert verdict.split("|")[0] == "INCONCLUSIVE", verdict
+    assert "hook injected" in verdict
+
+
+@needs_jq
+def test_a_failed_preload_quotes_the_reply_rather_than_the_launch_notice(tmp_path):
+    verdict = judge_recorded_canary(tmp_path, [BACKGROUND_SPAWN], claude_subagent_lines(reply="I see no marker."))
+
+    assert verdict.startswith("FAIL|"), verdict
+    assert "I see no marker." in verdict
+    assert "Async agent launched" not in verdict
+
+
+@needs_jq
+def test_the_claude_reply_reader_prints_only_subagent_and_notification_text(tmp_path):
+    case = tmp_path / "case"
+    (case / "transcripts").mkdir(parents=True)
+    (case / "transcripts" / "subagent-agent-a1.jsonl").write_text("".join(json.dumps(line) + "\n" for line in claude_subagent_lines(reply="sub-reply", skill_text="skill-body")), encoding="utf-8")
+    (case / "transcripts" / "main-s1.jsonl").write_text(json.dumps(claude_task_notification("note-result")) + "\n", encoding="utf-8")
+    (case / "stream.jsonl").write_text("".join(json.dumps(line) + "\n" for line in claude_stream_lines("stream-reply", main_text="main-text")), encoding="utf-8")
+
+    result = run_bounded(
+        [BASH, "-c", f"source '{loadable_adapter(CLAUDE_ADAPTER, tmp_path).as_posix()}'; agent_subagent_replies \"$1\"", "_", case.as_posix()],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.split("\n") == ["sub-reply", "note-result", "stream-reply", "stream-reply", ""]
+
+
+CODEX_PROBE_ROLLOUTS = {
+    "rollout-main.jsonl": [{"type": "session_meta", "payload": {"id": "p1", "source": "exec"}}],
+    "rollout-sub.jsonl": [
+        {
+            "type": "session_meta",
+            "payload": {
+                "id": "s1",
+                "source": {"subagent": {"thread_spawn": {"parent_thread_id": "p1", "depth": 1, "agent_path": "/root/probe", "agent_nickname": "N", "agent_role": "code-reviewer"}}},
+            },
+        }
+    ],
+}
+CODEX_PAYLOAD_KEYS = ["cwd", "hook_event_name", "model", "permission_mode", "session_id", "tool_input", "tool_name", "tool_use_id", "transcript_path", "turn_id"]
+
+
+def codex_payload(tool: str, transcript: str, agent_type: str | None = None, agent_id: bool = False, probe: bool = False) -> dict:
+    """One capture-hook record as run 41348146352 wrote it."""
+    keys = sorted([*CODEX_PAYLOAD_KEYS, *(["agent_id"] if agent_id else []), *(["agent_type"] if agent_type else [])])
+    return {"event": "PreToolUse", "tool": tool, "keys": keys, "tool_input_keys": [], "agent_id": agent_id, "agent_type": agent_type, "probe": probe, "transcript": transcript}
+
+
+CODEX_RUN9_SPAWN = {"actor": "main", "tool": "spawn_agent", "input": '{"task_name":"permission_probe","agent_type":"code-reviewer","message":"x"}', "result": '{"task_name":"/root/permission_probe"}', "error": False}
+CODEX_RUN9_CALLS = [
+    CODEX_RUN9_SPAWN,
+    {"actor": "main", "tool": "wait_agent", "input": '{"timeout_ms":3600000}', "result": '{"message":"Wait completed.","timed_out":false}', "error": False},
+    {"actor": "subagent", "tool": "send_message", "input": '{"target":"/root","message":"x"}', "result": "", "error": False},
+]
+CODEX_RUN9_PAYLOADS = [
+    codex_payload("collaborationspawn_agent", "rollout-main.jsonl"),
+    codex_payload("collaborationwait_agent", "rollout-main.jsonl"),
+    codex_payload("collaborationsend_message", "rollout-sub.jsonl", "code-reviewer", agent_id=True),
+]
+
+
+def judge_codex_payloads(work: Path, payloads: list[dict], calls: list[dict], transcript: str = "", landed: bool = False) -> list[str]:
+    """Run codex.sh's check 7 and 7b judges over a recorded case, one verdict line per check."""
+    case = work / "cases" / "7-payload"
+    project = work / "project"
+    (case / "transcripts").mkdir(parents=True)
+    project.mkdir()
+    (case / "payloads.ndjson").write_text("".join(json.dumps(p) + "\n" for p in payloads), encoding="utf-8", newline="\n")
+    (case / "calls.ndjson").write_text("".join(json.dumps(c) + "\n" for c in calls), encoding="utf-8", newline="\n")
+    (case / "stream.jsonl").write_text(transcript, encoding="utf-8", newline="\n")
+    for file_name, lines in CODEX_PROBE_ROLLOUTS.items():
+        (case / "transcripts" / file_name).write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8", newline="\n")
+    if landed:
+        (project / READ_ONLY_PROBE).write_text("", encoding="utf-8")
+
+    script = (
+        f"source '{loadable_adapter(CODEX_ADAPTER, work).as_posix()}'; "
+        f"PROJECT='{project.as_posix()}'; "
+        "record() { printf '%s|%s|%s\\n' \"$2\" \"$1\" \"$3\"; }; "
+        f"judge_codex_payload_checks '{case.as_posix()}'"
+    )
+    result = run_bounded([BASH, "-c", script], capture_output=True, text=True)
+
+    assert result.returncode == 0, result.stderr
+
+    return result.stdout.splitlines()
+
+
+CODEX_SUB_PROBE = {"actor": "subagent", "tool": "exec_command", "input": f'{{"cmd":"touch {READ_ONLY_PROBE}"}}', "result": "denied", "error": True}
+
+
+@needs_jq
+@pytest.mark.parametrize(
+    ("payloads", "calls", "expected"),
+    [
+        pytest.param(CODEX_RUN9_PAYLOADS, CODEX_RUN9_CALLS, "PASS", id="live-run-9-send-message-from-the-subagent"),
+        pytest.param(CODEX_RUN9_PAYLOADS[:2] + [codex_payload("collaborationsend_message", "rollout-sub.jsonl", agent_id=True)], CODEX_RUN9_CALLS, "FAIL", id="agent-id-without-agent-type"),
+        pytest.param(CODEX_RUN9_PAYLOADS[:2] + [codex_payload("collaborationsend_message", "rollout-sub.jsonl", "code-reviewer")], CODEX_RUN9_CALLS, "FAIL", id="agent-type-without-agent-id"),
+        pytest.param(CODEX_RUN9_PAYLOADS[:2] + [codex_payload("collaborationsend_message", "rollout-sub.jsonl", "default", agent_id=True)], CODEX_RUN9_CALLS, "FAIL", id="another-agent-type"),
+        pytest.param(CODEX_RUN9_PAYLOADS[:2], CODEX_RUN9_CALLS, "INCONCLUSIVE", id="no-payload-from-the-subagent-rollout"),
+        pytest.param(CODEX_RUN9_PAYLOADS[:2] + [codex_payload("x", "rollout-main.jsonl", "code-reviewer", agent_id=True)], CODEX_RUN9_CALLS, "INCONCLUSIVE", id="placed-by-the-rollout-not-by-agent-id"),
+        pytest.param(CODEX_RUN9_PAYLOADS[:2] + [codex_payload("x", "rollout-gone.jsonl", "code-reviewer", agent_id=True)], CODEX_RUN9_CALLS, "INCONCLUSIVE", id="an-unknown-rollout-places-nothing"),
+        pytest.param([], CODEX_RUN9_CALLS, "INCONCLUSIVE", id="capture-hook-never-ran"),
+        pytest.param(CODEX_RUN9_PAYLOADS, [], "INCONCLUSIVE", id="never-spawned"),
+    ],
+)
+def test_codex_check_seven_answers_from_any_payload_in_the_subagent_rollout(tmp_path, payloads, calls, expected):
+    check, _ = judge_codex_payloads(tmp_path, payloads, calls)
+
+    assert check.split("|")[:2] == [expected, "7 a Codex subagent's PreToolUse payload names its agent_type"], check
+
+
+@needs_jq
+def test_codex_check_seven_quotes_the_keys_of_the_payload_that_named_the_type(tmp_path):
+    check, _ = judge_codex_payloads(tmp_path, CODEX_RUN9_PAYLOADS, CODEX_RUN9_CALLS)
+
+    assert "tools collaborationsend_message" in check
+    assert "agent_id present, agent_type code-reviewer" in check
+
+
+@needs_jq
+@pytest.mark.parametrize(
+    ("payloads", "calls", "transcript", "landed", "expected"),
+    [
+        pytest.param(CODEX_RUN9_PAYLOADS, CODEX_RUN9_CALLS, "", False, "INCONCLUSIVE", id="live-run-9-the-probe-was-never-tried"),
+        pytest.param(
+            [*CODEX_RUN9_PAYLOADS, codex_payload("Bash", "rollout-sub.jsonl", "code-reviewer", agent_id=True, probe=True)],
+            [*CODEX_RUN9_CALLS, CODEX_SUB_PROBE], denial("RULE_E_REASON"), False, "PASS", id="tried-and-denied-by-rule-e",
+        ),
+        pytest.param(
+            [*CODEX_RUN9_PAYLOADS, codex_payload("Bash", "rollout-sub.jsonl", "code-reviewer", agent_id=True, probe=True)],
+            [*CODEX_RUN9_CALLS, {**CODEX_SUB_PROBE, "result": "", "error": False}], "", True, "FAIL", id="tried-and-landed",
+        ),
+        pytest.param(
+            [*CODEX_RUN9_PAYLOADS, codex_payload("Bash", "rollout-sub.jsonl", agent_id=True, probe=True)],
+            [*CODEX_RUN9_CALLS, CODEX_SUB_PROBE], "", True, "FAIL", id="a-probe-payload-without-agent-type-is-no-longer-a-known-gap",
+        ),
+    ],
+)
+def test_codex_check_seven_b_reports_the_probe_on_its_own_line(tmp_path, payloads, calls, transcript, landed, expected):
+    _, probe = judge_codex_payloads(tmp_path, payloads, calls, transcript, landed)
+
+    assert probe.split("|")[:2] == [expected, "7b Rule E denies the Codex code-reviewer's probe touch"], probe
 
 
 def test_the_rendered_plugin_reviewer_preloads_the_core_skill_that_carries_the_canary(tmp_path):

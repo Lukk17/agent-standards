@@ -42,9 +42,14 @@ E. A subagent whose own definition carries a READ_ONLY_HEADING section may
    pipe reaches the lexer. Every resulting command has to match a listed
    pattern, and no word, nor any comma-separated part of one, may hold a `$`,
    a backslash, a brace expansion or a git output option, open with `@` or
-   with a zsh negated glob, or be PowerShell's `--%`. gh may not open a
-   browser, name a URL, take a repository other than OWNER/REPO, or run a
-   --jq or --template expression, and any exception while
+   with a zsh negated glob, or be PowerShell's `--%`. A git command has to
+   open with `git --no-pager`, whatever the list says, because git on a
+   terminal pipes its output into a pager whose `!` runs any command. gh may
+   not open a browser, name a URL, take a repository other than OWNER/REPO,
+   or run a --jq or --template expression, and on the codex format no gh
+   command runs at all, because gh has no flag that keeps its pager off and
+   Codex can type into a terminal through write_stdin, which the hook never
+   sees (READ_ONLY_PAGER_REASON). Any exception while
    lexing or matching denies, the one rule where a parse failure does. The
    rule applies when any definition the name resolves to is read-only, a
    plugin's installed copy included, and an unreadable one counts as
@@ -288,6 +293,32 @@ READ_ONLY_GH_REPO_VALUE_RE = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
 # carries code. A cluster stops at -R, whose value follows it, so
 # `-Rowner/test` stays a repository.
 READ_ONLY_GH_EXPRESSION_RE = re.compile(r"^(?:--(?:jq|template)(?:=.*)?|-[A-QS-Za-z]*[qt].*)$")
+# A pager is a shell: `less` runs any command typed after `!`. git pipes its
+# output into one on a terminal unless told otherwise, and `--no-pager` sets
+# use_pager to 0 before the subcommand's own pager choice is read, so neither
+# pager.<cmd> nor core.pager can start one (handle_options and
+# commit_pager_choice in git.c at v2.43.0; measured on git 2.43.0 under a
+# pseudo-terminal: `git log` and `git show` started GIT_PAGER, `git --no-pager
+# log`, `diff`, `show` and `status` did not, pager.status=true included).
+# Rule E therefore takes git only as `git --no-pager <subcommand>`, on every
+# format, so one spelling holds everywhere. The long form alone is accepted.
+READ_ONLY_GIT_NO_PAGER = "--no-pager"
+# gh starts $GH_PAGER, its `pager` setting or $PAGER whenever stdout is a
+# terminal, `pr view --json` included, and offers no flag that turns it off
+# (`gh help environment` and StartPager in pkg/iostreams/iostreams.go at gh
+# v2.89.0). Only an environment prefix or a written config would, and Rule E
+# refuses both. Claude Code, OpenCode and Kilo Code hand the gate the call's
+# `tty` key, which Rule E denies, but Codex hands its hook the command alone
+# and its write_stdin types into a terminal without a PreToolUse call, so on
+# the codex format a read-only agent runs no gh command at all.
+READ_ONLY_PAGER_FORMATS = frozenset({"codex"})
+READ_ONLY_PAGER_REASON = {
+    "git": "{words} (run git as git --no-pager <subcommand>: on a terminal git pipes its output into a pager, whose ! runs any command)",
+    "gh": (
+        "{words} (gh has no flag that keeps its pager off, and Codex can type into a terminal "
+        "the gate never sees, so a read-only agent on Codex runs no gh command: return it to the caller)"
+    ),
+}
 # Rule E reads a command only once every character in it is one a listed
 # read-only command needs, so no quote, escape, expansion, glob, brace,
 # separator, redirect or non-ASCII character reaches the lexer at all: a word
@@ -7466,6 +7497,25 @@ def _gh_repository_values(argv: Tuple[str, ...]) -> List[str]:
     return values
 
 
+def _opens_a_pager(argv: Tuple[str, ...], fmt: str) -> Optional[str]:
+    """The deny reason for a command that could open a pager, or None.
+
+    A git command passes only as `git --no-pager <subcommand>`, on every
+    format. A gh command passes nowhere on a format in READ_ONLY_PAGER_FORMATS,
+    because nothing on its command line keeps its pager off.
+    """
+    program = argv[0] if argv else ""
+    words = " ".join(argv)
+
+    if program == "git" and argv[1:2] != (READ_ONLY_GIT_NO_PAGER,):
+        return READ_ONLY_PAGER_REASON["git"].format(words=words)
+
+    if program == "gh" and fmt in READ_ONLY_PAGER_FORMATS:
+        return READ_ONLY_PAGER_REASON["gh"].format(words=words)
+
+    return None
+
+
 def _names_another_repository(argv: Tuple[str, ...]) -> bool:
     """True for a gh command aimed at a server by URL, or handed -R or --repo with anything but OWNER/REPO."""
     if argv[:1] != ("gh",):
@@ -7701,7 +7751,7 @@ def _read_only_key_blocked(tool_input: Dict[str, Any]) -> Optional[str]:
 
 
 def _read_only_blocked(
-    tool: str, tool_input: Dict[str, Any], patterns: List[str], payload_cwd: Any = None
+    tool: str, tool_input: Dict[str, Any], patterns: List[str], payload_cwd: Any = None, fmt: str = ""
 ) -> Optional[str]:
     """What a read-only subagent's call would do outside its allowlist, or None to allow.
 
@@ -7711,7 +7761,7 @@ def _read_only_blocked(
     as unreadable shell code.
     """
     if tool in SHELL_TOOLS:
-        return _read_only_shell_blocked(tool, tool_input, patterns, payload_cwd)
+        return _read_only_shell_blocked(tool, tool_input, patterns, payload_cwd, fmt)
 
     if tool in READ_ONLY_READ_TOOLS:
         return None
@@ -7723,7 +7773,7 @@ def _read_only_blocked(
 
 
 def _read_only_shell_blocked(
-    tool: str, tool_input: Dict[str, Any], patterns: List[str], payload_cwd: Any = None
+    tool: str, tool_input: Dict[str, Any], patterns: List[str], payload_cwd: Any = None, fmt: str = ""
 ) -> Optional[str]:
     """What a read-only subagent's shell call would run outside its allowlist, or None to allow.
 
@@ -7747,7 +7797,7 @@ def _read_only_shell_blocked(
         return _UNPLACEABLE_SHELL_TARGET
 
     for command in commands:
-        blocked = _read_only_command_blocked(command, tool in _POWERSHELL_SHELLS, patterns)
+        blocked = _read_only_command_blocked(command, tool in _POWERSHELL_SHELLS, patterns, fmt)
 
         if blocked is not None:
             return blocked
@@ -7755,7 +7805,7 @@ def _read_only_shell_blocked(
     return None
 
 
-def _read_only_command_blocked(command: str, powershell: bool, patterns: List[str]) -> Optional[str]:
+def _read_only_command_blocked(command: str, powershell: bool, patterns: List[str], fmt: str = "") -> Optional[str]:
     """What one shell command would run outside a read-only allowlist, or None to allow.
 
     The character check comes first, so the lexer only ever reads plain words
@@ -7780,13 +7830,17 @@ def _read_only_command_blocked(command: str, powershell: bool, patterns: List[st
         return command
 
     try:
-        return _read_only_segments_blocked(command, powershell, patterns)
+        return _read_only_segments_blocked(command, powershell, patterns, fmt)
     except Exception:
         return _UNPLACEABLE_SHELL_TARGET
 
 
-def _read_only_segments_blocked(command: str, powershell: bool, patterns: List[str]) -> Optional[str]:
-    """What the lexed commands of one shell line run outside a read-only allowlist, or None."""
+def _read_only_segments_blocked(command: str, powershell: bool, patterns: List[str], fmt: str = "") -> Optional[str]:
+    """What the lexed commands of one shell line run outside a read-only allowlist, or None.
+
+    fmt is the gate's --format, which decides whether gh may run at all
+    (_opens_a_pager).
+    """
     segments = _lex(command, _POWERSHELL if powershell else _POSIX)
 
     for segment in segments:
@@ -7811,6 +7865,11 @@ def _read_only_segments_blocked(command: str, powershell: bool, patterns: List[s
 
         if _names_another_repository(parts) or _runs_gh_expression(parts):
             return words
+
+        pager = _opens_a_pager(segment.argv, fmt)
+
+        if pager is not None:
+            return pager
 
         if not any(_matches_read_only(segment.argv, pattern) for pattern in patterns):
             return words
@@ -7864,7 +7923,7 @@ def _apply_rules(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Opti
         if definitions[0] is not None and not _declares_skills(definitions[0]):
             return RULE_B_REASON.format(agent=agent_type)
 
-        return _read_only_reason(agent_type, definitions, payload)
+        return _read_only_reason(agent_type, definitions, payload, fmt)
 
     tool = _tool_name(payload)
     tool_input = _tool_input(payload)
@@ -7921,7 +7980,9 @@ def _apply_rules(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Opti
     return None
 
 
-def _read_only_reason(agent_type: str, definitions: List[Optional[str]], payload: Dict[str, Any]) -> Optional[str]:
+def _read_only_reason(
+    agent_type: str, definitions: List[Optional[str]], payload: Dict[str, Any], fmt: str = ""
+) -> Optional[str]:
     """Rule E's deny reason when any candidate definition is read-only and the call leaves its list.
 
     A definition that could not be read counts as read-only with no command
@@ -7938,7 +7999,7 @@ def _read_only_reason(agent_type: str, definitions: List[Optional[str]], payload
             if patterns is None:
                 continue
 
-            blocked = _read_only_blocked(tool, tool_input, patterns, payload.get("cwd"))
+            blocked = _read_only_blocked(tool, tool_input, patterns, payload.get("cwd"), fmt)
         except Exception:
             patterns, blocked = [], _UNPLACEABLE_SHELL_TARGET
 

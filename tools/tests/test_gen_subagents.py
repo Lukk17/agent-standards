@@ -465,7 +465,7 @@ REVIEWER = {
     "skills": ["markdown-writer"],
 }
 
-REVIEWER_COMMANDS = ["git diff*", "git log*", "git show*", "git status*", "gh pr diff*", "gh pr view*"]
+REVIEWER_COMMANDS = ["git --no-pager diff*", "git --no-pager log*", "git --no-pager show*", "git --no-pager status*", "gh pr diff*", "gh pr view*"]
 
 
 def read_only_section(text):
@@ -489,6 +489,8 @@ def read_only_section(text):
         ("readonly: true\nreadonly-commands: [\"gh pr * view\"]\ntools: [read, bash]", "only as its last character"),
         ("readonly: true\nreadonly-commands: [\"gh pr vie?\"]\ntools: [read, bash]", "only as its last character"),
         ("readonly: true\nreadonly-commands: [\"gh pr view `x`\"]\ntools: [read, bash]", "holds a backtick"),
+        ("readonly: true\nreadonly-commands: [\"git blame*\"]\ntools: [read, bash]", "runs git without --no-pager"),
+        ("readonly: true\nreadonly-commands: [\"git -P blame*\"]\ntools: [read, bash]", "runs git without --no-pager"),
     ],
 )
 def test_parse_rejects_a_read_only_marker_it_cannot_honour(tmp_path, frontmatter, message):
@@ -510,13 +512,13 @@ def test_parse_accepts_a_read_only_marker_with_extra_commands(tmp_path):
 
     frontmatter, _ = gen.parse(path, SKILLS)
 
-    assert gen.read_only_commands(frontmatter) == ["git diff*", "git log*", "git show*", "git status*", "gh pr view*"]
+    assert gen.read_only_commands(frontmatter) == ["git --no-pager diff*", "git --no-pager log*", "git --no-pager show*", "git --no-pager status*", "gh pr view*"]
 
 
 def test_read_only_commands_drop_an_extra_that_repeats_the_built_in_list():
-    marked = {**REVIEWER, "readonly-commands": ["git diff*", "gh pr view*", "gh pr view*"]}
+    marked = {**REVIEWER, "readonly-commands": ["git --no-pager diff*", "gh pr view*", "gh pr view*"]}
 
-    assert gen.read_only_commands(marked) == ["git diff*", "git log*", "git show*", "git status*", "gh pr view*"]
+    assert gen.read_only_commands(marked) == ["git --no-pager diff*", "git --no-pager log*", "git --no-pager show*", "git --no-pager status*", "gh pr view*"]
 
 
 def test_claude_keeps_bash_and_plan_mode_for_a_read_only_agent():
@@ -561,16 +563,19 @@ def opencode_bash_verdict(bash_map, command):
 @pytest.mark.parametrize(
     ("command", "verdict"),
     [
-        ("git diff", "allow"),
-        ("git diff HEAD~1", "allow"),
-        ("git log --oneline", "allow"),
+        ("git --no-pager diff", "allow"),
+        ("git --no-pager diff HEAD~1", "allow"),
+        ("git diff", "deny"),
+        ("git log --oneline", "deny"),
+        ("git -P show HEAD", "deny"),
+        ("git --no-pager log --oneline", "allow"),
         ("gh pr view 12 --comments", "allow"),
-        ("git difftool --extcmd=touch", "deny"),
-        ("git diff --output=src/app.py", "deny"),
-        ("git diff --out=src/app.py", "deny"),
-        ('git diff "--output=src/app.py"', "deny"),
-        ("git diff ${U:---output=src/app.py}", "deny"),
-        ("git diff > src/app.py", "deny"),
+        ("git --no-pager difftool --extcmd=touch", "deny"),
+        ("git --no-pager diff --output=src/app.py", "deny"),
+        ("git --no-pager diff --out=src/app.py", "deny"),
+        ('git --no-pager diff "--output=src/app.py"', "deny"),
+        ("git --no-pager diff ${U:---output=src/app.py}", "deny"),
+        ("git --no-pager diff > src/app.py", "deny"),
         ("gh pr view 12 --web", "deny"),
         ("gh pr diff 12 -w", "deny"),
         ("gh pr view 12 --json title --jq env", "deny"),
@@ -579,20 +584,20 @@ def opencode_bash_verdict(bash_map, command):
         ("gh pr view 12 --json title -t x", "deny"),
         ("gh pr view 12 --json title,state", "allow"),
         ("touch made.txt", "deny"),
-        ("git log --format=%h%x20%s -U0 HEAD~3..HEAD", "allow"),
-        ("git log -L10,20:src/app.py", "allow"),
+        ("git --no-pager log --format=%h%x20%s -U0 HEAD~3..HEAD", "allow"),
+        ("git --no-pager log -L10,20:src/app.py", "allow"),
         ("gh pr view 12 --repo owner/name", "allow"),
-        ("git log '@{u}..HEAD'", "deny"),
-        ("git log --format='%h %s'", "deny"),
-        ("git diff '--output=src/app.py'", "deny"),
-        ("git diff `touch made.txt`", "deny"),
-        ("git diff <(touch made.txt)", "deny"),
-        ("git diff; touch made.txt", "deny"),
-        ("git diff && touch made.txt", "deny"),
-        ("git diff | sh", "deny"),
-        ("git diff [ab]", "deny"),
-        ("git diff\ntouch made.txt", "deny"),
-        ("git diff\rtouch made.txt", "deny"),
+        ("git --no-pager log '@{u}..HEAD'", "deny"),
+        ("git --no-pager log --format='%h %s'", "deny"),
+        ("git --no-pager diff '--output=src/app.py'", "deny"),
+        ("git --no-pager diff `touch made.txt`", "deny"),
+        ("git --no-pager diff <(touch made.txt)", "deny"),
+        ("git --no-pager diff; touch made.txt", "deny"),
+        ("git --no-pager diff && touch made.txt", "deny"),
+        ("git --no-pager diff | sh", "deny"),
+        ("git --no-pager diff [ab]", "deny"),
+        ("git --no-pager diff\ntouch made.txt", "deny"),
+        ("git --no-pager diff\rtouch made.txt", "deny"),
     ],
 )
 def test_the_opencode_bash_map_is_no_wider_than_the_gate(command, verdict):
@@ -621,7 +626,7 @@ def test_the_gate_refusals_opencode_cannot_express_stay_out_of_the_map(pattern):
 
 def test_the_opencode_map_denies_a_single_quote_now_the_gate_refuses_one():
     assert "*'*" in gen.OPENCODE_READ_ONLY_DENIES
-    assert GATE._read_only_command_blocked("git log --format='%h'", False, REVIEWER_COMMANDS) is not None
+    assert GATE._read_only_command_blocked("git --no-pager log --format='%h'", False, REVIEWER_COMMANDS) is not None
 
 
 def test_codex_carries_the_read_only_list_in_its_instructions():
@@ -637,7 +642,33 @@ def test_a_read_only_shell_section_shows_the_unquoted_forms_the_gate_accepts(tar
 
     assert "Quote nothing" in rendered and "@{u}" in rendered
     assert GATE._read_only_command_blocked(example, False, REVIEWER_COMMANDS) is None
-    assert GATE._read_only_command_blocked("git log origin/main..HEAD", False, REVIEWER_COMMANDS) is None
+    assert GATE._read_only_command_blocked("git --no-pager log origin/main..HEAD", False, REVIEWER_COMMANDS) is None
+
+
+@pytest.mark.parametrize("target", ["claude", "agents", "codex", "copilot"])
+def test_every_listed_git_command_carries_no_pager(target):
+    """Rule E denies git in any other form, because on a terminal git pipes into a pager whose `!` runs any command."""
+    listed = read_only_section(gen.render(target, REVIEWER, BODY))
+
+    assert [c for c in listed if c.startswith("git ")] == [f"git --no-pager {c}*" for c in ("diff", "log", "show", "status")]
+    assert all(GATE._read_only_command_blocked(c[:-1], False, listed) is None for c in listed if c.startswith("git "))
+
+
+def test_only_codex_tells_the_agent_that_the_gate_denies_gh():
+    """gh has no flag that keeps its pager off, and only the codex format hides the terminal from the gate."""
+    codex = tomllib.loads(gen.emit_codex(REVIEWER, BODY))["developer_instructions"]
+
+    assert "denies every gh command listed below" in codex
+    assert GATE._read_only_command_blocked("gh pr diff 12", False, REVIEWER_COMMANDS, "codex") is not None
+    for target in ("claude", "agents", "copilot"):
+        assert "denies every gh command" not in gen.render(target, REVIEWER, BODY), target
+        assert GATE._read_only_command_blocked("gh pr diff 12", False, REVIEWER_COMMANDS) is None
+
+
+def test_codex_says_nothing_about_gh_to_an_agent_that_lists_none():
+    plain = {**REVIEWER, "readonly-commands": None}
+
+    assert "gh command" not in tomllib.loads(gen.emit_codex(plain, BODY))["developer_instructions"]
 
 
 def test_copilot_drops_the_shell_for_a_read_only_agent():

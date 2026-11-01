@@ -140,9 +140,10 @@ events the agent recorded, never from what the model wrote back.
 | 4 The reminder reaches the model | The per-prompt reminder text is in the recorded context of that prompt, not only the session start. On OpenCode and Kilo Code only a synthetic part the plugin added to the main-session user message that carries this prompt's nonce counts, never the typed prompt or the model's reply |
 | 5 Key and model | One tiny request in the agent's own wire format is answered by the agent's provider |
 | 6 The one MCP server answers | `context7` is the only MCP server the session loaded, and a recorded `resolve-library-id` call for React returned a library id. A call whose result carries no id, such as a rate-limit or an invalid-key answer, is a `FAIL` quoting that result |
-| 7 Codex only: a subagent's payload names its type | The read-only `code-reviewer`, started by the main thread, ran `touch readonly-probe.txt`, the `PreToolUse` payload of that call carried `agent_id` and `agent_type` `code-reviewer`, Rule E's reason is in the transcript, and the file is absent |
+| 7 Codex only: a subagent's payload names its type | The main thread started the read-only `code-reviewer`, and a `PreToolUse` payload the capture hook placed in the reviewer's own rollout, for any tool, carried `agent_id` and `agent_type` `code-reviewer`. A placed payload without either fails, and only a case with no placed payload is `INCONCLUSIVE` |
+| 7b Codex only: Rule E denies the reviewer's touch | The reviewer ran `touch readonly-probe.txt`, the payload of that call carried `agent_id` and `agent_type` `code-reviewer`, Rule E's reason is in the transcript, and the file is absent. A reviewer that never tried the touch is `INCONCLUSIVE` |
 | 8 Claude Code only: the gate sees a plugin subagent | The same probe from `review-and-security:code-reviewer`, installed from the rendered marketplace, carried `agent_type` `review-and-security:code-reviewer`, Rule E denied it, and the file is absent |
-| 9 Claude Code only: a plugin subagent preloads a `core` skill | `review-and-security:code-reviewer` repeated, or recorded in its own context, a canary that only its preloaded `core` skill `security-review` carries, with no run-time load of that skill anywhere in the session |
+| 9 Claude Code only: a plugin subagent preloads a `core` skill | `review-and-security:code-reviewer` returned a canary that only its preloaded `core` skill `security-review` carries, in the spawn result or, for a spawn run in the background, in its own reply or the task notification Claude Code handed the main thread, with no run-time load of that skill anywhere in the session |
 
 Three verdicts are possible besides a pass:
 
@@ -150,12 +151,10 @@ Three verdicts are possible besides a pass:
   own model request so the model never ran. It fails the job.
 - `INCONCLUSIVE` means the model never attempted the tool call the test needs, so nothing was proven either way. It
   raises a warning and does not fail the job.
-- `KNOWN-GAP` appears on GitHub Copilot for test 1, and on Codex for test 7 when the payload of the subagent's
-  call carries `agent_id` without `agent_type` `code-reviewer`, which [agent-compatibility.md](../docs/agent-compatibility.md)
-  records as unmeasured. On Codex a payload with no `agent_id` at all is a `FAIL`, because the gate then takes the
-  subagent for the main thread. On Copilot, test 1: its payload carries no agent identifier, so
-  the gate cannot tell the main thread from a subagent, as the Maintenance follow-ups in AGENTS.md already record.
-  It does not fail the job.
+- `KNOWN-GAP` appears on GitHub Copilot for test 1 only: its payload carries no agent identifier, so the gate
+  cannot tell the main thread from a subagent, as the Maintenance follow-ups in AGENTS.md already record. It does not
+  fail the job. Codex tests 7 and 7b have no `KNOWN-GAP` any more: live run 41348146352 measured `agent_id` and
+  `agent_type` on a Codex 0.166.0 subagent's `PreToolUse` payload, so a subagent payload without them is a `FAIL`.
 
 Test 1 counts any gate denial as the block, whichever rule gave it, because [live/lib.sh](live/lib.sh) reads the fixed
 text of every `RULE_*_REASON` out of the gate itself, so a new rule needs no harness change. A probe file that landed
@@ -176,7 +175,11 @@ script reaches it. Codex gets it in the
 throwaway `CODEX_HOME/config.toml`, and Codex "loads all matching hooks" from every layer, so it runs beside the
 project's gate (`https://developers.openai.com/codex/hooks`, "Where Codex looks for hooks"). Claude Code gets it in
 the user settings of a separate `CLAUDE_CONFIG_DIR`. Each case keeps what it captured as `payloads.ndjson` beside its
-transcripts. A case where the capture hook recorded nothing, or the subagent never ran the probe, is `INCONCLUSIVE`.
+transcripts. A case where the capture hook recorded nothing, or the subagent never ran the probe, is `INCONCLUSIVE`
+for tests 7b and 8. Test 7 asks only whether a Codex subagent's payload names its type, so it reads every payload
+the hook placed in the reviewer's own rollout by its transcript name, `agent_id` playing no part in the placement,
+whatever tool the call was for: in live run 41348146352 the reviewer never ran the touch, yet its `send_message`
+call carried both fields.
 
 A payload with `agent_id` is the subagent's, since both agents send it only inside one. A payload without it is
 placed by its transcript name: on Codex the rollout of that name says whether the thread was the main one or a spawned
@@ -194,9 +197,14 @@ which the job's own Python step installs the tooling for, and append a random pr
 its dependency, into a separate `CLAUDE_CONFIG_DIR`, and run in a second project that holds only the gate-only import,
 `.agents/hooks` and `.claude/settings.json`. With no agent tree in that project, the gate can find the reviewer's
 definition only in the plugin cache, so a Rule E denial in test 8 proves that lookup. Tests 1 to 6 keep their own
-configuration and never see the plugin. Test 9 asks the subagent to repeat the canary without any tool, and a
-recorded `Skill` call or `SKILL.md` read of `security-review`, a subagent tool result holding the canary, or a spawn
-prompt holding it makes it `INCONCLUSIVE`, because the canary then no longer proves the preload. Each run first clears
+configuration and never see the plugin. Test 9 asks the subagent to repeat the canary without any tool. A spawn
+Claude Code runs in the background returns only "Async agent launched successfully", so the check also reads the
+subagent's own assistant text and the task notification that carries its final message to the main thread, through
+the `agent_subagent_replies` function in [live/claude-code.sh](live/claude-code.sh), never a loaded skill or the main
+thread's own text. In live run 41348146352 the spawn result was that launch notice while the reviewer's reply was
+exactly the canary. A recorded `Skill` call or `SKILL.md` read of `security-review`, a subagent tool result holding the
+canary, a main-thread call input holding it, or hook text injected into the subagent holding it makes it
+`INCONCLUSIVE`, because the canary then no longer proves the preload. Each run first clears
 the marketplace, the plugin configuration, the plugin project and cases 8 and 9 that an earlier run in the same
 `LIVE_WORK` left, and runs both `claude plugin` commands from the work directory at `--scope user`, with stdin closed
 and a 120 second limit. A missing reviewer definition, capture hook or gate-only project blocks both tests. A canary

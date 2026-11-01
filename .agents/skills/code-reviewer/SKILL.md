@@ -42,8 +42,9 @@ for security, and lead every finding with a `path:line` reference.
 A read-only subagent, such as the `code-reviewer` agent with its few git commands or the `security-auditor` agent with
 no shell at all, cannot run the steps below that check code out, execute code, or ask the user. It changes them so:
 
-- Review the diff the caller supplies. With no diff in the prompt and a shell that allows it, read `git diff`,
-  `git diff --staged`, `git show`, or `gh pr diff` and `gh pr view`. With neither, return the question to the caller.
+- Review the diff the caller supplies. With no diff in the prompt and a shell that allows it, read
+  `git --no-pager diff`, `git --no-pager diff --staged`, `git --no-pager show`, or `gh pr diff` and `gh pr view`, in
+  exactly the form the agent's "Read-only shell" section lists. With neither, return the question to the caller.
 - Skip the worktree and every command that builds, tests or runs the change, and report the verification as
   `not run`, naming the command the project's AGENTS.md documents so the caller can run it.
 - Return every question to the caller instead of asking the user, including whether to run anything from a fork.

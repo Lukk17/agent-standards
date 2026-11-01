@@ -4505,7 +4505,7 @@ def read_only_decision(root, payload):
 def test_read_only_subagent_may_run_a_listed_git_command_in_every_format(tmp_path, target, directory, extension):
     root = read_only_project(tmp_path, target, directory, extension)
 
-    assert read_only_decision(root, shell("git diff HEAD~1")) is None
+    assert read_only_decision(root, shell("git --no-pager diff HEAD~1")) is None
 
 
 @pytest.mark.parametrize(("target", "directory", "extension"), READ_ONLY_TARGETS)
@@ -4522,29 +4522,29 @@ def test_read_only_subagent_may_not_write_with_the_shell_in_every_format(tmp_pat
 @pytest.mark.parametrize(
     "command",
     [
-        "git log --oneline",
-        "git show HEAD",
-        "git status --short",
-        "git diff 2>/dev/null",
-        "git diff 2>&1",
+        "git --no-pager log --oneline",
+        "git --no-pager show HEAD",
+        "git --no-pager status --short",
+        "git --no-pager diff 2>/dev/null",
+        "git --no-pager diff 2>&1",
         "gh pr diff 12",
         "gh pr view 12 --comments",
-        "git diff HEAD~3..HEAD -- src/app.py tools/x.py",
-        "git diff --stat -U0 main...HEAD",
-        "git log -5 --format=%H --since=2.weeks",
-        "git log --format=%h%x20%an%x20%s --author=a@b.c",
-        "git log -1 --format=%h%n%s",
-        "git log --pretty=format:%Cred%h%Creset%x20%ad%x20%s --date=short",
-        "git log origin/main..HEAD",
-        "git log -L10,20:src/app.py",
-        "git show HEAD^",
-        "git show HEAD^:src/app.py",
-        "git show HEAD~1 --name-status",
-        "git status --porcelain=v1",
+        "git --no-pager diff HEAD~3..HEAD -- src/app.py tools/x.py",
+        "git --no-pager diff --stat -U0 main...HEAD",
+        "git --no-pager log -5 --format=%H --since=2.weeks",
+        "git --no-pager log --format=%h%x20%an%x20%s --author=a@b.c",
+        "git --no-pager log -1 --format=%h%n%s",
+        "git --no-pager log --pretty=format:%Cred%h%Creset%x20%ad%x20%s --date=short",
+        "git --no-pager log origin/main..HEAD",
+        "git --no-pager log -L10,20:src/app.py",
+        "git --no-pager show HEAD^",
+        "git --no-pager show HEAD^:src/app.py",
+        "git --no-pager show HEAD~1 --name-status",
+        "git --no-pager status --porcelain=v1",
         "gh pr view 12 --repo owner/name",
         "gh pr diff 12 -R owner/name",
         "gh pr view 12 --repo=owner/name --json title,body",
-        "git status\ngit diff --cached",
+        "git --no-pager status\ngit --no-pager diff --cached",
     ],
 )
 def test_read_only_subagent_may_run_every_listed_command(tmp_path, command):
@@ -4554,35 +4554,35 @@ def test_read_only_subagent_may_run_every_listed_command(tmp_path, command):
 @pytest.mark.parametrize(
     ("command", "refused"),
     [
-        ("git diff; rm notes.txt", ";"),
-        ("git diff && git commit -m x", "&"),
-        ("git diff $(rm -rf src)", "$"),
-        ("git log | head -5", "|"),
-        ("git diff > out.patch", ">"),
-        ("git diff 1>/dev/null", ">"),
-        ("git diff 2>/dev/nullx", ">"),
-        ("cd sub && git log", "&"),
-        ('git log --format="%h %s"', '"'),
-        ("git diff --outpu`t=src/app.py", "`"),
-        ("git diff --outp\\ut=src/app.py", "\\"),
-        ("git diff *.py", "*"),
-        ("git diff src/?.py", "?"),
-        ("git diff [ab].py", "["),
-        ("git diff {--output=src/app.py,}", "{"),
-        ("git log @{u}..HEAD", "{"),
-        ("git log <(touch made.txt)", "<"),
-        ("git diff <<EOF\n$(touch made.txt)\nEOF\n", "<"),
-        ("git log <<< x", "<"),
-        ("git diff\rtouch made.txt", "\r"),
-        ("git diff \\\r\ntouch made.txt", "\\"),
-        ("git diff # comment", "#"),
-        ("git log --author=café", "é"),
-        ("git log --format='%h %s'", "'"),
-        ("git log '@{u}..HEAD'", "'"),
-        ("git log '$HOME'", "'"),
-        ("git log --format=%h' '%s", "'"),
-        ("git diff (x)", "("),
-        ("git diff !x", "!"),
+        ("git --no-pager diff; rm notes.txt", ";"),
+        ("git --no-pager diff && git commit -m x", "&"),
+        ("git --no-pager diff $(rm -rf src)", "$"),
+        ("git --no-pager log | head -5", "|"),
+        ("git --no-pager diff > out.patch", ">"),
+        ("git --no-pager diff 1>/dev/null", ">"),
+        ("git --no-pager diff 2>/dev/nullx", ">"),
+        ("cd sub && git --no-pager log", "&"),
+        ('git --no-pager log --format="%h %s"', '"'),
+        ("git --no-pager diff --outpu`t=src/app.py", "`"),
+        ("git --no-pager diff --outp\\ut=src/app.py", "\\"),
+        ("git --no-pager diff *.py", "*"),
+        ("git --no-pager diff src/?.py", "?"),
+        ("git --no-pager diff [ab].py", "["),
+        ("git --no-pager diff {--output=src/app.py,}", "{"),
+        ("git --no-pager log @{u}..HEAD", "{"),
+        ("git --no-pager log <(touch made.txt)", "<"),
+        ("git --no-pager diff <<EOF\n$(touch made.txt)\nEOF\n", "<"),
+        ("git --no-pager log <<< x", "<"),
+        ("git --no-pager diff\rtouch made.txt", "\r"),
+        ("git --no-pager diff \\\r\ntouch made.txt", "\\"),
+        ("git --no-pager diff # comment", "#"),
+        ("git --no-pager log --author=café", "é"),
+        ("git --no-pager log --format='%h %s'", "'"),
+        ("git --no-pager log '@{u}..HEAD'", "'"),
+        ("git --no-pager log '$HOME'", "'"),
+        ("git --no-pager log --format=%h' '%s", "'"),
+        ("git --no-pager diff (x)", "("),
+        ("git --no-pager diff !x", "!"),
     ],
 )
 def test_read_only_subagent_is_refused_any_character_its_commands_do_not_need(tmp_path, command, refused):
@@ -4594,11 +4594,11 @@ def test_read_only_subagent_is_refused_any_character_its_commands_do_not_need(tm
 @pytest.mark.parametrize(
     ("command", "blocked"),
     [
-        ("git diff --output=out.patch", "git diff --output=out.patch"),
-        ("git difftool", "git difftool"),
+        ("git --no-pager diff --output=out.patch", "git --no-pager diff --output=out.patch"),
+        ("git --no-pager difftool", "git --no-pager difftool"),
         ("gh pr merge 12", "gh pr merge 12"),
-        ("GIT_EXTERNAL_DIFF=x git diff", "GIT_EXTERNAL_DIFF=x git diff"),
-        ("git status\ntouch made.txt", "touch made.txt"),
+        ("GIT_EXTERNAL_DIFF=x git --no-pager diff", "GIT_EXTERNAL_DIFF=x git --no-pager diff"),
+        ("git --no-pager status\ntouch made.txt", "touch made.txt"),
     ],
 )
 def test_read_only_subagent_may_not_run_anything_outside_its_list(tmp_path, command, blocked):
@@ -4634,6 +4634,96 @@ def test_the_main_thread_is_not_held_to_a_read_only_list():
     assert decision(shell("git log | head -5")) == "allow"
 
 
+# A pager is a shell: `less` runs any command typed after `!`. git pipes into
+# one on a terminal unless it is told --no-pager, and Codex can type into a
+# terminal through write_stdin, which never reaches PreToolUse. Rule E takes git
+# only as `git --no-pager <subcommand>` on every format, and on the codex format
+# no gh command at all, because gh has no flag that keeps its pager off.
+READ_ONLY_FORMATS = [
+    ("claude", "claude", ".claude/agents", ".md"),
+    ("codex", "codex", ".codex/agents", ".toml"),
+    ("plain", "agents", ".agents/agents", ".md"),
+]
+
+
+def read_only_reason_in_format(tmp_path, fmt, target, directory, extension, command):
+    """Rule E's deny reason for one command from the read-only fixture in one hook format, or None when it allows."""
+    root = read_only_project(tmp_path, target, directory, extension)
+    if fmt == "plain":
+        payload = {"is_subagent": True, "agent_type": READ_ONLY_REVIEWER["name"], "tool_name": "bash", "cwd": str(root)}
+    else:
+        payload = {"agent_id": "sub-1", "agent_type": READ_ONLY_REVIEWER["name"], "tool_name": "Bash", "cwd": str(root)}
+
+    code, out, err = run({**payload, "tool_input": {"command": command}}, fmt, cwd=root)
+
+    if fmt == "plain":
+        assert out == ""
+        return err if code == 2 else None
+
+    assert (code, err) == (0, "")
+    return json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"] if out else None
+
+
+@pytest.mark.parametrize(("fmt", "target", "directory", "extension"), READ_ONLY_FORMATS)
+@pytest.mark.parametrize(
+    "command",
+    ["git diff", "git log --oneline", "git show HEAD", "git status --short", "git -P diff", "git --paginate diff", "git --no-pager -p diff", "git -c core.pager=cat diff"],
+)
+def test_rule_e_denies_git_that_could_open_a_pager_on_every_format(tmp_path, fmt, target, directory, extension, command):
+    reason = read_only_reason_in_format(tmp_path, fmt, target, directory, extension, command)
+
+    assert reason is not None
+    assert f"Blocked: {command}" in reason
+
+
+@pytest.mark.parametrize(("fmt", "target", "directory", "extension"), READ_ONLY_FORMATS)
+@pytest.mark.parametrize("command", ["git --no-pager diff", "git --no-pager log --oneline", "git --no-pager show HEAD", "git --no-pager status --short"])
+def test_rule_e_allows_git_with_no_pager_on_every_format(tmp_path, fmt, target, directory, extension, command):
+    assert read_only_reason_in_format(tmp_path, fmt, target, directory, extension, command) is None
+
+
+def test_rule_e_tells_the_agent_how_to_spell_git():
+    reason = GATE._read_only_segments_blocked("git diff HEAD~1", False, READ_ONLY_FIXTURE_PATTERNS)
+
+    assert reason.startswith("git diff HEAD~1 (run git as git --no-pager <subcommand>")
+
+
+def test_rule_e_denies_bare_git_even_when_the_definition_still_lists_it(tmp_path):
+    agents = tmp_path / ".claude" / "agents"
+    agents.mkdir(parents=True)
+    (agents / "old-reviewer.md").write_text(
+        "---\nname: old-reviewer\ndescription: x\nskills:\n  - code-reviewer\n---\n\n### Read-only shell\n\n- `git diff*`\n",
+        encoding="utf-8",
+    )
+    payload = {**shell("git diff"), "agent_id": "sub-1", "agent_type": "old-reviewer"}
+
+    code, out, err = run(payload, "claude", cwd=tmp_path)
+
+    assert (code, err) == (0, "")
+    assert "--no-pager" in json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"]
+
+
+@pytest.mark.parametrize("command", ["gh pr diff 12", "gh pr view 12 --comments", "gh pr view 12 --json title"])
+def test_rule_e_denies_every_gh_command_on_codex(tmp_path, command):
+    reason = read_only_reason_in_format(tmp_path, "codex", "codex", ".codex/agents", ".toml", command)
+
+    assert reason is not None
+    assert "gh has no flag that keeps its pager off" in reason
+
+
+@pytest.mark.parametrize(("fmt", "target", "directory", "extension"), [f for f in READ_ONLY_FORMATS if f[0] != "codex"])
+@pytest.mark.parametrize("command", ["gh pr diff 12", "gh pr view 12 --comments"])
+def test_rule_e_keeps_a_listed_gh_command_where_the_gate_sees_the_terminal(tmp_path, fmt, target, directory, extension, command):
+    assert read_only_reason_in_format(tmp_path, fmt, target, directory, extension, command) is None
+
+
+def test_the_codex_gh_rule_holds_only_a_read_only_agent(tmp_path):
+    root = project_with_agent(tmp_path, "python-pro", WITH_SKILLS)
+    payload = {**shell("gh pr diff 12"), "agent_id": "sub-1", "agent_type": "python-pro"}
+
+    assert run(payload, "codex", cwd=root) == (0, "", "")
+
+
 def read_only_verdict(tmp_path, payload):
     """The deny reason Rule E gives the read-only fixture, or None when it allows."""
     verdict = read_only_decision(read_only_project(tmp_path), payload)
@@ -4641,7 +4731,7 @@ def read_only_verdict(tmp_path, payload):
     return verdict["permissionDecisionReason"] if verdict else None
 
 
-READ_ONLY_FIXTURE_PATTERNS = ["git diff*", "git log*", "git show*", "git status*", "gh pr diff*", "gh pr view*"]
+READ_ONLY_FIXTURE_PATTERNS = ["git --no-pager diff*", "git --no-pager log*", "git --no-pager show*", "git --no-pager status*", "gh pr diff*", "gh pr view*"]
 
 
 # The character check refuses every one of these first. The segment checks
@@ -4649,10 +4739,10 @@ READ_ONLY_FIXTURE_PATTERNS = ["git diff*", "git log*", "git show*", "git status*
 @pytest.mark.parametrize(
     ("command", "blocked"),
     [
-        ("git log <(touch git log)", "sh -c touch git log"),
-        ("git diff <(rm git diff -rf src)", "sh -c rm git diff -rf src"),
-        ("git log >(touch made.txt)", "sh -c touch made.txt"),
-        ("git log < <(touch made.txt)", "sh -c touch made.txt"),
+        ("git --no-pager log <(touch git log)", "sh -c touch git log"),
+        ("git --no-pager diff <(rm git diff -rf src)", "sh -c rm git diff -rf src"),
+        ("git --no-pager log >(touch made.txt)", "sh -c touch made.txt"),
+        ("git --no-pager log < <(touch made.txt)", "sh -c touch made.txt"),
     ],
 )
 def test_behind_the_character_check_a_process_substitution_is_still_a_child_shell(command, blocked):
@@ -4662,9 +4752,9 @@ def test_behind_the_character_check_a_process_substitution_is_still_a_child_shel
 @pytest.mark.parametrize(
     "command",
     [
-        "git diff <<EOF\n$(touch made.txt)\nEOF\n",
-        "git diff <<'EOF'\nplain text\nEOF\n",
-        "git log <<< x",
+        "git --no-pager diff <<EOF\n$(touch made.txt)\nEOF\n",
+        "git --no-pager diff <<'EOF'\nplain text\nEOF\n",
+        "git --no-pager log <<< x",
     ],
 )
 def test_behind_the_character_check_a_heredoc_or_here_string_still_denies(command):
@@ -4687,7 +4777,7 @@ def test_read_only_subagent_is_denied_when_the_lexer_fails_in_any_way(tmp_path, 
     root = read_only_project(tmp_path)
     monkeypatch.setattr(GATE, "_lex", failing_lex)
 
-    verdict = read_only_decision(root, shell("git diff"))
+    verdict = read_only_decision(root, shell("git --no-pager diff"))
 
     assert verdict["permissionDecisionReason"].endswith(f"Blocked: {GATE._UNPLACEABLE_SHELL_TARGET}")
 
@@ -4695,12 +4785,12 @@ def test_read_only_subagent_is_denied_when_the_lexer_fails_in_any_way(tmp_path, 
 @pytest.mark.parametrize(
     "command",
     [
-        "git diff ${U:---output=src/app.py}",
-        "git diff --outp\\ut=src/app.py",
-        "git diff {--output=src/app.py,}",
-        "git diff --out=src/app.py",
-        "git diff --output-directory=out",
-        "git log '$HOME'",
+        "git --no-pager diff ${U:---output=src/app.py}",
+        "git --no-pager diff --outp\\ut=src/app.py",
+        "git --no-pager diff {--output=src/app.py,}",
+        "git --no-pager diff --out=src/app.py",
+        "git --no-pager diff --output-directory=out",
+        "git --no-pager log '$HOME'",
     ],
 )
 def test_read_only_subagent_may_not_reach_an_output_option_through_the_shell(tmp_path, command):
@@ -4708,7 +4798,7 @@ def test_read_only_subagent_may_not_reach_an_output_option_through_the_shell(tmp
 
 
 @pytest.mark.parametrize(
-    "command", ["git diff -w", "git log --output-indicator-new=+", "git log origin/main..HEAD", "git log -L10,20:src/app.py"]
+    "command", ["git --no-pager diff -w", "git --no-pager log --output-indicator-new=+", "git --no-pager log origin/main..HEAD", "git --no-pager log -L10,20:src/app.py"]
 )
 def test_read_only_subagent_keeps_options_that_write_nothing(tmp_path, command):
     assert read_only_verdict(tmp_path, shell(command)) is None
@@ -4802,10 +4892,10 @@ def test_read_only_subagent_keeps_gh_options_that_run_no_expression(tmp_path, co
 @pytest.mark.parametrize(
     ("command", "blocked"),
     [
-        ("sh -c git diff", "sh -c git diff"),
-        ("env git diff", "env git diff"),
-        ("/usr/bin/git diff", "/usr/bin/git diff"),
-        ("git -c core.pager=touch diff", "git -c core.pager=touch diff"),
+        ("sh -c git --no-pager diff", "sh -c git --no-pager diff"),
+        ("env git --no-pager diff", "env git --no-pager diff"),
+        ("/usr/bin/git --no-pager diff", "/usr/bin/git --no-pager diff"),
+        ("git --no-pager -c core.pager=touch diff", "git --no-pager -c core.pager=touch diff"),
     ],
 )
 def test_read_only_subagent_is_held_to_its_list_through_every_shell_form(tmp_path, command, blocked):
@@ -4815,10 +4905,10 @@ def test_read_only_subagent_is_held_to_its_list_through_every_shell_form(tmp_pat
 @pytest.mark.parametrize(
     ("command", "refused"),
     [
-        ("git diff --name-only | xargs rm", "|"),
-        ("git diff `touch made.txt`", "`"),
-        ("git diff >&out.txt", ">"),
-        ("git diff &>out.txt", "&"),
+        ("git --no-pager diff --name-only | xargs rm", "|"),
+        ("git --no-pager diff `touch made.txt`", "`"),
+        ("git --no-pager diff >&out.txt", ">"),
+        ("git --no-pager diff &>out.txt", "&"),
     ],
 )
 def test_read_only_subagent_is_refused_every_pipe_substitution_and_redirect_form(tmp_path, command, refused):
@@ -4826,40 +4916,40 @@ def test_read_only_subagent_is_refused_every_pipe_substitution_and_redirect_form
 
 
 def test_read_only_subagent_may_not_pipe_into_a_powershell_writer(tmp_path):
-    reason = read_only_verdict(tmp_path, shell("git diff | Out-File x.txt", tool="PowerShell"))
+    reason = read_only_verdict(tmp_path, shell("git --no-pager diff | Out-File x.txt", tool="PowerShell"))
 
     assert "Blocked: the character '|'," in reason
 
 
 def test_read_only_subagent_may_run_a_listed_command_from_powershell(tmp_path):
-    assert read_only_verdict(tmp_path, shell("git log -5 --format=%h%x20%s", tool="PowerShell")) is None
+    assert read_only_verdict(tmp_path, shell("git --no-pager log -5 --format=%h%x20%s", tool="PowerShell")) is None
 
 
 def test_read_only_subagent_may_not_splat_a_powershell_variable(tmp_path):
-    reason = read_only_verdict(tmp_path, shell("git diff @args", tool="PowerShell"))
+    reason = read_only_verdict(tmp_path, shell("git --no-pager diff @args", tool="PowerShell"))
 
-    assert reason.endswith("Blocked: git diff @args")
+    assert reason.endswith("Blocked: git --no-pager diff @args")
 
 
 # N7: a word opening with @ is a splat or a hashtable in PowerShell, and the
 # OpenCode and Kilo Code bash tool may run either dialect, so it denies in
 # both. A reviewer names the upstream branch instead of @{u} or @~1.
 @pytest.mark.parametrize("tool", ["Bash", "PowerShell"])
-@pytest.mark.parametrize("command", ["git log @~1..HEAD", "git diff @args", "git log x,@args"])
+@pytest.mark.parametrize("command", ["git --no-pager log @~1..HEAD", "git --no-pager diff @args", "git --no-pager log x,@args"])
 def test_read_only_subagent_may_not_open_a_word_with_an_at_sign(tmp_path, tool, command):
     assert read_only_verdict(tmp_path, shell(command, tool=tool)).endswith(f"Blocked: {command}")
 
 
 @pytest.mark.parametrize("tool", ["Bash", "PowerShell"])
 def test_read_only_subagent_keeps_an_at_sign_inside_a_word(tmp_path, tool):
-    assert read_only_verdict(tmp_path, shell("git log --author=a@b.c", tool=tool)) is None
+    assert read_only_verdict(tmp_path, shell("git --no-pager log --author=a@b.c", tool=tool)) is None
 
 
 # N3: PowerShell's stop-parsing token hands the rest of the line to the
 # program unparsed, with cmd-style %VAR% expansion, so it denies in both dialects.
 @pytest.mark.parametrize("tool", ["Bash", "PowerShell"])
 def test_read_only_subagent_may_not_stop_powershell_parsing(tmp_path, tool):
-    command = "git log --% --format=%h"
+    command = "git --no-pager log --% --format=%h"
 
     assert read_only_verdict(tmp_path, shell(command, tool=tool)).endswith(f"Blocked: {command}")
 
@@ -4872,9 +4962,9 @@ def test_read_only_subagent_may_not_stop_powershell_parsing(tmp_path, tool):
 @pytest.mark.parametrize(
     "command",
     [
-        "git log -1 --format=X --outpu,.git/hooks/pre-commit",
-        "git diff x,--output=src/app.py",
-        "git diff x,--out,src/app.py",
+        "git --no-pager log -1 --format=X --outpu,.git/hooks/pre-commit",
+        "git --no-pager diff x,--output=src/app.py",
+        "git --no-pager diff x,--out,src/app.py",
         "gh pr view 12 x,--web",
         "gh pr view 12 x,-w",
         "gh pr view 12 --json title x,--jq=env",
@@ -4888,7 +4978,7 @@ def test_read_only_subagent_has_every_comma_part_of_a_word_checked(tmp_path, too
 
 
 @pytest.mark.parametrize("tool", ["Bash", "PowerShell"])
-@pytest.mark.parametrize("command", ["git log -L10,20:src/app.py", "gh pr view 12 --json title,body,state"])
+@pytest.mark.parametrize("command", ["git --no-pager log -L10,20:src/app.py", "gh pr view 12 --json title,body,state"])
 def test_read_only_subagent_keeps_a_comma_that_names_no_option(tmp_path, tool, command):
     assert read_only_verdict(tmp_path, shell(command, tool=tool)) is None
 
@@ -4897,24 +4987,24 @@ def test_read_only_subagent_keeps_a_comma_that_names_no_option(tmp_path, tool, c
 # folder holding the files `--out` and `--output=pwned`: `^nothing` and
 # `--out^x` both expanded to those names, while `HEAD^` and `HEAD^:path`
 # expanded only to a name starting with HEAD.
-@pytest.mark.parametrize("command", ["git log ^main HEAD", "git diff ^x", "git diff --out^x", "git diff -^x", "git log x,^y"])
+@pytest.mark.parametrize("command", ["git --no-pager log ^main HEAD", "git --no-pager diff ^x", "git --no-pager diff --out^x", "git --no-pager diff -^x", "git --no-pager log x,^y"])
 def test_read_only_subagent_may_not_hand_zsh_a_negated_glob(tmp_path, command):
     assert read_only_verdict(tmp_path, shell(command)).endswith(f"Blocked: {command}")
 
 
-@pytest.mark.parametrize("command", ["git show HEAD^", "git show HEAD^:src/app.py", "git diff HEAD^^ HEAD^"])
+@pytest.mark.parametrize("command", ["git --no-pager show HEAD^", "git --no-pager show HEAD^:src/app.py", "git --no-pager diff HEAD^^ HEAD^"])
 def test_read_only_subagent_keeps_a_caret_inside_a_revision(tmp_path, command):
     assert read_only_verdict(tmp_path, shell(command)) is None
 
 
 def test_read_only_subagent_may_not_start_a_shell_on_a_terminal(tmp_path):
-    payload = {"tool_name": "Bash", "tool_input": {"command": "git diff", "tty": True}}
+    payload = {"tool_name": "Bash", "tool_input": {"command": "git --no-pager diff", "tty": True}}
 
     assert "(tty)" in read_only_verdict(tmp_path, payload)
 
 
 def test_read_only_subagent_has_every_command_key_judged(tmp_path):
-    payload = {"tool_name": "Bash", "tool_input": {"command": "git diff", "cmd": "touch made.txt"}}
+    payload = {"tool_name": "Bash", "tool_input": {"command": "git --no-pager diff", "cmd": "touch made.txt"}}
 
     assert read_only_verdict(tmp_path, payload).endswith("Blocked: touch made.txt")
 
@@ -4926,16 +5016,16 @@ def test_read_only_subagent_has_every_command_key_judged(tmp_path):
 @pytest.mark.parametrize(
     "tool_input",
     [
-        {"command": "git show HEAD", "workdir": "evil"},
-        {"command": "git log", "shell": "pwsh"},
-        {"command": "git log", "login": True},
-        {"command": "git log", "cwd": "evil"},
-        {"command": "git log", "dir": "evil"},
-        {"command": "git log", "script": "git diff"},
-        {"command": "git log", "sandbox_permissions": "require_escalated"},
-        {"command": "git log", "allowed_domains": ["evil.example"]},
-        {"command": "git log", "dangerouslyDisableSandbox": True},
-        {"command": "git log", "tty": "yes"},
+        {"command": "git --no-pager show HEAD", "workdir": "evil"},
+        {"command": "git --no-pager log", "shell": "pwsh"},
+        {"command": "git --no-pager log", "login": True},
+        {"command": "git --no-pager log", "cwd": "evil"},
+        {"command": "git --no-pager log", "dir": "evil"},
+        {"command": "git --no-pager log", "script": "git --no-pager diff"},
+        {"command": "git --no-pager log", "sandbox_permissions": "require_escalated"},
+        {"command": "git --no-pager log", "allowed_domains": ["evil.example"]},
+        {"command": "git --no-pager log", "dangerouslyDisableSandbox": True},
+        {"command": "git --no-pager log", "tty": "yes"},
     ],
 )
 def test_read_only_subagent_may_send_no_shell_key_outside_the_fixed_set(tmp_path, tool_input):
@@ -4948,8 +5038,8 @@ def test_read_only_subagent_may_send_no_shell_key_outside_the_fixed_set(tmp_path
 
 def test_read_only_subagent_keeps_every_shell_key_in_the_fixed_set(tmp_path):
     tool_input = {
-        "command": "git log -1",
-        "cmd": "git status",
+        "command": "git --no-pager log -1",
+        "cmd": "git --no-pager status",
         "description": "Show the last commit",
         "timeout": 120000,
         "yield_time_ms": 1000,
@@ -4966,7 +5056,7 @@ def test_rule_e_denies_a_workdir_through_the_plain_runner_envelope(tmp_path):
     root = read_only_project(tmp_path, "agents", ".agents/agents", ".md")
     envelope = {"is_subagent": True, "agent_type": READ_ONLY_REVIEWER["name"], "tool_name": "bash", "cwd": str(root)}
 
-    code, out, err = run({**envelope, "tool_input": {"command": "git show HEAD", "workdir": "evil"}}, "plain", cwd=root)
+    code, out, err = run({**envelope, "tool_input": {"command": "git --no-pager show HEAD", "workdir": "evil"}}, "plain", cwd=root)
 
     assert (code, out) == (2, "")
     assert "'workdir'" in err
@@ -5015,7 +5105,7 @@ def file_bare_repository(directory):
     return directory
 
 
-def codex_read_only_reason(root, payload_cwd, command="git show HEAD"):
+def codex_read_only_reason(root, payload_cwd, command="git --no-pager show HEAD"):
     payload = {"agent_id": "sub-1", "agent_type": READ_ONLY_REVIEWER["name"], "tool_name": "Bash", "cwd": str(payload_cwd)}
     code, out, err = run({**payload, "tool_input": {"command": command}}, "codex", cwd=root)
 
@@ -5426,7 +5516,7 @@ def test_read_only_subagent_keeps_every_read_tool(tmp_path, tool, tool_input):
 
 
 def test_main_thread_has_every_command_key_judged():
-    payload = {"tool_name": "Bash", "tool_input": {"command": "git status", "cmd": "rm -rf src"}}
+    payload = {"tool_name": "Bash", "tool_input": {"command": "git --no-pager status", "cmd": "rm -rf src"}}
 
     assert decision(payload) == "deny"
 
@@ -5442,7 +5532,7 @@ def test_an_unreadable_read_only_definition_holds_the_agent_to_no_command(tmp_pa
 
     monkeypatch.setattr(Path, "read_text", unreadable)
 
-    assert read_only_decision(root, shell("git diff"))["permissionDecisionReason"].endswith("Blocked: git diff")
+    assert read_only_decision(root, shell("git --no-pager diff"))["permissionDecisionReason"].endswith("Blocked: git --no-pager diff")
     assert read_only_decision(root, {"tool_name": "Read", "tool_input": {"file_path": "src/app.py"}}) is None
 
 
@@ -5461,7 +5551,7 @@ def test_a_read_only_copy_in_another_tree_still_holds_the_agent(tmp_path):
     )
 
     assert read_only_decision(root, shell("touch made.txt"))["permissionDecisionReason"].endswith("Blocked: touch made.txt")
-    assert read_only_decision(root, shell("git diff")) is None
+    assert read_only_decision(root, shell("git --no-pager diff")) is None
 
 
 def test_the_plain_format_judges_rule_b_by_its_own_tree_first(tmp_path):
@@ -5512,7 +5602,7 @@ def test_a_plugin_scoped_read_only_agent_is_held_to_its_list(tmp_path, isolated_
     project.mkdir()
 
     assert plugin_decision(project, shell("touch made.txt")).endswith("Blocked: touch made.txt")
-    assert plugin_decision(project, shell("git diff")) is None
+    assert plugin_decision(project, shell("git --no-pager diff")) is None
 
 
 def test_a_plugin_scoped_agent_with_no_skills_is_denied(tmp_path, isolated_home_directory):
@@ -5585,7 +5675,7 @@ def test_read_only_subagent_may_not_send_a_command_that_is_not_a_string(tmp_path
 
 @pytest.mark.parametrize("key", ["command", "cmd", "script"])
 def test_read_only_subagent_may_not_run_a_command_through_an_unknown_tool(tmp_path, key):
-    payload = {"tool_name": "RunInSandbox", "tool_input": {key: "git diff"}}
+    payload = {"tool_name": "RunInSandbox", "tool_input": {key: "git --no-pager diff"}}
 
     assert read_only_verdict(tmp_path, payload).endswith(f"Blocked: {GATE._UNPLACEABLE_SHELL_TARGET}")
 
@@ -5621,16 +5711,16 @@ You write definitions. A read-only one looks like this:
 ```markdown
 ### Read-only shell
 
-- `git diff*`
+- `git --no-pager diff*`
 ```
 """
 
 
 def test_a_read_only_heading_with_no_items_denies_every_command(tmp_path):
     root = project_with_agent(tmp_path, "fixture-reviewer", READ_ONLY_HEADING_ONLY)
-    verdict = read_only_decision(root, shell("git status"))
+    verdict = read_only_decision(root, shell("git --no-pager status"))
 
-    assert verdict["permissionDecisionReason"].endswith("Blocked: git status")
+    assert verdict["permissionDecisionReason"].endswith("Blocked: git --no-pager status")
     assert read_only_decision(root, {"tool_name": "Read", "tool_input": {"file_path": "x.py"}}) is None
 
 
@@ -5651,7 +5741,7 @@ def test_a_read_only_definition_found_only_under_the_install_root_is_enforced(tm
     (agents / "fixture-reviewer.md").write_text(gen_subagents.render("agents", READ_ONLY_REVIEWER, "You review.\n"), encoding="utf-8")
     monkeypatch.setattr(GATE, "_install_root", lambda: home)
 
-    assert read_only_decision(project, shell("git diff")) is None
+    assert read_only_decision(project, shell("git --no-pager diff")) is None
     assert read_only_decision(project, shell("touch made.txt"))["permissionDecision"] == "deny"
 
 
@@ -5663,7 +5753,7 @@ def test_rule_e_reaches_the_plain_runner_envelope(tmp_path):
 
     assert (code, out) == (2, "")
     assert err.endswith("Blocked: touch made.txt")
-    assert run({**envelope, "tool_input": {"command": "git diff"}}, "plain", cwd=root) == (0, "", "")
+    assert run({**envelope, "tool_input": {"command": "git --no-pager diff"}}, "plain", cwd=root) == (0, "", "")
 
 
 def test_rule_e_reaches_the_codex_payload(tmp_path):
@@ -5674,7 +5764,7 @@ def test_rule_e_reaches_the_codex_payload(tmp_path):
 
     assert (code, err) == (0, "")
     assert json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"].endswith("Blocked: touch made.txt")
-    assert run({**payload, "tool_input": {"command": "git log -1"}}, "codex", cwd=root) == (0, "", "")
+    assert run({**payload, "tool_input": {"command": "git --no-pager log -1"}}, "codex", cwd=root) == (0, "", "")
 
 
 def test_main_thread_process_substitution_is_read_as_a_child_shell():
@@ -5784,4 +5874,4 @@ def test_the_shipped_read_only_agents_carry_their_list_in_every_tree(agent, extr
     ]:
         text = (REPO_ROOT / directory / f"{agent}{extension}").read_text(encoding="utf-8")
 
-        assert GATE._read_only_patterns(text) == ["git diff*", "git log*", "git show*", "git status*", *extras]
+        assert GATE._read_only_patterns(text) == ["git --no-pager diff*", "git --no-pager log*", "git --no-pager show*", "git --no-pager status*", *extras]

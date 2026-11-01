@@ -638,7 +638,9 @@ verify_gate_behaviour() {
   local main_shell_write='{"tool_name":"Bash","tool_input":{"command":"echo x > src/app.py"}}'
   local specialist='{"agent_id":"a1","agent_type":"python-pro","tool_name":"Edit","tool_input":{"file_path":"src/app.py"}}'
   local reviewer_edit='{"agent_id":"a1","agent_type":"code-reviewer","tool_name":"Edit","tool_input":{"file_path":"src/app.py"}}'
-  local reviewer_diff='{"agent_id":"a1","agent_type":"code-reviewer","tool_name":"Bash","tool_input":{"command":"git diff"}}'
+  local reviewer_diff='{"agent_id":"a1","agent_type":"code-reviewer","tool_name":"Bash","tool_input":{"command":"git --no-pager diff"}}'
+  local reviewer_paged='{"agent_id":"a1","agent_type":"code-reviewer","tool_name":"Bash","tool_input":{"command":"git diff"}}'
+  local reviewer_gh='{"agent_id":"a1","agent_type":"code-reviewer","tool_name":"Bash","tool_input":{"command":"gh pr diff 12"}}'
   local generalist='{"agent_id":"a1","agent_type":"sandbox-no-skills-probe","tool_name":"Edit","tool_input":{"file_path":"src/app.py"}}'
 
   section "Preflight gate behaviour"
@@ -656,7 +658,12 @@ verify_gate_behaviour() {
   assert_gate "rule A denies a shell redirect into a source file" claude deny "$main_shell_write"
   assert_gate "a subagent that declares skills is allowed" claude allow "$specialist"
   assert_gate "rule E denies the read-only code-reviewer an edit" claude deny "$reviewer_edit"
-  assert_gate "rule E allows the read-only code-reviewer a listed git diff" claude allow "$reviewer_diff"
+  for format in claude codex; do
+    assert_gate "rule E allows the read-only code-reviewer a listed git --no-pager diff" "$format" allow "$reviewer_diff"
+    assert_gate "rule E denies the read-only code-reviewer a bare git diff, which can open a pager" "$format" deny "$reviewer_paged"
+  done
+  assert_gate "rule E allows the read-only code-reviewer a listed gh pr diff where the gate sees the terminal" claude allow "$reviewer_gh"
+  assert_gate "rule E denies the read-only code-reviewer every gh command on Codex, whose terminal the gate never sees" codex deny "$reviewer_gh"
 
   write_probe_agent
   assert_gate "rule B denies a subagent that declares no skills" claude deny "$generalist"

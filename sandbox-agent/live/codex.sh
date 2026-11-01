@@ -253,26 +253,46 @@ codex_install_payload_capture() {
     "$PAYLOAD_CAPTURE_COMMAND" >> "${CODEX_HOME}/config.toml"
 }
 
+readonly PAYLOAD_TYPE_TEST="7 a Codex subagent's PreToolUse payload names its agent_type"
+readonly PROBE_DENIAL_TEST="7b Rule E denies the Codex code-reviewer's probe touch"
+
 # Measures whether the PreToolUse payload of a call made inside a custom
 # subagent carries agent_id and agent_type, which the hooks page documents only
 # for SubagentStart and SubagentStop, by having the read-only code-reviewer try
-# a touch. KNOWN-GAP is the state docs/agent-compatibility.md records today.
+# a touch. Check 7 reads every payload placed in the subagent's own rollout,
+# whatever its tool: in live run 41348146352 on Codex 0.166.0 the reviewer
+# never ran the touch, yet its send_message call's payload carried agent_id and
+# agent_type code-reviewer. Check 7b then reports on its own line whether the
+# touch was tried and Rule E denied it, now that a missing agent_type is a
+# measured failure rather than a gap.
+judge_codex_payload_checks() {
+  local dir="$1"
+
+  judge_subagent_payload_type "$PAYLOAD_TYPE_TEST" "$dir" "$READ_ONLY_SUBAGENT"
+  judge_read_only_probe "$PROBE_DENIAL_TEST" "$dir" "$READ_ONLY_SUBAGENT" FAIL
+}
+
 test_subagent_payload_names_its_type() {
-  local name="7 a Codex subagent's PreToolUse payload names its agent_type" dir="${CASES}/7-payload"
+  local dir="${CASES}/7-payload" problem
 
   if ! codex_install_payload_capture; then
-    record "$name" INCONCLUSIVE "the work directory ${WORK} holds a character the hook command cannot carry unquoted"
+    problem="the work directory ${WORK} holds a character the hook command cannot carry unquoted"
+    record "$PAYLOAD_TYPE_TEST" INCONCLUSIVE "$problem"
+    record "$PROBE_DENIAL_TEST" INCONCLUSIVE "$problem"
     return
   fi
 
   run_captured_case "7-payload" "$(read_only_probe_prompt "$READ_ONLY_SUBAGENT")"
-  record_model_failure "$name" "$dir" && return
+  if record_model_failure "$PAYLOAD_TYPE_TEST" "$dir"; then
+    record "$PROBE_DENIAL_TEST" INCONCLUSIVE "the provider rejected the model request, as check 7 records"
+    return
+  fi
 
-  judge_read_only_probe "$name" "$dir" "$READ_ONLY_SUBAGENT" KNOWN-GAP
+  judge_codex_payload_checks "$dir"
 }
 
 agent_extra_tests() {
-  section "7 against the real model"
+  section "7 and 7b against the real model"
   test_subagent_payload_names_its_type
 }
 

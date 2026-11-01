@@ -151,6 +151,42 @@ agent_subagent_context() {
   return 0
 }
 
+# A subagent's reply is the text of its own assistant messages, in its
+# subagents/ transcript and in the stream, where they carry a
+# parent_tool_use_id. A spawn run in the background returns only "Async agent
+# launched successfully", and Claude Code later hands the main thread the
+# subagent's final message as a user message whose origin.kind is
+# task-notification, inside <result>, and as a system task_notification event
+# in the stream (both recorded on Claude Code 2.1.314 in live run
+# 41348146352). A skill the subagent preloaded arrives as a user message, and
+# the main thread's own text has no parent_tool_use_id, so neither counts.
+# shellcheck disable=SC2016  # $names here are jq variables, not shell expansions
+readonly REPLY_TEXT_FILTER='
+  def texts: (.message.content? // []) | if type == "array" then .[] else empty end
+    | select(type == "object" and .type == "text") | .text | strings;'
+
+agent_subagent_replies() {
+  local dir="$1" file
+
+  for file in "${dir}"/transcripts/subagent-*.jsonl; do
+    [[ -f "$file" ]] || continue
+    jq -R -r "${REPLY_TEXT_FILTER}"' fromjson? | objects | select(.type == "assistant") | texts' "$file"
+  done
+
+  for file in "${dir}"/transcripts/main-*.jsonl; do
+    [[ -f "$file" ]] || continue
+    jq -R -r 'fromjson? | objects
+      | select(.type == "user" and .origin.kind? == "task-notification")
+      | .message.content? | strings | capture("<result>(?<r>[\\s\\S]*?)</result>").r' "$file"
+  done
+
+  [[ -f "${dir}/stream.jsonl" ]] || return 0
+  jq -R -r "${REPLY_TEXT_FILTER}"' fromjson? | objects
+    | if .type == "assistant" and .parent_tool_use_id != null then texts
+      elif .type == "system" and .subtype == "task_notification" then .summary | strings
+      else empty end' "${dir}/stream.jsonl"
+}
+
 # A hook payload's transcript_path is the main session's transcript even inside
 # a subagent, the hooks page says for SubagentStop, where agent_transcript_path
 # names the subagent's own, so only a name a copied subagent-*.jsonl carries

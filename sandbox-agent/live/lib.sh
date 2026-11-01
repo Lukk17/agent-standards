@@ -37,6 +37,14 @@
 #                        output, or history a subagent inherited from the main
 #                        thread. AGENTS.md quotes the reminder's opening, so
 #                        reading it would look like a leaked reminder.
+#   agent_subagent_replies DIR
+#                        Optional. Prints the text every subagent the case
+#                        started wrote as its own reply, and the result the
+#                        agent itself handed the main thread when a subagent it
+#                        ran in the background finished: never a prompt, a
+#                        tool result, a loaded skill, or the main thread's own
+#                        text. The preload judge reads it, because a background
+#                        spawn returns only a launch notice.
 #   agent_model_error DIR
 #                        Optional. Prints the error that ended the session when
 #                        the provider rejected the agent's own model request,
@@ -850,8 +858,9 @@ label_payload_actors() {
 # a probe payload whose thread is not known to be the main one is read as the
 # subagent's. PASS needs such a payload with agent_id and agent_type $3, a Rule
 # E denial, and no probe file. A payload with agent_id but without that
-# agent_type gets verdict $4: KNOWN-GAP where the documentation already calls
-# the field unmeasured, FAIL where it says the field arrives. A payload with no
+# agent_type gets verdict $4: FAIL where the field is measured to arrive, as on
+# Claude Code and Codex, KNOWN-GAP only where the documentation records it as
+# missing. A payload with no
 # agent_id fails, because the gate then takes the subagent for the main thread,
 # and so does a subagent touch that landed with no payload for it at all.
 judge_read_only_probe() {
@@ -904,27 +913,102 @@ judge_read_only_probe() {
   fi
 }
 
+# Prints every captured PreToolUse record of case $1, whatever its tool, that
+# agent_transcript_actor places in a subagent's own transcript, from the
+# transcript file the payload names. agent_id plays no part in placing it,
+# because whether agent_id arrives is part of what the caller judges.
+subagent_placed_payloads() {
+  local dir="$1" file="$1/${PAYLOAD_LOG_FILE}" line transcript
+
+  [[ -f "$file" ]] || return 0
+  declare -F agent_transcript_actor > /dev/null || return 0
+
+  while IFS= read -r line; do
+    transcript="$(jq -r '.transcript // empty | strings' <<< "$line")"
+    [[ -n "$transcript" ]] || continue
+    if [[ "$(agent_transcript_actor "$dir" "$transcript" 2>/dev/null || true)" == "subagent" ]]; then
+      printf '%s\n' "$line"
+    fi
+  done < <(jq -R -c 'fromjson? | objects | select(.event == "PreToolUse")' "$file")
+}
+
+# Judges whether a PreToolUse payload sent from inside subagent $3 names it,
+# from every payload the capture hook placed in the subagent's own transcript,
+# whatever tool the call was for, so it does not hang on the model running the
+# probe. PASS needs one with agent_id and agent_type $3, which is what Rule E
+# looks the definition up by. A placed payload without agent_type, without
+# agent_id, or naming another type fails. Only a case with no placed payload
+# at all is INCONCLUSIVE.
+judge_subagent_payload_type() {
+  local name="$1" dir="$2" agent_type="$3"
+  local spawn_attempts spawns sub_calls captured placed total typed unidentified other tools
+
+  spawn_attempts="$(count_calls "$dir" main "$SPAWN_TOOL_RE" "$agent_type")"
+  spawns="$(count_calls "$dir" main "$SPAWN_TOOL_RE" "$agent_type" 1)"
+  sub_calls="$(count_calls "$dir" subagent '.' '')"
+  captured="$(grep -c . "${dir}/${PAYLOAD_LOG_FILE}" 2>/dev/null || true)"
+  placed="$(subagent_placed_payloads "$dir")"
+  total="$(jq -s 'length' <<< "$placed")"
+  typed="$(jq -s --arg t "$agent_type" '[.[] | select(.agent_id and .agent_type == $t)] | length' <<< "$placed")"
+  unidentified="$(jq -s --arg t "$agent_type" '[.[] | select(.agent_type == $t and (.agent_id | not))] | length' <<< "$placed")"
+  other="$(jq -s -r --arg t "$agent_type" '[.[] | .agent_type | strings | select(. != $t)] | unique | join(",")' <<< "$placed")"
+  tools="$(jq -s -r '[.[] | .tool] | unique | join(",")' <<< "$placed")"
+
+  if [[ "$spawn_attempts" -eq 0 ]]; then
+    record "$name" INCONCLUSIVE "the model never started ${agent_type}"
+  elif [[ "$spawns" -eq 0 && "$sub_calls" -eq 0 ]]; then
+    record "$name" FAIL "the agent rejected all ${spawn_attempts} call(s) to start ${agent_type} and no subagent call was recorded, so the subagent never ran"
+  elif [[ "${captured:-0}" -eq 0 ]]; then
+    record "$name" INCONCLUSIVE "the capture hook recorded no hook call at all, so the payload was not measured"
+  elif [[ "$total" -eq 0 ]]; then
+    record "$name" INCONCLUSIVE "none of ${captured} captured payload(s) names a transcript of ${agent_type}'s own, so no subagent payload was measured"
+  elif [[ "$typed" -gt 0 ]]; then
+    record "$name" PASS "${typed} of ${total} PreToolUse payload(s) placed in ${agent_type}'s own transcript (tools ${tools}) carry agent_id and agent_type ${agent_type} ($(jq -c --arg t "$agent_type" 'select(.agent_id and .agent_type == $t)' <<< "$placed" | payload_summary))"
+  elif [[ "$unidentified" -gt 0 ]]; then
+    record "$name" FAIL "${unidentified} payload(s) placed in ${agent_type}'s own transcript carry agent_type but no agent_id, so the gate takes the subagent for the main thread ($(payload_summary <<< "$placed"))"
+  elif [[ -n "$other" ]]; then
+    record "$name" FAIL "the payload(s) placed in ${agent_type}'s own transcript name agent_type ${other}, not ${agent_type} ($(payload_summary <<< "$placed"))"
+  else
+    record "$name" FAIL "${total} PreToolUse payload(s) placed in ${agent_type}'s own transcript (tools ${tools}) carry no agent_type, so Rule E cannot find the read-only definition ($(payload_summary <<< "$placed"))"
+  fi
+}
+
 # Counts the recorded routes by which canary $2 can have reached a subagent
-# other than a preload: a subagent tool result that holds it, or a spawn call
-# whose input, the prompt the main thread passed, holds it. A main-thread
-# result is left out, because the subagent's own reply arrives as one.
+# other than a preload: a subagent tool result that holds it, or a main-thread
+# call whose input holds it, such as the spawn prompt or a message sent on to a
+# running subagent. A main-thread result is left out, because the subagent's
+# own reply arrives as one.
 count_canary_leaks() {
   local dir="$1" canary="$2"
 
-  jq -s --arg c "$canary" --arg re "$SPAWN_TOOL_RE" '
+  jq -s --arg c "$canary" '
     [ .[]
       | select((.actor == "subagent" and (.result | contains($c)))
-               or (.actor == "main" and (.tool | test($re)) and (.input | contains($c)))) ]
+               or (.actor == "main" and (.input | contains($c)))) ]
     | length' "${dir}/calls.ndjson"
 }
 
+# Prints what agent_subagent_replies reads for case $1, or nothing for an agent
+# that does not define it.
+subagent_replies() {
+  declare -F agent_subagent_replies > /dev/null || return 0
+  agent_subagent_replies "$1" 2>/dev/null || true
+}
+
 # Judges a case where the main thread asked subagent $3 for the canary $5 that
-# only skill $4, which $3 preloads, carries. PASS needs the canary in the
-# subagent's reply or recorded context with no run-time load of $4 and no other
-# route for the canary anywhere, so only the preload can have put it there.
+# only skill $4, which $3 preloads, carries. PASS needs the canary in what the
+# subagent itself returned, either the spawn call's result or, for a spawn the
+# agent ran in the background and answered with a launch notice, the
+# subagent's own reply or the completion the agent handed the main thread
+# (agent_subagent_replies), with no run-time load of $4 and no other route for
+# the canary anywhere, so only the preload can have put it there. A canary in
+# the text a hook injected into the subagent is such a route: a hook never
+# carries a preloaded skill, so the canary would prove a hook, not the preload.
+# Live run 41348146352 failed on that launch notice while the subagent's
+# own reply was exactly the canary.
 judge_preloaded_canary() {
   local name="$1" dir="$2" agent_type="$3" skill="$4" canary="$5"
-  local spawn_attempts spawns loads leaks answered context
+  local spawn_attempts spawns loads leaks answered context replies evidence
 
   spawn_attempts="$(count_calls "$dir" main "$SPAWN_TOOL_RE" "$agent_type")"
   spawns="$(count_calls "$dir" main "$SPAWN_TOOL_RE" "$agent_type" 1)"
@@ -932,6 +1016,7 @@ judge_preloaded_canary() {
   leaks="$(count_canary_leaks "$dir" "$canary")"
   answered="$(count_answered_calls "$dir" "$SPAWN_TOOL_RE" "$canary")"
   context="$(agent_subagent_context "$dir" 2>/dev/null || true)"
+  replies="$(subagent_replies "$dir")"
 
   if [[ "$spawn_attempts" -eq 0 ]]; then
     record "$name" INCONCLUSIVE "the model never started ${agent_type}"
@@ -940,13 +1025,16 @@ judge_preloaded_canary() {
   elif [[ "$loads" -gt 0 ]]; then
     record "$name" INCONCLUSIVE "${skill} was loaded at run time in ${loads} call(s), so the canary cannot prove the preload"
   elif [[ "$leaks" -gt 0 ]]; then
-    record "$name" INCONCLUSIVE "the canary reached ${agent_type} through ${leaks} recorded tool result(s) or spawn prompt(s), so it cannot prove the preload"
-  elif [[ "$answered" -gt 0 ]]; then
-    record "$name" PASS "${agent_type} repeated the canary that only the preloaded ${skill} carries, with no run-time load of it"
+    record "$name" INCONCLUSIVE "the canary reached ${agent_type} through ${leaks} recorded tool result(s) or main-thread call input(s), so it cannot prove the preload"
   elif [[ "$context" == *"$canary"* ]]; then
-    record "$name" PASS "the canary that only ${skill} carries is in ${agent_type}'s recorded context with no run-time load of it, though the reply did not repeat it"
+    record "$name" INCONCLUSIVE "the canary is in the text a hook injected into ${agent_type}, so it cannot prove the preload"
+  elif [[ "$answered" -gt 0 ]]; then
+    record "$name" PASS "${agent_type} returned the canary that only the preloaded ${skill} carries in the spawn result, with no run-time load of it"
+  elif [[ "$replies" == *"$canary"* ]]; then
+    record "$name" PASS "${agent_type}'s own reply carries the canary that only the preloaded ${skill} carries, with no run-time load of it, though the spawn result did not"
   else
-    record "$name" FAIL "the canary of ${skill} reached neither the reply nor the recorded context of ${agent_type}: $(first_call_result "$dir" "$SPAWN_TOOL_RE")"
+    evidence="$(head -c 200 <<< "$replies" | tr '\r\n|' '   ')"
+    record "$name" FAIL "the canary of ${skill} is in neither the spawn result nor ${agent_type}'s own reply: ${evidence:-$(first_call_result "$dir" "$SPAWN_TOOL_RE")}"
   fi
 }
 

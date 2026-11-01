@@ -85,8 +85,12 @@ READ_ONLY_TOOLS = frozenset({"read", "grep", "glob"})
 # any the definition adds under `readonly-commands`. Every target gets the list
 # as a READ_ONLY_HEADING body section, which the preflight gate's Rule E reads
 # and enforces on every format whose hook names the subagent. OpenCode and Kilo
-# Code also enforce it natively through the bash permission map below.
-READ_ONLY_COMMANDS = ("git diff*", "git log*", "git show*", "git status*")
+# Code also enforce it natively through the bash permission map below. Each git
+# command carries `--no-pager`, because Rule E denies git in any other form: on
+# a terminal git pipes its output into a pager, whose `!` runs any command
+# (READ_ONLY_GIT_NO_PAGER in .agents/hooks/preflight_gate.py).
+READ_ONLY_GIT = "git --no-pager"
+READ_ONLY_COMMANDS = tuple(f"{READ_ONLY_GIT} {command}*" for command in ("diff", "log", "show", "status"))
 READ_ONLY_HEADING = "Read-only shell"
 READ_ONLY_FORBIDDEN_TOOLS = frozenset({"write", "edit", "task"})
 
@@ -235,12 +239,15 @@ def read_only_pattern_problem(command: str) -> str:
 
     The gate reads a trailing `*` as "any further arguments" and nothing else,
     while OpenCode reads `*` and `?` anywhere, so only a trailing `*` means the
-    same on both. A wildcard first word would allow every program, and a
-    backtick would end the backticked list item the gate reads.
+    same on both. A wildcard first word would allow every program, a
+    backtick would end the backticked list item the gate reads, and a git
+    entry without `--no-pager` would be listed yet always denied.
     """
     words = command.split()
     if "`" in command:
         return "holds a backtick, which the gate's list item cannot carry"
+    if words[0] == "git" and words[1:2] != [READ_ONLY_GIT.split()[1]]:
+        return f"runs git without --no-pager, which the gate denies, so write it as `{READ_ONLY_GIT} ...`"
     if "*" in words[0] or "?" in words[0]:
         return "starts with a wildcard, which would allow any program"
     if "?" in command or "*" in command[:-1]:
@@ -268,12 +275,23 @@ def opencode_bash_rules(commands: list[str]) -> list[tuple[str, str]]:
     return list(dict.fromkeys(rules))
 
 
-def read_only_block(fm: dict, shell: bool = True) -> str:
-    """The body section the gate's Rule E reads, worded for a target with or without a shell."""
+def read_only_block(fm: dict, shell: bool = True, pager_escape: bool = False) -> str:
+    """The body section the gate's Rule E reads, worded for a target with or without a shell.
+
+    pager_escape marks a target whose hook never sees a terminal, Codex, where
+    the gate denies every gh command, so the agent is told to hand them back.
+    """
     commands = read_only_commands(fm)
     if not commands:
         return ""
     items = "\n".join(f"- `{c}`" for c in commands)
+    gh_note = ""
+    if pager_escape and any(c.split()[0] == "gh" for c in commands):
+        gh_note = (
+            "On this agent the gate also denies every gh command listed below, because gh has no "
+            "flag that keeps its pager off and a terminal here can be typed into unseen, so return "
+            "a gh command to the caller as a proposal. "
+        )
     if not shell:
         return (
             f"\n\n### {READ_ONLY_HEADING}\n\n"
@@ -286,9 +304,13 @@ def read_only_block(fm: dict, shell: bool = True) -> str:
         f"\n\n### {READ_ONLY_HEADING}\n\n"
         "This agent is read-only. Edit no file, and run only these shell commands, from "
         "the project root, with no redirect to a file and no pipe into another program. "
+        f"Run git only as `{READ_ONLY_GIT} <subcommand>`, because on a terminal git opens a "
+        "pager that can run any command. "
         "Quote nothing: spell a space in a git format `%x20` and a newline `%n`, as in "
-        "`git log --format=%h%x20%s`, and name an upstream branch, such as "
-        "`origin/main..HEAD`, rather than `@{u}`. Return any other command to the caller "
+        f"`{READ_ONLY_GIT} log --format=%h%x20%s`, and name an upstream branch, such as "
+        "`origin/main..HEAD`, rather than `@{u}`. "
+        f"{gh_note}"
+        "Return any other command to the caller "
         "as a proposal. The preflight gate denies everything else.\n\n"
         f"{items}\n"
     )
@@ -319,9 +341,9 @@ def skills_block(skills: list[str] | None) -> str:
     )
 
 
-def body_with_blocks(fm: dict, body: str, shell: bool = True) -> str:
+def body_with_blocks(fm: dict, body: str, shell: bool = True, pager_escape: bool = False) -> str:
     """The prompt body with the read-only section and the skills section appended."""
-    return body.rstrip() + read_only_block(fm, shell) + skills_block(fm.get("skills"))
+    return body.rstrip() + read_only_block(fm, shell, pager_escape) + skills_block(fm.get("skills"))
 
 
 def emit_claude(fm: dict, body: str) -> str:
@@ -423,7 +445,7 @@ def _toml_basic(s: str) -> str:
 
 
 def emit_codex(fm: dict, body: str) -> str:
-    content = body_with_blocks(fm, body)
+    content = body_with_blocks(fm, body, pager_escape=True)
     if "'''" in content:
         sys.exit(f"ERROR {fm['name']}: body contains ''' which breaks the Codex TOML literal string")
     lines = [
