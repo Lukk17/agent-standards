@@ -23,9 +23,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - name: Run actionlint on workflow YAML
         uses: reviewdog/action-actionlint@dbe5299849118fd6f099ba563d263d770955a64a # v1.73.2
+        # Diff the full clone locally: git 2.54 background maintenance races reviewdog's own fetch over .git/shallow.
+        env:
+          REVIEWDOG_SKIP_GIT_FETCH: "true"
         with:
           fail_level: error
           reporter: github-check
