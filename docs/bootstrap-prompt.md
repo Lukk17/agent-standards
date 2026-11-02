@@ -50,10 +50,7 @@ a path instead of a link, say so, because OpenCode and Kilo Code then have no su
 
 ## 3. Verify the preflight gate
 
-The gate is one shared script, `.agents/hooks/preflight_gate.py`, wired into each agent through its own hook surface:
-`.claude/settings.json`, the inline `[[hooks.*]]` tables in `.codex/config.toml`, the plugin at
-`.agents/plugin/hooks.js` declared by path in `opencode.json`, and `.github/hooks/preflight.json`. Three more hooks
-sit beside it in `.agents/hooks/`: `no_ai_markers_check.py`, `markdown_lint_check.py`, and `task_list_sync.py`.
+The gate is one shared script, `.agents/hooks/preflight_gate.py`, wired into each agent through its own hook surface: `.claude/settings.json`, the inline `[[hooks.*]]` tables in `.codex/config.toml`, the plugin at `.agents/plugin/hooks.js` declared by path in `opencode.json`, and `.github/hooks/preflight.json`. Three more hooks sit beside it in `.agents/hooks/`: `no_ai_markers_check.py`, `markdown_lint_check.py`, and `task_list_sync.py`, and on Claude Code `claude/standards_advisory_check.py` runs after every edit.
 
 Confirm the scripts exist and that the hook configuration your own runtime reads names them. Do not try to trigger the
 gate on purpose. Just report whether the wiring is present, and name the surface you are running on.

@@ -384,6 +384,8 @@ verify_claude() {
     '[.hooks.TaskCompleted[].hooks[].command] | any(contains("task_list_sync.py"))'
   assert_json "the markdown lint is wired into PostToolUse" ".claude/settings.json" \
     '[.hooks.PostToolUse[].hooks[].command] | any(contains("markdown_lint_check.py"))'
+  assert_json "the standards advisory is wired into PostToolUse" ".claude/settings.json" \
+    '[.hooks.PostToolUse[].hooks[].command] | any(contains("claude/standards_advisory_check.py --format claude"))'
   assert_json "MCP servers are present in the file Claude Code reads" ".mcp.json" \
     '(.mcpServers | length) > 0'
 

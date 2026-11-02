@@ -12,10 +12,7 @@ This project imports a central set of AI agent standards from a shared repositor
   [.codex/agents/](../.codex/agents/) (TOML), and [.github/agents/](../.github/agents/) (`*.agent.md`).
 - Instructions in [AGENTS.md](../AGENTS.md): shared rules every agent reads natively, Claude Code included as long as
   the project holds no `CLAUDE.md`. See [instruction files](#instruction-files).
-- A preflight gate in [.agents/hooks/preflight_gate.py](../.agents/hooks/preflight_gate.py), one shared rule wired
-  into every agent's hook surface, that actually blocks work rather than just asking for it, plus three hooks beside
-  it in [.agents/hooks/](../.agents/hooks/): a reply formatting check, a markdown lint pass after an edit, and a
-  task-list mirror that keeps the session plan alive across a compaction.
+- A preflight gate in [.agents/hooks/preflight_gate.py](../.agents/hooks/preflight_gate.py), one shared rule wired into every agent's hook surface, that actually blocks work rather than just asking for it, plus three hooks beside it in [.agents/hooks/](../.agents/hooks/): a reply formatting check, a markdown lint pass after an edit, and a task-list mirror that keeps the session plan alive across a compaction. On Claude Code an advisory check also warns after an edit about an action not pinned to a commit SHA, an image on `:latest`, a Spring Data `@Query` string, or a divider banner in a test, and never blocks.
 - MCP servers in five real config files, one per agent surface.
 - OpenSpec, optional, for spec-driven feature work.
 

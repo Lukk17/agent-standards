@@ -59,6 +59,11 @@
             "type": "command",
             "timeout": 15,
             "command": "cd \"${CLAUDE_PROJECT_DIR}\" && PY=$(command -v python3 || command -v python) && \"$PY\" -S -E .agents/hooks/markdown_lint_check.py --format claude ; exit 0"
+          },
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "cd \"${CLAUDE_PROJECT_DIR}\" && PY=$(command -v python3 || command -v python) && \"$PY\" -S -E .agents/hooks/claude/standards_advisory_check.py --format claude ; exit 0"
           }
         ]
       }

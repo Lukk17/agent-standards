@@ -25,6 +25,7 @@ MARKDOWN_LINT_HOOK = HOOKS_DIR / "markdown_lint_check.py"
 MARKDOWN_LINT_RULES = HOOKS_DIR / "_check_markdown.py"
 PROMPT_REMINDER_HOOK = HOOKS_DIR / "copilot" / "prompt_reminder.py"
 SYNC_SKILL_LINKS_HOOK = HOOKS_DIR / "claude" / "sync_skill_links.py"
+STANDARDS_ADVISORY_HOOK = HOOKS_DIR / "claude" / "standards_advisory_check.py"
 PLUGIN = REPO_ROOT / ".agents" / "plugin" / "hooks.js"
 RUNNER_DRIVER = Path(__file__).resolve().parent / "hook_runner_driver.mjs"
 SUBPROCESS_TIMEOUT_SECONDS = 60
