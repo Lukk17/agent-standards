@@ -8,6 +8,7 @@ Test-first development with JUnit 6, Mockito, MockMvc, `@DataJpaTest`, Testconta
 
 - Write the failing test first
 - Unit tests with JUnit 6 and Mockito
+- Shape of a test class
 - Web layer tests with MockMvc
 - Integration tests with the real context
 - Persistence tests against the production engine
@@ -50,33 +51,41 @@ class MarketServiceTest {
   @InjectMocks MarketService service;
 
   @Test
-  void createsMarket() {
-    CreateMarketRequest req = new CreateMarketRequest("name", "desc", Instant.now(), List.of("cat"));
-    when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+  void create_withValidRequest_savesMarket() {
+    // given
+    CreateMarketRequest request = new CreateMarketRequest("name", "desc", Instant.now(), List.of("cat"));
+    when(repo.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-    Market result = service.create(req);
+    // when
+    Market result = service.create(request);
 
+    // then
     assertThat(result.name()).isEqualTo("name");
     verify(repo).save(any());
   }
 
   @Test
   void create_whenRepositoryFails_propagatesException() {
-    CreateMarketRequest req = new CreateMarketRequest("name", "desc", Instant.now(), List.of("cat"));
+    // given
+    CreateMarketRequest request = new CreateMarketRequest("name", "desc", Instant.now(), List.of("cat"));
     when(repo.save(any())).thenThrow(new DataAccessResourceFailureException("db down"));
 
-    assertThatThrownBy(() -> service.create(req))
+    // when & then
+    assertThatThrownBy(() -> service.create(request))
         .isInstanceOf(DataAccessResourceFailureException.class);
     verify(repo).save(any());
   }
 
   @Test
   void create_withEmptyCategories_stillCreatesMarket() {
-    CreateMarketRequest req = new CreateMarketRequest("name", "desc", Instant.now(), List.of());
-    when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+    // given
+    CreateMarketRequest request = new CreateMarketRequest("name", "desc", Instant.now(), List.of());
+    when(repo.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-    Market result = service.create(req);
+    // when
+    Market result = service.create(request);
 
+    // then
     assertThat(result.categories()).isEmpty();
   }
 }
@@ -86,7 +95,23 @@ Pass: setup, action, and assertion in every test body, one behaviour per test, `
 
 Fail: a partial mock of the class under test, or a test that asserts nothing beyond "no exception was thrown".
 
-Label the test phases only if the project labels them at all, per the Test Structure section of `coding-standards`.
+The phases are marked with the bare `// given`, `// when` and `// then` comments, or `// when & then` when the action is the assertion, and nothing else is a comment in a test, per the test comment rule in `tdd-workflow`.
+
+---
+
+### Shape of a test class
+
+Let Mockito build the subject. Whenever the constructor takes only collaborators a mock can stand in for, the class carries `@ExtendWith(MockitoExtension.class)`, each collaborator is a `@Mock` field and the subject is an `@InjectMocks` field. A hand-written `service = new MarketService(repo, publisher)` in a `@BeforeEach` repeats the constructor in every test class and breaks each of them when a collaborator is added. Construct the subject yourself only when the constructor also needs plain values that are not mocks: a limit, a `Duration`, a `Set` of allowed values, a fixed `Clock`, or a real `ObjectMapper`. Even then keep the collaborators as `@Mock` fields.
+
+Pass: `@Mock AuditLogRepository auditLogRepository;` and `@InjectMocks AuditRetentionService auditRetentionService;`.
+
+Fail: `@BeforeEach void setUp() { service = new AuditRetentionService(repository, publisher); }` with both arguments mocks.
+
+Use Lombok in test helpers and fixtures wherever it removes boilerplate: `@NoArgsConstructor(access = AccessLevel.PRIVATE)` on a holder of static fixture factories, `@Getter` or `@Builder` on a fixture type with many fields, and a record where the fixture is plain data. A hand-written private constructor and a page of getters in a test helper is the boilerplate Lombok exists to delete.
+
+Keep a test class to one behaviour area. Past about 300 lines it is testing several, so split it into focused classes named for the behaviour, such as `ExpenseMapperToDomainTest` and `ExpenseMapperToResponseTest`, sharing their builders and canned data through one `<Subject>TestFixtures` class. A `*BranchTest` written to raise branch coverage folds into the behaviour class whose branch it covers, because coverage is a property of the behaviour tests, not a separate suite. The size rule and the split are owned by `tdd-workflow`.
+
+Give a test its meaning through its name or `@DisplayName`, never through a comment: no divider banner, no section label such as `// --- helpers ---` or `// 7.1 happy path`, no comment at the top of the file saying what it tests.
 
 ---
 
@@ -177,13 +202,18 @@ Pass: a shared `@TestConfiguration` that declares each container as a bean annot
 ```java
 @TestConfiguration(proxyBeanMethods = false)
 class TestContainersConfig {
+
+  private static final String POSTGRES_IMAGE = "postgres:<version-tag>@sha256:<digest>";
+
   @Bean
   @ServiceConnection
   PostgreSQLContainer postgres() {
-    return new PostgreSQLContainer("postgres:18-alpine");
+    return new PostgreSQLContainer(DockerImageName.parse(POSTGRES_IMAGE).asCompatibleSubstituteFor("postgres"));
   }
 }
 ```
+
+Pin every Testcontainers image the way `docker-patterns` pins a base image, to an exact version tag plus its `@sha256:` digest, so a moved tag never changes the database a green test ran against. A digest-pinned name no longer looks like the official image to the module's compatibility check, so wrap it in `DockerImageName.parse(image).asCompatibleSubstituteFor("<official image name>")`. The one exception is LocalStack: pin it to an exact version tag without a digest, because `LocalStackContainer` reads the tag to decide how it starts and which services it exposes, and a digest-qualified name hides it.
 
 Use `@DynamicPropertySource` only for a property no service connection covers.
 
@@ -302,6 +332,10 @@ The pipeline that runs this suite alongside the build, static analysis, and scan
 - [ ] Every behaviour change started with a test that failed for the right reason.
 - [ ] Error and edge cases are covered, not just the happy path.
 - [ ] Mocked Spring beans use `@MockitoBean` or `@MockitoSpyBean`, never the removed `@MockBean` or `@SpyBean`.
+- [ ] Unit tests build the subject with `@InjectMocks` unless its constructor needs plain values.
+- [ ] No comment in a test but the bare given, when and then markers, and no test class past about 300 lines.
+- [ ] Test fixtures use Lombok or records rather than hand-written boilerplate.
+- [ ] Every Testcontainers image is pinned to a version tag and a digest through `asCompatibleSubstituteFor`, LocalStack to an exact tag only.
 - [ ] Slices are used where they fit, and `@SpringBootTest` only where the wiring is the subject.
 - [ ] Repository tests run against the production database engine through Testcontainers.
 - [ ] Assertions are AssertJ throughout, with `jsonPath` for response bodies.

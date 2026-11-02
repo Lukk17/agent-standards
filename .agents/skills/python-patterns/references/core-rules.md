@@ -12,6 +12,7 @@ The BAD and GOOD examples, the reasoning, and the trap table behind each rule th
 - Model data with dataclasses, not loose dicts
 - Pick the concurrency model from the bottleneck
 - Lay the package out under src and import absolutely
+- Give each module one job, behind a thin entry point
 - Test it, and watch the test fail first
 - Avoid the classic traps
 - Startup readiness log
@@ -146,6 +147,26 @@ from ...domain.user import User
 # GOOD
 from myapp.domain.user import User
 ```
+
+---
+
+### Give each module one job, behind a thin entry point
+
+A script that parses its arguments, walks a MIME tree, cleans HTML, renders an image and writes files in one module has five reasons to change and cannot be tested without running all of them. Keep the command-line entry point thin: it parses arguments, wires the pieces together and maps failures to exit codes. Everything it calls lives in single-responsibility modules of pure functions, which take values and return values, and each of those gets its own pytest tests without a subprocess or a temporary directory. A module past about 300 lines is the signal to split, per `coding-standards`.
+
+```text
+converter/
+  eml_to_md.py          # entry point: argparse, wiring, exit codes
+  mime_parts.py         # pure: walk a message, return its parts
+  html_cleanup.py       # pure: sanitise and normalise HTML
+  markdown_render.py    # pure: parts to Markdown text
+tests/
+  test_mime_parts.py
+  test_html_cleanup.py
+  test_markdown_render.py
+```
+
+No long comment block, at the top of a module or above a function. A paragraph explaining what the next forty lines do is a sign they want to be a named function, and a module docstring states its purpose in a line or two. Keep a comment only for a short, non-obvious why, per the comment rule in `coding-standards`.
 
 ---
 
