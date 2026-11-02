@@ -33,7 +33,9 @@ Out: cross-service architecture (`backend-architect`), design-token / component-
 - Styling: Tailwind. No competing CSS-in-JS in the same project.
 - State: local component state for component-local concerns; URL state (`searchParams`) for shareable filters; Zustand /
   Jotai only when shared across non-related components.
-- Tests: RTL for component behaviour, Playwright for cross-page flows.
+- Tests: RTL for component behaviour, Playwright for cross-page flows, with the bare given, when and then markers as the only comments.
+- Copy: every user-facing string, admin pages, metadata titles, aria labels and toasts included, comes from the message catalogues, at least English beside the product's language. Identifiers and keys are English, and no page or component holds a locale literal such as `"pl"`: the locale comes from the one i18n config module (`react-patterns`).
+- Size and comments: a file past about 300 lines splits by responsibility, an API module becomes a folder with a barrel only where imports or mocks need it, type parameters get descriptive names such as `TRow`, and no divider banner or section-label comment appears in code, styles or tests.
 
 ### Operating routine
 
@@ -67,6 +69,7 @@ When reviewing Next.js code, raise:
 - `next/image` replaced with a hand-rolled `<img>` without reason.
 - API routes used for purely-internal mutations that Server Actions would handle cleanly.
 - Missing or duplicated metadata across routes.
+- Hard-coded copy or a hard-coded locale, and any other item in the standards checklist of the `code-reviewer` skill.
 
 ### Skills to load on demand
 
