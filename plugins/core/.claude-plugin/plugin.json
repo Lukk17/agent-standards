@@ -1,0 +1,11 @@
+{
+  "name": "core",
+  "version": "fddb8289dda0",
+  "description": "Skills that subagents in two or more domains preload, such as coding standards, security review, TDD, logging and git practice. Every domain plugin depends on it.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT"
+}

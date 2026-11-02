@@ -1,0 +1,15 @@
+{
+  "name": "homelab",
+  "version": "2f2de7a83d55",
+  "description": "Homelab hosts and services, with the home-assistant-engineer subagent and the Proxmox, router, Syncthing and machine health skills. Off until you enable it.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT",
+  "defaultEnabled": false,
+  "dependencies": [
+    "core"
+  ]
+}

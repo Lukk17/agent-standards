@@ -1,0 +1,106 @@
+---
+name: git-workflow
+description: 'Git practice for a team: branching strategy, conventional commits, merge versus rebase, branch naming and cleanup, pull request content, conflicts, and line endings, symlinks and case across systems. Use when the user says "what should I name this branch", "write the commit message", "merge or rebase here" or "set up .gitattributes". Not for issues and releases on the host, use `github-ops`.'
+---
+
+# Git Workflow
+
+Version control practice for work that more than one person touches: how branches are shaped, what a commit message
+has to say, when history may be rewritten, and what a pull request has to carry. Everything here is about the local
+repository and the shared history, so operating the hosting platform belongs to `github-ops`.
+
+| Task | Open |
+|---|---|
+| Picking or changing a branching strategy for a repository | [branching-strategies.md](references/branching-strategies.md) |
+| Running an operation and needing the exact commands | [recipes.md](references/recipes.md) |
+| Setting up identity, defaults, aliases and ignore patterns | [git-config.md](references/git-config.md) |
+| Line endings and `.gitattributes`, `core.autocrlf`, symlinks and case-only renames across operating systems | [git-config.md](references/git-config.md) |
+| Adopting signing, secret scanning, review turnaround, LFS or code ownership | [team-policy.md](references/team-policy.md) |
+| The reasoning and pass and fail examples behind every rule below | [practice-examples.md](references/practice-examples.md) |
+
+---
+
+### When to activate
+
+- Setting up the git workflow for a new project
+- Choosing between GitHub Flow, trunk-based development and GitFlow
+- Writing a commit message or a pull request description
+- Deciding whether to merge or rebase in a specific situation
+- Naming a branch, or cleaning up branches after a merge
+- Resolving a conflict, or reducing how often conflicts happen
+- Undoing a mistake in local or shared history
+- Setting line endings, `.gitattributes`, `core.symlinks` or handling case sensitivity across operating systems
+- The user says "write the commit message for this", "I have a conflict in this file" or "set up our git workflow"
+
+---
+
+### When not to activate
+
+- Triaging issues, managing pull requests on the platform, or cutting a release, use `github-ops`
+- Recording work items, sizing and acceptance criteria, use `project-tracking`
+- Operating a Jira workflow around the branch, use `jira-integration`
+- Reviewing the content of a diff for correctness, use `code-reviewer`
+- Designing the pipeline the branch triggers, use `deployment-patterns`
+- Formatting Dart, Java or Python code inside the commit, use `code-formatter`. Any other language follows its
+  language skill or its default formatter
+
+---
+
+### Never push unasked
+
+Pushing, force-pushing, opening a pull request and rebasing onto a remote all happen only on an explicit instruction.
+For a commit already on a shared branch, revert rather than rewrite: a revert is a new commit everyone can pull, and
+a rewrite is a break everyone has to repair by hand.
+
+---
+
+### Rules
+
+1. Pick one branching strategy and hold to it: GitHub Flow for continuous deployment and most small to medium teams, trunk-based for an experienced team with strong CI and feature flags, GitFlow for scheduled releases in a regulated setting.
+2. Commit messages are conventional: `type(scope): subject`, imperative, no trailing period, under about fifty characters, with types feat, fix, docs, style, refactor, test, chore, perf, ci, revert. The body explains why, and the issue reference goes in the footer.
+3. Merge in public, rebase in private. Never rebase a branch others based work on, that is merged, or that is shared.
+4. Name branches `type/short-hyphenated-subject`, such as `feature/PROJ-1234-order-cancellation`, with the issue key when the project tracks one.
+5. Delete a branch locally and on the remote once it has merged, and prune stale remote-tracking references.
+6. A pull request states what changed, why, how where not obvious, and how it was tested. One feature or fix, under about five hundred lines, self-reviewed with CI green before review is requested.
+7. Prevent conflicts with small, short branches rebased often, a word to the team before touching a shared file, and feature flags. When one happens, read both sides, never accept a side just to clear the markers, and run the tests after.
+8. Stage explicit paths or review each hunk (`git add -p`), never `git add .`.
+9. Releases (semantic versioning, tags, changelog, publishing) live in `github-ops`.
+
+---
+
+### Anti-patterns
+
+| Anti-pattern | Cost | Do instead |
+|---|---|---|
+| Committing straight to the protected branch | No review, no CI gate before the main line moves | Branch, review, merge |
+| Committing a secret | Rotation plus a history rewrite across every clone | Ignore the file, read from the environment |
+| A pull request over a thousand lines | Review degrades to a skim | Split into focused changes |
+| A commit message that says update | The history stops answering why anything happened | Conventional commits with a body |
+| Rewriting a public branch | Everyone who pulled has to repair by hand | Revert on a public branch |
+| A feature branch alive for weeks | Conflicts compound and integration is deferred | Short branches plus a feature flag |
+| Committing generated output | Every regeneration is a diff nobody can review | Ignore the artifact, build it |
+
+---
+
+### Related skills
+
+- `github-ops` owns issues, pull request operations, CI triage and the whole release procedure
+- `project-tracking` owns the work item the branch and commit reference
+- `jira-integration` owns reading and updating the Jira issue behind the branch
+- `code-reviewer` owns reviewing the content of the diff
+- `deployment-patterns` owns what happens after the merge
+- `security-review` owns the response when a secret does reach history
+
+---
+
+### Checklist
+
+- [ ] One branching strategy chosen and followed consistently
+- [ ] Every commit message carries a type and an imperative subject, with a body explaining why
+- [ ] Nothing shared was rebased, and nothing was pushed without an explicit instruction
+- [ ] Branch names carry a type prefix and a readable subject
+- [ ] Merged branches deleted locally and on the remote
+- [ ] Only intended paths staged, verified before committing
+- [ ] Pull request states what, why, how and how it was tested, and is under about five hundred lines
+- [ ] CI green and self-review done before review was requested
+- [ ] No secret and no generated artifact in the commit

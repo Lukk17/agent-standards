@@ -1,0 +1,14 @@
+{
+  "name": "web-frontend",
+  "version": "3402745ed651",
+  "description": "Web interfaces, with the Angular, React and Next.js, accessibility, design system and UI subagents and their skills.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT",
+  "dependencies": [
+    "core"
+  ]
+}

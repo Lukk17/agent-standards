@@ -1,0 +1,523 @@
+# Formatting Rules by Language
+
+Contents:
+
+- [Brace every inline if (x) return y; / if (x) throw z;](#brace-every-inline-if-x-return-y--if-x-throw-z)
+- [Empty lines around try / catch / finally](#empty-lines-around-try--catch--finally)
+- [Empty line above significant standalone await / async I/O](#empty-line-above-significant-standalone-await--async-io)
+- [Empty line above return when it ends a multi-statement block](#empty-line-above-return-when-it-ends-a-multi-statement-block)
+- [Blank line below return inside a try that has catch / finally](#blank-line-below-return-inside-a-try-that-has-catch--finally)
+- [Empty line above operation-terminating calls](#empty-line-above-operation-terminating-calls)
+- [Comments above the line they describe, never trailing](#comments-above-the-line-they-describe-never-trailing)
+- [Doc comments sit on the declaration they document](#doc-comments-sit-on-the-declaration-they-document)
+- [One concept per blank-line-separated paragraph](#one-concept-per-blank-line-separated-paragraph)
+- [Method chains: line-break before each .](#method-chains-line-break-before-each-)
+- [Single-expression bodies stay on one line](#single-expression-bodies-stay-on-one-line)
+
+The full body of each formatting rule, with the wrong and right form in every language the rule applies to. Load
+this file when applying or reviewing a specific rule, or when a rule's intent is unclear from its one-line summary in
+SKILL.md.
+
+---
+
+### Brace every inline `if (x) return y;` / `if (x) throw z;`
+
+A control-flow exit should never share a line with its condition. The reader's eye should land on a `return` or
+`throw` as a line, not as the tail of an `if`. Multi-line, braced, body indented.
+
+Java (wrong)
+
+```java
+if (rows.isEmpty()) return null;
+```
+
+Java (right)
+
+```java
+if (rows.isEmpty()) {
+    return null;
+}
+```
+
+Python (wrong)
+
+```python
+if not rows: return None
+```
+
+Python (right)
+
+```python
+if not rows:
+    return None
+```
+
+Dart (wrong)
+
+```dart
+if (rows.isEmpty) return null;
+```
+
+Dart (right)
+
+```dart
+if (rows.isEmpty) {
+  return null;
+}
+```
+
+### Empty lines around `try` / `catch` / `finally`
+
+A `try` block is a control-flow landmark: it tells the reader "things can go wrong here." Give it room to breathe
+before and after so the eye treats it as a phase, not buried text.
+
+Java
+
+```java
+var logger = LoggerFactory.getLogger(getClass());
+
+try {
+    service.backup();
+
+    logger.info("backup complete");
+} catch (BackupException e) {
+    logger.error("backup failed", e);
+}
+```
+
+Python
+
+```python
+logger = logging.getLogger(__name__)
+
+try:
+    service.backup()
+
+    logger.info("backup complete")
+except BackupError as e:
+    logger.error("backup failed: %s", e)
+```
+
+Dart
+
+```dart
+final messenger = ScaffoldMessenger.of(context);
+
+try {
+  await service.backup();
+
+  if (!mounted) {
+    return;
+  }
+
+  messenger.showSnackBar(const SnackBar(content: Text('Backup created.')));
+} on BackupException catch (e) {
+  if (!mounted) {
+    return;
+  }
+
+  messenger.showSnackBar(SnackBar(content: Text('Backup failed: $e')));
+}
+```
+
+### Empty line above significant standalone `await` / async I/O
+
+When an async call marks a phase transition in a function (setup, then I/O, then cleanup), give it a blank line
+above. The reader's eye should register "now we hand off to the network/disk" as a distinct beat. This applies to
+standalone awaits, not awaits embedded in an assignment expression.
+
+Java
+
+```java
+state = state.toBuilder().running(true).build();
+
+gateway.show(1001, "Rest over", "Time to lift").join();
+
+logger.info("alarm fired");
+```
+
+Python
+
+```python
+state.running = True
+
+await gateway.show(id=1001, title="Rest over", body="Time to lift")
+
+logger.info("alarm fired")
+```
+
+Dart
+
+```dart
+state = state.copyWith(running: true);
+
+await _gateway.show(id: 1001, title: 'Rest over', body: 'Time to lift');
+
+logFine('alarm fired', name: _tag);
+```
+
+### Empty line above `return` when it ends a multi-statement block
+
+When a function does several things and then returns, the `return` gets a blank line above so it reads as "and now
+hand back the result" rather than blending into the last statement. Doesn't apply to single-statement bodies, arrow
+functions, or one-line `def`s. The blank-line rules apply to blocks.
+
+Java
+
+```java
+public Optional<WorkLog> findFor(Exercise e, LocalDate date) {
+    var list = dao.getForDate(date);
+
+    for (var w : list) {
+        if (w.exercise().name().equals(e.name())) {
+            dao.merge(w);
+
+            return Optional.of(w);
+        }
+    }
+
+    return Optional.empty();
+}
+```
+
+Python
+
+```python
+async def add_work_log(exercise: Exercise, date: date) -> None:
+    existing = await dao.get_for_date(date)
+
+    for w in existing:
+        if w.exercise.name == exercise.name:
+            await dao.merge(w)
+
+            return
+
+    await dao.insert(WorkLog.create(exercise=exercise, on=date))
+```
+
+Dart
+
+```dart
+Future<void> _addWorkLog(Exercise e, DateTime date) async {
+  final list = await _dao.getForDate(date);
+
+  for (final w in list) {
+    if (w.exercise.name == e.name) {
+      await _dao.merge(w);
+
+      return;
+    }
+  }
+
+  await _dao.insert(WorkLog.create(exercise: e, on: date));
+}
+```
+
+### Blank line below `return` inside a `try` that has `catch` / `finally`
+
+When a `try` block ends with `return X;` and is followed by a `catch` or `finally` clause, leave a blank line between
+the `return` and the closing `}` of the try. The blank line marks the hand-off from the happy-path body to the
+failure / cleanup clauses, so the reader's eye can see the seam.
+
+Java (wrong)
+
+```java
+try {
+    String xml = xmlGenerationService.generateXml(documents);
+
+    log.info("audit xml.generation success documentType={} subject={} bytes={}", documentType, subject, xml.length());
+
+    return xml;
+} catch (XmlMappingException ex) {
+    ...
+} finally {
+    ...
+}
+```
+
+Java (right)
+
+```java
+try {
+    String xml = xmlGenerationService.generateXml(documents);
+
+    log.info("audit xml.generation success documentType={} subject={} bytes={}", documentType, subject, xml.length());
+
+    return xml;
+
+} catch (XmlMappingException ex) {
+    ...
+} finally {
+    ...
+}
+```
+
+The same rule applies to a `throw` that ends a `try` body when a `catch` / `finally` follows it.
+
+### Empty line above operation-terminating calls
+
+Calls that end a phase get a blank line above. The eye should see "the act" separated from the local-var arithmetic
+that prepared for it. Examples of operation-terminators in each language:
+
+- Java: `dialog.dismiss()`, `httpClient.send(...)`, `logger.info("phase done", ...)`, `eventBus.publish(...)`
+- Python: `dialog.dismiss()`, `requests.post(...)`, `logger.info("phase done")`, `sys.exit(0)`
+- Dart / Flutter: `Navigator.pop(context)`, `messenger.showSnackBar(...)`, `state = state.copyWith(...)`,
+  `_ticker?.cancel()`, `logFine('phase done')`
+
+Java
+
+```java
+var normalized = startOfDay(day);
+state.setSelectedDate(normalized);
+logger.info("Chosen date: {}", normalized);
+
+dialog.dismiss();
+```
+
+Python
+
+```python
+normalized = start_of_day(day)
+state.selected_date = normalized
+logger.info("Chosen date: %s", normalized)
+
+dialog.dismiss()
+```
+
+Dart
+
+```dart
+final normalized = _startOfDay(day);
+ref.read(selectedDateProvider.notifier).state = normalized;
+logFine('Chosen date: $normalized', name: _tag);
+
+Navigator.of(context).pop();
+```
+
+### Comments above the line they describe, never trailing
+
+Trailing comments get truncated by long lines and force horizontal scrolling. A comment is a sentence about the next
+thing the reader is about to see, so write it on its own line, above.
+
+Java (wrong)
+
+```java
+var delay = computeBackoff(retryCount); // exponential, max 30s
+```
+
+Java (right)
+
+```java
+// Exponential backoff, capped at 30s to avoid hammering the server.
+var delay = computeBackoff(retryCount);
+```
+
+Python (wrong)
+
+```python
+delay = compute_backoff(retry_count)  # exponential, max 30s
+```
+
+Python (right)
+
+```python
+# Exponential backoff, capped at 30s to avoid hammering the server.
+delay = compute_backoff(retry_count)
+```
+
+Dart (wrong)
+
+```dart
+final delay = computeBackoff(retryCount); // exponential, max 30s
+```
+
+Dart (right)
+
+```dart
+// Exponential backoff, capped at 30s to avoid hammering the server.
+final delay = computeBackoff(retryCount);
+```
+
+Exception: short tag comments tied to an issue tracker (e.g. `// TODO(TICKET-001): drop after Q3`) sometimes trail by
+team convention. Even then, prefer the comment above when there's room.
+
+### Doc comments sit on the declaration they document
+
+Whether a doc comment should exist at all, and what its prose and tags may say, is owned by `coding-standards`. This
+rule covers only where the block sits and how its lines break.
+
+1. The block sits directly on the declaration it documents. No blank line between the two, ever, and no doc comment on
+   a line of its own floating above an annotation stack.
+2. Every tag line is one physical line, whatever the language calls it: `@param`, `@return` and `@throws` in Javadoc,
+   an entry under `Args:`, `Returns:` or `Raises:` in a Python docstring, a plain sentence in a Dart doc comment. A
+   tag that does not fit on one line gets shortened or dropped, never wrapped to fit a width, which is the same rule
+   this skill applies to code.
+
+```java
+// GOOD: sits on the declaration, one line per tag
+/**
+ * Reserves stock and holds it until the payment window closes.
+ *
+ * @param holdFor how long the reservation survives, at most 15 minutes
+ * @throws InsufficientStockException when the warehouse cannot cover the order
+ */
+public Reservation reserve(OrderId orderId, Duration holdFor) { ... }
+
+// BAD: blank line under the block, and a tag hard-wrapped to fit a width
+/**
+ * Reserves stock.
+ *
+ * @param holdFor how long the reservation survives, at most 15 minutes, after
+ *                which the hold is released by the sweeper
+ */
+
+public Reservation reserve(OrderId orderId, Duration holdFor) { ... }
+```
+
+### One concept per blank-line-separated paragraph
+
+Inside a function body, related lines stick together with no blank between them, and a topic transition gets one blank.
+Two blank lines anywhere inside a function body is a smell, so extract a method.
+
+Java
+
+```java
+public void save() {
+    var navigator = activity.getNavigator();
+    var selectedDate = repository.getSelectedDate();
+
+    var updated = original.toBuilder()
+        .name(nameField.getText())
+        .bodyParts(form.getPrimary())
+        .build();
+    dao.replace(updated);
+
+    if (isDestroyed()) {
+        return;
+    }
+
+    eventBus.publish(new ExercisesInvalidated());
+
+    navigator.pop();
+}
+```
+
+Python
+
+```python
+async def save() -> None:
+    navigator = activity.navigator
+    selected_date = repository.selected_date
+
+    updated = replace(
+        original,
+        name=name_field.text,
+        body_parts=form.primary,
+    )
+    await dao.replace(updated)
+
+    if is_destroyed():
+        return
+
+    event_bus.publish(ExercisesInvalidated())
+
+    navigator.pop()
+```
+
+Dart
+
+```dart
+Future<void> save() async {
+  final navigator = Navigator.of(context);
+  final selectedDate = ref.read(selectedDateProvider);
+
+  final updated = widget.exercise.copyWith(
+    name: _nameController.text,
+    bodyParts: form.primary,
+  );
+  await _dao.replace(updated);
+
+  if (!mounted) {
+    return;
+  }
+
+  ref.invalidate(exercisesProvider);
+
+  navigator.pop();
+}
+```
+
+Each paragraph reads as a phase: capture context, build and persist, mounted-guard, invalidate dependents, exit.
+
+### Method chains: line-break before each `.`
+
+Fluent / functional pipelines (filter, map, reduce, take, toList, collect) read top-down, one transformation per
+line. Easier to diff, easier to insert or remove a step.
+
+This rule applies only where the project's formatter does not own line breaking. ruff format, black, dart format and
+google-java-format all reflow a chain to fit the line, joining a short one back onto a single line, so where one of
+them runs, its output wins and this rule does not apply. Writing against the formatter only produces a diff it reverts
+on the next save and a `--check` failure in CI.
+
+Java
+
+```java
+var activeNames = exercises.stream()
+    .filter(Exercise::isActive)
+    .map(Exercise::name)
+    .toList();
+```
+
+Python
+
+Python's idiomatic equivalent is a comprehension, so reach for that first. A Python project almost always runs ruff
+format or black, which own how any chain wraps, so this rule rarely applies to Python at all.
+
+```python
+active_names = [e.name for e in exercises if e.is_active]
+```
+
+Dart
+
+```dart
+final activeNames = exercises
+    .where((e) => e.isActive)
+    .map((e) => e.name)
+    .toList();
+```
+
+The prefer chains over loops part is a coding-standards rule, not a formatter one. The formatter point here is:
+when you do chain and no formatter owns the wrapping, one step per line.
+
+### Single-expression bodies stay on one line
+
+The blank-line rules apply to blocks, not arrow functions or one-line `def`s. Don't expand a pure transformation
+into a multi-line body just to satisfy a "blank line above return" rule that doesn't apply.
+
+Java
+
+```java
+Function<Integer, Integer> doubled = x -> x * 2;
+Comparator<Exercise> byName = Comparator.comparing(Exercise::name);
+```
+
+A Java method body keeps its braces on their own lines, as Google Java Style requires, so only a lambda stays on one
+line.
+
+Python
+
+```python
+def doubled(x: int) -> int:
+    return x * 2
+
+sorted(items, key=lambda i: i.priority)
+```
+
+Dart
+
+```dart
+int doubled(int x) => x * 2;
+DateTime startOfDay(DateTime d) => DateTime(d.year, d.month, d.day);
+```
+
+---

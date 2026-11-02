@@ -1,0 +1,11 @@
+{
+  "name": "mcp-sonarqube",
+  "version": "7815132db1ac",
+  "description": "The SonarQube MCP server, started with docker run, which pulls the image on every start.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT"
+}

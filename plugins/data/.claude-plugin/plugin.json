@@ -1,0 +1,14 @@
+{
+  "name": "data",
+  "version": "4946a6cd134b",
+  "description": "Databases, with the database-expert subagent and the PostgreSQL, migration and MongoDB skills.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT",
+  "dependencies": [
+    "core"
+  ]
+}

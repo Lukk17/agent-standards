@@ -1,0 +1,11 @@
+{
+  "name": "mcp-playwright",
+  "version": "0afb92964c23",
+  "description": "The Playwright browser MCP server, started with npx. It can write local files.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT"
+}

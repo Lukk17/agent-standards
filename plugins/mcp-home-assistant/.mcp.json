@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "home-assistant": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--env-file",
+        "${HOME}/.local/state/agents/workspace/homelab.env",
+        "ha-mcp==8.7.0"
+      ]
+    }
+  }
+}

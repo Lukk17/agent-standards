@@ -1,0 +1,14 @@
+{
+  "name": "devops",
+  "version": "18d5754376d6",
+  "description": "Delivery and operations, with the devops, incident, observability and release subagents and the deployment, Docker and Ansible skills.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT",
+  "dependencies": [
+    "core"
+  ]
+}

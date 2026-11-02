@@ -1,0 +1,14 @@
+{
+  "name": "python",
+  "version": "2cfc125bb109",
+  "description": "Python and machine learning, with the python-pro and ml-engineer subagents and the PyTorch skill.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT",
+  "dependencies": [
+    "core"
+  ]
+}

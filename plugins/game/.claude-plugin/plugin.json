@@ -1,0 +1,14 @@
+{
+  "name": "game",
+  "version": "447273ff6f28",
+  "description": "Unity games, with the unity-game-dev subagent and the Unity skill.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT",
+  "dependencies": [
+    "core"
+  ]
+}

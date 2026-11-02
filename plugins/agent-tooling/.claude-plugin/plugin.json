@@ -1,0 +1,14 @@
+{
+  "name": "agent-tooling",
+  "version": "c0160b2c338d",
+  "description": "Agent configuration and research, with the agent-engineer subagent and the agentic engineering, research and automation inventory skills.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT",
+  "dependencies": [
+    "core"
+  ]
+}

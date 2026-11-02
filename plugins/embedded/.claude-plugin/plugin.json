@@ -1,0 +1,14 @@
+{
+  "name": "embedded",
+  "version": "c44c3b2774e5",
+  "description": "Embedded C and hardware, with the embedded-c-engineer subagent and the Arduino, KiCad and 3D printing skills.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT",
+  "dependencies": [
+    "core"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "name": "linux",
+  "version": "4a093b7bc729",
+  "description": "Linux desktop administration on Arch, CachyOS and KDE Plasma. Off until you enable it.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT",
+  "defaultEnabled": false
+}

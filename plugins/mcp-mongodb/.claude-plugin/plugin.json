@@ -1,0 +1,11 @@
+{
+  "name": "mcp-mongodb",
+  "version": "79eb2e3d3130",
+  "description": "The MongoDB MCP server, read-only, started with npx.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT"
+}

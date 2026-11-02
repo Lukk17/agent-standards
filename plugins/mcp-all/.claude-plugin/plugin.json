@@ -1,0 +1,22 @@
+{
+  "name": "mcp-all",
+  "version": "8daafa929b25",
+  "description": "Every MCP server plugin in one install.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT",
+  "dependencies": [
+    "mcp-context7",
+    "mcp-mongodb",
+    "mcp-grafana",
+    "mcp-playwright",
+    "mcp-chrome-devtools",
+    "mcp-redis",
+    "mcp-sonarqube",
+    "mcp-n8n",
+    "mcp-home-assistant"
+  ]
+}

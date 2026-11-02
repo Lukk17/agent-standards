@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "mongodb": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "mongodb-mcp-server@latest",
+        "--readOnly",
+        "--connectionString",
+        "${MONGODB_URL:-mongodb://localhost:27017}"
+      ]
+    }
+  }
+}

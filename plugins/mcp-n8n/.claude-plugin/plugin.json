@@ -1,0 +1,11 @@
+{
+  "name": "mcp-n8n",
+  "version": "7c27788afec3",
+  "description": "The n8n MCP server, started with npx.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT"
+}

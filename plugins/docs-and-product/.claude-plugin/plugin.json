@@ -1,0 +1,14 @@
+{
+  "name": "docs-and-product",
+  "version": "014eb3ac3797",
+  "description": "Documentation, legal drafts, SEO and project tracking, with four subagents and the SEO, tracking and Jira skills.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT",
+  "dependencies": [
+    "core"
+  ]
+}

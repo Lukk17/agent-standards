@@ -1,0 +1,14 @@
+{
+  "name": "testing",
+  "version": "ab8b631988c8",
+  "description": "Tests, debugging and performance measurement, with four subagents and the regression, end-to-end runbook and Playwright skills.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT",
+  "dependencies": [
+    "core"
+  ]
+}

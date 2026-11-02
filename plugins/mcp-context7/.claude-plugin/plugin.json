@@ -1,0 +1,11 @@
+{
+  "name": "mcp-context7",
+  "version": "6bb11dd8e05f",
+  "description": "The Context7 documentation MCP server.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT"
+}

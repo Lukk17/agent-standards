@@ -1,0 +1,14 @@
+{
+  "name": "backend",
+  "version": "69e9199b7e49",
+  "description": "Backend services and HTTP APIs, with the backend-architect, api-documenter and api-tester subagents and the API design, backend, Node.js and Keycloak skills.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT",
+  "dependencies": [
+    "core"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "go",
+  "version": "9ddd00b5df3f",
+  "description": "Go services, with the go-pro subagent and the Go patterns skill.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT",
+  "dependencies": [
+    "core"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "jvm",
+  "version": "779dd812dcec",
+  "description": "Java and Spring Boot, with the java-pro subagent and the Java, Spring Boot and SOAP skills.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT",
+  "dependencies": [
+    "core"
+  ]
+}

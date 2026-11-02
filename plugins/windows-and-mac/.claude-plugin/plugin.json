@@ -1,0 +1,12 @@
+{
+  "name": "windows-and-mac",
+  "version": "6d81256e7563",
+  "description": "Windows and macOS administration and PowerShell scripting. Off until you enable it.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT",
+  "defaultEnabled": false
+}

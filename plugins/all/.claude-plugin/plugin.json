@@ -1,0 +1,28 @@
+{
+  "name": "all",
+  "version": "b260af1e1684",
+  "description": "Core and every development domain in one install. Host groups and MCP servers stay separate installs.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT",
+  "dependencies": [
+    "core",
+    "python",
+    "jvm",
+    "go",
+    "backend",
+    "data",
+    "web-frontend",
+    "mobile",
+    "devops",
+    "review-and-security",
+    "testing",
+    "docs-and-product",
+    "embedded",
+    "game",
+    "agent-tooling"
+  ]
+}

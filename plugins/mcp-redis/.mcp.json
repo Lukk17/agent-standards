@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "redis": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--from",
+        "redis-mcp-server@latest",
+        "redis-mcp-server",
+        "--url",
+        "${REDIS_URL:-redis://localhost:6379/0}"
+      ]
+    }
+  }
+}

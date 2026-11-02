@@ -1,0 +1,11 @@
+{
+  "name": "mcp-grafana",
+  "version": "c603a8ed6477",
+  "description": "The Grafana MCP server, started with uvx.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT"
+}

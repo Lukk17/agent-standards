@@ -1,0 +1,11 @@
+{
+  "name": "mcp-chrome-devtools",
+  "version": "0a53724a8be6",
+  "description": "The Chrome DevTools MCP server, started with npx. It can write local files.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT"
+}

@@ -1,0 +1,11 @@
+{
+  "name": "mcp-home-assistant",
+  "version": "78fd55990ee1",
+  "description": "The Home Assistant MCP server, started with uvx and reading its settings from an env file in your home directory.",
+  "author": {
+    "name": "Łukasz Sarna",
+    "url": "https://github.com/Lukk17"
+  },
+  "repository": "https://github.com/Lukk17/agent-standards",
+  "license": "MIT"
+}

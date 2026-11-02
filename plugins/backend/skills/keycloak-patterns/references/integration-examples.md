@@ -1,0 +1,110 @@
+# Integration Examples
+
+Contents:
+
+- [.NET (Keycloak.AuthServices)](#net-keycloakauthservices)
+- [Spring Boot and Node.js](#spring-boot-and-nodejs)
+- [Token Validation (Any Platform)](#token-validation-any-platform)
+
+---
+
+### .NET (Keycloak.AuthServices)
+
+#### JWT Bearer Authentication (Web API)
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddKeycloakWebApiAuthentication(builder.Configuration);
+builder.Services.AddAuthorization();
+
+var app = builder.Build();
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapGet("/protected", () => "Hello!").RequireAuthorization();
+app.Run();
+```
+
+```json
+// appsettings.json
+{
+  "Keycloak": {
+    "AuthServerUrl": "https://keycloak.example.com",
+    "Realm": "my-realm",
+    "Resource": "my-client",
+    "VerifyTokenAudience": true
+  }
+}
+```
+
+#### OIDC Authentication (Web App)
+
+```csharp
+builder.Services.AddKeycloakWebAppAuthentication(builder.Configuration);
+```
+
+#### Authorization with Roles
+
+```csharp
+builder.Services.AddKeycloakAuthorization(builder.Configuration)
+    .AddAuthorizationBuilder()
+    .AddPolicy("AdminOnly", policy => policy.RequireRealmRoles("admin"))
+    .AddPolicy("EditorOnly", policy => policy.RequireResourceRoles("editor"));
+```
+
+#### Resource Protection (Authorization Server)
+
+```csharp
+builder.Services.AddAuthorizationServer(builder.Configuration);
+
+// Attribute-based
+[ProtectedResource("documents", "read")]
+public class DocumentsController : ControllerBase { }
+```
+
+#### Admin SDK
+
+```csharp
+builder.Services.AddKeycloakAdminHttpClient(builder.Configuration);
+
+// Inject and use
+app.MapGet("/users", async (IKeycloakUserClient client) =>
+    await client.GetUsers("my-realm"));
+```
+
+---
+
+### Spring Boot and Node.js
+
+Spring Security resource-server configuration against a Keycloak realm belongs to `springboot-patterns`, and
+verifying a Keycloak JWT inside a Node service belongs to `node-backend-patterns`. Point either one at the realm
+issuer, `{AuthServerUrl}/realms/{realm}`, and read the client secret from the environment, never from source.
+
+---
+
+### Token Validation (Any Platform)
+
+#### JWKS Endpoint
+
+All platforms can validate tokens using the JWKS endpoint:
+
+```
+GET {AuthServerUrl}/realms/{realm}/protocol/openid-connect/certs
+```
+
+#### Discovery Endpoint
+
+Get all endpoints and configuration:
+
+```
+GET {AuthServerUrl}/realms/{realm}/.well-known/openid-configuration
+```
+
+#### Manual Token Validation Steps
+
+1. Fetch JWKS from realm
+2. Decode JWT header to get `kid` (key ID)
+3. Find matching public key in JWKS
+4. Verify signature
+5. Validate claims: `iss`, `aud`, `exp`, `nbf`

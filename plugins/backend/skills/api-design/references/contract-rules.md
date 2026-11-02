@@ -1,0 +1,258 @@
+# Contract Rules
+
+Contents:
+
+- [Name resources as plural nouns](#name-resources-as-plural-nouns)
+- [Use the method that matches the semantics](#use-the-method-that-matches-the-semantics)
+- [Return the status code that describes what happened](#return-the-status-code-that-describes-what-happened)
+- [Return errors as problem+json](#return-errors-as-problemjson)
+- [Wrap success responses in a consistent envelope](#wrap-success-responses-in-a-consistent-envelope)
+- [Require an idempotency key on non-idempotent writes](#require-an-idempotency-key-on-non-idempotent-writes)
+- [Support conditional requests on cacheable reads](#support-conditional-requests-on-cacheable-reads)
+- [Return 207 from bulk endpoints, and bound the batch](#return-207-from-bulk-endpoints-and-bound-the-batch)
+- [Keep liveness and readiness separate](#keep-liveness-and-readiness-separate)
+- [Advertise rate limits on every response](#advertise-rate-limits-on-every-response)
+- [Version in the path, and announce every retirement](#version-in-the-path-and-announce-every-retirement)
+
+Every contract rule in SKILL.md in full, with its reasoning, the wire examples, the problem details field table, and the rate-limit headers and tiers. Load this file when designing or reviewing an endpoint and the one-line summary in SKILL.md is not enough.
+
+---
+
+### Name resources as plural nouns
+
+A URL identifies a thing. The method says what you are doing to it, so a verb in the path duplicates the method and
+splits one resource across several names.
+
+```text
+# PASS
+GET    /api/v1/team-members
+GET    /api/v1/users/123/orders
+POST   /api/v1/orders/456/cancel
+
+# FAIL
+GET    /api/v1/getUsers
+GET    /api/v1/user
+GET    /api/v1/team_members
+GET    /api/v1/users/123/getOrders
+```
+
+Use kebab-case for multi-word resources, nest only to express ownership, and reserve a verb path segment for a genuine
+state transition that no method expresses, such as `cancel` or `refund`.
+
+---
+
+### Use the method that matches the semantics
+
+| Method | Idempotent | Safe | Use for |
+| --- | --- | --- | --- |
+| GET | Yes | Yes | Retrieving a resource |
+| POST | No | No | Creating a resource, triggering an action |
+| PUT | Yes | No | Replacing a resource in full |
+| PATCH | Not inherently | No | Updating part of a resource |
+| DELETE | Yes | No | Removing a resource |
+
+PATCH becomes idempotent when the body describes a target state rather than a delta. `{"status": "shipped"}` is
+idempotent, `{"increment_views": 1}` is not.
+
+---
+
+### Return the status code that describes what happened
+
+```text
+200 OK                     GET, PUT, PATCH with a response body
+201 Created                POST, with a Location header pointing at the new resource
+204 No Content             DELETE, or PUT with no body to return
+207 Multi-Status           a bulk operation with per-item outcomes
+304 Not Modified           a conditional GET whose resource is unchanged
+400 Bad Request            malformed syntax, unparseable JSON
+401 Unauthorized           missing or invalid credentials
+403 Forbidden              authenticated, and still not allowed
+404 Not Found              no such resource, or its existence is confidential
+409 Conflict               duplicate, or a state that forbids this transition
+422 Unprocessable Content  syntactically valid, semantically wrong
+429 Too Many Requests      rate limit exceeded, with Retry-After
+500 Internal Server Error  unexpected failure, never with internal detail
+502 Bad Gateway            an upstream dependency failed
+503 Service Unavailable    overloaded or draining, with Retry-After
+```
+
+Fail: `HTTP 200` carrying `{"status": 200, "success": false, "error": "Not found"}`, which forces every client to parse
+the body before it knows whether the call worked, and defeats caches, proxies, and retry logic alike.
+
+---
+
+### Return errors as problem+json
+
+Every error body uses `Content-Type: application/problem+json` and the RFC 9457 problem details shape, so one
+client-side handler covers every endpoint. This is the one error shape the `coding-standards` error rule points to.
+
+```json
+{
+  "type": "https://example.com/errors/validation",
+  "title": "Validation Failed",
+  "status": 422,
+  "detail": "1 field failed validation",
+  "instance": "/orders/123",
+  "errors": [
+    { "detail": "must be a valid email", "pointer": "#/email" }
+  ]
+}
+```
+
+| Field | We send it | Meaning |
+| --- | --- | --- |
+| `type` | Always (optional in RFC 9457, so clients must not require it) | URI identifying the problem class, stable across releases. Absent means `about:blank` |
+| `title` | Always (optional in RFC 9457, so clients must not require it) | Short human-readable summary of the class |
+| `status` | Always | The HTTP status code repeated. Advisory only, the status line is authoritative |
+| `detail` | When it helps the caller | What went wrong on this occurrence |
+| `instance` | When it helps the caller | URI of this specific occurrence |
+| `errors` | On validation failures | Extension array, each entry a `detail` and a JSON `pointer` into the request body |
+
+Fail: a body carrying a stack trace, an SQL fragment, or an upstream vendor's error text. `detail` is for the caller,
+not for your logs.
+
+---
+
+### Wrap success responses in a consistent envelope
+
+```json
+{
+  "data": [{ "id": "abc-123", "name": "Alice" }],
+  "meta": { "has_next": true, "next_cursor": "eyJpZCI6MTQzfQ" },
+  "links": { "self": "/api/v1/users?limit=20", "next": "/api/v1/users?limit=20&cursor=eyJpZCI6MTQzfQ" }
+}
+```
+
+A `data` wrapper leaves room to add `meta` and `links` later without breaking clients, which is why it suits public
+APIs. Returning the bare resource is fine for an internal API, provided every endpoint does it. What is never fine is
+mixing the two across one surface.
+
+Cursor pagination is the default for any collection that grows without bound. Offset is for small fixed sets. The
+mechanics, plus filtering and sorting, are in
+[pagination-and-filtering.md](pagination-and-filtering.md).
+
+---
+
+### Require an idempotency key on non-idempotent writes
+
+A client that times out cannot tell a lost request from a lost response. Give it a safe way to retry.
+
+```text
+POST /api/v1/orders
+Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000
+```
+
+- A request with no key returns 400 with a problem body whose `type` links to the documentation.
+- Store the response for 24 hours, keyed by the idempotency key.
+- The same key with the same request body replays the stored response without re-executing.
+- The same key with a different body returns 422.
+- The same key while the first request is still running returns 409, and the client retries later.
+
+How the key is claimed and stored behind the contract is in `backend-patterns`.
+
+---
+
+### Support conditional requests on cacheable reads
+
+Return `ETag` and `Last-Modified` on cacheable GETs, and honour `If-None-Match` and `If-Modified-Since` with a 304. The
+same `ETag` in `If-Match` on a PUT or PATCH gives you optimistic concurrency for free: a mismatch is a 412.
+
+```text
+HTTP/1.1 200 OK
+ETag: "33a64df551425fcc55e4d42a148795d9f25f89d4"
+Last-Modified: Wed, 15 Jan 2025 10:30:00 GMT
+```
+
+---
+
+### Return 207 from bulk endpoints, and bound the batch
+
+Use `POST /resources/batch` for bulk work and report per-item outcomes, because one failed item must not discard the
+other ninety-nine.
+
+```json
+{
+  "results": [
+    { "id": "1", "status": 201, "data": {} },
+    { "id": "2", "status": 422, "error": "Invalid email" }
+  ]
+}
+```
+
+Cap the number of items and the body size, and return 413 when a caller exceeds either. Process atomically when the
+domain requires it, and say which behaviour applies in the documentation.
+
+---
+
+### Keep liveness and readiness separate
+
+This section is the canonical definition of the health endpoint paths for this repository. Other skills probe or
+implement these two paths and must not rename them. What readiness checks, and which shared dependencies stay out of
+it, is owned by `observability-and-logging`.
+
+```text
+GET /health   liveness:  200 while the process runs, checks nothing external
+GET /ready    readiness: 200 when this instance can serve, 503 otherwise
+```
+
+```json
+{ "status": "degraded", "checks": { "db": "ok", "redis": "timeout" } }
+```
+
+Both sit outside the versioned path, because they describe the process rather than the API. Fail: one `/health` that
+checks the database, so a transient outage makes the orchestrator restart a perfectly healthy process.
+
+---
+
+### Advertise rate limits on every response
+
+This section is the canonical definition of the rate-limit headers, the 429 response and the tiers for this repository.
+Every public endpoint sits in a tier and carries a limit. Other skills implement it and must not restate it. The policy behind the tiers, what each counter is keyed on
+and why authentication endpoints get their own budget, is in `security-review`.
+
+```text
+HTTP/1.1 200 OK
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 95
+X-RateLimit-Reset: 1714000000
+```
+
+```text
+HTTP/1.1 429 Too Many Requests
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1714000000
+Retry-After: 60
+Content-Type: application/problem+json
+
+{ "type": "https://example.com/errors/rate-limit-exceeded", "title": "Too Many Requests", "status": 429 }
+```
+
+`X-RateLimit-Reset` is a UTC epoch in seconds. Send the three headers on successful responses too, because a client
+cannot back off from a budget it cannot see.
+
+These are the de facto names. Track draft-ietf-httpapi-ratelimit-headers (`RateLimit`, `RateLimit-Policy`), and add
+those fields beside the `X-` ones once it is published as an RFC. Until then, implementations disagree on the value
+format of `X-RateLimit-Remaining` and `X-RateLimit-Reset`, so document the one this API sends.
+
+| Tier | Keyed on | Applies to |
+| --- | --- | --- |
+| Anonymous | Client address | Public endpoints |
+| Authenticated | User | Standard API access |
+| Expensive | User, or client address when anonymous | Search, export, and anything that scans or fans out |
+| Authentication | Client address, plus a failed-attempt counter per target account with backoff | Login, password reset, signup |
+| Premium | API key | Paid plans |
+| Internal | Calling service | Service-to-service calls |
+
+The values belong to each application, because they depend on its capacity, its cost per request and its abuse cases.
+Set them from measured load, write them into the API's own documentation, and keep the order the tiers imply:
+Expensive and Authentication stay tighter than Authenticated, and Anonymous stays tighter than Authenticated. The
+header values above are a format example, not a recommended limit.
+
+---
+
+### Version in the path, and announce every retirement
+
+Put the version in the URL, keep at most two active versions, and give a deprecated one at least six months. Announce
+the end on the response with `Deprecation` and `Sunset`, then return 410 Gone after the date. The full policy, including
+which changes need a version at all, is in [versioning.md](versioning.md).
