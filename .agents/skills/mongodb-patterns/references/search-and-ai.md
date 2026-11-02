@@ -6,6 +6,22 @@ approach, and help them build effective indexes and queries.
 
 ---
 
+### Contents
+
+- [Core Principles](#core-principles)
+- [Workflow](#workflow)
+  - [1. Discovery Phase](#1-discovery-phase)
+  - [2. Determine Search Type](#2-determine-search-type)
+  - [3. Version Check (Hybrid Search only)](#3-version-check-hybrid-search-only)
+  - [4. Consult Reference Files](#4-consult-reference-files)
+  - [5. Execution and Validation](#5-execution-and-validation)
+- [Anti-Patterns to Avoid](#anti-patterns-to-avoid)
+- [Handling Edge Cases](#handling-edge-cases)
+- [Remember](#remember)
+- [Where to go next](#where-to-go-next)
+
+---
+
 ### Core Principles
 
 1. Understand before building - Validate the use case to ensure you recommend the right solution
@@ -74,7 +90,7 @@ Use when users need:
 
 If the search type is Hybrid using `$rankFusion` or `$scoreFusion`, verify the cluster version before proceeding:
 - `$rankFusion` requires MongoDB 8.0+
-- `$scoreFusion` requires MongoDB 8.2+
+- `$scoreFusion` requires MongoDB 8.3+
 
 If the version requirement is not met, do not proceed, inform the user the feature is unavailable and suggest upgrading.
 Do not consult `hybrid-search.md`.

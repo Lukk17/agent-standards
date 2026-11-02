@@ -1,5 +1,14 @@
 # Home Assistant operations
 
+Contents:
+
+- [Backup and restore](#backup-and-restore)
+- [Integration management](#integration-management)
+- [Notification routing](#notification-routing)
+- [Blueprint, automation, or script](#blueprint-automation-or-script)
+- [Test before you trust](#test-before-you-trust)
+- [Upgrade discipline](#upgrade-discipline)
+
 Running the instance rather than writing automations for it: backups, integration hygiene, notification routing, and
 upgrade discipline. The automation and YAML rules live in [SKILL.md](../SKILL.md).
 

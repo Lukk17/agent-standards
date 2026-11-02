@@ -71,7 +71,7 @@ input and firing callbacks into a component that is no longer participating.
 ### UI Toolkit or UGUI
 
 Use UI Toolkit (`UIElements`) for all new editor tooling and custom Editor windows, and for runtime UI in new
-projects on the current LTS.
+Unity 6 projects.
 
 Use UGUI (`Canvas`-based) for in-world spatial UI, a health bar above a character or a world-space label, and for
 extending a legacy UGUI system where a full rewrite is not justified.

@@ -28,7 +28,7 @@ codesign --verify --deep --strict --verbose=2 /Applications/<App>.app
 
 ### Opening a blocked app
 
-From Apple's developer news "Updates to runtime protection in macOS Sequoia" (2024-08-06): "In macOS Sequoia, users will no longer be able to Control-click to override Gatekeeper when opening software that isn't signed correctly or notarized. They'll need to visit System Settings > Privacy & Security to review security information for software before allowing it to run."
+From Apple's developer news "Updates to runtime protection in macOS Sequoia": "In macOS Sequoia, users will no longer be able to Control-click to override Gatekeeper when opening software that isn't signed correctly or notarized. They'll need to visit System Settings > Privacy & Security to review security information for software before allowing it to run."
 
 Apple Support, "Safely open apps on your Mac": "Click Privacy & Security, scroll down, and click the Open Anyway button to confirm your intent to open or install the app."
 

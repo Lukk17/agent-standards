@@ -30,6 +30,13 @@ agent_configure() {
   export XDG_CACHE_HOME="${WORK}/xdg/cache"
   mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME"
 
+  # OpenCode 1.x refuses to start on the 2.x permissions list in the shipped
+  # .opencode/opencode.json, so the 1.x run copies the 1.x variant over it, the
+  # way docs/AGENT_TOOLING.md tells a 1.x user to. Kilo Code keeps the default.
+  if [[ "$AGENT_BIN" == "opencode" ]]; then
+    cp "${PROJECT}/.opencode/opencode.json.v1" "${PROJECT}/.opencode/opencode.json"
+  fi
+
   disabled="$(jq -c --arg s "$MCP_SERVER" '.mcp // {} | with_entries(select(.key != $s) | .value += {enabled: false})' "${PROJECT}/opencode.json")"
 
   config="$(jq -cn --arg id "$PROVIDER_ID" --arg url "$PROVIDER_V1_URL" --arg m "$MODEL" --argjson mcp "$disabled" '{
@@ -106,29 +113,38 @@ agent_calls() {
   done
 }
 
-# OpenCode and Kilo Code inject no per-prompt reminder. The check passes when the
-# recorded main session carries the shared instructions marker from AGENTS.md.
+# The plugin's chat.message handler appends the main-thread reminder to every
+# user message of a root session as a synthetic text part, so only a synthetic
+# part of the main-session user message that carries this prompt's nonce
+# counts. AGENTS.md reaches the model as system text the export does not hold,
+# and neither the typed prompt nor the model's own echo of the wording counts.
 agent_reminder_seen() {
-  local dir="$1" file found
+  local dir="$1" nonce="$2" file found
 
   for file in "${dir}"/transcripts/main-*.json; do
     [[ -f "$file" ]] || continue
-    found="$(jq --arg r "$REMINDER_MARKER" '
-      [.messages[]? | .parts[]? | select(.type == "text")
-       | .text | select(contains($r))] | length' "$file" 2>/dev/null || echo 0)"
+    found="$(jq --arg r "$REMINDER_MARKER" --arg n "$nonce" '
+      [.messages[]? | select(.info.role? == "user")
+       | select(any(.parts[]?; .type == "text" and (.synthetic // false) != true and ((.text // "") | contains($n))))
+       | .parts[]? | select(.type == "text" and .synthetic == true) | .text | select(contains($r))] | length' "$file" 2>/dev/null || echo 0)"
     [[ "$found" -gt 0 ]] && return 0
   done
 
   return 1
 }
 
-# Every child session the case started is exported as subagent-*.json, and the
-# plugin puts the subagent text into that session's user message.
+# Every child session the case started is exported as subagent-*.json. The
+# plugin's chat.message handler appends the subagent text to each user message
+# of a child session as a synthetic text part, so the synthetic text parts of
+# its user messages are what the wiring injected. The task prompt the main
+# thread wrote, tool output and the subagent's own replies are left out.
 agent_subagent_context() {
   local dir="$1" file
 
   for file in "${dir}"/transcripts/subagent-*.json; do
-    [[ -f "$file" ]] && cat -- "$file"
+    [[ -f "$file" ]] || continue
+    jq -c '.messages[]? | select(.info.role? == "user") | .parts[]?
+           | select(.type == "text" and .synthetic == true)' "$file" 2>/dev/null || true
   done
 
   return 0

@@ -5,6 +5,18 @@ when the model is fast and the run is not.
 
 ---
 
+### Contents
+
+- Keep the Dataset dumb and cheap
+- Open handles lazily, per worker
+- Set the loader up for throughput
+- Seed the workers
+- Collate variable-length data in one place
+- Choose the sampler deliberately
+- Transform on the GPU when the CPU is the bottleneck
+
+---
+
 ### Keep the Dataset dumb and cheap
 
 `__getitem__` returns one example. It opens a file, decodes it, applies the transform, and returns tensors. It does

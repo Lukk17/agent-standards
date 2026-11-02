@@ -1,6 +1,6 @@
 # Security Baseline
 
-Firewall, Secure Boot, disk encryption and pending security updates in one view, so the owner sees the machine's posture on one screen. The rules live in [SKILL.md](../SKILL.md). Most rows point at a check described in full elsewhere. Linux commands below were executed read-only on CachyOS on 2026-10-13, macOS and Windows commands are UNVERIFIED.
+Firewall, Secure Boot, disk encryption and pending security updates in one view, so the owner sees the machine's posture on one screen. The rules live in [SKILL.md](../SKILL.md). Most rows point at a check described in full elsewhere. Linux commands below were executed read-only on CachyOS, macOS and Windows commands are UNVERIFIED.
 
 ---
 
@@ -12,7 +12,7 @@ Firewall, Secure Boot, disk encryption and pending security updates in one view,
 | Secure Boot | Linux | `bootctl status` | Read the `Secure Boot:` line. `disabled` is the owner's decision and becomes `accepted` once recorded, `disabled (setup)` means the firmware is in setup mode with no platform key enrolled | verified, `disabled (setup)` |
 | Secure Boot | Linux | `od -An -t u1 /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c` | The last byte is 1 when enabled and 0 when disabled. Use it when `bootctl` is absent | verified, last byte `0` |
 | Secure Boot | Linux | `mokutil --sb-state` | Same answer, only where `mokutil` is installed, usual on Debian, Ubuntu and Fedora | UNVERIFIED, absent on the test machine |
-| Platform | Linux | `fwupdmgr security` | The Host Security ID and each failed test. A drop in HSI level since the baseline is `warn`. Runs unprivileged | verified, fwupd 2.1.8 printed `HSI:0!` |
+| Platform | Linux | `fwupdmgr security` | The Host Security ID and each failed test. A drop in HSI level since the baseline is `warn`. Runs unprivileged | verified, fwupd 2 printed `HSI:0!` |
 | Firmware updates | Linux | `fwupdmgr get-updates` | Pending firmware updates. It reads the metadata already downloaded, never run `fwupdmgr refresh` or `update` | UNVERIFIED |
 | Secure Boot | Windows | `Confirm-SecureBootUEFI` | Elevated only, goes to Needs root | UNVERIFIED |
 | Secure Boot | macOS | `csrutil status` for System Integrity Protection. Apple silicon boot policy needs `sudo bputil -d`, which goes to Needs root | `disabled` SIP, `warn` | UNVERIFIED |

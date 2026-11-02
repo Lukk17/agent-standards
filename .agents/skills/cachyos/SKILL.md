@@ -1,13 +1,13 @@
 ---
 name: cachyos
-description: 'CachyOS specific administration on top of Arch: linux-cachyos kernel flavors and switching, kerver, cachyos-kernel-manager, the x86-64-v3 and v4 optimized repositories and pacman.conf order, cachyos-mirrorlist and cachyos-rate-mirrors, chwd hardware profiles, the prebuilt NVIDIA module packages, scx_loader and sched-ext, ananicy-cpp, power-profiles-daemon, game-performance, zram and cachyos-settings, the Limine bootloader with limine-snapper-sync and limine-mkinitcpio, snapshot boot entries, cachy-chroot recovery, cachyos-kde-settings and the login manager. Use when you say "switch to the bore kernel", "should I use the v4 repos", "chwd", "black screen after the nvidia update", "enable scx_lavd", "change the kernel command line", "restore a snapshot from the boot menu", or "the system will not boot". Not for generic pacman, AUR, snapper, journal or audio work, use `arch-linux`, and not for Plasma panels or themes, use `kde-plasma`.'
+description: 'CachyOS administration on top of Arch: linux-cachyos kernels, the x86-64-v3 and v4 repositories, chwd and NVIDIA modules, sched-ext schedulers, cachyos-settings, and Limine with snapshot boot entries. Use when the user says "switch to the bore kernel", "should I use the v4 repos", "black screen after the nvidia update" or "the system will not boot". Not for generic pacman work, use `arch-linux`.'
 ---
 
 # CachyOS Administration
 
 CachyOS is a rolling Arch derivative with its own kernels, repositories rebuilt for newer CPU instruction sets, a tuned settings package and its own tools. The Arch Wiki is still the background, but where it and CachyOS differ, what the CachyOS packages ship on the machine wins. Read the `arch-linux` skill as well, because every generic package, snapshot and journal rule applies here unchanged.
 
-Baseline: CachyOS with Limine 12 and snapper, verified on one host on 2026-10-13. Commands that were not executed are marked UNVERIFIED in the topic files.
+Written for CachyOS with Limine and snapper. The commands that ran were run on one host, and commands that were not executed are marked UNVERIFIED in the topic files.
 
 | You are about to | Open |
 |---|---|
@@ -34,6 +34,8 @@ Machine-specific facts live in `MACHINE.md` next to the global `AGENTS.md`: the 
 - `scx_loader`, `ananicy-cpp`, `power-profiles-daemon`, zram or a sysctl from `cachyos-settings`
 - Limine, `/etc/default/limine`, snapshot boot entries, or a machine that does not boot
 - `cachyos-kde-settings`, `/etc/skel`, or the login manager
+- Also covers linux-cachyos kernel flavors and switching, kerver, cachyos-kernel-manager, the x86-64-v3 and v4 optimized repositories and pacman.conf order, cachyos-mirrorlist and cachyos-rate-mirrors, chwd hardware profiles, the prebuilt NVIDIA module packages, scx_loader and sched-ext, ananicy-cpp, power-profiles-daemon, game-performance, zram and cachyos-settings, the Limine bootloader with limine-snapper-sync and limine-mkinitcpio, snapshot boot entries, cachy-chroot recovery, cachyos-kde-settings and the login manager
+- The user says "chwd", "enable scx_lavd", "change the kernel command line" or "restore a snapshot from the boot menu"
 
 ---
 

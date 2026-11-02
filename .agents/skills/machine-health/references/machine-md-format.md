@@ -1,5 +1,16 @@
 # MACHINE.md Health Section
 
+Contents:
+
+- [Where it lives](#where-it-lives)
+- [Section skeleton](#section-skeleton)
+- [Verdicts](#verdicts)
+- [Baseline rules](#baseline-rules)
+- [Drift rules](#drift-rules)
+- [Needs root and the change log](#needs-root-and-the-change-log)
+- [What to do with a finding](#what-to-do-with-a-finding)
+- [Reply to the owner](#reply-to-the-owner)
+
 Read this before writing anything into `MACHINE.md`. It fixes where the Health section sits, what a baseline row holds, how drift is recorded, and what goes back to the owner. The rules live in [SKILL.md](../SKILL.md).
 
 ---
@@ -25,7 +36,7 @@ Baseline: `<YYYY-MM-DD HH:MM zone>` by `<agent and version>` on `<OS and version
 
 | Area | Check | Value | Verdict | Source | Verified |
 |---|---|---|---|---|---|
-| CPU | Microcode | `0x800820d`, matches `amd-ucode 1:20260916-1` | ok | `grep -m1 microcode /proc/cpuinfo`, `pacman -Q amd-ucode` | 2026-10-13 |
+| CPU | Microcode | `0x800820d`, matches `amd-ucode <version>` | ok | `grep -m1 microcode /proc/cpuinfo`, `pacman -Q amd-ucode` | `<YYYY-MM-DD>` |
 
 #### Drift
 
@@ -34,7 +45,7 @@ Baseline: `<YYYY-MM-DD HH:MM zone>` by `<agent and version>` on `<OS and version
 1. `<Area, check>`: baseline `<value>`, now `<value>`. Verdict `<verdict>`. Evidence: `<command and the line that matters>`. Handed to the owner: `<suggested command>`, which `<what it changes>`. Undo: `<how>`.
 ```
 
-The example row is a real value read on the CachyOS test machine on 2026-10-13. Replace it.
+The example row has the shape of a real value read on a CachyOS test machine. Replace it.
 
 ---
 

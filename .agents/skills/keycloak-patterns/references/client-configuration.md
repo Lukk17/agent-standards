@@ -1,5 +1,15 @@
 # Client Configuration
 
+Contents:
+
+- [Client Types](#client-types)
+- [Creating an OIDC Client](#creating-an-oidc-client)
+- [Service Account Clients](#service-account-clients)
+- [Client Scopes](#client-scopes)
+- [Protocol Mappers](#protocol-mappers)
+- [Client Authentication Methods](#client-authentication-methods)
+- [Discovery Endpoint](#discovery-endpoint)
+
 ---
 
 ### Client Types

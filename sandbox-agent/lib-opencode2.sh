@@ -224,6 +224,17 @@ verify_opencode2() {
   opencode2_end
 }
 
+# OpenCode 1.x refuses to start on the 2.x permissions list the shipped
+# .opencode/opencode.json carries ("V2 permissions are not supported by
+# OpenCode V1"), so a 1.x user copies .opencode/opencode.json.v1 over it, as
+# docs/AGENT_TOOLING.md says. Makes that copy in the project at $1, which has to
+# be a copy of its own, because Kilo Code and 2.x keep the shipped default.
+opencode_use_v1_backstop() {
+  local directory="$1"
+
+  cp "${directory}/.opencode/opencode.json.v1" "${directory}/.opencode/opencode.json"
+}
+
 # OpenCode 1.x and Kilo Code turns against the same mock. The provider travels
 # in the runtime's inline configuration variable, the way live/opencode-family.sh
 # passes it, and each turn keeps its session database in the temporary
@@ -368,7 +379,10 @@ AGENT
 # refuses a main-thread write inside the folder, and does not refuse one to a
 # folder beside it. The runtime hands the plugin "/" as its worktree there, so
 # a plugin that anchored on the worktree protected the whole disk instead. The
-# outside write runs with external_directory allowed, so only the gate decides.
+# outside write runs with external_directory and edit allowed, so only the gate
+# decides: 1.x matches the native backstop against a path relative to that "/"
+# worktree, where no outside path starts with "../", so the backstop alone
+# would refuse it (docs/agent-compatibility.md records it).
 # The directory must carry no MCP block and no .git above it.
 verify_start_folder_v1() {
   local label="$1" bin="$2" variable="$3" directory="$4"
@@ -396,7 +410,7 @@ verify_start_folder_v1() {
   outside="$(mktemp -d -t sandbox-v1-outside-XXXXXXXX)"
   status=0
   v1_run "$bin" "$variable" "$directory" "SANDBOX-WRITE-PROBE ${outside}/probe.txt" start-outside \
-    '{"permission": {"external_directory": "allow"}}' || status=$?
+    '{"permission": {"external_directory": "allow", "edit": "allow"}}' || status=$?
   IFS=' ' read -r stored dashed refused calls <<<"$(v1_session_facts start-outside SANDBOX-WRITE-PROBE SANDBOX-NOTHING "$OPENCODE2_GATE_TEXT")"
 
   if [[ "$calls" -gt 0 && "$refused" -eq 0 && -e "${outside}/probe.txt" ]]; then

@@ -2,7 +2,7 @@
 
 Read this before a risky change, to make sure there is a way back, and when the owner wants to restore. The rules live in [SKILL.md](../SKILL.md). Every command here is UNVERIFIED.
 
-Sources: the `tmutil(8)` man page as shipped with Xcode 27.2 beta 2, read through `https://keith.github.io/xcode-man-pages/tmutil.8.html`, and Apple Support "About Time Machine local snapshots", both fetched on 2026-10-13.
+Sources: the `tmutil(8)` man page as shipped with Xcode, read through `https://keith.github.io/xcode-man-pages/tmutil.8.html`, and Apple Support "About Time Machine local snapshots".
 
 ---
 

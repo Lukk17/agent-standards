@@ -5,6 +5,21 @@ test something that moves.
 
 ---
 
+### Contents
+
+- Core types
+- Choosing an approach
+- Implicit animation
+- Explicit animation
+- Hero transitions
+- Physics-based motion
+- Custom route transitions
+- Accessibility and motion
+- Testing animated state
+- Checklist
+
+---
+
 ### Core types
 
 Never compute frames by hand. The framework owns the ticker and the interpolation.

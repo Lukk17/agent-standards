@@ -5,6 +5,19 @@ the language rules in the hub: open it only when the project actually uses that 
 
 ---
 
+### Contents
+
+- Framework choice
+- Map domain errors to responses at the boundary
+- Read configuration through pydantic-settings
+- Manage startup and shutdown with lifespan
+- Talk to the database through SQLAlchemy and Alembic
+- Inject dependencies rather than importing globals
+- Log through the logging module, never print
+- Lay the service out by layer
+
+---
+
 ### Framework choice
 
 FastAPI is the default for a new HTTP service, and FastMCP is the default for a new MCP server. Flask and Django are
@@ -17,7 +30,7 @@ file as FastAPI-specific.
 ### Map domain errors to responses at the boundary
 
 Business logic raises domain exceptions and knows nothing about HTTP. One exception handler per domain error turns it
-into a response, so status codes live in exactly one layer. The body is `application/problem+json` in the RFC 7807
+into a response, so status codes live in exactly one layer. The body is `application/problem+json` in the RFC 9457
 shape that `api-design` owns.
 
 Pass:

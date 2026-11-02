@@ -22,6 +22,10 @@ The gate is enforcing, not advisory. One shared rule in
   [docs/agent-compatibility.md](docs/agent-compatibility.md) under "Hook enforcement".
 - It denies any tool call from a subagent whose own definition declares no skills. An unknown or unreadable
   `agent_type` allows rather than denies.
+- It holds a subagent whose definition is marked read-only to the commands listed under its "Read-only shell" heading,
+  git only as `git --no-pager`, and denies it any edit, and on Codex any gh command, because a pager runs any command.
+  Codex names the subagent on `PreToolUse`, measured on 0.166.0 in live run 41348146352. The per-format detail is
+  under "Adding a new subagent" in [CONTRIBUTING.md](CONTRIBUTING.md).
 - It denies the main thread a web fetch or web search tool on Claude Code, the one format whose tool names are
   confirmed. Codex has no confirmed tool name for this yet. The main thread spawns a subagent to do the research.
 - It denies the main thread running a script or a module, because the gate cannot see what a script writes, unless
@@ -32,8 +36,8 @@ The gate is enforcing, not advisory. One shared rule in
   only inside a subagent. An unknown caller is allowed: GitHub Copilot on every call, and an OpenCode or Kilo Code
   call whose session the plugin could not read.
 - It fails open: a parse error, a missing key, an unexpected payload, an unknown `--format`, or a top-level command
-  it cannot lex allows the call. The exception is a path or write target the gate cannot place, such as the `$f` in
-  `rm $f`, which denies on the main thread. The list is in [docs/agent-compatibility.md](docs/agent-compatibility.md).
+  it cannot lex allows the call. The exceptions are a path or write target the gate cannot place, such as the `$f` in
+  `rm $f`, which denies on the main thread, and a command it cannot lex or a working directory it cannot resolve from a read-only subagent, which denies. The list is in [docs/agent-compatibility.md](docs/agent-compatibility.md).
 - No MCP tool is gated, and `playwright` and `chrome-devtools` in [.mcp.json](.mcp.json) can write local files. The
   vendor quotes are in [docs/agent-compatibility.md](docs/agent-compatibility.md).
 - Known limits of the write rule are accepted rather than open, and listed under "What the gate cannot place" in
@@ -73,8 +77,7 @@ script and must never be hand-edited, and some are symlinks the generator create
 | `.agents/plugin/hooks.js`, `.agents/plugin/index.js` | canonical | edit directly, `index.js` only re-exports |
 | `AGENTS.md.example`, `docs/*.md` | canonical | edit directly |
 | `tools/*.py`, `tools/tests/*.py`, `tools/pyproject.toml` | canonical | edit directly, then run the pytest suite |
-| `global/bin/update-global.sh`, `global/bin/update-global.ps1` | canonical, shipped only by the global install to `~/.config/agents/bin` | edit both together, then run `python -m pytest tools/tests/test_update_global.py` |
-| `main-thread-allowlist.txt` | canonical, this repo only, never shipped | edit directly, then run `python -m pytest tools/` |
+| `tools/plugins.yaml` | canonical plugin map: every skill, subagent and MCP server in exactly one plugin (domains, host groups, `core`, `mcp-<server>`) | edit directly, then run `python -m pytest tools/tests/test_gen_plugins.py` |
 | `.claude/agents/*.md` | generated (Claude front matter with a `skills` key) | never hand-edit, run the generator |
 | `.agents/agents/*.md` | generated (OpenCode format) | never hand-edit, run the generator |
 | `.codex/agents/*.toml` | generated (Codex TOML) | never hand-edit, run the generator |
@@ -142,14 +145,15 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
 - **A skill or a subagent:** before adding one, read "Adding a new skill" or "Adding a new subagent" in
   [CONTRIBUTING.md](CONTRIBUTING.md). A subagent's source and its four generated trees are committed together, and
   each kind bumps its count badge in [README.md](README.md) and its count on the social card.
-- **An MCP server:** add the block to all five MCP files (the ones listed under Repo conventions), document it in
-  [docs/MCP_SETUP.md](docs/MCP_SETUP.md), and bump the MCP count in the badge and on the social card. A file that
-  leaves a server out or ships it switched off gets its reason under "What ships" there, never a silent gap.
+- **An MCP server:** add the block to all five MCP files (the ones listed under Repo conventions) and an
+  `mcp-<server>` plugin to [tools/plugins.yaml](tools/plugins.yaml), document it in [docs/MCP_SETUP.md](docs/MCP_SETUP.md),
+  and bump the MCP count in the badge and on the social card. A file that leaves a server out or ships it switched off
+  gets its reason under "What ships" there, never a silent gap.
 - **A shipped document:** name it in UPPERCASE under `docs/`, add its path to every
-  `git checkout agent-standards/master --` pathspec that delivers documents (the Quickstart and all five per-agent
-  blocks in [README.md](README.md), the import in [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md), and both shell
-  sections of [docs/AGENTS-UPDATE.md](docs/AGENTS-UPDATE.md)), and list it under Shipped in the README docs map. A
-  document a consumer cannot pull is not shipped, whatever its name says.
+  `git checkout agent-standards/master --` pathspec that delivers documents (the Quickstart, all five per-agent blocks
+  and the gate-only import in [README.md](README.md), the import and the gate-only import in
+  [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md), and both shell sections of [docs/AGENTS-UPDATE.md](docs/AGENTS-UPDATE.md)),
+  and list it under Shipped in the README docs map. A document a consumer cannot pull is not shipped, whatever its name says.
 - **A gate rule:** follow "One gate, one rule, one wording" above, and leave the wiring files alone unless the hook
   surface itself changed. A wiring change also needs the sandbox in [sandbox-agent/](sandbox-agent/README.md).
 
@@ -183,12 +187,8 @@ scripts, `bash` and `powershell` the update scripts in [docs/AGENTS-UPDATE.md](d
 - **The Copilot `preToolUse` payload carries no agent identifier,** so no gate rule fires on that surface. When one
   lands, pass it with `--subagent` from [.github/hooks/preflight.json](.github/hooks/preflight.json) and set
   `GATE_KNOWN_GAP=0` in [sandbox-agent/live/copilot.sh](sandbox-agent/live/copilot.sh) in the same change.
-- **The Copilot CLI tells every custom subagent not to write files.** CLI 1.0.81 appends
-  `**CRITICAL: Do NOT write output to files.**` to its prompt (live run 36176881215), so live test 2 reports
-  `KNOWN-GAP` through `SUBAGENT_NO_WRITE_MARKER` in [sandbox-agent/live/copilot.sh](sandbox-agent/live/copilot.sh).
-  Recheck each CLI release, and remove that marker in the same change that sees the block gone.
-- **Whether a Codex `Stop` hook can reject a reply is not measured.** Confirm it and say so plainly here. The markdown
-  lint stays Claude-only, because Codex has no post-tool event.
+- **Whether a Codex `Stop` hook can reject a reply is not measured.** Confirm it and say so plainly here. The markdown lint stays Claude-only, because Codex has no post-tool event.
+- **Codex `write_stdin` is outside the gate matcher** in [.codex/config.toml](.codex/config.toml), so it can type into a `tty: true` shell unseen. Add it with a sandbox run, then update "Hook enforcement" in [docs/agent-compatibility.md](docs/agent-compatibility.md).
 - **Reply rules outside OpenCode.** OpenCode 2.x gets `.agents/instructions/reply-rules.md` from the plugin's session
   `context` hook, main thread only, and 1.x and Kilo Code from `instructions`. TODO: decide how a global install loads them on Claude
   Code, Codex and Copilot, keeping them out of `AGENTS.md`, and document it in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md).

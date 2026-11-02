@@ -5,6 +5,21 @@ globally, and separate build flavors.
 
 ---
 
+### Contents
+
+- Core principles
+- The layers
+- Feature implementation order
+- Data layer example
+- State management, all three options
+- Dependency injection
+- Global error handling
+- Analysis options
+- Environment flavors
+- Checklist
+
+---
+
 ### Core principles
 
 - Separation of concerns. Decouple UI rendering from business logic and data fetching. Organize into UI, Logic,

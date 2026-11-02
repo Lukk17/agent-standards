@@ -1,5 +1,17 @@
 # GraphQL API standards
 
+Contents:
+
+- [Schema naming](#schema-naming)
+- [Mutation payloads](#mutation-payloads)
+- [Prevent N+1 with a per-request loader](#prevent-n1-with-a-per-request-loader)
+- [Authorize at the field, and say so](#authorize-at-the-field-and-say-so)
+- [Production hardening](#production-hardening)
+- [Pagination follows Relay cursor connections](#pagination-follows-relay-cursor-connections)
+- [Subscriptions](#subscriptions)
+- [Evolve the schema additively](#evolve-the-schema-additively)
+- [Related skills](#related-skills)
+
 Read this when designing a GraphQL schema, writing resolvers, or hardening a GraphQL endpoint for production.
 
 ---
@@ -80,7 +92,7 @@ Use the Relay Cursor Connections specification for every paginated field, so one
 type UserConnection {
   edges: [UserEdge!]!
   pageInfo: PageInfo!
-  totalCount: Int!
+  totalCount: Int
 }
 type UserEdge {
   node: User!
@@ -93,6 +105,9 @@ type PageInfo {
   endCursor: String
 }
 ```
+
+`totalCount` is nullable and opt-in: a resolver computes it only when the client selects the field, because a count on
+every page is the second query cursor pagination exists to avoid.
 
 ---
 

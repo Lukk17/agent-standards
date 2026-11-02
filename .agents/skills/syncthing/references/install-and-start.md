@@ -1,8 +1,17 @@
 # Install and Start
 
-Read this before installing Syncthing, making it start at login, or opening the firewall for it. The rules live in [SKILL.md](../SKILL.md). Commands marked VERIFIED ran on Syncthing 2.1.7 in a throwaway container on 2026-10-23. Every other command here is UNVERIFIED.
+Contents:
 
-Sources, fetched on 2026-10-23: https://docs.syncthing.net/users/autostart.html, https://docs.syncthing.net/users/syncthing.html, https://docs.syncthing.net/users/config.html, https://docs.syncthing.net/users/firewall.html, https://apt.syncthing.net/, https://formulae.brew.sh/formula/syncthing, https://formulae.brew.sh/cask/syncthing-app, the winget manifest `Syncthing.Syncthing` 2.1.7 in `microsoft/winget-pkgs`, and `etc/linux-systemd/user/syncthing.service` at tag v2.1.7 of `syncthing/syncthing`.
+- [Where Syncthing keeps its state](#where-syncthing-keeps-its-state)
+- [Linux](#linux)
+- [Windows](#windows)
+- [macOS](#macos)
+- [Firewall](#firewall)
+- [First check after the start](#first-check-after-the-start)
+
+Read this before installing Syncthing, making it start at login, or opening the firewall for it. The rules live in [SKILL.md](../SKILL.md). Commands marked VERIFIED ran on Syncthing 2 in a throwaway container. Every other command here is UNVERIFIED.
+
+Sources: https://docs.syncthing.net/users/autostart.html, https://docs.syncthing.net/users/syncthing.html, https://docs.syncthing.net/users/config.html, https://docs.syncthing.net/users/firewall.html, https://apt.syncthing.net/, https://formulae.brew.sh/formula/syncthing, https://formulae.brew.sh/cask/syncthing-app, the winget manifest `Syncthing.Syncthing` in `microsoft/winget-pkgs`, and `etc/linux-systemd/user/syncthing.service` of `syncthing/syncthing`.
 
 ---
 
@@ -28,7 +37,7 @@ The database lives in that directory too, in `index-v2` on 2.x, so the disk unde
 
 ### Linux
 
-Install from the distribution, which needs root, so the command goes to the owner. On 2026-10-23 Arch `extra` carried 2.1.7 and Fedora 44 carried 2.1.6.
+Install from the distribution, which needs root, so the command goes to the owner.
 
 ```bash
 sudo pacman -S syncthing
@@ -60,7 +69,7 @@ sudo apt-get update
 sudo apt-get install syncthing
 ```
 
-Start it as a systemd user service, which needs no root. The autostart page says the user service "is intended to be used on a (multiuser) desktop computer", and the packages above ship `syncthing.service` for the user instance. In 2.1.7 that unit runs `/usr/bin/syncthing serve --no-browser --no-restart`.
+Start it as a systemd user service, which needs no root. The autostart page says the user service "is intended to be used on a (multiuser) desktop computer", and the packages above ship `syncthing.service` for the user instance. In Syncthing 2 that unit runs `/usr/bin/syncthing serve --no-browser --no-restart`.
 
 ```bash
 systemctl --user enable --now syncthing.service
@@ -132,7 +141,7 @@ Running Syncthing as a Windows service through NSSM is the upstream route only f
 
 ### macOS
 
-Install the formula and start it with `brew services`, which writes a LaunchAgent for the user. The formula's service block, read from formulae.brew.sh on 2026-10-23, runs `syncthing --no-browser --no-restart`, keeps it alive, and logs to `$(brew --prefix)/var/log/syncthing.log`. Homebrew never runs under `sudo`.
+Install the formula and start it with `brew services`, which writes a LaunchAgent for the user. The formula's service block, read from formulae.brew.sh, runs `syncthing --no-browser --no-restart`, keeps it alive, and logs to `$(brew --prefix)/var/log/syncthing.log`. Homebrew never runs under `sudo`.
 
 ```bash
 brew install syncthing

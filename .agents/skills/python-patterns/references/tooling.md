@@ -4,7 +4,19 @@ The tree a Python project sits in and the toolchain it carries: the `src` layout
 ruff for lint and format, mypy for types, and a pre-commit hook that runs them. Open this when setting a project up
 or when a check is missing in CI.
 
-Baseline: Python 3.13 or newer, with 3.14 the current release.
+Written for Python 3.14.
+
+---
+
+### Contents
+
+- Lay the package out under src
+- Use uv for the environment and the lock file
+- Pin exact versions, and let the lock file pin the rest
+- Lint and format with ruff
+- Type check in strict mode
+- Scan dependencies and code for known problems
+- Wire the checks into pre-commit
 
 ---
 
@@ -78,7 +90,7 @@ an exact `==` pin, and `uv.lock` pins every transitive dependency on top of it. 
 [project]
 name = "mypackage"
 version = "1.0.0"
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 dependencies = [
     "fastapi==0.141.1",
     "pydantic==2.13.5",
@@ -103,11 +115,10 @@ select = ["E", "F", "I", "N", "UP", "S", "B", "A"]
 
 [tool.mypy]
 strict = true
-python_version = "3.13"
+python_version = "3.14"
 ```
 
-The pins are the versions current on PyPI in September 2026. Replace them with the current release when you copy the
-file, and never loosen one into a range.
+The pins show the exact-pin form, not a recommended release. Replace each with the release you admit when you copy the file, and never loosen one into a range.
 
 Pytest configuration is deliberately absent from this file. It belongs to [pytest-config.md](pytest-config.md),
 which owns `[tool.pytest.ini_options]`, the marker registry, and the coverage gate.

@@ -58,7 +58,7 @@ so a `~/.agents` linked to `~/.config/agents` makes the home directory carry the
 global copy itself rather than a project copy, and a session started there keeps
 the gate.
 
-The plugin has one default export, `{ id, server, setup }`, and is declared by its directory, which every loader resolves to [.agents/plugin/index.js](../.agents/plugin/index.js). OpenCode 1.x and Kilo Code call `server` and get the hooks object this page describes. OpenCode 2.x calls `setup`, where the runner registers the tool `execute.before` hook with the same envelope, plus a session `context` hook that adds `.agents/instructions/reply-rules.md` as a system part. On 2.x reply rules and reply checks serve the main thread only: a session the runner places as a child through `session.get({ sessionID })` and its `parentID` gets no reply rules on its model requests, and its tool calls carry an empty `assistant_text`, so no reply check can block a subagent, while the gate still runs on every call. A session the runner cannot place keeps both, as before. 1.x and Kilo Code do the same with the reply checks, placing the session through `client.session.get`: a child session's tool calls carry an empty `assistant_text` and its finished text parts skip `experimental.text.complete` hooks, while the gate runs for every session and an unplaced session keeps both. Their reply rules still arrive through the `instructions` key of `opencode.json`, which the plugin does not touch. Measured with real turns against a mock model on OpenCode 1.19.0 and Kilo Code 7.8.9, where the task tool's child session answered `session.get` with the caller's id as `parentID` and the root session with none. 2.x has no `experimental.text.complete` and no other hook after a finished reply, because "Only tool execute.before may fail" (`packages/core/src/plugin/hooks.ts`, OpenCode 2.0.26), so a hook that checks prose sees it only at the next tool call there.
+The plugin has one default export, `{ id, server, setup }`, and is declared by its directory, which every loader resolves to [.agents/plugin/index.js](../.agents/plugin/index.js). OpenCode 1.x and Kilo Code call `server` and get the hooks object this page describes. OpenCode 2.x calls `setup`, where the runner registers the tool `execute.before` hook with the same envelope, plus a session `context` hook that adds `.agents/instructions/reply-rules.md` as a system part, followed in a root session by the main-thread reminder described under "Events the other three agents wire directly". On 2.x reply rules and reply checks serve the main thread only: a session the runner places as a child through `session.get({ sessionID })` and its `parentID` gets no reply rules on its model requests, and its tool calls carry an empty `assistant_text`, so no reply check can block a subagent, while the gate still runs on every call. A session the runner cannot place keeps both, as before. 1.x and Kilo Code do the same with the reply checks, placing the session through `client.session.get`: a child session's tool calls carry an empty `assistant_text` and its finished text parts skip `experimental.text.complete` hooks, while the gate runs for every session and an unplaced session keeps both. Their reply rules still arrive through the `instructions` key of `opencode.json`, which the plugin does not touch. Measured with real turns against a mock model on OpenCode 1.19.0 and Kilo Code 7.8.9, where the task tool's child session answered `session.get` with the caller's id as `parentID` and the root session with none. 2.x has no `experimental.text.complete` and no other hook after a finished reply, because "Only tool execute.before may fail" (`packages/core/src/plugin/hooks.ts`, OpenCode 2.0.26), so a hook that checks prose sees it only at the next tool call there.
 
 ### Invocation
 
@@ -299,7 +299,26 @@ actually carries a task list through a compaction is `SessionStart` firing again
 both Claude Code and Codex document.
 
 OpenCode and Kilo Code have neither a session-start nor a pre-compact event, so nothing can be injected at either
-point. No per-prompt reminder is injected on these runtimes. The plugin carries no wording, only the gate.
+point. Both texts go on every prompt instead. The plugin places each session through `client.session.get` on 1.x and
+Kilo Code and `ctx.session.get` on 2.x, then adds one text, on 1.x and Kilo Code as a synthetic text part appended to
+each user message through `chat.message`, on 2.x as a system part on each model request through the session `context`
+hook:
+
+- A root session gets the main-thread reminder, the same text Codex and Copilot inject on every prompt. The plugin
+  holds no copy of it: it reads the `REMINDER` constant of
+  [.agents/hooks/copilot/prompt_reminder.py](../.agents/hooks/copilot/prompt_reminder.py) at run time, from the
+  hooks directory this project runs, and adds nothing when that file or that constant is not there. On 2.x it follows
+  the reply rules.
+- A session with a `parentID` gets the subagent text, `SUBAGENT_TEXT` in
+  [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), and never the reminder.
+- A session the lookup cannot read gets neither.
+
+[tools/tests/test_reminder_plugin.py](../tools/tests/test_reminder_plugin.py) holds the reminder the plugin reads equal
+to the constant Python loads, and `SUBAGENT_TEXT` equal to the `SubagentStart` text. Live run 41255837007 found no
+subagent text in a docs-architect child session on OpenCode 1.18.25 and Kilo Code 7.5.5, the gap the subagent text
+closes. The subagent-write check in [sandbox-agent/README.md](../sandbox-agent/README.md) found the reminder in every
+main-thread request and in no subagent request on OpenCode 1.18.25, OpenCode 2.0.28 and Kilo Code 7.5.5, measured on
+2026-11-01, and none in a main-thread request with the plugin as it stood before.
 
 What reaches a subagent is its own definition, the project's `AGENTS.md`, the gate on every tool call, and the
 subagent text injected by wirings that reach a subagent, never the reminder. The reminder tells its
@@ -312,7 +331,11 @@ subagent, so the reminder is not expected to reach a Claude Code subagent. That 
 and not measured. Codex does run `UserPromptSubmit` for the message that starts a subagent: live run 36163866070
 recorded the reminder in a docs-architect rollout, right after the subagent text. Its payload carries `agent_id` only
 inside a subagent, per the input schema Codex 0.150.1 embeds, so the Codex reminder command prints nothing when the
-payload holds an `"agent_id"` key. Copilot runs `userPromptTransformed` for the prompt that opens a subagent's session
+payload holds an `"agent_id"` key. A Codex subagent spawned as a full-history fork (`fork_turns` `"all"`) still
+carries the main thread's turns, its reminder included, as history the hooks never see: live run 41255837007 on Codex
+0.166.0 recorded that reminder in a docs-architect rollout with `metadata.inherited_user_message` `true`, followed
+by the subagent text and a Codex developer message that names everything before it as inherited parent context.
+No hook can strip it, so the subagent text is what tells the subagent the main-thread rules are not its own. Copilot runs `userPromptTransformed` for the prompt that opens a subagent's session
 too, and live run 36176881215 recorded the reminder appended to two of them. That payload carries only the subagent's
 own `sessionId`, but Copilot CLI 1.0.81 puts the `subagentStart` text at the start of the subagent's `prompt`, so
 `prompt_reminder.py` prints nothing for a prompt that opens with `PREFLIGHT for a subagent:`. A later prompt in the same
@@ -324,7 +347,7 @@ Git Bash and PowerShell all print unchanged. Codex and Copilot read JSON, so the
 `additionalContext`, printed by `printf '%s\n'` in a POSIX shell, because `dash` turns an `echo` argument's `\n` into a
 raw newline that breaks the JSON, and by `echo` in PowerShell, which prints a single-quoted literal as written.
 [.agents/hooks/copilot/prompt_reminder.py](../.agents/hooks/copilot/prompt_reminder.py) holds the text as a
-string constant.
+string constant, which the OpenCode and Kilo Code plugin reads as well.
 
 The markdown lint is the only hook wired to a post-tool event, and it is also the only one gated behind a single
 format rather than run on the runner surface. `markdown_lint_check.py` returns 0 before it even reads standard input

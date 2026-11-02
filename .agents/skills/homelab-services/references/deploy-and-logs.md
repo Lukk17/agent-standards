@@ -1,8 +1,16 @@
 # Deploying the stack and capping its logs
 
-Read this before copying a change to the VM, before the first start of a new service, or before adding a service to the Compose file. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab on 2026-10-23. Every other command here is UNVERIFIED.
+Contents:
 
-Sources, fetched on 2026-10-23: the Docker page on the json-file logging driver at https://docs.docker.com/engine/logging/drivers/json-file/, the Compose page on interpolation at https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/, and the Compose specification at https://github.com/compose-spec/compose-spec/blob/main/12-interpolation.md.
+- [Where the files live](#where-the-files-live)
+- [Copy and start](#copy-and-start)
+- [Folders before the first start](#folders-before-the-first-start)
+- [Log limits on every service](#log-limits-on-every-service)
+- [Dollar signs in Compose](#dollar-signs-in-compose)
+
+Read this before copying a change to the VM, before the first start of a new service, or before adding a service to the Compose file. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab. Every other command here is UNVERIFIED.
+
+Sources: the Docker page on the json-file logging driver at https://docs.docker.com/engine/logging/drivers/json-file/, the Compose page on interpolation at https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/, and the Compose specification at https://github.com/compose-spec/compose-spec/blob/main/12-interpolation.md.
 
 ---
 
@@ -10,7 +18,7 @@ Sources, fetched on 2026-10-23: the Docker page on the json-file logging driver 
 
 The Compose file and every file it mounts, such as the Telegraf config, live in a git clone on the owner's machine. The VM holds a plain copy of them in `<stack-dir>`, with no clone and no git. A change goes into the clone first and is copied from there, so the clone always says what runs.
 
-Do not fetch the files from a GitHub raw link. A raw link gives what was pushed, so a change that is committed but not pushed, or not committed yet, never reaches the VM, and nothing says so. On the owner's homelab, on 2026-10-23, the Telegraf config on the VM was found two weeks older than the one in the repository, because nothing had copied it.
+Do not fetch the files from a GitHub raw link. A raw link gives what was pushed, so a change that is committed but not pushed, or not committed yet, never reaches the VM, and nothing says so. On the owner's homelab, the Telegraf config on the VM was found two weeks older than the one in the repository, because nothing had copied it.
 
 ---
 
@@ -58,13 +66,13 @@ cd <stack-dir> && docker compose ps
 docker restart telegraf
 ```
 
-VERIFIED: the owner deployed this way on 2026-10-23.
+VERIFIED: the owner deployed this way.
 
 ---
 
 ### Folders before the first start
 
-Create every folder a container mounts before its first start, as the login user and without `sudo`. A folder that is missing is created by Docker itself, owned by root, and a container that runs as user 1000 then cannot write into it. VERIFIED on 2026-10-23 for the network watch folder, which Telegraf, running as 1000, could not write until it was given to 1000.
+Create every folder a container mounts before its first start, as the login user and without `sudo`. A folder that is missing is created by Docker itself, owned by root, and a container that runs as user 1000 then cannot write into it. VERIFIED for the network watch folder, which Telegraf, running as 1000, could not write until it was given to 1000.
 
 ```bash
 mkdir -p <stack-dir>/<service>/data
@@ -93,7 +101,7 @@ volumes:
 
 Docker's `json-file` driver keeps the whole log unless told otherwise. The Docker page lists `max-size` as "The maximum size of the log before it is rolled. [...] Defaults to -1 (unlimited)" and `max-file` as "The maximum number of log files that can be present. [...] Only effective when `max-size` is also set."
 
-Why it matters, VERIFIED on 2026-10-23: with no logging options anywhere, the `uptime-kuma` container's log reached 24.7 GB, growing 1,607,027 bytes in 60 seconds from the error in [uptime-kuma.md](uptime-kuma.md#the-labelset-log-flood), and together with a half-sized root volume it filled the VM's disk.
+Why it matters, VERIFIED: with no logging options anywhere, the `uptime-kuma` container's log reached 24.7 GB, growing 1,607,027 bytes in 60 seconds from the error in [uptime-kuma.md](uptime-kuma.md#the-labelset-log-flood), and together with a half-sized root volume it filled the VM's disk.
 
 Put one anchor at the top of the Compose file:
 
@@ -113,7 +121,7 @@ services:
     logging: *default-logging
 ```
 
-A limit applies only to a container created after it. `docker compose up -d` recreates every container whose logging changed, and the old container's log goes with it. VERIFIED on 2026-10-23: `df -h /` showed 44G used before that `docker compose up -d` and 20G after it.
+A limit applies only to a container created after it. `docker compose up -d` recreates every container whose logging changed, and the old container's log goes with it. VERIFIED: `df -h /` showed 44G used before that `docker compose up -d` and 20G after it.
 
 Read the log options a running container really has:
 
@@ -131,4 +139,4 @@ Compose replaces `$NAME` and `${NAME}` in the Compose file with a value from the
 
 In `.env` the Compose page says "Unquoted and double-quoted (`"`) values have interpolation applied" and "Single-quoted (`'`) values are used literally". A password with a `$` in an unquoted value is cut at the `$`. Either leave `$` out of a password, or write the value in single quotes, in which case the password must not hold a `'`. The way to write `.env` without printing a secret is in [samba.md](samba.md#the-login-file).
 
-A required value is written `${NAME:?message}`, and Compose then refuses every command for the whole stack while the value is missing or empty. VERIFIED on 2026-10-23: `required variable SAMBA_USER is missing a value`.
+A required value is written `${NAME:?message}`, and Compose then refuses every command for the whole stack while the value is missing or empty. VERIFIED: `required variable SAMBA_USER is missing a value`.

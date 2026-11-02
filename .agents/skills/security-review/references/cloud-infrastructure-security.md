@@ -1,5 +1,22 @@
 # Cloud & Infrastructure Security
 
+Contents:
+
+- [When to Activate](#when-to-activate)
+- [Cloud Security Checklist](#cloud-security-checklist)
+  - [1. IAM & Access Control](#1-iam--access-control)
+  - [2. Secrets Management](#2-secrets-management)
+  - [3. Network Security](#3-network-security)
+  - [4. Logging & Monitoring](#4-logging--monitoring)
+  - [5. CI/CD Pipeline Security](#5-cicd-pipeline-security)
+  - [6. Cloudflare & CDN Security](#6-cloudflare--cdn-security)
+  - [7. Backup & Disaster Recovery](#7-backup--disaster-recovery)
+- [Pre-Deployment Cloud Security Checklist](#pre-deployment-cloud-security-checklist)
+- [Common Cloud Security Misconfigurations](#common-cloud-security-misconfigurations)
+  - [S3 Bucket Exposure](#s3-bucket-exposure)
+  - [RDS Public Access](#rds-public-access)
+- [Resources](#resources)
+
 Depth behind [SKILL.md](../SKILL.md) for cloud, network and pipeline hardening.
 
 ---
@@ -23,13 +40,17 @@ Depth behind [SKILL.md](../SKILL.md) for cloud, network and pipeline hardening.
 ##### Principle of Least Privilege
 
 ```yaml
-# PASS: CORRECT: Minimal permissions
+# PASS: CORRECT: Minimal permissions, each action on the resource type it applies to
 iam_role:
-  permissions:
-    - s3:GetObject  # Only read access
-    - s3:ListBucket
-  resources:
-    - arn:aws:s3:::my-bucket/*  # Specific bucket only
+  statements:
+    - permissions:
+        - s3:ListBucket  # Acts on the bucket, so the ARN has no /*
+      resources:
+        - arn:aws:s3:::my-bucket
+    - permissions:
+        - s3:GetObject  # Acts on objects, so the ARN ends in /*
+      resources:
+        - arn:aws:s3:::my-bucket/*
 
 # FAIL: WRONG: Overly broad permissions
 iam_role:
@@ -150,10 +171,12 @@ resource "aws_security_group" "bad" {
 
 ```typescript
 // PASS: CORRECT: Comprehensive logging
-import { CloudWatchLogsClient, CreateLogStreamCommand } from '@aws-sdk/client-cloudwatch-logs';
+import { CloudWatchLogsClient, PutLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
+
+const client = new CloudWatchLogsClient({});
 
 const logSecurityEvent = async (event: SecurityEvent) => {
-  await cloudwatch.putLogEvents({
+  await client.send(new PutLogEventsCommand({
     logGroupName: '/aws/security/events',
     logStreamName: 'authentication',
     logEvents: [{
@@ -166,7 +189,7 @@ const logSecurityEvent = async (event: SecurityEvent) => {
         // Never log sensitive data
       })
     }]
-  });
+  }));
 };
 ```
 
@@ -308,12 +331,16 @@ Before ANY production cloud deployment:
 
 #### S3 Bucket Exposure
 
+AWS recommends keeping ACLs disabled "except in circumstances where you must control access for each object
+individually", so the fix is Object Ownership `BucketOwnerEnforced` plus a public access block, not a private ACL.
+
 ```bash
 # FAIL: WRONG: Public bucket
 aws s3api put-bucket-acl --bucket my-bucket --acl public-read
 
-# PASS: CORRECT: Private bucket with specific access
-aws s3api put-bucket-acl --bucket my-bucket --acl private
+# PASS: CORRECT: Block public access, disable ACLs, grant access through a bucket policy
+aws s3api put-public-access-block --bucket my-bucket --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+aws s3api put-bucket-ownership-controls --bucket my-bucket --ownership-controls 'Rules=[{ObjectOwnership=BucketOwnerEnforced}]'
 aws s3api put-bucket-policy --bucket my-bucket --policy file://policy.json
 ```
 

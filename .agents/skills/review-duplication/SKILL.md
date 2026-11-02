@@ -1,6 +1,6 @@
 ---
 name: review-duplication
-description: Investigate a change for duplicated logic, reinvented utilities, and missed reuse of the project's existing helpers, patterns and installed libraries, then report what should have been reused and how. Use when you say "check this PR for duplication", "did we already have a function for this", "is this reinventing something", "why is there a second date formatter", or "review this for reuse before I approve it". Not for a full multi-pillar review pass, use `code-reviewer`.
+description: 'Investigates a change for duplicated logic, reinvented utilities and missed reuse of existing helpers and installed libraries, and leaves coincidental lookalikes alone. Use when the user says "check this PR for duplication", "did we already have a function for this", or "is this reinventing something". Not for a full multi-pillar review pass, use `code-reviewer`.'
 ---
 
 # Review Duplication
@@ -8,6 +8,10 @@ description: Investigate a change for duplicated logic, reinvented utilities, an
 Investigate a codebase during review to find logic the project already has, utilities that were reinvented, and
 established patterns the change walked past. The conventions you check reuse against, and the DRY principle behind this
 skill, live in the `coding-standards` hub.
+
+| Task | Open |
+|---|---|
+| Running a step in full: the location table, the subagent names per runtime, and the pass and fail forms | [worked-steps.md](references/worked-steps.md) |
 
 ---
 
@@ -18,6 +22,7 @@ skill, live in the `coding-standards` hub.
 - The user asks whether something already exists in the project, or why two similar things now exist.
 - A reviewer's instinct says "we have this somewhere", and the location needs to be found before the review is
   finalised.
+- The user says "why is there a second date formatter" or "review this for reuse before I approve it".
 
 ---
 
@@ -33,110 +38,13 @@ skill, live in the `coding-standards` hub.
 
 ---
 
-### Step 1: extract the core logic
+### Steps
 
-Look past the business wrapper to the mechanics underneath: the algorithm, the utility function, the generic data
-structure, the reusable component. Reuse is found by shape, not by feature name.
-
-Fail: the search is framed around the feature and finds nothing.
-
-```text
-Searching for "checkout retry banner".
-```
-
-Pass: the search is framed around the mechanic, which the project may already implement elsewhere.
-
-```text
-The new code debounces input and formats a relative timestamp. Searching for existing debounce helpers and relative-time formatting.
-```
-
----
-
-### Step 2: hypothesise where it would already live
-
-Name concrete candidate locations from the repo root before searching, so the search is directed rather than exhaustive.
-Read the project's own layout first, then map each category onto it. In a layered service the categories usually land
-like this:
-
-| Category | Typical home |
-| --- | --- |
-| Shared utilities | a `utils`, `common`, or `shared` module under the source root |
-| UI components | the component directory of the front-end module |
-| Domain services | the service or use-case layer of the application module |
-| Configuration | the config module, plus environment schema files |
-| Cross-cutting logic | the core or domain module, when the behaviour is not presentation specific |
-
-Trace third-party dependencies too. When the diff introduces an import of a utility library, find how the project
-already uses that library, because a wrapper or a shared helper usually exists. Before flagging a hand-written
-implementation of a standard algorithm, check the manifest (`package.json`, `pyproject.toml`, `build.gradle.kts`,
-`go.mod`) for a library already installed that provides it.
-
----
-
-### Step 3: delegate the investigation
-
-Delegate deep searching to subagents so the review session stays readable and the search stays thorough. Give each one a
-specific objective built from the mechanics found in step 1, not a vague "look for duplication".
-
-- `code-archaeologist` is the primary researcher for structural questions. Ask it about the underlying APIs in use
-  ("does any existing code call `Intl.DateTimeFormat` or a date library for the same purpose?"), naming patterns ("are
-  there existing symbols matching `*Format*` or `*Debounce*`?"), where the behaviour is centralised today, and,
-  crucially, how the new code could be refactored onto whatever it finds.
-- A fast read-only search subagent is the fan-out for locating candidates across many directories and naming
-  conventions when you do not yet know where to look. It reads excerpts and returns locations, so use it to narrow the
-  field before a deeper pass. The built-in one is `Explore` on Claude Code, `explore` on OpenCode, Kilo Code and the
-  GitHub Copilot CLI, and `explorer` on Codex.
-- A general subagent handles turn-intensive semantic comparison, for example: "compare the new `OrderSummaryCard`
-  against every component in the shared component module and report which one could be extended instead". The
-  built-in one is `general-purpose` on Claude Code and the GitHub Copilot CLI, `general` on OpenCode and Kilo Code, and
-  `default` on Codex.
-
-Keep a fast path for unambiguous single-fact checks. Grepping the manifest for one package name is faster done directly
-than delegated. Anything open-ended goes to a subagent.
-
----
-
-### Step 4: evaluate against project conventions
-
-Duplication is not only copied functions. A change that bypasses an established pattern duplicates the decision behind
-it.
-
-- Error handling: does it use the project's error types and logging entry point, or invent its own?
-- State management: does it bypass an established store, context, or repository?
-- Styling: does it hardcode colours and spacing instead of using the project's tokens?
-- Configuration: does it read an environment variable directly where the project has a config object?
-
-When the change introduces a genuinely new pattern, say so explicitly and compare it against the documented standard,
-rather than letting a second way of doing the same thing land silently.
-
----
-
-### Step 5: report what should have been reused
-
-A useful finding names the replacement and shows the call. A useless one names the problem and leaves the work to the
-author.
-
-Fail: unactionable.
-
-```text
-This looks like it duplicates something we already have.
-```
-
-Pass: names the source, shows the integration, and states the benefit.
-
-```text
-This adds a new `formatDate` helper. The project already has a tested one in `src/utils/date-helpers.ts`.
-
-Replace the new function with:
-
-    import { formatDate } from '../utils/date-helpers'
-    const displayDate = formatDate(userDate, 'MMM d, yyyy')
-
-Reusing it keeps formatting consistent across the app and inherits the timezone handling the shared helper already covers.
-```
-
-Cite the path and the exact symbol, project-relative, on every finding, and explain the value in one clause:
-consistency, maintenance, or edge cases the existing code already handles.
+1. Extract the core logic. Look past the business wrapper to the algorithm, utility, data structure or component underneath, because reuse is found by shape, not by feature name.
+2. Hypothesise where it would already live. Name candidate locations from the project's real layout before searching: shared utilities, UI components, domain services, configuration, cross-cutting logic. Trace a newly imported library to its existing usage and wrapper, and check the manifest for an installed library that already provides a hand-written algorithm.
+3. Delegate the investigation with a specific objective built from step 1. `code-archaeologist` answers structural questions and how to refactor onto what it finds, a fast read-only search subagent narrows candidates, and a general subagent does turn-intensive semantic comparison. A single-fact check, such as one package name in the manifest, is done directly.
+4. Evaluate against project conventions. Bypassing an established pattern duplicates the decision behind it: error types and logging, state stores, styling tokens, the config object. Name a genuinely new pattern explicitly. Before proposing a merge, show the two copies encode the same rule and change for the same reason; coincidental lookalikes stay separate.
+5. Report what should have been reused. Cite the project-relative path and the exact symbol, show the replacement call, and state the value in one clause: consistency, maintenance, or edge cases the existing code already handles.
 
 ---
 
@@ -157,5 +65,6 @@ consistency, maintenance, or edge cases the existing code already handles.
 - [ ] The manifest was checked for an installed library that already solves the problem.
 - [ ] Open-ended searching was delegated to `code-archaeologist`, a read-only search subagent, or a general subagent.
 - [ ] Convention bypasses were checked, not only copied code.
+- [ ] Every proposed merge shows the two copies encode the same rule and change for the same reason.
 - [ ] Every finding names the reusable symbol, its path, and how to call it.
 - [ ] Findings were folded back into the `code-reviewer` report.

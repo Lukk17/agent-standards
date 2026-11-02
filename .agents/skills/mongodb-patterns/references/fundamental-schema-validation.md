@@ -5,6 +5,13 @@ impactDescription: "Prevents invalid data at database level, catches bugs before
 tags: schema, validation, json-schema, data-integrity, fundamentals
 ---
 
+### Contents
+
+- [Use Schema Validation](#use-schema-validation)
+- [Verify with](#verify-with)
+
+---
+
 ### Use Schema Validation
 
 Enforce document structure with MongoDB's built-in JSON Schema validation. Catch invalid data before it corrupts your

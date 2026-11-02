@@ -1,5 +1,13 @@
 # Git Recipes
 
+Contents:
+
+- [Merge vs Rebase](#merge-vs-rebase)
+- [Conflict Resolution](#conflict-resolution)
+- [Common Workflows](#common-workflows)
+- [Git Hooks](#git-hooks)
+- [Quick Reference](#quick-reference)
+
 Command sequences for the operations that come up during normal work: merging and rebasing, resolving a conflict,
 starting and updating a branch, syncing a fork, undoing a mistake, hook scripts, and a one-line command reference.
 Load this file when you need the exact commands rather than the rule behind them.

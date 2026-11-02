@@ -1,5 +1,13 @@
 # Authentication
 
+Contents:
+
+- [JWT Bearer (Web API)](#jwt-bearer-web-api)
+- [OpenID Connect (Web App)](#openid-connect-web-app)
+- [Adapter File Configuration Provider](#adapter-file-configuration-provider)
+- [Server Metadata Discovery (RFC 8414)](#server-metadata-discovery-rfc-8414)
+- [Audience Mapper](#audience-mapper)
+
 ---
 
 ### JWT Bearer (Web API)

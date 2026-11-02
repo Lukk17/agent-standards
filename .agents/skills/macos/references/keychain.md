@@ -2,7 +2,7 @@
 
 Read this before storing a secret a script needs, or before reaching for a password stored on the Mac. The rules live in [SKILL.md](../SKILL.md). Every command here is UNVERIFIED.
 
-Source: the `security(1)` man page as shipped with Xcode 27.2 beta 2, read through `https://keith.github.io/xcode-man-pages/security.1.html` on 2026-10-13.
+Source: the `security(1)` man page as shipped with Xcode, read through `https://keith.github.io/xcode-man-pages/security.1.html`.
 
 ---
 

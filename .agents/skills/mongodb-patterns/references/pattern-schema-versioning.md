@@ -5,6 +5,20 @@ impactDescription: "Prevents application errors from inconsistent schemas and en
 tags: schema, patterns, versioning, migration, evolution, backward-compatibility, backfill, anti-pattern, validation, consistency, data-quality, atlas-suggestion
 ---
 
+### Contents
+
+- [Schema Evolution and Preventing Drift](#schema-evolution-and-preventing-drift)
+  - [The problem: schema drift](#the-problem-schema-drift)
+  - [Solution: versioned documents with migration path](#solution-versioned-documents-with-migration-path)
+  - [Online migration strategies](#online-migration-strategies)
+  - [Handling multiple version jumps](#handling-multiple-version-jumps)
+  - [When a version bump is (and isn't) needed](#when-a-version-bump-is-and-isnt-needed)
+  - [Detecting existing schema drift](#detecting-existing-schema-drift)
+  - [When NOT to strictly enforce schema or use versioning](#when-not-to-strictly-enforce-schema-or-use-versioning)
+- [Verify with](#verify-with)
+
+---
+
 ### Schema Evolution and Preventing Drift
 
 Schema changes are inevitable, but uncontrolled changes cause schema drift, documents in the same collection with

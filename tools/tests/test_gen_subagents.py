@@ -10,6 +10,7 @@ functions over a frontmatter dict, so each one is exercised directly on a
 fixture rather than through the filesystem.
 """
 
+import importlib.util
 import re
 import tomllib
 
@@ -17,6 +18,19 @@ import pytest
 import yaml
 
 import gen_subagents as gen
+from tests.conftest import PREFLIGHT_GATE
+
+
+def _load_gate():
+    """The preflight gate in-process, so the native map can be held against Rule E itself."""
+    spec = importlib.util.spec_from_file_location("preflight_gate_for_gen_subagents", PREFLIGHT_GATE)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    return module
+
+
+GATE = _load_gate()
 
 SKILLS = {"coding-standards", "python-patterns", "markdown-writer"}
 
@@ -26,7 +40,6 @@ WRITER = {
     "name": "fixture-writer",
     "description": "Use when a fixture needs writing.",
     "tools": ["read", "write", "edit", "grep", "glob", "bash"],
-    "model": "sonnet",
     "skills": ["coding-standards", "python-patterns"],
 }
 
@@ -34,7 +47,6 @@ TRICKY = {
     "name": "fixture-tricky",
     "description": 'Use when auditing a "live" system. Read-only: produces a report, applies no fix.',
     "tools": ["read", "grep", "glob"],
-    "model": "sonnet",
     "skills": ["markdown-writer"],
 }
 
@@ -44,7 +56,6 @@ READER = {
     "name": "fixture-reader",
     "description": "Use when a fixture needs reading only.",
     "tools": ["read", "grep", "glob"],
-    "model": "opus",
     "skills": ["markdown-writer"],
 }
 
@@ -135,13 +146,21 @@ def test_parse_rejects_an_unknown_tool(tmp_path):
     assert "telepathy" in str(exc.value)
 
 
-def test_parse_rejects_an_unknown_model(tmp_path):
-    path = write_agent(tmp_path, "bad-model", "name: bad-model\ndescription: Use when broken.\nmodel: gpt-9")
+@pytest.mark.parametrize("model", ["inherit", "opus", "sonnet", "gpt-9"])
+def test_parse_rejects_any_model_key(tmp_path, model):
+    # Given a canonical agent that pins a model, even the one that means the session model
+    path = write_agent(tmp_path, "pinned", f"name: pinned\ndescription: Use when pinned.\nmodel: {model}")
 
+    # When
     with pytest.raises(SystemExit) as exc:
         gen.parse(path, SKILLS)
 
-    assert "gpt-9" in str(exc.value)
+    # Then the message names the file and says why no model is allowed
+    message = str(exc.value)
+
+    assert "pinned.md" in message
+    assert "remove the 'model' key" in message
+    assert "session model" in message
 
 
 def test_parse_accepts_websearch_as_a_tool(tmp_path):
@@ -175,27 +194,25 @@ def test_generating_two_agents_with_the_same_name_fails(tmp_path, monkeypatch):
     assert "duplicate agent name: clash" in str(exc.value)
 
 
-def test_claude_emits_name_tools_model_and_skills():
+def test_claude_emits_name_tools_and_skills():
     rendered = gen.emit_claude(WRITER, BODY)
     head = rendered.split("---\n")[1].splitlines()
 
     assert head[0] == "name: fixture-writer"
     assert head[1] == 'description: "Use when a fixture needs writing."'
     assert head[2] == "tools: Read, Write, Edit, Grep, Glob, Bash"
-    assert head[3] == "model: sonnet"
-    assert head[4:] == ["skills:", "  - coding-standards", "  - python-patterns"]
+    assert head[3:] == ["skills:", "  - coding-standards", "  - python-patterns"]
     assert "permissionMode" not in rendered
 
 
-def test_opencode_emits_a_pinned_model_and_a_tool_map():
+def test_opencode_emits_no_model_and_a_tool_map():
     rendered = gen.emit_opencode(WRITER, BODY)
     head = rendered.split("---\n")[1].splitlines()
 
     assert head[0] == 'description: "Use when a fixture needs writing."'
     assert head[1] == "mode: subagent"
-    assert head[2] == "model: anthropic/claude-sonnet-4-6"
-    assert head[3] == "tools:"
-    assert head[4:] == [f"  {tool}: true" for tool in WRITER["tools"]]
+    assert head[2] == "tools:"
+    assert head[3:] == [f"  {tool}: true" for tool in WRITER["tools"]]
 
 
 def test_opencode_no_longer_emits_a_permissions_block():
@@ -234,8 +251,32 @@ def test_a_copilot_writing_agent_can_write_on_a_model_that_edits_with_apply_patc
     assert "apply_patch" in front_matter(generated)["tools"]
 
 
-def test_copilot_drops_a_tool_it_has_no_confirmed_name_for():
-    assert gen.copilot_tools(["read", "webfetch", "websearch", "task"]) == ["read"]
+def test_copilot_drops_a_tool_it_has_no_mapping_for():
+    assert gen.copilot_tools(["read", "task"]) == ["read"]
+
+
+def test_copilot_maps_webfetch_and_websearch_onto_its_single_web_tool():
+    """Copilot documents one `web` alias covering both WebSearch and WebFetch."""
+    assert gen.copilot_tools(["read", "webfetch", "websearch"]) == ["read", "web"]
+
+
+def test_a_copilot_research_agent_renders_with_the_web_tool():
+    researcher = dict(WRITER, tools=["read", "grep", "webfetch", "websearch"])
+
+    assert front_matter(gen.emit_copilot(researcher, BODY))["tools"] == ["read", "search", "web"]
+
+
+def test_the_generated_copilot_research_agent_carries_the_web_tool():
+    generated = (gen.TARGETS["copilot"][0] / "agent-engineer.agent.md").read_text(encoding="utf-8")
+
+    assert "web" in front_matter(generated)["tools"]
+
+
+def test_claude_renders_task_as_the_agent_spawning_tool():
+    """Claude Code renamed Task to Agent and keeps Task only as an alias."""
+    orchestrator = dict(WRITER, tools=["read", "task"])
+
+    assert front_matter(gen.emit_claude(orchestrator, BODY))["tools"] == "Read, Agent"
 
 
 def test_copilot_emits_an_empty_list_when_every_tool_maps_to_nothing():
@@ -244,7 +285,7 @@ def test_copilot_emits_an_empty_list_when_every_tool_maps_to_nothing():
     An agent whose whole canonical list has no Copilot name would otherwise be
     handed the full tool set, which is the opposite of what it declared.
     """
-    researcher = dict(WRITER, tools=["webfetch", "websearch", "task"])
+    researcher = dict(WRITER, tools=["task"])
 
     front_matter = gen.emit_copilot(researcher, BODY).split("---\n")[1]
 
@@ -370,33 +411,316 @@ def test_codex_grants_no_tools_at_all():
     assert set(parsed) == {"name", "description", "developer_instructions"}
 
 
-def test_the_opencode_model_ids_are_pinned_in_one_constant():
-    assert gen.OPENCODE_MODELS == {
-        "opus": "anthropic/claude-opus-4-7",
-        "sonnet": "anthropic/claude-sonnet-4-6",
-        "haiku": "anthropic/claude-haiku-4-5",
-        "inherit": None,
-    }
-    assert gen.MODEL["opencode"] is gen.OPENCODE_MODELS
-    assert set(gen.OPENCODE_MODELS) == set(gen.MODEL["claude"])
+def test_the_generator_keeps_no_model_table():
+    assert not hasattr(gen, "OPENCODE_MODELS")
+    assert not hasattr(gen, "MODEL")
+    assert not hasattr(gen, "CLAUDE_MODEL_LINE")
 
 
-def test_inherit_is_passed_through_on_claude():
-    assert "model: inherit" in gen.emit_claude({**WRITER, "model": "inherit"}, BODY)
+@pytest.mark.parametrize("fixture", [WRITER, READER, TRICKY], ids=["writer", "reader", "tricky"])
+def test_claude_emits_no_model_line(fixture):
+    """An explicit `model: inherit` would outrank the user's CLAUDE_CODE_SUBAGENT_MODEL default."""
+    assert "model" not in front_matter(gen.emit_claude(fixture, BODY))
 
 
-def test_inherit_omits_the_model_line_on_opencode():
-    rendered = gen.emit_opencode({**WRITER, "model": "inherit"}, BODY)
-
-    assert "model:" not in rendered.split("---\n")[1]
-
-
-def test_inherit_survives_a_round_trip_through_parse(tmp_path):
-    path = write_agent(
-        tmp_path, "inheritor", "name: inheritor\ndescription: Use when inheriting.\nmodel: inherit\ntools: [read]"
-    )
-
+@pytest.mark.parametrize("tool", ["claude", "agents", "codex", "copilot"])
+def test_every_target_emits_no_model(tmp_path, tool):
+    # Given a parsed canonical agent with no model key
+    path = write_agent(tmp_path, "plain", "name: plain\ndescription: Use when plain.\ntools: [read]")
     frontmatter, body = gen.parse(path, SKILLS)
 
-    assert gen.render("claude", frontmatter, body).count("model: inherit") == 1
-    assert "model:" not in gen.render("agents", frontmatter, body).split("---\n")[1]
+    # When
+    rendered = gen.render(tool, frontmatter, body)
+
+    # Then the target falls back on the user's subagent default or the session model
+    header = tomllib.loads(rendered) if tool == "codex" else front_matter(rendered)
+
+    assert "model" not in header
+
+
+def test_every_generated_agent_runs_on_the_session_model():
+    sources = sorted(gen.SRC.glob("*.md"))
+
+    assert sources, f"no canonical agents under {gen.SRC}"
+
+    for source in sources:
+        canonical = front_matter(source.read_text(encoding="utf-8"))
+        name = canonical["name"]
+
+        assert "model" not in canonical, f"{source.name} pins a model"
+
+        for tool, (outdir, extension) in gen.TARGETS.items():
+            rendered = (outdir / f"{name}{extension}").read_text(encoding="utf-8")
+            header = tomllib.loads(rendered) if tool == "codex" else front_matter(rendered)
+
+            assert "model" not in header, f"{tool}: {name}"
+
+
+REVIEWER = {
+    "name": "fixture-reviewer",
+    "description": "Use when the user says review this diff.",
+    "tools": ["read", "grep", "glob", "bash"],
+    "readonly": True,
+    "readonly-commands": ["gh pr diff*", "gh pr view*"],
+    "skills": ["markdown-writer"],
+}
+
+REVIEWER_COMMANDS = ["git --no-pager diff*", "git --no-pager log*", "git --no-pager show*", "git --no-pager status*", "gh pr diff*", "gh pr view*"]
+
+
+def read_only_section(text):
+    """The backticked items under the read-only heading, in order."""
+    section = text.split(f"### {gen.READ_ONLY_HEADING}\n", 1)[1].split("\n### ", 1)[0]
+
+    return re.findall(r"^- `([^`]+)`$", section, re.M)
+
+
+@pytest.mark.parametrize(
+    ("frontmatter", "message"),
+    [
+        ("readonly: yes-please\ntools: [read, bash]", "must be true or false"),
+        ("readonly-commands: [\"gh pr view*\"]\ntools: [read, bash]", "needs 'readonly: true'"),
+        ("readonly: true\nreadonly-commands: gh pr view\ntools: [read, bash]", "must be a list"),
+        ("readonly: true\ntools: [read, edit, bash]", "may not list edit"),
+        ("readonly: true\ntools: [read, task, bash]", "may not list task"),
+        ("readonly: true\ntools: [read, grep]", "list bash"),
+        ("readonly: true\nreadonly-commands: [\"*\"]\ntools: [read, bash]", "starts with a wildcard"),
+        ("readonly: true\nreadonly-commands: [\"g* status\"]\ntools: [read, bash]", "starts with a wildcard"),
+        ("readonly: true\nreadonly-commands: [\"gh pr * view\"]\ntools: [read, bash]", "only as its last character"),
+        ("readonly: true\nreadonly-commands: [\"gh pr vie?\"]\ntools: [read, bash]", "only as its last character"),
+        ("readonly: true\nreadonly-commands: [\"gh pr view `x`\"]\ntools: [read, bash]", "holds a backtick"),
+        ("readonly: true\nreadonly-commands: [\"git blame*\"]\ntools: [read, bash]", "runs git without --no-pager"),
+        ("readonly: true\nreadonly-commands: [\"git -P blame*\"]\ntools: [read, bash]", "runs git without --no-pager"),
+    ],
+)
+def test_parse_rejects_a_read_only_marker_it_cannot_honour(tmp_path, frontmatter, message):
+    path = write_agent(tmp_path, "marked", f"name: marked\ndescription: Use when marked.\n{frontmatter}")
+
+    with pytest.raises(SystemExit) as exc:
+        gen.parse(path, SKILLS)
+
+    assert "marked.md" in str(exc.value)
+    assert message in str(exc.value)
+
+
+def test_parse_accepts_a_read_only_marker_with_extra_commands(tmp_path):
+    path = write_agent(
+        tmp_path,
+        "marked",
+        'name: marked\ndescription: Use when marked.\ntools: [read, bash]\nreadonly: true\nreadonly-commands: ["gh pr view*"]',
+    )
+
+    frontmatter, _ = gen.parse(path, SKILLS)
+
+    assert gen.read_only_commands(frontmatter) == ["git --no-pager diff*", "git --no-pager log*", "git --no-pager show*", "git --no-pager status*", "gh pr view*"]
+
+
+def test_read_only_commands_drop_an_extra_that_repeats_the_built_in_list():
+    marked = {**REVIEWER, "readonly-commands": ["git --no-pager diff*", "gh pr view*", "gh pr view*"]}
+
+    assert gen.read_only_commands(marked) == ["git --no-pager diff*", "git --no-pager log*", "git --no-pager show*", "git --no-pager status*", "gh pr view*"]
+
+
+def test_claude_keeps_bash_and_plan_mode_for_a_read_only_agent():
+    rendered = gen.emit_claude(REVIEWER, BODY)
+    head = front_matter(rendered)
+
+    assert head["tools"] == "Read, Grep, Glob, Bash"
+    assert head["permissionMode"] == "plan"
+    assert read_only_section(rendered) == REVIEWER_COMMANDS
+
+
+def test_opencode_denies_edit_and_every_command_but_the_list_for_a_read_only_agent():
+    rendered = gen.emit_opencode(REVIEWER, BODY)
+    permission = front_matter(rendered)["permission"]
+    allowed = [rule for command in REVIEWER_COMMANDS for rule in (command[:-1], command[:-1] + " *")]
+
+    assert permission["edit"] == "deny"
+    assert permission["task"] == "deny"
+    assert list(permission["bash"]) == ["*", *allowed, *gen.OPENCODE_READ_ONLY_DENIES]
+    assert permission["bash"]["*"] == "deny"
+    assert all(permission["bash"][rule] == "allow" for rule in allowed)
+    assert all(permission["bash"][rule] == "deny" for rule in gen.OPENCODE_READ_ONLY_DENIES)
+    assert read_only_section(rendered) == REVIEWER_COMMANDS
+
+
+def opencode_match(text, pattern):
+    """OpenCode 1.19.5 Wildcard.match (packages/opencode/src/util/wildcard.ts), ported line for line."""
+    text, pattern = text.replace("\\", "/"), pattern.replace("\\", "/")
+    escaped = re.sub(r"[.+^${}()|[\]\\]", lambda m: "\\" + m.group(0), pattern).replace("*", ".*").replace("?", ".")
+
+    if escaped.endswith(" .*"):
+        escaped = escaped[:-3] + "( .*)?"
+
+    return re.fullmatch(escaped, text, re.S) is not None
+
+
+def opencode_bash_verdict(bash_map, command):
+    """OpenCode's Permission.evaluate for one bash pattern: the last matching rule wins."""
+    return [action for pattern, action in bash_map.items() if opencode_match(command, pattern)][-1]
+
+
+@pytest.mark.parametrize(
+    ("command", "verdict"),
+    [
+        ("git --no-pager diff", "allow"),
+        ("git --no-pager diff HEAD~1", "allow"),
+        ("git diff", "deny"),
+        ("git log --oneline", "deny"),
+        ("git -P show HEAD", "deny"),
+        ("git --no-pager log --oneline", "allow"),
+        ("gh pr view 12 --comments", "allow"),
+        ("git --no-pager difftool --extcmd=touch", "deny"),
+        ("git --no-pager diff --output=src/app.py", "deny"),
+        ("git --no-pager diff --out=src/app.py", "deny"),
+        ('git --no-pager diff "--output=src/app.py"', "deny"),
+        ("git --no-pager diff ${U:---output=src/app.py}", "deny"),
+        ("git --no-pager diff > src/app.py", "deny"),
+        ("gh pr view 12 --web", "deny"),
+        ("gh pr diff 12 -w", "deny"),
+        ("gh pr view 12 --json title --jq env", "deny"),
+        ("gh pr view 12 --json title -q env", "deny"),
+        ("gh pr view 12 --json title --template x", "deny"),
+        ("gh pr view 12 --json title -t x", "deny"),
+        ("gh pr view 12 --json title,state", "allow"),
+        ("touch made.txt", "deny"),
+        ("git --no-pager log --format=%h%x20%s -U0 HEAD~3..HEAD", "allow"),
+        ("git --no-pager log -L10,20:src/app.py", "allow"),
+        ("gh pr view 12 --repo owner/name", "allow"),
+        ("git --no-pager log '@{u}..HEAD'", "deny"),
+        ("git --no-pager log --format='%h %s'", "deny"),
+        ("git --no-pager diff '--output=src/app.py'", "deny"),
+        ("git --no-pager diff `touch made.txt`", "deny"),
+        ("git --no-pager diff <(touch made.txt)", "deny"),
+        ("git --no-pager diff; touch made.txt", "deny"),
+        ("git --no-pager diff && touch made.txt", "deny"),
+        ("git --no-pager diff | sh", "deny"),
+        ("git --no-pager diff [ab]", "deny"),
+        ("git --no-pager diff\ntouch made.txt", "deny"),
+        ("git --no-pager diff\rtouch made.txt", "deny"),
+    ],
+)
+def test_the_opencode_bash_map_is_no_wider_than_the_gate(command, verdict):
+    bash_map = front_matter(gen.emit_opencode(REVIEWER, BODY))["permission"]["bash"]
+
+    assert opencode_bash_verdict(bash_map, command) == verdict
+
+    if verdict == "allow":
+        assert GATE._read_only_command_blocked(command, False, REVIEWER_COMMANDS) is None
+
+
+def test_opencode_denies_a_read_only_agent_every_tool_outside_the_gates_set():
+    permission = front_matter(gen.emit_opencode(REVIEWER, BODY))["permission"]
+
+    assert all(permission[tool] == "deny" for tool in gen.OPENCODE_READ_ONLY_TOOL_DENIES)
+    assert opencode_match("context7_query-docs", "*_*")
+    assert not any(opencode_match(tool, "*_*") for tool in ("read", "grep", "glob", "list", "bash", "skill"))
+
+
+@pytest.mark.parametrize("pattern", ["*\\*", "*?*"])
+def test_the_gate_refusals_opencode_cannot_express_stay_out_of_the_map(pattern):
+    """Two rules OpenCode would widen to every command, so the plugin gate alone holds a backslash and a `?`."""
+    assert pattern not in gen.OPENCODE_READ_ONLY_DENIES
+    assert opencode_match("git diff src/app.py", pattern)
+
+
+def test_the_opencode_map_denies_a_single_quote_now_the_gate_refuses_one():
+    assert "*'*" in gen.OPENCODE_READ_ONLY_DENIES
+    assert GATE._read_only_command_blocked("git --no-pager log --format='%h'", False, REVIEWER_COMMANDS) is not None
+
+
+def test_codex_carries_the_read_only_list_in_its_instructions():
+    instructions = tomllib.loads(gen.emit_codex(REVIEWER, BODY))["developer_instructions"]
+
+    assert read_only_section(instructions) == REVIEWER_COMMANDS
+
+
+@pytest.mark.parametrize("target", ["claude", "agents", "codex"])
+def test_a_read_only_shell_section_shows_the_unquoted_forms_the_gate_accepts(target):
+    rendered = gen.render(target, REVIEWER, BODY)
+    example = re.search(r"as in `([^`]+)`", rendered).group(1)
+
+    assert "Quote nothing" in rendered and "@{u}" in rendered
+    assert GATE._read_only_command_blocked(example, False, REVIEWER_COMMANDS) is None
+    assert GATE._read_only_command_blocked("git --no-pager log origin/main..HEAD", False, REVIEWER_COMMANDS) is None
+
+
+@pytest.mark.parametrize("target", ["claude", "agents", "codex", "copilot"])
+def test_every_listed_git_command_carries_no_pager(target):
+    """Rule E denies git in any other form, because on a terminal git pipes into a pager whose `!` runs any command."""
+    listed = read_only_section(gen.render(target, REVIEWER, BODY))
+
+    assert [c for c in listed if c.startswith("git ")] == [f"git --no-pager {c}*" for c in ("diff", "log", "show", "status")]
+    assert all(GATE._read_only_command_blocked(c[:-1], False, listed) is None for c in listed if c.startswith("git "))
+
+
+def test_only_codex_tells_the_agent_that_the_gate_denies_gh():
+    """gh has no flag that keeps its pager off, and only the codex format hides the terminal from the gate."""
+    codex = tomllib.loads(gen.emit_codex(REVIEWER, BODY))["developer_instructions"]
+
+    assert "denies every gh command listed below" in codex
+    assert GATE._read_only_command_blocked("gh pr diff 12", False, REVIEWER_COMMANDS, "codex") is not None
+    for target in ("claude", "agents", "copilot"):
+        assert "denies every gh command" not in gen.render(target, REVIEWER, BODY), target
+        assert GATE._read_only_command_blocked("gh pr diff 12", False, REVIEWER_COMMANDS) is None
+
+
+def test_codex_says_nothing_about_gh_to_an_agent_that_lists_none():
+    plain = {**REVIEWER, "readonly-commands": None}
+
+    assert "gh command" not in tomllib.loads(gen.emit_codex(plain, BODY))["developer_instructions"]
+
+
+def test_copilot_drops_the_shell_for_a_read_only_agent():
+    rendered = gen.emit_copilot(REVIEWER, BODY)
+
+    assert front_matter(rendered)["tools"] == ["read", "search"]
+    assert "gets no shell on this agent" in rendered
+    assert read_only_section(rendered) == REVIEWER_COMMANDS
+
+
+def test_an_agent_without_the_marker_gets_no_read_only_section():
+    for tool in gen.TARGETS:
+        assert gen.READ_ONLY_HEADING not in gen.render(tool, WRITER, BODY)
+
+
+@pytest.mark.parametrize("agent", ["code-reviewer", "code-archaeologist"])
+def test_the_shipped_reviewers_are_read_only_with_bash(agent):
+    canonical = front_matter((gen.SRC / f"{agent}.md").read_text(encoding="utf-8"))
+    opencode = front_matter((gen.TARGETS["agents"][0] / f"{agent}.md").read_text(encoding="utf-8"))
+
+    assert canonical["readonly"] is True
+    assert "bash" in canonical["tools"]
+    assert opencode["permission"]["edit"] == "deny"
+    assert opencode["permission"]["bash"]["*"] == "deny"
+
+
+def test_the_skills_block_names_no_project_only_path():
+    block = gen.skills_block(["markdown-writer"])
+
+    assert "Load a skill by name" in block
+    assert "`.agents/skills/` in a project, the global skills folder otherwise" in block
+    assert "from `.agents/skills/` before acting" not in block
+
+
+def test_no_canonical_body_hard_codes_a_skill_path():
+    for source in sorted(gen.SRC.glob("*.md")):
+        assert ".agents/skills/" not in source.read_text(encoding="utf-8"), source.name
+
+
+DESCRIPTION_LIMITS = (300, 400)
+
+
+@pytest.mark.parametrize("source", sorted(gen.SRC.glob("*.md")), ids=lambda path: path.stem)
+def test_every_subagent_description_follows_the_contributing_rule(source):
+    """CONTRIBUTING.md, "Adding a new subagent": third person, 300 to 400 characters, one "Not for" pointer."""
+    description = front_matter(source.read_text(encoding="utf-8"))["description"]
+
+    assert description.startswith("Use when the user "), description
+    assert DESCRIPTION_LIMITS[0] <= len(description) <= DESCRIPTION_LIMITS[1], len(description)
+    assert description.count("Not for ") == 1, description
+    pointer = re.search(r"Not for [^.]+, use `([a-z0-9-]+)`\.$", description)
+
+    assert pointer, description
+    assert pointer.group(1) != source.stem, "the pointer names the agent itself"
+    assert (gen.SRC / f"{pointer.group(1)}.md").is_file(), pointer.group(1)

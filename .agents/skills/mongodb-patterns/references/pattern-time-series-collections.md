@@ -5,6 +5,13 @@ impactDescription: "10-100× lower storage and index overhead with automatic buc
 tags: schema, patterns, time-series, collections, bucketing, ttl, granularity, compression
 ---
 
+### Contents
+
+- [Use Time Series Collections for Time Series Data](#use-time-series-collections-for-time-series-data)
+- [Verify with](#verify-with)
+
+---
+
 ### Use Time Series Collections for Time Series Data
 
 Time series collections are purpose-built for append-only measurements. MongoDB automatically buckets, compresses, and

@@ -24,7 +24,7 @@ Never write a recovery key into `MACHINE.md`, a log, or a chat. Ask the owner on
 
 ### What triggers BitLocker recovery
 
-From Microsoft Learn, "BitLocker recovery overview" (updated 2025-07-29), among the listed events:
+From Microsoft Learn, "BitLocker recovery overview", among the listed events:
 
 1. "Changes to the boot manager"
 2. "Upgrading critical early startup components, such as a BIOS or UEFI firmware upgrade"

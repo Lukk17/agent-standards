@@ -1,19 +1,18 @@
 ---
 name: keycloak-patterns
-description: "Keycloak server administration and the Keycloak.AuthServices .NET client, covering realms and clients, authentication flows and MFA, RBAC and UMA authorization, LDAP federation, hardening and clustering, plus JWT Bearer and OIDC wiring, role policies, resource protection, and the Admin and Protection API SDKs. Use when you say \"set up SSO with Keycloak\", \"create a realm and a confidential client\", \"enable MFA for admins\", \"connect Keycloak to Active Directory\", \"why does my token fail audience validation\", \"add Keycloak auth to my .NET API\", \"require a realm role on this endpoint\", \"call the Keycloak Admin API from C#\", or \"protect this resource with UMA\". Not for Spring Security resource-server configuration, use `springboot-patterns`."
+description: 'Keycloak server administration and the Keycloak.AuthServices .NET client: realms, clients, flows and MFA, RBAC and UMA, LDAP federation and hardening, plus JWT Bearer and OIDC wiring and the Admin SDKs. Use when the user says "set up SSO with Keycloak", "enable MFA for admins" or "add Keycloak auth to my .NET API". Not for Spring Security, use `springboot-patterns`.'
 ---
 
 # Keycloak Patterns
 
 The identity boundary from both sides: the Keycloak server that issues tokens, and the .NET application that consumes
-them. The hub carries the rules that hold on both sides, and each reference carries the depth for one of them.
+them. The hub holds the rules for both sides, and each reference holds the depth for one.
 
 ---
 
-### Baseline
+### Versions
 
-Current as of September 2026: Keycloak 26, and Keycloak.AuthServices 2.x on .NET 8 or newer. Two things follow from
-that pairing and are easy to get wrong:
+Written for Keycloak 26 and Keycloak.AuthServices 2, on .NET 8 or newer. Two things follow from that pairing and are easy to get wrong:
 
 - Keycloak 26 renamed the bootstrap admin variables to `KC_BOOTSTRAP_ADMIN_USERNAME` and
   `KC_BOOTSTRAP_ADMIN_PASSWORD`. The older `KEYCLOAK_ADMIN` pair no longer works.
@@ -31,6 +30,7 @@ that pairing and are easy to get wrong:
 - Enforcing realm or client roles through an authorization policy, or protecting a resource with UMA.
 - Calling the Keycloak Admin REST API or Protection API from C#.
 - Diagnosing a login failure, a rejected token, an audience mismatch, or a session that ends too soon.
+- The user says "create a realm and a confidential client", "connect Keycloak to Active Directory", "why does my token fail audience validation", "require a realm role on this endpoint", "call the Keycloak Admin API from C#" or "protect this resource with UMA".
 
 ---
 
@@ -45,78 +45,53 @@ that pairing and are easy to get wrong:
 
 ---
 
-### Decide which side of the boundary the task is on
+### Rules
 
-Most confusion here comes from fixing the wrong side. A token that is rejected is either minted wrong or validated
-wrong, and the two have different owners. Establish which before touching anything.
+Reasoning per rule: [references/boundary-rules.md](references/boundary-rules.md).
 
-```text
-Server side: the realm, the client registration, the flow, the mappers, the roles, the issuer URL.
-Client side: the audience check, the policy, the claims transformation, the token cache, the SDK call.
-```
-
-The reference map below splits along exactly that line.
-
----
-
-### One realm per application and environment
-
-The master realm exists to administer Keycloak and nothing else. Running an application against it means an
-application compromise is an administrative compromise. Each application and each environment gets its own realm, and
-the client ID the application sends has to match the registration exactly.
-
----
-
-### Assign roles to groups, never directly to users
-
-Direct role assignment produces a permission model nobody can audit a year later. Put users in groups, attach roles to
-groups, and use composite roles when a role genuinely implies others. On the .NET side, name the realm or client role
-in an authorization policy rather than reading a raw claim, so the check survives a claims-mapping change.
-
----
-
-### Never edit a built-in authentication flow in place
-
-Duplicate the Browser flow, add the OTP or WebAuthn authenticator to the copy, set it Required or Conditional on a
-group, and bind the copy to the realm. Editing the built-in flow leaves no clean way back when the change locks
-everyone out, including you.
-
----
-
-### Verify the audience, and keep the issuer public
-
-`verify-token-audience` on means a token minted for another client is rejected rather than accepted by coincidence.
-It only works when the server issues the audience it claims to, which is what `KC_HOSTNAME` and TLS termination are
-for: an issuer pointing at an internal address produces tokens that fail validation everywhere the public URL is
-expected.
-
----
-
-### Keep every secret out of the repository and out of the process list
-
-A client secret belongs in configuration or a secret store, never in a committed `appsettings.json`. Supply server
-runtime configuration through the environment rather than the command line, so nothing lands in a process listing. A
-realm export contains client secrets, so treat the export directory as a secret rather than as a configuration
-artifact to commit.
-
----
-
-### Pin the version on both sides
-
-A Keycloak image tagged `latest` silently upgrades across a major version and can change flow defaults, admin console
-behaviour, and the database schema in one `docker pull`. Pin a major tag such as `26.0`, build once with
-`bin/kc.sh build`, and start with `start --optimized` against PostgreSQL. Pin the NuGet package versions the same way.
+1. Decide first whether a token is minted wrong (server: realm, client, flow, mappers, roles, issuer) or validated wrong (client: audience, policy, claims, token cache, SDK call).
+2. The master realm administers Keycloak only: each application and environment gets its own realm, with an exactly matching client ID.
+3. Roles go to groups, never to users directly, composites only where one role implies another. A .NET policy names the role, never a raw claim.
+4. Never edit a built-in flow: copy the Browser flow, add OTP or WebAuthn, set it Required or Conditional on a group, bind the copy.
+5. Keep `verify-token-audience` on, and set `KC_HOSTNAME` and TLS so the issuer is the public URL.
+6. No client secret in a committed `appsettings.json`, server configuration through the environment, never the command line, and a realm export treated as a secret.
+7. Pin the image to a minor tag, never `latest`, build once with `bin/kc.sh build`, run `start --optimized` on PostgreSQL, and pin NuGet packages too.
 
 ---
 
 ### Which reference to open for which task
 
-Each entry below carries its own reference map, so open the entry for your side of the boundary and let it route you.
+Open the table for your side of the boundary.
 
-| Task | Reference |
+Server side:
+
+| Task | Open |
 | --- | --- |
-| Server administration: realms, clients, flows and MFA, RBAC, LDAP, hardening, clustering, server-side failures | [references/administration.md](references/administration.md) |
-| The .NET client library: JWT Bearer and OIDC setup, role policies, resource protection, Admin and Protection SDKs | [references/dotnet-auth-services.md](references/dotnet-auth-services.md) |
+| Dev mode, optimized production start, object model, SSO client, MFA, LDAP, CLI, defaults | [references/administration.md](references/administration.md) |
+| Realms, users, groups, attributes, sessions | [references/realm-management.md](references/realm-management.md) |
+| OIDC and SAML clients, scopes, mappers, service accounts | [references/client-configuration.md](references/client-configuration.md) |
+| Authentication flows, MFA, identity brokering, social login | [references/authentication-sso.md](references/authentication-sso.md) |
+| Roles, UMA fine-grained authorization, policies | [references/authorization-rbac.md](references/authorization-rbac.md) |
+| LDAP and Active Directory integration, sync, mappers | [references/user-federation.md](references/user-federation.md) |
+| Password policy, brute force, TLS, audit, production checks | [references/security-hardening.md](references/security-hardening.md) |
+| Clustering, database tuning, caching, monitoring, backup | [references/ha-scalability.md](references/ha-scalability.md) |
+| Login failures, token issues, LDAP sync, session problems | [references/administration-troubleshooting.md](references/administration-troubleshooting.md) |
+| Integration examples, token validation on any platform | [references/integration-examples.md](references/integration-examples.md) |
+
+.NET side:
+
+| Task | Open |
+| --- | --- |
+| Packages, minimal Web API setup, the configuration section, quick starts | [references/dotnet-auth-services.md](references/dotnet-auth-services.md) |
+| JWT Bearer and OIDC web app auth, RFC 8414 discovery, the audience mapper | [references/authentication.md](references/authentication.md) |
+| RBAC, role claims transformation, token introspection | [references/authorization.md](references/authorization.md) |
+| Authorization Server, protected resources, policy builder, parameter resolvers | [references/resource-protection.md](references/resource-protection.md) |
+| Admin REST API, hand-written and Kiota clients, token management | [references/admin-sdk.md](references/admin-sdk.md) |
+| UMA Protection API, resource and permission management | [references/protection-api.md](references/protection-api.md) |
+| Organization multi-tenancy and membership requirements | [references/organization-authorization.md](references/organization-authorization.md) |
+| .NET Aspire, project templates, OpenTelemetry | [references/devex.md](references/devex.md) |
+| Every configuration option, naming conventions, adapter file | [references/configuration.md](references/configuration.md) |
+| Recipes, failures, debugging | [references/dotnet-troubleshooting.md](references/dotnet-troubleshooting.md) |
 
 ---
 
@@ -133,7 +108,7 @@ Each entry below carries its own reference map, so open the entry for your side 
 
 ### Checklist
 
-- [ ] The container image is pinned to a major version, and the server runs `start --optimized` against PostgreSQL.
+- [ ] The container image is pinned to a minor version tag, and the server runs `start --optimized` against PostgreSQL.
 - [ ] Bootstrap admin credentials are replaced by a real admin account and removed.
 - [ ] Applications run against their own realm, never master, and every client has exact redirect URIs.
 - [ ] Every client, confidential or public, requires PKCE, and MFA is enforced for administrative accounts through a

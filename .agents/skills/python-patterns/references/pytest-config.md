@@ -5,6 +5,18 @@ debugging session. Open this when setting a project up or when a run needs narro
 
 ---
 
+### Contents
+
+- Configure pytest in pyproject.toml
+- Coverage settings live with coverage, not in addopts
+- Selecting what to run
+- Flags for a debugging loop
+- Prove the suite is order-independent
+- Coverage reports
+- Wire the gate into CI
+
+---
+
 ### Configure pytest in pyproject.toml
 
 One file, one block. A separate `pytest.ini` or `setup.cfg` splits the project's configuration across files that then

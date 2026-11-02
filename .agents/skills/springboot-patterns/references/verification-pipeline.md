@@ -7,6 +7,21 @@ deployment, or when somebody asks whether a change is ready and the answer needs
 
 ---
 
+### Contents
+
+- Run the phases in order and stop at the first hard failure
+- Phase 1: build
+- Phase 2: static analysis
+- Phase 3: tests and coverage
+- Phase 4: security scan
+- Phase 5: format gate
+- Phase 6: diff review
+- Report the result in this template
+- Re-run on a short loop during long sessions
+- Checklist
+
+---
+
 ### Run the phases in order and stop at the first hard failure
 
 Each phase is cheaper than the one after it, so a broken build never burns a Testcontainers startup. Phases 1

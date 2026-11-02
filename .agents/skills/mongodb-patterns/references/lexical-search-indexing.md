@@ -5,8 +5,7 @@ proper field types, analyzers, mappings, and optimization settings.
 
 ---
 
-### Table of Contents
-
+### Contents
 - [Atlas Search Index Definition](#atlas-search-index-definition)
 - [Analyzer Selection](#analyzer-selection)
 - [Field Types](#field-types)

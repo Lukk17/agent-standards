@@ -28,14 +28,13 @@ Three jobs run in parallel, and none of them waits on another:
 - `actionlint` lints the workflow YAML, including a ShellCheck pass over every `run:` block.
 - `validate` runs the JSON and TOML checks, the generator drift check, the markdown linter, the badge-count check, and
   the pytest suite. Every one of those is a command you can run locally, listed further down this page.
-- `sandbox` builds the container image once and then runs the containerised suite three times over: the per-project
-  import assertions, a global install run twice against the container's own home to prove it is idempotent, and a
-  scoped single-agent install to prove it writes only that agent's paths. This is the slow job, several minutes against
-  the other two, which is why it runs alongside them rather than behind them.
+- `sandbox` builds the container image once and then runs the containerised suite three times over: the per-project import assertions, a global install run twice against the container's own home to prove it is idempotent, and a scoped single-agent install to prove it writes only that agent's paths. The per-project run includes the subagent-write section, where each pinned agent binary has a real `python-pro` subagent write a real file and the gate refuse the main thread's own write, against a scripted mock model, as [sandbox-agent/README.md](sandbox-agent/README.md) describes under "A real subagent writes a real file, on every agent". This is the slow job, several minutes against the other two, which is why it runs alongside them rather than behind them.
 
 The scoped check names the individual files the installer writes rather than asserting that `~/.claude` and its
 siblings are absent. Asking each agent command-line tool for its version, which the container does on startup, already
 creates some of those directories, so their absence would be the wrong thing to measure.
+
+The [Plugins](.github/workflows/plugins.yml) workflow is separate from CI and runs on every pull request and every push to `master`. Its `build` job runs [tools/tests/test_gen_plugins.py](tools/tests/test_gen_plugins.py), renders the marketplace and uploads it as a tar file, so the execute bits survive. `validate` installs the pinned Claude Code CLI from npm and runs `claude plugin validate --strict` on the marketplace and on every plugin, apart from the job that renders the tree. `publish` runs only on a push to `master`, after both, checks the tar against the digest `build` recorded, and commits the tree to the `plugins` branch. A newer push to a pull request cancels the older run, while runs on `master` queue, so a publish is never cut short.
 
 Releases stay manual via the [Release](https://github.com/Lukk17/agent-standards/actions/workflows/release.yml)
 workflow. Maintainers only. The version string (e.g. `v0.2.0`) goes in the workflow's input field. That workflow calls
@@ -166,14 +165,18 @@ Drop a folder under `.agents/skills/<name>/` containing a `SKILL.md`. The folder
 match. Pattern-match an existing skill (e.g. [coding-standards](.agents/skills/coding-standards/SKILL.md)) for shape.
 
 The front matter carries `name` and `description` and nothing else, beyond an optional `license` or `compatibility`,
-following the open [Agent Skills specification](https://agentskills.io/specification). Write the description in
-trigger form: what the skill covers, then the phrases a user would actually say, then what it is not for and which
-skill owns that instead. Keep the manifest short and push the depth into a `references/` subdirectory. When a topic
-grows into several near-siblings, make it one hub with a reference file per topic rather than a family of skills
-competing to match the same phrase.
+following the open [Agent Skills specification](https://agentskills.io/specification). Write the description in the third person and in trigger form, at about 300 to 400 characters: what the skill covers, then the phrases a user would actually say ("Use when the user says ..."), then one "Not for" pointer naming the skill that owns the nearest neighbouring job. Keep it short, because every skill description in a project shares one listing budget in Claude Code, which "scales at 1% of the model's context window", and once the listing overflows Claude Code drops the descriptions of the skills used least ([Claude Code skills, "Skill descriptions are cut short"](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)).
+
+Keep the manifest short and push the depth into a `references/` subdirectory. A `SKILL.md` stays at or under 8,000 characters, front matter included, which is about 2,000 tokens, because it loads in full whenever the skill activates and every subagent that lists the skill preloads it on every run, while a reference file loads only when the agent opens it. The manifest keeps the purpose line, "When to activate" and "When not to activate", each rule in a line or two, the checklist, and a routing table that links each reference file with one line on when to open it. Examples, pass and fail code, long explanations and large tables go to `references/`, one level deep. The markdown linter fails a manifest over the limit and names its size. A reference file over 100 lines opens with a Contents list linking its sections, so an agent can jump to the part it needs instead of reading the whole file. When a topic grows into several near-siblings, make it one hub with a reference file per topic rather than a family of skills competing to match the same phrase.
+
+State a version only where it changes the advice, and then only the major version or versions the content is written for, such as "Spring Boot 4", "Java 25" or "Spring Boot 3 and 4". No "current as of", no date, no "the current release is X", no real commit hash or digest, and no new exact patch-version pin: each one is stale the day after it is written, and an agent reads it as fact.
+
+The advice a skill gives a project is the opposite: pin everything. A third-party GitHub Action goes to a full commit SHA with its version tag in a trailing comment, an image to a tag plus its digest, and a dependency through a lock file. Show those pins as placeholders, such as `uses: actions/checkout@<commit-sha> # v5` and `image: <name>:<version-tag>@sha256:<digest>`, with one line naming the command that resolves the value, such as `git ls-remote https://github.com/actions/checkout refs/tags/v5` or `docker buildx imagetools inspect <image>:<tag>`.
+
+The markdown linter fails on the dated and "current version" forms, on a real 40-character SHA after `@` in a `uses:` line, and on a real 64-character `sha256:` digest, in skill files, subagent sources and the generated agent trees.
 
 If the skill is human-facing prose, follow the [markdown-writer](.agents/skills/markdown-writer/SKILL.md) rules
-(em-dash ban, 120-char wrap, divider per section, link every file/folder mention). If the skill is machine-facing
+(em-dash ban, no hard wrap, divider per section, link every file/folder mention). If the skill is machine-facing
 reference for a tool or stack, the voice rules relax, so just stay consistent with the existing skills in that genre.
 
 Renaming or deleting a skill is not a local change. Every canonical subagent that lists it has to be updated in the
@@ -194,14 +197,56 @@ the `.opencode/agents` and `.kilo/agents` symlinks, which point at `.agents/agen
 Commit the canonical source AND the generated outputs, and bump the subagent-count badge in [README.md](README.md)
 and the subagent count on [docs/assets/social-card.svg](docs/assets/social-card.svg).
 
+Write the description the way a skill description is written: third person, 300 to 400 characters, opening with "Use when the user ..." and the phrases a user would actually say, then what the agent does, and ending with exactly one "Not for X, use `agent`" pointer naming the agent that owns the nearest neighbouring job. [tools/tests/test_gen_subagents.py](tools/tests/test_gen_subagents.py) checks the opening, the single pointer and the length on every canonical subagent. The version rule for skills applies here unchanged: the major version or versions the agent targets where it matters, and no date, no "current" claim, no real commit hash or digest and no new exact patch-version pin.
+
+List in `skills` only the three to six skills the role uses on every run. Claude Code preloads every listed skill and "the full skill content is injected, not only the description" ([Claude Code subagents, frontmatter fields](https://code.claude.com/docs/en/sub-agents)), so a long list spends the context window before the agent reads any code. Name a stack skill in the body instead, as one to load when the change touches that stack. Never write a skill path into the body: the generator's Preloaded skills section tells the agent to load a skill by name or to read `<name>/SKILL.md` from the skills folder it was installed with, which is `.agents/skills/` in a project and the global skills folder under [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md). Give the agent every tool its routine needs and no other, and never promise work in the body that needs a tool the `tools` list does not grant. A subagent cannot ask the user mid-run, so it stops and returns the open question to its caller, and it stops and returns the proposed command for anything that changes production, deploys, rolls back, kills, evicts, sends load or attack traffic, or closes or merges a tracker item.
+
 The generator validates before it writes. Every name in the `skills` list needs a folder under `.agents/skills/`,
-every name in `tools` has to be one it knows, and `model` has to be `opus`, `sonnet`, `haiku`, or `inherit`. A
-`tools` list of exactly `read`, `grep` and `glob` also earns `permissionMode: plan` in the Claude Code output, which
-is how a read-only agent stays read-only. `subagents/*.md` is inside the markdown lint scope, so run
+every name in `tools` has to be one it knows, and a `model` key is rejected outright: a subagent never pins a model,
+and no generated file carries one either, so every agent falls back to the user's own subagent default, such as
+`CLAUDE_CODE_SUBAGENT_MODEL` on Claude Code, and otherwise to the model the session is on. A
+`tools` list of exactly `read`, `grep` and `glob` is read-only on every target, because no target grants a tool the list leaves out, and it also earns `permissionMode: plan` in the Claude Code output.
+
+A read-only agent that needs git keeps `bash` and sets `readonly: true`, optionally with `readonly-commands` naming more command patterns, such as `"gh pr diff*"`. Its shell is then limited to `git --no-pager diff*`, `git --no-pager log*`, `git --no-pager show*`, `git --no-pager status*` and those extras, and the generator rejects the marker beside `write`, `edit` or `task`. An extra may carry `*` only as its last character and never in its first word, carries no backtick, spells any git command `git --no-pager ...`, and is dropped when the built-in list already holds it. The gate denies git in any other form on every format, because git on a terminal opens a pager whose `!` runs any command, and on Codex it denies such an agent every gh command, because gh has no flag that keeps its pager off and Codex never shows the hook the terminal. The gate also refuses every character such a command does not need, quotes included, so the agent spells a space in a git format `%x20` and names an upstream branch rather than `@{u}`, and it allows the agent no tool beyond reading, searching, listing and loading a skill, and no shell key such as `workdir` that moves the command ("Hook enforcement" in [docs/agent-compatibility.md](docs/agent-compatibility.md)). What enforces it differs per target:
+
+| Target | What the generator writes | Enforced by |
+| --- | --- | --- |
+| Claude Code | `tools` with `Bash`, `permissionMode: plan`, and a "Read-only shell" body section | Rule E of the preflight gate. Plan mode alone is not enough: Claude Code ignores a subagent's `permissionMode` while the session is in auto, `acceptEdits` or `bypassPermissions` mode ([subagents, "Permission modes"](https://code.claude.com/docs/en/sub-agents#permission-modes)), and a `tools` entry such as `Bash(git log *)` does not narrow the tool. Both let a `touch` through on Claude Code 2.1.314 under an auto-mode session |
+| OpenCode and Kilo Code | `permission` with `edit: deny`, `task: deny`, denies for `webfetch`, `websearch`, `todowrite`, `lsp` and every MCP tool through `"*_*"`, and a `bash` map: `"*": deny` first, each command as an exact rule and a `"command *"` rule, then denies for `*--out*`, `*$*`, `*>*`, gh's `--web`, `-w`, `--jq`, `-q`, `--template` and `-t`, and the characters the gate refuses that a rule can name (`OPENCODE_READ_ONLY_DENIES` in [tools/gen_subagents.py](tools/gen_subagents.py)). OpenCode evaluates permissions "with the last matching rule winning", and its `*` "matches zero or more of any character" ([permissions](https://opencode.ai/docs/permissions/)), so a bare `git diff*` would also allow `git difftool`. A subagent session already gets `task` denied when its definition names no task rule (`tool/task.ts` in OpenCode 1.19.5) | Rule E through the plugin, which is the boundary. The permission map only narrows what reaches it, because a backslash and a `workdir` key cannot be written as a rule there. Kilo Code is assumed to match OpenCode here, not measured |
+| Codex | the body section only, because a Codex agent file has no tool or permission field, and no `sandbox_mode` either: "Other session settings, including `sandbox_mode`, `approval_policy`, `model_provider`, and `mcp_servers`, don't override the parent configuration when placed in a custom agent file" ([subagents, "Custom agents"](https://developers.openai.com/codex/subagents)) | Rule E alone, which finds the definition by the `PreToolUse` payload's `agent_type`. The generated input schema lists `agent_id` and `agent_type` as optional fields at `rust-v0.156.1` ([schema](https://raw.githubusercontent.com/openai/codex/rust-v0.156.1/codex-rs/hooks/schema/generated/pre-tool-use.command.input.schema.json)) and the [hooks page](https://developers.openai.com/codex/hooks) lists neither for `PreToolUse`, but live run 41348146352 measured both on Codex 0.166.0: a call from inside the read-only `code-reviewer` carried the payload keys `agent_id`, `agent_type`, `cwd`, `hook_event_name`, `model`, `permission_mode`, `session_id`, `tool_input`, `tool_name`, `tool_use_id`, `transcript_path` and `turn_id`, with `agent_type` `code-reviewer`. Rule E also denies the agent every gh command here, as above. A payload without the field is allowed |
+| GitHub Copilot | `tools` without `bash` or `powershell`, and the body section telling the agent it has no shell | the missing tool. The `preToolUse` payload names no agent, so the gate cannot hold a Copilot shell to a list, and the agent works from the diff its caller supplies |
+
+`subagents/*.md` is inside the markdown lint scope, so run
 `python tools/check-markdown.py` on the new file too. That check also validates the front matter: it has to parse as
 YAML, `name` has to match the file stem, `description` has to be a non-empty single-line string of at most 1024
 characters, and a description containing a colon followed by a space has to be double-quoted, or GitHub Copilot
 refuses to load it.
+
+---
+
+### Placing a skill or a subagent in the plugin map
+
+Every skill and every subagent also lives in exactly one Claude Code plugin, named in [tools/plugins.yaml](tools/plugins.yaml). Add a new one to the map in the same change that adds it, because the generator refuses a map with a skill or a subagent in no plugin or in two, and [tools/tests/test_gen_plugins.py](tools/tests/test_gen_plugins.py) fails with it. Place it by these rules:
+
+1. A subagent goes into the domain plugin whose work it does, and that plugin lists `core` under `dependencies`.
+2. A skill the subagent preloads goes into the subagent's own plugin, unless subagents in another plugin preload it too. Then it goes into `core`. `core` holds exactly the skills that subagents in two or more plugins preload, so a change to a `skills` list can move a skill into `core` or back out of it, and the check names the move.
+3. A skill no subagent preloads goes into the domain it serves, or into a host group when it administers a machine or a personal tool. A host group carries `category: host` and `defaultEnabled: false`.
+4. A new server in [.mcp.json](.mcp.json) gets its own `mcp-<server>` plugin with `category: mcp`, holding only `mcp: <server>`, and joins the `dependencies` of `mcp-all`. A new domain carries `category: development` and joins the `dependencies` of `all`, which installs `core` and the development domains and never a host group or a server.
+5. Add no plugin for a single subagent with no skill of its own. Put that subagent into the nearest domain instead.
+
+`check_map` in [tools/gen_plugins.py](tools/gen_plugins.py) enforces the mechanical half of these rules, and the tests hold one failing map for each: every skill and subagent in exactly one plugin, exactly the shared skills in `core` and no subagent or dependency there, a preloaded skill in its subagent's own plugin or in `core` with `core` among the dependencies, kebab-case names, the categories `development`, `host`, `mcp` and `bundle` with host groups off and every other plugin on, one `mcp-<server>` plugin per server, a bundle holding dependencies only, and the members of `mcp-all` and `all`. Which domain a subagent works in, which domain or host group a skill serves, and rule 5 are conventions no test can check, so review them by hand.
+
+Check the map and render it into a scratch directory outside the repository. The generator refuses a directory inside it, and writes the tree into a temporary sibling first, so a failed render leaves nothing behind:
+
+```bash
+python -m pytest tools/tests/test_gen_plugins.py
+```
+
+```bash
+python tools/gen_plugins.py ../plugins-out
+```
+
+The rendered tree is never committed on `master`. On every push to `master`, [.github/workflows/plugins.yml](.github/workflows/plugins.yml) renders it, runs `claude plugin validate --strict` on the marketplace and on each plugin, and commits the result to the `plugins` branch.
 
 ---
 

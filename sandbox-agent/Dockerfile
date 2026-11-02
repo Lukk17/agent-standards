@@ -36,8 +36,8 @@ ENV HOME=/home/sandbox \
     SANDBOX_BARE=/work/bare
 
 RUN npm install --global --loglevel=error \
-        @anthropic-ai/claude-code@2.1.250 \
-        @openai/codex@0.150.1 \
+        @anthropic-ai/claude-code@2.1.314 \
+        @openai/codex@0.166.0 \
         opencode-ai@1.18.25 \
         @kilocode/cli@7.5.5 \
         @github/copilot@1.0.103
@@ -50,6 +50,9 @@ RUN npm install --global --prefix /home/sandbox/.opencode-v2 --loglevel=error \
 
 COPY --chown=sandbox:sandbox entrypoint.sh setup-project.sh setup-global.sh verify-project.sh verify-global.sh \
      lib-opencode2.sh opencode2.sh mcp-guard.sh mock-model.mjs /sandbox/
+
+# The subagent-write check and its scripted model, sourced by verify-project.sh.
+COPY --chown=sandbox:sandbox e2e-mock/ /sandbox/e2e-mock/
 
 # docker, npx and uvx are the only launchers the shipped MCP blocks use. The
 # guard stands first on PATH under all three names, so no agent CLI can start

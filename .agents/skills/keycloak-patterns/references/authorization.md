@@ -1,5 +1,14 @@
 # Authorization (RBAC)
 
+Contents:
+
+- [Setup](#setup)
+- [Require Realm Roles](#require-realm-roles)
+- [Require Resource (Client) Roles](#require-resource-client-roles)
+- [Keycloak Role Claims Transformation](#keycloak-role-claims-transformation)
+- [JWT Token Structure](#jwt-token-structure)
+- [Token Introspection (Lightweight Access Tokens)](#token-introspection-lightweight-access-tokens)
+
 Role-Based Access Control using Keycloak realm roles and client (resource) roles.
 
 ---

@@ -1,10 +1,19 @@
 # Reaching the ONT Page from the LAN
 
+Contents:
+
+- [Why the page cannot be reached](#why-the-page-cannot-be-reached)
+- [Find the right interface and a free address](#find-the-right-interface-and-a-free-address)
+- [Try it until the next reboot, stock and Merlin alike](#try-it-until-the-next-reboot-stock-and-merlin-alike)
+- [What undoes it by itself](#what-undoes-it-by-itself)
+- [Keep it on Asuswrt-Merlin](#keep-it-on-asuswrt-merlin)
+- [What the wiki suggests instead, and why it does not fit PPPoE](#what-the-wiki-suggests-instead-and-why-it-does-not-fit-pppoe)
+
 Read this before trying to open the management page of the ISP's optical network terminal (ONT), or of a modem, that sits on the router's WAN port while the WAN runs PPPoE. Every step that adds an address, a firewall rule or a file is a change. The agent proposes it with the worst case and the undo command, and runs it only after the owner says yes to that exact step, as rules 2 and 3 in [SKILL.md](../SKILL.md) say.
 
-Sources, fetched on 2026-10-23: the Asuswrt-Merlin wiki at https://github.com/RMerl/asuswrt-merlin.ng/wiki, pages "User scripts", "Access modem Web UI on WAN port (no script)" and "Jffs", the last two last changed 2024-12-18 and the wiki at its commit of 2026-10-11, the Asuswrt-Merlin source at tag `3006.102.9` (`release/src/router/rc/wan.c`, `rc/services.c` and `www/Advanced_System_Content.asp`), and the stock firmware image for the GT-AX6000, version 3.0.0.6.102_37437, read in a throwaway container.
+Sources: the Asuswrt-Merlin wiki at https://github.com/RMerl/asuswrt-merlin.ng/wiki, pages "User scripts", "Access modem Web UI on WAN port (no script)" and "Jffs", the Asuswrt-Merlin 3006.102 source (`release/src/router/rc/wan.c`, `rc/services.c` and `www/Advanced_System_Content.asp`), and a 3.0.0.6.102 stock firmware image for the GT-AX6000, read in a throwaway container.
 
-VERIFIED on 2026-10-23 on a GT-AX6000 with stock firmware build 386, PPPoE on a VLAN: a ping from the router to the ONT's management address got 0 answers of 3, the VLAN interface carried only a `169.254.x.x/16` address, and no address in the ONT's subnet showed on the WAN side. Every command below is UNVERIFIED.
+VERIFIED on a GT-AX6000 with stock firmware build 386, PPPoE on a VLAN: a ping from the router to the ONT's management address got 0 answers of 3, the VLAN interface carried only a `169.254.x.x/16` address, and no address in the ONT's subnet showed on the WAN side. Every command below is UNVERIFIED.
 
 ---
 
@@ -99,7 +108,7 @@ So after any of those, the page stops answering until the steps run again.
 
 ### Keep it on Asuswrt-Merlin
 
-Asuswrt-Merlin runs shell scripts from `/jffs/scripts/` on events. The wiki page "User scripts" says: "Support for these scripts must be enabled, under Administration -> System on the webui." In 3006.102.9 that row is named "Enable JFFS custom scripts and configs", nvram `jffs2_scripts`, default No. Turning it on is itself a change for the owner.
+Asuswrt-Merlin runs shell scripts from `/jffs/scripts/` on events. The wiki page "User scripts" says: "Support for these scripts must be enabled, under Administration -> System on the webui." In Asuswrt-Merlin 3006.102 that row is named "Enable JFFS custom scripts and configs", nvram `jffs2_scripts`, default No. Turning it on is itself a change for the owner.
 
 Which hooks fit, read in the wiki and in the source:
 

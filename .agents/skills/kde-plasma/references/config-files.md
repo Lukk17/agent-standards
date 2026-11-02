@@ -1,5 +1,13 @@
 # Configuration Files
 
+Contents:
+
+- [Read](#read)
+- [Write](#write)
+- [Which file holds what](#which-file-holds-what)
+- [Reload after a change](#reload-after-a-change)
+- [Editing the appletsrc by hand](#editing-the-appletsrc-by-hand)
+
 Everything lives under `~/.config`. Read with `kreadconfig6`, write with `kwriteconfig6`. The rules live in [SKILL.md](../SKILL.md).
 
 Both tools take `--file`, `--group` (repeat it for a nested group) and `--key`. Verified from `--help` on one host: neither has a `--version` flag, `kwriteconfig6` also has `--type bool`, `--delete` and `--notify`, and `kreadconfig6` has `--default`, `--dump` and `--include-globals`.

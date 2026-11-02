@@ -1,6 +1,6 @@
 # Paths and Environment
 
-PATH duplicates, entries that do not exist, shadowed binaries, which startup file sets what, and whether each variable and each zsh file lives where it belongs. The rules live in [SKILL.md](../SKILL.md). Linux commands below were executed read-only on CachyOS with zsh and bash on 2026-10-13, and the placement checks on 2026-10-15 with zsh 5.9.2, systemd 262 and Plasma, macOS and Windows commands are UNVERIFIED. List variable names and paths only, never the value of a variable that might hold a secret.
+PATH duplicates, entries that do not exist, shadowed binaries, which startup file sets what, and whether each variable and each zsh file lives where it belongs. The rules live in [SKILL.md](../SKILL.md). Linux commands below were executed read-only on CachyOS with zsh and bash, and the placement checks with zsh 5.9.2, systemd 262 and Plasma, macOS and Windows commands are UNVERIFIED. List variable names and paths only, never the value of a variable that might hold a secret.
 
 ---
 
@@ -72,7 +72,7 @@ This is a Linux check with a systemd user session and zsh as the login shell. On
 | `.zshrc`, `.zprofile`, `.zlogin`, `.zlogout`, history and the completion dump | `$ZDOTDIR`, set to `~/.config/zsh` | zsh manual: "If ZDOTDIR is unset, HOME is used instead" |
 | The only zsh file in the home directory | `~/.zshenv`, whose one job there is to set `ZDOTDIR` before zsh looks for the rest | the same page: `.zshenv` is read before every other user file |
 
-Sources, fetched 2026-10-15: <https://zsh.sourceforge.io/Doc/Release/Files.html>, <https://zsh.sourceforge.io/Doc/Release/Invocation.html> and `man 5 environment.d` from systemd 262. Commands below print names and paths only, never a value.
+Sources: <https://zsh.sourceforge.io/Doc/Release/Files.html>, <https://zsh.sourceforge.io/Doc/Release/Invocation.html> and `man 5 environment.d` from systemd 262. Commands below print names and paths only, never a value.
 
 | Check | Command | Wrong looks like | Status |
 |---|---|---|---|

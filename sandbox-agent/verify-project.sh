@@ -3,8 +3,11 @@
 # Script: verify-project.sh
 # Description: Asserts that every supported agent discovers the shared skills,
 #              its own subagent tree, its preflight wiring and its MCP servers
-#              in the imported throwaway project, and that the preflight gate
-#              really denies what it claims to deny.
+#              in the imported throwaway project, that the preflight gate
+#              really denies what it claims to deny, and that on every agent a
+#              real python-pro subagent writes a real file while the gate
+#              denies the main thread's own write, against a scripted mock
+#              model (e2e-mock/subagent-write.sh).
 # Usage: verify-project.sh
 # Environment:
 #   SANDBOX_PROJECT     Throwaway project directory. Default /work/project.
@@ -32,6 +35,8 @@ readonly CLI_OUTPUT
 
 # shellcheck source=lib-opencode2.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib-opencode2.sh"
+# shellcheck source=e2e-mock/subagent-write.sh
+source "$(dirname "${BASH_SOURCE[0]}")/e2e-mock/subagent-write.sh"
 
 PASSES=0
 FAILURES=0
@@ -41,12 +46,18 @@ SUBAGENTS=()
 MCP_JSON_SERVERS=()
 CODEX_MCP_SERVERS=()
 OPENCODE_MCP_SERVERS=()
+OPENCODE_V1_PROJECT=""
 
 cleanup() {
   local exit_code=$?
 
   rm -f "$CLI_OUTPUT"
   opencode2_end
+  e2e_end
+
+  if [[ -n "$OPENCODE_V1_PROJECT" ]]; then
+    rm -rf "$OPENCODE_V1_PROJECT"
+  fi
 
   exit "$exit_code"
 }
@@ -225,10 +236,11 @@ PY
 
 # Runs an agent CLI inside the project with stdout and stderr captured into
 # CLI_OUTPUT. Returns the exit status the CLI reported.
+# Runs an agent CLI in the project, or in CLI_DIR when the caller sets it.
 capture_cli() {
   local status=0
 
-  (cd "$PROJECT" && timeout "$CLI_TIMEOUT" "$@" </dev/null >"$CLI_OUTPUT" 2>&1) || status=$?
+  (cd "${CLI_DIR:-$PROJECT}" && timeout "$CLI_TIMEOUT" "$@" </dev/null >"$CLI_OUTPUT" 2>&1) || status=$?
 
   return "$status"
 }
@@ -411,8 +423,25 @@ verify_codex() {
     < <(printf '%s\n' "${CODEX_MCP_SERVERS[@]}")
 }
 
+# The imported project as an OpenCode 1.x user runs it, with
+# .opencode/opencode.json.v1 copied over the shipped 2.x default. Built once,
+# MCP block included, so the 1.x listings see every imported server.
+opencode_v1_project() {
+  if [[ -z "$OPENCODE_V1_PROJECT" ]]; then
+    OPENCODE_V1_PROJECT="$(mktemp -d -t sandbox-opencode1-project-XXXXXXXX)"
+    cp -a "${PROJECT}/." "${OPENCODE_V1_PROJECT}/"
+    opencode_use_v1_backstop "$OPENCODE_V1_PROJECT"
+  fi
+}
+
 verify_opencode() {
   section "OpenCode"
+
+  assert_file "the native edit backstop landed in its 2.x form" ".opencode/opencode.json"
+  assert_file "the OpenCode 1.x form of the backstop landed beside it" ".opencode/opencode.json.v1"
+
+  opencode_v1_project
+  note "OpenCode 1.x runs in ${OPENCODE_V1_PROJECT}, a copy of the project with .opencode/opencode.json.v1 in place, as a 1.x user sets it up."
 
   assert_file "skills are discoverable in the directory OpenCode reads natively" \
     ".agents/skills/${SAMPLE_SKILL}/SKILL.md"
@@ -423,9 +452,9 @@ verify_opencode() {
   assert_json "MCP servers are present in the file OpenCode reads" "opencode.json" \
     '(.mcp | length) > 0'
 
-  assert_cli_lists "OpenCode itself lists every imported subagent" opencode agent list \
+  CLI_DIR="$OPENCODE_V1_PROJECT" assert_cli_lists "OpenCode itself lists every imported subagent" opencode agent list \
     < <(printf '%s\n' "${SUBAGENTS[@]}")
-  assert_cli_lists "OpenCode itself lists the project MCP servers" opencode mcp list \
+  CLI_DIR="$OPENCODE_V1_PROJECT" assert_cli_lists "OpenCode itself lists the project MCP servers" opencode mcp list \
     < <(printf '%s\n' "${OPENCODE_MCP_SERVERS[@]}")
 }
 
@@ -445,7 +474,8 @@ verify_opencode_v2() {
 
   note "2.x runs in a copy of the project with no MCP block, against a mock model provider."
 
-  verify_opencode2 "$probe" "${probe}/.agents/plugin" "$PROJECT"
+  opencode_v1_project
+  verify_opencode2 "$probe" "${probe}/.agents/plugin" "$OPENCODE_V1_PROJECT"
 
   rm -rf "$probe"
 }
@@ -470,7 +500,7 @@ verify_kilo() {
 # block, against the mock model, so subagent placement is measured on the
 # runtimes themselves rather than on a payload the suite made up.
 verify_reply_style() {
-  local probe="" start=""
+  local probe="" start="" probe_v1="" start_v1=""
 
   section "OpenCode 1.x and Kilo Code reply style"
 
@@ -484,22 +514,29 @@ verify_reply_style() {
   rm -f "${probe}/.mcp.json"
   jq 'del(.mcp)' "${PROJECT}/opencode.json" >"${probe}/opencode.json"
 
-  note "1.x and Kilo Code run in a copy of the project with no MCP block, against a mock model provider."
+  probe_v1="$(mktemp -d -t sandbox-reply-style-project-v1-XXXXXXXX)"
+  cp -a "${probe}/." "${probe_v1}/"
+  opencode_use_v1_backstop "$probe_v1"
 
-  verify_reply_style_v1 "OpenCode 1.x" opencode OPENCODE_CONFIG_CONTENT "$probe"
+  note "1.x and Kilo Code run in a copy of the project with no MCP block, against a mock model provider. 1.x gets its own copy with .opencode/opencode.json.v1 in place."
+
+  verify_reply_style_v1 "OpenCode 1.x" opencode OPENCODE_CONFIG_CONTENT "$probe_v1"
   verify_reply_style_v1 "Kilo Code" kilocode KILO_CONFIG_CONTENT "$probe"
 
   start="$(mktemp -d -t sandbox-start-folder-project-XXXXXXXX)"
   cp -a "${probe}/." "${start}/"
   rm -rf "${start}/.git"
+  start_v1="$(mktemp -d -t sandbox-start-folder-project-v1-XXXXXXXX)"
+  cp -a "${start}/." "${start_v1}/"
+  opencode_use_v1_backstop "$start_v1"
 
-  note "the same copy without its .git, so the runtimes hand the plugin / as the worktree and the start folder has to be the project."
+  note "the same copies without their .git, so the runtimes hand the plugin / as the worktree and the start folder has to be the project."
 
-  verify_start_folder_v1 "OpenCode 1.x" opencode OPENCODE_CONFIG_CONTENT "$start"
+  verify_start_folder_v1 "OpenCode 1.x" opencode OPENCODE_CONFIG_CONTENT "$start_v1"
   verify_start_folder_v1 "Kilo Code" kilocode KILO_CONFIG_CONTENT "$start"
 
   opencode2_end
-  rm -rf "$probe" "$start"
+  rm -rf "$probe" "$start" "$probe_v1" "$start_v1"
 }
 
 verify_copilot() {
@@ -539,6 +576,15 @@ verify_copilot() {
     ".github/agents/*.agent.md"
   assert_cli_lists "Copilot itself lists the project MCP servers" copilot mcp list \
     < <(printf '%s\n' "${MCP_JSON_SERVERS[@]}")
+}
+
+# Every agent binary runs a real main thread and a real python-pro subagent in
+# its own copy of the project, against the scripted mock model, after every
+# other mock section has stopped its server, because they share the port.
+verify_subagent_writes() {
+  section "A real subagent writes a real file, every agent, scripted mock model"
+
+  verify_subagent_write "$PROJECT"
 }
 
 # Feeds one hook payload to the gate and checks the decision it returns.
@@ -590,7 +636,11 @@ verify_gate_behaviour() {
   local main_source_edit='{"tool_name":"Edit","tool_input":{"file_path":"src/app.py"},"is_subagent":false}'
   local main_doc_edit='{"tool_name":"Edit","tool_input":{"file_path":"README.md"}}'
   local main_shell_write='{"tool_name":"Bash","tool_input":{"command":"echo x > src/app.py"}}'
-  local specialist='{"agent_id":"a1","agent_type":"code-reviewer","tool_name":"Edit","tool_input":{"file_path":"src/app.py"}}'
+  local specialist='{"agent_id":"a1","agent_type":"python-pro","tool_name":"Edit","tool_input":{"file_path":"src/app.py"}}'
+  local reviewer_edit='{"agent_id":"a1","agent_type":"code-reviewer","tool_name":"Edit","tool_input":{"file_path":"src/app.py"}}'
+  local reviewer_diff='{"agent_id":"a1","agent_type":"code-reviewer","tool_name":"Bash","tool_input":{"command":"git --no-pager diff"}}'
+  local reviewer_paged='{"agent_id":"a1","agent_type":"code-reviewer","tool_name":"Bash","tool_input":{"command":"git diff"}}'
+  local reviewer_gh='{"agent_id":"a1","agent_type":"code-reviewer","tool_name":"Bash","tool_input":{"command":"gh pr diff 12"}}'
   local generalist='{"agent_id":"a1","agent_type":"sandbox-no-skills-probe","tool_name":"Edit","tool_input":{"file_path":"src/app.py"}}'
 
   section "Preflight gate behaviour"
@@ -607,6 +657,13 @@ verify_gate_behaviour() {
   assert_gate "rule A denies a main-thread markdown edit too, now that it covers any write inside the working tree" claude deny "$main_doc_edit"
   assert_gate "rule A denies a shell redirect into a source file" claude deny "$main_shell_write"
   assert_gate "a subagent that declares skills is allowed" claude allow "$specialist"
+  assert_gate "rule E denies the read-only code-reviewer an edit" claude deny "$reviewer_edit"
+  for format in claude codex; do
+    assert_gate "rule E allows the read-only code-reviewer a listed git --no-pager diff" "$format" allow "$reviewer_diff"
+    assert_gate "rule E denies the read-only code-reviewer a bare git diff, which can open a pager" "$format" deny "$reviewer_paged"
+  done
+  assert_gate "rule E allows the read-only code-reviewer a listed gh pr diff where the gate sees the terminal" claude allow "$reviewer_gh"
+  assert_gate "rule E denies the read-only code-reviewer every gh command on Codex, whose terminal the gate never sees" codex deny "$reviewer_gh"
 
   write_probe_agent
   assert_gate "rule B denies a subagent that declares no skills" claude deny "$generalist"
@@ -638,6 +695,7 @@ main() {
   verify_reply_style
   verify_opencode_v2
   verify_copilot
+  verify_subagent_writes
   verify_gate_behaviour
   summary
 }

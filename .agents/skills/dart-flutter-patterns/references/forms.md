@@ -4,6 +4,17 @@ Building a `Form`, validating several fields together, gating the submit, and te
 
 ---
 
+### Contents
+
+- Form architecture
+- Field validation
+- Submit gating
+- A validated multi-field form
+- Testing a form
+- Checklist
+
+---
+
 ### Form architecture
 
 - Host the `Form` in a `StatefulWidget`. It owns state that survives rebuilds.

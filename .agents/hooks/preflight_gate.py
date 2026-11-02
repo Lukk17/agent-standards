@@ -2,7 +2,7 @@
 """Shared preflight gate for every agent surface.
 
 Reads one hook payload as JSON on stdin and decides whether a tool call may
-proceed. Three rules:
+proceed. Five rules:
 
 A. The main thread may not write any file. It delegates the change to a
    subagent that owns the area. This covers the edit tools and the shell: a
@@ -29,9 +29,36 @@ D. The main thread may not run a script or a module, because the gate cannot
    MAIN_THREAD_ALLOWLIST, or of the project's own ALLOWLIST_FILE, in full.
    Inline code (python -c, node -e) is not a script run: the inline-code
    reader below judges it under Rule A instead.
+E. A subagent whose own definition carries a READ_ONLY_HEADING section may
+   call only the read tools in READ_ONLY_READ_TOOLS and a shell not started
+   on a terminal, and that shell may run only the commands the section
+   lists. The call may carry no tool_input key outside READ_ONLY_SHELL_KEYS
+   and no working directory outside the project, missing, or in or below a
+   folder that holds a .git or any entry named HEAD, which git may take for a
+   repository of its own. A linked worktree of the project's own repository
+   is the one .git that passes.
+   A command is first held to READ_ONLY_CHARACTERS, with `2>/dev/null` and
+   `2>&1` the only redirects, so no quote, escape, expansion, separator or
+   pipe reaches the lexer. Every resulting command has to match a listed
+   pattern, and no word, nor any comma-separated part of one, may hold a `$`,
+   a backslash, a brace expansion or a git output option, open with `@` or
+   with a zsh negated glob, or be PowerShell's `--%`. A git command has to
+   open with `git --no-pager`, whatever the list says, because git on a
+   terminal pipes its output into a pager whose `!` runs any command. gh may
+   not open a browser, name a URL, take a repository other than OWNER/REPO,
+   or run a --jq or --template expression, and on the codex format no gh
+   command runs at all, because gh has no flag that keeps its pager off and
+   Codex can type into a terminal through write_stdin, which the hook never
+   sees (READ_ONLY_PAGER_REASON). Any exception while
+   lexing or matching denies, the one rule where a parse failure does. The
+   rule applies when any definition the name resolves to is read-only, a
+   plugin's installed copy included, and an unreadable one counts as
+   read-only. The generator writes that section from the canonical
+   `readonly: true` marker into every format, so one rule covers them all.
 
-Every rule above denies only once the caller is positively identified as the
-main thread. A format whose payload carries nothing that could identify the
+Rules A, C and D deny only once the caller is positively identified as the
+main thread, and rules B and E only once it is positively identified as a
+subagent. A format whose payload carries nothing that could identify the
 caller (currently Copilot, and a runner envelope with no is_subagent, see
 _caller_identity) is left ungated rather than guessed at: denying blind risks
 blocking a legitimate subagent as often as it blocks the main thread, and an
@@ -57,7 +84,11 @@ cannot resolve fails toward True, which denies rather than allows, because
 the whole point of those helpers is to decide what Rule A protects. A write
 the gate recognises but cannot place (nesting past _MAX_NESTING, code piped
 from a program whose output it cannot read, an unreadable sourced file, a
-process spawned from inline code) is treated the same way and denies.
+process spawned from inline code) is treated the same way and denies, and
+so is a command Rule E cannot lex, because a read-only agent's shell is held
+to a list and a command the gate cannot read matches nothing on it, and a
+working directory Rule E cannot resolve, because the gate cannot tell which
+repository a command run there would read.
 
 Rule A protects a project, not the whole filesystem, and the boundary is
 every root in _roots(): the process working directory, the project root the
@@ -84,6 +115,7 @@ import io
 import json
 import os
 import re
+import stat
 import sys
 from pathlib import Path, PurePosixPath
 from typing import AbstractSet, Any, Callable, Dict, FrozenSet, List, NamedTuple, Optional, Set, TextIO, Tuple
@@ -189,6 +221,24 @@ GLOBAL_AGENT_TREES = (
     AgentTree(".config/copilot/agents", ".agent.md"),
 )
 
+# The trees each --format reads its own definitions from, looked at before
+# every other tree, so Rule B judges the file the calling agent actually runs.
+FORMAT_AGENT_TREES = {
+    "claude": (".claude/agents",),
+    "codex": (".codex/agents", ".config/codex/agents"),
+    "copilot": (".github/agents", ".config/copilot/agents"),
+    "plain": (".agents/agents", ".opencode/agents", ".kilo/agents", ".config/agents/agents"),
+}
+
+# Claude Code names a plugin's subagent `<plugin>:<name>` and installs the
+# plugin under its configuration directory, CLAUDE_CONFIG_DIR or ~/.claude, at
+# plugins/cache/<marketplace>/<plugin>/<version>/agents/<name>.md (measured
+# on Claude Code 2.1.314 with a fake HOME and with CLAUDE_CONFIG_DIR set).
+CLAUDE_CONFIG_ENVIRONMENT = "CLAUDE_CONFIG_DIR"
+CLAUDE_HOME_DIRECTORY = ".claude"
+CLAUDE_PLUGIN_CACHE = ("plugins", "cache")
+PLUGIN_AGENT_SEPARATOR = ":"
+
 FRONT_MATTER_SKILLS_RE = re.compile(r"^skills:[ \t]*(.*)$")
 SKILLS_HEADING_RE = re.compile(r"^#{1,6}[ \t]+.*\bskills\b", re.IGNORECASE)
 LIST_ITEM_RE = re.compile(r"^[ \t]*[-*][ \t]+\S")
@@ -203,6 +253,119 @@ RULE_B_REASON = (
     "PREFLIGHT: subagent '{agent}' declares no skills in its definition, so it is not "
     "a specialist. Spawn a subagent that declares the skills the task needs and "
     "delegate the work to it."
+)
+
+RULE_E_REASON = (
+    "PREFLIGHT: subagent '{agent}' is read-only. It may only read, search and list files, "
+    "and run the shell commands its definition lists under '{heading}': {allowed}. "
+    "Return anything else to the caller as a proposed command. Blocked: {blocked}"
+)
+
+# Rule E reads its allowlist from the definition text itself, the way Rule B
+# reads the skills list, so every generated format carries it the same way:
+# the Claude, OpenCode and Copilot bodies, and the Codex developer_instructions.
+READ_ONLY_HEADING = "Read-only shell"
+READ_ONLY_HEADING_RE = re.compile(r"^#{1,6}[ \t]+" + re.escape(READ_ONLY_HEADING) + r"[ \t]*$", re.IGNORECASE)
+READ_ONLY_ITEM_RE = re.compile(r"^[ \t]*[-*][ \t]+`([^`]+)`[ \t]*$")
+# A fence opening or closing a code block, inside which a heading is example
+# text rather than the generator's section.
+READ_ONLY_FENCE_RE = re.compile(r"^ {0,3}(?:`{3,}|~{3,})")
+# A word bash would still expand into something else: brace expansion turns
+# `{--output=x,}` into `--output=x`.
+READ_ONLY_BRACE_RE = re.compile(r"\{[^{}]*(?:,|\.\.)[^{}]*\}")
+# The tools that start another agent. A read-only agent may not hand its work
+# to one that can write.
+READ_ONLY_SPAWN_TOOLS = frozenset({"task", "agent"})
+# gh opens a browser with --web or its short form -w, alone, in a cluster, or
+# handed a value, as pflag reads `-w=true` and `-cw=1` too.
+READ_ONLY_GH_WEB_RE = re.compile(r"^(?:--web(?:=.*)?|-[A-Za-z]*w(?:[A-Za-z]*|=.*))$")
+# gh's -R and --repo take [HOST/]OWNER/REPO, and a host part, like a URL
+# argument, sends the request to a server the caller names
+# (https://cli.github.com/manual/gh_pr_view). A read-only agent may hand them
+# OWNER/REPO and nothing else, which also refuses an scp-style git@host:o/r.
+READ_ONLY_GH_REPO_SHORT_RE = re.compile(r"^-[A-Za-z]*R(?P<value>.*)$")
+READ_ONLY_GH_REPO_VALUE_RE = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
+# gh runs a caller's expression with --jq or -q, and --template or -t, alone,
+# in a cluster, or handed a value. go-gh compiles a jq expression with
+# gojq.WithEnvironLoader(os.Environ) (pkg/jq/jq.go at go-gh v2.13.0, which gh
+# 2.89.0 pins), so `env` and `$ENV` print the whole environment. A template
+# has no environment function, and is denied with it so that neither flag
+# carries code. A cluster stops at -R, whose value follows it, so
+# `-Rowner/test` stays a repository.
+READ_ONLY_GH_EXPRESSION_RE = re.compile(r"^(?:--(?:jq|template)(?:=.*)?|-[A-QS-Za-z]*[qt].*)$")
+# A pager is a shell: `less` runs any command typed after `!`. git pipes its
+# output into one on a terminal unless told otherwise, and `--no-pager` sets
+# use_pager to 0 before the subcommand's own pager choice is read, so neither
+# pager.<cmd> nor core.pager can start one (handle_options and
+# commit_pager_choice in git.c at v2.43.0; measured on git 2.43.0 under a
+# pseudo-terminal: `git log` and `git show` started GIT_PAGER, `git --no-pager
+# log`, `diff`, `show` and `status` did not, pager.status=true included).
+# Rule E therefore takes git only as `git --no-pager <subcommand>`, on every
+# format, so one spelling holds everywhere. The long form alone is accepted.
+READ_ONLY_GIT_NO_PAGER = "--no-pager"
+# gh starts $GH_PAGER, its `pager` setting or $PAGER whenever stdout is a
+# terminal, `pr view --json` included, and offers no flag that turns it off
+# (`gh help environment` and StartPager in pkg/iostreams/iostreams.go at gh
+# v2.89.0). Only an environment prefix or a written config would, and Rule E
+# refuses both. Claude Code, OpenCode and Kilo Code hand the gate the call's
+# `tty` key, which Rule E denies, but Codex hands its hook the command alone
+# and its write_stdin types into a terminal without a PreToolUse call, so on
+# the codex format a read-only agent runs no gh command at all.
+READ_ONLY_PAGER_FORMATS = frozenset({"codex"})
+READ_ONLY_PAGER_REASON = {
+    "git": "{words} (run git as git --no-pager <subcommand>: on a terminal git pipes its output into a pager, whose ! runs any command)",
+    "gh": (
+        "{words} (gh has no flag that keeps its pager off, and Codex can type into a terminal "
+        "the gate never sees, so a read-only agent on Codex runs no gh command: return it to the caller)"
+    ),
+}
+# Rule E reads a command only once every character in it is one a listed
+# read-only command needs, so no quote, escape, expansion, glob, brace,
+# separator, redirect or non-ASCII character reaches the lexer at all: a word
+# character, a blank, a newline between commands, and the two literal stream
+# redirects below. No quote is accepted either, because a quoted span is read
+# differently by every shell an agent may run, so a git format string spells
+# a space %x20 and a newline %n instead.
+READ_ONLY_CHARACTERS = frozenset(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 \t._/:=,@^~%+-\n"
+)
+READ_ONLY_STREAM_REDIRECTS = ("2>/dev/null", "2>&1")
+READ_ONLY_BLANKS = " \t\n"
+# PowerShell's stop-parsing token, after which the rest of the line reaches the
+# program unparsed but with cmd-style %VAR% expansion.
+READ_ONLY_STOP_PARSING = "--%"
+# The tool_input keys a read-only shell call may carry. Any other key can move
+# the command or change the shell that runs it, which no check of the command
+# text sees: `workdir` on OpenCode 1.19.5 and Kilo Code 7.8.18, and `workdir`,
+# `shell` and `login` on Codex's exec_command. Claude Code 2.1.314 sends
+# command, description, timeout and run_in_background, OpenCode and Kilo Code
+# command, description and timeout, and Codex's hook payload command alone.
+READ_ONLY_SHELL_KEYS = frozenset(
+    {"command", "cmd", "description", "timeout", "yield_time_ms", "max_output_tokens", "run_in_background"}
+)
+# Keys a read-only shell call may carry only when they are null or false: a
+# terminal, whose later input arrives through a tool call carrying no command
+# (Codex's write_stdin), and Claude Code's sandbox override.
+READ_ONLY_SHELL_OFF_KEYS = frozenset({"tty", "dangerouslyDisableSandbox"})
+# The only tools a read-only subagent may call besides its shell: reading,
+# searching and listing files, and loading a skill's own text, under each
+# agent's name for them. Everything else denies, an MCP tool included.
+READ_ONLY_READ_TOOLS = frozenset(
+    {
+        "read",
+        "grep",
+        "glob",
+        "list",
+        "ls",
+        "view",
+        "search",
+        "glob_files",
+        "list_files",
+        "read_file",
+        "list_dir",
+        "grep_files",
+        "skill",
+    }
 )
 
 RULE_C_REASON = (
@@ -319,7 +482,7 @@ def _tool_input(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 # One of "subagent", "main_thread", or "unknown". "unknown" means this
 # format's payload carries nothing that could tell a subagent from the main
-# thread, so neither rule A, B nor C may fire: a positive identification is
+# thread, so none of the five rules may fire: a positive identification is
 # required to deny, per the module docstring.
 _SUBAGENT = "subagent"
 _MAIN_THREAD = "main_thread"
@@ -779,6 +942,9 @@ _MAX_SCRIPT_BYTES = 1 << 20
 # reaches a command line, so it cannot collide with real output.
 _UNKNOWN_INPUT = "\0"
 _UNPLACEABLE_SHELL_TARGET = "shell code (a command the gate cannot read)"
+# What _shell_commands holds for a command value that is not a string. No
+# real command line holds a NUL, so it cannot collide with one.
+_UNREADABLE_COMMAND = "\0"
 _UNPLACEABLE_ARGUMENT = "xargs input (arguments the gate cannot read)"
 
 # Commands that take their operand away from where it was: deleting it, or
@@ -883,16 +1049,41 @@ _ANSI_C_ESCAPES = {
 }
 
 
-def _line_continuation(text: str, index: int) -> int:
-    """How many characters an escaped line break at index spans, LF or CR LF, or 0."""
-    if text.startswith("\r\n", index):
+# How deep a substitution may nest inside quotes, and parentheses inside one,
+# before the lexer gives up. The readers recurse through each other, so an
+# unbounded `$("$("...` would exhaust the interpreter's stack instead of
+# raising the parse error every caller expects.
+_MAX_LEXER_NESTING = 16
+
+
+def _line_continuation(text: str, index: int, crlf: bool = True) -> int:
+    """How many characters an escaped line break at index spans, or 0.
+
+    PowerShell joins a line ending in LF or CR LF. A POSIX shell joins only
+    LF: before CR LF the escape quotes the carriage return, which stays in the
+    word, and the LF still ends the command.
+    """
+    if crlf and text.startswith("\r\n", index):
         return 2
 
     return 1 if index < len(text) and text[index] == "\n" else 0
 
 
-def _read_balanced(text: str, index: int, dialect: str) -> Tuple[str, int]:
+def _code_point(digits: str) -> str:
+    """The character a hexadecimal escape names, or a parse error past the last code point."""
+    value = int(digits, 16)
+
+    if value > sys.maxunicode:
+        raise _ShellParseError("escape beyond the last Unicode code point")
+
+    return chr(value)
+
+
+def _read_balanced(text: str, index: int, dialect: str, level: int = 0) -> Tuple[str, int]:
     """The code of a `$(...)` whose opening parenthesis sits at index, and where it ends."""
+    if level > _MAX_LEXER_NESTING:
+        raise _ShellParseError("substitutions nested too deep")
+
     depth = 0
     position = index
 
@@ -917,7 +1108,7 @@ def _read_balanced(text: str, index: int, dialect: str) -> Tuple[str, int]:
 
         if char == '"' or dialect == _POWERSHELL and char in _PS_DOUBLE_QUOTES:
             reader = _read_ps_double_quoted if dialect == _POWERSHELL else _read_double_quoted
-            _, position = reader(text, position)
+            _, position = reader(text, position, None, level + 1)
             continue
 
         if dialect == _POSIX and char == "`":
@@ -926,6 +1117,9 @@ def _read_balanced(text: str, index: int, dialect: str) -> Tuple[str, int]:
 
         if char == "(":
             depth += 1
+
+            if depth > _MAX_LEXER_NESTING:
+                raise _ShellParseError("parentheses nested too deep")
         elif char == ")":
             depth -= 1
 
@@ -959,7 +1153,9 @@ def _read_backticks(text: str, index: int) -> Tuple[str, int]:
     raise _ShellParseError("unterminated backquote")
 
 
-def _read_double_quoted(text: str, index: int, found: Optional[_Substitutions] = None) -> Tuple[str, int]:
+def _read_double_quoted(
+    text: str, index: int, found: Optional[_Substitutions] = None, level: int = 0
+) -> Tuple[str, int]:
     """A POSIX double-quoted string, with every `$(...)` and backquote in it recorded in found."""
     index += 1
     out: List[str] = []
@@ -971,7 +1167,7 @@ def _read_double_quoted(text: str, index: int, found: Optional[_Substitutions] =
             return "".join(out), index + 1
 
         if char == "\\" and index + 1 < len(text):
-            joined = _line_continuation(text, index + 1)
+            joined = _line_continuation(text, index + 1, crlf=False)
 
             if joined:
                 index += 1 + joined
@@ -983,7 +1179,7 @@ def _read_double_quoted(text: str, index: int, found: Optional[_Substitutions] =
                 continue
 
         if char == "$" and text.startswith("$(", index):
-            code, index = _read_balanced(text, index + 1, _POSIX)
+            code, index = _read_balanced(text, index + 1, _POSIX, level + 1)
 
             out.append(_SUBEXPRESSION)
 
@@ -1029,7 +1225,7 @@ def _read_ansi_c_quoted(text: str, index: int) -> Tuple[str, int]:
         elif follower in "xuU":
             size = {"x": 2, "u": 4, "U": 8}[follower]
             digits = re.match(r"[0-9A-Fa-f]{1,%d}" % size, text[index:])
-            out.append(chr(int(digits.group(0), 16)) if digits else "\\" + follower)
+            out.append(_code_point(digits.group(0)) if digits else "\\" + follower)
             index += len(digits.group(0)) if digits else 0
         elif follower in "01234567":
             digits = re.match(r"[0-7]{0,2}", text[index:])
@@ -1065,8 +1261,13 @@ def _read_ps_single_quoted(text: str, index: int) -> Tuple[str, int]:
     raise _ShellParseError("unterminated single quote")
 
 
-def _read_ps_double_quoted(text: str, index: int, found: Optional[_Substitutions] = None) -> Tuple[str, int]:
+def _read_ps_double_quoted(
+    text: str, index: int, found: Optional[_Substitutions] = None, level: int = 0
+) -> Tuple[str, int]:
     """A PowerShell expandable string: a backtick escapes, a backslash does not, `$(...)` runs."""
+    if level > _MAX_LEXER_NESTING:
+        raise _ShellParseError("substitutions nested too deep")
+
     index += 1
     out: List[str] = []
 
@@ -1084,7 +1285,7 @@ def _read_ps_double_quoted(text: str, index: int, found: Optional[_Substitutions
             unicode = re.match(r"u\{([0-9A-Fa-f]{1,6})\}", text[index + 1 :])
 
             if unicode:
-                out.append(chr(int(unicode.group(1), 16)))
+                out.append(_code_point(unicode.group(1)))
                 index += 1 + len(unicode.group(0))
                 continue
 
@@ -1100,7 +1301,7 @@ def _read_ps_double_quoted(text: str, index: int, found: Optional[_Substitutions
             return "".join(out), index + 1
 
         if char == "$" and text.startswith("$(", index):
-            code, index = _read_balanced(text, index + 1, _POWERSHELL)
+            code, index = _read_balanced(text, index + 1, _POWERSHELL, level + 1)
             out.append(_SUBEXPRESSION)
 
             if found is not None:
@@ -1190,9 +1391,14 @@ def _read_ps_here_string(text: str, index: int) -> Optional[Tuple[str, int]]:
     return text[line_end + 1 : close], close + 3
 
 
-def _read_word(text: str, index: int) -> Tuple[str, int]:
-    """Read one bare word, honouring quotes. Used for heredoc delimiters."""
+def _read_word(text: str, index: int) -> Tuple[str, int, bool]:
+    """Read one bare word, honouring quotes. Used for heredoc delimiters.
+
+    Returns the word, where it ends, and whether any part of it was quoted or
+    escaped, which is what stops bash expanding the heredoc body it closes.
+    """
     word = ""
+    quoted = False
 
     while index < len(text):
         char = text[index]
@@ -1206,27 +1412,75 @@ def _read_word(text: str, index: int) -> Tuple[str, int]:
                 raise _ShellParseError("unterminated single quote")
             word += text[index + 1 : close]
             index = close + 1
+            quoted = True
             continue
 
         if char == '"':
             piece, index = _read_double_quoted(text, index)
             word += piece
+            quoted = True
+            continue
+
+        if char == "\\" and index + 1 < len(text):
+            word += text[index + 1]
+            index += 2
+            quoted = True
             continue
 
         word += char
         index += 1
 
-    return word, index
+    return word, index, quoted
 
 
 class _Heredoc(NamedTuple):
     delimiter: str
     strip_tabs: bool
     body: List[str]
+    expands: bool = False
 
 
-def _consume_heredocs(text: str, index: int, pending: List[_Heredoc]) -> int:
-    """Read every pending heredoc body into the segment that declared it."""
+def _expanded_substitutions(text: str) -> _Substitutions:
+    """Every `$(...)` and backquote bash runs while expanding an unquoted heredoc body.
+
+    Quotes are literal in such a body, and a backslash escapes only the next
+    character, so only the substitutions themselves need reading.
+    """
+    found: _Substitutions = []
+    index = 0
+
+    while index < len(text):
+        char = text[index]
+
+        if char == "\\":
+            index += 2
+            continue
+
+        if text.startswith("$(", index):
+            code, index = _read_balanced(text, index + 1, _POSIX)
+
+            if not code.startswith("("):
+                found.append((_POSIX, code))
+            continue
+
+        if char == "`":
+            code, index = _read_backticks(text, index)
+            found.append((_POSIX, code))
+            continue
+
+        index += 1
+
+    return found
+
+
+def _consume_heredocs(text: str, index: int, pending: List[_Heredoc]) -> Tuple[int, _Substitutions]:
+    """Read every pending heredoc body into the segment that declared it.
+
+    Returns where the bodies end and the substitutions bash runs while
+    expanding a body whose delimiter was not quoted.
+    """
+    found: _Substitutions = []
+
     while pending:
         heredoc = pending.pop(0)
 
@@ -1243,7 +1497,10 @@ def _consume_heredocs(text: str, index: int, pending: List[_Heredoc]) -> int:
 
             heredoc.body.append(line + "\n")
 
-    return index
+        if heredoc.expands:
+            found.extend(_expanded_substitutions("".join(heredoc.body)))
+
+    return index, found
 
 
 def _literal_tilde(piece: str, started: bool) -> str:
@@ -1348,7 +1605,17 @@ def _lex(command: str, dialect: str = _POSIX) -> List[ShellSegment]:
         end_segment()
         cmd_quoted = argv_quoted = False
 
-        return _consume_heredocs(command, index + 1, heredocs) if posix else index + 1
+        if not posix:
+            return index + 1
+
+        resume, expanded = _consume_heredocs(command, index + 1, heredocs)
+
+        # bash expands an unquoted heredoc body before the command reads it,
+        # so each substitution in it is judged as a child shell of its own.
+        for _, code in expanded:
+            segments.extend((ShellSegment(control="("), ShellSegment(("sh", "-c", code)), ShellSegment(control=")")))
+
+        return resume
 
     while index < length:
         char = command[index]
@@ -1450,7 +1717,7 @@ def _lex(command: str, dialect: str = _POSIX) -> List[ShellSegment]:
 
         if char == escape:
             follower = command[index + 1] if index + 1 < length else ""
-            joined = _line_continuation(command, index + 1)
+            joined = _line_continuation(command, index + 1, crlf=not posix)
 
             if joined:
                 index += 1 + joined
@@ -1470,8 +1737,18 @@ def _lex(command: str, dialect: str = _POSIX) -> List[ShellSegment]:
             index += 1
             continue
 
-        # A CR LF is one line break, and a lone CR is a line break of its own,
-        # the way PowerShell reads it.
+        # A POSIX shell reads a lone carriage return as part of the word it
+        # sits in, so `git diff\rx` stays one command there. Before a LF it is
+        # still dropped with the line break, which places `rm -rf ..` written
+        # with CR LF line ends as the parent PowerShell would remove, should a
+        # shell tool named Bash run PowerShell, as Codex's does on Windows.
+        if posix and char == "\r" and not command.startswith("\r\n", index):
+            add(char, False)
+            index += 1
+            continue
+
+        # A CR LF is one line break, and elsewhere a lone CR is a line break of
+        # its own, the way PowerShell reads it.
         if char == "\r" and command.startswith("\r\n", index):
             index += 1
             continue
@@ -1551,6 +1828,16 @@ def _lex(command: str, dialect: str = _POSIX) -> List[ShellSegment]:
             index += 1
             continue
 
+        if posix and char in "<>" and command.startswith("(", index + 1):
+            # Process substitution: bash runs the code in a child shell and
+            # hands the command a path to its output or input, so the code is
+            # judged like a `$(...)` and the word stands for an unknown path.
+            flush()
+            code, index = _read_balanced(command, index + 1, _POSIX)
+            substitutions.append((_POSIX, code))
+            add(_SUBEXPRESSION, False)
+            continue
+
         if char == ">":
             if started and (token.isdigit() or (powershell and token == "*")):
                 token = ""
@@ -1609,11 +1896,11 @@ def _lex(command: str, dialect: str = _POSIX) -> List[ShellSegment]:
                 while index < length and command[index] in " \t":
                     index += 1
 
-                delimiter, index = _read_word(command, index)
+                delimiter, index, delimiter_quoted = _read_word(command, index)
 
                 if delimiter:
                     body: List[str] = []
-                    heredocs.append(_Heredoc(delimiter, strip_tabs, body))
+                    heredocs.append(_Heredoc(delimiter, strip_tabs, body, not delimiter_quoted))
                     bodies.append(body)
 
                 continue
@@ -6497,12 +6784,21 @@ def _shell_targets(command: str, dialect: str = _POSIX) -> List[str]:
 
 
 def _is_null_device(target: str, powershell: bool = False) -> bool:
-    normalized = target.strip().lower()
+    """True for the null device as the shell would name it.
 
-    if normalized == _POSIX_NULL_DEVICE:
+    A POSIX file system keeps case and blanks, so only the exact spelling is
+    the device there, and `/DEV/NULL` or ` /dev/null` is an ordinary file.
+    PowerShell's Windows spellings are read without case or blanks.
+    """
+    if target == _POSIX_NULL_DEVICE:
         return True
 
-    return powershell and normalized in _WINDOWS_NULL_DEVICE_TOKENS
+    if not powershell:
+        return False
+
+    normalized = target.strip().lower()
+
+    return normalized == _POSIX_NULL_DEVICE or normalized in _WINDOWS_NULL_DEVICE_TOKENS
 
 
 # PowerShell drives and providers that hold no files: environment variables,
@@ -6894,30 +7190,112 @@ def _roots() -> List[Path]:
     return roots
 
 
-def _read_agent_definition(agent_type: str) -> Optional[str]:
-    """The definition text for one subagent name, or None when there is none.
+def _is_safe_agent_name(name: str) -> bool:
+    """True for a name that stays one file name inside the folder it is joined to, never `.` itself."""
+    return name not in ("", ".") and not any(part in name for part in ("/", "\\", "..", "\0", PLUGIN_AGENT_SEPARATOR))
 
-    Rule B looks in every project root and in the install root as well. The
-    install root is not a project boundary, so Rule A drops it, but it is
-    where a user-level install keeps its agent trees, and Rule B has to find
-    them there.
+
+def _ordered_trees(fmt: str) -> Tuple[AgentTree, ...]:
+    """Every agent tree, the calling format's own trees first."""
+    preferred = FORMAT_AGENT_TREES.get(fmt, ())
+    trees = AGENT_TREES + GLOBAL_AGENT_TREES
+
+    return tuple(tree for tree in trees if tree.directory in preferred) + tuple(
+        tree for tree in trees if tree.directory not in preferred
+    )
+
+
+def _claude_config_directories() -> List[Path]:
+    """Where Claude Code keeps its configuration: CLAUDE_CONFIG_DIR when set, and ~/.claude."""
+    directories: List[Path] = []
+    configured = os.environ.get(CLAUDE_CONFIG_ENVIRONMENT, "").strip()
+
+    # An unknown ~user raises RuntimeError, which would reach main() and allow
+    # the call, so the setting is skipped and the other trees still decide.
+    try:
+        if configured:
+            directories.append(Path(configured).expanduser())
+    except (OSError, RuntimeError, KeyError):
+        pass
+
+    try:
+        directories.append(Path.home() / CLAUDE_HOME_DIRECTORY)
+    except (OSError, RuntimeError, KeyError):
+        pass
+
+    return directories
+
+
+def _modified_at(path: Path) -> float:
+    try:
+        return path.stat().st_mtime
+    except (OSError, ValueError):
+        return 0.0
+
+
+def _plugin_agent_paths(plugin: str, name: str) -> List[Path]:
+    """Every installed copy of one plugin's agent file, newest install first per marketplace."""
+    paths: List[Path] = []
+
+    for directory in _claude_config_directories():
+        cache = directory.joinpath(*CLAUDE_PLUGIN_CACHE)
+
+        try:
+            marketplaces = sorted(cache.iterdir())
+        except (OSError, ValueError):
+            continue
+
+        for marketplace in marketplaces:
+            try:
+                versions = sorted((marketplace / plugin).iterdir(), key=_modified_at, reverse=True)
+            except (OSError, ValueError):
+                continue
+
+            paths.extend(version / "agents" / (name + ".md") for version in versions)
+
+    return paths
+
+
+def _agent_definitions(agent_type: str, fmt: str) -> List[Optional[str]]:
+    """The text of every definition a subagent name can resolve to, the deciding one first.
+
+    The calling format's own trees come first, so Rule B judges the file that
+    agent runs, and Rule E is applied when any candidate is read-only. A
+    plugin-scoped Claude Code name, `<plugin>:<name>`, also reads the plugin's
+    installed copies ahead of the trees, and each part has to be one plain
+    file name. Every project root is read, and the install root as well: Rule
+    A drops it as a project boundary, but a user-level install keeps its agent
+    trees there. A candidate that exists but cannot be read is None, which
+    Rule E treats as read-only with no command allowed.
     """
-    if not agent_type or "/" in agent_type or "\\" in agent_type or ".." in agent_type:
-        return None
+    plugin, separator, name = agent_type.rpartition(PLUGIN_AGENT_SEPARATOR)
 
+    if not _is_safe_agent_name(name) or separator and not _is_safe_agent_name(plugin):
+        return []
+
+    paths = _plugin_agent_paths(plugin, name) if separator else []
     roots = _roots()
     install = _install_root()
 
     if install is not None and install not in roots:
         roots.append(install)
 
-    for root in roots:
-        for tree in AGENT_TREES + GLOBAL_AGENT_TREES:
-            path = root / tree.directory / (agent_type + tree.extension)
-            if path.is_file():
-                return path.read_text(encoding="utf-8", errors="replace")
+    paths += [root / tree.directory / (name + tree.extension) for tree in _ordered_trees(fmt) for root in roots]
+    definitions: List[Optional[str]] = []
 
-    return None
+    for path in dict.fromkeys(paths):
+        try:
+            if not path.is_file():
+                continue
+        except (OSError, ValueError):
+            continue
+
+        try:
+            definitions.append(path.read_text(encoding="utf-8", errors="replace"))
+        except (OSError, ValueError):
+            definitions.append(None)
+
+    return definitions
 
 
 def _front_matter_end(lines: List[str]) -> int:
@@ -6986,6 +7364,537 @@ def _declares_skills(text: str) -> bool:
     return _body_declares_skills(lines, end + 1 if end else 0)
 
 
+def _read_only_patterns(text: str) -> Optional[List[str]]:
+    """The commands a read-only definition allows, or None when it is not read-only.
+
+    A definition is read-only when any heading reads READ_ONLY_HEADING, and the
+    backticked list items under that heading are its allowlist. An empty list
+    still marks the agent read-only, with no shell command allowed. A heading
+    inside a fenced code block is example text and counts for nothing.
+    """
+    patterns: List[str] = []
+    found = False
+    in_section = False
+    fenced = False
+
+    for line in text.splitlines():
+        if READ_ONLY_FENCE_RE.match(line):
+            fenced = not fenced
+            continue
+
+        if fenced:
+            continue
+
+        if line.startswith("#"):
+            in_section = bool(READ_ONLY_HEADING_RE.match(line))
+            found = found or in_section
+            continue
+
+        match = READ_ONLY_ITEM_RE.match(line) if in_section else None
+
+        if match:
+            patterns.append(match.group(1).strip())
+
+    return patterns if found else None
+
+
+def _matches_read_only(argv: Tuple[str, ...], pattern: str) -> bool:
+    """True when one command's words match one pattern, word by word.
+
+    A trailing `*` accepts any further arguments, so `git diff*` matches
+    `git diff` and `git diff HEAD~1` but never `git difftool`, and a program
+    spelled with a path or behind a variable assignment matches nothing.
+    """
+    words = pattern.split()
+    open_ended = bool(words) and words[-1].endswith("*")
+
+    if open_ended:
+        words[-1] = words[-1][:-1]
+        if not words[-1]:
+            words.pop()
+
+    if not words or list(argv[: len(words)]) != words:
+        return False
+
+    return open_ended or len(argv) == len(words)
+
+
+def _read_only_word_blocked(word: str) -> bool:
+    """True when the shell or git could still turn one word into something unlisted.
+
+    A `$` or a backslash means the shell has not finished with the word, a
+    brace expansion becomes other words, and a git output option, abbreviated
+    or not, writes a file. A word opening with `@` is a splat or a hashtable
+    in PowerShell, and READ_ONLY_STOP_PARSING hands PowerShell's line on
+    unparsed. A `^` is a negated glob in zsh with EXTENDED_GLOB, which can
+    expand a word into any file name it does not exclude, so it is refused at
+    the start of a word and anywhere in a word opening with `-`, where the
+    names it expands to could be options. Measured on zsh 5.9 with the files
+    `--out` and `--output=pwned` present: `--out^x` expanded to both, while
+    `HEAD^:path` expanded only to a name starting with HEAD.
+    """
+    return (
+        "$" in word
+        or "\\" in word
+        or bool(READ_ONLY_BRACE_RE.search(word))
+        or _git_output_option(word) is not None
+        or word == READ_ONLY_STOP_PARSING
+        or word.startswith("@")
+        or ("^" in word and word[:1] in ("^", "-"))
+    )
+
+
+def _with_comma_parts(argv: Tuple[str, ...]) -> Tuple[str, ...]:
+    """The words of a command, each followed by its comma-separated parts when it holds a comma.
+
+    PowerShell reads an unquoted `a,b` as a two-item array for a cmdlet, a
+    function or an alias, a `git` a profile wraps included, though about_Parsing
+    says a native program gets the comma inside its string. The OpenCode and
+    Kilo Code bash tool may run either shell under one name, so Rule E checks
+    every part as a word of its own, in both dialects, as well as the whole
+    word. A part stays beside the word it came from, so a value that
+    follows an option inside one word, as in `x,-R,o/r`, still follows it here.
+    The PowerShell lexer marks such a comma with _ARRAY_SEPARATOR, read here
+    as the comma it was.
+    """
+    words: List[str] = []
+
+    for word in argv:
+        word = word.replace(_ARRAY_SEPARATOR, ",")
+        words.append(word)
+
+        if "," in word:
+            words.extend(word.split(","))
+
+    return tuple(words)
+
+
+def _opens_a_browser(argv: Tuple[str, ...]) -> bool:
+    """True for a gh command handed --web or -w, which opens a browser instead of printing."""
+    return argv[:1] == ("gh",) and any(READ_ONLY_GH_WEB_RE.match(word) for word in argv[1:])
+
+
+def _runs_gh_expression(argv: Tuple[str, ...]) -> bool:
+    """True for a gh command handed a jq or template expression, which can print the environment."""
+    return argv[:1] == ("gh",) and any(READ_ONLY_GH_EXPRESSION_RE.match(word) for word in argv[1:])
+
+
+def _gh_repository_values(argv: Tuple[str, ...]) -> List[str]:
+    """Every value a gh command hands -R or --repo, in each spelling pflag reads."""
+    values: List[str] = []
+
+    for index, word in enumerate(argv[1:], start=1):
+        following = argv[index + 1] if index + 1 < len(argv) else ""
+        short = READ_ONLY_GH_REPO_SHORT_RE.match(word)
+
+        if word == "--repo":
+            values.append(following)
+        elif word.startswith("--repo="):
+            values.append(word[len("--repo=") :])
+        elif short and not word.startswith("--"):
+            values.append(short.group("value").lstrip("=") or following)
+
+    return values
+
+
+def _opens_a_pager(argv: Tuple[str, ...], fmt: str) -> Optional[str]:
+    """The deny reason for a command that could open a pager, or None.
+
+    A git command passes only as `git --no-pager <subcommand>`, on every
+    format. A gh command passes nowhere on a format in READ_ONLY_PAGER_FORMATS,
+    because nothing on its command line keeps its pager off.
+    """
+    program = argv[0] if argv else ""
+    words = " ".join(argv)
+
+    if program == "git" and argv[1:2] != (READ_ONLY_GIT_NO_PAGER,):
+        return READ_ONLY_PAGER_REASON["git"].format(words=words)
+
+    if program == "gh" and fmt in READ_ONLY_PAGER_FORMATS:
+        return READ_ONLY_PAGER_REASON["gh"].format(words=words)
+
+    return None
+
+
+def _names_another_repository(argv: Tuple[str, ...]) -> bool:
+    """True for a gh command aimed at a server by URL, or handed -R or --repo with anything but OWNER/REPO."""
+    if argv[:1] != ("gh",):
+        return False
+
+    return any("://" in word for word in argv[1:]) or any(
+        not READ_ONLY_GH_REPO_VALUE_RE.match(value) for value in _gh_repository_values(argv)
+    )
+
+
+def _stands_alone(command: str, start: int, end: int) -> bool:
+    """True when command[start:end] is a whole word, a blank or an edge on each side."""
+    before = command[start - 1] if start else " "
+    after = command[end] if end < len(command) else " "
+
+    return before in READ_ONLY_BLANKS and after in READ_ONLY_BLANKS
+
+
+def _refused_character(command: str) -> Optional[str]:
+    """The first character Rule E refuses before lexing a command, or None when it accepts them all."""
+    index = 0
+
+    while index < len(command):
+        redirect = next(
+            (
+                literal
+                for literal in READ_ONLY_STREAM_REDIRECTS
+                if command.startswith(literal, index) and _stands_alone(command, index, index + len(literal))
+            ),
+            None,
+        )
+
+        if redirect:
+            index += len(redirect)
+            continue
+
+        if command[index] not in READ_ONLY_CHARACTERS:
+            return command[index]
+
+        index += 1
+
+    return None
+
+
+def _is_git_location(folder: Path) -> bool:
+    """True when git could take this folder for a repository: it holds .git, or any entry named HEAD.
+
+    git's own is_git_directory() needs only a valid HEAD in the folder itself.
+    It looks for objects and refs under the folder a commondir file names, and
+    tests them with access(X_OK), so a committed bare repository brings its own
+    configuration along with no objects or refs folder beside its HEAD, or with
+    both as executable regular files. Any HEAD therefore counts, and a plain
+    folder that happens to hold a file named HEAD denies too.
+    """
+    return os.path.lexists(folder / ".git") or os.path.lexists(folder / "HEAD")
+
+
+# The key git's read_gitfile_gently() requires at the start of a .git file.
+_GITDIR_KEY = "gitdir: "
+# Far above any path git writes into a .git, commondir or gitdir file, so a larger file is not one git wrote.
+_GIT_POINTER_LIMIT = 4096
+# Opens a pointer file without following a final symlink and without waiting on a named pipe. Windows has
+# neither flag, and there the islink check before the open is the only symlink guard.
+_GIT_POINTER_OPEN_FLAGS = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0)
+
+
+def _read_small_regular_file(path: Path) -> Optional[bytes]:
+    """Up to _GIT_POINTER_LIMIT + 1 bytes of path, or None unless the descriptor opened is a regular file.
+
+    The type is checked with fstat on the descriptor that is read, so a file
+    swapped for a symlink, a pipe or a device after a path check is refused.
+    """
+    try:
+        if os.path.islink(path):
+            return None
+
+        descriptor = os.open(path, _GIT_POINTER_OPEN_FLAGS)
+    except (OSError, ValueError):
+        return None
+
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            return None
+
+        chunks: List[bytes] = []
+        size = 0
+
+        while size <= _GIT_POINTER_LIMIT:
+            chunk = os.read(descriptor, _GIT_POINTER_LIMIT + 1 - size)
+
+            if not chunk:
+                break
+
+            chunks.append(chunk)
+            size += len(chunk)
+
+        return b"".join(chunks)
+    except OSError:
+        return None
+    finally:
+        os.close(descriptor)
+
+
+def _git_pointer_value(path: Path) -> Optional[str]:
+    """The one line a small regular file holds, without its closing newline, or None.
+
+    A symlink, anything but a regular file, a missing or oversized file,
+    undecodable bytes, a carriage return, a NUL, a second line or an empty
+    value all give None, so a .git, commondir or gitdir file counts only in the
+    exact one-line shape git writes.
+    """
+    data = _read_small_regular_file(path)
+
+    if data is None or len(data) > _GIT_POINTER_LIMIT:
+        return None
+
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+    text = text[:-1] if text.endswith("\n") else text
+
+    if not text or any(character in text for character in "\n\r\0"):
+        return None
+
+    return text
+
+
+def _resolved_existing(base: Path, value: str) -> Optional[Path]:
+    """value resolved against base with every symlink and `..` followed, or None when it is missing or unreadable."""
+    try:
+        return (base / value).resolve(strict=True)
+    except (OSError, RuntimeError, ValueError):
+        return None
+
+
+def _is_project_worktree(folder: Path, project: Path) -> bool:
+    """True when folder is a linked worktree of the project's own repository, the one .git file Rule E accepts.
+
+    `git worktree add` leaves a .git file holding exactly `gitdir: <path>`,
+    where <path> is <project>/.git/worktrees/<name>, a commondir file there
+    leading back to <project>/.git, so git reads the project's own
+    configuration in that folder, and a gitdir file there leading back to this
+    folder's .git, which ties the worktree folder to one checkout. project and
+    folder are already resolved, and every pointer is resolved with symlinks
+    and `..` followed before it is compared, so a pointer that escapes, a
+    symlinked worktree folder, a missing target, a deeper folder, a commondir
+    that is missing or leads anywhere else, a back-pointer that is missing or
+    names another checkout, and a project whose own .git or .git/worktrees is a
+    symlink or a file all fail.
+    """
+    project_git = project / ".git"
+    worktrees = project_git / "worktrees"
+    pointer = _git_pointer_value(folder / ".git")
+
+    if pointer is None or not pointer.startswith(_GITDIR_KEY):
+        return False
+
+    gitdir = _resolved_existing(folder, pointer[len(_GITDIR_KEY):])
+
+    if gitdir is None or gitdir.parent != worktrees or not gitdir.is_dir():
+        return False
+
+    common = _git_pointer_value(gitdir / "commondir")
+
+    if common is None or _resolved_existing(gitdir, common) != project_git:
+        return False
+
+    back = _git_pointer_value(gitdir / "gitdir")
+
+    return back is not None and _resolved_existing(gitdir, back) == folder / ".git"
+
+
+def _read_only_location_blocked(payload_cwd: Any) -> Optional[str]:
+    """Where a read-only shell call would run outside the repository the gate runs in, or None.
+
+    Codex from rust-v0.166.0 hands the hook only {"command": ...} and puts the
+    call's own working directory, its `workdir` resolved, in the payload's cwd
+    while the hook process stays in the session's directory (tool_cwd in
+    codex-rs/hooks/src/events/pre_tool_use.rs). git looks for its repository
+    from there upward, so a folder below this one that is a repository of its
+    own runs a listed command under that repository's configuration. A cwd
+    equal to the gate's own working directory, or a plain folder inside it,
+    passes, and a missing cwd means the call runs where the gate does. So does
+    a folder inside a linked worktree of the project's own repository, where
+    git stops looking and reads the project's configuration
+    (_is_project_worktree). The cwd is checked exactly as sent, blanks
+    included, because the call runs there, and one that does not exist denies.
+    """
+    if payload_cwd is None or payload_cwd == "":
+        return None
+
+    if not isinstance(payload_cwd, str):
+        return "a working directory the gate cannot read"
+
+    here = Path(os.getcwd()).resolve()
+
+    try:
+        there = _native_path(payload_cwd).resolve(strict=True)
+    except (OSError, RuntimeError, ValueError):
+        return f"a working directory that does not exist or cannot be resolved ({payload_cwd})"
+
+    if there == here:
+        return None
+
+    if here not in there.parents:
+        return f"a working directory outside the project ({payload_cwd})"
+
+    folder = there
+
+    while folder != here:
+        if _is_git_location(folder):
+            if _is_project_worktree(folder, here):
+                return None
+            return f"a working directory inside another git repository ({payload_cwd})"
+        folder = folder.parent
+
+    return None
+
+
+def _read_only_key_blocked(tool_input: Dict[str, Any]) -> Optional[str]:
+    """The first tool_input key a read-only shell call may not carry, named for the deny reason, or None."""
+    for key in sorted(tool_input):
+        value = tool_input[key]
+
+        if key in READ_ONLY_SHELL_KEYS or (key in READ_ONLY_SHELL_OFF_KEYS and (value is None or value is False)):
+            continue
+
+        return f"the {key!r} key, which a read-only shell call may not carry (run from the project root and leave it out)"
+
+    return None
+
+
+def _read_only_blocked(
+    tool: str, tool_input: Dict[str, Any], patterns: List[str], payload_cwd: Any = None, fmt: str = ""
+) -> Optional[str]:
+    """What a read-only subagent's call would do outside its allowlist, or None to allow.
+
+    Only the read tools in READ_ONLY_READ_TOOLS and the shell pass. Every
+    other tool denies, an edit, an agent spawn, a web fetch and an MCP tool
+    alike, and a tool the gate does not know that carries a command is named
+    as unreadable shell code.
+    """
+    if tool in SHELL_TOOLS:
+        return _read_only_shell_blocked(tool, tool_input, patterns, payload_cwd, fmt)
+
+    if tool in READ_ONLY_READ_TOOLS:
+        return None
+
+    if tool not in EDIT_TOOLS and tool not in READ_ONLY_SPAWN_TOOLS and _shell_commands(tool_input) is not None:
+        return _UNPLACEABLE_SHELL_TARGET
+
+    return f"the {tool or 'unnamed'} tool"
+
+
+def _read_only_shell_blocked(
+    tool: str, tool_input: Dict[str, Any], patterns: List[str], payload_cwd: Any = None, fmt: str = ""
+) -> Optional[str]:
+    """What a read-only subagent's shell call would run outside its allowlist, or None to allow.
+
+    A shell started on a terminal denies, because its later input arrives
+    through a tool call that carries no command to read, Codex's write_stdin.
+    So does any key outside READ_ONLY_SHELL_KEYS, and a working directory
+    _read_only_location_blocked refuses, because both change what a listed
+    command does without changing its text.
+    """
+    if tool_input.get("tty") not in (None, False):
+        return "a shell started on a terminal (tty), whose later input the gate never reads"
+
+    blocked = _read_only_key_blocked(tool_input) or _read_only_location_blocked(payload_cwd)
+
+    if blocked is not None:
+        return blocked
+
+    commands = _shell_commands(tool_input)
+
+    if commands is None:
+        return _UNPLACEABLE_SHELL_TARGET
+
+    for command in commands:
+        blocked = _read_only_command_blocked(command, tool in _POWERSHELL_SHELLS, patterns, fmt)
+
+        if blocked is not None:
+            return blocked
+
+    return None
+
+
+def _read_only_command_blocked(command: str, powershell: bool, patterns: List[str], fmt: str = "") -> Optional[str]:
+    """What one shell command would run outside a read-only allowlist, or None to allow.
+
+    The character check comes first, so the lexer only ever reads plain words
+    and single-quoted text. Any failure after it denies, a parse error and
+    every other exception alike, because a command the gate cannot read
+    matches nothing on the list.
+    """
+    if command == _UNREADABLE_COMMAND:
+        return _UNPLACEABLE_SHELL_TARGET
+
+    refused = _refused_character(command)
+
+    if refused is not None:
+        return (
+            f"the character {refused!r}, which no read-only command needs "
+            "(quote nothing, and spell a space in a git format %x20 and a newline %n)"
+        )
+
+    # The PowerShell lexer consumes the stop-parsing token itself, so it is
+    # refused here, in both dialects, before any lexer reads the line.
+    if READ_ONLY_STOP_PARSING in command.split():
+        return command
+
+    try:
+        return _read_only_segments_blocked(command, powershell, patterns, fmt)
+    except Exception:
+        return _UNPLACEABLE_SHELL_TARGET
+
+
+def _read_only_segments_blocked(command: str, powershell: bool, patterns: List[str], fmt: str = "") -> Optional[str]:
+    """What the lexed commands of one shell line run outside a read-only allowlist, or None.
+
+    fmt is the gate's --format, which decides whether gh may run at all
+    (_opens_a_pager).
+    """
+    segments = _lex(command, _POWERSHELL if powershell else _POSIX)
+
+    for segment in segments:
+        for target in segment.redirects:
+            if not _names_no_file(target, powershell):
+                return f"redirect to {target}"
+
+        words = " ".join(segment.argv).replace(_ARRAY_SEPARATOR, ",")
+
+        if segment.stdin:
+            # No listed command reads its input, and an unquoted heredoc
+            # body runs every substitution in it.
+            return f"heredoc or here-string fed to {words or 'the shell'}"
+
+        if not segment.argv:
+            continue
+
+        parts = _with_comma_parts(segment.argv)
+
+        if any(_read_only_word_blocked(word) for word in parts) or _opens_a_browser(parts):
+            return words
+
+        if _names_another_repository(parts) or _runs_gh_expression(parts):
+            return words
+
+        pager = _opens_a_pager(segment.argv, fmt)
+
+        if pager is not None:
+            return pager
+
+        if not any(_matches_read_only(segment.argv, pattern) for pattern in patterns):
+            return words
+
+    return None
+
+
+def _shell_commands(tool_input: Dict[str, Any]) -> Optional[List[str]]:
+    """Every command a tool call carries under any COMMAND_KEYS key, for Rules A and E.
+
+    A runner could execute any one of them, so each is judged, not only the
+    first. None when the call carries none, [_UNREADABLE_COMMAND] when a value
+    is not a string, and an empty list when every value is blank.
+    """
+    values = [tool_input[key] for key in COMMAND_KEYS if tool_input.get(key) not in (None, "")]
+
+    if not values:
+        return None
+
+    if any(not isinstance(value, str) for value in values):
+        return [_UNREADABLE_COMMAND]
+
+    return [value for value in values if value.strip()]
+
+
 def _decide(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Optional[str]:
     """Return a deny reason, or None to allow."""
     global _PAYLOAD_ROOT
@@ -7006,15 +7915,15 @@ def _apply_rules(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Opti
 
     if identity == _SUBAGENT:
         agent_type = _agent_type(payload)
-        definition = _read_agent_definition(agent_type)
+        definitions = _agent_definitions(agent_type, fmt)
 
-        if definition is None:
+        if not definitions:
             return None
 
-        if _declares_skills(definition):
-            return None
+        if definitions[0] is not None and not _declares_skills(definitions[0]):
+            return RULE_B_REASON.format(agent=agent_type)
 
-        return RULE_B_REASON.format(agent=agent_type)
+        return _read_only_reason(agent_type, definitions, payload, fmt)
 
     tool = _tool_name(payload)
     tool_input = _tool_input(payload)
@@ -7046,28 +7955,58 @@ def _apply_rules(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Opti
             return RULE_A_REASON.format(target=target)
         return None
 
-    values = [tool_input[key] for key in COMMAND_KEYS if tool_input.get(key) not in (None, "")]
+    commands = _shell_commands(tool_input)
+
+    if commands is None:
+        return None
 
     # A tool the gate does not know that still carries a command is a shell
     # by another name, and a command that is not a string cannot be read.
-    if tool not in SHELL_TOOLS or any(not isinstance(value, str) for value in values):
-        return RULE_A_REASON.format(target=_UNPLACEABLE_SHELL_TARGET) if values and tool not in RESEARCH_TOOLS else None
+    if tool not in SHELL_TOOLS or _UNREADABLE_COMMAND in commands:
+        return None if tool in RESEARCH_TOOLS else RULE_A_REASON.format(target=_UNPLACEABLE_SHELL_TARGET)
 
-    command = next((value for value in values if value.strip()), "")
+    for command in commands:
+        try:
+            targets = _shell_targets(command, _POWERSHELL if tool in _POWERSHELL_SHELLS else _POSIX)
+        except _ShellParseError:
+            continue
 
-    if not command:
-        return None
+        if targets and targets[0].startswith(_SCRIPT_RUN):
+            return RULE_D_REASON.format(command=targets[0][len(_SCRIPT_RUN) :])
 
-    try:
-        targets = _shell_targets(command, _POWERSHELL if tool in _POWERSHELL_SHELLS else _POSIX)
-    except _ShellParseError:
-        return None
+        if targets:
+            return RULE_A_REASON.format(target=targets[0])
 
-    if targets and targets[0].startswith(_SCRIPT_RUN):
-        return RULE_D_REASON.format(command=targets[0][len(_SCRIPT_RUN) :])
+    return None
 
-    if targets:
-        return RULE_A_REASON.format(target=targets[0])
+
+def _read_only_reason(
+    agent_type: str, definitions: List[Optional[str]], payload: Dict[str, Any], fmt: str = ""
+) -> Optional[str]:
+    """Rule E's deny reason when any candidate definition is read-only and the call leaves its list.
+
+    A definition that could not be read counts as read-only with no command
+    allowed. Every check runs inside one guard, so an exception denies here
+    rather than reaching main(), whose catch-all allows.
+    """
+    tool = _tool_name(payload)
+    tool_input = _tool_input(payload)
+
+    for text in definitions:
+        try:
+            patterns = [] if text is None else _read_only_patterns(text)
+
+            if patterns is None:
+                continue
+
+            blocked = _read_only_blocked(tool, tool_input, patterns, payload.get("cwd"), fmt)
+        except Exception:
+            patterns, blocked = [], _UNPLACEABLE_SHELL_TARGET
+
+        if blocked is not None:
+            return RULE_E_REASON.format(
+                agent=agent_type, heading=READ_ONLY_HEADING, allowed=", ".join(patterns) or "none", blocked=blocked
+            )
 
     return None
 

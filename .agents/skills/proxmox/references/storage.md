@@ -2,7 +2,7 @@
 
 Read this before judging whether a storage has room, before growing a disk or taking a snapshot on a thin pool, and when a guest reports write errors. The rules live in [SKILL.md](../SKILL.md). Every command here is UNVERIFIED.
 
-Sources, fetched on 2026-10-23: the storage chapter https://pve.proxmox.com/pve-docs/chapter-pvesm.html and the LVM thin page https://pve.proxmox.com/wiki/Storage:_LVM_Thin with its source `pve-storage-lvmthin.adoc`, the local LVM section of https://pve.proxmox.com/pve-docs/chapter-sysadmin.html from `local-lvm.adoc`, the installer options in `pve-installation.adoc`, the API schema of https://pve.proxmox.com/pve-docs/api-viewer/, and the lvmthin manual https://man7.org/linux/man-pages/man7/lvmthin.7.html.
+Sources: the storage chapter https://pve.proxmox.com/pve-docs/chapter-pvesm.html and the LVM thin page https://pve.proxmox.com/wiki/Storage:_LVM_Thin with its source `pve-storage-lvmthin.adoc`, the local LVM section of https://pve.proxmox.com/pve-docs/chapter-sysadmin.html from `local-lvm.adoc`, the installer options in `pve-installation.adoc`, the API schema of https://pve.proxmox.com/pve-docs/api-viewer/, and the lvmthin manual https://man7.org/linux/man-pages/man7/lvmthin.7.html.
 
 ---
 

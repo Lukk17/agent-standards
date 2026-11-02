@@ -24,7 +24,7 @@ wsl.exe --status
 
 ### Two configuration files
 
-From Microsoft Learn, "Advanced settings configuration in WSL" (updated 2026-04-15):
+From Microsoft Learn, "Advanced settings configuration in WSL":
 
 | File | Location | Scope |
 |---|---|---|

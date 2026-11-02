@@ -4,6 +4,15 @@ Compound components, context stores, and the small custom hooks that keep state 
 
 ---
 
+### Contents
+
+- Compound components
+- Context plus reducer store
+- Small state hooks
+- Debouncing
+
+---
+
 ### Compound components
 
 The parent owns the state and publishes it through a context. Children read it rather than receiving it through a

@@ -5,6 +5,13 @@ impactDescription: "Enables reproducing exact historical document state for audi
 tags: schema, patterns, versioning, audit, compliance
 ---
 
+### Contents
+
+- [Document Versioning Pattern](#document-versioning-pattern)
+- [Verify with](#verify-with)
+
+---
+
 ### Document Versioning Pattern
 
 Store full document history in a separate `revisions` collection to enable reproducing historical state. This is

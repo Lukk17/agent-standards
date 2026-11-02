@@ -26,7 +26,6 @@ readonly WRITE_TOOL_RE='^(create|edit|write|str_replace_editor|apply_patch|bash|
 readonly SPAWN_TOOL_RE='^task$'
 readonly SKILL_TOOL_RE='^skill$'
 readonly GATE_KNOWN_GAP=1
-readonly SUBAGENT_NO_WRITE_MARKER='CRITICAL: Do NOT write output to files'
 readonly PROMPT_TOKENS=128000
 readonly OUTPUT_TOKENS=8192
 
@@ -119,14 +118,21 @@ agent_reminder_seen() {
   [[ "$found" -gt 0 ]]
 }
 
-# An event carrying a parent tool call id, or a subagent lifecycle event,
-# belongs to a subagent. The stream and the session-state log repeat events.
+# An event carrying an agent id (CLI 1.0.103) or a parent tool call id (1.0.81),
+# a subagent lifecycle event, and the subagentStart hook, which the CLI records
+# on the parent's side, belong to a subagent. Of those, only hook output and
+# the messages the CLI composed count: a tool result such as the subagent's own
+# read of AGENTS.md, and the model's own text, are left out. The stream and the
+# session-state log repeat events.
 agent_subagent_context() {
   local dir="$1"
 
   cat "${dir}/stream.jsonl" "${dir}"/transcripts/*.jsonl 2>/dev/null | jq -R -s -c '
     [split("\n")[] | fromjson? | objects
-     | select(((.data.parentToolCallId? // null) != null) or ((.type // "") | tostring | startswith("subagent")))]
+     | ((.type // "") | tostring) as $type
+     | select(((.agentId? // null) != null) or ((.data.parentToolCallId? // null) != null)
+              or ($type | startswith("subagent")) or ((.data.hookType? // "") == "subagentStart"))
+     | select($type | test("^(hook\\.|user\\.message$|system\\.message$|subagent\\.)"))]
     | unique | .[]'
 }
 

@@ -4,6 +4,20 @@ Read this when adding a cache in front of a repository, choosing a TTL, or debug
 
 ---
 
+### Contents
+
+- Decorate the repository, do not scatter cache calls
+- Key naming
+- Pick the TTL from the tolerated staleness
+- Invalidate on write, never on a timer alone
+- Guard against the stampede
+- Never let a cache failure fail the request
+- Do not cache what belongs to one user in a shared key
+- HTTP caching is a separate layer
+- Related skills
+
+---
+
 ### Decorate the repository, do not scatter cache calls
 
 Keep the cache in one decorator that implements the same port as the real repository. Callers stay unaware, and the

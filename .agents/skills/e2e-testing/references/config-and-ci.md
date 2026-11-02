@@ -5,6 +5,14 @@ failure, and how the suite runs in a pipeline.
 
 ---
 
+### Contents
+
+- [One config for the whole suite](#one-config-for-the-whole-suite)
+- [Artifacts](#artifacts)
+- [CI wiring](#ci-wiring)
+
+---
+
 ### One config for the whole suite
 
 The config owns the base URL, the retry policy, the artifact policy, the browser matrix, and how the app under test is
@@ -94,16 +102,16 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@<commit-sha> # v5
+      - uses: actions/setup-node@<commit-sha> # v5
         with:
-          node-version: 24
+          node-version: 26
       - run: npm ci
       - run: npx playwright install --with-deps
       - run: npx playwright test
         env:
           BASE_URL: ${{ vars.STAGING_URL }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@<commit-sha> # v4
         if: always()
         with:
           name: playwright-artifacts
@@ -114,5 +122,6 @@ jobs:
 `if: always()` on the upload step is the part people forget. Without it the report is uploaded only when the suite
 passes, which is exactly when nobody needs it.
 
-Pin the Node version to the current LTS rather than `latest`, so a runner image update cannot change the runtime under
-the suite without a commit.
+Pin the Node version to an LTS major rather than `latest`, so a runner image update cannot change the runtime under
+the suite without a commit. Pin every action to a full commit SHA with its tag in a trailing comment, as the example
+shows with `<commit-sha>` in place of a real one. Resolve the SHA for a tag with `git ls-remote https://github.com/<owner>/<repo> refs/tags/<tag> refs/tags/<tag>^{}`, taking the `^{}` line when the tag is annotated, and let Dependabot or Renovate bump the SHA and the comment together.

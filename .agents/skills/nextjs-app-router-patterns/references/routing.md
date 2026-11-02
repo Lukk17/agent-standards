@@ -4,6 +4,17 @@ File conventions, the advanced routing primitives, HTTP endpoints, and per-route
 
 ---
 
+### Contents
+
+- File conventions
+- Route organisation
+- Parallel routes
+- Intercepting routes, the modal pattern
+- Route handlers
+- Metadata
+
+---
+
 ### File conventions
 
 ```text

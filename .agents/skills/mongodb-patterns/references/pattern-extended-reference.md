@@ -5,6 +5,13 @@ impactDescription: "Reduces repeated `$lookup` on hot paths by caching selected 
 tags: schema, patterns, extended-reference, denormalization, caching
 ---
 
+### Contents
+
+- [Use Extended Reference Pattern](#use-extended-reference-pattern)
+- [Verify with](#verify-with)
+
+---
+
 ### Use Extended Reference Pattern
 
 Copy frequently-accessed fields from referenced documents into the parent. If you always display author name with

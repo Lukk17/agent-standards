@@ -1,12 +1,21 @@
 # Commands
 
+Contents:
+
+- [Pick a default vault](#pick-a-default-vault)
+- [Search](#search)
+- [Create](#create)
+- [Move and rename](#move-and-rename)
+- [Delete](#delete)
+- [The official obsidian command](#the-official-obsidian-command)
+
 Every `notesmd-cli` command below runs unchanged in PowerShell, bash and zsh. Commands take `--vault "<vault-name>"`
 to pick a vault, and fall back to the default vault when it is omitted. Note paths are relative to the vault root,
 and the `.md` suffix is optional.
 
-Sources, fetched 2026-09-25:
+Sources:
 
-- `https://github.com/Yakitrak/notesmd-cli`, README section Usage, and `notesmd-cli --help` from v0.3.7
+- `https://github.com/Yakitrak/notesmd-cli`, README section Usage, and `notesmd-cli --help` from a 0.3 release
 - `https://help.obsidian.md/cli`, for the official `obsidian` command
 
 ---

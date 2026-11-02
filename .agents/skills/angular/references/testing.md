@@ -4,9 +4,18 @@ What to use, what to query by, and how to keep HTTP out of unit tests.
 
 ---
 
+### Contents
+
+- Runners and libraries
+- Query by role and label, never by selector
+- Mock HTTP at the transport, not the client
+- Testing signals and functional guards
+
+---
+
 ### Runners and libraries
 
-- Unit-test components and services with TestBed, run by Jest through `jest-preset-angular`, or by Vitest.
+- Unit-test components and services with TestBed on Vitest, which the Angular CLI sets up for new projects and runs through `ng test`. Keep Karma or Jest only in a project that already uses them, and do not mix runners in one workspace.
 - Use `@testing-library/angular` for component tests.
 - Write browser end-to-end tests with Playwright (`@playwright/test`). Protractor is deprecated and is not an option.
 
@@ -69,7 +78,7 @@ describe('WidgetService', () => {
 
 ```typescript
 // FAIL: the client is a stub, so interceptors, headers, and error mapping are never exercised
-const httpClient = { get: jest.fn().mockReturnValue(of([])) };
+const httpClient = { get: vi.fn().mockReturnValue(of([])) };
 ```
 
 `httpMock.verify()` in `afterEach` fails the test on any request the code made and the test did not expect, which is

@@ -1,6 +1,6 @@
 ---
 name: g-code-3d-printing
-description: G-code and 3D printing standards for thermal and motion safety, absolute positioning, Klipper macros over raw G-code, start and end sequences with bed mesh and purge line, filament calibration, and slicer profile version control. Use when you say "write start G-code for my printer", "my nozzle drags through the print", "set up a START_PRINT macro", "calibrate pressure advance", or "version my slicer profiles". Not for the PCB inside the printed part, use `kicad`.
+description: 'G-code and 3D printing standards for thermal and motion safety, absolute positioning, Klipper macros, start and end sequences, filament calibration and slicer profile version control. Use when the user says "write start G-code for my printer", "my nozzle drags through the print", "set up a START_PRINT macro" or "calibrate pressure advance". Not for the PCB inside the printed part, use `kicad`.'
 ---
 
 # G-code and 3D Printing Standards
@@ -9,8 +9,7 @@ How generated G-code stays safe on real hardware: the machine is never asked to 
 asked to extrude cold, and never asked to override a firmware safety feature. Every rule here maps to a specific way
 printers catch fire, crash, or ruin a plate.
 
-Baseline: Marlin 2.1.x and Klipper current stable. Both accept the standard G-code below, the difference is that
-Klipper expects complex sequences to live in Jinja2 macros rather than in the slicer.
+Written for Marlin 2 and Klipper. Both accept the standard G-code below, the difference is that Klipper expects complex sequences to live in Jinja2 macros rather than in the slicer.
 
 ---
 
@@ -22,6 +21,7 @@ Klipper expects complex sequences to live in Jinja2 macros rather than in the sl
 - Calibrating pressure advance, extrusion multiplier, or retraction for a filament.
 - Version-controlling slicer profiles or embedding a profile reference in output.
 - Generating or post-processing G-code from a script.
+- The user says "version my slicer profiles".
 
 ---
 

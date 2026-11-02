@@ -5,6 +5,20 @@ the two isolate patterns.
 
 ---
 
+### Contents
+
+- The model
+- Choosing an approach
+- Structured concurrency
+- Streams
+- FutureBuilder
+- One-shot isolates
+- Long-lived worker isolates
+- BuildContext after an await
+- Checklist
+
+---
+
 ### The model
 
 Dart runs on a single-threaded event loop per isolate. All Flutter application code runs on the main isolate by

@@ -9,8 +9,7 @@ lexical-search-querying.md.
 
 ---
 
-### Table of Contents
-
+### Contents
 - [Overview](#overview)
 - [Choosing the Right Approach](#choosing-the-right-approach)
 - [Indexing for Hybrid Search](#indexing-for-hybrid-search)
@@ -54,7 +53,7 @@ $rankFusion vs $scoreFusion:
 | Pre-filter vector search with simple equality or range | `filter` fields in `$vectorSearch` (see vector-search.md) |
 | Cross-collection hybrid search | `$unionWith` + `$vectorSearch` (not `$rankFusion`/`$scoreFusion`) |
 
-Version requirements: `$rankFusion` requires MongoDB 8.0+. `$scoreFusion` requires MongoDB 8.2+. Only proceed with this
+Version requirements: `$rankFusion` requires MongoDB 8.0+. `$scoreFusion` requires MongoDB 8.3+. Only proceed with this
 guide if the use case is lexical prefilters, or if the cluster meets the version requirement for the fusion stage of
 interest. Otherwise do not proceed.
 

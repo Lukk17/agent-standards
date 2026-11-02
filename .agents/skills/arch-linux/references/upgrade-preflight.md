@@ -12,7 +12,7 @@ Read this before the owner runs `pacman -Syu`, and before you recommend it. Some
 python3 -I scripts/arch-news-since.py
 ```
 
-2. Pass a date to look further back, for example `python3 -I scripts/arch-news-since.py 2026-09-01`. The feed holds only the most recent items, so for a gap of many months read the archive at `https://archlinux.org/news/`.
+2. Pass a date to look further back, for example `python3 -I scripts/arch-news-since.py <YYYY-MM-DD>`. The feed holds only the most recent items, so for a gap of many months read the archive at `https://archlinux.org/news/`.
 3. List what is pending without root and without touching the real database: `checkupdates`. Count the packages, and look for names that match a news item, such as the kernel, systemd, mkinitcpio, glibc, a GPU driver, Plasma, Python, the bootloader, openssl or pacman.
 4. Open every item flagged `ACTION`, read it fully, and decide whether it applies to this machine using `MACHINE.md` and live queries. A title match is not an answer. State one line per item: applies, does not apply, or cannot tell and why.
 5. If something looks suspicious, search the forum board "Pacman & Package Upgrade Issues" at `https://bbs.archlinux.org/viewforum.php?id=44` for the package name, newest replies first.

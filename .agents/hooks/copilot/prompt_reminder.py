@@ -18,6 +18,12 @@ task away.
 
 Every failure path prints nothing and exits 0, which Copilot reads as no
 output and passes the prompt through unchanged.
+
+REMINDER is also the main-thread reminder the OpenCode and Kilo Code plugin,
+.agents/plugin/hooks.js, reads from this file and adds to every prompt of a
+root session. The plugin reads it as written, a parenthesised run of plain
+double-quoted literals with no escape, so keep that shape.
+tools/tests/test_reminder_plugin.py fails when the two readings differ.
 """
 
 import json

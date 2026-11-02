@@ -1,5 +1,12 @@
 # Functional Pipelines
 
+Contents:
+
+- [Dart](#dart)
+- [Java](#java)
+- [Python](#python)
+- [When NOT to convert](#when-not-to-convert)
+
 The full treatment of the pipeline rule, with worked examples per language and the cases where an imperative loop is
 the right answer. Load this file when converting a loop, or when deciding whether a given loop should be converted at
 all.
@@ -10,9 +17,10 @@ When transforming a collection, filter then map then aggregate, prefer a pipelin
 reading top down, over an imperative loop with an if-else cascade and an explicit accumulator. The pipeline reads as
 what is being done to the data. The cascade reads as how the bookkeeping goes.
 
-This is a code-shape rule, not a syntax-level formatting one. For Dart, Java and Python the sibling
-`code-formatter` skill says one chain step per line, and any other language follows its language skill or its default
-formatter. This rule says reach for the chain in the first place.
+This is a code-shape rule, not a syntax-level formatting one. Where the project runs a formatter that owns line
+breaking (dart format, google-java-format, ruff format, black), its output decides how a chain wraps. Where none does,
+the sibling `code-formatter` skill says one chain step per line. This rule says reach for the chain in the first
+place.
 
 ---
 

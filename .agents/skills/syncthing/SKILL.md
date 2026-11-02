@@ -1,13 +1,13 @@
 ---
 name: syncthing
-description: 'Running Syncthing 2.x from an agent on Linux, Windows and macOS without the web page: start it as the user (systemd user unit, logon task, brew services), syncthing cli and the REST API with the API key, the folder layout under ~/Documents/sync, pairing, adding a folder by its folder ID, the folder types sendreceive, sendonly and receiveonly, ignoreDelete, introducer and autoAcceptFolders, moving a folder, a direct connection instead of a relay, a peer in Docker, the database disk space error, a peer that shows 0 files, and the linuxserver/syncthing image. Use when you say "pair this device", "share this folder one way", "keep the files when the sender deletes them", "the folder shows Stopped", "insufficient space on disk for database", "is it going through a relay", "move this synced folder", or "Remote is an introducer to us". Not for compose and image design in general, use `docker-patterns`, and not for services, firewalls and packages of one machine, use `windows`, `macos` or `arch-linux`.'
+description: 'Running Syncthing 2 from an agent on Linux, Windows and macOS without the web page: starting it as the user, the CLI and REST API, pairing, folder types, ignoreDelete, introducers, relays and Docker peers. Use when the user says "pair this device", "share this folder one way", "the folder shows Stopped" or "is it going through a relay". Not for Compose and image design, use `docker-patterns`.'
 ---
 
 # Syncthing Administration
 
 How to set up and repair Syncthing from a terminal so that nothing waits for a click in the web page. Every change goes through `syncthing cli` or the REST API, every synced folder lives under one base folder, and no device may add folders or devices on its own. Syncthing changed a lot between 1.x and 2.x, so check `syncthing --version` before you apply a recipe.
 
-Baseline: Syncthing 2.1.7, released on 2026-10-21, with the documentation and the source fetched on 2026-10-23. Commands marked VERIFIED were executed on 2026-10-23 against 2.1.7 in throwaway containers built from `syncthing/syncthing:2.1.7` and `lscr.io/linuxserver/syncthing:v2.1.7-ls233` on an isolated Docker network. Every other command, every Windows and every macOS command included, is UNVERIFIED.
+Written for Syncthing 2. Commands marked VERIFIED were executed in throwaway containers built from the `syncthing/syncthing` and `lscr.io/linuxserver/syncthing` images on an isolated Docker network. Every other command, every Windows and every macOS command included, is UNVERIFIED.
 
 | You are about to | Open |
 |---|---|
@@ -34,6 +34,8 @@ Device IDs, folder IDs, host names and LAN addresses of a real setup belong in t
 - A folder that shows Stopped, Out of Sync, or 0 files on one side
 - A slow transfer that may run through a relay, or a peer inside a Docker container
 - Moving a synced folder to a new path, or cleaning up folders that appeared by themselves
+- Also covers starting it as the user (systemd user unit, logon task, brew services), syncthing cli and the REST API with the API key, the folder layout under ~/Documents/sync, pairing, adding a folder by its folder ID, the folder types sendreceive, sendonly and receiveonly, ignoreDelete, introducer and autoAcceptFolders, moving a folder, a direct connection instead of a relay, a peer in Docker, the database disk space error, a peer that shows 0 files, and the linuxserver/syncthing image
+- The user says "keep the files when the sender deletes them", "insufficient space on disk for database", "move this synced folder" or "Remote is an introducer to us"
 
 ---
 
@@ -66,7 +68,7 @@ Device IDs, folder IDs, host names and LAN addresses of a real setup belong in t
 - `docker-patterns` owns Compose, images and container networks around a Syncthing container
 - `windows`, `macos`, `arch-linux` and `cachyos` own services, firewalls and packages on each kind of machine
 - `proxmox` owns growing the virtual disk under a guest that runs Syncthing
-- `security-review` owns judging an exposed GUI, a published port or a token
+- The `security-auditor` agent owns judging an exposed GUI, a published port or a token
 - `bash` and `powershell` own scripts that wrap these commands
 
 ---

@@ -8,6 +8,16 @@ library, so a codebase still importing it should be migrated rather than mixed.
 
 ---
 
+### Contents
+
+- List and presence animation
+- Modal animation
+- Reduced motion is not optional
+- Timing budgets
+- Token-driven CSS transitions
+
+---
+
 ### List and presence animation
 
 `AnimatePresence` is what makes an exit animation possible, because React would otherwise unmount the node

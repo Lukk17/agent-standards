@@ -1,13 +1,13 @@
 ---
 name: asus-router
-description: 'Working on an ASUS router from an agent over SSH, read only unless the owner says yes to one exact change: stock Asuswrt 3.0.0.4.388 and 3.0.0.6.102 on Wi-Fi 6 and 6E models such as the GT-AX6000, and Asuswrt-Merlin where it differs. SSH on the LAN only with an ed25519 key and no password login, the env file keys ASUS_ROUTER_SSH, ASUS_ROUTER_SSH_PORT and HOMELAB_SSH_KEY, taking the key back, the system log in /tmp/syslog.log or /jffs/syslog.log, WAN link, PPPoE and DHCP lines in the log, nvram get for the WAN type and interfaces, the WAN port link, ping from the router, reaching the ONT page from the LAN while the WAN runs PPPoE, and telling a WAN link drop from an ISP outage. Use when you say "let the agent into my router", "read the router log", "why does the internet drop", "is the WAN PPPoE or DHCP", "I cannot open the ONT page", or "was it the cable or the ISP". Not for a Proxmox host behind the router, use `proxmox`, and not for judging an exposed port, use `security-review`.'
+description: 'Working on an ASUS router over SSH from an agent, read only unless the owner approves one exact change: stock Asuswrt and Merlin, SSH key access, the system log, WAN and PPPoE state, and telling a link drop from an ISP outage. Use when the user says "let the agent into my router", "read the router log" or "why does the internet drop". Not for a Proxmox host behind the router, use `proxmox`.'
 ---
 
 # ASUS Router Administration
 
 How an agent reads an ASUS router over SSH without a password, and how a change the owner approved is done. The agent logs in with an SSH key as the router's administrator, which is root on the router. So the key can change anything, and the rules below are all that keeps the agent to reading. Stock Asuswrt and Asuswrt-Merlin share the SSH server, the system log and the WAN code, and every topic file says where Merlin differs.
 
-Baseline, fetched and read on 2026-10-23: the stock firmware image for the GT-AX6000, version 3.0.0.6.102_37437 released on 2026-10-20, unpacked in a throwaway container and read file by file, never run. It carries Dropbear 2020.81, BusyBox 1.24.1, `ip`, `ethctl` and `ethtool`, though the tested router below had no `ethtool`. Beside it the Asuswrt-Merlin source at tag 3006.102.9 of 2026-09-23, the Asuswrt-Merlin wiki at its commit of 2026-10-11, and the ASUS FAQ pages named in each topic file. On 2026-10-23 the owner tested part of it on a GT-AX6000 with stock firmware whose `nvram get buildno` printed `386`: the SSH login with an ed25519 key, the log files, the `nvram get` reads, the PPP options, the log lines of PPPoE session drops, the WAN port link, the interfaces, routes and counters, and ping and traceroute from the router. Those commands and lines are marked VERIFIED with that build named. Every other command that runs on a router is UNVERIFIED until it is tested on a real one.
+Written for stock Asuswrt on the 388 and 102 firmware branches, on Wi-Fi 6 and 6E models such as the GT-AX6000, and Asuswrt-Merlin where it differs. Tool names and log texts were read in an unpacked stock firmware image for the GT-AX6000, never run, and in the Asuswrt-Merlin source and wiki and the ASUS FAQ pages named in each topic file. The image carries Dropbear, BusyBox, `ip`, `ethctl` and `ethtool`, though the tested router below had no `ethtool`. The owner tested part of it on a GT-AX6000 with stock firmware whose `nvram get buildno` printed `386`: the SSH login with an ed25519 key, the log files, the `nvram get` reads, the PPP options, the log lines of PPPoE session drops, the WAN port link, the interfaces, routes and counters, and ping and traceroute from the router. Those commands and lines are marked VERIFIED with that build named. Every other command that runs on a router is UNVERIFIED until it is tested on a real one.
 
 | You are about to | Open |
 |---|---|
@@ -31,6 +31,8 @@ The router address, the administrator user name, the SSH port, the ONT address, 
 - An internet connection that drops now and then, and the question of whose fault it is
 - An ISP optical terminal or modem whose web page cannot be reached from the LAN
 - A change on the router that the owner asked for, such as a persistent ONT route on Merlin
+- Also covers stock Asuswrt on Wi-Fi 6 and 6E models such as the GT-AX6000, and Asuswrt-Merlin where it differs. SSH on the LAN only with an ed25519 key and no password login, the env file keys ASUS_ROUTER_SSH, ASUS_ROUTER_SSH_PORT and HOMELAB_SSH_KEY, taking the key back, the system log in /tmp/syslog.log or /jffs/syslog.log, WAN link, PPPoE and DHCP lines in the log, nvram get for the WAN type and interfaces, the WAN port link, ping from the router, reaching the ONT page from the LAN while the WAN runs PPPoE, and telling a WAN link drop from an ISP outage
+- The user says "is the WAN PPPoE or DHCP", "I cannot open the ONT page" or "was it the cable or the ISP"
 
 ---
 
@@ -39,7 +41,7 @@ The router address, the administrator user name, the SSH port, the ONT address, 
 - A Proxmox host or a virtual machine behind the router, use `proxmox`
 - A service inside the home lab, such as Home Assistant or Syncthing, use `home-assistant` or `syncthing`
 - The network settings of one client machine, use `windows`, `macos`, `arch-linux` or `cachyos`
-- Judging whether an open port, a key or a firewall rule is acceptable, use `security-review`
+- Judging whether an open port, a key or a firewall rule is acceptable, use the `security-auditor` agent
 - A script that wraps these commands on the agent's own machine, use `bash` or `powershell`
 
 ---
@@ -62,7 +64,7 @@ The router address, the administrator user name, the SSH port, the ONT address, 
 
 - `proxmox` owns the Proxmox host and its virtual machines behind the router
 - `home-assistant` owns Home Assistant, which can also watch the router
-- `security-review` owns judging an exposed port, a key or a firewall rule
+- The `security-auditor` agent owns judging an exposed port, a key or a firewall rule
 - `bash` and `powershell` own scripts on the agent's machine that wrap these commands
 - `windows`, `macos`, `arch-linux` and `cachyos` own the client machines on the LAN
 

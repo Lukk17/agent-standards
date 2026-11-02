@@ -9,7 +9,7 @@ Read this before handing over a PowerShell command, and when a script works in o
 The order is rule 1 in [SKILL.md](../SKILL.md): PowerShell 7 when it is installed, its installation recommended when it is not, and Windows PowerShell 5.1 only after the owner declines.
 
 1. Check for PowerShell 7 with `Get-Command pwsh -ErrorAction SilentlyContinue`, which answers in either shell, or `where.exe pwsh` from `cmd`. Output means it is installed, so run the command in `pwsh`.
-2. When nothing comes back, recommend the install to the owner before handing over any 5.1 command. Microsoft Learn, "Install PowerShell 7 on Windows" (ms.date 2026-09-21), lists "WinGet - Recommended way to install PowerShell on Windows clients" and gives `winget install --id Microsoft.PowerShell --source winget`. Add `-e` as for every winget install, see [package-managers.md](package-managers.md).
+2. When nothing comes back, recommend the install to the owner before handing over any 5.1 command. Microsoft Learn, "Install PowerShell 7 on Windows", lists "WinGet - Recommended way to install PowerShell on Windows clients" and gives `winget install --id Microsoft.PowerShell --source winget`. Add `-e` as for every winget install, see [package-managers.md](package-managers.md).
 3. The same page says "Beginning with the winget package for PowerShell 7.6.0, winget installs the MSIX package by default" and "Store-based installations are installed for a single user". Whether that install raises a UAC prompt on a given machine is UNVERIFIED, so the owner runs it.
 4. Fall back to `powershell.exe` only when the owner declines, say in the handover that the command targets 5.1, and check it against the table below.
 5. A Windows module that loads only in 5.1 does not change the choice. Load it from `pwsh` through the compatibility session described under "What breaks between them".
@@ -18,7 +18,7 @@ The order is rule 1 in [SKILL.md](../SKILL.md): PowerShell 7 when it is installe
 
 ### Two programs, side by side
 
-From Microsoft Learn, "Differences between Windows PowerShell 5.1 and PowerShell 7.x" (updated 2026-02-04): "The binary name for PowerShell has been changed from `powershell(.exe)` to `pwsh(.exe)`. This change provides a deterministic way for users to run PowerShell on machines and support side-by-side installations of Windows PowerShell and PowerShell."
+From Microsoft Learn, "Differences between Windows PowerShell 5.1 and PowerShell 7.x": "The binary name for PowerShell has been changed from `powershell(.exe)` to `pwsh(.exe)`. This change provides a deterministic way for users to run PowerShell on machines and support side-by-side installations of Windows PowerShell and PowerShell."
 
 1. `powershell.exe` is Windows PowerShell 5.1, shipped with Windows under `C:\Windows\System32\WindowsPowerShell\v1.0\`. That path was confirmed on a mounted Windows 11 disk, read-only.
 2. `pwsh.exe` is PowerShell 7, installed separately, for example through winget (`Microsoft.PowerShell`) or the Store. A Store install appears as an app execution alias under `%LOCALAPPDATA%\Microsoft\WindowsApps`, as on the inspected disk, rather than under `C:\Program Files\PowerShell\7`.

@@ -1,6 +1,6 @@
 ---
 name: obsidian
-description: 'Working with Obsidian vaults from a terminal on Windows, Linux and macOS: finding which vaults exist and which one is open from the obsidian.json vault list, installing notesmd-cli (the project formerly named obsidian-cli), and searching, creating, moving with link updates, and deleting notes. Use when you say "find my Obsidian vault", "search my notes", "create a note in Obsidian", "rename this note and fix the links", "move this note to another folder", "delete that note", or "install obsidian-cli". Not for writing the prose inside a note that a person will publish, use `markdown-writer`, and not for researching a tool behaviour the vault does not answer, use `research`.'
+description: 'Working with Obsidian vaults from a terminal on Windows, Linux and macOS: finding vaults from obsidian.json, installing notesmd-cli, and searching, creating, moving with link updates and deleting notes. Use when the user says "find my Obsidian vault", "search my notes", "rename this note and fix the links" or "install obsidian-cli". Not for the prose inside a note, use `markdown-writer`.'
 ---
 
 # Obsidian
@@ -10,8 +10,7 @@ file called `obsidian.json`, and `notesmd-cli` reads that list to find a vault b
 Windows, Linux and macOS, and the only thing that changes per platform is where that file lives and how the CLI is
 installed.
 
-Baseline: notesmd-cli v0.3.7, verified on Windows 11 against a real vault list. The Linux and macOS paths are read
-from Obsidian's own help and from the notesmd-cli source, not measured on those systems.
+Written for notesmd-cli 0.3, measured on Windows 11 against a real vault list. The Linux and macOS paths are read from Obsidian's own help and from the notesmd-cli source, not measured on those systems.
 
 | Task | Open |
 |---|---|
@@ -29,6 +28,7 @@ from Obsidian's own help and from the notesmd-cli source, not measured on those 
 - Moving or renaming a note so every link pointing at it follows
 - Deleting a note
 - Installing `notesmd-cli`, or replacing an old `obsidian-cli` install
+- The user says "create a note in Obsidian", "move this note to another folder" or "delete that note"
 
 ---
 

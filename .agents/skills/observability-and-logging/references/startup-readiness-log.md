@@ -1,10 +1,21 @@
 # Startup readiness log
 
+Contents:
+
+- [What the block contains](#what-the-block-contains)
+- [Text and JSON encoders](#text-and-json-encoders)
+- [Canonical output](#canonical-output)
+- [Format rules](#format-rules)
+- [Emit the whole block in ONE log call with a leading \n](#emit-the-whole-block-in-one-log-call-with-a-leading-n)
+- [Emission hook per stack](#emission-hook-per-stack)
+
 The canonical multi-line banner every long-running service emits the moment it starts accepting traffic. Open this
 file when writing or reviewing that block. The rule that it must exist lives in
 [SKILL.md](../SKILL.md).
 
 ---
+
+### What the block contains
 
 Every long-running service emits one canonical multi-line INFO log entry the moment it starts accepting traffic, not the
 moment the process boots. Use the latest-possible startup hook for the framework. This single line is the most-read log
@@ -14,7 +25,7 @@ new contributor sees when running locally. Investing in its clarity pays back ev
 The log block contains, in order:
 
 1. ASCII banner with the application name in ANSI Shadow FIGlet font (Unicode box-drawing: `█▀▄╔╗╚╝═║`). Width ~120
-   chars, 6 lines. Modern terminals, container stdout, Loki, JsonEncoder-escaped JSON logs all render it. The bold
+   chars, 6 lines. Modern terminals, container stdout and Loki render it under a text encoder. The bold
    weight makes "we're up" unmistakable when scrolling startup output. Do not use Standard / Big / Slant / Small / Block
    ASCII FIGlet: they pack too tightly to scan from a `kubectl logs` flood, and look indistinguishable from any other
    log line. Plain-ASCII fallback is acceptable only when the deployment target is a known UTF-8-hostile environment
@@ -46,9 +57,23 @@ The log block contains, in order:
 3. Active profile / environment: whatever the framework exposes (`local`, `docker`, `prod`, `staging`).
 4. External dependencies: each one probed with a 2-second connect + read timeout so an unreachable dependency cannot
    stall the banner. Result format: `<url> [Connected | Warning (status=N) | FAILED]`: URL first, status marker last.
-   Never include the exception detail in the banner, log it at `DEBUG` for diagnostics.
+   Print each dependency as `scheme://host:port/path` only, with the user info and the query string removed, because
+   connection strings routinely carry credentials (`redis://:password@host`, `?password=`). Never include the
+   exception detail in the banner, log it at `DEBUG` for diagnostics.
 5. Observability endpoints: one URL per line: health / readiness / liveness / metrics / prometheus, plus OpenAPI /
    Swagger UI / tracing endpoint + sampling, plus the logging encoder mode by profile.
+
+---
+
+### Text and JSON encoders
+
+Print the banner only under the text encoder. Under a JSON encoder the newlines become a literal `\n` inside one
+string field and the art does not render, so emit one structured `service.ready` event instead, carrying the same
+fields (URLs, profile, each dependency and its status) as attributes.
+
+---
+
+### Canonical output
 
 Canonical full output, what a real service should print when it accepts traffic. Match this layout precisely. Omit
 sections that do not apply (no `Auth` section if the service is unauthenticated), but keep the ones that do in this
@@ -97,7 +122,9 @@ order:
 ----------------------------------------------------------
 ```
 
-Format rules:
+---
+
+### Format rules
 
 - Top and bottom separator: 58 dashes (`-` repeated). Same character, same count.
 - 4-space indent for every line inside the block. Section labels are 1-indented (`    Section name:`), keys inside a
@@ -108,7 +135,9 @@ Format rules:
   include the exception detail in the banner, log it at DEBUG.
 - Blank line between every section, no blank line inside a section.
 
-#### Emit the whole block in ONE log call with a leading `\n`
+---
+
+### Emit the whole block in ONE log call with a leading `\n`
 
 The banner plus the readiness body must be a single log statement whose message starts with `\n`. The leading newline
 pushes the first line of the banner (and every line after it) below the framework's prefix, so the banner art renders
@@ -190,6 +219,10 @@ log.info("\n{}", block);
 Same shape for every framework: build the whole block first (StringBuilder, `String.join`, template literal, Python
 f-string, Go `strings.Builder`), then emit once. If the builder needs to probe dependencies asynchronously, do that work
 first, collect the results, then assemble the string, then log.
+
+---
+
+### Emission hook per stack
 
 Emit the block from the framework's "we're really up" hook. The hook differs per stack, the convention above is
 identical.

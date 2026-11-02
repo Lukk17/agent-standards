@@ -1,6 +1,6 @@
 ---
 name: ascend-memory
-description: Long-term semantic memory for one user through the self-hosted AscendMemory service, covering insert, semantic search, delete, and wipe against a per-user Qdrant namespace. Use when the user says "remember that…", "what did I tell you about…", "save this for later", "forget this", or when prior context about the user would change your answer. Not for web research or fetching a page, use `research`, which hands a page that blocks a normal fetch to `ascend-web-hunter`.
+description: 'Long-term semantic memory for one user through the self-hosted AscendMemory service: insert, semantic search, delete and wipe in a per-user Qdrant namespace. Use when the user says "remember that…", "what did I tell you about…", "save this for later" or "forget this", or when prior context about the user would change the answer. Not for web research, use `research`.'
 compatibility: Requires the self-hosted AscendMemory service reachable over HTTP. Its base URL is configured by the user and appears in the examples as the placeholder $BASE, for example `http://ascend-memory.local:8080`. No default base URL is assumed.
 ---
 
@@ -131,9 +131,7 @@ curl.exe -s -X DELETE "$BASE/api/v1/memory?memory_id=<id-from-search>"
 
 ### Keep metadata small and structural
 
-Pass short structured tags in `metadata` when they sharpen future retrieval, for example
-`{"type":"preference","topic":"coffee"}` or `{"source":"chat-2026-05-08"}`. Metadata is a filter aid and is not
-searched semantically, so prose belongs in `text` instead.
+Pass short structured tags in `metadata` when they sharpen future retrieval, for example `{"type":"preference","topic":"coffee"}` or `{"source":"chat-<date>"}`. Metadata is a filter aid and is not searched semantically, so prose belongs in `text` instead.
 
 Pass: `{"type":"preference","topic":"coffee"}`.
 

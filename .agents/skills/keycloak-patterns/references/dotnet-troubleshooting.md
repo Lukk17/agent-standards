@@ -1,5 +1,10 @@
 # Troubleshooting & Recipes
 
+Contents:
+
+- [Common Issues](#common-issues)
+- [Recipes](#recipes)
+
 ---
 
 ### Common Issues

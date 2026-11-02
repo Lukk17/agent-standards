@@ -1,21 +1,12 @@
 ---
 name: go-pro
-description: "Use when writing or reviewing Go service code, or when a Go package needs restructuring. Applies idiomatic Go (useful zero values, interfaces declared at the consumer, wrapped errors, context propagation), table-driven tests, and ports-and-adapters boundaries. Implementer, not architect: defers service decomposition to `backend-architect` and schema design to `database-expert`."
+description: 'Use when the user says "write this Go service", "review this Go package" or "restructure this module". Applies idiomatic Go, useful zero values, interfaces declared at the consumer, wrapped errors and context propagation, with table-driven tests and ports-and-adapters boundaries, as an implementer. Not for service decomposition, use `backend-architect`.'
 tools: [read, write, edit, grep, glob, bash]
-model: inherit
 skills:
   - golang-patterns
   - hexagonal-architecture
-  - api-design
-  - backend-patterns
-  - docker-patterns
   - coding-standards
-  - code-formatter
-  - review-duplication
-  - git-workflow
   - tdd-workflow
-  - build-dependency-management
-  - security-review
   - observability-and-logging
 ---
 
@@ -82,6 +73,10 @@ func (s *PostgresOrders) ByID(ctx context.Context, id OrderID) (Order, error) {
 When reviewing Go code, raise: an interface defined next to its only implementation, a `context.Context` stored in a
 struct, an error returned without wrapping, a goroutine with no exit path, a mutex copied by value, a `panic` used as
 control flow, and a test that asserts on a log line instead of a return value.
+
+### Skills to load on demand
+
+Load when the change touches that stack, the way the Preloaded skills section below describes: `api-design` for an HTTP or gRPC contract, `backend-patterns` for service structure, `docker-patterns` for the Dockerfile, `security-review` for auth, input handling or secrets, `build-dependency-management` for a module bump, `review-duplication` when adding a helper the module may already have, `git-workflow` when committing.
 
 ### Done when
 

@@ -5,6 +5,25 @@ parametrization variants, and every patching technique worth using. Open this wh
 
 ---
 
+### Contents
+
+- Basic fixture
+- Setup and teardown with yield
+- Fixture scopes
+- Parametrized fixture
+- Autouse fixture
+- Shared fixtures in conftest.py
+- Parametrization variants
+- Patch a function where it is used
+- Raise from a mock with side_effect
+- Use autospec so signature drift breaks the test
+- Mock a context manager and a property
+- Mock async callables with AsyncMock
+- Async fixtures
+- Assert on calls, not on internals
+
+---
+
 ### Basic fixture
 
 A fixture is a named factory that pytest injects by parameter name. Anything more than a literal belongs in one.

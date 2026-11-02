@@ -3,26 +3,35 @@
 Worker pools, `errgroup`, cancellation, graceful shutdown, and the leak patterns that show up in production as memory
 growth. Open this when a hub rule points here or when a goroutine has no obvious way to stop.
 
-Baseline: Go 1.25, so range variables are per-iteration and no `tt := tt` copy is needed.
+Written for Go 1.27, so range variables are per-iteration and `sync.WaitGroup.Go` starts and counts a goroutine in one call.
+
+---
+
+### Contents
+
+- Worker pool over a channel
+- errgroup for coordinated work that can fail
+- Give every blocking call a context
+- Close the leak: buffer or select
+- Shut down gracefully
+- Guard shared state, or do not share it
+- Reuse buffers only after a benchmark says so
 
 ---
 
 ### Worker pool over a channel
 
-A fixed number of workers reading one job channel bounds concurrency without a semaphore. The producer closes the job
-channel, the workers exit their `range`, and the `WaitGroup` tells the owner when it is safe to close the results.
+A fixed number of workers reading one job channel bounds concurrency without a semaphore. The producer closes the job channel, the workers exit their `range`, and the `WaitGroup` tells the owner when it is safe to close the results. Start each worker with `wg.Go`, which adds the task, runs it in a new goroutine, and marks it done when it returns, so no `Add` can drift from its `Done`. The function passed to `wg.Go` must not panic.
 
 ```go
 func WorkerPool(jobs <-chan Job, results chan<- Result, workers int) {
     var wg sync.WaitGroup
     for range workers {
-        wg.Add(1)
-        go func() {
-            defer wg.Done()
+        wg.Go(func() {
             for job := range jobs {
                 results <- process(job)
             }
-        }()
+        })
     }
     wg.Wait()
     close(results)

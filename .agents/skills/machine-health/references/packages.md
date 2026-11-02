@@ -1,6 +1,6 @@
 # Packages
 
-Pending and partial upgrades, configuration files the package manager left beside the live ones, orphans and cache size. The rules live in [SKILL.md](../SKILL.md). Arch and CachyOS commands below were executed read-only on 2026-10-13 with pacman-contrib 1.13.1, Debian, Fedora, macOS and Windows commands are UNVERIFIED. Nothing here installs, upgrades, removes or cleans, including the tools' own cleanup commands.
+Pending and partial upgrades, configuration files the package manager left beside the live ones, orphans and cache size. The rules live in [SKILL.md](../SKILL.md). Arch and CachyOS commands below were executed read-only with pacman-contrib, Debian, Fedora, macOS and Windows commands are UNVERIFIED. Nothing here installs, upgrades, removes or cleans, including the tools' own cleanup commands.
 
 ---
 

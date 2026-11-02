@@ -118,6 +118,22 @@ Unix shell:
 printf '\n/tasks.md\n/.agents/tasks.widget.json\n' >> .gitignore
 ```
 
+On OpenCode 1.x only, put the 1.x form of the edit backstop in place. The default
+[.opencode/opencode.json](../.opencode/opencode.json) is written for OpenCode 2.x and Kilo Code ignores it, but 1.x
+refuses to start on it with "V2 permissions are not supported by OpenCode V1", so
+[.opencode/opencode.json.v1](../.opencode/opencode.json.v1) carries the same rule in the form 1.x reads. Copy it again
+after any later checkout that names `.opencode`. PowerShell:
+
+```powershell
+Copy-Item .opencode/opencode.json.v1 .opencode/opencode.json
+```
+
+Unix shell:
+
+```bash
+cp .opencode/opencode.json.v1 .opencode/opencode.json
+```
+
 That is the whole setup. Commit when you are ready.
 
 What you just pulled:
@@ -129,6 +145,10 @@ What you just pulled:
   Code hooks, and the `workflows/` folder holding the [skill audit](#auditing-the-skills). It holds no `CLAUDE.md`, on
   purpose, see [instruction files](#instruction-files).
 - `.opencode/agents` and `.kilo/agents`: symlinks into [.agents/agents/](../.agents/agents/). One tree, two agents.
+- [.opencode/opencode.json](../.opencode/opencode.json) and [.opencode/opencode.json.v1](../.opencode/opencode.json.v1):
+  a native edit backstop that denies the main session an edit of any project file but `tasks.md`, for a runtime where
+  the plugin gate never fires. The first is the OpenCode 2.x form, the second the OpenCode 1.x form, and Kilo Code
+  reads neither.
 - [.codex/](../.codex/): the generated TOML custom agents and `config.toml`, which holds both the Codex MCP servers
   and the Codex gate hooks inline.
 - [.github/agents/](../.github/agents/) and [.github/hooks/preflight.json](../.github/hooks/preflight.json): Copilot
@@ -170,6 +190,97 @@ yours. A project imported before agent-standards stopped shipping `.claude/CLAUD
 upstream change in one of the configuration files, each shell section of that document ends with a diff command and a
 checkout for all five, and [what this skips](AGENTS-UPDATE.md#what-this-skips-and-why) names which half of each file
 is yours.
+
+---
+
+### Claude Code plugins
+
+Claude Code can take the skills, subagents and MCP servers as plugins from the upstream marketplace instead of the checkout, so a project installs only the domains it works in. The plugins carry nothing else. The gate, its hooks, `AGENTS.md` and the [.claude/settings.json](../.claude/settings.json) wiring still arrive by Git, through the [gate-only import](#the-gate-only-import) below. Codex, GitHub Copilot, OpenCode and Kilo Code are not covered by the plugins, so they keep the full import above. Pick one route per project, because a project that has both carries two copies of every skill and subagent, one under each name.
+
+#### Installing the plugins
+
+Add the marketplace once. It lives on the upstream `plugins` branch:
+
+```bash
+claude plugin marketplace add Lukk17/agent-standards#plugins
+```
+
+Install one domain, such as `python`. Its `core` dependency comes along:
+
+```bash
+claude plugin install python@agent-standards
+```
+
+`all` installs `core` and every domain. The host groups (`linux`, `windows-and-mac`, `homelab`, `personal-tools`) and the MCP servers (one `mcp-<server>` plugin each, or `mcp-all` for every one) stay separate installs:
+
+```bash
+claude plugin install all@agent-standards
+```
+
+A host group installs switched off, so enable it after installing it:
+
+```bash
+claude plugin install linux@agent-standards
+```
+
+```bash
+claude plugin enable linux@agent-standards
+```
+
+Claude Code does not refresh this marketplace in the background. Refresh it first:
+
+```bash
+claude plugin marketplace update agent-standards
+```
+
+Then update each plugin you installed, such as:
+
+```bash
+claude plugin update python@agent-standards
+```
+
+To give everyone on the project the same set, add both keys to `.claude/settings.json`. `ref` names the branch to read the marketplace from. Claude Code registers the marketplace only after a contributor accepts the workspace trust dialog for the folder:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "agent-standards": {
+      "source": { "source": "github", "repo": "Lukk17/agent-standards", "ref": "plugins" }
+    }
+  },
+  "enabledPlugins": {
+    "python@agent-standards": true
+  }
+}
+```
+
+Every component is namespaced under its plugin, so the Python subagent is `python:python-pro` and the coding standards skill is `/core:coding-standards`.
+
+#### The gate-only import
+
+The gate-only import brings the hook scripts in [.agents/hooks/](../.agents/hooks/), the Claude Code wiring in [.claude/settings.json](../.claude/settings.json), the `AGENTS.md.example` template and the shipped documents. It leaves out `.agents/skills/`, every agent tree and `.mcp.json`, which the plugins supply. Nothing more is needed, because the wiring runs only scripts inside [.agents/hooks/](../.agents/hooks/) and the gate reads no skill.
+
+Add the read-only remote and fetch, as in [Step 1](#step-1-initial-import), then pull the gate. PowerShell or Unix shell, same command:
+
+```bash
+git checkout agent-standards/master -- .agents/hooks .claude/settings.json AGENTS.md.example docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+```
+
+Rename the template. PowerShell:
+
+```powershell
+Rename-Item AGENTS.md.example AGENTS.md
+```
+
+Unix shell:
+
+```bash
+mv AGENTS.md.example AGENTS.md
+```
+
+Then add the `extraKnownMarketplaces` and `enabledPlugins` keys above to the imported `.claude/settings.json`, beside its hooks. To update later, run the block for your shell in [AGENTS-UPDATE.md](AGENTS-UPDATE.md) up to its stop sign. It refreshes only what your tree already holds, so the skills and the agent trees stay out. Skip its last checkout, which would add `.mcp.json` and the other agents' configuration files.
+
+With the gate-only import in place, plugin-installed read-only agents are restricted on Claude Code. Claude Code names a plugin subagent `<plugin>:<name>`, such as `review-and-security:code-reviewer`, and the gate reads its definition from the plugin cache, `plugins/cache/<marketplace>/<plugin>/<version>/agents/<name>.md` under `CLAUDE_CONFIG_DIR` and `~/.claude`. So `code-reviewer` and `code-archaeologist` installed from the plugins are held to the commands under their "Read-only shell" heading and denied any edit, and a plugin subagent whose definition declares no skills is denied like any other. A plugin loaded for one session with `--plugin-dir` is not in that cache, so the gate allows its agents as unknown, a read-only one included. That limit is accepted. Without the gate nothing is enforced: the plugins carry no hooks, so a project on the plugins with neither the gate-only import nor the global install has no rule on the main thread or on any subagent.
 
 ---
 
@@ -250,8 +361,8 @@ Each agent wires that same script through its own hook surface:
 | --- | --- | --- |
 | Claude Code | [.claude/settings.json](../.claude/settings.json) | blocks the tool call, injects the gate at session start and every turn, tells a subagent to do its task itself on subagent start, lints markdown after an edit, blocks a main-thread reply on `Stop`, and mirrors the task list |
 | Codex | inline `[[hooks.*]]` tables in [.codex/config.toml](../.codex/config.toml) | blocks the tool call, injects the gate every turn, tells a subagent to do its task itself on subagent start, runs the formatting check on `Stop`, and seeds the task list at session start |
-| OpenCode | plugin [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), declared by its directory in [opencode.json](../opencode.json), serving 1.x and 2.x | blocks the tool call, injects the gate on every main-thread prompt through `chat.message` and the subagent text in a subagent's session |
-| Kilo Code | the same plugin, the same declaration | blocks the tool call, injects the gate on every main-thread prompt through `chat.message` and the subagent text in a subagent's session |
+| OpenCode | plugin [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), declared by its directory in [opencode.json](../opencode.json), serving 1.x and 2.x | blocks the tool call, injects the gate on every prompt of the main thread, and tells a subagent to do its task itself in a subagent's session |
+| Kilo Code | the same plugin, the same declaration | blocks the tool call, injects the gate on every prompt of the main thread, and tells a subagent to do its task itself in a subagent's session |
 | GitHub Copilot | [.github/hooks/preflight.json](../.github/hooks/preflight.json) | fires on the tool call but always allows, caller identity is always unknown there; injects the gate at session start and on every prompt through `userPromptTransformed`, and tells a subagent to do its task itself on subagent start |
 
 Only Claude Code has task events, so `tasks.md` is written from them there and merely injected at session start

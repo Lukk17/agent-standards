@@ -4,8 +4,23 @@ How a Go test suite is written with nothing but `testing` and the standard libra
 faked, and what the coverage number means. The hub carries the rules that decide most reviews, and this file carries
 the rest. Table, fake, integration, and benchmark depth sits in the sibling files listed at the bottom.
 
-Baseline: Go 1.25, the current stable toolchain. That gives per-iteration range variables, `t.Context`, `t.Chdir`,
-and a stable `testing/synctest`, all of which the examples use.
+Written for Go 1.27. That gives per-iteration range variables, `t.Context`, `t.Chdir`, and a stable `testing/synctest`, all of which the examples use.
+
+---
+
+### Contents
+
+- Write the failing test first
+- Make the table the default shape
+- Report with Errorf, stop with Fatalf
+- Let the testing package own setup and cleanup
+- Fake with a struct, not a mock framework
+- Never sleep to wait
+- Test through the exported API
+- Run subtests in parallel only when they are independent
+- Benchmark before you optimise, fuzz what parses input
+- Sibling references
+- Checklist
 
 ---
 

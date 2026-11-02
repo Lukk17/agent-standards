@@ -3,7 +3,19 @@
 Protocols, aliases, generics, and narrowing for code that has to pass `mypy --strict`. Open this when a signature
 needs more than a builtin generic, or when the checker rejects something that looks correct.
 
-Baseline: Python 3.13 or newer, so PEP 695 type parameter syntax and the `type` statement are available.
+Written for Python 3.14, so PEP 695 type parameter syntax and the `type` statement are available.
+
+---
+
+### Contents
+
+- Declare an alias with the `type` statement
+- Use PEP 695 syntax for generics
+- Describe a shape with a Protocol, not a base class
+- Narrow with a TypeGuard when the checker cannot follow
+- Prefer a discriminated union to a bag of optional fields
+- Type the callable, not just `Callable`
+- Make the checker strict and keep it that way
 
 ---
 

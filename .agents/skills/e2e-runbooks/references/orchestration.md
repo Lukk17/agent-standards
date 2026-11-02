@@ -1,5 +1,15 @@
 # Sweep orchestration and concurrency
 
+Contents:
+
+- [Why one subagent per test](#why-one-subagent-per-test)
+- [The parallel cap](#the-parallel-cap)
+- [Sweep flow](#sweep-flow)
+- [Declaring what a test mutates](#declaring-what-a-test-mutates)
+- [Scheduling around conflicts](#scheduling-around-conflicts)
+- [Mark conservatively](#mark-conservatively)
+- [What the main session never does](#what-the-main-session-never-does)
+
 How a main session fans a sweep out across `e2e-runner` subagents, how many run at once, and how tests that touch the
 same state are kept apart. Depth behind the Sweeps section of [SKILL.md](../SKILL.md).
 

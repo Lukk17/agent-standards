@@ -5,6 +5,17 @@ sits on top of it.
 
 ---
 
+### Contents
+
+- Common to every platform
+- Linux
+- macOS
+- Windows
+- CI
+- Checklist
+
+---
+
 ### Common to every platform
 
 Pin the SDK version rather than following whatever `flutter upgrade` last installed. FVM keeps the version in the

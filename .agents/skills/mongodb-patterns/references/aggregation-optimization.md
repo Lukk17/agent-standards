@@ -9,6 +9,19 @@ Aggregation pipelines process documents through sequential stages. Focus on:
 
 ---
 
+### Contents
+
+- [Memory limits and disk spilling](#memory-limits-and-disk-spilling)
+- [Unindexed $lookup vs. Indexed $lookup](#unindexed-lookup-vs-indexed-lookup)
+- [Early $project Defeating Optimization vs. Late $project](#early-project-defeating-optimization-vs-late-project)
+- [$facet for Divergent Processing vs. $unionWith](#facet-for-divergent-processing-vs-unionwith)
+- [$sort \+ $limit as Separate Concerns vs. Top-N Sort](#sort--limit-as-separate-concerns-vs-top-n-sort)
+- [$unwind Best Practices](#unwind-best-practices)
+- [Optimize $lookup operations](#optimize-lookup-operations)
+- [$group efficiency](#group-efficiency)
+
+---
+
 ### Memory limits and disk spilling
 
 Blocking stages (such as in-memory `$sort` and `$group`) have a 100MB memory limit per stage. Default behavior when this

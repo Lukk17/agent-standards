@@ -1,3 +1,4 @@
 README.md
 compose.yaml
 .dockerignore
+**/__pycache__

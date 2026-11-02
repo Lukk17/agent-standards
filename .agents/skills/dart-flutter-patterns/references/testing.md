@@ -4,6 +4,20 @@ Unit, widget, and integration tests, the fakes that make them cheap, and the cov
 
 ---
 
+### Contents
+
+- TDD and FIRST
+- The three test kinds
+- What to test where
+- Unit tests
+- Widget tests
+- Accessibility assertions
+- Integration tests
+- Plugin testing
+- Checklist
+
+---
+
 ### TDD and FIRST
 
 Write the test first: red (a failing test), green (the minimum code that passes), refactor. Every suite keeps the

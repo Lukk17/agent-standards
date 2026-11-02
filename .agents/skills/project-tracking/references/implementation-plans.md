@@ -1,5 +1,15 @@
 # Implementation Plan Standards
 
+Contents:
+
+- [Applicable rules come first](#applicable-rules-come-first)
+- [Verification section before implementation](#verification-section-before-implementation)
+- [Rollback plan for anything touching production](#rollback-plan-for-anything-touching-production)
+- [Dependency analysis before splitting into steps](#dependency-analysis-before-splitting-into-steps)
+- [Risk table for a change over three files or on a shared service](#risk-table-for-a-change-over-three-files-or-on-a-shared-service)
+- [Phase the delivery when any threshold is crossed](#phase-the-delivery-when-any-threshold-is-crossed)
+- [Performance impact for a hot path](#performance-impact-for-a-hot-path)
+
 What a plan has to contain before implementation starts on it. Load this file when writing or reviewing a plan for a
 change that touches more than one file, more than one service, or anything running in production.
 

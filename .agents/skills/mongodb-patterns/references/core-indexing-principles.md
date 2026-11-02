@@ -1,5 +1,19 @@
 # Core Index Principles
 
+### Contents
+
+- [Compound Index Guidelines](#compound-index-guidelines)
+- [Sort direction](#sort-direction)
+- [Collation Match](#collation-match)
+- [Requirements](#requirements)
+- [Building a covered query](#building-a-covered-query)
+- [Common mistakes](#common-mistakes)
+  - [Forgetting to explicitly exclude  \_id](#forgetting-to-explicitly-exclude--_id)
+  - [Requesting non-indexed fields](#requesting-non-indexed-fields)
+  - [Array fields (multikey indexes)](#array-fields-multikey-indexes)
+
+---
+
 #### Compound Index Guidelines
 
 The first field of the index should be in the query's filter or sort condition.

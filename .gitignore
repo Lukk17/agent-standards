@@ -45,6 +45,12 @@ node_modules/
 __pycache__/
 .coverage*
 
+### Rendered plugin marketplace
+# tools/gen_plugins.py refuses to render inside the repository, and the tree
+# lives only on the `plugins` branch. These keep a stray copy out of master.
+/plugins/
+/.claude-plugin/
+
 ### Python build artifacts
 # Produced by `pip install ./tools`. Never commit.
 tools/*.egg-info/

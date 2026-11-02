@@ -1,5 +1,16 @@
 # Resource Protection & Authorization Server
 
+Contents:
+
+- [Concepts](#concepts)
+- [Setup](#setup)
+- [Protected Resource Builder](#protected-resource-builder)
+- [Policy-Based Approach](#policy-based-approach)
+- [Policy Provider (Convention-Based)](#policy-provider-convention-based)
+- [Pluggable Parameter Resolvers](#pluggable-parameter-resolvers)
+- [ProtectedResource Attribute (Controllers)](#protectedresource-attribute-controllers)
+- [Keycloak Configuration](#keycloak-configuration)
+
 Fine-grained access control using Keycloak Authorization Server. Delegates authorization decisions to Keycloak (PDP)
 while your app acts as PEP.
 

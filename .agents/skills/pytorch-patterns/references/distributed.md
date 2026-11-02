@@ -5,6 +5,19 @@ single-GPU script has to scale.
 
 ---
 
+### Contents
+
+- One process per GPU, launched by torchrun
+- Call set_epoch on the sampler every epoch
+- Save from rank zero, unwrap the module
+- Log and evaluate from rank zero
+- Scale the learning rate with the effective batch
+- Skip the gradient sync on accumulation steps
+- Move to FSDP when the model no longer fits
+- Clean up, and make failure loud
+
+---
+
 ### One process per GPU, launched by torchrun
 
 DDP replicates the model on every rank, runs the same step on different data, and all-reduces the gradients. Every

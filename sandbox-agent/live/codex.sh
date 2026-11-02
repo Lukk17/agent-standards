@@ -26,6 +26,7 @@ readonly SPAWN_TOOL_RE='^spawn_agent$'
 readonly SKILL_TOOL_RE='^(skill|load_skill)$'
 readonly GATE_KNOWN_GAP=0
 readonly MCP_STARTUP_TIMEOUT_SEC=60
+readonly MCP_LIST_TIMEOUT=60
 
 MCP_ARGS=()
 
@@ -150,11 +151,14 @@ agent_calls() {
 }
 
 # The rollout does not record which MCP servers loaded, so the list comes from
-# Codex itself, asked with the same overrides in the project the case ran in.
+# Codex itself, asked with the same overrides in the project the case ran in,
+# with no stdin to wait on and bounded by MCP_LIST_TIMEOUT so a hang cannot use
+# up the job.
 agent_mcp_servers() {
   local dir="$1"
 
-  (cd "$PROJECT" && "$AGENT_BIN" "${MCP_ARGS[@]}" mcp list --json) > "${dir}/mcp-list.json" 2>> "${dir}/stderr.log" || return 1
+  (cd "$PROJECT" && timeout "$MCP_LIST_TIMEOUT" "$AGENT_BIN" "${MCP_ARGS[@]}" mcp list --json < /dev/null) \
+    > "${dir}/mcp-list.json" 2>> "${dir}/stderr.log" || return 1
   jq -r '.[] | select(.enabled) | "\(.name)\tenabled"' "${dir}/mcp-list.json"
 }
 
@@ -163,15 +167,41 @@ agent_mcp_servers() {
 # message, so only developer messages count as hook text.
 readonly HOOK_TEXT_FILTER='select(.type == "response_item" and .payload.type? == "message" and .payload.role? == "developer")'
 
+# Returns 0 when the rollout $1 belongs to a spawned agent: its first
+# session_meta names a subagent source.
+codex_rollout_is_subagent() {
+  local source
+
+  source="$(jq -R -s -r '[split("\n")[] | fromjson? | select(.type == "session_meta") | .payload.source | tostring] | first // ""' "$1")"
+  [[ "${source,,}" == *subagent* ]]
+}
+
+# A hook payload's transcript_path names the rollout of the thread the hook
+# fired in (inferred from PreToolUseRequest.transcript_path in
+# codex-rs/hooks/src/events/pre_tool_use.rs at rust-v0.166.0, and recorded by
+# check 7), so the rollout of that name in the case says whose call it was.
+agent_transcript_actor() {
+  local dir="$1" name="$2" file
+
+  [[ -n "$name" && "$name" != */* && "$name" != .* ]] || return 0
+  file="${dir}/transcripts/${name}"
+  [[ -f "$file" ]] || return 0
+
+  if codex_rollout_is_subagent "$file"; then
+    printf 'subagent'
+  else
+    printf 'main'
+  fi
+}
+
 # Codex injects the reminder only through UserPromptSubmit on the main thread
 # (SubagentStart carries the subagent text), so its text in a main rollout is the proof.
 agent_reminder_seen() {
-  local dir="$1" file source
+  local dir="$1" file
 
   for file in "${dir}"/transcripts/*.jsonl; do
     [[ -f "$file" ]] || continue
-    source="$(jq -R -s -r '[split("\n")[] | fromjson? | select(.type == "session_meta") | .payload.source | tostring] | first // ""' "$file")"
-    [[ "${source,,}" == *subagent* ]] && continue
+    codex_rollout_is_subagent "$file" && continue
     jq -R -s -e --arg r "$REMINDER_MARKER" \
       "[split(\"\n\")[] | fromjson? | objects | ${HOOK_TEXT_FILTER} | tojson | select(contains(\$r))] | length > 0" \
       "$file" > /dev/null && return 0
@@ -180,11 +210,15 @@ agent_reminder_seen() {
   return 1
 }
 
-# A subagent rollout can replay the parent history, the main-thread reminder
-# included, so a line that a main rollout also holds, timestamps aside, is the
-# parent's and is left out.
+# A subagent spawned as a full-history fork replays the parent's turns, the
+# main-thread reminder included, as history no hook of the subagent produced.
+# Codex 0.166.0 marks each replayed line metadata.inherited_user_message true
+# and gives every line its own ordinal, so the replayed line differs from the
+# parent's copy (live run 41255837007). A marked line is left out, and so is a
+# line whose type and payload a main rollout also holds, for a Codex that marks
+# nothing. Only developer messages count, where the hooks put their text.
 agent_subagent_context() {
-  local dir="$1" file source seen
+  local dir="$1" file seen
   local -a subagent_files=()
 
   seen="${dir}/.main-lines"
@@ -192,20 +226,74 @@ agent_subagent_context() {
   : > "$seen"
   for file in "${dir}"/transcripts/*.jsonl; do
     [[ -f "$file" ]] || continue
-    source="$(jq -R -s -r '[split("\n")[] | fromjson? | select(.type == "session_meta") | .payload.source | tostring] | first // ""' "$file")"
-    if [[ "${source,,}" == *subagent* ]]; then
+    if codex_rollout_is_subagent "$file"; then
       subagent_files+=("$file")
     else
-      jq -R -c 'fromjson? | objects | del(.timestamp)' "$file" >> "$seen"
+      jq -R -c 'fromjson? | objects | {type, payload}' "$file" >> "$seen"
     fi
   done
 
   for file in "${subagent_files[@]}"; do
     jq -R -s -c --slurpfile main "$seen" '
       [split("\n")[] | fromjson? | objects] | .[]
-      | select(del(.timestamp) as $line | any($main[]; . == $line) | not)
+      | select((.metadata.inherited_user_message? // false) != true)
+      | select({type, payload} as $line | any($main[]; . == $line) | not)
       | '"${HOOK_TEXT_FILTER}" "$file"
   done
+}
+
+# Adds the capture hook to the throwaway CODEX_HOME, never to the project.
+# Codex loads every hook source, and "Higher-precedence config layers don't
+# replace lower-precedence hooks" (https://developers.openai.com/codex/hooks,
+# "Where Codex looks for hooks"), so it runs beside the project's gate. With
+# no matcher it sees every PreToolUse call.
+codex_install_payload_capture() {
+  install_payload_capture || return
+  printf '\n[[hooks.PreToolUse]]\n\n[[hooks.PreToolUse.hooks]]\ntype = "command"\ntimeout = 10\ncommand = "%s"\n' \
+    "$PAYLOAD_CAPTURE_COMMAND" >> "${CODEX_HOME}/config.toml"
+}
+
+readonly PAYLOAD_TYPE_TEST="7 a Codex subagent's PreToolUse payload names its agent_type"
+readonly PROBE_DENIAL_TEST="7b Rule E denies the Codex code-reviewer's probe touch"
+
+# Measures whether the PreToolUse payload of a call made inside a custom
+# subagent carries agent_id and agent_type, which the hooks page documents only
+# for SubagentStart and SubagentStop, by having the read-only code-reviewer try
+# a touch. Check 7 reads every payload placed in the subagent's own rollout,
+# whatever its tool: in live run 41348146352 on Codex 0.166.0 the reviewer
+# never ran the touch, yet its send_message call's payload carried agent_id and
+# agent_type code-reviewer. Check 7b then reports on its own line whether the
+# touch was tried and Rule E denied it, now that a missing agent_type is a
+# measured failure rather than a gap.
+judge_codex_payload_checks() {
+  local dir="$1"
+
+  judge_subagent_payload_type "$PAYLOAD_TYPE_TEST" "$dir" "$READ_ONLY_SUBAGENT"
+  judge_read_only_probe "$PROBE_DENIAL_TEST" "$dir" "$READ_ONLY_SUBAGENT" FAIL
+}
+
+test_subagent_payload_names_its_type() {
+  local dir="${CASES}/7-payload" problem
+
+  if ! codex_install_payload_capture; then
+    problem="the work directory ${WORK} holds a character the hook command cannot carry unquoted"
+    record "$PAYLOAD_TYPE_TEST" INCONCLUSIVE "$problem"
+    record "$PROBE_DENIAL_TEST" INCONCLUSIVE "$problem"
+    return
+  fi
+
+  run_captured_case "7-payload" "$(read_only_probe_prompt "$READ_ONLY_SUBAGENT")"
+  if record_model_failure "$PAYLOAD_TYPE_TEST" "$dir"; then
+    record "$PROBE_DENIAL_TEST" INCONCLUSIVE "the provider rejected the model request, as check 7 records"
+    return
+  fi
+
+  judge_codex_payload_checks "$dir"
+}
+
+agent_extra_tests() {
+  section "7 and 7b against the real model"
+  test_subagent_payload_names_its_type
 }
 
 live_main "$@"

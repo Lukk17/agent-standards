@@ -4,6 +4,16 @@ Read this when running migrations in a Django project.
 
 ---
 
+### Contents
+
+- [Workflow](#workflow)
+- [Data migration](#data-migration)
+- [Removing a column in two deploys](#removing-a-column-in-two-deploys)
+- [Concurrent indexes](#concurrent-indexes)
+- [Related skills](#related-skills)
+
+---
+
 ### Workflow
 
 Generate migrations from model changes:

@@ -1,5 +1,19 @@
 # Platform security requirements
 
+Contents:
+
+- [OAuth 2.1 and PKCE](#oauth-21-and-pkce)
+- [JWT validation](#jwt-validation)
+- [Service-to-service mTLS](#service-to-service-mtls)
+- [Required response headers](#required-response-headers)
+- [Zero trust](#zero-trust)
+- [Supply chain](#supply-chain)
+- [Audit logging](#audit-logging)
+- [Privacy by design](#privacy-by-design)
+- [Encryption at rest](#encryption-at-rest)
+- [SAST and DAST](#sast-and-dast)
+- [Reading](#reading)
+
 The controls that sit around the application code rather than inside a single handler: how tokens are issued and
 validated, how services authenticate to each other, what headers every response carries, and what the pipeline and the
 data lifecycle owe. Depth behind [SKILL.md](../SKILL.md).

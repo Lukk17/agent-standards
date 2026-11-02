@@ -6,6 +6,14 @@ patterns that come up constantly, keyboard navigation and focus management.
 
 ---
 
+### Contents
+
+- Keyboard navigation
+- Focus management
+- What this file does not decide
+
+---
+
 ### Keyboard navigation
 
 A composite widget handles its own arrow keys. Arrow keys move the active option, Enter commits it, Escape closes,

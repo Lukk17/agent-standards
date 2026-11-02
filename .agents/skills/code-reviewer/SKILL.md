@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: 'Structured review of local changes or a remote pull request across correctness, maintainability, doc comments, efficiency, security, error handling and test coverage, with every finding led by a path:line reference. Use when you say "review my changes", "review PR #123", "look over this diff before I merge", "is this branch ready to merge", or "review what I have staged". Not for hunting duplicated or reinvented code specifically, use `review-duplication`.'
+description: 'Structured review of local changes or a remote pull request across correctness, maintainability, doc comments, efficiency, security, error handling and tests, with every finding led by a path:line reference. Use when the user says "review my changes", "review PR #123", or "is this branch ready to merge". Not for hunting duplicated or reinvented code, use `review-duplication`.'
 ---
 
 # Code Reviewer
@@ -9,13 +9,18 @@ Conduct a professional review of a change set, whether it lives in the working t
 against the `coding-standards` hub for the shared floor, pull in `review-duplication` for reuse and `security-review`
 for security, and lead every finding with a `path:line` reference.
 
+| Task | Open |
+|---|---|
+| Running a step in full: the commands, the fork rule and its source, the pillar questions, the report shape, pass and fail forms | [review-steps.md](references/review-steps.md) |
+
 ---
 
 ### When to activate
 
-- The user asks to review their changes, their staged files, or a diff before merging.
-- The user names a pull request by number or URL and wants it reviewed.
-- A branch is finished and the user wants to know whether it is ready to merge.
+- The user asks to review their changes, their staged files, or a diff before merging, as in "review my changes",
+  "look over this diff before I merge", or "review what I have staged".
+- The user names a pull request by number or URL and wants it reviewed, as in "review PR #123".
+- A branch is finished and the user asks "is this branch ready to merge".
 - Another agent has produced an implementation and the change needs a second pair of eyes before it lands.
 
 ---
@@ -32,115 +37,48 @@ for security, and lead every finding with a `path:line` reference.
 
 ---
 
+### When run as a subagent
+
+A read-only subagent, such as the `code-reviewer` agent with its few git commands or the `security-auditor` agent with
+no shell at all, cannot run the steps below that check code out, execute code, or ask the user. It changes them so:
+
+- Review the diff the caller supplies. With no diff in the prompt and a shell that allows it, read
+  `git --no-pager diff`, `git --no-pager diff --staged`, `git --no-pager show`, or `gh pr diff` and `gh pr view`, in
+  exactly the form the agent's "Read-only shell" section lists. With neither, return the question to the caller.
+- Skip the worktree and every command that builds, tests or runs the change, and report the verification as
+  `not run`, naming the command the project's AGENTS.md documents so the caller can run it.
+- Return every question to the caller instead of asking the user, including whether to run anything from a fork.
+- Hand the security escalation of Step 4 to the caller as a named next step, since neither agent has a tool to spawn another.
+
+---
+
 ### Step 1: determine the review target
 
-A remote pull request is named by number or URL. Anything else, including "review my changes", means the local working
-tree, staged and unstaged.
-
-For a remote pull request, check it out first.
-
-```bash
-gh pr checkout <PR_NUMBER>
-```
-
-Then read the pull request description and existing comments, so the review judges the change against its stated goal
-rather than an invented one.
-
-For local changes, read the state directly.
-
-```bash
-git status
-```
-
-```bash
-git diff
-```
-
-```bash
-git diff --staged
-```
+A pull request named by number or URL is remote, anything else is the local working tree, staged and unstaged. Read a remote one with `gh pr diff <PR_NUMBER>` and `gh pr view <PR_NUMBER> --comments`, without checking it out. When the full tree is needed, `git worktree add --detach ../review-pr-<PR_NUMBER>` and run `gh pr checkout` inside it, never over the user's branch. Read local changes with `git status`, `git diff` and `git diff --staged`.
 
 ---
 
 ### Step 2: run the project's verification first
 
-Run the project's verification command as documented in its AGENTS.md before reading a single line, so mechanical
-failures are caught mechanically and the review spends its attention on judgement. On a local review of a small change,
-ask the user whether to run it. On a pull request, always run it.
-
-Fail: a hardcoded command that does not exist in this project.
-
-```text
-Ran npm run preflight. Command not found, skipping verification.
-```
-
-Pass: the command the project itself documents.
-
-```text
-AGENTS.md documents `./gradlew check` as the verification command. Ran it: 2 test failures in OrderServiceTest.
-```
-
-If the project's AGENTS.md documents no verification command, say so in the review rather than guessing at one.
+Run the verification command the project's AGENTS.md documents before reading a line, and say so when it documents none rather than guessing. On a small local change, ask the user first. A pull request from a fork or an outside author is untrusted input: ask before running anything from it, only inside the worktree, never with production credentials.
 
 ---
 
 ### Step 3: analyse against the review pillars
 
-Work through each pillar and cite `path:line` for every finding.
-
-- Correctness. Does the code do what it claims, without logic errors or unhandled states?
-- Maintainability. Is the structure clear, single-purpose, and consistent with the patterns already in the project?
-- Readability. Does the code read on its own, formatted the way the project formats code, without a comment propping it
-  up?
-- Doc comments. Javadoc, docstrings, JSDoc, `///` and Go doc comments default to none, because code should explain
-  itself through extraction and precise naming. Flag every doc comment that a well-named function or a tighter type
-  would have made unnecessary, and flag any that merely restates the signature. Where one is genuinely needed the prose
-  caps at five lines and is usually one, `@param` earns its place only for units, nullability, a valid range, or who
-  owns the argument afterwards, `@return` only when non-obvious, and `@throws` is required for every exception a caller
-  can act on because unchecked exceptions never appear in the signature. Every tag line is capped at one physical line,
-  so a `@param` that wraps onto a second line is itself a finding: shorten it or delete it.
-- Efficiency. Any query in a loop, unbounded fetch, or sequential await of independent calls introduced here?
-- Security. Any injection, missing authorisation check, leaked secret, or unvalidated input?
-- Styling. When the change touches styling, check it against the styling-drift criteria in `design-system`.
-- Edge cases and error handling. Null, empty, boundary, concurrent, and failure paths.
-- Testability. Is the new behaviour actually covered, and which cases are missing?
+Cite `path:line` for every finding across correctness, maintainability, readability, doc comments (the `coding-standards` "Doc Comments" rule plus the language delta), efficiency, security, styling (against `design-system` when styling changes), edge cases and error handling, and testability.
 
 ---
 
 ### Step 4: escalate the sensitive findings
 
-Authentication, authorisation, payment, and personal-data findings do not stop at a review comment. Hand them to the
-`security-auditor` agent for a dedicated pass before the change merges, and say in the review that you did.
-
-Fail: a serious finding buried as a nitpick.
-
-```text
-Nitpick: might be worth checking the caller is the owner here.
-```
-
-Pass: named severity, cited location, and escalation.
-
-```text
-Critical, src/api/orders.ts:88. The handler deletes any order by id with no ownership check, so any authenticated user can delete another user's order. Escalated to the security-auditor agent for an authorisation review of the whole orders route.
-```
+Hand authentication, authorisation, payment and personal-data findings to the `security-auditor` agent before merge, and say so in the review, with severity and location named rather than buried as a nitpick.
 
 ---
 
 ### Step 5: report
 
-Structure the report the same way every time.
-
-- Summary. What the change does and the overall verdict in two or three sentences.
-- Findings, grouped by severity.
-  - Critical: bugs, security issues, breaking changes.
-  - Improvements: quality, structure, and performance suggestions.
-  - Nitpicks: formatting and minor style, optional.
-- Conclusion. Approved, or request changes, with the specific blockers named.
-
-Be constructive and specific. Explain why a change is requested, and on an approval name the thing the contribution
-actually got right rather than a generic compliment.
-
-For a remote pull request, ask the user at the end whether to switch back to the default branch.
+Summary with the verdict in two or three sentences, findings grouped Critical, Improvements and Nitpicks, then a conclusion of approve or request changes with the blockers named. Explain each request, name what the change got right, and for a worktree review ask the user about `git worktree remove`.
 
 ---
 
@@ -159,10 +97,13 @@ For a remote pull request, ask the user at the end whether to switch back to the
 ### Checklist
 
 - [ ] Review target identified: named pull request, or the local working tree.
-- [ ] The project's documented verification command was run, or its absence was reported.
+- [ ] A remote pull request was read with `gh pr diff`, and checked out only into a separate worktree.
+- [ ] The project's documented verification command was run, or its absence was reported, or as a subagent it was
+  reported as `not run`.
+- [ ] Nothing from a fork or an outside author ran without the user's approval.
 - [ ] Every pillar was considered, including doc comments.
 - [ ] Every finding cites `path:line`.
 - [ ] Findings are grouped by severity, not listed flat.
 - [ ] Auth, payment, and sensitive-data findings were escalated to the `security-auditor` agent.
 - [ ] The conclusion states approve or request changes, and names the blockers.
-- [ ] For a remote pull request, the user was asked about returning to the default branch.
+- [ ] For a remote pull request reviewed in a worktree, the user was asked about removing it.

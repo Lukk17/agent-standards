@@ -1,5 +1,15 @@
 # Gradle Monorepo Layout
 
+Contents:
+
+- [The root module shows the whole tree](#the-root-module-shows-the-whole-tree)
+- [Each build is linked separately](#each-build-is-linked-separately)
+- [Name the module and the project identically, in lowercase](#name-the-module-and-the-project-identically-in-lowercase)
+- [One module per Gradle project or one per source set](#one-module-per-gradle-project-or-one-per-source-set)
+- [What to check after switching](#what-to-check-after-switching)
+- [Three names describe one module](#three-names-describe-one-module)
+- [Reopen cold after editing .idea by hand](#reopen-cold-after-editing-idea-by-hand)
+
 How one IntelliJ project shows a whole repository that holds several independent Gradle builds, what decides the
 module names the IDE shows, and how to reopen the project after `.idea/` was edited outside the IDE. Load this file
 when linking a new build, when module names do not match the directories, or when the Gradle tool window shows a
@@ -82,17 +92,13 @@ project name is two spellings of one thing, and on a case-insensitive filesystem
 
 ### One module per Gradle project or one per source set
 
-`resolveModulePerSourceSet` in each `GradleProjectSettings` block decides whether a Gradle project imports as one IDE
-module or as a `.main` and `.test` pair, plus one module per custom source set. The setting was removed from the UI
-in 2019.2 and is still honoured when written by hand into `.idea/gradle.xml`. JetBrains calls it deprecated and
-unmaintained: in [IDEA-222172](https://youtrack.jetbrains.com/issue/IDEA-222172), open, a JetBrains developer wrote
-on 2019-09-07:
+`resolveModulePerSourceSet` in each `GradleProjectSettings` block decides whether a Gradle project imports as one IDE module or as a `.main` and `.test` pair, plus one module per custom source set. The setting was removed from the UI in 2019.2 and is still honoured when written by hand into `.idea/gradle.xml`. JetBrains calls it deprecated and unmaintained: in [IDEA-222172](https://youtrack.jetbrains.com/issue/IDEA-222172), open, a JetBrains developer wrote:
 
 ```text
 Separate module per source set is the only supported option now. The previous option can be enabled but it will no longer be maintained
 ```
 
-and on 2020-12-31 in the same issue:
+and in the same issue:
 
 ```text
 the support for this option is no longer maintained and there are no plans to improve such set ups
@@ -158,10 +164,7 @@ interpreter registry in [windows-traps.md](windows-traps.md). Walk this order in
    outside the IDE.
 2. Make the edit to `.idea/` and verify it with the check-ignore commands in
    [version-control.md](version-control.md).
-3. Delete `external_build_system` under the project's cache directory, so the reopen imports every Gradle module
-   fresh, exactly like a fresh clone. On Windows the path is
-   `%LOCALAPPDATA%\JetBrains\<IDE version>\projects\<name>.<hash>\external_build_system`, where `<IDE version>` is a
-   directory such as `IntelliJIdea2026.2` and `<name>.<hash>` is the lowercase project name followed by a short hash.
+3. Delete `external_build_system` under the project's cache directory, so the reopen imports every Gradle module fresh, exactly like a fresh clone. On Windows the path is `%LOCALAPPDATA%\JetBrains\<IDE version>\projects\<name>.<hash>\external_build_system`, where `<IDE version>` is a directory such as `IntelliJIdea<version>` and `<name>.<hash>` is the lowercase project name followed by a short hash.
 4. Reopen the project and read the module list back from the Project Structure dialog or from the Gradle tool
    window, and compare it against every `<module name="...">` in the run configurations.
 

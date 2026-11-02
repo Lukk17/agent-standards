@@ -150,7 +150,7 @@ python3 .agents/hooks/preflight_gate.py --format copilot --subagent < /repo/e2e/
 python3 .agents/hooks/preflight_gate.py --format plain --subagent < /repo/e2e/fixtures/gate-payloads/subagent-without-skills.json
 ```
 
-7. Judge a subagent that does declare skills, `code-reviewer`, which the import delivered.
+7. Judge a subagent that does declare skills and may write, `python-pro`, which the import delivered.
 
 ```bash
 python3 .agents/hooks/preflight_gate.py --format claude < /repo/e2e/fixtures/gate-payloads/subagent-with-skills.json > /tmp/project-gate-specialist.json
@@ -250,7 +250,7 @@ Expect exit 0.
 - `e2e/fixtures/gate-payloads/main-thread-source-edit.json`: main-thread `Edit` of `src/e2e_canary_app.py`, with
   `is_subagent: false` for the plain runner envelope, which the other formats ignore.
 - `e2e/fixtures/gate-payloads/subagent-without-skills.json`: subagent payload naming `e2e-no-skills-probe`.
-- `e2e/fixtures/gate-payloads/subagent-with-skills.json`: subagent payload naming `code-reviewer`, which declares a
+- `e2e/fixtures/gate-payloads/subagent-with-skills.json`: subagent payload naming `python-pro`, which declares a
   long list of skills in its front matter.
 
 ---

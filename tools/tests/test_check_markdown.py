@@ -45,7 +45,6 @@ CLEAN_SUBAGENT_FRONT_MATTER = """---
 name: demo-agent
 description: Demo subagent for the lint tests.
 tools: Read, Grep, Glob
-model: inherit
 skills: [coding-standards]
 ---
 """
@@ -374,6 +373,55 @@ description: {"d" * MARKDOWN.MAX_DESCRIPTION}
     failures = MARKDOWN.check_file(path)
 
     # Then the cap is inclusive
+    assert failures == 0
+    assert capsys.readouterr().out == ""
+
+
+def _pad_to(path, size):
+    text = path.read_text(encoding="utf-8")
+    path.write_text(text + "x" * (size - len(text) - 1) + "\n", encoding="utf-8")
+
+
+def test_skill_manifest_over_the_size_limit_is_reported(tmp_path, capsys):
+    # Given a clean skill manifest one character past the limit, front matter included
+    path = _write_skill(tmp_path, CLEAN_SKILL_FRONT_MATTER)
+    _pad_to(path, MARKDOWN.MAX_SKILL_MANIFEST_CHARACTERS + 1)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the message names the size, the limit and where the depth goes
+    out = capsys.readouterr().out
+    assert failures == 1
+    assert "skill manifest is 8001 characters, over the 8000 character limit" in out
+    assert "references/" in out
+
+
+def test_skill_manifest_exactly_at_the_size_limit_passes(tmp_path, capsys):
+    # Given a clean skill manifest of exactly the limit
+    path = _write_skill(tmp_path, CLEAN_SKILL_FRONT_MATTER)
+    _pad_to(path, MARKDOWN.MAX_SKILL_MANIFEST_CHARACTERS)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the limit is inclusive
+    assert failures == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_reference_file_over_the_size_limit_is_not_reported(tmp_path, capsys):
+    # Given a reference file past the manifest limit, which loads only on demand
+    directory = tmp_path / ".agents" / "skills" / "demo-skill" / "references"
+    directory.mkdir(parents=True)
+    path = directory / "depth.md"
+    path.write_text(BODY, encoding="utf-8")
+    _pad_to(path, MARKDOWN.MAX_SKILL_MANIFEST_CHARACTERS * 2)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
     assert failures == 0
     assert capsys.readouterr().out == ""
 
@@ -727,3 +775,241 @@ def test_a_violation_in_a_global_template_is_caught_by_default(tmp_path, capsys,
     assert path in targets
     assert failures == 1
     assert name in capsys.readouterr().out
+
+
+DATED_BASELINE_HITS = [
+    "Current as of 2026-10-30.",
+    "Supported as of March 2026.",
+    "Behaves this way as of Oct. 2025, per the changelog.",
+    "As of 2026, the default changed.",
+    "Shipped as of 14 March 2026.",
+    "Measured as of 2026-03-14.",
+    "Verified October 2026 against the vendor page.",
+    "VERIFIED on 2026-10-23 against the running box.",
+    "Last checked in Sep 2025.",
+    "The current stable release is 3.14.",
+    "The current LTS is Java 25.",
+    "The current release of Spring Boot is 4.0.",
+    "Python 3.13 or newer, with 3.14 the current release.",
+    "JDK 25 is the current LTS.",
+    "Go 1.25, the current stable toolchain.",
+    "Last verified: October 2026.",
+    "Verified: 2026-10-23 on the build host.",
+    "The default changed as of Q3 2026.",
+    "Supported as of mid-2026.",
+    "This is the recommended flag as of today.",
+    "The latest stable release is 3.14.",
+    "The current Python release is 3.14.",
+]
+
+DATED_BASELINE_NON_HITS = [
+    "Written for Spring Boot 4 and Java 25.",
+    "The current release notes are attached to the tag.",
+    "The current version is read from package.json.",
+    "The current state is 3 rows.",
+    "Correct as of now, and as of this commit.",
+    "Zoneless is the default as of v21.",
+    "Bash 5 (verified locally).",
+    "Tested in staging before release.",
+    "Released in 2024 and still supported.",
+    "Timeout as of 200 ms is too short.",
+    "v2 is the current version of the API.",
+    "The latest release notes list every change.",
+    "Checked: the flag is on.",
+]
+
+
+def _write_skill_reference(tmp_path, body):
+    directory = tmp_path / ".agents" / "skills" / "demo-skill" / "references"
+    directory.mkdir(parents=True)
+    path = directory / "guide.md"
+    path.write_text(f"# Guide\n\n{body}\n", encoding="utf-8")
+
+    return path
+
+
+@pytest.mark.parametrize("sentence", DATED_BASELINE_HITS)
+def test_a_dated_or_current_version_baseline_in_a_skill_is_reported(tmp_path, capsys, sentence):
+    # Given a skill reference file stating a dated or "current" version baseline
+    path = _write_skill_reference(tmp_path, sentence)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the line is reported once, naming the phrase
+    assert failures == 1
+    assert "dated or \"current version\" baseline" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("sentence", DATED_BASELINE_NON_HITS)
+def test_ordinary_prose_about_versions_and_time_is_not_a_dated_baseline(tmp_path, capsys, sentence):
+    # Given a skill reference file with prose that names a version or a time but claims no dated baseline
+    path = _write_skill_reference(tmp_path, sentence)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 0, capsys.readouterr().out
+
+
+def test_a_dated_baseline_inside_code_is_a_specimen_not_a_claim(tmp_path, capsys):
+    # Given SQL temporal syntax in a fence and a quoted phrase in an inline code span
+    body = "Quote the banned phrase as `current as of 2026` when teaching the rule.\n\n```sql\nSELECT * FROM t FOR SYSTEM_TIME AS OF '2024-01-01';\n```"
+    path = _write_skill_reference(tmp_path, body)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 0, capsys.readouterr().out
+
+
+def test_a_dated_baseline_in_a_subagent_description_is_reported(tmp_path, capsys):
+    # Given a subagent source whose front matter description carries the date
+    front_matter = '---\nname: demo-agent\ndescription: "Use when building Java, current as of 2026."\n---\n'
+    path = _write_subagent(tmp_path, front_matter)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the description line is reported
+    assert failures == 1
+    assert "line=3" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("tree", "name"),
+    [(".claude", "demo.md"), (".agents", "demo.md"), (".codex", "demo.toml"), (".github", "demo.agent.md")],
+)
+def test_a_generated_agent_file_gets_the_dated_baseline_rule_and_no_other(tmp_path, capsys, tree, name):
+    # Given a generated agent file carrying a dated baseline and an em dash
+    path = tmp_path / tree / "agents" / name
+    path.parent.mkdir(parents=True)
+    path.write_text("## Heading\n\nWritten — verified October 2026.\n", encoding="utf-8")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then only the baseline is reported, since the other rules run on the canonical source
+    output = capsys.readouterr().out
+    assert failures == 1
+    assert "baseline" in output
+    assert "em-dash" not in output
+
+
+def test_a_shipped_document_may_carry_a_dated_statement(tmp_path, capsys):
+    # Given a human-facing document outside the agent-facing scope
+    path = _write_document(tmp_path, "### Notes\n\nMeasured as of March 2026.\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 0, capsys.readouterr().out
+
+
+def test_the_generated_agent_trees_are_in_the_default_targets(tmp_path):
+    # Given one file in each generated tree and one behind a symlinked tree
+    for tree, name in [(".claude", "a.md"), (".agents", "a.md"), (".codex", "a.toml"), (".github", "a.agent.md")]:
+        path = tmp_path / tree / "agents" / name
+        path.parent.mkdir(parents=True)
+        path.write_text("Body.\n", encoding="utf-8")
+
+    # When
+    targets = MARKDOWN.default_targets(tmp_path)
+
+    # Then all four are linted and nothing is read twice through a symlink
+    assert tmp_path / ".codex" / "agents" / "a.toml" in targets
+    assert tmp_path / ".github" / "agents" / "a.agent.md" in targets
+    assert len([t for t in targets if t.parent.name == "agents"]) == 4
+
+
+def test_no_subagent_source_or_generated_agent_states_a_dated_baseline(capsys):
+    # Given every canonical subagent and every generated agent this repository ships
+    targets = sorted((REPO_ROOT / "subagents").glob("*.md"))
+    targets.extend(MARKDOWN.generated_agent_targets(REPO_ROOT))
+
+    # When
+    failures = sum(MARKDOWN.check_dated_baselines(path.read_text(encoding="utf-8").splitlines(), path) for path in targets)
+
+    # Then
+    assert failures == 0, capsys.readouterr().out
+
+
+REAL_SHA = "0123456789abcdef0123456789abcdef01234567"
+REAL_DIGEST = "sha256:" + "ab" * 32
+
+HASH_PIN_HITS = [
+    f"      - uses: actions/checkout@{REAL_SHA} # v5",
+    f"  uses: codecov/codecov-action@{REAL_SHA}",
+    f"- uses: 'docker/login-action@{REAL_SHA}'",
+    f"    image: postgres:18-alpine@{REAL_DIGEST}",
+    f"FROM node:26-alpine@{REAL_DIGEST} AS build",
+    f"cosign verify myregistry/app@{REAL_DIGEST}",
+]
+
+HASH_PIN_NON_HITS = [
+    "      - uses: actions/checkout@<commit-sha> # v5",
+    "    image: postgres:18-alpine@sha256:<digest>",
+    "FROM node:26-alpine AS build",
+    f"Commit {REAL_SHA} fixed the race.",
+    "      - uses: actions/checkout@v5",
+    "The image digest is printed by `docker buildx imagetools inspect <image>:<tag>`.",
+    f"      - uses: actions/checkout@{REAL_SHA}0 # not a 40-character SHA",
+]
+
+
+def _write_fenced_skill_reference(tmp_path, line):
+    return _write_skill_reference(tmp_path, f"Example:\n\n```yaml\n{line}\n```")
+
+
+@pytest.mark.parametrize("line", HASH_PIN_HITS)
+def test_a_real_hash_pin_in_a_skill_is_reported_even_inside_a_fence(tmp_path, capsys, line):
+    # Given a skill reference whose example shows a real commit SHA or digest
+    path = _write_fenced_skill_reference(tmp_path, line)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the pin is reported once, with the placeholder form to use instead
+    assert failures == 1
+    assert "real hash pin" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("line", HASH_PIN_NON_HITS)
+def test_a_placeholder_pin_or_a_prose_sha_is_not_a_hash_pin(tmp_path, capsys, line):
+    # Given a skill reference with a placeholder pin or a commit named in prose
+    path = _write_fenced_skill_reference(tmp_path, line)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 0, capsys.readouterr().out
+
+
+def test_a_real_hash_pin_outside_agent_files_is_not_reported(tmp_path, capsys):
+    # Given a human-facing document under docs/, outside the skill and subagent scope
+    path = tmp_path / "docs" / "CI.md"
+    path.parent.mkdir(parents=True)
+    path.write_text(f"# CI\n\n```yaml\n      - uses: actions/checkout@{REAL_SHA} # v5\n```\n", encoding="utf-8")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the repository's own pinned workflows can be documented as they are
+    assert failures == 0, capsys.readouterr().out
+
+
+def test_a_real_digest_in_a_subagent_source_is_reported(tmp_path, capsys):
+    # Given a clean subagent source whose body shows a real image digest
+    path = _write_subagent(tmp_path, CLEAN_SUBAGENT_FRONT_MATTER)
+    path.write_text(path.read_text(encoding="utf-8") + f"\nRun `app@{REAL_DIGEST}`.\n", encoding="utf-8")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 1
+    assert "real hash pin" in capsys.readouterr().out

@@ -5,6 +5,13 @@ impactDescription: "Improves read latency by pre-computing frequently-requested 
 tags: schema, patterns, computed, aggregation, performance, denormalization
 ---
 
+### Contents
+
+- [Use Computed Pattern for Expensive Calculations](#use-computed-pattern-for-expensive-calculations)
+- [Verify with](#verify-with)
+
+---
+
 ### Use Computed Pattern for Expensive Calculations
 
 Pre-calculate and store frequently-accessed computed values. If you're running the same aggregation on every page load,

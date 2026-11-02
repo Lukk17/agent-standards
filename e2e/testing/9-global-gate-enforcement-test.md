@@ -154,7 +154,7 @@ cp /repo/e2e/fixtures/e2e-no-skills-probe.md "$HOME/.claude/agents/e2e-no-skills
 python3 "$HOME/.config/agents/hooks/preflight_gate.py" --format claude < /repo/e2e/fixtures/gate-payloads/subagent-without-skills.json > /tmp/global-gate-probe-after.json
 ```
 
-7. Judge a subagent that does declare skills, `code-reviewer`, which the global install placed in the same directory.
+7. Judge a subagent that does declare skills and may write, `python-pro`, which the global install placed in the same directory.
 
 ```bash
 python3 "$HOME/.config/agents/hooks/preflight_gate.py" --format claude < /repo/e2e/fixtures/gate-payloads/subagent-with-skills.json > /tmp/global-gate-specialist.json
@@ -272,7 +272,7 @@ Expect exit 0.
 - `e2e/fixtures/gate-payloads/main-thread-source-edit.json`: main-thread `Edit` of `src/e2e_canary_app.py`, with
   `is_subagent: false` for the plain runner envelope, which the other formats ignore.
 - `e2e/fixtures/gate-payloads/subagent-without-skills.json`: subagent payload naming `e2e-no-skills-probe`.
-- `e2e/fixtures/gate-payloads/subagent-with-skills.json`: subagent payload naming `code-reviewer`.
+- `e2e/fixtures/gate-payloads/subagent-with-skills.json`: subagent payload naming `python-pro`.
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: observability-and-logging
-description: Structured logging and production observability for services, covering log levels, correlation IDs, health checks, metrics, tracing, SLOs, and the startup readiness banner. Use when you say "add logging to this service", "my logs have no trace id", "add a readiness endpoint", "alert on our error budget", or "print a startup banner when the app is up". Not for CI/CD pipelines, release gating, or Kubernetes probe manifests, use `deployment-patterns`.
+description: 'Structured logging and production observability: log levels, key-value fields, trace correlation, what liveness and readiness check, metrics, tracing, SLO alerts, and the startup readiness banner. Use when the user says "add logging to this service", "my logs have no trace id", or "alert on our error budget". Not for Kubernetes probe manifests or CI pipelines, use `deployment-patterns`.'
 ---
 
 # Observability and Logging
@@ -10,7 +10,7 @@ and traces show a failing dependency. The cross-cutting principles hub is the `c
 is the detailed playbook for the logging and observability rules it points to.
 
 Baseline: OpenTelemetry is the reference instrumentation API for traces, metrics, and logs. Prometheus exposition is
-the reference metrics format. Both are language-neutral, so pick the current stable SDK for your stack.
+the reference metrics format. Both are language-neutral. Written for the OpenTelemetry 1.x API and SDKs.
 
 ---
 
@@ -20,6 +20,8 @@ the reference metrics format. Both are language-neutral, so pick the current sta
 - Instrumenting a service with health checks, metrics, or tracing.
 - Defining SLOs, alerts, or dashboards.
 - Writing the startup readiness banner.
+- The user says "add logging to this service", "my logs have no trace id", "add a readiness endpoint", "alert on our
+  error budget", or "print a startup banner when the app is up".
 
 ---
 
@@ -35,147 +37,15 @@ the reference metrics format. Both are language-neutral, so pick the current sta
 
 ---
 
-### Log through one abstraction
+### Rules
 
-Business code names a logger interface, never a concrete backend. Swapping the backend must not touch a call site.
-
-Pass:
-
-```java
-private static final Logger log = LoggerFactory.getLogger(OrderService.class);
-```
-
-Fail:
-
-```java
-private static final org.apache.logging.log4j.core.Logger log = new Log4jContextFactory().getContext().getLogger("x");
-```
-
----
-
-### Use levels that mean something
-
-Informational for major steps, warning for recoverable trouble, error with the full stack trace for a real failure.
-An expected, handled condition is not an error. Begin each line with a service or component tag and carry a
-correlation or trace identifier so one request can be followed across services.
-
-Pass:
-
-```java
-log.warn("[orders] payment declined, retrying, orderId={} attempt={}", orderId, attempt);
-```
-
-Fail:
-
-```java
-log.error("payment declined");
-```
-
----
-
-### Never log a secret
-
-Mask credentials, tokens, decrypted payloads, and personal data everywhere they could reach a log or a crash dump.
-
-Pass:
-
-```java
-log.info("[auth] token issued, subject={} tokenSuffix=***{}", subject, tokenSuffix);
-```
-
-Fail:
-
-```java
-log.info("[auth] token issued: {}", accessToken);
-```
-
----
-
-### Keep logging out of control flow
-
-Logging is a side effect. Do not branch on a log call, and do not build an expensive message the logger may discard.
-
-Pass:
-
-```java
-if (log.isDebugEnabled()) {
-    log.debug("[cart] snapshot={}", renderExpensiveSnapshot(cart));
-}
-```
-
-Fail:
-
-```java
-log.debug("[cart] snapshot=" + renderExpensiveSnapshot(cart));
-```
-
-The error-handling rules (specific exception types, chaining to preserve the cause, central handling, structured
-error shape) live in the `coding-standards` hub. This skill covers how those errors are logged, not how they are
-raised.
-
----
-
-### Expose two separate health checks
-
-Liveness reports only that the process is alive and never touches a dependency. Readiness verifies the database,
-cache, and external dependencies and reports unhealthy when one is degraded. Keep both outside the versioned API
-path, so a version bump cannot move the probe URL. The generic paths are `/health` and `/ready`, defined by
-`api-design`. Spring Boot Actuator serves the same two checks under its own paths, shown below. This skill owns what
-each endpoint reports. The probe manifests that point Kubernetes at them belong to `deployment-patterns`.
-
-Pass:
-
-```text
-GET /actuator/health/liveness    200 while the process runs, touches no dependency
-GET /actuator/health/readiness   200 when the database, cache, and downstream services answer, 503 otherwise
-```
-
-Fail:
-
-```text
-GET /api/v1/health/full   one versioned endpoint that checks every dependency and answers both probes
-```
-
----
-
-### Emit metrics that drive action
-
-Request rate, error rate, latency percentiles, and saturation of the resources that actually constrain the service.
-Propagate a trace context across every hop. Define SLOs in terms a user would recognise, a fast response or a
-successful request, and alert on the SLO burn rate rather than every transient blip.
-
-Pass:
-
-```promql
-sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m])) / sum(rate(http_server_requests_seconds_count[5m]))
-```
-
-Fail:
-
-```promql
-process_cpu_seconds_total
-```
-
----
-
-### Emit one startup readiness block
-
-Every long-running service prints one canonical multi-line INFO entry the moment it starts accepting traffic, in a
-single log call with a leading newline. Per-line emission lets other threads interleave and rips the block apart.
-The full convention, the ANSI Shadow banner, the section order, the probe timeouts, and the per-stack hooks live in
-the reference below.
-
-Pass:
-
-```java
-log.info("\n{}", buildStartupLog());
-```
-
-Fail:
-
-```java
-buildStartupLog().lines().forEach(log::info);
-```
+1. Log through one abstraction. Business code names a logger interface, never a concrete backend, so swapping the backend touches no call site.
+2. Use levels that mean something: info for major steps, warn for recoverable trouble, error with the full stack trace for a real failure, never error for an expected, handled condition. Every variable goes in a key-value field, the service is named by the resource's `service.name`, and the appender attaches `trace_id` and `span_id` from the active span.
+3. Never log a secret. Mask credentials, tokens, decrypted payloads and personal data wherever they could reach a log or a crash dump.
+4. Keep logging out of control flow. Never branch on a log call, and guard or defer an expensive message the logger may discard. How errors are raised, typed and chained is `coding-standards`; this skill covers how they are logged.
+5. Expose two separate health checks, outside the versioned API path. Liveness touches no dependency. Readiness reports what this instance needs: startup finished, pools open, unshared dependencies. A shared dependency behind a breaker or fallback stays out of readiness and shows in metrics, or one downstream failure pulls every instance. This skill owns that rule; `api-design` defines `/health` and `/ready`, Spring Boot Actuator serves its own paths, and `deployment-patterns` owns the probe manifests.
+6. Emit metrics that drive action: request rate, error rate, latency percentiles, saturation of the constraining resources. Propagate W3C Trace Context (`traceparent`, `tracestate`) on every hop, define SLOs in user terms, and alert on burn rate. Check the exported series name against the service's `/metrics` before writing the alert.
+7. Emit one startup readiness block, the moment the service accepts traffic, in a single INFO call with a leading newline. Under a JSON encoder it is one structured `service.ready` event with the same fields, and a dependency URL prints without credentials or query string.
 
 ---
 
@@ -183,6 +53,7 @@ buildStartupLog().lines().forEach(log::info);
 
 | Open this | For |
 |---|---|
+| [references/rules-and-examples.md](references/rules-and-examples.md) | Applying a rule above: its reasoning, the Actuator paths, the PromQL query and its OpenTelemetry source metric, and pass and fail forms |
 | [references/startup-readiness-log.md](references/startup-readiness-log.md) | Writing or reviewing the startup readiness banner, its layout, probe rules, and per-stack emission hooks |
 
 ---
@@ -201,9 +72,10 @@ buildStartupLog().lines().forEach(log::info);
 ### Checklist
 
 - [ ] Business code logs through one abstraction, no concrete backend at a call site.
-- [ ] Every log line carries a component tag and a correlation or trace identifier.
+- [ ] Variables are key-value fields, the service is named in the resource, and every record carries `trace_id`.
 - [ ] No secret, credential, decrypted payload, or personal field reaches a log.
 - [ ] Expensive message construction is guarded or lazy.
-- [ ] Liveness and readiness are separate endpoints outside the versioned API path.
+- [ ] Liveness and readiness are separate endpoints outside the versioned API path, and readiness leaves out shared
+  dependencies that have a fallback.
 - [ ] Rate, error, latency, and saturation metrics are exported and an SLO burn-rate alert exists.
 - [ ] The startup readiness block is emitted in one log call with a leading newline.

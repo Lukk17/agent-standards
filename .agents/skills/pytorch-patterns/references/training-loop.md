@@ -5,6 +5,18 @@ rule shows a fragment and you need the loop it belongs to.
 
 ---
 
+### Contents
+
+- One epoch of training
+- Evaluation
+- Step the scheduler at the right time
+- Accumulate gradients when the batch will not fit
+- Save and resume the whole state
+- Track the best model, not the last
+- Log once per epoch, from one place
+
+---
+
 ### One epoch of training
 
 The loop below is the assembled form of the hub rules: mode set, gradients zeroed before the forward pass, autocast

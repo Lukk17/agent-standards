@@ -1,9 +1,20 @@
 # Testing a Spring Boot Service
 
-Test-first development with JUnit 5, Mockito, MockMvc, `@DataJpaTest`, Testcontainers, and a JaCoCo gate. Open this
-when starting a feature, fixing a bug, deciding which slice a piece of behaviour belongs in, or when the coverage
-gate is failing the build. The coverage gate, its threshold and which tests count toward it, is defined once in
-`tdd-workflow` under Coverage gate. This file only wires that gate into JaCoCo.
+Test-first development with JUnit 6, Mockito, MockMvc, `@DataJpaTest`, Testcontainers, and a JaCoCo gate. Open this when starting a feature, fixing a bug, deciding which slice a piece of behaviour belongs in, or when the coverage gate is failing the build. The coverage gate, its threshold and which tests count toward it, is defined once in `tdd-workflow` under Coverage gate. This file only wires that gate into JaCoCo.
+
+---
+
+### Contents
+
+- Write the failing test first
+- Unit tests with JUnit 6 and Mockito
+- Web layer tests with MockMvc
+- Integration tests with the real context
+- Persistence tests against the production engine
+- Assert with AssertJ
+- Build test data through builders
+- Enforce coverage in the build
+- Checklist
 
 ---
 
@@ -27,7 +38,7 @@ Fail: the implementation lands first and the test is written to match whatever i
 
 ---
 
-### Unit tests with JUnit 5 and Mockito
+### Unit tests with JUnit 6 and Mockito
 
 Test service logic in isolation with mocked collaborators, and cover the error and edge paths alongside the happy
 one. A suite that only tests the happy path is a suite that goes green during an outage.
@@ -101,10 +112,9 @@ class MarketControllerTest {
 }
 ```
 
-Pass: `@MockitoBean` for a mocked Spring bean, which is the supported annotation on Boot 3.4 and newer.
+Pass: `@MockitoBean` for a mocked Spring bean, and `@MockitoSpyBean` for a spy.
 
-Fail: `@MockBean`, which is deprecated, and a full `@SpringBootTest` context for a test that only checks a status
-code.
+Fail: `@MockBean` or `@SpyBean`, which Spring Boot 4 removed, so they no longer compile, and a full `@SpringBootTest` context for a test that only checks a status code.
 
 ---
 
@@ -162,8 +172,20 @@ class MarketRepositoryTest {
 }
 ```
 
-Pass: Testcontainers with reusable containers for Postgres and Redis, wired through `@DynamicPropertySource` so the
-container's JDBC URL reaches the Spring context.
+Pass: a shared `@TestConfiguration` that declares each container as a bean annotated `@ServiceConnection`, so Spring Boot derives the connection details from the container itself.
+
+```java
+@TestConfiguration(proxyBeanMethods = false)
+class TestContainersConfig {
+  @Bean
+  @ServiceConnection
+  PostgreSQLContainer postgres() {
+    return new PostgreSQLContainer("postgres:18-alpine");
+  }
+}
+```
+
+Use `@DynamicPropertySource` only for a property no service connection covers.
 
 Fail: the embedded in-memory database that `@DataJpaTest` substitutes by default.
 
@@ -279,7 +301,7 @@ The pipeline that runs this suite alongside the build, static analysis, and scan
 
 - [ ] Every behaviour change started with a test that failed for the right reason.
 - [ ] Error and edge cases are covered, not just the happy path.
-- [ ] Mocked Spring beans use `@MockitoBean`, never the deprecated `@MockBean`.
+- [ ] Mocked Spring beans use `@MockitoBean` or `@MockitoSpyBean`, never the removed `@MockBean` or `@SpyBean`.
 - [ ] Slices are used where they fit, and `@SpringBootTest` only where the wiring is the subject.
 - [ ] Repository tests run against the production database engine through Testcontainers.
 - [ ] Assertions are AssertJ throughout, with `jsonPath` for response bodies.

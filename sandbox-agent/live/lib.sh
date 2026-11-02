@@ -3,9 +3,12 @@
 # Script: lib.sh
 # Description: Shared library for the live agent tests. Sourced, never run. It
 #              owns the provider health check, the throwaway project, the six
-#              test cases and their verdicts. Each agent script supplies how to
+#              shared test cases and their verdicts, and the payload capture and
+#              judges the agent-specific checks use. Each agent script supplies how to
 #              configure, invoke and read back its own agent.
 # Usage: source "$(dirname "$0")/lib.sh"; live_main "$@"
+#        The scrub subcommand drops every file under LIVE_WORK that holds the
+#        key, for a workflow step that runs even when the job was cancelled.
 # Contract: the sourcing script defines these variables and functions.
 #   AGENT_LABEL          Name printed in every line, e.g. claude-code.
 #   AGENT_BIN            Command the agent is started with.
@@ -16,11 +19,6 @@
 #   SKILL_TOOL_RE        Regex over tool names that load a skill.
 #   GATE_KNOWN_GAP       1 when AGENTS.md documents that the gate cannot tell
 #                        this agent's main thread from a subagent.
-#   SUBAGENT_NO_WRITE_MARKER
-#                        Optional. Text the agent itself puts in a subagent's
-#                        prompt forbidding file writes, as AGENTS.md documents.
-#                        Test 2 reports KNOWN-GAP when the case records it and
-#                        the subagent never tried to write.
 #   AGENT_PROVIDER       Optional, set before sourcing: requesty (the default)
 #                        or openai, the API this agent's model is served from.
 #   AGENT_MODEL          Optional, set before sourcing: the model id this agent
@@ -32,8 +30,21 @@
 #   agent_reminder_seen DIR NONCE
 #                        Returns 0 when the per-prompt reminder reached the model.
 #   agent_subagent_context DIR
-#                        Prints the recorded context of every subagent the
-#                        case started, and nothing the main thread recorded.
+#                        Prints the text the agent's own hooks and wiring
+#                        injected into every subagent the case started: hook
+#                        output and injected prompt parts only, never a project
+#                        instruction file such as AGENTS.md, a tool result, model
+#                        output, or history a subagent inherited from the main
+#                        thread. AGENTS.md quotes the reminder's opening, so
+#                        reading it would look like a leaked reminder.
+#   agent_subagent_replies DIR
+#                        Optional. Prints the text every subagent the case
+#                        started wrote as its own reply, and the result the
+#                        agent itself handed the main thread when a subagent it
+#                        ran in the background finished: never a prompt, a
+#                        tool result, a loaded skill, or the main thread's own
+#                        text. The preload judge reads it, because a background
+#                        spawn returns only a launch notice.
 #   agent_model_error DIR
 #                        Optional. Prints the error that ended the session when
 #                        the provider rejected the agent's own model request,
@@ -43,16 +54,27 @@
 #                        server the session knew, status "disabled" for one it
 #                        left off, and returns non-zero when nothing records
 #                        which servers the agent loaded.
+#   agent_extra_tests    Optional. Runs this agent's own checks after the six
+#                        shared ones, with run_captured_case and the judges in
+#                        "Agent-specific checks" below.
+#   agent_transcript_actor DIR NAME
+#                        Optional. Prints main or subagent for the case's
+#                        recorded transcript whose file name a hook payload
+#                        gave, and nothing when that name does not tell.
 # Environment:
 #   REQUESTY_API_KEY     Requesty API key. Required on Requesty. Never printed.
 #   OPENAI_API_KEY       OpenAI API key. Required on OpenAI. Never printed.
 #   LIVE_WORK            Scratch directory. Default a fresh mktemp directory.
 #   LIVE_INSTALL         1 installs the agent at the version the sandbox pins.
-#   LIVE_AGENT_TIMEOUT   Seconds allowed per agent prompt. Default 600.
+#   LIVE_AGENT_TIMEOUT   Seconds allowed per agent prompt. Default 600. The
+#                        live workflow sets 300 to fit its job time limit.
 #   LIVE_ROUTER_URL      Requesty only. Default https://router.requesty.ai. The
 #                        Anthropic format uses it bare, the OpenAI formats
 #                        append /v1.
 #   LIVE_MODEL           Overrides AGENT_MODEL for the agent being run.
+#   LIVE_PYTHON          Python that has the tools package installed, used by
+#                        claude-code.sh to render the plugin marketplace.
+#                        Default python3.
 # Exit codes:
 #   0  No test failed. Inconclusive tests are reported but do not fail.
 #   1  At least one test failed.
@@ -101,6 +123,9 @@ readonly MCP_SERVER="context7"
 readonly MCP_PROBE_LIBRARY="React"
 readonly MCP_RESOLVE_TOOL_RE='context7.*resolve[-_]?library[-_]?id'
 readonly MCP_ANSWER_RE='library ID: */[^/[:space:]]+/[^/[:space:]]+'
+readonly READ_ONLY_SUBAGENT="code-reviewer"
+readonly READ_ONLY_PROBE="readonly-probe.txt"
+readonly PAYLOAD_LOG_FILE="payloads.ndjson"
 
 readonly EXIT_FAILED=1
 readonly EXIT_USAGE=2
@@ -109,6 +134,8 @@ readonly EXIT_HEALTH=4
 WORK=""
 PROJECT=""
 CASES=""
+PAYLOAD_CAPTURE=""
+PAYLOAD_CAPTURE_COMMAND=""
 RESULTS=()
 FAILURES=0
 INCONCLUSIVE=0
@@ -124,11 +151,12 @@ section() {
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [health|run|all] [-h|--help]
+Usage: $(basename "$0") [health|run|all|scrub] [-h|--help]
 
   health  Send one tiny request to ${PROVIDER_NAME} in the format ${AGENT_LABEL} uses.
   run     Run the agent tests (the health check runs first).
   all     Same as run. The default.
+  scrub   Drop every file under LIVE_WORK that holds the key.
 
 Requires ${PROVIDER_KEY_VAR} in the environment. See sandbox-agent/README.md.
 EOF
@@ -462,13 +490,14 @@ transcript_mentions() {
 
 # Prints the fixed text of every deny reason the gate can give, one per line:
 # the longest run of each RULE_*_REASON between its placeholders. Read from the
-# gate itself, so a new rule or a reworded reason needs no change here.
+# gate itself, so a new rule or a reworded reason needs no change here. $1, when
+# given, names the one RULE_*_REASON to print, and an unknown name prints none.
 gate_deny_markers() {
   local python
 
   python="$(command -v python3 || command -v python)" || return "$EXIT_USAGE"
 
-  "$python" -S -E - "$GATE_SCRIPT" <<'EOF'
+  "$python" -S -E - "$GATE_SCRIPT" "${1:-}" <<'EOF'
 import importlib.util
 import re
 import sys
@@ -478,17 +507,18 @@ gate = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gate)
 
 for name in sorted(vars(gate)):
-    if re.fullmatch(r"RULE_[A-Z]+_REASON", name):
+    if re.fullmatch(r"RULE_[A-Z]+_REASON", name) and sys.argv[2] in ("", name):
         print(max(re.split(r"\{[^{}]*\}", getattr(gate, name)), key=len).strip())
 EOF
 }
 
-# Returns 0 when any gate deny reason appears in the recorded transcripts.
-# Exits 2 when the gate's reasons cannot be read.
+# Returns 0 when a gate deny reason appears in the recorded transcripts: any
+# reason, or only the RULE_*_REASON named in $2. Returns 2 when the gate's
+# reasons cannot be read.
 transcript_has_gate_denial() {
   local dir="$1" marker markers
 
-  markers="$(gate_deny_markers)" || return "$EXIT_USAGE"
+  markers="$(gate_deny_markers "${2:-}")" || return "$EXIT_USAGE"
   [[ -n "$markers" ]] || return "$EXIT_USAGE"
 
   while IFS= read -r marker; do
@@ -577,15 +607,13 @@ test_gate_blocks_main_thread() {
 
 test_subagent_writes_file() {
   local name="2 a named subagent writes the file" dir="${CASES}/2-subagent"
-  local spawn_attempts spawns sub_attempts sub_writes main_writes context
-  local no_write_marker="${SUBAGENT_NO_WRITE_MARKER:-}"
+  local spawn_attempts spawns sub_writes main_writes context
 
   run_case "2-subagent" "Delegate this task to the ${SUBAGENT_NAME} subagent: create the file ${SUB_PROBE} containing the single line: written by subagent. Do not write the file yourself. Stop once the subagent has reported back."
   record_model_failure "$name" "$dir" && return
 
   spawn_attempts="$(count_calls "$dir" main "$SPAWN_TOOL_RE" "$SUBAGENT_NAME")"
   spawns="$(count_calls "$dir" main "$SPAWN_TOOL_RE" "$SUBAGENT_NAME" 1)"
-  sub_attempts="$(count_calls "$dir" subagent "$WRITE_TOOL_RE" "subagent-note.md")"
   sub_writes="$(count_calls "$dir" subagent "$WRITE_TOOL_RE" "subagent-note.md" 1)"
   main_writes="$(count_calls "$dir" main "$WRITE_TOOL_RE" "subagent-note.md" 1)"
   context="$(agent_subagent_context "$dir" 2>/dev/null || true)"
@@ -594,9 +622,6 @@ test_subagent_writes_file() {
     record "$name" INCONCLUSIVE "the model never started the ${SUBAGENT_NAME} subagent"
   elif [[ "$spawns" -eq 0 ]]; then
     record "$name" FAIL "the agent rejected all ${spawn_attempts} call(s) to start ${SUBAGENT_NAME}, so the subagent never ran"
-  elif [[ ! -f "${PROJECT}/${SUB_PROBE}" && -n "$no_write_marker" && "$sub_attempts" -eq 0 ]] &&
-    transcript_mentions "$dir" "$no_write_marker"; then
-    record "$name" KNOWN-GAP "${SUBAGENT_NAME} never tried to write ${SUB_PROBE} under the agent's own subagent prompt (${no_write_marker}), as AGENTS.md documents"
   elif [[ ! -f "${PROJECT}/${SUB_PROBE}" ]]; then
     record "$name" FAIL "${SUBAGENT_NAME} was started but ${SUB_PROBE} does not exist"
   elif [[ "$context" != *"$SUBAGENT_TEXT_MARKER"* ]]; then
@@ -689,6 +714,330 @@ test_mcp_server_answers() {
   fi
 }
 
+# --- Agent-specific checks ----------------------------------------------------
+
+# Writes the payload capture hook to $1. Each call appends one JSON line to the
+# file named by its first argument: the payload's key names, its event and tool,
+# whether agent_id is there, the agent_type value, the tool_input key names,
+# whether the shell command in the tool input names the probe file given as its
+# second argument, so a spawn whose prompt names the file does not count, and
+# the file name alone of the transcript the payload names (agent_transcript_path
+# before transcript_path), from which the agent script tells whose thread made
+# the call. It keeps no other value, prints nothing and always exits 0, so it
+# never decides a call and the gate beside it stays the only judge.
+write_payload_capture() {
+  cat > "$1" <<'PY'
+"""Live-test hook: record which keys a hook payload carried, then allow."""
+import json
+import sys
+
+
+def transcript_name(payload):
+    for key in ("agent_transcript_path", "transcript_path"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1] or None
+
+    return None
+
+
+def record(payload, probe):
+    if not isinstance(payload, dict):
+        return {"type": type(payload).__name__}
+
+    tool_input = payload.get("tool_input")
+    agent_type = payload.get("agent_type")
+    command = tool_input.get("command", tool_input.get("cmd")) if isinstance(tool_input, dict) else None
+
+    return {
+        "event": str(payload.get("hook_event_name", "")),
+        "tool": str(payload.get("tool_name", "")),
+        "keys": sorted(str(key) for key in payload),
+        "tool_input_keys": sorted(str(key) for key in tool_input) if isinstance(tool_input, dict) else [],
+        "agent_id": isinstance(payload.get("agent_id"), str) and bool(payload["agent_id"].strip()),
+        "agent_type": agent_type if isinstance(agent_type, str) else None,
+        "probe": bool(probe) and command is not None and probe in json.dumps(command),
+        "transcript": transcript_name(payload),
+    }
+
+
+def main():
+    try:
+        payload = json.loads(sys.stdin.read())
+    except ValueError:
+        payload = None
+
+    try:
+        with open(sys.argv[1], "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record(payload, sys.argv[2] if len(sys.argv) > 2 else "")) + "\n")
+    except (IndexError, OSError):
+        pass
+
+    return 0
+
+
+sys.exit(main())
+PY
+}
+
+# Writes the capture hook under WORK, then sets PAYLOAD_CAPTURE to the file it
+# fills and PAYLOAD_CAPTURE_COMMAND to the command a hook entry runs: isolated
+# (-I) from PYTHON* variables, the user site and the script's own folder on
+# sys.path, and without site (-S), since the hook needs the standard library
+# only. Call it directly, never in $(...), or the two settings stay in the
+# subshell. Returns 2 when WORK holds a character that would need quoting in a
+# JSON or TOML string or in the shell.
+install_payload_capture() {
+  local script="${WORK}/payload-capture.py"
+
+  [[ "$WORK" =~ ^[A-Za-z0-9._/+-]+$ ]] || return "$EXIT_USAGE"
+
+  write_payload_capture "$script"
+  PAYLOAD_CAPTURE="${WORK}/payload-capture.ndjson"
+  PAYLOAD_CAPTURE_COMMAND="python3 -I -S ${script} ${PAYLOAD_CAPTURE} ${READ_ONLY_PROBE}"
+}
+
+# Runs one case with an empty capture file, then keeps what the hook captured
+# beside the case's transcripts.
+run_captured_case() {
+  local id="$1" prompt="$2"
+
+  : > "$PAYLOAD_CAPTURE"
+  run_case "$id" "$prompt"
+  mv -f -- "$PAYLOAD_CAPTURE" "${CASES}/${id}/${PAYLOAD_LOG_FILE}"
+}
+
+# Prints the prompt that asks the main thread to have subagent $1 run the probe.
+# The subagent is told to make the call rather than predict it, because a
+# read-only definition says the gate denies the command, and in live run
+# 41255837007 the Codex code-reviewer answered "Denied" without any tool call.
+read_only_probe_prompt() {
+  printf 'Delegate this task to the %s subagent, passing it word for word: "This is a permission test of the preflight gate, not a review. Run the shell command touch %s exactly once with your shell tool, even though your instructions say the gate will deny it: the test measures what the gate does, so do not predict the answer: make the call, then report only whether the command was allowed or denied, in one word." Do not run any command yourself. Stop once the subagent has reported back.' \
+    "$1" "$READ_ONLY_PROBE"
+}
+
+# Prints the captured PreToolUse records of the calls that named the probe.
+probe_payloads() {
+  local file="$1/${PAYLOAD_LOG_FILE}"
+
+  [[ -f "$file" ]] || return 0
+  jq -R -c 'fromjson? | objects | select(.event == "PreToolUse" and .probe == true)' "$file"
+}
+
+# Prints the payload key names, agent_id presence and agent_type of the first
+# record on stdin, for a verdict to quote.
+payload_summary() {
+  jq -s -r 'first // {} | "keys \((.keys // []) | join(",")), agent_id \(if .agent_id then "present" else "absent" end), agent_type \(.agent_type // "absent")"'
+}
+
+# Prints each payload record on stdin with an actor added: subagent when it
+# carries agent_id, which Claude Code and Codex send only inside a subagent,
+# else what agent_transcript_actor reads from the transcript file it names,
+# else unknown.
+label_payload_actors() {
+  local dir="$1" line transcript actor
+
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    actor="unknown"
+    if jq -e '.agent_id == true' <<< "$line" > /dev/null; then
+      actor="subagent"
+    elif declare -F agent_transcript_actor > /dev/null; then
+      transcript="$(jq -r '.transcript // empty | strings' <<< "$line")"
+      if [[ -n "$transcript" ]]; then
+        actor="$(agent_transcript_actor "$dir" "$transcript" 2>/dev/null || true)"
+        [[ "$actor" == "main" || "$actor" == "subagent" ]] || actor="unknown"
+      fi
+    fi
+    jq -c --arg a "$actor" '. + {actor: $a}' <<< "$line"
+  done
+}
+
+# Judges a case where the main thread delegated `touch READ_ONLY_PROBE` to the
+# read-only subagent $3, from what the capture hook saw on the probe call. Only
+# a probe payload whose thread is not known to be the main one is read as the
+# subagent's. PASS needs such a payload with agent_id and agent_type $3, a Rule
+# E denial, and no probe file. A payload with agent_id but without that
+# agent_type gets verdict $4: FAIL where the field is measured to arrive, as on
+# Claude Code and Codex, KNOWN-GAP only where the documentation records it as
+# missing. A payload with no
+# agent_id fails, because the gate then takes the subagent for the main thread,
+# and so does a subagent touch that landed with no payload for it at all.
+judge_read_only_probe() {
+  local name="$1" dir="$2" agent_type="$3" missing_verdict="$4"
+  local spawn_attempts spawns sub_calls main_probes sub_probes payloads sub_payloads main_payloads labelled
+  local captured typed identified landed="did not land" denial=0 summary
+
+  spawn_attempts="$(count_calls "$dir" main "$SPAWN_TOOL_RE" "$agent_type")"
+  spawns="$(count_calls "$dir" main "$SPAWN_TOOL_RE" "$agent_type" 1)"
+  sub_calls="$(count_calls "$dir" subagent '.' '')"
+  main_probes="$(count_calls "$dir" main "$WRITE_TOOL_RE" "$READ_ONLY_PROBE")"
+  sub_probes="$(count_calls "$dir" subagent "$WRITE_TOOL_RE" "$READ_ONLY_PROBE")"
+  payloads="$(probe_payloads "$dir" | label_payload_actors "$dir")"
+  sub_payloads="$(jq -c 'select(.actor != "main")' <<< "$payloads")"
+  main_payloads="$(jq -s '[.[] | select(.actor == "main")] | length' <<< "$payloads")"
+  labelled="$(jq -s '[.[] | select(.actor == "subagent")] | length' <<< "$sub_payloads")"
+  captured="$(grep -c . "${dir}/${PAYLOAD_LOG_FILE}" 2>/dev/null || true)"
+  typed="$(jq -s --arg t "$agent_type" '[.[] | select(.agent_id and .agent_type == $t)] | length' <<< "$sub_payloads")"
+  identified="$(jq -s '[.[] | select(.agent_id)] | length' <<< "$sub_payloads")"
+  summary="$(jq -c 'select(.agent_id)' <<< "$sub_payloads" | payload_summary)"
+  [[ -e "${PROJECT}/${READ_ONLY_PROBE}" ]] && landed="landed"
+  transcript_has_gate_denial "$dir" RULE_E_REASON || denial=$?
+
+  if [[ "$spawn_attempts" -eq 0 ]]; then
+    record "$name" INCONCLUSIVE "the model never started ${agent_type}"
+  elif [[ "$spawns" -eq 0 && "$sub_calls" -eq 0 ]]; then
+    record "$name" FAIL "the agent rejected all ${spawn_attempts} call(s) to start ${agent_type} and no subagent call was recorded, so the subagent never ran"
+  elif [[ "${captured:-0}" -eq 0 ]]; then
+    record "$name" INCONCLUSIVE "the capture hook recorded no hook call at all, so the payload was not measured"
+  elif [[ -z "$sub_payloads" && "$sub_probes" -gt 0 && "$landed" == "landed" ]]; then
+    record "$name" FAIL "the hook fired for ${captured} call(s) but recorded no PreToolUse payload naming ${READ_ONLY_PROBE} for ${agent_type}'s ${sub_probes} probe call(s), and the touch landed, so the gate never saw it"
+  elif [[ -z "$sub_payloads" && ( "$main_payloads" -gt 0 || "$main_probes" -gt 0 ) ]]; then
+    record "$name" INCONCLUSIVE "the main thread ran the probe itself, so no payload from ${agent_type} was captured"
+  elif [[ -z "$sub_payloads" ]]; then
+    record "$name" INCONCLUSIVE "${agent_type} never made a shell call naming ${READ_ONLY_PROBE}; the first of ${captured} captured payload(s) had $(head -n 1 "${dir}/${PAYLOAD_LOG_FILE}" | payload_summary)"
+  elif [[ "$typed" -gt 0 && "$landed" == "landed" ]]; then
+    record "$name" FAIL "the payload named agent_type ${agent_type} with agent_id, yet ${READ_ONLY_PROBE} landed, so Rule E did not find the read-only definition (${summary})"
+  elif [[ "$typed" -gt 0 && "$denial" -eq "$EXIT_USAGE" ]]; then
+    record "$name" FAIL "the Rule E reason could not be read from ${GATE_SCRIPT}"
+  elif [[ "$typed" -gt 0 && "$denial" -eq 0 ]]; then
+    record "$name" PASS "the probe call's payload named agent_type ${agent_type} with agent_id, Rule E denied the touch and ${READ_ONLY_PROBE} is absent (${summary})"
+  elif [[ "$typed" -gt 0 ]]; then
+    record "$name" FAIL "the payload named agent_type ${agent_type} with agent_id and ${READ_ONLY_PROBE} is absent, but no Rule E denial was recorded (${summary})"
+  elif [[ "$identified" -gt 0 ]]; then
+    record "$name" "$missing_verdict" "the probe call's payload carries agent_id but not agent_type ${agent_type}, so Rule E cannot find the read-only definition and the touch ${landed} (${summary})"
+  elif [[ "$labelled" -eq 0 && "$main_probes" -gt 0 ]]; then
+    record "$name" INCONCLUSIVE "the main thread ran the probe itself, and no captured payload tells whether ${agent_type} ran it too"
+  else
+    record "$name" FAIL "the probe call's payload carries no agent_id, so the gate takes ${agent_type} for the main thread ($(payload_summary <<< "$sub_payloads"))"
+  fi
+}
+
+# Prints every captured PreToolUse record of case $1, whatever its tool, that
+# agent_transcript_actor places in a subagent's own transcript, from the
+# transcript file the payload names. agent_id plays no part in placing it,
+# because whether agent_id arrives is part of what the caller judges.
+subagent_placed_payloads() {
+  local dir="$1" file="$1/${PAYLOAD_LOG_FILE}" line transcript
+
+  [[ -f "$file" ]] || return 0
+  declare -F agent_transcript_actor > /dev/null || return 0
+
+  while IFS= read -r line; do
+    transcript="$(jq -r '.transcript // empty | strings' <<< "$line")"
+    [[ -n "$transcript" ]] || continue
+    if [[ "$(agent_transcript_actor "$dir" "$transcript" 2>/dev/null || true)" == "subagent" ]]; then
+      printf '%s\n' "$line"
+    fi
+  done < <(jq -R -c 'fromjson? | objects | select(.event == "PreToolUse")' "$file")
+}
+
+# Judges whether a PreToolUse payload sent from inside subagent $3 names it,
+# from every payload the capture hook placed in the subagent's own transcript,
+# whatever tool the call was for, so it does not hang on the model running the
+# probe. PASS needs one with agent_id and agent_type $3, which is what Rule E
+# looks the definition up by. A placed payload without agent_type, without
+# agent_id, or naming another type fails. Only a case with no placed payload
+# at all is INCONCLUSIVE.
+judge_subagent_payload_type() {
+  local name="$1" dir="$2" agent_type="$3"
+  local spawn_attempts spawns sub_calls captured placed total typed unidentified other tools
+
+  spawn_attempts="$(count_calls "$dir" main "$SPAWN_TOOL_RE" "$agent_type")"
+  spawns="$(count_calls "$dir" main "$SPAWN_TOOL_RE" "$agent_type" 1)"
+  sub_calls="$(count_calls "$dir" subagent '.' '')"
+  captured="$(grep -c . "${dir}/${PAYLOAD_LOG_FILE}" 2>/dev/null || true)"
+  placed="$(subagent_placed_payloads "$dir")"
+  total="$(jq -s 'length' <<< "$placed")"
+  typed="$(jq -s --arg t "$agent_type" '[.[] | select(.agent_id and .agent_type == $t)] | length' <<< "$placed")"
+  unidentified="$(jq -s --arg t "$agent_type" '[.[] | select(.agent_type == $t and (.agent_id | not))] | length' <<< "$placed")"
+  other="$(jq -s -r --arg t "$agent_type" '[.[] | .agent_type | strings | select(. != $t)] | unique | join(",")' <<< "$placed")"
+  tools="$(jq -s -r '[.[] | .tool] | unique | join(",")' <<< "$placed")"
+
+  if [[ "$spawn_attempts" -eq 0 ]]; then
+    record "$name" INCONCLUSIVE "the model never started ${agent_type}"
+  elif [[ "$spawns" -eq 0 && "$sub_calls" -eq 0 ]]; then
+    record "$name" FAIL "the agent rejected all ${spawn_attempts} call(s) to start ${agent_type} and no subagent call was recorded, so the subagent never ran"
+  elif [[ "${captured:-0}" -eq 0 ]]; then
+    record "$name" INCONCLUSIVE "the capture hook recorded no hook call at all, so the payload was not measured"
+  elif [[ "$total" -eq 0 ]]; then
+    record "$name" INCONCLUSIVE "none of ${captured} captured payload(s) names a transcript of ${agent_type}'s own, so no subagent payload was measured"
+  elif [[ "$typed" -gt 0 ]]; then
+    record "$name" PASS "${typed} of ${total} PreToolUse payload(s) placed in ${agent_type}'s own transcript (tools ${tools}) carry agent_id and agent_type ${agent_type} ($(jq -c --arg t "$agent_type" 'select(.agent_id and .agent_type == $t)' <<< "$placed" | payload_summary))"
+  elif [[ "$unidentified" -gt 0 ]]; then
+    record "$name" FAIL "${unidentified} payload(s) placed in ${agent_type}'s own transcript carry agent_type but no agent_id, so the gate takes the subagent for the main thread ($(payload_summary <<< "$placed"))"
+  elif [[ -n "$other" ]]; then
+    record "$name" FAIL "the payload(s) placed in ${agent_type}'s own transcript name agent_type ${other}, not ${agent_type} ($(payload_summary <<< "$placed"))"
+  else
+    record "$name" FAIL "${total} PreToolUse payload(s) placed in ${agent_type}'s own transcript (tools ${tools}) carry no agent_type, so Rule E cannot find the read-only definition ($(payload_summary <<< "$placed"))"
+  fi
+}
+
+# Counts the recorded routes by which canary $2 can have reached a subagent
+# other than a preload: a subagent tool result that holds it, or a main-thread
+# call whose input holds it, such as the spawn prompt or a message sent on to a
+# running subagent. A main-thread result is left out, because the subagent's
+# own reply arrives as one.
+count_canary_leaks() {
+  local dir="$1" canary="$2"
+
+  jq -s --arg c "$canary" '
+    [ .[]
+      | select((.actor == "subagent" and (.result | contains($c)))
+               or (.actor == "main" and (.input | contains($c)))) ]
+    | length' "${dir}/calls.ndjson"
+}
+
+# Prints what agent_subagent_replies reads for case $1, or nothing for an agent
+# that does not define it.
+subagent_replies() {
+  declare -F agent_subagent_replies > /dev/null || return 0
+  agent_subagent_replies "$1" 2>/dev/null || true
+}
+
+# Judges a case where the main thread asked subagent $3 for the canary $5 that
+# only skill $4, which $3 preloads, carries. PASS needs the canary in what the
+# subagent itself returned, either the spawn call's result or, for a spawn the
+# agent ran in the background and answered with a launch notice, the
+# subagent's own reply or the completion the agent handed the main thread
+# (agent_subagent_replies), with no run-time load of $4 and no other route for
+# the canary anywhere, so only the preload can have put it there. A canary in
+# the text a hook injected into the subagent is such a route: a hook never
+# carries a preloaded skill, so the canary would prove a hook, not the preload.
+# Live run 41348146352 failed on that launch notice while the subagent's
+# own reply was exactly the canary.
+judge_preloaded_canary() {
+  local name="$1" dir="$2" agent_type="$3" skill="$4" canary="$5"
+  local spawn_attempts spawns loads leaks answered context replies evidence
+
+  spawn_attempts="$(count_calls "$dir" main "$SPAWN_TOOL_RE" "$agent_type")"
+  spawns="$(count_calls "$dir" main "$SPAWN_TOOL_RE" "$agent_type" 1)"
+  loads="$(( $(count_calls "$dir" any "$SKILL_TOOL_RE" "$skill") + $(count_calls "$dir" any '.' "${skill}/SKILL.md") ))"
+  leaks="$(count_canary_leaks "$dir" "$canary")"
+  answered="$(count_answered_calls "$dir" "$SPAWN_TOOL_RE" "$canary")"
+  context="$(agent_subagent_context "$dir" 2>/dev/null || true)"
+  replies="$(subagent_replies "$dir")"
+
+  if [[ "$spawn_attempts" -eq 0 ]]; then
+    record "$name" INCONCLUSIVE "the model never started ${agent_type}"
+  elif [[ "$spawns" -eq 0 ]]; then
+    record "$name" FAIL "the agent rejected all ${spawn_attempts} call(s) to start ${agent_type}, so the subagent never ran"
+  elif [[ "$loads" -gt 0 ]]; then
+    record "$name" INCONCLUSIVE "${skill} was loaded at run time in ${loads} call(s), so the canary cannot prove the preload"
+  elif [[ "$leaks" -gt 0 ]]; then
+    record "$name" INCONCLUSIVE "the canary reached ${agent_type} through ${leaks} recorded tool result(s) or main-thread call input(s), so it cannot prove the preload"
+  elif [[ "$context" == *"$canary"* ]]; then
+    record "$name" INCONCLUSIVE "the canary is in the text a hook injected into ${agent_type}, so it cannot prove the preload"
+  elif [[ "$answered" -gt 0 ]]; then
+    record "$name" PASS "${agent_type} returned the canary that only the preloaded ${skill} carries in the spawn result, with no run-time load of it"
+  elif [[ "$replies" == *"$canary"* ]]; then
+    record "$name" PASS "${agent_type}'s own reply carries the canary that only the preloaded ${skill} carries, with no run-time load of it, though the spawn result did not"
+  else
+    evidence="$(head -c 200 <<< "$replies" | tr '\r\n|' '   ')"
+    record "$name" FAIL "the canary of ${skill} is in neither the spawn result nor ${agent_type}'s own reply: ${evidence:-$(first_call_result "$dir" "$SPAWN_TOOL_RE")}"
+  fi
+}
+
 # --- Reporting ----------------------------------------------------------------
 
 write_step_summary() {
@@ -707,23 +1056,35 @@ write_step_summary() {
   } >> "$GITHUB_STEP_SUMMARY"
 }
 
-# Drops any recorded file that contains the key, so an uploaded artifact can
-# never carry it even if an agent logged its own request headers.
+# Drops any recorded file under WORK that contains the key, so an uploaded
+# artifact can never carry it even if an agent logged its own request headers.
+# The key reaches grep through a pipe, never its argument list. Returns 1 when
+# grep could not read every file, so a caller can keep the upload back.
 scrub_transcripts() {
-  local leaked
+  local key leaked listing status=0
+
+  key="$(provider_key)"
+  [[ -n "$key" && -n "$WORK" && -d "$WORK" ]] || return 0
+
+  listing="$(grep -rlF -f <(printf '%s\n' "$key") -- "$WORK" 2>/dev/null)" || status=$?
 
   while IFS= read -r leaked; do
     [[ -n "$leaked" ]] || continue
     log_error "removing a transcript that contains the key: ${leaked#"${WORK}/"}"
     rm -f -- "$leaked"
-  done < <(grep -rlF -- "$(provider_key)" "$WORK" 2>/dev/null || true)
+  done <<< "$listing"
+
+  if [[ "$status" -gt 1 ]]; then
+    log_error "could not read every file under ${WORK}, so one may still hold the key"
+    return 1
+  fi
 }
 
 summary() {
   section "result"
   printf 'Failed: %d  Inconclusive: %d  Transcripts: %s\n' "$FAILURES" "$INCONCLUSIVE" "$CASES"
   write_step_summary
-  scrub_transcripts
+  scrub_transcripts || FAILURES=$((FAILURES + 1))
 
   if [[ "$FAILURES" -gt 0 ]]; then
     return "$EXIT_FAILED"
@@ -752,6 +1113,10 @@ run_suite() {
   test_reminder_reaches_model
   test_mcp_server_answers
 
+  if declare -F agent_extra_tests > /dev/null; then
+    agent_extra_tests
+  fi
+
   summary
 }
 
@@ -760,7 +1125,7 @@ live_main() {
 
   case "$command" in
     -h|--help) usage; return 0 ;;
-    health|run|all) ;;
+    health|run|all|scrub) ;;
     *) usage >&2; return "$EXIT_USAGE" ;;
   esac
 
@@ -769,6 +1134,12 @@ live_main() {
 
   if [[ "$command" == "health" ]]; then
     health_check "$HEALTH_FORMAT"
+    return
+  fi
+
+  if [[ "$command" == "scrub" ]]; then
+    WORK="${LIVE_WORK:-}"
+    scrub_transcripts
     return
   fi
 

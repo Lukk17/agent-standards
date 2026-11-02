@@ -3,7 +3,18 @@
 Table shapes for the cases a hub example does not cover: error paths, comparison of structs, grouped subtests, and
 output compared against a checked-in file. Open this when a table is getting awkward.
 
-Baseline: Go 1.25, so range variables are per-iteration and no `tt := tt` copy is needed.
+Written for Go 1.27, so range variables are per-iteration and no `tt := tt` copy is needed.
+
+---
+
+### Contents
+
+- The standard table
+- Error cases in the same table
+- Compare structs with cmp.Diff, not DeepEqual
+- Group related subtests when they share setup
+- Golden files for large output
+- Keep the table declarative
 
 ---
 

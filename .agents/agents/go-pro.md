@@ -1,5 +1,5 @@
 ---
-description: "Use when writing or reviewing Go service code, or when a Go package needs restructuring. Applies idiomatic Go (useful zero values, interfaces declared at the consumer, wrapped errors, context propagation), table-driven tests, and ports-and-adapters boundaries. Implementer, not architect: defers service decomposition to `backend-architect` and schema design to `database-expert`."
+description: "Use when the user says \"write this Go service\", \"review this Go package\" or \"restructure this module\". Applies idiomatic Go, useful zero values, interfaces declared at the consumer, wrapped errors and context propagation, with table-driven tests and ports-and-adapters boundaries, as an implementer. Not for service decomposition, use `backend-architect`."
 mode: subagent
 tools:
   read: true
@@ -74,6 +74,10 @@ When reviewing Go code, raise: an interface defined next to its only implementat
 struct, an error returned without wrapping, a goroutine with no exit path, a mutex copied by value, a `panic` used as
 control flow, and a test that asserts on a log line instead of a return value.
 
+### Skills to load on demand
+
+Load when the change touches that stack, the way the Preloaded skills section below describes: `api-design` for an HTTP or gRPC contract, `backend-patterns` for service structure, `docker-patterns` for the Dockerfile, `security-review` for auth, input handling or secrets, `build-dependency-management` for a module bump, `review-duplication` when adding a helper the module may already have, `git-workflow` when committing.
+
 ### Done when
 
 The affected packages build, `go test -race ./...` passes, `golangci-lint run` is clean, every new error path is
@@ -81,18 +85,10 @@ wrapped and reachable from a test, and no exported symbol was added without a ca
 
 ### Preloaded skills
 
-Load and follow these skills from `.agents/skills/` before acting. They contain the reusable procedure and patterns, and this prompt only defines persona and scope.
+Load and follow these skills before acting. Load a skill by name, or read `<name>/SKILL.md` from the skills folder this agent was installed with: `.agents/skills/` in a project, the global skills folder otherwise. A skill this prompt names to load on demand is found the same way. The skills contain the reusable procedure and patterns, and this prompt only defines persona and scope.
 
 - `golang-patterns`
 - `hexagonal-architecture`
-- `api-design`
-- `backend-patterns`
-- `docker-patterns`
 - `coding-standards`
-- `code-formatter`
-- `review-duplication`
-- `git-workflow`
 - `tdd-workflow`
-- `build-dependency-management`
-- `security-review`
 - `observability-and-logging`

@@ -2,7 +2,7 @@
 
 Read this before installing macOS or Apple software updates from the command line. The rules live in [SKILL.md](../SKILL.md). Every command here is UNVERIFIED.
 
-Source: the `softwareupdate(8)` man page as shipped with Xcode 27.2 beta 2, read through `https://keith.github.io/xcode-man-pages/softwareupdate.8.html` on 2026-10-13.
+Source: the `softwareupdate(8)` man page as shipped with Xcode, read through `https://keith.github.io/xcode-man-pages/softwareupdate.8.html`.
 
 ---
 

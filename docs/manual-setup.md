@@ -186,9 +186,24 @@ the gate plugin by path.
 opencode
 ```
 
-`opencode.json` stays at the project root, because that is the only place Kilo Code looks. OpenCode would also read a
-second file at `.opencode/opencode.json` and merge it over the root one, but none ships: `.opencode/` holds nothing
-but the `agents` symlink.
+`opencode.json` stays at the project root, because that is the only place Kilo Code looks. OpenCode 1.x and 2.x also
+read [.opencode/opencode.json](../.opencode/opencode.json) and merge it over the root one. It ships with nothing but
+the native edit backstop, in the OpenCode 2.x `permissions` form, which Kilo Code ignores. OpenCode 1.x refuses to
+start on that form, so on 1.x copy [.opencode/opencode.json.v1](../.opencode/opencode.json.v1), the same rule in the
+1.x `permission` form, over it, and copy it again after every update. PowerShell:
+
+```powershell
+Copy-Item .opencode/opencode.json.v1 .opencode/opencode.json
+```
+
+Unix shell:
+
+```bash
+cp .opencode/opencode.json.v1 .opencode/opencode.json
+```
+
+What each version does with the two files is under "Hook enforcement" in
+[agent-compatibility.md](agent-compatibility.md).
 
 #### Kilo Code
 

@@ -1,8 +1,15 @@
 # syncthing cli and the REST API
 
-Read this before reading the API key, calling the REST API, or changing the GUI credentials. The rules live in [SKILL.md](../SKILL.md). Commands marked VERIFIED ran on Syncthing 2.1.7 in a throwaway container on 2026-10-23. Every other command here, every PowerShell command included, is UNVERIFIED.
+Contents:
 
-Sources, fetched on 2026-10-23: https://docs.syncthing.net/users/syncthing.html, https://docs.syncthing.net/dev/rest.html, https://docs.syncthing.net/rest/config.html, https://curl.se/docs/manpage.html, and `cmd/syncthing/cli/config.go` at tag v2.1.7 of `syncthing/syncthing`.
+- [How syncthing cli finds the running instance](#how-syncthing-cli-finds-the-running-instance)
+- [Read the API key and the GUI address](#read-the-api-key-and-the-gui-address)
+- [Call the REST API without the key on the command line](#call-the-rest-api-without-the-key-on-the-command-line)
+- [Set a GUI user and password](#set-a-gui-user-and-password)
+
+Read this before reading the API key, calling the REST API, or changing the GUI credentials. The rules live in [SKILL.md](../SKILL.md). Commands marked VERIFIED ran on Syncthing 2 in a throwaway container. Every other command here, every PowerShell command included, is UNVERIFIED.
+
+Sources: https://docs.syncthing.net/users/syncthing.html, https://docs.syncthing.net/dev/rest.html, https://docs.syncthing.net/rest/config.html, https://curl.se/docs/manpage.html, and `cmd/syncthing/cli/config.go` of `syncthing/syncthing`.
 
 ---
 
@@ -40,9 +47,9 @@ syncthing cli config devices <device-id> dump-json
 syncthing cli config options min-home-disk-free dump-json
 ```
 
-In 2.1.7 `syncthing cli config` reads the whole configuration over the REST API, changes it, and posts the whole configuration back to `system/config`, read in `cmd/syncthing/cli/config.go`. Run one change at a time and read it back, because two writers at once can overwrite each other. That last point is inferred from the code, not measured.
+In Syncthing 2 `syncthing cli config` reads the whole configuration over the REST API, changes it, and posts the whole configuration back to `system/config`, read in `cmd/syncthing/cli/config.go`. Run one change at a time and read it back, because two writers at once can overwrite each other. That last point is inferred from the code, not measured.
 
-The other groups, all present in 2.1.7, read in the help output and in `cmd/syncthing/cli/show.go`, `errors.go` and `pending.go`:
+The other groups, all present in Syncthing 2, read in the help output and in `cmd/syncthing/cli/show.go`, `errors.go` and `pending.go`:
 
 | Command | What it does |
 |---|---|

@@ -5,6 +5,13 @@ impactDescription: "Isolates unusually large documents so hot-path queries stay 
 tags: schema, patterns, outlier, arrays, performance, edge-cases
 ---
 
+### Contents
+
+- [Use Outlier Pattern for Exceptional Documents](#use-outlier-pattern-for-exceptional-documents)
+- [Verify with](#verify-with)
+
+---
+
 ### Use Outlier Pattern for Exceptional Documents
 
 Isolate atypical documents with large arrays to prevent them from degrading performance for typical queries. When a

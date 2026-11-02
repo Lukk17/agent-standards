@@ -1,48 +1,22 @@
 # Keycloak.AuthServices Implementation Guide
 
+Contents:
+
+- [Packages Overview](#packages-overview)
+- [Minimal Web API Setup](#minimal-web-api-setup)
+- [Configuration Section](#configuration-section)
+- [Adding Authorization (RBAC)](#adding-authorization-rbac)
+- [Adding Authorization Server (Resource Protection)](#adding-authorization-server-resource-protection)
+- [Adding Admin SDK](#adding-admin-sdk)
+- [Essential Patterns](#essential-patterns)
+- [Where to go next](#where-to-go-next)
+- [Checklist](#checklist)
+
 Wiring the Keycloak.AuthServices packages into an ASP.NET Core application: authentication, authorization, resource
 protection, and the SDKs that talk back to Keycloak. This is the client side of the identity boundary, and it assumes
 the realm and clients already exist.
 
-Baseline versions, current as of September 2026: Keycloak.AuthServices 2.x against Keycloak 26, on .NET 8 or newer.
-
----
-
-### When to activate
-
-- Adding JWT Bearer or OIDC authentication to an ASP.NET Core API or web application.
-- Enforcing realm or client roles through an authorization policy.
-- Protecting an endpoint with the Keycloak Authorization Server and UMA permissions.
-- Calling the Keycloak Admin REST API or Protection API from C#.
-- Wiring Keycloak into .NET Aspire, or instrumenting it with OpenTelemetry.
-
----
-
-### When not to activate
-
-- Creating realms, clients, flows, or federation on the server: see [administration.md](administration.md).
-- Token verification in a Node service: use `node-backend-patterns`.
-- Spring Security resource-server configuration: use `springboot-patterns`.
-- The HTTP contract the protected endpoints expose: use `api-design`.
-- Threat modelling around authentication: use the `security-auditor` agent.
-
----
-
-### Reference map
-
-| Task | Open |
-| --- | --- |
-| OIDC web app authentication, RFC 8414 metadata discovery | [authentication.md](authentication.md) |
-| RBAC, role claims transformation, token introspection | [authorization.md](authorization.md) |
-| Authorization Server, protected resources, policy builder, parameter resolvers | [resource-protection.md](resource-protection.md) |
-| Admin REST API, hand-written and Kiota clients, token management | [admin-sdk.md](admin-sdk.md) |
-| UMA Protection API, resource and permission management | [protection-api.md](protection-api.md) |
-| Organization-based multi-tenancy and membership requirements | [organization-authorization.md](organization-authorization.md) |
-| .NET Aspire, project templates, OpenTelemetry | [devex.md](devex.md) |
-| Every configuration option, naming conventions, adapter file | [configuration.md](configuration.md) |
-| Recipes, common failures, debugging | [dotnet-troubleshooting.md](dotnet-troubleshooting.md) |
-
-JWT Bearer authentication for a Web API is covered below and needs no reference file.
+Written for Keycloak.AuthServices 2 against Keycloak 26, on .NET 8 or newer.
 
 ---
 

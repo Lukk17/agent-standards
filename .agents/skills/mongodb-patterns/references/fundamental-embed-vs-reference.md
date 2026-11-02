@@ -5,6 +5,19 @@ impactDescription: "Determines long-term query and update paths in your applicat
 tags: schema, embedding, referencing, relationships, fundamentals, one-to-one, one-to-few, one-to-many, many-to-many, tree, hierarchy
 ---
 
+### Contents
+
+- [Embed vs Reference Decision Framework](#embed-vs-reference-decision-framework)
+  - [One-to-One: embed in the parent document](#one-to-one-embed-in-the-parent-document)
+  - [One-to-Few: embed bounded arrays](#one-to-few-embed-bounded-arrays)
+  - [One-to-Many: reference in child documents](#one-to-many-reference-in-child-documents)
+  - [Many-to-Many: choose a primary query direction](#many-to-many-choose-a-primary-query-direction)
+  - [Tree and hierarchical data](#tree-and-hierarchical-data)
+  - [When NOT to embed (summary)](#when-not-to-embed-summary)
+- [Verify with](#verify-with)
+
+---
+
 ### Embed vs Reference Decision Framework
 
 This is one of the most important schema decisions you'll make. Choose embedding or referencing based on access

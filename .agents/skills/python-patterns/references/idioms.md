@@ -6,6 +6,24 @@ shows.
 
 ---
 
+### Contents
+
+- Prefer EAFP over LBYL
+- Acquire every resource with `with`
+- Keep side effects out of import time
+- Comprehend simply, generate lazily
+- Write a context manager with `@contextmanager`
+- Write a context manager class when it owns state
+- Stack optional managers with `ExitStack`
+- Preserve metadata in every decorator
+- Validate a dataclass in `__post_init__`
+- Reach for `NamedTuple` only when tuple behaviour is wanted
+- Yield from a generator instead of returning a list
+- Add `slots=True` when instances are many
+- Build strings with `join`, not `+=`
+
+---
+
 ### Prefer EAFP over LBYL
 
 Ask forgiveness, not permission. Check-then-act duplicates the lookup and opens a race whenever the object can change

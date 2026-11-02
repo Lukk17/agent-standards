@@ -1,6 +1,6 @@
 ---
 name: mongodb-patterns
-description: "MongoDB across connection pooling, query optimisation and indexing, schema design and anti-patterns, and Atlas Search, Vector Search and Hybrid Search. Use when you say \"configure the connection pool\", \"why do I get ECONNREFUSED or pool exhaustion\", \"how do I optimize this query\", \"how do I index this\", \"what are the slow queries on my cluster\", \"design this schema\", \"embed vs reference\", \"unbounded arrays\", \"16MB limit\", \"schema validation\", \"time series\", \"polymorphic\", \"document versioning\", \"add autocomplete or fuzzy matching\", \"build RAG over this collection\", or \"combine keyword and semantic search\". Not for applying a schema change safely to a live cluster, use `database-migrations`."
+description: "MongoDB connection pooling, query and index tuning, schema design and anti-patterns, and Atlas Search, Vector Search and Hybrid Search. Use when the user says \"configure the connection pool\", \"how do I index this\", \"design this schema\", \"embed vs reference\" or \"combine keyword and semantic search\". Not for relational modelling on PostgreSQL, use `postgres-patterns`."
 license: Apache-2.0
 compatibility: >-
   Best with MongoDB MCP server. Uses collection-indexes, collection-schema and explain when the connection string
@@ -10,20 +10,9 @@ compatibility: >-
 
 # MongoDB Patterns
 
-Connection configuration, query and index tuning, data modelling, and search, with a reference file per area. The hub
-carries the rules that apply to every MongoDB task, and each reference carries the depth for one of them.
-
----
-
-### Baseline
+Connections, query and index tuning, data modelling, and search. The rules apply to every MongoDB task, and each reference holds one area's depth.
 
 Assume MongoDB 8.0 or newer on Atlas, and an officially supported driver (Node.js, Python, Java, Go, C#, Ruby, PHP).
-Four facts change what the right answer is, so establish them before advising anything:
-
-- The deployment shape. Serverless functions, a long-running server, and an analytical job need different pools.
-- The topology. Pools are per client and per server, so a replica set or a sharded cluster multiplies the total.
-- The server version. MongoDB 8.0 adds `defaultMaxTimeMS` on Atlas, `$rankFusion` needs 8.0 and `$scoreFusion` 8.2.
-- The workload. Read and write access patterns decide the document model, the indexes, and the pool size alike.
 
 ---
 
@@ -31,125 +20,75 @@ Four facts change what the right answer is, so establish them before advising an
 
 - Instantiating or configuring a MongoDB client, a connection pool, or driver timeouts.
 - Diagnosing `ECONNREFUSED`, a socket timeout, pool exhaustion, or connection churn.
-- Asking why a query is slow, which index it needs, or what the slow queries on a cluster are.
+- Asking why a query is slow, which index it needs, or what a cluster's slow queries are.
 - Designing a new schema, reviewing an existing one, or migrating a relational model into documents.
 - Hitting the 16MB document limit, an unbounded array, or an Atlas Schema Suggestion.
-- Building full-text search, autocomplete, fuzzy matching, faceted filtering, or semantic and hybrid search.
-- Adding embeddings and retrieval for a RAG application on top of a collection.
+- Adding schema validation, or modelling time series, polymorphic, or versioned documents.
+- Building full-text, autocomplete, fuzzy, faceted, semantic or hybrid search, or RAG retrieval over a collection.
 
 ---
 
 ### When not to activate
 
-- Applying a schema or index change safely to a live production cluster. Use `database-migrations`.
+- Applying a schema or index change safely to a live cluster. Use `database-migrations`.
 - Relational modelling, indexing, and tuning on PostgreSQL. Use `postgres-patterns`.
 - Idempotency, retries, and graceful shutdown in the service around the driver. Use `backend-patterns`.
-- Measuring the endpoint before assuming the database is the bottleneck. Use `performance-optimization`.
-- Language-neutral design rules such as SOLID, DRY, and error-handling shape. Use `coding-standards`.
+- Measuring the endpoint before blaming the database. Use `performance-optimization`.
+- Language-neutral design rules such as SOLID and DRY. Use `coding-standards`.
 - Reviewing a diff or a pull request for defects. Use `code-reviewer`.
 
 ---
 
-### Gather context before recommending anything
+### Rules
 
-Every area here fails the same way: a value applied without knowing the workload. A `maxPoolSize` copied from a blog
-post, an index added because a field appeared in a filter, an embedded array chosen because the SQL table was joined.
-Ask one question at a time, broad before specific, and when an answer never arrives make a reasonable assumption and
-say out loud that you assumed it.
-
-```text
-GOOD: maxPoolSize 50, from your observed peak of 40 concurrent operations plus 25 percent headroom.
-BAD:  maxPoolSize 100, because that is the default people use.
-```
-
----
-
-### Inspect the real cluster before guessing at it
-
-The MongoDB MCP server turns most of this skill from advice into measurement. Use `collection-schema` for the real
-field structure, `collection-indexes` for what already exists, `explain` for the plan, `db-stats` for size, and
-`atlas-get-performance-advisor` for slow query logs and index suggestions. When neither the connection string nor the
-Atlas API is available, say so plainly and reason from the query shape instead of pretending to have measured.
-
----
-
-### Never run a write through MCP without explicit approval
-
-Reads such as `find`, `aggregate`, `collection-schema`, `db-stats` and `count` are safe to run to verify a claim.
-Anything that changes state (`create-index`, `update-many`, `insert-many`, `create-collection`) and anything
-destructive (`delete-many`, `drop-collection`, `drop-database`) gets the same treatment first: state the exact
-operation, name the collection and the estimated number of documents affected, then wait for an unambiguous yes.
-Run the MCP server with `--readOnly` unless writes are genuinely needed.
-
----
-
-### Data that is accessed together should be stored together
-
-This is the one modelling rule the rest derive from. Design documents around the queries an endpoint actually runs,
-not around the entities a relational schema happened to have. Embed when data is read and written together and the
-array is bounded, reference when the sides are accessed independently, the relationship is many to many, or the array
-can grow without limit. Queries and indexes cannot rescue a model that fights its own access pattern.
-
----
-
-### Prefer an index over a rewrite, and order it by ESR
-
-Most slow queries are an index problem, so reach for indexing first and rewrite the query second. Order a compound
-index equality fields first, then the sort field, then the range fields. Aim for an index that covers the query so
-the plan never touches the documents. Keep the count per collection sensible, generally under 20, because every index
-costs write throughput and memory.
-
----
-
-### Never use $regex or $text for search
-
-Neither scales as a search feature. `$regex` has no relevance scoring, no fuzzy matching, and no language-aware
-tokenization, and an unanchored pattern cannot use an index. `$text` is a legacy operator that does not hold up under
-a real search workload. When a user asks for either, explain why and show the Atlas Search equivalent.
-
----
-
-### Create the client once and reuse it
-
-A `MongoClient` owns the pool, so constructing one per request destroys the reason pooling exists. In a serverless
-runtime, build it outside the handler so warm invocations reuse it. Do not close connections manually except at
-shutdown. Account for the monitoring connections when planning capacity: the total is roughly
-`(maxPoolSize + 2) x replica set members x application instances`.
+1. Establish four facts first: deployment shape (serverless, server and analytical job need different pools), topology (pools are per client and per server, so members multiply them), server version (Atlas `defaultMaxTimeMS` and `$rankFusion` need 8.0, `$scoreFusion` 8.3), and the workload.
+2. Ask one question at a time, broad first, and when no answer comes, assume and say so. Every value carries its reason: `maxPoolSize` 50 from a peak of 40 plus 25 percent, never 100 by habit.
+3. Measure through the MongoDB MCP server: `collection-schema`, `collection-indexes`, `explain`, `db-stats`, `atlas-get-performance-advisor`. Without a connection string or the Atlas API, say so and reason from the query shape.
+4. Reads (`find`, `aggregate`, `collection-schema`, `db-stats`, `count`) may run to verify a claim. Before any write or destructive call, state the operation, collection and documents affected, and wait for an unambiguous yes. Run MCP `--readOnly` unless writes are needed.
+5. Data accessed together is stored together: model the queries an endpoint runs, not relational entities. Embed when read and written together and bounded. Reference when accessed apart, many to many, or unbounded.
+6. Index before rewriting. Order a compound index equality, sort, range (ESR), aim for a covered query, and keep a collection generally under 20 indexes, because each costs write throughput and memory.
+7. Never `$regex` or `$text` for search: no relevance, fuzzy matching or language tokenisation, an unanchored pattern uses no index, and `$text` is legacy. Show the Atlas Search equivalent.
+8. Create the `MongoClient` once and reuse it, in serverless outside the handler, and close connections only at shutdown. Server-side total is about `(maxPoolSize + 2) x replica set members x application instances`.
 
 ---
 
 ### Which reference to open for which task
 
-Each entry below lists the deeper files for its own area, so open the entry first and let it route you further.
+Every reference is listed here, so open the one for the task directly. Each link text says when to open it.
 
-| Task | Reference |
+| Area | Open |
 | --- | --- |
-| Pool sizing, timeouts, serverless reuse, connection errors, churn, pool monitoring | [references/connection.md](references/connection.md) |
-| Slow queries, `explain` output, index choice, aggregation tuning, Performance Advisor | [references/query-optimizer.md](references/query-optimizer.md) |
-| Embed versus reference, document model, validation, the 16MB limit, design patterns | [references/schema-design.md](references/schema-design.md) |
-| Atlas Search, autocomplete and fuzzy matching, Vector Search, RAG, hybrid search | [references/search-and-ai.md](references/search-and-ai.md) |
+| Rules | [the full reasoning behind each rule above](references/working-rules.md) |
+| Connections | [pool sizing, timeouts, serverless reuse, errors, churn](references/connection.md), [driver events, pool metrics, alert counters](references/monitoring-guide.md) |
+| Queries | [slow queries, `explain`, Performance Advisor](references/query-optimizer.md), [aggregation stage order and memory](references/aggregation-optimization.md), [oplog-efficient updates](references/update-query-examples.md) |
+| Indexes | [ESR order, sort direction, collation, covered queries](references/core-indexing-principles.md), [bad and good index forms side by side](references/antipattern-examples.md) |
+| Schema, read first | [design principles](references/schema-design.md) |
+| Schema basics | [embed or reference](references/fundamental-embed-vs-reference.md), [moving from relational](references/fundamental-document-model.md), [the 16MB limit](references/fundamental-document-size.md), [schema validation](references/fundamental-schema-validation.md) |
+| Schema anti-patterns | [like data split across collections](references/antipattern-unnecessary-collections.md), [frequent `$lookup`](references/antipattern-excessive-lookups.md), [overlapping or unused indexes](references/antipattern-unnecessary-indexes.md) |
+| Design patterns | [approximate counters](references/pattern-approximation.md), [cold storage](references/pattern-archive.md), [many optional fields](references/pattern-attribute.md), [IoT buckets](references/pattern-bucket.md), [precomputed results](references/pattern-computed.md), [audit history](references/pattern-document-versioning.md), [cached referenced fields](references/pattern-extended-reference.md), [a few huge documents](references/pattern-outlier.md), [mixed entity types](references/pattern-polymorphic.md), [schema evolution](references/pattern-schema-versioning.md), [native time series](references/pattern-time-series-collections.md) |
+| Search, read first | [search decision rules](references/search-and-ai.md) |
+| Search | [analyzers, autocomplete, fuzzy](references/lexical-search-indexing.md), [operators, pagination, facets](references/lexical-search-querying.md), [`$vectorSearch` and RAG](references/vector-search.md), [`$rankFusion` and `$scoreFusion` hybrid search](references/hybrid-search.md) |
 
 ---
 
 ### Related skills
 
-- `database-migrations` for applying a schema or index change to a cluster that is already serving traffic.
+- `database-migrations` for changing a cluster already serving traffic.
 - `postgres-patterns` for the relational half of a system that also runs MongoDB.
-- `backend-patterns` for timeouts, retries, caching, and pagination in the service around the driver.
+- `backend-patterns` for timeouts, retries, caching and pagination around the driver.
 - `performance-optimization` for measuring the request before blaming the database.
-- `coding-standards` for the cross-language engineering floor these patterns sit on.
-- `code-reviewer` for reviewing a change against all of the above.
+- `coding-standards` for the cross-language floor, `code-reviewer` for reviewing a change.
 
 ---
 
 ### Checklist
 
-- [ ] The deployment shape, topology, server version, and workload are known or the assumption is stated.
-- [ ] The client is constructed once and reused, and in serverless it lives outside the handler.
-- [ ] Pool and timeout values each have a reason attached, and the server-side connection total was calculated.
-- [ ] Existing indexes and the real schema were inspected before a new index or model was proposed.
-- [ ] Compound indexes follow equality, sort, range, and the collection is not carrying dead indexes.
-- [ ] The document model follows the access pattern, with no unbounded array and no document near 16MB.
+- [ ] Deployment shape, topology, server version, and workload known or the assumption stated.
+- [ ] The client is constructed once and reused, and in serverless lives outside the handler.
+- [ ] Pool and timeout values have reasons, and the server-side connection total was calculated.
+- [ ] Real indexes and schema inspected before proposing a new index or model.
+- [ ] Compound indexes follow equality, sort, range, and no dead indexes remain.
+- [ ] The model follows the access pattern, with no unbounded array and no document near 16MB.
 - [ ] Search uses Atlas Search or Vector Search, never `$regex` or `$text`.
 - [ ] Hybrid search was version checked before `$rankFusion` or `$scoreFusion` was suggested.
 - [ ] No write, index creation, or destructive MCP call ran without explicit approval.

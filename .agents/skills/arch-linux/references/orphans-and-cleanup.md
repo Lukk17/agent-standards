@@ -1,5 +1,15 @@
 # Orphans, Caches and Freeing Disk Space
 
+Contents:
+
+- [Real leftovers only](#real-leftovers-only)
+- [Phase 1: scan](#phase-1-scan)
+- [Btrfs and snapshots change the arithmetic](#btrfs-and-snapshots-change-the-arithmetic)
+- [Phase 2: report](#phase-2-report)
+- [Phase 3 and 4: confirm, then clean](#phase-3-and-4-confirm-then-clean)
+- [Orphans](#orphans)
+- [Docker](#docker)
+
 Read this before removing orphan packages, pruning the pacman cache, deleting caches, or when the disk looks full. The rules live in [SKILL.md](../SKILL.md).
 
 The order of work: scan without deleting, report sizes, get confirmation per group, delete only what was confirmed, then measure again.

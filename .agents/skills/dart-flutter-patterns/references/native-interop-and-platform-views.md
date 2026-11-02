@@ -5,6 +5,22 @@ widget tree, and the web and WebAssembly rules.
 
 ---
 
+### Contents
+
+- Terminology
+- Choosing a mechanism
+- A platform channel handler pair
+- Pigeon
+- Threading
+- FFI
+- Platform views on Android
+- Platform views on iOS and macOS
+- Web and WebAssembly
+- Embedding Flutter in a web page
+- Checklist
+
+---
+
 ### Terminology
 
 - Platform channel. The asynchronous message-passing bridge (`MethodChannel`, `EventChannel`,

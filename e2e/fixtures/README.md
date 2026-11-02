@@ -38,7 +38,7 @@ show which definition the gate refused, and so a stray copy left behind in a rea
 | `gate-payloads/main-thread-source-edit.json` | tests 1, 5 and 9 | Main-thread `Edit` of `src/e2e_canary_app.py`, with `is_subagent: false` for the plain runner envelope, which the other formats ignore |
 | `gate-payloads/main-thread-markdown-edit.json` | test 1 | Main-thread `Edit` of `docs/e2e-canary-note.md` |
 | `gate-payloads/main-thread-shell-redirect.json` | test 1 | `Bash` command redirecting into `src/e2e_canary_app.py` |
-| `gate-payloads/subagent-with-skills.json` | tests 5 and 9 | Subagent payload naming `code-reviewer`, which declares skills |
+| `gate-payloads/subagent-with-skills.json` | tests 5 and 9 | Subagent payload naming `python-pro`, which declares skills and may write |
 | `gate-payloads/subagent-without-skills.json` | tests 5 and 9 | Subagent payload naming `e2e-no-skills-probe` |
 | `gate-payloads/malformed.txt` | test 1 | Not JSON, so the gate has to fail open |
 | `global/codex-config.toml` | test 8 | Two `[mcp_servers]` tables plus the trust record for `/work/bare` |

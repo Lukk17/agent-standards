@@ -2,7 +2,7 @@
 
 Read this before making anything start at login or at boot, or before stopping or restarting a background job. The rules live in [SKILL.md](../SKILL.md). Every command here is UNVERIFIED.
 
-Sources: the `launchctl(1)` and `launchd.plist(5)` man pages as shipped with Xcode 27.2 beta 2, read through the community mirror `https://keith.github.io/xcode-man-pages/` on 2026-10-13. Check the local copy with `man launchctl` before relying on a flag.
+Sources: the `launchctl(1)` and `launchd.plist(5)` man pages as shipped with Xcode, read through the community mirror `https://keith.github.io/xcode-man-pages/`. Check the local copy with `man launchctl` before relying on a flag.
 
 ---
 
