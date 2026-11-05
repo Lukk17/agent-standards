@@ -301,7 +301,8 @@ Reading the tables row by row:
 
 "Inside the repository" is the gate's own roots rather than a git query: the process working directory, the project
 root the hook payload names in its `cwd` field, and the gate script's own on-disk location two parents up, that last
-one only while it is a real project and not the user's home directory or a directory above it. That is what lets the
+one only while it is a real project and not the user's home directory or a directory above it. The `cwd` root is kept
+exactly as sent, so a folder named with a trailing blank is never read as the folder without it. That is what lets the
 user-level install in [GLOBAL_SETUP.md](GLOBAL_SETUP.md) protect the open project instead of everything the user owns.
 A relative path resolves against whichever directory a leading `cd` in the command moved to, and against every root
 when the command never changed directory. On Windows, a Git Bash drive path such as `/c/Users/x` is read as

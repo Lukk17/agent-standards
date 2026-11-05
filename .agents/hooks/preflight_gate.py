@@ -543,13 +543,19 @@ _PAYLOAD_ROOT: Optional[Path] = None
 
 
 def _payload_root(payload: Dict[str, Any]) -> Optional[Path]:
+    """The project root the payload's cwd names, kept exactly as sent, or None.
+
+    A blank at either end is part of the folder name, so it is never trimmed:
+    `/x/project ` is a different folder from `/x/project`. Rule E's
+    _read_only_location_blocked reads the same value the same way.
+    """
     value = payload.get("cwd")
 
     if not isinstance(value, str) or not value.strip():
         return None
 
     try:
-        return _native_path(value.strip())
+        return _native_path(value)
     except (OSError, ValueError):
         return None
 

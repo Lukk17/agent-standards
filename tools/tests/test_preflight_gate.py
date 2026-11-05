@@ -1657,6 +1657,47 @@ def test_a_payload_without_a_cwd_leaves_an_unrelated_project_unprotected(tmp_pat
     assert (code, out, err) == (0, "", "")
 
 
+def test_a_payload_cwd_with_a_trailing_blank_protects_that_exact_folder(tmp_path):
+    # Given a project whose folder name ends in a blank, named as the payload
+    # cwd, and a process working directory elsewhere
+    project = tmp_path / "project "
+    project.mkdir()
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    payload = edit(str(project / "src" / "app.py"))
+    payload["cwd"] = str(project)
+
+    # When
+    code, out, err = run(payload, "claude", cwd=elsewhere)
+
+    # Then the folder the payload named, blank included, is the protected root
+    assert code == 0
+    assert err == ""
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_a_payload_cwd_with_a_trailing_blank_leaves_the_trimmed_sibling_unprotected(tmp_path):
+    # Given a folder named with a trailing blank as the payload cwd, and a
+    # write into the sibling folder that trimming the blank would name
+    (tmp_path / "project ").mkdir()
+    sibling = tmp_path / "project"
+    sibling.mkdir()
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    payload = edit(str(sibling / "src" / "app.py"))
+    payload["cwd"] = str(tmp_path / "project ")
+
+    # When
+    code, out, err = run(payload, "claude", cwd=elsewhere)
+
+    # Then the sibling is no root of this session, so the write allows
+    assert (code, out, err) == (0, "", "")
+
+
+def test_the_payload_root_keeps_the_cwd_exactly_as_sent():
+    assert GATE._payload_root({"cwd": "/x/project "}) == Path("/x/project ")
+
+
 @pytest.mark.parametrize("value", [None, "", "   ", 17, ["/project"]], ids=repr)
 def test_an_unusable_payload_cwd_names_no_root(value):
     payload = {"cwd": value} if value is not None else {}
