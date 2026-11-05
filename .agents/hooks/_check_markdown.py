@@ -566,7 +566,7 @@ def check_front_matter(lines: list[str], path: Path) -> int:
             failures += _violation(
                 path,
                 key_lines.get(MODEL_KEY, 1),
-                f"key {MODEL_KEY!r} pins a model; remove it, because skills never pin a model "
+                f"key {MODEL_KEY!r} is not allowed. Remove it, because skills never pin a model "
                 "and run on the user's default model",
             )
 
