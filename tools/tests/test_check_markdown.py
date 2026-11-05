@@ -469,6 +469,62 @@ allowed-tools: Read
     assert "key 'model'" in out
 
 
+def test_model_key_in_skill_front_matter_is_reported_once(tmp_path, capsys):
+    # Given a manifest that pins a model in its front matter
+    front_matter = """---
+name: demo-skill
+description: Demo skill for the lint tests.
+model: sonnet
+---
+"""
+    path = _write_skill(tmp_path, front_matter)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then one violation on the model line says to remove the key and why
+    out = capsys.readouterr().out
+    assert failures == 1
+    assert "line=4::" in out
+    assert "key 'model' pins a model; remove it" in out
+    assert "skills never pin a model and run on the user's default model" in out
+
+
+def test_model_key_is_reported_even_when_the_allowed_keys_widen(tmp_path, capsys, monkeypatch):
+    # Given an allowed-key list that someday admits model, and a manifest using it
+    monkeypatch.setattr(MARKDOWN, "SKILL_ALLOWED_KEYS", (*MARKDOWN.SKILL_ALLOWED_KEYS, "model"))
+    front_matter = """---
+name: demo-skill
+description: Demo skill for the lint tests.
+model: sonnet
+---
+"""
+    path = _write_skill(tmp_path, front_matter)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the model rule still holds on its own
+    assert failures == 1
+    assert "key 'model' pins a model; remove it" in capsys.readouterr().out
+
+
+def test_model_assignment_in_a_skill_body_or_reference_is_not_front_matter(tmp_path, capsys):
+    # Given a clean manifest and a reference file, both holding a model assignment as code and prose
+    manifest = _write_skill(tmp_path, CLEAN_SKILL_FRONT_MATTER)
+    manifest.write_text(manifest.read_text(encoding="utf-8") + "\nmodel = MyModel()\n", encoding="utf-8")
+    reference = manifest.parent / "references" / "training.md"
+    reference.parent.mkdir()
+    reference.write_text("### Training\n\n```python\nmodel = MyModel()\n```\n\nmodel: sonnet\n", encoding="utf-8")
+
+    # When
+    failures = MARKDOWN.check_file(manifest) + MARKDOWN.check_file(reference)
+
+    # Then neither is read as a pinned model
+    assert failures == 0
+    assert capsys.readouterr().out == ""
+
+
 def test_front_matter_that_is_not_a_mapping_is_reported(tmp_path, capsys):
     # Given a front matter block holding a YAML sequence
     front_matter = """---
