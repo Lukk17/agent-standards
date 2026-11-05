@@ -85,8 +85,9 @@ relying on it or changing its wiring, read
   secrets or personal data, `database-expert` for schema or queries, `accessibility-expert` for UI,
   `performance-engineer` after a hot-path edit, `api-tester` for an API change, `legal-advisor` for terms or privacy.
   It also spawns the stack expert for every technology the diff touches, told to review only and change nothing:
-  `devops-automator` for pipelines, containers or infrastructure, `react-nextjs-expert` or `angular-expert` for
-  frontend, `java-pro`, `go-pro` or `python-pro` for backend. A diff touching a pipeline and a page gets both experts.
+  `devops-automator` for pipelines, containers or infrastructure, `react-nextjs-expert`, `angular-expert` or
+  `flutter-expert` for frontend and mobile, `java-pro`, `go-pro` or `python-pro` for backend, and the matching expert
+  from the catalogue for any other stack. A diff touching a pipeline and a page gets both experts.
 - A feature: `backend-architect` for the contract first, the stack expert for the code, `test-automator` for the tests.
 - Debugging: `debugger` for one failing test, `error-detective` across service logs, `devops-troubleshooter` for a
   live incident. Unfamiliar legacy code: `code-archaeologist` first, then `legacy-modernizer`.

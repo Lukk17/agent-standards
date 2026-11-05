@@ -63,6 +63,9 @@ git config core.symlinks true
 Adding `--global` to that command sets it for every repository on the machine, including clones you have not made
 yet, which is the form to use if you import the standards into more than one project.
 
+To keep git from running the configuration of a bare repository hidden inside a project, set `safe.bareRepository` as
+"Prerequisites" in [GLOBAL_SETUP.md](GLOBAL_SETUP.md#prerequisites) describes.
+
 #### Step 1, initial import
 
 Add the read-only remote. PowerShell or Unix shell, same command:

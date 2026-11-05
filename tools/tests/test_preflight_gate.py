@@ -1657,6 +1657,7 @@ def test_a_payload_without_a_cwd_leaves_an_unrelated_project_unprotected(tmp_pat
     assert (code, out, err) == (0, "", "")
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows strips a trailing blank from a path name")
 def test_a_payload_cwd_with_a_trailing_blank_protects_that_exact_folder(tmp_path):
     # Given a project whose folder name ends in a blank, named as the payload
     # cwd, and a process working directory elsewhere
@@ -1676,6 +1677,7 @@ def test_a_payload_cwd_with_a_trailing_blank_protects_that_exact_folder(tmp_path
     assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows strips a trailing blank from a path name")
 def test_a_payload_cwd_with_a_trailing_blank_leaves_the_trimmed_sibling_unprotected(tmp_path):
     # Given a folder named with a trailing blank as the payload cwd, and a
     # write into the sibling folder that trimming the blank would name
@@ -1694,8 +1696,9 @@ def test_a_payload_cwd_with_a_trailing_blank_leaves_the_trimmed_sibling_unprotec
     assert (code, out, err) == (0, "", "")
 
 
-def test_the_payload_root_keeps_the_cwd_exactly_as_sent():
-    assert GATE._payload_root({"cwd": "/x/project "}) == Path("/x/project ")
+@pytest.mark.parametrize("value", ["/x/project ", "/x/project\n", "/x/project\t"], ids=repr)
+def test_the_payload_root_keeps_the_cwd_exactly_as_sent(value):
+    assert GATE._payload_root({"cwd": value}) == Path(value)
 
 
 @pytest.mark.parametrize("value", [None, "", "   ", 17, ["/project"]], ids=repr)

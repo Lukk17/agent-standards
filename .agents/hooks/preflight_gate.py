@@ -547,7 +547,8 @@ def _payload_root(payload: Dict[str, Any]) -> Optional[Path]:
 
     A blank at either end is part of the folder name, so it is never trimmed:
     `/x/project ` is a different folder from `/x/project`. Rule E's
-    _read_only_location_blocked reads the same value the same way.
+    _read_only_location_blocked likewise keeps a non-blank cwd exactly as
+    sent, but denies a blank-only or non-string one, where this returns None.
     """
     value = payload.get("cwd")
 
