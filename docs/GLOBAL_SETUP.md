@@ -99,6 +99,12 @@ reaching it.
 WSL works too, but inside WSL `$HOME` is the Linux home, so the install lands there and a Windows-side agent never sees
 it. Use WSL only if the agents you run are the ones inside it.
 
+If you never use a bare repository yourself, also tell git to ignore one it finds on its own. A bare repository is a git folder with no working tree, and one hidden inside a project you open, such as a branch you were asked to review, brings its own `config`. When an agent runs git in or below that folder, git reads that `config`, and a setting there can name a program git then runs, as `core.fsmonitor` does for `git status`. With `safe.bareRepository` set to `explicit`, Git "only works with bare repositories specified via the top-level `--git-dir` command-line option, or the `GIT_DIR` environment variable", which git recommends to anyone who does not use bare repositories, because it "will protect you from attacks that involve cloning a repository that contains a bare repository and running a Git command within that directory" ([safe.bareRepository at v2.43.0](https://raw.githubusercontent.com/git/git/v2.43.0/Documentation/config/safe.txt)). Git honours the setting only from your system, global and command-line configuration, never from a repository's own, so a repository cannot switch it back off. In either shell:
+
+```bash
+git config --global safe.bareRepository explicit
+```
+
 ---
 
 ### Step 1, a temporary copy of the repository

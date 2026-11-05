@@ -448,17 +448,9 @@ known limits of its own, accepted rather than open:
 - A submodule's configuration lives under `.git/modules`, which no pull request can write, so it is the user's own and
   not checked.
 
-As defence in depth, a consumer who uses no bare repository can run the command below once, after which git "only
-works with bare repositories specified via the top-level `--git-dir` command-line option, or the `GIT_DIR` environment
-variable" ([safe.bareRepository at v2.43.0](https://raw.githubusercontent.com/git/git/v2.43.0/Documentation/config/safe.txt),
-fetched 2026-10-31). Git reads the setting only from protected configuration, so a repository cannot switch it off:
-"This config setting is only respected in protected configuration ... This prevents untrusted repositories from
-tampering with this value". On git 2.43.0 the planted `commondir` layout then fails with
-`cannot use bare repository ... (safe.bareRepository is 'explicit')`.
-
-```bash
-git config --global safe.bareRepository explicit
-```
+As defence in depth, a consumer who uses no bare repository can set `safe.bareRepository` to `explicit`, as
+[Prerequisites in GLOBAL_SETUP.md](GLOBAL_SETUP.md#prerequisites) explains. On git 2.43.0 the planted `commondir`
+layout then fails with `cannot use bare repository ... (safe.bareRepository is 'explicit')`.
 
 On OpenCode and Kilo Code the native permission map denies every redirect and `&`, so `2>/dev/null` and `2>&1` deny
 there while the gate allows them. A gh `-R` with a host part, a comma-joined option, a leading `^` or `@`, a backslash
