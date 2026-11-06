@@ -299,10 +299,25 @@ Reading the tables row by row:
   the same on `main`, both fetched 2026-11-06). Adding `write_stdin` to the matcher in
   [.codex/config.toml](../.codex/config.toml) would therefore match nothing, so the gate refuses the start instead.
   The programs are the POSIX shells, `fish`, `mksh`, `yash`, `tcsh`, `csh`, `nu`, `pwsh`, `powershell` and `cmd`,
-  `su` without `-c`, `sudo` or `doas` with `-s` or `-i` and no command, the interpreters `python` in every spelling,
-  `ipython`, `node`, `deno`, `perl`, `ruby`, `php`, `lua`, `luajit`, `R`, `julia` and `tclsh`, the REPLs `irb`,
-  `pry`, `bpython`, `ptpython`, `ghci` and `jshell`, the editors `vi`, `vim`, `nvim`, `view`, `vimdiff`, `nano`,
-  `pico`, `emacs`, `mg` and `micro`, and the line editors `ed`, `red` and `ex`. A shell or an interpreter is held
+  `su` and `runuser` without `-c`, `sudo` or `doas` with `-s` or `-i` and no command, `pkexec` with no program,
+  since "If PROGRAM is not specified, the default shell will be run"
+  ([pkexec.xml](https://raw.githubusercontent.com/polkit-org/polkit/main/docs/man/pkexec.xml), fetched 2026-11-06),
+  `newgrp`, `script` without `-c` or a command operand, which starts `$SHELL`, `expect`, and `socat` with an `EXEC`,
+  `SYSTEM`, `SHELL` or `PTY` address, the interpreters `python` in every spelling, `pypy` among them, `ipython`,
+  `node`, `deno`, `perl`, `ruby`, `php`, `lua`, `luajit`, `R`, `julia` and `tclsh`, the REPLs `irb`, `pry`,
+  `bpython`, `ptpython`, `ghci` and `jshell`, the editors `vi`, `vim`, `nvim`, `view`, `vimdiff`, `nano`, `pico`,
+  `emacs`, `mg` and `micro`, the line editors `ed`, `red` and `ex`, the pagers `less`, `more` and `most`, `tmux`
+  with any subcommand, because `send-keys` types into a session and `attach` hands one over, and `screen`. The
+  database shells `sqlite3`, `psql`, `mysql`, `mariadb`, `mongosh` and `redis-cli` are held without their inline
+  query or command (`sqlite3 db "SQL"`, `psql -c`, `mysql -e`, `mongosh --eval`, `redis-cli PING`) or piped input,
+  the debuggers `gdb` and `lldb` without batch mode (`gdb -batch`, `lldb -b`), and `pdb` always. git is held when
+  it opens the editor or a prompt: a `git commit` with no `-m`, `-F`, `-C`, `--fixup` or `--no-edit`, `--amend`
+  included, since `--no-edit` is how to "Use the selected commit message without launching an editor"
+  ([git-commit](https://git-scm.com/docs/git-commit), fetched 2026-11-06), `git commit -e`, `git rebase -i`,
+  `git add -p`, `-i` and `-e`, `-p` on `checkout`, `restore`, `reset` and `stash`, and `git clean -i`. A
+  `PYTHONINSPECT` setting is refused like the other variables below, because "If this is set to a non-empty string
+  it is equivalent to specifying the `-i` option" ([Command line and environment](https://docs.python.org/3/using/cmdline.html),
+  fetched 2026-11-06). A shell or an interpreter is held
   when it has no script, no inline code (`-c`, `-e` and their kin) and no input from a pipe, a heredoc or a
   here-string, and also whenever a flag keeps it waiting after that code: `python -i`, which enters interactive mode
   "When the `-c` option is used" ([Command line and environment](https://docs.python.org/3/using/cmdline.html),
@@ -504,10 +519,13 @@ the gate alone holds them.
 Known limits of the write rule, accepted rather than open: a write form the gate does not know passes, a top-level
 command it cannot parse allows on the main thread, MCP tools are not gated, code run by an allowlisted tool is trusted rather than read,
 Copilot's main thread is not gated, the risky variable and option lists come from knowledge rather than vendor
-documentation, a loopback share whose folder cannot be determined denies, Rule F knows only the programs on its list,
-so a program that waits for typed input without being on it, such as `less`, `tmux`, `screen`, a database shell, a
-debugger, or the editor git starts for a `git commit` with no message, can still be typed into through Codex's
-`write_stdin` (Codex starts every such process with `PAGER`, `GIT_PAGER` and `GH_PAGER` set to `cat`, so git and gh
+documentation, a loopback share whose folder cannot be determined denies, Rule F knows only the programs and the git
+forms on its list, so a program that waits for typed input without being on it, or a git command that opens the
+editor only on a terminal, such as `git merge`, `git revert`, `git tag -a` or `git rebase --continue` with no message,
+can still be typed into through Codex's `write_stdin`, and so can inline code that opens a prompt of its own, such as
+`python3 -c 'import code; code.interact()'`, a `breakpoint()` call, `node -e 'require("repl").start()'` or
+`perl -ne eval`, because the gate reads inline code for the files it writes and cannot list every way code reads the
+terminal (Codex starts every such process with `PAGER`, `GIT_PAGER` and `GH_PAGER` set to `cat`, so git and gh
 open no pager there, [process_manager.rs at rust-v0.166.0](https://raw.githubusercontent.com/openai/codex/rust-v0.166.0/codex-rs/core/src/unified_exec/process_manager.rs),
 fetched 2026-11-06), and the `tasks.md` exemption holds at every
 root, so a call whose `cwd` names a project subfolder, as a Codex `workdir` does from `rust-v0.166.0`, may write

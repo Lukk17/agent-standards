@@ -32,9 +32,9 @@ The gate is enforcing, not advisory. One shared rule in
   the command passes `MAIN_THREAD_ALLOWLIST` in the gate or an entry of the project's own `main-thread-allowlist.txt`.
   The rules are in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md) under "What the main thread may run". This
   repository's own checks sit in [main-thread-allowlist.txt](main-thread-allowlist.txt), which never ships.
-- It denies the main thread a shell, an interpreter or an editor that waits for typed input, such as a bare `bash`,
-  `python3 -i` or `vim`, because Codex's `write_stdin` types into it with no `PreToolUse`. The list is under "Hook
-  enforcement" in [docs/agent-compatibility.md](docs/agent-compatibility.md).
+- It denies the main thread a shell, an interpreter, an editor, a pager or any other program that waits for typed
+  input, such as a bare `bash`, `python3 -i`, `vim`, `less`, `tmux` or a `git commit` with no message, because Codex's
+  `write_stdin` types into it with no `PreToolUse`. The list is under "Hook enforcement" in [docs/agent-compatibility.md](docs/agent-compatibility.md).
 - Every rule fires only on a caller positively identified as the main thread. Claude Code and Codex send `agent_id`
   only inside a subagent. An unknown caller is allowed: GitHub Copilot on every call, and an OpenCode or Kilo Code
   call whose session the plugin could not read.

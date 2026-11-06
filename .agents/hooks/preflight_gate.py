@@ -693,6 +693,7 @@ _UNPLACEABLE_ENVIRONMENT = frozenset(
         "PYTHONPLATLIBDIR",
         "PYTHONBREAKPOINT",
         "PYTHONPYCACHEPREFIX",
+        "PYTHONINSPECT",
         "PYTEST_ADDOPTS",
         "PYTEST_PLUGINS",
         "PYTEST_DEBUG_TEMPROOT",
@@ -727,7 +728,10 @@ _UNPLACEABLE_ENVIRONMENT_TARGET = "environment variable (a setting that changes 
 _POSIX_DECLARATIONS = {"export", "declare", "typeset", "readonly", "local"}
 _PS_ENVIRONMENT_RE = re.compile(r"^env:[\\/]*(?P<name>[\w()]+)", re.IGNORECASE)
 _PS_ENVIRONMENT_SETTERS = {"set-item", "new-item", "set-content", "add-content", "copy-item", "move-item", "rename-item"}
-_VERSIONED_TOOL_RE = re.compile(r"^(python|node|php|ruby|perl|awk|gawk|lua|julia)[0-9.]*$")
+_VERSIONED_TOOL_RE = re.compile(r"^(python|pypy|node|php|ruby|perl|awk|gawk|lua|julia)[0-9.]*$")
+# Programs every rule reads as another, because they take the same options
+# and run the same code.
+_SAME_PROGRAM = {"pypy": "python"}
 _SHORT_INPLACE_RE = re.compile(r"^-[A-Za-z]{0,3}i(?:\.[^\s]*)?$")
 
 _ESCAPABLE = set(" \t\"'\\;|&<>()$`")
@@ -889,6 +893,7 @@ _WRAPPER_TOOLS = {
     "nice",
     "ionice",
     "time",
+    "pkexec",
 }
 _DURATION_WRAPPERS = {"timeout", "gtimeout"}
 # Wrapper options that run the command in another directory.
@@ -904,6 +909,8 @@ _WRAPPER_OWN_VALUE_FLAGS = {
     "setsid": set(),
     "sudo": {"-u", "-g", "-p", "-C", "-h", "-r", "-t", "-T", "-U", "--user", "--group", "--prompt", "--close-from", "--host", "--role", "--type", "--command-timeout", "--other-user"},
     "doas": {"-u", "-C"},
+    "pkexec": {"--user"},
+    "runuser": {"-u", "--user", "-g", "--group", "-G", "--supp-group", "-w", "--whitelist-environment"},
 }
 # xargs -i, -e and -l take their value attached or not at all, so only the
 # flags below consume the next word.
@@ -1999,8 +2006,9 @@ def _basename(token: str) -> str:
 def _program_name(token: str) -> str:
     name = _basename(token)
     match = _VERSIONED_TOOL_RE.match(name)
+    name = match.group(1) if match else name
 
-    return match.group(1) if match else name
+    return _SAME_PROGRAM.get(name, name)
 
 
 def _operands(tokens: List[str], value_flags: AbstractSet[str] = frozenset()) -> List[str]:
@@ -4448,7 +4456,7 @@ def _peels(word: str, dialect: str) -> bool:
     """True when word leads a command without being the command."""
     name = _basename(word)
 
-    if name in _WRAPPER_TOOLS or name in _DURATION_WRAPPERS or name == "xargs":
+    if name in _WRAPPER_TOOLS or name in _DURATION_WRAPPERS or name in ("xargs", "runuser"):
         return True
 
     if dialect == _POSIX:
@@ -4527,6 +4535,11 @@ def _strip_wrappers(tokens: List[str], dialect: str = _POSIX) -> Optional[_Strip
         peeled += 1
         name = _basename(rest[0])
 
+        # runuser wraps a command only in its -u form. Without -u it is su,
+        # a shell or the -c code the code runners read.
+        if name == "runuser" and not _runuser_wraps(rest):
+            return _Stripped(rest, xargs, replace, tuple(directories))
+
         if dialect == _CMD and rest[0].startswith("@"):
             rest[0] = rest[0][1:]
             continue
@@ -4569,6 +4582,18 @@ def _strip_wrappers(tokens: List[str], dialect: str = _POSIX) -> Optional[_Strip
             rest.pop(0)
 
         xargs = xargs or name == "xargs"
+
+
+def _runuser_wraps(tokens: List[str]) -> bool:
+    """True when runuser names its user with -u, the form that runs the words after it as a command."""
+    for token in tokens[1:]:
+        if not token.startswith("-") or token == "--":
+            return False
+
+        if token in ("-u", "--user") or token.startswith("--user=") or (token.startswith("-u") and not token.startswith("--")):
+            return True
+
+    return False
 
 
 def _sets_unplaceable_environment(tokens: List[str], dialect: str) -> bool:
@@ -6341,8 +6366,7 @@ class _Waiting(NamedTuple):
     next word as their value, so that word is not a script. `info` flags
     print something and exit. `always` marks a program that waits whatever it
     is handed, and `reads_feed` one that takes its commands from a pipe or a
-    heredoc instead, as a line editor does. `script_operands` is False where
-    an operand names a user rather than a script, as for su.
+    heredoc instead, as a line editor does.
     """
 
     inline: FrozenSet[str] = frozenset()
@@ -6352,7 +6376,6 @@ class _Waiting(NamedTuple):
     info: FrozenSet[str] = frozenset()
     always: bool = False
     reads_feed: bool = True
-    script_operands: bool = True
 
 
 _INFO_FLAGS = frozenset({"--version", "--help"})
@@ -6364,6 +6387,11 @@ _PYTHON_WAITING = _Waiting(
 _REPL_ONLY = _Waiting(always=True, info=frozenset({"-v", "-h", "-version", "--numeric-version"}))
 _SCREEN_EDITOR = _Waiting(always=True, reads_feed=False, info=frozenset({"-h", "-V"}))
 _LINE_EDITOR = _Waiting(always=True, info=frozenset({"-h", "-V"}))
+# A pager, a terminal multiplexer and the rest below read the keyboard from
+# the terminal whatever they are handed. tmux is held with every subcommand,
+# because send-keys types into a session and attach hands one over.
+_PAGER = _Waiting(always=True, reads_feed=False, info=frozenset({"-V", "-?"}))
+_ALWAYS_WAITING = _Waiting(always=True, reads_feed=False, info=frozenset({"-V", "-v", "-h"}))
 
 # The programs Rule F knows by the name _canonical_program gives them. deno
 # waits with no subcommand, read apart from this table, and its repl, like
@@ -6392,19 +6420,168 @@ _WAITING_PROGRAMS: Dict[str, _Waiting] = {
         info=frozenset({"-v", "-h"}),
     ),
     "tclsh": _Waiting(),
-    "su": _Waiting(
-        inline=frozenset({"-c", "--command"}), values=frozenset({"-c", "--command", "-s", "--shell", "-g", "--group", "-G", "--supp-group"}),
-        script_operands=False,
-    ),
     **{repl: _REPL_ONLY for repl in ("irb", "pry", "bpython", "ptpython", "ghci", "jshell")},
     **{editor: _SCREEN_EDITOR for editor in ("vi", "vim", "nvim", "view", "vimdiff", "nano", "pico", "emacs", "mg", "micro")},
     **{editor: _LINE_EDITOR for editor in ("ed", "red", "ex")},
+    **{pager: _PAGER for pager in ("less", "more", "most")},
+    "tmux": _Waiting(always=True, reads_feed=False, info=frozenset({"-V"})),
+    "screen": _Waiting(always=True, reads_feed=False, info=frozenset({"-v"})),
+    **{program: _ALWAYS_WAITING for program in ("expect", "newgrp", "pdb", "pdb3")},
 }
 
-# sudo and doas start a shell of their own with -s or -i and no command.
+
+class _Console(NamedTuple):
+    """A program that waits unless an option or an operand hands it its work.
+
+    `done` options hand it the work and it exits after, `stays` options keep
+    it waiting even then, `values` take the next word, and `info` options
+    print something and exit. An operand from index `command_operand` on is
+    a command it runs and exits after, and an operand ending in one of
+    `script_suffixes` a script. Options are read wherever they sit, the way
+    getopt permutes them, bundled after one dash unless `clusters` is False,
+    and `reads_feed` marks a program that takes its work from a pipe instead.
+    """
+
+    done: FrozenSet[str] = frozenset()
+    stays: FrozenSet[str] = frozenset()
+    values: FrozenSet[str] = frozenset()
+    info: FrozenSet[str] = frozenset()
+    command_operand: int = -1
+    script_suffixes: Tuple[str, ...] = ()
+    clusters: bool = True
+    reads_feed: bool = True
+
+
+_SQLITE_OPTIONS = frozenset(_SQLITE_VALUE_FLAGS | {"-" + flag for flag in _SQLITE_VALUE_FLAGS})
+_MYSQL = _Console(
+    done=frozenset({"-e", "--execute"}),
+    values=frozenset({
+        "-e", "--execute", "-u", "--user", "-h", "--host", "-P", "--port", "-D", "--database", "-S", "--socket",
+        "--default-character-set", "--defaults-file", "--defaults-extra-file", "--login-path", "--protocol",
+        "--init-command", "--ssl-ca", "--ssl-cert", "--ssl-key",
+    }),
+    info=frozenset({"-V", "-?", "-I"}),
+)
+# Database shells and debuggers. sqlite3 runs its second operand as SQL,
+# redis-cli runs its first as a command, and gdb and lldb exit after their
+# commands only in batch mode.
+_CONSOLES: Dict[str, _Console] = {
+    "sqlite3": _Console(
+        done=frozenset({"-A", "--A"}), stays=frozenset({"-interactive", "--interactive"}), values=_SQLITE_OPTIONS,
+        info=frozenset({"-version", "-help"}), command_operand=1, clusters=False,
+    ),
+    "psql": _Console(
+        done=frozenset({"-c", "--command", "-f", "--file", "-l", "--list"}),
+        values=frozenset({
+            "-c", "--command", "-d", "--dbname", "-f", "--file", "-h", "--host", "-L", "--log-file", "-o", "--output",
+            "-p", "--port", "-P", "--pset", "-T", "--table-attr", "-U", "--username", "-v", "--set", "--variable",
+            "-F", "--field-separator", "-R", "--record-separator",
+        }),
+        info=frozenset({"-V", "-?"}),
+    ),
+    "mysql": _MYSQL,
+    "mariadb": _MYSQL,
+    "mongosh": _Console(
+        done=frozenset({"--eval", "-f", "--file"}), stays=frozenset({"--shell"}),
+        values=frozenset({
+            "--eval", "-f", "--file", "--host", "--port", "-u", "--username", "-p", "--password",
+            "--authenticationDatabase", "--authenticationMechanism", "--apiVersion", "--tlsCAFile",
+            "--tlsCertificateKeyFile",
+        }),
+        info=frozenset({"-h"}), script_suffixes=(".js", ".mjs", ".cjs", ".mongodb"),
+    ),
+    "redis-cli": _Console(
+        done=frozenset({
+            "--eval", "--cluster", "--scan", "--bigkeys", "--memkeys", "--keystats", "--hotkeys", "--stat",
+            "--latency", "--latency-history", "--latency-dist", "--lru-test", "--rdb", "--functions-rdb", "--pipe",
+            "--intrinsic-latency", "--replica",
+        }),
+        stays=frozenset({"--ldb", "--ldb-sync-mode"}),
+        values=frozenset({
+            "-h", "-p", "-s", "-a", "-u", "-r", "-i", "-n", "-d", "-D", "-t", "-X", "--user", "--pass", "--sni",
+            "--cacert", "--cacertdir", "--tls-ciphers", "--tls-ciphersuites", "--cert", "--key", "--pipe-timeout",
+            "--memkeys-samples", "--keystats-samples", "--pattern", "--count", "--quoted-pattern",
+            "--intrinsic-latency", "--eval", "--rdb", "--functions-rdb", "--lru-test", "--cluster",
+        }),
+        info=frozenset({"-v"}), command_operand=0, clusters=False,
+    ),
+    "gdb": _Console(
+        done=frozenset({"-batch", "--batch", "-batch-silent", "--batch-silent", "--configuration"}),
+        values=frozenset({
+            "-ex", "--ex", "--eval-command", "-iex", "--init-eval-command", "-x", "--command", "-ix", "--init-command",
+            "-p", "--pid", "-c", "--core", "-cd", "--cd", "-d", "--directory", "-s", "--symbols", "-e", "--exec",
+            "-se", "--tty", "-b", "-l", "-D", "--data-directory",
+        }),
+        info=frozenset({"-v", "-h"}), clusters=False,
+    ),
+    "lldb": _Console(
+        done=frozenset({"-b", "--batch"}),
+        values=frozenset({
+            "-o", "--one-line", "-O", "--one-line-before-file", "-s", "--source", "-S", "--source-before-file",
+            "-k", "--one-line-on-crash", "-K", "--source-on-crash", "-p", "--attach-pid", "-n", "--attach-name",
+            "-c", "--core", "-a", "--arch", "-f", "--file", "-l", "--script-language",
+        }),
+        info=frozenset({"-v", "-h"}), clusters=False,
+    ),
+    # script starts $SHELL on a terminal unless -c, or a second operand on
+    # BSD, hands it a command. Piped input goes to that shell unread.
+    "script": _Console(
+        done=frozenset({"-c", "--command"}), values=frozenset(_SCRIPT_VALUE_FLAGS | {"-o", "--output-limit"}),
+        info=frozenset({"-V", "-h"}), command_operand=1, reads_feed=False,
+    ),
+    # su, and runuser without -u, start the target user's shell unless -c
+    # hands them a command.
+    **{
+        program: _Console(
+            done=frozenset({"-c", "--command", "--session-command"}),
+            values=frozenset({"-c", "--command", "--session-command", "-s", "--shell", "-g", "--group", "-G", "--supp-group", "-w", "--whitelist-environment"}),
+            info=frozenset({"-h", "-V"}),
+        )
+        for program in ("su", "runuser")
+    },
+}
+
+# socat hands its terminal to a program through these address types.
+_SOCAT_PROGRAM_ADDRESSES = frozenset({"exec", "system", "pty", "shell"})
+_SOCAT_VALUE_FLAGS = frozenset({"-lf", "-lp", "-t", "-T", "-b", "-L", "-W", "-r", "-R"})
+_SOCAT_INFO_FLAGS = frozenset({"-V", "-h", "-hh", "-hhh", "-?", "-??", "-???"})
+
+# git subcommands whose options open an editor or a prompt on the terminal,
+# with the options of theirs that take a value. A commit opens the editor
+# unless its message comes from one of _GIT_COMMIT_MESSAGES.
+_GIT_PROMPTS: Dict[str, FrozenSet[str]] = {
+    "add": frozenset({"-p", "--patch", "-i", "--interactive", "-e", "--edit"}),
+    "checkout": frozenset({"-p", "--patch"}),
+    "restore": frozenset({"-p", "--patch"}),
+    "reset": frozenset({"-p", "--patch"}),
+    "stash": frozenset({"-p", "--patch"}),
+    "clean": frozenset({"-i", "--interactive"}),
+    "commit": frozenset({"-p", "--patch", "--interactive", "-e", "--edit", "-c", "--reedit-message"}),
+    "rebase": frozenset({"-i", "--interactive", "--edit-todo"}),
+}
+_GIT_PROMPT_VALUES: Dict[str, FrozenSet[str]] = {
+    "add": frozenset({"--chmod", "--pathspec-from-file"}),
+    "checkout": frozenset({"-b", "-B", "--orphan", "--conflict", "--pathspec-from-file"}),
+    "restore": frozenset({"-s", "--source", "--conflict", "--pathspec-from-file"}),
+    "reset": frozenset({"--pathspec-from-file"}),
+    "stash": frozenset({"-m", "--message", "--pathspec-from-file"}),
+    "clean": frozenset({"-e", "--exclude"}),
+    "commit": frozenset({
+        "-m", "--message", "-F", "--file", "-C", "--reuse-message", "-c", "--reedit-message", "-t", "--template",
+        "--author", "--date", "--fixup", "--squash", "--cleanup", "--pathspec-from-file", "--trailer",
+    }),
+    "rebase": frozenset({"-x", "--exec", "-s", "--strategy", "-X", "--strategy-option", "-C", "--onto", "--empty", "--whitespace"}),
+}
+_GIT_COMMIT_MESSAGES = frozenset({"-m", "--message", "-F", "--file", "-C", "--reuse-message", "--no-edit", "--fixup", "--dry-run"})
+_GIT_EDITING_FIXUPS = ("--fixup=amend:", "--fixup=reword:")
+
+# sudo and doas start a shell of their own with -s or -i and no command, and
+# pkexec with no program at all: "If PROGRAM is not specified, the default
+# shell will be run" (pkexec(1)).
 _SHELL_STARTING_WRAPPERS = frozenset({"sudo", "doas"})
 _SHELL_STARTING_FLAGS = frozenset({"s", "i"})
 _SHELL_STARTING_LONG_FLAGS = frozenset({"--shell", "--login"})
+_BARE_SHELL_WRAPPERS = frozenset({"pkexec"})
 
 
 def _short_flags(token: str, values: AbstractSet[str]) -> Set[str]:
@@ -6438,6 +6615,99 @@ def _program_flags(tokens: List[str], values: AbstractSet[str]) -> Set[str]:
         index += 2 if token in values else 1
 
     return flags
+
+
+def _option_scan(words: List[str], values: AbstractSet[str], clusters: bool = True) -> Tuple[Set[str], List[str]]:
+    """Every option name and every operand, options read wherever they sit until `--`, value words skipped."""
+    names: Set[str] = set()
+    operands: List[str] = []
+    index = 0
+
+    while index < len(words):
+        word = words[index]
+        index += 1
+
+        if word == "--":
+            operands += words[index:]
+            break
+
+        if not word.startswith("-") or word == "-":
+            operands.append(word)
+            continue
+
+        name, equals, _value = word.partition("=")
+
+        if word.startswith("--") or not clusters:
+            names.add(name)
+            index += 1 if name in values and not equals else 0
+            continue
+
+        for position, letter in enumerate(word[1:], start=2):
+            names.add("-" + letter)
+
+            if "-" + letter in values:
+                index += 1 if position == len(word) else 0
+                break
+
+    return names, operands
+
+
+def _names_one_of(names: AbstractSet[str], options: AbstractSet[str]) -> bool:
+    """True when a name is one of the options or an abbreviation of a long one, as git accepts."""
+    return any(
+        name in options or (name.startswith("--") and len(name) > 2 and any(option.startswith(name) for option in options if option.startswith("--")))
+        for name in names
+    )
+
+
+def _console_waits(console: _Console, tokens: List[str], fed: bool) -> bool:
+    names, operands = _option_scan(tokens[1:], console.values, console.clusters)
+
+    if names & console.stays:
+        return True
+
+    if names & (console.info | _INFO_FLAGS) or (fed and console.reads_feed) or names & console.done:
+        return False
+
+    if 0 <= console.command_operand < len(operands):
+        return False
+
+    return not any(operand.lower().endswith(console.script_suffixes) for operand in operands if console.script_suffixes)
+
+
+def _socat_waits(tokens: List[str]) -> bool:
+    """socat hands the terminal to a program through an EXEC, SYSTEM, SHELL or PTY address."""
+    names, operands = _option_scan(tokens[1:], _SOCAT_VALUE_FLAGS, clusters=False)
+
+    if names & _SOCAT_INFO_FLAGS:
+        return False
+
+    return any(re.split(r"[:,]", operand, maxsplit=1)[0].lower() in _SOCAT_PROGRAM_ADDRESSES for operand in operands)
+
+
+def _git_waits(tokens: List[str]) -> bool:
+    """git opens an editor or a prompt: a commit with no message, rebase -i, add -p and their kin."""
+    index = 1
+
+    while index < len(tokens) and tokens[index].startswith("-"):
+        index += 2 if tokens[index] in _GIT_VALUE_FLAGS else 1
+
+    subcommand = tokens[index] if index < len(tokens) else ""
+    prompts = _GIT_PROMPTS.get(subcommand)
+
+    if prompts is None:
+        return False
+
+    words = tokens[index + 1 :]
+    names, _operands = _option_scan(words, _GIT_PROMPT_VALUES.get(subcommand, frozenset()))
+
+    if _names_one_of(names, prompts):
+        return True
+
+    if subcommand != "commit":
+        return False
+
+    return any(word.startswith(_GIT_EDITING_FIXUPS) for word in words) or not names & _GIT_COMMIT_MESSAGES
 
 
 def _waits_for_typed_input(name: str, tokens: List[str], fed: bool) -> bool:
@@ -6475,6 +6745,15 @@ def _waits_for_typed_input(name: str, tokens: List[str], fed: bool) -> bool:
     if name == "deno":
         return not fed and not _operands(tokens[1:]) and not (_INFO_FLAGS | {"-v", "-V", "-h"}) & set(tokens[1:])
 
+    if name == "git":
+        return _git_waits(tokens)
+
+    if name == "socat":
+        return _socat_waits(tokens)
+
+    if name in _CONSOLES:
+        return _console_waits(_CONSOLES[name], tokens, fed)
+
     spec = _WAITING_PROGRAMS.get(name)
 
     if spec is None:
@@ -6494,34 +6773,38 @@ def _waits_for_typed_input(name: str, tokens: List[str], fed: bool) -> bool:
     if fed or flags & (spec.inline | spec.runs):
         return False
 
-    if not spec.script_operands:
-        return True
-
     operands = _operands(tokens[1:], spec.values)
 
     return not operands or operands[0] == "-"
 
 
 def _starts_a_shell_of_its_own(tokens: List[str]) -> bool:
-    """sudo -s, sudo -i and the doas forms, which start a shell when they wrap no command.
+    """sudo -s, sudo -i, the doas forms and a bare pkexec, which start a shell when they wrap no command.
 
-    Called only once the wrappers are peeled to nothing, so every word after
-    the sudo or doas is one of its own flags or their values.
+    Called only once the wrappers are peeled to nothing, so every word is a
+    wrapper, one of its flags or a value. A `command -v` in front describes
+    the name and starts nothing, and so does a version or help flag.
     """
-    names = [_basename(token) for token in tokens]
-    start = next((index for index, name in enumerate(names) if name in _SHELL_STARTING_WRAPPERS), None)
+    last = ""
+    after_starter = False
+    starts = False
 
-    if start is None:
-        return False
+    for token in tokens:
+        if not token.startswith("-"):
+            last = _basename(token)
+            after_starter = after_starter or last in _SHELL_STARTING_WRAPPERS
+            starts = starts or last in _BARE_SHELL_WRAPPERS
+            continue
 
-    for token in tokens[start + 1 :]:
-        if token in _SHELL_STARTING_LONG_FLAGS:
-            return True
+        short = not token.startswith("--")
 
-        if token.startswith("-") and not token.startswith("--") and _SHELL_STARTING_FLAGS & set(token[1:]):
-            return True
+        if (last == "command" and short and set(token[1:]) & {"v", "V"}) or token in _INFO_FLAGS:
+            return False
 
-    return False
+        if after_starter and (token in _SHELL_STARTING_LONG_FLAGS or (short and _SHELL_STARTING_FLAGS & set(token[1:]))):
+            starts = True
+
+    return starts
 
 
 def _project_allowlist() -> List[List[str]]:
