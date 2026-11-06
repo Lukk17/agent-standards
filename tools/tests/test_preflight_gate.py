@@ -2152,13 +2152,36 @@ def test_a_cd_outside_a_group_still_moves_the_base(tmp_path):
     assert (code, out, err) == (0, "", "")
 
 
-def test_a_cd_to_a_directory_that_does_not_exist_drops_the_base(tmp_path):
+def test_a_cd_to_a_directory_that_does_not_exist_stays_where_it_was(tmp_path):
     # Given a cd the real shell would refuse, leaving it in the repository
     missing = (tmp_path / "no-such-directory").as_posix()
     payload = shell("cd " + missing + " ; printf abc >> tools/gen_subagents.py")
 
     # When/Then the write is still judged against the repository
     assert decision(payload) == "deny"
+
+
+@pytest.mark.parametrize("separator", ["; ", "\n", " || "])
+def test_a_failed_cd_after_another_stays_in_the_last_good_folder(separator):
+    # Given a cd into docs, then a cd the real shell refuses, which leaves it in docs
+    command = separator.join(["cd docs", "cd /nonexistent-zz9", "echo x > ../AGENTS.md"])
+
+    # When/Then the write is placed from docs, where the shell still stands
+    assert decision(shell(command)) == "deny"
+
+
+def test_a_cd_into_a_real_symlink_loop_after_another_stays_in_the_last_good_folder(tmp_path):
+    # Given two links that point at each other, so the second cd fails
+    first, second = tmp_path / "loop-a", tmp_path / "loop-b"
+
+    try:
+        first.symlink_to(second)
+        second.symlink_to(first)
+    except OSError:
+        pytest.skip("symlink creation is not permitted in this environment")
+
+    # When/Then
+    assert decision(shell(f"cd docs; cd {first.as_posix()}; echo x > ../AGENTS.md")) == "deny"
 
 
 def test_a_relative_cd_resolves_against_every_root(tmp_path):
@@ -2304,10 +2327,11 @@ def test_a_looping_path_counts_as_containing_the_repository(resolution_loops):
     assert GATE._contains_repo("/elsewhere/" + LOOPING) is True
 
 
-def test_a_cd_into_a_looping_directory_drops_the_base(resolution_loops):
+def test_a_cd_into_a_looping_directory_stays_where_it_was(resolution_loops):
     # Given a cd the shell refuses with "Too many levels of symbolic links", then a write
     # When/Then the shell stays where it was, so the roots decide the write
     assert GATE._shell_targets("cd /elsewhere/" + LOOPING + "; echo x > AGENTS.md") == ["AGENTS.md"]
+    assert decision(shell("cd docs; cd /elsewhere/" + LOOPING + "; echo x > ../AGENTS.md")) == "deny"
 
 
 def test_a_looping_payload_root_is_dropped_rather_than_raised(resolution_loops, monkeypatch):

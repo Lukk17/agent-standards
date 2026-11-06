@@ -355,7 +355,8 @@ one only while it is a real project and not the user's home directory or a direc
 exactly as sent, so a folder named with a trailing blank is never read as the folder without it. That is what lets the
 user-level install in [GLOBAL_SETUP.md](GLOBAL_SETUP.md) protect the open project instead of everything the user owns.
 A relative path resolves against whichever directory a leading `cd` in the command moved to, and against every root
-when the command never changed directory. On Windows, a Git Bash drive path such as `/c/Users/x` is read as
+when the command never changed directory. A `cd` the shell refuses, into a folder that does not exist or a link that
+loops, leaves it where it was, so `cd docs; cd /nonexistent; echo x > ../AGENTS.md` is placed from `docs`. On Windows, a Git Bash drive path such as `/c/Users/x` is read as
 `C:/Users/x` before it is placed, for a `cd` operand and a write target alike. An edit tool's path and a path a
 PowerShell pipeline feeds a cmdlet are placed both exactly as sent and trimmed, and either reading inside denies,
 because a host that keeps a blank at either end writes through `/tmp/l ` or joins ` /../AGENTS.md` to the project.
@@ -420,8 +421,8 @@ The gate fails open almost everywhere, but not on the repository boundary. The t
 `_resolves_inside_repo`, `_path_exists_in_repo` and `_contains_repo`, fail toward True on a path none of them can
 resolve, which denies, because deciding what Rule A protects is their whole job. A symlink loop is such a path:
 Python 3.11 and 3.12 raise `RuntimeError` from `Path.resolve` on one where 3.13 returns the path, and every resolving
-helper reads that error as unplaceable, so a `cd` into a loop is dropped as a `cd` into a missing folder is, and a
-root that loops is dropped too. On Windows that includes a loopback
+helper reads that error as unplaceable, so a `cd` into a loop leaves the shell where it was, as a `cd` into a missing
+folder does, and a root that loops is dropped. On Windows that includes a loopback
 UNC path to a share that is not an administrative drive share, such as `\\localhost\share` or `\\127.0.0.1\share`,
 because only the share definition knows which folder it maps to, an administrative drive share such as
 `\\fileserver\C$` on any host, because the gate cannot prove that host is another machine, and a volume GUID or

@@ -7268,9 +7268,9 @@ def _enter_directory(operands: List[str]) -> None:
     A relative destination is resolved against every base the command is
     standing in, which starts as every repository root, so a session started
     in a subdirectory still lands somewhere the boundary check can see. A
-    destination that is not a directory on disk is dropped rather than
-    trusted, because the real shell refuses that `cd` and stays where it was,
-    which leaves the roots to decide the rest of the command.
+    destination that is not a directory on disk, or that loops, is refused
+    by the real shell, which stays where it was, so each base it was
+    standing in stays a base rather than falling back to the roots.
     """
     global _CD_BASE
 
@@ -7286,11 +7286,12 @@ def _enter_directory(operands: List[str]) -> None:
     for base in bases:
         try:
             resolved = _resolve(target if target.is_absolute() else (base / target))
+            landing = resolved if resolved.is_dir() else base
         except (OSError, ValueError, RuntimeError):
-            continue
+            landing = base
 
-        if resolved.is_dir() and resolved not in landings:
-            landings.append(resolved)
+        if landing not in landings:
+            landings.append(landing)
 
     _CD_BASE = tuple(landings) or None
 
