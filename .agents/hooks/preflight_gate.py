@@ -319,7 +319,11 @@ READ_ONLY_GIT_NO_PAGER = "--no-pager"
 # refuses both. Claude Code, OpenCode and Kilo Code hand the gate the call's
 # `tty` key, which Rule E denies, but Codex hands its hook the command alone
 # and its write_stdin types into a terminal without a PreToolUse call, so on
-# the codex format a read-only agent runs no gh command at all.
+# the codex format a read-only agent runs no gh command at all. Codex sets
+# GH_PAGER to cat for each command (UNIFIED_EXEC_ENV in process_manager.rs at
+# rust-v0.166.0), but its shell snapshot, on by default, sources the user's
+# login-shell exports and re-exports only the configured overrides after
+# them, so a GH_PAGER the user exports still reaches gh.
 READ_ONLY_PAGER_FORMATS = frozenset({"codex"})
 READ_ONLY_PAGER_REASON = {
     "git": "{words} (run git as git --no-pager <subcommand>: on a terminal git pipes its output into a pager, whose ! runs any command)",

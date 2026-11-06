@@ -260,6 +260,17 @@ Reading the tables row by row:
   both fetched 2026-11-01). No flag turns it off, and the environment prefix or `gh config set pager` that would are
   refused. Claude Code, OpenCode and Kilo Code hand the gate the call's `tty` key, which Rule E denies, but Codex hands
   its hook the command alone, so there a listed gh command could open a pager that `write_stdin` then types into.
+  Codex does set `("GH_PAGER", "cat")` in `UNIFIED_EXEC_ENV` for every command it starts
+  ([process_manager.rs at rust-v0.166.0](https://raw.githubusercontent.com/openai/codex/rust-v0.166.0/codex-rs/core/src/unified_exec/process_manager.rs)),
+  and gh reads `GH_PAGER` before its own `pager` setting ("Pager precedence 1. GH_PAGER 2. pager from config 3. PAGER",
+  [pkg/cmd/factory/default.go at v2.89.0](https://raw.githubusercontent.com/cli/cli/v2.89.0/pkg/cmd/factory/default.go)),
+  but its shell snapshot, `shell_snapshot` with `default_enabled: true`
+  ([features/src/lib.rs at rust-v0.166.0](https://raw.githubusercontent.com/openai/codex/rust-v0.166.0/codex-rs/features/src/lib.rs)),
+  sources every export of the user's login shell before a `-lc` command and re-exports after it only the
+  `shell_environment_policy` overrides and Codex's own variables
+  ([tools/runtimes/mod.rs at rust-v0.166.0](https://raw.githubusercontent.com/openai/codex/rust-v0.166.0/codex-rs/core/src/tools/runtimes/mod.rs),
+  all fetched 2026-11-06). A `GH_PAGER` the user exports therefore reaches gh in place of `cat`. That is read from the
+  source, not measured, so gh stays denied there.
   Every `command` and `cmd` value is judged, not only the first. Unlike every other rule, any failure while lexing or matching denies here, a parse error and
   any other exception alike, and so does a tool the gate does not know that carries a command. Rule E applies when
   any definition the name resolves to is read-only: the calling format's own tree is read first and decides Rule B,
@@ -558,9 +569,10 @@ editor only on a terminal, such as `git merge`, `git revert`, `git tag -a` or `g
 can still be typed into through Codex's `write_stdin`, and so can inline code that opens a prompt of its own, such as
 `python3 -c 'import code; code.interact()'`, a `breakpoint()` call, `node -e 'require("repl").start()'` or
 `perl -ne eval`, because the gate reads inline code for the files it writes and cannot list every way code reads the
-terminal (Codex starts every such process with `PAGER`, `GIT_PAGER` and `GH_PAGER` set to `cat`, so git and gh
-open no pager there, [process_manager.rs at rust-v0.166.0](https://raw.githubusercontent.com/openai/codex/rust-v0.166.0/codex-rs/core/src/unified_exec/process_manager.rs),
-fetched 2026-11-06), and the `tasks.md` exemption holds at every
+terminal (Codex starts every such process with `PAGER`, `GIT_PAGER` and `GH_PAGER` set to `cat`,
+[process_manager.rs at rust-v0.166.0](https://raw.githubusercontent.com/openai/codex/rust-v0.166.0/codex-rs/core/src/unified_exec/process_manager.rs),
+fetched 2026-11-06, so git and gh open no pager there unless the user's own login shell exports one, which Codex's
+shell snapshot restores over `cat`, as Rule E above explains), and the `tasks.md` exemption holds at every
 root, so a call whose `cwd` names a project subfolder, as a Codex `workdir` does from `rust-v0.166.0`, may write
 `tasks.md` in that subfolder. Re-audit only when the rule changes, and record a new limit here rather than chasing it.
 

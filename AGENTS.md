@@ -23,9 +23,9 @@ The gate is enforcing, not advisory. One shared rule in
 - It denies any tool call from a subagent whose own definition declares no skills. An unknown or unreadable
   `agent_type` allows rather than denies.
 - It holds a subagent whose definition is marked read-only to the commands listed under its "Read-only shell" heading,
-  git only as `git --no-pager`, and denies it any edit, and on Codex any gh command, because a pager runs any command.
-  Codex names the subagent on `PreToolUse`, measured on 0.166.0 in live run 41348146352. The per-format detail is
-  under "Adding a new subagent" in [CONTRIBUTING.md](CONTRIBUTING.md).
+  git only as `git --no-pager`, and denies it any edit, and on Codex any gh command, because Codex's shell snapshot
+  can restore the user's own pager over the `cat` Codex sets, and a pager runs any command. Codex names the subagent on
+  `PreToolUse`, measured on 0.166.0 in live run 41348146352. The per-format detail is under "Adding a new subagent" in [CONTRIBUTING.md](CONTRIBUTING.md).
 - It denies the main thread a web fetch or web search tool on Claude Code, the one format whose tool names are
   confirmed. Codex has no confirmed tool name for this yet. The main thread spawns a subagent to do the research.
 - It denies the main thread running a script or a module, because the gate cannot see what a script writes, unless
