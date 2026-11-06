@@ -160,11 +160,11 @@ plugins:
 
   - name: homelab
     category: host
-    description: Homelab hosts and services, with the home-assistant-engineer subagent and the Proxmox, router, Syncthing and machine health skills. Off until you enable it.
+    description: Homelab hosts and services, with the home-assistant-engineer subagent and the Proxmox, router, Syncthing, Samsung TV and machine health skills. Off until you enable it.
     defaultEnabled: false
     dependencies: [core]
     agents: [home-assistant-engineer]
-    skills: [home-assistant, proxmox, homelab-services, asus-router, syncthing, machine-health]
+    skills: [home-assistant, proxmox, homelab-services, asus-router, syncthing, samsung-tv, machine-health]
 
   - name: personal-tools
     category: host
