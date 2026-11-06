@@ -490,6 +490,12 @@ def outside_the_copilot_cli(monkeypatch):
     monkeypatch.delenv("COPILOT_CLI", raising=False)
 
 
+@pytest.fixture(autouse=True)
+def without_a_cdpath(monkeypatch):
+    """Run every case with no CDPATH, so a plain cd name is followed as the cases expect."""
+    monkeypatch.delenv("CDPATH", raising=False)
+
+
 def test_claude_format_call_from_the_copilot_cli_is_allowed_as_unidentified():
     # Given the Claude-shaped payload Copilot CLI hands the Claude wiring, which
     # carries no agent_id for a subagent and a main thread alike
@@ -2182,6 +2188,79 @@ def test_a_cd_into_a_real_symlink_loop_after_another_stays_in_the_last_good_fold
 
     # When/Then
     assert decision(shell(f"cd docs; cd {first.as_posix()}; echo x > ../AGENTS.md")) == "deny"
+
+
+# A cd whose landing the text does not name: the previous folder, a variable,
+# a command's output, a directory stack entry, the home folder, or a plain
+# name the shell may find through CDPATH. The shell can stand in any folder
+# the command has visited, so the write is judged from all of them.
+UNFOLLOWABLE_CD_CASES = {
+    "cd-dash": ("cd {out}; cd -; echo x > AGENTS.md", "Bash"),
+    "cd-oldpwd": ('cd {out}; cd "$OLDPWD"; echo x > AGENTS.md', "Bash"),
+    "cd-tilde-dash": ("cd {out}; cd ~-; echo x > AGENTS.md", "Bash"),
+    "cd-variable": ("cd {out}; cd $VAR; echo x > AGENTS.md", "Bash"),
+    "cd-command-output": ('cd {out}; cd "$(pwd)"; echo x > AGENTS.md', "Bash"),
+    "cd-backticks": ("cd {out}; cd `pwd`; echo x > AGENTS.md", "Bash"),
+    "pushd-rotate": ("pushd {out}; pushd +1; echo x > AGENTS.md", "Bash"),
+    "pushd-rotate-from-the-end": ("pushd {out}; pushd -0; echo x > AGENTS.md", "Bash"),
+    "pushd-swap": ("pushd {out}; pushd; echo x > AGENTS.md", "Bash"),
+    "pushd-no-change": ("pushd -n {out}; echo x > AGENTS.md", "Bash"),
+    "popd-to-a-folder-pushd-n-stacked": ("cd {out}; pushd -n {root}/docs; popd; echo x > ../AGENTS.md", "Bash"),
+    "popd-drops-an-entry": ("pushd {out}; pushd {root}; popd +1; echo x > AGENTS.md", "Bash"),
+    "popd-after-dirs-clear": ("pushd {out}; pushd {root}; dirs -c; popd; echo x > AGENTS.md", "Bash"),
+    "bare-cd-goes-home": ("cd {out}; cd; echo x > AGENTS.md", "Bash"),
+    "cdpath-in-the-command": ("CDPATH={parent}; cd {out}; cd {name}; echo x > AGENTS.md", "Bash"),
+    "exported-cdpath": ("export CDPATH={parent}; cd {out}; cd {name}; echo x > AGENTS.md", "Bash"),
+    "back-to-a-subfolder": ("cd docs; cd {out}; cd -; echo x > ../AGENTS.md", "Bash"),
+    "set-location-dash": ("Set-Location {out}; Set-Location -; Set-Content AGENTS.md x", "PowerShell"),
+    "set-location-plus": ("Set-Location {out}; Set-Location -; Set-Location +; Set-Content AGENTS.md x", "PowerShell"),
+}
+
+
+@pytest.mark.parametrize(
+    "command,tool",
+    [pytest.param(command, tool, id=name) for name, (command, tool) in UNFOLLOWABLE_CD_CASES.items()],
+)
+def test_a_cd_the_gate_cannot_follow_lands_in_any_folder_the_command_visited(tmp_path, command, tool):
+    # Given a cd into a folder outside the repository, then a cd whose landing the text does not name
+    text = command.format(
+        out=tmp_path.as_posix(), root=REPO_ROOT.as_posix(), parent=REPO_ROOT.parent.as_posix(), name=REPO_ROOT.name
+    )
+
+    # When/Then the write is judged from the repository as well, where the shell may stand
+    assert decision(shell(text, tool=tool)) == "deny"
+
+
+def test_a_plain_name_is_not_followed_while_cdpath_is_set(tmp_path):
+    # Given a CDPATH in the environment the shell inherits, which a plain name is looked up in first
+    (tmp_path / "docs").mkdir()
+    command = f"cd {tmp_path.as_posix()}; cd docs; echo x > AGENTS.md"
+
+    # When
+    code, out, err = run(shell(command), "claude", env={"CDPATH": REPO_ROOT.as_posix()})
+
+    # Then the shell may have landed in the repository's docs instead
+    assert (code, err) == (0, "")
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "cd {out} && cd sub && printf abc >> MEMORY.md",
+        "cd {out} && cd ./sub && printf abc >> MEMORY.md",
+        "cd {out}/sub && cd .. && printf abc >> MEMORY.md",
+        "cd {out} && cd ./missing; printf abc >> MEMORY.md",
+        "cd {out} && cd missing; printf abc >> MEMORY.md",
+        "pushd {out} && pushd sub && popd && printf abc >> MEMORY.md",
+    ],
+)
+def test_a_cd_the_gate_can_follow_still_moves_the_base(tmp_path, command):
+    # Given cds whose landing the text names, all outside the repository, with no CDPATH set
+    (tmp_path / "sub").mkdir()
+
+    # When/Then
+    assert decision(shell(command.format(out=tmp_path.as_posix()))) == "allow"
 
 
 def test_a_relative_cd_resolves_against_every_root(tmp_path):
@@ -4179,6 +4258,9 @@ ALLOWLIST_OUTSIDE_CASES = {
     "pytest-after-pushd": "pushd {elsewhere} && python -m pytest -q",
     "pytest-after-env-chdir": "env --chdir={elsewhere} python -m pytest -q",
     "pytest-after-a-subshell-cd": "(cd {elsewhere} && python -m pytest -q)",
+    "pytest-after-a-cd-to-a-variable": "cd $TMPDIR && python -m pytest -q",
+    "program-entry-after-a-cd-to-command-output": 'cd "$(mktemp -d)" && make check',
+    "pytest-after-cd-dash": "cd {elsewhere}; cd -; python -m pytest -q",
 }
 
 
@@ -4193,7 +4275,14 @@ def test_an_allowlist_entry_does_not_apply_outside_the_project(nest, command):
 
 @pytest.mark.parametrize(
     "command",
-    ["python -m pytest -q", "cd docs && python -m pytest -q", "cd {elsewhere}; cd {project} && make check", "make check"],
+    [
+        "python -m pytest -q",
+        "cd docs && python -m pytest -q",
+        "cd {elsewhere}; cd {project} && make check",
+        "make check",
+        "(cd $HOME) && python -m pytest -q",
+        "cd $HOME; cd {project} && make check",
+    ],
 )
 def test_an_allowlist_entry_still_applies_anywhere_inside_the_project(nest, command):
     write_project_allowlist(nest.project, PROJECT_ALLOWLIST)

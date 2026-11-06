@@ -651,6 +651,29 @@ _CD_BASE: Optional[Tuple[Path, ...]] = None
 # Pop-Location to return to. Set only through _shell_targets, like _CD_BASE.
 _CD_STACK: List[Optional[Tuple[Path, ...]]] = []
 
+# Every directory the command has stood in or put on the stack so far,
+# starting with the directories it starts in. A cd whose landing the text
+# does not name can return to any of them. Set only through _shell_targets.
+_CD_VISITED: List[Path] = []
+
+
+class _Unfollowed(tuple):  # type: ignore[type-arg]
+    """The bases after a cd whose landing the text does not name.
+
+    `cd -`, `cd "$OLDPWD"`, `cd $DIR`, `pushd +1`, a bare `cd` and a plain
+    name found through CDPATH can each land in a folder the gate cannot
+    name. The shell may then stand in any folder the command has visited or
+    in any root, so every one of them is a base, and an allowlist entry,
+    which vouches only for the project's own files, no longer applies. A
+    stack entry of this type stands for a folder the stack bookkeeping lost
+    track of, and popd turns it back into every visited folder.
+    """
+
+
+# A directory stack position or the previous folder: `-`, `+`, `~-`, `~+`,
+# `+1`, `-0`, `~+2`.
+_DIRECTORY_STACK_WORD_RE = re.compile(r"~?[+-]\d*")
+
 _QUOTED_LITERAL_RE = re.compile(r"""['"]([^'"]*)['"]""")
 _ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z_0-9]*=")
 
@@ -658,12 +681,13 @@ _ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z_0-9]*=")
 # repository or directory a command uses: git's own configuration and
 # repository location, the pagers and editors git starts, a preloaded library
 # or interpreter option, a shell start-up file, the program search path, a
-# test runner's own options, and the temporary directory a runner writes
-# under. A command run with one of them set is not the command its words
-# spell, so the gate cannot place it. Names compare without case, because
+# test runner's own options, the temporary directory a runner writes under,
+# and the CDPATH a `cd` looks a plain name up in. A command run with one of
+# them set is not the command its words spell, so the gate cannot place it. Names compare without case, because
 # Windows reads them that way.
 _UNPLACEABLE_ENVIRONMENT = frozenset(
     {
+        "CDPATH",
         "GIT_DIR",
         "GIT_WORK_TREE",
         "GIT_COMMON_DIR",
@@ -7356,6 +7380,9 @@ def _runs_inside_trusted_roots() -> bool:
     bases = _CD_BASE if _CD_BASE is not None else tuple(_roots())
     trusted = _allowlist_roots()
 
+    if isinstance(bases, _Unfollowed):
+        return False
+
     return bool(bases) and all(any(_is_within(base, root) for root in trusted) for base in bases)
 
 
@@ -7691,7 +7718,89 @@ def _as_path(target: str) -> Path:
         return path
 
 
-def _enter_directory(operands: List[str]) -> None:
+def _cd_destination(words: List[str], changer: str, dialect: str) -> Optional[str]:
+    """The literal folder a directory change names, or None when the text does not say where it lands.
+
+    A bare `cd` goes home and a bare `pushd` swaps the top two stack
+    entries. `-`, `~-`, `+1` and their kin name the previous folder or a
+    stack entry, `pushd -n` and a PowerShell -StackName change the stack
+    instead of the folder, and a variable or a command's output is unknown
+    until the shell runs. An empty changer is a program's own chdir, such as
+    env --chdir, which reads none of those forms.
+    """
+    powershell = dialect != _POSIX
+
+    if changer and any(_DIRECTORY_STACK_WORD_RE.fullmatch(word) for word in words):
+        return None
+
+    if changer in _DIRECTORY_PUSHERS and any(_reshuffles_the_stack(word) for word in words):
+        return None
+
+    candidates = _operands(words)
+
+    if not candidates:
+        return None if changer else ""
+
+    candidate = candidates[-1]
+
+    if _has_expansion(candidate, powershell) or "`" in candidate:
+        return None
+
+    return candidate
+
+
+def _reshuffles_the_stack(word: str) -> bool:
+    """True for pushd -n and a PowerShell -StackName, which change the stack rather than only the folder."""
+    lowered = word.lower()
+
+    return lowered == "-n" or (len(lowered) > 2 and "-stackname".startswith(lowered))
+
+
+def _anchored(candidate: str) -> bool:
+    """True when a cd operand names one folder: absolute, home-relative, or starting at `.` or `..`.
+
+    Any other relative name is looked up in CDPATH first, so while CDPATH is
+    set the shell can land somewhere the name does not spell.
+    """
+    if candidate.startswith("~") or _as_path(candidate).is_absolute():
+        return True
+
+    head = re.split(r"[\\/]", candidate, maxsplit=1)[0]
+
+    return head in (".", "..")
+
+
+def _visit_named(words: List[str], bases: Tuple[Path, ...], dialect: str) -> None:
+    """Count every folder a literal operand names as visited, for pushd -n, which stacks it without moving."""
+    for word in _operands(words):
+        if _has_expansion(word, dialect != _POSIX) or "`" in word or _DIRECTORY_STACK_WORD_RE.fullmatch(word):
+            continue
+
+        target = _as_path(word)
+
+        for base in bases:
+            try:
+                resolved = _resolve(target if target.is_absolute() else (base / target))
+            except (OSError, ValueError, RuntimeError):
+                continue
+
+            if resolved not in _CD_VISITED:
+                _CD_VISITED.append(resolved)
+
+
+def _unfollow() -> None:
+    """Stand in every folder the command has visited and every root, after a cd the gate cannot follow."""
+    global _CD_BASE
+    bases: List[Path] = []
+
+    for base in [*_CD_VISITED, *_roots(), *(_CD_BASE or ())]:
+        if base not in bases:
+            bases.append(base)
+
+    _CD_BASE = _Unfollowed(bases)
+
+
+def _enter_directory(operands: List[str], changer: str = "", dialect: str = _POSIX) -> None:
     """Move the resolution base to the directory a `cd` segment named.
 
     A relative destination is resolved against every base the command is
@@ -7699,30 +7808,52 @@ def _enter_directory(operands: List[str]) -> None:
     in a subdirectory still lands somewhere the boundary check can see. A
     destination that is not a directory on disk, or that loops, is refused
     by the real shell, which stays where it was, so each base it was
-    standing in stays a base rather than falling back to the roots.
+    standing in stays a base. A destination the text does not name, a plain
+    name looked up in the CDPATH the shell inherits, and a move from a base
+    that is already unknown all land in every folder the command has visited
+    (see _Unfollowed). A CDPATH the command sets itself is an unplaceable
+    environment variable instead.
     """
     global _CD_BASE
 
-    candidates = _operands(operands)
+    destination = _cd_destination(operands, changer, dialect)
 
-    if not candidates:
+    if destination == "":
         return
 
-    target = _as_path(candidates[-1])
     bases = _CD_BASE if _CD_BASE is not None else tuple(_roots())
+
+    if destination is None:
+        _visit_named(operands, bases, dialect)
+        _unfollow()
+        return
+
+    target = _as_path(destination)
+    looked_up = bool(changer) and dialect == _POSIX and not _anchored(destination) and bool(os.environ.get("CDPATH"))
     landings: List[Path] = []
+    missed = False
 
     for base in bases:
         try:
             resolved = _resolve(target if target.is_absolute() else (base / target))
-            landing = resolved if resolved.is_dir() else base
+            found = resolved.is_dir()
         except (OSError, ValueError, RuntimeError):
-            landing = base
+            resolved, found = base, False
+
+        landing = resolved if found else base
+        missed = missed or not found
 
         if landing not in landings:
             landings.append(landing)
 
+        if landing not in _CD_VISITED:
+            _CD_VISITED.append(landing)
+
     _CD_BASE = tuple(landings) or None
+    unknown_start = isinstance(bases, _Unfollowed) and (missed or not target.is_absolute())
+
+    if looked_up or unknown_start:
+        _unfollow()
 
 
 def _in_pipeline(segments: List[ShellSegment], position: int) -> bool:
@@ -7777,14 +7908,19 @@ def _command_targets(command: str, depth: int = 0, dialect: str = _POSIX) -> Lis
 
         changer = _program_name(argv[0])
 
+        if changer == "dirs" and any(re.fullmatch(r"-[lpv]*c[lpvc]*", word) for word in argv[1:]):
+            _CD_STACK.clear()
+
         if changer in _DIRECTORY_POPPERS:
-            if _CD_STACK:
-                _CD_BASE = _CD_STACK.pop()
+            _pop_directory(_split_arrays(argv[1:]))
         elif changer in _DIRECTORY_CHANGERS:
             if changer in _DIRECTORY_PUSHERS:
                 _CD_STACK.append(_CD_BASE)
 
-            _enter_directory(_split_arrays(argv[1:]))
+            _enter_directory(_split_arrays(argv[1:]), changer, dialect)
+
+            if isinstance(_CD_BASE, _Unfollowed) and changer in _DIRECTORY_PUSHERS:
+                _CD_STACK[:] = [_Unfollowed()] * len(_CD_STACK)
         elif segment.expression:
             # A statement opening with a quoted string is a value PowerShell
             # writes to its output, as in [IO.File]::ReadAllText('a/b.py'),
@@ -7804,22 +7940,48 @@ def _command_targets(command: str, depth: int = 0, dialect: str = _POSIX) -> Lis
     return targets
 
 
+def _pop_directory(words: List[str]) -> None:
+    """Return to the folder popd or Pop-Location takes off the stack.
+
+    popd +N and -N drop an entry without moving, -n moves nowhere, and a
+    PowerShell -StackName reads another stack, so any word at all leaves the
+    stack and the folder unknown. An entry the bookkeeping lost track of
+    lands in every visited folder.
+    """
+    global _CD_BASE
+
+    if words:
+        _CD_STACK[:] = [_Unfollowed()] * max(len(_CD_STACK) - 1, 0)
+        _unfollow()
+        return
+
+    if not _CD_STACK:
+        return
+
+    _CD_BASE = _CD_STACK.pop()
+
+    if isinstance(_CD_BASE, _Unfollowed):
+        _unfollow()
+
+
 def _shell_targets(command: str, dialect: str = _POSIX, start: Optional[Tuple[Path, ...]] = None) -> List[str]:
     """Read one shell command from the start, with `cd` followed as it goes.
 
     Args:
         start: the directories the shell starts in, or None for every root.
     """
-    global _CD_BASE, _CD_STACK
+    global _CD_BASE, _CD_STACK, _CD_VISITED
 
     _CD_BASE = start
     _CD_STACK = []
+    _CD_VISITED = list(start or ())
 
     try:
         return _command_targets(command, dialect=dialect)
     finally:
         _CD_BASE = None
         _CD_STACK = []
+        _CD_VISITED = []
 
 
 def _is_null_device(target: str, powershell: bool = False) -> bool:

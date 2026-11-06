@@ -367,7 +367,12 @@ exactly as sent, so a folder named with a trailing blank is never read as the fo
 user-level install in [GLOBAL_SETUP.md](GLOBAL_SETUP.md) protect the open project instead of everything the user owns.
 A relative path resolves against whichever directory a leading `cd` in the command moved to, and against every root
 when the command never changed directory. A `cd` the shell refuses, into a folder that does not exist or a link that
-loops, leaves it where it was, so `cd docs; cd /nonexistent; echo x > ../AGENTS.md` is placed from `docs`. On Windows, a Git Bash drive path such as `/c/Users/x` is read as
+loops, leaves it where it was, so `cd docs; cd /nonexistent; echo x > ../AGENTS.md` is placed from `docs`. A `cd`
+whose landing the text does not name can stand in any folder the command has visited or in any root, and a relative
+path is placed from all of them, with no allowlist entry applying afterwards. That covers `cd -`, `cd ~-`, `cd ~+`,
+`cd "$OLDPWD"`, `cd $DIR`, `cd "$(...)"`, a bare `cd` or `pushd`, `pushd +1`, `pushd -0` and `pushd -n`, `popd` with
+any argument, `Set-Location -` and `+`, a `-StackName`, and a plain name such as `cd docs` while `CDPATH` is set in the
+environment the shell inherits. A command that sets `CDPATH` itself cannot be placed, like `PATH`. On Windows, a Git Bash drive path such as `/c/Users/x` is read as
 `C:/Users/x` before it is placed, for a `cd` operand and a write target alike. An edit tool's path and a path a
 PowerShell pipeline feeds a cmdlet are placed both exactly as sent and trimmed, and either reading inside denies,
 because a host that keeps a blank at either end writes through `/tmp/l ` or joins ` /../AGENTS.md` to the project.
@@ -576,7 +581,8 @@ shell snapshot restores over `cat`, as Rule E above explains), `xargs` handing a
 from the terminal passes, as in `xargs rm < list.txt`, `xargs -a list.txt rm` or a bare `xargs rm`, because the lexer
 drops an input redirect and the gate reads neither the file nor what is typed, so it sees `rm` with no operand (the
 same names piped in, as in `cat list.txt | xargs rm`, and a replace string read from either, as in
-`xargs -I{} rm {} < list.txt`, still deny), and the `tasks.md` exemption holds at every root, so a call whose `cwd`
+`xargs -I{} rm {} < list.txt`, still deny), a `CDPATH` set only by the user's shell profile, which the gate never sees, sends `cd docs` to the first `docs`
+under it while the gate places the command from `./docs`, and the `tasks.md` exemption holds at every root, so a call whose `cwd`
 names a project subfolder, as a Codex `workdir` does from `rust-v0.166.0`, may write `tasks.md` in that subfolder. Re-audit only when the rule changes, and record a new limit here rather than chasing it.
 
 #### MCP tools are not gated
