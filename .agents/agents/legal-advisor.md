@@ -3,6 +3,7 @@ description: "Use when the user says \"draft our privacy policy\", \"write the t
 mode: subagent
 permission:
   bash: deny
+  websearch: deny
 tools:
   read: true
   write: true

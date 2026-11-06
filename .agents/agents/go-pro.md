@@ -1,6 +1,9 @@
 ---
 description: "Use when the user says \"write this Go service\", \"review this Go package\" or \"restructure this module\". Applies idiomatic Go, useful zero values, interfaces declared at the consumer, wrapped errors and context propagation, with table-driven tests and ports-and-adapters boundaries, as an implementer. Not for service decomposition, use `backend-architect`."
 mode: subagent
+permission:
+  webfetch: deny
+  websearch: deny
 tools:
   read: true
   write: true

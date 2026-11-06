@@ -3,6 +3,7 @@ description: "Use when the user says \"plan our content strategy\", \"write an S
 mode: subagent
 permission:
   bash: deny
+  websearch: deny
 tools:
   read: true
   write: true

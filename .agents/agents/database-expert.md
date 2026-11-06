@@ -3,6 +3,8 @@ description: "Use when the user says \"design the schema\", \"which database sho
 mode: subagent
 permission:
   edit: deny
+  webfetch: deny
+  websearch: deny
 tools:
   read: true
   grep: true

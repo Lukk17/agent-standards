@@ -4,6 +4,12 @@ mode: subagent
 permission:
   edit: deny
   bash: deny
+  task: deny
+  "*_*": deny
+  "webfetch": deny
+  "websearch": deny
+  "todowrite": deny
+  "lsp": deny
 tools:
   read: true
   grep: true
@@ -105,6 +111,11 @@ Load when the change touches that stack, the way the Preloaded skills section be
 ### Done when
 
 Every finding cites the WCAG success criterion, has a concrete fix, and a verification step. Hand-off to the front-end agent names the files. Re-invoke for verification after fixes land.
+
+### Read-only shell
+
+This agent is read-only and has no shell. Edit no file and run no command, and return any change or command to the caller as a proposal. The preflight gate denies every edit and every shell command.
+
 
 ### Preloaded skills
 

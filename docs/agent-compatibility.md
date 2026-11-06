@@ -167,8 +167,12 @@ Reading the tables row by row:
 - The per-agent tool permissions are the generator's `permission` block. OpenCode and Kilo Code read a subagent's
   `tools` map as overrides on top of everything it already has, so a read-only definition listing only `read`, `grep`
   and `glob` still had `edit` and `bash`. The generator now writes `edit: deny` unless `write` or `edit` is listed and
-  `bash: deny` unless `bash` is. A definition marked `readonly: true` instead gets `edit: deny`, `task: deny`, denies
-  for `webfetch`, `websearch`, `todowrite`, `lsp` and `"*_*"`, and a `bash` map with `"*": deny` first, its allowed
+  `bash: deny` unless `bash` is, and `webfetch: deny` and `websearch: deny` unless each is listed, because under
+  "Defaults" OpenCode 1 says `Most permissions default to "allow".`
+  ([permissions](https://opencode.ai/v1/docs/permissions/)). A definition listing only `read`, `grep` and `glob` also
+  gets `task: deny` and denies for `todowrite`, `lsp` and `"*_*"`, the tools Rule E denies it. A definition marked
+  `readonly: true` instead gets `edit: deny`, `task: deny`, denies for `webfetch`, `websearch`, `todowrite`, `lsp` and
+  `"*_*"`, and a `bash` map with `"*": deny` first, its allowed
   commands after it, and denies last, because OpenCode lets the last matching rule win: an output option, a `$`, a
   redirect, gh's `--web`, `-w`, `--jq`, `-q`, `--template`, `-t` and `--watch`, and the characters `"`, `'`, `{`, a backtick, `<`, `;`, `&`, `|`, `[`, a newline and a
   carriage return. OpenCode matches a permission key against the tool name, "so the same syntax works for built-ins,
@@ -286,8 +290,18 @@ Reading the tables row by row:
   is the only enforcement that holds: a subagent's `permissionMode: plan` is ignored while the session is in auto,
   `acceptEdits` or `bypassPermissions` mode, and a `tools` entry such as `Bash(git log *)` did not narrow the tool, so
   a `touch` from either ran on Claude Code 2.1.314 under an auto-mode session. Its `tools` list is an allowlist, so
-  such an agent gets no MCP tool there either. Codex has no per-agent tool field, and a custom agent file cannot
-  narrow the sandbox: "Other session settings, including `sandbox_mode`, `approval_policy`, `model_provider`, and
+  such an agent gets no MCP tool there either. A Codex custom agent file can switch the shell off and nothing finer:
+  "To reduce a custom agent's capabilities, set supported feature keys to `false`: `features.shell_tool`,
+  `features.apps`, `features.plugins`, `features.memories`, or `features.request_permissions_tool`"
+  ([subagents, "Custom agent file schema"](https://developers.openai.com/codex/subagents)), and `add_shell_tools`
+  then registers neither `exec_command` nor `write_stdin`
+  ([spec_plan.rs at rust-v0.167.0](https://raw.githubusercontent.com/openai/codex/rust-v0.167.0/codex-rs/core/src/tools/spec_plan.rs)).
+  The generator writes `features.shell_tool = false` for every agent whose canonical `tools` leave out `bash`, and the
+  free mock case in [sandbox-agent/e2e-mock/subagent-write.sh](../sandbox-agent/e2e-mock/subagent-write.sh) measured it
+  on Codex 0.167.0: `backend-architect` was offered no shell tool while `python-pro` was offered `exec_command` and
+  `write_stdin`. No key covers `apply_patch` or web search, so an agent listing only `read`, `grep` and `glob` gets an
+  empty "Read-only shell" section on every target, and Rule E holds it to no shell command and no edit. A custom agent
+  file cannot narrow the sandbox either: "Other session settings, including `sandbox_mode`, `approval_policy`, `model_provider`, and
   `mcp_servers`, don't override the parent configuration when placed in a custom agent file"
   ([subagents, "Custom agents"](https://developers.openai.com/codex/subagents), fetched 2026-10-30). Codex does name
   the subagent on `PreToolUse`, although the hooks page lists `agent_id` and `agent_type` only for `SubagentStart` and

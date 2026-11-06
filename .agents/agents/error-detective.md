@@ -3,6 +3,8 @@ description: "Use when the user says \"this exception keeps coming back\", \"err
 mode: subagent
 permission:
   edit: deny
+  webfetch: deny
+  websearch: deny
 tools:
   read: true
   grep: true

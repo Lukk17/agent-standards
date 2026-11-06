@@ -1,6 +1,9 @@
 ---
 description: "Use when the user says \"write the training loop\", \"add checkpointing\", \"review this PyTorch model\" or \"package the model for serving\". Builds and hardens PyTorch pipelines, model and dataset modules, the training loop, checkpointing, the evaluation harness, mixed precision, device placement and serving, rather than proposing the architecture. Not for general Python services, use `python-pro`."
 mode: subagent
+permission:
+  webfetch: deny
+  websearch: deny
 tools:
   read: true
   write: true

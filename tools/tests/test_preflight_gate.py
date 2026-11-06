@@ -5985,6 +5985,57 @@ def test_rule_e_allows_git_with_no_pager_on_every_format(tmp_path, fmt, target, 
     assert read_only_reason_in_format(tmp_path, fmt, target, directory, extension, command) is None
 
 
+# A definition whose tools are only read, grep and glob is read-only too. The
+# generator writes it an empty "Read-only shell" section, so Rule E holds it to
+# no shell command and no edit on every format whose hook names the agent,
+# Codex's apply_patch included, which no Codex feature key switches off.
+READ_ONLY_READER = {
+    "name": "fixture-reader",
+    "description": "Use when the user says read this.",
+    "tools": ["read", "grep", "glob"],
+    "skills": ["code-reviewer"],
+}
+
+READ_ONLY_READER_CALLS = {
+    "claude": {"shell": "Bash", "write": "Edit", "read": "Read"},
+    "codex": {"shell": "Bash", "write": "apply_patch", "read": "Read"},
+    "plain": {"shell": "bash", "write": "edit", "read": "read"},
+}
+
+
+def reader_decision(tmp_path, fmt, target, directory, extension, kind, tool_input):
+    """Whether the gate denies one call from the generated read-only reader in one format."""
+    import gen_subagents
+
+    agents = tmp_path.joinpath(*directory.split("/"))
+    agents.mkdir(parents=True, exist_ok=True)
+    rendered = gen_subagents.render(target, READ_ONLY_READER, "You read.\n")
+    (agents / f"{READ_ONLY_READER['name']}{extension}").write_text(rendered, encoding="utf-8")
+    caller = {"is_subagent": True} if fmt == "plain" else {"agent_id": "sub-1"}
+    payload = {**caller, "agent_type": READ_ONLY_READER["name"], "tool_name": READ_ONLY_READER_CALLS[fmt][kind], "tool_input": tool_input, "cwd": str(tmp_path)}
+    code, out, _err = run(payload, fmt, cwd=tmp_path)
+
+    return code == 2 if fmt == "plain" else '"deny"' in out
+
+
+@pytest.mark.parametrize(("fmt", "target", "directory", "extension"), READ_ONLY_FORMATS)
+@pytest.mark.parametrize(
+    ("kind", "tool_input"),
+    [
+        ("shell", {"command": "git --no-pager status"}),
+        ("write", {"file_path": "made.txt", "input": "*** Begin Patch\n*** Add File: made.txt\n+x\n*** End Patch\n"}),
+    ],
+    ids=["shell", "write"],
+)
+def test_a_generated_reader_gets_no_shell_and_no_edit_on_every_format(tmp_path, fmt, target, directory, extension, kind, tool_input):
+    assert reader_decision(tmp_path, fmt, target, directory, extension, kind, tool_input)
+
+
+@pytest.mark.parametrize(("fmt", "target", "directory", "extension"), READ_ONLY_FORMATS)
+def test_a_generated_reader_still_reads_on_every_format(tmp_path, fmt, target, directory, extension):
+    assert not reader_decision(tmp_path, fmt, target, directory, extension, "read", {"file_path": "x.py"})
+
+
 def test_rule_e_tells_the_agent_how_to_spell_git():
     reason = GATE._read_only_segments_blocked("git diff HEAD~1", False, READ_ONLY_FIXTURE_PATTERNS)
 

@@ -3,6 +3,8 @@ description: "Use when the user says \"pods keep crashing\", \"the deploy broke 
 mode: subagent
 permission:
   edit: deny
+  webfetch: deny
+  websearch: deny
 tools:
   read: true
   grep: true
