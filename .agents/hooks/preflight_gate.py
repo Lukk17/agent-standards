@@ -562,11 +562,25 @@ def _payload_root(payload: Dict[str, Any]) -> Optional[Path]:
 
 
 def _direct_target(tool_input: Dict[str, Any]) -> str:
+    """The edit tool's path exactly as sent, blanks included, or "" when it names none."""
     for key in PATH_KEYS:
         value = tool_input.get(key)
         if isinstance(value, str) and value.strip():
-            return value.strip()
+            return value
     return ""
+
+
+def _placements(value: str) -> List[str]:
+    """A path as sent and, when a blank sits at either end, trimmed as well.
+
+    A host that hands the value to the file system as sent keeps each blank
+    as part of a name, so `/tmp/l ` is a link beside `/tmp/l` and ` /../x`
+    is relative, while a host that trims first writes the trimmed path. Both
+    readings are placed, and either one inside the repository denies.
+    """
+    trimmed = value.strip()
+
+    return [value] if trimmed in (value, "") else [value, trimmed]
 
 
 def _apply_patch_body(tool_input: Dict[str, Any]) -> str:
@@ -4111,7 +4125,7 @@ def _ps_piped_targets(name: str, tokens: List[str], feed: Callable[[], Optional[
     if fed == _UNKNOWN_INPUT:
         return [_UNPLACEABLE_PIPED_PATH]
 
-    paths = [line.strip() for line in fed.splitlines() if line.strip()]
+    paths = [placement for line in fed.splitlines() for placement in _placements(line) if line.strip()]
 
     return (_removal_sourced if canonical in _PS_PIPED_REMOVALS else _sourced)(paths, powershell)
 
@@ -6795,7 +6809,8 @@ def _is_null_device(target: str, powershell: bool = False) -> bool:
 
     A POSIX file system keeps case and blanks, so only the exact spelling is
     the device there, and `/DEV/NULL` or ` /dev/null` is an ordinary file.
-    PowerShell's Windows spellings are read without case or blanks.
+    PowerShell's Windows spellings are read without case but with their
+    blanks, because ` nul` names an ordinary file in the working directory.
     """
     if target == _POSIX_NULL_DEVICE:
         return True
@@ -6803,7 +6818,7 @@ def _is_null_device(target: str, powershell: bool = False) -> bool:
     if not powershell:
         return False
 
-    normalized = target.strip().lower()
+    normalized = target.lower()
 
     return normalized == _POSIX_NULL_DEVICE or normalized in _WINDOWS_NULL_DEVICE_TOKENS
 
@@ -6824,7 +6839,7 @@ def _names_no_file(target: str, powershell: bool = False) -> bool:
     if _is_null_device(target, powershell):
         return True
 
-    return powershell and bool(_PS_NON_FILE_PATH_RE.match(target.strip()))
+    return powershell and bool(_PS_NON_FILE_PATH_RE.match(target))
 
 
 _GLOB_CHARACTERS = "*?["
@@ -7959,8 +7974,9 @@ def _apply_rules(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Opti
 
             return None
 
-        if _is_write_target(target):
-            return RULE_A_REASON.format(target=target)
+        for placement in _placements(target):
+            if _is_write_target(placement):
+                return RULE_A_REASON.format(target=placement)
         return None
 
     commands = _shell_commands(tool_input)

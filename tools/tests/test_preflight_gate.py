@@ -1358,6 +1358,81 @@ def test_edit_tool_symlinked_path_that_resolves_inside_denies(tmp_path_factory):
     assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
 
 
+# A blank at either end of an edit path is part of the name for a host that
+# hands the tool the value as sent, and gone for one that trims it first, so
+# the gate places both readings and denies when either lands inside.
+
+
+@pytest.fixture
+def blank_named_link(tmp_path):
+    """A link outside the project, named with a trailing blank, pointing at a project file."""
+    link = tmp_path / "l "
+
+    try:
+        link.symlink_to(REPO_ROOT / "AGENTS.md")
+    except OSError:
+        pytest.skip("symlink creation is not permitted in this environment")
+
+    return link
+
+
+@pytest.mark.parametrize("tool", ["Write", "Edit"])
+def test_an_edit_path_with_a_trailing_blank_is_placed_as_sent(blank_named_link, tool):
+    # Given a path whose trimmed form names a file outside the project that does not exist
+    payload = {"tool_name": tool, "tool_input": {"file_path": str(blank_named_link)}}
+
+    # When/Then the link it names as sent leads into the project
+    assert decision(payload) == "deny"
+
+
+def test_an_edit_path_with_a_leading_blank_is_placed_as_sent():
+    # Given a path that is absolute once trimmed, and relative to the project as sent
+    payload = {"tool_name": "Write", "tool_input": {"file_path": " /../AGENTS.md"}}
+
+    # When/Then a host joining it to the project directory writes AGENTS.md there
+    assert decision(payload) == "deny"
+
+
+def test_a_runner_edit_path_with_a_trailing_blank_is_placed_as_sent(blank_named_link):
+    payload = envelope(tool="write", tool_input={"filePath": str(blank_named_link)}, agent="build", subagent=False)
+
+    code, out, err = run(payload, "plain")
+
+    assert code == 2
+    assert str(blank_named_link) in err
+
+
+def test_an_edit_path_trimmed_into_the_project_still_denies(tmp_path):
+    # Given a path outside the project as sent, whose trimmed form is a project file
+    payload = {"tool_name": "Write", "tool_input": {"file_path": str(REPO_ROOT / "AGENTS.md") + " "}}
+
+    # When/Then a host that trims it writes the project file
+    assert decision(payload) == "deny"
+
+
+def test_an_edit_path_outside_the_project_either_way_is_allowed(tmp_path):
+    payload = {"tool_name": "Write", "tool_input": {"file_path": str(tmp_path / "out.txt") + " "}}
+
+    assert decision(payload) == "allow"
+
+
+def test_a_powershell_pipeline_path_with_a_trailing_blank_is_placed_as_sent(blank_named_link):
+    command = f"'{blank_named_link}' | Set-Content -Value x"
+
+    assert decision(shell(command, tool="PowerShell")) == "deny"
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["Set-Content -Path ' nul' -Value x", "'x' > ' nul'", "Set-Content -Path ' $null' -Value x", "' nul' | Set-Content -Value x"],
+    ids=["set-content", "redirect", "variable-spelling", "pipeline"],
+)
+def test_a_powershell_null_device_spelled_with_a_blank_is_a_project_file(command):
+    # Given a leading blank, which makes the name an ordinary file in the project rather than the device
+    # When/Then
+    assert decision(shell(command, tool="PowerShell")) == "deny"
+
+
 def test_edit_tool_windows_drive_relative_path_denies():
     # Given a drive-relative path (a drive letter with no root separator):
     # Windows reads "D:app.py" as "app.py in the current directory of drive
@@ -6013,12 +6088,22 @@ def test_a_powershell_carriage_return_still_ends_a_statement():
         (" /dev/null", False, False),
         ("/dev/null ", False, False),
         ("/DEV/NULL", True, True),
-        (" $NULL ", True, True),
+        (" $NULL ", True, False),
+        (" nul", True, False),
+        ("nul ", True, False),
         ("nul", False, False),
     ],
 )
 def test_only_the_exact_posix_null_device_is_the_device_outside_powershell(target, powershell, expected):
     assert GATE._is_null_device(target, powershell) is expected
+
+
+@pytest.mark.parametrize(
+    ("target", "expected"),
+    [("env:PATH", True), ("Function:prompt", True), (" env:PATH", False), (" Function:prompt", False)],
+)
+def test_a_powershell_provider_path_names_no_file_only_as_spelled(target, expected):
+    assert GATE._names_no_file(target, True) is expected
 
 
 def test_main_thread_redirect_to_a_spaced_null_device_name_is_a_repository_write():

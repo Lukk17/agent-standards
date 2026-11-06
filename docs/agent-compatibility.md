@@ -306,7 +306,9 @@ exactly as sent, so a folder named with a trailing blank is never read as the fo
 user-level install in [GLOBAL_SETUP.md](GLOBAL_SETUP.md) protect the open project instead of everything the user owns.
 A relative path resolves against whichever directory a leading `cd` in the command moved to, and against every root
 when the command never changed directory. On Windows, a Git Bash drive path such as `/c/Users/x` is read as
-`C:/Users/x` before it is placed, for a `cd` operand and a write target alike.
+`C:/Users/x` before it is placed, for a `cd` operand and a write target alike. An edit tool's path and a path a
+PowerShell pipeline feeds a cmdlet are placed both exactly as sent and trimmed, and either reading inside denies,
+because a host that keeps a blank at either end writes through `/tmp/l ` or joins ` /../AGENTS.md` to the project.
 
 Deleting, moving, or renaming the repository root or any directory above it counts as a write inside it, so
 `rm -rf ..`, `rm -rf ~`, `Remove-Item -Recurse` or `rmdir /s` on a parent, and `mv` or `Move-Item` of a parent are
@@ -315,7 +317,7 @@ path it could match, compared one component at a time and case-insensitively on 
 above it, or a path inside it, so `rm -rf ../agent-*` and `Remove-Item ..\*` are denied.
 
 A write outside the repository, a write to the null device or to a PowerShell drive that holds no files such as `Env:`
-or `Function:`, a write to `tasks.md` at the project root, and git branch switching stay allowed, so the main thread
+or `Function:`, each spelled with no blank around it, a write to `tasks.md` at the project root, and git branch switching stay allowed, so the main thread
 keeps full use of git and keeps ownership of its own task list.
 
 #### How the write rule reads a command
