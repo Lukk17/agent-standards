@@ -6688,7 +6688,7 @@ def _enter_directory(operands: List[str]) -> None:
     for base in bases:
         try:
             resolved = _resolve(target if target.is_absolute() else (base / target))
-        except (OSError, ValueError):
+        except (OSError, ValueError, RuntimeError):
             continue
 
         if resolved.is_dir() and resolved not in landings:
@@ -6983,7 +6983,7 @@ def _resolves_inside_repo(target: str) -> bool:
     for base in bases:
         try:
             resolved = _resolve(path if path.is_absolute() else (base / path))
-        except (OSError, ValueError):
+        except (OSError, ValueError, RuntimeError):
             return True
 
         if _is_unplaceable_windows_path(str(resolved)) or any(_is_within(resolved, root) for root in roots):
@@ -7010,7 +7010,7 @@ def _path_exists_in_repo(candidate: str) -> bool:
         try:
             if _resolve(path if path.is_absolute() else (base / path)).exists():
                 return True
-        except (OSError, ValueError):
+        except (OSError, ValueError, RuntimeError):
             return True
 
     return False
@@ -7033,7 +7033,7 @@ def _is_task_list(target: str) -> bool:
     for base in bases:
         try:
             resolved = _resolve(path if path.is_absolute() else (base / path))
-        except (OSError, ValueError):
+        except (OSError, ValueError, RuntimeError):
             continue
 
         if any(_same_path(resolved, root, root / TASK_LIST_NAME) for root in roots):
@@ -7102,7 +7102,7 @@ def _contains_repo(target: str) -> bool:
     for base in bases:
         try:
             resolved = _resolve(path if path.is_absolute() else (base / path))
-        except (OSError, ValueError):
+        except (OSError, ValueError, RuntimeError):
             return True
 
         if any(_is_above(resolved, root) for root in roots):
@@ -7144,10 +7144,11 @@ def _install_root() -> Optional[Path]:
 
     try:
         home = Path.home().resolve()
+        installed = home.joinpath(*GLOBAL_INSTALL_DIRECTORY).resolve()
     except (OSError, ValueError, RuntimeError):
         return root
 
-    return home if script.parent.parent == home.joinpath(*GLOBAL_INSTALL_DIRECTORY).resolve() else root
+    return home if script.parent.parent == installed else root
 
 
 def _script_root() -> Optional[Path]:
@@ -7188,7 +7189,7 @@ def _roots() -> List[Path]:
 
         try:
             resolved = _resolve(candidate)
-        except (OSError, ValueError):
+        except (OSError, ValueError, RuntimeError):
             continue
 
         if resolved not in roots:

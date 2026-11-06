@@ -363,7 +363,10 @@ file handlers, and temporary files created in a named directory.
 
 The gate fails open almost everywhere, but not on the repository boundary. The three helpers that decide it,
 `_resolves_inside_repo`, `_path_exists_in_repo` and `_contains_repo`, fail toward True on a path none of them can
-resolve, which denies, because deciding what Rule A protects is their whole job. On Windows that includes a loopback
+resolve, which denies, because deciding what Rule A protects is their whole job. A symlink loop is such a path:
+Python 3.11 and 3.12 raise `RuntimeError` from `Path.resolve` on one where 3.13 returns the path, and every resolving
+helper reads that error as unplaceable, so a `cd` into a loop is dropped as a `cd` into a missing folder is, and a
+root that loops is dropped too. On Windows that includes a loopback
 UNC path to a share that is not an administrative drive share, such as `\\localhost\share` or `\\127.0.0.1\share`,
 because only the share definition knows which folder it maps to, an administrative drive share such as
 `\\fileserver\C$` on any host, because the gate cannot prove that host is another machine, and a volume GUID or

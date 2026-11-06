@@ -2189,6 +2189,132 @@ def test_a_cd_to_a_directory_that_cannot_be_resolved_drops_the_base(resolution_f
     ]
 
 
+# Python 3.11 and 3.12 raise RuntimeError from Path.resolve(strict=False) on a
+# symlink loop, where 3.13 returns the path. An error the boundary helpers do
+# not catch reaches main()'s catch-all, which allows, so each one has to read
+# the loop as the unplaceable path it is. The fixture raises the way 3.12 does,
+# so these cases hold on every Python.
+
+LOOPING = "loops-forever"
+
+
+@pytest.fixture
+def resolution_loops(monkeypatch):
+    """Make Path.resolve raise RuntimeError for one marked path, as Python 3.12 does on a symlink loop."""
+    real_resolve = GATE.Path.resolve
+
+    def resolve(self, strict=False):
+        if LOOPING in str(self):
+            raise RuntimeError(f"Symlink loop from {str(self)!r}")
+
+        return real_resolve(self, strict=strict)
+
+    monkeypatch.setattr(GATE.Path, "resolve", resolve)
+
+
+def test_a_looping_path_counts_as_inside_the_repository(resolution_loops):
+    assert GATE._resolves_inside_repo(LOOPING + "/AGENTS.md") is True
+
+
+def test_a_looping_git_operand_counts_as_an_existing_path(resolution_loops):
+    assert GATE._path_exists_in_repo(LOOPING + "/AGENTS.md") is True
+
+
+def test_a_looping_path_is_never_mistaken_for_the_task_list(resolution_loops):
+    assert GATE._is_task_list(LOOPING + "/tasks.md") is False
+    assert GATE._is_write_target(LOOPING + "/tasks.md") is True
+
+
+def test_a_looping_path_counts_as_containing_the_repository(resolution_loops):
+    assert GATE._contains_repo("/elsewhere/" + LOOPING) is True
+
+
+def test_a_cd_into_a_looping_directory_drops_the_base(resolution_loops):
+    # Given a cd the shell refuses with "Too many levels of symbolic links", then a write
+    # When/Then the shell stays where it was, so the roots decide the write
+    assert GATE._shell_targets("cd /elsewhere/" + LOOPING + "; echo x > AGENTS.md") == ["AGENTS.md"]
+
+
+def test_a_looping_payload_root_is_dropped_rather_than_raised(resolution_loops, monkeypatch):
+    # Given a payload cwd that loops
+    monkeypatch.setattr(GATE, "_PAYLOAD_ROOT", Path("/elsewhere/" + LOOPING))
+
+    # When/Then the root is dropped and the others stand
+    assert all(LOOPING not in str(root) for root in GATE._roots())
+    assert GATE._roots()
+
+
+def test_a_looping_global_install_folder_leaves_the_install_root_in_place(resolution_loops, monkeypatch, tmp_path):
+    # Given a home whose global install folder loops, which the main thread may plant outside the project
+    monkeypatch.setattr(GATE.Path, "home", classmethod(lambda cls: tmp_path))
+    monkeypatch.setattr(GATE, "GLOBAL_INSTALL_DIRECTORY", (".config", LOOPING))
+
+    # When/Then the gate is not installed there, so its own project stays the install root
+    assert GATE._install_root() == PREFLIGHT_GATE.resolve().parents[2]
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        shell("cd /elsewhere/" + LOOPING + "; echo x > AGENTS.md"),
+        shell("rm -rf /elsewhere/" + LOOPING),
+        edit("/elsewhere/" + LOOPING + "/x.py"),
+        {**edit("AGENTS.md"), "cwd": "/elsewhere/" + LOOPING},
+    ],
+    ids=["cd-then-write", "remove", "edit-through-loop", "looping-payload-cwd"],
+)
+def test_a_main_thread_write_past_a_symlink_loop_is_denied(resolution_loops, payload):
+    assert decision(payload) == "deny"
+
+
+def test_a_looping_global_install_folder_still_denies_a_main_thread_write(resolution_loops, monkeypatch, tmp_path):
+    monkeypatch.setattr(GATE.Path, "home", classmethod(lambda cls: tmp_path))
+    monkeypatch.setattr(GATE, "GLOBAL_INSTALL_DIRECTORY", (".config", LOOPING))
+
+    assert decision(edit("AGENTS.md")) == "deny"
+
+
+def _interpreters():
+    """This interpreter plus every 3.11 and 3.12 on PATH, the versions whose resolve raises on a loop."""
+    found = {sys.executable}
+
+    for name in ("python3.11", "python3.12"):
+        path = shutil.which(name)
+
+        if path:
+            found.add(path)
+
+    return sorted(found)
+
+
+@pytest.mark.parametrize("interpreter", _interpreters())
+def test_a_real_symlink_loop_before_a_write_is_denied(tmp_path, interpreter):
+    # Given a link that points at itself, so `cd` into it fails and the shell stays in the project
+    loop = tmp_path / "loop"
+
+    try:
+        loop.symlink_to(loop)
+    except OSError:
+        pytest.skip("symlink creation is not permitted in this environment")
+
+    command = f"cd {loop.as_posix()}; echo x > AGENTS.md"
+
+    # When
+    result = run_bounded(
+        [interpreter, "-S", "-E", str(PREFLIGHT_GATE), "--format", "claude"],
+        input=json.dumps(shell(command)),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(REPO_ROOT),
+        timeout=SUBPROCESS_TIMEOUT_SECONDS,
+    )
+
+    # Then
+    assert result.returncode == 0
+    assert json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
 # Rule B reads agent_type, and a name that could walk out of the agent trees
 # is refused a lookup rather than resolved.
 
