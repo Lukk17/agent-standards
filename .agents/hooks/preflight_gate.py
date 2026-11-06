@@ -918,8 +918,11 @@ _PS_ENCODED_FLAG = "-encodedcommand"
 _PS_ENCODED_ALIASES = {"-e", "-ec"}
 _PS_MIN_PREFIX = 4
 
-class _Wrapper(NamedTuple):
-    """How one wrapper's own options read, so the words after them are the command it runs.
+class _OptionSpec(NamedTuple):
+    """How one program's own options read, for _read_options and _wrapper_options.
+
+    For a wrapper it is what lets the words after its options be read as the
+    command it runs.
 
     `values` take a value, attached (`-D/tmp`, `--chdir=/tmp`) or as the
     next word, and `optional` take one only attached. `long_flags` are the
@@ -942,15 +945,26 @@ class _Wrapper(NamedTuple):
     operands: int = 0
 
 
-_NO_OPTIONS = _Wrapper()
+class _Options(NamedTuple):
+    """What _read_options found: every option with its value, in order, and the operands."""
+
+    options: List[Tuple[str, Optional[str]]]
+    operands: List[str]
+
+    @property
+    def names(self) -> Set[str]:
+        return {name for name, _value in self.options}
+
+
+_NO_OPTIONS = _OptionSpec()
 _RUNUSER_VALUES = frozenset({"-u", "--user", "-g", "--group", "-G", "--supp-group", "-w", "--whitelist-environment"})
 # Each wrapper's own options, from its --help and manual page: coreutils env,
 # nice, nohup, stdbuf, timeout and time, sudo and doas, util-linux ionice,
 # taskset, chrt, prlimit, setsid and runuser, and the tracing and sandboxing
 # wrappers. An option missing here reads as a flag, so its value would be
 # read as the command, which only ever reads more.
-_WRAPPERS: Dict[str, _Wrapper] = {
-    "env": _Wrapper(
+_WRAPPERS: Dict[str, _OptionSpec] = {
+    "env": _OptionSpec(
         values=frozenset({"-u", "--unset", "-C", "--chdir", "-S", "--split-string", "-a", "--argv0"}),
         long_flags=frozenset({
             "--ignore-environment", "--null", "--debug", "--help", "--version", "--block-signal",
@@ -959,7 +973,7 @@ _WRAPPERS: Dict[str, _Wrapper] = {
         chdir=frozenset({"-C", "--chdir"}),
         split=frozenset({"-S", "--split-string"}),
     ),
-    "sudo": _Wrapper(
+    "sudo": _OptionSpec(
         values=frozenset({
             "-u", "--user", "-g", "--group", "-p", "--prompt", "-C", "--close-from", "-h", "--host", "-r", "--role",
             "-t", "--type", "-T", "--command-timeout", "-U", "--other-user", "-D", "--chdir", "-R", "--chroot",
@@ -972,29 +986,29 @@ _WRAPPERS: Dict[str, _Wrapper] = {
         chdir=frozenset({"-D", "--chdir"}),
         unplaceable=frozenset({"-R", "--chroot"}),
     ),
-    "doas": _Wrapper(values=frozenset({"-u", "-C"})),
-    "exec": _Wrapper(values=frozenset({"-a"})),
-    "setsid": _Wrapper(long_flags=frozenset({"--ctty", "--fork", "--wait", "--help", "--version"})),
-    "stdbuf": _Wrapper(values=frozenset({"-i", "-o", "-e", "--input", "--output", "--error"})),
-    "nice": _Wrapper(values=frozenset({"-n", "--adjustment"})),
-    "ionice": _Wrapper(
+    "doas": _OptionSpec(values=frozenset({"-u", "-C"})),
+    "exec": _OptionSpec(values=frozenset({"-a"})),
+    "setsid": _OptionSpec(long_flags=frozenset({"--ctty", "--fork", "--wait", "--help", "--version"})),
+    "stdbuf": _OptionSpec(values=frozenset({"-i", "-o", "-e", "--input", "--output", "--error"})),
+    "nice": _OptionSpec(values=frozenset({"-n", "--adjustment"})),
+    "ionice": _OptionSpec(
         values=frozenset({"-c", "--class", "-n", "--classdata", "-p", "--pid", "-P", "--pgid", "-u", "--uid"}),
         long_flags=frozenset({"--ignore", "--help", "--version"}),
     ),
-    "time": _Wrapper(
+    "time": _OptionSpec(
         values=frozenset({"-f", "--format", "-o", "--output"}),
         long_flags=frozenset({"--append", "--portability", "--quiet", "--verbose", "--help", "--version"}),
         writes=frozenset({"-o", "--output"}),
     ),
-    "timeout": _Wrapper(
+    "timeout": _OptionSpec(
         values=frozenset({"-s", "--signal", "-k", "--kill-after"}),
         long_flags=frozenset({"--preserve-status", "--foreground", "--verbose", "--help", "--version"}),
         operands=1,
     ),
-    "pkexec": _Wrapper(values=frozenset({"--user"}), long_flags=frozenset({"--disable-internal-agent", "--keep-cwd", "--help", "--version"})),
-    "runuser": _Wrapper(values=_RUNUSER_VALUES),
-    "taskset": _Wrapper(long_flags=frozenset({"--all-tasks", "--cpu-list", "--pid", "--help", "--version"}), operands=1),
-    "chrt": _Wrapper(
+    "pkexec": _OptionSpec(values=frozenset({"--user"}), long_flags=frozenset({"--disable-internal-agent", "--keep-cwd", "--help", "--version"})),
+    "runuser": _OptionSpec(values=_RUNUSER_VALUES),
+    "taskset": _OptionSpec(long_flags=frozenset({"--all-tasks", "--cpu-list", "--pid", "--help", "--version"}), operands=1),
+    "chrt": _OptionSpec(
         values=frozenset({"-T", "--sched-runtime", "-P", "--sched-period", "-D", "--sched-deadline"}),
         long_flags=frozenset({
             "--all-tasks", "--batch", "--deadline", "--fifo", "--idle", "--other", "--rr", "--reset-on-fork", "--max",
@@ -1002,12 +1016,12 @@ _WRAPPERS: Dict[str, _Wrapper] = {
         }),
         operands=1,
     ),
-    "prlimit": _Wrapper(
+    "prlimit": _OptionSpec(
         values=frozenset({"-p", "--pid", "-o", "--output"}),
         optional=frozenset("-" + letter for letter in "cdefilmnqrstuvxy"),
     ),
     "unbuffer": _NO_OPTIONS,
-    "rlwrap": _Wrapper(
+    "rlwrap": _OptionSpec(
         values=frozenset({
             "-b", "-C", "-D", "-e", "-f", "-F", "-g", "-H", "-l", "-O", "-P", "-q", "-M", "-s", "-S", "-t", "-w", "-z",
             "--break-chars", "--command-name", "--history-no-dupes", "--extra-char-after-completion", "--file",
@@ -1018,7 +1032,7 @@ _WRAPPERS: Dict[str, _Wrapper] = {
         optional=frozenset({"-a", "-p", "-m"}),
         writes=frozenset({"-l", "--logfile", "-H", "--history-filename"}),
     ),
-    "strace": _Wrapper(
+    "strace": _OptionSpec(
         values=frozenset({
             "-e", "-o", "-p", "-s", "-u", "-E", "-a", "-b", "-I", "-O", "-S", "-P", "-X", "-U", "--output", "--attach",
             "--string-limit", "--user", "--env", "--columns", "--detach-on", "--interruptible", "--summary-sort-by",
@@ -1026,30 +1040,30 @@ _WRAPPERS: Dict[str, _Wrapper] = {
         }),
         writes=frozenset({"-o", "--output"}),
     ),
-    "ltrace": _Wrapper(
+    "ltrace": _OptionSpec(
         values=frozenset({
             "-o", "--output", "-e", "-p", "-s", "-u", "-a", "--align", "-A", "-D", "--debug", "-F", "--config", "-l",
             "--library", "-n", "--indent", "-w", "--where", "-x",
         }),
         writes=frozenset({"-o", "--output"}),
     ),
-    "fakeroot": _Wrapper(values=frozenset({"-l", "--lib", "--faked", "-s", "-i", "-b"}), writes=frozenset({"-s"})),
-    "firejail": _Wrapper(
+    "fakeroot": _OptionSpec(values=frozenset({"-l", "--lib", "--faked", "-s", "-i", "-b"}), writes=frozenset({"-s"})),
+    "firejail": _OptionSpec(
         unplaceable=frozenset({
             "--chroot", "--private", "--private-home", "--private-cwd", "--overlay", "--overlay-named",
             "--overlay-tmpfs", "--bind", "--tmpfs",
         }),
     ),
-    "numactl": _Wrapper(
+    "numactl": _OptionSpec(
         values=frozenset({
             "-C", "--physcpubind", "-N", "--cpunodebind", "-m", "--membind", "-i", "--interleave", "-p", "--preferred",
             "-P", "--preferred-many", "-w", "--weighted-interleave",
         }),
     ),
-    "valgrind": _Wrapper(writes=frozenset({"--log-file", "--xml-file"})),
-    "caffeinate": _Wrapper(values=frozenset({"-t", "-w"})),
+    "valgrind": _OptionSpec(writes=frozenset({"--log-file", "--xml-file"})),
+    "caffeinate": _OptionSpec(values=frozenset({"-t", "-w"})),
     # xargs -i, -e and -l take their value attached or not at all.
-    "xargs": _Wrapper(
+    "xargs": _OptionSpec(
         values=frozenset({
             "-n", "--max-args", "-P", "--max-procs", "-I", "-a", "--arg-file", "-d", "--delimiter", "-E", "-L", "-s",
             "--max-chars", "--process-slot-var",
@@ -1063,7 +1077,7 @@ _WRAPPERS: Dict[str, _Wrapper] = {
 }
 _WRAPPERS["gtimeout"] = _WRAPPERS["timeout"]
 # GNU sed's own options, read by the same option reader.
-_SED_OPTIONS = _Wrapper(
+_SED_OPTIONS = _OptionSpec(
     values=frozenset({"-e", "--expression", "-f", "--file", "-l", "--line-length"}),
     optional=frozenset({"-i"}),
     long_flags=frozenset({
@@ -2240,32 +2254,19 @@ class _SedCall(NamedTuple):
 
 def _sed_call(tokens: List[str]) -> _SedCall:
     """sed's options wherever they sit until `--`, `-i` with its optional attached suffix, long options by prefix."""
-    rest = list(tokens[1:])
-    inplace = False
-    expressions: List[str] = []
-    files: List[str] = []
-    operands: List[str] = []
+    read = _read_options(tokens[1:], _SED_OPTIONS)
+    inplace = bool(read.names & {"-i", "--in-place"})
+    # A short -e or -f with nothing after it is read as an empty value, a
+    # script file the gate cannot read. A long one reads as no value.
+    expressions = _sed_values(read, ("-e", "--expression"))
+    files = _sed_values(read, ("-f", "--file"))
 
-    while rest:
-        word = rest.pop(0)
+    return _SedCall(inplace, expressions, files, read.operands)
 
-        if word == "--":
-            operands += rest
-            break
 
-        if not word.startswith("-") or word == "-":
-            operands.append(word)
-            continue
-
-        for option, value in _wrapper_options(word, _SED_OPTIONS, rest):
-            if option in ("-i", "--in-place"):
-                inplace = True
-            elif option in ("-e", "--expression") and value is not None:
-                expressions.append(value)
-            elif option in ("-f", "--file") and value is not None:
-                files.append(value)
-
-    return _SedCall(inplace, expressions, files, operands)
+def _sed_values(read: _Options, names: Tuple[str, str]) -> List[str]:
+    """The values of one sed option, a short one with nothing after it read as empty, a long one as absent."""
+    return [value or "" for option, value in read.options if option in names and (value is not None or option == names[0])]
 
 
 def _inplace_targets(name: str, tokens: List[str], powershell: bool = False) -> List[str]:
@@ -2827,7 +2828,7 @@ def _loads_unread_code(module: str) -> bool:
     if top not in getattr(sys, "stdlib_module_names", frozenset()):
         return True
 
-    bases = _CD_BASE if _CD_BASE is not None else tuple(_roots())
+    bases = _current_bases()
     shadows = (top + ".py", top + ".pyc", top + ".pyd", top + ".so", top + "/__init__.py")
 
     for base in bases:
@@ -3273,7 +3274,7 @@ def _is_existing_directory(target: str) -> bool:
         return False
 
     path = _as_path(target)
-    bases = _CD_BASE if _CD_BASE is not None else tuple(_roots())
+    bases = _current_bases()
 
     for base in bases:
         try:
@@ -4744,7 +4745,7 @@ def _after_cmd_condition(rest: List[str]) -> List[str]:
     return rest[index + 1 :] if index < len(rest) and "==" in rest[index] else rest[index:]
 
 
-def _long_option(name: str, spec: _Wrapper) -> str:
+def _long_option(name: str, spec: _OptionSpec) -> str:
     """The long option a word names, an unambiguous prefix read as the whole option, as getopt_long reads it."""
     options = {option for option in spec.values | spec.long_flags | spec.writes | spec.unplaceable if option.startswith("--")}
 
@@ -4756,11 +4757,19 @@ def _long_option(name: str, spec: _Wrapper) -> str:
     return matches[0] if len(matches) == 1 else name
 
 
-def _wrapper_options(word: str, spec: _Wrapper, rest: List[str]) -> List[Tuple[str, Optional[str]]]:
-    """Every option one word of a wrapper sets, with its value, a separate value word popped from rest."""
-    if word.startswith("--"):
+def _wrapper_options(
+    word: str, spec: _OptionSpec, rest: List[str], clusters: bool = True
+) -> List[Tuple[str, Optional[str]]]:
+    """Every option one word sets, with its value, a separate value word popped from rest.
+
+    A long option is read by its unambiguous prefix, as getopt_long reads it.
+    A cluster such as `-lc` sets each letter, up to one that takes a value,
+    unless `clusters` is False, as for socat, whose `-lf` is one option. A
+    value option with no value left reports None.
+    """
+    if word.startswith("--") or not clusters:
         name, equals, attached = word.partition("=")
-        name = _long_option(name, spec)
+        name = _long_option(name, spec) if word.startswith("--") else name
 
         if equals:
             return [(name, attached)]
@@ -4773,7 +4782,7 @@ def _wrapper_options(word: str, spec: _Wrapper, rest: List[str]) -> List[Tuple[s
         option = "-" + letter
 
         if option in spec.values:
-            options.append((option, word[position:] or (rest.pop(0) if rest else "")))
+            options.append((option, word[position:] or (rest.pop(0) if rest else None)))
             break
 
         if option in spec.optional:
@@ -4783,6 +4792,38 @@ def _wrapper_options(word: str, spec: _Wrapper, rest: List[str]) -> List[Tuple[s
         options.append((option, None))
 
     return options
+
+
+def _read_options(words: List[str], spec: _OptionSpec, permute: bool = True, clusters: bool = True) -> _Options:
+    """Every option and operand in words, read by spec through _wrapper_options.
+
+    With `permute`, options are read wherever they sit until `--`, the way
+    getopt permutes them. Without it they end at the first operand, as a
+    shell's own options and POSIX getopt do. A lone `-` is an operand.
+    """
+    rest = list(words)
+    options: List[Tuple[str, Optional[str]]] = []
+    operands: List[str] = []
+
+    while rest:
+        word = rest.pop(0)
+
+        if word == "--":
+            operands += rest
+            break
+
+        if not word.startswith("-") or word == "-":
+            operands.append(word)
+
+            if not permute:
+                operands += rest
+                break
+
+            continue
+
+        options += _wrapper_options(word, spec, rest, clusters)
+
+    return _Options(options, operands)
 
 
 def _xargs_replacement(option: str, value: Optional[str]) -> str:
@@ -4875,8 +4916,7 @@ def _strip_wrappers(tokens: List[str], dialect: str = _POSIX) -> Optional[_Strip
             if word == "--":
                 break
 
-            # command -v and -V describe the name after them and run nothing.
-            if name == "command" and not word.startswith("--") and set(word[1:]) & {"v", "V"}:
+            if _only_describes(name, word):
                 return _Stripped([], xargs, replace, tuple(directories), tuple(writes))
 
             for option, value in _wrapper_options(word, spec, rest):
@@ -4909,19 +4949,21 @@ def _strip_wrappers(tokens: List[str], dialect: str = _POSIX) -> Optional[_Strip
         xargs = xargs or name == "xargs"
 
 
+def _only_describes(name: str, word: str) -> bool:
+    """True for `command -v` and `command -V`, alone or in a cluster, which describe the name after them and run nothing."""
+    return name == "command" and word.startswith("-") and not word.startswith("--") and bool(set(word[1:]) & {"v", "V"})
+
+
 def _runuser_wraps(tokens: List[str]) -> bool:
     """True when runuser names its user with -u, the form that runs the words after it as a command.
 
     Its options are read with their values, so `runuser -g wheel -u nobody id`
     reaches the -u after the group.
     """
-    rest = list(tokens[1:])
+    # runuser reads a lone `-` as -l, so it is no operand here.
+    words = [word for word in tokens[1:] if word != "-"]
 
-    while rest and rest[0].startswith("-") and rest[0] != "--":
-        if any(name in ("-u", "--user") for name, _value in _wrapper_options(rest.pop(0), _WRAPPERS["runuser"], rest)):
-            return True
-
-    return False
+    return bool(_read_options(words, _WRAPPERS["runuser"], permute=False).names & {"-u", "--user"})
 
 
 def _sets_unplaceable_environment(tokens: List[str], dialect: str) -> bool:
@@ -5120,7 +5162,7 @@ def _read_script(target: str) -> Optional[str]:
         return None
 
     path = _as_path(target)
-    bases = _CD_BASE if _CD_BASE is not None else tuple(_roots())
+    bases = _current_bases()
     texts: Set[str] = set()
 
     for base in bases:
@@ -5355,7 +5397,7 @@ def _code_runner_targets(
     # fish, csh, tcsh, nu and Tcl code is not read, so inline or piped code
     # for them is unplaceable. A script they run is Rule D's.
     if name in _OTHER_SHELLS or name == "tclsh":
-        inline = name in _OTHER_SHELLS and bool(_option_scan(rest[1:], frozenset())[0] & _OTHER_SHELL_INLINE)
+        inline = name in _OTHER_SHELLS and bool(_option_scan(rest[1:], frozenset(), known=_OTHER_SHELL_INLINE)[0] & _OTHER_SHELL_INLINE)
 
         return [_UNPLACEABLE_SHELL_TARGET] if inline or feed() is not None else None
 
@@ -5456,7 +5498,7 @@ def _shell_script(name: str, tokens: List[str]) -> str:
 
 
 # su's and runuser's own options, from util-linux su(1) and runuser(1).
-_SU_OPTIONS = _Wrapper(
+_SU_OPTIONS = _OptionSpec(
     values=frozenset({
         "-c", "--command", "--session-command", "-s", "--shell", "-g", "--group", "-G", "--supp-group", "-u",
         "--user", "-w", "--whitelist-environment",
@@ -5473,23 +5515,9 @@ def _su_code(tokens: List[str]) -> str:
     them, so `su nobody -c id` and `su -lc id nobody` both run `id`. The
     last one given wins, as getopt leaves it.
     """
-    rest = list(tokens[1:])
-    code = ""
+    commands = [value for option, value in _read_options(tokens[1:], _SU_OPTIONS).options if option in _SU_COMMANDS]
 
-    while rest:
-        word = rest.pop(0)
-
-        if word == "--":
-            break
-
-        if not word.startswith("-") or word == "-":
-            continue
-
-        for option, value in _wrapper_options(word, _SU_OPTIONS, rest):
-            if option in _SU_COMMANDS and value:
-                code = value
-
-    return code
+    return next((value for value in reversed(commands) if value), "")
 
 
 def _option_value(tokens: List[str], names: Tuple[str, ...]) -> str:
@@ -6778,7 +6806,7 @@ def _runs_a_script(tokens: List[str], dialect: str) -> bool:
         return True
 
     if name in _OTHER_SHELLS:
-        names, operands = _option_scan(tokens[1:], _OTHER_SHELL.values)
+        names, operands = _option_scan(tokens[1:], _OTHER_SHELL.values, known=_OTHER_SHELL_INLINE | _OTHER_SHELL.stays)
 
         return not names & _OTHER_SHELL_INLINE and bool(operands) and operands[0] != "-"
 
@@ -7126,72 +7154,28 @@ _SHELL_STARTING_LONG_FLAGS = frozenset({"--shell", "--login"})
 _BARE_SHELL_WRAPPERS = frozenset({"pkexec", "fakeroot", "firejail"})
 
 
-def _short_flags(token: str, values: AbstractSet[str]) -> Set[str]:
-    """Every flag a word spells, `-ic` as `-i` and `-c`, stopping where a flag takes the rest as its value."""
-    if not token.startswith("-") or token.startswith("--") or len(token) < 2:
-        return {token.split("=", 1)[0]}
+def _program_flags(tokens: List[str], values: AbstractSet[str], known: AbstractSet[str] = frozenset()) -> Set[str]:
+    """Every flag before the first operand, its value words skipped.
 
-    flags: Set[str] = set()
+    `known` names the flags the caller checks for, so a long prefix reads
+    as one of them or as a value option only when it is unambiguous among
+    all of them.
+    """
+    spec = _OptionSpec(values=frozenset(values), long_flags=frozenset(known))
 
-    for letter in token[1:]:
-        flags.add("-" + letter)
-
-        if "-" + letter in values:
-            break
-
-    return flags
+    return _read_options(tokens[1:], spec, permute=False).names
 
 
-def _program_flags(tokens: List[str], values: AbstractSet[str]) -> Set[str]:
-    """Every flag before the first operand, its value words skipped."""
-    flags: Set[str] = set()
-    index = 1
+def _option_scan(
+    words: List[str], values: AbstractSet[str], clusters: bool = True, known: AbstractSet[str] = frozenset()
+) -> Tuple[Set[str], List[str]]:
+    """Every option name and every operand, options read wherever they sit until `--`, value words skipped.
 
-    while index < len(tokens):
-        token = tokens[index]
+    `known` is as for _program_flags.
+    """
+    read = _read_options(words, _OptionSpec(values=frozenset(values), long_flags=frozenset(known)), clusters=clusters)
 
-        if token == "--" or not token.startswith("-") or token == "-":
-            break
-
-        flags |= _short_flags(token, values)
-        index += 2 if token in values else 1
-
-    return flags
-
-
-def _option_scan(words: List[str], values: AbstractSet[str], clusters: bool = True) -> Tuple[Set[str], List[str]]:
-    """Every option name and every operand, options read wherever they sit until `--`, value words skipped."""
-    names: Set[str] = set()
-    operands: List[str] = []
-    index = 0
-
-    while index < len(words):
-        word = words[index]
-        index += 1
-
-        if word == "--":
-            operands += words[index:]
-            break
-
-        if not word.startswith("-") or word == "-":
-            operands.append(word)
-            continue
-
-        name, equals, _value = word.partition("=")
-
-        if word.startswith("--") or not clusters:
-            names.add(name)
-            index += 1 if name in values and not equals else 0
-            continue
-
-        for position, letter in enumerate(word[1:], start=2):
-            names.add("-" + letter)
-
-            if "-" + letter in values:
-                index += 1 if position == len(word) else 0
-                break
-
-    return names, operands
+    return read.names, read.operands
 
 
 def _names_one_of(names: AbstractSet[str], options: AbstractSet[str]) -> bool:
@@ -7203,7 +7187,8 @@ def _names_one_of(names: AbstractSet[str], options: AbstractSet[str]) -> bool:
 
 
 def _console_waits(console: _Console, tokens: List[str], fed: bool) -> bool:
-    names, operands = _option_scan(tokens[1:], console.values, console.clusters)
+    known = console.done | console.stays
+    names, operands = _option_scan(tokens[1:], console.values, console.clusters, known)
 
     if names & console.stays:
         return True
@@ -7214,11 +7199,11 @@ def _console_waits(console: _Console, tokens: List[str], fed: bool) -> bool:
     if 0 <= console.command_operand < len(operands):
         return False
 
-    return not any(operand.lower().endswith(console.script_suffixes) for operand in operands if console.script_suffixes)
+    return not (console.script_suffixes and any(operand.lower().endswith(console.script_suffixes) for operand in operands))
 
 
-def _socat_waits(tokens: List[str]) -> bool:
-    """socat hands the terminal to a program through an EXEC, SYSTEM, SHELL or PTY address."""
+def _socat_waits(tokens: List[str], _fed: bool = False) -> bool:
+    """socat hands the terminal to a program through an EXEC, SYSTEM, SHELL or PTY address, whatever is piped in."""
     names, operands = _option_scan(tokens[1:], _SOCAT_VALUE_FLAGS, clusters=False)
 
     if names & _SOCAT_INFO_FLAGS:
@@ -7227,8 +7212,8 @@ def _socat_waits(tokens: List[str]) -> bool:
     return any(re.split(r"[:,]", operand, maxsplit=1)[0].lower() in _SOCAT_PROGRAM_ADDRESSES for operand in operands)
 
 
-def _git_waits(tokens: List[str]) -> bool:
-    """git opens an editor or a prompt: a commit with no message, rebase -i, add -p and their kin."""
+def _git_waits(tokens: List[str], _fed: bool = False) -> bool:
+    """git opens an editor or a prompt: a commit with no message, rebase -i, add -p and their kin, whatever is piped in."""
     index = _git_subcommand_index(tokens)
     subcommand = tokens[index] if index < len(tokens) else ""
     words = tokens[index + 1 :]
@@ -7248,7 +7233,8 @@ def _git_waits(tokens: List[str]) -> bool:
             return False
 
         words = words[1:]
-    names, _operands = _option_scan(words, _GIT_PROMPT_VALUES.get(subcommand, frozenset()))
+    known = prompts | (_GIT_COMMIT_MESSAGES if subcommand == "commit" else frozenset())
+    names, _operands = _option_scan(words, _GIT_PROMPT_VALUES.get(subcommand, frozenset()), known=known)
 
     if _names_one_of(names, prompts):
         return True
@@ -7289,7 +7275,7 @@ def _git_notes_waits(words: List[str]) -> bool:
     if index >= len(words) or words[index] not in _GIT_NOTES_EDITORS:
         return False
 
-    names, _operands = _option_scan(words[index + 1 :], _GIT_NOTES_VALUES)
+    names, _operands = _option_scan(words[index + 1 :], _GIT_NOTES_VALUES, known=_GIT_NOTES_PROMPTS | _GIT_NOTES_MESSAGES)
 
     return _names_one_of(names, _GIT_NOTES_PROMPTS) or not _names_one_of(names, _GIT_NOTES_MESSAGES)
 
@@ -7337,7 +7323,7 @@ def _deno_waits(tokens: List[str], fed: bool) -> bool:
 
 def _program_waits(spec: _Waiting, tokens: List[str], fed: bool) -> bool:
     """A program from _WAITING_PROGRAMS waits as its spec says."""
-    flags = _program_flags(tokens, spec.values)
+    flags = _program_flags(tokens, spec.values, spec.stays | spec.inline | spec.runs)
 
     if flags & spec.stays:
         return True
@@ -7354,6 +7340,14 @@ def _program_waits(spec: _Waiting, tokens: List[str], fed: bool) -> bool:
     operands = _operands(tokens[1:], spec.values)
 
     return not operands or operands[0] == "-"
+
+
+# Programs whose waiting is read by a function of their own, by name.
+_FAMILY_WAITS: Dict[str, Callable[[List[str], bool], bool]] = {
+    "deno": _deno_waits,
+    "git": _git_waits,
+    "socat": _socat_waits,
+}
 
 
 def _waits_for_typed_input(name: str, tokens: List[str], fed: bool, reads_file: bool = False) -> bool:
@@ -7384,13 +7378,6 @@ def _waits_for_typed_input(name: str, tokens: List[str], fed: bool, reads_file: 
     return spec is not None and _program_waits(spec, tokens, fed)
 
 
-_FAMILY_WAITS: Dict[str, Callable[[List[str], bool], bool]] = {
-    "deno": _deno_waits,
-    "git": lambda tokens, _fed: _git_waits(tokens),
-    "socat": lambda tokens, _fed: _socat_waits(tokens),
-}
-
-
 def _starts_a_shell_of_its_own(tokens: List[str]) -> bool:
     """sudo -s, sudo -i, the doas forms and a bare pkexec, which start a shell when they wrap no command.
 
@@ -7411,7 +7398,7 @@ def _starts_a_shell_of_its_own(tokens: List[str]) -> bool:
 
         short = not token.startswith("--")
 
-        if (last == "command" and short and set(token[1:]) & {"v", "V"}) or token in _INFO_FLAGS:
+        if _only_describes(last, token) or token in _INFO_FLAGS:
             return False
 
         if after_starter and (token in _SHELL_STARTING_LONG_FLAGS or (short and _SHELL_STARTING_FLAGS & set(token[1:]))):
@@ -7437,7 +7424,7 @@ def _project_allowlist() -> List[List[str]]:
 
 def _names_the_same_file(actual: str, expected: str) -> bool:
     """True when a command word and an allowlisted path name one file from every folder the command can stand in."""
-    bases = _CD_BASE if _CD_BASE is not None else tuple(_roots())
+    bases = _current_bases()
     written = _as_path(actual)
 
     try:
@@ -7513,7 +7500,7 @@ def _placed_inside(target: str) -> bool:
 
     path = _as_path(target)
     roots = _allowlist_roots()
-    bases = _CD_BASE if _CD_BASE is not None else tuple(_roots())
+    bases = _current_bases()
 
     for base in bases:
         try:
@@ -7569,7 +7556,7 @@ def _runs_inside_trusted_roots() -> bool:
     other folder, pytest loads that folder's conftest.py and make its
     Makefile, so the entry says nothing there.
     """
-    bases = _CD_BASE if _CD_BASE is not None else tuple(_roots())
+    bases = _current_bases()
     trusted = _allowlist_roots()
 
     if isinstance(bases, _Unfollowed):
@@ -7919,6 +7906,18 @@ def _as_path(target: str) -> Path:
         return path
 
 
+def _current_bases(roots: Optional[List[Path]] = None) -> Tuple[Path, ...]:
+    """The folders a relative path resolves against now: the `cd` bases, or every root when there are none.
+
+    Args:
+        roots: the roots the caller already holds, so they are not read twice.
+    """
+    if _CD_BASE is not None:
+        return _CD_BASE
+
+    return tuple(_roots() if roots is None else roots)
+
+
 def _cd_destination(words: List[str], changer: str, dialect: str) -> Optional[str]:
     """The literal folder a directory change names, or None when the text does not say where it lands.
 
@@ -8022,7 +8021,7 @@ def _enter_directory(operands: List[str], changer: str = "", dialect: str = _POS
     if destination == "":
         return
 
-    bases = _CD_BASE if _CD_BASE is not None else tuple(_roots())
+    bases = _current_bases()
 
     if destination is None:
         _visit_named(operands, bases, dialect)
@@ -8286,7 +8285,7 @@ def _glob_reaches_a_root(target: str, inside: bool) -> bool:
     """_glob_reaches against every root, from every base. Unresolvable is True."""
     path = _as_path(target)
     roots = _roots()
-    bases = _CD_BASE if _CD_BASE is not None else tuple(roots)
+    bases = _current_bases(roots)
 
     for base in bases:
         try:
@@ -8374,7 +8373,7 @@ def _resolves_inside_repo(target: str) -> bool:
 
     path = _as_path(target)
     roots = _roots()
-    bases = _CD_BASE if _CD_BASE is not None else tuple(roots)
+    bases = _current_bases(roots)
 
     for base in bases:
         try:
@@ -8400,7 +8399,7 @@ def _path_exists_in_repo(candidate: str) -> bool:
         return True
 
     path = _as_path(candidate)
-    bases = _CD_BASE if _CD_BASE is not None else tuple(_roots())
+    bases = _current_bases()
 
     for base in bases:
         try:
@@ -8424,7 +8423,7 @@ def _is_task_list(target: str) -> bool:
 
     path = _as_path(target)
     roots = _roots()
-    bases = _CD_BASE if _CD_BASE is not None else tuple(roots)
+    bases = _current_bases(roots)
 
     for base in bases:
         try:
@@ -8493,7 +8492,7 @@ def _contains_repo(target: str) -> bool:
 
     path = _as_path(target)
     roots = _roots()
-    bases = _CD_BASE if _CD_BASE is not None else tuple(roots)
+    bases = _current_bases(roots)
 
     for base in bases:
         try:

@@ -3724,6 +3724,12 @@ WAITING_PROGRAMS = {
     "runuser-login": ("runuser -l nobody", "Bash"),
     "pypy3": ("pypy3", "Bash"),
     "pypy-versioned": ("pypy3.10 -i -c pass", "Bash"),
+    # A deliberate over-deny: firejail's query options list or print the
+    # sandboxes and start no shell, but a bare firejail does, and Rule F
+    # does not tell the queries apart from the options that set one up.
+    "firejail-list": ("firejail --list", "Bash"),
+    "firejail-tree": ("firejail --tree", "Bash"),
+    "firejail-bare": ("firejail", "Bash"),
 }
 
 
