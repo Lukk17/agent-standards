@@ -173,15 +173,20 @@ COMMAND_KEYS = ("command", "cmd", "script")
 # git diff use to name a file a patch adds, changes, deletes, or moves, on
 # either side of the move. Every string value in the tool call is searched
 # rather than one named key (docs/agent-compatibility.md "How the write rule
-# reads a command"). Codex trims each line before it matches a header
+# reads a command"). Codex trims each line before it matches a file header
 # (codex-rs/apply-patch/src/streaming_parser.rs at rust-v0.166.0), so blanks
-# may lead one, any Unicode blank as Rust's str::trim reads it.
+# may lead one, any Unicode blank as Rust's str::trim reads it. It trims only
+# the end of a Move to line (`line.trim_end()`), so blanks may not lead that.
+# A name is read up to its last non-blank character, or as the blanks alone
+# when it has nothing else, in time linear in the line: a lazy name followed
+# by trailing blanks took quadratic time on a long run of blanks.
+_PATCH_NAME = r"(?P<{}>.*\S|[^\S\n]+?)[^\S\n]*$"
 _APPLY_PATCH_FILE_RE = re.compile(
-    r"^[^\S\n]*\*\*\* (?:Update|Add|Delete) File: (?P<named>.+?)\s*$"
-    r"|^\*\*\* Move to: (?P<moved>.+?)\s*$"
-    r"|^\+\+\+ b/(?P<unified>.+?)\s*$"
-    r"|^--- a/(?P<source>.+?)\s*$"
-    r"|^rename (?:from|to) (?P<renamed>.+?)\s*$",
+    r"^[^\S\n]*\*\*\* (?:Update|Add|Delete) File: " + _PATCH_NAME.format("named")
+    + r"|^\*\*\* Move to: " + _PATCH_NAME.format("moved")
+    + r"|^\+\+\+ b/" + _PATCH_NAME.format("unified")
+    + r"|^--- a/" + _PATCH_NAME.format("source")
+    + r"|^rename (?:from|to) " + _PATCH_NAME.format("renamed"),
     re.MULTILINE,
 )
 
@@ -584,6 +589,16 @@ def _payload_root(payload: Dict[str, Any]) -> Optional[Path]:
         return _native_path(value)
     except (OSError, ValueError):
         return None
+
+
+# What a Rule A denial names for an edit path key whose value is neither a
+# string nor null, which the gate cannot place.
+_UNREADABLE_PATH_TARGET = "edit path (a path value that is not a string)"
+
+
+def _unreadable_path(tool_input: Dict[str, Any]) -> bool:
+    """True when a path key holds a value that is neither a string nor null, which a host may still turn into a path."""
+    return any(not isinstance(tool_input.get(key), (str, type(None))) for key in PATH_KEYS)
 
 
 def _direct_targets(tool_input: Dict[str, Any]) -> List[str]:
@@ -9384,6 +9399,9 @@ def _apply_rules(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Opti
         return RULE_C_REASON.format(tool=tool)
 
     if tool in EDIT_TOOLS:
+        if _unreadable_path(tool_input):
+            return RULE_A_REASON.format(target=_UNREADABLE_PATH_TARGET)
+
         targets = _direct_targets(tool_input)
 
         if tool in APPLY_PATCH_TOOLS:

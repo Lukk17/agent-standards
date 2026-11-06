@@ -348,7 +348,8 @@ Reading the tables row by row:
   A REPL and a full-screen editor are held whatever they are handed, a file to edit and piped input included,
   because they read the keyboard from the terminal. A line editor fed by a pipe or a heredoc is left to the other
   rules. `--version`, `--help` and each program's own version and help flags pass while they come before the first
-  operand or `--`, so `sh -s -- --help` is still held, and `command -v` and `command -V`, which only describe a
+  operand or `--`, so `sh -s -- --help` is still held, except for the database shells, the debuggers, `su`, `runuser`
+  and `script`, whose options are read wherever they sit, as getopt permutes them, so `psql app --version` passes, and `command -v` and `command -V`, which only describe a
   name, pass whatever they name. The program is read the way the
   script rule reads it: `env`, `exec`, `command`, `sudo`, `nohup`, `timeout` and the other wrappers are peeled, each
   with its own value flags so `env -i bash` and `exec -a name bash` still name `bash`, a path such as
@@ -434,7 +435,7 @@ the same way it does under `PowerShell`.
 Every wrapper is peeled by its own options, as getopt reads them: a value attached (`sudo -D/tmp`, `ionice -c3`), after
 `=` (`--chdir=/tmp`) or in the next word, and a long option by any unambiguous prefix (`env --chd=/tmp`,
 `xargs --max-pr 1`). The wrappers are `env`, `sudo`, `doas`, `exec`, `command`, `nohup`, `setsid`, `stdbuf`, `nice`,
-`ionice`, `time`, `timeout`, `pkexec`, `runuser -u`, `taskset`, `chrt`, `prlimit`, `unbuffer`, `rlwrap`, `strace`,
+`ionice`, `time`, `timeout`, `gtimeout`, `pkexec`, `runuser -u`, `taskset`, `chrt`, `prlimit`, `unbuffer`, `rlwrap`, `strace`,
 `ltrace`, `fakeroot`, `firejail`, `numactl`, `valgrind`, `caffeinate`, `busybox`, `toybox` and `xargs`. `env -S`
 splits its string the way a shell would, a file a wrapper writes itself (`time -o`, `strace -o`, `ltrace -o`,
 `rlwrap -l`, `fakeroot -s`, `valgrind --log-file`) is a write target, and `mksh` and `yash` are read as POSIX shells.
@@ -503,8 +504,8 @@ Each of the following cannot be placed either and denies on the main thread:
 - A container that binds a path inside or above the repository, `docker` or `podman` `exec`, `start`, `build`, `cp`
   into a container, and `compose up`, `run` or `build`.
 - A job handed to `schtasks /create`, `at`, `batch`, `crontab`, `systemd-run` or `Register-ScheduledTask`.
-- A shell command that is not a string, and a tool the gate does not know that still carries a `command`, `cmd` or
-  `script` value.
+- A shell command that is not a string, an edit path key that holds neither a string nor null, and a tool the gate
+  does not know that still carries a `command`, `cmd` or `script` value.
 - A shell call whose `workdir` resolves to no directory from any root, loops, or names a share the gate cannot map.
 - A command run under `chroot`, `sudo -R` or a firejail option that remaps the file system such as `--private`, an
   `env -S` string holding an escape, a `$` or a `#`, and `strace -o` into a pipe.
@@ -591,6 +592,19 @@ same names piped in, as in `cat list.txt | xargs rm`, and a replace string read 
 `xargs -I{} rm {} < list.txt`, still deny), a `CDPATH` set only by the user's shell profile, which the gate never sees, sends `cd docs` to the first `docs`
 under it while the gate places the command from `./docs`, and the `tasks.md` exemption holds at every root, so a call whose `cwd`
 names a project subfolder, as a Codex `workdir` does from `rust-v0.166.0`, may write `tasks.md` in that subfolder. Re-audit only when the rule changes, and record a new limit here rather than chasing it.
+
+Rule F also reads these forms as handed their input, each an accepted limit:
+
+- `vim -V`, `vi -V1` and `nvim -V` read as a version flag, though there `-V` sets the verbosity and the editor starts.
+- A version or help flag is read without knowing which options of `tmux`, `screen`, the pagers and the editors take a
+  value, so `tmux -LV`, `tmux -f -V`, `screen -S -v` and `less -o -V README.md` pass, though the flag is that option's
+  value and the program starts.
+- `pwsh -File - -?` and `pwsh -Command - -v` pass, though the flag after `-` goes to the script pwsh reads from the
+  terminal.
+- `psql -f -` with nothing piped in passes, because `-f` reads as a script file, though `-` is the terminal.
+
+The write rule reads `gawk -i inplace` and `--include=inplace` as an in-place edit, but not the attached
+`gawk -iinplace`, which passes.
 
 #### MCP tools are not gated
 

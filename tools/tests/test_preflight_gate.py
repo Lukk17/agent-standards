@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path, PurePosixPath
 from typing import NamedTuple
 
@@ -4205,6 +4206,54 @@ def test_an_apply_patch_header_is_placed_beside_a_path_key():
 
 def test_an_edit_whose_every_path_key_is_outside_is_allowed():
     assert decision({"tool_name": "Write", "tool_input": {"file_path": "/tmp/x", "filePath": "/tmp/y"}}) == "allow"
+
+
+@pytest.mark.parametrize(
+    "tool_input",
+    [
+        {"file_path": ["AGENTS.md"]},
+        {"file_path": "/tmp/x", "filePath": {"path": "AGENTS.md"}},
+        {"notebook_path": 7},
+    ],
+    ids=["list", "object-beside-a-string", "number"],
+)
+def test_an_edit_path_key_that_is_not_a_string_cannot_be_placed(tool_input):
+    # Given a path key the gate cannot read, which a host could still turn into a path
+    _code, out, _err = run({"tool_name": "Write", "tool_input": tool_input}, "claude")
+
+    # Then it denies on the main thread, as a shell command that is not a string does
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"].endswith(
+        "Blocked target: " + GATE._UNREADABLE_PATH_TARGET
+    )
+
+
+def test_a_null_edit_path_key_is_read_as_absent():
+    assert decision({"tool_name": "Write", "tool_input": {"file_path": "/tmp/x", "filePath": None}}) == "allow"
+
+
+def test_an_indented_move_to_line_names_no_file():
+    # Codex reads a Move to line with only its end trimmed (`let update_line = line.trim_end();` then
+    # `update_line.strip_prefix(MOVE_TO_MARKER)` in codex-rs/apply-patch/src/streaming_parser.rs at
+    # rust-v0.166.0), so an indented one renames nothing and the gate does not read it as a target either.
+    patch = "*** Begin Patch\n*** Update File: /tmp/x\n  *** Move to: AGENTS.md\n@@\n-a\n+b\n*** End Patch"
+
+    assert GATE._apply_patch_candidates({"input": patch}) == ["/tmp/x"]
+
+
+@pytest.mark.parametrize("header", ["*** Add File: ", "*** Update File: ", "+++ b/", "--- a/", "rename to "])
+def test_a_blank_padded_patch_header_is_read_in_linear_time(header):
+    # Given a header whose name holds a long run of blanks, which a lazy name
+    # followed by trailing blanks reads in quadratic time
+    body = "*** Begin Patch\n" + header + "a" + " " * 200_000 + "b\n*** End Patch\n"
+
+    # When
+    started = time.perf_counter()
+    candidates = GATE._apply_patch_candidates({"input": body})
+    elapsed = time.perf_counter() - started
+
+    # Then the name is read whole, well inside any hook timeout
+    assert candidates == ["a" + " " * 200_000 + "b"]
+    assert elapsed < 2
 
 
 @pytest.mark.parametrize("command", ['cmd /r "echo x > AGENTS.md"', "cmd /R echo x ^> AGENTS.md", 'cmd /q /r "echo x > AGENTS.md"'])
