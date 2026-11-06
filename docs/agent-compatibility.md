@@ -572,9 +572,12 @@ can still be typed into through Codex's `write_stdin`, and so can inline code th
 terminal (Codex starts every such process with `PAGER`, `GIT_PAGER` and `GH_PAGER` set to `cat`,
 [process_manager.rs at rust-v0.166.0](https://raw.githubusercontent.com/openai/codex/rust-v0.166.0/codex-rs/core/src/unified_exec/process_manager.rs),
 fetched 2026-11-06, so git and gh open no pager there unless the user's own login shell exports one, which Codex's
-shell snapshot restores over `cat`, as Rule E above explains), and the `tasks.md` exemption holds at every
-root, so a call whose `cwd` names a project subfolder, as a Codex `workdir` does from `rust-v0.166.0`, may write
-`tasks.md` in that subfolder. Re-audit only when the rule changes, and record a new limit here rather than chasing it.
+shell snapshot restores over `cat`, as Rule E above explains), `xargs` handing a write command names from a file or
+from the terminal passes, as in `xargs rm < list.txt`, `xargs -a list.txt rm` or a bare `xargs rm`, because the lexer
+drops an input redirect and the gate reads neither the file nor what is typed, so it sees `rm` with no operand (the
+same names piped in, as in `cat list.txt | xargs rm`, and a replace string read from either, as in
+`xargs -I{} rm {} < list.txt`, still deny), and the `tasks.md` exemption holds at every root, so a call whose `cwd`
+names a project subfolder, as a Codex `workdir` does from `rust-v0.166.0`, may write `tasks.md` in that subfolder. Re-audit only when the rule changes, and record a new limit here rather than chasing it.
 
 #### MCP tools are not gated
 
