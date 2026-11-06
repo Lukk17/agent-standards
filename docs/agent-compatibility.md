@@ -621,6 +621,20 @@ Rule F also reads these forms as handed their input, each an accepted limit:
   terminal.
 - `psql -f -` with nothing piped in passes, because `-f` reads as a script file, though `-` is the terminal.
 
+Three more Rule F readings are accepted limits:
+
+- `git config edit`, the action form that replaced the mode options in Git 2.46 ("The operation mode options (like
+  "--get") the "git config" command uses have been deprecated and replaced with subcommands (like "git config get")",
+  [RelNotes 2.46.0](https://raw.githubusercontent.com/git/git/master/Documentation/RelNotes/2.46.0.adoc)), is not held
+  by Rule F, which knows only `git config -e` and `--edit`. The write rule still denies it on the main thread as a
+  command it cannot read, so the deny names the write rule instead of Rule F.
+- `xargs -p` and `xargs --interactive` ask on the terminal before each command, and pass once the names are piped in,
+  as in `printf x | xargs -p echo`, because Rule F reads xargs only for where its names come from. With no terminal,
+  GNU xargs 4.9.0 stopped with `failed to open /dev/tty for reading`.
+- `su nobody -- -c id` is held, a mild over-hold. su hands every word after the user name to that user's shell
+  (`su [options] [-] [<user> [<argument>...]]` in `su --help`, util-linux 2.39.3), so the shell runs `id` and exits,
+  but Rule F reads the `--` as ending su's options and sees a bare `su`. `su nobody -c id` passes.
+
 The write rule reads `gawk -i inplace` and `--include=inplace` as an in-place edit, but not the attached
 `gawk -iinplace`, which passes.
 
