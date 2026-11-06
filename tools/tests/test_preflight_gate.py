@@ -3695,6 +3695,12 @@ WAITING_PROGRAMS = {
     "git-add-patch-abbreviated": ("git add --pat", "Bash"),
     "git-clean-interactive-in-a-cluster": ("git clean -fdi", "Bash"),
     "git-checkout-patch": ("git checkout -p", "Bash"),
+    "git-stash-push-patch": ("git stash push -p", "Bash"),
+    "git-stash-patch-with-no-verb": ("git stash -p", "Bash"),
+    "git-stash-save-patch": ("git stash save --patch", "Bash"),
+    "psql-after-a-command-fed-a-file": ("cat < /tmp/notes.txt; psql app", "Bash"),
+    "psql-reading-a-file-on-another-descriptor": ("psql app 3< /tmp/notes.txt", "Bash"),
+    "su-fed-a-file-runs-it-in-a-shell": ("su < /tmp/setup.sh", "Bash"),
     "script-starting-the-shell": ("script -q /dev/null", "Bash"),
     "script-bare": ("script", "Bash"),
     "script-fed-by-a-pipe": ("echo id | script -q /dev/null", "Bash"),
@@ -3802,6 +3808,13 @@ NOT_WAITING = {
     "runuser-wrapping-a-command": "runuser -u nobody id",
     "pkexec-wrapping-a-command": "pkexec id",
     "pypy-inline": "pypy3 -c 'print(1)'",
+    "git-stash-show-patch": "git stash show -p",
+    "git-stash-show-patch-long": "git stash show --patch",
+    "git-stash-list-patch": "git stash list -p",
+    "psql-fed-by-a-file": "psql app < /tmp/schema.sql",
+    "mysql-fed-by-a-file": "mysql -u root app < /tmp/dump.sql",
+    "sqlite3-fed-by-a-file": "sqlite3 /tmp/app.db < /tmp/dump.sql",
+    "psql-fed-by-a-file-before-its-name": "< /tmp/schema.sql psql app",
 }
 
 
@@ -3962,6 +3975,32 @@ SHELL_AND_INTERPRETER_DENIALS = {
 )
 def test_a_shell_or_interpreter_no_rule_reads_is_denied(command):
     assert decision(shell(command)) == "deny"
+
+
+# Words xargs reads from a program the gate cannot read. git takes them as
+# code or as the program only at or before its subcommand, through -c, -C,
+# --exec-path or the subcommand itself. sed, awk and find read any argument
+# as a script, a program or a write.
+XARGS_UNREAD_WORDS = {
+    "git-add-the-modified-files": ("git ls-files -m | xargs git add", "allow"),
+    "git-delete-the-merged-branches": ("git branch --merged | grep -v main | xargs git branch -d", "allow"),
+    "git-after-global-options": ("git ls-files -m | xargs git -C /tmp/x add", "allow"),
+    "git-subcommand-from-the-words": ("cat x | xargs git", "deny"),
+    "git-subcommand-after-a-global-option": ("cat x | xargs git -C /tmp/x", "deny"),
+    "git-global-option-from-the-words": ("cat x | xargs -I{} git -c {} log", "deny"),
+    "git-subcommand-replaced": ("cat x | xargs -I{} git {} status", "deny"),
+    "sed": ("cat x | xargs sed", "deny"),
+    "awk": ("cat x | xargs awk", "deny"),
+    "find": ("cat x | xargs find", "deny"),
+}
+
+
+@pytest.mark.parametrize(
+    "command,expected",
+    [pytest.param(command, expected, id=name) for name, (command, expected) in XARGS_UNREAD_WORDS.items()],
+)
+def test_unread_xargs_words_deny_only_where_they_become_code(command, expected):
+    assert decision(shell(command)) == expected
 
 
 @pytest.mark.parametrize(

@@ -1180,7 +1180,8 @@ class ShellSegment(NamedTuple):
     that is one fully quoted word, which PowerShell writes to its output.
     `expression` marks a PowerShell statement whose first word is a quoted
     string not handed to the call operator, which PowerShell evaluates as a
-    value and never runs as a program.
+    value and never runs as a program. `reads_file` marks a POSIX or cmd
+    command whose standard input a `< file` redirect points at a file.
     """
 
     argv: Tuple[str, ...] = ()
@@ -1189,6 +1190,7 @@ class ShellSegment(NamedTuple):
     stdin: Tuple[str, ...] = ()
     literal: bool = False
     expression: bool = False
+    reads_file: bool = False
 
 
 # The three command-line grammars the gate reads. A POSIX shell escapes with
@@ -1738,6 +1740,7 @@ def _lex(command: str, dialect: str = _POSIX) -> List[ShellSegment]:
     opens_quoted = False
     first_opens_quoted = False
     called = False
+    reads_file = False
     pending = ""
     cmd_quoted = False
     argv_quoted = False
@@ -1769,7 +1772,7 @@ def _lex(command: str, dialect: str = _POSIX) -> List[ShellSegment]:
         pending = ""
 
     def end_segment() -> None:
-        nonlocal argv, redirects, bodies, argv_quoted, called
+        nonlocal argv, redirects, bodies, argv_quoted, called, reads_file
 
         flush()
         argv_quoted = False
@@ -1785,7 +1788,9 @@ def _lex(command: str, dialect: str = _POSIX) -> List[ShellSegment]:
         if argv or redirects or bodies:
             literal = len(argv) == 1 and first_quoted
             expression = powershell and bool(argv) and first_opens_quoted and not called
-            segments.append(ShellSegment(tuple(argv), tuple(redirects), literal=literal, expression=expression))
+            segments.append(
+                ShellSegment(tuple(argv), tuple(redirects), literal=literal, expression=expression, reads_file=reads_file)
+            )
 
             if bodies:
                 owners.append((len(segments) - 1, bodies))
@@ -1794,6 +1799,7 @@ def _lex(command: str, dialect: str = _POSIX) -> List[ShellSegment]:
         redirects = []
         bodies = []
         called = False
+        reads_file = False
 
     def add(text: str, quoted: bool) -> None:
         nonlocal token, started, bare, opens_quoted
@@ -2078,7 +2084,9 @@ def _lex(command: str, dialect: str = _POSIX) -> List[ShellSegment]:
                 index = length if close < 0 else close + 2
                 continue
 
-            if started and token.isdigit():
+            descriptor = token if started and token.isdigit() else ""
+
+            if descriptor:
                 token = ""
                 started = False
                 bare = False
@@ -2111,6 +2119,7 @@ def _lex(command: str, dialect: str = _POSIX) -> List[ShellSegment]:
 
             index += 1
             pending = "discard"
+            reads_file = reads_file or descriptor in ("", "0") and not command.startswith("&", index)
             continue
 
         add(char, False)
@@ -5172,6 +5181,36 @@ def _xargs_arguments(rest: List[str], replace: str, feed: Optional[str]) -> List
     return expanded
 
 
+def _runs_unread_words(name: str, rest: List[str]) -> bool:
+    """True when words xargs read from a source the gate cannot see can become code or the program itself.
+
+    They can when they stand in the program's place, when the program runs
+    a command (_COMMAND_RUNNERS), or when it reads code, a program or a file
+    to run from any argument (_CODE_FROM_ARGUMENTS). git takes code only at
+    or before its subcommand, through -c, -C, --exec-path or the subcommand
+    itself, so `git ls-files -m | xargs git add` stays readable.
+    """
+    unread = [index for index, token in enumerate(rest) if _UNPLACEABLE_ARGUMENT in token]
+
+    if not unread:
+        return False
+
+    if unread[0] == 0 or name in _CODE_FROM_ARGUMENTS or name in _COMMAND_RUNNERS:
+        return True
+
+    return name == "git" and unread[0] <= _git_subcommand_index(rest)
+
+
+def _git_subcommand_index(tokens: List[str]) -> int:
+    """Where git's subcommand sits, past its global options and their values."""
+    index = 1
+
+    while index < len(tokens) and tokens[index].startswith("-"):
+        index += 2 if tokens[index] in _GIT_VALUE_FLAGS else 1
+
+    return index
+
+
 def _child_shell_targets(code: str, depth: int, dialect: str, directory: str = "") -> List[str]:
     """What a child shell writes. Its `cd` dies with it, so the base is put back.
 
@@ -5842,7 +5881,7 @@ _CODE_FROM_ARGUMENTS = frozenset(
     | _CMD_SHELLS
     | _INLINE_CODE_TOOLS
     | _INPLACE_TOOLS
-    | {"eval", "source", ".", "su", "runuser", "sqlite3", "tclsh", "find", "git", "start", "start-process", "invoke-expression", "iex", "apply_patch", "applypatch"}
+    | {"eval", "source", ".", "su", "runuser", "sqlite3", "tclsh", "find", "start", "start-process", "invoke-expression", "iex", "apply_patch", "applypatch"}
 )
 
 # Line editors read their commands from standard input. ed and red are read
@@ -6935,6 +6974,9 @@ _CONSOLES: Dict[str, _Console] = {
     },
 }
 
+# Consoles that start a shell, for which a file on standard input is a script.
+_SHELL_CONSOLES = frozenset({"su", "runuser", "script"})
+
 # socat hands its terminal to a program through these address types.
 _SOCAT_PROGRAM_ADDRESSES = frozenset({"exec", "system", "pty", "shell"})
 _SOCAT_VALUE_FLAGS = frozenset({"-lf", "-lp", "-t", "-T", "-b", "-L", "-W", "-r", "-R"})
@@ -6968,6 +7010,7 @@ _GIT_PROMPT_VALUES: Dict[str, FrozenSet[str]] = {
         "-x", "--exec", "-s", "--strategy", "-X", "--strategy-option", "-C", "--onto", "--empty", "--whitespace",
     }),
 }
+_GIT_STASH_PUSHES = frozenset({"push", "save"})
 _GIT_COMMIT_MESSAGES = frozenset({
     "-m", "--message", "-F", "--file", "-C", "--reuse-message", "--no-edit", "--fixup", "--dry-run",
 })
@@ -7085,11 +7128,7 @@ def _socat_waits(tokens: List[str]) -> bool:
 
 def _git_waits(tokens: List[str]) -> bool:
     """git opens an editor or a prompt: a commit with no message, rebase -i, add -p and their kin."""
-    index = 1
-
-    while index < len(tokens) and tokens[index].startswith("-"):
-        index += 2 if tokens[index] in _GIT_VALUE_FLAGS else 1
-
+    index = _git_subcommand_index(tokens)
     subcommand = tokens[index] if index < len(tokens) else ""
     prompts = _GIT_PROMPTS.get(subcommand)
 
@@ -7097,6 +7136,14 @@ def _git_waits(tokens: List[str]) -> bool:
         return False
 
     words = tokens[index + 1 :]
+
+    # git stash takes -p only as push or save, which a bare `git stash -p`
+    # means too. show and list hand -p to the diff they print.
+    if subcommand == "stash" and words and not words[0].startswith("-"):
+        if words[0] not in _GIT_STASH_PUSHES:
+            return False
+
+        words = words[1:]
     names, _operands = _option_scan(words, _GIT_PROMPT_VALUES.get(subcommand, frozenset()))
 
     if _names_one_of(names, prompts):
@@ -7170,8 +7217,14 @@ def _program_waits(spec: _Waiting, tokens: List[str], fed: bool) -> bool:
     return not operands or operands[0] == "-"
 
 
-def _waits_for_typed_input(name: str, tokens: List[str], fed: bool) -> bool:
-    """True when a command, wrappers already peeled, starts a program that waits for typed input (Rule F)."""
+def _waits_for_typed_input(name: str, tokens: List[str], fed: bool, reads_file: bool = False) -> bool:
+    """True when a command, wrappers already peeled, starts a program that waits for typed input (Rule F).
+
+    A database shell or a debugger whose standard input a `< file` redirect
+    points at a file reads its work from there. A shell or an interpreter fed
+    a file runs a script the gate cannot read, and su, runuser and script
+    start a shell, so a file redirect leaves those held.
+    """
     if name in _POSIX_SHELLS:
         return _posix_shell_waits(name, tokens, fed)
 
@@ -7185,7 +7238,7 @@ def _waits_for_typed_input(name: str, tokens: List[str], fed: bool) -> bool:
         return _FAMILY_WAITS[name](tokens, fed)
 
     if name in _CONSOLES:
-        return _console_waits(_CONSOLES[name], tokens, fed)
+        return _console_waits(_CONSOLES[name], tokens, fed or (reads_file and name not in _SHELL_CONSOLES))
 
     spec = _WAITING_PROGRAMS.get(name)
 
@@ -7397,8 +7450,18 @@ def _allowlisted(tokens: List[str]) -> bool:
 
 
 def _segment_targets(
-    tokens: List[str], depth: int, dialect: str = _POSIX, feed: Callable[[], Optional[str]] = _no_input
+    tokens: List[str],
+    depth: int,
+    dialect: str = _POSIX,
+    feed: Callable[[], Optional[str]] = _no_input,
+    reads_file: bool = False,
 ) -> List[str]:
+    """What one command writes, or the Rule D or Rule F marker when it runs a script or waits for typed input.
+
+    Args:
+        feed: what the command reads on standard input, when the gate can tell.
+        reads_file: True when a `< file` redirect points standard input at a file.
+    """
     if depth > _MAX_NESTING:
         return [_UNPLACEABLE_SHELL_TARGET]
 
@@ -7415,13 +7478,13 @@ def _segment_targets(
     writes = _sourced(list(stripped.writes), dialect != _POSIX)
 
     if stripped.directories:
-        return writes + _in_directories(stripped, depth, dialect, feed)
+        return writes + _in_directories(stripped, depth, dialect, feed, reads_file)
 
-    return writes + _stripped_targets(stripped, depth, dialect, feed)
+    return writes + _stripped_targets(stripped, depth, dialect, feed, reads_file)
 
 
 def _in_directories(
-    stripped: _Stripped, depth: int, dialect: str, feed: Callable[[], Optional[str]]
+    stripped: _Stripped, depth: int, dialect: str, feed: Callable[[], Optional[str]], reads_file: bool = False
 ) -> List[str]:
     """What a command run by env --chdir or sudo --chdir writes, from the directory it runs in."""
     global _CD_BASE
@@ -7432,14 +7495,14 @@ def _in_directories(
             _enter_directory([directory])
 
         return _sourced(list(stripped.writes), dialect != _POSIX) + _stripped_targets(
-            stripped._replace(directories=()), depth, dialect, feed
+            stripped._replace(directories=()), depth, dialect, feed, reads_file
         )
     finally:
         _CD_BASE = saved
 
 
 def _stripped_targets(
-    stripped: _Stripped, depth: int, dialect: str, feed: Callable[[], Optional[str]]
+    stripped: _Stripped, depth: int, dialect: str, feed: Callable[[], Optional[str]], reads_file: bool = False
 ) -> List[str]:
     rest = stripped.argv
 
@@ -7459,6 +7522,7 @@ def _stripped_targets(
     if stripped.xargs:
         rest = _xargs_arguments(rest, stripped.replace, feed())
         feed = _no_input
+        reads_file = False
 
     # What xargs leaves can be no command at all, and a crash here would
     # reach main()'s catch-all, which allows the whole call.
@@ -7473,15 +7537,13 @@ def _stripped_targets(
         name = _program_name(program[0])
         handler, binds = _handler_for(name, dialect)
 
-        if any(_UNPLACEABLE_ARGUMENT in token for token in rest) and (
-            _UNPLACEABLE_ARGUMENT in rest[0] or name in _CODE_FROM_ARGUMENTS or name in _COMMAND_RUNNERS
-        ):
+        if _runs_unread_words(name, rest):
             return [_UNPLACEABLE_SHELL_TARGET]
 
     if _runs_a_script(rest, dialect) and not _allowlisted(rest):
         return [_SCRIPT_RUN + _rejoined(rest)]
 
-    if _waits_for_typed_input(_canonical_program(program[0]), rest, feed() is not None):
+    if _waits_for_typed_input(_canonical_program(program[0]), rest, feed() is not None, reads_file):
         return [_WAITING_RUN + _rejoined(rest)]
 
     runner = _code_runner_targets(name, rest, depth, dialect, feed)
@@ -7928,7 +7990,7 @@ def _command_targets(command: str, depth: int = 0, dialect: str = _POSIX) -> Lis
             pass
         else:
             feed = functools.partial(_stdin_of, segments, position, dialect)
-            targets += _segment_targets(argv, depth, dialect, feed)
+            targets += _segment_targets(argv, depth, dialect, feed, segment.reads_file)
 
         # Each stage of a POSIX or cmd pipeline runs in its own process, so a
         # `cd` in one of them dies with the stage instead of moving the base

@@ -320,12 +320,14 @@ Reading the tables row by row:
   `emacs`, `mg` and `micro`, the line editors `ed`, `red` and `ex`, the pagers `less`, `more` and `most`, `tmux`
   with any subcommand, because `send-keys` types into a session and `attach` hands one over, and `screen`. The
   database shells `sqlite3`, `psql`, `mysql`, `mariadb`, `mongosh` and `redis-cli` are held without their inline
-  query or command (`sqlite3 db "SQL"`, `psql -c`, `mysql -e`, `mongosh --eval`, `redis-cli PING`) or piped input,
+  query or command (`sqlite3 db "SQL"`, `psql -c`, `mysql -e`, `mongosh --eval`, `redis-cli PING`), piped input or a
+  file on standard input (`psql app < schema.sql`),
   the debuggers `gdb` and `lldb` without batch mode (`gdb -batch`, `lldb -b`), and `pdb` always. git is held when
   it opens the editor or a prompt: a `git commit` with no `-m`, `-F`, `-C`, `--fixup` or `--no-edit`, `--amend`
   included, since `--no-edit` is how to "Use the selected commit message without launching an editor"
   ([git-commit](https://git-scm.com/docs/git-commit), fetched 2026-11-06), `git commit -e`, `git rebase -i`,
-  `git add -p`, `-i` and `-e`, `-p` on `checkout`, `restore`, `reset` and `stash`, and `git clean -i`. A
+  `git add -p`, `-i` and `-e`, `-p` on `checkout`, `restore`, `reset` and `stash push` or `save`, while
+  `git stash show -p` and `git stash list -p` only print a diff, and `git clean -i`. A
   `PYTHONINSPECT` setting is refused like the other variables below, because "If this is set to a non-empty string
   it is equivalent to specifying the `-i` option" ([Command line and environment](https://docs.python.org/3/using/cmdline.html),
   fetched 2026-11-06). A shell or an interpreter is held
@@ -349,7 +351,8 @@ Reading the tables row by row:
   script rule reads it: `env`, `exec`, `command`, `sudo`, `nohup`, `timeout` and the other wrappers are peeled, each
   with its own value flags so `env -i bash` and `exec -a name bash` still name `bash`, a path such as
   `/usr/bin/python3` names the program its file name gives, and a versioned name such as `python3.12` counts as
-  `python`. The lexer drops an input redirect, so `bash < x.sh` reads as a bare `bash` and is held too. A subagent is
+  `python`. A shell, an interpreter, `su`, `runuser` and `script` fed a file with `< x.sh` run a script the gate
+  cannot read, so `bash < x.sh` is held as a bare `bash` is. A subagent is
   never held by Rule F, and a read-only one is already held to its list by Rule E.
 - GitHub Copilot's `preToolUse` payload carries no agent identifier at all, so caller identity there resolves to
   unknown every time and none of the gate's six rules ever fires. The hook is wired and runs, but it always allows:
@@ -507,7 +510,9 @@ Each of the following cannot be placed either and denies on the main thread:
   piped into `ex`, and commands piped into `ed` that run a shell command, use a global command or come from a program
   whose output the gate cannot know. A script any of them runs is a script run.
 - Words `xargs` reads from the terminal or from a program whose output the gate cannot know, when they become code or
-  the program itself, as in `xargs -I{} sh -c {}`.
+  the program itself, as in `xargs -I{} sh -c {}`, and any such word handed to `sed`, `awk` or `find`, which read a
+  script, a program or a write from any argument. `git` takes code only at or before its subcommand, so
+  `cat x | xargs git` denies while `git ls-files -m | xargs git add` allows.
 
 Read-only forms of the same tools still allow: container `ps`, `images`, `inspect`, `logs`, `stats`, `network ls`,
 `volume ls`, `compose ls`, `ps`, `logs` and `config`, `schtasks /query`, `crontab -l`, `Get-ScheduledTask`, and WMI or

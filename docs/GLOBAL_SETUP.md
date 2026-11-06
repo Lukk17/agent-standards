@@ -1576,8 +1576,9 @@ sending output to the null device, and switching branches all stay allowed.
 Starting a shell, an interpreter, an editor or any other program that waits for typed input denies too, such as a bare
 `bash`, `python3`, `python3 -i`, `vim`, `less`, `tmux`, `psql` or `gdb`, or a `git commit` that would open the editor,
 because the gate never sees what is typed into it. Pass the code with `-c` or `-e`, the query with `psql -c` or
-`sqlite3 db "SQL"`, the message with `git commit -m`, run a debugger in batch mode, pipe the input in, or hand the work
-to a subagent.
+`sqlite3 db "SQL"`, the message with `git commit -m`, run a debugger in batch mode, pipe the input in, feed a database
+shell or a debugger a file with `< file`, as in `psql app < schema.sql`, or hand the work to a subagent. A shell or an
+interpreter fed a file with `< file` still denies, because that file is a script the gate cannot read.
 
 A command also denies when it sets an environment variable that changes which program or file it uses, such as
 `GIT_DIR`, `GIT_CONFIG_PARAMETERS`, `LD_PRELOAD`, `NODE_OPTIONS`, `PYTHONPATH`, `BASH_ENV`, `PATH`, or
