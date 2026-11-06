@@ -4128,6 +4128,40 @@ def test_a_truncated_sed_script_is_read_without_raising(script):
     assert isinstance(GATE._sed_script_targets(script), list)
 
 
+# GNU sed's read_filename skips leading blanks through in_nonblank and keeps
+# everything else up to the newline, and BSD sed's duptoeol keeps trailing
+# whitespace after only a warning, so a trailing blank is part of the name.
+
+
+@pytest.mark.parametrize(
+    ("script", "expected"),
+    [
+        ("w out ", ["out "]),
+        ("w \tout", ["out"]),
+        ("s/a/b/w out ", ["out "]),
+        ("w out\r", ["out\r"]),
+        ("w \vout", ["\vout", "out"]),
+    ],
+    ids=["trailing-blank", "leading-blanks", "substitute-flag", "trailing-return", "bsd-leading-space"],
+)
+def test_a_sed_file_name_keeps_everything_but_its_leading_blanks(script, expected):
+    assert GATE._sed_script_targets(script) == expected
+
+
+@pytest.mark.parametrize("template", ["printf x | sed -n 'w {link}'", "printf a | sed 's/a/b/w {link}'"], ids=["w", "s-w"])
+def test_a_sed_write_through_a_link_named_with_a_trailing_blank_is_denied(tmp_path, template):
+    # Given a link outside the project, named with a trailing blank, pointing at a project file
+    link = tmp_path / "l "
+
+    try:
+        link.symlink_to(REPO_ROOT / "AGENTS.md")
+    except OSError:
+        pytest.skip("symlink creation is not permitted in this environment")
+
+    # When/Then sed opens the name with its blank, which leads into the project
+    assert decision(shell(template.format(link=link))) == "deny"
+
+
 # Third security audit. Each table holds the spellings that used to slip
 # past the gate, next to the neighbours that must keep their old verdict.
 

@@ -5707,7 +5707,7 @@ def _sed_script_targets(script: str) -> List[str]:
 
         if char in "wW":
             end = script.find("\n", index)
-            targets.append(script[index + 1 : len(script) if end < 0 else end].strip())
+            targets += _sed_file_names(script[index + 1 : len(script) if end < 0 else end])
             index = len(script) if end < 0 else end
             continue
 
@@ -5727,7 +5727,7 @@ def _sed_script_targets(script: str) -> List[str]:
 
             if char == "s" and "w" in flags:
                 line_end = script.find("\n", end)
-                targets.append(script[end + 1 : len(script) if line_end < 0 else line_end].split("w", 1)[1].strip())
+                targets += _sed_file_names(script[end + 1 : len(script) if line_end < 0 else line_end].split("w", 1)[1])
                 index = len(script) if line_end < 0 else line_end
                 continue
 
@@ -5741,6 +5741,20 @@ def _sed_script_targets(script: str) -> List[str]:
         index = end + 1 if char in "aicrRbtTvlqQL:#" else index + 1
 
     return [target for target in targets if target and target not in ("/dev/stdout", "/dev/stderr")]
+
+
+def _sed_file_names(text: str) -> List[str]:
+    """The file a sed w command or flag opens, as GNU sed and BSD sed each read the rest of its line.
+
+    GNU sed's read_filename skips only leading blanks, through in_nonblank,
+    and BSD sed's EATSPACE skips any leading whitespace before duptoeol,
+    which keeps trailing whitespace after a warning. Neither trims the end,
+    so `w /tmp/l ` opens a file whose name ends in a blank.
+    """
+    gnu = text.lstrip(" \t")
+    bsd = text.lstrip(" \t\n\v\f\r")
+
+    return [gnu] if gnu == bsd else [gnu, bsd]
 
 
 def _sed_delimited_end(script: str, index: int, delimiter: str) -> int:
