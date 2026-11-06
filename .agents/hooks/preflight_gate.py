@@ -456,6 +456,11 @@ MAIN_THREAD_ALLOWLIST = (
 # the root rather than under .agents/, which consumers import whole, so an
 # import neither ships one project's entries nor overwrites another's. The main
 # thread cannot write it, because Rule A protects it like any project file.
+# That holds only for the gate's own working directory and its install root,
+# so the file is read from those two alone and never from the payload's cwd:
+# Codex reports the workdir the main thread chose for the call there, and a
+# folder outside the project, where the main thread may write, would
+# otherwise bring an allowlist of its own (see _allowlist_roots).
 ALLOWLIST_FILE = "main-thread-allowlist.txt"
 ANY_ARGUMENTS = "..."
 
@@ -6250,11 +6255,37 @@ _RULE_D_PROGRAMS = (
 )
 
 
+def _allowlist_roots() -> List[Path]:
+    """The roots whose allowlist file the gate trusts: its working directory and its install root.
+
+    Every wiring starts the gate in the project root, and Rule A keeps the
+    main thread from writing there, which is what makes the file trusted.
+    The payload's cwd is left out, because Codex fills it from the workdir
+    the main thread picks per call, so it can name a folder outside the
+    project that the main thread wrote a file into a moment earlier.
+    """
+    roots: List[Path] = []
+
+    for candidate in (Path.cwd(), _script_root()):
+        if candidate is None:
+            continue
+
+        try:
+            resolved = _resolve(candidate)
+        except (OSError, ValueError, RuntimeError):
+            continue
+
+        if resolved not in roots:
+            roots.append(resolved)
+
+    return roots
+
+
 def _project_allowlist() -> List[List[str]]:
-    """Every entry of each project root's own allowlist file, as words."""
+    """Every entry of each trusted root's own allowlist file, as words."""
     entries: List[List[str]] = []
 
-    for root in _roots():
+    for root in _allowlist_roots():
         try:
             text = (root / ALLOWLIST_FILE).read_text(encoding="utf-8")
         except (OSError, ValueError):
@@ -6271,7 +6302,7 @@ def _names_the_same_file(actual: str, expected: str) -> bool:
     written = _as_path(actual)
 
     for base in bases:
-        for root in _roots():
+        for root in _allowlist_roots():
             try:
                 here = _resolve(written if written.is_absolute() else base / written)
 

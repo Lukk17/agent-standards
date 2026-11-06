@@ -1625,7 +1625,9 @@ python scripts/verify.py
 
 The gate reads that file from the project root on every call, so a new entry works on the next command. The main
 thread cannot write the file itself, because the gate protects it like every other file in the project, so ask a
-subagent to add an entry. Commit the file so the whole team gets the same list.
+subagent to add an entry. The project root here is the folder the gate runs in, never the working directory a single
+call names: Codex fills that from the call's `workdir`, which the main thread picks, so an allowlist in a folder
+outside the project adds nothing. Commit the file so the whole team gets the same list.
 
 ---
 

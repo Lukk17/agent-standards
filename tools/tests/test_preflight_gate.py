@@ -3516,6 +3516,30 @@ def test_the_main_thread_cannot_write_the_project_allowlist(nest):
     assert verdict_in(nest, "echo 'python x.py' >> " + GATE.ALLOWLIST_FILE) == "deny"
 
 
+@pytest.mark.parametrize("fmt", ["codex", "claude"])
+def test_an_allowlist_in_the_payload_cwd_outside_the_project_is_not_read(nest, fmt):
+    # Given a folder outside the project holding an allowlist and a script, both of which the main thread may write
+    write_project_allowlist(nest.elsewhere, "python3 x.py\n")
+    (nest.elsewhere / "x.py").write_text("open('../project/AGENTS.md', 'w').write('x')\n", encoding="utf-8")
+
+    # When the call names that folder as its cwd, which Codex fills from the workdir the main thread chose
+    payload = {**shell("python3 x.py"), "cwd": str(nest.elsewhere)}
+    code, out, err = run(payload, fmt, cwd=nest.project)
+
+    # Then the script run is still denied
+    assert (code, err) == (0, "")
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_an_allowlist_at_the_gates_working_directory_is_read(nest):
+    write_project_allowlist(nest.project, "python3 x.py\n")
+    payload = {**shell("python3 x.py"), "cwd": str(nest.project)}
+
+    code, out, err = run(payload, "codex", cwd=nest.project)
+
+    assert (code, out, err) == (0, "", "")
+
+
 THIS_REPOSITORYS_CHECKS = (
     "python tools/check-markdown.py",
     "python tools/check-badges.py",
