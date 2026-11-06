@@ -173,9 +173,11 @@ COMMAND_KEYS = ("command", "cmd", "script")
 # git diff use to name a file a patch adds, changes, deletes, or moves, on
 # either side of the move. Every string value in the tool call is searched
 # rather than one named key (docs/agent-compatibility.md "How the write rule
-# reads a command").
+# reads a command"). Codex trims each line before it matches a header
+# (codex-rs/apply-patch/src/streaming_parser.rs at rust-v0.166.0), so blanks
+# may lead one, any Unicode blank as Rust's str::trim reads it.
 _APPLY_PATCH_FILE_RE = re.compile(
-    r"^\*\*\* (?:Update|Add|Delete) File: (?P<named>.+?)\s*$"
+    r"^[^\S\n]*\*\*\* (?:Update|Add|Delete) File: (?P<named>.+?)\s*$"
     r"|^\*\*\* Move to: (?P<moved>.+?)\s*$"
     r"|^\+\+\+ b/(?P<unified>.+?)\s*$"
     r"|^--- a/(?P<source>.+?)\s*$"
@@ -580,13 +582,13 @@ def _payload_root(payload: Dict[str, Any]) -> Optional[Path]:
         return None
 
 
-def _direct_target(tool_input: Dict[str, Any]) -> str:
-    """The edit tool's path exactly as sent, blanks included, or "" when it names none."""
-    for key in PATH_KEYS:
-        value = tool_input.get(key)
-        if isinstance(value, str) and value.strip():
-            return value
-    return ""
+def _direct_targets(tool_input: Dict[str, Any]) -> List[str]:
+    """Every path the edit tool's path keys hold, exactly as sent, blanks included.
+
+    Every key is read, because the gate does not know which one a host
+    writes through when a call carries more than one.
+    """
+    return [value for key in PATH_KEYS if isinstance(value := tool_input.get(key), str) and value.strip()]
 
 
 def _placements(value: str) -> List[str]:
@@ -8959,12 +8961,12 @@ def _apply_rules(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Opti
         return RULE_C_REASON.format(tool=tool)
 
     if tool in EDIT_TOOLS:
-        target = _direct_target(tool_input)
+        targets = _direct_targets(tool_input)
 
-        if not target and tool in APPLY_PATCH_TOOLS:
+        if tool in APPLY_PATCH_TOOLS:
             candidates = _apply_patch_candidates(tool_input)
 
-            if not candidates:
+            if not targets and not candidates:
                 # No path key and no file header in the patch body: deny.
                 return RULE_A_REASON.format(target="apply_patch (unreadable patch body)")
 
@@ -8973,11 +8975,11 @@ def _apply_rules(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Opti
             if write_targets:
                 return RULE_A_REASON.format(target=write_targets[0])
 
-            return None
+        for target in targets:
+            for placement in _placements(target):
+                if _is_write_target(placement):
+                    return RULE_A_REASON.format(target=placement)
 
-        for placement in _placements(target):
-            if _is_write_target(placement):
-                return RULE_A_REASON.format(target=placement)
         return None
 
     commands = _shell_commands(tool_input)

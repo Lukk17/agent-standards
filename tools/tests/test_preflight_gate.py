@@ -3977,6 +3977,50 @@ def test_a_sed_or_perl_run_that_writes_nothing_inside_is_allowed(tmp_path, comma
     assert decision(shell(command.format(script=script.as_posix()))) == "allow"
 
 
+# Codex's apply_patch parser trims each line before it matches a file header
+# (`let trimmed = line.trim();` then `trimmed.strip_prefix(UPDATE_FILE_MARKER)`
+# in codex-rs/apply-patch/src/streaming_parser.rs at rust-v0.166.0), so an
+# indented header names a file, while the markers compare case for case.
+INDENTED_HEADER_PATCHES = {
+    "update-after-a-decoy": "*** Begin Patch\n*** Add File: /tmp/decoy.txt\n+x\n  *** Update File: AGENTS.md\n@@\n-a\n+b\n*** End Patch",
+    "add-indented-by-a-tab": "*** Begin Patch\n*** Add File: /tmp/decoy.txt\n+x\n\t*** Add File: AGENTS.md\n+x\n*** End Patch",
+    "delete-indented-first": "*** Begin Patch\n   *** Delete File: AGENTS.md\n*** Add File: /tmp/decoy.txt\n+x\n*** End Patch",
+    "indented-by-a-no-break-space": "*** Begin Patch\n*** Add File: /tmp/decoy.txt\n+x\n\u00a0*** Delete File: AGENTS.md\n*** End Patch",
+}
+
+
+@pytest.mark.parametrize(
+    "patch", [pytest.param(patch, id=name) for name, patch in INDENTED_HEADER_PATCHES.items()]
+)
+def test_an_indented_apply_patch_header_is_read(patch):
+    _code, out, _err = run({"tool_name": "apply_patch", "tool_input": {"input": patch}}, "codex")
+
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"].endswith("Blocked target: AGENTS.md")
+
+
+@pytest.mark.parametrize(
+    "tool_input",
+    [
+        {"file_path": "/tmp/x", "filePath": "AGENTS.md"},
+        {"path": "/tmp/x", "notebook_path": "AGENTS.md"},
+        {"file_path": "/tmp/x", "path": "docs/guide.md"},
+    ],
+)
+def test_every_path_key_of_an_edit_is_placed(tool_input):
+    assert decision({"tool_name": "Write", "tool_input": tool_input}) == "deny"
+
+
+def test_an_apply_patch_header_is_placed_beside_a_path_key():
+    patch = "*** Begin Patch\n*** Update File: AGENTS.md\n@@\n-a\n+b\n*** End Patch"
+    _code, out, _err = run({"tool_name": "apply_patch", "tool_input": {"path": "/tmp/x", "input": patch}}, "codex")
+
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"].endswith("Blocked target: AGENTS.md")
+
+
+def test_an_edit_whose_every_path_key_is_outside_is_allowed():
+    assert decision({"tool_name": "Write", "tool_input": {"file_path": "/tmp/x", "filePath": "/tmp/y"}}) == "allow"
+
+
 @pytest.mark.parametrize("command", ['cmd /r "echo x > AGENTS.md"', "cmd /R echo x ^> AGENTS.md", 'cmd /q /r "echo x > AGENTS.md"'])
 def test_cmd_r_runs_its_command_the_way_c_does(command):
     # cmd stops reading switches at the first /C, /K or /R, and /R runs the

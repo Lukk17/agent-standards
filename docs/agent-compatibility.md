@@ -395,7 +395,12 @@ for the path each actually writes, through import aliases and renamed bindings, 
 Codex's `apply_patch` call carries a patch body rather than a file path, and the key that holds that body in the
 payload is not confirmed. The gate therefore reads the file headers out of every string value in the call rather than
 out of one named key, and denies the call when it finds no path key and no file header, because an edit whose target
-it cannot resolve is not trusted.
+it cannot resolve is not trusted. A header may be indented: Codex's parser runs `let trimmed = line.trim();` and then
+`trimmed.strip_prefix(UPDATE_FILE_MARKER)`, and the same for the add and delete markers
+([streaming_parser.rs at rust-v0.166.0](https://raw.githubusercontent.com/openai/codex/rust-v0.166.0/codex-rs/apply-patch/src/streaming_parser.rs),
+fetched 2026-11-06), so `  *** Update File: AGENTS.md` names a file, while the markers compare case for case. The
+headers are read beside any path key the call carries, and an edit tool's every path key is placed, not only the
+first, so a call with `file_path` outside and `filePath` inside denies.
 
 The writers the gate knows include `find -delete` and `find -exec`, `git clean`, `git rm`, `git mv`,
 `git reset --hard`, `git stash`, `git checkout -f` and `git checkout` or `git restore` of a path, `curl -o` and `-O`,
