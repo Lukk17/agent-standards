@@ -405,6 +405,15 @@ parameters. The .NET methods are read whatever shell the tool name claims, becau
 tool `Bash` and runs the command in PowerShell, so `[System.IO.File]::WriteAllText($target, ...)` under `Bash` denies
 the same way it does under `PowerShell`.
 
+Every wrapper is peeled by its own options, as getopt reads them: a value attached (`sudo -D/tmp`, `ionice -c3`), after
+`=` (`--chdir=/tmp`) or in the next word, and a long option by any unambiguous prefix (`env --chd=/tmp`,
+`xargs --max-pr 1`). The wrappers are `env`, `sudo`, `doas`, `exec`, `command`, `nohup`, `setsid`, `stdbuf`, `nice`,
+`ionice`, `time`, `timeout`, `pkexec`, `runuser -u`, `taskset`, `chrt`, `prlimit`, `unbuffer`, `rlwrap`, `strace`,
+`ltrace`, `fakeroot`, `firejail`, `numactl`, `valgrind`, `caffeinate`, `busybox`, `toybox` and `xargs`. `env -S`
+splits its string the way a shell would, a file a wrapper writes itself (`time -o`, `strace -o`, `ltrace -o`,
+`rlwrap -l`, `fakeroot -s`, `valgrind --log-file`) is a write target, and `mksh` and `yash` are read as POSIX shells.
+Commands piped into `ed` or `red` are read for the files `w` writes.
+
 Beyond the plain writers, the rule reads a hard link whose source is a project file (`ln` without `-s`, `cp -l`,
 `fsutil hardlink create`, `New-Item -ItemType HardLink`, `mklink /H`), a Windows device, extended-length or loopback
 administrative-share spelling of a project path, command substitution inside double quotes and backquotes, a line
@@ -467,6 +476,13 @@ Each of the following cannot be placed either and denies on the main thread:
 - A shell command that is not a string, and a tool the gate does not know that still carries a `command`, `cmd` or
   `script` value.
 - A shell call whose `workdir` resolves to no directory from any root, loops, or names a share the gate cannot map.
+- A command run under `chroot`, `sudo -R` or a firejail option that remaps the file system such as `--private`, an
+  `env -S` string holding an escape, a `$` or a `#`, and `strace -o` into a pipe.
+- Inline or piped code for `fish`, `csh`, `tcsh`, `nu` or `tclsh`, whose languages the gate does not read, commands
+  piped into `ex`, and commands piped into `ed` that run a shell command, use a global command or come from a program
+  whose output the gate cannot know. A script any of them runs is a script run.
+- Words `xargs` reads from the terminal or from a program whose output the gate cannot know, when they become code or
+  the program itself, as in `xargs -I{} sh -c {}`.
 
 Read-only forms of the same tools still allow: container `ps`, `images`, `inspect`, `logs`, `stats`, `network ls`,
 `volume ls`, `compose ls`, `ps`, `logs` and `config`, `schtasks /query`, `crontab -l`, `Get-ScheduledTask`, and WMI or

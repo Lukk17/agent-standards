@@ -3746,6 +3746,155 @@ def test_the_new_rule_f_programs_are_read_by_the_other_rules_too(command, blocke
     assert blocked in json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"]
 
 
+# Every wrapper is peeled by its own options, attached (`-D/tmp`), with `=`
+# and as an unambiguous long prefix (`--chd`), the way getopt_long reads
+# them, so the command it runs is the one the rules read.
+WRITE_THROUGH_A_WRAPPER = [
+    "timeout -s KILL 10 sh -c 'echo x > AGENTS.md'",
+    "timeout --sig=KILL 10 sh -c 'echo x > AGENTS.md'",
+    "timeout -k5 10 sh -c 'echo x > AGENTS.md'",
+    "ionice -c 3 sh -c 'echo x > AGENTS.md'",
+    "ionice --class 3 sh -c 'echo x > AGENTS.md'",
+    "/usr/bin/time -f %e sh -c 'echo x > AGENTS.md'",
+    "time -o AGENTS.md true",
+    "time --out=AGENTS.md true",
+    "time -ao AGENTS.md true",
+    "env -S'sh -c \"echo x > AGENTS.md\"'",
+    "env -S 'sh -c \"echo x > AGENTS.md\"'",
+    "env --split-string='sh -c \"echo x > AGENTS.md\"'",
+    "env --split='sh -c \"echo x > AGENTS.md\"'",
+    "env -S 'sh -c $X'",
+    "sudo -R /tmp sh -c 'echo x > /AGENTS.md'",
+    "sudo --chroot=. sh -c 'echo x > /AGENTS.md'",
+    "chroot . sh -c 'echo x > /AGENTS.md'",
+    "echo AGENTS.md | xargs --max-procs 1 touch",
+    "echo AGENTS.md | xargs --max-procs=1 touch",
+    "echo AGENTS.md | xargs --max-pr 1 touch",
+    "nice --adjustment 5 sh -c 'echo x > AGENTS.md'",
+    "nice --adj=5 sh -c 'echo x > AGENTS.md'",
+    "stdbuf --output L sh -c 'echo x > AGENTS.md'",
+    "taskset -c 0 sh -c 'echo x > AGENTS.md'",
+    "taskset 0x1 sh -c 'echo x > AGENTS.md'",
+    "chrt -f 10 sh -c 'echo x > AGENTS.md'",
+    "chrt --sched-runtime 5 -d 0 sh -c 'echo x > AGENTS.md'",
+    "unbuffer -p sh -c 'echo x > AGENTS.md'",
+    "rlwrap -S '> ' sh -c 'echo x > AGENTS.md'",
+    "rlwrap -l AGENTS.md cat",
+    "strace -e trace=open sh -c 'echo x > AGENTS.md'",
+    "strace -o AGENTS.md true",
+    "strace -o '|sh' true",
+    "ltrace -o AGENTS.md true",
+    "ltrace -s 80 sh -c 'echo x > AGENTS.md'",
+    "fakeroot -s AGENTS.md true",
+    "fakeroot -- sh -c 'echo x > AGENTS.md'",
+    "prlimit --nofile=10 sh -c 'echo x > AGENTS.md'",
+    "prlimit --pid=1 --output RESOURCE sh -c 'echo x > AGENTS.md'",
+    "firejail --quiet sh -c 'echo x > AGENTS.md'",
+    "firejail --private=/tmp sh -c 'echo x > AGENTS.md'",
+    "numactl -C 0 sh -c 'echo x > AGENTS.md'",
+    "valgrind --log-file=AGENTS.md true",
+    "valgrind -q sh -c 'echo x > AGENTS.md'",
+    "env -i rm -rf ..",
+    "sudo -n tee AGENTS.md",
+    "doas -n rm AGENTS.md",
+    "exec -a x sh -c 'echo x > AGENTS.md'",
+]
+
+
+@pytest.mark.parametrize("command", WRITE_THROUGH_A_WRAPPER)
+def test_a_write_through_a_wrapper_is_read_past_its_own_options(command):
+    assert decision(shell(command)) == "deny"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "env --chd={elsewhere} sh -c 'echo x > ../work/project/AGENTS.md'",
+        "env -C{elsewhere} sh -c 'echo x > ../work/project/AGENTS.md'",
+        "sudo --chd={elsewhere} sh -c 'echo x > ../work/project/AGENTS.md'",
+        "sudo -D{elsewhere} sh -c 'echo x > ../work/project/AGENTS.md'",
+        "sudo -nD {elsewhere} sh -c 'echo x > ../work/project/AGENTS.md'",
+    ],
+)
+def test_a_wrapper_changing_directory_is_followed_in_every_spelling(nest, command):
+    assert verdict_in(nest, command.format(elsewhere=nest.elsewhere)) == "deny"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "timeout 10 ls",
+        "nice -n 5 ls",
+        "taskset -p 0x1 1234",
+        "chrt -p 1234",
+        "prlimit -p 1234",
+        "strace -o /tmp/trace ls",
+        "time -o /tmp/time ls",
+        "env -S 'ls -la'",
+        "valgrind --log-file=/tmp/v.log ls",
+        "echo /tmp/x | xargs --max-procs 1 touch",
+    ],
+)
+def test_a_wrapper_around_a_harmless_command_is_allowed(command):
+    assert decision(shell(command)) == "allow"
+
+
+# Shells and interpreters no rule read: mksh and yash are POSIX shells,
+# fish, csh, tcsh and nu run code the gate cannot read, ipython is python,
+# and tclsh runs scripts.
+SHELL_AND_INTERPRETER_DENIALS = {
+    "tcsh-inline": "tcsh -c 'echo x > AGENTS.md'",
+    "csh-inline": "csh -c 'echo hi'",
+    "fish-inline": "fish -c 'echo hi'",
+    "nu-inline": "nu -c 'echo x | save AGENTS.md'",
+    "fish-script": "fish /tmp/x.fish",
+    "tcsh-script": "tcsh /tmp/x.csh",
+    "mksh-inline": "mksh -c 'echo x > AGENTS.md'",
+    "yash-inline": "yash -c 'echo x > AGENTS.md'",
+    "ipython-inline": "ipython -c \"open('AGENTS.md', 'w')\"",
+    "ipython-script": "ipython /tmp/x.py",
+    "ipython-versioned-script": "ipython3 /tmp/x.py",
+    "tclsh-script": "tclsh /tmp/x.tcl",
+    "fish-fed": "cat | fish",
+    "fish-fed-known-text": "echo 'echo hi' | fish",
+    "ipython-fed": "cat | ipython",
+    "tclsh-fed": "cat | tclsh",
+    "tclsh-fed-known-text": "echo 'puts hi' | tclsh",
+    "ed-fed-unknown": "cat | ed /tmp/x",
+    "ed-writes-a-project-file": "printf 'w AGENTS.md\\n' | ed /tmp/x",
+    "ed-writes-its-project-file": "printf 'w\\n' | ed AGENTS.md",
+    "ed-runs-a-command": "printf '!touch AGENTS.md\\n' | ed /tmp/x",
+    "ex-fed": "printf 'p\\n' | ex /tmp/x",
+    "xargs-reading-the-terminal-into-code": "xargs -I{} sh -c {}",
+    "xargs-unknown-words-into-code": "cat x | xargs -I{} sh -c {}",
+    "xargs-unknown-words-after-dash-c": "cat x | xargs sh -c",
+    "xargs-unknown-words-into-python": "cat x | xargs -I{} python3 -c {}",
+}
+
+
+@pytest.mark.parametrize(
+    "command", [pytest.param(command, id=name) for name, command in SHELL_AND_INTERPRETER_DENIALS.items()]
+)
+def test_a_shell_or_interpreter_no_rule_reads_is_denied(command):
+    assert decision(shell(command)) == "deny"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "mksh -c 'echo hi'",
+        "yash -c 'echo hi'",
+        "ipython -c 'print(1)'",
+        "printf 'p\\n' | ed -s /tmp/notes.txt",
+        "printf 'w\\n' | ed /tmp/notes.txt",
+        "fish --version",
+        "echo hi | xargs -I{} sh -c 'echo {}'",
+    ],
+)
+def test_a_shell_or_interpreter_the_rules_can_read_is_allowed(command):
+    assert decision(shell(command)) == "allow"
+
+
 @pytest.mark.parametrize("command", ['cmd /r "echo x > AGENTS.md"', "cmd /R echo x ^> AGENTS.md", 'cmd /q /r "echo x > AGENTS.md"'])
 def test_cmd_r_runs_its_command_the_way_c_does(command):
     # cmd stops reading switches at the first /C, /K or /R, and /R runs the

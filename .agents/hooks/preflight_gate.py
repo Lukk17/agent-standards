@@ -121,6 +121,7 @@ import io
 import json
 import os
 import re
+import shlex
 import stat
 import sys
 from pathlib import Path, PurePosixPath
@@ -728,10 +729,10 @@ _UNPLACEABLE_ENVIRONMENT_TARGET = "environment variable (a setting that changes 
 _POSIX_DECLARATIONS = {"export", "declare", "typeset", "readonly", "local"}
 _PS_ENVIRONMENT_RE = re.compile(r"^env:[\\/]*(?P<name>[\w()]+)", re.IGNORECASE)
 _PS_ENVIRONMENT_SETTERS = {"set-item", "new-item", "set-content", "add-content", "copy-item", "move-item", "rename-item"}
-_VERSIONED_TOOL_RE = re.compile(r"^(python|pypy|node|php|ruby|perl|awk|gawk|lua|julia)[0-9.]*$")
+_VERSIONED_TOOL_RE = re.compile(r"^(python|pypy|ipython|node|php|ruby|perl|awk|gawk|lua|julia|tclsh)[0-9.]*$")
 # Programs every rule reads as another, because they take the same options
 # and run the same code.
-_SAME_PROGRAM = {"pypy": "python"}
+_SAME_PROGRAM = {"pypy": "python", "ipython": "python"}
 _SHORT_INPLACE_RE = re.compile(r"^-[A-Za-z]{0,3}i(?:\.[^\s]*)?$")
 
 _ESCAPABLE = set(" \t\"'\\;|&<>()$`")
@@ -855,7 +856,11 @@ _POSIX_NULL_DEVICE = "/dev/null"
 # discard a real repository file named nul instead of writing to it.
 _WINDOWS_NULL_DEVICE_TOKENS = {"$null", "nul"}
 
-_POSIX_SHELLS = {"sh", "bash", "zsh", "dash", "ash", "ksh"}
+_POSIX_SHELLS = {"sh", "bash", "zsh", "dash", "ash", "ksh", "mksh", "yash"}
+# Shells whose language the gate does not read, so their inline code and
+# piped input are unplaceable and a script they run is a script run.
+_OTHER_SHELLS = frozenset({"fish", "tcsh", "csh", "nu"})
+_OTHER_SHELL_INLINE = frozenset({"-c", "--command", "--commands"})
 _POWERSHELL_SHELLS = {"pwsh", "powershell"}
 _CMD_SHELLS = {"cmd"}
 
@@ -879,52 +884,151 @@ _PS_ENCODED_FLAG = "-encodedcommand"
 _PS_ENCODED_ALIASES = {"-e", "-ec"}
 _PS_MIN_PREFIX = 4
 
-_WRAPPER_TOOLS = {
-    "busybox",
-    "toybox",
-    "setsid",
-    "sudo",
-    "doas",
-    "env",
-    "command",
-    "nohup",
-    "exec",
-    "stdbuf",
-    "nice",
-    "ionice",
-    "time",
-    "pkexec",
+class _Wrapper(NamedTuple):
+    """How one wrapper's own options read, so the words after them are the command it runs.
+
+    `values` take a value, attached (`-D/tmp`, `--chdir=/tmp`) or as the
+    next word, and `optional` take one only attached. `long_flags` are the
+    long options that take none, listed so that an unambiguous prefix such
+    as `--chd` reads as the option it abbreviates, the way getopt_long reads
+    it. `chdir` options run the command in their value's folder, `split`
+    ones split their value into words (env -S), `writes` name a file the
+    wrapper writes itself, and `unplaceable` ones move every path the
+    command names, as a chroot does. `operands` is how many words the
+    wrapper takes before the command, as timeout takes its duration.
+    """
+
+    values: FrozenSet[str] = frozenset()
+    optional: FrozenSet[str] = frozenset()
+    long_flags: FrozenSet[str] = frozenset()
+    chdir: FrozenSet[str] = frozenset()
+    split: FrozenSet[str] = frozenset()
+    writes: FrozenSet[str] = frozenset()
+    unplaceable: FrozenSet[str] = frozenset()
+    operands: int = 0
+
+
+_NO_OPTIONS = _Wrapper()
+_RUNUSER_VALUES = frozenset({"-u", "--user", "-g", "--group", "-G", "--supp-group", "-w", "--whitelist-environment"})
+# Each wrapper's own options, from its --help and manual page: coreutils env,
+# nice, nohup, stdbuf, timeout and time, sudo and doas, util-linux ionice,
+# taskset, chrt, prlimit, setsid and runuser, and the tracing and sandboxing
+# wrappers. An option missing here reads as a flag, so its value would be
+# read as the command, which only ever reads more.
+_WRAPPERS: Dict[str, _Wrapper] = {
+    "env": _Wrapper(
+        values=frozenset({"-u", "--unset", "-C", "--chdir", "-S", "--split-string", "-a", "--argv0"}),
+        long_flags=frozenset({
+            "--ignore-environment", "--null", "--debug", "--help", "--version", "--block-signal",
+            "--default-signal", "--ignore-signal", "--list-signal-handling",
+        }),
+        chdir=frozenset({"-C", "--chdir"}),
+        split=frozenset({"-S", "--split-string"}),
+    ),
+    "sudo": _Wrapper(
+        values=frozenset({
+            "-u", "--user", "-g", "--group", "-p", "--prompt", "-C", "--close-from", "-h", "--host", "-r", "--role",
+            "-t", "--type", "-T", "--command-timeout", "-U", "--other-user", "-D", "--chdir", "-R", "--chroot",
+        }),
+        long_flags=frozenset({
+            "--askpass", "--background", "--bell", "--edit", "--set-home", "--help", "--login", "--remove-timestamp",
+            "--reset-timestamp", "--list", "--non-interactive", "--preserve-env", "--preserve-groups", "--stdin",
+            "--shell", "--version", "--validate",
+        }),
+        chdir=frozenset({"-D", "--chdir"}),
+        unplaceable=frozenset({"-R", "--chroot"}),
+    ),
+    "doas": _Wrapper(values=frozenset({"-u", "-C"})),
+    "exec": _Wrapper(values=frozenset({"-a"})),
+    "setsid": _Wrapper(long_flags=frozenset({"--ctty", "--fork", "--wait", "--help", "--version"})),
+    "stdbuf": _Wrapper(values=frozenset({"-i", "-o", "-e", "--input", "--output", "--error"})),
+    "nice": _Wrapper(values=frozenset({"-n", "--adjustment"})),
+    "ionice": _Wrapper(
+        values=frozenset({"-c", "--class", "-n", "--classdata", "-p", "--pid", "-P", "--pgid", "-u", "--uid"}),
+        long_flags=frozenset({"--ignore", "--help", "--version"}),
+    ),
+    "time": _Wrapper(
+        values=frozenset({"-f", "--format", "-o", "--output"}),
+        long_flags=frozenset({"--append", "--portability", "--quiet", "--verbose", "--help", "--version"}),
+        writes=frozenset({"-o", "--output"}),
+    ),
+    "timeout": _Wrapper(
+        values=frozenset({"-s", "--signal", "-k", "--kill-after"}),
+        long_flags=frozenset({"--preserve-status", "--foreground", "--verbose", "--help", "--version"}),
+        operands=1,
+    ),
+    "pkexec": _Wrapper(values=frozenset({"--user"}), long_flags=frozenset({"--disable-internal-agent", "--keep-cwd", "--help", "--version"})),
+    "runuser": _Wrapper(values=_RUNUSER_VALUES),
+    "taskset": _Wrapper(long_flags=frozenset({"--all-tasks", "--cpu-list", "--pid", "--help", "--version"}), operands=1),
+    "chrt": _Wrapper(
+        values=frozenset({"-T", "--sched-runtime", "-P", "--sched-period", "-D", "--sched-deadline"}),
+        long_flags=frozenset({
+            "--all-tasks", "--batch", "--deadline", "--fifo", "--idle", "--other", "--rr", "--reset-on-fork", "--max",
+            "--pid", "--verbose", "--help", "--version",
+        }),
+        operands=1,
+    ),
+    "prlimit": _Wrapper(
+        values=frozenset({"-p", "--pid", "-o", "--output"}),
+        optional=frozenset("-" + letter for letter in "cdefilmnqrstuvxy"),
+    ),
+    "unbuffer": _NO_OPTIONS,
+    "rlwrap": _Wrapper(
+        values=frozenset({
+            "-b", "-C", "-D", "-e", "-f", "-F", "-g", "-H", "-l", "-O", "-P", "-q", "-M", "-s", "-S", "-t", "-w", "-z",
+            "--break-chars", "--command-name", "--history-no-dupes", "--extra-char-after-completion", "--file",
+            "--history-format", "--forget-matching", "--history-filename", "--logfile", "--multi-line-ext",
+            "--only-cook", "--pre-given", "--quote-characters", "--histsize", "--substitute-prompt",
+            "--set-term-name", "--wait-before-prompt", "--filter",
+        }),
+        optional=frozenset({"-a", "-p", "-m"}),
+        writes=frozenset({"-l", "--logfile", "-H", "--history-filename"}),
+    ),
+    "strace": _Wrapper(
+        values=frozenset({
+            "-e", "-o", "-p", "-s", "-u", "-E", "-a", "-b", "-I", "-O", "-S", "-P", "-X", "-U", "--output", "--attach",
+            "--string-limit", "--user", "--env", "--columns", "--detach-on", "--interruptible", "--summary-sort-by",
+            "--trace-path", "--const-print-style", "--summary-columns",
+        }),
+        writes=frozenset({"-o", "--output"}),
+    ),
+    "ltrace": _Wrapper(
+        values=frozenset({
+            "-o", "--output", "-e", "-p", "-s", "-u", "-a", "--align", "-A", "-D", "--debug", "-F", "--config", "-l",
+            "--library", "-n", "--indent", "-w", "--where", "-x",
+        }),
+        writes=frozenset({"-o", "--output"}),
+    ),
+    "fakeroot": _Wrapper(values=frozenset({"-l", "--lib", "--faked", "-s", "-i", "-b"}), writes=frozenset({"-s"})),
+    "firejail": _Wrapper(
+        unplaceable=frozenset({
+            "--chroot", "--private", "--private-home", "--private-cwd", "--overlay", "--overlay-named",
+            "--overlay-tmpfs", "--bind", "--tmpfs",
+        }),
+    ),
+    "numactl": _Wrapper(
+        values=frozenset({
+            "-C", "--physcpubind", "-N", "--cpunodebind", "-m", "--membind", "-i", "--interleave", "-p", "--preferred",
+            "-P", "--preferred-many", "-w", "--weighted-interleave",
+        }),
+    ),
+    "valgrind": _Wrapper(writes=frozenset({"--log-file", "--xml-file"})),
+    "caffeinate": _Wrapper(values=frozenset({"-t", "-w"})),
+    # xargs -i, -e and -l take their value attached or not at all.
+    "xargs": _Wrapper(
+        values=frozenset({
+            "-n", "--max-args", "-P", "--max-procs", "-I", "-a", "--arg-file", "-d", "--delimiter", "-E", "-L", "-s",
+            "--max-chars", "--process-slot-var",
+        }),
+        optional=frozenset({"-i", "-e", "-l"}),
+        long_flags=frozenset({
+            "--null", "--no-run-if-empty", "--interactive", "--verbose", "--exit", "--open-tty", "--show-limits",
+            "--help", "--version", "--max-lines", "--replace", "--eof",
+        }),
+    ),
 }
-_DURATION_WRAPPERS = {"timeout", "gtimeout"}
-# Wrapper options that run the command in another directory.
-_WRAPPER_CHDIR_FLAGS = {"env": ("-C", "--chdir"), "sudo": ("-D", "--chdir")}
-_WRAPPER_VALUE_FLAGS = {"-u", "-g", "-p", "-C", "-n", "-k", "--signal", "-o", "-e", "-i"}
-# The wrappers whose own value flags differ from that shared set, so that
-# `env -i bash`, `sudo -n bash` and `exec -a name bash` still name bash.
-_WRAPPER_OWN_VALUE_FLAGS = {
-    "env": {"-u", "--unset", "-a", "--argv0"},
-    "exec": {"-a"},
-    "command": set(),
-    "nohup": set(),
-    "setsid": set(),
-    "sudo": {"-u", "-g", "-p", "-C", "-h", "-r", "-t", "-T", "-U", "--user", "--group", "--prompt", "--close-from", "--host", "--role", "--type", "--command-timeout", "--other-user"},
-    "doas": {"-u", "-C"},
-    "pkexec": {"--user"},
-    "runuser": {"-u", "--user", "-g", "--group", "-G", "--supp-group", "-w", "--whitelist-environment"},
-}
-# xargs -i, -e and -l take their value attached or not at all, so only the
-# flags below consume the next word.
-_XARGS_VALUE_FLAGS = {
-    "-n",
-    "-P",
-    "-I",
-    "-a",
-    "-d",
-    "-E",
-    "-L",
-    "-s",
-    "--max-args",
-}
+_WRAPPERS["gtimeout"] = _WRAPPERS["timeout"]
+_WRAPPER_TOOLS = frozenset(set(_WRAPPERS) | {"busybox", "toybox", "command", "nohup"})
 
 _FIND_EXEC_MARKERS = {"-exec", "-execdir", "-ok", "-okdir"}
 _FIND_NAME_FLAGS = {"-name", "-iname"}
@@ -4441,6 +4545,7 @@ class _Stripped(NamedTuple):
     xargs: bool = False
     replace: str = ""
     directories: Tuple[str, ...] = ()
+    writes: Tuple[str, ...] = ()
 
 
 # Reserved words that lead a POSIX command without being it, as in
@@ -4456,7 +4561,7 @@ def _peels(word: str, dialect: str) -> bool:
     """True when word leads a command without being the command."""
     name = _basename(word)
 
-    if name in _WRAPPER_TOOLS or name in _DURATION_WRAPPERS or name in ("xargs", "runuser"):
+    if name in _WRAPPER_TOOLS:
         return True
 
     if dialect == _POSIX:
@@ -4481,19 +4586,69 @@ def _after_cmd_condition(rest: List[str]) -> List[str]:
     return rest[index + 1 :] if index < len(rest) and "==" in rest[index] else rest[index:]
 
 
-def _xargs_replacement(flag: str, rest: List[str]) -> str:
-    """The replace-string an xargs flag sets, or "" when it sets none."""
-    if flag == "-I":
-        return rest[0] if rest else ""
+def _long_option(name: str, spec: _Wrapper) -> str:
+    """The long option a word names, an unambiguous prefix read as the whole option, as getopt_long reads it."""
+    options = {option for option in spec.values | spec.long_flags | spec.writes | spec.unplaceable if option.startswith("--")}
 
-    if flag in ("-i", "--replace"):
-        return "{}"
+    if name in options:
+        return name
 
-    for prefix in ("-I", "-i", "--replace="):
-        if flag.startswith(prefix):
-            return flag[len(prefix) :]
+    matches = [option for option in options if option.startswith(name)]
 
-    return ""
+    return matches[0] if len(matches) == 1 else name
+
+
+def _wrapper_options(word: str, spec: _Wrapper, rest: List[str]) -> List[Tuple[str, Optional[str]]]:
+    """Every option one word of a wrapper sets, with its value, a separate value word popped from rest."""
+    if word.startswith("--"):
+        name, equals, attached = word.partition("=")
+        name = _long_option(name, spec)
+
+        if equals:
+            return [(name, attached)]
+
+        return [(name, rest.pop(0) if name in spec.values and rest else None)]
+
+    options: List[Tuple[str, Optional[str]]] = []
+
+    for position, letter in enumerate(word[1:], start=2):
+        option = "-" + letter
+
+        if option in spec.values:
+            options.append((option, word[position:] or (rest.pop(0) if rest else "")))
+            break
+
+        if option in spec.optional:
+            options.append((option, word[position:] or None))
+            break
+
+        options.append((option, None))
+
+    return options
+
+
+def _xargs_replacement(option: str, value: Optional[str]) -> str:
+    """The replace-string an xargs option sets, or "" when it sets none."""
+    if option == "-I":
+        return value or ""
+
+    return (value or "{}") if option in ("-i", "--replace") else ""
+
+
+# env -S splits its value the way a shell would, but escapes, `$` names and
+# `#` comments of its own the gate does not follow.
+_SPLIT_STRING_UNREAD = set("\\$#`")
+
+
+def _split_string(value: str) -> Optional[List[str]]:
+    """The words env -S splits its value into, or None when the gate cannot split it the way env does."""
+    if _SPLIT_STRING_UNREAD & set(value):
+        return None
+
+    try:
+        return shlex.split(value)
+    except ValueError:
+        return None
 
 
 def _changes_the_program(name: str) -> bool:
@@ -4519,6 +4674,7 @@ def _strip_wrappers(tokens: List[str], dialect: str = _POSIX) -> Optional[_Strip
     xargs = False
     replace = ""
     directories: List[str] = []
+    writes: List[str] = []
     peeled = 0
 
     while True:
@@ -4527,7 +4683,7 @@ def _strip_wrappers(tokens: List[str], dialect: str = _POSIX) -> Optional[_Strip
                 return None
 
         if not rest or not _peels(rest[0], dialect):
-            return _Stripped(rest, xargs, replace, tuple(directories))
+            return _Stripped(rest, xargs, replace, tuple(directories), tuple(writes))
 
         if peeled == _MAX_WRAPPERS:
             return None
@@ -4538,7 +4694,7 @@ def _strip_wrappers(tokens: List[str], dialect: str = _POSIX) -> Optional[_Strip
         # runuser wraps a command only in its -u form. Without -u it is su,
         # a shell or the -c code the code runners read.
         if name == "runuser" and not _runuser_wraps(rest):
-            return _Stripped(rest, xargs, replace, tuple(directories))
+            return _Stripped(rest, xargs, replace, tuple(directories), tuple(writes))
 
         if dialect == _CMD and rest[0].startswith("@"):
             rest[0] = rest[0][1:]
@@ -4552,35 +4708,46 @@ def _strip_wrappers(tokens: List[str], dialect: str = _POSIX) -> Optional[_Strip
             rest.pop(0)
             continue
 
-        value_flags = _XARGS_VALUE_FLAGS if name == "xargs" else _WRAPPER_OWN_VALUE_FLAGS.get(name, _WRAPPER_VALUE_FLAGS)
+        spec = _WRAPPERS.get(name, _NO_OPTIONS)
         rest.pop(0)
 
         while rest and rest[0].startswith("-") and len(rest[0]) > 1:
-            flag = rest.pop(0)
+            word = rest.pop(0)
+
+            if word == "--":
+                break
 
             # command -v and -V describe the name after them and run nothing.
-            if name == "command" and not flag.startswith("--") and set(flag[1:]) & {"v", "V"}:
-                return _Stripped([], xargs, replace, tuple(directories))
+            if name == "command" and not word.startswith("--") and set(word[1:]) & {"v", "V"}:
+                return _Stripped([], xargs, replace, tuple(directories), tuple(writes))
 
-            if name == "xargs":
-                replace = _xargs_replacement(flag, rest) or replace
+            for option, value in _wrapper_options(word, spec, rest):
+                if option in spec.unplaceable:
+                    return None
 
-            changes = _WRAPPER_CHDIR_FLAGS.get(name, ())
+                if name == "xargs":
+                    replace = _xargs_replacement(option, value) or replace
 
-            if flag in changes and rest:
-                directories.append(rest.pop(0))
-            elif any(flag.startswith(change + "=") for change in changes if change.startswith("--")):
-                directories.append(flag.split("=", 1)[1])
-            elif name == "env" and flag.startswith("-C") and len(flag) > 2:
-                directories.append(flag[2:])
-            elif name == "env" and flag in ("-S", "--split-string") and rest:
-                rest = rest[0].split() + rest[1:]
-            elif flag in value_flags and rest:
-                rest.pop(0)
+                if value is None:
+                    continue
 
-        if name in _DURATION_WRAPPERS and rest:
-            rest.pop(0)
+                if option in spec.chdir:
+                    directories.append(value)
+                elif option in spec.split:
+                    split = _split_string(value)
 
+                    if split is None:
+                        return None
+
+                    rest = split + rest
+                elif option in spec.writes:
+                    # strace -o |cmd and !cmd pipe the trace into a command.
+                    if value.startswith(("|", "!")):
+                        return None
+
+                    writes.append(value)
+
+        del rest[: spec.operands]
         xargs = xargs or name == "xargs"
 
 
@@ -4880,9 +5047,16 @@ def _no_input() -> Optional[str]:
 
 
 def _xargs_arguments(rest: List[str], replace: str, feed: Optional[str]) -> List[str]:
-    """The command xargs runs, with the words it reads put where xargs puts them."""
+    """The command xargs runs, with the words it reads put where xargs puts them.
+
+    With no feed xargs reads the terminal, so a replace string stands for
+    words the gate never sees.
+    """
     if feed is None:
-        return rest
+        if not replace:
+            return rest
+
+        feed = _UNKNOWN_INPUT
 
     words = [_UNPLACEABLE_ARGUMENT] if feed == _UNKNOWN_INPUT else feed.split()
 
@@ -4986,6 +5160,16 @@ def _code_runner_targets(
 
     if dialect == _POSIX and name == "eval":
         return _evaluated_targets(" ".join(rest[1:]), depth, dialect)
+
+    # fish, csh, tcsh, nu and Tcl code is not read, so inline or piped code
+    # for them is unplaceable. A script they run is Rule D's.
+    if name in _OTHER_SHELLS or name == "tclsh":
+        inline = name in _OTHER_SHELLS and bool(_option_scan(rest[1:], frozenset())[0] & _OTHER_SHELL_INLINE)
+
+        return [_UNPLACEABLE_SHELL_TARGET] if inline or feed() is not None else None
+
+    if name in _LINE_EDITORS and feed() is not None:
+        return _line_editor_targets(name, rest, feed(), powershell)
 
     if dialect == _POWERSHELL and _PS_ALIASES.get(name, name) == "invoke-expression":
         bound = _ps_bind(rest, _PS_CMDLETS["invoke-expression"])
@@ -5545,10 +5729,72 @@ _COMMAND_RUNNERS: Dict[str, Callable[[List[str], int, str], List[str]]] = {
     "at": _scheduler_targets,
     "crontab": _scheduler_targets,
     "wmic": _wmic_targets,
+    # chroot moves every path the command names under its new root.
+    "chroot": _always_unplaceable,
     "docker-compose": _container_targets,
     "podman-compose": _container_targets,
 }
 _COMMAND_RUNNERS.update({name: _container_targets for name in _CONTAINER_TOOLS})
+
+# Programs that take code, a program to run or a file to run from their
+# arguments, so an argument the gate cannot read leaves that code unread.
+_CODE_FROM_ARGUMENTS = frozenset(
+    _POSIX_SHELLS
+    | _OTHER_SHELLS
+    | _POWERSHELL_SHELLS
+    | _CMD_SHELLS
+    | _INLINE_CODE_TOOLS
+    | _INPLACE_TOOLS
+    | {"eval", "source", ".", "su", "runuser", "sqlite3", "tclsh", "find", "git", "start", "start-process", "invoke-expression", "iex", "apply_patch", "applypatch"}
+)
+
+# Line editors read their commands from standard input. ed and red are read
+# here, ex is vim's command line, which can run anything, so it is not.
+_LINE_EDITORS = frozenset({"ed", "red", "ex"})
+_ED_VALUE_FLAGS = frozenset({"-p", "--prompt"})
+_ED_ADDRESS_RE = re.compile(r"^[\s0-9.$,;+\-^]*(?:(?:'[a-z]|/(?:[^/\\]|\\.)*/|\?(?:[^?\\]|\\.)*\?)[\s0-9.$,;+\-^]*)*")
+_ED_INPUT_COMMANDS = frozenset({"a", "i", "c"})
+_ED_GLOBAL_COMMANDS = frozenset({"g", "G", "v", "V"})
+_ED_FILE_COMMANDS = frozenset({"e", "E", "f"})
+
+
+def _line_editor_targets(name: str, tokens: List[str], feed: Optional[str], powershell: bool) -> List[str]:
+    """What ed or red writes from the commands piped into it, or unplaceable when the gate cannot follow them.
+
+    `w`, `W` and `wq` write the named file or the one being edited, `!`
+    runs a shell command, `e`, `E` and `f` change the file being edited, and
+    a global command runs a command list of its own.
+    """
+    if name == "ex" or feed is None or feed == _UNKNOWN_INPUT:
+        return [_UNPLACEABLE_SHELL_TARGET]
+
+    operands = _operands(tokens[1:], _ED_VALUE_FLAGS)
+    edited = operands[0] if operands else ""
+    targets: List[str] = []
+    inserting = False
+
+    for line in feed.splitlines():
+        if inserting:
+            inserting = line != "."
+            continue
+
+        command = _ED_ADDRESS_RE.sub("", line, count=1)
+        letter, argument = command[:1], command[1:]
+
+        if letter == "!" or argument.lstrip().startswith("!") or letter in _ED_GLOBAL_COMMANDS:
+            return [_UNPLACEABLE_SHELL_TARGET]
+
+        if letter in _ED_INPUT_COMMANDS:
+            inserting = True
+        elif letter in _ED_FILE_COMMANDS and argument.strip():
+            edited = argument.strip()
+        elif letter in ("w", "W"):
+            named = argument[1:] if argument.startswith("q") else argument
+            target = named.strip() or edited
+
+            targets += _sourced([target], powershell) if target else [_UNPLACEABLE_SHELL_TARGET]
+
+    return targets
 
 
 def _find_matches(starts: List[str], expression: List[str]) -> List[str]:
@@ -6298,6 +6544,14 @@ def _runs_a_script(tokens: List[str], dialect: str) -> bool:
     if _runs_a_program_by_path(program, name):
         return True
 
+    if name in _OTHER_SHELLS:
+        names, operands = _option_scan(tokens[1:], _OTHER_SHELL.values)
+
+        return not names & _OTHER_SHELL_INLINE and bool(operands) and operands[0] != "-"
+
+    if name == "tclsh":
+        return any(not token.startswith("-") for token in tokens[1:])
+
     if name == "python":
         return _python_runs_script(tokens)
 
@@ -6334,6 +6588,8 @@ _RULE_D_PROGRAMS = (
     | _BUILD_RUNNERS
     | _POWERSHELL_SHELLS
     | _POSIX_SHELLS
+    | _OTHER_SHELLS
+    | {"tclsh"}
     | _CMD_SHELLS
 )
 
@@ -6372,7 +6628,8 @@ def _allowlist_roots() -> List[Path]:
 class _Waiting(NamedTuple):
     """How Rule F reads one program's arguments.
 
-    `inline` flags hand it code, which the other rules read, so it no longer
+    `inline` flags hand it code, which the other rules read or, for a
+    language they cannot read, refuse as unplaceable, so it no longer
     waits. `stays` flags keep it waiting after that code or a script. `runs`
     flags hand it a script or a module, which is Rule D's. `values` take the
     next word as their value, so that word is not a script. `info` flags
@@ -6410,9 +6667,8 @@ _ALWAYS_WAITING = _Waiting(always=True, reads_feed=False, info=frozenset({"-V", 
 # `bun repl`, is a subcommand Rule D already denies. The POSIX shells,
 # PowerShell and cmd are read by the helpers Rule D already uses.
 _WAITING_PROGRAMS: Dict[str, _Waiting] = {
-    **{shell: _OTHER_SHELL for shell in ("fish", "mksh", "yash", "tcsh", "csh", "nu")},
+    **{shell: _OTHER_SHELL for shell in _OTHER_SHELLS},
     "python": _PYTHON_WAITING,
-    "ipython": _PYTHON_WAITING,
     "node": _Waiting(
         inline=frozenset(_JS_INLINE_FLAGS), stays=frozenset({"-i", "--interactive"}), runs=frozenset(_JS_SCRIPT_FLAGS),
         values=frozenset(_JS_OPTION_VALUES | _JS_INLINE_FLAGS), info=frozenset({"-v", "-h"}),
@@ -6593,7 +6849,7 @@ _GIT_EDITING_FIXUPS = ("--fixup=amend:", "--fixup=reword:")
 _SHELL_STARTING_WRAPPERS = frozenset({"sudo", "doas"})
 _SHELL_STARTING_FLAGS = frozenset({"s", "i"})
 _SHELL_STARTING_LONG_FLAGS = frozenset({"--shell", "--login"})
-_BARE_SHELL_WRAPPERS = frozenset({"pkexec"})
+_BARE_SHELL_WRAPPERS = frozenset({"pkexec", "fakeroot", "firejail"})
 
 
 def _short_flags(token: str, values: AbstractSet[str]) -> Set[str]:
@@ -6998,10 +7254,14 @@ def _segment_targets(
     if not stripped.argv and _starts_a_shell_of_its_own(tokens) and feed() is None:
         return [_WAITING_RUN + _rejoined(tokens)]
 
-    if stripped.directories:
-        return _in_directories(stripped, depth, dialect, feed)
+    # A file a wrapper writes itself, such as time -o, is placed from where
+    # the wrapper stands, and from the folder it moves to as well.
+    writes = _sourced(list(stripped.writes), dialect != _POSIX)
 
-    return _stripped_targets(stripped, depth, dialect, feed)
+    if stripped.directories:
+        return writes + _in_directories(stripped, depth, dialect, feed)
+
+    return writes + _stripped_targets(stripped, depth, dialect, feed)
 
 
 def _in_directories(
@@ -7015,7 +7275,9 @@ def _in_directories(
         for directory in stripped.directories:
             _enter_directory([directory])
 
-        return _stripped_targets(stripped._replace(directories=()), depth, dialect, feed)
+        return _sourced(list(stripped.writes), dialect != _POSIX) + _stripped_targets(
+            stripped._replace(directories=()), depth, dialect, feed
+        )
     finally:
         _CD_BASE = saved
 
@@ -7048,6 +7310,17 @@ def _stripped_targets(
 
     if not program:
         return []
+
+    if stripped.xargs:
+        # xargs may have put its words in the program's place, and words it
+        # read from a source the gate cannot see leave any code unread.
+        name = _program_name(program[0])
+        handler, binds = _handler_for(name, dialect)
+
+        if any(_UNPLACEABLE_ARGUMENT in token for token in rest) and (
+            _UNPLACEABLE_ARGUMENT in rest[0] or name in _CODE_FROM_ARGUMENTS or name in _COMMAND_RUNNERS
+        ):
+            return [_UNPLACEABLE_SHELL_TARGET]
 
     if _runs_a_script(rest, dialect) and not _allowlisted(rest):
         return [_SCRIPT_RUN + _rejoined(rest)]
