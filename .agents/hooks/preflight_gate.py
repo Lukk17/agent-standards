@@ -733,7 +733,10 @@ _VERSIONED_TOOL_RE = re.compile(r"^(python|pypy|ipython|node|php|ruby|perl|awk|g
 # Programs every rule reads as another, because they take the same options
 # and run the same code.
 _SAME_PROGRAM = {"pypy": "python", "ipython": "python"}
-_SHORT_INPLACE_RE = re.compile(r"^-[A-Za-z]{0,3}i(?:\.[^\s]*)?$")
+# perl and ruby switches that take the rest of their cluster as a value,
+# and the ones that take only the digits after them.
+_PERLISH_REST_SWITCHES = frozenset("eEIMmFxdDVCrTW")
+_PERLISH_DIGIT_SWITCHES = frozenset("l0")
 
 _ESCAPABLE = set(" \t\"'\\;|&<>()$`")
 
@@ -742,7 +745,6 @@ _AWK_TOOLS = {"awk", "gawk", "mawk", "nawk"}
 _PERLISH_TOOLS = {"perl", "ruby"}
 _INPLACE_TOOLS = _SED_TOOLS | _AWK_TOOLS | _PERLISH_TOOLS
 
-_SED_VALUE_FLAGS = {"-e", "--expression", "-f", "--file", "-l", "--line-length"}
 _AWK_VALUE_FLAGS = {
     "-v",
     "--assign",
@@ -1028,6 +1030,15 @@ _WRAPPERS: Dict[str, _Wrapper] = {
     ),
 }
 _WRAPPERS["gtimeout"] = _WRAPPERS["timeout"]
+# GNU sed's own options, read by the same option reader.
+_SED_OPTIONS = _Wrapper(
+    values=frozenset({"-e", "--expression", "-f", "--file", "-l", "--line-length"}),
+    optional=frozenset({"-i"}),
+    long_flags=frozenset({
+        "--in-place", "--null-data", "--zero-terminated", "--quiet", "--silent", "--regexp-extended", "--separate",
+        "--sandbox", "--unbuffered", "--debug", "--posix", "--follow-symlinks", "--binary", "--help", "--version",
+    }),
+)
 _WRAPPER_TOOLS = frozenset(set(_WRAPPERS) | {"busybox", "toybox", "command", "nohup"})
 
 _FIND_EXEC_MARKERS = {"-exec", "-execdir", "-ok", "-okdir"}
@@ -2151,33 +2162,89 @@ def _sourced(candidates: List[str], powershell: bool = False) -> List[str]:
     return [candidate for candidate in candidates if _is_write_target(candidate, powershell)]
 
 
+def _perlish_switches_inplace(word: str) -> bool:
+    """True when a perl or ruby switch cluster holds -i, which takes the rest of the cluster as its backup suffix."""
+    if not word.startswith("-") or word.startswith("--"):
+        return False
+
+    letters = word[1:]
+    index = 0
+
+    while index < len(letters):
+        letter = letters[index]
+
+        if letter == "i":
+            return True
+
+        if letter in _PERLISH_REST_SWITCHES:
+            return False
+
+        index += 1
+
+        if letter in _PERLISH_DIGIT_SWITCHES:
+            while index < len(letters) and letters[index].isdigit():
+                index += 1
+
+    return False
+
+
+class _SedCall(NamedTuple):
+    """A sed command read the way GNU sed's getopt_long reads it."""
+
+    inplace: bool
+    expressions: List[str]
+    files: List[str]
+    operands: List[str]
+
+
+def _sed_call(tokens: List[str]) -> _SedCall:
+    """sed's options wherever they sit until `--`, `-i` with its optional attached suffix, long options by prefix."""
+    rest = list(tokens[1:])
+    inplace = False
+    expressions: List[str] = []
+    files: List[str] = []
+    operands: List[str] = []
+
+    while rest:
+        word = rest.pop(0)
+
+        if word == "--":
+            operands += rest
+            break
+
+        if not word.startswith("-") or word == "-":
+            operands.append(word)
+            continue
+
+        for option, value in _wrapper_options(word, _SED_OPTIONS, rest):
+            if option in ("-i", "--in-place"):
+                inplace = True
+            elif option in ("-e", "--expression") and value is not None:
+                expressions.append(value)
+            elif option in ("-f", "--file") and value is not None:
+                files.append(value)
+
+    return _SedCall(inplace, expressions, files, operands)
+
+
 def _inplace_targets(name: str, tokens: List[str], powershell: bool = False) -> List[str]:
     """Files an in-place editor rewrites, in every spelling of the flag."""
     flags = tokens[1:]
+
+    if name in _SED_TOOLS:
+        call = _sed_call(tokens)
+        operands = call.operands[0 if call.expressions or call.files else 1 :]
+
+        return _sourced(operands, powershell) if call.inplace else []
 
     if name in _AWK_TOOLS:
         inplace = "inplace" in flags or any(flag.endswith("=inplace") for flag in flags)
         value_flags = _AWK_VALUE_FLAGS
         script_is_first = not any(flag == "-f" or flag.startswith("--file") for flag in flags)
     else:
-        inplace = any(
-            flag in ("--in-place", "--inplace")
-            or flag.startswith("--in-place=")
-            or _SHORT_INPLACE_RE.match(flag)
-            for flag in flags
-        )
-
-        if name in _PERLISH_TOOLS:
-            value_flags = _PERLISH_VALUE_FLAGS
-            script_is_first = not any(flag in ("-e", "-E") for flag in flags)
-        else:
-            value_flags = _SED_VALUE_FLAGS
-            script_is_first = not any(
-                flag in ("-e", "-f")
-                or flag.startswith("--expression")
-                or flag.startswith("--file")
-                for flag in flags
-            )
+        inplace = any(_perlish_switches_inplace(flag) for flag in flags)
+        value_flags = _PERLISH_VALUE_FLAGS
+        script_is_first = not any(flag in ("-e", "-E") for flag in flags)
 
     if not inplace:
         return []
@@ -6108,8 +6175,13 @@ def _sed_delimited_end(script: str, index: int, delimiter: str) -> int:
 def _program_texts(name: str, tokens: List[str]) -> Optional[List[str]]:
     """The sed script or awk program a command runs, or None when a program file cannot be read."""
     flags = tokens[1:]
-    expressions = [value for _flag, value in _long_or_short_values(tokens, "-e", "--expression")] if name in _SED_TOOLS else []
-    files = [value for _flag, value in _long_or_short_values(tokens, "-f", "--file")]
+
+    if name in _SED_TOOLS:
+        call = _sed_call(tokens)
+        expressions, files = call.expressions, call.files
+    else:
+        expressions, files = [], [value for _flag, value in _long_or_short_values(tokens, "-f", "--file")]
+
     texts = list(expressions)
 
     for path in files:
@@ -6120,10 +6192,10 @@ def _program_texts(name: str, tokens: List[str]) -> Optional[List[str]]:
 
         texts.append(text)
 
-    if texts:
+    if texts or files:
         return texts
 
-    operands = _operands(flags, _SED_VALUE_FLAGS if name in _SED_TOOLS else _AWK_VALUE_FLAGS)
+    operands = _sed_call(tokens).operands if name in _SED_TOOLS else _operands(flags, _AWK_VALUE_FLAGS)
 
     return operands[:1]
 

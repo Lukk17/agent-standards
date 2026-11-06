@@ -412,7 +412,11 @@ Every wrapper is peeled by its own options, as getopt reads them: a value attach
 `ltrace`, `fakeroot`, `firejail`, `numactl`, `valgrind`, `caffeinate`, `busybox`, `toybox` and `xargs`. `env -S`
 splits its string the way a shell would, a file a wrapper writes itself (`time -o`, `strace -o`, `ltrace -o`,
 `rlwrap -l`, `fakeroot -s`, `valgrind --log-file`) is a write target, and `mksh` and `yash` are read as POSIX shells.
-Commands piped into `ed` or `red` are read for the files `w` writes.
+Commands piped into `ed` or `red` are read for the files `w` writes. sed is read the way GNU sed's getopt_long reads
+it, options anywhere before `--` and long options by prefix, so `-i` takes the rest of its cluster as a backup suffix
+(`sed -ie`, `-ibak`, `-i~`, `--in-pl`), and `-nf script`, `--fi script` and `--expr=...` are found wherever they sit.
+A sed script file the gate cannot read is unplaceable. perl and ruby read `-i` the same way inside a switch cluster
+(`perl -pi~`).
 
 Beyond the plain writers, the rule reads a hard link whose source is a project file (`ln` without `-s`, `cp -l`,
 `fsutil hardlink create`, `New-Item -ItemType HardLink`, `mklink /H`), a Windows device, extended-length or loopback

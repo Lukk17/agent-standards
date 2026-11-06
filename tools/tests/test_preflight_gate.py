@@ -3895,6 +3895,88 @@ def test_a_shell_or_interpreter_the_rules_can_read_is_allowed(command):
     assert decision(shell(command)) == "allow"
 
 
+# GNU sed reads `-i` with an optional attached suffix, so everything after
+# the i in a cluster is that suffix (`-ie` keeps a backup ending in e, it is
+# not -e), and getopt_long takes an unambiguous long prefix. perl and ruby
+# read `-i` the same way inside a switch cluster.
+INPLACE_SPELLINGS = [
+    "sed -ibak s/a/b/ AGENTS.md",
+    "sed -i~ s/a/b/ AGENTS.md",
+    "sed -ie 's/a/b/' AGENTS.md",
+    "sed -is s/a/b/ AGENTS.md",
+    "sed -ni p AGENTS.md",
+    "sed --in-pl s/a/b/ AGENTS.md",
+    "sed --in s/a/b/ AGENTS.md",
+    "sed --in-place=bak s/a/b/ AGENTS.md",
+    "sed -E -i s/a/b/ AGENTS.md",
+    "sed s/a/b/ AGENTS.md -i",
+    "perl -pi~ -e 's/a/b/' AGENTS.md",
+    "perl -pibak -e 's/a/b/' AGENTS.md",
+    "perl -lpi -e 's/a/b/' AGENTS.md",
+    "ruby -pi~ -e 'sub(/a/, \"b\")' AGENTS.md",
+]
+
+
+@pytest.mark.parametrize("command", INPLACE_SPELLINGS)
+def test_every_in_place_spelling_is_read(command):
+    _code, out, _err = run(shell(command), "claude")
+
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"].endswith("Blocked target: AGENTS.md")
+
+
+SED_SCRIPT_SPELLINGS = [
+    "sed --expr='w AGENTS.md' /tmp/x",
+    "sed --exp 'w AGENTS.md' /tmp/x",
+    "sed -n --expression='w AGENTS.md' /tmp/x",
+    "sed -ne 'w AGENTS.md' /tmp/x",
+    "sed /tmp/x -e 'w AGENTS.md'",
+    "sed --fi {script} /tmp/x",
+    "sed -nf {script} /tmp/x",
+    "sed -nf{script} /tmp/x",
+    "sed --file={script} /tmp/x",
+]
+
+
+@pytest.mark.parametrize("command", SED_SCRIPT_SPELLINGS)
+def test_every_sed_script_spelling_is_read(tmp_path, command):
+    script = tmp_path / "s.sed"
+    script.write_text("w AGENTS.md\n", encoding="utf-8")
+
+    assert decision(shell(command.format(script=script.as_posix()))) == "deny"
+
+
+@pytest.mark.parametrize(
+    "command", ["sed --fi {missing} /tmp/x", "sed -nf {missing} /tmp/x", "sed -f {missing} /tmp/x"]
+)
+def test_a_sed_script_file_the_gate_cannot_read_is_unplaceable(tmp_path, command):
+    _code, out, _err = run(shell(command.format(missing=(tmp_path / "missing.sed").as_posix())), "claude")
+
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"].endswith(
+        "Blocked target: " + GATE._UNPLACEABLE_PROGRAM_TARGET
+    )
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "sed -n p /tmp/x",
+        "sed s/a/b/ /tmp/x",
+        "sed -E s/a/b/ /tmp/x",
+        "sed -n -e p /tmp/x",
+        "sed -i s/a/b/ /tmp/x",
+        "sed -ie s/a/b/ /tmp/x",
+        "sed -nf {script} /tmp/x",
+        "perl -pi~ -e 's/a/b/' /tmp/x",
+        "perl -ne print AGENTS.md",
+    ],
+)
+def test_a_sed_or_perl_run_that_writes_nothing_inside_is_allowed(tmp_path, command):
+    script = tmp_path / "s.sed"
+    script.write_text("p\n", encoding="utf-8")
+
+    assert decision(shell(command.format(script=script.as_posix()))) == "allow"
+
+
 @pytest.mark.parametrize("command", ['cmd /r "echo x > AGENTS.md"', "cmd /R echo x ^> AGENTS.md", 'cmd /q /r "echo x > AGENTS.md"'])
 def test_cmd_r_runs_its_command_the_way_c_does(command):
     # cmd stops reading switches at the first /C, /K or /R, and /R runs the
