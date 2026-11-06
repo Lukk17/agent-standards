@@ -583,6 +583,8 @@ def opencode_bash_verdict(bash_map, command):
         ("gh pr view 12 --json title --template x", "deny"),
         ("gh pr view 12 --json title -t x", "deny"),
         ("gh pr view 12 --json title,state", "allow"),
+        ("gh pr view 12 --watch", "deny"),
+        ("gh pr view 12 --watch=true", "deny"),
         ("touch made.txt", "deny"),
         ("git --no-pager log --format=%h%x20%s -U0 HEAD~3..HEAD", "allow"),
         ("git --no-pager log -L10,20:src/app.py", "allow"),
@@ -684,7 +686,23 @@ def test_an_agent_without_the_marker_gets_no_read_only_section():
         assert gen.READ_ONLY_HEADING not in gen.render(tool, WRITER, BODY)
 
 
-@pytest.mark.parametrize("agent", ["code-reviewer", "code-archaeologist"])
+@pytest.mark.parametrize(
+    ("agent", "needed"),
+    [
+        ("security-auditor", {"bash"}),
+        ("debugger", {"write", "edit"}),
+        ("legal-advisor", {"write", "edit", "webfetch"}),
+        ("seo-content-marketer", {"write", "edit", "webfetch"}),
+    ],
+)
+def test_an_agent_holds_every_tool_its_routine_uses(agent, needed):
+    """Each routine writes a test, revises a draft in place, fetches a source or searches git history."""
+    canonical = front_matter((gen.SRC / f"{agent}.md").read_text(encoding="utf-8"))
+
+    assert needed <= set(canonical["tools"])
+
+
+@pytest.mark.parametrize("agent", ["code-reviewer", "code-archaeologist", "security-auditor"])
 def test_the_shipped_reviewers_are_read_only_with_bash(agent):
     canonical = front_matter((gen.SRC / f"{agent}.md").read_text(encoding="utf-8"))
     opencode = front_matter((gen.TARGETS["agents"][0] / f"{agent}.md").read_text(encoding="utf-8"))

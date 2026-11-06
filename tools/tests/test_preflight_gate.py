@@ -6192,6 +6192,25 @@ def test_read_only_subagent_keeps_gh_options_that_run_no_expression(tmp_path, co
     assert read_only_verdict(tmp_path, shell(command)) is None
 
 
+# `gh pr checks --watch` polls every interval until no check is pending, with
+# no upper bound (checksRun in pkg/cmd/pr/checks/checks.go at gh v2.89.0), so a
+# check stuck in the queue holds the shell call for as long as it stays there.
+READ_ONLY_CHECKS_PATTERNS = [*READ_ONLY_FIXTURE_PATTERNS, "gh pr checks*"]
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["gh pr checks 12 --watch", "gh pr checks 12 --watch=true", "gh pr checks 12 --watch --fail-fast -i 5", "gh pr checks --watch 12"],
+)
+def test_read_only_subagent_may_not_watch_gh_checks(command):
+    assert GATE._read_only_command_blocked(command, False, READ_ONLY_CHECKS_PATTERNS) == command
+
+
+@pytest.mark.parametrize("command", ["gh pr checks 12", "gh pr checks 12 --required", "gh pr checks 12 --json name,state"])
+def test_read_only_subagent_keeps_a_one_shot_gh_checks_read(command):
+    assert GATE._read_only_command_blocked(command, False, READ_ONLY_CHECKS_PATTERNS) is None
+
+
 @pytest.mark.parametrize(
     ("command", "blocked"),
     [
@@ -7301,7 +7320,11 @@ def test_the_gate_and_the_generator_share_the_read_only_heading():
 
 @pytest.mark.parametrize(
     ("agent", "extras"),
-    [("code-reviewer", ["gh pr diff*", "gh pr view*"]), ("code-archaeologist", [])],
+    [
+        ("code-reviewer", ["gh pr diff*", "gh pr view*", "gh pr checks*"]),
+        ("code-archaeologist", []),
+        ("security-auditor", ["git --no-pager ls-files*"]),
+    ],
 )
 def test_the_shipped_read_only_agents_carry_their_list_in_every_tree(agent, extras):
     for directory, extension in [

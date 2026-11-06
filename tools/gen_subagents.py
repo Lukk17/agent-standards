@@ -101,9 +101,9 @@ READ_ONLY_FORBIDDEN_TOOLS = frozenset({"write", "edit", "task"})
 # diff*` would also match `git difftool`, so each listed command becomes an exact
 # rule plus a "command *" rule, and these denies follow them all: a git output
 # option in any spelling that keeps `--out`, anything the shell still expands,
-# any redirect, gh opening a browser or running a --jq or --template
-# expression, and every character the gate's Rule E refuses that a pattern
-# can name, a single quote included. `*` matches across lines there (the regex
+# any redirect, gh opening a browser, running a --jq or --template
+# expression or polling with --watch, and every character the gate's Rule E
+# refuses that a pattern can name, a single quote included. `*` matches across lines there (the regex
 # carries the `s` flag), so a newline or a carriage return denies the whole
 # command. Two of the gate's refusals cannot be written as a rule: a
 # backslash, because Wildcard.match turns every backslash into `/` in the
@@ -122,6 +122,7 @@ OPENCODE_READ_ONLY_DENIES = (
     "gh * -q*",
     "gh *--template*",
     "gh * -t*",
+    "gh *--watch*",
     '*"*',
     "*'*",
     "*{*",

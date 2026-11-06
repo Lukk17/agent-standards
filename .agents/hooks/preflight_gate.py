@@ -46,7 +46,8 @@ E. A subagent whose own definition carries a READ_ONLY_HEADING section may
    open with `git --no-pager`, whatever the list says, because git on a
    terminal pipes its output into a pager whose `!` runs any command. gh may
    not open a browser, name a URL, take a repository other than OWNER/REPO,
-   or run a --jq or --template expression, and on the codex format no gh
+   run a --jq or --template expression, or poll with --watch, which waits
+   with no upper bound, and on the codex format no gh
    command runs at all, because gh has no flag that keeps its pager off and
    Codex can type into a terminal through write_stdin, which the hook never
    sees (READ_ONLY_PAGER_REASON). Any exception while
@@ -307,6 +308,10 @@ READ_ONLY_GH_REPO_VALUE_RE = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
 # carries code. A cluster stops at -R, whose value follows it, so
 # `-Rowner/test` stays a repository.
 READ_ONLY_GH_EXPRESSION_RE = re.compile(r"^(?:--(?:jq|template)(?:=.*)?|-[A-QS-Za-z]*[qt].*)$")
+# gh pr checks --watch polls every interval until no check is pending, with no
+# upper bound and no short form (checksRun in pkg/cmd/pr/checks/checks.go at gh
+# v2.89.0), so a check stuck in the queue would hold the shell call open.
+READ_ONLY_GH_WATCH_RE = re.compile(r"^--watch(?:=.*)?$")
 # A pager is a shell: `less` runs any command typed after `!`. git pipes its
 # output into one on a terminal unless told otherwise, and `--no-pager` sets
 # use_pager to 0 before the subcommand's own pager choice is read, so neither
@@ -8928,6 +8933,11 @@ def _runs_gh_expression(argv: Tuple[str, ...]) -> bool:
     return argv[:1] == ("gh",) and any(READ_ONLY_GH_EXPRESSION_RE.match(word) for word in argv[1:])
 
 
+def _watches_gh_checks(argv: Tuple[str, ...]) -> bool:
+    """True for a gh command handed --watch, which polls until every check finishes."""
+    return argv[:1] == ("gh",) and any(READ_ONLY_GH_WATCH_RE.match(word) for word in argv[1:])
+
+
 def _gh_repository_values(argv: Tuple[str, ...]) -> List[str]:
     """Every value a gh command hands -R or --repo, in each spelling pflag reads."""
     values: List[str] = []
@@ -9312,7 +9322,7 @@ def _read_only_segments_blocked(command: str, powershell: bool, patterns: List[s
         if any(_read_only_word_blocked(word) for word in parts) or _opens_a_browser(parts):
             return words
 
-        if _names_another_repository(parts) or _runs_gh_expression(parts):
+        if _names_another_repository(parts) or _runs_gh_expression(parts) or _watches_gh_checks(parts):
             return words
 
         pager = _opens_a_pager(segment.argv, fmt)

@@ -170,7 +170,7 @@ Reading the tables row by row:
   `bash: deny` unless `bash` is. A definition marked `readonly: true` instead gets `edit: deny`, `task: deny`, denies
   for `webfetch`, `websearch`, `todowrite`, `lsp` and `"*_*"`, and a `bash` map with `"*": deny` first, its allowed
   commands after it, and denies last, because OpenCode lets the last matching rule win: an output option, a `$`, a
-  redirect, gh's `--web`, `-w`, `--jq`, `-q`, `--template` and `-t`, and the characters `"`, `'`, `{`, a backtick, `<`, `;`, `&`, `|`, `[`, a newline and a
+  redirect, gh's `--web`, `-w`, `--jq`, `-q`, `--template`, `-t` and `--watch`, and the characters `"`, `'`, `{`, a backtick, `<`, `;`, `&`, `|`, `[`, a newline and a
   carriage return. OpenCode matches a permission key against the tool name, "so the same syntax works for built-ins,
   custom tools, and MCP tools", and names an MCP tool `<server>_<tool>`
   ([agents, "Permissions"](https://opencode.ai/docs/agents/), fetched 2026-10-30), so `"*_*"` denies every MCP tool.
@@ -250,7 +250,10 @@ Reading the tables row by row:
   2.89.0 pins, fetched 2026-10-30), and gojq's loader "allows to configure the environment variables referenced by
   `env` and `$ENV`" ([gojq README](https://raw.githubusercontent.com/itchyny/gojq/main/README.md)), so `--jq env`
   prints every variable, tokens included. `--template` and `-t` deny with it. A gh template has no environment function, but neither flag then
-  carries code. On the `codex` format a read-only agent runs no gh command at all. gh sends its output to a pager
+  carries code. Nor may gh poll with `--watch`: `gh pr checks --watch` re-reads the checks every interval until none is
+  pending, with no upper bound
+  ([pkg/cmd/pr/checks/checks.go at v2.89.0](https://raw.githubusercontent.com/cli/cli/v2.89.0/pkg/cmd/pr/checks/checks.go)),
+  so a check stuck in the queue would hold the shell call open, while a single `gh pr checks` read passes. On the `codex` format a read-only agent runs no gh command at all. gh sends its output to a pager
   whenever stdout is a terminal: "`GH_PAGER`, `PAGER` (in order of precedence): a terminal paging program to send
   standard output to, e.g. `less`" (`gh help environment`, gh 2.89.0), `StartPager` returns early only when that
   program is empty or `cat` or stdout is no terminal

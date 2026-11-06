@@ -3,6 +3,7 @@ description: "Use when the user says \"this test fails\", \"why does this throw\
 mode: subagent
 tools:
   read: true
+  write: true
   edit: true
   grep: true
   glob: true
