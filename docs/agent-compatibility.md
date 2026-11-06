@@ -469,8 +469,9 @@ the gate alone holds them.
 Known limits of the write rule, accepted rather than open: a write form the gate does not know passes, a top-level
 command it cannot parse allows on the main thread, MCP tools are not gated, code run by an allowlisted tool is trusted rather than read,
 Copilot's main thread is not gated, the risky variable and option lists come from knowledge rather than vendor
-documentation, and a loopback share whose folder cannot be determined denies. Re-audit only when the rule changes, and
-record a new limit here rather than chasing it.
+documentation, a loopback share whose folder cannot be determined denies, and the `tasks.md` exemption holds at every
+root, so a call whose `cwd` names a project subfolder, as a Codex `workdir` does from `rust-v0.166.0`, may write
+`tasks.md` in that subfolder. Re-audit only when the rule changes, and record a new limit here rather than chasing it.
 
 #### MCP tools are not gated
 
