@@ -4835,6 +4835,10 @@ def _xargs_arguments(rest: List[str], replace: str, feed: Optional[str]) -> List
     if not replace:
         return rest + words
 
+    # xargs -I runs its command once per input line, so no input runs nothing.
+    if not words:
+        return []
+
     expanded: List[str] = []
 
     for token in rest:
@@ -6704,10 +6708,17 @@ def _stripped_targets(
         rest = _xargs_arguments(rest, stripped.replace, feed())
         feed = _no_input
 
+    # What xargs leaves can be no command at all, and a crash here would
+    # reach main()'s catch-all, which allows the whole call.
+    program = _split_array(rest[0]) if rest else []
+
+    if not program:
+        return []
+
     if _runs_a_script(rest, dialect) and not _allowlisted(rest):
         return [_SCRIPT_RUN + _rejoined(rest)]
 
-    if _waits_for_typed_input(_canonical_program(_split_array(rest[0])[0]), rest, feed() is not None):
+    if _waits_for_typed_input(_canonical_program(program[0]), rest, feed() is not None):
         return [_WAITING_RUN + _rejoined(rest)]
 
     runner = _code_runner_targets(name, rest, depth, dialect, feed)
@@ -7424,7 +7435,7 @@ def _install_root() -> Optional[Path]:
     try:
         script = Path(__file__).resolve()
         root = script.parents[2]
-    except (OSError, ValueError, IndexError):
+    except (OSError, ValueError, IndexError, RuntimeError):
         return None
 
     try:

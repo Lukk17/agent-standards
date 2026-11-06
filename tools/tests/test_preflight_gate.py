@@ -3626,6 +3626,45 @@ def test_an_unknown_caller_may_start_an_interactive_program():
     assert run(payload, "copilot") == (0, "", "")
 
 
+# An xargs replace string with an empty feed leaves xargs nothing to run. The
+# reading of that stage used to index the empty argument list, and the crash
+# reached main()'s catch-all, which allowed the whole call, the write before
+# it included.
+@pytest.mark.parametrize(
+    "command",
+    [
+        "echo x > AGENTS.md; echo | xargs -I% %",
+        "echo x > AGENTS.md; printf '' | xargs -I% %",
+        "echo x > AGENTS.md; xargs -I% % <<EOF\nEOF",
+        "echo x > AGENTS.md; echo | xargs -I% % arg",
+        "echo x > AGENTS.md; echo | xargs -I{} sudo {}",
+    ],
+)
+def test_an_xargs_stage_with_nothing_left_to_run_never_hides_a_write_beside_it(command):
+    assert decision(shell(command)) == "deny"
+
+
+@pytest.mark.parametrize("command", ["echo | xargs -I% %", "echo | xargs -I{} {} {}", "echo | xargs -I{} env {}"])
+def test_an_xargs_stage_with_nothing_left_to_run_writes_nothing(command):
+    assert GATE._shell_targets(command) == []
+
+
+def test_an_install_root_that_cannot_be_resolved_is_no_root(monkeypatch):
+    # Given a gate file whose location raises the way Python 3.11 and 3.12
+    # raise on a symlink loop
+    class LoopingPath:
+        def __init__(self, *_parts):
+            pass
+
+        def resolve(self, strict=False):
+            raise RuntimeError("Symlink loop")
+
+    monkeypatch.setattr(GATE, "Path", LoopingPath)
+
+    # When/Then
+    assert GATE._install_root() is None
+
+
 def test_the_allowlist_holds_exactly_the_documented_checks():
     assert [check.words for check in GATE.MAIN_THREAD_ALLOWLIST] == [
         ("python", "-m", "pytest"),
