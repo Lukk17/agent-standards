@@ -310,7 +310,8 @@ Reading the tables row by row:
   the same on `main`, both fetched 2026-11-06). Adding `write_stdin` to the matcher in
   [.codex/config.toml](../.codex/config.toml) would therefore match nothing, so the gate refuses the start instead.
   The programs are the POSIX shells, `fish`, `mksh`, `yash`, `tcsh`, `csh`, `nu`, `pwsh`, `powershell` and `cmd`,
-  `su` and `runuser` without `-c`, `sudo` or `doas` with `-s` or `-i` and no command, `pkexec` with no program,
+  `su` and `runuser` without `-c`, `--command` or `--session-command`, read clustered as in `su -lc` and by
+  prefix, `sudo` or `doas` with `-s` or `-i` and no command, `pkexec` with no program,
   since "If PROGRAM is not specified, the default shell will be run"
   ([pkexec.xml](https://raw.githubusercontent.com/polkit-org/polkit/main/docs/man/pkexec.xml), fetched 2026-11-06),
   `newgrp`, `script` without `-c` or a command operand, which starts `$SHELL`, `expect`, and `socat` with an `EXEC`,
@@ -323,11 +324,12 @@ Reading the tables row by row:
   query or command (`sqlite3 db "SQL"`, `psql -c`, `mysql -e`, `mongosh --eval`, `redis-cli PING`), piped input or a
   file on standard input (`psql app < schema.sql`),
   the debuggers `gdb` and `lldb` without batch mode (`gdb -batch`, `lldb -b`), and `pdb` always. git is held when
-  it opens the editor or a prompt: a `git commit` with no `-m`, `-F`, `-C`, `--fixup` or `--no-edit`, `--amend`
-  included, since `--no-edit` is how to "Use the selected commit message without launching an editor"
+  it opens the editor or a prompt: a `git commit` with no `-m`, `-F`, `-C`, `--fixup` or `--no-edit`, each read by
+  its unambiguous prefix as `--mess=x` is, `--amend` and `--fixup amend:` or `reword:` included, since `--no-edit` is how to "Use the selected commit message without launching an editor"
   ([git-commit](https://git-scm.com/docs/git-commit), fetched 2026-11-06), `git commit -e`, `git rebase -i`,
   `git add -p`, `-i` and `-e`, `-p` on `checkout`, `restore`, `reset` and `stash push` or `save`, while
-  `git stash show -p` and `git stash list -p` only print a diff, and `git clean -i`. A
+  `git stash show -p` and `git stash list -p` only print a diff, `git clean -i`, `git config -e`, and
+  `git notes add`, `append` and `edit` with no `-m`, `-F` or `-C`. A
   `PYTHONINSPECT` setting is refused like the other variables below, because "If this is set to a non-empty string
   it is equivalent to specifying the `-i` option" ([Command line and environment](https://docs.python.org/3/using/cmdline.html),
   fetched 2026-11-06). A shell or an interpreter is held

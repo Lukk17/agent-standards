@@ -765,8 +765,10 @@ _VERSIONED_TOOL_RE = re.compile(r"^(python|pypy|ipython|node|php|ruby|perl|awk|g
 _SAME_PROGRAM = {"pypy": "python", "ipython": "python"}
 # perl and ruby switches that take the rest of their cluster as a value,
 # and the ones that take only the digits after them.
-_PERLISH_REST_SWITCHES = frozenset("eEIMmFxdDVCrTW")
-_PERLISH_DIGIT_SWITCHES = frozenset("l0")
+_PERLISH_REST_SWITCHES = frozenset("eEIMmFxdDVCr")
+# Switches followed by an optional number: perl's -l and -0, and ruby's
+# warning and safe levels -W and -T, which take none in perl.
+_PERLISH_DIGIT_SWITCHES = frozenset("l0WT")
 
 _ESCAPABLE = set(" \t\"'\\;|&<>()$`")
 
@@ -2215,7 +2217,7 @@ def _perlish_switches_inplace(word: str) -> bool:
         if letter == "i":
             return True
 
-        if letter in _PERLISH_REST_SWITCHES:
+        if letter in _PERLISH_REST_SWITCHES or letters[index : index + 2] == "W:":
             return False
 
         index += 1
@@ -2296,7 +2298,57 @@ def _inplace_targets(name: str, tokens: List[str], powershell: bool = False) -> 
     return _sourced(operands, powershell)
 
 
+def _perlish_code(tokens: List[str]) -> str:
+    """Every -e program perl or ruby runs, read inside a switch cluster too, joined one per line as perl joins them.
+
+    `-ne CODE`, `-We CODE`, `-eCODE` and a second `-e` all add code. The
+    switches end at the first word that is not one, which is the script or
+    the first file the program reads.
+    """
+    program = _program_name(tokens[0])
+    code_letters = "eE" if program in _UPPER_E_CODE_TOOLS else "e"
+    pieces: List[str] = []
+    index = 1
+
+    while index < len(tokens):
+        word = tokens[index]
+        index += 1
+
+        if word == "--" or not word.startswith("-") or word == "-":
+            break
+
+        if word.startswith("--"):
+            continue
+
+        letters = word[1:]
+        position = 0
+
+        while position < len(letters):
+            letter = letters[position]
+            attached = letters[position + 1 :]
+
+            if letter in code_letters:
+                pieces.append(attached or (tokens[index] if index < len(tokens) else ""))
+                index += 0 if attached else 1
+                break
+
+            if letter in _PERLISH_REST_SWITCHES or letters[position : position + 2] == "W:":
+                index += 1 if not attached and "-" + letter in _PERLISH_VALUE_FLAGS else 0
+                break
+
+            position += 1
+
+            if letter in _PERLISH_DIGIT_SWITCHES:
+                while position < len(letters) and letters[position].isdigit():
+                    position += 1
+
+    return "\n".join(pieces)
+
+
 def _inline_code(tokens: List[str]) -> str:
+    if _program_name(tokens[0]) in _PERLISH_TOOLS:
+        return _perlish_code(tokens)
+
     flags = _INLINE_CODE_FLAGS + (("-E",) if _program_name(tokens[0]) in _UPPER_E_CODE_TOOLS else ())
 
     for index, token in enumerate(tokens[1:], start=1):
@@ -4858,12 +4910,15 @@ def _strip_wrappers(tokens: List[str], dialect: str = _POSIX) -> Optional[_Strip
 
 
 def _runuser_wraps(tokens: List[str]) -> bool:
-    """True when runuser names its user with -u, the form that runs the words after it as a command."""
-    for token in tokens[1:]:
-        if not token.startswith("-") or token == "--":
-            return False
+    """True when runuser names its user with -u, the form that runs the words after it as a command.
 
-        if token in ("-u", "--user") or token.startswith("--user=") or (token.startswith("-u") and not token.startswith("--")):
+    Its options are read with their values, so `runuser -g wheel -u nobody id`
+    reaches the -u after the group.
+    """
+    rest = list(tokens[1:])
+
+    while rest and rest[0].startswith("-") and rest[0] != "--":
+        if any(name in ("-u", "--user") for name, _value in _wrapper_options(rest.pop(0), _WRAPPERS["runuser"], rest)):
             return True
 
     return False
@@ -5334,7 +5389,7 @@ def _code_runner_targets(
         return _fed_targets(feed(), depth, dialect, name, powershell)
 
     if name in ("su", "runuser"):
-        code = _option_value(rest, ("-c", "--command"))
+        code = _su_code(rest)
 
         return _child_shell_targets(code, depth, _POSIX) if code else []
 
@@ -5398,6 +5453,43 @@ def _shell_script(name: str, tokens: List[str]) -> str:
         return flags[index]
 
     return ""
+
+
+# su's and runuser's own options, from util-linux su(1) and runuser(1).
+_SU_OPTIONS = _Wrapper(
+    values=frozenset({
+        "-c", "--command", "--session-command", "-s", "--shell", "-g", "--group", "-G", "--supp-group", "-u",
+        "--user", "-w", "--whitelist-environment",
+    }),
+    long_flags=frozenset({"--login", "--preserve-environment", "--pty", "--fast", "--help", "--version"}),
+)
+_SU_COMMANDS = frozenset({"-c", "--command", "--session-command"})
+
+
+def _su_code(tokens: List[str]) -> str:
+    """The shell code su or runuser runs: -c, --command or --session-command, clustered, abbreviated or not, or "".
+
+    su reads its options wherever they sit, the way getopt_long permutes
+    them, so `su nobody -c id` and `su -lc id nobody` both run `id`. The
+    last one given wins, as getopt leaves it.
+    """
+    rest = list(tokens[1:])
+    code = ""
+
+    while rest:
+        word = rest.pop(0)
+
+        if word == "--":
+            break
+
+        if not word.startswith("-") or word == "-":
+            continue
+
+        for option, value in _wrapper_options(word, _SU_OPTIONS, rest):
+            if option in _SU_COMMANDS and value:
+                code = value
+
+    return code
 
 
 def _option_value(tokens: List[str], names: Tuple[str, ...]) -> str:
@@ -6994,6 +7086,7 @@ _GIT_PROMPTS: Dict[str, FrozenSet[str]] = {
     "clean": frozenset({"-i", "--interactive"}),
     "commit": frozenset({"-p", "--patch", "--interactive", "-e", "--edit", "-c", "--reedit-message"}),
     "rebase": frozenset({"-i", "--interactive", "--edit-todo"}),
+    "config": frozenset({"-e", "--edit"}),
 }
 _GIT_PROMPT_VALUES: Dict[str, FrozenSet[str]] = {
     "add": frozenset({"--chmod", "--pathspec-from-file"}),
@@ -7009,12 +7102,20 @@ _GIT_PROMPT_VALUES: Dict[str, FrozenSet[str]] = {
     "rebase": frozenset({
         "-x", "--exec", "-s", "--strategy", "-X", "--strategy-option", "-C", "--onto", "--empty", "--whitespace",
     }),
+    "config": frozenset({"-f", "--file", "--blob", "--type", "--default", "--comment"}),
 }
 _GIT_STASH_PUSHES = frozenset({"push", "save"})
 _GIT_COMMIT_MESSAGES = frozenset({
     "-m", "--message", "-F", "--file", "-C", "--reuse-message", "--no-edit", "--fixup", "--dry-run",
 })
-_GIT_EDITING_FIXUPS = ("--fixup=amend:", "--fixup=reword:")
+# A --fixup value that opens the editor on the commit message.
+_GIT_EDITING_FIXUPS = ("amend:", "reword:")
+# git notes add, append and edit open the editor unless a message comes with
+# them, and -c or -e opens it on that message.
+_GIT_NOTES_EDITORS = frozenset({"add", "append", "edit"})
+_GIT_NOTES_VALUES = frozenset({"-m", "--message", "-F", "--file", "-C", "--reuse-message", "-c", "--reedit-message"})
+_GIT_NOTES_MESSAGES = frozenset({"-m", "--message", "-F", "--file", "-C", "--reuse-message"})
+_GIT_NOTES_PROMPTS = frozenset({"-c", "--reedit-message", "-e", "--edit"})
 
 # sudo and doas start a shell of their own with -s or -i and no command, and
 # pkexec with no program at all: "If PROGRAM is not specified, the default
@@ -7107,7 +7208,7 @@ def _console_waits(console: _Console, tokens: List[str], fed: bool) -> bool:
     if names & console.stays:
         return True
 
-    if names & (console.info | _INFO_FLAGS) or (fed and console.reads_feed) or names & console.done:
+    if names & (console.info | _INFO_FLAGS) or (fed and console.reads_feed) or _names_one_of(names, console.done):
         return False
 
     if 0 <= console.command_operand < len(operands):
@@ -7130,12 +7231,15 @@ def _git_waits(tokens: List[str]) -> bool:
     """git opens an editor or a prompt: a commit with no message, rebase -i, add -p and their kin."""
     index = _git_subcommand_index(tokens)
     subcommand = tokens[index] if index < len(tokens) else ""
+    words = tokens[index + 1 :]
+
+    if subcommand == "notes":
+        return _git_notes_waits(words)
+
     prompts = _GIT_PROMPTS.get(subcommand)
 
     if prompts is None:
         return False
-
-    words = tokens[index + 1 :]
 
     # git stash takes -p only as push or save, which a bare `git stash -p`
     # means too. show and list hand -p to the diff they print.
@@ -7152,7 +7256,42 @@ def _git_waits(tokens: List[str]) -> bool:
     if subcommand != "commit":
         return False
 
-    return any(word.startswith(_GIT_EDITING_FIXUPS) for word in words) or not names & _GIT_COMMIT_MESSAGES
+    return _fixup_edits(words) or not _names_one_of(names, _GIT_COMMIT_MESSAGES)
+
+
+def _fixup_edits(words: List[str]) -> bool:
+    """True when git commit --fixup, or an abbreviation of it, takes amend: or reword:, attached or as the next word."""
+    for index, word in enumerate(words):
+        if word == "--":
+            break
+
+        name, equals, value = word.partition("=")
+
+        if len(name) < 5 or not "--fixup".startswith(name):
+            continue
+
+        if not equals:
+            value = words[index + 1] if index + 1 < len(words) else ""
+
+        if value.startswith(_GIT_EDITING_FIXUPS):
+            return True
+
+    return False
+
+
+def _git_notes_waits(words: List[str]) -> bool:
+    """git notes add, append and edit open the editor unless -m, -F or -C hands them the note."""
+    index = 0
+
+    while index < len(words) and words[index].startswith("-"):
+        index += 2 if words[index] == "--ref" else 1
+
+    if index >= len(words) or words[index] not in _GIT_NOTES_EDITORS:
+        return False
+
+    names, _operands = _option_scan(words[index + 1 :], _GIT_NOTES_VALUES)
+
+    return _names_one_of(names, _GIT_NOTES_PROMPTS) or not _names_one_of(names, _GIT_NOTES_MESSAGES)
 
 
 def _posix_shell_waits(name: str, tokens: List[str], fed: bool) -> bool:
@@ -9175,13 +9314,14 @@ def _workdir_bases(tool_input: Dict[str, Any]) -> Optional[Tuple[Path, ...]]:
         for base in _roots():
             try:
                 resolved = _resolve(path if path.is_absolute() else base / path)
+                found = resolved.is_dir()
             except (OSError, ValueError, RuntimeError):
                 return ()
 
             if _is_unplaceable_windows_path(str(resolved)):
                 return ()
 
-            if resolved.is_dir() and resolved not in landings:
+            if found and resolved not in landings:
                 landings.append(resolved)
 
     return tuple(landings)

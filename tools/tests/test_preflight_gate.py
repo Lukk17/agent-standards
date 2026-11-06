@@ -3696,6 +3696,16 @@ WAITING_PROGRAMS = {
     "git-clean-interactive-in-a-cluster": ("git clean -fdi", "Bash"),
     "git-checkout-patch": ("git checkout -p", "Bash"),
     "git-stash-push-patch": ("git stash push -p", "Bash"),
+    "git-commit-fixup-amend-as-its-own-word": ("git commit --fixup amend:HEAD", "Bash"),
+    "git-commit-fixup-reword-abbreviated": ("git commit --fix reword:HEAD", "Bash"),
+    "git-config-edit": ("git config -e", "Bash"),
+    "git-config-global-edit": ("git config --global --edit", "Bash"),
+    "git-notes-add": ("git notes add", "Bash"),
+    "git-notes-add-after-a-ref": ("git notes --ref review add HEAD", "Bash"),
+    "git-notes-append": ("git notes append HEAD", "Bash"),
+    "git-notes-edit": ("git notes edit", "Bash"),
+    "git-notes-add-reedit": ("git notes add -c HEAD", "Bash"),
+    "runuser-group-then-a-shell": ("runuser -g wheel nobody", "Bash"),
     "git-stash-patch-with-no-verb": ("git stash -p", "Bash"),
     "git-stash-save-patch": ("git stash save --patch", "Bash"),
     "psql-after-a-command-fed-a-file": ("cat < /tmp/notes.txt; psql app", "Bash"),
@@ -3809,6 +3819,21 @@ NOT_WAITING = {
     "pkexec-wrapping-a-command": "pkexec id",
     "pypy-inline": "pypy3 -c 'print(1)'",
     "git-stash-show-patch": "git stash show -p",
+    "git-commit-message-abbreviated": "git commit --mess=x",
+    "git-commit-message-abbreviated-as-its-own-word": "git commit --mess x",
+    "git-commit-fixup-a-commit": "git commit --fixup HEAD~1",
+    "git-notes-add-message": "git notes add -m x",
+    "git-notes-add-message-after-a-ref": "git notes --ref review add -m x HEAD",
+    "git-notes-add-file": "git notes add -F /tmp/note.txt",
+    "git-notes-add-reuse": "git notes add -C HEAD",
+    "git-notes-list": "git notes",
+    "git-notes-show": "git notes show HEAD",
+    "git-config-read": "git config --get user.name",
+    "runuser-group-before-the-user": "runuser -g wheel -u nobody id",
+    "runuser-attached-group-before-the-user": "runuser --group=wheel --user nobody id",
+    "su-command-in-a-login-cluster": "su -lc id nobody",
+    "su-session-command": "su --session-command=id nobody",
+    "su-command-abbreviated": "su --comm=id nobody",
     "git-stash-show-patch-long": "git stash show --patch",
     "git-stash-list-patch": "git stash list -p",
     "psql-fed-by-a-file": "psql app < /tmp/schema.sql",
@@ -3836,6 +3861,14 @@ def test_a_main_thread_program_handed_its_input_is_not_held_by_rule_f(command):
         ("PYTHONINSPECT=1 python3 -c pass", "Blocked target: shell code"),
         ("env PYTHONINSPECT=1 python3 -c pass", "Blocked target: shell code"),
         ("export PYTHONINSPECT=1", "Blocked target: environment variable"),
+        ("su -lc 'touch AGENTS.md' nobody", "Blocked target: AGENTS.md"),
+        ("su -c'touch AGENTS.md' nobody", "Blocked target: AGENTS.md"),
+        ("su --session-command='touch AGENTS.md' nobody", "Blocked target: AGENTS.md"),
+        ("su --session-command 'touch AGENTS.md' nobody", "Blocked target: AGENTS.md"),
+        ("su --comm='touch AGENTS.md' nobody", "Blocked target: AGENTS.md"),
+        ("su -s /bin/sh -c 'touch AGENTS.md' nobody", "Blocked target: AGENTS.md"),
+        ("runuser -g wheel -u nobody touch AGENTS.md", "Blocked target: AGENTS.md"),
+        ("runuser --group wheel --us nobody touch AGENTS.md", "Blocked target: AGENTS.md"),
     ],
 )
 def test_the_new_rule_f_programs_are_read_by_the_other_rules_too(command, blocked):
@@ -4037,8 +4070,29 @@ INPLACE_SPELLINGS = [
     "perl -pi~ -e 's/a/b/' AGENTS.md",
     "perl -pibak -e 's/a/b/' AGENTS.md",
     "perl -lpi -e 's/a/b/' AGENTS.md",
+    "perl -Wpi -e 's/a/b/' AGENTS.md",
+    "perl -Tpi -e 's/a/b/' AGENTS.md",
+    "perl -tWpi -e 's/a/b/' AGENTS.md",
     "ruby -pi~ -e 'sub(/a/, \"b\")' AGENTS.md",
+    "ruby -W2pi -e 'sub(/a/, \"b\")' AGENTS.md",
 ]
+
+
+# perl and ruby join every -e into one program, and read -e inside a switch
+# cluster with the code attached or as the next word.
+PERLISH_CODE_SPELLINGS = [
+    "perl -ne 'system(\"touch AGENTS.md\")' /tmp/x",
+    "perl -lne 'system(\"touch AGENTS.md\")' /tmp/x",
+    "perl -We 'system(\"touch AGENTS.md\")'",
+    "perl -e 1 -e 'system(\"touch AGENTS.md\")'",
+    "perl -E 'system(\"touch AGENTS.md\")'",
+    "ruby -ne 'File.write(\"AGENTS.md\", \"x\")' /tmp/x",
+]
+
+
+@pytest.mark.parametrize("command", PERLISH_CODE_SPELLINGS)
+def test_every_perl_and_ruby_code_spelling_is_read(command):
+    assert decision(shell(command)) == "deny"
 
 
 @pytest.mark.parametrize("command", INPLACE_SPELLINGS)
@@ -4092,6 +4146,8 @@ def test_a_sed_script_file_the_gate_cannot_read_is_unplaceable(tmp_path, command
         "sed -nf {script} /tmp/x",
         "perl -pi~ -e 's/a/b/' /tmp/x",
         "perl -ne print AGENTS.md",
+        "perl -Wne print AGENTS.md",
+        "ruby -W:no-deprecated -ne 'print' AGENTS.md",
     ],
 )
 def test_a_sed_or_perl_run_that_writes_nothing_inside_is_allowed(tmp_path, command):
@@ -6293,6 +6349,29 @@ def test_a_main_thread_workdir_the_gate_cannot_place_is_denied(nest, agent, work
 
     code, out, err = run(payload, "plain", cwd=nest.project)
 
+    assert (code, out) == (2, "")
+    assert err.endswith("Blocked target: " + GATE._UNPLACEABLE_WORKDIR)
+
+
+@MAIN_THREAD_AGENTS
+def test_a_main_thread_workdir_the_file_system_refuses_to_read_is_denied(nest, agent, monkeypatch):
+    # Given a workdir whose folder the file system refuses to stat, as a folder without search permission does
+    locked = nest.elsewhere / "locked"
+    real_is_dir = GATE.Path.is_dir
+
+    def refusing_is_dir(path):
+        if path.name == "locked":
+            raise PermissionError(13, "Permission denied", str(path))
+
+        return real_is_dir(path)
+
+    monkeypatch.setattr(GATE.Path, "is_dir", refusing_is_dir)
+    payload = main_thread_bash(agent, nest.project, command="echo x > ../out.txt", workdir=str(locked))
+
+    # When
+    code, out, err = run(payload, "plain", cwd=nest.project)
+
+    # Then the workdir is one the gate cannot place, rather than a crash the catch-all allows
     assert (code, out) == (2, "")
     assert err.endswith("Blocked target: " + GATE._UNPLACEABLE_WORKDIR)
 
