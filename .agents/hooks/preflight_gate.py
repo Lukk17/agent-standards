@@ -6835,11 +6835,15 @@ def _command_targets(command: str, depth: int = 0, dialect: str = _POSIX) -> Lis
     return targets
 
 
-def _shell_targets(command: str, dialect: str = _POSIX) -> List[str]:
-    """Read one shell command from the start, with `cd` followed as it goes."""
+def _shell_targets(command: str, dialect: str = _POSIX, start: Optional[Tuple[Path, ...]] = None) -> List[str]:
+    """Read one shell command from the start, with `cd` followed as it goes.
+
+    Args:
+        start: the directories the shell starts in, or None for every root.
+    """
     global _CD_BASE, _CD_STACK
 
-    _CD_BASE = None
+    _CD_BASE = start
     _CD_STACK = []
 
     try:
@@ -7945,6 +7949,46 @@ def _read_only_segments_blocked(command: str, powershell: bool, patterns: List[s
     return None
 
 
+_WORKDIR_KEY = "workdir"
+_UNPLACEABLE_WORKDIR = "workdir (a working directory the gate cannot place)"
+
+
+def _workdir_bases(tool_input: Dict[str, Any]) -> Optional[Tuple[Path, ...]]:
+    """The directories a shell call's own workdir names, () when it cannot be placed, None when it names none.
+
+    The OpenCode and Kilo Code bash tool runs the command in its `workdir`,
+    and the plugin hands that key through while it sends the project root as
+    the envelope's cwd. The value is a literal path, so it is kept exactly as
+    sent, read with and without a leading `~` expanded, and resolved against
+    every root when relative. A value that does not resolve to a directory
+    from any root cannot be placed.
+    """
+    value = tool_input.get(_WORKDIR_KEY)
+
+    if not isinstance(value, str) or not value:
+        return None
+
+    if _is_unplaceable_windows_path(value):
+        return ()
+
+    landings: List[Path] = []
+
+    for path in dict.fromkeys((_native_path(value), _as_path(value))):
+        for base in _roots():
+            try:
+                resolved = _resolve(path if path.is_absolute() else base / path)
+            except (OSError, ValueError, RuntimeError):
+                return ()
+
+            if _is_unplaceable_windows_path(str(resolved)):
+                return ()
+
+            if resolved.is_dir() and resolved not in landings:
+                landings.append(resolved)
+
+    return tuple(landings)
+
+
 def _shell_commands(tool_input: Dict[str, Any]) -> Optional[List[str]]:
     """Every command a tool call carries under any COMMAND_KEYS key, for Rules A and E.
 
@@ -8034,9 +8078,21 @@ def _apply_rules(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Opti
     if tool not in SHELL_TOOLS or _UNREADABLE_COMMAND in commands:
         return None if tool in RESEARCH_TOOLS else RULE_A_REASON.format(target=_UNPLACEABLE_SHELL_TARGET)
 
+    # A call that runs in a workdir of its own is placed from there as well
+    # as from the roots, and one whose workdir cannot be placed denies.
+    workdir = _workdir_bases(tool_input)
+
+    if workdir == ():
+        return RULE_A_REASON.format(target=_UNPLACEABLE_WORKDIR)
+
     for command in commands:
+        dialect = _POWERSHELL if tool in _POWERSHELL_SHELLS else _POSIX
+
         try:
-            targets = _shell_targets(command, _POWERSHELL if tool in _POWERSHELL_SHELLS else _POSIX)
+            targets = _shell_targets(command, dialect)
+
+            if not targets and workdir:
+                targets = _shell_targets(command, dialect, workdir)
         except _ShellParseError:
             continue
 

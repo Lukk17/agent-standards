@@ -309,6 +309,9 @@ when the command never changed directory. On Windows, a Git Bash drive path such
 `C:/Users/x` before it is placed, for a `cd` operand and a write target alike. An edit tool's path and a path a
 PowerShell pipeline feeds a cmdlet are placed both exactly as sent and trimmed, and either reading inside denies,
 because a host that keeps a blank at either end writes through `/tmp/l ` or joins ` /../AGENTS.md` to the project.
+A main-thread shell call that carries its own `workdir`, as the OpenCode and Kilo Code bash tool does while the plugin
+sends the project root as `cwd`, is read a second time from that folder, resolved against every root when relative,
+so `echo x > ../AGENTS.md` with `workdir` set to `docs` denies.
 
 Deleting, moving, or renaming the repository root or any directory above it counts as a write inside it, so
 `rm -rf ..`, `rm -rf ~`, `Remove-Item -Recurse` or `rmdir /s` on a parent, and `mv` or `Move-Item` of a parent are
@@ -405,6 +408,7 @@ Each of the following cannot be placed either and denies on the main thread:
 - A job handed to `schtasks /create`, `at`, `batch`, `crontab`, `systemd-run` or `Register-ScheduledTask`.
 - A shell command that is not a string, and a tool the gate does not know that still carries a `command`, `cmd` or
   `script` value.
+- A shell call whose `workdir` resolves to no directory from any root, loops, or names a share the gate cannot map.
 
 Read-only forms of the same tools still allow: container `ps`, `images`, `inspect`, `logs`, `stats`, `network ls`,
 `volume ls`, `compose ls`, `ps`, `logs` and `config`, `schtasks /query`, `crontab -l`, `Get-ScheduledTask`, and WMI or

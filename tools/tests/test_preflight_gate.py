@@ -5365,6 +5365,97 @@ def test_rule_e_denies_a_workdir_through_the_plain_runner_envelope(tmp_path):
     assert "'workdir'" in err
 
 
+# Rule A on the main thread. The OpenCode and Kilo Code plugin sends the
+# project root as the envelope's cwd and hands the bash tool's arguments
+# through unchanged, workdir included, and the shell runs there. So every
+# relative path is placed against the workdir as well as against the roots.
+# The two agents share the envelope and differ only in their agent names.
+
+MAIN_THREAD_AGENTS = pytest.mark.parametrize("agent", ["build", "code"], ids=["opencode", "kilo-code"])
+
+
+def main_thread_bash(agent, root, **tool_input):
+    payload = envelope(tool="bash", tool_input=tool_input, agent=agent, subagent=False)
+
+    return {**payload, "cwd": str(root)}
+
+
+@MAIN_THREAD_AGENTS
+@pytest.mark.parametrize(
+    "workdir",
+    ["{root}/docs", "docs", "{root}/docs/../docs"],
+    ids=["absolute", "relative-to-the-root", "dotted"],
+)
+def test_a_main_thread_write_is_placed_against_its_workdir(nest, agent, workdir):
+    # Given a write that climbs out of the project from the root, and back into it from docs
+    (nest.project / "docs").mkdir()
+    payload = main_thread_bash(agent, nest.project, command="echo x > ../AGENTS.md", workdir=workdir.format(root=nest.project))
+
+    # When
+    code, out, err = run(payload, "plain", cwd=nest.project)
+
+    # Then
+    assert (code, out) == (2, "")
+    assert "../AGENTS.md" in err
+
+
+@MAIN_THREAD_AGENTS
+def test_a_main_thread_script_run_from_a_workdir_outside_the_project_is_denied(nest, agent):
+    # Given an allowlisted path, which names a different file from a workdir the main thread chose
+    write_project_allowlist(nest.project, "python scripts/verify.py\n")
+    (nest.project / "scripts").mkdir()
+    payload = main_thread_bash(agent, nest.project, command="python scripts/verify.py", workdir=str(nest.elsewhere))
+
+    code, out, err = run(payload, "plain", cwd=nest.project)
+
+    assert (code, out) == (2, "")
+
+
+@MAIN_THREAD_AGENTS
+@pytest.mark.parametrize("workdir", ["missing", "{elsewhere}/missing"], ids=["relative", "absolute"])
+def test_a_main_thread_workdir_the_gate_cannot_place_is_denied(nest, agent, workdir):
+    # Given a write that lands outside the project from every root
+    payload = main_thread_bash(agent, nest.project, command="echo x > ../out.txt", workdir=workdir.format(elsewhere=nest.elsewhere))
+
+    code, out, err = run(payload, "plain", cwd=nest.project)
+
+    assert (code, out) == (2, "")
+
+
+@MAIN_THREAD_AGENTS
+def test_a_main_thread_workdir_that_loops_is_denied(nest, agent, resolution_loops):
+    payload = main_thread_bash(agent, nest.project, command="echo x > /dev/null", workdir="/elsewhere/" + LOOPING)
+
+    code, out, err = run(payload, "plain", cwd=nest.project)
+
+    assert (code, out) == (2, "")
+
+
+@MAIN_THREAD_AGENTS
+@pytest.mark.parametrize(
+    "command",
+    ["echo x > {elsewhere}/out.txt", "echo x > ../elsewhere/out.txt", "git status", "ls"],
+    ids=["absolute-outside", "relative-outside-from-the-workdir", "git-read", "list"],
+)
+def test_a_main_thread_call_that_writes_nothing_inside_keeps_its_workdir(nest, agent, command):
+    # Given a workdir in a folder beside the project, whose relative writes land outside it
+    payload = main_thread_bash(
+        agent, nest.project, command=command.format(elsewhere=nest.elsewhere), workdir=str(nest.parent / "sibling")
+    )
+
+    code, out, err = run(payload, "plain", cwd=nest.project)
+
+    # Then the roots still decide the plain placement and the workdir adds nothing inside
+    assert (code, out, err) == (0, "", "")
+
+
+def test_a_blank_or_absent_workdir_leaves_the_roots_alone(nest):
+    for tool_input in ({"command": "echo x > {e}/o".format(e=nest.elsewhere)}, {"command": "ls", "workdir": ""}):
+        payload = {**envelope(tool="bash", tool_input=tool_input, agent="build", subagent=False), "cwd": str(nest.project)}
+
+        assert run(payload, "plain", cwd=nest.project) == (0, "", "")
+
+
 def bare_repository(directory):
     """The three entries git's is_git_directory() looks for, which is all a planted bare repository needs."""
     directory.mkdir(parents=True)
