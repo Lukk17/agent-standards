@@ -2797,8 +2797,16 @@ WRAPPERS = {
     ),
 }
 
+# cmd /k "keeps the command processor running" after its command, so Rule F
+# holds even a harmless one: the prompt it leaves waits for typed input.
+WAITS_AFTER_ITS_COMMAND = {"cmd-k"}
+
 WRAPPED_CASES = [
-    pytest.param(wrap(inner[kind]), "allow" if kind == "harmless" else "deny", id=name + "-" + kind)
+    pytest.param(
+        wrap(inner[kind]),
+        "allow" if kind == "harmless" and name not in WAITS_AFTER_ITS_COMMAND else "deny",
+        id=name + "-" + kind,
+    )
     for name, (inner, wrap) in WRAPPERS.items()
     for kind in ("parent", "write", "harmless")
 ]
@@ -3461,6 +3469,163 @@ def test_a_script_run_denies_on_the_plain_format_too():
     assert "Blocked command: npm run build" in err
 
 
+# Rule F: the main thread may not start a shell, an interpreter or an editor
+# that waits for typed input, because Codex's write_stdin types into a running
+# terminal without a PreToolUse event, so the gate never sees what is typed.
+
+WAITING_PROGRAMS = {
+    "bash": ("bash", "Bash"),
+    "sh": ("sh", "Bash"),
+    "zsh": ("zsh", "Bash"),
+    "dash": ("dash", "Bash"),
+    "fish": ("fish", "Bash"),
+    "tcsh": ("tcsh", "Bash"),
+    "pwsh": ("pwsh", "Bash"),
+    "pwsh-no-logo": ("pwsh -NoLogo -NoProfile", "PowerShell"),
+    "powershell": ("powershell", "PowerShell"),
+    "cmd": ("cmd", "PowerShell"),
+    "cmd-stays": ("cmd /k dir", "PowerShell"),
+    "bash-interactive": ("bash -i", "Bash"),
+    "bash-login": ("bash -l", "Bash"),
+    "sh-stdin": ("sh -s", "Bash"),
+    "python": ("python", "Bash"),
+    "python3": ("python3", "Bash"),
+    "python-versioned": ("python3.12", "Bash"),
+    "py-launcher": ("py", "PowerShell"),
+    "python-absolute": ("/usr/bin/python3", "Bash"),
+    "python-interactive": ("python3 -i", "Bash"),
+    "python-stdin-terminal": ("python3 -", "Bash"),
+    "python-quiet": ("python3 -q", "Bash"),
+    "python-stays-after-inline": ("python3 -i -c pass", "Bash"),
+    "ipython": ("ipython", "Bash"),
+    "node": ("node", "Bash"),
+    "nodejs": ("nodejs", "Bash"),
+    "node-interactive": ("node --interactive", "Bash"),
+    "node-stays-after-inline": ("node -i -e 1", "Bash"),
+    "deno": ("deno", "Bash"),
+    "perl": ("perl", "Bash"),
+    "perl-debugger": ("perl -de0", "Bash"),
+    "ruby": ("ruby", "Bash"),
+    "irb": ("irb", "Bash"),
+    "php": ("php", "Bash"),
+    "php-interactive": ("php -a", "Bash"),
+    "lua": ("lua", "Bash"),
+    "lua-stays-after-inline": ("lua -i -e x=1", "Bash"),
+    "r": ("R", "Bash"),
+    "julia": ("julia", "Bash"),
+    "tclsh": ("tclsh", "Bash"),
+    "pwsh-stays-after-inline": ("pwsh -NoExit -Command Get-Date", "PowerShell"),
+    "pwsh-stdin-terminal": ("pwsh -File -", "PowerShell"),
+    "vi": ("vi", "Bash"),
+    "vim": ("vim", "Bash"),
+    "vim-with-a-file-elsewhere": ("vim /tmp/notes.txt", "Bash"),
+    "vim-with-commands": ("vim -c 'set number' /tmp/notes.txt", "Bash"),
+    "vim-fed": ("cat /tmp/notes.txt | vim -", "Bash"),
+    "nvim": ("nvim", "Bash"),
+    "nano": ("nano", "Bash"),
+    "emacs": ("emacs -nw", "Bash"),
+    "ed": ("ed", "Bash"),
+    "ex": ("ex", "Bash"),
+    "env": ("env bash", "Bash"),
+    "env-ignoring-the-environment": ("env -i bash", "Bash"),
+    "exec": ("exec bash", "Bash"),
+    "command": ("command python3", "Bash"),
+    "sudo": ("sudo bash", "Bash"),
+    "sudo-shell": ("sudo -s", "Bash"),
+    "sudo-login": ("sudo -i", "Bash"),
+    "sudo-after-an-assignment": ("LANG=C nohup sudo -s", "Bash"),
+    "sudo-non-interactive": ("sudo -n bash", "Bash"),
+    "exec-renamed": ("exec -a name bash", "Bash"),
+    "env-renamed": ("env --argv0=name bash", "Bash"),
+    "su": ("su", "Bash"),
+    "nohup": ("nohup python3", "Bash"),
+    "timeout": ("timeout 600 node", "Bash"),
+    "nested": ("bash -c bash", "Bash"),
+    "after-another-command": ("cd /tmp && python3", "Bash"),
+    "powershell-nested": ("pwsh -Command python", "PowerShell"),
+}
+
+
+@pytest.mark.parametrize(
+    "command,tool",
+    [pytest.param(command, tool, id=name) for name, (command, tool) in WAITING_PROGRAMS.items()],
+)
+@pytest.mark.parametrize("fmt", ["codex", "claude"])
+def test_a_main_thread_program_waiting_for_typed_input_is_denied(command, tool, fmt):
+    # When
+    code, out, err = run(shell(command, tool=tool), fmt)
+
+    # Then
+    output = json.loads(out)["hookSpecificOutput"]
+
+    assert (code, err, output["permissionDecision"]) == (0, "", "deny")
+    assert output["permissionDecisionReason"].startswith("PREFLIGHT: the main thread may not start a shell")
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["python3 -ic pass", "deno repl", "bun repl", "julia -t 4", "exec -a name python3 x.py", "sudo -n python3 x.py"],
+)
+def test_a_waiting_program_rule_d_reads_as_a_script_run_still_denies(command):
+    assert decision(shell(command)) == "deny"
+
+
+NOT_WAITING = {
+    "bash-inline": "bash -c 'echo hi'",
+    "sh-inline-cluster": "sh -ec 'echo hi'",
+    "python-inline": "python3 -c 'print(1)'",
+    "node-inline": "node -e 1",
+    "perl-inline": "perl -e 1",
+    "ruby-inline": "ruby -e 1",
+    "php-inline": "php -r 'echo 1;'",
+    "lua-inline": "lua -e x=1",
+    "julia-inline": "julia -e 1",
+    "python-version": "python3 --version",
+    "python-short-version": "python3 -V",
+    "bash-version": "bash --version",
+    "node-version": "node -v",
+    "vim-version": "vim --version",
+    "pwsh-version": "pwsh -Version",
+    "bun-alone-prints-its-usage": "bun",
+    "fed-by-a-pipe": "echo 'print(1)' | python3",
+    "fed-by-a-heredoc": "python3 <<'EOF'\nprint(1)\nEOF",
+    "fed-by-a-here-string": "bash <<< 'echo hi'",
+    "line-editor-fed": "printf 'p\\n' | ed -s /tmp/notes.txt",
+    "allowlisted-syntax-check": "bash -n sandbox-agent/verify-project.sh",
+    "git-read": "git status",
+    "su-inline": "su -c 'id' nobody",
+    "sudo-command": "sudo -u nobody id",
+    "listing": "ls -la",
+}
+
+
+@pytest.mark.parametrize("command", [pytest.param(command, id=name) for name, command in NOT_WAITING.items()])
+def test_a_main_thread_program_handed_its_input_is_not_held_by_rule_f(command):
+    code, out, err = run(shell(command), "codex")
+
+    assert (code, out, err) == (0, "", "")
+
+
+def test_rule_f_names_the_blocked_command_on_the_plain_format():
+    code, out, err = run(envelope(tool="bash", tool_input={"command": "python3 -i"}, subagent=False), "plain")
+
+    assert (code, out) == (2, "")
+    assert err.endswith("Blocked command: python3 -i")
+
+
+def test_a_subagent_may_start_an_interactive_program(tmp_path):
+    project_with_agent(tmp_path, "worker", WITH_SKILLS)
+    payload = {**shell("bash"), "agent_id": "a1", "agent_type": "worker"}
+
+    assert run(payload, "codex", cwd=tmp_path) == (0, "", "")
+
+
+def test_an_unknown_caller_may_start_an_interactive_program():
+    payload = {"toolName": "bash", "toolArgs": {"command": "bash"}}
+
+    assert run(payload, "copilot") == (0, "", "")
+
+
 def test_the_allowlist_holds_exactly_the_documented_checks():
     assert [check.words for check in GATE.MAIN_THREAD_ALLOWLIST] == [
         ("python", "-m", "pytest"),
@@ -4003,7 +4168,7 @@ def test_writes_and_processes_inside_a_program_are_judged(nest, command, expecte
 
 RUNNER_CASES = {
     "su-command": ("su -c 'rm -rf ..' root", "Bash", "deny"),
-    "su-interactive": ("su root", "Bash", "allow"),
+    "su-interactive": ("su root", "Bash", "deny"),
     "setsid": ("setsid rm -rf ..", "Bash", "deny"),
     "flock-command": ("flock {elsewhere}/x.lock rm -rf ..", "Bash", "deny"),
     "flock-shell-code": ("flock {elsewhere}/x.lock -c 'rm -rf ..'", "Bash", "deny"),

@@ -1573,6 +1573,10 @@ and denies it when it writes a file in the project, or when it loads code the ga
 outside the standard library, or a JavaScript module that is not built in. Writing `tasks.md` at the project root,
 sending output to the null device, and switching branches all stay allowed.
 
+Starting a shell, an interpreter or an editor that waits for typed input denies too, such as a bare `bash`, `python3`,
+`python3 -i` or `vim`, because the gate never sees what is typed into it. Pass the code with `-c` or `-e`, pipe it in,
+or hand the work to a subagent.
+
 A command also denies when it sets an environment variable that changes which program or file it uses, such as
 `GIT_DIR`, `GIT_CONFIG_PARAMETERS`, `LD_PRELOAD`, `NODE_OPTIONS`, `PYTHONPATH`, `BASH_ENV`, `PATH`, or
 `PYTEST_ADDOPTS`, whether the assignment leads the command, goes through `env` or `export`, or is a PowerShell

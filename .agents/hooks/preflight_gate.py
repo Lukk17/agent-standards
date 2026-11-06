@@ -2,7 +2,7 @@
 """Shared preflight gate for every agent surface.
 
 Reads one hook payload as JSON on stdin and decides whether a tool call may
-proceed. Five rules:
+proceed. Six rules:
 
 A. The main thread may not write any file. It delegates the change to a
    subagent that owns the area. This covers the edit tools and the shell: a
@@ -55,8 +55,14 @@ E. A subagent whose own definition carries a READ_ONLY_HEADING section may
    plugin's installed copy included, and an unreadable one counts as
    read-only. The generator writes that section from the canonical
    `readonly: true` marker into every format, so one rule covers them all.
+F. The main thread may not start a shell, an interpreter or an editor that
+   waits for typed input: one handed no script, no inline code and no piped
+   or heredoc input, one whose flag keeps it waiting after its inline code,
+   and any full-screen editor (_WAITING_PROGRAMS). Codex's write_stdin types
+   into a running terminal without a PreToolUse event, so the gate never sees
+   what is typed there.
 
-Rules A, C and D deny only once the caller is positively identified as the
+Rules A, C, D and F deny only once the caller is positively identified as the
 main thread, and rules B and E only once it is positively identified as a
 subagent. A format whose payload carries nothing that could identify the
 caller (currently Copilot, and a runner envelope with no is_subagent, see
@@ -380,6 +386,13 @@ RULE_D_REASON = (
     "or run one of the read-only checks in MAIN_THREAD_ALLOWLIST in "
     ".agents/hooks/preflight_gate.py or in the project's main-thread-allowlist.txt. "
     "Blocked command: {command}"
+)
+
+RULE_F_REASON = (
+    "PREFLIGHT: the main thread may not start a shell, an interpreter or an editor that "
+    "waits for typed input, because the gate never sees what is typed into it. Run the "
+    "command itself, pass the code with -c or -e, or delegate the work to a subagent "
+    "that owns the area. Blocked command: {command}"
 )
 
 class AllowedCheck(NamedTuple):
@@ -879,6 +892,17 @@ _DURATION_WRAPPERS = {"timeout", "gtimeout"}
 # Wrapper options that run the command in another directory.
 _WRAPPER_CHDIR_FLAGS = {"env": ("-C", "--chdir"), "sudo": ("-D", "--chdir")}
 _WRAPPER_VALUE_FLAGS = {"-u", "-g", "-p", "-C", "-n", "-k", "--signal", "-o", "-e", "-i"}
+# The wrappers whose own value flags differ from that shared set, so that
+# `env -i bash`, `sudo -n bash` and `exec -a name bash` still name bash.
+_WRAPPER_OWN_VALUE_FLAGS = {
+    "env": {"-u", "--unset", "-a", "--argv0"},
+    "exec": {"-a"},
+    "command": set(),
+    "nohup": set(),
+    "setsid": set(),
+    "sudo": {"-u", "-g", "-p", "-C", "-h", "-r", "-t", "-T", "-U", "--user", "--group", "--prompt", "--close-from", "--host", "--role", "--type", "--command-timeout", "--other-user"},
+    "doas": {"-u", "-C"},
+}
 # xargs -i, -e and -l take their value attached or not at all, so only the
 # flags below consume the next word.
 _XARGS_VALUE_FLAGS = {
@@ -4513,7 +4537,7 @@ def _strip_wrappers(tokens: List[str], dialect: str = _POSIX) -> Optional[_Strip
             rest.pop(0)
             continue
 
-        value_flags = _XARGS_VALUE_FLAGS if name == "xargs" else _WRAPPER_VALUE_FLAGS
+        value_flags = _XARGS_VALUE_FLAGS if name == "xargs" else _WRAPPER_OWN_VALUE_FLAGS.get(name, _WRAPPER_VALUE_FLAGS)
         rest.pop(0)
 
         while rest and rest[0].startswith("-") and len(rest[0]) > 1:
@@ -5904,6 +5928,7 @@ def _cmd_start_targets(tokens: List[str], depth: int) -> List[str]:
 # What a Rule D denial carries in place of a write target, followed by the
 # command. _apply_rules picks the reason by this prefix.
 _SCRIPT_RUN = "script run: "
+_WAITING_RUN = "waiting program: "
 
 _PROGRAM_ALIASES = {"py": "python", "nodejs": "node", "pip3": "pip"}
 
@@ -6281,6 +6306,196 @@ def _allowlist_roots() -> List[Path]:
     return roots
 
 
+# Rule F. A program waits for typed input when it reads its program from the
+# terminal: a shell, an interpreter or a REPL started with nothing to run, or
+# an editor. Codex's write_stdin then types into it without a PreToolUse event
+# (codex-rs/core/src/tools/handlers/unified_exec/write_stdin.rs returns None
+# from pre_tool_use_payload), so whatever is typed there is never read.
+class _Waiting(NamedTuple):
+    """How Rule F reads one program's arguments.
+
+    `inline` flags hand it code, which the other rules read, so it no longer
+    waits. `stays` flags keep it waiting after that code or a script. `runs`
+    flags hand it a script or a module, which is Rule D's. `values` take the
+    next word as their value, so that word is not a script. `info` flags
+    print something and exit. `always` marks a program that waits whatever it
+    is handed, and `reads_feed` one that takes its commands from a pipe or a
+    heredoc instead, as a line editor does. `script_operands` is False where
+    an operand names a user rather than a script, as for su.
+    """
+
+    inline: FrozenSet[str] = frozenset()
+    stays: FrozenSet[str] = frozenset()
+    runs: FrozenSet[str] = frozenset()
+    values: FrozenSet[str] = frozenset()
+    info: FrozenSet[str] = frozenset()
+    always: bool = False
+    reads_feed: bool = True
+    script_operands: bool = True
+
+
+_INFO_FLAGS = frozenset({"--version", "--help"})
+_OTHER_SHELL = _Waiting(inline=frozenset({"-c", "--command", "--commands"}), stays=frozenset({"-C", "--init-command"}), values=frozenset({"-C", "--init-command"}))
+_PYTHON_WAITING = _Waiting(
+    inline=frozenset({"-c"}), stays=frozenset({"-i"}), runs=frozenset({"-m"}),
+    values=frozenset({"-W", "-X", "-c", "-m"}), info=frozenset({"-V", "-VV", "-h"}),
+)
+_REPL_ONLY = _Waiting(always=True, info=frozenset({"-v", "-h", "-version", "--numeric-version"}))
+_SCREEN_EDITOR = _Waiting(always=True, reads_feed=False, info=frozenset({"-h", "-V"}))
+_LINE_EDITOR = _Waiting(always=True, info=frozenset({"-h", "-V"}))
+
+# The programs Rule F knows by the name _canonical_program gives them. deno
+# waits with no subcommand, read apart from this table, and its repl, like
+# `bun repl`, is a subcommand Rule D already denies. The POSIX shells,
+# PowerShell and cmd are read by the helpers Rule D already uses.
+_WAITING_PROGRAMS: Dict[str, _Waiting] = {
+    **{shell: _OTHER_SHELL for shell in ("fish", "mksh", "yash", "tcsh", "csh", "nu")},
+    "python": _PYTHON_WAITING,
+    "ipython": _PYTHON_WAITING,
+    "node": _Waiting(
+        inline=frozenset(_JS_INLINE_FLAGS), stays=frozenset({"-i", "--interactive"}), runs=frozenset(_JS_SCRIPT_FLAGS),
+        values=frozenset(_JS_OPTION_VALUES | _JS_INLINE_FLAGS), info=frozenset({"-v", "-h"}),
+    ),
+    "perl": _Waiting(inline=frozenset({"-e", "-E"}), stays=frozenset({"-d"}), values=frozenset({"-e", "-E", "-I"}), info=frozenset({"-v", "-V", "-h"})),
+    "ruby": _Waiting(inline=frozenset({"-e"}), values=frozenset({"-e", "-I", "-r", "-C"}), info=frozenset({"-v", "-h"})),
+    "php": _Waiting(
+        inline=frozenset({"-r", "-B", "-R", "-E"}), stays=frozenset({"-a"}), runs=frozenset({"-f", "-F", "-S"}),
+        values=frozenset({"-r", "-B", "-R", "-E", "-f", "-F", "-S", "-c", "-d", "-z", "-t"}), info=frozenset({"-v", "-h", "-i", "-m"}),
+    ),
+    "lua": _Waiting(inline=frozenset({"-e"}), stays=frozenset({"-i"}), values=frozenset({"-e", "-l"}), info=frozenset({"-v"})),
+    "luajit": _Waiting(inline=frozenset({"-e"}), stays=frozenset({"-i"}), values=frozenset({"-e", "-l"}), info=frozenset({"-v"})),
+    "r": _Waiting(inline=frozenset({"-e"}), runs=frozenset({"-f", "--file"}), values=frozenset({"-e", "-f", "-d", "-g"}), info=frozenset({"-h"})),
+    "julia": _Waiting(
+        inline=frozenset({"-e", "-E", "--eval", "--print"}), stays=frozenset({"-i"}),
+        values=frozenset({"-e", "-E", "--eval", "--print", "-t", "-p", "-J", "-L", "-C", "-O", "-g", "--threads", "--procs", "--sysimage", "--load"}),
+        info=frozenset({"-v", "-h"}),
+    ),
+    "tclsh": _Waiting(),
+    "su": _Waiting(
+        inline=frozenset({"-c", "--command"}), values=frozenset({"-c", "--command", "-s", "--shell", "-g", "--group", "-G", "--supp-group"}),
+        script_operands=False,
+    ),
+    **{repl: _REPL_ONLY for repl in ("irb", "pry", "bpython", "ptpython", "ghci", "jshell")},
+    **{editor: _SCREEN_EDITOR for editor in ("vi", "vim", "nvim", "view", "vimdiff", "nano", "pico", "emacs", "mg", "micro")},
+    **{editor: _LINE_EDITOR for editor in ("ed", "red", "ex")},
+}
+
+# sudo and doas start a shell of their own with -s or -i and no command.
+_SHELL_STARTING_WRAPPERS = frozenset({"sudo", "doas"})
+_SHELL_STARTING_FLAGS = frozenset({"s", "i"})
+_SHELL_STARTING_LONG_FLAGS = frozenset({"--shell", "--login"})
+
+
+def _short_flags(token: str, values: AbstractSet[str]) -> Set[str]:
+    """Every flag a word spells, `-ic` as `-i` and `-c`, stopping where a flag takes the rest as its value."""
+    if not token.startswith("-") or token.startswith("--") or len(token) < 2:
+        return {token.split("=", 1)[0]}
+
+    flags: Set[str] = set()
+
+    for letter in token[1:]:
+        flags.add("-" + letter)
+
+        if "-" + letter in values:
+            break
+
+    return flags
+
+
+def _program_flags(tokens: List[str], values: AbstractSet[str]) -> Set[str]:
+    """Every flag before the first operand, its value words skipped."""
+    flags: Set[str] = set()
+    index = 1
+
+    while index < len(tokens):
+        token = tokens[index]
+
+        if token == "--" or not token.startswith("-") or token == "-":
+            break
+
+        flags |= _short_flags(token, values)
+        index += 2 if token in values else 1
+
+    return flags
+
+
+def _waits_for_typed_input(name: str, tokens: List[str], fed: bool) -> bool:
+    """True when a command, wrappers already peeled, starts a program that waits for typed input (Rule F)."""
+    lowered = [token.lower() for token in tokens[1:]]
+
+    if name in _POSIX_SHELLS:
+        if _INFO_FLAGS & set(lowered):
+            return False
+
+        return not fed and _nested_shell_code(name, tokens) is None and _reads_program_from_stdin(name, tokens)
+
+    if name in _POWERSHELL_SHELLS:
+        if any(_is_prefix_of(flag, "-noexit") or flag == "-noe" for flag in lowered):
+            return True
+
+        if any(flag in ("-v", "-h", "-?", "/?") or _is_prefix_of(flag, "-version") or _is_prefix_of(flag, "-help") for flag in lowered):
+            return False
+
+        return not fed and not any(_is_powershell_code_flag(flag) for flag in lowered) and not _powershell_runs_script(tokens)
+
+    if name in _CMD_SHELLS:
+        if any(flag.startswith("/k") for flag in lowered):
+            return True
+
+        return not fed and not any(flag.startswith(("/c", "/?")) for flag in lowered)
+
+    if name == "deno":
+        return not fed and not _operands(tokens[1:]) and not (_INFO_FLAGS | {"-v", "-V", "-h"}) & set(tokens[1:])
+
+    spec = _WAITING_PROGRAMS.get(name)
+
+    if spec is None:
+        return False
+
+    flags = _program_flags(tokens, spec.values)
+
+    if flags & spec.stays:
+        return True
+
+    if flags & (spec.info | _INFO_FLAGS):
+        return False
+
+    if spec.always:
+        return not (fed and spec.reads_feed)
+
+    if fed or flags & (spec.inline | spec.runs):
+        return False
+
+    if not spec.script_operands:
+        return True
+
+    operands = _operands(tokens[1:], spec.values)
+
+    return not operands or operands[0] == "-"
+
+
+def _starts_a_shell_of_its_own(tokens: List[str]) -> bool:
+    """sudo -s, sudo -i and the doas forms, which start a shell when they wrap no command.
+
+    Called only once the wrappers are peeled to nothing, so every word after
+    the sudo or doas is one of its own flags or their values.
+    """
+    names = [_basename(token) for token in tokens]
+    start = next((index for index, name in enumerate(names) if name in _SHELL_STARTING_WRAPPERS), None)
+
+    if start is None:
+        return False
+
+    for token in tokens[start + 1 :]:
+        if token in _SHELL_STARTING_LONG_FLAGS:
+            return True
+
+        if token.startswith("-") and not token.startswith("--") and _SHELL_STARTING_FLAGS & set(token[1:]):
+            return True
+
+    return False
+
+
 def _project_allowlist() -> List[List[str]]:
     """Every entry of each trusted root's own allowlist file, as words."""
     entries: List[List[str]] = []
@@ -6442,6 +6657,9 @@ def _segment_targets(
     if stripped is None:
         return [_UNPLACEABLE_SHELL_TARGET]
 
+    if not stripped.argv and _starts_a_shell_of_its_own(tokens) and feed() is None:
+        return [_WAITING_RUN + _rejoined(tokens)]
+
     if stripped.directories:
         return _in_directories(stripped, depth, dialect, feed)
 
@@ -6488,6 +6706,9 @@ def _stripped_targets(
 
     if _runs_a_script(rest, dialect) and not _allowlisted(rest):
         return [_SCRIPT_RUN + _rejoined(rest)]
+
+    if _waits_for_typed_input(_canonical_program(_split_array(rest[0])[0]), rest, feed() is not None):
+        return [_WAITING_RUN + _rejoined(rest)]
 
     runner = _code_runner_targets(name, rest, depth, dialect, feed)
 
@@ -8098,6 +8319,9 @@ def _apply_rules(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Opti
 
         if targets and targets[0].startswith(_SCRIPT_RUN):
             return RULE_D_REASON.format(command=targets[0][len(_SCRIPT_RUN) :])
+
+        if targets and targets[0].startswith(_WAITING_RUN):
+            return RULE_F_REASON.format(command=targets[0][len(_WAITING_RUN) :])
 
         if targets:
             return RULE_A_REASON.format(target=targets[0])

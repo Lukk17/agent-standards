@@ -88,18 +88,19 @@ a generated tree.
 ### Hook enforcement, what each agent can actually block
 
 The gate is one shared rule in [../.agents/hooks/preflight_gate.py](../.agents/hooks/preflight_gate.py). It reads a hook
-payload on standard input and denies five things: a write of any file resolving inside the repository working tree
+payload on standard input and denies six things: a write of any file resolving inside the repository working tree
 coming from the main thread, with no exemption left for markdown, configuration, or `docs/` (delegate the change to a
 subagent that owns the area instead), any tool call at all from a subagent whose own definition declares no skills
 (spawn a specialist instead), an edit, any tool outside a fixed read set, or a shell command outside its own list
 from a subagent whose definition is marked read-only, a web fetch or web search called straight from the main thread on the one format whose
-payload names that tool today, Claude Code, and a script or module run from the main thread, because the gate cannot see
-what a script writes. The allowlist that lifts the last rule is in
+payload names that tool today, Claude Code, a script or module run from the main thread, because the gate cannot see
+what a script writes, and a shell, an interpreter or an editor the main thread starts that waits for typed input,
+because the gate never sees what is typed into it. The allowlist that lifts the script rule is in
 [What the main thread may run](GLOBAL_SETUP.md#what-the-main-thread-may-run). A relative path is resolved against
 whatever a leading `cd` in the command moved to, so changing directory first buys nothing. A write outside the
 repository, the null device, `tasks.md` at the project root, and switching a git branch stay allowed, and the main
 thread keeps full use of git otherwise. Caller identity is a tri-state, subagent, main thread, or unknown when a payload
-carries nothing that could tell the two apart, and none of the five rules fires on an unknown caller. Every failure path
+carries nothing that could tell the two apart, and none of the six rules fires on an unknown caller. Every failure path
 also allows the call, because a broken gate must never break a session, with three deliberate exceptions: a path none of
 the three repository-boundary helpers can resolve is treated as inside, which denies, a command a read-only subagent
 sends that the lexer cannot read denies, because it matches nothing on that agent's list, and so does a working
@@ -290,8 +291,35 @@ Reading the tables row by row:
   passed `PreToolUse`" (same hooks page), and the page itself says to "Treat tool hooks as a useful guardrail, not a
   complete enforcement boundary". Rule E denies the `tty: true` start wherever the gate sees it, which is Claude
   Code and the OpenCode and Kilo Code runner. Copilot gets no shell for such an agent, as the next item explains.
+- Rule F keeps the main thread, on every format, from starting a program that waits for typed input, because Codex's
+  `write_stdin` types into a running terminal and no hook sees it: its handler's `pre_tool_use_payload` returns `None`
+  under the comment "`write_stdin` is transport for an existing exec session. Empty writes are background polls, and
+  non-empty writes continue a command that already ran PreToolUse as Bash, so do not emit a second pre hook here"
+  ([write_stdin.rs at rust-v0.166.0](https://raw.githubusercontent.com/openai/codex/rust-v0.166.0/codex-rs/core/src/tools/handlers/unified_exec/write_stdin.rs),
+  the same on `main`, both fetched 2026-11-06). Adding `write_stdin` to the matcher in
+  [.codex/config.toml](../.codex/config.toml) would therefore match nothing, so the gate refuses the start instead.
+  The programs are the POSIX shells, `fish`, `mksh`, `yash`, `tcsh`, `csh`, `nu`, `pwsh`, `powershell` and `cmd`,
+  `su` without `-c`, `sudo` or `doas` with `-s` or `-i` and no command, the interpreters `python` in every spelling,
+  `ipython`, `node`, `deno`, `perl`, `ruby`, `php`, `lua`, `luajit`, `R`, `julia` and `tclsh`, the REPLs `irb`,
+  `pry`, `bpython`, `ptpython`, `ghci` and `jshell`, the editors `vi`, `vim`, `nvim`, `view`, `vimdiff`, `nano`,
+  `pico`, `emacs`, `mg` and `micro`, and the line editors `ed`, `red` and `ex`. A shell or an interpreter is held
+  when it has no script, no inline code (`-c`, `-e` and their kin) and no input from a pipe, a heredoc or a
+  here-string, and also whenever a flag keeps it waiting after that code: `python -i`, which enters interactive mode
+  "When the `-c` option is used" ([Command line and environment](https://docs.python.org/3/using/cmdline.html),
+  fetched 2026-11-06), `node -i`, `lua -i`, `julia -i`, `perl -d`, `php -a`, `pwsh -NoExit`, which "Doesn't exit
+  after running startup commands" ([about_Pwsh](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_pwsh),
+  fetched 2026-11-06), and `cmd /k`, which "keeps the command processor running"
+  ([cmd](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/cmd), fetched 2026-11-06).
+  A REPL and a full-screen editor are held whatever they are handed, a file to edit and piped input included,
+  because they read the keyboard from the terminal. A line editor fed by a pipe or a heredoc is left to the other
+  rules. `--version`, `--help` and each program's own version and help flags pass. The program is read the way the
+  script rule reads it: `env`, `exec`, `command`, `sudo`, `nohup`, `timeout` and the other wrappers are peeled, each
+  with its own value flags so `env -i bash` and `exec -a name bash` still name `bash`, a path such as
+  `/usr/bin/python3` names the program its file name gives, and a versioned name such as `python3.12` counts as
+  `python`. The lexer drops an input redirect, so `bash < x.sh` reads as a bare `bash` and is held too. A subagent is
+  never held by Rule F, and a read-only one is already held to its list by Rule E.
 - GitHub Copilot's `preToolUse` payload carries no agent identifier at all, so caller identity there resolves to
-  unknown every time and none of the gate's five rules ever fires. The hook is wired and runs, but it always allows:
+  unknown every time and none of the gate's six rules ever fires. The hook is wired and runs, but it always allows:
   that surface is entirely unenforced by the gate, not merely weaker, and the `AGENTS.md` text plus the
   `sessionStart` and `userPromptTransformed` injections carry the whole weight instead.
 - Copilot in JetBrains fires only six events, has no subagent event at all, and reads hook configuration only from
@@ -469,7 +497,12 @@ the gate alone holds them.
 Known limits of the write rule, accepted rather than open: a write form the gate does not know passes, a top-level
 command it cannot parse allows on the main thread, MCP tools are not gated, code run by an allowlisted tool is trusted rather than read,
 Copilot's main thread is not gated, the risky variable and option lists come from knowledge rather than vendor
-documentation, a loopback share whose folder cannot be determined denies, and the `tasks.md` exemption holds at every
+documentation, a loopback share whose folder cannot be determined denies, Rule F knows only the programs on its list,
+so a program that waits for typed input without being on it, such as `less`, `tmux`, `screen`, a database shell, a
+debugger, or the editor git starts for a `git commit` with no message, can still be typed into through Codex's
+`write_stdin` (Codex starts every such process with `PAGER`, `GIT_PAGER` and `GH_PAGER` set to `cat`, so git and gh
+open no pager there, [process_manager.rs at rust-v0.166.0](https://raw.githubusercontent.com/openai/codex/rust-v0.166.0/codex-rs/core/src/unified_exec/process_manager.rs),
+fetched 2026-11-06), and the `tasks.md` exemption holds at every
 root, so a call whose `cwd` names a project subfolder, as a Codex `workdir` does from `rust-v0.166.0`, may write
 `tasks.md` in that subfolder. Re-audit only when the rule changes, and record a new limit here rather than chasing it.
 

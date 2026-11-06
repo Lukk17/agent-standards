@@ -32,6 +32,9 @@ The gate is enforcing, not advisory. One shared rule in
   the command passes `MAIN_THREAD_ALLOWLIST` in the gate or an entry of the project's own `main-thread-allowlist.txt`.
   The rules are in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md) under "What the main thread may run". This
   repository's own checks sit in [main-thread-allowlist.txt](main-thread-allowlist.txt), which never ships.
+- It denies the main thread a shell, an interpreter or an editor that waits for typed input, such as a bare `bash`,
+  `python3 -i` or `vim`, because Codex's `write_stdin` types into it with no `PreToolUse`. The list is under "Hook
+  enforcement" in [docs/agent-compatibility.md](docs/agent-compatibility.md).
 - Every rule fires only on a caller positively identified as the main thread. Claude Code and Codex send `agent_id`
   only inside a subagent. An unknown caller is allowed: GitHub Copilot on every call, and an OpenCode or Kilo Code
   call whose session the plugin could not read.
@@ -188,7 +191,6 @@ scripts, `bash` and `powershell` the update scripts in [docs/AGENTS-UPDATE.md](d
   lands, pass it with `--subagent` from [.github/hooks/preflight.json](.github/hooks/preflight.json) and set
   `GATE_KNOWN_GAP=0` in [sandbox-agent/live/copilot.sh](sandbox-agent/live/copilot.sh) in the same change.
 - **Whether a Codex `Stop` hook can reject a reply is not measured.** Confirm it and say so plainly here. The markdown lint stays Claude-only, because Codex has no post-tool event.
-- **Codex `write_stdin` is outside the gate matcher** in [.codex/config.toml](.codex/config.toml), so it can type into a `tty: true` shell unseen. Add it with a sandbox run, then update "Hook enforcement" in [docs/agent-compatibility.md](docs/agent-compatibility.md).
 - **Reply rules outside OpenCode.** OpenCode 2.x gets `.agents/instructions/reply-rules.md` from the plugin's session
   `context` hook, main thread only, and 1.x and Kilo Code from `instructions`. TODO: decide how a global install loads them on Claude
   Code, Codex and Copilot, keeping them out of `AGENTS.md`, and document it in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md).
