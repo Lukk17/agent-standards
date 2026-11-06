@@ -115,13 +115,31 @@ grep -E 'WAN[ _]Connection' <workspace>/router-syslog.log | sed -E 's/^.*WAN[ _]
 
 ### The clock in the log is not one clock
 
-VERIFIED on build 386: `date` on the router printed the local summer time, the `pppd` lines and most other daemon lines were one hour behind it, and the `wan: finish adding multi routes` lines of the same reconnect were in local time, one hour after the `pppd` lines of the same event. Matched against an outside ping log kept in UTC, the `pppd` times were UTC+1.
+The offset of a tag was not the same in summer and in winter on the same router, so a reading holds only for the season it was taken in.
+
+Summer reading, taken on 2026-10-23 in summer time, VERIFIED on build 386: `date` on the router printed the local summer time, the `pppd` lines and most other daemon lines were one hour behind it, and the `wan: finish adding multi routes` lines of the same reconnect were in local time, one hour after the `pppd` lines of the same event. Matched against an outside ping log kept in UTC, the `pppd` times were UTC+1.
+
+Winter reading, taken on 2026-11-06 in winter time, when local time was UTC+1, VERIFIED on build 386: `date` on the router printed the same second as the agent's machine, and the `dropbear` line of that login in the log showed the same second. In one PPPoE reconnect the `pppd` line `Connect: ppp0 <--> <wan-ifname>`, the `wan` line `finish adding multi routes`, the `WAN Connection` line `WAN was restored.` and the `kernel` lines all fell within 6 seconds of each other, so every tag had offset 0. An outside ping log kept in UTC put the start of that drop about half a minute before the `pppd` lines of it, which fits offset 0 and not one hour. The `pppd` lines were matched to the second only against the other tags, never against an outside clock.
+
+UNVERIFIED: both readings fit a `pppd` that writes its times in a fixed UTC+1, which is local time in winter and one hour behind it in summer. Nobody traced this in the firmware.
+
+The router's time zone rule can also move every line, `date` included, so read it before the offsets. `time_zone_x_mapping` in `rc/common.c` of the Asuswrt-Merlin source at tag `3006.102.9`, fetched on 2026-11-06, takes `time_zone`, adds `time_zone_dstoff` after a comma when `time_zone_dst` is `1`, stores the result in `time_zone_x` and writes it to `/etc/TZ`. `shared/defaults.c` sets `time_zone_dstoff` to `M3.2.0/2,M10.2.0/2` by default. POSIX, section 8.3 of https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap08.html, defines `Mm.n.d` as "The d'th day (0 <= d <= 6) of week n of month m of the year", says that week 5 means "the last d day in month m", and says "Day zero is Sunday." So that default starts summer time on the second Sunday of March and ends it on the second Sunday of October. The European Union rule in the `europe` file of the tz database at https://github.com/eggert/tz is `Mar lastSun` and `Oct lastSun`, which is `M3.5.0` and `M10.5.0` in the POSIX form. A rule whose dates differ from the zone's real ones puts `date` and every log line one hour off for the weeks between the two dates. Read both values and compare their dates with the real ones for the zone. VERIFIED on build 386, which printed the default second Sunday dates on a router in a zone that changes on the last Sundays. Whether that rule caused any part of the summer offset above is UNVERIFIED.
+
+```sh
+nvram get time_zone_x
+```
+
+```sh
+nvram get time_zone_dstoff
+```
 
 So before you match a log line against a ping log or against another machine:
 
-1. Find one event that shows in both sources, such as a reconnect, and read the difference.
-2. Do this for each tag you use, `pppd`, `WAN Connection` and `wan`, because they can differ from each other.
-3. Write the offset you found next to the result.
+1. Read the time zone rule, as above, and compare its dates with the real ones for the zone.
+2. Find one event that shows in both sources, such as a reconnect, and read the difference.
+3. Do this for each tag you use, `pppd`, `WAN Connection` and `wan`, because they can differ from each other.
+4. Measure again after each change between summer time and winter time, because the offset of a tag can change with it.
+5. Write the offset you found next to the result, with the date you measured it on.
 
 ---
 
