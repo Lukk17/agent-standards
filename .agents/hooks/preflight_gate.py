@@ -4713,13 +4713,23 @@ def _dotnet_targets(command: str, powershell: bool = True) -> List[str]:
 
 
 class _Stripped(NamedTuple):
-    """A command with its wrappers peeled off, and what xargs, if present, adds."""
+    """A command with its wrappers peeled off, and what xargs, if present, adds.
+
+    `xargs_settled` is True when the first xargs never reads names from its
+    standard input: it reads a file of its own through -a, or only prints
+    its version or help.
+    """
 
     argv: List[str]
     xargs: bool = False
     replace: str = ""
     directories: Tuple[str, ...] = ()
     writes: Tuple[str, ...] = ()
+    xargs_settled: bool = False
+
+
+# An -a value that is still the terminal or standard input.
+_TERMINAL_FILES = frozenset({"-", "/dev/stdin", "/dev/tty", "/dev/fd/0", "/proc/self/fd/0"})
 
 
 # Reserved words that lead a POSIX command without being it, as in
@@ -4841,6 +4851,14 @@ def _read_options(words: List[str], spec: _OptionSpec, permute: bool = True, clu
     return _Options(options, operands)
 
 
+def _xargs_settles(option: str, value: Optional[str]) -> bool:
+    """True for an xargs option that keeps it off its standard input: -a naming a file, --help or --version."""
+    if option in ("--help", "--version"):
+        return True
+
+    return option in ("-a", "--arg-file") and value is not None and value not in _TERMINAL_FILES
+
+
 def _xargs_replacement(option: str, value: Optional[str]) -> str:
     """The replace-string an xargs option sets, or "" when it sets none."""
     if option == "-I":
@@ -4886,6 +4904,7 @@ def _strip_wrappers(tokens: List[str], dialect: str = _POSIX) -> Optional[_Strip
     """
     rest = list(tokens)
     xargs = False
+    settled = False
     replace = ""
     directories: List[str] = []
     writes: List[str] = []
@@ -4897,7 +4916,7 @@ def _strip_wrappers(tokens: List[str], dialect: str = _POSIX) -> Optional[_Strip
                 return None
 
         if not rest or not _peels(rest[0], dialect):
-            return _Stripped(rest, xargs, replace, tuple(directories), tuple(writes))
+            return _Stripped(rest, xargs, replace, tuple(directories), tuple(writes), settled)
 
         if peeled == _MAX_WRAPPERS:
             return None
@@ -4908,7 +4927,7 @@ def _strip_wrappers(tokens: List[str], dialect: str = _POSIX) -> Optional[_Strip
         # runuser wraps a command only in its -u form. Without -u it is su,
         # a shell or the -c code the code runners read.
         if name == "runuser" and not _runuser_wraps(rest):
-            return _Stripped(rest, xargs, replace, tuple(directories), tuple(writes))
+            return _Stripped(rest, xargs, replace, tuple(directories), tuple(writes), settled)
 
         if dialect == _CMD and rest[0].startswith("@"):
             rest[0] = rest[0][1:]
@@ -4932,7 +4951,7 @@ def _strip_wrappers(tokens: List[str], dialect: str = _POSIX) -> Optional[_Strip
                 break
 
             if _only_describes(name, word):
-                return _Stripped([], xargs, replace, tuple(directories), tuple(writes))
+                return _Stripped([], xargs, replace, tuple(directories), tuple(writes), settled)
 
             for option, value in _wrapper_options(word, spec, rest):
                 if option in spec.unplaceable:
@@ -4940,6 +4959,7 @@ def _strip_wrappers(tokens: List[str], dialect: str = _POSIX) -> Optional[_Strip
 
                 if name == "xargs":
                     replace = _xargs_replacement(option, value) or replace
+                    settled = settled or (not xargs and _xargs_settles(option, value))
 
                 if value is None:
                     continue
@@ -7610,6 +7630,12 @@ def _segment_targets(
 
     if stripped is None:
         return [_UNPLACEABLE_SHELL_TARGET]
+
+    # xargs with nothing piped in and no file of its own reads names from the
+    # terminal, which Codex's write_stdin types into. A `< file` redirect is
+    # not counted, so `xargs rm < list.txt` is held too.
+    if stripped.xargs and not stripped.xargs_settled and feed() is None:
+        return [_WAITING_RUN + _rejoined(tokens)]
 
     if not stripped.argv and _starts_a_shell_of_its_own(tokens) and feed() is None:
         return [_WAITING_RUN + _rejoined(tokens)]

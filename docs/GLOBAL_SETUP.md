@@ -1577,7 +1577,9 @@ Starting a shell, an interpreter, an editor or any other program that waits for 
 `bash`, `python3`, `python3 -i`, `vim`, `less`, `tmux`, `psql` or `gdb`, or a `git commit` that would open the editor,
 because the gate never sees what is typed into it. Pass the code with `-c` or `-e`, the query with `psql -c` or
 `sqlite3 db "SQL"`, the message with `git commit -m`, run a debugger in batch mode, pipe the input in, feed a database
-shell or a debugger a file with `< file`, as in `psql app < schema.sql`, or hand the work to a subagent. A shell or an
+shell or a debugger a file with `< file`, as in `psql app < schema.sql`, or hand the work to a subagent. An `xargs`
+with nothing piped in reads names from the terminal and denies too, `xargs rm < list.txt` included, so pipe the names
+in, as in `cat list.txt | xargs rm`, or name the file with `xargs -a list.txt`. A shell or an
 interpreter fed a file with `< file` still denies, because that file is a script the gate cannot read.
 
 A command also denies when it sets an environment variable that changes which program or file it uses, such as

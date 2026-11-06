@@ -319,7 +319,9 @@ Reading the tables row by row:
   `node`, `deno`, `perl`, `ruby`, `php`, `lua`, `luajit`, `R`, `julia` and `tclsh`, the REPLs `irb`, `pry`,
   `bpython`, `ptpython`, `ghci` and `jshell`, the editors `vi`, `vim`, `nvim`, `view`, `vimdiff`, `nano`, `pico`,
   `emacs`, `mg` and `micro`, the line editors `ed`, `red` and `ex`, the pagers `less`, `more` and `most`, `tmux`
-  with any subcommand, because `send-keys` types into a session and `attach` hands one over, and `screen`. The
+  with any subcommand, because `send-keys` types into a session and `attach` hands one over, `screen`, and `xargs`
+  with no piped, heredoc or here-string input and no `-a` or `--arg-file` naming a file, because it reads names from
+  the terminal, which holds `xargs rm < list.txt` too, since a `< file` redirect is not counted. The
   database shells `sqlite3`, `psql`, `mysql`, `mariadb`, `mongosh` and `redis-cli` are held without their inline
   query or command (`sqlite3 db "SQL"`, `psql -c`, `mysql -e`, `mongosh --eval`, `redis-cli PING`), piped input or a
   file on standard input (`psql app < schema.sql`),
@@ -585,11 +587,10 @@ can still be typed into through Codex's `write_stdin`, and so can inline code th
 terminal (Codex starts every such process with `PAGER`, `GIT_PAGER` and `GH_PAGER` set to `cat`,
 [process_manager.rs at rust-v0.166.0](https://raw.githubusercontent.com/openai/codex/rust-v0.166.0/codex-rs/core/src/unified_exec/process_manager.rs),
 fetched 2026-11-06, so git and gh open no pager there unless the user's own login shell exports one, which Codex's
-shell snapshot restores over `cat`, as Rule E above explains), `xargs` handing a write command names from a file or
-from the terminal passes, as in `xargs rm < list.txt`, `xargs -a list.txt rm` or a bare `xargs rm`, because the lexer
-drops an input redirect and the gate reads neither the file nor what is typed, so it sees `rm` with no operand (the
-same names piped in, as in `cat list.txt | xargs rm`, and a replace string read from either, as in
-`xargs -I{} rm {} < list.txt`, still deny), a `CDPATH` set only by the user's shell profile, which the gate never sees, sends `cd docs` to the first `docs`
+shell snapshot restores over `cat`, as Rule E above explains), `xargs` handing a write command names from a file of
+its own passes, as in `xargs -a list.txt rm`, because the gate does not read that file, so it sees `rm` with no
+operand (the same names piped in, as in `cat list.txt | xargs rm`, still deny, and Rule F holds an `xargs` that reads
+its names from the terminal, a bare `xargs rm` and `xargs rm < list.txt` among them), a `CDPATH` set only by the user's shell profile, which the gate never sees, sends `cd docs` to the first `docs`
 under it while the gate places the command from `./docs`, and the `tasks.md` exemption holds at every root, so a call whose `cwd`
 names a project subfolder, as a Codex `workdir` does from `rust-v0.166.0`, may write `tasks.md` in that subfolder. Re-audit only when the rule changes, and record a new limit here rather than chasing it.
 

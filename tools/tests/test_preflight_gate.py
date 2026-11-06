@@ -3731,6 +3731,15 @@ WAITING_PROGRAMS = {
     "firejail-list": ("firejail --list", "Bash"),
     "firejail-tree": ("firejail --tree", "Bash"),
     "firejail-bare": ("firejail", "Bash"),
+    "xargs-reading-names-from-the-terminal": ("xargs rm", "Bash"),
+    "xargs-bare": ("xargs", "Bash"),
+    "xargs-null-separated-from-the-terminal": ("xargs -0 rm", "Bash"),
+    "xargs-behind-a-wrapper": ("env LANG=C xargs echo", "Bash"),
+    "xargs-arg-file-from-standard-input": ("xargs -a - rm", "Bash"),
+    "xargs-arg-file-from-the-terminal": ("xargs --arg-file=/dev/tty rm", "Bash"),
+    # The lexer reads the file redirect, but xargs is held whatever its
+    # standard input is a file, a deny the user accepted.
+    "xargs-fed-a-file": ("xargs rm < /tmp/list.txt", "Bash"),
 }
 
 
@@ -3841,6 +3850,14 @@ NOT_WAITING = {
     "su-command-in-a-login-cluster": "su -lc id nobody",
     "su-session-command": "su --session-command=id nobody",
     "su-command-abbreviated": "su --comm=id nobody",
+    "xargs-fed-by-a-pipe": "cat /tmp/list.txt | xargs echo",
+    "xargs-fed-by-printf": "printf 'a\\nb\\n' | xargs echo",
+    "xargs-fed-by-a-heredoc": "xargs echo <<'EOF'\na\nEOF",
+    "xargs-fed-by-a-here-string": "xargs echo <<< a",
+    "xargs-own-arg-file": "xargs -a /tmp/list.txt echo",
+    "xargs-own-arg-file-long": "xargs --arg-file=/tmp/list.txt echo",
+    "xargs-own-arg-file-abbreviated": "xargs --arg /tmp/list.txt echo",
+    "xargs-version": "xargs --version",
     "git-stash-show-patch-long": "git stash show --patch",
     "git-stash-list-patch": "git stash list -p",
     "psql-fed-by-a-file": "psql app < /tmp/schema.sql",
