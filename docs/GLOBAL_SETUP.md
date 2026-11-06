@@ -1610,7 +1610,11 @@ How a project entry is matched:
 - A trailing `...` accepts any further arguments. Without it the command has to end where the entry ends, so an
   entry `python scripts/verify.py` allows that command and denies `python scripts/verify.py --fix`.
 - A word with a slash in it is a file path, and it matches the file it names from where the command runs. After
-  `cd scripts`, `python verify.py` still matches, and after `cd docs`, `python scripts/verify.py` does not.
+  `cd scripts`, `python verify.py` still matches, and after `cd docs`, `python scripts/verify.py` does not. When the
+  gate cannot tell which of two folders the command starts in, it has to name that file from both.
+- An entry, the built-in ones included, applies only while every folder the command can run from is inside the
+  project. After a `cd`, `pushd` or `env --chdir` out of it, or from a Codex `workdir` outside it, `python -m pytest`
+  and `make check` deny, because pytest loads the `conftest.py` and make the `Makefile` of the folder they run in.
 - An entry that hands a script to a shell, such as `bash scripts/check.sh`, only lifts the script-run rule. The gate
   still reads the script as shell code and denies it when it writes a file in the project.
 - The built-in list names no project's own scripts, because an entry such as `python tools/check.py` would also allow a

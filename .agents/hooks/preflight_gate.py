@@ -4781,23 +4781,35 @@ def _powershell_reads_stdin(flags: List[str]) -> bool:
 
 
 def _read_script(target: str) -> Optional[str]:
-    """The text of a file the command runs as code, or None when it cannot be read."""
+    """The text of a file the command runs as code, or None when it cannot be read.
+
+    The file is read from every folder the command can stand in, and two
+    copies that differ, or one too large or unreadable, are a file the gate
+    cannot place: a Codex payload cwd is the workdir the main thread chose,
+    so a harmless copy in the project says nothing about the one that runs.
+    """
     if not target or _has_glob(target):
         return None
 
     path = _as_path(target)
     bases = _CD_BASE if _CD_BASE is not None else tuple(_roots())
+    texts: Set[str] = set()
 
     for base in bases:
         candidate = path if path.is_absolute() else base / path
 
         try:
-            if candidate.is_file() and candidate.stat().st_size <= _MAX_SCRIPT_BYTES:
-                return candidate.read_text(encoding="utf-8", errors="replace")
-        except (OSError, ValueError):
-            continue
+            if not candidate.is_file():
+                continue
 
-    return None
+            if candidate.stat().st_size > _MAX_SCRIPT_BYTES:
+                return None
+
+            texts.add(candidate.read_text(encoding="utf-8", errors="replace"))
+        except (OSError, ValueError):
+            return None
+
+    return texts.pop() if len(texts) == 1 else None
 
 
 def _printf_text(template: str) -> str:
@@ -6823,21 +6835,16 @@ def _project_allowlist() -> List[List[str]]:
 
 
 def _names_the_same_file(actual: str, expected: str) -> bool:
-    """True when a command word and an allowlisted path name one file, from where the command stands."""
+    """True when a command word and an allowlisted path name one file from every folder the command can stand in."""
     bases = _CD_BASE if _CD_BASE is not None else tuple(_roots())
     written = _as_path(actual)
 
-    for base in bases:
-        for root in _allowlist_roots():
-            try:
-                here = _resolve(written if written.is_absolute() else base / written)
+    try:
+        wanted = {_resolve(root / _native_path(expected)) for root in _allowlist_roots()}
 
-                if here == _resolve(root / _native_path(expected)):
-                    return True
-            except (OSError, ValueError, RuntimeError):
-                continue
-
-    return False
+        return bool(bases) and all(_resolve(written if written.is_absolute() else base / written) in wanted for base in bases)
+    except (OSError, ValueError, RuntimeError):
+        return False
 
 
 def _names_a_path(word: str) -> bool:
@@ -6895,13 +6902,17 @@ def _option_width(token: str, following: List[str], check: AllowedCheck) -> int:
 
 
 def _placed_inside(target: str) -> bool:
-    """True only when target names a path that resolves inside a repository root from every base."""
+    """True only when target names a path that resolves inside a trusted root from every base.
+
+    The trusted roots are _allowlist_roots(), never the payload cwd, which
+    Codex fills from the workdir the main thread chose.
+    """
     if not target or _has_glob(target) or _has_expansion(target) or _is_unplaceable_windows_path(target):
         return False
 
     path = _as_path(target)
-    roots = _roots()
-    bases = _CD_BASE if _CD_BASE is not None else tuple(roots)
+    roots = _allowlist_roots()
+    bases = _CD_BASE if _CD_BASE is not None else tuple(_roots())
 
     for base in bases:
         try:
@@ -6950,7 +6961,23 @@ def _passes_check(tokens: List[str], check: AllowedCheck) -> bool:
     return not check.inside or all(_placed_inside(operand.split("::", 1)[0]) for operand in operands)
 
 
+def _runs_inside_trusted_roots() -> bool:
+    """True when every folder the command can run from, after cd, pushd and the payload cwd, is inside a trusted root.
+
+    An allowlist entry vouches for the project's own files. Run from any
+    other folder, pytest loads that folder's conftest.py and make its
+    Makefile, so the entry says nothing there.
+    """
+    bases = _CD_BASE if _CD_BASE is not None else tuple(_roots())
+    trusted = _allowlist_roots()
+
+    return bool(bases) and all(any(_is_within(base, root) for root in trusted) for base in bases)
+
+
 def _allowlisted(tokens: List[str]) -> bool:
+    if not _runs_inside_trusted_roots():
+        return False
+
     if any(_passes_check(tokens, check) for check in MAIN_THREAD_ALLOWLIST):
         return True
 

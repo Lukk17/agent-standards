@@ -3852,8 +3852,10 @@ PROJECT_ALLOWLIST_CASES = {
     "command,expected",
     [pytest.param(command, expected, id=name) for name, (command, expected) in PROJECT_ALLOWLIST_CASES.items()],
 )
-def test_a_project_extends_the_allowlist_with_its_own_file(nest, command, expected):
-    # Given
+def test_a_project_extends_the_allowlist_with_its_own_file(nest, command, expected, monkeypatch):
+    # Given a project holding its own gate, as an installed one does, so its
+    # root is the only root and `cd scripts` lands from every base
+    monkeypatch.setattr(GATE, "_script_root", lambda: nest.project)
     write_project_allowlist(nest.project, PROJECT_ALLOWLIST)
     (nest.project / "scripts").mkdir()
 
@@ -3882,6 +3884,114 @@ def test_an_allowlist_in_the_payload_cwd_outside_the_project_is_not_read(nest, f
     # Then the script run is still denied
     assert (code, err) == (0, "")
     assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+# An allowlist entry is a promise about the project's own files, so it
+# applies only while every folder the command can run from is inside a root
+# the gate trusts. From anywhere else pytest loads that folder's conftest.py
+# and make reads that folder's Makefile.
+ALLOWLIST_OUTSIDE_CASES = {
+    "pytest-after-cd": "cd {elsewhere} && python -m pytest -q",
+    "pytest-after-cd-with-a-path": "cd {elsewhere} && python -m pytest -q tests",
+    "program-entry-after-cd": "cd {elsewhere} && make check",
+    "open-ended-entry-after-cd": "cd {elsewhere}; npm run lint",
+    "pytest-after-pushd": "pushd {elsewhere} && python -m pytest -q",
+    "pytest-after-env-chdir": "env --chdir={elsewhere} python -m pytest -q",
+    "pytest-after-a-subshell-cd": "(cd {elsewhere} && python -m pytest -q)",
+}
+
+
+@pytest.mark.parametrize(
+    "command", [pytest.param(command, id=name) for name, command in ALLOWLIST_OUTSIDE_CASES.items()]
+)
+def test_an_allowlist_entry_does_not_apply_outside_the_project(nest, command):
+    write_project_allowlist(nest.project, PROJECT_ALLOWLIST)
+
+    assert verdict_in(nest, command.format(elsewhere=nest.elsewhere)) == "deny"
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["python -m pytest -q", "cd docs && python -m pytest -q", "cd {elsewhere}; cd {project} && make check", "make check"],
+)
+def test_an_allowlist_entry_still_applies_anywhere_inside_the_project(nest, command):
+    write_project_allowlist(nest.project, PROJECT_ALLOWLIST)
+    (nest.project / "docs").mkdir()
+
+    assert verdict_in(nest, command.format(elsewhere=nest.elsewhere, project=nest.project)) == "allow"
+
+
+@pytest.mark.parametrize("command", ["python -m pytest -q", "make check", "python scripts/verify.py"])
+def test_an_allowlist_entry_does_not_apply_from_a_codex_workdir_outside_the_project(nest, command):
+    # Given Codex, which reports the workdir the main thread chose as the payload cwd
+    write_project_allowlist(nest.project, PROJECT_ALLOWLIST)
+
+    for folder in (nest.project, nest.elsewhere):
+        (folder / "scripts").mkdir()
+        (folder / "scripts" / "verify.py").write_text("print(1)\n", encoding="utf-8")
+
+    payload = {**shell(command), "cwd": str(nest.elsewhere)}
+
+    # When
+    code, out, err = run(payload, "codex", cwd=nest.project)
+
+    # Then
+    assert (code, err) == (0, "")
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"].startswith("PREFLIGHT: the main thread may not run")
+
+
+def test_an_allowlisted_path_has_to_name_the_same_file_from_every_folder_the_command_can_run_from(nest):
+    # Given a Codex workdir inside the project, where the entry's relative path names another file
+    write_project_allowlist(nest.project, "python scripts/verify.py\n")
+    workdir = nest.project / "tools"
+
+    for folder in (nest.project, workdir):
+        (folder / "scripts").mkdir(parents=True)
+        (folder / "scripts" / "verify.py").write_text("print(1)\n", encoding="utf-8")
+
+    payload = {**shell("python scripts/verify.py"), "cwd": str(workdir)}
+
+    # When
+    code, out, err = run(payload, "codex", cwd=nest.project)
+
+    # Then
+    assert (code, err) == (0, "")
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"].endswith("Blocked command: python scripts/verify.py")
+
+
+@pytest.mark.parametrize("name", [GATE.ALLOWLIST_FILE, "notes.sh"])
+def test_a_sourced_file_that_differs_between_the_folders_the_command_can_run_from_is_unplaceable(nest, name):
+    # Given a harmless copy in the project and a writing copy in the Codex workdir the main thread chose
+    (nest.project / name).write_text("true\n", encoding="utf-8")
+    (nest.elsewhere / name).write_text("echo x > ../project/AGENTS.md\n", encoding="utf-8")
+    payload = {**shell(". " + name), "cwd": str(nest.elsewhere)}
+
+    # When
+    code, out, err = run(payload, "codex", cwd=nest.project)
+
+    # Then
+    assert (code, err) == (0, "")
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"].endswith("Blocked target: " + GATE._UNPLACEABLE_SHELL_TARGET)
+
+
+def test_a_sourced_file_the_same_in_every_folder_is_read(nest):
+    for folder in (nest.project, nest.elsewhere):
+        (folder / "notes.sh").write_text("true\n", encoding="utf-8")
+
+    payload = {**shell(". notes.sh"), "cwd": str(nest.elsewhere)}
+
+    assert run(payload, "codex", cwd=nest.project) == (0, "", "")
+
+
+def test_a_pytest_path_inside_only_the_payload_cwd_is_not_placed_inside(nest, monkeypatch):
+    # Given the payload cwd a Codex main thread chose, outside the project
+    (nest.elsewhere / "test_x.py").write_text("", encoding="utf-8")
+    monkeypatch.chdir(nest.project)
+    monkeypatch.setattr(GATE, "_PAYLOAD_ROOT", nest.elsewhere)
+    monkeypatch.setattr(GATE, "_CD_BASE", (nest.elsewhere,))
+
+    # When/Then the payload cwd is no root an allowlisted operand may sit in
+    assert GATE._placed_inside("test_x.py") is False
 
 
 def test_an_allowlist_at_the_gates_working_directory_is_read(nest):

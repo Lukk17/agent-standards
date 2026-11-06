@@ -364,6 +364,13 @@ A main-thread shell call that carries its own `workdir`, as the OpenCode and Kil
 sends the project root as `cwd`, is read a second time from that folder, resolved against every root when relative,
 so `echo x > ../AGENTS.md` with `workdir` set to `docs` denies.
 
+The payload `cwd` widens the write rule and never an allow decision, because Codex fills it from the `workdir` the
+main thread chose. It is a root a write may not land in and a folder the command may start in, but the allowlist, the
+built-in pytest check's test paths and an allowlisted path entry are trusted only from the gate's working directory and
+its install root, every folder the command can start in has to sit inside one of those, an allowlisted path has to
+name the same file from each of them, and a file run with `source` or `.` is read from each of them and is
+unplaceable when two copies differ.
+
 Deleting, moving, or renaming the repository root or any directory above it counts as a write inside it, so
 `rm -rf ..`, `rm -rf ~`, `Remove-Item -Recurse` or `rmdir /s` on a parent, and `mv` or `Move-Item` of a parent are
 denied, while the same command on a sibling folder that holds no root is allowed. A wildcard operand counts when any
