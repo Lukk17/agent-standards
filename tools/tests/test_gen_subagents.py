@@ -465,14 +465,6 @@ def test_opencode_keeps_web_access_the_agent_lists():
     assert permission["websearch"] == "deny"
 
 
-def test_a_read_only_opencode_agent_names_each_permission_once():
-    head = gen.emit_opencode(REVIEWER, BODY).split("---\n")[1]
-    block = head.split("permission:\n", 1)[1].split("\ntools:", 1)[0]
-    keys = [line.split(":")[0].strip().strip('"') for line in block.splitlines() if not line.startswith("    ")]
-
-    assert len(keys) == len(set(keys))
-
-
 @pytest.mark.parametrize("tool", ["webfetch", "websearch"])
 def test_parse_rejects_a_read_only_agent_with_web_access(tmp_path, tool):
     """Rule E denies every web tool to a read-only agent, so listing one would promise a tool it never gets."""
@@ -544,6 +536,36 @@ def read_only_section(text):
     section = text.split(f"### {gen.READ_ONLY_HEADING}\n", 1)[1].split("\n### ", 1)[0]
 
     return re.findall(r"^- `([^`]+)`$", section, re.M)
+
+
+@pytest.mark.parametrize("fixture", [REVIEWER, READER], ids=["reviewer", "reader"])
+def test_a_read_only_opencode_agent_names_each_permission_once(fixture):
+    head = gen.emit_opencode(fixture, BODY).split("---\n")[1]
+    block = head.split("permission:\n", 1)[1].split("\ntools:", 1)[0]
+    keys = [line.split(":")[0].strip().strip('"') for line in block.splitlines() if not line.startswith("    ")]
+
+    assert len(keys) == len(set(keys))
+
+
+def read_only_prose(text):
+    """The prose under the read-only heading, up to the next heading."""
+    return text.split(f"### {gen.READ_ONLY_HEADING}\n", 1)[1].split("\n### ", 1)[0].strip()
+
+
+# Copilot's preToolUse payload names no agent, so the gate never fires there and
+# only the missing tools hold the agent.
+def test_copilot_tells_an_agent_with_only_read_tools_that_the_target_grants_no_edit_or_shell():
+    prose = read_only_prose(gen.emit_copilot(READER, BODY))
+
+    assert prose.endswith("This target grants it no edit or shell tool.")
+    assert "preflight gate" not in prose
+
+
+@pytest.mark.parametrize("target", ["claude", "agents", "codex"])
+def test_an_agent_with_only_read_tools_is_told_the_gate_denies_it_where_the_hook_names_it(target):
+    prose = read_only_prose(gen.render(target, READER, BODY))
+
+    assert prose.endswith("The preflight gate denies every edit and every shell command.")
 
 
 @pytest.mark.parametrize(

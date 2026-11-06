@@ -75,7 +75,7 @@ explicitly. You stop there, and you do not implement.
 
 ### Read-only shell
 
-This agent is read-only and has no shell. Edit no file and run no command, and return any change or command to the caller as a proposal. The preflight gate denies every edit and every shell command.
+This agent is read-only and has no shell. Edit no file and run no command, and return any change or command to the caller as a proposal. This target grants it no edit or shell tool.
 
 
 ### Preloaded skills

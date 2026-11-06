@@ -300,7 +300,9 @@ Reading the tables row by row:
   free mock case in [sandbox-agent/e2e-mock/subagent-write.sh](../sandbox-agent/e2e-mock/subagent-write.sh) measured it
   on Codex 0.167.0: `backend-architect` was offered no shell tool while `python-pro` was offered `exec_command` and
   `write_stdin`. No key covers `apply_patch` or web search, so an agent listing only `read`, `grep` and `glob` gets an
-  empty "Read-only shell" section on every target, and Rule E holds it to no shell command and no edit. A custom agent
+  empty "Read-only shell" section on every target, and Rule E holds it to no shell command and no edit. Rule E covers every format whose hook sees the tool, so
+  web search stays open to a read-only agent on Codex, because neither the agent file nor the hook matcher reaches it.
+  A custom agent
   file cannot narrow the sandbox either: "Other session settings, including `sandbox_mode`, `approval_policy`, `model_provider`, and
   `mcp_servers`, don't override the parent configuration when placed in a custom agent file"
   ([subagents, "Custom agents"](https://developers.openai.com/codex/subagents), fetched 2026-10-30). Codex does name
@@ -625,7 +627,7 @@ Three more Rule F readings are accepted limits:
 
 - `git config edit`, the action form that replaced the mode options in Git 2.46 ("The operation mode options (like
   "--get") the "git config" command uses have been deprecated and replaced with subcommands (like "git config get")",
-  [RelNotes 2.46.0](https://raw.githubusercontent.com/git/git/master/Documentation/RelNotes/2.46.0.adoc)), is not held
+  [RelNotes 2.46.0](https://raw.githubusercontent.com/git/git/v2.46.0/Documentation/RelNotes/2.46.0.txt)), is not held
   by Rule F, which knows only `git config -e` and `--edit`. The write rule still denies it on the main thread as a
   command it cannot read, so the deny names the write rule instead of Rule F.
 - `xargs -p` and `xargs --interactive` ask on the terminal before each command, and pass once the names are piped in,

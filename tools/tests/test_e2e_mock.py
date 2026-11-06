@@ -430,7 +430,7 @@ def test_the_driver_proves_on_codex_that_an_agent_without_bash_gets_no_shell():
     definition = (REPO_ROOT / "subagents" / f"{agent}.md").read_text(encoding="utf-8")
 
     assert "bash" not in re.search(r"^tools: \[(.*)\]$", definition, re.M).group(1)
-    assert 'if [[ "$agent" == "codex" ]]; then\n    e2e_check_no_shell "$dir"' in source
+    assert re.search(r'"\$agent" == "codex"[^\n]*\n\s*e2e_check_no_shell\b', source)
 
 
 def test_the_needles_are_read_from_the_project_itself():

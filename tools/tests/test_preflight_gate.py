@@ -5795,8 +5795,8 @@ def read_only_project(tmp_path, target="claude", directory=".claude/agents", ext
     return tmp_path
 
 
-def read_only_decision(root, payload):
-    payload = {**payload, "agent_id": "sub-1", "agent_type": READ_ONLY_REVIEWER["name"]}
+def read_only_decision(root, payload, agent=READ_ONLY_REVIEWER["name"]):
+    payload = {**payload, "agent_id": "sub-1", "agent_type": agent}
     code, out, err = run(payload, "claude", cwd=root)
 
     assert (code, err) == (0, "")
@@ -6078,11 +6078,28 @@ def test_the_codex_gh_rule_holds_only_a_read_only_agent(tmp_path):
     assert run(payload, "codex", cwd=root) == (0, "", "")
 
 
-def read_only_verdict(tmp_path, payload):
-    """The deny reason Rule E gives the read-only fixture, or None when it allows."""
-    verdict = read_only_decision(read_only_project(tmp_path), payload)
+def read_only_verdict(tmp_path, payload, agent=None):
+    """The deny reason Rule E gives the read-only fixture, or the named shipped agent, or None when it allows.
+
+    A named agent is read from its generated Claude Code file in this repository.
+    """
+    if agent is None:
+        verdict = read_only_decision(read_only_project(tmp_path), payload)
+    else:
+        agents = tmp_path / ".claude" / "agents"
+        agents.mkdir(parents=True, exist_ok=True)
+        shutil.copy(REPO_ROOT / ".claude" / "agents" / f"{agent}.md", agents)
+        verdict = read_only_decision(tmp_path, payload, agent)
 
     return verdict["permissionDecisionReason"] if verdict else None
+
+
+@pytest.mark.parametrize(
+    ("command", "allowed"),
+    [("git --no-pager log -p -SAKIA --all", True), ("git --no-pager ls-files", True), ("git ls-files", False)],
+)
+def test_the_shipped_security_auditor_searches_and_lists_history_only_through_git_no_pager(tmp_path, command, allowed):
+    assert (read_only_verdict(tmp_path, shell(command), "security-auditor") is None) is allowed
 
 
 READ_ONLY_FIXTURE_PATTERNS = ["git --no-pager diff*", "git --no-pager log*", "git --no-pager show*", "git --no-pager status*", "gh pr diff*", "gh pr view*"]
@@ -6253,8 +6270,13 @@ READ_ONLY_CHECKS_PATTERNS = [*READ_ONLY_FIXTURE_PATTERNS, "gh pr checks*"]
     "command",
     ["gh pr checks 12 --watch", "gh pr checks 12 --watch=true", "gh pr checks 12 --watch --fail-fast -i 5", "gh pr checks --watch 12"],
 )
-def test_read_only_subagent_may_not_watch_gh_checks(command):
+def test_read_only_subagent_may_not_poll_gh_with_watch(command):
     assert GATE._read_only_command_blocked(command, False, READ_ONLY_CHECKS_PATTERNS) == command
+
+
+@pytest.mark.parametrize(("argv", "polls"), [(("gh", "pr", "checks", "12", "--watch"), True), (("gh", "pr", "checks", "12"), False), (("git", "--watch"), False)])
+def test_gh_polls_with_watch_reads_only_a_gh_command_handed_watch(argv, polls):
+    assert GATE._gh_polls_with_watch(argv) is polls
 
 
 @pytest.mark.parametrize("command", ["gh pr checks 12", "gh pr checks 12 --required", "gh pr checks 12 --json name,state"])

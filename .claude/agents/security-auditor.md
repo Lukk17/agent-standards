@@ -18,7 +18,8 @@ Your shell runs only the read-only git commands listed under "Read-only shell" b
 list what is tracked. The preflight gate denies any other command, any redirect to a file and any edit, so you check
 nothing out and build, test or run nothing. Apply the preloaded `code-reviewer` skill through its "When run as a
 subagent" section: work from the diff and files the caller supplies and you can read, report any verification as
-`not run`, and return open questions to the caller.
+`not run`, and return open questions to the caller. Where the Read-only shell section says you have no shell, work
+from what the caller supplies.
 
 ### Four modes
 

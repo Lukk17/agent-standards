@@ -82,8 +82,9 @@ COPILOT_TOOLS = {
 # An agent whose `tools` list holds only these is read-only without any marker.
 # Every target writes it a READ_ONLY_HEADING section with no command, so the
 # gate's Rule E holds it to no shell and no edit on every format whose hook
-# names the subagent. Codex needs that most: its agent file can switch the
-# shell off but has no key for apply_patch.
+# names the subagent and sees the tool. Codex needs that most: its agent file
+# can switch the shell off but has no key for apply_patch, and web search stays
+# open there, because neither the agent file nor the hook matcher reaches it.
 READ_ONLY_TOOLS = frozenset({"read", "grep", "glob"})
 
 # A canonical `readonly: true` keeps bash but limits it to these commands, plus
@@ -98,7 +99,9 @@ READ_ONLY_GIT = "git --no-pager"
 READ_ONLY_COMMANDS = tuple(f"{READ_ONLY_GIT} {command}*" for command in ("diff", "log", "show", "status"))
 READ_ONLY_HEADING = "Read-only shell"
 # Rule E denies a read-only agent every tool outside reading, searching,
-# listing and its shell, so a listed web tool would never reach it.
+# listing and its shell on every format whose hook sees the tool, so a listed
+# web tool would never reach it there. Web search stays open to a read-only
+# agent on Codex, because neither the agent file nor the hook matcher reaches it.
 READ_ONLY_FORBIDDEN_TOOLS = frozenset({"write", "edit", "task", "webfetch", "websearch"})
 
 # OpenCode matches a bash rule against the command's own source text, quotes
@@ -316,14 +319,20 @@ def read_only_block(fm: dict, shell: bool = True, pager_escape: bool = False) ->
 
     pager_escape marks a target whose hook never sees a terminal, Codex, where
     the gate denies every gh command, so the agent is told to hand them back.
+    shell=False marks a target that grants the agent no shell and whose hook
+    never names the agent, Copilot, so only the missing tools hold it there.
     """
     if lists_only_read_tools(fm):
         # No item follows the heading, which Rule E reads as no command allowed.
+        holder = (
+            "The preflight gate denies every edit and every shell command."
+            if shell
+            else "This target grants it no edit or shell tool."
+        )
         return (
             f"\n\n### {READ_ONLY_HEADING}\n\n"
             "This agent is read-only and has no shell. Edit no file and run no command, and return "
-            "any change or command to the caller as a proposal. The preflight gate denies every edit "
-            "and every shell command.\n"
+            f"any change or command to the caller as a proposal. {holder}\n"
         )
     commands = read_only_commands(fm)
     if not commands:
@@ -487,7 +496,7 @@ def emit_copilot(fm: dict, body: str) -> str:
     lines += [
         "---",
         "",
-        body_with_blocks(fm, body, shell=not fm.get("readonly")),
+        body_with_blocks(fm, body, shell=not is_read_only(fm)),
     ]
     return "\n".join(lines).rstrip() + "\n"
 

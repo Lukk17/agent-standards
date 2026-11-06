@@ -8933,7 +8933,7 @@ def _runs_gh_expression(argv: Tuple[str, ...]) -> bool:
     return argv[:1] == ("gh",) and any(READ_ONLY_GH_EXPRESSION_RE.match(word) for word in argv[1:])
 
 
-def _watches_gh_checks(argv: Tuple[str, ...]) -> bool:
+def _gh_polls_with_watch(argv: Tuple[str, ...]) -> bool:
     """True for a gh command handed --watch, which polls until every check finishes."""
     return argv[:1] == ("gh",) and any(READ_ONLY_GH_WATCH_RE.match(word) for word in argv[1:])
 
@@ -9322,7 +9322,7 @@ def _read_only_segments_blocked(command: str, powershell: bool, patterns: List[s
         if any(_read_only_word_blocked(word) for word in parts) or _opens_a_browser(parts):
             return words
 
-        if _names_another_repository(parts) or _runs_gh_expression(parts) or _watches_gh_checks(parts):
+        if _names_another_repository(parts) or _runs_gh_expression(parts) or _gh_polls_with_watch(parts):
             return words
 
         pager = _opens_a_pager(segment.argv, fmt)
