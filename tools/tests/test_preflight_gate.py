@@ -3543,6 +3543,11 @@ WAITING_PROGRAMS = {
     "nested": ("bash -c bash", "Bash"),
     "after-another-command": ("cd /tmp && python3", "Bash"),
     "powershell-nested": ("pwsh -Command python", "PowerShell"),
+    "sh-stdin-with-help-past-the-options": ("sh -s -- --help", "Bash"),
+    "bash-stdin-with-version-as-an-operand": ("bash -s x --version", "Bash"),
+    "pwsh-command-from-the-terminal": ("pwsh -Command -", "PowerShell"),
+    "pwsh-c-from-the-terminal": ("pwsh -c -", "PowerShell"),
+    "pwsh-command-prefix-from-the-terminal": ("pwsh -NoProfile -comm -", "PowerShell"),
 }
 
 
@@ -3596,6 +3601,14 @@ NOT_WAITING = {
     "su-inline": "su -c 'id' nobody",
     "sudo-command": "sudo -u nobody id",
     "listing": "ls -la",
+    "command-describes-an-interpreter": "command -v python3",
+    "command-describes-a-shell-verbosely": "command -V bash",
+    "command-describes-an-editor": "command -v vim",
+    "command-describes-on-the-default-path": "command -pv python3",
+    "bash-version-before-a-short-option-errors-out": "bash -s --version",
+    "pwsh-command-fed-from-a-pipe": "echo Get-Date | pwsh -Command -",
+    "cmd-judges-only-its-first-switch": "cmd /c xcopy /tmp/a /tmp/b /k",
+    "cmd-r-runs-and-exits": "cmd /r dir",
 }
 
 
@@ -3604,6 +3617,15 @@ def test_a_main_thread_program_handed_its_input_is_not_held_by_rule_f(command):
     code, out, err = run(shell(command), "codex")
 
     assert (code, out, err) == (0, "", "")
+
+
+@pytest.mark.parametrize("command", ['cmd /r "echo x > AGENTS.md"', "cmd /R echo x ^> AGENTS.md", 'cmd /q /r "echo x > AGENTS.md"'])
+def test_cmd_r_runs_its_command_the_way_c_does(command):
+    # cmd stops reading switches at the first /C, /K or /R, and /R runs the
+    # rest and exits as /C does (base/shell/cmd/cmd.c in ReactOS).
+    _code, out, _err = run(shell(command, tool="PowerShell"), "claude")
+
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"].endswith("Blocked target: AGENTS.md")
 
 
 def test_rule_f_names_the_blocked_command_on_the_plain_format():

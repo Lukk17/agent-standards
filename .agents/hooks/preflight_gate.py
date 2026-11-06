@@ -859,8 +859,10 @@ _CMD_SHELLS = {"cmd"}
 # command string is the one argument after it, the rest become $0, $1 and on.
 _POSIX_CODE_FLAG_RE = re.compile(r"^-[A-Za-z]*c[A-Za-z]*$")
 
-# cmd runs everything after /c or /k as one command line.
-_CMD_CODE_FLAGS = {"/c", "/k"}
+# cmd runs everything after the first /c, /k or /r as one command line, and
+# stops reading its own switches there. /r runs it and exits as /c does
+# (base/shell/cmd/cmd.c in ReactOS, the switch Microsoft's page leaves out).
+_CMD_CODE_FLAGS = {"/c", "/k", "/r"}
 
 # PowerShell parameter names are case-insensitive and take any unambiguous
 # prefix. -Command takes every argument after it as the command, and
@@ -4543,6 +4545,10 @@ def _strip_wrappers(tokens: List[str], dialect: str = _POSIX) -> Optional[_Strip
         while rest and rest[0].startswith("-") and len(rest[0]) > 1:
             flag = rest.pop(0)
 
+            # command -v and -V describe the name after them and run nothing.
+            if name == "command" and not flag.startswith("--") and set(flag[1:]) & {"v", "V"}:
+                return _Stripped([], xargs, replace, tuple(directories))
+
             if name == "xargs":
                 replace = _xargs_replacement(flag, rest) or replace
 
@@ -4716,14 +4722,25 @@ def _reads_program_from_stdin(name: str, tokens: List[str]) -> bool:
 
 
 def _powershell_reads_stdin(flags: List[str]) -> bool:
-    """pwsh reads commands from standard input unless it is handed a script."""
+    """pwsh reads commands from standard input unless it is handed a script or a command.
+
+    `-File -` and `-Command -` read standard input too: "If the value of
+    Command is -, the command text is read from standard input" (about_Pwsh).
+    """
     index = 0
 
     while index < len(flags):
         lowered = flags[index].lower()
+        reads_value = index + 1 < len(flags) and flags[index + 1] == "-"
 
         if lowered in ("-f", "-file") or _is_prefix_of(lowered, "-file"):
-            return index + 1 < len(flags) and flags[index + 1] == "-"
+            return reads_value
+
+        if lowered in _PS_COMMAND_ALIASES or _is_prefix_of(lowered, _PS_COMMAND_FLAG):
+            return reads_value
+
+        if _is_powershell_code_flag(lowered):
+            return False
 
         if lowered in _PS_HOST_VALUE_FLAGS:
             index += 2
@@ -6428,7 +6445,10 @@ def _waits_for_typed_input(name: str, tokens: List[str], fed: bool) -> bool:
     lowered = [token.lower() for token in tokens[1:]]
 
     if name in _POSIX_SHELLS:
-        if _INFO_FLAGS & set(lowered):
+        # bash reads a long option only before its first operand or `--`,
+        # and refuses one after a short option, so a later --version is an
+        # argument of the script it reads.
+        if _INFO_FLAGS & _program_flags(tokens, _POSIX_SHELL_VALUE_FLAGS):
             return False
 
         return not fed and _nested_shell_code(name, tokens) is None and _reads_program_from_stdin(name, tokens)
@@ -6440,13 +6460,17 @@ def _waits_for_typed_input(name: str, tokens: List[str], fed: bool) -> bool:
         if any(flag in ("-v", "-h", "-?", "/?") or _is_prefix_of(flag, "-version") or _is_prefix_of(flag, "-help") for flag in lowered):
             return False
 
-        return not fed and not any(_is_powershell_code_flag(flag) for flag in lowered) and not _powershell_runs_script(tokens)
+        return not fed and _powershell_reads_stdin(tokens[1:])
 
     if name in _CMD_SHELLS:
-        if any(flag.startswith("/k") for flag in lowered):
+        # cmd reads no switch past the first /c, /k or /r, so a later /k is
+        # part of the command it runs.
+        first = next((flag[:2] for flag in lowered if flag[:2] in _CMD_CODE_FLAGS | {"/?"}), "")
+
+        if first == "/k":
             return True
 
-        return not fed and not any(flag.startswith(("/c", "/?")) for flag in lowered)
+        return not fed and not first
 
     if name == "deno":
         return not fed and not _operands(tokens[1:]) and not (_INFO_FLAGS | {"-v", "-V", "-h"}) & set(tokens[1:])

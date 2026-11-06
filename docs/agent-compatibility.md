@@ -310,9 +310,16 @@ Reading the tables row by row:
   after running startup commands" ([about_Pwsh](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_pwsh),
   fetched 2026-11-06), and `cmd /k`, which "keeps the command processor running"
   ([cmd](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/cmd), fetched 2026-11-06).
+  cmd reads no switch past the first of `/c`, `/k` and `/r`, so only that one decides, and `cmd /c xcopy a b /k` runs
+  and exits. Microsoft's page lists only `/c` and `/k`, and `/r` is read as `/c` the way ReactOS's
+  `base/shell/cmd/cmd.c` reads it, which stops at the first `C`, `K` or `R` (inferred from that reimplementation,
+  not measured on Windows). `pwsh -Command -` reads from the terminal like `pwsh -File -`, because "If the value of
+  Command is `-`, the command text is read from standard input" (same about_Pwsh page, fetched 2026-11-06).
   A REPL and a full-screen editor are held whatever they are handed, a file to edit and piped input included,
   because they read the keyboard from the terminal. A line editor fed by a pipe or a heredoc is left to the other
-  rules. `--version`, `--help` and each program's own version and help flags pass. The program is read the way the
+  rules. `--version`, `--help` and each program's own version and help flags pass while they come before the first
+  operand or `--`, so `sh -s -- --help` is still held, and `command -v` and `command -V`, which only describe a
+  name, pass whatever they name. The program is read the way the
   script rule reads it: `env`, `exec`, `command`, `sudo`, `nohup`, `timeout` and the other wrappers are peeled, each
   with its own value flags so `env -i bash` and `exec -a name bash` still name `bash`, a path such as
   `/usr/bin/python3` names the program its file name gives, and a versioned name such as `python3.12` counts as
@@ -355,7 +362,7 @@ keeps full use of git and keeps ownership of its own task list.
 
 Each shell's own quoting applies: a backslash escapes only in a POSIX shell, PowerShell escapes with a backtick and
 splits an unquoted `a,..` into two paths, and cmd escapes with a caret, so `Remove-Item "D:\parent\"` is read as the
-path it names. The same checks reach inside a wrapper: `cmd /c` and `cmd /k`, `bash -c`, `sh -c`, `zsh -c`, and
+path it names. The same checks reach inside a wrapper: `cmd /c`, `cmd /k` and `cmd /r`, `bash -c`, `sh -c`, `zsh -c`, and
 `powershell` or `pwsh` with `-Command`, `-c` or a decoded `-EncodedCommand`, nested up to three deep. They also reach
 code a shell or interpreter takes some other way: a heredoc or here-string, a piped `echo`, `printf` or `cat`,
 `xargs`, `eval`, `Invoke-Expression`, and a file run with `source` or `.`. An encoded value that does not decode is an
