@@ -69,7 +69,7 @@ pkill -f '^ping -D -O'
 ### Read both side by side
 
 1. Copy the router log to the agent's machine, as [reading-state.md](reading-state.md) shows, as soon as a drop happened. The log covers only a few days.
-2. Find the clock offset of each tag before matching anything, as "The clock in the log is not one clock" in [reading-state.md](reading-state.md) says. On build 386 the `pppd` lines were UTC+1 while the router's `date` and the `wan:` lines were in local summer time, VERIFIED.
+2. Find the clock offset of each tag before matching anything, and read the router's time zone rule first, as "The clock in the log is not one clock" in [reading-state.md](reading-state.md) says. On build 386 the `pppd` lines were UTC+1 while the router's `date` and the `wan:` lines were in local summer time on 2026-10-23, and every tag matched the router's `date`, offset 0, in winter time on 2026-11-06. Both VERIFIED. Measure again after each change between summer time and winter time.
 3. List the drops in the ping log: runs of `no answer yet`, each with its start, its end and its length.
 4. For each drop, look in the router log within a minute of its start, after correcting the offset.
 
