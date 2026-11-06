@@ -507,7 +507,7 @@ def _tool_input(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 # One of "subagent", "main_thread", or "unknown". "unknown" means this
 # format's payload carries nothing that could tell a subagent from the main
-# thread, so none of the five rules may fire: a positive identification is
+# thread, so none of the six rules may fire: a positive identification is
 # required to deny, per the module docstring.
 _SUBAGENT = "subagent"
 _MAIN_THREAD = "main_thread"
@@ -4341,7 +4341,7 @@ def _ps_piped_targets(name: str, tokens: List[str], feed: Callable[[], Optional[
     if fed == _UNKNOWN_INPUT:
         return [_UNPLACEABLE_PIPED_PATH]
 
-    paths = [placement for line in fed.splitlines() for placement in _placements(line) if line.strip()]
+    paths = [placement for line in fed.splitlines() if line.strip() for placement in _placements(line)]
 
     return (_removal_sourced if canonical in _PS_PIPED_REMOVALS else _sourced)(paths, powershell)
 
@@ -6681,21 +6681,7 @@ def _allowlist_roots() -> List[Path]:
     the main thread picks per call, so it can name a folder outside the
     project that the main thread wrote a file into a moment earlier.
     """
-    roots: List[Path] = []
-
-    for candidate in (Path.cwd(), _script_root()):
-        if candidate is None:
-            continue
-
-        try:
-            resolved = _resolve(candidate)
-        except (OSError, ValueError, RuntimeError):
-            continue
-
-        if resolved not in roots:
-            roots.append(resolved)
-
-    return roots
+    return _resolved_roots((Path.cwd(), _script_root()))
 
 
 # Rule F. A program waits for typed input when it reads its program from the
@@ -6726,10 +6712,14 @@ class _Waiting(NamedTuple):
 
 
 _INFO_FLAGS = frozenset({"--version", "--help"})
-_OTHER_SHELL = _Waiting(inline=frozenset({"-c", "--command", "--commands"}), stays=frozenset({"-C", "--init-command"}), values=frozenset({"-C", "--init-command"}))
+_OTHER_SHELL = _Waiting(
+    inline=frozenset({"-c", "--command", "--commands"}),
+    stays=frozenset({"-C", "--init-command"}),
+    values=frozenset({"-C", "--init-command"}),
+)
 _PYTHON_WAITING = _Waiting(
     inline=frozenset({"-c"}), stays=frozenset({"-i"}), runs=frozenset({"-m"}),
-    values=frozenset({"-W", "-X", "-c", "-m"}), info=frozenset({"-V", "-VV", "-h"}),
+    values=frozenset(_PYTHON_VALUE_FLAGS), info=frozenset({"-V", "-VV", "-h"}),
 )
 _REPL_ONLY = _Waiting(always=True, info=frozenset({"-v", "-h", "-version", "--numeric-version"}))
 _SCREEN_EDITOR = _Waiting(always=True, reads_feed=False, info=frozenset({"-h", "-V"}))
@@ -6751,23 +6741,54 @@ _WAITING_PROGRAMS: Dict[str, _Waiting] = {
         inline=frozenset(_JS_INLINE_FLAGS), stays=frozenset({"-i", "--interactive"}), runs=frozenset(_JS_SCRIPT_FLAGS),
         values=frozenset(_JS_OPTION_VALUES | _JS_INLINE_FLAGS), info=frozenset({"-v", "-h"}),
     ),
-    "perl": _Waiting(inline=frozenset({"-e", "-E"}), stays=frozenset({"-d"}), values=frozenset({"-e", "-E", "-I"}), info=frozenset({"-v", "-V", "-h"})),
-    "ruby": _Waiting(inline=frozenset({"-e"}), values=frozenset({"-e", "-I", "-r", "-C"}), info=frozenset({"-v", "-h"})),
-    "php": _Waiting(
-        inline=frozenset({"-r", "-B", "-R", "-E"}), stays=frozenset({"-a"}), runs=frozenset({"-f", "-F", "-S"}),
-        values=frozenset({"-r", "-B", "-R", "-E", "-f", "-F", "-S", "-c", "-d", "-z", "-t"}), info=frozenset({"-v", "-h", "-i", "-m"}),
+    "perl": _Waiting(
+        inline=frozenset({"-e", "-E"}),
+        stays=frozenset({"-d"}),
+        values=frozenset({"-e", "-E", "-I"}),
+        info=frozenset({"-v", "-V", "-h"}),
     ),
-    "lua": _Waiting(inline=frozenset({"-e"}), stays=frozenset({"-i"}), values=frozenset({"-e", "-l"}), info=frozenset({"-v"})),
-    "luajit": _Waiting(inline=frozenset({"-e"}), stays=frozenset({"-i"}), values=frozenset({"-e", "-l"}), info=frozenset({"-v"})),
-    "r": _Waiting(inline=frozenset({"-e"}), runs=frozenset({"-f", "--file"}), values=frozenset({"-e", "-f", "-d", "-g"}), info=frozenset({"-h"})),
+    "ruby": _Waiting(
+        inline=frozenset({"-e"}),
+        values=frozenset({"-e", "-I", "-r", "-C"}),
+        info=frozenset({"-v", "-h"}),
+    ),
+    "php": _Waiting(
+        inline=frozenset({"-r", "-B", "-R", "-E"}),
+        stays=frozenset({"-a"}),
+        runs=frozenset({"-f", "-F", "-S"}),
+        values=frozenset({"-r", "-B", "-R", "-E", "-f", "-F", "-S", "-c", "-d", "-z", "-t"}),
+        info=frozenset({"-v", "-h", "-i", "-m"}),
+    ),
+    **{
+        lua: _Waiting(
+            inline=frozenset({"-e"}),
+            stays=frozenset({"-i"}),
+            values=frozenset({"-e", "-l"}),
+            info=frozenset({"-v"}),
+        )
+        for lua in ("lua", "luajit")
+    },
+    "r": _Waiting(
+        inline=frozenset({"-e"}),
+        runs=frozenset({"-f", "--file"}),
+        values=frozenset({"-e", "-f", "-d", "-g"}),
+        info=frozenset({"-h"}),
+    ),
     "julia": _Waiting(
-        inline=frozenset({"-e", "-E", "--eval", "--print"}), stays=frozenset({"-i"}),
-        values=frozenset({"-e", "-E", "--eval", "--print", "-t", "-p", "-J", "-L", "-C", "-O", "-g", "--threads", "--procs", "--sysimage", "--load"}),
+        inline=frozenset({"-e", "-E", "--eval", "--print"}),
+        stays=frozenset({"-i"}),
+        values=frozenset({
+            "-e", "-E", "--eval", "--print", "-t", "-p", "-J", "-L", "-C", "-O", "-g", "--threads", "--procs",
+            "--sysimage", "--load",
+        }),
         info=frozenset({"-v", "-h"}),
     ),
     "tclsh": _Waiting(),
     **{repl: _REPL_ONLY for repl in ("irb", "pry", "bpython", "ptpython", "ghci", "jshell")},
-    **{editor: _SCREEN_EDITOR for editor in ("vi", "vim", "nvim", "view", "vimdiff", "nano", "pico", "emacs", "mg", "micro")},
+    **{
+        editor: _SCREEN_EDITOR
+        for editor in ("vi", "vim", "nvim", "view", "vimdiff", "nano", "pico", "emacs", "mg", "micro")
+    },
     **{editor: _LINE_EDITOR for editor in ("ed", "red", "ex")},
     **{pager: _PAGER for pager in ("less", "more", "most")},
     "tmux": _Waiting(always=True, reads_feed=False, info=frozenset({"-V"})),
@@ -6880,7 +6901,10 @@ _CONSOLES: Dict[str, _Console] = {
     **{
         program: _Console(
             done=frozenset({"-c", "--command", "--session-command"}),
-            values=frozenset({"-c", "--command", "--session-command", "-s", "--shell", "-g", "--group", "-G", "--supp-group", "-w", "--whitelist-environment"}),
+            values=frozenset({
+                "-c", "--command", "--session-command", "-s", "--shell", "-g", "--group", "-G", "--supp-group", "-w",
+                "--whitelist-environment",
+            }),
             info=frozenset({"-h", "-V"}),
         )
         for program in ("su", "runuser")
@@ -6916,9 +6940,13 @@ _GIT_PROMPT_VALUES: Dict[str, FrozenSet[str]] = {
         "-m", "--message", "-F", "--file", "-C", "--reuse-message", "-c", "--reedit-message", "-t", "--template",
         "--author", "--date", "--fixup", "--squash", "--cleanup", "--pathspec-from-file", "--trailer",
     }),
-    "rebase": frozenset({"-x", "--exec", "-s", "--strategy", "-X", "--strategy-option", "-C", "--onto", "--empty", "--whitespace"}),
+    "rebase": frozenset({
+        "-x", "--exec", "-s", "--strategy", "-X", "--strategy-option", "-C", "--onto", "--empty", "--whitespace",
+    }),
 }
-_GIT_COMMIT_MESSAGES = frozenset({"-m", "--message", "-F", "--file", "-C", "--reuse-message", "--no-edit", "--fixup", "--dry-run"})
+_GIT_COMMIT_MESSAGES = frozenset({
+    "-m", "--message", "-F", "--file", "-C", "--reuse-message", "--no-edit", "--fixup", "--dry-run",
+})
 _GIT_EDITING_FIXUPS = ("--fixup=amend:", "--fixup=reword:")
 
 # sudo and doas start a shell of their own with -s or -i and no command, and
@@ -7056,55 +7084,49 @@ def _git_waits(tokens: List[str]) -> bool:
     return any(word.startswith(_GIT_EDITING_FIXUPS) for word in words) or not names & _GIT_COMMIT_MESSAGES
 
 
-def _waits_for_typed_input(name: str, tokens: List[str], fed: bool) -> bool:
-    """True when a command, wrappers already peeled, starts a program that waits for typed input (Rule F)."""
-    lowered = [token.lower() for token in tokens[1:]]
-
-    if name in _POSIX_SHELLS:
-        # bash reads a long option only before its first operand or `--`,
-        # and refuses one after a short option, so a later --version is an
-        # argument of the script it reads.
-        if _INFO_FLAGS & _program_flags(tokens, _POSIX_SHELL_VALUE_FLAGS):
-            return False
-
-        return not fed and _nested_shell_code(name, tokens) is None and _reads_program_from_stdin(name, tokens)
-
-    if name in _POWERSHELL_SHELLS:
-        if any(_is_prefix_of(flag, "-noexit") or flag == "-noe" for flag in lowered):
-            return True
-
-        if any(flag in ("-v", "-h", "-?", "/?") or _is_prefix_of(flag, "-version") or _is_prefix_of(flag, "-help") for flag in lowered):
-            return False
-
-        return not fed and _powershell_reads_stdin(tokens[1:])
-
-    if name in _CMD_SHELLS:
-        # cmd reads no switch past the first /c, /k or /r, so a later /k is
-        # part of the command it runs.
-        first = next((flag[:2] for flag in lowered if flag[:2] in _CMD_CODE_FLAGS | {"/?"}), "")
-
-        if first == "/k":
-            return True
-
-        return not fed and not first
-
-    if name == "deno":
-        return not fed and not _operands(tokens[1:]) and not (_INFO_FLAGS | {"-v", "-V", "-h"}) & set(tokens[1:])
-
-    if name == "git":
-        return _git_waits(tokens)
-
-    if name == "socat":
-        return _socat_waits(tokens)
-
-    if name in _CONSOLES:
-        return _console_waits(_CONSOLES[name], tokens, fed)
-
-    spec = _WAITING_PROGRAMS.get(name)
-
-    if spec is None:
+def _posix_shell_waits(name: str, tokens: List[str], fed: bool) -> bool:
+    """A POSIX shell waits with no inline code, no script and nothing piped in."""
+    # bash reads a long option only before its first operand or `--`, and
+    # refuses one after a short option, so a later --version is an argument
+    # of the script it reads.
+    if _INFO_FLAGS & _program_flags(tokens, _POSIX_SHELL_VALUE_FLAGS):
         return False
 
+    return not fed and _nested_shell_code(name, tokens) is None and _reads_program_from_stdin(name, tokens)
+
+
+def _powershell_waits(tokens: List[str], fed: bool) -> bool:
+    """pwsh waits with -NoExit, or reading the terminal with no script or command."""
+    lowered = [token.lower() for token in tokens[1:]]
+
+    if any(_is_prefix_of(flag, "-noexit") or flag == "-noe" for flag in lowered):
+        return True
+
+    if any(
+        flag in ("-v", "-h", "-?", "/?") or _is_prefix_of(flag, "-version") or _is_prefix_of(flag, "-help")
+        for flag in lowered
+    ):
+        return False
+
+    return not fed and _powershell_reads_stdin(tokens[1:])
+
+
+def _cmd_waits(tokens: List[str], fed: bool) -> bool:
+    """cmd waits with /k, or with no /c or /r and nothing piped in."""
+    # cmd reads no switch past the first /c, /k or /r, so a later /k is part
+    # of the command it runs.
+    first = next((token[:2].lower() for token in tokens[1:] if token[:2].lower() in _CMD_CODE_FLAGS | {"/?"}), "")
+
+    return first == "/k" or (not fed and not first)
+
+
+def _deno_waits(tokens: List[str], fed: bool) -> bool:
+    """deno waits with no subcommand, read apart from the table because it takes no script flag."""
+    return not fed and not _operands(tokens[1:]) and not (_INFO_FLAGS | {"-v", "-V", "-h"}) & set(tokens[1:])
+
+
+def _program_waits(spec: _Waiting, tokens: List[str], fed: bool) -> bool:
+    """A program from _WAITING_PROGRAMS waits as its spec says."""
     flags = _program_flags(tokens, spec.values)
 
     if flags & spec.stays:
@@ -7122,6 +7144,35 @@ def _waits_for_typed_input(name: str, tokens: List[str], fed: bool) -> bool:
     operands = _operands(tokens[1:], spec.values)
 
     return not operands or operands[0] == "-"
+
+
+def _waits_for_typed_input(name: str, tokens: List[str], fed: bool) -> bool:
+    """True when a command, wrappers already peeled, starts a program that waits for typed input (Rule F)."""
+    if name in _POSIX_SHELLS:
+        return _posix_shell_waits(name, tokens, fed)
+
+    if name in _POWERSHELL_SHELLS:
+        return _powershell_waits(tokens, fed)
+
+    if name in _CMD_SHELLS:
+        return _cmd_waits(tokens, fed)
+
+    if name in _FAMILY_WAITS:
+        return _FAMILY_WAITS[name](tokens, fed)
+
+    if name in _CONSOLES:
+        return _console_waits(_CONSOLES[name], tokens, fed)
+
+    spec = _WAITING_PROGRAMS.get(name)
+
+    return spec is not None and _program_waits(spec, tokens, fed)
+
+
+_FAMILY_WAITS: Dict[str, Callable[[List[str], bool], bool]] = {
+    "deno": _deno_waits,
+    "git": lambda tokens, _fed: _git_waits(tokens),
+    "socat": lambda tokens, _fed: _socat_waits(tokens),
+}
 
 
 def _starts_a_shell_of_its_own(tokens: List[str]) -> bool:
@@ -8163,9 +8214,14 @@ def _roots() -> List[Path]:
     Path comparison carries the platform's own case rule, so a Windows root
     matches whatever case the payload or the shell spelled it in.
     """
+    return _resolved_roots((Path.cwd(), _PAYLOAD_ROOT, _script_root()))
+
+
+def _resolved_roots(candidates: Tuple[Optional[Path], ...]) -> List[Path]:
+    """Each candidate root resolved, in order and once, with a missing or unresolvable one left out."""
     roots: List[Path] = []
 
-    for candidate in (Path.cwd(), _PAYLOAD_ROOT, _script_root()):
+    for candidate in candidates:
         if candidate is None:
             continue
 
@@ -9003,9 +9059,9 @@ def _apply_rules(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Opti
     if workdir == ():
         return RULE_A_REASON.format(target=_UNPLACEABLE_WORKDIR)
 
-    for command in commands:
-        dialect = _POWERSHELL if tool in _POWERSHELL_SHELLS else _POSIX
+    dialect = _POWERSHELL if tool in _POWERSHELL_SHELLS else _POSIX
 
+    for command in commands:
         try:
             targets = _shell_targets(command, dialect)
 

@@ -2320,6 +2320,9 @@ def test_a_looping_git_operand_counts_as_an_existing_path(resolution_loops):
 
 def test_a_looping_path_is_never_mistaken_for_the_task_list(resolution_loops):
     assert GATE._is_task_list(LOOPING + "/tasks.md") is False
+
+
+def test_a_task_list_behind_a_looping_path_is_a_write_target(resolution_loops):
     assert GATE._is_write_target(LOOPING + "/tasks.md") is True
 
 
@@ -3562,6 +3565,9 @@ WAITING_PROGRAMS = {
     "exec-renamed": ("exec -a name bash", "Bash"),
     "env-renamed": ("env --argv0=name bash", "Bash"),
     "su": ("su", "Bash"),
+    # A deliberate over-deny: nohup points a terminal stdin at an unreadable
+    # file, so python3 reads end of input and exits, but Rule F does not
+    # model which stdin a wrapper leaves and holds the program it names.
     "nohup": ("nohup python3", "Bash"),
     "timeout": ("timeout 600 node", "Bash"),
     "nested": ("bash -c bash", "Bash"),
@@ -6147,6 +6153,8 @@ def test_a_main_thread_script_run_from_a_workdir_outside_the_project_is_denied(n
     code, out, err = run(payload, "plain", cwd=nest.project)
 
     assert (code, out) == (2, "")
+    assert err.startswith("PREFLIGHT: the main thread may not run a script")
+    assert err.endswith("Blocked command: python scripts/verify.py")
 
 
 @MAIN_THREAD_AGENTS
@@ -6158,6 +6166,7 @@ def test_a_main_thread_workdir_the_gate_cannot_place_is_denied(nest, agent, work
     code, out, err = run(payload, "plain", cwd=nest.project)
 
     assert (code, out) == (2, "")
+    assert err.endswith("Blocked target: " + GATE._UNPLACEABLE_WORKDIR)
 
 
 @MAIN_THREAD_AGENTS
@@ -6167,6 +6176,7 @@ def test_a_main_thread_workdir_that_loops_is_denied(nest, agent, resolution_loop
     code, out, err = run(payload, "plain", cwd=nest.project)
 
     assert (code, out) == (2, "")
+    assert err.endswith("Blocked target: " + GATE._UNPLACEABLE_WORKDIR)
 
 
 @MAIN_THREAD_AGENTS
@@ -6187,11 +6197,16 @@ def test_a_main_thread_call_that_writes_nothing_inside_keeps_its_workdir(nest, a
     assert (code, out, err) == (0, "", "")
 
 
-def test_a_blank_or_absent_workdir_leaves_the_roots_alone(nest):
-    for tool_input in ({"command": "echo x > {e}/o".format(e=nest.elsewhere)}, {"command": "ls", "workdir": ""}):
-        payload = {**envelope(tool="bash", tool_input=tool_input, agent="build", subagent=False), "cwd": str(nest.project)}
+@pytest.mark.parametrize(
+    "tool_input",
+    [{"command": "echo x > {elsewhere}/o"}, {"command": "ls", "workdir": ""}],
+    ids=["absent", "blank"],
+)
+def test_a_blank_or_absent_workdir_leaves_the_roots_alone(nest, tool_input):
+    tool_input = {key: value.format(elsewhere=nest.elsewhere) for key, value in tool_input.items()}
+    payload = {**envelope(tool="bash", tool_input=tool_input, agent="build", subagent=False), "cwd": str(nest.project)}
 
-        assert run(payload, "plain", cwd=nest.project) == (0, "", "")
+    assert run(payload, "plain", cwd=nest.project) == (0, "", "")
 
 
 def bare_repository(directory):
@@ -6977,6 +6992,8 @@ def test_a_powershell_carriage_return_still_ends_a_statement():
         ("/DEV/NULL", True, True),
         (" $NULL ", True, False),
         (" nul", True, False),
+        # A deliberate over-deny on Windows, where `nul ` with its trailing
+        # blank may still name the device: the gate reads it as a file there.
         ("nul ", True, False),
         ("nul", False, False),
     ],
