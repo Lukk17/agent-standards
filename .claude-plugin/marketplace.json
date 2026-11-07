@@ -113,7 +113,7 @@
     {
       "name": "homelab",
       "source": "./plugins/homelab",
-      "description": "Homelab hosts and services, with the home-assistant-engineer subagent and the Proxmox, router, Syncthing and machine health skills. Off until you enable it.",
+      "description": "Homelab hosts and services, with the home-assistant-engineer subagent and the Proxmox, router, Syncthing, Samsung TV, WLED and machine health skills. Off until you enable it.",
       "category": "host",
       "defaultEnabled": false
     },

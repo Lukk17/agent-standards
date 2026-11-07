@@ -1,7 +1,7 @@
 {
   "name": "homelab",
-  "version": "cf671f4fd9fa",
-  "description": "Homelab hosts and services, with the home-assistant-engineer subagent and the Proxmox, router, Syncthing and machine health skills. Off until you enable it.",
+  "version": "e3e932aafc3a",
+  "description": "Homelab hosts and services, with the home-assistant-engineer subagent and the Proxmox, router, Syncthing, Samsung TV, WLED and machine health skills. Off until you enable it.",
   "author": {
     "name": "Łukasz Sarna",
     "url": "https://github.com/Lukk17"
