@@ -96,8 +96,9 @@ from a subagent whose definition is marked read-only, a web fetch or web search 
 payload names that tool today, Claude Code, a script or module run from the main thread, because the gate cannot see
 what a script writes, and a shell, an interpreter or an editor the main thread starts that waits for typed input,
 because the gate never sees what is typed into it. The allowlist that lifts the script rule is in
-[What the main thread may run](GLOBAL_SETUP.md#what-the-main-thread-may-run). A relative path is resolved against
-whatever a leading `cd` in the command moved to, so changing directory first buys nothing. A write outside the
+[What the main thread may run](GLOBAL_SETUP.md#what-the-main-thread-may-run). A command that changes directory
+anywhere has every relative write target denied and no allowlist entry applied, so changing directory first buys
+nothing. A write outside the
 repository, the null device, `tasks.md` at the project root, and switching a git branch stay allowed, and the main
 thread keeps full use of git otherwise. Caller identity is a tri-state, subagent, main thread, or unknown when a payload
 carries nothing that could tell the two apart, and none of the six rules fires on an unknown caller. Every failure path
@@ -392,15 +393,31 @@ root the hook payload names in its `cwd` field, and the gate script's own on-dis
 one only while it is a real project and not the user's home directory or a directory above it. The `cwd` root is kept
 exactly as sent, so a folder named with a trailing blank is never read as the folder without it. That is what lets the
 user-level install in [GLOBAL_SETUP.md](GLOBAL_SETUP.md) protect the open project instead of everything the user owns.
-A relative path resolves against whichever directory a leading `cd` in the command moved to, and against every root
-when the command never changed directory. A `cd` the shell refuses, into a folder that does not exist or a link that
-loops, leaves it where it was, so `cd docs; cd /nonexistent; echo x > ../AGENTS.md` is placed from `docs`. A `cd`
-whose landing the text does not name can stand in any folder the command has visited or in any root, and a relative
-path is placed from all of them, with no allowlist entry applying afterwards. That covers `cd -`, `cd ~-`, `cd ~+`,
-`cd "$OLDPWD"`, `cd $DIR`, `cd "$(...)"`, a bare `cd` or `pushd`, `pushd +1`, `pushd -0` and `pushd -n`, `popd` with
-any argument, `Set-Location -` and `+`, a `-StackName`, and a plain name such as `cd docs` while `CDPATH` is set in the
-environment the shell inherits. A command that sets `CDPATH` itself cannot be placed, like `PATH`. On Windows, a Git Bash drive path such as `/c/Users/x` is read as
-`C:/Users/x` before it is placed, for a `cd` operand and a write target alike. An edit tool's path and a path a
+A relative path resolves against every root, and it counts as inside when it lands inside any one of them.
+
+The gate follows no directory change. A main-thread command that changes directory anywhere has every relative write
+target unplaceable, which denies, and no allowlist entry applies to it, while an absolute target is still placed. That
+covers `cd`, `chdir`, `pushd`, `popd`, `Set-Location`, `Push-Location`, `Pop-Location`, `sl`, PowerShell's `cd..`
+and every other spelling of them, wherever it sits: behind a keyword such as `if`, `then`, `do`, `{`, `!` or `time`,
+behind a wrapper such as `command`, `builtin`, `exec` or `env`, inside a function, a loop, a subshell, a pipeline
+stage, a background job, a `trap` or an alias value, and in code the gate reads from `bash -c`, `pwsh -Command`, a
+sourced file or a heredoc. A program's own directory option counts too (`env --chdir`, `sudo --chdir`,
+`pwsh -WorkingDirectory`, `Start-Process -WorkingDirectory`, cmd `start /d`, `wsl --cd`, `find -execdir`), and so do
+`chdir` and `setwd` in inline code, the .NET current directory in PowerShell, and a program name the shell computes,
+such as `$X`, which may be `cd`. The names are matched as whole tokens of any word, so a word that only mentions one counts as well:
+`echo 'cd docs first' >> tasks.md` denies, and the task list is written by its absolute path instead. A bare
+`git checkout main` after a `cd` denies too, because the gate can no longer tell a branch from a file in the folder
+the shell stands in. A command that writes nothing relative keeps working, so `cd docs && ls`,
+`cd docs && cat README.md | head` and `cd /tmp && echo x > /tmp/out.txt` stay allowed.
+
+The gate used to follow each change: to the folder a `cd` named, back through `cd -` and `popd`, and out of a
+subshell when it ended. Every round of fixes to that tracking found another way for the shell to land somewhere the
+text did not say, among them `cd -` after a refused `cd`, a `cd` behind `if` or `command`, a function or a loop body,
+`dirs -c` in a subshell, a background `cd` and a `cd` with two operands, and the last round added two more. One rule
+with nothing to follow leaves nothing to get wrong.
+
+On Windows, a Git Bash drive path such as `/c/Users/x` is read as `C:/Users/x` before it is placed, for an absolute
+write target. An edit tool's path and a path a
 PowerShell pipeline feeds a cmdlet are placed both exactly as sent and trimmed, and either reading inside denies,
 because a host that keeps a blank at either end writes through `/tmp/l ` or joins ` /../AGENTS.md` to the project.
 A main-thread shell call that carries its own `workdir`, as the OpenCode and Kilo Code bash tool does while the plugin
@@ -470,9 +487,7 @@ Beyond the plain writers, the rule reads a hard link whose source is a project f
 `fsutil hardlink create`, `New-Item -ItemType HardLink`, `mklink /H`), a Windows device, extended-length or loopback
 administrative-share spelling of a project path, command substitution inside double quotes and backquotes, a line
 continuation before CR LF in PowerShell and cmd (a POSIX shell joins a line only on backslash LF, and keeps a lone
-carriage return inside its word), a PowerShell cmdlet fed its path through the pipeline, `pushd`, `popd`, `Push-Location`,
-`Pop-Location`, `env --chdir`, `sudo --chdir` and `pwsh -WorkingDirectory`, parentheses that are a subshell only in a
-POSIX shell, `xcopy`, `robocopy`, `replace`, `expand`, `esentutl`, `certutil`, `bitsadmin`, `mklink`,
+carriage return inside its word), a PowerShell cmdlet fed its path through the pipeline, `xcopy`, `robocopy`, `replace`, `expand`, `esentutl`, `certutil`, `bitsadmin`, `mklink`,
 `Start-Transcript`, every `Export-*` cmdlet, `Start-Process` with its redirects and argument list,
 `Set-ItemProperty`, any other `System.IO` use, in-place editors and formatters, writes and processes inside an `awk`
 or `sed` program, Lua, R, Julia, `sqlite3`, PHP, Perl and Ruby code, and the runners `busybox`, `toybox`, `su -c`,
@@ -489,8 +504,7 @@ The gate fails open almost everywhere, but not on the repository boundary. The t
 `_resolves_inside_repo`, `_path_exists_in_repo` and `_contains_repo`, fail toward True on a path none of them can
 resolve, which denies, because deciding what Rule A protects is their whole job. A symlink loop is such a path:
 Python 3.11 and 3.12 raise `RuntimeError` from `Path.resolve` on one where 3.13 returns the path, and every resolving
-helper reads that error as unplaceable, so a `cd` into a loop leaves the shell where it was, as a `cd` into a missing
-folder does, and a root that loops is dropped. On Windows that includes a loopback
+helper reads that error as unplaceable, so a write target in a loop denies and a root that loops is dropped. On Windows that includes a loopback
 UNC path to a share that is not an administrative drive share, such as `\\localhost\share` or `\\127.0.0.1\share`,
 because only the share definition knows which folder it maps to, an administrative drive share such as
 `\\fileserver\C$` on any host, because the gate cannot prove that host is another machine, and a volume GUID or
@@ -516,8 +530,11 @@ Each of the following cannot be placed either and denies on the main thread:
 - A `git config` setting or `-c` value that runs a program or includes more configuration, `git grep -O`,
   `difftool` and `mergetool`.
 - Inline Python that imports anything outside the standard library, a standard module shadowed by a file in its
-  working directory, or loads code through `runpy`, `importlib` or `ctypes`, and inline JavaScript that loads any
-  module that is not built in.
+  working directory, any standard module not built into the interpreter in a command that changes directory, because
+  the gate no longer knows that directory, or loads code through `runpy`, `importlib` or `ctypes`, and inline
+  JavaScript that loads any module that is not built in.
+- A relative write target in a command that changes directory anywhere, as "Where the write rule draws the repository
+  boundary" above describes.
 - PowerShell that holds a `System.IO` type as a value, imports a namespace or module with `using`, turns a string into
   a type, uses reflection or compiles code with `Add-Type`.
 - WMI or CIM method calls and `wmic ... call create`, and `ssh`, `plink`, `winrs`, `Invoke-Command` and PowerShell
@@ -609,8 +626,7 @@ fetched 2026-11-06, so git and gh open no pager there unless the user's own logi
 shell snapshot restores over `cat`, as Rule E above explains), `xargs` handing a write command names from a file of
 its own passes, as in `xargs -a list.txt rm`, because the gate does not read that file, so it sees `rm` with no
 operand (the same names piped in, as in `cat list.txt | xargs rm`, still deny, and Rule F holds an `xargs` that reads
-its names from the terminal, a bare `xargs rm` and `xargs rm < list.txt` among them), a `CDPATH` set only by the user's shell profile, which the gate never sees, sends `cd docs` to the first `docs`
-under it while the gate places the command from `./docs`, and the `tasks.md` exemption holds at every root, so a call whose `cwd`
+its names from the terminal, a bare `xargs rm` and `xargs rm < list.txt` among them), an alias, a function or a shell option from the user's own profile that changes directory under a name the gate does not know passes as no directory change, because the gate never sees the profile, and the `tasks.md` exemption holds at every root, so a call whose `cwd`
 names a project subfolder, as a Codex `workdir` does from `rust-v0.166.0`, may write `tasks.md` in that subfolder. Re-audit only when the rule changes, and record a new limit here rather than chasing it.
 
 Rule F also reads these forms as handed their input, each an accepted limit:

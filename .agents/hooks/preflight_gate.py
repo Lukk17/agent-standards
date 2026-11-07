@@ -478,9 +478,10 @@ MAIN_THREAD_ALLOWLIST = (
 # A project extends the allowlist without touching this file, which an update
 # overwrites: one entry per line in this file at the project root, split into
 # words on whitespace, with blank lines and lines starting with # ignored. A
-# word holding a slash is a path and matches the file it names from wherever
-# the command stands, so a `cd` cannot make it name a different file, and the
-# first word is compared that way too. A trailing ANY_ARGUMENTS accepts any
+# word holding a slash is a path and matches the file it names from where the
+# command starts, and the first word is compared that way too. No entry
+# applies to a command that changes directory, so a `cd` cannot make it name
+# a different file. A trailing ANY_ARGUMENTS accepts any
 # further arguments, and without it the command has to end where the entry
 # ends. It sits at
 # the root rather than under .agents/, which consumers import whole, so an
@@ -653,46 +654,19 @@ def _apply_patch_candidates(tool_input: Dict[str, Any]) -> List[str]:
 
 _MAX_NESTING = 3
 
-# Directories a `cd` inside the command moved to, or None while the command
-# has not changed directory yet. Every relative path after that `cd` resolves
-# against these instead of against the repository roots, so
-# `cd C:/Users/me/notes && printf x >> MEMORY.md` writes outside the
-# repository and is allowed, while `cd tools && printf x >> gen_subagents.py`
-# still resolves inside and is denied. It is a tuple rather than one path
-# because a relative destination is resolved against every root in _roots(),
-# and a target counts as inside when any one of those landings places it
-# inside. A subshell, meaning a parenthesised group or a single pipeline
-# stage, gets the value put back when it ends, because the real shell's own
-# directory is untouched by what the child did. Set only through
-# _shell_targets, which clears it again once the command has been read.
-_CD_BASE: Optional[Tuple[Path, ...]] = None
+# Whether the command being read changes directory anywhere. The gate follows
+# no directory change: every round of following cd, pushd, popd and their
+# kin found another way for the shell to land somewhere the text did not say.
+# So a command that changes directory in any spelling, at any depth, or
+# carries a word the gate cannot rule out as one, has every relative write
+# target unplaceable, which denies, and no allowlist entry applies to it. An
+# absolute target is still placed. Set only through _shell_targets, which
+# reads the command a second time once a first reading has set it.
+_CHANGES_DIRECTORY = False
 
-# The directories pushd and Push-Location left, newest last, for popd and
-# Pop-Location to return to. Set only through _shell_targets, like _CD_BASE.
-_CD_STACK: List[Optional[Tuple[Path, ...]]] = []
-
-# Every directory the command has stood in or put on the stack so far,
-# starting with the directories it starts in. A cd whose landing the text
-# does not name can return to any of them. Set only through _shell_targets.
-_CD_VISITED: List[Path] = []
-
-
-class _Unfollowed(tuple):  # type: ignore[type-arg]
-    """The bases after a cd whose landing the text does not name.
-
-    `cd -`, `cd "$OLDPWD"`, `cd $DIR`, `pushd +1`, a bare `cd` and a plain
-    name found through CDPATH can each land in a folder the gate cannot
-    name. The shell may then stand in any folder the command has visited or
-    in any root, so every one of them is a base, and an allowlist entry,
-    which vouches only for the project's own files, no longer applies. A
-    stack entry of this type stands for a folder the stack bookkeeping lost
-    track of, and popd turns it back into every visited folder.
-    """
-
-
-# A directory stack position or the previous folder: `-`, `+`, `~-`, `~+`,
-# `+1`, `-0`, `~+2`.
-_DIRECTORY_STACK_WORD_RE = re.compile(r"~?[+-]\d*")
+# The folders the command starts in: a shell call's own workdir, or None for
+# every root. Set only through _shell_targets.
+_START_BASES: Optional[Tuple[Path, ...]] = None
 
 _QUOTED_LITERAL_RE = re.compile(r"""['"]([^'"]*)['"]""")
 _ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z_0-9]*=")
@@ -1196,10 +1170,27 @@ _UNPLACEABLE_ARGUMENT = "xargs input (arguments the gate cannot read)"
 _REMOVE_TOOLS = {"rm", "rmdir", "rd"}
 _MOVE_TOOLS = {"mv", "move"}
 
-# Commands that change the directory relative paths resolve against.
-_DIRECTORY_CHANGERS = {"cd", "pushd", "chdir", "set-location", "sl", "push-location", "popd", "pop-location"}
-_DIRECTORY_PUSHERS = {"pushd", "push-location"}
-_DIRECTORY_POPPERS = {"popd", "pop-location"}
+# Commands and aliases that change the directory relative paths resolve
+# against, in a POSIX shell, PowerShell and cmd. Any of them as a whole token
+# of any word counts, so a cd behind a keyword, a wrapper, an alias value
+# (`x=cd`) or inside trap code is caught as well as one leading a command.
+_DIRECTORY_CHANGERS = frozenset({"cd", "chdir", "pushd", "popd", "sl", "set-location", "push-location", "pop-location"})
+_DIRECTORY_CHANGE_TOKEN_SPLIT_RE = re.compile(r"\$\(|[\s;&|(){}`=,\x1f]+")
+# Spellings that change directory inside code or a program of their own:
+# os.chdir and its kin in every language that names it chdir, R's setwd, the
+# .NET current directory, the PowerShell cmdlets under a module prefix, a
+# -WorkingDirectory, and find -execdir and -okdir.
+_DIRECTORY_CHANGE_FRAGMENTS = (
+    "chdir",
+    "setwd",
+    "currentdirectory",
+    "workingdirectory",
+    "set-location",
+    "push-location",
+    "pop-location",
+    "execdir",
+    "okdir",
+)
 
 
 class _ShellParseError(Exception):
@@ -1210,8 +1201,7 @@ class ShellSegment(NamedTuple):
     """One command in a lexed line, or a marker for a grouping token.
 
     A segment with a `control` of "(", ")" or "|" carries no argv: it records
-    where a subshell begins and ends, which is what stops a `cd` inside one
-    from moving the base for everything after it. `stdin` holds the heredoc
+    where a subshell or a pipeline stage begins and ends. `stdin` holds the heredoc
     and here-string bodies the command reads, and `literal` marks a segment
     that is one fully quoted word, which PowerShell writes to its output.
     `expression` marks a PowerShell statement whose first word is a quoted
@@ -2395,6 +2385,9 @@ def _inline_code_targets(tokens: List[str], powershell: bool = False) -> List[st
 
 def _program_code_targets(program: str, code: str, powershell: bool = False) -> List[str]:
     """Paths an interpreter's program writes, however the program reached it."""
+    if _names_a_directory_change([code]):
+        _note_directory_change()
+
     if program in _PYTHON_TOOLS:
         return _python_code_targets(code, powershell)
 
@@ -2846,6 +2839,11 @@ def _loads_unread_code(module: str) -> bool:
         return False
 
     if top not in getattr(sys, "stdlib_module_names", frozenset()):
+        return True
+
+    # After a directory change the gate does not know which folder the
+    # program runs in, so it cannot rule a shadowing file out.
+    if _CHANGES_DIRECTORY:
         return True
 
     bases = _current_bases()
@@ -5202,6 +5200,10 @@ def _read_script(target: str) -> Optional[str]:
         return None
 
     path = _as_path(target)
+
+    if _moved_away(path):
+        return None
+
     bases = _current_bases()
     texts: Set[str] = set()
 
@@ -5349,32 +5351,31 @@ def _git_subcommand_index(tokens: List[str]) -> int:
 
 
 def _child_shell_targets(code: str, depth: int, dialect: str, directory: str = "") -> List[str]:
-    """What a child shell writes. Its `cd` dies with it, so the base is put back.
+    """What a child shell writes. A directory it starts in, or changes to, counts as a change of the whole command.
 
     A child that cannot be lexed is one the gate cannot place, which denies:
     only a command that fails to lex as a whole is allowed unread.
     """
-    global _CD_BASE, _CD_STACK
-    saved = _CD_BASE, list(_CD_STACK)
+    if directory:
+        _note_directory_change()
 
     try:
-        if directory:
-            _enter_directory([directory])
-
         return _command_targets(code, depth + 1, dialect)
     except _ShellParseError:
         return [_UNPLACEABLE_SHELL_TARGET]
-    finally:
-        _CD_BASE, _CD_STACK = saved
+
+
+def _is_computed_name(word: str) -> bool:
+    """True for a program name that is a variable or a subexpression, which the gate cannot know until the shell runs."""
+    return word.startswith(("$", "`")) or word == _SUBEXPRESSION
 
 
 def _runs_a_computed_program(code: str, dialect: str) -> bool:
     """True when evaluated code runs a command whose name is a variable or a subexpression."""
     for segment in _lex(code, dialect):
         stripped = _strip_wrappers(list(segment.argv), dialect) if segment.argv else None
-        word = stripped.argv[0] if stripped and stripped.argv else ""
 
-        if word.startswith(("$", "`")) or word == _SUBEXPRESSION:
+        if stripped and stripped.argv and _is_computed_name(stripped.argv[0]):
             return True
 
     return False
@@ -6470,8 +6471,7 @@ def _script_program_targets(name: str, tokens: List[str], powershell: bool = Fal
 
 
 def _started_process_targets(tokens: List[str], depth: int) -> List[str]:
-    """What Start-Process runs: its -FilePath with its -ArgumentList, from its -WorkingDirectory."""
-    global _CD_BASE
+    """What Start-Process runs: its -FilePath with its -ArgumentList. A -WorkingDirectory is a directory change."""
     bound = _ps_bind(tokens, _PS_CMDLETS["start-process"])
     program = _ps_values(bound, "-filepath")
 
@@ -6482,23 +6482,21 @@ def _started_process_targets(tokens: List[str], depth: int) -> List[str]:
         return []
 
     arguments = [word for value in _ps_values(bound, "-argumentlist", _PS_UNBOUND) for word in _windows_argv(value)]
-    saved = _CD_BASE
 
-    try:
-        for directory in _ps_values(bound, "-workingdirectory")[:1]:
-            _enter_directory([directory])
+    if _ps_values(bound, "-workingdirectory"):
+        _note_directory_change()
 
-        return _segment_targets(program[:1] + arguments, depth + 1, _CMD)
-    finally:
-        _CD_BASE = saved
+    return _segment_targets(program[:1] + arguments, depth + 1, _CMD)
 
 
 _CMD_START_VALUE_SWITCHES = {"d", "node", "affinity"}
 
 
 def _cmd_start_targets(tokens: List[str], depth: int) -> List[str]:
-    """What cmd's start runs. A first quoted word may be the window title, so both readings are judged."""
-    global _CD_BASE
+    """What cmd's start runs. A first quoted word may be the window title, so both readings are judged.
+
+    A /d folder is a directory change.
+    """
     index = 1
     directory = ""
 
@@ -6513,21 +6511,17 @@ def _cmd_start_targets(tokens: List[str], depth: int) -> List[str]:
         index += 1
 
     rest = tokens[index:]
-    saved = _CD_BASE
 
-    try:
-        if directory:
-            _enter_directory([directory])
+    if directory:
+        _note_directory_change()
 
-        targets: List[str] = []
+    targets: List[str] = []
 
-        for start in (0, 1):
-            if rest[start:] and rest[start]:
-                targets += _segment_targets(rest[start:], depth + 1, _CMD)
+    for start in (0, 1):
+        if rest[start:] and rest[start]:
+            targets += _segment_targets(rest[start:], depth + 1, _CMD)
 
-        return targets
-    finally:
-        _CD_BASE = saved
+    return targets
 
 
 # What a Rule D denial carries in place of a write target, followed by the
@@ -7590,17 +7584,18 @@ def _passes_check(tokens: List[str], check: AllowedCheck) -> bool:
 
 
 def _runs_inside_trusted_roots() -> bool:
-    """True when every folder the command can run from, after cd, pushd and the payload cwd, is inside a trusted root.
+    """True when the command changes no directory and every folder it can start in is inside a trusted root.
 
     An allowlist entry vouches for the project's own files. Run from any
     other folder, pytest loads that folder's conftest.py and make its
-    Makefile, so the entry says nothing there.
+    Makefile, so the entry says nothing there, and after a directory change
+    the gate no longer knows which folder that is.
     """
+    if _CHANGES_DIRECTORY:
+        return False
+
     bases = _current_bases()
     trusted = _allowlist_roots()
-
-    if isinstance(bases, _Unfollowed):
-        return False
 
     return bool(bases) and all(any(_is_within(base, root) for root in trusted) for base in bases)
 
@@ -7631,10 +7626,20 @@ def _segment_targets(
     if depth > _MAX_NESTING:
         return [_UNPLACEABLE_SHELL_TARGET]
 
+    if _names_a_directory_change(tokens):
+        _note_directory_change()
+
     stripped = _strip_wrappers(tokens, dialect)
 
     if stripped is None:
         return [_UNPLACEABLE_SHELL_TARGET]
+
+    # A program's own chdir, such as env --chdir, and a program name the
+    # shell computes, which may be cd, both count as a directory change.
+    program = stripped.argv[1:2] if stripped.argv[:1] in (["&"], ["."]) else stripped.argv[:1]
+
+    if stripped.directories or any(_is_computed_name(word) for word in program):
+        _note_directory_change()
 
     # xargs with nothing piped in and no file of its own reads names from the
     # terminal, which Codex's write_stdin types into. A `< file` redirect is
@@ -7645,32 +7650,10 @@ def _segment_targets(
     if not stripped.argv and _starts_a_shell_of_its_own(tokens) and feed() is None:
         return [_WAITING_RUN + _rejoined(tokens)]
 
-    # A file a wrapper writes itself, such as time -o, is placed from where
-    # the wrapper stands, and from the folder it moves to as well.
+    # A file a wrapper writes itself, such as time -o.
     writes = _sourced(list(stripped.writes), dialect != _POSIX)
 
-    if stripped.directories:
-        return writes + _in_directories(stripped, depth, dialect, feed, reads_file)
-
     return writes + _stripped_targets(stripped, depth, dialect, feed, reads_file)
-
-
-def _in_directories(
-    stripped: _Stripped, depth: int, dialect: str, feed: Callable[[], Optional[str]], reads_file: bool = False
-) -> List[str]:
-    """What a command run by env --chdir or sudo --chdir writes, from the directory it runs in."""
-    global _CD_BASE
-    saved = _CD_BASE
-
-    try:
-        for directory in stripped.directories:
-            _enter_directory([directory])
-
-        return _sourced(list(stripped.writes), dialect != _POSIX) + _stripped_targets(
-            stripped._replace(directories=()), depth, dialect, feed, reads_file
-        )
-    finally:
-        _CD_BASE = saved
 
 
 def _stripped_targets(
@@ -7953,161 +7936,41 @@ def _as_path(target: str) -> Path:
 
 
 def _current_bases(roots: Optional[List[Path]] = None) -> Tuple[Path, ...]:
-    """The folders a relative path resolves against now: the `cd` bases, or every root when there are none.
+    """The folders a relative path resolves against: the call's own workdir, or every root when it names none.
 
     Args:
         roots: the roots the caller already holds, so they are not read twice.
     """
-    if _CD_BASE is not None:
-        return _CD_BASE
+    if _START_BASES is not None:
+        return _START_BASES
 
     return tuple(_roots() if roots is None else roots)
 
 
-def _cd_destination(words: List[str], changer: str, dialect: str) -> Optional[str]:
-    """The literal folder a directory change names, or None when the text does not say where it lands.
-
-    A bare `cd` goes home and a bare `pushd` swaps the top two stack
-    entries. `-`, `~-`, `+1` and their kin name the previous folder or a
-    stack entry, `pushd -n` and a PowerShell -StackName change the stack
-    instead of the folder, and a variable or a command's output is unknown
-    until the shell runs. An empty changer is a program's own chdir, such as
-    env --chdir, which reads none of those forms.
-    """
-    powershell = dialect != _POSIX
-
-    if changer and any(_DIRECTORY_STACK_WORD_RE.fullmatch(word) for word in words):
-        return None
-
-    if changer in _DIRECTORY_PUSHERS and any(_reshuffles_the_stack(word) for word in words):
-        return None
-
-    candidates = _operands(words)
-
-    if not candidates:
-        return None if changer else ""
-
-    candidate = candidates[-1]
-
-    if _has_expansion(candidate, powershell) or "`" in candidate:
-        return None
-
-    return candidate
+def _moved_away(path: Path) -> bool:
+    """True for a relative path in a command that changes directory, which the gate no longer places."""
+    return _CHANGES_DIRECTORY and not path.is_absolute()
 
 
-def _reshuffles_the_stack(word: str) -> bool:
-    """True for pushd -n and a PowerShell -StackName, which change the stack rather than only the folder."""
-    lowered = word.lower()
-
-    return lowered == "-n" or (len(lowered) > 2 and "-stackname".startswith(lowered))
+def _note_directory_change() -> None:
+    global _CHANGES_DIRECTORY
+    _CHANGES_DIRECTORY = True
 
 
-def _anchored(candidate: str) -> bool:
-    """True when a cd operand names one folder: absolute, home-relative, or starting at `.` or `..`.
+def _names_a_directory_change(words: List[str]) -> bool:
+    """True when any word holds a directory changer as a whole token, or a fragment that changes directory in code."""
+    for word in words:
+        lowered = word.lower()
 
-    Any other relative name is looked up in CDPATH first, so while CDPATH is
-    set the shell can land somewhere the name does not spell.
-    """
-    if candidate.startswith("~") or _as_path(candidate).is_absolute():
-        return True
+        if any(fragment in lowered for fragment in _DIRECTORY_CHANGE_FRAGMENTS):
+            return True
 
-    head = re.split(r"[\\/]", candidate, maxsplit=1)[0]
+        tokens = _DIRECTORY_CHANGE_TOKEN_SPLIT_RE.split(lowered)
 
-    return head in (".", "..")
+        if any(_program_name(token.rstrip(".\\")) in _DIRECTORY_CHANGERS for token in tokens if token):
+            return True
 
-
-def _visit_named(words: List[str], bases: Tuple[Path, ...], dialect: str) -> None:
-    """Count every folder a literal operand names as visited, for pushd -n, which stacks it without moving."""
-    for word in _operands(words):
-        if _has_expansion(word, dialect != _POSIX) or "`" in word or _DIRECTORY_STACK_WORD_RE.fullmatch(word):
-            continue
-
-        target = _as_path(word)
-
-        for base in bases:
-            try:
-                resolved = _resolve(target if target.is_absolute() else (base / target))
-            except (OSError, ValueError, RuntimeError):
-                continue
-
-            if resolved not in _CD_VISITED:
-                _CD_VISITED.append(resolved)
-
-
-def _unfollow() -> None:
-    """Stand in every folder the command has visited and every root, after a cd the gate cannot follow."""
-    global _CD_BASE
-    bases: List[Path] = []
-
-    for base in [*_CD_VISITED, *_roots(), *(_CD_BASE or ())]:
-        if base not in bases:
-            bases.append(base)
-
-    _CD_BASE = _Unfollowed(bases)
-
-
-def _enter_directory(operands: List[str], changer: str = "", dialect: str = _POSIX) -> None:
-    """Move the resolution base to the directory a `cd` segment named.
-
-    A relative destination is resolved against every base the command is
-    standing in, which starts as every repository root, so a session started
-    in a subdirectory still lands somewhere the boundary check can see. A
-    destination that is not a directory on disk, or that loops, is refused
-    by the real shell, which stays where it was, so each base it was
-    standing in stays a base. A destination the text does not name, a plain
-    name looked up in the CDPATH the shell inherits, and a move from a base
-    that is already unknown all land in every folder the command has visited
-    (see _Unfollowed). A CDPATH the command sets itself is an unplaceable
-    environment variable instead.
-    """
-    global _CD_BASE
-
-    destination = _cd_destination(operands, changer, dialect)
-
-    if destination == "":
-        return
-
-    bases = _current_bases()
-
-    if destination is None:
-        _visit_named(operands, bases, dialect)
-        _unfollow()
-        return
-
-    target = _as_path(destination)
-    looked_up = bool(changer) and dialect == _POSIX and not _anchored(destination) and bool(os.environ.get("CDPATH"))
-    landings: List[Path] = []
-    missed = False
-
-    for base in bases:
-        try:
-            resolved = _resolve(target if target.is_absolute() else (base / target))
-            found = resolved.is_dir()
-        except (OSError, ValueError, RuntimeError):
-            resolved, found = base, False
-
-        landing = resolved if found else base
-        missed = missed or not found
-
-        if landing not in landings:
-            landings.append(landing)
-
-        if landing not in _CD_VISITED:
-            _CD_VISITED.append(landing)
-
-    _CD_BASE = tuple(landings) or None
-    unknown_start = isinstance(bases, _Unfollowed) and (missed or not target.is_absolute())
-
-    if looked_up or unknown_start:
-        _unfollow()
-
-
-def _in_pipeline(segments: List[ShellSegment], position: int) -> bool:
-    """True when a pipe borders this segment, whose stage is a subshell."""
-    before = segments[position - 1].control if position else ""
-    after = segments[position + 1].control if position + 1 < len(segments) else ""
-
-    return "|" in (before, after)
+    return False
 
 
 def _command_targets(command: str, depth: int = 0, dialect: str = _POSIX) -> List[str]:
@@ -8119,28 +7982,11 @@ def _command_targets(command: str, depth: int = 0, dialect: str = _POSIX) -> Lis
     if depth > _MAX_NESTING:
         return [_UNPLACEABLE_SHELL_TARGET]
 
-    global _CD_BASE
-
     powershell = dialect != _POSIX
     segments = _lex(command, dialect)
     targets = _dotnet_targets(command) if dialect == _POWERSHELL or _reaches_dotnet(command) else []
-    groups: List[Optional[Tuple[Path, ...]]] = []
-
-    # Only a POSIX shell runs a parenthesised group in a subshell. In
-    # PowerShell and cmd a `cd` inside parentheses moves the shell itself.
-    subshells = dialect == _POSIX
 
     for position, segment in enumerate(segments):
-        if segment.control == "(":
-            if subshells:
-                groups.append(_CD_BASE)
-            continue
-
-        if segment.control == ")":
-            if subshells and groups:
-                _CD_BASE = groups.pop()
-            continue
-
         if segment.control:
             continue
 
@@ -8150,84 +7996,44 @@ def _command_targets(command: str, depth: int = 0, dialect: str = _POSIX) -> Lis
             continue
 
         argv = list(segment.argv)
-        saved = _CD_BASE
 
-        changer = _program_name(argv[0])
+        if _names_a_directory_change(argv):
+            _note_directory_change()
 
-        if changer == "dirs" and any(re.fullmatch(r"-[lpv]*c[lpvc]*", word) for word in argv[1:]):
-            _CD_STACK.clear()
+        # A directory change writes nothing itself. A statement opening with
+        # a quoted string is a value PowerShell writes to its output, as in
+        # [IO.File]::ReadAllText('a/b.py'), and runs nothing. The .NET scan
+        # above reads the call itself.
+        if _program_name(argv[0]) in _DIRECTORY_CHANGERS or segment.expression:
+            continue
 
-        if changer in _DIRECTORY_POPPERS:
-            _pop_directory(_split_arrays(argv[1:]))
-        elif changer in _DIRECTORY_CHANGERS:
-            if changer in _DIRECTORY_PUSHERS:
-                _CD_STACK.append(_CD_BASE)
-
-            _enter_directory(_split_arrays(argv[1:]), changer, dialect)
-
-            if isinstance(_CD_BASE, _Unfollowed) and changer in _DIRECTORY_PUSHERS:
-                _CD_STACK[:] = [_Unfollowed()] * len(_CD_STACK)
-        elif segment.expression:
-            # A statement opening with a quoted string is a value PowerShell
-            # writes to its output, as in [IO.File]::ReadAllText('a/b.py'),
-            # and runs nothing. The .NET scan above reads the call itself.
-            pass
-        else:
-            feed = functools.partial(_stdin_of, segments, position, dialect)
-            targets += _segment_targets(argv, depth, dialect, feed, segment.reads_file)
-
-        # Each stage of a POSIX or cmd pipeline runs in its own process, so a
-        # `cd` in one of them dies with the stage instead of moving the base
-        # for what comes after the pipeline. A PowerShell pipeline runs in the
-        # shell itself, where Set-Location sticks.
-        if dialect != _POWERSHELL and _in_pipeline(segments, position):
-            _CD_BASE = saved
+        feed = functools.partial(_stdin_of, segments, position, dialect)
+        targets += _segment_targets(argv, depth, dialect, feed, segment.reads_file)
 
     return targets
 
 
-def _pop_directory(words: List[str]) -> None:
-    """Return to the folder popd or Pop-Location takes off the stack.
-
-    popd +N and -N drop an entry without moving, -n moves nowhere, and a
-    PowerShell -StackName reads another stack, so any word at all leaves the
-    stack and the folder unknown. An entry the bookkeeping lost track of
-    lands in every visited folder.
-    """
-    global _CD_BASE
-
-    if words:
-        _CD_STACK[:] = [_Unfollowed()] * max(len(_CD_STACK) - 1, 0)
-        _unfollow()
-        return
-
-    if not _CD_STACK:
-        return
-
-    _CD_BASE = _CD_STACK.pop()
-
-    if isinstance(_CD_BASE, _Unfollowed):
-        _unfollow()
-
-
 def _shell_targets(command: str, dialect: str = _POSIX, start: Optional[Tuple[Path, ...]] = None) -> List[str]:
-    """Read one shell command from the start, with `cd` followed as it goes.
+    """Read one shell command, and read it again from the start once it is found to change directory.
+
+    The first reading places each relative target before the gate knows a
+    directory change comes later in the command, so a command that changes
+    directory anywhere is read a second time with _CHANGES_DIRECTORY set
+    from its first word.
 
     Args:
         start: the directories the shell starts in, or None for every root.
     """
-    global _CD_BASE, _CD_STACK, _CD_VISITED
+    global _CHANGES_DIRECTORY, _START_BASES
 
-    _CD_BASE = start
-    _CD_STACK = []
-    _CD_VISITED = list(start or ())
+    _CHANGES_DIRECTORY, _START_BASES = False, start
 
     try:
-        return _command_targets(command, dialect=dialect)
+        targets = _command_targets(command, dialect=dialect)
+
+        return _command_targets(command, dialect=dialect) if _CHANGES_DIRECTORY else targets
     finally:
-        _CD_BASE = None
-        _CD_STACK = []
-        _CD_VISITED = []
+        _CHANGES_DIRECTORY, _START_BASES = False, None
 
 
 def _is_null_device(target: str, powershell: bool = False) -> bool:
@@ -8405,13 +8211,15 @@ def _resolves_inside_repo(target: str) -> bool:
     directory, the project root the payload named, and the gate's own
     location two parents up while that is a project rather than a home
     directory), and it counts as inside when it resolves inside any one of
-    them. Once the command has changed directory the bases are those
-    directories instead (see _CD_BASE), and the roots stay the boundary
-    being tested. A glob counts as inside when any path it could match is.
-    An unresolvable path fails toward True: failing safe here means
-    denying, not allowing, and so does a loopback share no rule can map.
+    them. A call with its own workdir resolves against that folder instead,
+    and the roots stay the boundary being tested. A relative path in a
+    command that changes directory cannot be placed (see
+    _CHANGES_DIRECTORY). A glob counts as inside when any path it could
+    match is. An unresolvable path fails toward True: failing safe here
+    means denying, not allowing, and so does a loopback share no rule can
+    map.
     """
-    if _is_unplaceable_windows_path(target):
+    if _is_unplaceable_windows_path(target) or _moved_away(_as_path(target)):
         return True
 
     if _has_glob(target):
@@ -8445,6 +8253,10 @@ def _path_exists_in_repo(candidate: str) -> bool:
         return True
 
     path = _as_path(candidate)
+
+    if _moved_away(path):
+        return True
+
     bases = _current_bases()
 
     for base in bases:
@@ -8464,10 +8276,11 @@ def _is_task_list(target: str) -> bool:
     path. A same-named file in a subdirectory is an ordinary target, and so
     is a glob, which may match more than the task list.
     """
-    if _has_glob(target):
+    path = _as_path(target)
+
+    if _has_glob(target) or _moved_away(path):
         return False
 
-    path = _as_path(target)
     roots = _roots()
     bases = _current_bases(roots)
 
@@ -8527,12 +8340,16 @@ def _is_write_target(target: str, powershell: bool = False) -> bool:
 def _contains_repo(target: str) -> bool:
     """True when target is a repository root or a directory above one.
 
-    Resolved the same way as _resolves_inside_repo, against the `cd` bases
-    or else every root, and it fails the same way too: a path that cannot be
-    resolved counts as containing the repository, which denies. A glob such
-    as `../agent-*` or `../*` counts when any directory it could match is
-    the root or above it, matched one component at a time.
+    Resolved the same way as _resolves_inside_repo, against the call's
+    workdir or else every root, and it fails the same way too: a path that
+    cannot be resolved, or a relative one in a command that changes
+    directory, counts as containing the repository, which denies. A glob
+    such as `../agent-*` or `../*` counts when any directory it could match
+    is the root or above it, matched one component at a time.
     """
+    if _moved_away(_as_path(target)):
+        return True
+
     if _has_glob(target):
         return _glob_reaches_a_root(target, inside=False)
 

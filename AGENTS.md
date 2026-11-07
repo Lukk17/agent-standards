@@ -29,7 +29,7 @@ The gate is enforcing, not advisory. One shared rule in
 - It denies the main thread a web fetch or web search tool on Claude Code, the one format whose tool names are
   confirmed. Codex has no confirmed tool name for this yet. The main thread spawns a subagent to do the research.
 - It denies the main thread running a script or a module, because the gate cannot see what a script writes, unless the
-  command, run from inside the project, passes `MAIN_THREAD_ALLOWLIST` in the gate or an entry of the project's own
+  command, run from inside the project with no directory change, passes `MAIN_THREAD_ALLOWLIST` in the gate or an entry of the project's own
   `main-thread-allowlist.txt`. The rules are in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md) under "What the main thread
   may run". This repository's own checks sit in [main-thread-allowlist.txt](main-thread-allowlist.txt), which never ships.
 - It denies the main thread a shell, an interpreter, an editor, a pager or any other program that waits for typed input, such as

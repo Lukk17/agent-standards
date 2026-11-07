@@ -1570,7 +1570,9 @@ What counts as running a script:
 
 Inline code, such as `python -c "print(1)"` or `node -e "..."`, is not a script run. The gate reads that code itself
 and denies it when it writes a file in the project, or when it loads code the gate cannot read: a Python import from
-outside the standard library, or a JavaScript module that is not built in. Writing `tasks.md` at the project root,
+outside the standard library, or a JavaScript module that is not built in, and in a command that changes directory
+any standard Python module not built into the interpreter, because the gate no longer knows which folder could hold a
+file of the same name. Writing `tasks.md` at the project root,
 sending output to the null device, and switching branches all stay allowed.
 
 Starting a shell, an interpreter, an editor or any other program that waits for typed input denies too, such as a bare
@@ -1612,14 +1614,17 @@ How a project entry is matched:
   and an entry `scripts/verify.sh` does not allow `other/verify.sh`.
 - A trailing `...` accepts any further arguments. Without it the command has to end where the entry ends, so an
   entry `python scripts/verify.py` allows that command and denies `python scripts/verify.py --fix`.
-- A word with a slash in it is a file path, and it matches the file it names from where the command runs. After
-  `cd scripts`, `python verify.py` still matches, and after `cd docs`, `python scripts/verify.py` does not. When the
-  gate cannot tell which of two folders the command starts in, it has to name that file from both.
-- An entry, the built-in ones included, applies only while every folder the command can run from is inside the
-  project. After a `cd`, `pushd` or `env --chdir` out of it, or from a Codex `workdir` outside it, `python -m pytest`
-  and `make check` deny, because pytest loads the `conftest.py` and make the `Makefile` of the folder they run in.
+- A word with a slash in it is a file path, and it matches the file it names from the folder the command starts in.
+  When the gate cannot tell which of two folders that is, it has to name that file from both.
+- An allowlisted command must run without changing directory. An entry, the built-in ones included, applies only to a
+  command that changes no directory anywhere and starts inside the project. A `cd`, `pushd`, `popd`, `Set-Location`,
+  `env --chdir` or any other directory change in the command, even one into a project folder as in
+  `cd docs && python -m pytest -q`, turns every entry off for the whole command, and so does a Codex `workdir` outside
+  the project, because pytest loads the `conftest.py` and make the `Makefile` of the folder they run in, and the gate
+  does not follow where a directory change lands. Run the check from the project root and name the path instead, as in
+  `python -m pytest -q docs`.
 - An entry that hands a script to a shell, such as `bash scripts/check.sh`, only lifts the script-run rule. The gate
-  still reads the script as shell code and denies it when it writes a file in the project.
+  still reads the script as shell code and denies it when it writes a file in the project or changes directory.
 - The built-in list names no project's own scripts, because an entry such as `python tools/check.py` would also allow a
   same-named script in every other project, and that script could write files.
 

@@ -491,12 +491,6 @@ def outside_the_copilot_cli(monkeypatch):
     monkeypatch.delenv("COPILOT_CLI", raising=False)
 
 
-@pytest.fixture(autouse=True)
-def without_a_cdpath(monkeypatch):
-    """Run every case with no CDPATH, so a plain cd name is followed as the cases expect."""
-    monkeypatch.delenv("CDPATH", raising=False)
-
-
 def test_claude_format_call_from_the_copilot_cli_is_allowed_as_unidentified():
     # Given the Claude-shaped payload Copilot CLI hands the Claude wiring, which
     # carries no agent_id for a subagent and a main thread alike
@@ -2013,25 +2007,12 @@ def test_web_research_is_not_denied_on_the_plain_format():
     assert (code, out, err) == (0, "", "")
 
 
-# A leading `cd` moves the base every following relative path resolves against,
-# so the same write is allowed or denied on where the command actually landed.
-
-
-def test_shell_write_after_cd_outside_the_repository_is_allowed(tmp_path):
-    # Given a command that changes into a directory outside the repository
-    # before writing a relative path
-    outside = str(tmp_path).replace("\\", "/")
-    payload = shell("cd " + outside + " && printf abc >> MEMORY.md")
-
-    # When
-    code, out, err = run(payload, "claude")
-
-    # Then the target lands outside, so Rule A never reaches it
-    assert (code, out, err) == (0, "", "")
+# A relative write after a directory change is never placed, inside the
+# repository or out of it, while an absolute one still is.
 
 
 def test_shell_write_after_cd_into_a_repository_subdirectory_is_denied():
-    # Given the same shape of command, landing inside the repository instead
+    # Given a cd into the repository, then a relative write
     payload = shell("cd tools && printf abc >> gen_subagents.py")
 
     # When
@@ -2045,139 +2026,63 @@ def test_shell_write_after_cd_into_a_repository_subdirectory_is_denied():
     assert "gen_subagents.py" in verdict["permissionDecisionReason"]
 
 
-def test_cd_separated_by_a_semicolon_is_followed_too(tmp_path):
-    outside = str(tmp_path).replace("\\", "/")
-    payload = shell("cd " + outside + " ; printf abc >> MEMORY.md")
-
-    code, out, err = run(payload, "claude")
-
-    assert (code, out, err) == (0, "", "")
-
-
-def test_cd_outside_then_back_inside_is_denied(tmp_path):
-    # Given a command that leaves and returns, which is what makes a single
-    # "did it cd at all" answer wrong
-    outside = str(tmp_path).replace("\\", "/")
-    inside = str(REPO_ROOT).replace("\\", "/")
-    command = "cd " + outside + " && cd " + inside + " && printf abc >> tools/gen_subagents.py"
-
-    # When/Then
-    assert decision(shell(command)) == "deny"
-
-
 def test_an_absolute_target_ignores_the_cd(tmp_path):
     # Given a cd outside the repository, then an absolute write back into it
     outside = str(tmp_path).replace("\\", "/")
     inside = (REPO_ROOT / "tools" / "gen_subagents.py").as_posix()
     payload = shell("cd " + outside + " && printf abc >> " + inside)
 
-    # When/Then an absolute path never consults the base at all
+    # When/Then an absolute path is placed as it is
     assert decision(payload) == "deny"
 
 
-def test_a_cd_with_no_operand_leaves_the_base_alone():
-    # Given a bare `cd`, whose destination the gate has no way to know
-    # When/Then the base is left where it was, which keeps the write denied
-    assert decision(shell("cd && printf abc >> tools/gen_subagents.py")) == "deny"
+# Each of these was allowed while the gate followed the cd, because the
+# shell lands outside the repository or in a subshell that ends. The gate no
+# longer works out where it lands, so each relative write now denies.
+ONCE_FOLLOWED_CASES = [
+    "cd {out} && printf abc >> MEMORY.md",
+    "cd {out} ; printf abc >> MEMORY.md",
+    "cd {out} && cd sub && printf abc >> MEMORY.md",
+    "cd {out} && cd ./sub && printf abc >> MEMORY.md",
+    "cd {out}/sub && cd .. && printf abc >> MEMORY.md",
+    "cd {out} && cd ./missing; printf abc >> MEMORY.md",
+    "cd {out} && cd missing; printf abc >> MEMORY.md",
+    "pushd {out} && pushd sub && popd && printf abc >> MEMORY.md",
+    'bash -c "cd {out} && printf abc >> MEMORY.md"',
+    "(cd {out} && printf abc >> MEMORY.md)",
+    "(echo x) && cd {out} && printf abc >> MEMORY.md",
+]
 
 
-def test_a_cd_inside_a_nested_shell_does_not_leak_out_of_it(tmp_path):
-    # Given a child shell that changes directory and then exits, which leaves
-    # the parent shell's own directory exactly where it was
-    outside = str(tmp_path).replace("\\", "/")
-    payload = shell('bash -c "cd ' + outside + '" && printf abc >> tools/gen_subagents.py')
+@pytest.mark.parametrize("command", ONCE_FOLLOWED_CASES)
+def test_a_relative_write_after_a_cd_the_gate_once_followed_now_denies(tmp_path, command):
+    (tmp_path / "sub").mkdir()
 
-    # When/Then the write is judged against the repository, not the child's cd
-    assert decision(payload) == "deny"
+    assert decision(shell(command.format(out=tmp_path.as_posix()))) == "deny"
 
 
-def test_a_cd_inside_a_nested_shell_still_applies_within_it(tmp_path):
-    outside = str(tmp_path).replace("\\", "/")
-    payload = shell('bash -c "cd ' + outside + ' && printf abc >> MEMORY.md"')
-
-    code, out, err = run(payload, "claude")
-
-    assert (code, out, err) == (0, "", "")
-
-
-# A subshell is a parenthesised group or one stage of a pipeline. The real
-# shell restores its own directory when either ends, so a `cd` in one may not
-# move the base for anything after it.
-
-
-def test_a_cd_inside_a_parenthesised_group_does_not_leak_out_of_it(tmp_path):
-    # Given a group that changes directory and closes again
-    outside = str(tmp_path).replace("\\", "/")
-    payload = shell("(cd " + outside + ") && printf abc >> tools/gen_subagents.py")
-
-    # When/Then the write is judged against the repository, not the group's cd
-    assert decision(payload) == "deny"
+# Each of these denied under the tracking too, and still does.
+STILL_DENIED_CASES = [
+    "cd {out} && cd {root} && printf abc >> tools/gen_subagents.py",
+    "cd && printf abc >> tools/gen_subagents.py",
+    'bash -c "cd {out}" && printf abc >> tools/gen_subagents.py',
+    "(cd {out}) && printf abc >> tools/gen_subagents.py",
+    "cd {out} | printf abc >> tools/gen_subagents.py",
+    "printf abc >> tools/gen_subagents.py | cd {out}",
+    "cd {out} | cat && printf abc >> tools/gen_subagents.py",
+    "cd {out}/no-such-directory ; printf abc >> tools/gen_subagents.py",
+    "cd docs; cd /nonexistent-zz9; echo x > ../AGENTS.md",
+    "cd docs\ncd /nonexistent-zz9\necho x > ../AGENTS.md",
+    "cd docs || cd /nonexistent-zz9 || echo x > ../AGENTS.md",
+]
 
 
-def test_a_cd_inside_a_parenthesised_group_still_applies_within_it(tmp_path):
-    outside = str(tmp_path).replace("\\", "/")
-    payload = shell("(cd " + outside + " && printf abc >> MEMORY.md)")
-
-    code, out, err = run(payload, "claude")
-
-    assert (code, out, err) == (0, "", "")
+@pytest.mark.parametrize("command", STILL_DENIED_CASES)
+def test_a_relative_write_after_a_cd_still_denies(tmp_path, command):
+    assert decision(shell(command.format(out=tmp_path.as_posix(), root=REPO_ROOT.as_posix()))) == "deny"
 
 
-def test_a_cd_in_a_pipeline_stage_does_not_move_the_base(tmp_path):
-    # Given a cd piped into the write, which the shell runs in its own subshell
-    outside = str(tmp_path).replace("\\", "/")
-    payload = shell("cd " + outside + " | printf abc >> tools/gen_subagents.py")
-
-    # When/Then
-    assert decision(payload) == "deny"
-
-
-def test_a_cd_after_a_pipe_does_not_move_the_base_either(tmp_path):
-    outside = str(tmp_path).replace("\\", "/")
-    payload = shell("printf abc >> tools/gen_subagents.py | cd " + outside)
-
-    assert decision(payload) == "deny"
-
-
-def test_a_cd_before_a_pipeline_is_forgotten_after_it(tmp_path):
-    # Given a cd whose only stage is a pipeline, then a write after the pipeline
-    outside = str(tmp_path).replace("\\", "/")
-    command = "cd " + outside + " | cat && printf abc >> tools/gen_subagents.py"
-
-    # When/Then
-    assert decision(shell(command)) == "deny"
-
-
-def test_a_cd_outside_a_group_still_moves_the_base(tmp_path):
-    # Given a group that touches nothing, then a cd at the top level
-    outside = str(tmp_path).replace("\\", "/")
-    command = "(echo x) && cd " + outside + " && printf abc >> MEMORY.md"
-
-    # When/Then the restore is scoped to the group, not to every cd
-    code, out, err = run(shell(command), "claude")
-
-    assert (code, out, err) == (0, "", "")
-
-
-def test_a_cd_to_a_directory_that_does_not_exist_stays_where_it_was(tmp_path):
-    # Given a cd the real shell would refuse, leaving it in the repository
-    missing = (tmp_path / "no-such-directory").as_posix()
-    payload = shell("cd " + missing + " ; printf abc >> tools/gen_subagents.py")
-
-    # When/Then the write is still judged against the repository
-    assert decision(payload) == "deny"
-
-
-@pytest.mark.parametrize("separator", ["; ", "\n", " || "])
-def test_a_failed_cd_after_another_stays_in_the_last_good_folder(separator):
-    # Given a cd into docs, then a cd the real shell refuses, which leaves it in docs
-    command = separator.join(["cd docs", "cd /nonexistent-zz9", "echo x > ../AGENTS.md"])
-
-    # When/Then the write is placed from docs, where the shell still stands
-    assert decision(shell(command)) == "deny"
-
-
-def test_a_cd_into_a_real_symlink_loop_after_another_stays_in_the_last_good_folder(tmp_path):
+def test_a_cd_into_a_real_symlink_loop_still_denies_the_relative_write(tmp_path):
     # Given two links that point at each other, so the second cd fails
     first, second = tmp_path / "loop-a", tmp_path / "loop-b"
 
@@ -2191,80 +2096,7 @@ def test_a_cd_into_a_real_symlink_loop_after_another_stays_in_the_last_good_fold
     assert decision(shell(f"cd docs; cd {first.as_posix()}; echo x > ../AGENTS.md")) == "deny"
 
 
-# A cd whose landing the text does not name: the previous folder, a variable,
-# a command's output, a directory stack entry, the home folder, or a plain
-# name the shell may find through CDPATH. The shell can stand in any folder
-# the command has visited, so the write is judged from all of them.
-UNFOLLOWABLE_CD_CASES = {
-    "cd-dash": ("cd {out}; cd -; echo x > AGENTS.md", "Bash"),
-    "cd-oldpwd": ('cd {out}; cd "$OLDPWD"; echo x > AGENTS.md', "Bash"),
-    "cd-tilde-dash": ("cd {out}; cd ~-; echo x > AGENTS.md", "Bash"),
-    "cd-variable": ("cd {out}; cd $VAR; echo x > AGENTS.md", "Bash"),
-    "cd-command-output": ('cd {out}; cd "$(pwd)"; echo x > AGENTS.md', "Bash"),
-    "cd-backticks": ("cd {out}; cd `pwd`; echo x > AGENTS.md", "Bash"),
-    "pushd-rotate": ("pushd {out}; pushd +1; echo x > AGENTS.md", "Bash"),
-    "pushd-rotate-from-the-end": ("pushd {out}; pushd -0; echo x > AGENTS.md", "Bash"),
-    "pushd-swap": ("pushd {out}; pushd; echo x > AGENTS.md", "Bash"),
-    "pushd-no-change": ("pushd -n {out}; echo x > AGENTS.md", "Bash"),
-    "popd-to-a-folder-pushd-n-stacked": ("cd {out}; pushd -n {root}/docs; popd; echo x > ../AGENTS.md", "Bash"),
-    "popd-drops-an-entry": ("pushd {out}; pushd {root}; popd +1; echo x > AGENTS.md", "Bash"),
-    "popd-after-dirs-clear": ("pushd {out}; pushd {root}; dirs -c; popd; echo x > AGENTS.md", "Bash"),
-    "bare-cd-goes-home": ("cd {out}; cd; echo x > AGENTS.md", "Bash"),
-    "cdpath-in-the-command": ("CDPATH={parent}; cd {out}; cd {name}; echo x > AGENTS.md", "Bash"),
-    "exported-cdpath": ("export CDPATH={parent}; cd {out}; cd {name}; echo x > AGENTS.md", "Bash"),
-    "back-to-a-subfolder": ("cd docs; cd {out}; cd -; echo x > ../AGENTS.md", "Bash"),
-    "set-location-dash": ("Set-Location {out}; Set-Location -; Set-Content AGENTS.md x", "PowerShell"),
-    "set-location-plus": ("Set-Location {out}; Set-Location -; Set-Location +; Set-Content AGENTS.md x", "PowerShell"),
-}
-
-
-@pytest.mark.parametrize(
-    "command,tool",
-    [pytest.param(command, tool, id=name) for name, (command, tool) in UNFOLLOWABLE_CD_CASES.items()],
-)
-def test_a_cd_the_gate_cannot_follow_lands_in_any_folder_the_command_visited(tmp_path, command, tool):
-    # Given a cd into a folder outside the repository, then a cd whose landing the text does not name
-    text = command.format(
-        out=tmp_path.as_posix(), root=REPO_ROOT.as_posix(), parent=REPO_ROOT.parent.as_posix(), name=REPO_ROOT.name
-    )
-
-    # When/Then the write is judged from the repository as well, where the shell may stand
-    assert decision(shell(text, tool=tool)) == "deny"
-
-
-def test_a_plain_name_is_not_followed_while_cdpath_is_set(tmp_path):
-    # Given a CDPATH in the environment the shell inherits, which a plain name is looked up in first
-    (tmp_path / "docs").mkdir()
-    command = f"cd {tmp_path.as_posix()}; cd docs; echo x > AGENTS.md"
-
-    # When
-    code, out, err = run(shell(command), "claude", env={"CDPATH": REPO_ROOT.as_posix()})
-
-    # Then the shell may have landed in the repository's docs instead
-    assert (code, err) == (0, "")
-    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
-
-
-@pytest.mark.parametrize(
-    "command",
-    [
-        "cd {out} && cd sub && printf abc >> MEMORY.md",
-        "cd {out} && cd ./sub && printf abc >> MEMORY.md",
-        "cd {out}/sub && cd .. && printf abc >> MEMORY.md",
-        "cd {out} && cd ./missing; printf abc >> MEMORY.md",
-        "cd {out} && cd missing; printf abc >> MEMORY.md",
-        "pushd {out} && pushd sub && popd && printf abc >> MEMORY.md",
-    ],
-)
-def test_a_cd_the_gate_can_follow_still_moves_the_base(tmp_path, command):
-    # Given cds whose landing the text names, all outside the repository, with no CDPATH set
-    (tmp_path / "sub").mkdir()
-
-    # When/Then
-    assert decision(shell(command.format(out=tmp_path.as_posix()))) == "allow"
-
-
-def test_a_relative_cd_resolves_against_every_root(tmp_path):
+def test_a_relative_cd_in_a_session_started_below_the_root_still_denies(tmp_path):
     # Given a session whose working directory is not the project root, so the
     # relative destination means one thing under the invocation directory and
     # another under the root the gate itself sits in
@@ -2276,9 +2108,185 @@ def test_a_relative_cd_resolves_against_every_root(tmp_path):
     # When
     code, out, _err = run(payload, "claude", cwd=nested)
 
-    # Then the landing that places the target inside the repository decides
+    # Then
     assert code == 0
     assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+# The gate follows no directory change. A main-thread command that changes
+# directory anywhere, in any spelling and at any depth, makes every relative
+# write target in it unplaceable, which denies, while an absolute target is
+# still placed. Every case below was a way around the tracking this replaced.
+# {out} is a folder outside the project, {back} the relative path from {out}
+# to the project's AGENTS.md, {home} the same path from the home directory,
+# {up} one that reaches AGENTS.md only from the project's parent,
+# {root_glob} the project root spelled with a wildcard, and {parent} and
+# {name} the project's parent folder and its own name.
+DIRECTORY_CHANGE_CASES = {
+    "cd-dash": ("cd {out}; cd -; echo x > AGENTS.md", "Bash"),
+    "cd-to-command-output": ('cd "$(echo {out})"; echo x > {back}', "Bash"),
+    "bare-cd-goes-home": ("cd; echo x > {home}", "Bash"),
+    "cd-back-through-command-output": ("cd {out}; cd $(echo {root}); echo x > AGENTS.md", "Bash"),
+    "cd-back-through-a-glob": ("cd {out}; cd {root_glob}; echo x > AGENTS.md", "Bash"),
+    "popd-after-dirs-clear-in-a-subshell": ("pushd {out}; (dirs -c); popd; echo x > AGENTS.md", "Bash"),
+    "popd-after-dirs-clear-in-a-pipeline": ("pushd {out}; dirs -c | cat; popd; echo x > AGENTS.md", "Bash"),
+    "cd-inside-a-function": ("f() {{ cd {root}; }}; cd {out}; f; echo x > AGENTS.md", "Bash"),
+    "cd-inside-a-function-keyword": ("function g {{ cd {out}; }}; g; echo x > {back}", "Bash"),
+    "cd-inside-a-for-loop": ('cd {out}; for d in {root}; do cd "$d"; done; echo x > AGENTS.md', "Bash"),
+    "cd-in-the-background": ("cd {out} & echo x > AGENTS.md", "Bash"),
+    "popd-after-a-pushd-in-a-subshell": ("(cd {out} && pushd /var); popd; echo x > AGENTS.md", "Bash"),
+    "popd-after-a-failed-pushd": ("cd {out}; pushd /nonexistent-zz9; cd {root}; popd; echo x > AGENTS.md", "Bash"),
+    "cd-with-two-operands": ("cd x {out}; echo x > AGENTS.md", "Bash"),
+    "cd-behind-if": ("if cd {out}; then echo x > {back}; fi", "Bash"),
+    "cd-behind-then": ("if true; then cd {out}; fi; echo x > {back}", "Bash"),
+    "cd-behind-do": ("while true; do cd {out}; break; done; echo x > {back}", "Bash"),
+    "cd-behind-until": ("until false; do cd {out}; break; done; echo x > {back}", "Bash"),
+    "cd-behind-select": ("select x in a; do cd {out}; break; done; echo x > {back}", "Bash"),
+    "cd-behind-a-brace": ("{{ cd {out}; }}; echo x > {back}", "Bash"),
+    "cd-behind-a-bang": ("! cd {out}; echo x > {back}", "Bash"),
+    "cd-behind-time": ("time cd {out}; echo x > {back}", "Bash"),
+    "cd-behind-command": ("command cd {out}; echo x > {back}", "Bash"),
+    "cd-behind-builtin": ("builtin cd {out}; echo x > {back}", "Bash"),
+    "cd-behind-exec": ("exec cd {out}; echo x > {back}", "Bash"),
+    "cd-behind-env": ("env cd {out}; echo x > {back}", "Bash"),
+    "chdir": ("chdir {out}; echo x > {back}", "Bash"),
+    "set-location-in-pwsh-command": ("pwsh -Command 'Set-Location {out}; Set-Content {back} x'", "Bash"),
+    "cmd-start-folder": ('cmd /c "start /d {out} cmd /c echo x ^> {back}"', "Bash"),
+    "cd-in-a-pipeline-stage": ("cd {out} | cat; echo x > {back}", "Bash"),
+    "cd-in-a-subshell": ("(cd {out}); echo x > {back}", "Bash"),
+    "cd-in-a-nested-shell": ("bash -c 'builtin cd {out}; echo x > {back}'", "Bash"),
+    "cd-in-a-trap": ("trap 'cd {out}' DEBUG; echo x > {back}", "Bash"),
+    "cd-through-an-alias": ("alias x=cd\nx {out}\necho x > {back}", "Bash"),
+    "cd-through-a-computed-program": ("$X {out}; echo x > {back}", "Bash"),
+    "chdir-in-inline-python": (
+        "python3 -c \"import os; os.chdir('{out}'); open('{back}', 'w').write('x')\"",
+        "Bash",
+    ),
+    "chdir-in-inline-javascript": ("node -e \"process.chdir('{out}'); require('fs').writeFileSync('{back}', 'x')\"", "Bash"),
+    "setwd-in-inline-r": ("Rscript -e 'setwd(\"{out}\"); writeLines(\"x\", \"{back}\")'", "Bash"),
+    "find-execdir": ("find {out} -maxdepth 0 -execdir sh -c 'echo x > {back}' \\;", "Bash"),
+    "env-chdir": ("env --chdir={out} touch {back}", "Bash"),
+    "wsl-cd": ("wsl --cd {out} sh -c 'echo x > {back}'", "Bash"),
+    "pwsh-working-directory": ("pwsh -WorkingDirectory {out} -Command 'Set-Content {back} x'", "Bash"),
+    "cd-in-a-heredoc-shell": ("bash <<'EOF'\ncd {out}\nEOF\necho x > {back}", "Bash"),
+    "dotnet-current-directory": ("[Environment]::CurrentDirectory = '{out}'; [IO.File]::WriteAllText('{back}', 'x')", "PowerShell"),
+    "start-process-working-directory": (
+        "Start-Process -WorkingDirectory {out} -FilePath cmd -ArgumentList '/c','echo x > {back}'",
+        "PowerShell",
+    ),
+    "set-location-dash": ("Set-Location {out}; Set-Location -; Set-Content AGENTS.md x", "PowerShell"),
+    "set-location-alias": ("sl {out}; Set-Content {back} x", "PowerShell"),
+    "push-location": ("Push-Location {out}; Set-Content {back} x", "PowerShell"),
+    "pop-location": ("Pop-Location; Set-Content {up} x", "PowerShell"),
+    "cd-dot-dot-function": ("cd..; Set-Content {up} x", "PowerShell"),
+    "cd-oldpwd": ('cd {out}; cd "$OLDPWD"; echo x > AGENTS.md', "Bash"),
+    "cd-tilde-dash": ("cd {out}; cd ~-; echo x > AGENTS.md", "Bash"),
+    "cd-variable": ("cd {out}; cd $VAR; echo x > AGENTS.md", "Bash"),
+    "cd-to-pwd-output": ('cd {out}; cd "$(pwd)"; echo x > AGENTS.md', "Bash"),
+    "cd-backticks": ("cd {out}; cd `pwd`; echo x > AGENTS.md", "Bash"),
+    "cd-home-then-remove": ("cd ~ && rm -rf .cache", "Bash"),
+    "pushd-rotate": ("pushd {out}; pushd +1; echo x > AGENTS.md", "Bash"),
+    "pushd-rotate-from-the-end": ("pushd {out}; pushd -0; echo x > AGENTS.md", "Bash"),
+    "pushd-swap": ("pushd {out}; pushd; echo x > AGENTS.md", "Bash"),
+    "pushd-no-change": ("pushd -n {out}; echo x > AGENTS.md", "Bash"),
+    "popd-to-a-folder-pushd-n-stacked": ("cd {out}; pushd -n {root}/docs; popd; echo x > ../AGENTS.md", "Bash"),
+    "popd-drops-an-entry": ("pushd {out}; pushd {root}; popd +1; echo x > AGENTS.md", "Bash"),
+    "popd-after-dirs-clear": ("pushd {out}; pushd {root}; dirs -c; popd; echo x > AGENTS.md", "Bash"),
+    "cdpath-in-the-command": ("CDPATH={parent}; cd {out}; cd {name}; echo x > AGENTS.md", "Bash"),
+    "exported-cdpath": ("export CDPATH={parent}; cd {out}; cd {name}; echo x > AGENTS.md", "Bash"),
+    "back-to-a-subfolder": ("cd docs; cd {out}; cd -; echo x > ../AGENTS.md", "Bash"),
+    "set-location-plus": ("Set-Location {out}; Set-Location -; Set-Location +; Set-Content AGENTS.md x", "PowerShell"),
+}
+
+
+def directory_change_command(template, outside):
+    """A DIRECTORY_CHANGE_CASES template filled in for one folder outside the project."""
+    agents = REPO_ROOT / "AGENTS.md"
+
+    return template.format(
+        out=outside.as_posix(),
+        root=REPO_ROOT.as_posix(),
+        parent=REPO_ROOT.parent.as_posix(),
+        name=REPO_ROOT.name,
+        root_glob=REPO_ROOT.as_posix()[:-1] + "?",
+        back=Path(os.path.relpath(agents, outside)).as_posix(),
+        home=Path(os.path.relpath(agents, Path.home())).as_posix(),
+        up="../" + REPO_ROOT.parent.name + "/" + REPO_ROOT.name + "/AGENTS.md",
+    )
+
+
+@pytest.mark.parametrize(
+    "template,tool",
+    [pytest.param(template, tool, id=name) for name, (template, tool) in DIRECTORY_CHANGE_CASES.items()],
+)
+def test_any_directory_change_makes_a_relative_write_unplaceable(tmp_path, template, tool):
+    # Given a command that changes directory somewhere, then writes a relative path. The
+    # folder is the top of the temporary tree, shallower than the project, so {back}
+    # read from the project root would climb to the file system root and land outside.
+    command = directory_change_command(template, Path(tmp_path.anchor, tmp_path.parts[1]))
+
+    # When/Then the gate does not guess where the shell stands, so the write denies
+    assert decision(shell(command, tool=tool)) == "deny"
+
+
+def test_a_cd_in_a_sourced_file_makes_a_relative_write_unplaceable(tmp_path):
+    # Given a sourced file that changes directory
+    outside = Path(tmp_path.anchor, tmp_path.parts[1])
+    script = tmp_path / "move.sh"
+    script.write_text(f"cd {outside.as_posix()}\n", encoding="utf-8")
+    command = directory_change_command(f". {script.as_posix()}; echo x > {{back}}", outside)
+
+    # When/Then
+    assert decision(shell(command)) == "deny"
+
+
+def test_a_long_directory_stack_is_read_fast(tmp_path):
+    # Given a stack of 1500 folders and 200 returns to the previous folder
+    stacked = " ".join(f"/a{index}" for index in range(1, 1501))
+    command = f"pushd -n {stacked}; " + "cd -; " * 200 + "echo x > AGENTS.md"
+
+    # When
+    started = time.monotonic()
+    verdict = decision(shell(command))
+    took = time.monotonic() - started
+
+    # Then
+    assert verdict == "deny"
+    assert took < 5
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "cd {out} && echo x > {out}/out.txt",
+        "cd {out} && echo x > /dev/null",
+        "pushd {out} && printf abc >> {out}/MEMORY.md && popd",
+        "Set-Location {out}; Set-Content {out}/out.txt x",
+    ],
+)
+def test_an_absolute_write_outside_the_project_after_a_directory_change_is_allowed(tmp_path, command):
+    tool = "PowerShell" if command.startswith("Set-Location") else "Bash"
+
+    assert decision(shell(command.format(out=tmp_path.as_posix()), tool=tool)) == "allow"
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["cd {out} && echo x > {root}/AGENTS.md", "pushd {out}; Set-Content {root}/AGENTS.md x"],
+)
+def test_an_absolute_write_inside_the_project_after_a_directory_change_still_denies(tmp_path, command):
+    tool = "PowerShell" if "Set-Content" in command else "Bash"
+    text = command.format(out=tmp_path.as_posix(), root=REPO_ROOT.as_posix())
+
+    assert decision(shell(text, tool=tool)) == "deny"
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["cd docs && ls", "git status", "cd docs && cat README.md | head", "printf abc >> tasks.md", "cd docs; git log -1"],
+)
+def test_a_directory_change_that_writes_nothing_stays_allowed(command):
+    assert decision(shell(command)) == "allow"
 
 
 # The root task list is the one path Rule A steps aside for.
@@ -2359,9 +2367,9 @@ def test_an_unresolvable_path_is_never_mistaken_for_the_task_list(resolution_fai
     assert GATE._is_write_target(UNRESOLVABLE + "/tasks.md") is True
 
 
-def test_a_cd_to_a_directory_that_cannot_be_resolved_drops_the_base(resolution_fails):
-    # Given a cd the gate cannot follow, then a write to a repository path
-    # When/Then the base is dropped rather than trusted, so the roots decide
+def test_a_cd_to_a_directory_that_cannot_be_resolved_leaves_the_write_a_target(resolution_fails):
+    # Given a cd into a folder that cannot be resolved, then a write to a repository path
+    # When/Then the relative write is still a target, whatever the cd names
     assert GATE._shell_targets("cd " + UNRESOLVABLE + " && rm tools/gen_subagents.py") == [
         "tools/gen_subagents.py"
     ]
@@ -2410,9 +2418,9 @@ def test_a_looping_path_counts_as_containing_the_repository(resolution_loops):
     assert GATE._contains_repo("/elsewhere/" + LOOPING) is True
 
 
-def test_a_cd_into_a_looping_directory_stays_where_it_was(resolution_loops):
+def test_a_cd_into_a_looping_directory_leaves_the_write_a_target(resolution_loops):
     # Given a cd the shell refuses with "Too many levels of symbolic links", then a write
-    # When/Then the shell stays where it was, so the roots decide the write
+    # When/Then the relative write is still a target, whatever the cd names
     assert GATE._shell_targets("cd /elsewhere/" + LOOPING + "; echo x > AGENTS.md") == ["AGENTS.md"]
     assert decision(shell("cd docs; cd /elsewhere/" + LOOPING + "; echo x > ../AGENTS.md")) == "deny"
 
@@ -2589,7 +2597,6 @@ def home_at(path):
         "rm -rf ~/.claude/projects/stale-session",
         "rm -rf ~",
         "echo note > ~/notes.txt",
-        "cd ~ && rm -rf .cache",
     ],
 )
 def test_a_tilde_path_is_expanded_to_the_home_directory(tmp_path, command):
@@ -2642,7 +2649,7 @@ def test_a_tilde_user_path_is_expanded():
 
 
 # Git Bash and MSYS2 name a Windows drive as a leading /<letter>/, which the
-# gate has to read as that drive or neither a cd nor an absolute target places.
+# gate has to read as that drive or an absolute target does not place.
 
 
 def msys(path: Path) -> str:
@@ -2653,14 +2660,14 @@ def msys(path: Path) -> str:
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="an MSYS drive path names a drive only on Windows")
-def test_a_write_after_cd_into_an_msys_path_outside_the_repository_is_allowed(tmp_path):
-    # Given a Git Bash cd to a directory outside the repository, then a relative write
-    payload = shell("cd " + msys(tmp_path) + " && rm MEMORY.md")
+def test_an_absolute_msys_write_after_cd_outside_the_repository_is_allowed(tmp_path):
+    # Given a Git Bash cd to a directory outside the repository, then an absolute write there
+    payload = shell("cd " + msys(tmp_path) + " && rm " + msys(tmp_path / "MEMORY.md"))
 
     # When
     code, out, err = run(payload, "claude")
 
-    # Then the cd lands on the real directory, and the target with it
+    # Then the target is placed on its drive, outside the repository
     assert (code, out, err) == (0, "", "")
 
 
@@ -2832,7 +2839,6 @@ def test_removing_a_parent_named_as_an_msys_path_is_denied(nest):
 REMOVING_A_SIBLING = {
     "rm-relative": ("rm -rf ../sibling", "Bash"),
     "rm-absolute": ("rm -rf {sibling}", "Bash"),
-    "rm-after-cd-up": ("cd .. && rm -rf sibling", "Bash"),
     "rmdir-cmd": ("rmdir /s /q ../sibling", "Bash"),
     "mv": ("mv ../sibling {elsewhere}/moved", "Bash"),
     "remove-item": ("Remove-Item -Recurse -Force ../sibling", "PowerShell"),
@@ -3421,7 +3427,6 @@ ALLOWLISTED_CHECKS = {
     "pytest-py-launcher": ("py -m pytest -q", "PowerShell"),
     "check-markdown": ("python tools/check-markdown.py", "Bash"),
     "check-markdown-dot-slash": ("python ./tools/check-markdown.py", "Bash"),
-    "check-markdown-after-cd": ("cd tools && python check-markdown.py", "Bash"),
     "check-badges": ("python tools/check-badges.py", "Bash"),
     "gen-subagents-check": ("python tools/gen_subagents.py --check", "Bash"),
     "node-check": ("node --check .agents/plugin/hooks.js", "Bash"),
@@ -3971,7 +3976,7 @@ def test_a_write_through_a_wrapper_is_read_past_its_own_options(command):
         "sudo -nD {elsewhere} sh -c 'echo x > ../work/project/AGENTS.md'",
     ],
 )
-def test_a_wrapper_changing_directory_is_followed_in_every_spelling(nest, command):
+def test_a_wrapper_changing_directory_is_read_in_every_spelling(nest, command):
     assert verdict_in(nest, command.format(elsewhere=nest.elsewhere)) == "deny"
 
 
@@ -4368,7 +4373,7 @@ PROJECT_ALLOWLIST_CASES = {
     "build-runner-other-target": ("make build", "deny"),
     "build-runner-default-target": ("make", "deny"),
     "path-entry": ("python scripts/verify.py", "allow"),
-    "path-entry-after-cd": ("cd scripts && python verify.py", "allow"),
+    "path-entry-after-cd": ("cd scripts && python verify.py", "deny"),
     "exact-entry-with-more-arguments": ("python scripts/verify.py --fix", "deny"),
     "unlisted-runner": ("npm run build", "deny"),
     "built-in-entries-still-apply": ("python -m pytest -q", "allow"),
@@ -4440,22 +4445,56 @@ def test_an_allowlist_entry_does_not_apply_outside_the_project(nest, command):
     assert verdict_in(nest, command.format(elsewhere=nest.elsewhere)) == "deny"
 
 
+# No allowlist entry applies to a command that changes directory anywhere,
+# into the project or out of it, because the gate no longer follows where it
+# lands. Each case was a way around the tracking this replaced, or now denies
+# where the tracking allowed it.
+ALLOWLIST_DIRECTORY_CHANGE_CASES = {
+    "cd-behind-if": "if cd {elsewhere}; then make check; fi",
+    "cd-behind-a-brace": "{{ cd {elsewhere}; }} && python -m pytest -q",
+    "cd-behind-command": "command cd {elsewhere} && make check",
+    "cd-behind-builtin": "builtin cd {elsewhere} && python -m pytest -q",
+    "cd-in-a-trap": "trap 'cd {elsewhere}' DEBUG; make check",
+    "cd-to-a-variable": "cd $TMPDIR && python -m pytest -q",
+    "cd-in-a-nested-shell": "bash -c 'cd {elsewhere} && make check'",
+    "cd-after-the-entry": "make check; cd {elsewhere}",
+    "cd-into-the-project": "cd docs && python -m pytest -q",
+    "cd-out-and-back": "cd {elsewhere}; cd {project} && make check",
+    "cd-in-a-subshell-before-the-entry": "(cd $HOME) && python -m pytest -q",
+    "set-location": "Set-Location {elsewhere}; make check",
+}
+
+
 @pytest.mark.parametrize(
-    "command",
-    [
-        "python -m pytest -q",
-        "cd docs && python -m pytest -q",
-        "cd {elsewhere}; cd {project} && make check",
-        "make check",
-        "(cd $HOME) && python -m pytest -q",
-        "cd $HOME; cd {project} && make check",
-    ],
+    "command", [pytest.param(command, id=name) for name, command in ALLOWLIST_DIRECTORY_CHANGE_CASES.items()]
 )
-def test_an_allowlist_entry_still_applies_anywhere_inside_the_project(nest, command):
+def test_no_allowlist_entry_applies_to_a_command_that_changes_directory(nest, command):
+    # Given a project allowlist, and the folders a cd may name
     write_project_allowlist(nest.project, PROJECT_ALLOWLIST)
     (nest.project / "docs").mkdir()
+    tool = "PowerShell" if command.startswith("Set-Location") else "Bash"
+    text = command.format(elsewhere=nest.elsewhere.as_posix(), project=nest.project.as_posix())
 
-    assert verdict_in(nest, command.format(elsewhere=nest.elsewhere, project=nest.project)) == "allow"
+    # When/Then
+    assert verdict_in(nest, text, tool=tool) == "deny"
+
+
+@pytest.mark.parametrize("command", ["python -m pytest -q", "make check", "npm run lint -- --quiet"])
+def test_an_allowlist_entry_still_applies_with_no_directory_change(nest, command):
+    write_project_allowlist(nest.project, PROJECT_ALLOWLIST)
+
+    assert verdict_in(nest, command) == "allow"
+
+
+@pytest.mark.parametrize(("body", "expected"), [("cd sub\necho hi\n", "deny"), ("echo hi\n", "allow")])
+def test_an_allowlisted_script_is_denied_when_its_own_text_changes_directory(nest, body, expected):
+    # Given an entry that hands a script to a shell, which the gate still reads as shell code
+    write_project_allowlist(nest.project, "bash scripts/check.sh\n")
+    (nest.project / "scripts").mkdir()
+    (nest.project / "scripts" / "check.sh").write_text(body, encoding="utf-8")
+
+    # When/Then a directory change inside the script turns the entry off for the whole command
+    assert verdict_in(nest, "bash scripts/check.sh") == expected
 
 
 @pytest.mark.parametrize("command", ["python -m pytest -q", "make check", "python scripts/verify.py"])
@@ -4525,7 +4564,7 @@ def test_a_pytest_path_inside_only_the_payload_cwd_is_not_placed_inside(nest, mo
     (nest.elsewhere / "test_x.py").write_text("", encoding="utf-8")
     monkeypatch.chdir(nest.project)
     monkeypatch.setattr(GATE, "_PAYLOAD_ROOT", nest.elsewhere)
-    monkeypatch.setattr(GATE, "_CD_BASE", (nest.elsewhere,))
+    monkeypatch.setattr(GATE, "_START_BASES", (nest.elsewhere,))
 
     # When/Then the payload cwd is no root an allowlisted operand may sit in
     assert GATE._placed_inside("test_x.py") is False
@@ -4804,24 +4843,24 @@ def test_busybox_and_toybox_are_peeled_like_wrappers(nest, command, expected):
 
 DIRECTORY_CASES = {
     "popd-returns-to-the-project": ("pushd {elsewhere} && popd && rm -f x.py", "Bash", "deny"),
-    "pushd-then-write-elsewhere": ("pushd {elsewhere}; rm -f x.txt; popd", "Bash", "allow"),
+    "pushd-then-write-elsewhere": ("pushd {elsewhere}; rm -f x.txt; popd", "Bash", "deny"),
     "pop-location-returns": ("Push-Location {elsewhere}; Pop-Location; Remove-Item x.py", "PowerShell", "deny"),
     "push-location-moves": ("cd {elsewhere}; Push-Location {project}; Remove-Item x.py", "PowerShell", "deny"),
     "powershell-parentheses-keep-the-cd": ("cd {elsewhere}; (Set-Location {project}); Remove-Item x.py", "PowerShell", "deny"),
     "powershell-pipeline-keeps-the-cd": ("cd {elsewhere}; Set-Location {project} | Out-Null; Remove-Item x.py", "PowerShell", "deny"),
     "cmd-parentheses-keep-the-cd": ('cmd /c "cd /d {elsewhere} & (cd /d {project}) & del x.py"', "Bash", "deny"),
-    "posix-subshell-still-restores": ("cd {elsewhere} && (cd {project}) && rm -f x.txt", "Bash", "allow"),
+    "posix-subshell": ("cd {elsewhere} && (cd {project}) && rm -f x.txt", "Bash", "deny"),
     "env-chdir": ("cd {elsewhere} && env -C {project} rm -f x.py", "Bash", "deny"),
     "env-chdir-long": ("cd {elsewhere} && env --chdir={project} rm -f x.py", "Bash", "deny"),
     "env-chdir-attached": ("cd {elsewhere} && env -C{project} rm -f x.py", "Bash", "deny"),
     "sudo-chdir": ("cd {elsewhere} && sudo -D {project} rm -f x.py", "Bash", "deny"),
-    "env-chdir-elsewhere": ("env -C {elsewhere} rm -f x.txt", "Bash", "allow"),
+    "env-chdir-elsewhere": ("env -C {elsewhere} rm -f x.txt", "Bash", "deny"),
     "pwsh-working-directory": ("cd {elsewhere}; pwsh -WorkingDirectory {project} -Command 'Remove-Item x.py'", "Bash", "deny"),
 }
 
 
 @pytest.mark.parametrize("command,tool,expected", audit_cases(DIRECTORY_CASES))
-def test_every_way_of_changing_directory_is_followed(nest, command, tool, expected):
+def test_every_way_of_changing_directory_makes_a_relative_write_unplaceable(nest, command, tool, expected):
     assert verdict_in(nest, placed(nest, command), tool=tool) == expected
 
 
