@@ -54,9 +54,6 @@ def assert_warns(payload, expected):
     assert expected in context(out)
 
 
-# Actions and runners in YAML.
-
-
 @pytest.mark.parametrize(
     "line",
     [
@@ -95,9 +92,6 @@ def test_an_action_pin_outside_yaml_is_not_checked():
     assert_silent(write("docs/notes.txt", "uses: actions/checkout@v5\n"))
 
 
-# Images on :latest.
-
-
 @pytest.mark.parametrize(
     ("path", "line"),
     [
@@ -119,9 +113,6 @@ def test_a_pinned_image_is_silent():
 @pytest.mark.parametrize("path", ["README.md", "docs/GUIDE.mdx", "notes.txt"])
 def test_latest_in_prose_is_not_an_image(path):
     assert_silent(write(path, "Never pin `node:latest` in a Dockerfile.\n"))
-
-
-# Query strings in JPA code.
 
 
 @pytest.mark.parametrize(
@@ -149,9 +140,6 @@ def test_a_specification_is_silent():
     assert_silent(write("Repo.java", "Page<S> findAll(Specification<S> spec, Pageable pageable);\n"))
 
 
-# Divider banners in tests.
-
-
 @pytest.mark.parametrize(
     ("path", "line"),
     [
@@ -168,16 +156,13 @@ def test_a_divider_banner_in_a_test_warns(path, line):
     assert_warns(write(path, line + "\n"), "divider banner in a test")
 
 
-@pytest.mark.parametrize("line", ["    // given", "    // when & then", "    # then", "/**", " * Javadoc line"])
+@pytest.mark.parametrize("line", ["    // Given", "    // When & Then", "    # Then", "/**", " * Javadoc line"])
 def test_the_phase_markers_and_doc_comments_are_not_banners(line):
     assert_silent(write("src/test/java/FooTest.java", line + "\n"))
 
 
 def test_a_divider_banner_outside_a_test_file_is_not_reported_by_this_hook():
     assert_silent(write("src/main/java/com/acme/FooService.java", "    // ---- helpers ----\n"))
-
-
-# What counts as written text.
 
 
 def test_an_edit_reports_only_lines_it_introduced():
@@ -223,9 +208,6 @@ def test_many_findings_are_capped_with_a_count_of_the_rest():
     assert "and 5 more" in report
 
 
-# Everything else stays silent at exit 0.
-
-
 @pytest.mark.parametrize("fmt", ["plain", "codex", "copilot", ""], ids=["plain", "codex", "copilot", "empty"])
 def test_a_format_other_than_claude_reports_nothing(fmt):
     assert_silent(write("Dockerfile", "FROM node:latest\n"), fmt=fmt)
@@ -264,9 +246,6 @@ def test_an_unexpected_payload_reports_nothing(payload):
 
 def test_a_clean_write_reports_nothing():
     assert_silent(write("src/main/java/Foo.java", "class Foo {}\n"))
-
-
-# Wiring.
 
 
 def test_claude_code_runs_it_after_every_edit():

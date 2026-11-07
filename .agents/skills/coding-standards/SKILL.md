@@ -48,7 +48,7 @@ The shared floor every project stands on, stated without reference to a language
 6. Feature flags. Risky work goes behind a flag, not a long-lived branch. Each flag has an owner and a removal date, defaults to off, is read from configuration, is checked once at the feature edge, and is deleted once shipped.
 7. Architecture decision records. Record every significant design decision outside source files, using `architecture-decision-records`.
 8. Performance. Measure before optimising and fix the one real bottleneck, using `performance-optimization`.
-9. Test structure. Set up, one action, assert the outcome, named for behaviour and condition, with the bare given, when and then markers as the only comments, using `tdd-workflow`.
+9. Test structure. Set up, one action, assert the outcome, named for behaviour and condition, with the bare Given, When and Then markers as the only comments, using `tdd-workflow`.
 10. Code smells. Long functions, deep nesting, magic numbers and blocks that need a comment call for restructuring, not a comment.
 11. Size. A class, module, component or test file past about 300 lines does several jobs, so split it by responsibility.
 

@@ -46,7 +46,7 @@ Walk the diff once per section below that applies to the files it touches. A vio
 
 ### Tests
 
-- [ ] The only comments are the bare `// given`, `// when`, `// then` and `// when & then` markers, and meaning lives in the test name or `@DisplayName`. `tdd-workflow`
+- [ ] The only comments are the bare `// Given`, `// When`, `// Then` and `// When & Then` markers, and meaning lives in the test name or `@DisplayName`. `tdd-workflow`
 - [ ] Mockito subjects use `@ExtendWith(MockitoExtension.class)`, `@Mock` and `@InjectMocks` unless the constructor needs plain values such as a limit, a `Duration`, a `Set`, a `Clock` or a real `ObjectMapper`. `springboot-patterns`
 - [ ] Test helpers and fixtures use Lombok or records, not hand-written constructors and getters. `springboot-patterns`
 - [ ] No test class past about 300 lines: split by behaviour, sharing one `<Subject>TestFixtures`, and no `*BranchTest` beside its behaviour class. `tdd-workflow`

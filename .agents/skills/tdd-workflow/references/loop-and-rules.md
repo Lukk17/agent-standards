@@ -213,7 +213,7 @@ test('updates a user', () => {
 
 ### Test comments
 
-The three phases are marked with bare comments and nothing else: `// given`, `// when`, `// then`, or `// when & then` when the action and the assertion are one call, with `#` in Python. They are the only comments a test file carries. A divider banner (`// ---- helpers ----`, `// ─── MODULE MOCKS ───`), a numbered section label (`// 7.1 Directory listing happy path`), a file header saying what the file tests and how its environment is chosen, and a trailing explanation after an assertion all go. What a test proves belongs in its name, or in `@DisplayName` where the name alone cannot carry it, and grouping belongs in a nested class or a separate file.
+The three phases are marked with bare comments and nothing else: `// Given`, `// When`, `// Then`, or `// When & Then` when the action and the assertion are one call, with `#` in Python. They are the only comments a test file carries. A divider banner (`// ---- helpers ----`, `// ─── MODULE MOCKS ───`), a numbered section label (`// 7.1 Directory listing happy path`), a file header saying what the file tests and how its environment is chosen, and a trailing explanation after an assertion all go. What a test proves belongs in its name, or in `@DisplayName` where the name alone cannot carry it, and grouping belongs in a nested class or a separate file.
 
 Pass:
 
@@ -221,10 +221,10 @@ Pass:
 @Test
 @DisplayName("a note longer than the limit is rejected before the decision is stored")
 void decide_withOversizedNote_isRejected() {
-    // given
+    // Given
     var decision = decisionWithNoteOfLength(NOTE_LIMIT + 1);
 
-    // when & then
+    // When & Then
     assertThatThrownBy(() -> service.decide(decision)).isInstanceOf(NoteTooLongException.class);
     verifyNoInteractions(repository);
 }

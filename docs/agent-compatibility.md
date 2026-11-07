@@ -120,12 +120,12 @@ Each agent wires those scripts through its own hook surface, and the surfaces di
 
 The full event set per surface, beyond the gate itself:
 
-| Agent | Gate | Formatting check | Markdown lint | Task list |
-| --- | --- | --- | --- | --- |
-| Claude Code | `SessionStart`, `UserPromptSubmit`, `SubagentStart`, `PreToolUse` | `MessageDisplay`, `Stop` | `PostToolUse`, matcher `^(Edit\|Write\|MultiEdit)$` | `TaskCreated`, `TaskUpdated`, `TaskCompleted`, `SessionStart`, `PreCompact`, `Stop` |
-| Codex | `UserPromptSubmit`, `SubagentStart`, `PreToolUse` | `Stop` | not wired, no matching event | `SessionStart` |
-| OpenCode and Kilo Code | `tool.execute.before` | same event, the runner passes every hook, plus `experimental.text.complete` | same event | same event |
-| GitHub Copilot | `sessionStart`, `subagentStart`, `userPromptTransformed`, `preToolUse` | `agentStop` | not wired | `sessionStart` |
+| Agent | Gate | Formatting check | Markdown lint | Standards advisory | Task list |
+| --- | --- | --- | --- | --- | --- |
+| Claude Code | `SessionStart`, `UserPromptSubmit`, `SubagentStart`, `PreToolUse` | `MessageDisplay`, `Stop` | `PostToolUse`, matcher `^(Edit\|Write\|MultiEdit)$` | `PostToolUse`, same matcher, beside the markdown lint | `TaskCreated`, `TaskUpdated`, `TaskCompleted`, `SessionStart`, `PreCompact`, `Stop` |
+| Codex | `UserPromptSubmit`, `SubagentStart`, `PreToolUse` | `Stop` | not wired, `PostToolUse` sends an edit as `apply_patch` patch text | not wired, same reason | `SessionStart` |
+| OpenCode and Kilo Code | `tool.execute.before` | same event, the runner passes every hook, plus `experimental.text.complete` | same event | not wired, the runner never starts `hooks/claude/` | same event |
+| GitHub Copilot | `sessionStart`, `subagentStart`, `userPromptTransformed`, `preToolUse` | `agentStop` | not wired | not wired | `sessionStart` |
 
 The gate's tool matcher per wiring is `^(Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|WebFetch|WebSearch)$` on
 Claude Code, `^(Bash|shell|apply_patch|Edit|Write|NotebookEdit)$` on Codex, and

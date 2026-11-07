@@ -233,7 +233,7 @@ treatment lives in `performance-optimization`.
 
 ### Test structure
 
-Every test sets up state, performs one action, then asserts the observable outcome. The phases are marked with the bare `// given`, `// when` and `// then` comments, or `// when & then` where the action is the assertion, and those markers are the only comments a test carries. Name a
+Every test sets up state, performs one action, then asserts the observable outcome. The phases are marked with the bare `// Given`, `// When` and `// Then` comments, or `// When & Then` where the action is the assertion, and those markers are the only comments a test carries. Name a
 test for the behaviour and the condition, so a failure report reads as a sentence. Worked examples, test isolation and
 the two naming forms are in `tdd-workflow`, and the per-language mechanics in `python-patterns`, `golang-patterns` and
 `springboot-patterns`.

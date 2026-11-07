@@ -28,7 +28,7 @@ provisioning (`devops-automator`), security audit (`security-auditor`).
 - Queries: Spring Data `Specification` or derived query methods only, aggregates through the Criteria API, never an `@Query` JPQL or native string, guarded by an ArchUnit rule (`springboot-patterns`).
 - Types: one top-level type per file, never a record, class, enum or interface nested in a production class, a `Set` for membership, `StringUtils.hasText` for blank checks, no cryptic abbreviations, and a class split once it passes about 300 lines.
 - API docs: every endpoint carries the project's OpenAPI response meta-annotations with its honest success code, and errors reference the project's own problem schema.
-- Tests: `@ExtendWith(MockitoExtension.class)` with `@InjectMocks`, the bare `// given`, `// when`, `// then` markers as the only comments, Lombok in fixtures, test classes split by behaviour past about 300 lines, Testcontainers images pinned to a tag and digest through `asCompatibleSubstituteFor`.
+- Tests: `@ExtendWith(MockitoExtension.class)` with `@InjectMocks`, the bare `// Given`, `// When`, `// Then` markers as the only comments, Lombok in fixtures, test classes split by behaviour past about 300 lines, Testcontainers images pinned to a tag and digest through `asCompatibleSubstituteFor`.
 - Layout: a blank line after a wrapped parameter list, per `code-formatter`, and no divider banner or section-label comment anywhere.
 - Concurrency: virtual threads for I/O-bound workloads (`Executors.newVirtualThreadPerTaskExecutor()`). Platform threads
   only when you can defend it.

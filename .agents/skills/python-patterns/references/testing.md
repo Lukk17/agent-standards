@@ -52,20 +52,20 @@ not been seen to fail for the right reason.
 
 ### Give each test one behaviour and three phases
 
-Every test sets up state, performs one action, then asserts the observable outcome. The phases are marked with the bare `# given`, `# when` and `# then` comments, or `# when & then` when the action is the assertion, and those markers are the only comments a test carries, per `tdd-workflow`.
+Every test sets up state, performs one action, then asserts the observable outcome. The phases are marked with the bare `# Given`, `# When` and `# Then` comments, or `# When & Then` when the action is the assertion, and those markers are the only comments a test carries, per `tdd-workflow`.
 
 Pass:
 
 ```python
 def test_apply_discount_reduces_total():
-    # given
+    # Given
     cart = Cart(items=[Item("book", 20.0), Item("pen", 5.0)])
     coupon = Coupon(percent=10)
 
-    # when
+    # When
     total = cart.apply(coupon)
 
-    # then
+    # Then
     assert total == 22.5
 ```
 

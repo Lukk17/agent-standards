@@ -52,25 +52,25 @@ class MarketServiceTest {
 
   @Test
   void create_withValidRequest_savesMarket() {
-    // given
+    // Given
     CreateMarketRequest request = new CreateMarketRequest("name", "desc", Instant.now(), List.of("cat"));
     when(repo.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-    // when
+    // When
     Market result = service.create(request);
 
-    // then
+    // Then
     assertThat(result.name()).isEqualTo("name");
     verify(repo).save(any());
   }
 
   @Test
   void create_whenRepositoryFails_propagatesException() {
-    // given
+    // Given
     CreateMarketRequest request = new CreateMarketRequest("name", "desc", Instant.now(), List.of("cat"));
     when(repo.save(any())).thenThrow(new DataAccessResourceFailureException("db down"));
 
-    // when & then
+    // When & Then
     assertThatThrownBy(() -> service.create(request))
         .isInstanceOf(DataAccessResourceFailureException.class);
     verify(repo).save(any());
@@ -78,14 +78,14 @@ class MarketServiceTest {
 
   @Test
   void create_withEmptyCategories_stillCreatesMarket() {
-    // given
+    // Given
     CreateMarketRequest request = new CreateMarketRequest("name", "desc", Instant.now(), List.of());
     when(repo.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-    // when
+    // When
     Market result = service.create(request);
 
-    // then
+    // Then
     assertThat(result.categories()).isEmpty();
   }
 }
@@ -95,7 +95,7 @@ Pass: setup, action, and assertion in every test body, one behaviour per test, `
 
 Fail: a partial mock of the class under test, or a test that asserts nothing beyond "no exception was thrown".
 
-The phases are marked with the bare `// given`, `// when` and `// then` comments, or `// when & then` when the action is the assertion, and nothing else is a comment in a test, per the test comment rule in `tdd-workflow`.
+The phases are marked with the bare `// Given`, `// When` and `// Then` comments, or `// When & Then` when the action is the assertion, and nothing else is a comment in a test, per the test comment rule in `tdd-workflow`.
 
 ---
 
@@ -333,7 +333,7 @@ The pipeline that runs this suite alongside the build, static analysis, and scan
 - [ ] Error and edge cases are covered, not just the happy path.
 - [ ] Mocked Spring beans use `@MockitoBean` or `@MockitoSpyBean`, never the removed `@MockBean` or `@SpyBean`.
 - [ ] Unit tests build the subject with `@InjectMocks` unless its constructor needs plain values.
-- [ ] No comment in a test but the bare given, when and then markers, and no test class past about 300 lines.
+- [ ] No comment in a test but the bare Given, When and Then markers, and no test class past about 300 lines.
 - [ ] Test fixtures use Lombok or records rather than hand-written boilerplate.
 - [ ] Every Testcontainers image is pinned to a version tag and a digest through `asCompatibleSubstituteFor`, LocalStack to an exact tag only.
 - [ ] Slices are used where they fit, and `@SpringBootTest` only where the wiring is the subject.

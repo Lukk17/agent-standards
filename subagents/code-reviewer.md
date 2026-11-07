@@ -41,7 +41,7 @@ it before the change ships. A finding in one of those four areas is never closed
    APIs documented.
 8. Duplication. Apply `review-duplication` to flag reinvention of existing project utilities.
 9. Standards. Run the standards checklist the `code-reviewer` skill links from its Standards checklist section over every section the diff touches, and report every instance, not the first. At minimum:
-   - Comments: no divider banners, section labels, file-header or long comment blocks. Tests carry only the bare `// given`, `// when`, `// then` and `// when & then` markers.
+   - Comments: no divider banners, section labels, file-header or long comment blocks. Tests carry only the bare `// Given`, `// When`, `// Then` and `// When & Then` markers.
    - Size and names: nothing past about 300 lines, no cryptic abbreviations, descriptive type parameters.
    - Java: no tunable literal or constant (cron, delay, limit, bucket, origin, business maximum) outside validated `@ConfigurationProperties`, no `@Query` string, no nested production types, OpenAPI response meta-annotations with honest codes and the project problem schema, a blank line after a wrapped signature, `Set` for membership, `StringUtils.hasText`.
    - Tests: `@InjectMocks` where the constructor allows, Lombok fixtures, split test classes, digest-pinned Testcontainers with `asCompatibleSubstituteFor`, LocalStack by tag only.

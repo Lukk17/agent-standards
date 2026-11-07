@@ -199,7 +199,7 @@ def _findings_for_line(line: str, path: PurePath) -> List[str]:
 
     if suffix not in PROSE_SUFFIXES and _is_test_file(path) and DIVIDER_BANNER.match(line):
         found.append(
-            "divider banner in a test; the only test comments are `// given`, `// when`, `// then` (tdd-workflow)"
+            "divider banner in a test; the only test comments are `// Given`, `// When`, `// Then` (tdd-workflow)"
         )
 
     return found

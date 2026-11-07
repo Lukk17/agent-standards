@@ -77,7 +77,7 @@ Every review also runs [standards-checklist.md](references/standards-checklist.m
 
 - Comments and size: no divider banners, section labels or long comment blocks, nothing past about 300 lines, no cryptic names.
 - Java and Spring: no tunable in code, no `@Query` string, no nested types, OpenAPI meta-annotations with honest codes, a blank line after a wrapped signature, `Set` for membership, `StringUtils.hasText`.
-- Tests: only given, when and then markers, `@InjectMocks`, Lombok fixtures, split classes, digest-pinned Testcontainers.
+- Tests: only Given, When and Then markers, `@InjectMocks`, Lombok fixtures, split classes, digest-pinned Testcontainers.
 - Web: every string in the catalogues, English identifiers, no locale literal.
 - CI and repository: actions pinned to a SHA with `# vX.Y.Z`, no `-latest` runner or `:latest` image, no bump bots, no scratch documents, generated files marked.
 
