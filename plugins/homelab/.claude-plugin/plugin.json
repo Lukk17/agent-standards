@@ -1,6 +1,6 @@
 {
   "name": "homelab",
-  "version": "e3e932aafc3a",
+  "version": "c6e5cbb7b510",
   "description": "Homelab hosts and services, with the home-assistant-engineer subagent and the Proxmox, router, Syncthing, Samsung TV, WLED and machine health skills. Off until you enable it.",
   "author": {
     "name": "Łukasz Sarna",
