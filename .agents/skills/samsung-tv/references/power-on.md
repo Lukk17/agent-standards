@@ -1,8 +1,8 @@
 # Turning the TV on
 
-Read this before wiring turn on, or when the TV entity offers no turn on. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were read in the source, the pull request or the vendor page named, or measured on a 2024 QN85D in the Polish region.
+Read this before wiring turn on, when the TV entity offers no turn on, or when the magic packet does not wake the TV. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were read in the source, the pull request or the vendor page named, or measured on a 2024 QN85D in the Polish region, the wake tests on 2026-11-06 with Home Assistant 2026.10.4.
 
-Sources: Home Assistant core pull request 182771 at https://github.com/home-assistant/core/pull/182771, `homeassistant/components/samsungtv/media_player.py` at https://github.com/home-assistant/core/blob/dev/homeassistant/components/samsungtv/media_player.py, the Wake on LAN integration at https://www.home-assistant.io/integrations/wake_on_lan/, and Samsung's page at https://www.samsung.com/au/support/tv-audio-video/power-on-tv-smartthings-app/.
+Sources: Home Assistant core pull request 182771 at https://github.com/home-assistant/core/pull/182771, `homeassistant/components/samsungtv/media_player.py` at https://github.com/home-assistant/core/blob/dev/homeassistant/components/samsungtv/media_player.py, the Wake on LAN integration at https://www.home-assistant.io/integrations/wake_on_lan/, the RESTful Command page at https://www.home-assistant.io/integrations/rest_command/, and Samsung's page at https://www.samsung.com/au/support/tv-audio-video/power-on-tv-smartthings-app/.
 
 ---
 
@@ -16,12 +16,31 @@ The `samsungtv` documentation page still says "If the integration knows the MAC 
 
 ---
 
+### What wakes the TV
+
+With the TV in `PowerState` `standby`, the screen off and the network still up, two broadcast magic packets and one unicast packet did not wake it within 30 seconds. One `KEY_POWER` sent with `remote.send_command` on the `samsungtv` remote entity woke it within 5 seconds. VERIFIED, both measured on a QN85D.
+
+`KEY_POWER` is a toggle, so the same key turns an on TV off. VERIFIED. Read `PowerState` first, see [tv-rest-api.md](tv-rest-api.md#device-info), and send the key only on `standby`.
+
+The key cannot reach a TV that does not answer at all, fully off with its network down, because the websocket needs the network. INFERRED, high confidence. Whether the magic packet wakes a TV from such a deeper sleep is UNVERIFIED.
+
+---
+
 ### The automation
 
-The Wake on LAN integration has to be set up first. Then the automation, from the device page (Device is requested to turn on) or in YAML:
+The Wake on LAN integration has to be set up first. Then a `rest_command` that reads the device info, set up in YAML in `configuration.yaml` like the launch command in [home-assistant-control.md](home-assistant-control.md#launch-an-app):
 
 ```yaml
-alias: "TV turn on with Wake on LAN"
+rest_command:
+  tv_device_info:
+    url: "http://<tv-ip>:8001/api/v2/"
+    timeout: 5
+```
+
+Then the automation, from the device page (Device is requested to turn on) or in YAML. It sends the magic packet for the deeper sleep case, then the key only when the TV reports `standby`:
+
+```yaml
+alias: "TV turn on"
 mode: single
 triggers:
   - trigger: samsungtv.turn_on
@@ -30,7 +49,24 @@ actions:
   - action: wake_on_lan.send_magic_packet
     data:
       mac: "<tv-mac>"
+  - action: rest_command.tv_device_info
+    response_variable: info
+  - variables:
+      power_state: >-
+        {% set body = info['content'] %}
+        {{ (body if body is mapping else body | from_json)['device']['PowerState'] }}
+  - if:
+      - condition: template
+        value_template: "{{ power_state == 'standby' }}"
+    then:
+      - action: remote.send_command
+        target:
+          entity_id: <tv-remote-entity>
+        data:
+          command: KEY_POWER
 ```
+
+`content` holds the parsed JSON only when the TV sends the `application/json` content type, and text otherwise, VERIFIED in `homeassistant/components/rest_command/__init__.py` at tag 2026.10.4, so the template parses text with `from_json`. Which content type the TV sends is UNVERIFIED. When the TV does not answer, the `rest_command` raises an error, VERIFIED in the same source, so the run stops before the key. The automation as a whole is UNVERIFIED until it was run once with the owner's yes, in standby and with the TV on.
 
 Read `<tv-mac>` from `wifiMac` in the device info, see [tv-rest-api.md](tv-rest-api.md). After the automation is saved, the entity shows turn on again.
 
@@ -44,7 +80,7 @@ Samsung's page for 2022 to 2026 TVs names the setting: Settings > All Settings >
 
 ### Wired or wireless
 
-Read `networkType` before relying on the magic packet. Wake on LAN is reliable on Ethernet and uncertain on Wi-Fi, UNVERIFIED, from community reports only. On Wi-Fi, test it once with the owner's yes while the TV has been in standby for a while, and record the result.
+Read `networkType` before relying on the magic packet, and record it with every wake result. That Wake on LAN is reliable on Ethernet and uncertain on Wi-Fi is UNVERIFIED, from community reports only, and from standby it did not wake a QN85D at all, see [What wakes the TV](#what-wakes-the-tv). On Wi-Fi, test it once with the owner's yes while the TV has been in standby for a while, and record the result.
 
 ---
 
