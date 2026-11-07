@@ -483,7 +483,10 @@ MAIN_THREAD_ALLOWLIST = (
 # applies to a command that changes directory, so a `cd` cannot make it name
 # a different file. A trailing ANY_ARGUMENTS accepts any
 # further arguments, and without it the command has to end where the entry
-# ends. It sits at
+# ends. Those arguments include a tool's own options, such as -C, -f,
+# --prefix or --manifest-path, which can point the run at another folder or
+# file: an accepted limit, listed under "What the gate cannot place" in
+# docs/agent-compatibility.md. It sits at
 # the root rather than under .agents/, which consumers import whole, so an
 # import neither ships one project's entries nor overwrites another's. The main
 # thread cannot write it, because Rule A protects it like any project file.
@@ -1179,7 +1182,8 @@ _DIRECTORY_CHANGE_TOKEN_SPLIT_RE = re.compile(r"\$\(|[\s;&|(){}`=,\x1f]+")
 # Spellings that change directory inside code or a program of their own:
 # os.chdir and its kin in every language that names it chdir, R's setwd, the
 # .NET current directory, the PowerShell cmdlets under a module prefix, a
-# -WorkingDirectory, and find -execdir and -okdir.
+# -WorkingDirectory, the SessionState path methods SetLocation,
+# PushCurrentLocation and PopLocation, and find -execdir and -okdir.
 _DIRECTORY_CHANGE_FRAGMENTS = (
     "chdir",
     "setwd",
@@ -1188,9 +1192,21 @@ _DIRECTORY_CHANGE_FRAGMENTS = (
     "set-location",
     "push-location",
     "pop-location",
+    "setlocation",
+    "pushcurrentlocation",
+    "poplocation",
     "execdir",
     "okdir",
 )
+
+# Programs that only print their operands. A changer an operand names is
+# text, as in `echo 'cd docs first' >> tasks.md`, and is read as code only
+# where the printed text reaches a shell, which the gate reads there.
+_PRINTERS = frozenset({"echo", "printf", "write-output", "write-host"})
+
+# PowerShell commands that bind a name to any command, so a later word may run
+# Set-Location under a name the gate cannot know.
+_PS_ALIAS_SETTERS = frozenset({"set-alias", "new-alias", "sal", "nal"})
 
 
 class _ShellParseError(Exception):
@@ -2032,7 +2048,7 @@ def _lex(command: str, dialect: str = _POSIX) -> List[ShellSegment]:
             continue
 
         if char in "()":
-            if char == "(" and powershell and (argv or started):
+            if char == "(" and powershell and (argv or started or called):
                 flush()
                 argv.append(_SUBEXPRESSION)
 
@@ -5366,8 +5382,14 @@ def _child_shell_targets(code: str, depth: int, dialect: str, directory: str = "
 
 
 def _is_computed_name(word: str) -> bool:
-    """True for a program name that is a variable or a subexpression, which the gate cannot know until the shell runs."""
-    return word.startswith(("$", "`")) or word == _SUBEXPRESSION
+    """True for a program name holding anything a shell expands first, which the gate cannot know until the shell runs.
+
+    That is a `$` or a backtick anywhere in the word, as in `c${U}d`, a
+    subexpression, and every POSIX, PowerShell or cmd expansion
+    _has_expansion knows, such as `{a,b}`, `%X%` and `!X!`. Glob characters do
+    not count, because `[` is test.
+    """
+    return "$" in word or "`" in word or _has_expansion(word) or _has_expansion(word, powershell=True)
 
 
 def _runs_a_computed_program(code: str, dialect: str) -> bool:
@@ -5390,6 +5412,38 @@ def _evaluated_targets(code: str, depth: int, dialect: str) -> List[str]:
             targets.append(_UNPLACEABLE_SHELL_TARGET)
     except _ShellParseError:
         return [_UNPLACEABLE_SHELL_TARGET]
+
+    return targets
+
+
+def _trap_targets(rest: List[str], depth: int, dialect: str) -> List[str]:
+    """What a trap action writes when its condition fires, read like eval code.
+
+    The action is the first operand when a condition follows it. An empty
+    action or `-` sets no code, and an option such as `-p` or `-l` lists.
+    """
+    operands = rest[1:]
+
+    if operands[:1] == ["--"]:
+        operands = operands[1:]
+    elif operands[:1] and operands[0].startswith("-") and operands[0] != "-":
+        return []
+
+    if len(operands) < 2 or operands[0] in ("", "-"):
+        return []
+
+    return _evaluated_targets(operands[0], depth, dialect)
+
+
+def _alias_targets(rest: List[str], depth: int, dialect: str) -> List[str]:
+    """What the value of each `alias name=value` writes, read like eval code, since a later word may run it."""
+    targets: List[str] = []
+
+    for operand in rest[1:]:
+        name, assigns, value = operand.partition("=")
+
+        if assigns and name and not name.startswith("-"):
+            targets += _evaluated_targets(value, depth, dialect)
 
     return targets
 
@@ -5434,6 +5488,16 @@ def _code_runner_targets(
 
     if dialect == _POSIX and name == "eval":
         return _evaluated_targets(" ".join(rest[1:]), depth, dialect)
+
+    if dialect == _POSIX and name == "trap":
+        return _trap_targets(rest, depth, dialect)
+
+    if dialect == _POSIX and name == "alias":
+        return _alias_targets(rest, depth, dialect)
+
+    if dialect == _POWERSHELL and name in _PS_ALIAS_SETTERS:
+        _note_directory_change()
+        return []
 
     # fish, csh, tcsh, nu and Tcl code is not read, so inline or piped code
     # for them is unplaceable. A script they run is Rule D's.
@@ -7626,7 +7690,7 @@ def _segment_targets(
     if depth > _MAX_NESTING:
         return [_UNPLACEABLE_SHELL_TARGET]
 
-    if _names_a_directory_change(tokens):
+    if _may_change_directory(tokens, dialect):
         _note_directory_change()
 
     stripped = _strip_wrappers(tokens, dialect)
@@ -7957,6 +8021,25 @@ def _note_directory_change() -> None:
     _CHANGES_DIRECTORY = True
 
 
+def _may_change_directory(tokens: List[str], dialect: str) -> bool:
+    """True when a command's words name a directory change, leaving out the operands of a printer.
+
+    A printer reached past its wrappers, and not run by xargs, only prints
+    its operands, so only the words up to the printer itself are scanned.
+    Printed text that becomes code is read where it does: piped into a
+    shell, inside a substitution, or evaluated.
+    """
+    stripped = _strip_wrappers(tokens, dialect)
+
+    if stripped is not None and stripped.argv and not stripped.xargs and _program_name(stripped.argv[0]) in _PRINTERS:
+        operands = len(stripped.argv) - 1
+
+        if operands and tokens[-operands:] == stripped.argv[1:]:
+            return _names_a_directory_change(tokens[:-operands])
+
+    return _names_a_directory_change(tokens)
+
+
 def _names_a_directory_change(words: List[str]) -> bool:
     """True when any word holds a directory changer as a whole token, or a fragment that changes directory in code."""
     for word in words:
@@ -7997,14 +8080,15 @@ def _command_targets(command: str, depth: int = 0, dialect: str = _POSIX) -> Lis
 
         argv = list(segment.argv)
 
-        if _names_a_directory_change(argv):
-            _note_directory_change()
-
         # A directory change writes nothing itself. A statement opening with
         # a quoted string is a value PowerShell writes to its output, as in
         # [IO.File]::ReadAllText('a/b.py'), and runs nothing. The .NET scan
-        # above reads the call itself.
+        # above reads the call itself. Every other segment has its words
+        # scanned for a directory change in _segment_targets.
         if _program_name(argv[0]) in _DIRECTORY_CHANGERS or segment.expression:
+            if _may_change_directory(argv, dialect):
+                _note_directory_change()
+
             continue
 
         feed = functools.partial(_stdin_of, segments, position, dialect)

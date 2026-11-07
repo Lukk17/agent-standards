@@ -1613,7 +1613,9 @@ How a project entry is matched:
   it names a file instead, and matches only that file, so `.venv/Scripts/python.exe -m pytest` needs its own entry,
   and an entry `scripts/verify.sh` does not allow `other/verify.sh`.
 - A trailing `...` accepts any further arguments. Without it the command has to end where the entry ends, so an
-  entry `python scripts/verify.py` allows that command and denies `python scripts/verify.py --fix`.
+  entry `python scripts/verify.py` allows that command and denies `python scripts/verify.py --fix`. The further
+  arguments include the tool's own options, such as `-C`, `-f`, `--prefix` or `--manifest-path`, which can point the
+  run at another folder or file, so end an entry with `...` only where every option the tool takes is safe.
 - A word with a slash in it is a file path, and it matches the file it names from the folder the command starts in.
   When the gate cannot tell which of two folders that is, it has to name that file from both.
 - An allowlisted command must run without changing directory. An entry, the built-in ones included, applies only to a

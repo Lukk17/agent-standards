@@ -400,12 +400,17 @@ target unplaceable, which denies, and no allowlist entry applies to it, while an
 covers `cd`, `chdir`, `pushd`, `popd`, `Set-Location`, `Push-Location`, `Pop-Location`, `sl`, PowerShell's `cd..`
 and every other spelling of them, wherever it sits: behind a keyword such as `if`, `then`, `do`, `{`, `!` or `time`,
 behind a wrapper such as `command`, `builtin`, `exec` or `env`, inside a function, a loop, a subshell, a pipeline
-stage, a background job, a `trap` or an alias value, and in code the gate reads from `bash -c`, `pwsh -Command`, a
-sourced file or a heredoc. A program's own directory option counts too (`env --chdir`, `sudo --chdir`,
-`pwsh -WorkingDirectory`, `Start-Process -WorkingDirectory`, cmd `start /d`, `wsl --cd`, `find -execdir`), and so do
-`chdir` and `setwd` in inline code, the .NET current directory in PowerShell, and a program name the shell computes,
-such as `$X`, which may be `cd`. The names are matched as whole tokens of any word, so a word that only mentions one counts as well:
-`echo 'cd docs first' >> tasks.md` denies, and the task list is written by its absolute path instead. A bare
+stage, a background job, a `trap` action or an alias value, both read like `eval` code, and in code the gate reads
+from `bash -c`, `pwsh -Command`, a heredoc or a sourced file as it reads when the hook runs. A program's own directory
+option counts too (`env --chdir`, `sudo --chdir`, `pwsh -WorkingDirectory`, `Start-Process -WorkingDirectory`, cmd
+`start /d`, `wsl --cd`, `find -execdir`), and so do `chdir` and `setwd` in inline code, the .NET current directory and
+the `SessionState.Path` methods `SetLocation`, `PushCurrentLocation` and `PopLocation` in PowerShell, any PowerShell
+`Set-Alias` or `New-Alias`, and a program name the shell computes, which may be `cd`. A program name is computed when
+it holds a `$` or a backtick anywhere, as in `$X`, `c${U}d` or `c$(printf d)`, or a brace expansion, a cmd `%X%` or
+`!X!`, or when PowerShell's call operator runs an expression, as in `& ('c'+'d')`. Glob characters do not count,
+because `[` is `test`. The names are matched as whole tokens of any word, so a word that only mentions one counts as
+well, except an operand of `echo`, `printf`, `Write-Output` or `Write-Host`, which only prints:
+`echo 'cd docs first' >> tasks.md` allows, while `echo 'cd /tmp' | sh` is read as the shell code it becomes. A bare
 `git checkout main` after a `cd` denies too, because the gate can no longer tell a branch from a file in the folder
 the shell stands in. A command that writes nothing relative keeps working, so `cd docs && ls`,
 `cd docs && cat README.md | head` and `cd /tmp && echo x > /tmp/out.txt` stay allowed.
@@ -428,8 +433,8 @@ The payload `cwd` widens the write rule and never an allow decision, because Cod
 main thread chose. It is a root a write may not land in and a folder the command may start in, but the allowlist, the
 built-in pytest check's test paths and an allowlisted path entry are trusted only from the gate's working directory and
 its install root, every folder the command can start in has to sit inside one of those, an allowlisted path has to
-name the same file from each of them, and a file run with `source` or `.` is read from each of them and is
-unplaceable when two copies differ.
+name the same file from each of them, and a file run with `source` or `.` is read from each of them, as it stands
+when the hook runs, and is unplaceable when two copies differ.
 
 Deleting, moving, or renaming the repository root or any directory above it counts as a write inside it, so
 `rm -rf ..`, `rm -rf ~`, `Remove-Item -Recurse` or `rmdir /s` on a parent, and `mv` or `Move-Item` of a parent are
@@ -628,6 +633,17 @@ its own passes, as in `xargs -a list.txt rm`, because the gate does not read tha
 operand (the same names piped in, as in `cat list.txt | xargs rm`, still deny, and Rule F holds an `xargs` that reads
 its names from the terminal, a bare `xargs rm` and `xargs rm < list.txt` among them), an alias, a function or a shell option from the user's own profile that changes directory under a name the gate does not know passes as no directory change, because the gate never sees the profile, and the `tasks.md` exemption holds at every root, so a call whose `cwd`
 names a project subfolder, as a Codex `workdir` does from `rust-v0.166.0`, may write `tasks.md` in that subfolder. Re-audit only when the rule changes, and record a new limit here rather than chasing it.
+
+These readings of a directory change and of the allowlist are accepted limits too, one per line:
+
+- A sourced or fed script file is read as it is when the hook runs, so a command that rewrites it first, as in `cp /tmp/e.sh /tmp/x.sh; . /tmp/x.sh`, hides its writes and directory changes, and so do `cat f | sh`, `sed -f` and `awk -f`.
+- An allowlist entry ending in `...` also accepts tool options such as `-C`, `-f`, `--prefix` and `--manifest-path`, which can point the run at another folder or file.
+- A glob program word such as `c?` or `[c]d` becomes `cd` only when a matching file exists, and the gate reads it as an ordinary program.
+- A function or an alias from the user's own shell snapshot runs under a name the gate reads as an ordinary program, so a directory change inside it passes.
+- zsh `AUTO_CD` turns a bare folder name into a `cd`, and the gate reads that name as an ordinary program.
+- `unshare --wd` and `nsenter --wd` start their program in another folder, and the gate reads that program's code from the folder the command starts in.
+- `enable -f` loads a bash builtin from a shared object, which may change directory or write under any name.
+- PowerShell `Import-Alias` binds names from a file the gate does not read, so a later word may run `Set-Location`.
 
 Rule F also reads these forms as handed their input, each an accepted limit:
 

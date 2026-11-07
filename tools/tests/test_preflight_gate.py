@@ -2121,7 +2121,10 @@ def test_a_relative_cd_in_a_session_started_below_the_root_still_denies(tmp_path
 # to the project's AGENTS.md, {home} the same path from the home directory,
 # {up} one that reaches AGENTS.md only from the project's parent,
 # {root_glob} the project root spelled with a wildcard, and {parent} and
-# {name} the project's parent folder and its own name.
+# {name} the project's parent folder and its own name. A case whose folder the
+# lexer reads as a command of its own, after an unquoted `c$(...)` or a
+# PowerShell call on an expression, names `docs` and `../AGENTS.md` instead,
+# because an absolute folder there is a script run and denies on that alone.
 DIRECTORY_CHANGE_CASES = {
     "cd-dash": ("cd {out}; cd -; echo x > AGENTS.md", "Bash"),
     "cd-to-command-output": ('cd "$(echo {out})"; echo x > {back}', "Bash"),
@@ -2196,6 +2199,28 @@ DIRECTORY_CHANGE_CASES = {
     "exported-cdpath": ("export CDPATH={parent}; cd {out}; cd {name}; echo x > AGENTS.md", "Bash"),
     "back-to-a-subfolder": ("cd docs; cd {out}; cd -; echo x > ../AGENTS.md", "Bash"),
     "set-location-plus": ("Set-Location {out}; Set-Location -; Set-Location +; Set-Content AGENTS.md x", "PowerShell"),
+    "computed-cd-from-a-parameter": ("c${{U}}d {out} && printf x > {back}", "Bash"),
+    "computed-cd-from-command-output": ("c$(printf d) docs && rm -rf ../.agents", "Bash"),
+    "computed-cd-from-backticks": ("c`printf d` {out} && rm -rf {back}", "Bash"),
+    "computed-cd-from-an-empty-substitution": ('"c$()d" {out}; printf x > {back}', "Bash"),
+    "computed-cd-from-a-quoted-substitution": ('"c$(true)d" {out}; printf x > {back}', "Bash"),
+    "computed-cd-then-the-task-list": ("c${{U}}d {out}; printf x >> tasks.md", "Bash"),
+    "computed-cd-in-eval": ("eval 'c${{U}}d {out}'; printf x > {back}", "Bash"),
+    "session-state-set-location": (
+        "[void]$ExecutionContext.SessionState.Path.SetLocation('{out}'); Set-Content {back} x",
+        "PowerShell",
+    ),
+    "session-state-from-get-variable": (
+        "(Get-Variable ExecutionContext -ValueOnly).SessionState.Path.SetLocation('{out}'); Set-Content {back} x",
+        "PowerShell",
+    ),
+    "call-operator-on-an-expression": ("& ('c'+'d') docs; Set-Content ../AGENTS.md x", "PowerShell"),
+    "call-operator-on-an-attached-expression": ("&('c'+'d') docs; Set-Content ../AGENTS.md x", "PowerShell"),
+    "call-operator-on-a-computed-string": ('& "c$()d" {out}; Set-Content {back} x', "PowerShell"),
+    "computed-cd-in-a-trap": ("trap 'c${{U}}d {out}' DEBUG; printf x > {back}", "Bash"),
+    "computed-trap-action": ("trap \"$(printf 'c%sd {out}' '')\" DEBUG; printf x > {back}", "Bash"),
+    "computed-cd-through-an-alias": ("alias x='c${{U}}d'\nx {out}\nprintf x > {back}", "Bash"),
+    "set-alias-to-a-computed-name": ("Set-Alias x ('Set-Loc'+'ation'); x {out}; Set-Content {back} y", "PowerShell"),
 }
 
 
@@ -2227,6 +2252,69 @@ def test_any_directory_change_makes_a_relative_write_unplaceable(tmp_path, templ
 
     # When/Then the gate does not guess where the shell stands, so the write denies
     assert decision(shell(command, tool=tool)) == "deny"
+
+
+def test_trap_code_is_read_for_its_writes():
+    # Given a trap whose code writes a project file when the shell exits
+    payload = shell("trap 'printf x > AGENTS.md' EXIT")
+
+    # When/Then the action is read like eval code, so the write denies
+    assert decision(payload) == "deny"
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["trap '' INT; printf a >> tasks.md", "trap - EXIT; printf a >> tasks.md", "trap 'rm -f /tmp/x' EXIT", "trap -p EXIT"],
+)
+def test_a_trap_that_writes_nothing_inside_stays_allowed(command):
+    assert decision(shell(command)) == "allow"
+
+
+@pytest.mark.parametrize(
+    "command,tool",
+    [
+        ("echo 'cd docs first' >> tasks.md", "Bash"),
+        ("echo '- [ ] fix CI/CD' >> tasks.md", "Bash"),
+        ("printf '%s\\n' 'run os.chdir later' >> tasks.md", "Bash"),
+        ("sudo echo 'pushd and popd' >> tasks.md", "Bash"),
+        ("Write-Output 'Set-Location docs' >> tasks.md", "PowerShell"),
+        ("Write-Host 'cd docs'", "PowerShell"),
+        ("[ -f tasks.md ] && printf a >> tasks.md", "Bash"),
+    ],
+)
+def test_printed_text_that_names_a_directory_change_is_not_one(command, tool):
+    # Given a printer whose operands only mention a changer, or a glob-like
+    # program word such as `[` that is test
+
+    # When/Then the task list is still exempt
+    assert decision(shell(command, tool=tool)) == "allow"
+
+
+@pytest.mark.parametrize(
+    "template",
+    [
+        "echo 'cd {out}' | sh; echo x > {back}",
+        "echo $(cd {out}); echo x > {back}",
+        'eval "$(echo cd {out})"; echo x > {back}',
+        "printf x | xargs -I{{}} echo cd {out}; echo x > {back}",
+    ],
+)
+def test_printed_text_that_becomes_code_is_still_read(tmp_path, template):
+    # Given printed text that a shell then runs, or a cd outside the printer
+    command = directory_change_command(template, Path(tmp_path.anchor, tmp_path.parts[1]))
+
+    # When/Then
+    assert decision(shell(command)) == "deny"
+
+
+@pytest.mark.parametrize("program", ["unshare", "nsenter"])
+def test_a_working_directory_option_of_unshare_or_nsenter_is_an_accepted_limit(tmp_path, program):
+    # Given a program whose --wd option moves the code it runs, which the gate does not read
+    command = directory_change_command(program + " --wd={out} sh -c 'echo x > {back}'", Path(tmp_path.anchor, tmp_path.parts[1]))
+
+    # When/Then the code is read from the project root, so the write passes, as
+    # "What the gate cannot place" in docs/agent-compatibility.md records
+    assert decision(shell(command)) == "allow"
 
 
 def test_a_cd_in_a_sourced_file_makes_a_relative_write_unplaceable(tmp_path):
