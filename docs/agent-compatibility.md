@@ -106,11 +106,7 @@ sends that the lexer cannot read denies, because it matches nothing on that agen
 directory a read-only subagent's call reports that does not exist or cannot be resolved, because the gate cannot tell
 which repository a command run there would read.
 
-Three more hooks live beside it in [../.agents/hooks/](../.agents/hooks/) and ride the same wirings:
-`no_ai_markers_check.py` checks the reply, `markdown_lint_check.py` lints a file just after it was edited, and
-`task_list_sync.py` mirrors the session task list into `tasks.md`. Every hook is invoked on `-S -E`, under the
-first of `python3` and `python` its wiring resolves, and none of them uses `argparse`, because it exits 2 on a
-usage error and 2 is the deny code in the plain format.
+Three more hooks live beside it in [../.agents/hooks/](../.agents/hooks/) and ride the same wirings: `no_ai_markers_check.py` checks the reply, `markdown_lint_check.py` lints a file just after it was edited, and `task_list_sync.py` mirrors the session task list into `tasks.md`. On Claude Code only, `claude/standards_advisory_check.py` warns after an edit about an unpinned action, an image on `:latest`, an `@Query` string or a divider banner in a test, and never blocks. Every hook is invoked on `-S -E`, under the first of `python3` and `python` its wiring resolves, and none of them uses `argparse`, because it exits 2 on a usage error and 2 is the deny code in the plain format.
 
 Each agent wires those scripts through its own hook surface, and the surfaces differ in what they can stop.
 
@@ -124,12 +120,12 @@ Each agent wires those scripts through its own hook surface, and the surfaces di
 
 The full event set per surface, beyond the gate itself:
 
-| Agent | Gate | Formatting check | Markdown lint | Task list |
-| --- | --- | --- | --- | --- |
-| Claude Code | `SessionStart`, `UserPromptSubmit`, `SubagentStart`, `PreToolUse` | `MessageDisplay`, `Stop` | `PostToolUse`, matcher `^(Edit\|Write\|MultiEdit)$` | `TaskCreated`, `TaskUpdated`, `TaskCompleted`, `SessionStart`, `PreCompact`, `Stop` |
-| Codex | `UserPromptSubmit`, `SubagentStart`, `PreToolUse` | `Stop` | not wired, no matching event | `SessionStart` |
-| OpenCode and Kilo Code | `tool.execute.before` | same event, the runner passes every hook, plus `experimental.text.complete` | same event | same event |
-| GitHub Copilot | `sessionStart`, `subagentStart`, `userPromptTransformed`, `preToolUse` | `agentStop` | not wired | `sessionStart` |
+| Agent | Gate | Formatting check | Markdown lint | Standards advisory | Task list |
+| --- | --- | --- | --- | --- | --- |
+| Claude Code | `SessionStart`, `UserPromptSubmit`, `SubagentStart`, `PreToolUse` | `MessageDisplay`, `Stop` | `PostToolUse`, matcher `^(Edit\|Write\|MultiEdit)$` | `PostToolUse`, same matcher, beside the markdown lint | `TaskCreated`, `TaskUpdated`, `TaskCompleted`, `SessionStart`, `PreCompact`, `Stop` |
+| Codex | `UserPromptSubmit`, `SubagentStart`, `PreToolUse` | `Stop` | not wired, `PostToolUse` sends an edit as `apply_patch` patch text | not wired, same reason | `SessionStart` |
+| OpenCode and Kilo Code | `tool.execute.before` | same event, the runner passes every hook, plus `experimental.text.complete` | same event | not wired, the runner never starts `hooks/claude/` | same event |
+| GitHub Copilot | `sessionStart`, `subagentStart`, `userPromptTransformed`, `preToolUse` | `agentStop` | not wired | not wired | `sessionStart` |
 
 The gate's tool matcher per wiring is `^(Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|WebFetch|WebSearch)$` on
 Claude Code, `^(Bash|shell|apply_patch|Edit|Write|NotebookEdit)$` on Codex, and

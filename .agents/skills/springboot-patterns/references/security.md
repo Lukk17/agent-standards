@@ -102,11 +102,9 @@ constraint violation from the database.
 
 ### Parameterise every query
 
-Spring Data derived queries and named bindings are parameterised for you. String concatenation into a query is a
-SQL injection, whatever the surrounding validation claims.
+Spring Data derived queries and `Specification` predicates are parameterised for you, which is one reason the persistence rules in [jpa.md](jpa.md) allow no query string at all. String concatenation into a query is a SQL injection, whatever the surrounding validation claims. The allowlisted whole-table backup tooling binds every value as a JDBC parameter.
 
-Pass: `@Query(value = "SELECT * FROM users WHERE name = :name", nativeQuery = true)` with a `@Param` binding, or a
-Spring Data derived query such as `findByEmailAndActiveTrue`.
+Pass: a derived query such as `findByEmailAndActiveTrue`, or `repository.findAll(UserSpecifications.hasName(name))`.
 
 Fail: `@Query(value = "SELECT * FROM users WHERE name = '" + name + "'", nativeQuery = true)`.
 

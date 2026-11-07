@@ -12,6 +12,7 @@ for security, and lead every finding with a `path:line` reference.
 | Task | Open |
 |---|---|
 | Running a step in full: the commands, the fork rule and its source, the pillar questions, the report shape, pass and fail forms | [review-steps.md](references/review-steps.md) |
+| The standards checklist every review runs in Step 3, item by item with the skill that owns each rule | [standards-checklist.md](references/standards-checklist.md) |
 
 ---
 
@@ -70,6 +71,18 @@ Cite `path:line` for every finding across correctness, maintainability, readabil
 
 ---
 
+### Standards checklist
+
+Every review also runs [standards-checklist.md](references/standards-checklist.md) over the diff, section by section for the files it touches, and reports each violation as a finding with its `path:line`, every instance rather than the first. It covers, in short:
+
+- Comments and size: no divider banners, section labels or long comment blocks, nothing past about 300 lines, no cryptic names.
+- Java and Spring: no tunable in code, no `@Query` string, no nested types, OpenAPI meta-annotations with honest codes, a blank line after a wrapped signature, `Set` for membership, `StringUtils.hasText`.
+- Tests: only Given, When and Then markers, `@InjectMocks`, Lombok fixtures, split classes, digest-pinned Testcontainers.
+- Web: every string in the catalogues, English identifiers, no locale literal.
+- CI and repository: actions pinned to a SHA with `# vX.Y.Z`, no `-latest` runner or `:latest` image, no bump bots, no scratch documents, generated files marked.
+
+---
+
 ### Step 4: escalate the sensitive findings
 
 Hand authentication, authorisation, payment and personal-data findings to the `security-auditor` agent before merge, and say so in the review, with severity and location named rather than buried as a nitpick.
@@ -102,6 +115,7 @@ Summary with the verdict in two or three sentences, findings grouped Critical, I
   reported as `not run`.
 - [ ] Nothing from a fork or an outside author ran without the user's approval.
 - [ ] Every pillar was considered, including doc comments.
+- [ ] The standards checklist ran over every section the diff touches, and every instance was reported.
 - [ ] Every finding cites `path:line`.
 - [ ] Findings are grouped by severity, not listed flat.
 - [ ] Auth, payment, and sensitive-data findings were escalated to the `security-auditor` agent.

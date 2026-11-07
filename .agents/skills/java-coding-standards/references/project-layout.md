@@ -40,7 +40,8 @@ conventions side by side leave every reader guessing which one a given class fol
 | --- | --- | --- |
 | Long parameter list | Callers pass arguments positionally and swap two of the same type without a compile error. | A DTO, a record, or a builder. |
 | Deep nesting | The reader has to hold every enclosing condition in mind to understand the innermost line. | Early returns and guard clauses. |
-| Magic number | The value's meaning lives only in the head of whoever typed it. | A named constant. |
+| Magic number | The value's meaning lives only in the head of whoever typed it. | A named constant when the algorithm or protocol fixes it, a validated configuration property when it is a tunable. |
+| Nested type in a production class | The contract hides inside its user, and the file cannot be found by name. | Its own file in a `dto`, `model` or `exception` subpackage. |
 | Static mutable state | Tests interfere with each other, and threads race invisibly. | Dependency injection. |
 | Silent catch block | A failure becomes a wrong answer instead of an error. | Log and act, or rethrow with context. |
 | Comment explaining a block | The code failed to explain itself and the comment will go stale. | Extract a well-named method. |

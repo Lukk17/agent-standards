@@ -42,7 +42,7 @@ Written for Docker Engine 29 and Docker Compose v5. The Compose v1 `docker-compo
 
 1. Named volumes only. An anonymous volume (`- /app/node_modules`) cannot be backed up, targeted, inspected or shared, survives `docker compose down` as a dangling volume, and in production ties data to a container lifecycle.
 2. Build in stages and ship the last one, keeping compilers, dev dependencies and build caches out. Copy dependency manifests before source, so a code change does not invalidate the dependency layer.
-3. Never `:latest`. Pin a tag naming the runtime version and OS variant plus `@sha256:<digest>`, read with `docker buildx imagetools inspect <image>:<tag>`, and let Dependabot or Renovate bump tag and digest together.
+3. Never `:latest`, anywhere: not in a `FROM`, a compose `image:`, a `${IMAGE:-name:latest}` default, a CI `services:` or Testcontainers image, or a tag you publish. Pin every image to an exact version tag naming the runtime and OS variant plus `@sha256:<digest>`, read with `docker buildx imagetools inspect <image>:<tag>`, and bump tag and digest together in a manual pull request, because a floating tag changes what runs without a commit.
 4. Pick the smallest base that runs the artefact: distroless `static` or `scratch` for Go and Rust, distroless `java25` for the JVM, `node:26-alpine`, `python:3.14-slim`. Distroless has no version tags, so its pin is the Debian suffix plus a digest. Never `ubuntu:latest` or `debian:latest` at runtime.
 5. Create a non-root user and switch to it with `USER` before the runtime stage ends, because a container escape from root is a host compromise. Declare a `HEALTHCHECK`.
 6. Harden from Compose: `no-new-privileges:true`, `read_only: true` with `tmpfs` for writable paths, `cap_drop: [ALL]`, adding back only what is needed. `NET_BIND_SERVICE` is only for a port below 1024, so listen high and drop it too.
@@ -76,7 +76,7 @@ This section is canonical for the repository. Other skills point here rather tha
 
 ### Checklist
 
-- [ ] Every base image pinned to a specific tag plus its digest, never `:latest`.
+- [ ] Every image pinned to an exact tag plus its digest, compose defaults and CI service images included, and no `:latest` published or consumed.
 - [ ] Build split into stages, dependency manifests copied before source.
 - [ ] Runtime stage runs as a created non-root user.
 - [ ] `HEALTHCHECK` declared.

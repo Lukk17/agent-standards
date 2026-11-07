@@ -100,10 +100,10 @@ on: [push, pull_request]
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@<commit-sha> # v5
-      - uses: actions/setup-node@<commit-sha> # v5
+      - uses: actions/checkout@<commit-sha> # vX.Y.Z
+      - uses: actions/setup-node@<commit-sha> # vX.Y.Z
         with:
           node-version: 26
       - run: npm ci
@@ -111,7 +111,7 @@ jobs:
       - run: npx playwright test
         env:
           BASE_URL: ${{ vars.STAGING_URL }}
-      - uses: actions/upload-artifact@<commit-sha> # v4
+      - uses: actions/upload-artifact@<commit-sha> # vX.Y.Z
         if: always()
         with:
           name: playwright-artifacts
@@ -123,5 +123,4 @@ jobs:
 passes, which is exactly when nobody needs it.
 
 Pin the Node version to an LTS major rather than `latest`, so a runner image update cannot change the runtime under
-the suite without a commit. Pin every action to a full commit SHA with its tag in a trailing comment, as the example
-shows with `<commit-sha>` in place of a real one. Resolve the SHA for a tag with `git ls-remote https://github.com/<owner>/<repo> refs/tags/<tag> refs/tags/<tag>^{}`, taking the `^{}` line when the tag is annotated, and let Dependabot or Renovate bump the SHA and the comment together.
+the suite without a commit. Pin every action to a full commit SHA with its exact release tag in a trailing comment, and the runner to a fixed label such as `ubuntu-24.04`, as `deployment-patterns` describes for every workflow, including how to resolve the SHA.

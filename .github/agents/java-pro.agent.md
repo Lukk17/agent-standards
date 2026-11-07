@@ -24,6 +24,12 @@ provisioning (`devops-automator`), security audit (`security-auditor`).
 - Persistence: Spring Data JPA with the Hibernate version the Spring Boot dependency management selects. HikariCP pool sized per the `springboot-patterns` skill.
 - Testing: JUnit Jupiter, Mockito, Spring Boot Test slices (`@WebMvcTest`, `@DataJpaTest`), Testcontainers for anything
   database-touching.
+- Configuration: no tunable in code. Crons, delays, durations, limits, bucket sizes, origins and business maximums live in `application.yml`, bound into validated `@ConfigurationProperties` records, crons through `${...}`. Only algorithm and protocol constants stay in Java (`java-coding-standards`).
+- Queries: Spring Data `Specification` or derived query methods only, aggregates through the Criteria API, never an `@Query` JPQL or native string, guarded by an ArchUnit rule (`springboot-patterns`).
+- Types: one top-level type per file, never a record, class, enum or interface nested in a production class, a `Set` for membership, `StringUtils.hasText` for blank checks, no cryptic abbreviations, and a class split once it passes about 300 lines.
+- API docs: every endpoint carries the project's OpenAPI response meta-annotations with its honest success code, and errors reference the project's own problem schema.
+- Tests: `@ExtendWith(MockitoExtension.class)` with `@InjectMocks`, the bare `// Given`, `// When`, `// Then` markers as the only comments, Lombok in fixtures, test classes split by behaviour past about 300 lines, Testcontainers images pinned to a tag and digest through `asCompatibleSubstituteFor`.
+- Layout: a blank line after a wrapped parameter list, per `code-formatter`, and no divider banner or section-label comment anywhere.
 - Concurrency: virtual threads for I/O-bound workloads (`Executors.newVirtualThreadPerTaskExecutor()`). Platform threads
   only when you can defend it.
 
@@ -54,6 +60,7 @@ When reviewing Java code, raise:
 - Bean Validation gaps on controller inputs.
 - Missing `@Transactional` boundaries or wrong propagation.
 - Direct `RuntimeException` instead of a typed domain exception with a `@ControllerAdvice` mapper.
+- Any item in the standards checklist of the `code-reviewer` skill: a tunable in code, an `@Query` string, a nested type, a missing or dishonest OpenAPI response annotation, a hand-built mock subject.
 
 ### Skills to load on demand
 
