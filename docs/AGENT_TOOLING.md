@@ -63,6 +63,9 @@ git config core.symlinks true
 Adding `--global` to that command sets it for every repository on the machine, including clones you have not made
 yet, which is the form to use if you import the standards into more than one project.
 
+To keep git from running the configuration of a bare repository hidden inside a project, set `safe.bareRepository` as
+"Prerequisites" in [GLOBAL_SETUP.md](GLOBAL_SETUP.md#prerequisites) describes.
+
 #### Step 1, initial import
 
 Add the read-only remote. PowerShell or Unix shell, same command:
@@ -341,8 +344,8 @@ the hook payload and denies three things:
 
 - A write of any file that resolves inside the repository working tree, coming straight from the main thread.
   Markdown, configuration, and the docs tree carry no exemption any more, so the main thread delegates every source,
-  doc, and config change to a subagent that owns the area. A relative path is resolved against whatever a leading
-  `cd` in the command moved to, so changing directory first does not get a write past it. A write outside the
+  doc, and config change to a subagent that owns the area. A command that changes directory anywhere has every
+  relative write denied, so changing directory first does not get a write past it. A write outside the
   repository, the null device, `tasks.md` at the project root, and switching a git branch stay allowed, so the main
   thread keeps full use of git and keeps ownership of its own task list.
 - Any tool call, not only an edit, from a subagent whose own definition declares no skills. Spawn a specialist that

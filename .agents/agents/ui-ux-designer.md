@@ -3,6 +3,8 @@ description: "Use when the user says \"design this flow\", \"lay out this screen
 mode: subagent
 permission:
   bash: deny
+  webfetch: deny
+  websearch: deny
 tools:
   read: true
   write: true

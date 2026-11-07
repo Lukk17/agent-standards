@@ -1,6 +1,9 @@
 ---
 description: "Use when the user says \"cut a release\", \"write the release notes\", \"what version is next\" or \"are we ready to tag\". Chooses the version, assembles notes from merged pull requests, checks the dependency and deployment gates, prepares the tag and records what shipped, never pushing or tagging without per-action approval. Not for the pipeline itself, use `devops-automator`."
 mode: subagent
+permission:
+  webfetch: deny
+  websearch: deny
 tools:
   read: true
   write: true

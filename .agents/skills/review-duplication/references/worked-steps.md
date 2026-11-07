@@ -73,6 +73,10 @@ specific objective built from the mechanics found in step 1, not a vague "look f
 Keep a fast path for unambiguous single-fact checks. Grepping the manifest for one package name is faster done directly
 than delegated. Anything open-ended goes to a subagent.
 
+Run as a subagent with no tool to spawn another, such as the `code-reviewer` agent, search directly instead: grep and
+glob from the candidate locations of step 2, read what they find, and name the open-ended search a delegate should run
+as a next step in the report, so the caller can spawn it.
+
 ---
 
 ### Step 4: evaluate against project conventions

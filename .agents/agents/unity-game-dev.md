@@ -1,6 +1,9 @@
 ---
 description: "Use when the user says \"write this Unity script\", \"review this C# gameplay code\" or \"why does this scene stutter\". Applies frame-budget discipline with no per-frame allocations and cached component lookups, ScriptableObject-based architecture, the Unity Test Framework and Addressables for asset loading. Not for profiling a non-game service, use `performance-engineer`."
 mode: subagent
+permission:
+  webfetch: deny
+  websearch: deny
 tools:
   read: true
   write: true

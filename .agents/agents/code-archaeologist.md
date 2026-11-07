@@ -28,6 +28,7 @@ permission:
     "gh * -q*": deny
     "gh *--template*": deny
     "gh * -t*": deny
+    "gh *--watch*": deny
     "*\"*": deny
     "*'*": deny
     "*{*": deny

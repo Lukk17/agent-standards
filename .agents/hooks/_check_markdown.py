@@ -40,7 +40,9 @@ the block has to be present, parse under a strict YAML parser, carry a `name`
 matching the folder name (skills) or the file stem (subagents), and carry a
 non-empty string `description` of at most 1024 characters. A skill manifest may
 carry no key beyond name, description, license, compatibility and metadata, per
-the open Agent Skills specification. The description scalar is read raw as well
+the open Agent Skills specification. A `model` key gets its own message and
+stays rejected even if that list widens, because skills never pin a model and
+run on the user's default model. The description scalar is read raw as well
 as parsed, so a plain scalar holding a colon-space, or opening with a character
 YAML reads as an indicator, is reported as needing quotes rather than left for a
 downstream agent to choke on. GitHub Copilot refused to load two skills over
@@ -118,6 +120,7 @@ SKILL_MANIFEST = "SKILL.md"
 SKILLS_DIRECTORY = "skills"
 SUBAGENTS_DIRECTORY = "subagents"
 SKILL_ALLOWED_KEYS = ("name", "description", "license", "compatibility", "metadata")
+MODEL_KEY = "model"
 MAX_DESCRIPTION = 1024
 MAX_SKILL_MANIFEST_CHARACTERS = 8000
 YAML_INDICATORS = "*&!%@`[{>|\"'"
@@ -559,7 +562,15 @@ def check_front_matter(lines: list[str], path: Path) -> int:
     if kind == "skill":
         allowed = ", ".join(SKILL_ALLOWED_KEYS)
 
-        for key in sorted(set(data) - set(SKILL_ALLOWED_KEYS), key=str):
+        if MODEL_KEY in data:
+            failures += _violation(
+                path,
+                key_lines.get(MODEL_KEY, 1),
+                f"key {MODEL_KEY!r} is not allowed. Remove it, because skills never pin a model "
+                "and run on the user's default model",
+            )
+
+        for key in sorted(set(data) - set(SKILL_ALLOWED_KEYS) - {MODEL_KEY}, key=str):
             failures += _violation(
                 path,
                 key_lines.get(str(key), 1),

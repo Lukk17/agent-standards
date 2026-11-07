@@ -22,16 +22,19 @@ The gate is enforcing, not advisory. One shared rule in
   [docs/agent-compatibility.md](docs/agent-compatibility.md) under "Hook enforcement".
 - It denies any tool call from a subagent whose own definition declares no skills. An unknown or unreadable
   `agent_type` allows rather than denies.
-- It holds a subagent whose definition is marked read-only to the commands listed under its "Read-only shell" heading,
-  git only as `git --no-pager`, and denies it any edit, and on Codex any gh command, because a pager runs any command.
-  Codex names the subagent on `PreToolUse`, measured on 0.166.0 in live run 41348146352. The per-format detail is
-  under "Adding a new subagent" in [CONTRIBUTING.md](CONTRIBUTING.md).
+- It holds a subagent whose definition is marked read-only to the commands listed under its "Read-only shell" heading, git only
+  as `git --no-pager`, and denies it any edit, and on Codex any gh command, because Codex's shell snapshot can restore the user's
+  own pager over the `cat` Codex sets, and a pager runs any command. Codex names the subagent on `PreToolUse`, measured on
+  0.166.0 in live run 41348146352. The per-format detail is under "Adding a new subagent" in [CONTRIBUTING.md](CONTRIBUTING.md).
 - It denies the main thread a web fetch or web search tool on Claude Code, the one format whose tool names are
   confirmed. Codex has no confirmed tool name for this yet. The main thread spawns a subagent to do the research.
-- It denies the main thread running a script or a module, because the gate cannot see what a script writes, unless
-  the command passes `MAIN_THREAD_ALLOWLIST` in the gate or an entry of the project's own `main-thread-allowlist.txt`.
-  The rules are in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md) under "What the main thread may run". This
-  repository's own checks sit in [main-thread-allowlist.txt](main-thread-allowlist.txt), which never ships.
+- It denies the main thread running a script or a module, because the gate cannot see what a script writes, unless the
+  command, run from inside the project with no directory change, passes `MAIN_THREAD_ALLOWLIST` in the gate or an entry of the project's own
+  `main-thread-allowlist.txt`. The rules are in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md) under "What the main thread
+  may run". This repository's own checks sit in [main-thread-allowlist.txt](main-thread-allowlist.txt), which never ships.
+- It denies the main thread a shell, an interpreter, an editor, a pager or any other program that waits for typed input, such as
+  a bare `bash`, `python3 -i`, `vim`, `less`, `tmux` or a `git commit` with no message, because Codex's `write_stdin` types into
+  it with no `PreToolUse`. The list is under "Hook enforcement" in [docs/agent-compatibility.md](docs/agent-compatibility.md).
 - Every rule fires only on a caller positively identified as the main thread. Claude Code and Codex send `agent_id`
   only inside a subagent. An unknown caller is allowed: GitHub Copilot on every call, and an OpenCode or Kilo Code
   call whose session the plugin could not read.
@@ -188,7 +191,6 @@ scripts, `bash` and `powershell` the update scripts in [docs/AGENTS-UPDATE.md](d
   lands, pass it with `--subagent` from [.github/hooks/preflight.json](.github/hooks/preflight.json) and set
   `GATE_KNOWN_GAP=0` in [sandbox-agent/live/copilot.sh](sandbox-agent/live/copilot.sh) in the same change.
 - **Whether a Codex `Stop` hook can reject a reply is not measured.** Confirm it and say so plainly here. The markdown lint stays Claude-only, because Codex has no post-tool event.
-- **Codex `write_stdin` is outside the gate matcher** in [.codex/config.toml](.codex/config.toml), so it can type into a `tty: true` shell unseen. Add it with a sandbox run, then update "Hook enforcement" in [docs/agent-compatibility.md](docs/agent-compatibility.md).
 - **Reply rules outside OpenCode.** OpenCode 2.x gets `.agents/instructions/reply-rules.md` from the plugin's session
   `context` hook, main thread only, and 1.x and Kilo Code from `instructions`. TODO: decide how a global install loads them on Claude
   Code, Codex and Copilot, keeping them out of `AGENTS.md`, and document it in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md).

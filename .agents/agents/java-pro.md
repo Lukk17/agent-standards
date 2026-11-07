@@ -1,6 +1,9 @@
 ---
 description: "Use when the user says \"write this Spring Boot endpoint\", \"review this Java code\" or \"modernise this JVM service\". Applies Java 25 idioms, records, sealed types, pattern matching and virtual threads, with Spring Boot 4 conventions and JPA patterns, as an implementer rather than an architect. Not for schema design, use `database-expert`."
 mode: subagent
+permission:
+  webfetch: deny
+  websearch: deny
 tools:
   read: true
   write: true

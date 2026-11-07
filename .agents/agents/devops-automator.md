@@ -1,6 +1,9 @@
 ---
 description: "Use when the user says \"set up CI\", \"write the Dockerfile\", \"deploy this to Kubernetes\" or \"add a rollback\". Builds pipelines, container images, manifests and infrastructure as code with zero-downtime deploys, health checks, automated rollback, secrets kept at the boundary and observability wired in. Not for a live production incident, use `devops-troubleshooter`."
 mode: subagent
+permission:
+  webfetch: deny
+  websearch: deny
 tools:
   read: true
   write: true

@@ -88,18 +88,20 @@ a generated tree.
 ### Hook enforcement, what each agent can actually block
 
 The gate is one shared rule in [../.agents/hooks/preflight_gate.py](../.agents/hooks/preflight_gate.py). It reads a hook
-payload on standard input and denies five things: a write of any file resolving inside the repository working tree
+payload on standard input and denies six things: a write of any file resolving inside the repository working tree
 coming from the main thread, with no exemption left for markdown, configuration, or `docs/` (delegate the change to a
 subagent that owns the area instead), any tool call at all from a subagent whose own definition declares no skills
 (spawn a specialist instead), an edit, any tool outside a fixed read set, or a shell command outside its own list
 from a subagent whose definition is marked read-only, a web fetch or web search called straight from the main thread on the one format whose
-payload names that tool today, Claude Code, and a script or module run from the main thread, because the gate cannot see
-what a script writes. The allowlist that lifts the last rule is in
-[What the main thread may run](GLOBAL_SETUP.md#what-the-main-thread-may-run). A relative path is resolved against
-whatever a leading `cd` in the command moved to, so changing directory first buys nothing. A write outside the
+payload names that tool today, Claude Code, a script or module run from the main thread, because the gate cannot see
+what a script writes, and a shell, an interpreter or an editor the main thread starts that waits for typed input,
+because the gate never sees what is typed into it. The allowlist that lifts the script rule is in
+[What the main thread may run](GLOBAL_SETUP.md#what-the-main-thread-may-run). A command that changes directory
+anywhere has every relative write target denied and no allowlist entry applied, so changing directory first buys
+nothing. A write outside the
 repository, the null device, `tasks.md` at the project root, and switching a git branch stay allowed, and the main
 thread keeps full use of git otherwise. Caller identity is a tri-state, subagent, main thread, or unknown when a payload
-carries nothing that could tell the two apart, and none of the five rules fires on an unknown caller. Every failure path
+carries nothing that could tell the two apart, and none of the six rules fires on an unknown caller. Every failure path
 also allows the call, because a broken gate must never break a session, with three deliberate exceptions: a path none of
 the three repository-boundary helpers can resolve is treated as inside, which denies, a command a read-only subagent
 sends that the lexer cannot read denies, because it matches nothing on that agent's list, and so does a working
@@ -166,10 +168,14 @@ Reading the tables row by row:
 - The per-agent tool permissions are the generator's `permission` block. OpenCode and Kilo Code read a subagent's
   `tools` map as overrides on top of everything it already has, so a read-only definition listing only `read`, `grep`
   and `glob` still had `edit` and `bash`. The generator now writes `edit: deny` unless `write` or `edit` is listed and
-  `bash: deny` unless `bash` is. A definition marked `readonly: true` instead gets `edit: deny`, `task: deny`, denies
-  for `webfetch`, `websearch`, `todowrite`, `lsp` and `"*_*"`, and a `bash` map with `"*": deny` first, its allowed
+  `bash: deny` unless `bash` is, and `webfetch: deny` and `websearch: deny` unless each is listed, because under
+  "Defaults" OpenCode 1 says `Most permissions default to "allow".`
+  ([permissions](https://opencode.ai/v1/docs/permissions/)). A definition listing only `read`, `grep` and `glob` also
+  gets `task: deny` and denies for `todowrite`, `lsp` and `"*_*"`, the tools Rule E denies it. A definition marked
+  `readonly: true` instead gets `edit: deny`, `task: deny`, denies for `webfetch`, `websearch`, `todowrite`, `lsp` and
+  `"*_*"`, and a `bash` map with `"*": deny` first, its allowed
   commands after it, and denies last, because OpenCode lets the last matching rule win: an output option, a `$`, a
-  redirect, gh's `--web`, `-w`, `--jq`, `-q`, `--template` and `-t`, and the characters `"`, `'`, `{`, a backtick, `<`, `;`, `&`, `|`, `[`, a newline and a
+  redirect, gh's `--web`, `-w`, `--jq`, `-q`, `--template`, `-t` and `--watch`, and the characters `"`, `'`, `{`, a backtick, `<`, `;`, `&`, `|`, `[`, a newline and a
   carriage return. OpenCode matches a permission key against the tool name, "so the same syntax works for built-ins,
   custom tools, and MCP tools", and names an MCP tool `<server>_<tool>`
   ([agents, "Permissions"](https://opencode.ai/docs/agents/), fetched 2026-10-30), so `"*_*"` denies every MCP tool.
@@ -249,7 +255,10 @@ Reading the tables row by row:
   2.89.0 pins, fetched 2026-10-30), and gojq's loader "allows to configure the environment variables referenced by
   `env` and `$ENV`" ([gojq README](https://raw.githubusercontent.com/itchyny/gojq/main/README.md)), so `--jq env`
   prints every variable, tokens included. `--template` and `-t` deny with it. A gh template has no environment function, but neither flag then
-  carries code. On the `codex` format a read-only agent runs no gh command at all. gh sends its output to a pager
+  carries code. Nor may gh poll with `--watch`: `gh pr checks --watch` re-reads the checks every interval until none is
+  pending, with no upper bound
+  ([pkg/cmd/pr/checks/checks.go at v2.89.0](https://raw.githubusercontent.com/cli/cli/v2.89.0/pkg/cmd/pr/checks/checks.go)),
+  so a check stuck in the queue would hold the shell call open, while a single `gh pr checks` read passes. On the `codex` format a read-only agent runs no gh command at all. gh sends its output to a pager
   whenever stdout is a terminal: "`GH_PAGER`, `PAGER` (in order of precedence): a terminal paging program to send
   standard output to, e.g. `less`" (`gh help environment`, gh 2.89.0), `StartPager` returns early only when that
   program is empty or `cat` or stdout is no terminal
@@ -259,6 +268,17 @@ Reading the tables row by row:
   both fetched 2026-11-01). No flag turns it off, and the environment prefix or `gh config set pager` that would are
   refused. Claude Code, OpenCode and Kilo Code hand the gate the call's `tty` key, which Rule E denies, but Codex hands
   its hook the command alone, so there a listed gh command could open a pager that `write_stdin` then types into.
+  Codex does set `("GH_PAGER", "cat")` in `UNIFIED_EXEC_ENV` for every command it starts
+  ([process_manager.rs at rust-v0.166.0](https://raw.githubusercontent.com/openai/codex/rust-v0.166.0/codex-rs/core/src/unified_exec/process_manager.rs)),
+  and gh reads `GH_PAGER` before its own `pager` setting ("Pager precedence 1. GH_PAGER 2. pager from config 3. PAGER",
+  [pkg/cmd/factory/default.go at v2.89.0](https://raw.githubusercontent.com/cli/cli/v2.89.0/pkg/cmd/factory/default.go)),
+  but its shell snapshot, `shell_snapshot` with `default_enabled: true`
+  ([features/src/lib.rs at rust-v0.166.0](https://raw.githubusercontent.com/openai/codex/rust-v0.166.0/codex-rs/features/src/lib.rs)),
+  sources every export of the user's login shell before a `-lc` command and re-exports after it only the
+  `shell_environment_policy` overrides and Codex's own variables
+  ([tools/runtimes/mod.rs at rust-v0.166.0](https://raw.githubusercontent.com/openai/codex/rust-v0.166.0/codex-rs/core/src/tools/runtimes/mod.rs),
+  all fetched 2026-11-06). A `GH_PAGER` the user exports therefore reaches gh in place of `cat`. That is read from the
+  source, not measured, so gh stays denied there.
   Every `command` and `cmd` value is judged, not only the first. Unlike every other rule, any failure while lexing or matching denies here, a parse error and
   any other exception alike, and so does a tool the gate does not know that carries a command. Rule E applies when
   any definition the name resolves to is read-only: the calling format's own tree is read first and decides Rule B,
@@ -271,8 +291,20 @@ Reading the tables row by row:
   is the only enforcement that holds: a subagent's `permissionMode: plan` is ignored while the session is in auto,
   `acceptEdits` or `bypassPermissions` mode, and a `tools` entry such as `Bash(git log *)` did not narrow the tool, so
   a `touch` from either ran on Claude Code 2.1.314 under an auto-mode session. Its `tools` list is an allowlist, so
-  such an agent gets no MCP tool there either. Codex has no per-agent tool field, and a custom agent file cannot
-  narrow the sandbox: "Other session settings, including `sandbox_mode`, `approval_policy`, `model_provider`, and
+  such an agent gets no MCP tool there either. A Codex custom agent file can switch the shell off and nothing finer:
+  "To reduce a custom agent's capabilities, set supported feature keys to `false`: `features.shell_tool`,
+  `features.apps`, `features.plugins`, `features.memories`, or `features.request_permissions_tool`"
+  ([subagents, "Custom agent file schema"](https://developers.openai.com/codex/subagents)), and `add_shell_tools`
+  then registers neither `exec_command` nor `write_stdin`
+  ([spec_plan.rs at rust-v0.167.0](https://raw.githubusercontent.com/openai/codex/rust-v0.167.0/codex-rs/core/src/tools/spec_plan.rs)).
+  The generator writes `features.shell_tool = false` for every agent whose canonical `tools` leave out `bash`, and the
+  free mock case in [sandbox-agent/e2e-mock/subagent-write.sh](../sandbox-agent/e2e-mock/subagent-write.sh) measured it
+  on Codex 0.167.0: `backend-architect` was offered no shell tool while `python-pro` was offered `exec_command` and
+  `write_stdin`. No key covers `apply_patch` or web search, so an agent listing only `read`, `grep` and `glob` gets an
+  empty "Read-only shell" section on every target, and Rule E holds it to no shell command and no edit. Rule E covers every format whose hook sees the tool, so
+  web search stays open to a read-only agent on Codex, because neither the agent file nor the hook matcher reaches it.
+  A custom agent
+  file cannot narrow the sandbox either: "Other session settings, including `sandbox_mode`, `approval_policy`, `model_provider`, and
   `mcp_servers`, don't override the parent configuration when placed in a custom agent file"
   ([subagents, "Custom agents"](https://developers.openai.com/codex/subagents), fetched 2026-10-30). Codex does name
   the subagent on `PreToolUse`, although the hooks page lists `agent_id` and `agent_type` only for `SubagentStart` and
@@ -290,8 +322,65 @@ Reading the tables row by row:
   passed `PreToolUse`" (same hooks page), and the page itself says to "Treat tool hooks as a useful guardrail, not a
   complete enforcement boundary". Rule E denies the `tty: true` start wherever the gate sees it, which is Claude
   Code and the OpenCode and Kilo Code runner. Copilot gets no shell for such an agent, as the next item explains.
+- Rule F keeps the main thread, on every format, from starting a program that waits for typed input, because Codex's
+  `write_stdin` types into a running terminal and no hook sees it: its handler's `pre_tool_use_payload` returns `None`
+  under the comment "`write_stdin` is transport for an existing exec session. Empty writes are background polls, and
+  non-empty writes continue a command that already ran PreToolUse as Bash, so do not emit a second pre hook here"
+  ([write_stdin.rs at rust-v0.166.0](https://raw.githubusercontent.com/openai/codex/rust-v0.166.0/codex-rs/core/src/tools/handlers/unified_exec/write_stdin.rs),
+  the same on `main`, both fetched 2026-11-06). Adding `write_stdin` to the matcher in
+  [.codex/config.toml](../.codex/config.toml) would therefore match nothing, so the gate refuses the start instead.
+  The programs are the POSIX shells, `fish`, `mksh`, `yash`, `tcsh`, `csh`, `nu`, `pwsh`, `powershell` and `cmd`,
+  `su` and `runuser` without `-c`, `--command` or `--session-command`, read clustered as in `su -lc` and by
+  prefix, `sudo` or `doas` with `-s` or `-i` and no command, `pkexec` with no program,
+  since "If PROGRAM is not specified, the default shell will be run"
+  ([pkexec.xml](https://raw.githubusercontent.com/polkit-org/polkit/main/docs/man/pkexec.xml), fetched 2026-11-06),
+  `newgrp`, `script` without `-c` or a command operand, which starts `$SHELL`, `expect`, and `socat` with an `EXEC`,
+  `SYSTEM`, `SHELL` or `PTY` address, the interpreters `python` in every spelling, `pypy` among them, `ipython`,
+  `node`, `deno`, `perl`, `ruby`, `php`, `lua`, `luajit`, `R`, `julia` and `tclsh`, the REPLs `irb`, `pry`,
+  `bpython`, `ptpython`, `ghci` and `jshell`, the editors `vi`, `vim`, `nvim`, `view`, `vimdiff`, `nano`, `pico`,
+  `emacs`, `mg` and `micro`, the line editors `ed`, `red` and `ex`, the pagers `less`, `more` and `most`, `tmux`
+  with any subcommand, because `send-keys` types into a session and `attach` hands one over, `screen`, and `xargs`
+  with no piped, heredoc or here-string input and no `-a` or `--arg-file` naming a file, because it reads names from
+  the terminal, which holds `xargs rm < list.txt` too, since a `< file` redirect is not counted. The
+  database shells `sqlite3`, `psql`, `mysql`, `mariadb`, `mongosh` and `redis-cli` are held without their inline
+  query or command (`sqlite3 db "SQL"`, `psql -c`, `mysql -e`, `mongosh --eval`, `redis-cli PING`), piped input or a
+  file on standard input (`psql app < schema.sql`),
+  the debuggers `gdb` and `lldb` without batch mode (`gdb -batch`, `lldb -b`), and `pdb` always. git is held when
+  it opens the editor or a prompt: a `git commit` with no `-m`, `-F`, `-C`, `--fixup` or `--no-edit`, each read by
+  its unambiguous prefix as `--mess=x` is, `--amend` and `--fixup amend:` or `reword:` included, since `--no-edit` is how to "Use the selected commit message without launching an editor"
+  ([git-commit](https://git-scm.com/docs/git-commit), fetched 2026-11-06), `git commit -e`, `git rebase -i`,
+  `git add -p`, `-i` and `-e`, `-p` on `checkout`, `restore`, `reset` and `stash push` or `save`, while
+  `git stash show -p` and `git stash list -p` only print a diff, `git clean -i`, `git config -e`, and
+  `git notes add`, `append` and `edit` with no `-m`, `-F` or `-C`. A
+  `PYTHONINSPECT` setting is refused like the other variables below, because "If this is set to a non-empty string
+  it is equivalent to specifying the `-i` option" ([Command line and environment](https://docs.python.org/3/using/cmdline.html),
+  fetched 2026-11-06). A shell or an interpreter is held
+  when it has no script, no inline code (`-c`, `-e` and their kin) and no input from a pipe, a heredoc or a
+  here-string, and also whenever a flag keeps it waiting after that code: `python -i`, which enters interactive mode
+  "When the `-c` option is used" ([Command line and environment](https://docs.python.org/3/using/cmdline.html),
+  fetched 2026-11-06), `node -i`, `lua -i`, `julia -i`, `perl -d`, `php -a`, `pwsh -NoExit`, which "Doesn't exit
+  after running startup commands" ([about_Pwsh](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_pwsh),
+  fetched 2026-11-06), and `cmd /k`, which "keeps the command processor running"
+  ([cmd](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/cmd), fetched 2026-11-06).
+  cmd reads no switch past the first of `/c`, `/k` and `/r`, so only that one decides, and `cmd /c xcopy a b /k` runs
+  and exits. Microsoft's page lists only `/c` and `/k`, and `/r` is read as `/c` the way ReactOS's
+  `base/shell/cmd/cmd.c` reads it, which stops at the first `C`, `K` or `R` (inferred from that reimplementation,
+  not measured on Windows). `pwsh -Command -` reads from the terminal like `pwsh -File -`, because "If the value of
+  Command is `-`, the command text is read from standard input" (same about_Pwsh page, fetched 2026-11-06).
+  A REPL and a full-screen editor are held whatever they are handed, a file to edit and piped input included,
+  because they read the keyboard from the terminal. A line editor fed by a pipe or a heredoc is left to the other
+  rules. `--version`, `--help` and each program's own version and help flags pass while they come before the first
+  operand or `--`, so `sh -s -- --help` is still held, except for the database shells, the debuggers, `su`, `runuser`
+  and `script`, whose options are read wherever they sit, as getopt permutes them, so `psql app --version` passes, and `command -v` and `command -V`, which only describe a
+  name, pass whatever they name. The program is read the way the
+  script rule reads it: `env`, `exec`, `command`, `sudo`, `nohup`, `timeout` and the other wrappers are peeled, each
+  with its own value flags so `env -i bash` and `exec -a name bash` still name `bash`, a path such as
+  `/usr/bin/python3` names the program its file name gives, and a versioned name such as `python3.12` counts as
+  `python`. A shell, an interpreter, `su`, `runuser` and `script` fed a file with `< x.sh` run a script the gate
+  cannot read, so `bash < x.sh` is held as a bare `bash` is. A subagent is
+  never held by Rule F, and a read-only one is already held to its list by Rule E.
 - GitHub Copilot's `preToolUse` payload carries no agent identifier at all, so caller identity there resolves to
-  unknown every time and none of the gate's five rules ever fires. The hook is wired and runs, but it always allows:
+  unknown every time and none of the gate's six rules ever fires. The hook is wired and runs, but it always allows:
   that surface is entirely unenforced by the gate, not merely weaker, and the `AGENTS.md` text plus the
   `sessionStart` and `userPromptTransformed` injections carry the whole weight instead.
 - Copilot in JetBrains fires only six events, has no subagent event at all, and reads hook configuration only from
@@ -301,11 +390,62 @@ Reading the tables row by row:
 
 "Inside the repository" is the gate's own roots rather than a git query: the process working directory, the project
 root the hook payload names in its `cwd` field, and the gate script's own on-disk location two parents up, that last
-one only while it is a real project and not the user's home directory or a directory above it. That is what lets the
+one only while it is a real project and not the user's home directory or a directory above it. The `cwd` root is kept
+exactly as sent, so a folder named with a trailing blank is never read as the folder without it. That is what lets the
 user-level install in [GLOBAL_SETUP.md](GLOBAL_SETUP.md) protect the open project instead of everything the user owns.
-A relative path resolves against whichever directory a leading `cd` in the command moved to, and against every root
-when the command never changed directory. On Windows, a Git Bash drive path such as `/c/Users/x` is read as
-`C:/Users/x` before it is placed, for a `cd` operand and a write target alike.
+A relative path resolves against every root, and it counts as inside when it lands inside any one of them.
+
+The gate follows no directory change. A main-thread command that changes directory anywhere has every relative write
+target unplaceable, which denies, and no allowlist entry applies to it, while an absolute target is still placed. That
+covers `cd`, `chdir`, `pushd`, `popd`, `Set-Location`, `Push-Location`, `Pop-Location`, `sl`, PowerShell's `cd..`
+and every other spelling of them, wherever it sits: behind a keyword such as `if`, `then`, `do`, `{`, `!` or `time`,
+behind a wrapper such as `command`, `builtin`, `exec` or `env`, inside a function, a loop, a subshell, a pipeline
+stage, a background job, a `trap` action or an alias value, both read like `eval` code, and in code the gate reads
+from `bash -c`, `pwsh -Command`, a heredoc or a sourced file as it reads when the hook runs. A program's own directory
+option counts too (`env --chdir`, `sudo --chdir`, `pwsh -WorkingDirectory`, `Start-Process -WorkingDirectory`, cmd
+`start /d`, `wsl --cd`, `find -execdir`), and so do `chdir` and `setwd` in inline code, the .NET current directory and
+the `SessionState.Path` methods `SetLocation`, `PushCurrentLocation` and `PopLocation` in PowerShell, any PowerShell
+`Set-Alias` or `New-Alias`, and a program name the shell computes, which may be `cd`. A program name is computed when
+it holds a `$` or a backtick anywhere, as in `$X`, `c${U}d` or `c$(printf d)`, or a brace expansion, a cmd `%X%` or
+`!X!`, or when PowerShell's call operator runs an expression, as in `& ('c'+'d')`. Glob characters do not count,
+because `[` is `test`.
+
+The gate reads the words themselves, not what they do, so a word that only mentions a change counts as one. A word
+counts when, split at blanks and at `;`, `&`, `|`, `(`, `)`, `{`, `}`, a backtick, `=`, `,` and `$(`, one piece is
+`cd`, `chdir`, `pushd`, `popd`, `sl`, `Set-Location`, `Push-Location` or `Pop-Location` as a whole token, in any case
+and as the last part of a path, so `CI/CD` counts. It counts too when it holds one of these substrings anywhere, in
+any case: `chdir`, `setwd`, `currentdirectory`, `workingdirectory`, `set-location`, `push-location`, `pop-location`,
+`setlocation`, `pushcurrentlocation`, `poplocation`, `execdir` or `okdir`. Every word of every command is read that
+way except an operand of `echo`, `printf`, `Write-Output` or `Write-Host`, which only prints, so
+`echo 'cd docs first' >> tasks.md` allows, while `echo 'cd /tmp' | sh` is read as the shell code it becomes. Any
+other mention counts: `python -m pytest -k chdir` turns the allowlist off and denies as a script run. A bare
+`git checkout main` after a `cd` denies too, because the gate can no longer tell a branch from a file in the folder
+the shell stands in. The workarounds are to pick another `-k` expression or hand the run to a subagent, to use
+`git switch main` after a `cd`, which names no file, and to append to `tasks.md` through its absolute path, as in
+`cd docs && echo x >> /path/to/project/tasks.md`, or from the project root with no `cd` in the command, through a
+heredoc if the text names a change. A command that writes nothing relative keeps working, so `cd docs && ls`,
+`cd docs && cat README.md | head` and `cd /tmp && echo x > /tmp/out.txt` stay allowed.
+
+The gate used to follow each change: to the folder a `cd` named, back through `cd -` and `popd`, and out of a
+subshell when it ended. Every round of fixes to that tracking found another way for the shell to land somewhere the
+text did not say, among them `cd -` after a refused `cd`, a `cd` behind `if` or `command`, a function or a loop body,
+`dirs -c` in a subshell, a background `cd` and a `cd` with two operands, and the last round added two more. One rule
+with nothing to follow leaves nothing to get wrong.
+
+On Windows, a Git Bash drive path such as `/c/Users/x` is read as `C:/Users/x` before it is placed, for an absolute
+write target. An edit tool's path and a path a
+PowerShell pipeline feeds a cmdlet are placed both exactly as sent and trimmed, and either reading inside denies,
+because a host that keeps a blank at either end writes through `/tmp/l ` or joins ` /../AGENTS.md` to the project.
+A main-thread shell call that carries its own `workdir`, as the OpenCode and Kilo Code bash tool does while the plugin
+sends the project root as `cwd`, is read a second time from that folder, resolved against every root when relative,
+so `echo x > ../AGENTS.md` with `workdir` set to `docs` denies.
+
+The payload `cwd` widens the write rule and never an allow decision, because Codex fills it from the `workdir` the
+main thread chose. It is a root a write may not land in and a folder the command may start in, but the allowlist, the
+built-in pytest check's test paths and an allowlisted path entry are trusted only from the gate's working directory and
+its install root, every folder the command can start in has to sit inside one of those, an allowlisted path has to
+name the same file from each of them, and a file run with `source` or `.` is read from each of them, as it stands
+when the hook runs, and is unplaceable when two copies differ.
 
 Deleting, moving, or renaming the repository root or any directory above it counts as a write inside it, so
 `rm -rf ..`, `rm -rf ~`, `Remove-Item -Recurse` or `rmdir /s` on a parent, and `mv` or `Move-Item` of a parent are
@@ -314,14 +454,14 @@ path it could match, compared one component at a time and case-insensitively on 
 above it, or a path inside it, so `rm -rf ../agent-*` and `Remove-Item ..\*` are denied.
 
 A write outside the repository, a write to the null device or to a PowerShell drive that holds no files such as `Env:`
-or `Function:`, a write to `tasks.md` at the project root, and git branch switching stay allowed, so the main thread
+or `Function:`, each spelled with no blank around it, a write to `tasks.md` at the project root, and git branch switching stay allowed, so the main thread
 keeps full use of git and keeps ownership of its own task list.
 
 #### How the write rule reads a command
 
 Each shell's own quoting applies: a backslash escapes only in a POSIX shell, PowerShell escapes with a backtick and
 splits an unquoted `a,..` into two paths, and cmd escapes with a caret, so `Remove-Item "D:\parent\"` is read as the
-path it names. The same checks reach inside a wrapper: `cmd /c` and `cmd /k`, `bash -c`, `sh -c`, `zsh -c`, and
+path it names. The same checks reach inside a wrapper: `cmd /c`, `cmd /k` and `cmd /r`, `bash -c`, `sh -c`, `zsh -c`, and
 `powershell` or `pwsh` with `-Command`, `-c` or a decoded `-EncodedCommand`, nested up to three deep. They also reach
 code a shell or interpreter takes some other way: a heredoc or here-string, a piped `echo`, `printf` or `cat`,
 `xargs`, `eval`, `Invoke-Expression`, and a file run with `source` or `.`. An encoded value that does not decode is an
@@ -331,7 +471,12 @@ for the path each actually writes, through import aliases and renamed bindings, 
 Codex's `apply_patch` call carries a patch body rather than a file path, and the key that holds that body in the
 payload is not confirmed. The gate therefore reads the file headers out of every string value in the call rather than
 out of one named key, and denies the call when it finds no path key and no file header, because an edit whose target
-it cannot resolve is not trusted.
+it cannot resolve is not trusted. A header may be indented: Codex's parser runs `let trimmed = line.trim();` and then
+`trimmed.strip_prefix(UPDATE_FILE_MARKER)`, and the same for the add and delete markers
+([streaming_parser.rs at rust-v0.166.0](https://raw.githubusercontent.com/openai/codex/rust-v0.166.0/codex-rs/apply-patch/src/streaming_parser.rs),
+fetched 2026-11-06), so `  *** Update File: AGENTS.md` names a file, while the markers compare case for case. The
+headers are read beside any path key the call carries, and an edit tool's every path key is placed, not only the
+first, so a call with `file_path` outside and `filePath` inside denies.
 
 The writers the gate knows include `find -delete` and `find -exec`, `git clean`, `git rm`, `git mv`,
 `git reset --hard`, `git stash`, `git checkout -f` and `git checkout` or `git restore` of a path, `curl -o` and `-O`,
@@ -341,13 +486,24 @@ parameters. The .NET methods are read whatever shell the tool name claims, becau
 tool `Bash` and runs the command in PowerShell, so `[System.IO.File]::WriteAllText($target, ...)` under `Bash` denies
 the same way it does under `PowerShell`.
 
+Every wrapper is peeled by its own options, as getopt reads them: a value attached (`sudo -D/tmp`, `ionice -c3`), after
+`=` (`--chdir=/tmp`) or in the next word, and a long option by any unambiguous prefix (`env --chd=/tmp`,
+`xargs --max-pr 1`). The wrappers are `env`, `sudo`, `doas`, `exec`, `command`, `nohup`, `setsid`, `stdbuf`, `nice`,
+`ionice`, `time`, `timeout`, `gtimeout`, `pkexec`, `runuser -u`, `taskset`, `chrt`, `prlimit`, `unbuffer`, `rlwrap`, `strace`,
+`ltrace`, `fakeroot`, `firejail`, `numactl`, `valgrind`, `caffeinate`, `busybox`, `toybox` and `xargs`. `env -S`
+splits its string the way a shell would, a file a wrapper writes itself (`time -o`, `strace -o`, `ltrace -o`,
+`rlwrap -l`, `fakeroot -s`, `valgrind --log-file`) is a write target, and `mksh` and `yash` are read as POSIX shells.
+Commands piped into `ed` or `red` are read for the files `w` writes. sed is read the way GNU sed's getopt_long reads
+it, options anywhere before `--` and long options by prefix, so `-i` takes the rest of its cluster as a backup suffix
+(`sed -ie`, `-ibak`, `-i~`, `--in-pl`), and `-nf script`, `--fi script` and `--expr=...` are found wherever they sit.
+A sed script file the gate cannot read is unplaceable. perl and ruby read `-i` the same way inside a switch cluster
+(`perl -pi~`).
+
 Beyond the plain writers, the rule reads a hard link whose source is a project file (`ln` without `-s`, `cp -l`,
 `fsutil hardlink create`, `New-Item -ItemType HardLink`, `mklink /H`), a Windows device, extended-length or loopback
 administrative-share spelling of a project path, command substitution inside double quotes and backquotes, a line
 continuation before CR LF in PowerShell and cmd (a POSIX shell joins a line only on backslash LF, and keeps a lone
-carriage return inside its word), a PowerShell cmdlet fed its path through the pipeline, `pushd`, `popd`, `Push-Location`,
-`Pop-Location`, `env --chdir`, `sudo --chdir` and `pwsh -WorkingDirectory`, parentheses that are a subshell only in a
-POSIX shell, `xcopy`, `robocopy`, `replace`, `expand`, `esentutl`, `certutil`, `bitsadmin`, `mklink`,
+carriage return inside its word), a PowerShell cmdlet fed its path through the pipeline, `xcopy`, `robocopy`, `replace`, `expand`, `esentutl`, `certutil`, `bitsadmin`, `mklink`,
 `Start-Transcript`, every `Export-*` cmdlet, `Start-Process` with its redirects and argument list,
 `Set-ItemProperty`, any other `System.IO` use, in-place editors and formatters, writes and processes inside an `awk`
 or `sed` program, Lua, R, Julia, `sqlite3`, PHP, Perl and Ruby code, and the runners `busybox`, `toybox`, `su -c`,
@@ -362,7 +518,9 @@ file handlers, and temporary files created in a named directory.
 
 The gate fails open almost everywhere, but not on the repository boundary. The three helpers that decide it,
 `_resolves_inside_repo`, `_path_exists_in_repo` and `_contains_repo`, fail toward True on a path none of them can
-resolve, which denies, because deciding what Rule A protects is their whole job. On Windows that includes a loopback
+resolve, which denies, because deciding what Rule A protects is their whole job. A symlink loop is such a path:
+Python 3.11 and 3.12 raise `RuntimeError` from `Path.resolve` on one where 3.13 returns the path, and every resolving
+helper reads that error as unplaceable, so a write target in a loop denies and a root that loops is dropped. On Windows that includes a loopback
 UNC path to a share that is not an administrative drive share, such as `\\localhost\share` or `\\127.0.0.1\share`,
 because only the share definition knows which folder it maps to, an administrative drive share such as
 `\\fileserver\C$` on any host, because the gate cannot prove that host is another machine, and a volume GUID or
@@ -388,8 +546,11 @@ Each of the following cannot be placed either and denies on the main thread:
 - A `git config` setting or `-c` value that runs a program or includes more configuration, `git grep -O`,
   `difftool` and `mergetool`.
 - Inline Python that imports anything outside the standard library, a standard module shadowed by a file in its
-  working directory, or loads code through `runpy`, `importlib` or `ctypes`, and inline JavaScript that loads any
-  module that is not built in.
+  working directory, any standard module not built into the interpreter in a command that changes directory, because
+  the gate no longer knows that directory, or loads code through `runpy`, `importlib` or `ctypes`, and inline
+  JavaScript that loads any module that is not built in.
+- A relative write target in a command that changes directory anywhere, as "Where the write rule draws the repository
+  boundary" above describes.
 - PowerShell that holds a `System.IO` type as a value, imports a namespace or module with `using`, turns a string into
   a type, uses reflection or compiles code with `Add-Type`.
 - WMI or CIM method calls and `wmic ... call create`, and `ssh`, `plink`, `winrs`, `Invoke-Command` and PowerShell
@@ -397,8 +558,18 @@ Each of the following cannot be placed either and denies on the main thread:
 - A container that binds a path inside or above the repository, `docker` or `podman` `exec`, `start`, `build`, `cp`
   into a container, and `compose up`, `run` or `build`.
 - A job handed to `schtasks /create`, `at`, `batch`, `crontab`, `systemd-run` or `Register-ScheduledTask`.
-- A shell command that is not a string, and a tool the gate does not know that still carries a `command`, `cmd` or
-  `script` value.
+- A shell command that is not a string, an edit path key that holds neither a string nor null, and a tool the gate
+  does not know that still carries a `command`, `cmd` or `script` value.
+- A shell call whose `workdir` resolves to no directory from any root, loops, or names a share the gate cannot map.
+- A command run under `chroot`, `sudo -R` or a firejail option that remaps the file system such as `--private`, an
+  `env -S` string holding an escape, a `$` or a `#`, and `strace -o` into a pipe.
+- Inline or piped code for `fish`, `csh`, `tcsh`, `nu` or `tclsh`, whose languages the gate does not read, commands
+  piped into `ex`, and commands piped into `ed` that run a shell command, use a global command or come from a program
+  whose output the gate cannot know. A script any of them runs is a script run.
+- Words `xargs` reads from the terminal or from a program whose output the gate cannot know, when they become code or
+  the program itself, as in `xargs -I{} sh -c {}`, and any such word handed to `sed`, `awk` or `find`, which read a
+  script, a program or a write from any argument. `git` takes code only at or before its subcommand, so
+  `cat x | xargs git` denies while `git ls-files -m | xargs git add` allows.
 
 Read-only forms of the same tools still allow: container `ps`, `images`, `inspect`, `logs`, `stats`, `network ls`,
 `volume ls`, `compose ls`, `ps`, `logs` and `config`, `schtasks /query`, `crontab -l`, `Get-ScheduledTask`, and WMI or
@@ -447,17 +618,9 @@ known limits of its own, accepted rather than open:
 - A submodule's configuration lives under `.git/modules`, which no pull request can write, so it is the user's own and
   not checked.
 
-As defence in depth, a consumer who uses no bare repository can run the command below once, after which git "only
-works with bare repositories specified via the top-level `--git-dir` command-line option, or the `GIT_DIR` environment
-variable" ([safe.bareRepository at v2.43.0](https://raw.githubusercontent.com/git/git/v2.43.0/Documentation/config/safe.txt),
-fetched 2026-10-31). Git reads the setting only from protected configuration, so a repository cannot switch it off:
-"This config setting is only respected in protected configuration ... This prevents untrusted repositories from
-tampering with this value". On git 2.43.0 the planted `commondir` layout then fails with
-`cannot use bare repository ... (safe.bareRepository is 'explicit')`.
-
-```bash
-git config --global safe.bareRepository explicit
-```
+As defence in depth, a consumer who uses no bare repository can set `safe.bareRepository` to `explicit`, as
+[Prerequisites in GLOBAL_SETUP.md](GLOBAL_SETUP.md#prerequisites) explains. On git 2.43.0 the planted `commondir`
+layout then fails with `cannot use bare repository ... (safe.bareRepository is 'explicit')`.
 
 On OpenCode and Kilo Code the native permission map denies every redirect and `&`, so `2>/dev/null` and `2>&1` deny
 there while the gate allows them. A gh `-R` with a host part, a comma-joined option, a leading `^` or `@`, a backslash
@@ -467,8 +630,58 @@ the gate alone holds them.
 Known limits of the write rule, accepted rather than open: a write form the gate does not know passes, a top-level
 command it cannot parse allows on the main thread, MCP tools are not gated, code run by an allowlisted tool is trusted rather than read,
 Copilot's main thread is not gated, the risky variable and option lists come from knowledge rather than vendor
-documentation, and a loopback share whose folder cannot be determined denies. Re-audit only when the rule changes, and
-record a new limit here rather than chasing it.
+documentation, a loopback share whose folder cannot be determined denies, Rule F knows only the programs and the git
+forms on its list, so a program that waits for typed input without being on it, or a git command that opens the
+editor only on a terminal, such as `git merge`, `git revert`, `git tag -a` or `git rebase --continue` with no message,
+can still be typed into through Codex's `write_stdin`, and so can inline code that opens a prompt of its own, such as
+`python3 -c 'import code; code.interact()'`, a `breakpoint()` call, `node -e 'require("repl").start()'` or
+`perl -ne eval`, because the gate reads inline code for the files it writes and cannot list every way code reads the
+terminal (Codex starts every such process with `PAGER`, `GIT_PAGER` and `GH_PAGER` set to `cat`,
+[process_manager.rs at rust-v0.166.0](https://raw.githubusercontent.com/openai/codex/rust-v0.166.0/codex-rs/core/src/unified_exec/process_manager.rs),
+fetched 2026-11-06, so git and gh open no pager there unless the user's own login shell exports one, which Codex's
+shell snapshot restores over `cat`, as Rule E above explains), `xargs` handing a write command names from a file of
+its own passes, as in `xargs -a list.txt rm`, because the gate does not read that file, so it sees `rm` with no
+operand (the same names piped in, as in `cat list.txt | xargs rm`, still deny, and Rule F holds an `xargs` that reads
+its names from the terminal, a bare `xargs rm` and `xargs rm < list.txt` among them), an alias, a function or a shell option from the user's own profile that changes directory under a name the gate does not know passes as no directory change, because the gate never sees the profile, and the `tasks.md` exemption holds at every root, so a call whose `cwd`
+names a project subfolder, as a Codex `workdir` does from `rust-v0.166.0`, may write `tasks.md` in that subfolder. Re-audit only when the rule changes, and record a new limit here rather than chasing it.
+
+These readings of a directory change and of the allowlist are accepted limits too, one per line:
+
+- A sourced or fed script file is read as it is when the hook runs, so a command that rewrites it first, as in `cp /tmp/e.sh /tmp/x.sh; . /tmp/x.sh`, hides its writes and directory changes, and so do `cat f | sh`, `sed -f` and `awk -f`.
+- An allowlist entry ending in `...` also accepts tool options such as `-C`, `-f`, `--prefix` and `--manifest-path`, which can point the run at another folder or file.
+- A glob program word such as `c?` or `[c]d` becomes `cd` only when a matching file exists, and the gate reads it as an ordinary program.
+- A function or an alias from the user's own shell snapshot runs under a name the gate reads as an ordinary program, so a directory change inside it passes.
+- zsh `AUTO_CD` turns a bare folder name into a `cd`, and the gate reads that name as an ordinary program.
+- `unshare --wd` and `nsenter --wd` start their program in another folder, and the gate reads that program's code from the folder the command starts in.
+- `enable -f` loads a bash builtin from a shared object, which may change directory or write under any name.
+- PowerShell `Import-Alias` binds names from a file the gate does not read, so a later word may run `Set-Location`.
+
+Rule F also reads these forms as handed their input, each an accepted limit:
+
+- `vim -V`, `vi -V1` and `nvim -V` read as a version flag, though there `-V` sets the verbosity and the editor starts.
+- A version or help flag is read without knowing which options of `tmux`, `screen`, the pagers and the editors take a
+  value, so `tmux -LV`, `tmux -f -V`, `screen -S -v` and `less -o -V README.md` pass, though the flag is that option's
+  value and the program starts.
+- `pwsh -File - -?` and `pwsh -Command - -v` pass, though the flag after `-` goes to the script pwsh reads from the
+  terminal.
+- `psql -f -` with nothing piped in passes, because `-f` reads as a script file, though `-` is the terminal.
+
+Three more Rule F readings are accepted limits:
+
+- `git config edit`, the action form that replaced the mode options in Git 2.46 ("The operation mode options (like
+  "--get") the "git config" command uses have been deprecated and replaced with subcommands (like "git config get")",
+  [RelNotes 2.46.0](https://raw.githubusercontent.com/git/git/v2.46.0/Documentation/RelNotes/2.46.0.txt)), is not held
+  by Rule F, which knows only `git config -e` and `--edit`. The write rule still denies it on the main thread as a
+  command it cannot read, so the deny names the write rule instead of Rule F.
+- `xargs -p` and `xargs --interactive` ask on the terminal before each command, and pass once the names are piped in,
+  as in `printf x | xargs -p echo`, because Rule F reads xargs only for where its names come from. With no terminal,
+  GNU xargs 4.9.0 stopped with `failed to open /dev/tty for reading`.
+- `su nobody -- -c id` is held, a mild over-hold. su hands every word after the user name to that user's shell
+  (`su [options] [-] [<user> [<argument>...]]` in `su --help`, util-linux 2.39.3), so the shell runs `id` and exits,
+  but Rule F reads the `--` as ending su's options and sees a bare `su`. `su nobody -c id` passes.
+
+The write rule reads `gawk -i inplace` and `--include=inplace` as an in-place edit, but not the attached
+`gawk -iinplace`, which passes.
 
 #### MCP tools are not gated
 

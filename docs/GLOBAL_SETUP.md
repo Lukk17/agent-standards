@@ -99,6 +99,12 @@ reaching it.
 WSL works too, but inside WSL `$HOME` is the Linux home, so the install lands there and a Windows-side agent never sees
 it. Use WSL only if the agents you run are the ones inside it.
 
+If you never use a bare repository yourself, also tell git to ignore one it finds on its own. A bare repository is a git folder with no working tree, and one hidden inside a project you open, such as a branch you were asked to review, brings its own `config`. When an agent runs git in or below that folder, git reads that `config`, and a setting there can name a program git then runs, as `core.fsmonitor` does for `git status`. With `safe.bareRepository` set to `explicit`, Git "only works with bare repositories specified via the top-level `--git-dir` command-line option, or the `GIT_DIR` environment variable", which git suggests to anyone who does not use bare repositories, because it "will protect you from attacks that involve cloning a repository that contains a bare repository and running a Git command within that directory" ([safe.bareRepository at v2.43.0](https://raw.githubusercontent.com/git/git/v2.43.0/Documentation/config/safe.txt)). Git honours the setting only from your system, global and command-line configuration, never from a repository's own, so a repository cannot switch it back off. Before git 2.44 the setting also refuses a command run inside a normal repository's own `.git` folder, and before git 2.45 one run inside a linked worktree's folder under `.git/worktrees` ([2.44.0 release notes](https://raw.githubusercontent.com/git/git/v2.44.0/Documentation/RelNotes/2.44.0.txt), [2.45.0 release notes](https://raw.githubusercontent.com/git/git/v2.45.0/Documentation/RelNotes/2.45.0.txt)), so set it on git 2.45 or newer, or accept that git refuses those folders. In either shell:
+
+```bash
+git config --global safe.bareRepository explicit
+```
+
 ---
 
 ### Step 1, a temporary copy of the repository
@@ -1564,8 +1570,19 @@ What counts as running a script:
 
 Inline code, such as `python -c "print(1)"` or `node -e "..."`, is not a script run. The gate reads that code itself
 and denies it when it writes a file in the project, or when it loads code the gate cannot read: a Python import from
-outside the standard library, or a JavaScript module that is not built in. Writing `tasks.md` at the project root,
+outside the standard library, or a JavaScript module that is not built in, and in a command that changes directory
+any standard Python module not built into the interpreter, because the gate no longer knows which folder could hold a
+file of the same name. Writing `tasks.md` at the project root,
 sending output to the null device, and switching branches all stay allowed.
+
+Starting a shell, an interpreter, an editor or any other program that waits for typed input denies too, such as a bare
+`bash`, `python3`, `python3 -i`, `vim`, `less`, `tmux`, `psql` or `gdb`, or a `git commit` that would open the editor,
+because the gate never sees what is typed into it. Pass the code with `-c` or `-e`, the query with `psql -c` or
+`sqlite3 db "SQL"`, the message with `git commit -m`, run a debugger in batch mode, pipe the input in, feed a database
+shell or a debugger a file with `< file`, as in `psql app < schema.sql`, or hand the work to a subagent. An `xargs`
+with nothing piped in reads names from the terminal and denies too, `xargs rm < list.txt` included, so pipe the names
+in, as in `cat list.txt | xargs rm`, or name the file with `xargs -a list.txt`. A shell or an
+interpreter fed a file with `< file` still denies, because that file is a script the gate cannot read.
 
 A command also denies when it sets an environment variable that changes which program or file it uses, such as
 `GIT_DIR`, `GIT_CONFIG_PARAMETERS`, `LD_PRELOAD`, `NODE_OPTIONS`, `PYTHONPATH`, `BASH_ENV`, `PATH`, or
@@ -1596,11 +1613,27 @@ How a project entry is matched:
   it names a file instead, and matches only that file, so `.venv/Scripts/python.exe -m pytest` needs its own entry,
   and an entry `scripts/verify.sh` does not allow `other/verify.sh`.
 - A trailing `...` accepts any further arguments. Without it the command has to end where the entry ends, so an
-  entry `python scripts/verify.py` allows that command and denies `python scripts/verify.py --fix`.
-- A word with a slash in it is a file path, and it matches the file it names from where the command runs. After
-  `cd scripts`, `python verify.py` still matches, and after `cd docs`, `python scripts/verify.py` does not.
+  entry `python scripts/verify.py` allows that command and denies `python scripts/verify.py --fix`. The further
+  arguments include the tool's own options, such as `-C`, `-f`, `--prefix` or `--manifest-path`, which can point the
+  run at another folder or file, so end an entry with `...` only where every option the tool takes is safe.
+- A word with a slash in it is a file path, and it matches the file it names from the folder the command starts in.
+  When the gate cannot tell which of two folders that is, it has to name that file from both.
+- An allowlisted command must run without changing directory. An entry, the built-in ones included, applies only to a
+  command that changes no directory anywhere and starts inside the project. A `cd`, `pushd`, `popd`, `Set-Location`,
+  `env --chdir` or any other directory change in the command, even one into a project folder as in
+  `cd docs && python -m pytest -q`, turns every entry off for the whole command, and so does a Codex `workdir` outside
+  the project, because pytest loads the `conftest.py` and make the `Makefile` of the folder they run in, and the gate
+  does not follow where a directory change lands. Run the check from the project root and name the path instead, as in
+  `python -m pytest -q docs`.
+- The gate reads the words of the command, not what they do. A word counts as a directory change when a piece of it
+  between blanks or shell punctuation is `cd`, `chdir`, `pushd`, `popd`, `sl`, `Set-Location`, `Push-Location` or
+  `Pop-Location`, or when it holds `chdir`, `setwd`, `currentdirectory`, `workingdirectory`, `set-location`,
+  `push-location`, `pop-location`, `setlocation`, `pushcurrentlocation`, `poplocation`, `execdir` or `okdir`
+  anywhere, in any case. Only the text `echo`, `printf`, `Write-Output` or `Write-Host` prints is left out. So
+  `python -m pytest -k chdir` turns every entry off and denies. Pick another `-k` expression, or hand the run to a
+  subagent.
 - An entry that hands a script to a shell, such as `bash scripts/check.sh`, only lifts the script-run rule. The gate
-  still reads the script as shell code and denies it when it writes a file in the project.
+  still reads the script as shell code and denies it when it writes a file in the project or changes directory.
 - The built-in list names no project's own scripts, because an entry such as `python tools/check.py` would also allow a
   same-named script in every other project, and that script could write files.
 
@@ -1619,7 +1652,9 @@ python scripts/verify.py
 
 The gate reads that file from the project root on every call, so a new entry works on the next command. The main
 thread cannot write the file itself, because the gate protects it like every other file in the project, so ask a
-subagent to add an entry. Commit the file so the whole team gets the same list.
+subagent to add an entry. The project root here is the folder the gate runs in, never the working directory a single
+call names: Codex fills that from the call's `workdir`, which the main thread picks, so an allowlist in a folder
+outside the project adds nothing. Commit the file so the whole team gets the same list.
 
 ---
 

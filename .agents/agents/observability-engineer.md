@@ -1,6 +1,9 @@
 ---
 description: "Use when the user says \"add tracing\", \"define our SLOs\", \"these alerts are noise\" or \"build a dashboard for this service\". Designs and extends logs, metrics, traces, SLOs, alerts and dashboards toward signals that drive an action rather than vanity charts, wired into the code and the deployment. Not for responding to a live incident, use `devops-troubleshooter`."
 mode: subagent
+permission:
+  webfetch: deny
+  websearch: deny
 tools:
   read: true
   write: true

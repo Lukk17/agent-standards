@@ -79,6 +79,12 @@ COPILOT_TOOLS = {
     "websearch": ("web",),
 }
 
+# An agent whose `tools` list holds only these is read-only without any marker.
+# Every target writes it a READ_ONLY_HEADING section with no command, so the
+# gate's Rule E holds it to no shell and no edit on every format whose hook
+# names the subagent and sees the tool. Codex needs that most: its agent file
+# can switch the shell off but has no key for apply_patch, and web search stays
+# open there, because neither the agent file nor the hook matcher reaches it.
 READ_ONLY_TOOLS = frozenset({"read", "grep", "glob"})
 
 # A canonical `readonly: true` keeps bash but limits it to these commands, plus
@@ -92,7 +98,11 @@ READ_ONLY_TOOLS = frozenset({"read", "grep", "glob"})
 READ_ONLY_GIT = "git --no-pager"
 READ_ONLY_COMMANDS = tuple(f"{READ_ONLY_GIT} {command}*" for command in ("diff", "log", "show", "status"))
 READ_ONLY_HEADING = "Read-only shell"
-READ_ONLY_FORBIDDEN_TOOLS = frozenset({"write", "edit", "task"})
+# Rule E denies a read-only agent every tool outside reading, searching,
+# listing and its shell on every format whose hook sees the tool, so a listed
+# web tool would never reach it there. Web search stays open to a read-only
+# agent on Codex, because neither the agent file nor the hook matcher reaches it.
+READ_ONLY_FORBIDDEN_TOOLS = frozenset({"write", "edit", "task", "webfetch", "websearch"})
 
 # OpenCode matches a bash rule against the command's own source text, quotes
 # and redirects included, with `*` matching "zero or more of any character" and
@@ -101,9 +111,9 @@ READ_ONLY_FORBIDDEN_TOOLS = frozenset({"write", "edit", "task"})
 # diff*` would also match `git difftool`, so each listed command becomes an exact
 # rule plus a "command *" rule, and these denies follow them all: a git output
 # option in any spelling that keeps `--out`, anything the shell still expands,
-# any redirect, gh opening a browser or running a --jq or --template
-# expression, and every character the gate's Rule E refuses that a pattern
-# can name, a single quote included. `*` matches across lines there (the regex
+# any redirect, gh opening a browser, running a --jq or --template
+# expression or polling with --watch, and every character the gate's Rule E
+# refuses that a pattern can name, a single quote included. `*` matches across lines there (the regex
 # carries the `s` flag), so a newline or a carriage return denies the whole
 # command. Two of the gate's refusals cannot be written as a rule: a
 # backslash, because Wildcard.match turns every backslash into `/` in the
@@ -122,6 +132,7 @@ OPENCODE_READ_ONLY_DENIES = (
     "gh * -q*",
     "gh *--template*",
     "gh * -t*",
+    "gh *--watch*",
     '*"*',
     "*'*",
     "*{*",
@@ -146,12 +157,29 @@ OPENCODE_READ_ONLY_TOOL_DENIES = ("*_*", "webfetch", "websearch", "todowrite", "
 
 # OpenCode and Kilo Code read `tools` as overrides on top of everything the
 # agent already has, so a map listing only read, grep and glob still leaves
-# edit and bash on. Each write-capable permission is therefore denied outright
-# unless one of the canonical tools that grants it is listed.
-OPENCODE_WRITE_PERMISSIONS = {
+# edit, bash and the web on: "Most permissions default to \"allow\"" (OpenCode
+# 1, https://opencode.ai/v1/docs/permissions/, "Defaults"), and OpenCode 2
+# starts "Every agent, including custom agents" from an allow-all base policy
+# (https://opencode.ai/docs/permissions/, "Defaults"). Each of these
+# permissions is therefore denied outright unless one of the canonical tools
+# that grants it is listed.
+OPENCODE_LISTED_PERMISSIONS = {
     "edit": ("write", "edit"),
     "bash": ("bash",),
+    "webfetch": ("webfetch",),
+    "websearch": ("websearch",),
 }
+
+# A Codex custom agent file can switch the shell off and nothing finer: "To
+# reduce a custom agent's capabilities, set supported feature keys to `false`:
+# `features.shell_tool`, `features.apps`, `features.plugins`,
+# `features.memories`, or `features.request_permissions_tool`"
+# (https://developers.openai.com/codex/subagents, "Custom agent file schema").
+# apply_role_to_config in codex-rs/core/src/agent/role.rs at rust-v0.167.0
+# applies only a `false` there, and add_shell_tools in
+# codex-rs/core/src/tools/spec_plan.rs then registers neither exec_command nor
+# write_stdin.
+CODEX_SHELL_OFF = "features.shell_tool = false"
 
 # Plan mode is a native layer only. Claude Code ignores a subagent's
 # permissionMode while the main conversation is in auto, acceptEdits or
@@ -255,6 +283,17 @@ def read_only_pattern_problem(command: str) -> str:
     return ""
 
 
+def lists_only_read_tools(fm: dict) -> bool:
+    """True when the agent lists tools and every one of them only reads."""
+    tools = fm.get("tools") or []
+    return bool(tools) and set(tools) <= READ_ONLY_TOOLS
+
+
+def is_read_only(fm: dict) -> bool:
+    """True for an agent marked `readonly: true` or one that lists only read tools."""
+    return bool(fm.get("readonly")) or lists_only_read_tools(fm)
+
+
 def read_only_commands(fm: dict) -> list[str]:
     """The shell commands a read-only agent may run, deduplicated, or an empty list when it is not read-only."""
     if not fm.get("readonly"):
@@ -280,7 +319,21 @@ def read_only_block(fm: dict, shell: bool = True, pager_escape: bool = False) ->
 
     pager_escape marks a target whose hook never sees a terminal, Codex, where
     the gate denies every gh command, so the agent is told to hand them back.
+    shell=False marks a target that grants the agent no shell and whose hook
+    never names the agent, Copilot, so only the missing tools hold it there.
     """
+    if lists_only_read_tools(fm):
+        # No item follows the heading, which Rule E reads as no command allowed.
+        holder = (
+            "The preflight gate denies every edit and every shell command."
+            if shell
+            else "This target grants it no edit or shell tool."
+        )
+        return (
+            f"\n\n### {READ_ONLY_HEADING}\n\n"
+            "This agent is read-only and has no shell. Edit no file and run no command, and return "
+            f"any change or command to the caller as a proposal. {holder}\n"
+        )
     commands = read_only_commands(fm)
     if not commands:
         return ""
@@ -355,7 +408,7 @@ def emit_claude(fm: dict, body: str) -> str:
     tools = [CLAUDE_TOOLS.get(t, t) for t in fm.get("tools", [])]
     if tools:
         lines.append("tools: " + ", ".join(tools))
-    if set(fm.get("tools") or []) == READ_ONLY_TOOLS or fm.get("readonly"):
+    if is_read_only(fm):
         lines.append("permissionMode: " + CLAUDE_READ_ONLY_PERMISSION_MODE)
     if fm.get("skills"):
         lines.append("skills:")
@@ -371,19 +424,28 @@ def emit_opencode(fm: dict, body: str) -> str:
         "mode: subagent",
     ]
     if fm.get("tools"):
-        denied = opencode_denied_permissions(fm["tools"])
+        read_only = is_read_only(fm)
         commands = read_only_commands(fm)
-        if denied or commands:
+        # A read-only agent denies the web below, among the tools outside the
+        # gate's set, so each key is written once.
+        denied = [
+            permission
+            for permission in opencode_denied_permissions(fm["tools"])
+            if not (read_only and permission in OPENCODE_READ_ONLY_TOOL_DENIES)
+        ]
+        if denied or read_only:
             lines.append("permission:")
             lines += [f"  {permission}: deny" for permission in denied]
+        if read_only:
+            # A subagent session already gets task denied when its definition
+            # names no task rule (tool/task.ts in OpenCode 1.19.5), and this
+            # says so explicitly.
+            lines.append("  task: deny")
+            lines += [f"  {_yaml_double_quoted(tool)}: deny" for tool in OPENCODE_READ_ONLY_TOOL_DENIES]
         if commands:
             # OpenCode evaluates "with the last matching rule winning", so the
             # catch-all deny goes first and the escape denies last
-            # (https://opencode.ai/docs/permissions/). A subagent session
-            # already gets task denied when its definition names no task rule
-            # (tool/task.ts in OpenCode 1.19.5), and this says so explicitly.
-            lines.append("  task: deny")
-            lines += [f"  {_yaml_double_quoted(tool)}: deny" for tool in OPENCODE_READ_ONLY_TOOL_DENIES]
+            # (https://opencode.ai/docs/permissions/).
             lines.append("  bash:")
             lines += [f"    {_yaml_double_quoted(pattern)}: {action}" for pattern, action in opencode_bash_rules(commands)]
         lines.append("tools:")
@@ -393,10 +455,10 @@ def emit_opencode(fm: dict, body: str) -> str:
 
 
 def opencode_denied_permissions(tools: list[str]) -> list[str]:
-    """Every write-capable OpenCode permission that none of the listed tools grants."""
+    """Every OpenCode permission in OPENCODE_LISTED_PERMISSIONS that none of the listed tools grants."""
     return [
         permission
-        for permission, granting in OPENCODE_WRITE_PERMISSIONS.items()
+        for permission, granting in OPENCODE_LISTED_PERMISSIONS.items()
         if not any(tool in tools for tool in granting)
     ]
 
@@ -434,7 +496,7 @@ def emit_copilot(fm: dict, body: str) -> str:
     lines += [
         "---",
         "",
-        body_with_blocks(fm, body, shell=not fm.get("readonly")),
+        body_with_blocks(fm, body, shell=not is_read_only(fm)),
     ]
     return "\n".join(lines).rstrip() + "\n"
 
@@ -451,6 +513,10 @@ def emit_codex(fm: dict, body: str) -> str:
     lines = [
         f"name = {_toml_basic(fm['name'])}",
         f"description = {_toml_basic(fm['description'].strip())}",
+    ]
+    if fm.get("tools") and "bash" not in fm["tools"]:
+        lines.append(CODEX_SHELL_OFF)
+    lines += [
         "developer_instructions = '''",
         content,
         "'''",

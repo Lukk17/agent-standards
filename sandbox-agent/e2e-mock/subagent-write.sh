@@ -11,7 +11,10 @@
 #              gate has to deny. On Claude Code a third case starts the
 #              code-reviewer subagent headless and checks that it preloaded the
 #              project's security-review skill, not the built-in
-#              /security-review command. Only the model is mocked.
+#              /security-review command. On Codex a fourth case starts
+#              backend-architect, whose tools leave out bash, and checks that
+#              its turns offer no shell tool, against the python-pro turns of
+#              the first case, which do. Only the model is mocked.
 # Usage: sourced by verify-project.sh, which defines pass, fail, note and
 #        one_line, sources lib-opencode2.sh first, calls
 #        verify_subagent_write <project> and calls e2e_end from its EXIT trap.
@@ -54,6 +57,11 @@ readonly E2E_REVIEW_SKILL="security-review"
 readonly E2E_REVIEW_FILE="e2e-review-target.txt"
 readonly E2E_REVIEW_TOKEN="e2e-review"
 readonly E2E_BUILTIN_REVIEW_MARKER="You are a senior security engineer conducting a focused security review of the changes on this branch."
+# The Codex no-shell case: an agent whose canonical tools leave out bash, so
+# its generated file sets features.shell_tool = false, and every tool name a
+# Codex build has offered a shell under.
+readonly E2E_NO_SHELL_AGENT="backend-architect"
+readonly E2E_SHELL_TOOLS='["exec_command","write_stdin","shell","shell_command","local_shell"]'
 
 E2E_TMP=""
 E2E_PID=""
@@ -388,6 +396,21 @@ e2e_review_facts() {
   printf '%s\n' "$facts"
 }
 
+# Facts over one case's request log, one line: "<subagent turns> <subagent
+# turns offering a shell tool> <spawns answered>". All zeros when the log is
+# unreadable.
+e2e_shell_facts() {
+  local log="$1" facts=""
+
+  facts="$(jq -rs --argjson shells "$E2E_SHELL_TOOLS" --argjson spawns "$E2E_SPAWN_TOOLS" '
+    map(select(.role == "subagent" and .header_role == "subagent" and .tool_count > 0)) as $turns
+    | [ ($turns | length),
+        ($turns | map(select(any(.tools[]?; . as $t | $shells | index($t)))) | length),
+        (map(select(.role == "main") | [.calls[] | select((.name as $n | $spawns | index($n)) and .result != null)] | length) | add // 0)
+      ] | map(tostring) | join(" ")' "$log" 2>/dev/null)" || facts="0 0 0"
+  printf '%s\n' "$facts"
+}
+
 # Returns 0 when the agent binary on PATH, or the package it was installed
 # from, still holds the built-in command's prompt, so its absence from a
 # request means something.
@@ -418,6 +441,24 @@ e2e_check_review() {
     pass "${E2E_LABEL}: ${E2E_REVIEWER} preloads the project's ${E2E_REVIEW_SKILL} skill and not the built-in /${E2E_REVIEW_SKILL} command (${turns} of ${turns} turns)"
   else
     fail "${E2E_LABEL}: ${E2E_REVIEWER} preloads the project's ${E2E_REVIEW_SKILL} skill and not the built-in /${E2E_REVIEW_SKILL} command (exit ${status}, ${spawns} spawn(s) answered, ${turns} subagent turn(s), ${with_skill} with '${E2E_SKILL_LINE}', ${with_builtin} with the built-in prompt)"
+  fi
+}
+
+# Codex only: the main thread starts an agent whose tools leave out bash, and
+# the subagent answers at once. None of its turns may offer a shell tool,
+# while python-pro's turns in the spawn case must, so the check can see one.
+e2e_check_no_shell() {
+  local dir="$1" status=0 turns=0 with_shell=0 spawns=0 control_turns=0 control_shell=0 _spawned=0
+
+  e2e_invoke codex "$dir" \
+    "E2E-REVIEW ${E2E_NO_SHELL_AGENT} ${dir}/project/${E2E_REVIEW_FILE} ${E2E_REVIEW_TOKEN}" no-shell || status=$?
+  IFS=' ' read -r turns with_shell spawns <<<"$(e2e_shell_facts "${dir}/no-shell.requests.jsonl")"
+  IFS=' ' read -r control_turns control_shell _spawned <<<"$(e2e_shell_facts "${dir}/spawn.requests.jsonl")"
+
+  if [[ "$control_shell" -gt 0 && "$spawns" -gt 0 && "$turns" -gt 0 && "$with_shell" -eq 0 ]]; then
+    pass "${E2E_LABEL}: ${E2E_NO_SHELL_AGENT}, whose tools leave out bash, is offered no shell (${turns} turns), while ${E2E_SUBAGENT} is (${control_shell} of ${control_turns} turns)"
+  else
+    fail "${E2E_LABEL}: ${E2E_NO_SHELL_AGENT}, whose tools leave out bash, is offered no shell (exit ${status}, ${spawns} spawn(s) answered, ${with_shell} of ${turns} subagent turn(s) offering a shell, ${control_shell} of ${control_turns} ${E2E_SUBAGENT} turn(s) offering one)"
   fi
 }
 
@@ -495,6 +536,10 @@ e2e_check_agent() {
 
   if [[ "$agent" == "claude-code" ]]; then
     e2e_check_review "$dir"
+  fi
+
+  if [[ "$agent" == "codex" ]]; then
+    e2e_check_no_shell "$dir"
   fi
 }
 
