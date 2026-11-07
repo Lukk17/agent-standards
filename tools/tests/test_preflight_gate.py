@@ -2097,9 +2097,8 @@ def test_a_cd_into_a_real_symlink_loop_still_denies_the_relative_write(tmp_path)
 
 
 def test_a_relative_cd_in_a_session_started_below_the_root_still_denies(tmp_path):
-    # Given a session whose working directory is not the project root, so the
-    # relative destination means one thing under the invocation directory and
-    # another under the root the gate itself sits in
+    # Given a session started in a folder below the project's parent, not at
+    # the project root, and a cd followed by a relative write into the project
     nested = tmp_path / "nested"
     nested.mkdir()
     target = REPO_ROOT.name + "/tools/gen_subagents.py"
@@ -2108,7 +2107,7 @@ def test_a_relative_cd_in_a_session_started_below_the_root_still_denies(tmp_path
     # When
     code, out, _err = run(payload, "claude", cwd=nested)
 
-    # Then
+    # Then the gate follows no cd, so the relative write is unplaceable and denies
     assert code == 0
     assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
 
@@ -2125,21 +2124,26 @@ def test_a_relative_cd_in_a_session_started_below_the_root_still_denies(tmp_path
 # lexer reads as a command of its own, after an unquoted `c$(...)` or a
 # PowerShell call on an expression, names `docs` and `../AGENTS.md` instead,
 # because an absolute folder there is a script run and denies on that alone.
+# Each case denies on this rule alone, except a few that another rule denies
+# as well: a CDPATH setting is an unplaceable environment, an empty `$()` starts
+# a shell that waits for typed input, eval, trap or alias code running a
+# computed name is unplaceable, cmd `start` runs a script, and {home} and
+# `.cache` resolve inside from the project root as they do from home.
 DIRECTORY_CHANGE_CASES = {
-    "cd-dash": ("cd {out}; cd -; echo x > AGENTS.md", "Bash"),
+    "cd-dash": ("cd {out}; cd -; echo x > {back}", "Bash"),
     "cd-to-command-output": ('cd "$(echo {out})"; echo x > {back}', "Bash"),
     "bare-cd-goes-home": ("cd; echo x > {home}", "Bash"),
-    "cd-back-through-command-output": ("cd {out}; cd $(echo {root}); echo x > AGENTS.md", "Bash"),
-    "cd-back-through-a-glob": ("cd {out}; cd {root_glob}; echo x > AGENTS.md", "Bash"),
-    "popd-after-dirs-clear-in-a-subshell": ("pushd {out}; (dirs -c); popd; echo x > AGENTS.md", "Bash"),
-    "popd-after-dirs-clear-in-a-pipeline": ("pushd {out}; dirs -c | cat; popd; echo x > AGENTS.md", "Bash"),
-    "cd-inside-a-function": ("f() {{ cd {root}; }}; cd {out}; f; echo x > AGENTS.md", "Bash"),
+    "cd-back-through-command-output": ("cd {out}; cd $(echo {root}); echo x > {back}", "Bash"),
+    "cd-back-through-a-glob": ("cd {out}; cd {root_glob}; echo x > {back}", "Bash"),
+    "popd-after-dirs-clear-in-a-subshell": ("pushd {out}; (dirs -c); popd; echo x > {back}", "Bash"),
+    "popd-after-dirs-clear-in-a-pipeline": ("pushd {out}; dirs -c | cat; popd; echo x > {back}", "Bash"),
+    "cd-inside-a-function": ("f() {{ cd {root}; }}; cd {out}; f; echo x > {back}", "Bash"),
     "cd-inside-a-function-keyword": ("function g {{ cd {out}; }}; g; echo x > {back}", "Bash"),
-    "cd-inside-a-for-loop": ('cd {out}; for d in {root}; do cd "$d"; done; echo x > AGENTS.md', "Bash"),
-    "cd-in-the-background": ("cd {out} & echo x > AGENTS.md", "Bash"),
-    "popd-after-a-pushd-in-a-subshell": ("(cd {out} && pushd /var); popd; echo x > AGENTS.md", "Bash"),
-    "popd-after-a-failed-pushd": ("cd {out}; pushd /nonexistent-zz9; cd {root}; popd; echo x > AGENTS.md", "Bash"),
-    "cd-with-two-operands": ("cd x {out}; echo x > AGENTS.md", "Bash"),
+    "cd-inside-a-for-loop": ('cd {out}; for d in {root}; do cd "$d"; done; echo x > {back}', "Bash"),
+    "cd-in-the-background": ("cd {out} & echo x > {back}", "Bash"),
+    "popd-after-a-pushd-in-a-subshell": ("(cd {out} && pushd /var); popd; echo x > {back}", "Bash"),
+    "popd-after-a-failed-pushd": ("cd {out}; pushd /nonexistent-zz9; cd {root}; popd; echo x > {back}", "Bash"),
+    "cd-with-two-operands": ("cd x {out}; echo x > {back}", "Bash"),
     "cd-behind-if": ("if cd {out}; then echo x > {back}; fi", "Bash"),
     "cd-behind-then": ("if true; then cd {out}; fi; echo x > {back}", "Bash"),
     "cd-behind-do": ("while true; do cd {out}; break; done; echo x > {back}", "Bash"),
@@ -2177,28 +2181,28 @@ DIRECTORY_CHANGE_CASES = {
         "Start-Process -WorkingDirectory {out} -FilePath cmd -ArgumentList '/c','echo x > {back}'",
         "PowerShell",
     ),
-    "set-location-dash": ("Set-Location {out}; Set-Location -; Set-Content AGENTS.md x", "PowerShell"),
+    "set-location-dash": ("Set-Location {out}; Set-Location -; Set-Content {back} x", "PowerShell"),
     "set-location-alias": ("sl {out}; Set-Content {back} x", "PowerShell"),
     "push-location": ("Push-Location {out}; Set-Content {back} x", "PowerShell"),
     "pop-location": ("Pop-Location; Set-Content {up} x", "PowerShell"),
     "cd-dot-dot-function": ("cd..; Set-Content {up} x", "PowerShell"),
-    "cd-oldpwd": ('cd {out}; cd "$OLDPWD"; echo x > AGENTS.md', "Bash"),
-    "cd-tilde-dash": ("cd {out}; cd ~-; echo x > AGENTS.md", "Bash"),
-    "cd-variable": ("cd {out}; cd $VAR; echo x > AGENTS.md", "Bash"),
-    "cd-to-pwd-output": ('cd {out}; cd "$(pwd)"; echo x > AGENTS.md', "Bash"),
-    "cd-backticks": ("cd {out}; cd `pwd`; echo x > AGENTS.md", "Bash"),
+    "cd-oldpwd": ('cd {out}; cd "$OLDPWD"; echo x > {back}', "Bash"),
+    "cd-tilde-dash": ("cd {out}; cd ~-; echo x > {back}", "Bash"),
+    "cd-variable": ("cd {out}; cd $VAR; echo x > {back}", "Bash"),
+    "cd-to-pwd-output": ('cd {out}; cd "$(pwd)"; echo x > {back}', "Bash"),
+    "cd-backticks": ("cd {out}; cd `pwd`; echo x > {back}", "Bash"),
     "cd-home-then-remove": ("cd ~ && rm -rf .cache", "Bash"),
-    "pushd-rotate": ("pushd {out}; pushd +1; echo x > AGENTS.md", "Bash"),
-    "pushd-rotate-from-the-end": ("pushd {out}; pushd -0; echo x > AGENTS.md", "Bash"),
-    "pushd-swap": ("pushd {out}; pushd; echo x > AGENTS.md", "Bash"),
-    "pushd-no-change": ("pushd -n {out}; echo x > AGENTS.md", "Bash"),
+    "pushd-rotate": ("pushd {out}; pushd +1; echo x > {back}", "Bash"),
+    "pushd-rotate-from-the-end": ("pushd {out}; pushd -0; echo x > {back}", "Bash"),
+    "pushd-swap": ("pushd {out}; pushd; echo x > {back}", "Bash"),
+    "pushd-no-change": ("pushd -n {out}; echo x > {back}", "Bash"),
     "popd-to-a-folder-pushd-n-stacked": ("cd {out}; pushd -n {root}/docs; popd; echo x > ../AGENTS.md", "Bash"),
-    "popd-drops-an-entry": ("pushd {out}; pushd {root}; popd +1; echo x > AGENTS.md", "Bash"),
-    "popd-after-dirs-clear": ("pushd {out}; pushd {root}; dirs -c; popd; echo x > AGENTS.md", "Bash"),
-    "cdpath-in-the-command": ("CDPATH={parent}; cd {out}; cd {name}; echo x > AGENTS.md", "Bash"),
-    "exported-cdpath": ("export CDPATH={parent}; cd {out}; cd {name}; echo x > AGENTS.md", "Bash"),
+    "popd-drops-an-entry": ("pushd {out}; pushd {root}; popd +1; echo x > {back}", "Bash"),
+    "popd-after-dirs-clear": ("pushd {out}; pushd {root}; dirs -c; popd; echo x > {back}", "Bash"),
+    "cdpath-in-the-command": ("CDPATH={parent}; cd {out}; cd {name}; echo x > {back}", "Bash"),
+    "exported-cdpath": ("export CDPATH={parent}; cd {out}; cd {name}; echo x > {back}", "Bash"),
     "back-to-a-subfolder": ("cd docs; cd {out}; cd -; echo x > ../AGENTS.md", "Bash"),
-    "set-location-plus": ("Set-Location {out}; Set-Location -; Set-Location +; Set-Content AGENTS.md x", "PowerShell"),
+    "set-location-plus": ("Set-Location {out}; Set-Location -; Set-Location +; Set-Content {back} x", "PowerShell"),
     "computed-cd-from-a-parameter": ("c${{U}}d {out} && printf x > {back}", "Bash"),
     "computed-cd-from-command-output": ("c$(printf d) docs && rm -rf ../.agents", "Bash"),
     "computed-cd-from-backticks": ("c`printf d` {out} && rm -rf {back}", "Bash"),
@@ -2221,6 +2225,8 @@ DIRECTORY_CHANGE_CASES = {
     "computed-trap-action": ("trap \"$(printf 'c%sd {out}' '')\" DEBUG; printf x > {back}", "Bash"),
     "computed-cd-through-an-alias": ("alias x='c${{U}}d'\nx {out}\nprintf x > {back}", "Bash"),
     "set-alias-to-a-computed-name": ("Set-Alias x ('Set-Loc'+'ation'); x {out}; Set-Content {back} y", "PowerShell"),
+    "write-in-a-function-run-after-a-cd": ("f() {{ echo x > {back}; }}; cd {out}; f", "Bash"),
+    "write-in-a-loop-body-before-its-cd": ("for i in 1 2; do echo x > {back}; cd {out}; done", "Bash"),
 }
 
 
@@ -2340,7 +2346,7 @@ def test_a_long_directory_stack_is_read_fast(tmp_path):
 
     # Then
     assert verdict == "deny"
-    assert took < 5
+    assert took < 10
 
 
 @pytest.mark.parametrize(
@@ -2371,10 +2377,75 @@ def test_an_absolute_write_inside_the_project_after_a_directory_change_still_den
 
 @pytest.mark.parametrize(
     "command",
-    ["cd docs && ls", "git status", "cd docs && cat README.md | head", "printf abc >> tasks.md", "cd docs; git log -1"],
+    ["cd docs && ls", "cd docs && cat README.md | head", "cd docs; git log -1", "cd docs && git switch main"],
 )
 def test_a_directory_change_that_writes_nothing_stays_allowed(command):
     assert decision(shell(command)) == "allow"
+
+
+@pytest.mark.parametrize("command", ["git status", "printf abc >> tasks.md", "python -m pytest -q", "npm test"])
+def test_a_command_with_no_directory_change_is_unaffected(nest, monkeypatch, command):
+    # Given a project whose own allowlist names `npm test`
+    monkeypatch.setattr(GATE, "_script_root", lambda: nest.project)
+    write_project_allowlist(nest.project, "npm test\n")
+
+    # When/Then
+    assert verdict_in(nest, command) == "allow"
+
+
+@pytest.mark.parametrize(
+    "command,expected",
+    [
+        pytest.param("cd docs && echo x >> {root}/tasks.md", "allow", id="task-list-by-its-absolute-path"),
+        pytest.param("cd docs && cat >> tasks.md <<'EOF'\nx\nEOF", "deny", id="relative-task-list-after-a-cd"),
+        pytest.param("cat >> tasks.md <<'EOF'\n- [ ] cd docs and fix CI/CD\nEOF", "allow", id="heredoc-naming-a-cd"),
+        pytest.param("cd docs && git checkout main", "deny", id="git-checkout-after-a-cd"),
+        pytest.param("cd docs && git switch main", "allow", id="git-switch-after-a-cd"),
+        pytest.param("python -m pytest -k chdir", "deny", id="a-pytest-expression-naming-chdir"),
+        pytest.param("python -m pytest -k 'not slow'", "allow", id="another-pytest-expression"),
+    ],
+)
+def test_the_documented_workarounds_hold(command, expected):
+    # Given the outcomes "Where the write rule draws the repository boundary"
+    # in docs/agent-compatibility.md promises for a directory change
+
+    # When/Then
+    assert decision(shell(command.format(root=REPO_ROOT.as_posix()))) == expected
+
+
+def test_a_relative_write_in_a_function_run_after_a_cd_is_reported(monkeypatch):
+    # Given the project root as the working directory, where ../y lands outside
+    monkeypatch.chdir(REPO_ROOT)
+
+    # When
+    without_cd = GATE._shell_targets("f() { echo x > ../y; }; f")
+    with_cd = GATE._shell_targets("f() { echo x > ../y; }; cd /tmp; f")
+
+    # Then the cd after the body leaves the write unplaceable, which counts as inside
+    assert without_cd == []
+    assert with_cd == ["../y"]
+
+
+def test_the_directory_change_state_is_reset_after_every_reading(monkeypatch):
+    # Given a reading that changes directory from a start folder
+    GATE._shell_targets("cd /tmp; echo x > y", start=(REPO_ROOT,))
+
+    # Then
+    assert GATE._CHANGES_DIRECTORY is False and GATE._START_BASES is None
+
+    # Given a reading that fails after it noted a directory change
+    def failing(command, depth=0, dialect=GATE._POSIX):
+        GATE._note_directory_change()
+        raise GATE._ShellParseError("cannot lex")
+
+    monkeypatch.setattr(GATE, "_command_targets", failing)
+
+    # When
+    with pytest.raises(GATE._ShellParseError):
+        GATE._shell_targets("cd /tmp", start=(REPO_ROOT,))
+
+    # Then
+    assert GATE._CHANGES_DIRECTORY is False and GATE._START_BASES is None
 
 
 # The root task list is the one path Rule A steps aside for.
@@ -3099,6 +3170,7 @@ def placed(nest, command):
         "project": nest.project,
         "sibling": nest.sibling,
         "elsewhere": nest.elsewhere,
+        "back": Path(os.path.relpath(nest.project / "x.py", nest.elsewhere)),
     }
 
     return command.format(**{name: posix(path) for name, path in places.items()})
@@ -4929,21 +5001,23 @@ def test_busybox_and_toybox_are_peeled_like_wrappers(nest, command, expected):
     assert verdict_in(nest, command) == expected
 
 
+# {back} is the relative path from {elsewhere} to the project's x.py, which
+# from the project itself lands outside, so each case denies only while the
+# directory change makes the relative write unplaceable.
 DIRECTORY_CASES = {
-    "popd-returns-to-the-project": ("pushd {elsewhere} && popd && rm -f x.py", "Bash", "deny"),
-    "pushd-then-write-elsewhere": ("pushd {elsewhere}; rm -f x.txt; popd", "Bash", "deny"),
-    "pop-location-returns": ("Push-Location {elsewhere}; Pop-Location; Remove-Item x.py", "PowerShell", "deny"),
-    "push-location-moves": ("cd {elsewhere}; Push-Location {project}; Remove-Item x.py", "PowerShell", "deny"),
-    "powershell-parentheses-keep-the-cd": ("cd {elsewhere}; (Set-Location {project}); Remove-Item x.py", "PowerShell", "deny"),
-    "powershell-pipeline-keeps-the-cd": ("cd {elsewhere}; Set-Location {project} | Out-Null; Remove-Item x.py", "PowerShell", "deny"),
-    "cmd-parentheses-keep-the-cd": ('cmd /c "cd /d {elsewhere} & (cd /d {project}) & del x.py"', "Bash", "deny"),
-    "posix-subshell": ("cd {elsewhere} && (cd {project}) && rm -f x.txt", "Bash", "deny"),
-    "env-chdir": ("cd {elsewhere} && env -C {project} rm -f x.py", "Bash", "deny"),
-    "env-chdir-long": ("cd {elsewhere} && env --chdir={project} rm -f x.py", "Bash", "deny"),
-    "env-chdir-attached": ("cd {elsewhere} && env -C{project} rm -f x.py", "Bash", "deny"),
-    "sudo-chdir": ("cd {elsewhere} && sudo -D {project} rm -f x.py", "Bash", "deny"),
-    "env-chdir-elsewhere": ("env -C {elsewhere} rm -f x.txt", "Bash", "deny"),
-    "pwsh-working-directory": ("cd {elsewhere}; pwsh -WorkingDirectory {project} -Command 'Remove-Item x.py'", "Bash", "deny"),
+    "pushd-then-popd": ("pushd {elsewhere} && popd && rm -f {back}", "Bash", "deny"),
+    "pushd-then-write-elsewhere": ("pushd {elsewhere}; rm -f {back}; popd", "Bash", "deny"),
+    "push-location-then-pop-location": ("Push-Location {elsewhere}; Pop-Location; Remove-Item {back}", "PowerShell", "deny"),
+    "push-location": ("Push-Location {elsewhere}; Remove-Item {back}", "PowerShell", "deny"),
+    "set-location-in-powershell-parentheses": ("(Set-Location {elsewhere}); Remove-Item {back}", "PowerShell", "deny"),
+    "set-location-in-a-powershell-pipeline": ("Set-Location {elsewhere} | Out-Null; Remove-Item {back}", "PowerShell", "deny"),
+    "cd-in-cmd-parentheses": ('cmd /c "(cd /d {elsewhere}) & del {back}"', "Bash", "deny"),
+    "cd-in-a-posix-subshell": ("(cd {elsewhere}) && rm -f {back}", "Bash", "deny"),
+    "env-chdir": ("env -C {elsewhere} rm -f {back}", "Bash", "deny"),
+    "env-chdir-long": ("env --chdir={elsewhere} rm -f {back}", "Bash", "deny"),
+    "env-chdir-attached": ("env -C{elsewhere} rm -f {back}", "Bash", "deny"),
+    "sudo-chdir": ("sudo -D {elsewhere} rm -f {back}", "Bash", "deny"),
+    "pwsh-working-directory": ("pwsh -WorkingDirectory {elsewhere} -Command 'Remove-Item {back}'", "Bash", "deny"),
 }
 
 

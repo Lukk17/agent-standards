@@ -408,11 +408,22 @@ the `SessionState.Path` methods `SetLocation`, `PushCurrentLocation` and `PopLoc
 `Set-Alias` or `New-Alias`, and a program name the shell computes, which may be `cd`. A program name is computed when
 it holds a `$` or a backtick anywhere, as in `$X`, `c${U}d` or `c$(printf d)`, or a brace expansion, a cmd `%X%` or
 `!X!`, or when PowerShell's call operator runs an expression, as in `& ('c'+'d')`. Glob characters do not count,
-because `[` is `test`. The names are matched as whole tokens of any word, so a word that only mentions one counts as
-well, except an operand of `echo`, `printf`, `Write-Output` or `Write-Host`, which only prints:
-`echo 'cd docs first' >> tasks.md` allows, while `echo 'cd /tmp' | sh` is read as the shell code it becomes. A bare
+because `[` is `test`.
+
+The gate reads the words themselves, not what they do, so a word that only mentions a change counts as one. A word
+counts when, split at blanks and at `;`, `&`, `|`, `(`, `)`, `{`, `}`, a backtick, `=`, `,` and `$(`, one piece is
+`cd`, `chdir`, `pushd`, `popd`, `sl`, `Set-Location`, `Push-Location` or `Pop-Location` as a whole token, in any case
+and as the last part of a path, so `CI/CD` counts. It counts too when it holds one of these substrings anywhere, in
+any case: `chdir`, `setwd`, `currentdirectory`, `workingdirectory`, `set-location`, `push-location`, `pop-location`,
+`setlocation`, `pushcurrentlocation`, `poplocation`, `execdir` or `okdir`. Every word of every command is read that
+way except an operand of `echo`, `printf`, `Write-Output` or `Write-Host`, which only prints, so
+`echo 'cd docs first' >> tasks.md` allows, while `echo 'cd /tmp' | sh` is read as the shell code it becomes. Any
+other mention counts: `python -m pytest -k chdir` turns the allowlist off and denies as a script run. A bare
 `git checkout main` after a `cd` denies too, because the gate can no longer tell a branch from a file in the folder
-the shell stands in. A command that writes nothing relative keeps working, so `cd docs && ls`,
+the shell stands in. The workarounds are to pick another `-k` expression or hand the run to a subagent, to use
+`git switch main` after a `cd`, which names no file, and to append to `tasks.md` through its absolute path, as in
+`cd docs && echo x >> /path/to/project/tasks.md`, or from the project root with no `cd` in the command, through a
+heredoc if the text names a change. A command that writes nothing relative keeps working, so `cd docs && ls`,
 `cd docs && cat README.md | head` and `cd /tmp && echo x > /tmp/out.txt` stay allowed.
 
 The gate used to follow each change: to the folder a `cd` named, back through `cd -` and `popd`, and out of a

@@ -1625,6 +1625,13 @@ How a project entry is matched:
   the project, because pytest loads the `conftest.py` and make the `Makefile` of the folder they run in, and the gate
   does not follow where a directory change lands. Run the check from the project root and name the path instead, as in
   `python -m pytest -q docs`.
+- The gate reads the words of the command, not what they do. A word counts as a directory change when a piece of it
+  between blanks or shell punctuation is `cd`, `chdir`, `pushd`, `popd`, `sl`, `Set-Location`, `Push-Location` or
+  `Pop-Location`, or when it holds `chdir`, `setwd`, `currentdirectory`, `workingdirectory`, `set-location`,
+  `push-location`, `pop-location`, `setlocation`, `pushcurrentlocation`, `poplocation`, `execdir` or `okdir`
+  anywhere, in any case. Only the text `echo`, `printf`, `Write-Output` or `Write-Host` prints is left out. So
+  `python -m pytest -k chdir` turns every entry off and denies. Pick another `-k` expression, or hand the run to a
+  subagent.
 - An entry that hands a script to a shell, such as `bash scripts/check.sh`, only lifts the script-run rule. The gate
   still reads the script as shell code and denies it when it writes a file in the project or changes directory.
 - The built-in list names no project's own scripts, because an entry such as `python tools/check.py` would also allow a

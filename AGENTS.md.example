@@ -32,7 +32,8 @@ relying on it or changing its wiring, read
 - It denies every tool call from a subagent whose definition declares no skills.
 - It denies the main thread web fetch and web search on Claude Code. Delegate research to a subagent.
 - It denies the main thread running a script, a module, a package or task runner, or a build, unless the command
-  passes the gate's built-in list or matches a line of `main-thread-allowlist.txt` at the root. How entries match is in
+  passes the gate's built-in list or matches a line of `main-thread-allowlist.txt` at the root. An allowed command runs
+  from the project root with no directory change anywhere in the command. How entries match is in
   [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md). Ask a subagent to add an entry.
 - Every rule fires only on a caller positively identified as the main thread, so GitHub Copilot is ungated. Any error
   inside the gate allows the call, except a path it cannot place, which counts as inside the repository.
