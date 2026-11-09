@@ -85,6 +85,7 @@ script and must never be hand-edited, and some are symlinks the generator create
 | `.opencode/agents`, `.kilo/agents` | symlinks to `../.agents/agents` | created and repaired by the generator |
 | `.claude/skills` | symlink to `../.agents/skills` | never edit through the link |
 | `.metrics/tools/crapper/`, `dryer/`, `mutator/`, `VERSIONS`, `constraints.txt` | vendored: Robert C. Martin's tools copied unchanged at the commits `VERSIONS` pins | never hand-edit, only `tools/update_quality_tools.py` changes them |
+| `.metrics/tools/run`, `run.cmd`, `run.py`, `quality_loop/` | canonical: the wrapper that builds the tools' environments and runs them | edit directly, then run the pytest suite |
 
 Regenerate the subagent trees and repair the symlinks after any `subagents/*.md` change:
 

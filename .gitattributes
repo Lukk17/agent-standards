@@ -13,6 +13,8 @@
 *.toml text eol=lf
 *.txt text eol=lf
 *.sh text eol=lf
+# cmd.exe misreads a label in a batch file with bare LF endings, so the Windows launcher keeps CRLF.
+*.cmd text eol=crlf
 
 # Binary fixtures stay binary.
 *.pdf binary
