@@ -87,7 +87,7 @@ def test_the_report_names_the_offending_file_and_line(project):
 
 @pytest.mark.parametrize(
     "relative",
-    ["README.md", "AGENTS.md.example", "docs/GUIDE.md", ".agents/skills/x/SKILL.md", "subagents/x.md"],
+    ["README.md", "AGENTS.md.example", "docs/GUIDE.md", ".agents/skills/x/SKILL.md", "subagents/x.md", ".metrics/tools/README.md"],
 )
 def test_every_scoped_location_is_linted(project, relative):
     path = write(project, relative, DIRTY)
@@ -117,6 +117,13 @@ def test_a_clean_in_scope_file_reports_nothing(project):
 
 def test_a_file_outside_the_lint_scope_reports_nothing(project):
     path = write(project, "tools/notes.md", DIRTY)
+
+    assert run(project, edit(path)) == (0, "", "")
+
+
+@pytest.mark.parametrize("tool", ["crapper", "dryer", "mutator"])
+def test_a_vendored_quality_tool_file_reports_nothing(project, tool):
+    path = write(project, f".metrics/tools/{tool}/README.md", DIRTY)
 
     assert run(project, edit(path)) == (0, "", "")
 

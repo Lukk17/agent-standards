@@ -68,6 +68,8 @@ Run the verification command the project's AGENTS.md documents before reading a 
 
 Cite `path:line` for every finding across correctness, maintainability, readability, doc comments (the `coding-standards` "Doc Comments" rule plus the language delta), efficiency, security, styling (against `design-system` when styling changes), edge cases and error handling, and testability.
 
+When the project has a `.metrics/crap.edn`, read the scores the `quality-loop` skill's tools wrote under `.metrics/` for the files the change touches, and cite the worst as findings: a function over CRAP 30 from `.metrics/crap.edn` as Critical, a surviving mutant in changed code from `.metrics/mutate/` as an Improvement naming the missing test, and a duplicate pair at or above 0.82 from `.metrics/dry.edn` for the duplication pass. Never run the tools in a review. Say so when the scores predate the change, because they are only as fresh as the last full run.
+
 ---
 
 ### Step 4: escalate the sensitive findings

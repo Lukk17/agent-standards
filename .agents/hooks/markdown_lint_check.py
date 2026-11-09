@@ -24,7 +24,10 @@ as `jq -r '.tool_input.file_path'` on a PostToolUse hook matching `Edit|Write`),
 falls back to the first `file_path` inside `tool_input.edits` for a batched
 shape, and stays silent unless that path is inside the lint scope:
 
-    README.md, AGENTS.md.example, docs/, .agents/skills/, subagents/
+    README.md, AGENTS.md.example, .metrics/tools/README.md, docs/, .agents/skills/, subagents/
+
+The vendored tools beside .metrics/tools/README.md keep their author's style
+and stay out of scope.
 
 Paths are resolved against the project root before the comparison, and matched
 case-insensitively on Windows only, where the filesystem is.
@@ -59,7 +62,7 @@ LINT_SCRIPT = (".agents", "hooks", "_check_markdown.py")
 
 LINT_TIMEOUT_SECONDS = 10
 
-SCOPED_FILES = ("README.md", "AGENTS.md.example")
+SCOPED_FILES = ("README.md", "AGENTS.md.example", ".metrics/tools/README.md")
 
 SCOPED_DIRECTORIES = ("docs/", ".agents/skills/", "subagents/")
 

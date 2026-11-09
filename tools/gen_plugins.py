@@ -6,6 +6,9 @@ Source of truth:  tools/plugins.yaml              which plugin holds which skill
                   subagents/<name>.md             rendered with gen_subagents.emit_claude, every
                                                   preloaded skill named <plugin>:<skill>
                   .mcp.json                       one server block per MCP plugin
+                  any folder a plugin's `files`   copied into one of its skills, such as .metrics/tools,
+                  entry names                     the quality tools the quality-loop skill copies into
+                                                  a project that lacks them
 Generated:        <out>/.claude-plugin/marketplace.json
                   <out>/plugins/<plugin>/.claude-plugin/plugin.json
                   <out>/plugins/<plugin>/skills/, agents/, .mcp.json
@@ -79,14 +82,15 @@ VERSION_LENGTH = 12
 PLUGIN_NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 GITHUB_REPOSITORY = re.compile(r"https://github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/?")
 PLUGIN_KEYS = frozenset(
-    {"name", "description", "category", "dependencies", "agents", "skills", "mcp", "defaultEnabled"}
+    {"name", "description", "category", "dependencies", "agents", "skills", "mcp", "defaultEnabled", "files"}
 )
+CARRIED_KEYS = frozenset({"source", "target"})
 MARKETPLACE_KEYS = frozenset({"name", "description", "owner", "repository", "license"})
 
 # Local build leftovers that are never part of a skill, even when they sit in
 # the working tree. A clean CI checkout has none of them.
-IGNORED_NAMES = frozenset({"__pycache__", ".DS_Store"})
-IGNORED_SUFFIXES = (".pyc",)
+IGNORED_NAMES = frozenset({"__pycache__", ".DS_Store", ".venv"})
+IGNORED_SUFFIXES = (".pyc", ".egg-info")
 
 MANIFEST_DIR = ".claude-plugin"
 PLUGIN_MANIFEST = "plugin.json"
@@ -122,6 +126,14 @@ class Sources:
 
 
 @dataclass(frozen=True, slots=True)
+class CarriedFiles:
+    """A folder of the repository copied into a plugin, `source` from the repository root, `target` in the plugin."""
+
+    source: str
+    target: str
+
+
+@dataclass(frozen=True, slots=True)
 class Plugin:
     name: str
     description: str
@@ -131,6 +143,7 @@ class Plugin:
     skills: tuple[str, ...] = ()
     mcp: str | None = None
     default_enabled: bool = True
+    files: tuple[CarriedFiles, ...] = ()
 
     @property
     def is_bundle(self) -> bool:
@@ -167,6 +180,28 @@ def _string_list(raw: object, where: str) -> tuple[str, ...]:
     return tuple(raw)
 
 
+def _relative_inside(text: str) -> bool:
+    """A relative POSIX path that stays inside the folder it is read against."""
+    path = pathlib.PurePosixPath(text)
+    return bool(text) and not path.is_absolute() and ".." not in path.parts and ":" not in text and "\\" not in text
+
+
+def _carried(raw: object, where: str) -> tuple[CarriedFiles, ...]:
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        raise PluginMapError(f"{where} 'files' must be a list of {{source, target}} mappings")
+    carried = []
+    for item in raw:
+        if not isinstance(item, dict) or set(item) != CARRIED_KEYS:
+            raise PluginMapError(f"{where} 'files' entries take exactly 'source' and 'target'")
+        source, target = item["source"], item["target"]
+        if not (isinstance(source, str) and isinstance(target, str) and _relative_inside(source) and _relative_inside(target)):
+            raise PluginMapError(f"{where} 'files' source and target must each be a relative path inside its folder")
+        carried.append(CarriedFiles(source, target))
+    return tuple(carried)
+
+
 def parse_plugin(raw: object, index: int) -> Plugin:
     """One plugin entry of the map, with every key and type checked."""
     if not isinstance(raw, dict):
@@ -194,6 +229,7 @@ def parse_plugin(raw: object, index: int) -> Plugin:
         skills=_string_list(raw.get("skills"), f"{where} 'skills'"),
         mcp=mcp,
         default_enabled=default_enabled,
+        files=_carried(raw.get("files"), where),
     )
 
 
@@ -338,6 +374,12 @@ def _plugin_problems(plugin: Plugin, plugins: dict[str, Plugin], servers: set[st
             problems.append(f"MCP plugin {plugin.name!r} names server {plugin.mcp!r}, not in the root .mcp.json")
     if plugin.is_bundle and not plugin.dependencies:
         problems.append(f"plugin {plugin.name!r} holds nothing and depends on nothing")
+    for carried in plugin.files:
+        parts = pathlib.PurePosixPath(carried.target).parts
+        if len(parts) < 3 or parts[0] != "skills":
+            problems.append(f"plugin {plugin.name!r} carries files outside a skill it holds: {carried.target}")
+        elif parts[1] not in plugin.skills:
+            problems.append(f"plugin {plugin.name!r} carries files into skill {parts[1]!r}, which it does not hold")
     return problems
 
 
@@ -422,8 +464,24 @@ def check_map(
     return problems
 
 
-def _is_ignored(path: pathlib.Path) -> bool:
+def _is_ignored(path: pathlib.PurePath) -> bool:
     return path.name in IGNORED_NAMES or path.suffix in IGNORED_SUFFIXES
+
+
+def is_build_leftover(relative: pathlib.PurePath) -> bool:
+    """True for a path under or at an environment, a cache or build metadata a local run leaves behind."""
+    return any(_is_ignored(part) for part in [relative, *relative.parents])
+
+
+def carried_files(folder: pathlib.Path) -> Iterator[pathlib.Path]:
+    """Every file of a carried folder, sorted, without a local run's leftovers and refusing a symlink."""
+    for path in sorted(folder.rglob("*")):
+        if is_build_leftover(path.relative_to(folder)):
+            continue
+        if path.is_symlink():
+            raise PluginMapError(f"{path} is a symlink, and a plugin ships real files only")
+        if path.is_file():
+            yield path
 
 
 def skill_files(skill_dir: pathlib.Path) -> Iterator[pathlib.Path]:
@@ -497,6 +555,15 @@ def render_plugin(
         source = sources.skills / skill
         for path in skill_files(source):
             target = plugin_dir / "skills" / skill / path.relative_to(source)
+            _write(target, path.read_bytes(), _is_executable(path))
+    for carried in plugin.files:
+        source = sources.root / carried.source
+        if not source.is_dir():
+            raise PluginMapError(f"plugin {plugin.name!r} carries {carried.source}, which does not exist")
+        for path in carried_files(source):
+            target = plugin_dir / carried.target / path.relative_to(source)
+            if target.exists():
+                raise PluginMapError(f"plugin {plugin.name!r} carries {path}, which would overwrite {target}")
             _write(target, path.read_bytes(), _is_executable(path))
     for agent_name in plugin.agents:
         _write(plugin_dir / "agents" / f"{agent_name}.md", agents[agent_name].rendered(skill_home).encode("utf-8"))

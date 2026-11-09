@@ -33,7 +33,8 @@ it before the change ships. A finding in one of those four areas is never closed
 7. Tests and docs. New behaviour has at least one test that would fail without the change. Edge cases covered. Public
    APIs documented.
 8. Duplication. Apply `review-duplication` to flag reinvention of existing project utilities.
-9. Report. Emit the format below and stop.
+9. Scores. When the project has `.metrics/crap.edn`, read it, `.metrics/dry.edn` and `.metrics/mutate/` with the read tool, the way the `code-reviewer` skill's Step 3 says, and cite the worst scores for the files the diff touches as Critical or Improvement findings. Never run the tools behind them.
+10. Report. Emit the format below and stop.
 
 ### Severity rubric
 
