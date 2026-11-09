@@ -65,13 +65,13 @@ The first run on a machine needs network access. It builds `<tool>/.venv` for ea
 | A partial crapper run replaces `.metrics/crap.edn` with a subset, and `crapper --changed` scans this folder | Runs crapper in full every time, never with `--changed` |
 | mutator runs Python tests with its own interpreter when the project has no `.venv` | Creates the project's `.venv` with the pinned `coverage` and `pytest` |
 | On Windows the tools start `mvn`, `npm` and `npx` without a shell, which cannot run `mvn.cmd` or `npm.cmd`, and look for the project's Python only under `.venv/bin` | Passes the Maven, npm and Python commands through `--coverage-command` and `--test-command`, which run in a shell |
-| On Windows mutator stops a timed-out mutant with `os.killpg`, which Windows lacks | Starts mutator through [quality_loop/mutator_windows.py](quality_loop/mutator_windows.py), which kills the process tree with `taskkill` instead |
+| On Windows mutator stops a timed-out mutant with `os.killpg` and `signal.SIGKILL`, which Python offers on Unix only | Starts mutator through [quality_loop/mutator_windows.py](quality_loop/mutator_windows.py), which kills the process tree with `taskkill` instead |
 
 ---
 
 ### Windows
 
-mutator runs every mutant in a copy of the project built from symbolic links, and Windows lets an account create one only with Developer Mode on or from a terminal started as administrator. The wrapper tries one first and, when Windows refuses, prints the fix and skips mutator. Turn on Developer Mode in Settings, System, For developers, then open a new terminal.
+mutator runs every mutant in a copy of the project built from symbolic links, and Windows lets an account create one only with Developer Mode on or from a terminal started as administrator: an unelevated process may create one only once "[Developer Mode](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createsymboliclinkw) must first be enabled on the machine". The wrapper tries one first and, when Windows refuses, prints the fix and skips mutator. Turn on Developer Mode in Settings, System, For developers, then open a new terminal. The GitHub Windows runner the agent-standards checks use runs as an elevated administrator, so it needs neither.
 
 The agent-standards checks run Python and Java with Gradle on Windows. Maven, TypeScript and JavaScript take the wrapper's shell commands and Go and Rust ship real executables, but none of them is checked on Windows, and Clojure needs a `clj` executable on `PATH`. On Windows a Python project tested from more than one folder gets no working mutator run, and the wrapper says so.
 
