@@ -25,8 +25,8 @@ claude plugin install python@agent-standards
 | `web-frontend` | development | on | `3402745ed651` | Web interfaces, with the Angular, React and Next.js, accessibility, design system and UI subagents and their skills. |
 | `mobile` | development | on | `171650062e6d` | Flutter and Dart apps, with the flutter-expert subagent and the Dart and Flutter skill. |
 | `devops` | development | on | `18d5754376d6` | Delivery and operations, with the devops, incident, observability and release subagents and the deployment, Docker and Ansible skills. |
-| `review-and-security` | development | on | `f6bb4fb7cb23` | Code review, security audit, codebase mapping and legacy migration, with four subagents and the review and duplication skills. |
-| `testing` | development | on | `ab8b631988c8` | Tests, debugging and performance measurement, with four subagents and the regression, end-to-end runbook and Playwright skills. |
+| `review-and-security` | development | on | `3a874b0f134a` | Code review, security audit, codebase mapping and legacy migration, with four subagents and the review and duplication skills. |
+| `testing` | development | on | `65e2ddb26943` | Tests, debugging, performance measurement and the quality loop, with five subagents and the regression, end-to-end, Playwright and quality-loop skills. The quality loop carries Robert C. Martin's crapper, dryer and mutator (github.com/unclebob), copied into a project that lacks them. |
 | `docs-and-product` | development | on | `014eb3ac3797` | Documentation, legal drafts, SEO and project tracking, with four subagents and the SEO, tracking and Jira skills. |
 | `embedded` | development | on | `c44c3b2774e5` | Embedded C and hardware, with the embedded-c-engineer subagent and the Arduino, KiCad and 3D printing skills. |
 | `game` | development | on | `447273ff6f28` | Unity games, with the unity-game-dev subagent and the Unity skill. |

@@ -69,7 +69,7 @@
     {
       "name": "testing",
       "source": "./plugins/testing",
-      "description": "Tests, debugging and performance measurement, with four subagents and the regression, end-to-end runbook and Playwright skills.",
+      "description": "Tests, debugging, performance measurement and the quality loop, with five subagents and the regression, end-to-end, Playwright and quality-loop skills. The quality loop carries Robert C. Martin's crapper, dryer and mutator (github.com/unclebob), copied into a project that lacks them.",
       "category": "development"
     },
     {

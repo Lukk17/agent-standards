@@ -1,0 +1,5 @@
+tree-sitter==0.26.0
+tree-sitter-language-pack==1.25.0
+setuptools==84.0.0
+coverage==7.17.2
+pytest==9.2.0

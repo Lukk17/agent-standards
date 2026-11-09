@@ -1,0 +1,11 @@
+# Owned by agent-standards and kept by tools/update_quality_tools.py, which replaces only crapper, dryer and mutator.
+# It travels with the tools, so a project without line-ending rules of its own still checks the launchers out right.
+
+# cmd.exe misreads a label in a batch file with bare LF endings.
+*.cmd text eol=crlf
+# sh reads a CR at the end of a line as part of the command.
+/run text eol=lf
+
+# Robert C. Martin's tools and the wrapper are not this project's code, so GitHub leaves them out of its language
+# statistics and collapses them in diffs.
+* linguist-vendored
