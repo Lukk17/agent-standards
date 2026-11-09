@@ -12,6 +12,9 @@ The Pass and Fail examples and the reasoning behind each rule the SKILL.md hub s
 - Return Optional, never store it
 - Keep stream pipelines short and named
 - Write for the next reader
+- One type per file, nothing nested
+- Pick the collection that states the contract
+- Use the shared blank check
 - Fail with a domain exception, handle it centrally
 - Declare your generics
 - Say where null is allowed
@@ -29,12 +32,26 @@ Pass:
 ```java
 public record Money(BigDecimal amount, Currency currency) {}
 
-private static final int MAX_PAGE_SIZE = 100;
+private static final int GCM_TAG_LENGTH_BITS = 128;
 
 public List<User> findActiveUsersByTenant(TenantId tenantId) { ... }
 ```
 
-Fail: `getData()`, `flag`, `process()`, and a constant spelled `maxPageSize`.
+Fail: `getData()`, `flag`, `process()`, and a constant spelled `gcmTagLengthBits`.
+
+No abbreviation the reader has to decode. A name such as `b0to30`, `r`, `s`, `buf` or `zis` makes every reader reverse-engineer what the author already knew. When the abbreviation stands for a set of buckets, the buckets are an enum, and the code iterates or switches on it instead of carrying four parallel variables.
+
+Pass:
+
+```java
+public enum ArrearsAgeBucket { UP_TO_30_DAYS, DAYS_31_TO_60, DAYS_61_TO_90, OVER_90_DAYS }
+
+Map<ArrearsAgeBucket, BigDecimal> arrearsByAge = new EnumMap<>(ArrearsAgeBucket.class);
+```
+
+Fail: `BigDecimal b0to30, b31to60, b61to90, bOver90;`, and `ZipInputStream zis`.
+
+A business limit such as a maximum page size is not a constant at all. It is a tunable, bound from configuration as [serialization-and-config.md](serialization-and-config.md) describes.
 
 ---
 
@@ -117,7 +134,7 @@ whole pipeline, into a named private method.
 
 ### Write for the next reader
 
-One public top-level type per file. Members in order: constants, fields, constructors, public methods, protected,
+Members in order: constants, fields, constructors, public methods, protected,
 private. Methods short enough to hold in your head, with helpers extracted. A lambda longer than one line becomes a
 named private method. Never write a fully qualified class name in code, import it.
 
@@ -129,6 +146,46 @@ Pass: `MarketResponse response = service.findBySlug(slug);`
 Fail: `var result = service.process(input);`, where a reader has to open two methods to learn what `result` is.
 
 Indent with 2 or 4 spaces, matching the project. Consistency beats preference.
+
+---
+
+### One type per file, nothing nested
+
+Every record, class, enum and interface in production code is a top-level type in its own file. A request record, a response record, a status enum or an exception declared inside a controller or a service hides part of the contract inside the class that uses it, grows that class, and cannot be found by its file name. Place each by role: request and response records in a `dto` subpackage of the feature, domain value types in `model`, exceptions in `exception`.
+
+Pass:
+
+```text
+expenses/
+  OwnerExpensesController.java
+  dto/ExpenseSummaryResponse.java
+  dto/ExpenseLineResponse.java
+  exception/ExpenseNotFoundException.java
+```
+
+Fail: `record ExpenseSummaryResponse(...)` and `enum Status { ... }` declared at the bottom of `OwnerExpensesController`. Nested fixtures inside a test class are the one allowance, because they belong to that test.
+
+A class past about 300 lines is doing more than one job. Split it by responsibility, per the size rule in `coding-standards`, rather than by moving methods into a helper with a vague name.
+
+---
+
+### Pick the collection that states the contract
+
+The declared type tells the reader what the data means. A `Set` says each element appears once and order carries no meaning, a `List` says order matters or duplicates are legal. Use a `Set` for membership checks, distinct identifiers and allow-lists, which also makes `contains` constant time instead of a scan.
+
+Pass: `Set<UUID> visibleCategoryIds = Set.copyOf(ids);`, then `visibleCategoryIds.contains(id)`.
+
+Fail: `List<UUID> visibleCategoryIds` used only for `contains`, which leaves the reader asking whether a duplicate or the order matters.
+
+---
+
+### Use the shared blank check
+
+A hand-written `value == null || value.isBlank()` repeated across a codebase drifts: one copy trims, one does not, one forgets the null. Use `org.springframework.util.StringUtils.hasText(value)` where Spring is on the classpath, and one small shared helper in a module where it is not, such as a pure domain module.
+
+Pass: `if (!StringUtils.hasText(translation)) { ... }`
+
+Fail: `if (translation == null || translation.trim().isEmpty()) { ... }` in a validator, and a slightly different copy in the next one.
 
 ---
 

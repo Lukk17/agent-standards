@@ -1,6 +1,6 @@
 {
   "name": "devops",
-  "version": "18d5754376d6",
+  "version": "141db79e324e",
   "description": "Delivery and operations, with the devops, incident, observability and release subagents and the deployment, Docker and Ansible skills.",
   "author": {
     "name": "Łukasz Sarna",

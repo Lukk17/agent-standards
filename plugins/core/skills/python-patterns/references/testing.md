@@ -52,20 +52,20 @@ not been seen to fail for the right reason.
 
 ### Give each test one behaviour and three phases
 
-Every test sets up state, performs one action, then asserts the observable outcome. Which words label the three
-phases is the project's choice, not this file's: `Given`/`When`/`Then` and `Arrange`/`Act`/`Assert` are the two
-common spellings, and a project may have its own. Read how the project's existing tests are already labelled and
-match it. Only pick a convention when the project has none, and then stay consistent within it.
+Every test sets up state, performs one action, then asserts the observable outcome. The phases are marked with the bare `# Given`, `# When` and `# Then` comments, or `# When & Then` when the action is the assertion, and those markers are the only comments a test carries, per `tdd-workflow`.
 
 Pass:
 
 ```python
 def test_apply_discount_reduces_total():
+    # Given
     cart = Cart(items=[Item("book", 20.0), Item("pen", 5.0)])
     coupon = Coupon(percent=10)
 
+    # When
     total = cart.apply(coupon)
 
+    # Then
     assert total == 22.5
 ```
 

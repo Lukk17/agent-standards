@@ -33,17 +33,20 @@ How Java itself is written in a Spring Boot service, from naming through to Java
 
 ### Rules
 
-1. Types are PascalCase, methods and fields camelCase, constants UPPER_SNAKE_CASE, booleans start with `is`, `has` or `can`, and a method name is a verb phrase specific enough to skip the body.
+1. Types are PascalCase, methods and fields camelCase, constants UPPER_SNAKE_CASE, booleans start with `is`, `has` or `can`, and a method name is a verb phrase specific enough to skip the body. No cryptic abbreviation (`b0to30`, `r`, `buf`, `zis`), and a bucketed concept is an enum, because a reader cannot decode a name the author never spelled out.
 2. Inject through the constructor with `@RequiredArgsConstructor` and take the logger from `@Slf4j`, never an `@Autowired` field. `@Builder` only for complex construction, `@Value` for value objects, `@Getter` or `@Setter` only where neither a record nor `@Value` fits.
 3. Records for data, final fields elsewhere, and no setter that exists only because a framework once needed one.
 4. `Optional` is a return type for a lookup that can find nothing, never a field, parameter or element. Map it and end with `orElseThrow`, never `.isPresent()` then `.get()`.
 5. Keep stream pipelines short, and extract a long pipeline or a multi-line lambda into a named private method.
-6. One public top-level type per file, members ordered constants, fields, constructors, public, protected, private, short methods, imports instead of qualified names, indentation matching the project.
+6. One top-level type per file, and no record, class, enum or interface nested in a production class: each goes in its own file under a `dto`, `model` or `exception` subpackage, because a nested type buries part of the contract inside its user. Members ordered constants, fields, constructors, public, protected, private, short methods, imports instead of qualified names. A class past about 300 lines is split by responsibility, per `coding-standards`.
 7. Prefer an explicit type over `var`, except where the right-hand side already names the type.
 8. Domain errors are named unchecked exceptions, technical ones are wrapped with context, and one `@ControllerAdvice` turns them into responses, so business methods hold no try-catch.
 9. No raw types, and bound a type parameter when a utility needs a capability from it.
 10. Annotate public signatures with `@NonNull` and `@Nullable` from JSpecify or `jakarta.annotation`, enforce them with NullAway or the JSpecify processor in CI, and stop nulls at the edge with Bean Validation.
 11. Log through the SLF4J API with a stable message key and `{}` parameters, never concatenation and never a Logback or Log4j2 import. `ERROR` unhandled, `WARN` recoverable, `INFO` domain events, `DEBUG` diagnostics.
+12. No tunable literal in code. A cron, delay, duration, timeout, limit, bucket size, origin or business maximum binds from `application.yml` into a validated `@ConfigurationProperties` record, a cron through a `${...}` placeholder, because a value in code needs a release to change. Only algorithm and protocol constants stay, such as the AES-GCM 96-bit IV and 128-bit tag or a header name.
+13. A `Set` for membership or uniqueness, a `List` only when order matters, because the declared type is the contract.
+14. `StringUtils.hasText` from Spring, or one small shared helper where Spring is off the classpath, never a hand-rolled `s == null || s.isBlank()`, because the copies drift.
 
 ---
 
@@ -57,9 +60,9 @@ Javadoc follows the Doc Comments rules in `coding-standards`. Java delta: write 
 
 | Open this | When |
 | --- | --- |
-| [references/core-rules.md](references/core-rules.md) | A hub rule needs its Pass and Fail example or its full reasoning. |
+| [references/core-rules.md](references/core-rules.md) | A hub rule needs its Pass and Fail example or its full reasoning, nested types and collection choice included. |
 | [references/concurrency.md](references/concurrency.md) | Virtual threads, executors, `CompletableFuture` composition, and thread-safety documentation. |
-| [references/serialization-and-config.md](references/serialization-and-config.md) | Jackson setup, typed `@ConfigurationProperties`, and entity to DTO mapping. |
+| [references/serialization-and-config.md](references/serialization-and-config.md) | Jackson setup, typed `@ConfigurationProperties`, which literals are tunables, and entity to DTO mapping. |
 | [references/static-analysis.md](references/static-analysis.md) | Checkstyle, SpotBugs, and PMD wiring, and keeping build output readable. |
 | [references/project-layout.md](references/project-layout.md) | Package structure for a layered project, and the code smells to fix on sight. |
 
@@ -79,7 +82,10 @@ Javadoc follows the Doc Comments rules in `coding-standards`. Java delta: write 
 
 ### Checklist
 
-- [ ] Names say what the thing is, and booleans read as questions.
+- [ ] Names say what the thing is, with no cryptic abbreviation, and booleans read as questions.
+- [ ] No type is nested in a production class, and no class runs past about 300 lines.
+- [ ] No tunable is a literal or a constant, and every tunable binds through a validated `@ConfigurationProperties` record.
+- [ ] `Set` where membership or uniqueness is the point, and `StringUtils.hasText` instead of a hand-rolled blank check.
 - [ ] Every dependency arrives through the constructor, and no field carries `@Autowired`.
 - [ ] Data types are records or final-field classes, with no setter that nothing needs.
 - [ ] `Optional` appears only as a return type, and never after `.isPresent()` plus `.get()`.

@@ -2,6 +2,7 @@
 
 Contents:
 
+- [Blank line after a wrapped signature](#blank-line-after-a-wrapped-signature)
 - [Brace every inline if (x) return y; / if (x) throw z;](#brace-every-inline-if-x-return-y--if-x-throw-z)
 - [Empty lines around try / catch / finally](#empty-lines-around-try--catch--finally)
 - [Empty line above significant standalone await / async I/O](#empty-line-above-significant-standalone-await--async-io)
@@ -19,6 +20,65 @@ this file when applying or reviewing a specific rule, or when a rule's intent is
 SKILL.md.
 
 ---
+
+### Blank line after a wrapped signature
+
+When a method, constructor or record parameter list is too long for one line and wraps, the last parameter line and the first body line sit at nearly the same indent, and the reader cannot see where the signature ends and the implementation starts. Put one blank line straight after the opening brace whenever the parameter list wraps. A signature on one line needs no blank line, and a record with no body has nothing to separate. Where the project's formatter removes the line, its output wins, as with every rule here.
+
+Java, wrong:
+
+```java
+public Page<ForumThreadResponse> listThreads(
+        @PathVariable UUID categoryId,
+        @ParameterObject @Valid PageRequestDto pageRequest,
+        @AuthenticationPrincipal OwnerPrincipal owner) {
+    var visibleCategory = forumAccess.requireVisible(categoryId, owner);
+    return forumThreads.list(visibleCategory, pageRequest.toPageable());
+}
+```
+
+Java, right:
+
+```java
+public Page<ForumThreadResponse> listThreads(
+        @PathVariable UUID categoryId,
+        @ParameterObject @Valid PageRequestDto pageRequest,
+        @AuthenticationPrincipal OwnerPrincipal owner) {
+
+    var visibleCategory = forumAccess.requireVisible(categoryId, owner);
+
+    return forumThreads.list(visibleCategory, pageRequest.toPageable());
+}
+```
+
+Python, right, where the formatter keeps the line:
+
+```python
+def schedule_reminder(
+    owner_id: UUID,
+    remind_at: datetime,
+    channel: ReminderChannel,
+) -> Reminder:
+
+    reminder = Reminder(owner_id=owner_id, remind_at=remind_at, channel=channel)
+
+    return repository.save(reminder)
+```
+
+Dart, right:
+
+```dart
+Future<Receipt> settle(
+  Order order, {
+  required PaymentMethod method,
+  Duration timeout = const Duration(seconds: 30),
+}) async {
+
+  final payload = mapper.toPayload(order, method);
+
+  return client.send(payload, timeout: timeout);
+}
+```
 
 ### Brace every inline `if (x) return y;` / `if (x) throw z;`
 

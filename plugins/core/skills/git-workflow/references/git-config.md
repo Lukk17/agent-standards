@@ -6,6 +6,7 @@ Contents:
 - [Useful aliases](#useful-aliases)
 - [Ignore patterns](#ignore-patterns)
 - [Line endings, symlinks and case](#line-endings-symlinks-and-case)
+- [Generated files and scratch output](#generated-files-and-scratch-output)
 
 The configuration a developer sets once per machine or per repository: identity, defaults, aliases, ignore patterns, line endings, symlinks and case. Load this file when setting up a new machine or repository, not during day-to-day work.
 
@@ -155,3 +156,26 @@ Fail:
 ```text
 Told every Windows developer to set core.autocrlf true, and renamed Readme.md to README.md in Explorer.
 ```
+
+---
+
+### Generated files and scratch output
+
+Some generated files belong in the repository because a consumer cannot or should not regenerate them: a lock file, which pins exactly what was installed and stays committed, and API types generated from an OpenAPI spec that the front end imports. Mark each one generated in the root `.gitattributes`, so GitHub collapses it in a pull request diff and leaves it out of the language statistics, and reviewers read the change that caused it instead:
+
+```text
+pnpm-lock.yaml linguist-generated=true
+packages/shared-types/src/api.ts linguist-generated=true
+```
+
+Check that the attribute applies:
+
+```bash
+git check-attr linguist-generated -- pnpm-lock.yaml
+```
+
+A generated file is never split or hand-edited to make it smaller. Change its input and regenerate, per `build-dependency-management`.
+
+What an agent writes for itself is not project content. A review findings document (`docs/*-review-findings.md`), an implementation plan, a status file, a log of a run or a screenshot taken to check a page belongs in the scratch directory the agent was given or in the pull request conversation, never in a commit. Add a pattern to `.gitignore` for any such file a tool writes into the tree by default, and look at `git status` before staging rather than staging a directory whole.
+
+Fail: `docs/fable-review-findings.md` committed beside the architecture docs, and a 15,000-line generated `api.ts` shown in full in every review.

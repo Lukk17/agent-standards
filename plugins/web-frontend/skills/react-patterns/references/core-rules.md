@@ -145,3 +145,26 @@ placeholder, button, and message is looked up by key.
 // FAIL: copy welded into the component
 <button type="submit">Save</button>
 ```
+
+Every supported locale has its own catalogue, at least English plus the product's own language, with the same keys in each. The keys and every identifier in code are English, whatever language the product speaks, so a reader of the code never has to translate, and the native-language strings live only in that language's catalogue. The rule has no admin or internal exception: page metadata titles, `aria-label` values, placeholders, validation messages and toasts are copy too.
+
+```typescript
+// PASS: an English key, the Polish text only in pl.json
+export const metadata = { title: t('admin.pageTitles.auditLog') }
+
+// FAIL: Polish copy and a Polish-derived identifier in code
+export const metadata = { title: 'Dziennik zdarzeń' }
+const dziennik = useAuditLog()
+```
+
+No component, page or layout declares its own locale. One i18n config module exports the supported locales, the default locale read from a validated environment variable, and a resolver, and everything else imports from it. Client code reads the active locale from a hook, and a user-facing language switch writes the choice through that module, so the locale can change without a code edit.
+
+```typescript
+// PASS
+import { defaultLocale, resolveLocale } from '@/i18n/config'
+
+// FAIL: the same literal repeated per page, impossible to switch
+const LOCALE = 'pl' as const
+```
+
+Enforce it mechanically. A lint step walks the source with an AST parser, the TypeScript compiler API or a Babel or Biome plugin, and fails on a string literal in JSX text, in a user-facing attribute (`title`, `alt`, `placeholder`, `aria-label`) or in a known copy prop, and on a non-ASCII letter in source outside the catalogues. A regular expression over the source misses template literals and attribute values, and an allow-pragma, if the project needs one, is accepted in test files only.
