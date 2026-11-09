@@ -33,7 +33,7 @@ claude plugin install python@agent-standards
 | `agent-tooling` | development | on | `c0160b2c338d` | Agent configuration and research, with the agent-engineer subagent and the agentic engineering, research and automation inventory skills. |
 | `linux` | host | off | `4a093b7bc729` | Linux desktop administration on Arch, CachyOS and KDE Plasma. Off until you enable it. |
 | `windows-and-mac` | host | off | `6d81256e7563` | Windows and macOS administration and PowerShell scripting. Off until you enable it. |
-| `homelab` | host | off | `c6e5cbb7b510` | Homelab hosts and services, with the home-assistant-engineer subagent and the Proxmox, router, Syncthing, Samsung TV, WLED and machine health skills. Off until you enable it. |
+| `homelab` | host | off | `6fa37cf301c2` | Homelab hosts and services, with the home-assistant-engineer subagent and the Proxmox, router, Syncthing, Samsung TV, WLED and machine health skills. Off until you enable it. |
 | `personal-tools` | host | off | `eadbfed6a225` | Obsidian, JetBrains IDE configuration and the self-hosted AscendMemory, ascend-web-hunter and AudioScribe services. Off until you enable it. |
 | `mcp-context7` | mcp | on | `6bb11dd8e05f` | The Context7 documentation MCP server. |
 | `mcp-mongodb` | mcp | on | `79eb2e3d3130` | The MongoDB MCP server, read-only, started with npx. |
