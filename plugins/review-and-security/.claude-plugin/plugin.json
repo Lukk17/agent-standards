@@ -1,6 +1,6 @@
 {
   "name": "review-and-security",
-  "version": "47e24ec37798",
+  "version": "e708fa17fe1c",
   "description": "Code review, security audit, codebase mapping and legacy migration, with four subagents and the review and duplication skills.",
   "author": {
     "name": "Łukasz Sarna",

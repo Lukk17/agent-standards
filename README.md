@@ -20,17 +20,17 @@ claude plugin install python@agent-standards
 | `python` | development | on | `1d9a65a7af77` | Python and machine learning, with the python-pro and ml-engineer subagents and the PyTorch skill. |
 | `jvm` | development | on | `cd6d1db0d24b` | Java and Spring Boot, with the java-pro subagent and the Java, Spring Boot and SOAP skills. |
 | `go` | development | on | `9ddd00b5df3f` | Go services, with the go-pro subagent and the Go patterns skill. |
-| `backend` | development | on | `69e9199b7e49` | Backend services and HTTP APIs, with the backend-architect, api-documenter and api-tester subagents and the API design, backend, Node.js and Keycloak skills. |
+| `backend` | development | on | `a8045573097e` | Backend services and HTTP APIs, with the backend-architect, api-documenter and api-tester subagents and the API design, backend, Node.js and Keycloak skills. |
 | `data` | development | on | `4946a6cd134b` | Databases, with the database-expert subagent and the PostgreSQL, migration and MongoDB skills. |
-| `web-frontend` | development | on | `9fa150ab1b58` | Web interfaces, with the Angular, React and Next.js, accessibility, design system and UI subagents and their skills. |
+| `web-frontend` | development | on | `929c2c80b43c` | Web interfaces, with the Angular, React and Next.js, accessibility, design system and UI subagents and their skills. |
 | `mobile` | development | on | `171650062e6d` | Flutter and Dart apps, with the flutter-expert subagent and the Dart and Flutter skill. |
-| `devops` | development | on | `141db79e324e` | Delivery and operations, with the devops, incident, observability and release subagents and the deployment, Docker and Ansible skills. |
-| `review-and-security` | development | on | `47e24ec37798` | Code review, security audit, codebase mapping and legacy migration, with four subagents and the review and duplication skills. |
-| `testing` | development | on | `09b8810a5d27` | Tests, debugging, performance measurement and the quality loop, with five subagents and the regression, end-to-end, Playwright and quality-loop skills. The quality loop carries Robert C. Martin's crapper, dryer and mutator (github.com/unclebob), copied into a project that lacks them. |
-| `docs-and-product` | development | on | `014eb3ac3797` | Documentation, legal drafts, SEO and project tracking, with four subagents and the SEO, tracking and Jira skills. |
+| `devops` | development | on | `66cf906b2463` | Delivery and operations, with the devops, incident, observability and release subagents and the deployment, Docker and Ansible skills. |
+| `review-and-security` | development | on | `e708fa17fe1c` | Code review, security audit, codebase mapping and legacy migration, with four subagents and the review and duplication skills. |
+| `testing` | development | on | `2cde8b232e80` | Tests, debugging, performance measurement and the quality loop, with five subagents and the regression, end-to-end, Playwright and quality-loop skills. The quality loop carries Robert C. Martin's crapper, dryer and mutator (github.com/unclebob), copied into a project that lacks them. |
+| `docs-and-product` | development | on | `3d376c3c57d2` | Documentation, legal drafts, SEO and project tracking, with four subagents and the SEO, tracking and Jira skills. |
 | `embedded` | development | on | `c44c3b2774e5` | Embedded C and hardware, with the embedded-c-engineer subagent and the Arduino, KiCad and 3D printing skills. |
 | `game` | development | on | `447273ff6f28` | Unity games, with the unity-game-dev subagent and the Unity skill. |
-| `agent-tooling` | development | on | `c0160b2c338d` | Agent configuration and research, with the agent-engineer subagent and the agentic engineering, research and automation inventory skills. |
+| `agent-tooling` | development | on | `4ddca6b70ea3` | Agent configuration and research, with the agent-engineer subagent and the agentic engineering, research and automation inventory skills. |
 | `linux` | host | off | `4a093b7bc729` | Linux desktop administration on Arch, CachyOS and KDE Plasma. Off until you enable it. |
 | `windows-and-mac` | host | off | `6d81256e7563` | Windows and macOS administration and PowerShell scripting. Off until you enable it. |
 | `homelab` | host | off | `eecfa436786d` | Homelab hosts and services, with the home-assistant-engineer subagent and the Proxmox, router, Syncthing, Samsung TV, WLED and machine health skills. Off until you enable it. |

@@ -1,6 +1,6 @@
 {
   "name": "backend",
-  "version": "69e9199b7e49",
+  "version": "a8045573097e",
   "description": "Backend services and HTTP APIs, with the backend-architect, api-documenter and api-tester subagents and the API design, backend, Node.js and Keycloak skills.",
   "author": {
     "name": "Łukasz Sarna",

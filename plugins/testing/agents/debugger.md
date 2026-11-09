@@ -1,7 +1,7 @@
 ---
 name: debugger
 description: "Use when the user says \"this test fails\", \"why does this throw\" or \"it worked yesterday\". Reproduces the failure, isolates the root cause, applies the smallest fix that removes it, verifies the fix against the reproduction, and returns a short diagnosis together with the change. Not for an error pattern spread across logs and services, use `error-detective`."
-tools: Read, Edit, Grep, Glob, Bash
+tools: Read, Write, Edit, Grep, Glob, Bash
 skills:
   - core:coding-standards
   - core:tdd-workflow
