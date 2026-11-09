@@ -2,19 +2,20 @@
 
 Read this before reading or changing the state, the segments, the effects, the palettes or the config of a WLED device. The rules live in [SKILL.md](../SKILL.md). Rules 1 to 3 there matter most on this page: a `GET` is free except the few that write, and every `POST` waits for a backup and a yes.
 
-Written for WLED 16. Sources: https://kno.wled.ge/interfaces/json-api/, https://kno.wled.ge/interfaces/http-api/, https://kno.wled.ge/interfaces/websocket/ and https://kno.wled.ge/interfaces/serial/, and the WLED 16 source files `wled00/wled_server.cpp`, `json.cpp`, `cfg.cpp`, `set.cpp`, `ws.cpp`, `wled_serial.cpp`, `wled.h` and `const.h` at https://github.com/wled/WLED. No call here was sent to a device.
+Written for WLED 16. Sources: https://kno.wled.ge/interfaces/json-api/, https://kno.wled.ge/interfaces/http-api/, https://kno.wled.ge/interfaces/websocket/, https://kno.wled.ge/interfaces/serial/ and https://kno.wled.ge/interfaces/e1.31-dmx/, and the WLED 16 source files `wled00/wled_server.cpp`, `json.cpp`, `cfg.cpp`, `set.cpp`, `ws.cpp`, `wled_serial.cpp`, `wled.cpp`, `wled.h`, `const.h` and `data/settings_wifi.htm` at https://github.com/wled/WLED. No call here was sent to a device.
 
 Contents:
 
 1. [Read routes](#read-routes)
 2. [How a POST works](#how-a-post-works)
 3. [Change the config safely](#change-the-config-safely)
-4. [State keys](#state-keys)
-5. [Segment keys](#segment-keys)
-6. [WebSocket](#websocket)
-7. [HTTP API](#http-api)
-8. [JSON over serial](#json-over-serial)
-9. [Error codes](#error-codes)
+4. [Wi-Fi sleep](#wi-fi-sleep)
+5. [State keys](#state-keys)
+6. [Segment keys](#segment-keys)
+7. [WebSocket](#websocket)
+8. [HTTP API](#http-api)
+9. [JSON over serial](#json-over-serial)
+10. [Error codes](#error-codes)
 
 ---
 
@@ -107,6 +108,18 @@ curl -s -X POST -H 'Content-Type: application/json' --data-binary @- http://<wle
 4. Read the config again and compare it with the before copy. Only the intended keys may differ. When anything else changed, send the old values back the same way.
 
 The list above is what WLED 16 source shows. A later release can add or remove such keys, so the compare in step 4 is the check that holds on every release.
+
+---
+
+### Wi-Fi sleep
+
+`wifi.sleep` in the config controls modem sleep, the power saving mode of the Wi-Fi radio. The key is stored inverted from the internal `noWifiSleep`, so `true` allows sleep and `false` turns it off (VERIFIED, `cfg.cpp`, `noWifiSleep = !(wifi[F("sleep")] | !noWifiSleep)`, the same line in WLED 0.15.1). The settings page shows the opposite sense: a ticked "Disable WiFi sleep" box, form field `WS`, means `false` (VERIFIED, `data/settings_wifi.htm` and `set.cpp`).
+
+1. Default: sleep is off on ESP32 and on on ESP8266 (VERIFIED, `wled.h`, `noWifiSleep _INIT(true)` under `ARDUINO_ARCH_ESP32`, `_INIT(false)` otherwise).
+2. Turn sleep off when a device drops off the network, is slow to answer or streams realtime. On an ESP32 the docs say it "can reduce/eliminate visual stuttering/lag of effects, and significantly reduce ping times" (VERIFIED, https://kno.wled.ge/interfaces/e1.31-dmx/).
+3. The cost is more power use and more heat. The source says "disabling modem sleep modes will increase heat output and power usage, but may help with connection issues" (VERIFIED, `wled.h`).
+4. A saved change applies only at the next Wi-Fi connection, in practice after a reboot. `wled.cpp` `initConnection` applies it with `WiFi.setSleep(!noWifiSleep)` on ESP32 and `wifi_set_sleep_type` on ESP8266, and saving this key starts no reconnect (VERIFIED, `cfg.cpp` and `set.cpp`).
+5. Make the change as [Change the config safely](#change-the-config-safely) shows, with `"wifi":{"sleep":false}` as the key to change and `"rb":true` to reboot after it. It is a Wi-Fi change, so only when the user names it, and the yes must cover the reboot, as the rules in [SKILL.md](../SKILL.md) say.
 
 ---
 
