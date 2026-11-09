@@ -196,7 +196,7 @@ All VERIFIED in https://kno.wled.ge/interfaces/websocket/ and `ws.cpp`.
 
 ### HTTP API
 
-`/win&...` is the older API. The docs say "While this API is not deprecated, it is highly recommended to use the JSON API instead of the HTTP API for new integrations" (VERIFIED, https://kno.wled.ge/interfaces/http-api/). It answers in XML. Any URL holding `win` that matches no other route runs it, even a `GET` (VERIFIED, `wled_server.cpp` `onNotFound` and `set.cpp` `handleSet`, `if (!(req.indexOf("win") >= 0)) return false`), so a `/win` URL is a write. It does not check the PIN, and `PS=` applies a preset and `RB` reboots through it. Use it only where a tool can do nothing but open a URL.
+`/win&...` is the older API. The docs say "While this API is not deprecated, it is highly recommended to use the JSON API instead of the HTTP API for new integrations" (VERIFIED, https://kno.wled.ge/interfaces/http-api/). It answers in XML. Any URL holding `win` that matches no other route runs it, even a `GET` (VERIFIED, `wled_server.cpp` `onNotFound` and `set.cpp` `handleSet`, `if (!(req.indexOf("win") >= 0)) return false`), so a `/win&...` URL with parameters is a write. A bare `GET /win` only returns the state XML and changes nothing, because `handleSet` applies a field only when it finds its key in the URL (VERIFIED, `set.cpp` `handleSet`, `stateChanged` stays false, then `XML_response`). It does not check the PIN, and `PS=` applies a preset and `RB` reboots through it. Use it only where a tool can do nothing but open a URL.
 
 ---
 
