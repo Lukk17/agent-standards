@@ -132,8 +132,8 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
 - This file and the template obey the rules they ship. `AGENTS.md` and `AGENTS.md.example` follow "Writing
   AGENTS.md files" in [AGENTS.md.example](AGENTS.md.example), and [tools/check-agents-md.py](tools/check-agents-md.py)
   fails CI on a tracked `CLAUDE.md` or a file over its limit. Detail goes to `docs/`, never back in here.
-- **CI runs on every pull request and every push to `master`,** with three parallel jobs: `actionlint`, `validate` for
-  the local checks, and `sandbox` for the containerised suite. Before you push, run every command under "Local checks"
+- **CI runs on every pull request and every push to `master`,** with four parallel jobs: `actionlint`, `validate` for
+  the local checks, `sandbox` for the containerised suite, and `quality-loop` for the sample projects. Before you push, run every command under "Local checks"
   in [CONTRIBUTING.md](CONTRIBUTING.md), which are the checks `validate` runs.
 - **[.github/workflows/agent-live-tests.yml](.github/workflows/agent-live-tests.yml) is a separate workflow and never
   part of CI.** It runs only on `workflow_dispatch` and drives each agent against a real model with
