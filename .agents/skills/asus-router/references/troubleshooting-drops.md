@@ -11,7 +11,7 @@ Sources: the same source files and stock image as [reading-state.md](reading-sta
 | Kind | In the router log | In the ping log | Whose side |
 |---|---|---|---|
 | WAN port link drop | `WAN(0) link down.` from `wanduck` and the kernel's `Link DOWN.` for the WAN port, later `link up` and `Link Up at <speed>` | everything beyond the router fails, the router itself answers | the cable, the ONT or modem, or its power. The ONT rebooting shows as exactly this |
-| PPPoE session drop | `pppd` lines without any link line: `Serial link appears to be disconnected.`, `Fail to connect with some issues.`, `Connection terminated.`, then `Connected to <mac> via interface <wan-ifname>`, `Connect: ppp0 <--> <wan-ifname>`, the address lines and `WAN was restored.` | at least about 60 seconds of failure before the `pppd` lines, then a short gap while the session comes back | beyond the port: the ONT's fibre side or the ISP's access server, because the port stayed up |
+| PPPoE session drop | `pppd` lines without any link line: `Serial link appears to be disconnected.`, `Fail to connect with some issues.`, `Connection terminated.`, then `Connected to <mac> via interface <wan-ifname>`, `Connect: ppp0 <--> <wan-ifname>`, the address lines and `WAN was restored.` | failure before the `pppd` lines, about 60 seconds by the keep alive settings and 28 seconds in one measured drop, then a short gap while the session comes back | beyond the port: the ONT's fibre side or the ISP's access server, because the port stayed up |
 | Drop beyond the router | no `pppd` line and no link line at that time | the ISP's peer or the internet fails for a while, the router answers | beyond the router, while the PPPoE session and the port stayed up |
 
 Two more lines change the reading of a PPPoE drop. `LCP terminated by peer` means the ISP ended the session itself, often a planned daily reconnect at the same hour each day. `Failed to authenticate ourselves to peer.` means the ISP refused the login, which is an account or ISP problem, not a line problem.
@@ -26,7 +26,7 @@ VERIFIED on build 386: in 4.5 days every drop in the log was a PPPoE session dro
 
 The PPPoE keep alive decides what the log can show. `rc/pppd.c` writes `lcp-echo-interval`, `lcp-echo-failure` and `lcp-echo-adaptive` into the PPP options, and on build 386 they were 6, 10 and set, VERIFIED. `lcp.c` says adaptive echo requests are sent "only if the link was idle", and after 10 unanswered requests `pppd` logs `No response to 10 echo-requests` and `Serial link appears to be disconnected.`
 
-So the session ends only after about 60 seconds in which nothing came back from the ISP. A gap shorter than that, or one where the ISP's access server still answers keep alive requests while traffic to the internet fails, never ends the session and leaves no `pppd` line. Only the ping log shows it. That is the third row of the table, and it is why the ping log is not optional.
+So the figure derived from these settings is about 60 seconds in which nothing came back from the ISP before the session ends. It is not a lower limit: one measured drop on build 386 ended 28 seconds after the first failure and 10 seconds after the ISP's peer stopped answering, for a reason not traced, as "The PPPoE keep alive settings" in [reading-state.md](reading-state.md) shows. A gap that does not end the session, such as one where the ISP's access server still answers keep alive requests while traffic to the internet fails, leaves no `pppd` line. Only the ping log shows it. That is the third row of the table, and it is why the ping log is not optional.
 
 ---
 
@@ -75,7 +75,7 @@ pkill -f '^ping -D -O'
 
 Then:
 
-1. `pppd` drop lines about 60 seconds after the ping log started failing, and no link line: a PPPoE session drop, row 2. The ISP side stopped answering first, and the router ended the session because of it.
+1. `pppd` drop lines after the ping log started failing, about 60 seconds later by the keep alive settings, and no link line: a PPPoE session drop, row 2. The ISP side stopped answering first, and the router ended the session because of it. Do not reject this match only because the gap is under 60 seconds, because a shorter gap can end a session.
 2. A link line at the start of the drop: a WAN port link drop, row 1. Check the cable and the ONT's power before calling the ISP.
 3. No `pppd` line and no link line within a minute of the drop: the PPPoE session and the port stayed up while traffic stopped beyond the router, row 3. Which hop failed is in the ISP gateway and public logs.
 4. The router's own address failing too: not a WAN problem. Check the router's uptime for a reboot, and the LAN.
