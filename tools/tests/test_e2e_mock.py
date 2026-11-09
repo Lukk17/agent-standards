@@ -8,6 +8,7 @@ and, where it is installed, ShellCheck.
 """
 
 import json
+import re
 import shutil
 import socket
 import subprocess
@@ -317,6 +318,14 @@ def test_a_reporting_subagent_finishes_with_text_and_makes_no_call(mock):
     assert (line["role"], line["header_role"], line["marker"]) == ("subagent", "subagent", "SUBAGENT-REPORT")
 
 
+@needs_node
+def test_the_log_names_every_tool_a_codex_request_offers_namespaces_included(mock):
+    body = {"stream": False, "tools": codex_tools(),
+            "input": [{"type": "message", "role": "user", "content": f"E2E-SUBAGENT-REPORT {PATH} e2e-no-shell"}]}
+    _text, line = mock.post("/v1/responses", body, CODEX_SUBAGENT)
+    assert line["tools"] == ["exec_command", "spawn_agent", "wait_agent"]
+
+
 def driver(script: str) -> subprocess.CompletedProcess:
     """Sources the driver and runs script after it, with the check helpers stubbed."""
     stubs = "pass() { printf 'PASS %s\\n' \"$*\"; }; fail() { printf 'FAIL %s\\n' \"$*\"; }; note() { :; }; "
@@ -386,6 +395,42 @@ def test_the_review_facts_tell_the_project_skill_from_the_built_in_command(tmp_p
 
     # Then: 2 subagent turns, 1 with the skill line, 1 with the built-in prompt, 1 spawn answered
     assert result.stdout.split() == ["2", "1", "1", "1"]
+
+
+def offered(role: str, tools: list[str], calls: list | None = None) -> str:
+    return json.dumps({"role": role, "header_role": role, "tool_count": len(tools), "tools": tools, "context": "",
+                       "system": "", "calls": calls or [], "reply": {"kind": "text", "text": "ok"}}) + "\n"
+
+
+def test_the_shell_facts_count_subagent_turns_that_offer_a_shell(tmp_path):
+    # Given a spawn answered, two subagent turns, one offering exec_command, and a main turn offering a shell
+    log = tmp_path / "requests.jsonl"
+    spawn = [{"name": "spawn_agent", "args": {}, "result": "done"}]
+    log.write_text(
+        offered("main", ["exec_command", "spawn_agent"], spawn)
+        + offered("subagent", ["apply_patch", "exec_command", "write_stdin"])
+        + offered("subagent", ["apply_patch", "view_image"]),
+        encoding="utf-8",
+    )
+
+    # When
+    result = driver(f"e2e_shell_facts '{log.as_posix()}'")
+
+    # Then: 2 subagent turns, 1 offering a shell, 1 spawn answered
+    assert result.stdout.split() == ["2", "1", "1"]
+
+
+def test_an_unreadable_log_gives_all_zero_shell_facts(tmp_path):
+    assert driver(f"e2e_shell_facts '{(tmp_path / 'missing.jsonl').as_posix()}'").stdout.split() == ["0", "0", "0"]
+
+
+def test_the_driver_proves_on_codex_that_an_agent_without_bash_gets_no_shell():
+    source = DRIVER.read_text(encoding="utf-8")
+    agent = re.search(r'^readonly E2E_NO_SHELL_AGENT="([\w-]+)"$', source, re.M).group(1)
+    definition = (REPO_ROOT / "subagents" / f"{agent}.md").read_text(encoding="utf-8")
+
+    assert "bash" not in re.search(r"^tools: \[(.*)\]$", definition, re.M).group(1)
+    assert re.search(r'"\$agent" == "codex"[^\n]*\n\s*e2e_check_no_shell\b', source)
 
 
 def test_the_needles_are_read_from_the_project_itself():

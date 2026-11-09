@@ -1,6 +1,9 @@
 ---
 description: "Use when the user says \"clean up this code\", \"run the quality loop\" or \"measure CRAP and mutants\", and after a feature before review. Runs Robert C. Martin's crapper, dryer and mutator through the project wrapper, fixes the worst scores in code and tests, measures again for up to three rounds, and reports before and after. Not for writing the tests of a new feature, use `test-automator`."
 mode: subagent
+permission:
+  webfetch: deny
+  websearch: deny
 tools:
   read: true
   write: true

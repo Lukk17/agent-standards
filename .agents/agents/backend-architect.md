@@ -4,6 +4,12 @@ mode: subagent
 permission:
   edit: deny
   bash: deny
+  task: deny
+  "*_*": deny
+  "webfetch": deny
+  "websearch": deny
+  "todowrite": deny
+  "lsp": deny
 tools:
   read: true
   grep: true
@@ -78,6 +84,11 @@ Load when the change touches that stack, the way the Preloaded skills section be
 
 The spec covers every operation a downstream implementer needs to build the service. Open questions are listed
 explicitly. You stop there, and you do not implement.
+
+### Read-only shell
+
+This agent is read-only and has no shell. Edit no file and run no command, and return any change or command to the caller as a proposal. The preflight gate denies every edit and every shell command.
+
 
 ### Preloaded skills
 

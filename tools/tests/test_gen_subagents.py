@@ -211,12 +211,14 @@ def test_opencode_emits_no_model_and_a_tool_map():
 
     assert head[0] == 'description: "Use when a fixture needs writing."'
     assert head[1] == "mode: subagent"
-    assert head[2] == "tools:"
-    assert head[3:] == [f"  {tool}: true" for tool in WRITER["tools"]]
+    assert head[2:5] == ["permission:", "  webfetch: deny", "  websearch: deny"]
+    assert head[5] == "tools:"
+    assert head[6:] == [f"  {tool}: true" for tool in WRITER["tools"]]
 
 
 def test_opencode_no_longer_emits_a_permissions_block():
-    rendered = gen.emit_opencode({**WRITER, "permissions": {"edit": "deny"}}, BODY)
+    researcher = {**WRITER, "tools": [*WRITER["tools"], "webfetch", "websearch"]}
+    rendered = gen.emit_opencode({**researcher, "permissions": {"edit": "deny"}}, BODY)
 
     assert "permissions" not in rendered
     assert "deny" not in rendered
@@ -357,24 +359,25 @@ def test_a_read_only_agent_is_denied_edit_and_bash_on_opencode():
     """OpenCode and Kilo Code treat `tools` as overrides, so only a permission denial makes it read-only."""
     parsed = front_matter(gen.emit_opencode(READER, BODY))
 
-    assert parsed["permission"] == {"edit": "deny", "bash": "deny"}
+    assert {key: parsed["permission"][key] for key in ("edit", "bash", "task")} == {"edit": "deny", "bash": "deny", "task": "deny"}
+    assert all(parsed["permission"][tool] == "deny" for tool in gen.OPENCODE_READ_ONLY_TOOL_DENIES)
     assert parsed["tools"] == {"read": True, "grep": True, "glob": True}
 
 
-def test_an_agent_with_bash_but_no_file_tool_is_denied_only_edit_on_opencode():
+def test_an_agent_with_bash_but_no_file_tool_is_denied_only_edit_and_the_web_on_opencode():
     runner = dict(READER, tools=["read", "grep", "glob", "bash"])
 
-    assert front_matter(gen.emit_opencode(runner, BODY))["permission"] == {"edit": "deny"}
+    assert front_matter(gen.emit_opencode(runner, BODY))["permission"] == {"edit": "deny", "webfetch": "deny", "websearch": "deny"}
 
 
 def test_an_agent_with_write_alone_keeps_edit_on_opencode():
     drafter = dict(READER, tools=["read", "write", "grep", "glob"])
 
-    assert front_matter(gen.emit_opencode(drafter, BODY))["permission"] == {"bash": "deny"}
+    assert front_matter(gen.emit_opencode(drafter, BODY))["permission"] == {"bash": "deny", "webfetch": "deny", "websearch": "deny"}
 
 
-def test_a_writing_agent_gets_no_permission_block_on_opencode():
-    assert "permission" not in front_matter(gen.emit_opencode(WRITER, BODY))
+def test_a_writing_agent_is_denied_only_the_web_on_opencode():
+    assert front_matter(gen.emit_opencode(WRITER, BODY))["permission"] == {"webfetch": "deny", "websearch": "deny"}
 
 
 def test_an_agent_declaring_no_tools_gets_no_permission_block_on_opencode():
@@ -405,10 +408,70 @@ def test_a_writing_agent_gets_no_permission_mode_on_claude():
     assert "permissionMode" not in gen.emit_claude(WRITER, BODY)
 
 
-def test_codex_grants_no_tools_at_all():
-    parsed = tomllib.loads(gen.emit_codex(READER, BODY))
+# "To reduce a custom agent's capabilities, set supported feature keys to
+# `false`: `features.shell_tool`, ..." (https://developers.openai.com/codex/subagents,
+# "Custom agent file schema"). Codex has no key for apply_patch or web search.
+@pytest.mark.parametrize("fixture", [READER, dict(WRITER, tools=["read", "write", "edit", "grep", "glob"])], ids=["reader", "drafter"])
+def test_codex_switches_the_shell_off_for_an_agent_without_bash(fixture):
+    parsed = tomllib.loads(gen.emit_codex(fixture, BODY))
 
-    assert set(parsed) == {"name", "description", "developer_instructions"}
+    assert parsed["features"] == {"shell_tool": False}
+    assert set(parsed) == {"name", "description", "features", "developer_instructions"}
+
+
+def test_codex_keeps_the_shell_for_an_agent_with_bash_or_with_no_tool_list():
+    inheritor = {key: value for key, value in WRITER.items() if key != "tools"}
+
+    for fixture in (WRITER, REVIEWER, inheritor):
+        assert "features" not in tomllib.loads(gen.emit_codex(fixture, BODY)), fixture["name"]
+
+
+@pytest.mark.parametrize("target", ["claude", "agents", "codex", "copilot"])
+def test_an_agent_with_only_read_tools_gets_an_empty_read_only_section(target):
+    """Rule E reads a heading with no items as read-only with no command allowed."""
+    rendered = gen.render(target, READER, BODY)
+
+    assert GATE._read_only_patterns(rendered) == []
+    assert "has no shell" in rendered
+
+
+def test_every_generated_agent_listing_only_read_tools_is_read_only_in_every_tree():
+    for source in sorted(gen.SRC.glob("*.md")):
+        canonical = front_matter(source.read_text(encoding="utf-8"))
+
+        if not canonical.get("tools") or not set(canonical["tools"]) <= gen.READ_ONLY_TOOLS:
+            continue
+
+        for tool, (outdir, ext) in gen.TARGETS.items():
+            text = (outdir / f"{canonical['name']}{ext}").read_text(encoding="utf-8")
+
+            assert GATE._read_only_patterns(text) == [], (canonical["name"], tool)
+
+
+# OpenCode starts every agent from "Most permissions default to \"allow\"" (OpenCode 1,
+# https://opencode.ai/v1/docs/permissions/, "Defaults"), so web access is denied unless listed.
+@pytest.mark.parametrize("fixture", [READER, WRITER, dict(WRITER, tools=["read", "write", "grep", "glob"])], ids=["reader", "writer", "drafter"])
+def test_opencode_denies_web_access_unless_the_agent_lists_it(fixture):
+    permission = front_matter(gen.emit_opencode(fixture, BODY))["permission"]
+
+    assert (permission["webfetch"], permission["websearch"]) == ("deny", "deny")
+
+
+def test_opencode_keeps_web_access_the_agent_lists():
+    researcher = dict(WRITER, tools=[*WRITER["tools"], "webfetch"])
+    permission = front_matter(gen.emit_opencode(researcher, BODY))["permission"]
+
+    assert "webfetch" not in permission
+    assert permission["websearch"] == "deny"
+
+
+@pytest.mark.parametrize("tool", ["webfetch", "websearch"])
+def test_parse_rejects_a_read_only_agent_with_web_access(tmp_path, tool):
+    """Rule E denies every web tool to a read-only agent, so listing one would promise a tool it never gets."""
+    path = write_agent(tmp_path, "marked", f"name: marked\ndescription: Use when marked.\ntools: [read, bash, {tool}]\nreadonly: true")
+
+    with pytest.raises(SystemExit, match=f"may not list {tool}"):
+        gen.parse(path, SKILLS)
 
 
 def test_the_generator_keeps_no_model_table():
@@ -473,6 +536,36 @@ def read_only_section(text):
     section = text.split(f"### {gen.READ_ONLY_HEADING}\n", 1)[1].split("\n### ", 1)[0]
 
     return re.findall(r"^- `([^`]+)`$", section, re.M)
+
+
+@pytest.mark.parametrize("fixture", [REVIEWER, READER], ids=["reviewer", "reader"])
+def test_a_read_only_opencode_agent_names_each_permission_once(fixture):
+    head = gen.emit_opencode(fixture, BODY).split("---\n")[1]
+    block = head.split("permission:\n", 1)[1].split("\ntools:", 1)[0]
+    keys = [line.split(":")[0].strip().strip('"') for line in block.splitlines() if not line.startswith("    ")]
+
+    assert len(keys) == len(set(keys))
+
+
+def read_only_prose(text):
+    """The prose under the read-only heading, up to the next heading."""
+    return text.split(f"### {gen.READ_ONLY_HEADING}\n", 1)[1].split("\n### ", 1)[0].strip()
+
+
+# Copilot's preToolUse payload names no agent, so the gate never fires there and
+# only the missing tools hold the agent.
+def test_copilot_tells_an_agent_with_only_read_tools_that_the_target_grants_no_edit_or_shell():
+    prose = read_only_prose(gen.emit_copilot(READER, BODY))
+
+    assert prose.endswith("This target grants it no edit or shell tool.")
+    assert "preflight gate" not in prose
+
+
+@pytest.mark.parametrize("target", ["claude", "agents", "codex"])
+def test_an_agent_with_only_read_tools_is_told_the_gate_denies_it_where_the_hook_names_it(target):
+    prose = read_only_prose(gen.render(target, READER, BODY))
+
+    assert prose.endswith("The preflight gate denies every edit and every shell command.")
 
 
 @pytest.mark.parametrize(
@@ -583,6 +676,8 @@ def opencode_bash_verdict(bash_map, command):
         ("gh pr view 12 --json title --template x", "deny"),
         ("gh pr view 12 --json title -t x", "deny"),
         ("gh pr view 12 --json title,state", "allow"),
+        ("gh pr view 12 --watch", "deny"),
+        ("gh pr view 12 --watch=true", "deny"),
         ("touch made.txt", "deny"),
         ("git --no-pager log --format=%h%x20%s -U0 HEAD~3..HEAD", "allow"),
         ("git --no-pager log -L10,20:src/app.py", "allow"),
@@ -684,7 +779,23 @@ def test_an_agent_without_the_marker_gets_no_read_only_section():
         assert gen.READ_ONLY_HEADING not in gen.render(tool, WRITER, BODY)
 
 
-@pytest.mark.parametrize("agent", ["code-reviewer", "code-archaeologist"])
+@pytest.mark.parametrize(
+    ("agent", "needed"),
+    [
+        ("security-auditor", {"bash"}),
+        ("debugger", {"write", "edit"}),
+        ("legal-advisor", {"write", "edit", "webfetch"}),
+        ("seo-content-marketer", {"write", "edit", "webfetch"}),
+    ],
+)
+def test_an_agent_holds_every_tool_its_routine_uses(agent, needed):
+    """Each routine writes a test, revises a draft in place, fetches a source or searches git history."""
+    canonical = front_matter((gen.SRC / f"{agent}.md").read_text(encoding="utf-8"))
+
+    assert needed <= set(canonical["tools"])
+
+
+@pytest.mark.parametrize("agent", ["code-reviewer", "code-archaeologist", "security-auditor"])
 def test_the_shipped_reviewers_are_read_only_with_bash(agent):
     canonical = front_matter((gen.SRC / f"{agent}.md").read_text(encoding="utf-8"))
     opencode = front_matter((gen.TARGETS["agents"][0] / f"{agent}.md").read_text(encoding="utf-8"))

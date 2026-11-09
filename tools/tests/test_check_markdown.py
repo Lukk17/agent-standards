@@ -452,7 +452,7 @@ def test_every_key_outside_the_specification_is_reported(tmp_path, capsys):
     front_matter = """---
 name: demo-skill
 description: Demo skill for the lint tests.
-model: inherit
+tools: Read
 allowed-tools: Read
 ---
 """
@@ -466,7 +466,72 @@ allowed-tools: Read
 
     out = capsys.readouterr().out
     assert "key 'allowed-tools'" in out
-    assert "key 'model'" in out
+    assert "key 'tools'" in out
+
+
+def test_model_key_in_skill_front_matter_is_reported_once(tmp_path, capsys):
+    # Given a manifest that pins a model in its front matter
+    front_matter = """---
+name: demo-skill
+description: Demo skill for the lint tests.
+model: sonnet
+---
+"""
+    path = _write_skill(tmp_path, front_matter)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then one violation on the model line says to remove the key and why
+    out = capsys.readouterr().out
+    assert failures == 1
+    assert "line=4::" in out
+    assert "key 'model' is not allowed. Remove it, because skills never pin a model" in out
+    assert "and run on the user's default model" in out
+
+
+def test_model_key_is_reported_even_when_the_allowed_keys_widen(tmp_path, capsys, monkeypatch):
+    # Given an allowed-key list that someday admits model, and a manifest using it
+    monkeypatch.setattr(MARKDOWN, "SKILL_ALLOWED_KEYS", (*MARKDOWN.SKILL_ALLOWED_KEYS, "model"))
+    front_matter = """---
+name: demo-skill
+description: Demo skill for the lint tests.
+model: sonnet
+---
+"""
+    path = _write_skill(tmp_path, front_matter)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the model rule still holds on its own
+    assert failures == 1
+    assert "key 'model' is not allowed. Remove it" in capsys.readouterr().out
+
+
+def test_model_key_in_a_skill_body_is_not_front_matter(tmp_path, capsys):
+    # Given a clean manifest whose body holds a model assignment and a model line
+    path = _write_skill(tmp_path, CLEAN_SKILL_FRONT_MATTER)
+    path.write_text(path.read_text(encoding="utf-8") + "\nmodel = MyModel()\n\nmodel: sonnet\n", encoding="utf-8")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the body is not read as front matter
+    assert failures == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_model_key_in_a_skill_reference_is_not_front_matter(tmp_path, capsys):
+    # Given a reference file holding a fenced model assignment and a prose model line
+    path = _write_skill_reference(tmp_path, "```python\nmodel = MyModel()\n```\n\nmodel: sonnet")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then a reference file carries no front matter contract
+    assert failures == 0
+    assert capsys.readouterr().out == ""
 
 
 def test_front_matter_that_is_not_a_mapping_is_reported(tmp_path, capsys):

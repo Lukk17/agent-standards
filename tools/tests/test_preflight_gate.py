@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path, PurePosixPath
 from typing import NamedTuple
 
@@ -1358,6 +1359,81 @@ def test_edit_tool_symlinked_path_that_resolves_inside_denies(tmp_path_factory):
     assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
 
 
+# A blank at either end of an edit path is part of the name for a host that
+# hands the tool the value as sent, and gone for one that trims it first, so
+# the gate places both readings and denies when either lands inside.
+
+
+@pytest.fixture
+def blank_named_link(tmp_path):
+    """A link outside the project, named with a trailing blank, pointing at a project file."""
+    link = tmp_path / "l "
+
+    try:
+        link.symlink_to(REPO_ROOT / "AGENTS.md")
+    except OSError:
+        pytest.skip("symlink creation is not permitted in this environment")
+
+    return link
+
+
+@pytest.mark.parametrize("tool", ["Write", "Edit"])
+def test_an_edit_path_with_a_trailing_blank_is_placed_as_sent(blank_named_link, tool):
+    # Given a path whose trimmed form names a file outside the project that does not exist
+    payload = {"tool_name": tool, "tool_input": {"file_path": str(blank_named_link)}}
+
+    # When/Then the link it names as sent leads into the project
+    assert decision(payload) == "deny"
+
+
+def test_an_edit_path_with_a_leading_blank_is_placed_as_sent():
+    # Given a path that is absolute once trimmed, and relative to the project as sent
+    payload = {"tool_name": "Write", "tool_input": {"file_path": " /../AGENTS.md"}}
+
+    # When/Then a host joining it to the project directory writes AGENTS.md there
+    assert decision(payload) == "deny"
+
+
+def test_a_runner_edit_path_with_a_trailing_blank_is_placed_as_sent(blank_named_link):
+    payload = envelope(tool="write", tool_input={"filePath": str(blank_named_link)}, agent="build", subagent=False)
+
+    code, out, err = run(payload, "plain")
+
+    assert code == 2
+    assert str(blank_named_link) in err
+
+
+def test_an_edit_path_trimmed_into_the_project_still_denies(tmp_path):
+    # Given a path outside the project as sent, whose trimmed form is a project file
+    payload = {"tool_name": "Write", "tool_input": {"file_path": str(REPO_ROOT / "AGENTS.md") + " "}}
+
+    # When/Then a host that trims it writes the project file
+    assert decision(payload) == "deny"
+
+
+def test_an_edit_path_outside_the_project_either_way_is_allowed(tmp_path):
+    payload = {"tool_name": "Write", "tool_input": {"file_path": str(tmp_path / "out.txt") + " "}}
+
+    assert decision(payload) == "allow"
+
+
+def test_a_powershell_pipeline_path_with_a_trailing_blank_is_placed_as_sent(blank_named_link):
+    command = f"'{blank_named_link}' | Set-Content -Value x"
+
+    assert decision(shell(command, tool="PowerShell")) == "deny"
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["Set-Content -Path ' nul' -Value x", "'x' > ' nul'", "Set-Content -Path ' $null' -Value x", "' nul' | Set-Content -Value x"],
+    ids=["set-content", "redirect", "variable-spelling", "pipeline"],
+)
+def test_a_powershell_null_device_spelled_with_a_blank_is_a_project_file(command):
+    # Given a leading blank, which makes the name an ordinary file in the project rather than the device
+    # When/Then
+    assert decision(shell(command, tool="PowerShell")) == "deny"
+
+
 def test_edit_tool_windows_drive_relative_path_denies():
     # Given a drive-relative path (a drive letter with no root separator):
     # Windows reads "D:app.py" as "app.py in the current directory of drive
@@ -1657,6 +1733,50 @@ def test_a_payload_without_a_cwd_leaves_an_unrelated_project_unprotected(tmp_pat
     assert (code, out, err) == (0, "", "")
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows strips a trailing blank from a path name")
+def test_a_payload_cwd_with_a_trailing_blank_protects_that_exact_folder(tmp_path):
+    # Given a project whose folder name ends in a blank, named as the payload
+    # cwd, and a process working directory elsewhere
+    project = tmp_path / "project "
+    project.mkdir()
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    payload = edit(str(project / "src" / "app.py"))
+    payload["cwd"] = str(project)
+
+    # When
+    code, out, err = run(payload, "claude", cwd=elsewhere)
+
+    # Then the folder the payload named, blank included, is the protected root
+    assert code == 0
+    assert err == ""
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows strips a trailing blank from a path name")
+def test_a_payload_cwd_with_a_trailing_blank_leaves_the_trimmed_sibling_unprotected(tmp_path):
+    # Given a folder named with a trailing blank as the payload cwd, and a
+    # write into the sibling folder that trimming the blank would name
+    (tmp_path / "project ").mkdir()
+    sibling = tmp_path / "project"
+    sibling.mkdir()
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    payload = edit(str(sibling / "src" / "app.py"))
+    payload["cwd"] = str(tmp_path / "project ")
+
+    # When
+    code, out, err = run(payload, "claude", cwd=elsewhere)
+
+    # Then the sibling is no root of this session, so the write allows
+    assert (code, out, err) == (0, "", "")
+
+
+@pytest.mark.parametrize("value", ["/x/project ", "/x/project\n", "/x/project\t"], ids=repr)
+def test_the_payload_root_keeps_the_cwd_exactly_as_sent(value):
+    assert GATE._payload_root({"cwd": value}) == Path(value)
+
+
 @pytest.mark.parametrize("value", [None, "", "   ", 17, ["/project"]], ids=repr)
 def test_an_unusable_payload_cwd_names_no_root(value):
     payload = {"cwd": value} if value is not None else {}
@@ -1887,25 +2007,12 @@ def test_web_research_is_not_denied_on_the_plain_format():
     assert (code, out, err) == (0, "", "")
 
 
-# A leading `cd` moves the base every following relative path resolves against,
-# so the same write is allowed or denied on where the command actually landed.
-
-
-def test_shell_write_after_cd_outside_the_repository_is_allowed(tmp_path):
-    # Given a command that changes into a directory outside the repository
-    # before writing a relative path
-    outside = str(tmp_path).replace("\\", "/")
-    payload = shell("cd " + outside + " && printf abc >> MEMORY.md")
-
-    # When
-    code, out, err = run(payload, "claude")
-
-    # Then the target lands outside, so Rule A never reaches it
-    assert (code, out, err) == (0, "", "")
+# A relative write after a directory change is never placed, inside the
+# repository or out of it, while an absolute one still is.
 
 
 def test_shell_write_after_cd_into_a_repository_subdirectory_is_denied():
-    # Given the same shape of command, landing inside the repository instead
+    # Given a cd into the repository, then a relative write
     payload = shell("cd tools && printf abc >> gen_subagents.py")
 
     # When
@@ -1919,133 +2026,79 @@ def test_shell_write_after_cd_into_a_repository_subdirectory_is_denied():
     assert "gen_subagents.py" in verdict["permissionDecisionReason"]
 
 
-def test_cd_separated_by_a_semicolon_is_followed_too(tmp_path):
-    outside = str(tmp_path).replace("\\", "/")
-    payload = shell("cd " + outside + " ; printf abc >> MEMORY.md")
-
-    code, out, err = run(payload, "claude")
-
-    assert (code, out, err) == (0, "", "")
-
-
-def test_cd_outside_then_back_inside_is_denied(tmp_path):
-    # Given a command that leaves and returns, which is what makes a single
-    # "did it cd at all" answer wrong
-    outside = str(tmp_path).replace("\\", "/")
-    inside = str(REPO_ROOT).replace("\\", "/")
-    command = "cd " + outside + " && cd " + inside + " && printf abc >> tools/gen_subagents.py"
-
-    # When/Then
-    assert decision(shell(command)) == "deny"
-
-
 def test_an_absolute_target_ignores_the_cd(tmp_path):
     # Given a cd outside the repository, then an absolute write back into it
     outside = str(tmp_path).replace("\\", "/")
     inside = (REPO_ROOT / "tools" / "gen_subagents.py").as_posix()
     payload = shell("cd " + outside + " && printf abc >> " + inside)
 
-    # When/Then an absolute path never consults the base at all
+    # When/Then an absolute path is placed as it is
     assert decision(payload) == "deny"
 
 
-def test_a_cd_with_no_operand_leaves_the_base_alone():
-    # Given a bare `cd`, whose destination the gate has no way to know
-    # When/Then the base is left where it was, which keeps the write denied
-    assert decision(shell("cd && printf abc >> tools/gen_subagents.py")) == "deny"
+# Each of these was allowed while the gate followed the cd, because the
+# shell lands outside the repository or in a subshell that ends. The gate no
+# longer works out where it lands, so each relative write now denies.
+ONCE_FOLLOWED_CASES = [
+    "cd {out} && printf abc >> MEMORY.md",
+    "cd {out} ; printf abc >> MEMORY.md",
+    "cd {out} && cd sub && printf abc >> MEMORY.md",
+    "cd {out} && cd ./sub && printf abc >> MEMORY.md",
+    "cd {out}/sub && cd .. && printf abc >> MEMORY.md",
+    "cd {out} && cd ./missing; printf abc >> MEMORY.md",
+    "cd {out} && cd missing; printf abc >> MEMORY.md",
+    "pushd {out} && pushd sub && popd && printf abc >> MEMORY.md",
+    'bash -c "cd {out} && printf abc >> MEMORY.md"',
+    "(cd {out} && printf abc >> MEMORY.md)",
+    "(echo x) && cd {out} && printf abc >> MEMORY.md",
+]
 
 
-def test_a_cd_inside_a_nested_shell_does_not_leak_out_of_it(tmp_path):
-    # Given a child shell that changes directory and then exits, which leaves
-    # the parent shell's own directory exactly where it was
-    outside = str(tmp_path).replace("\\", "/")
-    payload = shell('bash -c "cd ' + outside + '" && printf abc >> tools/gen_subagents.py')
+@pytest.mark.parametrize("command", ONCE_FOLLOWED_CASES)
+def test_a_relative_write_after_a_cd_the_gate_once_followed_now_denies(tmp_path, command):
+    (tmp_path / "sub").mkdir()
 
-    # When/Then the write is judged against the repository, not the child's cd
-    assert decision(payload) == "deny"
+    assert decision(shell(command.format(out=tmp_path.as_posix()))) == "deny"
 
 
-def test_a_cd_inside_a_nested_shell_still_applies_within_it(tmp_path):
-    outside = str(tmp_path).replace("\\", "/")
-    payload = shell('bash -c "cd ' + outside + ' && printf abc >> MEMORY.md"')
-
-    code, out, err = run(payload, "claude")
-
-    assert (code, out, err) == (0, "", "")
-
-
-# A subshell is a parenthesised group or one stage of a pipeline. The real
-# shell restores its own directory when either ends, so a `cd` in one may not
-# move the base for anything after it.
-
-
-def test_a_cd_inside_a_parenthesised_group_does_not_leak_out_of_it(tmp_path):
-    # Given a group that changes directory and closes again
-    outside = str(tmp_path).replace("\\", "/")
-    payload = shell("(cd " + outside + ") && printf abc >> tools/gen_subagents.py")
-
-    # When/Then the write is judged against the repository, not the group's cd
-    assert decision(payload) == "deny"
+# Each of these denied under the tracking too, and still does.
+STILL_DENIED_CASES = [
+    "cd {out} && cd {root} && printf abc >> tools/gen_subagents.py",
+    "cd && printf abc >> tools/gen_subagents.py",
+    'bash -c "cd {out}" && printf abc >> tools/gen_subagents.py',
+    "(cd {out}) && printf abc >> tools/gen_subagents.py",
+    "cd {out} | printf abc >> tools/gen_subagents.py",
+    "printf abc >> tools/gen_subagents.py | cd {out}",
+    "cd {out} | cat && printf abc >> tools/gen_subagents.py",
+    "cd {out}/no-such-directory ; printf abc >> tools/gen_subagents.py",
+    "cd docs; cd /nonexistent-zz9; echo x > ../AGENTS.md",
+    "cd docs\ncd /nonexistent-zz9\necho x > ../AGENTS.md",
+    "cd docs || cd /nonexistent-zz9 || echo x > ../AGENTS.md",
+]
 
 
-def test_a_cd_inside_a_parenthesised_group_still_applies_within_it(tmp_path):
-    outside = str(tmp_path).replace("\\", "/")
-    payload = shell("(cd " + outside + " && printf abc >> MEMORY.md)")
-
-    code, out, err = run(payload, "claude")
-
-    assert (code, out, err) == (0, "", "")
+@pytest.mark.parametrize("command", STILL_DENIED_CASES)
+def test_a_relative_write_after_a_cd_still_denies(tmp_path, command):
+    assert decision(shell(command.format(out=tmp_path.as_posix(), root=REPO_ROOT.as_posix()))) == "deny"
 
 
-def test_a_cd_in_a_pipeline_stage_does_not_move_the_base(tmp_path):
-    # Given a cd piped into the write, which the shell runs in its own subshell
-    outside = str(tmp_path).replace("\\", "/")
-    payload = shell("cd " + outside + " | printf abc >> tools/gen_subagents.py")
+def test_a_cd_into_a_real_symlink_loop_still_denies_the_relative_write(tmp_path):
+    # Given two links that point at each other, so the second cd fails
+    first, second = tmp_path / "loop-a", tmp_path / "loop-b"
+
+    try:
+        first.symlink_to(second)
+        second.symlink_to(first)
+    except OSError:
+        pytest.skip("symlink creation is not permitted in this environment")
 
     # When/Then
-    assert decision(payload) == "deny"
+    assert decision(shell(f"cd docs; cd {first.as_posix()}; echo x > ../AGENTS.md")) == "deny"
 
 
-def test_a_cd_after_a_pipe_does_not_move_the_base_either(tmp_path):
-    outside = str(tmp_path).replace("\\", "/")
-    payload = shell("printf abc >> tools/gen_subagents.py | cd " + outside)
-
-    assert decision(payload) == "deny"
-
-
-def test_a_cd_before_a_pipeline_is_forgotten_after_it(tmp_path):
-    # Given a cd whose only stage is a pipeline, then a write after the pipeline
-    outside = str(tmp_path).replace("\\", "/")
-    command = "cd " + outside + " | cat && printf abc >> tools/gen_subagents.py"
-
-    # When/Then
-    assert decision(shell(command)) == "deny"
-
-
-def test_a_cd_outside_a_group_still_moves_the_base(tmp_path):
-    # Given a group that touches nothing, then a cd at the top level
-    outside = str(tmp_path).replace("\\", "/")
-    command = "(echo x) && cd " + outside + " && printf abc >> MEMORY.md"
-
-    # When/Then the restore is scoped to the group, not to every cd
-    code, out, err = run(shell(command), "claude")
-
-    assert (code, out, err) == (0, "", "")
-
-
-def test_a_cd_to_a_directory_that_does_not_exist_drops_the_base(tmp_path):
-    # Given a cd the real shell would refuse, leaving it in the repository
-    missing = (tmp_path / "no-such-directory").as_posix()
-    payload = shell("cd " + missing + " ; printf abc >> tools/gen_subagents.py")
-
-    # When/Then the write is still judged against the repository
-    assert decision(payload) == "deny"
-
-
-def test_a_relative_cd_resolves_against_every_root(tmp_path):
-    # Given a session whose working directory is not the project root, so the
-    # relative destination means one thing under the invocation directory and
-    # another under the root the gate itself sits in
+def test_a_relative_cd_in_a_session_started_below_the_root_still_denies(tmp_path):
+    # Given a session started in a folder below the project's parent, not at
+    # the project root, and a cd followed by a relative write into the project
     nested = tmp_path / "nested"
     nested.mkdir()
     target = REPO_ROOT.name + "/tools/gen_subagents.py"
@@ -2054,9 +2107,345 @@ def test_a_relative_cd_resolves_against_every_root(tmp_path):
     # When
     code, out, _err = run(payload, "claude", cwd=nested)
 
-    # Then the landing that places the target inside the repository decides
+    # Then the gate follows no cd, so the relative write is unplaceable and denies
     assert code == 0
     assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+# The gate follows no directory change. A main-thread command that changes
+# directory anywhere, in any spelling and at any depth, makes every relative
+# write target in it unplaceable, which denies, while an absolute target is
+# still placed. Every case below was a way around the tracking this replaced.
+# {out} is a folder outside the project, {back} the relative path from {out}
+# to the project's AGENTS.md, {home} the same path from the home directory,
+# {up} one that reaches AGENTS.md only from the project's parent,
+# {root_glob} the project root spelled with a wildcard, and {parent} and
+# {name} the project's parent folder and its own name. A case whose folder the
+# lexer reads as a command of its own, after an unquoted `c$(...)` or a
+# PowerShell call on an expression, names `docs` and `../AGENTS.md` instead,
+# because an absolute folder there is a script run and denies on that alone.
+# Each case denies on this rule alone, except a few that another rule denies
+# as well: a CDPATH setting is an unplaceable environment, an empty `$()` starts
+# a shell that waits for typed input, eval, trap or alias code running a
+# computed name is unplaceable, cmd `start` runs a script, and {home} and
+# `.cache` resolve inside from the project root as they do from home.
+DIRECTORY_CHANGE_CASES = {
+    "cd-dash": ("cd {out}; cd -; echo x > {back}", "Bash"),
+    "cd-to-command-output": ('cd "$(echo {out})"; echo x > {back}', "Bash"),
+    "bare-cd-goes-home": ("cd; echo x > {home}", "Bash"),
+    "cd-back-through-command-output": ("cd {out}; cd $(echo {root}); echo x > {back}", "Bash"),
+    "cd-back-through-a-glob": ("cd {out}; cd {root_glob}; echo x > {back}", "Bash"),
+    "popd-after-dirs-clear-in-a-subshell": ("pushd {out}; (dirs -c); popd; echo x > {back}", "Bash"),
+    "popd-after-dirs-clear-in-a-pipeline": ("pushd {out}; dirs -c | cat; popd; echo x > {back}", "Bash"),
+    "cd-inside-a-function": ("f() {{ cd {root}; }}; cd {out}; f; echo x > {back}", "Bash"),
+    "cd-inside-a-function-keyword": ("function g {{ cd {out}; }}; g; echo x > {back}", "Bash"),
+    "cd-inside-a-for-loop": ('cd {out}; for d in {root}; do cd "$d"; done; echo x > {back}', "Bash"),
+    "cd-in-the-background": ("cd {out} & echo x > {back}", "Bash"),
+    "popd-after-a-pushd-in-a-subshell": ("(cd {out} && pushd /var); popd; echo x > {back}", "Bash"),
+    "popd-after-a-failed-pushd": ("cd {out}; pushd /nonexistent-zz9; cd {root}; popd; echo x > {back}", "Bash"),
+    "cd-with-two-operands": ("cd x {out}; echo x > {back}", "Bash"),
+    "cd-behind-if": ("if cd {out}; then echo x > {back}; fi", "Bash"),
+    "cd-behind-then": ("if true; then cd {out}; fi; echo x > {back}", "Bash"),
+    "cd-behind-do": ("while true; do cd {out}; break; done; echo x > {back}", "Bash"),
+    "cd-behind-until": ("until false; do cd {out}; break; done; echo x > {back}", "Bash"),
+    "cd-behind-select": ("select x in a; do cd {out}; break; done; echo x > {back}", "Bash"),
+    "cd-behind-a-brace": ("{{ cd {out}; }}; echo x > {back}", "Bash"),
+    "cd-behind-a-bang": ("! cd {out}; echo x > {back}", "Bash"),
+    "cd-behind-time": ("time cd {out}; echo x > {back}", "Bash"),
+    "cd-behind-command": ("command cd {out}; echo x > {back}", "Bash"),
+    "cd-behind-builtin": ("builtin cd {out}; echo x > {back}", "Bash"),
+    "cd-behind-exec": ("exec cd {out}; echo x > {back}", "Bash"),
+    "cd-behind-env": ("env cd {out}; echo x > {back}", "Bash"),
+    "chdir": ("chdir {out}; echo x > {back}", "Bash"),
+    "set-location-in-pwsh-command": ("pwsh -Command 'Set-Location {out}; Set-Content {back} x'", "Bash"),
+    "cmd-start-folder": ('cmd /c "start /d {out} cmd /c echo x ^> {back}"', "Bash"),
+    "cd-in-a-pipeline-stage": ("cd {out} | cat; echo x > {back}", "Bash"),
+    "cd-in-a-subshell": ("(cd {out}); echo x > {back}", "Bash"),
+    "cd-in-a-nested-shell": ("bash -c 'builtin cd {out}; echo x > {back}'", "Bash"),
+    "cd-in-a-trap": ("trap 'cd {out}' DEBUG; echo x > {back}", "Bash"),
+    "cd-through-an-alias": ("alias x=cd\nx {out}\necho x > {back}", "Bash"),
+    "cd-through-a-computed-program": ("$X {out}; echo x > {back}", "Bash"),
+    "chdir-in-inline-python": (
+        "python3 -c \"import os; os.chdir('{out}'); open('{back}', 'w').write('x')\"",
+        "Bash",
+    ),
+    "chdir-in-inline-javascript": ("node -e \"process.chdir('{out}'); require('fs').writeFileSync('{back}', 'x')\"", "Bash"),
+    "setwd-in-inline-r": ("Rscript -e 'setwd(\"{out}\"); writeLines(\"x\", \"{back}\")'", "Bash"),
+    "find-execdir": ("find {out} -maxdepth 0 -execdir sh -c 'echo x > {back}' \\;", "Bash"),
+    "env-chdir": ("env --chdir={out} touch {back}", "Bash"),
+    "wsl-cd": ("wsl --cd {out} sh -c 'echo x > {back}'", "Bash"),
+    "pwsh-working-directory": ("pwsh -WorkingDirectory {out} -Command 'Set-Content {back} x'", "Bash"),
+    "cd-in-a-heredoc-shell": ("bash <<'EOF'\ncd {out}\nEOF\necho x > {back}", "Bash"),
+    "dotnet-current-directory": ("[Environment]::CurrentDirectory = '{out}'; [IO.File]::WriteAllText('{back}', 'x')", "PowerShell"),
+    "start-process-working-directory": (
+        "Start-Process -WorkingDirectory {out} -FilePath cmd -ArgumentList '/c','echo x > {back}'",
+        "PowerShell",
+    ),
+    "set-location-dash": ("Set-Location {out}; Set-Location -; Set-Content {back} x", "PowerShell"),
+    "set-location-alias": ("sl {out}; Set-Content {back} x", "PowerShell"),
+    "push-location": ("Push-Location {out}; Set-Content {back} x", "PowerShell"),
+    "pop-location": ("Pop-Location; Set-Content {up} x", "PowerShell"),
+    "cd-dot-dot-function": ("cd..; Set-Content {up} x", "PowerShell"),
+    "cd-oldpwd": ('cd {out}; cd "$OLDPWD"; echo x > {back}', "Bash"),
+    "cd-tilde-dash": ("cd {out}; cd ~-; echo x > {back}", "Bash"),
+    "cd-variable": ("cd {out}; cd $VAR; echo x > {back}", "Bash"),
+    "cd-to-pwd-output": ('cd {out}; cd "$(pwd)"; echo x > {back}', "Bash"),
+    "cd-backticks": ("cd {out}; cd `pwd`; echo x > {back}", "Bash"),
+    "cd-home-then-remove": ("cd ~ && rm -rf .cache", "Bash"),
+    "pushd-rotate": ("pushd {out}; pushd +1; echo x > {back}", "Bash"),
+    "pushd-rotate-from-the-end": ("pushd {out}; pushd -0; echo x > {back}", "Bash"),
+    "pushd-swap": ("pushd {out}; pushd; echo x > {back}", "Bash"),
+    "pushd-no-change": ("pushd -n {out}; echo x > {back}", "Bash"),
+    "popd-to-a-folder-pushd-n-stacked": ("cd {out}; pushd -n {root}/docs; popd; echo x > ../AGENTS.md", "Bash"),
+    "popd-drops-an-entry": ("pushd {out}; pushd {root}; popd +1; echo x > {back}", "Bash"),
+    "popd-after-dirs-clear": ("pushd {out}; pushd {root}; dirs -c; popd; echo x > {back}", "Bash"),
+    "cdpath-in-the-command": ("CDPATH={parent}; cd {out}; cd {name}; echo x > {back}", "Bash"),
+    "exported-cdpath": ("export CDPATH={parent}; cd {out}; cd {name}; echo x > {back}", "Bash"),
+    "back-to-a-subfolder": ("cd docs; cd {out}; cd -; echo x > ../AGENTS.md", "Bash"),
+    "set-location-plus": ("Set-Location {out}; Set-Location -; Set-Location +; Set-Content {back} x", "PowerShell"),
+    "computed-cd-from-a-parameter": ("c${{U}}d {out} && printf x > {back}", "Bash"),
+    "computed-cd-from-command-output": ("c$(printf d) docs && rm -rf ../.agents", "Bash"),
+    "computed-cd-from-backticks": ("c`printf d` {out} && rm -rf {back}", "Bash"),
+    "computed-cd-from-an-empty-substitution": ('"c$()d" {out}; printf x > {back}', "Bash"),
+    "computed-cd-from-a-quoted-substitution": ('"c$(true)d" {out}; printf x > {back}', "Bash"),
+    "computed-cd-then-the-task-list": ("c${{U}}d {out}; printf x >> tasks.md", "Bash"),
+    "computed-cd-in-eval": ("eval 'c${{U}}d {out}'; printf x > {back}", "Bash"),
+    "session-state-set-location": (
+        "[void]$ExecutionContext.SessionState.Path.SetLocation('{out}'); Set-Content {back} x",
+        "PowerShell",
+    ),
+    "session-state-from-get-variable": (
+        "(Get-Variable ExecutionContext -ValueOnly).SessionState.Path.SetLocation('{out}'); Set-Content {back} x",
+        "PowerShell",
+    ),
+    "call-operator-on-an-expression": ("& ('c'+'d') docs; Set-Content ../AGENTS.md x", "PowerShell"),
+    "call-operator-on-an-attached-expression": ("&('c'+'d') docs; Set-Content ../AGENTS.md x", "PowerShell"),
+    "call-operator-on-a-computed-string": ('& "c$()d" {out}; Set-Content {back} x', "PowerShell"),
+    "computed-cd-in-a-trap": ("trap 'c${{U}}d {out}' DEBUG; printf x > {back}", "Bash"),
+    "computed-trap-action": ("trap \"$(printf 'c%sd {out}' '')\" DEBUG; printf x > {back}", "Bash"),
+    "computed-cd-through-an-alias": ("alias x='c${{U}}d'\nx {out}\nprintf x > {back}", "Bash"),
+    "set-alias-to-a-computed-name": ("Set-Alias x ('Set-Loc'+'ation'); x {out}; Set-Content {back} y", "PowerShell"),
+    "write-in-a-function-run-after-a-cd": ("f() {{ echo x > {back}; }}; cd {out}; f", "Bash"),
+    "write-in-a-loop-body-before-its-cd": ("for i in 1 2; do echo x > {back}; cd {out}; done", "Bash"),
+}
+
+
+def directory_change_command(template, outside):
+    """A DIRECTORY_CHANGE_CASES template filled in for one folder outside the project."""
+    agents = REPO_ROOT / "AGENTS.md"
+
+    return template.format(
+        out=outside.as_posix(),
+        root=REPO_ROOT.as_posix(),
+        parent=REPO_ROOT.parent.as_posix(),
+        name=REPO_ROOT.name,
+        root_glob=REPO_ROOT.as_posix()[:-1] + "?",
+        back=Path(os.path.relpath(agents, outside)).as_posix(),
+        home=Path(os.path.relpath(agents, Path.home())).as_posix(),
+        up="../" + REPO_ROOT.parent.name + "/" + REPO_ROOT.name + "/AGENTS.md",
+    )
+
+
+@pytest.mark.parametrize(
+    "template,tool",
+    [pytest.param(template, tool, id=name) for name, (template, tool) in DIRECTORY_CHANGE_CASES.items()],
+)
+def test_any_directory_change_makes_a_relative_write_unplaceable(tmp_path, template, tool):
+    # Given a command that changes directory somewhere, then writes a relative path. The
+    # folder is the top of the temporary tree, shallower than the project, so {back}
+    # read from the project root would climb to the file system root and land outside.
+    command = directory_change_command(template, Path(tmp_path.anchor, tmp_path.parts[1]))
+
+    # When/Then the gate does not guess where the shell stands, so the write denies
+    assert decision(shell(command, tool=tool)) == "deny"
+
+
+def test_trap_code_is_read_for_its_writes():
+    # Given a trap whose code writes a project file when the shell exits
+    payload = shell("trap 'printf x > AGENTS.md' EXIT")
+
+    # When/Then the action is read like eval code, so the write denies
+    assert decision(payload) == "deny"
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["trap '' INT; printf a >> tasks.md", "trap - EXIT; printf a >> tasks.md", "trap 'rm -f /tmp/x' EXIT", "trap -p EXIT"],
+)
+def test_a_trap_that_writes_nothing_inside_stays_allowed(command):
+    assert decision(shell(command)) == "allow"
+
+
+@pytest.mark.parametrize(
+    "command,tool",
+    [
+        ("echo 'cd docs first' >> tasks.md", "Bash"),
+        ("echo '- [ ] fix CI/CD' >> tasks.md", "Bash"),
+        ("printf '%s\\n' 'run os.chdir later' >> tasks.md", "Bash"),
+        ("sudo echo 'pushd and popd' >> tasks.md", "Bash"),
+        ("Write-Output 'Set-Location docs' >> tasks.md", "PowerShell"),
+        ("Write-Host 'cd docs'", "PowerShell"),
+        ("[ -f tasks.md ] && printf a >> tasks.md", "Bash"),
+    ],
+)
+def test_printed_text_that_names_a_directory_change_is_not_one(command, tool):
+    # Given a printer whose operands only mention a changer, or a glob-like
+    # program word such as `[` that is test
+
+    # When/Then the task list is still exempt
+    assert decision(shell(command, tool=tool)) == "allow"
+
+
+@pytest.mark.parametrize(
+    "template",
+    [
+        "echo 'cd {out}' | sh; echo x > {back}",
+        "echo $(cd {out}); echo x > {back}",
+        'eval "$(echo cd {out})"; echo x > {back}',
+        "printf x | xargs -I{{}} echo cd {out}; echo x > {back}",
+    ],
+)
+def test_printed_text_that_becomes_code_is_still_read(tmp_path, template):
+    # Given printed text that a shell then runs, or a cd outside the printer
+    command = directory_change_command(template, Path(tmp_path.anchor, tmp_path.parts[1]))
+
+    # When/Then
+    assert decision(shell(command)) == "deny"
+
+
+@pytest.mark.parametrize("program", ["unshare", "nsenter"])
+def test_a_working_directory_option_of_unshare_or_nsenter_is_an_accepted_limit(tmp_path, program):
+    # Given a program whose --wd option moves the code it runs, which the gate does not read
+    command = directory_change_command(program + " --wd={out} sh -c 'echo x > {back}'", Path(tmp_path.anchor, tmp_path.parts[1]))
+
+    # When/Then the code is read from the project root, so the write passes, as
+    # "What the gate cannot place" in docs/agent-compatibility.md records
+    assert decision(shell(command)) == "allow"
+
+
+def test_a_cd_in_a_sourced_file_makes_a_relative_write_unplaceable(tmp_path):
+    # Given a sourced file that changes directory
+    outside = Path(tmp_path.anchor, tmp_path.parts[1])
+    script = tmp_path / "move.sh"
+    script.write_text(f"cd {outside.as_posix()}\n", encoding="utf-8")
+    command = directory_change_command(f". {script.as_posix()}; echo x > {{back}}", outside)
+
+    # When/Then
+    assert decision(shell(command)) == "deny"
+
+
+def test_a_long_directory_stack_is_read_fast(tmp_path):
+    # Given a stack of 1500 folders and 200 returns to the previous folder
+    stacked = " ".join(f"/a{index}" for index in range(1, 1501))
+    command = f"pushd -n {stacked}; " + "cd -; " * 200 + "echo x > AGENTS.md"
+
+    # When
+    started = time.monotonic()
+    verdict = decision(shell(command))
+    took = time.monotonic() - started
+
+    # Then
+    assert verdict == "deny"
+    assert took < 10
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "cd {out} && echo x > {out}/out.txt",
+        "cd {out} && echo x > /dev/null",
+        "pushd {out} && printf abc >> {out}/MEMORY.md && popd",
+        "Set-Location {out}; Set-Content {out}/out.txt x",
+    ],
+)
+def test_an_absolute_write_outside_the_project_after_a_directory_change_is_allowed(tmp_path, command):
+    tool = "PowerShell" if command.startswith("Set-Location") else "Bash"
+
+    assert decision(shell(command.format(out=tmp_path.as_posix()), tool=tool)) == "allow"
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["cd {out} && echo x > {root}/AGENTS.md", "pushd {out}; Set-Content {root}/AGENTS.md x"],
+)
+def test_an_absolute_write_inside_the_project_after_a_directory_change_still_denies(tmp_path, command):
+    tool = "PowerShell" if "Set-Content" in command else "Bash"
+    text = command.format(out=tmp_path.as_posix(), root=REPO_ROOT.as_posix())
+
+    assert decision(shell(text, tool=tool)) == "deny"
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["cd docs && ls", "cd docs && cat README.md | head", "cd docs; git log -1", "cd docs && git switch main"],
+)
+def test_a_directory_change_that_writes_nothing_stays_allowed(command):
+    assert decision(shell(command)) == "allow"
+
+
+@pytest.mark.parametrize("command", ["git status", "printf abc >> tasks.md", "python -m pytest -q", "npm test"])
+def test_a_command_with_no_directory_change_is_unaffected(nest, monkeypatch, command):
+    # Given a project whose own allowlist names `npm test`
+    monkeypatch.setattr(GATE, "_script_root", lambda: nest.project)
+    write_project_allowlist(nest.project, "npm test\n")
+
+    # When/Then
+    assert verdict_in(nest, command) == "allow"
+
+
+@pytest.mark.parametrize(
+    "command,expected",
+    [
+        pytest.param("cd docs && echo x >> {root}/tasks.md", "allow", id="task-list-by-its-absolute-path"),
+        pytest.param("cd docs && cat >> tasks.md <<'EOF'\nx\nEOF", "deny", id="relative-task-list-after-a-cd"),
+        pytest.param("cat >> tasks.md <<'EOF'\n- [ ] cd docs and fix CI/CD\nEOF", "allow", id="heredoc-naming-a-cd"),
+        pytest.param("cd docs && git checkout main", "deny", id="git-checkout-after-a-cd"),
+        pytest.param("cd docs && git switch main", "allow", id="git-switch-after-a-cd"),
+        pytest.param("python -m pytest -k chdir", "deny", id="a-pytest-expression-naming-chdir"),
+        pytest.param("python -m pytest -k 'not slow'", "allow", id="another-pytest-expression"),
+    ],
+)
+def test_the_documented_workarounds_hold(command, expected):
+    # Given the outcomes "Where the write rule draws the repository boundary"
+    # in docs/agent-compatibility.md promises for a directory change
+
+    # When/Then
+    assert decision(shell(command.format(root=REPO_ROOT.as_posix()))) == expected
+
+
+def test_a_relative_write_in_a_function_run_after_a_cd_is_reported(monkeypatch):
+    # Given the project root as the working directory, where ../y lands outside
+    monkeypatch.chdir(REPO_ROOT)
+
+    # When
+    without_cd = GATE._shell_targets("f() { echo x > ../y; }; f")
+    with_cd = GATE._shell_targets("f() { echo x > ../y; }; cd /tmp; f")
+
+    # Then the cd after the body leaves the write unplaceable, which counts as inside
+    assert without_cd == []
+    assert with_cd == ["../y"]
+
+
+def test_the_directory_change_state_is_reset_after_every_reading(monkeypatch):
+    # Given a reading that changes directory from a start folder
+    GATE._shell_targets("cd /tmp; echo x > y", start=(REPO_ROOT,))
+
+    # Then
+    assert GATE._CHANGES_DIRECTORY is False and GATE._START_BASES is None
+
+    # Given a reading that fails after it noted a directory change
+    def failing(command, depth=0, dialect=GATE._POSIX):
+        GATE._note_directory_change()
+        raise GATE._ShellParseError("cannot lex")
+
+    monkeypatch.setattr(GATE, "_command_targets", failing)
+
+    # When
+    with pytest.raises(GATE._ShellParseError):
+        GATE._shell_targets("cd /tmp", start=(REPO_ROOT,))
+
+    # Then
+    assert GATE._CHANGES_DIRECTORY is False and GATE._START_BASES is None
 
 
 # The root task list is the one path Rule A steps aside for.
@@ -2137,12 +2526,142 @@ def test_an_unresolvable_path_is_never_mistaken_for_the_task_list(resolution_fai
     assert GATE._is_write_target(UNRESOLVABLE + "/tasks.md") is True
 
 
-def test_a_cd_to_a_directory_that_cannot_be_resolved_drops_the_base(resolution_fails):
-    # Given a cd the gate cannot follow, then a write to a repository path
-    # When/Then the base is dropped rather than trusted, so the roots decide
+def test_a_cd_to_a_directory_that_cannot_be_resolved_leaves_the_write_a_target(resolution_fails):
+    # Given a cd into a folder that cannot be resolved, then a write to a repository path
+    # When/Then the relative write is still a target, whatever the cd names
     assert GATE._shell_targets("cd " + UNRESOLVABLE + " && rm tools/gen_subagents.py") == [
         "tools/gen_subagents.py"
     ]
+
+
+# Python 3.11 and 3.12 raise RuntimeError from Path.resolve(strict=False) on a
+# symlink loop, where 3.13 returns the path. An error the boundary helpers do
+# not catch reaches main()'s catch-all, which allows, so each one has to read
+# the loop as the unplaceable path it is. The fixture raises the way 3.12 does,
+# so these cases hold on every Python.
+
+LOOPING = "loops-forever"
+
+
+@pytest.fixture
+def resolution_loops(monkeypatch):
+    """Make Path.resolve raise RuntimeError for one marked path, as Python 3.12 does on a symlink loop."""
+    real_resolve = GATE.Path.resolve
+
+    def resolve(self, strict=False):
+        if LOOPING in str(self):
+            raise RuntimeError(f"Symlink loop from {str(self)!r}")
+
+        return real_resolve(self, strict=strict)
+
+    monkeypatch.setattr(GATE.Path, "resolve", resolve)
+
+
+def test_a_looping_path_counts_as_inside_the_repository(resolution_loops):
+    assert GATE._resolves_inside_repo(LOOPING + "/AGENTS.md") is True
+
+
+def test_a_looping_git_operand_counts_as_an_existing_path(resolution_loops):
+    assert GATE._path_exists_in_repo(LOOPING + "/AGENTS.md") is True
+
+
+def test_a_looping_path_is_never_mistaken_for_the_task_list(resolution_loops):
+    assert GATE._is_task_list(LOOPING + "/tasks.md") is False
+
+
+def test_a_task_list_behind_a_looping_path_is_a_write_target(resolution_loops):
+    assert GATE._is_write_target(LOOPING + "/tasks.md") is True
+
+
+def test_a_looping_path_counts_as_containing_the_repository(resolution_loops):
+    assert GATE._contains_repo("/elsewhere/" + LOOPING) is True
+
+
+def test_a_cd_into_a_looping_directory_leaves_the_write_a_target(resolution_loops):
+    # Given a cd the shell refuses with "Too many levels of symbolic links", then a write
+    # When/Then the relative write is still a target, whatever the cd names
+    assert GATE._shell_targets("cd /elsewhere/" + LOOPING + "; echo x > AGENTS.md") == ["AGENTS.md"]
+    assert decision(shell("cd docs; cd /elsewhere/" + LOOPING + "; echo x > ../AGENTS.md")) == "deny"
+
+
+def test_a_looping_payload_root_is_dropped_rather_than_raised(resolution_loops, monkeypatch):
+    # Given a payload cwd that loops
+    monkeypatch.setattr(GATE, "_PAYLOAD_ROOT", Path("/elsewhere/" + LOOPING))
+
+    # When/Then the root is dropped and the others stand
+    assert all(LOOPING not in str(root) for root in GATE._roots())
+    assert GATE._roots()
+
+
+def test_a_looping_global_install_folder_leaves_the_install_root_in_place(resolution_loops, monkeypatch, tmp_path):
+    # Given a home whose global install folder loops, which the main thread may plant outside the project
+    monkeypatch.setattr(GATE.Path, "home", classmethod(lambda cls: tmp_path))
+    monkeypatch.setattr(GATE, "GLOBAL_INSTALL_DIRECTORY", (".config", LOOPING))
+
+    # When/Then the gate is not installed there, so its own project stays the install root
+    assert GATE._install_root() == PREFLIGHT_GATE.resolve().parents[2]
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        shell("cd /elsewhere/" + LOOPING + "; echo x > AGENTS.md"),
+        shell("rm -rf /elsewhere/" + LOOPING),
+        edit("/elsewhere/" + LOOPING + "/x.py"),
+        {**edit("AGENTS.md"), "cwd": "/elsewhere/" + LOOPING},
+    ],
+    ids=["cd-then-write", "remove", "edit-through-loop", "looping-payload-cwd"],
+)
+def test_a_main_thread_write_past_a_symlink_loop_is_denied(resolution_loops, payload):
+    assert decision(payload) == "deny"
+
+
+def test_a_looping_global_install_folder_still_denies_a_main_thread_write(resolution_loops, monkeypatch, tmp_path):
+    monkeypatch.setattr(GATE.Path, "home", classmethod(lambda cls: tmp_path))
+    monkeypatch.setattr(GATE, "GLOBAL_INSTALL_DIRECTORY", (".config", LOOPING))
+
+    assert decision(edit("AGENTS.md")) == "deny"
+
+
+def _interpreters():
+    """This interpreter plus every 3.11 and 3.12 on PATH, the versions whose resolve raises on a loop."""
+    found = {sys.executable}
+
+    for name in ("python3.11", "python3.12"):
+        path = shutil.which(name)
+
+        if path:
+            found.add(path)
+
+    return sorted(found)
+
+
+@pytest.mark.parametrize("interpreter", _interpreters())
+def test_a_real_symlink_loop_before_a_write_is_denied(tmp_path, interpreter):
+    # Given a link that points at itself, so `cd` into it fails and the shell stays in the project
+    loop = tmp_path / "loop"
+
+    try:
+        loop.symlink_to(loop)
+    except OSError:
+        pytest.skip("symlink creation is not permitted in this environment")
+
+    command = f"cd {loop.as_posix()}; echo x > AGENTS.md"
+
+    # When
+    result = run_bounded(
+        [interpreter, "-S", "-E", str(PREFLIGHT_GATE), "--format", "claude"],
+        input=json.dumps(shell(command)),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(REPO_ROOT),
+        timeout=SUBPROCESS_TIMEOUT_SECONDS,
+    )
+
+    # Then
+    assert result.returncode == 0
+    assert json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
 
 
 # Rule B reads agent_type, and a name that could walk out of the agent trees
@@ -2237,7 +2756,6 @@ def home_at(path):
         "rm -rf ~/.claude/projects/stale-session",
         "rm -rf ~",
         "echo note > ~/notes.txt",
-        "cd ~ && rm -rf .cache",
     ],
 )
 def test_a_tilde_path_is_expanded_to_the_home_directory(tmp_path, command):
@@ -2290,7 +2808,7 @@ def test_a_tilde_user_path_is_expanded():
 
 
 # Git Bash and MSYS2 name a Windows drive as a leading /<letter>/, which the
-# gate has to read as that drive or neither a cd nor an absolute target places.
+# gate has to read as that drive or an absolute target does not place.
 
 
 def msys(path: Path) -> str:
@@ -2301,14 +2819,14 @@ def msys(path: Path) -> str:
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="an MSYS drive path names a drive only on Windows")
-def test_a_write_after_cd_into_an_msys_path_outside_the_repository_is_allowed(tmp_path):
-    # Given a Git Bash cd to a directory outside the repository, then a relative write
-    payload = shell("cd " + msys(tmp_path) + " && rm MEMORY.md")
+def test_an_absolute_msys_write_after_cd_outside_the_repository_is_allowed(tmp_path):
+    # Given a Git Bash cd to a directory outside the repository, then an absolute write there
+    payload = shell("cd " + msys(tmp_path) + " && rm " + msys(tmp_path / "MEMORY.md"))
 
     # When
     code, out, err = run(payload, "claude")
 
-    # Then the cd lands on the real directory, and the target with it
+    # Then the target is placed on its drive, outside the repository
     assert (code, out, err) == (0, "", "")
 
 
@@ -2480,7 +2998,6 @@ def test_removing_a_parent_named_as_an_msys_path_is_denied(nest):
 REMOVING_A_SIBLING = {
     "rm-relative": ("rm -rf ../sibling", "Bash"),
     "rm-absolute": ("rm -rf {sibling}", "Bash"),
-    "rm-after-cd-up": ("cd .. && rm -rf sibling", "Bash"),
     "rmdir-cmd": ("rmdir /s /q ../sibling", "Bash"),
     "mv": ("mv ../sibling {elsewhere}/moved", "Bash"),
     "remove-item": ("Remove-Item -Recurse -Force ../sibling", "PowerShell"),
@@ -2552,8 +3069,16 @@ WRAPPERS = {
     ),
 }
 
+# cmd /k "keeps the command processor running" after its command, so Rule F
+# holds even a harmless one: the prompt it leaves waits for typed input.
+WAITS_AFTER_ITS_COMMAND = {"cmd-k"}
+
 WRAPPED_CASES = [
-    pytest.param(wrap(inner[kind]), "allow" if kind == "harmless" else "deny", id=name + "-" + kind)
+    pytest.param(
+        wrap(inner[kind]),
+        "allow" if kind == "harmless" and name not in WAITS_AFTER_ITS_COMMAND else "deny",
+        id=name + "-" + kind,
+    )
     for name, (inner, wrap) in WRAPPERS.items()
     for kind in ("parent", "write", "harmless")
 ]
@@ -2645,6 +3170,7 @@ def placed(nest, command):
         "project": nest.project,
         "sibling": nest.sibling,
         "elsewhere": nest.elsewhere,
+        "back": Path(os.path.relpath(nest.project / "x.py", nest.elsewhere)),
     }
 
     return command.format(**{name: posix(path) for name, path in places.items()})
@@ -3061,7 +3587,6 @@ ALLOWLISTED_CHECKS = {
     "pytest-py-launcher": ("py -m pytest -q", "PowerShell"),
     "check-markdown": ("python tools/check-markdown.py", "Bash"),
     "check-markdown-dot-slash": ("python ./tools/check-markdown.py", "Bash"),
-    "check-markdown-after-cd": ("cd tools && python check-markdown.py", "Bash"),
     "check-badges": ("python tools/check-badges.py", "Bash"),
     "gen-subagents-check": ("python tools/gen_subagents.py --check", "Bash"),
     "node-check": ("node --check .agents/plugin/hooks.js", "Bash"),
@@ -3216,6 +3741,771 @@ def test_a_script_run_denies_on_the_plain_format_too():
     assert "Blocked command: npm run build" in err
 
 
+# Rule F: the main thread may not start a shell, an interpreter or an editor
+# that waits for typed input, because Codex's write_stdin types into a running
+# terminal without a PreToolUse event, so the gate never sees what is typed.
+
+WAITING_PROGRAMS = {
+    "bash": ("bash", "Bash"),
+    "sh": ("sh", "Bash"),
+    "zsh": ("zsh", "Bash"),
+    "dash": ("dash", "Bash"),
+    "fish": ("fish", "Bash"),
+    "tcsh": ("tcsh", "Bash"),
+    "pwsh": ("pwsh", "Bash"),
+    "pwsh-no-logo": ("pwsh -NoLogo -NoProfile", "PowerShell"),
+    "powershell": ("powershell", "PowerShell"),
+    "cmd": ("cmd", "PowerShell"),
+    "cmd-stays": ("cmd /k dir", "PowerShell"),
+    "bash-interactive": ("bash -i", "Bash"),
+    "bash-login": ("bash -l", "Bash"),
+    "sh-stdin": ("sh -s", "Bash"),
+    "python": ("python", "Bash"),
+    "python3": ("python3", "Bash"),
+    "python-versioned": ("python3.12", "Bash"),
+    "py-launcher": ("py", "PowerShell"),
+    "python-absolute": ("/usr/bin/python3", "Bash"),
+    "python-interactive": ("python3 -i", "Bash"),
+    "python-stdin-terminal": ("python3 -", "Bash"),
+    "python-quiet": ("python3 -q", "Bash"),
+    "python-stays-after-inline": ("python3 -i -c pass", "Bash"),
+    "ipython": ("ipython", "Bash"),
+    "node": ("node", "Bash"),
+    "nodejs": ("nodejs", "Bash"),
+    "node-interactive": ("node --interactive", "Bash"),
+    "node-stays-after-inline": ("node -i -e 1", "Bash"),
+    "deno": ("deno", "Bash"),
+    "perl": ("perl", "Bash"),
+    "perl-debugger": ("perl -de0", "Bash"),
+    "ruby": ("ruby", "Bash"),
+    "irb": ("irb", "Bash"),
+    "php": ("php", "Bash"),
+    "php-interactive": ("php -a", "Bash"),
+    "lua": ("lua", "Bash"),
+    "lua-stays-after-inline": ("lua -i -e x=1", "Bash"),
+    "r": ("R", "Bash"),
+    "julia": ("julia", "Bash"),
+    "tclsh": ("tclsh", "Bash"),
+    "pwsh-stays-after-inline": ("pwsh -NoExit -Command Get-Date", "PowerShell"),
+    "pwsh-stdin-terminal": ("pwsh -File -", "PowerShell"),
+    "vi": ("vi", "Bash"),
+    "vim": ("vim", "Bash"),
+    "vim-with-a-file-elsewhere": ("vim /tmp/notes.txt", "Bash"),
+    "vim-with-commands": ("vim -c 'set number' /tmp/notes.txt", "Bash"),
+    "vim-fed": ("cat /tmp/notes.txt | vim -", "Bash"),
+    "nvim": ("nvim", "Bash"),
+    "nano": ("nano", "Bash"),
+    "emacs": ("emacs -nw", "Bash"),
+    "ed": ("ed", "Bash"),
+    "ex": ("ex", "Bash"),
+    "env": ("env bash", "Bash"),
+    "env-ignoring-the-environment": ("env -i bash", "Bash"),
+    "exec": ("exec bash", "Bash"),
+    "command": ("command python3", "Bash"),
+    "sudo": ("sudo bash", "Bash"),
+    "sudo-shell": ("sudo -s", "Bash"),
+    "sudo-login": ("sudo -i", "Bash"),
+    "sudo-after-an-assignment": ("LANG=C nohup sudo -s", "Bash"),
+    "sudo-non-interactive": ("sudo -n bash", "Bash"),
+    "exec-renamed": ("exec -a name bash", "Bash"),
+    "env-renamed": ("env --argv0=name bash", "Bash"),
+    "su": ("su", "Bash"),
+    # A deliberate over-deny: nohup points a terminal stdin at an unreadable
+    # file, so python3 reads end of input and exits, but Rule F does not
+    # model which stdin a wrapper leaves and holds the program it names.
+    "nohup": ("nohup python3", "Bash"),
+    "timeout": ("timeout 600 node", "Bash"),
+    "nested": ("bash -c bash", "Bash"),
+    "after-another-command": ("cd /tmp && python3", "Bash"),
+    "powershell-nested": ("pwsh -Command python", "PowerShell"),
+    "sh-stdin-with-help-past-the-options": ("sh -s -- --help", "Bash"),
+    "bash-stdin-with-version-as-an-operand": ("bash -s x --version", "Bash"),
+    "pwsh-command-from-the-terminal": ("pwsh -Command -", "PowerShell"),
+    "pwsh-c-from-the-terminal": ("pwsh -c -", "PowerShell"),
+    "pwsh-command-prefix-from-the-terminal": ("pwsh -NoProfile -comm -", "PowerShell"),
+    "less": ("less /tmp/notes.txt", "Bash"),
+    "less-fed-by-a-pipe": ("git log | less", "Bash"),
+    "more": ("more /tmp/notes.txt", "Bash"),
+    "most": ("most /tmp/notes.txt", "Bash"),
+    "tmux": ("tmux", "Bash"),
+    "tmux-new-session": ("tmux new-session -d -s work", "Bash"),
+    "tmux-send-keys": ("tmux send-keys -t work 'touch AGENTS.md' Enter", "Bash"),
+    "tmux-attach": ("tmux attach -t work", "Bash"),
+    "screen": ("screen", "Bash"),
+    "screen-detached": ("screen -dmS work", "Bash"),
+    "sqlite3": ("sqlite3 /tmp/app.db", "Bash"),
+    "sqlite3-stays-after-its-commands": ("sqlite3 -cmd .tables /tmp/app.db", "Bash"),
+    "psql": ("psql -d app", "Bash"),
+    "psql-options-after-the-database": ("psql app -U me", "Bash"),
+    "mysql": ("mysql -u root app", "Bash"),
+    "mariadb": ("mariadb", "Bash"),
+    "mongosh": ("mongosh mongodb://localhost/app", "Bash"),
+    "mongosh-stays-after-eval": ("mongosh --eval 1 --shell", "Bash"),
+    "redis-cli": ("redis-cli -h localhost", "Bash"),
+    "redis-cli-lua-debugger": ("redis-cli --ldb --eval /tmp/x.lua", "Bash"),
+    "gdb": ("gdb /tmp/prog", "Bash"),
+    "gdb-stays-after-its-commands": ("gdb -ex run /tmp/prog", "Bash"),
+    "lldb": ("lldb /tmp/prog", "Bash"),
+    "lldb-stays-after-its-commands": ("lldb -o run /tmp/prog", "Bash"),
+    "pdb": ("pdb3 /tmp/x.py", "Bash"),
+    "git-commit": ("git commit", "Bash"),
+    "git-commit-all": ("git commit -a", "Bash"),
+    "git-commit-amend": ("git commit --amend", "Bash"),
+    "git-commit-edit-after-a-message": ("git commit -m x -e", "Bash"),
+    "git-commit-patch": ("git commit -p -m x", "Bash"),
+    "git-commit-after-global-options": ("git -C /tmp/x -c color.ui=never commit", "Bash"),
+    "git-rebase-interactive": ("git rebase -i HEAD~3", "Bash"),
+    "git-rebase-interactive-long": ("git rebase --interactive main", "Bash"),
+    "git-add-patch": ("git add -p", "Bash"),
+    "git-add-interactive": ("git add -i", "Bash"),
+    "git-add-patch-abbreviated": ("git add --pat", "Bash"),
+    "git-clean-interactive-in-a-cluster": ("git clean -fdi", "Bash"),
+    "git-checkout-patch": ("git checkout -p", "Bash"),
+    "git-stash-push-patch": ("git stash push -p", "Bash"),
+    "git-commit-fixup-amend-as-its-own-word": ("git commit --fixup amend:HEAD", "Bash"),
+    "git-commit-fixup-reword-abbreviated": ("git commit --fix reword:HEAD", "Bash"),
+    "git-config-edit": ("git config -e", "Bash"),
+    "git-config-global-edit": ("git config --global --edit", "Bash"),
+    "git-notes-add": ("git notes add", "Bash"),
+    "git-notes-add-after-a-ref": ("git notes --ref review add HEAD", "Bash"),
+    "git-notes-append": ("git notes append HEAD", "Bash"),
+    "git-notes-edit": ("git notes edit", "Bash"),
+    "git-notes-add-reedit": ("git notes add -c HEAD", "Bash"),
+    "runuser-group-then-a-shell": ("runuser -g wheel nobody", "Bash"),
+    "git-stash-patch-with-no-verb": ("git stash -p", "Bash"),
+    "git-stash-save-patch": ("git stash save --patch", "Bash"),
+    "psql-after-a-command-fed-a-file": ("cat < /tmp/notes.txt; psql app", "Bash"),
+    "psql-reading-a-file-on-another-descriptor": ("psql app 3< /tmp/notes.txt", "Bash"),
+    "su-fed-a-file-runs-it-in-a-shell": ("su < /tmp/setup.sh", "Bash"),
+    "script-starting-the-shell": ("script -q /dev/null", "Bash"),
+    "script-bare": ("script", "Bash"),
+    "script-fed-by-a-pipe": ("echo id | script -q /dev/null", "Bash"),
+    "expect": ("expect", "Bash"),
+    "socat-exec-on-a-pty": ("socat - EXEC:bash,pty,stderr", "Bash"),
+    "socat-system": ("socat - system:sh", "Bash"),
+    "pkexec": ("pkexec", "Bash"),
+    "pkexec-as-a-user": ("pkexec --user root", "Bash"),
+    "newgrp": ("newgrp docker", "Bash"),
+    "runuser": ("runuser nobody", "Bash"),
+    "runuser-login": ("runuser -l nobody", "Bash"),
+    "pypy3": ("pypy3", "Bash"),
+    "pypy-versioned": ("pypy3.10 -i -c pass", "Bash"),
+    # A deliberate over-deny: firejail's query options list or print the
+    # sandboxes and start no shell, but a bare firejail does, and Rule F
+    # does not tell the queries apart from the options that set one up.
+    "firejail-list": ("firejail --list", "Bash"),
+    "firejail-tree": ("firejail --tree", "Bash"),
+    "firejail-bare": ("firejail", "Bash"),
+    "xargs-reading-names-from-the-terminal": ("xargs rm", "Bash"),
+    "xargs-bare": ("xargs", "Bash"),
+    "xargs-null-separated-from-the-terminal": ("xargs -0 rm", "Bash"),
+    "xargs-behind-a-wrapper": ("env LANG=C xargs echo", "Bash"),
+    "xargs-arg-file-from-standard-input": ("xargs -a - rm", "Bash"),
+    "xargs-arg-file-from-the-terminal": ("xargs --arg-file=/dev/tty rm", "Bash"),
+    # The lexer reads the file redirect, but xargs is held whatever its
+    # standard input is a file, a deny the user accepted.
+    "xargs-fed-a-file": ("xargs rm < /tmp/list.txt", "Bash"),
+}
+
+
+@pytest.mark.parametrize(
+    "command,tool",
+    [pytest.param(command, tool, id=name) for name, (command, tool) in WAITING_PROGRAMS.items()],
+)
+@pytest.mark.parametrize("fmt", ["codex", "claude"])
+def test_a_main_thread_program_waiting_for_typed_input_is_denied(command, tool, fmt):
+    # When
+    code, out, err = run(shell(command, tool=tool), fmt)
+
+    # Then
+    output = json.loads(out)["hookSpecificOutput"]
+
+    assert (code, err, output["permissionDecision"]) == (0, "", "deny")
+    assert output["permissionDecisionReason"].startswith("PREFLIGHT: the main thread may not start a shell")
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["python3 -ic pass", "deno repl", "bun repl", "julia -t 4", "exec -a name python3 x.py", "sudo -n python3 x.py"],
+)
+def test_a_waiting_program_rule_d_reads_as_a_script_run_still_denies(command):
+    assert decision(shell(command)) == "deny"
+
+
+NOT_WAITING = {
+    "bash-inline": "bash -c 'echo hi'",
+    "sh-inline-cluster": "sh -ec 'echo hi'",
+    "python-inline": "python3 -c 'print(1)'",
+    "node-inline": "node -e 1",
+    "perl-inline": "perl -e 1",
+    "ruby-inline": "ruby -e 1",
+    "php-inline": "php -r 'echo 1;'",
+    "lua-inline": "lua -e x=1",
+    "julia-inline": "julia -e 1",
+    "python-version": "python3 --version",
+    "python-short-version": "python3 -V",
+    "bash-version": "bash --version",
+    "node-version": "node -v",
+    "vim-version": "vim --version",
+    "pwsh-version": "pwsh -Version",
+    "bun-alone-prints-its-usage": "bun",
+    "fed-by-a-pipe": "echo 'print(1)' | python3",
+    "fed-by-a-heredoc": "python3 <<'EOF'\nprint(1)\nEOF",
+    "fed-by-a-here-string": "bash <<< 'echo hi'",
+    "line-editor-fed": "printf 'p\\n' | ed -s /tmp/notes.txt",
+    "allowlisted-syntax-check": "bash -n sandbox-agent/verify-project.sh",
+    "git-read": "git status",
+    "su-inline": "su -c 'id' nobody",
+    "sudo-command": "sudo -u nobody id",
+    "listing": "ls -la",
+    "command-describes-an-interpreter": "command -v python3",
+    "command-describes-a-shell-verbosely": "command -V bash",
+    "command-describes-an-editor": "command -v vim",
+    "command-describes-on-the-default-path": "command -pv python3",
+    "bash-version-before-a-short-option-errors-out": "bash -s --version",
+    "pwsh-command-fed-from-a-pipe": "echo Get-Date | pwsh -Command -",
+    "cmd-judges-only-its-first-switch": "cmd /c xcopy /tmp/a /tmp/b /k",
+    "cmd-r-runs-and-exits": "cmd /r dir",
+    "pager-version": "less --version",
+    "tmux-version": "tmux -V",
+    "sqlite3-inline": "sqlite3 /tmp/app.db 'select 1'",
+    "psql-inline": "psql -c 'select 1' app",
+    "psql-inline-after-the-database": "psql app -c 'select 1'",
+    "psql-fed-by-a-pipe": "echo 'select 1' | psql app",
+    "mysql-inline": "mysql -e 'select 1' app",
+    "mariadb-inline-long": "mariadb --execute='select 1'",
+    "mongosh-eval": "mongosh --eval 'db.version()'",
+    "mongosh-file": "mongosh app /tmp/x.js",
+    "redis-cli-command": "redis-cli -h localhost PING",
+    "redis-cli-fed-by-a-pipe": "echo PING | redis-cli",
+    "gdb-batch": "gdb -batch -ex run /tmp/prog",
+    "gdb-batch-long": "gdb --batch -ex bt /tmp/prog",
+    "lldb-batch": "lldb -b -o run /tmp/prog",
+    "git-commit-message": "git commit -m x",
+    "git-commit-message-cluster": "git commit -am x",
+    "git-commit-message-after-a-path": "git commit /tmp/x -m x",
+    "git-commit-file": "git commit -F /tmp/msg",
+    "git-commit-amend-no-edit": "git commit --amend --no-edit",
+    "git-commit-amend-message": "git commit --amend -m x",
+    "git-commit-reuse": "git commit -C HEAD",
+    "git-commit-fixup": "git commit --fixup HEAD",
+    "git-rebase": "git rebase main",
+    "git-add-all": "git add -A",
+    "git-log-patch": "git log -p",
+    "script-running-a-command": "script -q -c ls /dev/null",
+    "script-running-a-bsd-command": "script -q /dev/null ls",
+    "socat-tcp": "socat - TCP:localhost:80",
+    "su-command-after-the-user": "su nobody -c id",
+    "runuser-wrapping-a-command": "runuser -u nobody id",
+    "pkexec-wrapping-a-command": "pkexec id",
+    "pypy-inline": "pypy3 -c 'print(1)'",
+    "git-stash-show-patch": "git stash show -p",
+    "git-commit-message-abbreviated": "git commit --mess=x",
+    "git-commit-message-abbreviated-as-its-own-word": "git commit --mess x",
+    "git-commit-fixup-a-commit": "git commit --fixup HEAD~1",
+    "git-notes-add-message": "git notes add -m x",
+    "git-notes-add-message-after-a-ref": "git notes --ref review add -m x HEAD",
+    "git-notes-add-file": "git notes add -F /tmp/note.txt",
+    "git-notes-add-reuse": "git notes add -C HEAD",
+    "git-notes-list": "git notes",
+    "git-notes-show": "git notes show HEAD",
+    "git-config-read": "git config --get user.name",
+    "runuser-group-before-the-user": "runuser -g wheel -u nobody id",
+    "runuser-attached-group-before-the-user": "runuser --group=wheel --user nobody id",
+    "su-command-in-a-login-cluster": "su -lc id nobody",
+    "su-session-command": "su --session-command=id nobody",
+    "su-command-abbreviated": "su --comm=id nobody",
+    "xargs-fed-by-a-pipe": "cat /tmp/list.txt | xargs echo",
+    "xargs-fed-by-printf": "printf 'a\\nb\\n' | xargs echo",
+    "xargs-fed-by-a-heredoc": "xargs echo <<'EOF'\na\nEOF",
+    "xargs-fed-by-a-here-string": "xargs echo <<< a",
+    "xargs-own-arg-file": "xargs -a /tmp/list.txt echo",
+    "xargs-own-arg-file-long": "xargs --arg-file=/tmp/list.txt echo",
+    "xargs-own-arg-file-abbreviated": "xargs --arg /tmp/list.txt echo",
+    "xargs-version": "xargs --version",
+    "git-stash-show-patch-long": "git stash show --patch",
+    "git-stash-list-patch": "git stash list -p",
+    "psql-fed-by-a-file": "psql app < /tmp/schema.sql",
+    "mysql-fed-by-a-file": "mysql -u root app < /tmp/dump.sql",
+    "sqlite3-fed-by-a-file": "sqlite3 /tmp/app.db < /tmp/dump.sql",
+    "psql-fed-by-a-file-before-its-name": "< /tmp/schema.sql psql app",
+}
+
+
+@pytest.mark.parametrize("command", [pytest.param(command, id=name) for name, command in NOT_WAITING.items()])
+def test_a_main_thread_program_handed_its_input_is_not_held_by_rule_f(command):
+    code, out, err = run(shell(command), "codex")
+
+    assert (code, out, err) == (0, "", "")
+
+
+@pytest.mark.parametrize(
+    "command,blocked",
+    [
+        ("pkexec touch AGENTS.md", "Blocked target: AGENTS.md"),
+        ("runuser -u nobody touch AGENTS.md", "Blocked target: AGENTS.md"),
+        ("runuser -u nobody -- touch AGENTS.md", "Blocked target: AGENTS.md"),
+        ("pypy3 -c \"open('AGENTS.md', 'w')\"", "Blocked target: AGENTS.md"),
+        ("pypy3 tools/gen_subagents.py", "Blocked command: pypy3 tools/gen_subagents.py"),
+        ("PYTHONINSPECT=1 python3 -c pass", "Blocked target: shell code"),
+        ("env PYTHONINSPECT=1 python3 -c pass", "Blocked target: shell code"),
+        ("export PYTHONINSPECT=1", "Blocked target: environment variable"),
+        ("su -lc 'touch AGENTS.md' nobody", "Blocked target: AGENTS.md"),
+        ("su -c'touch AGENTS.md' nobody", "Blocked target: AGENTS.md"),
+        ("su --session-command='touch AGENTS.md' nobody", "Blocked target: AGENTS.md"),
+        ("su --session-command 'touch AGENTS.md' nobody", "Blocked target: AGENTS.md"),
+        ("su --comm='touch AGENTS.md' nobody", "Blocked target: AGENTS.md"),
+        ("su -s /bin/sh -c 'touch AGENTS.md' nobody", "Blocked target: AGENTS.md"),
+        ("runuser -g wheel -u nobody touch AGENTS.md", "Blocked target: AGENTS.md"),
+        ("runuser --group wheel --us nobody touch AGENTS.md", "Blocked target: AGENTS.md"),
+    ],
+)
+def test_the_new_rule_f_programs_are_read_by_the_other_rules_too(command, blocked):
+    _code, out, _err = run(shell(command), "claude")
+
+    assert blocked in json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"]
+
+
+# Every wrapper is peeled by its own options, attached (`-D/tmp`), with `=`
+# and as an unambiguous long prefix (`--chd`), the way getopt_long reads
+# them, so the command it runs is the one the rules read.
+WRITE_THROUGH_A_WRAPPER = [
+    "timeout -s KILL 10 sh -c 'echo x > AGENTS.md'",
+    "timeout --sig=KILL 10 sh -c 'echo x > AGENTS.md'",
+    "timeout -k5 10 sh -c 'echo x > AGENTS.md'",
+    "ionice -c 3 sh -c 'echo x > AGENTS.md'",
+    "ionice --class 3 sh -c 'echo x > AGENTS.md'",
+    "/usr/bin/time -f %e sh -c 'echo x > AGENTS.md'",
+    "time -o AGENTS.md true",
+    "time --out=AGENTS.md true",
+    "time -ao AGENTS.md true",
+    "env -S'sh -c \"echo x > AGENTS.md\"'",
+    "env -S 'sh -c \"echo x > AGENTS.md\"'",
+    "env --split-string='sh -c \"echo x > AGENTS.md\"'",
+    "env --split='sh -c \"echo x > AGENTS.md\"'",
+    "env -S 'sh -c $X'",
+    "sudo -R /tmp sh -c 'echo x > /AGENTS.md'",
+    "sudo --chroot=. sh -c 'echo x > /AGENTS.md'",
+    "chroot . sh -c 'echo x > /AGENTS.md'",
+    "echo AGENTS.md | xargs --max-procs 1 touch",
+    "echo AGENTS.md | xargs --max-procs=1 touch",
+    "echo AGENTS.md | xargs --max-pr 1 touch",
+    "nice --adjustment 5 sh -c 'echo x > AGENTS.md'",
+    "nice --adj=5 sh -c 'echo x > AGENTS.md'",
+    "stdbuf --output L sh -c 'echo x > AGENTS.md'",
+    "taskset -c 0 sh -c 'echo x > AGENTS.md'",
+    "taskset 0x1 sh -c 'echo x > AGENTS.md'",
+    "chrt -f 10 sh -c 'echo x > AGENTS.md'",
+    "chrt --sched-runtime 5 -d 0 sh -c 'echo x > AGENTS.md'",
+    "unbuffer -p sh -c 'echo x > AGENTS.md'",
+    "rlwrap -S '> ' sh -c 'echo x > AGENTS.md'",
+    "rlwrap -l AGENTS.md cat",
+    "strace -e trace=open sh -c 'echo x > AGENTS.md'",
+    "strace -o AGENTS.md true",
+    "strace -o '|sh' true",
+    "ltrace -o AGENTS.md true",
+    "ltrace -s 80 sh -c 'echo x > AGENTS.md'",
+    "fakeroot -s AGENTS.md true",
+    "fakeroot -- sh -c 'echo x > AGENTS.md'",
+    "prlimit --nofile=10 sh -c 'echo x > AGENTS.md'",
+    "prlimit --pid=1 --output RESOURCE sh -c 'echo x > AGENTS.md'",
+    "firejail --quiet sh -c 'echo x > AGENTS.md'",
+    "firejail --private=/tmp sh -c 'echo x > AGENTS.md'",
+    "numactl -C 0 sh -c 'echo x > AGENTS.md'",
+    "valgrind --log-file=AGENTS.md true",
+    "valgrind -q sh -c 'echo x > AGENTS.md'",
+    "env -i rm -rf ..",
+    "sudo -n tee AGENTS.md",
+    "doas -n rm AGENTS.md",
+    "exec -a x sh -c 'echo x > AGENTS.md'",
+]
+
+
+@pytest.mark.parametrize("command", WRITE_THROUGH_A_WRAPPER)
+def test_a_write_through_a_wrapper_is_read_past_its_own_options(command):
+    assert decision(shell(command)) == "deny"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "env --chd={elsewhere} sh -c 'echo x > ../work/project/AGENTS.md'",
+        "env -C{elsewhere} sh -c 'echo x > ../work/project/AGENTS.md'",
+        "sudo --chd={elsewhere} sh -c 'echo x > ../work/project/AGENTS.md'",
+        "sudo -D{elsewhere} sh -c 'echo x > ../work/project/AGENTS.md'",
+        "sudo -nD {elsewhere} sh -c 'echo x > ../work/project/AGENTS.md'",
+    ],
+)
+def test_a_wrapper_changing_directory_is_read_in_every_spelling(nest, command):
+    assert verdict_in(nest, command.format(elsewhere=nest.elsewhere)) == "deny"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "timeout 10 ls",
+        "nice -n 5 ls",
+        "taskset -p 0x1 1234",
+        "chrt -p 1234",
+        "prlimit -p 1234",
+        "strace -o /tmp/trace ls",
+        "time -o /tmp/time ls",
+        "env -S 'ls -la'",
+        "valgrind --log-file=/tmp/v.log ls",
+        "echo /tmp/x | xargs --max-procs 1 touch",
+    ],
+)
+def test_a_wrapper_around_a_harmless_command_is_allowed(command):
+    assert decision(shell(command)) == "allow"
+
+
+# Shells and interpreters no rule read: mksh and yash are POSIX shells,
+# fish, csh, tcsh and nu run code the gate cannot read, ipython is python,
+# and tclsh runs scripts.
+SHELL_AND_INTERPRETER_DENIALS = {
+    "tcsh-inline": "tcsh -c 'echo x > AGENTS.md'",
+    "csh-inline": "csh -c 'echo hi'",
+    "fish-inline": "fish -c 'echo hi'",
+    "nu-inline": "nu -c 'echo x | save AGENTS.md'",
+    "fish-script": "fish /tmp/x.fish",
+    "tcsh-script": "tcsh /tmp/x.csh",
+    "mksh-inline": "mksh -c 'echo x > AGENTS.md'",
+    "yash-inline": "yash -c 'echo x > AGENTS.md'",
+    "ipython-inline": "ipython -c \"open('AGENTS.md', 'w')\"",
+    "ipython-script": "ipython /tmp/x.py",
+    "ipython-versioned-script": "ipython3 /tmp/x.py",
+    "tclsh-script": "tclsh /tmp/x.tcl",
+    "fish-fed": "cat | fish",
+    "fish-fed-known-text": "echo 'echo hi' | fish",
+    "ipython-fed": "cat | ipython",
+    "tclsh-fed": "cat | tclsh",
+    "tclsh-fed-known-text": "echo 'puts hi' | tclsh",
+    "ed-fed-unknown": "cat | ed /tmp/x",
+    "ed-writes-a-project-file": "printf 'w AGENTS.md\\n' | ed /tmp/x",
+    "ed-writes-its-project-file": "printf 'w\\n' | ed AGENTS.md",
+    "ed-runs-a-command": "printf '!touch AGENTS.md\\n' | ed /tmp/x",
+    "ex-fed": "printf 'p\\n' | ex /tmp/x",
+    "xargs-reading-the-terminal-into-code": "xargs -I{} sh -c {}",
+    "xargs-unknown-words-into-code": "cat x | xargs -I{} sh -c {}",
+    "xargs-unknown-words-after-dash-c": "cat x | xargs sh -c",
+    "xargs-unknown-words-into-python": "cat x | xargs -I{} python3 -c {}",
+}
+
+
+@pytest.mark.parametrize(
+    "command", [pytest.param(command, id=name) for name, command in SHELL_AND_INTERPRETER_DENIALS.items()]
+)
+def test_a_shell_or_interpreter_no_rule_reads_is_denied(command):
+    assert decision(shell(command)) == "deny"
+
+
+# Words xargs reads from a program the gate cannot read. git takes them as
+# code or as the program only at or before its subcommand, through -c, -C,
+# --exec-path or the subcommand itself. sed, awk and find read any argument
+# as a script, a program or a write.
+XARGS_UNREAD_WORDS = {
+    "git-add-the-modified-files": ("git ls-files -m | xargs git add", "allow"),
+    "git-delete-the-merged-branches": ("git branch --merged | grep -v main | xargs git branch -d", "allow"),
+    "git-after-global-options": ("git ls-files -m | xargs git -C /tmp/x add", "allow"),
+    "git-subcommand-from-the-words": ("cat x | xargs git", "deny"),
+    "git-subcommand-after-a-global-option": ("cat x | xargs git -C /tmp/x", "deny"),
+    "git-global-option-from-the-words": ("cat x | xargs -I{} git -c {} log", "deny"),
+    "git-subcommand-replaced": ("cat x | xargs -I{} git {} status", "deny"),
+    "sed": ("cat x | xargs sed", "deny"),
+    "awk": ("cat x | xargs awk", "deny"),
+    "find": ("cat x | xargs find", "deny"),
+}
+
+
+@pytest.mark.parametrize(
+    "command,expected",
+    [pytest.param(command, expected, id=name) for name, (command, expected) in XARGS_UNREAD_WORDS.items()],
+)
+def test_unread_xargs_words_deny_only_where_they_become_code(command, expected):
+    assert decision(shell(command)) == expected
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "mksh -c 'echo hi'",
+        "yash -c 'echo hi'",
+        "ipython -c 'print(1)'",
+        "printf 'p\\n' | ed -s /tmp/notes.txt",
+        "printf 'w\\n' | ed /tmp/notes.txt",
+        "fish --version",
+        "echo hi | xargs -I{} sh -c 'echo {}'",
+    ],
+)
+def test_a_shell_or_interpreter_the_rules_can_read_is_allowed(command):
+    assert decision(shell(command)) == "allow"
+
+
+# GNU sed reads `-i` with an optional attached suffix, so everything after
+# the i in a cluster is that suffix (`-ie` keeps a backup ending in e, it is
+# not -e), and getopt_long takes an unambiguous long prefix. perl and ruby
+# read `-i` the same way inside a switch cluster.
+INPLACE_SPELLINGS = [
+    "sed -ibak s/a/b/ AGENTS.md",
+    "sed -i~ s/a/b/ AGENTS.md",
+    "sed -ie 's/a/b/' AGENTS.md",
+    "sed -is s/a/b/ AGENTS.md",
+    "sed -ni p AGENTS.md",
+    "sed --in-pl s/a/b/ AGENTS.md",
+    "sed --in s/a/b/ AGENTS.md",
+    "sed --in-place=bak s/a/b/ AGENTS.md",
+    "sed -E -i s/a/b/ AGENTS.md",
+    "sed s/a/b/ AGENTS.md -i",
+    "perl -pi~ -e 's/a/b/' AGENTS.md",
+    "perl -pibak -e 's/a/b/' AGENTS.md",
+    "perl -lpi -e 's/a/b/' AGENTS.md",
+    "perl -Wpi -e 's/a/b/' AGENTS.md",
+    "perl -Tpi -e 's/a/b/' AGENTS.md",
+    "perl -tWpi -e 's/a/b/' AGENTS.md",
+    "ruby -pi~ -e 'sub(/a/, \"b\")' AGENTS.md",
+    "ruby -W2pi -e 'sub(/a/, \"b\")' AGENTS.md",
+]
+
+
+# perl and ruby join every -e into one program, and read -e inside a switch
+# cluster with the code attached or as the next word.
+PERLISH_CODE_SPELLINGS = [
+    "perl -ne 'system(\"touch AGENTS.md\")' /tmp/x",
+    "perl -lne 'system(\"touch AGENTS.md\")' /tmp/x",
+    "perl -We 'system(\"touch AGENTS.md\")'",
+    "perl -e 1 -e 'system(\"touch AGENTS.md\")'",
+    "perl -E 'system(\"touch AGENTS.md\")'",
+    "ruby -ne 'File.write(\"AGENTS.md\", \"x\")' /tmp/x",
+]
+
+
+@pytest.mark.parametrize("command", PERLISH_CODE_SPELLINGS)
+def test_every_perl_and_ruby_code_spelling_is_read(command):
+    assert decision(shell(command)) == "deny"
+
+
+@pytest.mark.parametrize("command", INPLACE_SPELLINGS)
+def test_every_in_place_spelling_is_read(command):
+    _code, out, _err = run(shell(command), "claude")
+
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"].endswith("Blocked target: AGENTS.md")
+
+
+SED_SCRIPT_SPELLINGS = [
+    "sed --expr='w AGENTS.md' /tmp/x",
+    "sed --exp 'w AGENTS.md' /tmp/x",
+    "sed -n --expression='w AGENTS.md' /tmp/x",
+    "sed -ne 'w AGENTS.md' /tmp/x",
+    "sed /tmp/x -e 'w AGENTS.md'",
+    "sed --fi {script} /tmp/x",
+    "sed -nf {script} /tmp/x",
+    "sed -nf{script} /tmp/x",
+    "sed --file={script} /tmp/x",
+]
+
+
+@pytest.mark.parametrize("command", SED_SCRIPT_SPELLINGS)
+def test_every_sed_script_spelling_is_read(tmp_path, command):
+    script = tmp_path / "s.sed"
+    script.write_text("w AGENTS.md\n", encoding="utf-8")
+
+    assert decision(shell(command.format(script=script.as_posix()))) == "deny"
+
+
+@pytest.mark.parametrize(
+    "command", ["sed --fi {missing} /tmp/x", "sed -nf {missing} /tmp/x", "sed -f {missing} /tmp/x"]
+)
+def test_a_sed_script_file_the_gate_cannot_read_is_unplaceable(tmp_path, command):
+    _code, out, _err = run(shell(command.format(missing=(tmp_path / "missing.sed").as_posix())), "claude")
+
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"].endswith(
+        "Blocked target: " + GATE._UNPLACEABLE_PROGRAM_TARGET
+    )
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "sed -n p /tmp/x",
+        "sed s/a/b/ /tmp/x",
+        "sed -E s/a/b/ /tmp/x",
+        "sed -n -e p /tmp/x",
+        "sed -i s/a/b/ /tmp/x",
+        "sed -ie s/a/b/ /tmp/x",
+        "sed -nf {script} /tmp/x",
+        "perl -pi~ -e 's/a/b/' /tmp/x",
+        "perl -ne print AGENTS.md",
+        "perl -Wne print AGENTS.md",
+        "ruby -W:no-deprecated -ne 'print' AGENTS.md",
+    ],
+)
+def test_a_sed_or_perl_run_that_writes_nothing_inside_is_allowed(tmp_path, command):
+    script = tmp_path / "s.sed"
+    script.write_text("p\n", encoding="utf-8")
+
+    assert decision(shell(command.format(script=script.as_posix()))) == "allow"
+
+
+# Codex's apply_patch parser trims each line before it matches a file header
+# (`let trimmed = line.trim();` then `trimmed.strip_prefix(UPDATE_FILE_MARKER)`
+# in codex-rs/apply-patch/src/streaming_parser.rs at rust-v0.166.0), so an
+# indented header names a file, while the markers compare case for case.
+INDENTED_HEADER_PATCHES = {
+    "update-after-a-decoy": "*** Begin Patch\n*** Add File: /tmp/decoy.txt\n+x\n  *** Update File: AGENTS.md\n@@\n-a\n+b\n*** End Patch",
+    "add-indented-by-a-tab": "*** Begin Patch\n*** Add File: /tmp/decoy.txt\n+x\n\t*** Add File: AGENTS.md\n+x\n*** End Patch",
+    "delete-indented-first": "*** Begin Patch\n   *** Delete File: AGENTS.md\n*** Add File: /tmp/decoy.txt\n+x\n*** End Patch",
+    "indented-by-a-no-break-space": "*** Begin Patch\n*** Add File: /tmp/decoy.txt\n+x\n\u00a0*** Delete File: AGENTS.md\n*** End Patch",
+}
+
+
+@pytest.mark.parametrize(
+    "patch", [pytest.param(patch, id=name) for name, patch in INDENTED_HEADER_PATCHES.items()]
+)
+def test_an_indented_apply_patch_header_is_read(patch):
+    _code, out, _err = run({"tool_name": "apply_patch", "tool_input": {"input": patch}}, "codex")
+
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"].endswith("Blocked target: AGENTS.md")
+
+
+@pytest.mark.parametrize(
+    "tool_input",
+    [
+        {"file_path": "/tmp/x", "filePath": "AGENTS.md"},
+        {"path": "/tmp/x", "notebook_path": "AGENTS.md"},
+        {"file_path": "/tmp/x", "path": "docs/guide.md"},
+    ],
+)
+def test_every_path_key_of_an_edit_is_placed(tool_input):
+    assert decision({"tool_name": "Write", "tool_input": tool_input}) == "deny"
+
+
+def test_an_apply_patch_header_is_placed_beside_a_path_key():
+    patch = "*** Begin Patch\n*** Update File: AGENTS.md\n@@\n-a\n+b\n*** End Patch"
+    _code, out, _err = run({"tool_name": "apply_patch", "tool_input": {"path": "/tmp/x", "input": patch}}, "codex")
+
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"].endswith("Blocked target: AGENTS.md")
+
+
+def test_an_edit_whose_every_path_key_is_outside_is_allowed():
+    assert decision({"tool_name": "Write", "tool_input": {"file_path": "/tmp/x", "filePath": "/tmp/y"}}) == "allow"
+
+
+@pytest.mark.parametrize(
+    "tool_input",
+    [
+        {"file_path": ["AGENTS.md"]},
+        {"file_path": "/tmp/x", "filePath": {"path": "AGENTS.md"}},
+        {"notebook_path": 7},
+    ],
+    ids=["list", "object-beside-a-string", "number"],
+)
+def test_an_edit_path_key_that_is_not_a_string_cannot_be_placed(tool_input):
+    # Given a path key the gate cannot read, which a host could still turn into a path
+    _code, out, _err = run({"tool_name": "Write", "tool_input": tool_input}, "claude")
+
+    # Then it denies on the main thread, as a shell command that is not a string does
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"].endswith(
+        "Blocked target: " + GATE._UNREADABLE_PATH_TARGET
+    )
+
+
+def test_a_null_edit_path_key_is_read_as_absent():
+    assert decision({"tool_name": "Write", "tool_input": {"file_path": "/tmp/x", "filePath": None}}) == "allow"
+
+
+def test_an_indented_move_to_line_names_no_file():
+    # Codex reads a Move to line with only its end trimmed (`let update_line = line.trim_end();` then
+    # `update_line.strip_prefix(MOVE_TO_MARKER)` in codex-rs/apply-patch/src/streaming_parser.rs at
+    # rust-v0.166.0), so an indented one renames nothing and the gate does not read it as a target either.
+    patch = "*** Begin Patch\n*** Update File: /tmp/x\n  *** Move to: AGENTS.md\n@@\n-a\n+b\n*** End Patch"
+
+    assert GATE._apply_patch_candidates({"input": patch}) == ["/tmp/x"]
+
+
+@pytest.mark.parametrize("header", ["*** Add File: ", "*** Update File: ", "+++ b/", "--- a/", "rename to "])
+def test_a_blank_padded_patch_header_is_read_in_linear_time(header):
+    # Given a header whose name holds a long run of blanks, which a lazy name
+    # followed by trailing blanks reads in quadratic time
+    body = "*** Begin Patch\n" + header + "a" + " " * 200_000 + "b\n*** End Patch\n"
+
+    # When
+    started = time.perf_counter()
+    candidates = GATE._apply_patch_candidates({"input": body})
+    elapsed = time.perf_counter() - started
+
+    # Then the name is read whole, well inside any hook timeout
+    assert candidates == ["a" + " " * 200_000 + "b"]
+    assert elapsed < 2
+
+
+@pytest.mark.parametrize("command", ['cmd /r "echo x > AGENTS.md"', "cmd /R echo x ^> AGENTS.md", 'cmd /q /r "echo x > AGENTS.md"'])
+def test_cmd_r_runs_its_command_the_way_c_does(command):
+    # cmd stops reading switches at the first /C, /K or /R, and /R runs the
+    # rest and exits as /C does (base/shell/cmd/cmd.c in ReactOS).
+    _code, out, _err = run(shell(command, tool="PowerShell"), "claude")
+
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"].endswith("Blocked target: AGENTS.md")
+
+
+def test_rule_f_names_the_blocked_command_on_the_plain_format():
+    code, out, err = run(envelope(tool="bash", tool_input={"command": "python3 -i"}, subagent=False), "plain")
+
+    assert (code, out) == (2, "")
+    assert err.endswith("Blocked command: python3 -i")
+
+
+def test_a_subagent_may_start_an_interactive_program(tmp_path):
+    project_with_agent(tmp_path, "worker", WITH_SKILLS)
+    payload = {**shell("bash"), "agent_id": "a1", "agent_type": "worker"}
+
+    assert run(payload, "codex", cwd=tmp_path) == (0, "", "")
+
+
+def test_an_unknown_caller_may_start_an_interactive_program():
+    payload = {"toolName": "bash", "toolArgs": {"command": "bash"}}
+
+    assert run(payload, "copilot") == (0, "", "")
+
+
+# An xargs replace string with an empty feed leaves xargs nothing to run. The
+# reading of that stage used to index the empty argument list, and the crash
+# reached main()'s catch-all, which allowed the whole call, the write before
+# it included.
+@pytest.mark.parametrize(
+    "command",
+    [
+        "echo x > AGENTS.md; echo | xargs -I% %",
+        "echo x > AGENTS.md; printf '' | xargs -I% %",
+        "echo x > AGENTS.md; xargs -I% % <<EOF\nEOF",
+        "echo x > AGENTS.md; echo | xargs -I% % arg",
+        "echo x > AGENTS.md; echo | xargs -I{} sudo {}",
+    ],
+)
+def test_an_xargs_stage_with_nothing_left_to_run_never_hides_a_write_beside_it(command):
+    assert decision(shell(command)) == "deny"
+
+
+@pytest.mark.parametrize("command", ["echo | xargs -I% %", "echo | xargs -I{} {} {}", "echo | xargs -I{} env {}"])
+def test_an_xargs_stage_with_nothing_left_to_run_writes_nothing(command):
+    assert GATE._shell_targets(command) == []
+
+
+def test_an_install_root_that_cannot_be_resolved_is_no_root(monkeypatch):
+    # Given a gate file whose location raises the way Python 3.11 and 3.12
+    # raise on a symlink loop
+    class LoopingPath:
+        def __init__(self, *_parts):
+            pass
+
+        def resolve(self, strict=False):
+            raise RuntimeError("Symlink loop")
+
+    monkeypatch.setattr(GATE, "Path", LoopingPath)
+
+    # When/Then
+    assert GATE._install_root() is None
+
+
 def test_the_allowlist_holds_exactly_the_documented_checks():
     assert [check.words for check in GATE.MAIN_THREAD_ALLOWLIST] == [
         ("python", "-m", "pytest"),
@@ -3243,7 +4533,7 @@ PROJECT_ALLOWLIST_CASES = {
     "build-runner-other-target": ("make build", "deny"),
     "build-runner-default-target": ("make", "deny"),
     "path-entry": ("python scripts/verify.py", "allow"),
-    "path-entry-after-cd": ("cd scripts && python verify.py", "allow"),
+    "path-entry-after-cd": ("cd scripts && python verify.py", "deny"),
     "exact-entry-with-more-arguments": ("python scripts/verify.py --fix", "deny"),
     "unlisted-runner": ("npm run build", "deny"),
     "built-in-entries-still-apply": ("python -m pytest -q", "allow"),
@@ -3254,8 +4544,10 @@ PROJECT_ALLOWLIST_CASES = {
     "command,expected",
     [pytest.param(command, expected, id=name) for name, (command, expected) in PROJECT_ALLOWLIST_CASES.items()],
 )
-def test_a_project_extends_the_allowlist_with_its_own_file(nest, command, expected):
-    # Given
+def test_a_project_extends_the_allowlist_with_its_own_file(nest, command, expected, monkeypatch):
+    # Given a project holding its own gate, as an installed one does, so its
+    # root is the only root and `cd scripts` lands from every base
+    monkeypatch.setattr(GATE, "_script_root", lambda: nest.project)
     write_project_allowlist(nest.project, PROJECT_ALLOWLIST)
     (nest.project / "scripts").mkdir()
 
@@ -3269,6 +4561,182 @@ def test_without_the_project_file_its_entries_are_not_allowed(nest):
 
 def test_the_main_thread_cannot_write_the_project_allowlist(nest):
     assert verdict_in(nest, "echo 'python x.py' >> " + GATE.ALLOWLIST_FILE) == "deny"
+
+
+@pytest.mark.parametrize("fmt", ["codex", "claude"])
+def test_an_allowlist_in_the_payload_cwd_outside_the_project_is_not_read(nest, fmt):
+    # Given a folder outside the project holding an allowlist and a script, both of which the main thread may write
+    write_project_allowlist(nest.elsewhere, "python3 x.py\n")
+    (nest.elsewhere / "x.py").write_text("open('../project/AGENTS.md', 'w').write('x')\n", encoding="utf-8")
+
+    # When the call names that folder as its cwd, which Codex fills from the workdir the main thread chose
+    payload = {**shell("python3 x.py"), "cwd": str(nest.elsewhere)}
+    code, out, err = run(payload, fmt, cwd=nest.project)
+
+    # Then the script run is still denied
+    assert (code, err) == (0, "")
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+# An allowlist entry is a promise about the project's own files, so it
+# applies only while every folder the command can run from is inside a root
+# the gate trusts. From anywhere else pytest loads that folder's conftest.py
+# and make reads that folder's Makefile.
+ALLOWLIST_OUTSIDE_CASES = {
+    "pytest-after-cd": "cd {elsewhere} && python -m pytest -q",
+    "pytest-after-cd-with-a-path": "cd {elsewhere} && python -m pytest -q tests",
+    "program-entry-after-cd": "cd {elsewhere} && make check",
+    "open-ended-entry-after-cd": "cd {elsewhere}; npm run lint",
+    "pytest-after-pushd": "pushd {elsewhere} && python -m pytest -q",
+    "pytest-after-env-chdir": "env --chdir={elsewhere} python -m pytest -q",
+    "pytest-after-a-subshell-cd": "(cd {elsewhere} && python -m pytest -q)",
+    "pytest-after-a-cd-to-a-variable": "cd $TMPDIR && python -m pytest -q",
+    "program-entry-after-a-cd-to-command-output": 'cd "$(mktemp -d)" && make check',
+    "pytest-after-cd-dash": "cd {elsewhere}; cd -; python -m pytest -q",
+}
+
+
+@pytest.mark.parametrize(
+    "command", [pytest.param(command, id=name) for name, command in ALLOWLIST_OUTSIDE_CASES.items()]
+)
+def test_an_allowlist_entry_does_not_apply_outside_the_project(nest, command):
+    write_project_allowlist(nest.project, PROJECT_ALLOWLIST)
+
+    assert verdict_in(nest, command.format(elsewhere=nest.elsewhere)) == "deny"
+
+
+# No allowlist entry applies to a command that changes directory anywhere,
+# into the project or out of it, because the gate no longer follows where it
+# lands. Each case was a way around the tracking this replaced, or now denies
+# where the tracking allowed it.
+ALLOWLIST_DIRECTORY_CHANGE_CASES = {
+    "cd-behind-if": "if cd {elsewhere}; then make check; fi",
+    "cd-behind-a-brace": "{{ cd {elsewhere}; }} && python -m pytest -q",
+    "cd-behind-command": "command cd {elsewhere} && make check",
+    "cd-behind-builtin": "builtin cd {elsewhere} && python -m pytest -q",
+    "cd-in-a-trap": "trap 'cd {elsewhere}' DEBUG; make check",
+    "cd-to-a-variable": "cd $TMPDIR && python -m pytest -q",
+    "cd-in-a-nested-shell": "bash -c 'cd {elsewhere} && make check'",
+    "cd-after-the-entry": "make check; cd {elsewhere}",
+    "cd-into-the-project": "cd docs && python -m pytest -q",
+    "cd-out-and-back": "cd {elsewhere}; cd {project} && make check",
+    "cd-in-a-subshell-before-the-entry": "(cd $HOME) && python -m pytest -q",
+    "set-location": "Set-Location {elsewhere}; make check",
+}
+
+
+@pytest.mark.parametrize(
+    "command", [pytest.param(command, id=name) for name, command in ALLOWLIST_DIRECTORY_CHANGE_CASES.items()]
+)
+def test_no_allowlist_entry_applies_to_a_command_that_changes_directory(nest, command):
+    # Given a project allowlist, and the folders a cd may name
+    write_project_allowlist(nest.project, PROJECT_ALLOWLIST)
+    (nest.project / "docs").mkdir()
+    tool = "PowerShell" if command.startswith("Set-Location") else "Bash"
+    text = command.format(elsewhere=nest.elsewhere.as_posix(), project=nest.project.as_posix())
+
+    # When/Then
+    assert verdict_in(nest, text, tool=tool) == "deny"
+
+
+@pytest.mark.parametrize("command", ["python -m pytest -q", "make check", "npm run lint -- --quiet"])
+def test_an_allowlist_entry_still_applies_with_no_directory_change(nest, command):
+    write_project_allowlist(nest.project, PROJECT_ALLOWLIST)
+
+    assert verdict_in(nest, command) == "allow"
+
+
+@pytest.mark.parametrize(("body", "expected"), [("cd sub\necho hi\n", "deny"), ("echo hi\n", "allow")])
+def test_an_allowlisted_script_is_denied_when_its_own_text_changes_directory(nest, body, expected):
+    # Given an entry that hands a script to a shell, which the gate still reads as shell code
+    write_project_allowlist(nest.project, "bash scripts/check.sh\n")
+    (nest.project / "scripts").mkdir()
+    (nest.project / "scripts" / "check.sh").write_text(body, encoding="utf-8")
+
+    # When/Then a directory change inside the script turns the entry off for the whole command
+    assert verdict_in(nest, "bash scripts/check.sh") == expected
+
+
+@pytest.mark.parametrize("command", ["python -m pytest -q", "make check", "python scripts/verify.py"])
+def test_an_allowlist_entry_does_not_apply_from_a_codex_workdir_outside_the_project(nest, command):
+    # Given Codex, which reports the workdir the main thread chose as the payload cwd
+    write_project_allowlist(nest.project, PROJECT_ALLOWLIST)
+
+    for folder in (nest.project, nest.elsewhere):
+        (folder / "scripts").mkdir()
+        (folder / "scripts" / "verify.py").write_text("print(1)\n", encoding="utf-8")
+
+    payload = {**shell(command), "cwd": str(nest.elsewhere)}
+
+    # When
+    code, out, err = run(payload, "codex", cwd=nest.project)
+
+    # Then
+    assert (code, err) == (0, "")
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"].startswith("PREFLIGHT: the main thread may not run")
+
+
+def test_an_allowlisted_path_has_to_name_the_same_file_from_every_folder_the_command_can_run_from(nest):
+    # Given a Codex workdir inside the project, where the entry's relative path names another file
+    write_project_allowlist(nest.project, "python scripts/verify.py\n")
+    workdir = nest.project / "tools"
+
+    for folder in (nest.project, workdir):
+        (folder / "scripts").mkdir(parents=True)
+        (folder / "scripts" / "verify.py").write_text("print(1)\n", encoding="utf-8")
+
+    payload = {**shell("python scripts/verify.py"), "cwd": str(workdir)}
+
+    # When
+    code, out, err = run(payload, "codex", cwd=nest.project)
+
+    # Then
+    assert (code, err) == (0, "")
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"].endswith("Blocked command: python scripts/verify.py")
+
+
+@pytest.mark.parametrize("name", [GATE.ALLOWLIST_FILE, "notes.sh"])
+def test_a_sourced_file_that_differs_between_the_folders_the_command_can_run_from_is_unplaceable(nest, name):
+    # Given a harmless copy in the project and a writing copy in the Codex workdir the main thread chose
+    (nest.project / name).write_text("true\n", encoding="utf-8")
+    (nest.elsewhere / name).write_text("echo x > ../project/AGENTS.md\n", encoding="utf-8")
+    payload = {**shell(". " + name), "cwd": str(nest.elsewhere)}
+
+    # When
+    code, out, err = run(payload, "codex", cwd=nest.project)
+
+    # Then
+    assert (code, err) == (0, "")
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"].endswith("Blocked target: " + GATE._UNPLACEABLE_SHELL_TARGET)
+
+
+def test_a_sourced_file_the_same_in_every_folder_is_read(nest):
+    for folder in (nest.project, nest.elsewhere):
+        (folder / "notes.sh").write_text("true\n", encoding="utf-8")
+
+    payload = {**shell(". notes.sh"), "cwd": str(nest.elsewhere)}
+
+    assert run(payload, "codex", cwd=nest.project) == (0, "", "")
+
+
+def test_a_pytest_path_inside_only_the_payload_cwd_is_not_placed_inside(nest, monkeypatch):
+    # Given the payload cwd a Codex main thread chose, outside the project
+    (nest.elsewhere / "test_x.py").write_text("", encoding="utf-8")
+    monkeypatch.chdir(nest.project)
+    monkeypatch.setattr(GATE, "_PAYLOAD_ROOT", nest.elsewhere)
+    monkeypatch.setattr(GATE, "_START_BASES", (nest.elsewhere,))
+
+    # When/Then the payload cwd is no root an allowlisted operand may sit in
+    assert GATE._placed_inside("test_x.py") is False
+
+
+def test_an_allowlist_at_the_gates_working_directory_is_read(nest):
+    write_project_allowlist(nest.project, "python3 x.py\n")
+    payload = {**shell("python3 x.py"), "cwd": str(nest.project)}
+
+    code, out, err = run(payload, "codex", cwd=nest.project)
+
+    assert (code, out, err) == (0, "", "")
 
 
 THIS_REPOSITORYS_CHECKS = (
@@ -3533,26 +5001,28 @@ def test_busybox_and_toybox_are_peeled_like_wrappers(nest, command, expected):
     assert verdict_in(nest, command) == expected
 
 
+# {back} is the relative path from {elsewhere} to the project's x.py, which
+# from the project itself lands outside, so each case denies only while the
+# directory change makes the relative write unplaceable.
 DIRECTORY_CASES = {
-    "popd-returns-to-the-project": ("pushd {elsewhere} && popd && rm -f x.py", "Bash", "deny"),
-    "pushd-then-write-elsewhere": ("pushd {elsewhere}; rm -f x.txt; popd", "Bash", "allow"),
-    "pop-location-returns": ("Push-Location {elsewhere}; Pop-Location; Remove-Item x.py", "PowerShell", "deny"),
-    "push-location-moves": ("cd {elsewhere}; Push-Location {project}; Remove-Item x.py", "PowerShell", "deny"),
-    "powershell-parentheses-keep-the-cd": ("cd {elsewhere}; (Set-Location {project}); Remove-Item x.py", "PowerShell", "deny"),
-    "powershell-pipeline-keeps-the-cd": ("cd {elsewhere}; Set-Location {project} | Out-Null; Remove-Item x.py", "PowerShell", "deny"),
-    "cmd-parentheses-keep-the-cd": ('cmd /c "cd /d {elsewhere} & (cd /d {project}) & del x.py"', "Bash", "deny"),
-    "posix-subshell-still-restores": ("cd {elsewhere} && (cd {project}) && rm -f x.txt", "Bash", "allow"),
-    "env-chdir": ("cd {elsewhere} && env -C {project} rm -f x.py", "Bash", "deny"),
-    "env-chdir-long": ("cd {elsewhere} && env --chdir={project} rm -f x.py", "Bash", "deny"),
-    "env-chdir-attached": ("cd {elsewhere} && env -C{project} rm -f x.py", "Bash", "deny"),
-    "sudo-chdir": ("cd {elsewhere} && sudo -D {project} rm -f x.py", "Bash", "deny"),
-    "env-chdir-elsewhere": ("env -C {elsewhere} rm -f x.txt", "Bash", "allow"),
-    "pwsh-working-directory": ("cd {elsewhere}; pwsh -WorkingDirectory {project} -Command 'Remove-Item x.py'", "Bash", "deny"),
+    "pushd-then-popd": ("pushd {elsewhere} && popd && rm -f {back}", "Bash", "deny"),
+    "pushd-then-write-elsewhere": ("pushd {elsewhere}; rm -f {back}; popd", "Bash", "deny"),
+    "push-location-then-pop-location": ("Push-Location {elsewhere}; Pop-Location; Remove-Item {back}", "PowerShell", "deny"),
+    "push-location": ("Push-Location {elsewhere}; Remove-Item {back}", "PowerShell", "deny"),
+    "set-location-in-powershell-parentheses": ("(Set-Location {elsewhere}); Remove-Item {back}", "PowerShell", "deny"),
+    "set-location-in-a-powershell-pipeline": ("Set-Location {elsewhere} | Out-Null; Remove-Item {back}", "PowerShell", "deny"),
+    "cd-in-cmd-parentheses": ('cmd /c "(cd /d {elsewhere}) & del {back}"', "Bash", "deny"),
+    "cd-in-a-posix-subshell": ("(cd {elsewhere}) && rm -f {back}", "Bash", "deny"),
+    "env-chdir": ("env -C {elsewhere} rm -f {back}", "Bash", "deny"),
+    "env-chdir-long": ("env --chdir={elsewhere} rm -f {back}", "Bash", "deny"),
+    "env-chdir-attached": ("env -C{elsewhere} rm -f {back}", "Bash", "deny"),
+    "sudo-chdir": ("sudo -D {elsewhere} rm -f {back}", "Bash", "deny"),
+    "pwsh-working-directory": ("pwsh -WorkingDirectory {elsewhere} -Command 'Remove-Item {back}'", "Bash", "deny"),
 }
 
 
 @pytest.mark.parametrize("command,tool,expected", audit_cases(DIRECTORY_CASES))
-def test_every_way_of_changing_directory_is_followed(nest, command, tool, expected):
+def test_every_way_of_changing_directory_makes_a_relative_write_unplaceable(nest, command, tool, expected):
     assert verdict_in(nest, placed(nest, command), tool=tool) == expected
 
 
@@ -3734,7 +5204,7 @@ def test_writes_and_processes_inside_a_program_are_judged(nest, command, expecte
 
 RUNNER_CASES = {
     "su-command": ("su -c 'rm -rf ..' root", "Bash", "deny"),
-    "su-interactive": ("su root", "Bash", "allow"),
+    "su-interactive": ("su root", "Bash", "deny"),
     "setsid": ("setsid rm -rf ..", "Bash", "deny"),
     "flock-command": ("flock {elsewhere}/x.lock rm -rf ..", "Bash", "deny"),
     "flock-shell-code": ("flock {elsewhere}/x.lock -c 'rm -rf ..'", "Bash", "deny"),
@@ -3744,7 +5214,7 @@ RUNNER_CASES = {
     "watch-harmless": ("watch -n 5 ls", "Bash", "allow"),
     "script-command": ("script -c 'rm -rf ..' {elsewhere}/log", "Bash", "deny"),
     "script-default-typescript": ("script -q", "Bash", "deny"),
-    "script-log-elsewhere": ("script -q {elsewhere}/log", "Bash", "allow"),
+    "script-log-elsewhere": ("script -q -c ls {elsewhere}/log", "Bash", "allow"),
     "wsl-command": ("wsl rm -rf ..", "PowerShell", "deny"),
     "wsl-exec": ("wsl -e rm -rf ..", "PowerShell", "deny"),
     "wsl-export": ("wsl --export Ubuntu tools/x.tar", "PowerShell", "deny"),
@@ -3881,6 +5351,40 @@ def test_native_argv_splits_like_command_line_to_argv(line, expected):
 @pytest.mark.parametrize("script", ["\\", "s", "s/a", "w", "y/a/", "1,$", "e"], ids=repr)
 def test_a_truncated_sed_script_is_read_without_raising(script):
     assert isinstance(GATE._sed_script_targets(script), list)
+
+
+# GNU sed's read_filename skips leading blanks through in_nonblank and keeps
+# everything else up to the newline, and BSD sed's duptoeol keeps trailing
+# whitespace after only a warning, so a trailing blank is part of the name.
+
+
+@pytest.mark.parametrize(
+    ("script", "expected"),
+    [
+        ("w out ", ["out "]),
+        ("w \tout", ["out"]),
+        ("s/a/b/w out ", ["out "]),
+        ("w out\r", ["out\r"]),
+        ("w \vout", ["\vout", "out"]),
+    ],
+    ids=["trailing-blank", "leading-blanks", "substitute-flag", "trailing-return", "bsd-leading-space"],
+)
+def test_a_sed_file_name_keeps_everything_but_its_leading_blanks(script, expected):
+    assert GATE._sed_script_targets(script) == expected
+
+
+@pytest.mark.parametrize("template", ["printf x | sed -n 'w {link}'", "printf a | sed 's/a/b/w {link}'"], ids=["w", "s-w"])
+def test_a_sed_write_through_a_link_named_with_a_trailing_blank_is_denied(tmp_path, template):
+    # Given a link outside the project, named with a trailing blank, pointing at a project file
+    link = tmp_path / "l "
+
+    try:
+        link.symlink_to(REPO_ROOT / "AGENTS.md")
+    except OSError:
+        pytest.skip("symlink creation is not permitted in this environment")
+
+    # When/Then sed opens the name with its blank, which leads into the project
+    assert decision(shell(template.format(link=link))) == "deny"
 
 
 # Third security audit. Each table holds the spellings that used to slip
@@ -4492,8 +5996,8 @@ def read_only_project(tmp_path, target="claude", directory=".claude/agents", ext
     return tmp_path
 
 
-def read_only_decision(root, payload):
-    payload = {**payload, "agent_id": "sub-1", "agent_type": READ_ONLY_REVIEWER["name"]}
+def read_only_decision(root, payload, agent=READ_ONLY_REVIEWER["name"]):
+    payload = {**payload, "agent_id": "sub-1", "agent_type": agent}
     code, out, err = run(payload, "claude", cwd=root)
 
     assert (code, err) == (0, "")
@@ -4682,6 +6186,57 @@ def test_rule_e_allows_git_with_no_pager_on_every_format(tmp_path, fmt, target, 
     assert read_only_reason_in_format(tmp_path, fmt, target, directory, extension, command) is None
 
 
+# A definition whose tools are only read, grep and glob is read-only too. The
+# generator writes it an empty "Read-only shell" section, so Rule E holds it to
+# no shell command and no edit on every format whose hook names the agent,
+# Codex's apply_patch included, which no Codex feature key switches off.
+READ_ONLY_READER = {
+    "name": "fixture-reader",
+    "description": "Use when the user says read this.",
+    "tools": ["read", "grep", "glob"],
+    "skills": ["code-reviewer"],
+}
+
+READ_ONLY_READER_CALLS = {
+    "claude": {"shell": "Bash", "write": "Edit", "read": "Read"},
+    "codex": {"shell": "Bash", "write": "apply_patch", "read": "Read"},
+    "plain": {"shell": "bash", "write": "edit", "read": "read"},
+}
+
+
+def reader_decision(tmp_path, fmt, target, directory, extension, kind, tool_input):
+    """Whether the gate denies one call from the generated read-only reader in one format."""
+    import gen_subagents
+
+    agents = tmp_path.joinpath(*directory.split("/"))
+    agents.mkdir(parents=True, exist_ok=True)
+    rendered = gen_subagents.render(target, READ_ONLY_READER, "You read.\n")
+    (agents / f"{READ_ONLY_READER['name']}{extension}").write_text(rendered, encoding="utf-8")
+    caller = {"is_subagent": True} if fmt == "plain" else {"agent_id": "sub-1"}
+    payload = {**caller, "agent_type": READ_ONLY_READER["name"], "tool_name": READ_ONLY_READER_CALLS[fmt][kind], "tool_input": tool_input, "cwd": str(tmp_path)}
+    code, out, _err = run(payload, fmt, cwd=tmp_path)
+
+    return code == 2 if fmt == "plain" else '"deny"' in out
+
+
+@pytest.mark.parametrize(("fmt", "target", "directory", "extension"), READ_ONLY_FORMATS)
+@pytest.mark.parametrize(
+    ("kind", "tool_input"),
+    [
+        ("shell", {"command": "git --no-pager status"}),
+        ("write", {"file_path": "made.txt", "input": "*** Begin Patch\n*** Add File: made.txt\n+x\n*** End Patch\n"}),
+    ],
+    ids=["shell", "write"],
+)
+def test_a_generated_reader_gets_no_shell_and_no_edit_on_every_format(tmp_path, fmt, target, directory, extension, kind, tool_input):
+    assert reader_decision(tmp_path, fmt, target, directory, extension, kind, tool_input)
+
+
+@pytest.mark.parametrize(("fmt", "target", "directory", "extension"), READ_ONLY_FORMATS)
+def test_a_generated_reader_still_reads_on_every_format(tmp_path, fmt, target, directory, extension):
+    assert not reader_decision(tmp_path, fmt, target, directory, extension, "read", {"file_path": "x.py"})
+
+
 def test_rule_e_tells_the_agent_how_to_spell_git():
     reason = GATE._read_only_segments_blocked("git diff HEAD~1", False, READ_ONLY_FIXTURE_PATTERNS)
 
@@ -4724,11 +6279,28 @@ def test_the_codex_gh_rule_holds_only_a_read_only_agent(tmp_path):
     assert run(payload, "codex", cwd=root) == (0, "", "")
 
 
-def read_only_verdict(tmp_path, payload):
-    """The deny reason Rule E gives the read-only fixture, or None when it allows."""
-    verdict = read_only_decision(read_only_project(tmp_path), payload)
+def read_only_verdict(tmp_path, payload, agent=None):
+    """The deny reason Rule E gives the read-only fixture, or the named shipped agent, or None when it allows.
+
+    A named agent is read from its generated Claude Code file in this repository.
+    """
+    if agent is None:
+        verdict = read_only_decision(read_only_project(tmp_path), payload)
+    else:
+        agents = tmp_path / ".claude" / "agents"
+        agents.mkdir(parents=True, exist_ok=True)
+        shutil.copy(REPO_ROOT / ".claude" / "agents" / f"{agent}.md", agents)
+        verdict = read_only_decision(tmp_path, payload, agent)
 
     return verdict["permissionDecisionReason"] if verdict else None
+
+
+@pytest.mark.parametrize(
+    ("command", "allowed"),
+    [("git --no-pager log -p -SAKIA --all", True), ("git --no-pager ls-files", True), ("git ls-files", False)],
+)
+def test_the_shipped_security_auditor_searches_and_lists_history_only_through_git_no_pager(tmp_path, command, allowed):
+    assert (read_only_verdict(tmp_path, shell(command), "security-auditor") is None) is allowed
 
 
 READ_ONLY_FIXTURE_PATTERNS = ["git --no-pager diff*", "git --no-pager log*", "git --no-pager show*", "git --no-pager status*", "gh pr diff*", "gh pr view*"]
@@ -4887,6 +6459,30 @@ def test_read_only_subagent_may_not_run_a_gh_jq_or_template_expression(tmp_path,
 )
 def test_read_only_subagent_keeps_gh_options_that_run_no_expression(tmp_path, command):
     assert read_only_verdict(tmp_path, shell(command)) is None
+
+
+# `gh pr checks --watch` polls every interval until no check is pending, with
+# no upper bound (checksRun in pkg/cmd/pr/checks/checks.go at gh v2.89.0), so a
+# check stuck in the queue holds the shell call for as long as it stays there.
+READ_ONLY_CHECKS_PATTERNS = [*READ_ONLY_FIXTURE_PATTERNS, "gh pr checks*"]
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["gh pr checks 12 --watch", "gh pr checks 12 --watch=true", "gh pr checks 12 --watch --fail-fast -i 5", "gh pr checks --watch 12"],
+)
+def test_read_only_subagent_may_not_poll_gh_with_watch(command):
+    assert GATE._read_only_command_blocked(command, False, READ_ONLY_CHECKS_PATTERNS) == command
+
+
+@pytest.mark.parametrize(("argv", "polls"), [(("gh", "pr", "checks", "12", "--watch"), True), (("gh", "pr", "checks", "12"), False), (("git", "--watch"), False)])
+def test_gh_polls_with_watch_reads_only_a_gh_command_handed_watch(argv, polls):
+    assert GATE._gh_polls_with_watch(argv) is polls
+
+
+@pytest.mark.parametrize("command", ["gh pr checks 12", "gh pr checks 12 --required", "gh pr checks 12 --json name,state"])
+def test_read_only_subagent_keeps_a_one_shot_gh_checks_read(command):
+    assert GATE._read_only_command_blocked(command, False, READ_ONLY_CHECKS_PATTERNS) is None
 
 
 @pytest.mark.parametrize(
@@ -5060,6 +6656,129 @@ def test_rule_e_denies_a_workdir_through_the_plain_runner_envelope(tmp_path):
 
     assert (code, out) == (2, "")
     assert "'workdir'" in err
+
+
+# Rule A on the main thread. The OpenCode and Kilo Code plugin sends the
+# project root as the envelope's cwd and hands the bash tool's arguments
+# through unchanged, workdir included, and the shell runs there. So every
+# relative path is placed against the workdir as well as against the roots.
+# The two agents share the envelope and differ only in their agent names.
+
+MAIN_THREAD_AGENTS = pytest.mark.parametrize("agent", ["build", "code"], ids=["opencode", "kilo-code"])
+
+
+def main_thread_bash(agent, root, **tool_input):
+    payload = envelope(tool="bash", tool_input=tool_input, agent=agent, subagent=False)
+
+    return {**payload, "cwd": str(root)}
+
+
+@MAIN_THREAD_AGENTS
+@pytest.mark.parametrize(
+    "workdir",
+    ["{root}/docs", "docs", "{root}/docs/../docs"],
+    ids=["absolute", "relative-to-the-root", "dotted"],
+)
+def test_a_main_thread_write_is_placed_against_its_workdir(nest, agent, workdir):
+    # Given a write that climbs out of the project from the root, and back into it from docs
+    (nest.project / "docs").mkdir()
+    payload = main_thread_bash(agent, nest.project, command="echo x > ../AGENTS.md", workdir=workdir.format(root=nest.project))
+
+    # When
+    code, out, err = run(payload, "plain", cwd=nest.project)
+
+    # Then
+    assert (code, out) == (2, "")
+    assert "../AGENTS.md" in err
+
+
+@MAIN_THREAD_AGENTS
+def test_a_main_thread_script_run_from_a_workdir_outside_the_project_is_denied(nest, agent):
+    # Given an allowlisted path, which names a different file from a workdir the main thread chose
+    write_project_allowlist(nest.project, "python scripts/verify.py\n")
+    (nest.project / "scripts").mkdir()
+    payload = main_thread_bash(agent, nest.project, command="python scripts/verify.py", workdir=str(nest.elsewhere))
+
+    code, out, err = run(payload, "plain", cwd=nest.project)
+
+    assert (code, out) == (2, "")
+    assert err.startswith("PREFLIGHT: the main thread may not run a script")
+    assert err.endswith("Blocked command: python scripts/verify.py")
+
+
+@MAIN_THREAD_AGENTS
+@pytest.mark.parametrize("workdir", ["missing", "{elsewhere}/missing"], ids=["relative", "absolute"])
+def test_a_main_thread_workdir_the_gate_cannot_place_is_denied(nest, agent, workdir):
+    # Given a write that lands outside the project from every root
+    payload = main_thread_bash(agent, nest.project, command="echo x > ../out.txt", workdir=workdir.format(elsewhere=nest.elsewhere))
+
+    code, out, err = run(payload, "plain", cwd=nest.project)
+
+    assert (code, out) == (2, "")
+    assert err.endswith("Blocked target: " + GATE._UNPLACEABLE_WORKDIR)
+
+
+@MAIN_THREAD_AGENTS
+def test_a_main_thread_workdir_the_file_system_refuses_to_read_is_denied(nest, agent, monkeypatch):
+    # Given a workdir whose folder the file system refuses to stat, as a folder without search permission does
+    locked = nest.elsewhere / "locked"
+    real_is_dir = GATE.Path.is_dir
+
+    def refusing_is_dir(path):
+        if path.name == "locked":
+            raise PermissionError(13, "Permission denied", str(path))
+
+        return real_is_dir(path)
+
+    monkeypatch.setattr(GATE.Path, "is_dir", refusing_is_dir)
+    payload = main_thread_bash(agent, nest.project, command="echo x > ../out.txt", workdir=str(locked))
+
+    # When
+    code, out, err = run(payload, "plain", cwd=nest.project)
+
+    # Then the workdir is one the gate cannot place, rather than a crash the catch-all allows
+    assert (code, out) == (2, "")
+    assert err.endswith("Blocked target: " + GATE._UNPLACEABLE_WORKDIR)
+
+
+@MAIN_THREAD_AGENTS
+def test_a_main_thread_workdir_that_loops_is_denied(nest, agent, resolution_loops):
+    payload = main_thread_bash(agent, nest.project, command="echo x > /dev/null", workdir="/elsewhere/" + LOOPING)
+
+    code, out, err = run(payload, "plain", cwd=nest.project)
+
+    assert (code, out) == (2, "")
+    assert err.endswith("Blocked target: " + GATE._UNPLACEABLE_WORKDIR)
+
+
+@MAIN_THREAD_AGENTS
+@pytest.mark.parametrize(
+    "command",
+    ["echo x > {elsewhere}/out.txt", "echo x > ../elsewhere/out.txt", "git status", "ls"],
+    ids=["absolute-outside", "relative-outside-from-the-workdir", "git-read", "list"],
+)
+def test_a_main_thread_call_that_writes_nothing_inside_keeps_its_workdir(nest, agent, command):
+    # Given a workdir in a folder beside the project, whose relative writes land outside it
+    payload = main_thread_bash(
+        agent, nest.project, command=command.format(elsewhere=nest.elsewhere), workdir=str(nest.parent / "sibling")
+    )
+
+    code, out, err = run(payload, "plain", cwd=nest.project)
+
+    # Then the roots still decide the plain placement and the workdir adds nothing inside
+    assert (code, out, err) == (0, "", "")
+
+
+@pytest.mark.parametrize(
+    "tool_input",
+    [{"command": "echo x > {elsewhere}/o"}, {"command": "ls", "workdir": ""}],
+    ids=["absent", "blank"],
+)
+def test_a_blank_or_absent_workdir_leaves_the_roots_alone(nest, tool_input):
+    tool_input = {key: value.format(elsewhere=nest.elsewhere) for key, value in tool_input.items()}
+    payload = {**envelope(tool="bash", tool_input=tool_input, agent="build", subagent=False), "cwd": str(nest.project)}
+
+    assert run(payload, "plain", cwd=nest.project) == (0, "", "")
 
 
 def bare_repository(directory):
@@ -5843,12 +7562,24 @@ def test_a_powershell_carriage_return_still_ends_a_statement():
         (" /dev/null", False, False),
         ("/dev/null ", False, False),
         ("/DEV/NULL", True, True),
-        (" $NULL ", True, True),
+        (" $NULL ", True, False),
+        (" nul", True, False),
+        # A deliberate over-deny on Windows, where `nul ` with its trailing
+        # blank may still name the device: the gate reads it as a file there.
+        ("nul ", True, False),
         ("nul", False, False),
     ],
 )
 def test_only_the_exact_posix_null_device_is_the_device_outside_powershell(target, powershell, expected):
     assert GATE._is_null_device(target, powershell) is expected
+
+
+@pytest.mark.parametrize(
+    ("target", "expected"),
+    [("env:PATH", True), ("Function:prompt", True), (" env:PATH", False), (" Function:prompt", False)],
+)
+def test_a_powershell_provider_path_names_no_file_only_as_spelled(target, expected):
+    assert GATE._names_no_file(target, True) is expected
 
 
 def test_main_thread_redirect_to_a_spaced_null_device_name_is_a_repository_write():
@@ -5863,7 +7594,11 @@ def test_the_gate_and_the_generator_share_the_read_only_heading():
 
 @pytest.mark.parametrize(
     ("agent", "extras"),
-    [("code-reviewer", ["gh pr diff*", "gh pr view*"]), ("code-archaeologist", [])],
+    [
+        ("code-reviewer", ["gh pr diff*", "gh pr view*", "gh pr checks*"]),
+        ("code-archaeologist", []),
+        ("security-auditor", ["git --no-pager ls-files*"]),
+    ],
 )
 def test_the_shipped_read_only_agents_carry_their_list_in_every_tree(agent, extras):
     for directory, extension in [

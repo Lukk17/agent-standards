@@ -22,16 +22,19 @@ The gate is enforcing, not advisory. One shared rule in
   [docs/agent-compatibility.md](docs/agent-compatibility.md) under "Hook enforcement".
 - It denies any tool call from a subagent whose own definition declares no skills. An unknown or unreadable
   `agent_type` allows rather than denies.
-- It holds a subagent whose definition is marked read-only to the commands listed under its "Read-only shell" heading,
-  git only as `git --no-pager`, and denies it any edit, and on Codex any gh command, because a pager runs any command.
-  Codex names the subagent on `PreToolUse`, measured on 0.166.0 in live run 41348146352. The per-format detail is
-  under "Adding a new subagent" in [CONTRIBUTING.md](CONTRIBUTING.md).
+- It holds a subagent whose definition is marked read-only to the commands listed under its "Read-only shell" heading, git only
+  as `git --no-pager`, and denies it any edit, and on Codex any gh command, because Codex's shell snapshot can restore the user's
+  own pager over the `cat` Codex sets, and a pager runs any command. Codex names the subagent on `PreToolUse`, measured on
+  0.166.0 in live run 41348146352. The per-format detail is under "Adding a new subagent" in [CONTRIBUTING.md](CONTRIBUTING.md).
 - It denies the main thread a web fetch or web search tool on Claude Code, the one format whose tool names are
   confirmed. Codex has no confirmed tool name for this yet. The main thread spawns a subagent to do the research.
-- It denies the main thread running a script or a module, because the gate cannot see what a script writes, unless
-  the command passes `MAIN_THREAD_ALLOWLIST` in the gate or an entry of the project's own `main-thread-allowlist.txt`.
-  The rules are in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md) under "What the main thread may run". This
-  repository's own checks sit in [main-thread-allowlist.txt](main-thread-allowlist.txt), which never ships.
+- It denies the main thread running a script or a module, because the gate cannot see what a script writes, unless the
+  command, run from inside the project with no directory change, passes `MAIN_THREAD_ALLOWLIST` in the gate or an entry of the project's own
+  `main-thread-allowlist.txt`. The rules are in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md) under "What the main thread
+  may run". This repository's own checks sit in [main-thread-allowlist.txt](main-thread-allowlist.txt), which never ships.
+- It denies the main thread a shell, an interpreter, an editor, a pager or any other program that waits for typed input, such as
+  a bare `bash`, `python3 -i`, `vim`, `less`, `tmux` or a `git commit` with no message, because Codex's `write_stdin` types into
+  it with no `PreToolUse`. The list is under "Hook enforcement" in [docs/agent-compatibility.md](docs/agent-compatibility.md).
 - Every rule fires only on a caller positively identified as the main thread. Claude Code and Codex send `agent_id`
   only inside a subagent. An unknown caller is allowed: GitHub Copilot on every call, and an OpenCode or Kilo Code
   call whose session the plugin could not read.
@@ -41,8 +44,8 @@ The gate is enforcing, not advisory. One shared rule in
 - No MCP tool is gated, and `playwright` and `chrome-devtools` in [.mcp.json](.mcp.json) can write local files. The
   vendor quotes are in [docs/agent-compatibility.md](docs/agent-compatibility.md).
 - Known limits of the write rule are accepted rather than open, and listed under "What the gate cannot place" in
-  [docs/agent-compatibility.md](docs/agent-compatibility.md). Re-audit only when the rule changes, and record a new
-  limit there rather than chasing it.
+  [docs/agent-compatibility.md](docs/agent-compatibility.md). Re-audit only when the rule changes, and record a new limit
+  there rather than chasing it.
 
 Each agent wires that one script, and the hooks beside it, to its own hook surface. Before you touch any wiring, read
 "Wiring details per surface" in [docs/agent-compatibility.md](docs/agent-compatibility.md).
@@ -105,21 +108,19 @@ Full layout: [docs/repository-layout.md](docs/repository-layout.md). Who reads w
 
 On top of the global rules in `~/.claude/CLAUDE.md`:
 
-- **The consumer boundary is the filename case.** A consumer gets the configuration the import pulls and the UPPERCASE
-  documents under `docs/`. Lowercase documents, [README.md](README.md), [e2e/](e2e/), [sandbox-agent/](sandbox-agent/),
-  [subagents/](subagents/) and [tools/](tools/) never ship, so no shipped document may link into them: the link
-  resolves here and 404s there. [global/](global/) ships only through the global install in
-  [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md), so no project-import pathspec may name it.
-  [main-thread-allowlist.txt](main-thread-allowlist.txt) never ships by either route.
+- **The consumer boundary is the filename case.** A consumer gets the configuration the import pulls and the UPPERCASE documents
+  under `docs/`. Lowercase documents, [README.md](README.md), [e2e/](e2e/), [sandbox-agent/](sandbox-agent/),
+  [subagents/](subagents/) and [tools/](tools/) never ship, so no shipped document may link into them: the link resolves here and
+  404s there. [global/](global/) ships only through the global install in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md), so no
+  project-import pathspec may name it. [main-thread-allowlist.txt](main-thread-allowlist.txt) never ships by either route.
 - **Markdown lint.** The rules live in [.agents/hooks/_check_markdown.py](.agents/hooks/_check_markdown.py), which ships so the lint hook works downstream, and [tools/check-markdown.py](tools/check-markdown.py) only runs them. They cover every human-facing document but this
   `AGENTS.md`, whose style matches anyway. One runnable command per fenced code block, language tag, no `#` comments.
 - **One server set, one schema per file.** Change all five MCP files together: [.mcp.json](.mcp.json),
   [opencode.json](opencode.json), [.codex/config.toml](.codex/config.toml), [.vscode/mcp.json](.vscode/mcp.json) and
   [.github/mcp.json](.github/mcp.json). Which agent reads which, and why, is in [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
-- **No substitution token may appear in [opencode.json](opencode.json).** Kilo Code rejects the whole file on a
-  `{env:VAR}`, which drops the MCP block and the `plugin` array that declares the gate. Local servers inherit the
-  environment instead, and `context7` ships with no `headers` block. The detail is in
-  [docs/MCP_SETUP.md](docs/MCP_SETUP.md) and nowhere else.
+- **No substitution token may appear in [opencode.json](opencode.json).** Kilo Code rejects the whole file on a `{env:VAR}`, which
+  drops the MCP block and the `plugin` array that declares the gate. Local servers inherit the environment instead, and `context7`
+  ships with no `headers` block. The detail is in [docs/MCP_SETUP.md](docs/MCP_SETUP.md) and nowhere else.
 - **One gate, one rule, one wording.** A behaviour change is a change to
   [.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) plus a case in
   [tools/tests/test_preflight_gate.py](tools/tests/test_preflight_gate.py), never a second copy of the logic. The
@@ -190,7 +191,6 @@ scripts, `bash` and `powershell` the update scripts in [docs/AGENTS-UPDATE.md](d
   lands, pass it with `--subagent` from [.github/hooks/preflight.json](.github/hooks/preflight.json) and set
   `GATE_KNOWN_GAP=0` in [sandbox-agent/live/copilot.sh](sandbox-agent/live/copilot.sh) in the same change.
 - **Whether a Codex `Stop` hook can reject a reply is not measured.** Confirm it and say so plainly here. The markdown lint and the standards advisory stay Claude-only, because Codex sends an `apply_patch` edit to `PostToolUse` as patch text in `tool_input.command` (`https://developers.openai.com/codex/hooks`), which neither hook parses, and that path is not measured here.
-- **Codex `write_stdin` is outside the gate matcher** in [.codex/config.toml](.codex/config.toml), so it can type into a `tty: true` shell unseen. Add it with a sandbox run, then update "Hook enforcement" in [docs/agent-compatibility.md](docs/agent-compatibility.md).
 - **Reply rules outside OpenCode.** OpenCode 2.x gets `.agents/instructions/reply-rules.md` from the plugin's session
   `context` hook, main thread only, and 1.x and Kilo Code from `instructions`. TODO: decide how a global install loads them on Claude
   Code, Codex and Copilot, keeping them out of `AGENTS.md`, and document it in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md).

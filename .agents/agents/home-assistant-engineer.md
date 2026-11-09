@@ -1,6 +1,9 @@
 ---
 description: "Use when the user says \"write this automation\", \"review my Home Assistant config\" or \"expose these entities to the assistant\". Applies strict YAML conventions, stable entity_id references, event-driven automations, safe secret handling, and exposure rules that keep security-critical entities away from any assistant. Not for firmware on the devices themselves, use `embedded-c-engineer`."
 mode: subagent
+permission:
+  webfetch: deny
+  websearch: deny
 tools:
   read: true
   write: true

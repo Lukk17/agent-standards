@@ -2,7 +2,7 @@
 """Shared preflight gate for every agent surface.
 
 Reads one hook payload as JSON on stdin and decides whether a tool call may
-proceed. Five rules:
+proceed. Six rules:
 
 A. The main thread may not write any file. It delegates the change to a
    subagent that owns the area. This covers the edit tools and the shell: a
@@ -46,7 +46,8 @@ E. A subagent whose own definition carries a READ_ONLY_HEADING section may
    open with `git --no-pager`, whatever the list says, because git on a
    terminal pipes its output into a pager whose `!` runs any command. gh may
    not open a browser, name a URL, take a repository other than OWNER/REPO,
-   or run a --jq or --template expression, and on the codex format no gh
+   run a --jq or --template expression, or poll with --watch, which waits
+   with no upper bound, and on the codex format no gh
    command runs at all, because gh has no flag that keeps its pager off and
    Codex can type into a terminal through write_stdin, which the hook never
    sees (READ_ONLY_PAGER_REASON). Any exception while
@@ -55,8 +56,14 @@ E. A subagent whose own definition carries a READ_ONLY_HEADING section may
    plugin's installed copy included, and an unreadable one counts as
    read-only. The generator writes that section from the canonical
    `readonly: true` marker into every format, so one rule covers them all.
+F. The main thread may not start a shell, an interpreter or an editor that
+   waits for typed input: one handed no script, no inline code and no piped
+   or heredoc input, one whose flag keeps it waiting after its inline code,
+   and any full-screen editor (_WAITING_PROGRAMS). Codex's write_stdin types
+   into a running terminal without a PreToolUse event, so the gate never sees
+   what is typed there.
 
-Rules A, C and D deny only once the caller is positively identified as the
+Rules A, C, D and F deny only once the caller is positively identified as the
 main thread, and rules B and E only once it is positively identified as a
 subagent. A format whose payload carries nothing that could identify the
 caller (currently Copilot, and a runner envelope with no is_subagent, see
@@ -115,6 +122,7 @@ import io
 import json
 import os
 import re
+import shlex
 import stat
 import sys
 from pathlib import Path, PurePosixPath
@@ -166,13 +174,20 @@ COMMAND_KEYS = ("command", "cmd", "script")
 # git diff use to name a file a patch adds, changes, deletes, or moves, on
 # either side of the move. Every string value in the tool call is searched
 # rather than one named key (docs/agent-compatibility.md "How the write rule
-# reads a command").
+# reads a command"). Codex trims each line before it matches a file header
+# (codex-rs/apply-patch/src/streaming_parser.rs at rust-v0.166.0), so blanks
+# may lead one, any Unicode blank as Rust's str::trim reads it. It trims only
+# the end of a Move to line (`line.trim_end()`), so blanks may not lead that.
+# A name is read up to its last non-blank character, or as the blanks alone
+# when it has nothing else, in time linear in the line: a lazy name followed
+# by trailing blanks took quadratic time on a long run of blanks.
+_PATCH_NAME = r"(?P<{}>.*\S|[^\S\n]+?)[^\S\n]*$"
 _APPLY_PATCH_FILE_RE = re.compile(
-    r"^\*\*\* (?:Update|Add|Delete) File: (?P<named>.+?)\s*$"
-    r"|^\*\*\* Move to: (?P<moved>.+?)\s*$"
-    r"|^\+\+\+ b/(?P<unified>.+?)\s*$"
-    r"|^--- a/(?P<source>.+?)\s*$"
-    r"|^rename (?:from|to) (?P<renamed>.+?)\s*$",
+    r"^[^\S\n]*\*\*\* (?:Update|Add|Delete) File: " + _PATCH_NAME.format("named")
+    + r"|^\*\*\* Move to: " + _PATCH_NAME.format("moved")
+    + r"|^\+\+\+ b/" + _PATCH_NAME.format("unified")
+    + r"|^--- a/" + _PATCH_NAME.format("source")
+    + r"|^rename (?:from|to) " + _PATCH_NAME.format("renamed"),
     re.MULTILINE,
 )
 
@@ -293,6 +308,10 @@ READ_ONLY_GH_REPO_VALUE_RE = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
 # carries code. A cluster stops at -R, whose value follows it, so
 # `-Rowner/test` stays a repository.
 READ_ONLY_GH_EXPRESSION_RE = re.compile(r"^(?:--(?:jq|template)(?:=.*)?|-[A-QS-Za-z]*[qt].*)$")
+# gh pr checks --watch polls every interval until no check is pending, with no
+# upper bound and no short form (checksRun in pkg/cmd/pr/checks/checks.go at gh
+# v2.89.0), so a check stuck in the queue would hold the shell call open.
+READ_ONLY_GH_WATCH_RE = re.compile(r"^--watch(?:=.*)?$")
 # A pager is a shell: `less` runs any command typed after `!`. git pipes its
 # output into one on a terminal unless told otherwise, and `--no-pager` sets
 # use_pager to 0 before the subcommand's own pager choice is read, so neither
@@ -310,7 +329,11 @@ READ_ONLY_GIT_NO_PAGER = "--no-pager"
 # refuses both. Claude Code, OpenCode and Kilo Code hand the gate the call's
 # `tty` key, which Rule E denies, but Codex hands its hook the command alone
 # and its write_stdin types into a terminal without a PreToolUse call, so on
-# the codex format a read-only agent runs no gh command at all.
+# the codex format a read-only agent runs no gh command at all. Codex sets
+# GH_PAGER to cat for each command (UNIFIED_EXEC_ENV in process_manager.rs at
+# rust-v0.166.0), but its shell snapshot, on by default, sources the user's
+# login-shell exports and re-exports only the configured overrides after
+# them, so a GH_PAGER the user exports still reaches gh.
 READ_ONLY_PAGER_FORMATS = frozenset({"codex"})
 READ_ONLY_PAGER_REASON = {
     "git": "{words} (run git as git --no-pager <subcommand>: on a terminal git pipes its output into a pager, whose ! runs any command)",
@@ -382,6 +405,13 @@ RULE_D_REASON = (
     "Blocked command: {command}"
 )
 
+RULE_F_REASON = (
+    "PREFLIGHT: the main thread may not start a shell, an interpreter or an editor that "
+    "waits for typed input, because the gate never sees what is typed into it. Run the "
+    "command itself, pass the code with -c or -e, or delegate the work to a subagent "
+    "that owns the area. Blocked command: {command}"
+)
+
 class AllowedCheck(NamedTuple):
     """A built-in read-only check: the words it starts with and the only options it may carry.
 
@@ -448,14 +478,23 @@ MAIN_THREAD_ALLOWLIST = (
 # A project extends the allowlist without touching this file, which an update
 # overwrites: one entry per line in this file at the project root, split into
 # words on whitespace, with blank lines and lines starting with # ignored. A
-# word holding a slash is a path and matches the file it names from wherever
-# the command stands, so a `cd` cannot make it name a different file, and the
-# first word is compared that way too. A trailing ANY_ARGUMENTS accepts any
+# word holding a slash is a path and matches the file it names from where the
+# command starts, and the first word is compared that way too. No entry
+# applies to a command that changes directory, so a `cd` cannot make it name
+# a different file. A trailing ANY_ARGUMENTS accepts any
 # further arguments, and without it the command has to end where the entry
-# ends. It sits at
+# ends. Those arguments include a tool's own options, such as -C, -f,
+# --prefix or --manifest-path, which can point the run at another folder or
+# file: an accepted limit, listed under "What the gate cannot place" in
+# docs/agent-compatibility.md. It sits at
 # the root rather than under .agents/, which consumers import whole, so an
 # import neither ships one project's entries nor overwrites another's. The main
 # thread cannot write it, because Rule A protects it like any project file.
+# That holds only for the gate's own working directory and its install root,
+# so the file is read from those two alone and never from the payload's cwd:
+# Codex reports the workdir the main thread chose for the call there, and a
+# folder outside the project, where the main thread may write, would
+# otherwise bring an allowlist of its own (see _allowlist_roots).
 ALLOWLIST_FILE = "main-thread-allowlist.txt"
 ANY_ARGUMENTS = "..."
 
@@ -482,7 +521,7 @@ def _tool_input(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 # One of "subagent", "main_thread", or "unknown". "unknown" means this
 # format's payload carries nothing that could tell a subagent from the main
-# thread, so none of the five rules may fire: a positive identification is
+# thread, so none of the six rules may fire: a positive identification is
 # required to deny, per the module docstring.
 _SUBAGENT = "subagent"
 _MAIN_THREAD = "main_thread"
@@ -543,23 +582,54 @@ _PAYLOAD_ROOT: Optional[Path] = None
 
 
 def _payload_root(payload: Dict[str, Any]) -> Optional[Path]:
+    """The project root the payload's cwd names, kept exactly as sent, or None.
+
+    A blank at either end is part of the folder name, so it is never trimmed:
+    `/x/project ` is a different folder from `/x/project`. Rule E's
+    _read_only_location_blocked likewise keeps a non-blank cwd exactly as
+    sent, but denies a blank-only or non-string one, where this returns None.
+    """
     value = payload.get("cwd")
 
     if not isinstance(value, str) or not value.strip():
         return None
 
     try:
-        return _native_path(value.strip())
+        return _native_path(value)
     except (OSError, ValueError):
         return None
 
 
-def _direct_target(tool_input: Dict[str, Any]) -> str:
-    for key in PATH_KEYS:
-        value = tool_input.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    return ""
+# What a Rule A denial names for an edit path key whose value is neither a
+# string nor null, which the gate cannot place.
+_UNREADABLE_PATH_TARGET = "edit path (a path value that is not a string)"
+
+
+def _unreadable_path(tool_input: Dict[str, Any]) -> bool:
+    """True when a path key holds a value that is neither a string nor null, which a host may still turn into a path."""
+    return any(not isinstance(tool_input.get(key), (str, type(None))) for key in PATH_KEYS)
+
+
+def _direct_targets(tool_input: Dict[str, Any]) -> List[str]:
+    """Every path the edit tool's path keys hold, exactly as sent, blanks included.
+
+    Every key is read, because the gate does not know which one a host
+    writes through when a call carries more than one.
+    """
+    return [value for key in PATH_KEYS if isinstance(value := tool_input.get(key), str) and value.strip()]
+
+
+def _placements(value: str) -> List[str]:
+    """A path as sent and, when a blank sits at either end, trimmed as well.
+
+    A host that hands the value to the file system as sent keeps each blank
+    as part of a name, so `/tmp/l ` is a link beside `/tmp/l` and ` /../x`
+    is relative, while a host that trims first writes the trimmed path. Both
+    readings are placed, and either one inside the repository denies.
+    """
+    trimmed = value.strip()
+
+    return [value] if trimmed in (value, "") else [value, trimmed]
 
 
 def _apply_patch_body(tool_input: Dict[str, Any]) -> str:
@@ -587,23 +657,19 @@ def _apply_patch_candidates(tool_input: Dict[str, Any]) -> List[str]:
 
 _MAX_NESTING = 3
 
-# Directories a `cd` inside the command moved to, or None while the command
-# has not changed directory yet. Every relative path after that `cd` resolves
-# against these instead of against the repository roots, so
-# `cd C:/Users/me/notes && printf x >> MEMORY.md` writes outside the
-# repository and is allowed, while `cd tools && printf x >> gen_subagents.py`
-# still resolves inside and is denied. It is a tuple rather than one path
-# because a relative destination is resolved against every root in _roots(),
-# and a target counts as inside when any one of those landings places it
-# inside. A subshell, meaning a parenthesised group or a single pipeline
-# stage, gets the value put back when it ends, because the real shell's own
-# directory is untouched by what the child did. Set only through
-# _shell_targets, which clears it again once the command has been read.
-_CD_BASE: Optional[Tuple[Path, ...]] = None
+# Whether the command being read changes directory anywhere. The gate follows
+# no directory change: every round of following cd, pushd, popd and their
+# kin found another way for the shell to land somewhere the text did not say.
+# So a command that changes directory in any spelling, at any depth, or
+# carries a word the gate cannot rule out as one, has every relative write
+# target unplaceable, which denies, and no allowlist entry applies to it. An
+# absolute target is still placed. Set only through _shell_targets, which
+# reads the command a second time once a first reading has set it.
+_CHANGES_DIRECTORY = False
 
-# The directories pushd and Push-Location left, newest last, for popd and
-# Pop-Location to return to. Set only through _shell_targets, like _CD_BASE.
-_CD_STACK: List[Optional[Tuple[Path, ...]]] = []
+# The folders the command starts in: a shell call's own workdir, or None for
+# every root. Set only through _shell_targets.
+_START_BASES: Optional[Tuple[Path, ...]] = None
 
 _QUOTED_LITERAL_RE = re.compile(r"""['"]([^'"]*)['"]""")
 _ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z_0-9]*=")
@@ -612,12 +678,13 @@ _ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z_0-9]*=")
 # repository or directory a command uses: git's own configuration and
 # repository location, the pagers and editors git starts, a preloaded library
 # or interpreter option, a shell start-up file, the program search path, a
-# test runner's own options, and the temporary directory a runner writes
-# under. A command run with one of them set is not the command its words
-# spell, so the gate cannot place it. Names compare without case, because
+# test runner's own options, the temporary directory a runner writes under,
+# and the CDPATH a `cd` looks a plain name up in. A command run with one of
+# them set is not the command its words spell, so the gate cannot place it. Names compare without case, because
 # Windows reads them that way.
 _UNPLACEABLE_ENVIRONMENT = frozenset(
     {
+        "CDPATH",
         "GIT_DIR",
         "GIT_WORK_TREE",
         "GIT_COMMON_DIR",
@@ -654,6 +721,7 @@ _UNPLACEABLE_ENVIRONMENT = frozenset(
         "PYTHONPLATLIBDIR",
         "PYTHONBREAKPOINT",
         "PYTHONPYCACHEPREFIX",
+        "PYTHONINSPECT",
         "PYTEST_ADDOPTS",
         "PYTEST_PLUGINS",
         "PYTEST_DEBUG_TEMPROOT",
@@ -688,8 +756,16 @@ _UNPLACEABLE_ENVIRONMENT_TARGET = "environment variable (a setting that changes 
 _POSIX_DECLARATIONS = {"export", "declare", "typeset", "readonly", "local"}
 _PS_ENVIRONMENT_RE = re.compile(r"^env:[\\/]*(?P<name>[\w()]+)", re.IGNORECASE)
 _PS_ENVIRONMENT_SETTERS = {"set-item", "new-item", "set-content", "add-content", "copy-item", "move-item", "rename-item"}
-_VERSIONED_TOOL_RE = re.compile(r"^(python|node|php|ruby|perl|awk|gawk|lua|julia)[0-9.]*$")
-_SHORT_INPLACE_RE = re.compile(r"^-[A-Za-z]{0,3}i(?:\.[^\s]*)?$")
+_VERSIONED_TOOL_RE = re.compile(r"^(python|pypy|ipython|node|php|ruby|perl|awk|gawk|lua|julia|tclsh)[0-9.]*$")
+# Programs every rule reads as another, because they take the same options
+# and run the same code.
+_SAME_PROGRAM = {"pypy": "python", "ipython": "python"}
+# perl and ruby switches that take the rest of their cluster as a value,
+# and the ones that take only the digits after them.
+_PERLISH_REST_SWITCHES = frozenset("eEIMmFxdDVCr")
+# Switches followed by an optional number: perl's -l and -0, and ruby's
+# warning and safe levels -W and -T, which take none in perl.
+_PERLISH_DIGIT_SWITCHES = frozenset("l0WT")
 
 _ESCAPABLE = set(" \t\"'\\;|&<>()$`")
 
@@ -698,7 +774,6 @@ _AWK_TOOLS = {"awk", "gawk", "mawk", "nawk"}
 _PERLISH_TOOLS = {"perl", "ruby"}
 _INPLACE_TOOLS = _SED_TOOLS | _AWK_TOOLS | _PERLISH_TOOLS
 
-_SED_VALUE_FLAGS = {"-e", "--expression", "-f", "--file", "-l", "--line-length"}
 _AWK_VALUE_FLAGS = {
     "-v",
     "--assign",
@@ -812,7 +887,11 @@ _POSIX_NULL_DEVICE = "/dev/null"
 # discard a real repository file named nul instead of writing to it.
 _WINDOWS_NULL_DEVICE_TOKENS = {"$null", "nul"}
 
-_POSIX_SHELLS = {"sh", "bash", "zsh", "dash", "ash", "ksh"}
+_POSIX_SHELLS = {"sh", "bash", "zsh", "dash", "ash", "ksh", "mksh", "yash"}
+# Shells whose language the gate does not read, so their inline code and
+# piped input are unplaceable and a script they run is a script run.
+_OTHER_SHELLS = frozenset({"fish", "tcsh", "csh", "nu"})
+_OTHER_SHELL_INLINE = frozenset({"-c", "--command", "--commands"})
 _POWERSHELL_SHELLS = {"pwsh", "powershell"}
 _CMD_SHELLS = {"cmd"}
 
@@ -820,8 +899,10 @@ _CMD_SHELLS = {"cmd"}
 # command string is the one argument after it, the rest become $0, $1 and on.
 _POSIX_CODE_FLAG_RE = re.compile(r"^-[A-Za-z]*c[A-Za-z]*$")
 
-# cmd runs everything after /c or /k as one command line.
-_CMD_CODE_FLAGS = {"/c", "/k"}
+# cmd runs everything after the first /c, /k or /r as one command line, and
+# stops reading its own switches there. /r runs it and exits as /c does
+# (base/shell/cmd/cmd.c in ReactOS, the switch Microsoft's page leaves out).
+_CMD_CODE_FLAGS = {"/c", "/k", "/r"}
 
 # PowerShell parameter names are case-insensitive and take any unambiguous
 # prefix. -Command takes every argument after it as the command, and
@@ -834,38 +915,174 @@ _PS_ENCODED_FLAG = "-encodedcommand"
 _PS_ENCODED_ALIASES = {"-e", "-ec"}
 _PS_MIN_PREFIX = 4
 
-_WRAPPER_TOOLS = {
-    "busybox",
-    "toybox",
-    "setsid",
-    "sudo",
-    "doas",
-    "env",
-    "command",
-    "nohup",
-    "exec",
-    "stdbuf",
-    "nice",
-    "ionice",
-    "time",
+class _OptionSpec(NamedTuple):
+    """How one program's own options read, for _read_options and _wrapper_options.
+
+    For a wrapper it is what lets the words after its options be read as the
+    command it runs.
+
+    `values` take a value, attached (`-D/tmp`, `--chdir=/tmp`) or as the
+    next word, and `optional` take one only attached. `long_flags` are the
+    long options that take none, listed so that an unambiguous prefix such
+    as `--chd` reads as the option it abbreviates, the way getopt_long reads
+    it. `chdir` options run the command in their value's folder, `split`
+    ones split their value into words (env -S), `writes` name a file the
+    wrapper writes itself, and `unplaceable` ones move every path the
+    command names, as a chroot does. `operands` is how many words the
+    wrapper takes before the command, as timeout takes its duration.
+    """
+
+    values: FrozenSet[str] = frozenset()
+    optional: FrozenSet[str] = frozenset()
+    long_flags: FrozenSet[str] = frozenset()
+    chdir: FrozenSet[str] = frozenset()
+    split: FrozenSet[str] = frozenset()
+    writes: FrozenSet[str] = frozenset()
+    unplaceable: FrozenSet[str] = frozenset()
+    operands: int = 0
+
+
+class _Options(NamedTuple):
+    """What _read_options found: every option with its value, in order, and the operands."""
+
+    options: List[Tuple[str, Optional[str]]]
+    operands: List[str]
+
+    @property
+    def names(self) -> Set[str]:
+        return {name for name, _value in self.options}
+
+
+_NO_OPTIONS = _OptionSpec()
+_RUNUSER_VALUES = frozenset({"-u", "--user", "-g", "--group", "-G", "--supp-group", "-w", "--whitelist-environment"})
+# Each wrapper's own options, from its --help and manual page: coreutils env,
+# nice, nohup, stdbuf, timeout and time, sudo and doas, util-linux ionice,
+# taskset, chrt, prlimit, setsid and runuser, and the tracing and sandboxing
+# wrappers. An option missing here reads as a flag, so its value would be
+# read as the command, which only ever reads more.
+_WRAPPERS: Dict[str, _OptionSpec] = {
+    "env": _OptionSpec(
+        values=frozenset({"-u", "--unset", "-C", "--chdir", "-S", "--split-string", "-a", "--argv0"}),
+        long_flags=frozenset({
+            "--ignore-environment", "--null", "--debug", "--help", "--version", "--block-signal",
+            "--default-signal", "--ignore-signal", "--list-signal-handling",
+        }),
+        chdir=frozenset({"-C", "--chdir"}),
+        split=frozenset({"-S", "--split-string"}),
+    ),
+    "sudo": _OptionSpec(
+        values=frozenset({
+            "-u", "--user", "-g", "--group", "-p", "--prompt", "-C", "--close-from", "-h", "--host", "-r", "--role",
+            "-t", "--type", "-T", "--command-timeout", "-U", "--other-user", "-D", "--chdir", "-R", "--chroot",
+        }),
+        long_flags=frozenset({
+            "--askpass", "--background", "--bell", "--edit", "--set-home", "--help", "--login", "--remove-timestamp",
+            "--reset-timestamp", "--list", "--non-interactive", "--preserve-env", "--preserve-groups", "--stdin",
+            "--shell", "--version", "--validate",
+        }),
+        chdir=frozenset({"-D", "--chdir"}),
+        unplaceable=frozenset({"-R", "--chroot"}),
+    ),
+    "doas": _OptionSpec(values=frozenset({"-u", "-C"})),
+    "exec": _OptionSpec(values=frozenset({"-a"})),
+    "setsid": _OptionSpec(long_flags=frozenset({"--ctty", "--fork", "--wait", "--help", "--version"})),
+    "stdbuf": _OptionSpec(values=frozenset({"-i", "-o", "-e", "--input", "--output", "--error"})),
+    "nice": _OptionSpec(values=frozenset({"-n", "--adjustment"})),
+    "ionice": _OptionSpec(
+        values=frozenset({"-c", "--class", "-n", "--classdata", "-p", "--pid", "-P", "--pgid", "-u", "--uid"}),
+        long_flags=frozenset({"--ignore", "--help", "--version"}),
+    ),
+    "time": _OptionSpec(
+        values=frozenset({"-f", "--format", "-o", "--output"}),
+        long_flags=frozenset({"--append", "--portability", "--quiet", "--verbose", "--help", "--version"}),
+        writes=frozenset({"-o", "--output"}),
+    ),
+    "timeout": _OptionSpec(
+        values=frozenset({"-s", "--signal", "-k", "--kill-after"}),
+        long_flags=frozenset({"--preserve-status", "--foreground", "--verbose", "--help", "--version"}),
+        operands=1,
+    ),
+    "pkexec": _OptionSpec(values=frozenset({"--user"}), long_flags=frozenset({"--disable-internal-agent", "--keep-cwd", "--help", "--version"})),
+    "runuser": _OptionSpec(values=_RUNUSER_VALUES),
+    "taskset": _OptionSpec(long_flags=frozenset({"--all-tasks", "--cpu-list", "--pid", "--help", "--version"}), operands=1),
+    "chrt": _OptionSpec(
+        values=frozenset({"-T", "--sched-runtime", "-P", "--sched-period", "-D", "--sched-deadline"}),
+        long_flags=frozenset({
+            "--all-tasks", "--batch", "--deadline", "--fifo", "--idle", "--other", "--rr", "--reset-on-fork", "--max",
+            "--pid", "--verbose", "--help", "--version",
+        }),
+        operands=1,
+    ),
+    "prlimit": _OptionSpec(
+        values=frozenset({"-p", "--pid", "-o", "--output"}),
+        optional=frozenset("-" + letter for letter in "cdefilmnqrstuvxy"),
+    ),
+    "unbuffer": _NO_OPTIONS,
+    "rlwrap": _OptionSpec(
+        values=frozenset({
+            "-b", "-C", "-D", "-e", "-f", "-F", "-g", "-H", "-l", "-O", "-P", "-q", "-M", "-s", "-S", "-t", "-w", "-z",
+            "--break-chars", "--command-name", "--history-no-dupes", "--extra-char-after-completion", "--file",
+            "--history-format", "--forget-matching", "--history-filename", "--logfile", "--multi-line-ext",
+            "--only-cook", "--pre-given", "--quote-characters", "--histsize", "--substitute-prompt",
+            "--set-term-name", "--wait-before-prompt", "--filter",
+        }),
+        optional=frozenset({"-a", "-p", "-m"}),
+        writes=frozenset({"-l", "--logfile", "-H", "--history-filename"}),
+    ),
+    "strace": _OptionSpec(
+        values=frozenset({
+            "-e", "-o", "-p", "-s", "-u", "-E", "-a", "-b", "-I", "-O", "-S", "-P", "-X", "-U", "--output", "--attach",
+            "--string-limit", "--user", "--env", "--columns", "--detach-on", "--interruptible", "--summary-sort-by",
+            "--trace-path", "--const-print-style", "--summary-columns",
+        }),
+        writes=frozenset({"-o", "--output"}),
+    ),
+    "ltrace": _OptionSpec(
+        values=frozenset({
+            "-o", "--output", "-e", "-p", "-s", "-u", "-a", "--align", "-A", "-D", "--debug", "-F", "--config", "-l",
+            "--library", "-n", "--indent", "-w", "--where", "-x",
+        }),
+        writes=frozenset({"-o", "--output"}),
+    ),
+    "fakeroot": _OptionSpec(values=frozenset({"-l", "--lib", "--faked", "-s", "-i", "-b"}), writes=frozenset({"-s"})),
+    "firejail": _OptionSpec(
+        unplaceable=frozenset({
+            "--chroot", "--private", "--private-home", "--private-cwd", "--overlay", "--overlay-named",
+            "--overlay-tmpfs", "--bind", "--tmpfs",
+        }),
+    ),
+    "numactl": _OptionSpec(
+        values=frozenset({
+            "-C", "--physcpubind", "-N", "--cpunodebind", "-m", "--membind", "-i", "--interleave", "-p", "--preferred",
+            "-P", "--preferred-many", "-w", "--weighted-interleave",
+        }),
+    ),
+    "valgrind": _OptionSpec(writes=frozenset({"--log-file", "--xml-file"})),
+    "caffeinate": _OptionSpec(values=frozenset({"-t", "-w"})),
+    # xargs -i, -e and -l take their value attached or not at all.
+    "xargs": _OptionSpec(
+        values=frozenset({
+            "-n", "--max-args", "-P", "--max-procs", "-I", "-a", "--arg-file", "-d", "--delimiter", "-E", "-L", "-s",
+            "--max-chars", "--process-slot-var",
+        }),
+        optional=frozenset({"-i", "-e", "-l"}),
+        long_flags=frozenset({
+            "--null", "--no-run-if-empty", "--interactive", "--verbose", "--exit", "--open-tty", "--show-limits",
+            "--help", "--version", "--max-lines", "--replace", "--eof",
+        }),
+    ),
 }
-_DURATION_WRAPPERS = {"timeout", "gtimeout"}
-# Wrapper options that run the command in another directory.
-_WRAPPER_CHDIR_FLAGS = {"env": ("-C", "--chdir"), "sudo": ("-D", "--chdir")}
-_WRAPPER_VALUE_FLAGS = {"-u", "-g", "-p", "-C", "-n", "-k", "--signal", "-o", "-e", "-i"}
-# xargs -i, -e and -l take their value attached or not at all, so only the
-# flags below consume the next word.
-_XARGS_VALUE_FLAGS = {
-    "-n",
-    "-P",
-    "-I",
-    "-a",
-    "-d",
-    "-E",
-    "-L",
-    "-s",
-    "--max-args",
-}
+_WRAPPERS["gtimeout"] = _WRAPPERS["timeout"]
+# GNU sed's own options, read by the same option reader.
+_SED_OPTIONS = _OptionSpec(
+    values=frozenset({"-e", "--expression", "-f", "--file", "-l", "--line-length"}),
+    optional=frozenset({"-i"}),
+    long_flags=frozenset({
+        "--in-place", "--null-data", "--zero-terminated", "--quiet", "--silent", "--regexp-extended", "--separate",
+        "--sandbox", "--unbuffered", "--debug", "--posix", "--follow-symlinks", "--binary", "--help", "--version",
+    }),
+)
+_WRAPPER_TOOLS = frozenset(set(_WRAPPERS) | {"busybox", "toybox", "command", "nohup"})
 
 _FIND_EXEC_MARKERS = {"-exec", "-execdir", "-ok", "-okdir"}
 _FIND_NAME_FLAGS = {"-name", "-iname"}
@@ -956,10 +1173,40 @@ _UNPLACEABLE_ARGUMENT = "xargs input (arguments the gate cannot read)"
 _REMOVE_TOOLS = {"rm", "rmdir", "rd"}
 _MOVE_TOOLS = {"mv", "move"}
 
-# Commands that change the directory relative paths resolve against.
-_DIRECTORY_CHANGERS = {"cd", "pushd", "chdir", "set-location", "sl", "push-location", "popd", "pop-location"}
-_DIRECTORY_PUSHERS = {"pushd", "push-location"}
-_DIRECTORY_POPPERS = {"popd", "pop-location"}
+# Commands and aliases that change the directory relative paths resolve
+# against, in a POSIX shell, PowerShell and cmd. Any of them as a whole token
+# of any word counts, so a cd behind a keyword, a wrapper, an alias value
+# (`x=cd`) or inside trap code is caught as well as one leading a command.
+_DIRECTORY_CHANGERS = frozenset({"cd", "chdir", "pushd", "popd", "sl", "set-location", "push-location", "pop-location"})
+_DIRECTORY_CHANGE_TOKEN_SPLIT_RE = re.compile(r"\$\(|[\s;&|(){}`=,\x1f]+")
+# Spellings that change directory inside code or a program of their own:
+# os.chdir and its kin in every language that names it chdir, R's setwd, the
+# .NET current directory, the PowerShell cmdlets under a module prefix, a
+# -WorkingDirectory, the SessionState path methods SetLocation,
+# PushCurrentLocation and PopLocation, and find -execdir and -okdir.
+_DIRECTORY_CHANGE_FRAGMENTS = (
+    "chdir",
+    "setwd",
+    "currentdirectory",
+    "workingdirectory",
+    "set-location",
+    "push-location",
+    "pop-location",
+    "setlocation",
+    "pushcurrentlocation",
+    "poplocation",
+    "execdir",
+    "okdir",
+)
+
+# Programs that only print their operands. A changer an operand names is
+# text, as in `echo 'cd docs first' >> tasks.md`, and is read as code only
+# where the printed text reaches a shell, which the gate reads there.
+_PRINTERS = frozenset({"echo", "printf", "write-output", "write-host"})
+
+# PowerShell commands that bind a name to any command, so a later word may run
+# Set-Location under a name the gate cannot know.
+_PS_ALIAS_SETTERS = frozenset({"set-alias", "new-alias", "sal", "nal"})
 
 
 class _ShellParseError(Exception):
@@ -970,13 +1217,13 @@ class ShellSegment(NamedTuple):
     """One command in a lexed line, or a marker for a grouping token.
 
     A segment with a `control` of "(", ")" or "|" carries no argv: it records
-    where a subshell begins and ends, which is what stops a `cd` inside one
-    from moving the base for everything after it. `stdin` holds the heredoc
+    where a subshell or a pipeline stage begins and ends. `stdin` holds the heredoc
     and here-string bodies the command reads, and `literal` marks a segment
     that is one fully quoted word, which PowerShell writes to its output.
     `expression` marks a PowerShell statement whose first word is a quoted
     string not handed to the call operator, which PowerShell evaluates as a
-    value and never runs as a program.
+    value and never runs as a program. `reads_file` marks a POSIX or cmd
+    command whose standard input a `< file` redirect points at a file.
     """
 
     argv: Tuple[str, ...] = ()
@@ -985,6 +1232,7 @@ class ShellSegment(NamedTuple):
     stdin: Tuple[str, ...] = ()
     literal: bool = False
     expression: bool = False
+    reads_file: bool = False
 
 
 # The three command-line grammars the gate reads. A POSIX shell escapes with
@@ -1534,6 +1782,7 @@ def _lex(command: str, dialect: str = _POSIX) -> List[ShellSegment]:
     opens_quoted = False
     first_opens_quoted = False
     called = False
+    reads_file = False
     pending = ""
     cmd_quoted = False
     argv_quoted = False
@@ -1565,7 +1814,7 @@ def _lex(command: str, dialect: str = _POSIX) -> List[ShellSegment]:
         pending = ""
 
     def end_segment() -> None:
-        nonlocal argv, redirects, bodies, argv_quoted, called
+        nonlocal argv, redirects, bodies, argv_quoted, called, reads_file
 
         flush()
         argv_quoted = False
@@ -1581,7 +1830,9 @@ def _lex(command: str, dialect: str = _POSIX) -> List[ShellSegment]:
         if argv or redirects or bodies:
             literal = len(argv) == 1 and first_quoted
             expression = powershell and bool(argv) and first_opens_quoted and not called
-            segments.append(ShellSegment(tuple(argv), tuple(redirects), literal=literal, expression=expression))
+            segments.append(
+                ShellSegment(tuple(argv), tuple(redirects), literal=literal, expression=expression, reads_file=reads_file)
+            )
 
             if bodies:
                 owners.append((len(segments) - 1, bodies))
@@ -1590,6 +1841,7 @@ def _lex(command: str, dialect: str = _POSIX) -> List[ShellSegment]:
         redirects = []
         bodies = []
         called = False
+        reads_file = False
 
     def add(text: str, quoted: bool) -> None:
         nonlocal token, started, bare, opens_quoted
@@ -1796,7 +2048,7 @@ def _lex(command: str, dialect: str = _POSIX) -> List[ShellSegment]:
             continue
 
         if char in "()":
-            if char == "(" and powershell and (argv or started):
+            if char == "(" and powershell and (argv or started or called):
                 flush()
                 argv.append(_SUBEXPRESSION)
 
@@ -1874,7 +2126,9 @@ def _lex(command: str, dialect: str = _POSIX) -> List[ShellSegment]:
                 index = length if close < 0 else close + 2
                 continue
 
-            if started and token.isdigit():
+            descriptor = token if started and token.isdigit() else ""
+
+            if descriptor:
                 token = ""
                 started = False
                 bare = False
@@ -1907,6 +2161,7 @@ def _lex(command: str, dialect: str = _POSIX) -> List[ShellSegment]:
 
             index += 1
             pending = "discard"
+            reads_file = reads_file or descriptor in ("", "0") and not command.startswith("&", index)
             continue
 
         add(char, False)
@@ -1947,8 +2202,9 @@ def _basename(token: str) -> str:
 def _program_name(token: str) -> str:
     name = _basename(token)
     match = _VERSIONED_TOOL_RE.match(name)
+    name = match.group(1) if match else name
 
-    return match.group(1) if match else name
+    return _SAME_PROGRAM.get(name, name)
 
 
 def _operands(tokens: List[str], value_flags: AbstractSet[str] = frozenset()) -> List[str]:
@@ -1987,33 +2243,76 @@ def _sourced(candidates: List[str], powershell: bool = False) -> List[str]:
     return [candidate for candidate in candidates if _is_write_target(candidate, powershell)]
 
 
+def _perlish_switches_inplace(word: str) -> bool:
+    """True when a perl or ruby switch cluster holds -i, which takes the rest of the cluster as its backup suffix."""
+    if not word.startswith("-") or word.startswith("--"):
+        return False
+
+    letters = word[1:]
+    index = 0
+
+    while index < len(letters):
+        letter = letters[index]
+
+        if letter == "i":
+            return True
+
+        if letter in _PERLISH_REST_SWITCHES or letters[index : index + 2] == "W:":
+            return False
+
+        index += 1
+
+        if letter in _PERLISH_DIGIT_SWITCHES:
+            while index < len(letters) and letters[index].isdigit():
+                index += 1
+
+    return False
+
+
+class _SedCall(NamedTuple):
+    """A sed command read the way GNU sed's getopt_long reads it."""
+
+    inplace: bool
+    expressions: List[str]
+    files: List[str]
+    operands: List[str]
+
+
+def _sed_call(tokens: List[str]) -> _SedCall:
+    """sed's options wherever they sit until `--`, `-i` with its optional attached suffix, long options by prefix."""
+    read = _read_options(tokens[1:], _SED_OPTIONS)
+    inplace = bool(read.names & {"-i", "--in-place"})
+    # A short -e or -f with nothing after it is read as an empty value, a
+    # script file the gate cannot read. A long one reads as no value.
+    expressions = _sed_values(read, ("-e", "--expression"))
+    files = _sed_values(read, ("-f", "--file"))
+
+    return _SedCall(inplace, expressions, files, read.operands)
+
+
+def _sed_values(read: _Options, names: Tuple[str, str]) -> List[str]:
+    """The values of one sed option, a short one with nothing after it read as empty, a long one as absent."""
+    return [value or "" for option, value in read.options if option in names and (value is not None or option == names[0])]
+
+
 def _inplace_targets(name: str, tokens: List[str], powershell: bool = False) -> List[str]:
     """Files an in-place editor rewrites, in every spelling of the flag."""
     flags = tokens[1:]
+
+    if name in _SED_TOOLS:
+        call = _sed_call(tokens)
+        operands = call.operands[0 if call.expressions or call.files else 1 :]
+
+        return _sourced(operands, powershell) if call.inplace else []
 
     if name in _AWK_TOOLS:
         inplace = "inplace" in flags or any(flag.endswith("=inplace") for flag in flags)
         value_flags = _AWK_VALUE_FLAGS
         script_is_first = not any(flag == "-f" or flag.startswith("--file") for flag in flags)
     else:
-        inplace = any(
-            flag in ("--in-place", "--inplace")
-            or flag.startswith("--in-place=")
-            or _SHORT_INPLACE_RE.match(flag)
-            for flag in flags
-        )
-
-        if name in _PERLISH_TOOLS:
-            value_flags = _PERLISH_VALUE_FLAGS
-            script_is_first = not any(flag in ("-e", "-E") for flag in flags)
-        else:
-            value_flags = _SED_VALUE_FLAGS
-            script_is_first = not any(
-                flag in ("-e", "-f")
-                or flag.startswith("--expression")
-                or flag.startswith("--file")
-                for flag in flags
-            )
+        inplace = any(_perlish_switches_inplace(flag) for flag in flags)
+        value_flags = _PERLISH_VALUE_FLAGS
+        script_is_first = not any(flag in ("-e", "-E") for flag in flags)
 
     if not inplace:
         return []
@@ -2026,7 +2325,57 @@ def _inplace_targets(name: str, tokens: List[str], powershell: bool = False) -> 
     return _sourced(operands, powershell)
 
 
+def _perlish_code(tokens: List[str]) -> str:
+    """Every -e program perl or ruby runs, read inside a switch cluster too, joined one per line as perl joins them.
+
+    `-ne CODE`, `-We CODE`, `-eCODE` and a second `-e` all add code. The
+    switches end at the first word that is not one, which is the script or
+    the first file the program reads.
+    """
+    program = _program_name(tokens[0])
+    code_letters = "eE" if program in _UPPER_E_CODE_TOOLS else "e"
+    pieces: List[str] = []
+    index = 1
+
+    while index < len(tokens):
+        word = tokens[index]
+        index += 1
+
+        if word == "--" or not word.startswith("-") or word == "-":
+            break
+
+        if word.startswith("--"):
+            continue
+
+        letters = word[1:]
+        position = 0
+
+        while position < len(letters):
+            letter = letters[position]
+            attached = letters[position + 1 :]
+
+            if letter in code_letters:
+                pieces.append(attached or (tokens[index] if index < len(tokens) else ""))
+                index += 0 if attached else 1
+                break
+
+            if letter in _PERLISH_REST_SWITCHES or letters[position : position + 2] == "W:":
+                index += 1 if not attached and "-" + letter in _PERLISH_VALUE_FLAGS else 0
+                break
+
+            position += 1
+
+            if letter in _PERLISH_DIGIT_SWITCHES:
+                while position < len(letters) and letters[position].isdigit():
+                    position += 1
+
+    return "\n".join(pieces)
+
+
 def _inline_code(tokens: List[str]) -> str:
+    if _program_name(tokens[0]) in _PERLISH_TOOLS:
+        return _perlish_code(tokens)
+
     flags = _INLINE_CODE_FLAGS + (("-E",) if _program_name(tokens[0]) in _UPPER_E_CODE_TOOLS else ())
 
     for index, token in enumerate(tokens[1:], start=1):
@@ -2052,6 +2401,9 @@ def _inline_code_targets(tokens: List[str], powershell: bool = False) -> List[st
 
 def _program_code_targets(program: str, code: str, powershell: bool = False) -> List[str]:
     """Paths an interpreter's program writes, however the program reached it."""
+    if _names_a_directory_change([code]):
+        _note_directory_change()
+
     if program in _PYTHON_TOOLS:
         return _python_code_targets(code, powershell)
 
@@ -2505,7 +2857,12 @@ def _loads_unread_code(module: str) -> bool:
     if top not in getattr(sys, "stdlib_module_names", frozenset()):
         return True
 
-    bases = _CD_BASE if _CD_BASE is not None else tuple(_roots())
+    # After a directory change the gate does not know which folder the
+    # program runs in, so it cannot rule a shadowing file out.
+    if _CHANGES_DIRECTORY:
+        return True
+
+    bases = _current_bases()
     shadows = (top + ".py", top + ".pyc", top + ".pyd", top + ".so", top + "/__init__.py")
 
     for base in bases:
@@ -2951,7 +3308,7 @@ def _is_existing_directory(target: str) -> bool:
         return False
 
     path = _as_path(target)
-    bases = _CD_BASE if _CD_BASE is not None else tuple(_roots())
+    bases = _current_bases()
 
     for base in bases:
         try:
@@ -4104,7 +4461,7 @@ def _ps_piped_targets(name: str, tokens: List[str], feed: Callable[[], Optional[
     if fed == _UNKNOWN_INPUT:
         return [_UNPLACEABLE_PIPED_PATH]
 
-    paths = [line.strip() for line in fed.splitlines() if line.strip()]
+    paths = [placement for line in fed.splitlines() if line.strip() for placement in _placements(line)]
 
     return (_removal_sourced if canonical in _PS_PIPED_REMOVALS else _sourced)(paths, powershell)
 
@@ -4375,12 +4732,23 @@ def _dotnet_targets(command: str, powershell: bool = True) -> List[str]:
 
 
 class _Stripped(NamedTuple):
-    """A command with its wrappers peeled off, and what xargs, if present, adds."""
+    """A command with its wrappers peeled off, and what xargs, if present, adds.
+
+    `xargs_settled` is True when the first xargs never reads names from its
+    standard input: it reads a file of its own through -a, or only prints
+    its version or help.
+    """
 
     argv: List[str]
     xargs: bool = False
     replace: str = ""
     directories: Tuple[str, ...] = ()
+    writes: Tuple[str, ...] = ()
+    xargs_settled: bool = False
+
+
+# An -a value that is still the terminal or standard input.
+_TERMINAL_FILES = frozenset({"-", "/dev/stdin", "/dev/tty", "/dev/fd/0", "/proc/self/fd/0"})
 
 
 # Reserved words that lead a POSIX command without being it, as in
@@ -4396,7 +4764,7 @@ def _peels(word: str, dialect: str) -> bool:
     """True when word leads a command without being the command."""
     name = _basename(word)
 
-    if name in _WRAPPER_TOOLS or name in _DURATION_WRAPPERS or name == "xargs":
+    if name in _WRAPPER_TOOLS:
         return True
 
     if dialect == _POSIX:
@@ -4421,19 +4789,117 @@ def _after_cmd_condition(rest: List[str]) -> List[str]:
     return rest[index + 1 :] if index < len(rest) and "==" in rest[index] else rest[index:]
 
 
-def _xargs_replacement(flag: str, rest: List[str]) -> str:
-    """The replace-string an xargs flag sets, or "" when it sets none."""
-    if flag == "-I":
-        return rest[0] if rest else ""
+def _long_option(name: str, spec: _OptionSpec) -> str:
+    """The long option a word names, an unambiguous prefix read as the whole option, as getopt_long reads it."""
+    options = {option for option in spec.values | spec.long_flags | spec.writes | spec.unplaceable if option.startswith("--")}
 
-    if flag in ("-i", "--replace"):
-        return "{}"
+    if name in options:
+        return name
 
-    for prefix in ("-I", "-i", "--replace="):
-        if flag.startswith(prefix):
-            return flag[len(prefix) :]
+    matches = [option for option in options if option.startswith(name)]
 
-    return ""
+    return matches[0] if len(matches) == 1 else name
+
+
+def _wrapper_options(
+    word: str, spec: _OptionSpec, rest: List[str], clusters: bool = True
+) -> List[Tuple[str, Optional[str]]]:
+    """Every option one word sets, with its value, a separate value word popped from rest.
+
+    A long option is read by its unambiguous prefix, as getopt_long reads it.
+    A cluster such as `-lc` sets each letter, up to one that takes a value,
+    unless `clusters` is False, as for socat, whose `-lf` is one option. A
+    value option with no value left reports None.
+    """
+    if word.startswith("--") or not clusters:
+        name, equals, attached = word.partition("=")
+        name = _long_option(name, spec) if word.startswith("--") else name
+
+        if equals:
+            return [(name, attached)]
+
+        return [(name, rest.pop(0) if name in spec.values and rest else None)]
+
+    options: List[Tuple[str, Optional[str]]] = []
+
+    for position, letter in enumerate(word[1:], start=2):
+        option = "-" + letter
+
+        if option in spec.values:
+            options.append((option, word[position:] or (rest.pop(0) if rest else None)))
+            break
+
+        if option in spec.optional:
+            options.append((option, word[position:] or None))
+            break
+
+        options.append((option, None))
+
+    return options
+
+
+def _read_options(words: List[str], spec: _OptionSpec, permute: bool = True, clusters: bool = True) -> _Options:
+    """Every option and operand in words, read by spec through _wrapper_options.
+
+    With `permute`, options are read wherever they sit until `--`, the way
+    getopt permutes them. Without it they end at the first operand, as a
+    shell's own options and POSIX getopt do. A lone `-` is an operand.
+    """
+    rest = list(words)
+    options: List[Tuple[str, Optional[str]]] = []
+    operands: List[str] = []
+
+    while rest:
+        word = rest.pop(0)
+
+        if word == "--":
+            operands += rest
+            break
+
+        if not word.startswith("-") or word == "-":
+            operands.append(word)
+
+            if not permute:
+                operands += rest
+                break
+
+            continue
+
+        options += _wrapper_options(word, spec, rest, clusters)
+
+    return _Options(options, operands)
+
+
+def _xargs_settles(option: str, value: Optional[str]) -> bool:
+    """True for an xargs option that keeps it off its standard input: -a naming a file, --help or --version."""
+    if option in ("--help", "--version"):
+        return True
+
+    return option in ("-a", "--arg-file") and value is not None and value not in _TERMINAL_FILES
+
+
+def _xargs_replacement(option: str, value: Optional[str]) -> str:
+    """The replace-string an xargs option sets, or "" when it sets none."""
+    if option == "-I":
+        return value or ""
+
+    return (value or "{}") if option in ("-i", "--replace") else ""
+
+
+# env -S splits its value the way a shell would, but escapes, `$` names and
+# `#` comments of its own the gate does not follow.
+_SPLIT_STRING_UNREAD = set("\\$#`")
+
+
+def _split_string(value: str) -> Optional[List[str]]:
+    """The words env -S splits its value into, or None when the gate cannot split it the way env does."""
+    if _SPLIT_STRING_UNREAD & set(value):
+        return None
+
+    try:
+        return shlex.split(value)
+    except ValueError:
+        return None
 
 
 def _changes_the_program(name: str) -> bool:
@@ -4457,8 +4923,10 @@ def _strip_wrappers(tokens: List[str], dialect: str = _POSIX) -> Optional[_Strip
     """
     rest = list(tokens)
     xargs = False
+    settled = False
     replace = ""
     directories: List[str] = []
+    writes: List[str] = []
     peeled = 0
 
     while True:
@@ -4467,13 +4935,18 @@ def _strip_wrappers(tokens: List[str], dialect: str = _POSIX) -> Optional[_Strip
                 return None
 
         if not rest or not _peels(rest[0], dialect):
-            return _Stripped(rest, xargs, replace, tuple(directories))
+            return _Stripped(rest, xargs, replace, tuple(directories), tuple(writes), settled)
 
         if peeled == _MAX_WRAPPERS:
             return None
 
         peeled += 1
         name = _basename(rest[0])
+
+        # runuser wraps a command only in its -u form. Without -u it is su,
+        # a shell or the -c code the code runners read.
+        if name == "runuser" and not _runuser_wraps(rest):
+            return _Stripped(rest, xargs, replace, tuple(directories), tuple(writes), settled)
 
         if dialect == _CMD and rest[0].startswith("@"):
             rest[0] = rest[0][1:]
@@ -4487,32 +4960,64 @@ def _strip_wrappers(tokens: List[str], dialect: str = _POSIX) -> Optional[_Strip
             rest.pop(0)
             continue
 
-        value_flags = _XARGS_VALUE_FLAGS if name == "xargs" else _WRAPPER_VALUE_FLAGS
+        spec = _WRAPPERS.get(name, _NO_OPTIONS)
         rest.pop(0)
 
         while rest and rest[0].startswith("-") and len(rest[0]) > 1:
-            flag = rest.pop(0)
+            word = rest.pop(0)
 
-            if name == "xargs":
-                replace = _xargs_replacement(flag, rest) or replace
+            if word == "--":
+                break
 
-            changes = _WRAPPER_CHDIR_FLAGS.get(name, ())
+            if _only_describes(name, word):
+                return _Stripped([], xargs, replace, tuple(directories), tuple(writes), settled)
 
-            if flag in changes and rest:
-                directories.append(rest.pop(0))
-            elif any(flag.startswith(change + "=") for change in changes if change.startswith("--")):
-                directories.append(flag.split("=", 1)[1])
-            elif name == "env" and flag.startswith("-C") and len(flag) > 2:
-                directories.append(flag[2:])
-            elif name == "env" and flag in ("-S", "--split-string") and rest:
-                rest = rest[0].split() + rest[1:]
-            elif flag in value_flags and rest:
-                rest.pop(0)
+            for option, value in _wrapper_options(word, spec, rest):
+                if option in spec.unplaceable:
+                    return None
 
-        if name in _DURATION_WRAPPERS and rest:
-            rest.pop(0)
+                if name == "xargs":
+                    replace = _xargs_replacement(option, value) or replace
+                    settled = settled or (not xargs and _xargs_settles(option, value))
 
+                if value is None:
+                    continue
+
+                if option in spec.chdir:
+                    directories.append(value)
+                elif option in spec.split:
+                    split = _split_string(value)
+
+                    if split is None:
+                        return None
+
+                    rest = split + rest
+                elif option in spec.writes:
+                    # strace -o |cmd and !cmd pipe the trace into a command.
+                    if value.startswith(("|", "!")):
+                        return None
+
+                    writes.append(value)
+
+        del rest[: spec.operands]
         xargs = xargs or name == "xargs"
+
+
+def _only_describes(name: str, word: str) -> bool:
+    """True for `command -v` and `command -V`, alone or in a cluster, which describe the name after them and run nothing."""
+    return name == "command" and word.startswith("-") and not word.startswith("--") and bool(set(word[1:]) & {"v", "V"})
+
+
+def _runuser_wraps(tokens: List[str]) -> bool:
+    """True when runuser names its user with -u, the form that runs the words after it as a command.
+
+    Its options are read with their values, so `runuser -g wheel -u nobody id`
+    reaches the -u after the group.
+    """
+    # runuser reads a lone `-` as -l, so it is no operand here.
+    words = [word for word in tokens[1:] if word != "-"]
+
+    return bool(_read_options(words, _WRAPPERS["runuser"], permute=False).names & {"-u", "--user"})
 
 
 def _sets_unplaceable_environment(tokens: List[str], dialect: str) -> bool:
@@ -4666,14 +5171,25 @@ def _reads_program_from_stdin(name: str, tokens: List[str]) -> bool:
 
 
 def _powershell_reads_stdin(flags: List[str]) -> bool:
-    """pwsh reads commands from standard input unless it is handed a script."""
+    """pwsh reads commands from standard input unless it is handed a script or a command.
+
+    `-File -` and `-Command -` read standard input too: "If the value of
+    Command is -, the command text is read from standard input" (about_Pwsh).
+    """
     index = 0
 
     while index < len(flags):
         lowered = flags[index].lower()
+        reads_value = index + 1 < len(flags) and flags[index + 1] == "-"
 
         if lowered in ("-f", "-file") or _is_prefix_of(lowered, "-file"):
-            return index + 1 < len(flags) and flags[index + 1] == "-"
+            return reads_value
+
+        if lowered in _PS_COMMAND_ALIASES or _is_prefix_of(lowered, _PS_COMMAND_FLAG):
+            return reads_value
+
+        if _is_powershell_code_flag(lowered):
+            return False
 
         if lowered in _PS_HOST_VALUE_FLAGS:
             index += 2
@@ -4689,23 +5205,39 @@ def _powershell_reads_stdin(flags: List[str]) -> bool:
 
 
 def _read_script(target: str) -> Optional[str]:
-    """The text of a file the command runs as code, or None when it cannot be read."""
+    """The text of a file the command runs as code, or None when it cannot be read.
+
+    The file is read from every folder the command can stand in, and two
+    copies that differ, or one too large or unreadable, are a file the gate
+    cannot place: a Codex payload cwd is the workdir the main thread chose,
+    so a harmless copy in the project says nothing about the one that runs.
+    """
     if not target or _has_glob(target):
         return None
 
     path = _as_path(target)
-    bases = _CD_BASE if _CD_BASE is not None else tuple(_roots())
+
+    if _moved_away(path):
+        return None
+
+    bases = _current_bases()
+    texts: Set[str] = set()
 
     for base in bases:
         candidate = path if path.is_absolute() else base / path
 
         try:
-            if candidate.is_file() and candidate.stat().st_size <= _MAX_SCRIPT_BYTES:
-                return candidate.read_text(encoding="utf-8", errors="replace")
-        except (OSError, ValueError):
-            continue
+            if not candidate.is_file():
+                continue
 
-    return None
+            if candidate.stat().st_size > _MAX_SCRIPT_BYTES:
+                return None
+
+            texts.add(candidate.read_text(encoding="utf-8", errors="replace"))
+        except (OSError, ValueError):
+            return None
+
+    return texts.pop() if len(texts) == 1 else None
 
 
 def _printf_text(template: str) -> str:
@@ -4776,14 +5308,25 @@ def _no_input() -> Optional[str]:
 
 
 def _xargs_arguments(rest: List[str], replace: str, feed: Optional[str]) -> List[str]:
-    """The command xargs runs, with the words it reads put where xargs puts them."""
+    """The command xargs runs, with the words it reads put where xargs puts them.
+
+    With no feed xargs reads the terminal, so a replace string stands for
+    words the gate never sees.
+    """
     if feed is None:
-        return rest
+        if not replace:
+            return rest
+
+        feed = _UNKNOWN_INPUT
 
     words = [_UNPLACEABLE_ARGUMENT] if feed == _UNKNOWN_INPUT else feed.split()
 
     if not replace:
         return rest + words
+
+    # xargs -I runs its command once per input line, so no input runs nothing.
+    if not words:
+        return []
 
     expanded: List[str] = []
 
@@ -4793,33 +5336,68 @@ def _xargs_arguments(rest: List[str], replace: str, feed: Optional[str]) -> List
     return expanded
 
 
+def _runs_unread_words(name: str, rest: List[str]) -> bool:
+    """True when words xargs read from a source the gate cannot see can become code or the program itself.
+
+    They can when they stand in the program's place, when the program runs
+    a command (_COMMAND_RUNNERS), or when it reads code, a program or a file
+    to run from any argument (_CODE_FROM_ARGUMENTS). git takes code only at
+    or before its subcommand, through -c, -C, --exec-path or the subcommand
+    itself, so `git ls-files -m | xargs git add` stays readable.
+    """
+    unread = [index for index, token in enumerate(rest) if _UNPLACEABLE_ARGUMENT in token]
+
+    if not unread:
+        return False
+
+    if unread[0] == 0 or name in _CODE_FROM_ARGUMENTS or name in _COMMAND_RUNNERS:
+        return True
+
+    return name == "git" and unread[0] <= _git_subcommand_index(rest)
+
+
+def _git_subcommand_index(tokens: List[str]) -> int:
+    """Where git's subcommand sits, past its global options and their values."""
+    index = 1
+
+    while index < len(tokens) and tokens[index].startswith("-"):
+        index += 2 if tokens[index] in _GIT_VALUE_FLAGS else 1
+
+    return index
+
+
 def _child_shell_targets(code: str, depth: int, dialect: str, directory: str = "") -> List[str]:
-    """What a child shell writes. Its `cd` dies with it, so the base is put back.
+    """What a child shell writes. A directory it starts in, or changes to, counts as a change of the whole command.
 
     A child that cannot be lexed is one the gate cannot place, which denies:
     only a command that fails to lex as a whole is allowed unread.
     """
-    global _CD_BASE, _CD_STACK
-    saved = _CD_BASE, list(_CD_STACK)
+    if directory:
+        _note_directory_change()
 
     try:
-        if directory:
-            _enter_directory([directory])
-
         return _command_targets(code, depth + 1, dialect)
     except _ShellParseError:
         return [_UNPLACEABLE_SHELL_TARGET]
-    finally:
-        _CD_BASE, _CD_STACK = saved
+
+
+def _is_computed_name(word: str) -> bool:
+    """True for a program name holding anything a shell expands first, which the gate cannot know until the shell runs.
+
+    That is a `$` or a backtick anywhere in the word, as in `c${U}d`, a
+    subexpression, and every POSIX, PowerShell or cmd expansion
+    _has_expansion knows, such as `{a,b}`, `%X%` and `!X!`. Glob characters do
+    not count, because `[` is test.
+    """
+    return "$" in word or "`" in word or _has_expansion(word) or _has_expansion(word, powershell=True)
 
 
 def _runs_a_computed_program(code: str, dialect: str) -> bool:
     """True when evaluated code runs a command whose name is a variable or a subexpression."""
     for segment in _lex(code, dialect):
         stripped = _strip_wrappers(list(segment.argv), dialect) if segment.argv else None
-        word = stripped.argv[0] if stripped and stripped.argv else ""
 
-        if word.startswith(("$", "`")) or word == _SUBEXPRESSION:
+        if stripped and stripped.argv and _is_computed_name(stripped.argv[0]):
             return True
 
     return False
@@ -4834,6 +5412,38 @@ def _evaluated_targets(code: str, depth: int, dialect: str) -> List[str]:
             targets.append(_UNPLACEABLE_SHELL_TARGET)
     except _ShellParseError:
         return [_UNPLACEABLE_SHELL_TARGET]
+
+    return targets
+
+
+def _trap_targets(rest: List[str], depth: int, dialect: str) -> List[str]:
+    """What a trap action writes when its condition fires, read like eval code.
+
+    The action is the first operand when a condition follows it. An empty
+    action or `-` sets no code, and an option such as `-p` or `-l` lists.
+    """
+    operands = rest[1:]
+
+    if operands[:1] == ["--"]:
+        operands = operands[1:]
+    elif operands[:1] and operands[0].startswith("-") and operands[0] != "-":
+        return []
+
+    if len(operands) < 2 or operands[0] in ("", "-"):
+        return []
+
+    return _evaluated_targets(operands[0], depth, dialect)
+
+
+def _alias_targets(rest: List[str], depth: int, dialect: str) -> List[str]:
+    """What the value of each `alias name=value` writes, read like eval code, since a later word may run it."""
+    targets: List[str] = []
+
+    for operand in rest[1:]:
+        name, assigns, value = operand.partition("=")
+
+        if assigns and name and not name.startswith("-"):
+            targets += _evaluated_targets(value, depth, dialect)
 
     return targets
 
@@ -4879,6 +5489,26 @@ def _code_runner_targets(
     if dialect == _POSIX and name == "eval":
         return _evaluated_targets(" ".join(rest[1:]), depth, dialect)
 
+    if dialect == _POSIX and name == "trap":
+        return _trap_targets(rest, depth, dialect)
+
+    if dialect == _POSIX and name == "alias":
+        return _alias_targets(rest, depth, dialect)
+
+    if dialect == _POWERSHELL and name in _PS_ALIAS_SETTERS:
+        _note_directory_change()
+        return []
+
+    # fish, csh, tcsh, nu and Tcl code is not read, so inline or piped code
+    # for them is unplaceable. A script they run is Rule D's.
+    if name in _OTHER_SHELLS or name == "tclsh":
+        inline = name in _OTHER_SHELLS and bool(_option_scan(rest[1:], frozenset(), known=_OTHER_SHELL_INLINE)[0] & _OTHER_SHELL_INLINE)
+
+        return [_UNPLACEABLE_SHELL_TARGET] if inline or feed() is not None else None
+
+    if name in _LINE_EDITORS and feed() is not None:
+        return _line_editor_targets(name, rest, feed(), powershell)
+
     if dialect == _POWERSHELL and _PS_ALIASES.get(name, name) == "invoke-expression":
         bound = _ps_bind(rest, _PS_CMDLETS["invoke-expression"])
         code = " ".join(_ps_values(bound, "-command", _PS_UNBOUND))
@@ -4906,7 +5536,7 @@ def _code_runner_targets(
         return _fed_targets(feed(), depth, dialect, name, powershell)
 
     if name in ("su", "runuser"):
-        code = _option_value(rest, ("-c", "--command"))
+        code = _su_code(rest)
 
         return _child_shell_targets(code, depth, _POSIX) if code else []
 
@@ -4970,6 +5600,29 @@ def _shell_script(name: str, tokens: List[str]) -> str:
         return flags[index]
 
     return ""
+
+
+# su's and runuser's own options, from util-linux su(1) and runuser(1).
+_SU_OPTIONS = _OptionSpec(
+    values=frozenset({
+        "-c", "--command", "--session-command", "-s", "--shell", "-g", "--group", "-G", "--supp-group", "-u",
+        "--user", "-w", "--whitelist-environment",
+    }),
+    long_flags=frozenset({"--login", "--preserve-environment", "--pty", "--fast", "--help", "--version"}),
+)
+_SU_COMMANDS = frozenset({"-c", "--command", "--session-command"})
+
+
+def _su_code(tokens: List[str]) -> str:
+    """The shell code su or runuser runs: -c, --command or --session-command, clustered, abbreviated or not, or "".
+
+    su reads its options wherever they sit, the way getopt_long permutes
+    them, so `su nobody -c id` and `su -lc id nobody` both run `id`. The
+    last one given wins, as getopt leaves it.
+    """
+    commands = [value for option, value in _read_options(tokens[1:], _SU_OPTIONS).options if option in _SU_COMMANDS]
+
+    return next((value for value in reversed(commands) if value), "")
 
 
 def _option_value(tokens: List[str], names: Tuple[str, ...]) -> str:
@@ -5437,10 +6090,72 @@ _COMMAND_RUNNERS: Dict[str, Callable[[List[str], int, str], List[str]]] = {
     "at": _scheduler_targets,
     "crontab": _scheduler_targets,
     "wmic": _wmic_targets,
+    # chroot moves every path the command names under its new root.
+    "chroot": _always_unplaceable,
     "docker-compose": _container_targets,
     "podman-compose": _container_targets,
 }
 _COMMAND_RUNNERS.update({name: _container_targets for name in _CONTAINER_TOOLS})
+
+# Programs that take code, a program to run or a file to run from their
+# arguments, so an argument the gate cannot read leaves that code unread.
+_CODE_FROM_ARGUMENTS = frozenset(
+    _POSIX_SHELLS
+    | _OTHER_SHELLS
+    | _POWERSHELL_SHELLS
+    | _CMD_SHELLS
+    | _INLINE_CODE_TOOLS
+    | _INPLACE_TOOLS
+    | {"eval", "source", ".", "su", "runuser", "sqlite3", "tclsh", "find", "start", "start-process", "invoke-expression", "iex", "apply_patch", "applypatch"}
+)
+
+# Line editors read their commands from standard input. ed and red are read
+# here, ex is vim's command line, which can run anything, so it is not.
+_LINE_EDITORS = frozenset({"ed", "red", "ex"})
+_ED_VALUE_FLAGS = frozenset({"-p", "--prompt"})
+_ED_ADDRESS_RE = re.compile(r"^[\s0-9.$,;+\-^]*(?:(?:'[a-z]|/(?:[^/\\]|\\.)*/|\?(?:[^?\\]|\\.)*\?)[\s0-9.$,;+\-^]*)*")
+_ED_INPUT_COMMANDS = frozenset({"a", "i", "c"})
+_ED_GLOBAL_COMMANDS = frozenset({"g", "G", "v", "V"})
+_ED_FILE_COMMANDS = frozenset({"e", "E", "f"})
+
+
+def _line_editor_targets(name: str, tokens: List[str], feed: Optional[str], powershell: bool) -> List[str]:
+    """What ed or red writes from the commands piped into it, or unplaceable when the gate cannot follow them.
+
+    `w`, `W` and `wq` write the named file or the one being edited, `!`
+    runs a shell command, `e`, `E` and `f` change the file being edited, and
+    a global command runs a command list of its own.
+    """
+    if name == "ex" or feed is None or feed == _UNKNOWN_INPUT:
+        return [_UNPLACEABLE_SHELL_TARGET]
+
+    operands = _operands(tokens[1:], _ED_VALUE_FLAGS)
+    edited = operands[0] if operands else ""
+    targets: List[str] = []
+    inserting = False
+
+    for line in feed.splitlines():
+        if inserting:
+            inserting = line != "."
+            continue
+
+        command = _ED_ADDRESS_RE.sub("", line, count=1)
+        letter, argument = command[:1], command[1:]
+
+        if letter == "!" or argument.lstrip().startswith("!") or letter in _ED_GLOBAL_COMMANDS:
+            return [_UNPLACEABLE_SHELL_TARGET]
+
+        if letter in _ED_INPUT_COMMANDS:
+            inserting = True
+        elif letter in _ED_FILE_COMMANDS and argument.strip():
+            edited = argument.strip()
+        elif letter in ("w", "W"):
+            named = argument[1:] if argument.startswith("q") else argument
+            target = named.strip() or edited
+
+            targets += _sourced([target], powershell) if target else [_UNPLACEABLE_SHELL_TARGET]
+
+    return targets
 
 
 def _find_matches(starts: List[str], expression: List[str]) -> List[str]:
@@ -5686,7 +6401,7 @@ def _sed_script_targets(script: str) -> List[str]:
 
         if char in "wW":
             end = script.find("\n", index)
-            targets.append(script[index + 1 : len(script) if end < 0 else end].strip())
+            targets += _sed_file_names(script[index + 1 : len(script) if end < 0 else end])
             index = len(script) if end < 0 else end
             continue
 
@@ -5706,7 +6421,7 @@ def _sed_script_targets(script: str) -> List[str]:
 
             if char == "s" and "w" in flags:
                 line_end = script.find("\n", end)
-                targets.append(script[end + 1 : len(script) if line_end < 0 else line_end].split("w", 1)[1].strip())
+                targets += _sed_file_names(script[end + 1 : len(script) if line_end < 0 else line_end].split("w", 1)[1])
                 index = len(script) if line_end < 0 else line_end
                 continue
 
@@ -5720,6 +6435,20 @@ def _sed_script_targets(script: str) -> List[str]:
         index = end + 1 if char in "aicrRbtTvlqQL:#" else index + 1
 
     return [target for target in targets if target and target not in ("/dev/stdout", "/dev/stderr")]
+
+
+def _sed_file_names(text: str) -> List[str]:
+    """The file a sed w command or flag opens, as GNU sed and BSD sed each read the rest of its line.
+
+    GNU sed's read_filename skips only leading blanks, through in_nonblank,
+    and BSD sed's EATSPACE skips any leading whitespace before duptoeol,
+    which keeps trailing whitespace after a warning. Neither trims the end,
+    so `w /tmp/l ` opens a file whose name ends in a blank.
+    """
+    gnu = text.lstrip(" \t")
+    bsd = text.lstrip(" \t\n\v\f\r")
+
+    return [gnu] if gnu == bsd else [gnu, bsd]
 
 
 def _sed_delimited_end(script: str, index: int, delimiter: str) -> int:
@@ -5740,8 +6469,13 @@ def _sed_delimited_end(script: str, index: int, delimiter: str) -> int:
 def _program_texts(name: str, tokens: List[str]) -> Optional[List[str]]:
     """The sed script or awk program a command runs, or None when a program file cannot be read."""
     flags = tokens[1:]
-    expressions = [value for _flag, value in _long_or_short_values(tokens, "-e", "--expression")] if name in _SED_TOOLS else []
-    files = [value for _flag, value in _long_or_short_values(tokens, "-f", "--file")]
+
+    if name in _SED_TOOLS:
+        call = _sed_call(tokens)
+        expressions, files = call.expressions, call.files
+    else:
+        expressions, files = [], [value for _flag, value in _long_or_short_values(tokens, "-f", "--file")]
+
     texts = list(expressions)
 
     for path in files:
@@ -5752,10 +6486,10 @@ def _program_texts(name: str, tokens: List[str]) -> Optional[List[str]]:
 
         texts.append(text)
 
-    if texts:
+    if texts or files:
         return texts
 
-    operands = _operands(flags, _SED_VALUE_FLAGS if name in _SED_TOOLS else _AWK_VALUE_FLAGS)
+    operands = _sed_call(tokens).operands if name in _SED_TOOLS else _operands(flags, _AWK_VALUE_FLAGS)
 
     return operands[:1]
 
@@ -5801,8 +6535,7 @@ def _script_program_targets(name: str, tokens: List[str], powershell: bool = Fal
 
 
 def _started_process_targets(tokens: List[str], depth: int) -> List[str]:
-    """What Start-Process runs: its -FilePath with its -ArgumentList, from its -WorkingDirectory."""
-    global _CD_BASE
+    """What Start-Process runs: its -FilePath with its -ArgumentList. A -WorkingDirectory is a directory change."""
     bound = _ps_bind(tokens, _PS_CMDLETS["start-process"])
     program = _ps_values(bound, "-filepath")
 
@@ -5813,23 +6546,21 @@ def _started_process_targets(tokens: List[str], depth: int) -> List[str]:
         return []
 
     arguments = [word for value in _ps_values(bound, "-argumentlist", _PS_UNBOUND) for word in _windows_argv(value)]
-    saved = _CD_BASE
 
-    try:
-        for directory in _ps_values(bound, "-workingdirectory")[:1]:
-            _enter_directory([directory])
+    if _ps_values(bound, "-workingdirectory"):
+        _note_directory_change()
 
-        return _segment_targets(program[:1] + arguments, depth + 1, _CMD)
-    finally:
-        _CD_BASE = saved
+    return _segment_targets(program[:1] + arguments, depth + 1, _CMD)
 
 
 _CMD_START_VALUE_SWITCHES = {"d", "node", "affinity"}
 
 
 def _cmd_start_targets(tokens: List[str], depth: int) -> List[str]:
-    """What cmd's start runs. A first quoted word may be the window title, so both readings are judged."""
-    global _CD_BASE
+    """What cmd's start runs. A first quoted word may be the window title, so both readings are judged.
+
+    A /d folder is a directory change.
+    """
     index = 1
     directory = ""
 
@@ -5844,26 +6575,23 @@ def _cmd_start_targets(tokens: List[str], depth: int) -> List[str]:
         index += 1
 
     rest = tokens[index:]
-    saved = _CD_BASE
 
-    try:
-        if directory:
-            _enter_directory([directory])
+    if directory:
+        _note_directory_change()
 
-        targets: List[str] = []
+    targets: List[str] = []
 
-        for start in (0, 1):
-            if rest[start:] and rest[start]:
-                targets += _segment_targets(rest[start:], depth + 1, _CMD)
+    for start in (0, 1):
+        if rest[start:] and rest[start]:
+            targets += _segment_targets(rest[start:], depth + 1, _CMD)
 
-        return targets
-    finally:
-        _CD_BASE = saved
+    return targets
 
 
 # What a Rule D denial carries in place of a write target, followed by the
 # command. _apply_rules picks the reason by this prefix.
 _SCRIPT_RUN = "script run: "
+_WAITING_RUN = "waiting program: "
 
 _PROGRAM_ALIASES = {"py": "python", "nodejs": "node", "pip3": "pip"}
 
@@ -6175,6 +6903,14 @@ def _runs_a_script(tokens: List[str], dialect: str) -> bool:
     if _runs_a_program_by_path(program, name):
         return True
 
+    if name in _OTHER_SHELLS:
+        names, operands = _option_scan(tokens[1:], _OTHER_SHELL.values, known=_OTHER_SHELL_INLINE | _OTHER_SHELL.stays)
+
+        return not names & _OTHER_SHELL_INLINE and bool(operands) and operands[0] != "-"
+
+    if name == "tclsh":
+        return any(not token.startswith("-") for token in tokens[1:])
+
     if name == "python":
         return _python_runs_script(tokens)
 
@@ -6211,15 +6947,569 @@ _RULE_D_PROGRAMS = (
     | _BUILD_RUNNERS
     | _POWERSHELL_SHELLS
     | _POSIX_SHELLS
+    | _OTHER_SHELLS
+    | {"tclsh"}
     | _CMD_SHELLS
 )
 
 
+def _allowlist_roots() -> List[Path]:
+    """The roots whose allowlist file the gate trusts: its working directory and its install root.
+
+    Every wiring starts the gate in the project root, and Rule A keeps the
+    main thread from writing there, which is what makes the file trusted.
+    The payload's cwd is left out, because Codex fills it from the workdir
+    the main thread picks per call, so it can name a folder outside the
+    project that the main thread wrote a file into a moment earlier.
+    """
+    return _resolved_roots((Path.cwd(), _script_root()))
+
+
+# Rule F. A program waits for typed input when it reads its program from the
+# terminal: a shell, an interpreter or a REPL started with nothing to run, or
+# an editor. Codex's write_stdin then types into it without a PreToolUse event
+# (codex-rs/core/src/tools/handlers/unified_exec/write_stdin.rs returns None
+# from pre_tool_use_payload), so whatever is typed there is never read.
+class _Waiting(NamedTuple):
+    """How Rule F reads one program's arguments.
+
+    `inline` flags hand it code, which the other rules read or, for a
+    language they cannot read, refuse as unplaceable, so it no longer
+    waits. `stays` flags keep it waiting after that code or a script. `runs`
+    flags hand it a script or a module, which is Rule D's. `values` take the
+    next word as their value, so that word is not a script. `info` flags
+    print something and exit. `always` marks a program that waits whatever it
+    is handed, and `reads_feed` one that takes its commands from a pipe or a
+    heredoc instead, as a line editor does.
+    """
+
+    inline: FrozenSet[str] = frozenset()
+    stays: FrozenSet[str] = frozenset()
+    runs: FrozenSet[str] = frozenset()
+    values: FrozenSet[str] = frozenset()
+    info: FrozenSet[str] = frozenset()
+    always: bool = False
+    reads_feed: bool = True
+
+
+_INFO_FLAGS = frozenset({"--version", "--help"})
+_OTHER_SHELL = _Waiting(
+    inline=frozenset({"-c", "--command", "--commands"}),
+    stays=frozenset({"-C", "--init-command"}),
+    values=frozenset({"-C", "--init-command"}),
+)
+_PYTHON_WAITING = _Waiting(
+    inline=frozenset({"-c"}), stays=frozenset({"-i"}), runs=frozenset({"-m"}),
+    values=frozenset(_PYTHON_VALUE_FLAGS), info=frozenset({"-V", "-VV", "-h"}),
+)
+_REPL_ONLY = _Waiting(always=True, info=frozenset({"-v", "-h", "-version", "--numeric-version"}))
+_SCREEN_EDITOR = _Waiting(always=True, reads_feed=False, info=frozenset({"-h", "-V"}))
+_LINE_EDITOR = _Waiting(always=True, info=frozenset({"-h", "-V"}))
+# A pager, a terminal multiplexer and the rest below read the keyboard from
+# the terminal whatever they are handed. tmux is held with every subcommand,
+# because send-keys types into a session and attach hands one over.
+_PAGER = _Waiting(always=True, reads_feed=False, info=frozenset({"-V", "-?"}))
+_ALWAYS_WAITING = _Waiting(always=True, reads_feed=False, info=frozenset({"-V", "-v", "-h"}))
+
+# The programs Rule F knows by the name _canonical_program gives them. deno
+# waits with no subcommand, read apart from this table, and its repl, like
+# `bun repl`, is a subcommand Rule D already denies. The POSIX shells,
+# PowerShell and cmd are read by the helpers Rule D already uses.
+_WAITING_PROGRAMS: Dict[str, _Waiting] = {
+    **{shell: _OTHER_SHELL for shell in _OTHER_SHELLS},
+    "python": _PYTHON_WAITING,
+    "node": _Waiting(
+        inline=frozenset(_JS_INLINE_FLAGS), stays=frozenset({"-i", "--interactive"}), runs=frozenset(_JS_SCRIPT_FLAGS),
+        values=frozenset(_JS_OPTION_VALUES | _JS_INLINE_FLAGS), info=frozenset({"-v", "-h"}),
+    ),
+    "perl": _Waiting(
+        inline=frozenset({"-e", "-E"}),
+        stays=frozenset({"-d"}),
+        values=frozenset({"-e", "-E", "-I"}),
+        info=frozenset({"-v", "-V", "-h"}),
+    ),
+    "ruby": _Waiting(
+        inline=frozenset({"-e"}),
+        values=frozenset({"-e", "-I", "-r", "-C"}),
+        info=frozenset({"-v", "-h"}),
+    ),
+    "php": _Waiting(
+        inline=frozenset({"-r", "-B", "-R", "-E"}),
+        stays=frozenset({"-a"}),
+        runs=frozenset({"-f", "-F", "-S"}),
+        values=frozenset({"-r", "-B", "-R", "-E", "-f", "-F", "-S", "-c", "-d", "-z", "-t"}),
+        info=frozenset({"-v", "-h", "-i", "-m"}),
+    ),
+    **{
+        lua: _Waiting(
+            inline=frozenset({"-e"}),
+            stays=frozenset({"-i"}),
+            values=frozenset({"-e", "-l"}),
+            info=frozenset({"-v"}),
+        )
+        for lua in ("lua", "luajit")
+    },
+    "r": _Waiting(
+        inline=frozenset({"-e"}),
+        runs=frozenset({"-f", "--file"}),
+        values=frozenset({"-e", "-f", "-d", "-g"}),
+        info=frozenset({"-h"}),
+    ),
+    "julia": _Waiting(
+        inline=frozenset({"-e", "-E", "--eval", "--print"}),
+        stays=frozenset({"-i"}),
+        values=frozenset({
+            "-e", "-E", "--eval", "--print", "-t", "-p", "-J", "-L", "-C", "-O", "-g", "--threads", "--procs",
+            "--sysimage", "--load",
+        }),
+        info=frozenset({"-v", "-h"}),
+    ),
+    "tclsh": _Waiting(),
+    **{repl: _REPL_ONLY for repl in ("irb", "pry", "bpython", "ptpython", "ghci", "jshell")},
+    **{
+        editor: _SCREEN_EDITOR
+        for editor in ("vi", "vim", "nvim", "view", "vimdiff", "nano", "pico", "emacs", "mg", "micro")
+    },
+    **{editor: _LINE_EDITOR for editor in ("ed", "red", "ex")},
+    **{pager: _PAGER for pager in ("less", "more", "most")},
+    "tmux": _Waiting(always=True, reads_feed=False, info=frozenset({"-V"})),
+    "screen": _Waiting(always=True, reads_feed=False, info=frozenset({"-v"})),
+    **{program: _ALWAYS_WAITING for program in ("expect", "newgrp", "pdb", "pdb3")},
+}
+
+
+class _Console(NamedTuple):
+    """A program that waits unless an option or an operand hands it its work.
+
+    `done` options hand it the work and it exits after, `stays` options keep
+    it waiting even then, `values` take the next word, and `info` options
+    print something and exit. An operand from index `command_operand` on is
+    a command it runs and exits after, and an operand ending in one of
+    `script_suffixes` a script. Options are read wherever they sit, the way
+    getopt permutes them, bundled after one dash unless `clusters` is False,
+    and `reads_feed` marks a program that takes its work from a pipe instead.
+    """
+
+    done: FrozenSet[str] = frozenset()
+    stays: FrozenSet[str] = frozenset()
+    values: FrozenSet[str] = frozenset()
+    info: FrozenSet[str] = frozenset()
+    command_operand: int = -1
+    script_suffixes: Tuple[str, ...] = ()
+    clusters: bool = True
+    reads_feed: bool = True
+
+
+_SQLITE_OPTIONS = frozenset(_SQLITE_VALUE_FLAGS | {"-" + flag for flag in _SQLITE_VALUE_FLAGS})
+_MYSQL = _Console(
+    done=frozenset({"-e", "--execute"}),
+    values=frozenset({
+        "-e", "--execute", "-u", "--user", "-h", "--host", "-P", "--port", "-D", "--database", "-S", "--socket",
+        "--default-character-set", "--defaults-file", "--defaults-extra-file", "--login-path", "--protocol",
+        "--init-command", "--ssl-ca", "--ssl-cert", "--ssl-key",
+    }),
+    info=frozenset({"-V", "-?", "-I"}),
+)
+# Database shells and debuggers. sqlite3 runs its second operand as SQL,
+# redis-cli runs its first as a command, and gdb and lldb exit after their
+# commands only in batch mode.
+_CONSOLES: Dict[str, _Console] = {
+    "sqlite3": _Console(
+        done=frozenset({"-A", "--A"}), stays=frozenset({"-interactive", "--interactive"}), values=_SQLITE_OPTIONS,
+        info=frozenset({"-version", "-help"}), command_operand=1, clusters=False,
+    ),
+    "psql": _Console(
+        done=frozenset({"-c", "--command", "-f", "--file", "-l", "--list"}),
+        values=frozenset({
+            "-c", "--command", "-d", "--dbname", "-f", "--file", "-h", "--host", "-L", "--log-file", "-o", "--output",
+            "-p", "--port", "-P", "--pset", "-T", "--table-attr", "-U", "--username", "-v", "--set", "--variable",
+            "-F", "--field-separator", "-R", "--record-separator",
+        }),
+        info=frozenset({"-V", "-?"}),
+    ),
+    "mysql": _MYSQL,
+    "mariadb": _MYSQL,
+    "mongosh": _Console(
+        done=frozenset({"--eval", "-f", "--file"}), stays=frozenset({"--shell"}),
+        values=frozenset({
+            "--eval", "-f", "--file", "--host", "--port", "-u", "--username", "-p", "--password",
+            "--authenticationDatabase", "--authenticationMechanism", "--apiVersion", "--tlsCAFile",
+            "--tlsCertificateKeyFile",
+        }),
+        info=frozenset({"-h"}), script_suffixes=(".js", ".mjs", ".cjs", ".mongodb"),
+    ),
+    "redis-cli": _Console(
+        done=frozenset({
+            "--eval", "--cluster", "--scan", "--bigkeys", "--memkeys", "--keystats", "--hotkeys", "--stat",
+            "--latency", "--latency-history", "--latency-dist", "--lru-test", "--rdb", "--functions-rdb", "--pipe",
+            "--intrinsic-latency", "--replica",
+        }),
+        stays=frozenset({"--ldb", "--ldb-sync-mode"}),
+        values=frozenset({
+            "-h", "-p", "-s", "-a", "-u", "-r", "-i", "-n", "-d", "-D", "-t", "-X", "--user", "--pass", "--sni",
+            "--cacert", "--cacertdir", "--tls-ciphers", "--tls-ciphersuites", "--cert", "--key", "--pipe-timeout",
+            "--memkeys-samples", "--keystats-samples", "--pattern", "--count", "--quoted-pattern",
+            "--intrinsic-latency", "--eval", "--rdb", "--functions-rdb", "--lru-test", "--cluster",
+        }),
+        info=frozenset({"-v"}), command_operand=0, clusters=False,
+    ),
+    "gdb": _Console(
+        done=frozenset({"-batch", "--batch", "-batch-silent", "--batch-silent", "--configuration"}),
+        values=frozenset({
+            "-ex", "--ex", "--eval-command", "-iex", "--init-eval-command", "-x", "--command", "-ix", "--init-command",
+            "-p", "--pid", "-c", "--core", "-cd", "--cd", "-d", "--directory", "-s", "--symbols", "-e", "--exec",
+            "-se", "--tty", "-b", "-l", "-D", "--data-directory",
+        }),
+        info=frozenset({"-v", "-h"}), clusters=False,
+    ),
+    "lldb": _Console(
+        done=frozenset({"-b", "--batch"}),
+        values=frozenset({
+            "-o", "--one-line", "-O", "--one-line-before-file", "-s", "--source", "-S", "--source-before-file",
+            "-k", "--one-line-on-crash", "-K", "--source-on-crash", "-p", "--attach-pid", "-n", "--attach-name",
+            "-c", "--core", "-a", "--arch", "-f", "--file", "-l", "--script-language",
+        }),
+        info=frozenset({"-v", "-h"}), clusters=False,
+    ),
+    # script starts $SHELL on a terminal unless -c, or a second operand on
+    # BSD, hands it a command. Piped input goes to that shell unread.
+    "script": _Console(
+        done=frozenset({"-c", "--command"}), values=frozenset(_SCRIPT_VALUE_FLAGS | {"-o", "--output-limit"}),
+        info=frozenset({"-V", "-h"}), command_operand=1, reads_feed=False,
+    ),
+    # su, and runuser without -u, start the target user's shell unless -c
+    # hands them a command.
+    **{
+        program: _Console(
+            done=frozenset({"-c", "--command", "--session-command"}),
+            values=frozenset({
+                "-c", "--command", "--session-command", "-s", "--shell", "-g", "--group", "-G", "--supp-group", "-w",
+                "--whitelist-environment",
+            }),
+            info=frozenset({"-h", "-V"}),
+        )
+        for program in ("su", "runuser")
+    },
+}
+
+# Consoles that start a shell, for which a file on standard input is a script.
+_SHELL_CONSOLES = frozenset({"su", "runuser", "script"})
+
+# socat hands its terminal to a program through these address types.
+_SOCAT_PROGRAM_ADDRESSES = frozenset({"exec", "system", "pty", "shell"})
+_SOCAT_VALUE_FLAGS = frozenset({"-lf", "-lp", "-t", "-T", "-b", "-L", "-W", "-r", "-R"})
+_SOCAT_INFO_FLAGS = frozenset({"-V", "-h", "-hh", "-hhh", "-?", "-??", "-???"})
+
+# git subcommands whose options open an editor or a prompt on the terminal,
+# with the options of theirs that take a value. A commit opens the editor
+# unless its message comes from one of _GIT_COMMIT_MESSAGES.
+_GIT_PROMPTS: Dict[str, FrozenSet[str]] = {
+    "add": frozenset({"-p", "--patch", "-i", "--interactive", "-e", "--edit"}),
+    "checkout": frozenset({"-p", "--patch"}),
+    "restore": frozenset({"-p", "--patch"}),
+    "reset": frozenset({"-p", "--patch"}),
+    "stash": frozenset({"-p", "--patch"}),
+    "clean": frozenset({"-i", "--interactive"}),
+    "commit": frozenset({"-p", "--patch", "--interactive", "-e", "--edit", "-c", "--reedit-message"}),
+    "rebase": frozenset({"-i", "--interactive", "--edit-todo"}),
+    "config": frozenset({"-e", "--edit"}),
+}
+_GIT_PROMPT_VALUES: Dict[str, FrozenSet[str]] = {
+    "add": frozenset({"--chmod", "--pathspec-from-file"}),
+    "checkout": frozenset({"-b", "-B", "--orphan", "--conflict", "--pathspec-from-file"}),
+    "restore": frozenset({"-s", "--source", "--conflict", "--pathspec-from-file"}),
+    "reset": frozenset({"--pathspec-from-file"}),
+    "stash": frozenset({"-m", "--message", "--pathspec-from-file"}),
+    "clean": frozenset({"-e", "--exclude"}),
+    "commit": frozenset({
+        "-m", "--message", "-F", "--file", "-C", "--reuse-message", "-c", "--reedit-message", "-t", "--template",
+        "--author", "--date", "--fixup", "--squash", "--cleanup", "--pathspec-from-file", "--trailer",
+    }),
+    "rebase": frozenset({
+        "-x", "--exec", "-s", "--strategy", "-X", "--strategy-option", "-C", "--onto", "--empty", "--whitespace",
+    }),
+    "config": frozenset({"-f", "--file", "--blob", "--type", "--default", "--comment"}),
+}
+_GIT_STASH_PUSHES = frozenset({"push", "save"})
+_GIT_COMMIT_MESSAGES = frozenset({
+    "-m", "--message", "-F", "--file", "-C", "--reuse-message", "--no-edit", "--fixup", "--dry-run",
+})
+# A --fixup value that opens the editor on the commit message.
+_GIT_EDITING_FIXUPS = ("amend:", "reword:")
+# git notes add, append and edit open the editor unless a message comes with
+# them, and -c or -e opens it on that message.
+_GIT_NOTES_EDITORS = frozenset({"add", "append", "edit"})
+_GIT_NOTES_VALUES = frozenset({"-m", "--message", "-F", "--file", "-C", "--reuse-message", "-c", "--reedit-message"})
+_GIT_NOTES_MESSAGES = frozenset({"-m", "--message", "-F", "--file", "-C", "--reuse-message"})
+_GIT_NOTES_PROMPTS = frozenset({"-c", "--reedit-message", "-e", "--edit"})
+
+# sudo and doas start a shell of their own with -s or -i and no command, and
+# pkexec with no program at all: "If PROGRAM is not specified, the default
+# shell will be run" (pkexec(1)).
+_SHELL_STARTING_WRAPPERS = frozenset({"sudo", "doas"})
+_SHELL_STARTING_FLAGS = frozenset({"s", "i"})
+_SHELL_STARTING_LONG_FLAGS = frozenset({"--shell", "--login"})
+_BARE_SHELL_WRAPPERS = frozenset({"pkexec", "fakeroot", "firejail"})
+
+
+def _program_flags(tokens: List[str], values: AbstractSet[str], known: AbstractSet[str] = frozenset()) -> Set[str]:
+    """Every flag before the first operand, its value words skipped.
+
+    `known` names the flags the caller checks for, so a long prefix reads
+    as one of them or as a value option only when it is unambiguous among
+    all of them.
+    """
+    spec = _OptionSpec(values=frozenset(values), long_flags=frozenset(known))
+
+    return _read_options(tokens[1:], spec, permute=False).names
+
+
+def _option_scan(
+    words: List[str], values: AbstractSet[str], clusters: bool = True, known: AbstractSet[str] = frozenset()
+) -> Tuple[Set[str], List[str]]:
+    """Every option name and every operand, options read wherever they sit until `--`, value words skipped.
+
+    `known` is as for _program_flags.
+    """
+    read = _read_options(words, _OptionSpec(values=frozenset(values), long_flags=frozenset(known)), clusters=clusters)
+
+    return read.names, read.operands
+
+
+def _names_one_of(names: AbstractSet[str], options: AbstractSet[str]) -> bool:
+    """True when a name is one of the options or an abbreviation of a long one, as git accepts."""
+    return any(
+        name in options or (name.startswith("--") and len(name) > 2 and any(option.startswith(name) for option in options if option.startswith("--")))
+        for name in names
+    )
+
+
+def _console_waits(console: _Console, tokens: List[str], fed: bool) -> bool:
+    known = console.done | console.stays
+    names, operands = _option_scan(tokens[1:], console.values, console.clusters, known)
+
+    if names & console.stays:
+        return True
+
+    if names & (console.info | _INFO_FLAGS) or (fed and console.reads_feed) or _names_one_of(names, console.done):
+        return False
+
+    if 0 <= console.command_operand < len(operands):
+        return False
+
+    return not (console.script_suffixes and any(operand.lower().endswith(console.script_suffixes) for operand in operands))
+
+
+def _socat_waits(tokens: List[str], _fed: bool = False) -> bool:
+    """socat hands the terminal to a program through an EXEC, SYSTEM, SHELL or PTY address, whatever is piped in."""
+    names, operands = _option_scan(tokens[1:], _SOCAT_VALUE_FLAGS, clusters=False)
+
+    if names & _SOCAT_INFO_FLAGS:
+        return False
+
+    return any(re.split(r"[:,]", operand, maxsplit=1)[0].lower() in _SOCAT_PROGRAM_ADDRESSES for operand in operands)
+
+
+def _git_waits(tokens: List[str], _fed: bool = False) -> bool:
+    """git opens an editor or a prompt: a commit with no message, rebase -i, add -p and their kin, whatever is piped in."""
+    index = _git_subcommand_index(tokens)
+    subcommand = tokens[index] if index < len(tokens) else ""
+    words = tokens[index + 1 :]
+
+    if subcommand == "notes":
+        return _git_notes_waits(words)
+
+    prompts = _GIT_PROMPTS.get(subcommand)
+
+    if prompts is None:
+        return False
+
+    # git stash takes -p only as push or save, which a bare `git stash -p`
+    # means too. show and list hand -p to the diff they print.
+    if subcommand == "stash" and words and not words[0].startswith("-"):
+        if words[0] not in _GIT_STASH_PUSHES:
+            return False
+
+        words = words[1:]
+    known = prompts | (_GIT_COMMIT_MESSAGES if subcommand == "commit" else frozenset())
+    names, _operands = _option_scan(words, _GIT_PROMPT_VALUES.get(subcommand, frozenset()), known=known)
+
+    if _names_one_of(names, prompts):
+        return True
+
+    if subcommand != "commit":
+        return False
+
+    return _fixup_edits(words) or not _names_one_of(names, _GIT_COMMIT_MESSAGES)
+
+
+def _fixup_edits(words: List[str]) -> bool:
+    """True when git commit --fixup, or an abbreviation of it, takes amend: or reword:, attached or as the next word."""
+    for index, word in enumerate(words):
+        if word == "--":
+            break
+
+        name, equals, value = word.partition("=")
+
+        if len(name) < 5 or not "--fixup".startswith(name):
+            continue
+
+        if not equals:
+            value = words[index + 1] if index + 1 < len(words) else ""
+
+        if value.startswith(_GIT_EDITING_FIXUPS):
+            return True
+
+    return False
+
+
+def _git_notes_waits(words: List[str]) -> bool:
+    """git notes add, append and edit open the editor unless -m, -F or -C hands them the note."""
+    index = 0
+
+    while index < len(words) and words[index].startswith("-"):
+        index += 2 if words[index] == "--ref" else 1
+
+    if index >= len(words) or words[index] not in _GIT_NOTES_EDITORS:
+        return False
+
+    names, _operands = _option_scan(words[index + 1 :], _GIT_NOTES_VALUES, known=_GIT_NOTES_PROMPTS | _GIT_NOTES_MESSAGES)
+
+    return _names_one_of(names, _GIT_NOTES_PROMPTS) or not _names_one_of(names, _GIT_NOTES_MESSAGES)
+
+
+def _posix_shell_waits(name: str, tokens: List[str], fed: bool) -> bool:
+    """A POSIX shell waits with no inline code, no script and nothing piped in."""
+    # bash reads a long option only before its first operand or `--`, and
+    # refuses one after a short option, so a later --version is an argument
+    # of the script it reads.
+    if _INFO_FLAGS & _program_flags(tokens, _POSIX_SHELL_VALUE_FLAGS):
+        return False
+
+    return not fed and _nested_shell_code(name, tokens) is None and _reads_program_from_stdin(name, tokens)
+
+
+def _powershell_waits(tokens: List[str], fed: bool) -> bool:
+    """pwsh waits with -NoExit, or reading the terminal with no script or command."""
+    lowered = [token.lower() for token in tokens[1:]]
+
+    if any(_is_prefix_of(flag, "-noexit") or flag == "-noe" for flag in lowered):
+        return True
+
+    if any(
+        flag in ("-v", "-h", "-?", "/?") or _is_prefix_of(flag, "-version") or _is_prefix_of(flag, "-help")
+        for flag in lowered
+    ):
+        return False
+
+    return not fed and _powershell_reads_stdin(tokens[1:])
+
+
+def _cmd_waits(tokens: List[str], fed: bool) -> bool:
+    """cmd waits with /k, or with no /c or /r and nothing piped in."""
+    # cmd reads no switch past the first /c, /k or /r, so a later /k is part
+    # of the command it runs.
+    first = next((token[:2].lower() for token in tokens[1:] if token[:2].lower() in _CMD_CODE_FLAGS | {"/?"}), "")
+
+    return first == "/k" or (not fed and not first)
+
+
+def _deno_waits(tokens: List[str], fed: bool) -> bool:
+    """deno waits with no subcommand, read apart from the table because it takes no script flag."""
+    return not fed and not _operands(tokens[1:]) and not (_INFO_FLAGS | {"-v", "-V", "-h"}) & set(tokens[1:])
+
+
+def _program_waits(spec: _Waiting, tokens: List[str], fed: bool) -> bool:
+    """A program from _WAITING_PROGRAMS waits as its spec says."""
+    flags = _program_flags(tokens, spec.values, spec.stays | spec.inline | spec.runs)
+
+    if flags & spec.stays:
+        return True
+
+    if flags & (spec.info | _INFO_FLAGS):
+        return False
+
+    if spec.always:
+        return not (fed and spec.reads_feed)
+
+    if fed or flags & (spec.inline | spec.runs):
+        return False
+
+    operands = _operands(tokens[1:], spec.values)
+
+    return not operands or operands[0] == "-"
+
+
+# Programs whose waiting is read by a function of their own, by name.
+_FAMILY_WAITS: Dict[str, Callable[[List[str], bool], bool]] = {
+    "deno": _deno_waits,
+    "git": _git_waits,
+    "socat": _socat_waits,
+}
+
+
+def _waits_for_typed_input(name: str, tokens: List[str], fed: bool, reads_file: bool = False) -> bool:
+    """True when a command, wrappers already peeled, starts a program that waits for typed input (Rule F).
+
+    A database shell or a debugger whose standard input a `< file` redirect
+    points at a file reads its work from there. A shell or an interpreter fed
+    a file runs a script the gate cannot read, and su, runuser and script
+    start a shell, so a file redirect leaves those held.
+    """
+    if name in _POSIX_SHELLS:
+        return _posix_shell_waits(name, tokens, fed)
+
+    if name in _POWERSHELL_SHELLS:
+        return _powershell_waits(tokens, fed)
+
+    if name in _CMD_SHELLS:
+        return _cmd_waits(tokens, fed)
+
+    if name in _FAMILY_WAITS:
+        return _FAMILY_WAITS[name](tokens, fed)
+
+    if name in _CONSOLES:
+        return _console_waits(_CONSOLES[name], tokens, fed or (reads_file and name not in _SHELL_CONSOLES))
+
+    spec = _WAITING_PROGRAMS.get(name)
+
+    return spec is not None and _program_waits(spec, tokens, fed)
+
+
+def _starts_a_shell_of_its_own(tokens: List[str]) -> bool:
+    """sudo -s, sudo -i, the doas forms and a bare pkexec, which start a shell when they wrap no command.
+
+    Called only once the wrappers are peeled to nothing, so every word is a
+    wrapper, one of its flags or a value. A `command -v` in front describes
+    the name and starts nothing, and so does a version or help flag.
+    """
+    last = ""
+    after_starter = False
+    starts = False
+
+    for token in tokens:
+        if not token.startswith("-"):
+            last = _basename(token)
+            after_starter = after_starter or last in _SHELL_STARTING_WRAPPERS
+            starts = starts or last in _BARE_SHELL_WRAPPERS
+            continue
+
+        short = not token.startswith("--")
+
+        if _only_describes(last, token) or token in _INFO_FLAGS:
+            return False
+
+        if after_starter and (token in _SHELL_STARTING_LONG_FLAGS or (short and _SHELL_STARTING_FLAGS & set(token[1:]))):
+            starts = True
+
+    return starts
+
+
 def _project_allowlist() -> List[List[str]]:
-    """Every entry of each project root's own allowlist file, as words."""
+    """Every entry of each trusted root's own allowlist file, as words."""
     entries: List[List[str]] = []
 
-    for root in _roots():
+    for root in _allowlist_roots():
         try:
             text = (root / ALLOWLIST_FILE).read_text(encoding="utf-8")
         except (OSError, ValueError):
@@ -6231,21 +7521,16 @@ def _project_allowlist() -> List[List[str]]:
 
 
 def _names_the_same_file(actual: str, expected: str) -> bool:
-    """True when a command word and an allowlisted path name one file, from where the command stands."""
-    bases = _CD_BASE if _CD_BASE is not None else tuple(_roots())
+    """True when a command word and an allowlisted path name one file from every folder the command can stand in."""
+    bases = _current_bases()
     written = _as_path(actual)
 
-    for base in bases:
-        for root in _roots():
-            try:
-                here = _resolve(written if written.is_absolute() else base / written)
+    try:
+        wanted = {_resolve(root / _native_path(expected)) for root in _allowlist_roots()}
 
-                if here == _resolve(root / _native_path(expected)):
-                    return True
-            except (OSError, ValueError, RuntimeError):
-                continue
-
-    return False
+        return bool(bases) and all(_resolve(written if written.is_absolute() else base / written) in wanted for base in bases)
+    except (OSError, ValueError, RuntimeError):
+        return False
 
 
 def _names_a_path(word: str) -> bool:
@@ -6303,13 +7588,17 @@ def _option_width(token: str, following: List[str], check: AllowedCheck) -> int:
 
 
 def _placed_inside(target: str) -> bool:
-    """True only when target names a path that resolves inside a repository root from every base."""
+    """True only when target names a path that resolves inside a trusted root from every base.
+
+    The trusted roots are _allowlist_roots(), never the payload cwd, which
+    Codex fills from the workdir the main thread chose.
+    """
     if not target or _has_glob(target) or _has_expansion(target) or _is_unplaceable_windows_path(target):
         return False
 
     path = _as_path(target)
-    roots = _roots()
-    bases = _CD_BASE if _CD_BASE is not None else tuple(roots)
+    roots = _allowlist_roots()
+    bases = _current_bases()
 
     for base in bases:
         try:
@@ -6358,7 +7647,27 @@ def _passes_check(tokens: List[str], check: AllowedCheck) -> bool:
     return not check.inside or all(_placed_inside(operand.split("::", 1)[0]) for operand in operands)
 
 
+def _runs_inside_trusted_roots() -> bool:
+    """True when the command changes no directory and every folder it can start in is inside a trusted root.
+
+    An allowlist entry vouches for the project's own files. Run from any
+    other folder, pytest loads that folder's conftest.py and make its
+    Makefile, so the entry says nothing there, and after a directory change
+    the gate no longer knows which folder that is.
+    """
+    if _CHANGES_DIRECTORY:
+        return False
+
+    bases = _current_bases()
+    trusted = _allowlist_roots()
+
+    return bool(bases) and all(any(_is_within(base, root) for root in trusted) for base in bases)
+
+
 def _allowlisted(tokens: List[str]) -> bool:
+    if not _runs_inside_trusted_roots():
+        return False
+
     if any(_passes_check(tokens, check) for check in MAIN_THREAD_ALLOWLIST):
         return True
 
@@ -6366,40 +7675,53 @@ def _allowlisted(tokens: List[str]) -> bool:
 
 
 def _segment_targets(
-    tokens: List[str], depth: int, dialect: str = _POSIX, feed: Callable[[], Optional[str]] = _no_input
+    tokens: List[str],
+    depth: int,
+    dialect: str = _POSIX,
+    feed: Callable[[], Optional[str]] = _no_input,
+    reads_file: bool = False,
 ) -> List[str]:
+    """What one command writes, or the Rule D or Rule F marker when it runs a script or waits for typed input.
+
+    Args:
+        feed: what the command reads on standard input, when the gate can tell.
+        reads_file: True when a `< file` redirect points standard input at a file.
+    """
     if depth > _MAX_NESTING:
         return [_UNPLACEABLE_SHELL_TARGET]
+
+    if _may_change_directory(tokens, dialect):
+        _note_directory_change()
 
     stripped = _strip_wrappers(tokens, dialect)
 
     if stripped is None:
         return [_UNPLACEABLE_SHELL_TARGET]
 
-    if stripped.directories:
-        return _in_directories(stripped, depth, dialect, feed)
+    # A program's own chdir, such as env --chdir, and a program name the
+    # shell computes, which may be cd, both count as a directory change.
+    program = stripped.argv[1:2] if stripped.argv[:1] in (["&"], ["."]) else stripped.argv[:1]
 
-    return _stripped_targets(stripped, depth, dialect, feed)
+    if stripped.directories or any(_is_computed_name(word) for word in program):
+        _note_directory_change()
 
+    # xargs with nothing piped in and no file of its own reads names from the
+    # terminal, which Codex's write_stdin types into. A `< file` redirect is
+    # not counted, so `xargs rm < list.txt` is held too.
+    if stripped.xargs and not stripped.xargs_settled and feed() is None:
+        return [_WAITING_RUN + _rejoined(tokens)]
 
-def _in_directories(
-    stripped: _Stripped, depth: int, dialect: str, feed: Callable[[], Optional[str]]
-) -> List[str]:
-    """What a command run by env --chdir or sudo --chdir writes, from the directory it runs in."""
-    global _CD_BASE
-    saved = _CD_BASE
+    if not stripped.argv and _starts_a_shell_of_its_own(tokens) and feed() is None:
+        return [_WAITING_RUN + _rejoined(tokens)]
 
-    try:
-        for directory in stripped.directories:
-            _enter_directory([directory])
+    # A file a wrapper writes itself, such as time -o.
+    writes = _sourced(list(stripped.writes), dialect != _POSIX)
 
-        return _stripped_targets(stripped._replace(directories=()), depth, dialect, feed)
-    finally:
-        _CD_BASE = saved
+    return writes + _stripped_targets(stripped, depth, dialect, feed, reads_file)
 
 
 def _stripped_targets(
-    stripped: _Stripped, depth: int, dialect: str, feed: Callable[[], Optional[str]]
+    stripped: _Stripped, depth: int, dialect: str, feed: Callable[[], Optional[str]], reads_file: bool = False
 ) -> List[str]:
     rest = stripped.argv
 
@@ -6419,9 +7741,29 @@ def _stripped_targets(
     if stripped.xargs:
         rest = _xargs_arguments(rest, stripped.replace, feed())
         feed = _no_input
+        reads_file = False
+
+    # What xargs leaves can be no command at all, and a crash here would
+    # reach main()'s catch-all, which allows the whole call.
+    program = _split_array(rest[0]) if rest else []
+
+    if not program:
+        return []
+
+    if stripped.xargs:
+        # xargs may have put its words in the program's place, and words it
+        # read from a source the gate cannot see leave any code unread.
+        name = _program_name(program[0])
+        handler, binds = _handler_for(name, dialect)
+
+        if _runs_unread_words(name, rest):
+            return [_UNPLACEABLE_SHELL_TARGET]
 
     if _runs_a_script(rest, dialect) and not _allowlisted(rest):
         return [_SCRIPT_RUN + _rejoined(rest)]
+
+    if _waits_for_typed_input(_canonical_program(program[0]), rest, feed() is not None, reads_file):
+        return [_WAITING_RUN + _rejoined(rest)]
 
     runner = _code_runner_targets(name, rest, depth, dialect, feed)
 
@@ -6657,45 +7999,61 @@ def _as_path(target: str) -> Path:
         return path
 
 
-def _enter_directory(operands: List[str]) -> None:
-    """Move the resolution base to the directory a `cd` segment named.
+def _current_bases(roots: Optional[List[Path]] = None) -> Tuple[Path, ...]:
+    """The folders a relative path resolves against: the call's own workdir, or every root when it names none.
 
-    A relative destination is resolved against every base the command is
-    standing in, which starts as every repository root, so a session started
-    in a subdirectory still lands somewhere the boundary check can see. A
-    destination that is not a directory on disk is dropped rather than
-    trusted, because the real shell refuses that `cd` and stays where it was,
-    which leaves the roots to decide the rest of the command.
+    Args:
+        roots: the roots the caller already holds, so they are not read twice.
     """
-    global _CD_BASE
+    if _START_BASES is not None:
+        return _START_BASES
 
-    candidates = _operands(operands)
-
-    if not candidates:
-        return
-
-    target = _as_path(candidates[-1])
-    bases = _CD_BASE if _CD_BASE is not None else tuple(_roots())
-    landings: List[Path] = []
-
-    for base in bases:
-        try:
-            resolved = _resolve(target if target.is_absolute() else (base / target))
-        except (OSError, ValueError):
-            continue
-
-        if resolved.is_dir() and resolved not in landings:
-            landings.append(resolved)
-
-    _CD_BASE = tuple(landings) or None
+    return tuple(_roots() if roots is None else roots)
 
 
-def _in_pipeline(segments: List[ShellSegment], position: int) -> bool:
-    """True when a pipe borders this segment, whose stage is a subshell."""
-    before = segments[position - 1].control if position else ""
-    after = segments[position + 1].control if position + 1 < len(segments) else ""
+def _moved_away(path: Path) -> bool:
+    """True for a relative path in a command that changes directory, which the gate no longer places."""
+    return _CHANGES_DIRECTORY and not path.is_absolute()
 
-    return "|" in (before, after)
+
+def _note_directory_change() -> None:
+    global _CHANGES_DIRECTORY
+    _CHANGES_DIRECTORY = True
+
+
+def _may_change_directory(tokens: List[str], dialect: str) -> bool:
+    """True when a command's words name a directory change, leaving out the operands of a printer.
+
+    A printer reached past its wrappers, and not run by xargs, only prints
+    its operands, so only the words up to the printer itself are scanned.
+    Printed text that becomes code is read where it does: piped into a
+    shell, inside a substitution, or evaluated.
+    """
+    stripped = _strip_wrappers(tokens, dialect)
+
+    if stripped is not None and stripped.argv and not stripped.xargs and _program_name(stripped.argv[0]) in _PRINTERS:
+        operands = len(stripped.argv) - 1
+
+        if operands and tokens[-operands:] == stripped.argv[1:]:
+            return _names_a_directory_change(tokens[:-operands])
+
+    return _names_a_directory_change(tokens)
+
+
+def _names_a_directory_change(words: List[str]) -> bool:
+    """True when any word holds a directory changer as a whole token, or a fragment that changes directory in code."""
+    for word in words:
+        lowered = word.lower()
+
+        if any(fragment in lowered for fragment in _DIRECTORY_CHANGE_FRAGMENTS):
+            return True
+
+        tokens = _DIRECTORY_CHANGE_TOKEN_SPLIT_RE.split(lowered)
+
+        if any(_program_name(token.rstrip(".\\")) in _DIRECTORY_CHANGERS for token in tokens if token):
+            return True
+
+    return False
 
 
 def _command_targets(command: str, depth: int = 0, dialect: str = _POSIX) -> List[str]:
@@ -6707,28 +8065,11 @@ def _command_targets(command: str, depth: int = 0, dialect: str = _POSIX) -> Lis
     if depth > _MAX_NESTING:
         return [_UNPLACEABLE_SHELL_TARGET]
 
-    global _CD_BASE
-
     powershell = dialect != _POSIX
     segments = _lex(command, dialect)
     targets = _dotnet_targets(command) if dialect == _POWERSHELL or _reaches_dotnet(command) else []
-    groups: List[Optional[Tuple[Path, ...]]] = []
-
-    # Only a POSIX shell runs a parenthesised group in a subshell. In
-    # PowerShell and cmd a `cd` inside parentheses moves the shell itself.
-    subshells = dialect == _POSIX
 
     for position, segment in enumerate(segments):
-        if segment.control == "(":
-            if subshells:
-                groups.append(_CD_BASE)
-            continue
-
-        if segment.control == ")":
-            if subshells and groups:
-                _CD_BASE = groups.pop()
-            continue
-
         if segment.control:
             continue
 
@@ -6738,49 +8079,45 @@ def _command_targets(command: str, depth: int = 0, dialect: str = _POSIX) -> Lis
             continue
 
         argv = list(segment.argv)
-        saved = _CD_BASE
 
-        changer = _program_name(argv[0])
+        # A directory change writes nothing itself. A statement opening with
+        # a quoted string is a value PowerShell writes to its output, as in
+        # [IO.File]::ReadAllText('a/b.py'), and runs nothing. The .NET scan
+        # above reads the call itself. Every other segment has its words
+        # scanned for a directory change in _segment_targets.
+        if _program_name(argv[0]) in _DIRECTORY_CHANGERS or segment.expression:
+            if _may_change_directory(argv, dialect):
+                _note_directory_change()
 
-        if changer in _DIRECTORY_POPPERS:
-            if _CD_STACK:
-                _CD_BASE = _CD_STACK.pop()
-        elif changer in _DIRECTORY_CHANGERS:
-            if changer in _DIRECTORY_PUSHERS:
-                _CD_STACK.append(_CD_BASE)
+            continue
 
-            _enter_directory(_split_arrays(argv[1:]))
-        elif segment.expression:
-            # A statement opening with a quoted string is a value PowerShell
-            # writes to its output, as in [IO.File]::ReadAllText('a/b.py'),
-            # and runs nothing. The .NET scan above reads the call itself.
-            pass
-        else:
-            feed = functools.partial(_stdin_of, segments, position, dialect)
-            targets += _segment_targets(argv, depth, dialect, feed)
-
-        # Each stage of a POSIX or cmd pipeline runs in its own process, so a
-        # `cd` in one of them dies with the stage instead of moving the base
-        # for what comes after the pipeline. A PowerShell pipeline runs in the
-        # shell itself, where Set-Location sticks.
-        if dialect != _POWERSHELL and _in_pipeline(segments, position):
-            _CD_BASE = saved
+        feed = functools.partial(_stdin_of, segments, position, dialect)
+        targets += _segment_targets(argv, depth, dialect, feed, segment.reads_file)
 
     return targets
 
 
-def _shell_targets(command: str, dialect: str = _POSIX) -> List[str]:
-    """Read one shell command from the start, with `cd` followed as it goes."""
-    global _CD_BASE, _CD_STACK
+def _shell_targets(command: str, dialect: str = _POSIX, start: Optional[Tuple[Path, ...]] = None) -> List[str]:
+    """Read one shell command, and read it again from the start once it is found to change directory.
 
-    _CD_BASE = None
-    _CD_STACK = []
+    The first reading places each relative target before the gate knows a
+    directory change comes later in the command, so a command that changes
+    directory anywhere is read a second time with _CHANGES_DIRECTORY set
+    from its first word.
+
+    Args:
+        start: the directories the shell starts in, or None for every root.
+    """
+    global _CHANGES_DIRECTORY, _START_BASES
+
+    _CHANGES_DIRECTORY, _START_BASES = False, start
 
     try:
-        return _command_targets(command, dialect=dialect)
+        targets = _command_targets(command, dialect=dialect)
+
+        return _command_targets(command, dialect=dialect) if _CHANGES_DIRECTORY else targets
     finally:
-        _CD_BASE = None
-        _CD_STACK = []
+        _CHANGES_DIRECTORY, _START_BASES = False, None
 
 
 def _is_null_device(target: str, powershell: bool = False) -> bool:
@@ -6788,7 +8125,8 @@ def _is_null_device(target: str, powershell: bool = False) -> bool:
 
     A POSIX file system keeps case and blanks, so only the exact spelling is
     the device there, and `/DEV/NULL` or ` /dev/null` is an ordinary file.
-    PowerShell's Windows spellings are read without case or blanks.
+    PowerShell's Windows spellings are read without case but with their
+    blanks, because ` nul` names an ordinary file in the working directory.
     """
     if target == _POSIX_NULL_DEVICE:
         return True
@@ -6796,7 +8134,7 @@ def _is_null_device(target: str, powershell: bool = False) -> bool:
     if not powershell:
         return False
 
-    normalized = target.strip().lower()
+    normalized = target.lower()
 
     return normalized == _POSIX_NULL_DEVICE or normalized in _WINDOWS_NULL_DEVICE_TOKENS
 
@@ -6817,7 +8155,7 @@ def _names_no_file(target: str, powershell: bool = False) -> bool:
     if _is_null_device(target, powershell):
         return True
 
-    return powershell and bool(_PS_NON_FILE_PATH_RE.match(target.strip()))
+    return powershell and bool(_PS_NON_FILE_PATH_RE.match(target))
 
 
 _GLOB_CHARACTERS = "*?["
@@ -6883,7 +8221,7 @@ def _glob_reaches_a_root(target: str, inside: bool) -> bool:
     """_glob_reaches against every root, from every base. Unresolvable is True."""
     path = _as_path(target)
     roots = _roots()
-    bases = _CD_BASE if _CD_BASE is not None else tuple(roots)
+    bases = _current_bases(roots)
 
     for base in bases:
         try:
@@ -6957,13 +8295,15 @@ def _resolves_inside_repo(target: str) -> bool:
     directory, the project root the payload named, and the gate's own
     location two parents up while that is a project rather than a home
     directory), and it counts as inside when it resolves inside any one of
-    them. Once the command has changed directory the bases are those
-    directories instead (see _CD_BASE), and the roots stay the boundary
-    being tested. A glob counts as inside when any path it could match is.
-    An unresolvable path fails toward True: failing safe here means
-    denying, not allowing, and so does a loopback share no rule can map.
+    them. A call with its own workdir resolves against that folder instead,
+    and the roots stay the boundary being tested. A relative path in a
+    command that changes directory cannot be placed (see
+    _CHANGES_DIRECTORY). A glob counts as inside when any path it could
+    match is. An unresolvable path fails toward True: failing safe here
+    means denying, not allowing, and so does a loopback share no rule can
+    map.
     """
-    if _is_unplaceable_windows_path(target):
+    if _is_unplaceable_windows_path(target) or _moved_away(_as_path(target)):
         return True
 
     if _has_glob(target):
@@ -6971,12 +8311,12 @@ def _resolves_inside_repo(target: str) -> bool:
 
     path = _as_path(target)
     roots = _roots()
-    bases = _CD_BASE if _CD_BASE is not None else tuple(roots)
+    bases = _current_bases(roots)
 
     for base in bases:
         try:
             resolved = _resolve(path if path.is_absolute() else (base / path))
-        except (OSError, ValueError):
+        except (OSError, ValueError, RuntimeError):
             return True
 
         if _is_unplaceable_windows_path(str(resolved)) or any(_is_within(resolved, root) for root in roots):
@@ -6997,13 +8337,17 @@ def _path_exists_in_repo(candidate: str) -> bool:
         return True
 
     path = _as_path(candidate)
-    bases = _CD_BASE if _CD_BASE is not None else tuple(_roots())
+
+    if _moved_away(path):
+        return True
+
+    bases = _current_bases()
 
     for base in bases:
         try:
             if _resolve(path if path.is_absolute() else (base / path)).exists():
                 return True
-        except (OSError, ValueError):
+        except (OSError, ValueError, RuntimeError):
             return True
 
     return False
@@ -7016,17 +8360,18 @@ def _is_task_list(target: str) -> bool:
     path. A same-named file in a subdirectory is an ordinary target, and so
     is a glob, which may match more than the task list.
     """
-    if _has_glob(target):
+    path = _as_path(target)
+
+    if _has_glob(target) or _moved_away(path):
         return False
 
-    path = _as_path(target)
     roots = _roots()
-    bases = _CD_BASE if _CD_BASE is not None else tuple(roots)
+    bases = _current_bases(roots)
 
     for base in bases:
         try:
             resolved = _resolve(path if path.is_absolute() else (base / path))
-        except (OSError, ValueError):
+        except (OSError, ValueError, RuntimeError):
             continue
 
         if any(_same_path(resolved, root, root / TASK_LIST_NAME) for root in roots):
@@ -7079,23 +8424,27 @@ def _is_write_target(target: str, powershell: bool = False) -> bool:
 def _contains_repo(target: str) -> bool:
     """True when target is a repository root or a directory above one.
 
-    Resolved the same way as _resolves_inside_repo, against the `cd` bases
-    or else every root, and it fails the same way too: a path that cannot be
-    resolved counts as containing the repository, which denies. A glob such
-    as `../agent-*` or `../*` counts when any directory it could match is
-    the root or above it, matched one component at a time.
+    Resolved the same way as _resolves_inside_repo, against the call's
+    workdir or else every root, and it fails the same way too: a path that
+    cannot be resolved, or a relative one in a command that changes
+    directory, counts as containing the repository, which denies. A glob
+    such as `../agent-*` or `../*` counts when any directory it could match
+    is the root or above it, matched one component at a time.
     """
+    if _moved_away(_as_path(target)):
+        return True
+
     if _has_glob(target):
         return _glob_reaches_a_root(target, inside=False)
 
     path = _as_path(target)
     roots = _roots()
-    bases = _CD_BASE if _CD_BASE is not None else tuple(roots)
+    bases = _current_bases(roots)
 
     for base in bases:
         try:
             resolved = _resolve(path if path.is_absolute() else (base / path))
-        except (OSError, ValueError):
+        except (OSError, ValueError, RuntimeError):
             return True
 
         if any(_is_above(resolved, root) for root in roots):
@@ -7132,15 +8481,16 @@ def _install_root() -> Optional[Path]:
     try:
         script = Path(__file__).resolve()
         root = script.parents[2]
-    except (OSError, ValueError, IndexError):
+    except (OSError, ValueError, IndexError, RuntimeError):
         return None
 
     try:
         home = Path.home().resolve()
+        installed = home.joinpath(*GLOBAL_INSTALL_DIRECTORY).resolve()
     except (OSError, ValueError, RuntimeError):
         return root
 
-    return home if script.parent.parent == home.joinpath(*GLOBAL_INSTALL_DIRECTORY).resolve() else root
+    return home if script.parent.parent == installed else root
 
 
 def _script_root() -> Optional[Path]:
@@ -7173,15 +8523,20 @@ def _roots() -> List[Path]:
     Path comparison carries the platform's own case rule, so a Windows root
     matches whatever case the payload or the shell spelled it in.
     """
+    return _resolved_roots((Path.cwd(), _PAYLOAD_ROOT, _script_root()))
+
+
+def _resolved_roots(candidates: Tuple[Optional[Path], ...]) -> List[Path]:
+    """Each candidate root resolved, in order and once, with a missing or unresolvable one left out."""
     roots: List[Path] = []
 
-    for candidate in (Path.cwd(), _PAYLOAD_ROOT, _script_root()):
+    for candidate in candidates:
         if candidate is None:
             continue
 
         try:
             resolved = _resolve(candidate)
-        except (OSError, ValueError):
+        except (OSError, ValueError, RuntimeError):
             continue
 
         if resolved not in roots:
@@ -7477,6 +8832,11 @@ def _opens_a_browser(argv: Tuple[str, ...]) -> bool:
 def _runs_gh_expression(argv: Tuple[str, ...]) -> bool:
     """True for a gh command handed a jq or template expression, which can print the environment."""
     return argv[:1] == ("gh",) and any(READ_ONLY_GH_EXPRESSION_RE.match(word) for word in argv[1:])
+
+
+def _gh_polls_with_watch(argv: Tuple[str, ...]) -> bool:
+    """True for a gh command handed --watch, which polls until every check finishes."""
+    return argv[:1] == ("gh",) and any(READ_ONLY_GH_WATCH_RE.match(word) for word in argv[1:])
 
 
 def _gh_repository_values(argv: Tuple[str, ...]) -> List[str]:
@@ -7863,7 +9223,7 @@ def _read_only_segments_blocked(command: str, powershell: bool, patterns: List[s
         if any(_read_only_word_blocked(word) for word in parts) or _opens_a_browser(parts):
             return words
 
-        if _names_another_repository(parts) or _runs_gh_expression(parts):
+        if _names_another_repository(parts) or _runs_gh_expression(parts) or _gh_polls_with_watch(parts):
             return words
 
         pager = _opens_a_pager(segment.argv, fmt)
@@ -7875,6 +9235,47 @@ def _read_only_segments_blocked(command: str, powershell: bool, patterns: List[s
             return words
 
     return None
+
+
+_WORKDIR_KEY = "workdir"
+_UNPLACEABLE_WORKDIR = "workdir (a working directory the gate cannot place)"
+
+
+def _workdir_bases(tool_input: Dict[str, Any]) -> Optional[Tuple[Path, ...]]:
+    """The directories a shell call's own workdir names, () when it cannot be placed, None when it names none.
+
+    The OpenCode and Kilo Code bash tool runs the command in its `workdir`,
+    and the plugin hands that key through while it sends the project root as
+    the envelope's cwd. The value is a literal path, so it is kept exactly as
+    sent, read with and without a leading `~` expanded, and resolved against
+    every root when relative. A value that does not resolve to a directory
+    from any root cannot be placed.
+    """
+    value = tool_input.get(_WORKDIR_KEY)
+
+    if not isinstance(value, str) or not value:
+        return None
+
+    if _is_unplaceable_windows_path(value):
+        return ()
+
+    landings: List[Path] = []
+
+    for path in dict.fromkeys((_native_path(value), _as_path(value))):
+        for base in _roots():
+            try:
+                resolved = _resolve(path if path.is_absolute() else base / path)
+                found = resolved.is_dir()
+            except (OSError, ValueError, RuntimeError):
+                return ()
+
+            if _is_unplaceable_windows_path(str(resolved)):
+                return ()
+
+            if found and resolved not in landings:
+                landings.append(resolved)
+
+    return tuple(landings)
 
 
 def _shell_commands(tool_input: Dict[str, Any]) -> Optional[List[str]]:
@@ -7935,12 +9336,15 @@ def _apply_rules(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Opti
         return RULE_C_REASON.format(tool=tool)
 
     if tool in EDIT_TOOLS:
-        target = _direct_target(tool_input)
+        if _unreadable_path(tool_input):
+            return RULE_A_REASON.format(target=_UNREADABLE_PATH_TARGET)
 
-        if not target and tool in APPLY_PATCH_TOOLS:
+        targets = _direct_targets(tool_input)
+
+        if tool in APPLY_PATCH_TOOLS:
             candidates = _apply_patch_candidates(tool_input)
 
-            if not candidates:
+            if not targets and not candidates:
                 # No path key and no file header in the patch body: deny.
                 return RULE_A_REASON.format(target="apply_patch (unreadable patch body)")
 
@@ -7949,10 +9353,11 @@ def _apply_rules(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Opti
             if write_targets:
                 return RULE_A_REASON.format(target=write_targets[0])
 
-            return None
+        for target in targets:
+            for placement in _placements(target):
+                if _is_write_target(placement):
+                    return RULE_A_REASON.format(target=placement)
 
-        if _is_write_target(target):
-            return RULE_A_REASON.format(target=target)
         return None
 
     commands = _shell_commands(tool_input)
@@ -7965,14 +9370,29 @@ def _apply_rules(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Opti
     if tool not in SHELL_TOOLS or _UNREADABLE_COMMAND in commands:
         return None if tool in RESEARCH_TOOLS else RULE_A_REASON.format(target=_UNPLACEABLE_SHELL_TARGET)
 
+    # A call that runs in a workdir of its own is placed from there as well
+    # as from the roots, and one whose workdir cannot be placed denies.
+    workdir = _workdir_bases(tool_input)
+
+    if workdir == ():
+        return RULE_A_REASON.format(target=_UNPLACEABLE_WORKDIR)
+
+    dialect = _POWERSHELL if tool in _POWERSHELL_SHELLS else _POSIX
+
     for command in commands:
         try:
-            targets = _shell_targets(command, _POWERSHELL if tool in _POWERSHELL_SHELLS else _POSIX)
+            targets = _shell_targets(command, dialect)
+
+            if not targets and workdir:
+                targets = _shell_targets(command, dialect, workdir)
         except _ShellParseError:
             continue
 
         if targets and targets[0].startswith(_SCRIPT_RUN):
             return RULE_D_REASON.format(command=targets[0][len(_SCRIPT_RUN) :])
+
+        if targets and targets[0].startswith(_WAITING_RUN):
+            return RULE_F_REASON.format(command=targets[0][len(_WAITING_RUN) :])
 
         if targets:
             return RULE_A_REASON.format(target=targets[0])

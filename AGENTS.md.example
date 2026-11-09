@@ -32,7 +32,8 @@ relying on it or changing its wiring, read
 - It denies every tool call from a subagent whose definition declares no skills.
 - It denies the main thread web fetch and web search on Claude Code. Delegate research to a subagent.
 - It denies the main thread running a script, a module, a package or task runner, or a build, unless the command
-  passes the gate's built-in list or matches a line of `main-thread-allowlist.txt` at the root. How entries match is in
+  passes the gate's built-in list or matches a line of `main-thread-allowlist.txt` at the root. An allowed command runs
+  from the project root with no directory change anywhere in the command. How entries match is in
   [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md). Ask a subagent to add an entry.
 - Every rule fires only on a caller positively identified as the main thread, so GitHub Copilot is ungated. Any error
   inside the gate allows the call, except a path it cannot place, which counts as inside the repository.
@@ -84,6 +85,10 @@ relying on it or changing its wiring, read
 - A review spawns `code-reviewer` plus every specialist the diff touches: `security-auditor` for auth, payments,
   secrets or personal data, `database-expert` for schema or queries, `accessibility-expert` for UI,
   `performance-engineer` after a hot-path edit, `api-tester` for an API change, `legal-advisor` for terms or privacy.
+  It also spawns the stack expert for every technology the diff touches, told to review only and change nothing:
+  `devops-automator` for pipelines, containers or infrastructure, `react-nextjs-expert`, `angular-expert` or
+  `flutter-expert` for frontend and mobile, `java-pro`, `go-pro` or `python-pro` for backend, and the matching expert
+  from the catalogue for any other stack. A diff touching a pipeline and a page gets both experts.
 - A feature: `backend-architect` for the contract first, the stack expert for the code, `test-automator` for the tests,
   then `quality-loop` to measure and fix the new code before `code-reviewer` sees it.
 - Debugging: `debugger` for one failing test, `error-detective` across service logs, `devops-troubleshooter` for a

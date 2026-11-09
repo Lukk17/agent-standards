@@ -494,6 +494,7 @@ export const record = (sequenceNumber, request, format, body, decision) => {
     role: session?.role ?? null,
     header_role: session?.headerRole ?? null,
     tool_count: conversation ? conversation.tools.length : 0,
+    tools: conversation ? conversation.tools.map((tool) => tool.name) : [],
     marker: session?.marker ?? null,
     agent: session?.agent ?? null,
     path: session?.path ?? null,
