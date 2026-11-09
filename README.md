@@ -123,13 +123,13 @@ git fetch agent-standards
 Check out the production-ready paths. PowerShell:
 
 ```powershell
-git checkout agent-standards/master -- .agents .claude .opencode .kilo .codex .github/agents .github/hooks .vscode/mcp.json .mcp.json .github/mcp.json opencode.json docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md AGENTS.md.example
+git checkout agent-standards/master -- .agents .claude .opencode .kilo .codex .github/agents .github/hooks .vscode/mcp.json .mcp.json .github/mcp.json opencode.json .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md AGENTS.md.example
 ```
 
 Unix shell:
 
 ```bash
-git checkout agent-standards/master -- .agents .claude .opencode .kilo .codex .github/agents .github/hooks .vscode/mcp.json .mcp.json .github/mcp.json opencode.json docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md AGENTS.md.example
+git checkout agent-standards/master -- .agents .claude .opencode .kilo .codex .github/agents .github/hooks .vscode/mcp.json .mcp.json .github/mcp.json opencode.json .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md AGENTS.md.example
 ```
 
 Rename the one template. PowerShell:
@@ -204,13 +204,13 @@ The Unix shells need nothing here.
 Pull what Claude Code reads. PowerShell:
 
 ```powershell
-git checkout agent-standards/master -- .agents/skills .agents/hooks .claude .mcp.json AGENTS.md.example docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- .agents/skills .agents/hooks .claude .mcp.json AGENTS.md.example .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 Unix shell:
 
 ```bash
-git checkout agent-standards/master -- .agents/skills .agents/hooks .claude .mcp.json AGENTS.md.example docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- .agents/skills .agents/hooks .claude .mcp.json AGENTS.md.example .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 Rename the template so Claude Code reads it as `AGENTS.md`. PowerShell:
@@ -241,13 +241,13 @@ Then pull upstream's half back over your tree. Your `AGENTS.md`, `.claude/settin
 out on purpose, because they become yours at import. PowerShell:
 
 ```powershell
-git checkout agent-standards/master -- .agents/skills .agents/hooks .claude/agents .claude/workflows docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- .agents/skills .agents/hooks .claude/agents .claude/workflows .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 Unix shell:
 
 ```bash
-git checkout agent-standards/master -- .agents/skills .agents/hooks .claude/agents .claude/workflows docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- .agents/skills .agents/hooks .claude/agents .claude/workflows .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 #### Codex
@@ -261,13 +261,13 @@ and [.codex/config.toml](.codex/config.toml) carries both the `[mcp_servers]` ta
 Pull what Codex reads. PowerShell:
 
 ```powershell
-git checkout agent-standards/master -- .agents/skills .agents/hooks .codex AGENTS.md.example docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- .agents/skills .agents/hooks .codex AGENTS.md.example .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 Unix shell:
 
 ```bash
-git checkout agent-standards/master -- .agents/skills .agents/hooks .codex AGENTS.md.example docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- .agents/skills .agents/hooks .codex AGENTS.md.example .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 Rename the template. PowerShell:
@@ -302,13 +302,13 @@ share that one file, so take an upstream change to its hook tables with the `.co
 [Taking only the gate half](docs/AGENTS-UPDATE.md#taking-only-the-gate-half). PowerShell:
 
 ```powershell
-git checkout agent-standards/master -- .agents/skills .agents/hooks .codex/agents docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- .agents/skills .agents/hooks .codex/agents .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 Unix shell:
 
 ```bash
-git checkout agent-standards/master -- .agents/skills .agents/hooks .codex/agents docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- .agents/skills .agents/hooks .codex/agents .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 #### OpenCode
@@ -334,13 +334,13 @@ The Unix shells need nothing here.
 Pull what OpenCode reads. PowerShell:
 
 ```powershell
-git checkout agent-standards/master -- .agents/skills .agents/agents .agents/hooks .agents/plugin .opencode opencode.json AGENTS.md.example docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- .agents/skills .agents/agents .agents/hooks .agents/plugin .opencode opencode.json AGENTS.md.example .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 Unix shell:
 
 ```bash
-git checkout agent-standards/master -- .agents/skills .agents/agents .agents/hooks .agents/plugin .opencode opencode.json AGENTS.md.example docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- .agents/skills .agents/agents .agents/hooks .agents/plugin .opencode opencode.json AGENTS.md.example .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 Rename the template. PowerShell:
@@ -384,13 +384,13 @@ Then pull upstream's half back. `opencode.json` stays out, because it holds your
 declaration together. PowerShell:
 
 ```powershell
-git checkout agent-standards/master -- .agents/skills .agents/agents .agents/hooks .agents/plugin docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- .agents/skills .agents/agents .agents/hooks .agents/plugin .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 Unix shell:
 
 ```bash
-git checkout agent-standards/master -- .agents/skills .agents/agents .agents/hooks .agents/plugin docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- .agents/skills .agents/agents .agents/hooks .agents/plugin .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 #### Kilo Code
@@ -420,13 +420,13 @@ The Unix shells need nothing here.
 Pull what Kilo Code reads. PowerShell:
 
 ```powershell
-git checkout agent-standards/master -- .agents/skills .agents/agents .agents/hooks .agents/plugin .kilo opencode.json AGENTS.md.example docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- .agents/skills .agents/agents .agents/hooks .agents/plugin .kilo opencode.json AGENTS.md.example .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 Unix shell:
 
 ```bash
-git checkout agent-standards/master -- .agents/skills .agents/agents .agents/hooks .agents/plugin .kilo opencode.json AGENTS.md.example docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- .agents/skills .agents/agents .agents/hooks .agents/plugin .kilo opencode.json AGENTS.md.example .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 Rename the template. PowerShell:
@@ -456,13 +456,13 @@ git fetch agent-standards
 Then pull upstream's half back, leaving `opencode.json` alone for the same reason as OpenCode. PowerShell:
 
 ```powershell
-git checkout agent-standards/master -- .agents/skills .agents/agents .agents/hooks .agents/plugin docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- .agents/skills .agents/agents .agents/hooks .agents/plugin .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 Unix shell:
 
 ```bash
-git checkout agent-standards/master -- .agents/skills .agents/agents .agents/hooks .agents/plugin docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- .agents/skills .agents/agents .agents/hooks .agents/plugin .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 #### GitHub Copilot
@@ -489,13 +489,13 @@ the fallback. Measurement and full detail: [docs/MCP_SETUP.md](docs/MCP_SETUP.md
 Pull what Copilot reads. PowerShell:
 
 ```powershell
-git checkout agent-standards/master -- .agents/skills .agents/hooks .github/agents .github/hooks .vscode/mcp.json .github/mcp.json AGENTS.md.example docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- .agents/skills .agents/hooks .github/agents .github/hooks .vscode/mcp.json .github/mcp.json AGENTS.md.example .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 Unix shell:
 
 ```bash
-git checkout agent-standards/master -- .agents/skills .agents/hooks .github/agents .github/hooks .vscode/mcp.json .github/mcp.json AGENTS.md.example docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- .agents/skills .agents/hooks .github/agents .github/hooks .vscode/mcp.json .github/mcp.json AGENTS.md.example .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 Rename the template. PowerShell:
@@ -525,13 +525,13 @@ git fetch agent-standards
 Then pull upstream's half back, leaving both MCP files alone because they are yours after the import. PowerShell:
 
 ```powershell
-git checkout agent-standards/master -- .agents/skills .agents/hooks .github/agents .github/hooks docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- .agents/skills .agents/hooks .github/agents .github/hooks .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 Unix shell:
 
 ```bash
-git checkout agent-standards/master -- .agents/skills .agents/hooks .github/agents .github/hooks docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- .agents/skills .agents/hooks .github/agents .github/hooks .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 #### Once you have customised the set
@@ -781,6 +781,12 @@ including what each hook surface can actually block, lives in
   generated agent pins one and each runs on the user's subagent default or the session's model.
 - [.claude/](.claude/): Claude Code's own folder, with a `skills` symlink, a generated `agents/` tree, and the hooks
   in `settings.json`. It holds no `CLAUDE.md`, because any `CLAUDE.md` stops Claude Code reading `AGENTS.md`.
+- [.metrics/tools/](.metrics/tools/): the quality loop's three measuring tools by Robert C. Martin (Uncle Bob),
+  [crapper](https://github.com/unclebob/crapper), [dryer](https://github.com/unclebob/dryer) and
+  [mutator](https://github.com/unclebob/mutator), copied unchanged at pinned commits under their 0BSD licence, and the
+  wrapper `run` (`run.cmd` on Windows) the `quality-loop` subagent runs to score the code by CRAP, duplicate shape and
+  surviving mutants. The scores land in `.metrics/` and are committed. The method is his too. See
+  [.metrics/tools/README.md](.metrics/tools/README.md).
 - [.claude/workflows/skill-audit.js](.claude/workflows/skill-audit.js): a saved Claude Code workflow, run as
   `/skill-audit`, that audits the skills. See [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md#auditing-the-skills).
 - OpenSpec scaffold (consumer side only, this repo ships no `openspec-*` skills of its own, because OpenSpec is a
@@ -942,6 +948,7 @@ filenames stay in this repo only.
 | [docs/MCP_SETUP.md](docs/MCP_SETUP.md) | The real MCP config files, prerequisites, keys, env-var export per OS, the manual JetBrains and cloud-agent blocks, verification. |
 | [docs/AGENTS-UPDATE.md](docs/AGENTS-UPDATE.md) | Per-shell selective update commands including the diff-first configuration-file pair, the Windows symlink prerequisite, and the OpenSpec init and update guidance. Refreshes itself. |
 | [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md) | Installing the same skills, subagents and gate into your home directory so every project on the machine inherits them, per agent and per shell. |
+| [.metrics/tools/README.md](.metrics/tools/README.md) | Robert C. Martin's crapper, dryer and mutator, the wrapper that runs them on Linux, macOS and Windows, what it fixes, and how the copies are updated. |
 
 #### This repo only
 
