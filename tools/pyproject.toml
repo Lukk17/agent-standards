@@ -39,3 +39,5 @@ addopts = [
     "--strict-markers",
     "--strict-config",
 ]
+# pytest's own defaults, plus the quality loop's sample projects, whose tests only their CI job runs.
+norecursedirs = [".*", "*.egg", "_darcs", "build", "CVS", "dist", "node_modules", "venv", "{arch}", "quality_samples"]

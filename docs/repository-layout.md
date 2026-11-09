@@ -20,6 +20,8 @@ Three categories, and mixing them up is the one mistake that breaks a rebuild.
 | Generated, `plugins` branch only | `.claude-plugin/marketplace.json` and `plugins/<name>/` | never hand-edit and never on `master`. The `Plugins` workflow runs `python tools/gen_plugins.py <out-dir>` on every push to `master` and commits the result to the `plugins` branch |
 | Symlink | `.opencode/agents`, `.kilo/agents`, `.claude/skills` | never edit through the link, fix the link itself |
 | Canonical, global install only | `global/bin/update-global.sh`, `global/bin/update-global.ps1` | edit both together, verified by `tools/tests/test_update_global.py`, shipped to `~/.config/agents/bin` by the global install and never by a project import |
+| Vendored | `.metrics/tools/crapper/`, `dryer/`, `mutator/`, `VERSIONS`, `constraints.txt`: Robert C. Martin's tools copied unchanged at pinned commits | never hand-edit, only `tools/update_quality_tools.py` changes them. Shipped by the import |
+| Canonical | `.metrics/tools/run`, `run.cmd`, `run.py`, `quality_loop/`, `README.md`, `.gitattributes`: the wrapper that builds the tools' environments and runs them | edit directly, verified by `tools/tests/test_quality_loop_*.py`. Shipped by the import |
 | Canonical, this repo only | `main-thread-allowlist.txt` | edit directly, verified by the pytest suite under `tools/tests/`, never shipped |
 | Runtime state | `tasks.md` at the project root | written by `task_list_sync.py` and by the model, git-ignored, never committed |
 | Runtime state | `.agents/tasks.widget.json` beside `tasks.md` | generated widget snapshot, git-ignored, never committed |
@@ -63,6 +65,11 @@ agent-standards/
         standards_advisory_check.py # advisory warnings after an edit: action pins, :latest, @Query, test banners
     plugin/
       hooks.js                   # CANONICAL, OpenCode and Kilo Code runner for every hook in hooks/
+  .metrics/
+    tools/                       # Shipped. Robert C. Martin's crapper, dryer and mutator, VENDORED unchanged
+      run, run.cmd, run.py       # CANONICAL wrapper launchers, POSIX sh and Windows cmd
+      quality_loop/              # CANONICAL wrapper package, standard library only
+      .gitattributes             # CANONICAL, launcher line endings and linguist-vendored, kept by the update script
   global/
     bin/                         # CANONICAL global updater, update-global.sh and update-global.ps1
                                  # shipped only by the global install to ~/.config/agents/bin, never by a project import
@@ -76,7 +83,9 @@ agent-standards/
     check-badges.py              # README badge and social card count lint used by CI
     check-agents-md.py           # AGENTS.md size limits and no tracked CLAUDE.md, used by CI
     check-skill-mentions.py      # every skill a skill file names has a folder, used by CI
+    update_quality_tools.py      # Copies newer pinned commits of the quality tools into .metrics/tools, this repo only
     tests/                       # CANONICAL pytest suite for the hook scripts, the linters and the global updater
+      quality_samples/           # Sample projects the quality-loop CI job measures, never collected by pytest
   e2e/                           # Capability test specs, templates and run records, this repo only
   sandbox-agent/                 # Containerised sandbox that runs those specs, this repo only
   openspec/schemas/e2e-runbooks/ # Vendored companion schema, reference copy, this repo runs no OpenSpec workflow

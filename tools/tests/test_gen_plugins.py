@@ -142,13 +142,35 @@ def test_bundles_hold_nothing_but_dependencies(plugin_map):
 # The rendered output
 
 
+def _carried(plugin: gen.Plugin, skill: str) -> tuple[str, ...]:
+    """The folders a plugin carries into one of its skills, relative to that skill."""
+    prefix = f"skills/{skill}/"
+    return tuple(f"{c.target.removeprefix(prefix)}/" for c in plugin.files if c.target.startswith(prefix))
+
+
 def test_skill_copies_are_byte_identical_to_their_sources(plugin_map, rendered):
     out, _ = rendered
 
     for plugin in plugin_map.plugins:
         for skill in plugin.skills:
             copy = out / "plugins" / plugin.name / "skills" / skill
-            assert _files(copy) == _files(SOURCES.skills / skill), skill
+            carried = _carried(plugin, skill)
+            own = {path: data for path, data in _files(copy).items() if not path.startswith(carried or ("\0",))}
+            assert own == _files(SOURCES.skills / skill), skill
+
+
+def test_the_testing_plugin_carries_the_quality_tools_into_the_quality_loop_skill(plugin_map, rendered):
+    # Given the tools a project lacks, which the quality-loop skill copies from its own folder
+    out, _ = rendered
+    source = REPO_ROOT / ".metrics" / "tools"
+    copy = out / "plugins" / "testing" / "skills" / "quality-loop" / "tools"
+
+    # Then the copy holds every tracked-style file and none of a local run's leftovers
+    expected = {path: data for path, data in _files(source).items() if not gen.is_build_leftover(pathlib.PurePosixPath(path))}
+    assert _files(copy) == expected
+    assert {"run", "run.cmd", "VERSIONS", "crapper/LICENSE", "dryer/LICENSE", "mutator/LICENSE"} <= set(expected)
+    assert gen._is_executable(copy / "run")
+    assert gen._is_executable(copy / "crapper" / "crapper")
 
 
 def _qualified(name: str, home: dict[str, str]) -> str:
@@ -306,6 +328,24 @@ def test_a_symlink_inside_a_skill_is_refused(tmp_path):
         list(gen.skill_files(skill))
 
 
+def test_carried_files_leave_out_environments_caches_and_build_metadata(tmp_path):
+    for relative in ("run", "crapper/src/crapper/cli.py", "crapper/.venv/bin/python", "crapper/src/crapper.egg-info/PKG-INFO", "x/__pycache__/a.pyc", "b.pyc"):
+        (tmp_path / relative).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / relative).write_text("x")
+
+    found = [path.relative_to(tmp_path).as_posix() for path in gen.carried_files(tmp_path)]
+
+    assert found == ["crapper/src/crapper/cli.py", "run"]
+
+
+def test_a_carried_folder_that_does_not_exist_stops_the_render(plugin_map, tmp_path):
+    testing = _get(plugin_map, "testing")
+    broken = _replace(plugin_map, "testing", files=(dataclasses.replace(testing.files[0], source=".metrics/nothing-here"),))
+
+    with pytest.raises(gen.PluginMapError, match="nothing-here"):
+        gen.render(broken, tmp_path / "out", SOURCES)
+
+
 def test_main_exits_with_an_error_on_a_non_empty_directory(tmp_path):
     (tmp_path / "keep.txt").write_text("mine")
 
@@ -330,6 +370,21 @@ GOOD_MARKETPLACE = "marketplace: {name: m, owner: {name: o}, repository: 'https:
             GOOD_MARKETPLACE + "plugins:\n  - {name: core, description: d, category: development, defaultEnabled: 'false'}\n",
             "'defaultEnabled' must be true or false",
             id="a defaultEnabled that is not a boolean",
+        ),
+        pytest.param(
+            GOOD_MARKETPLACE + "plugins:\n  - {name: core, description: d, category: development, files: [{source: a, into: b}]}\n",
+            "'files' entries take exactly 'source' and 'target'",
+            id="a carried folder with an unknown key",
+        ),
+        pytest.param(
+            GOOD_MARKETPLACE + "plugins:\n  - {name: core, description: d, category: development, files: [{source: a, target: ../b}]}\n",
+            "relative path inside",
+            id="a carried folder written outside the plugin",
+        ),
+        pytest.param(
+            GOOD_MARKETPLACE + "plugins:\n  - {name: core, description: d, category: development, files: [{source: /etc, target: b}]}\n",
+            "relative path inside",
+            id="a carried folder read from outside the repository",
         ),
         pytest.param(
             "marketplace: {name: m, owner: {name: o}}\nplugins: []\n",
@@ -488,6 +543,16 @@ BROKEN_MAPS = [
     pytest.param(lambda m: _add(m, gen.MCP_ALL, "dependencies", "game"), "every server plugin: must not include game", id="mcp-all pulling a domain"),
     pytest.param(lambda m: _drop(m, gen.ALL, "dependencies", "game"), "every development plugin: missing game", id="all missing a domain"),
     pytest.param(lambda m: _add(m, gen.ALL, "dependencies", "linux"), "must not include linux", id="all pulling a host group"),
+    pytest.param(
+        lambda m: _replace(m, "game", files=(gen.CarriedFiles(".metrics/tools", "skills/quality-loop/tools"),)),
+        "carries files into skill 'quality-loop', which it does not hold",
+        id="files carried into another plugin's skill",
+    ),
+    pytest.param(
+        lambda m: _replace(m, "game", files=(gen.CarriedFiles(".metrics/tools", "agents/tools"),)),
+        "carries files outside a skill it holds",
+        id="files carried outside any skill",
+    ),
     pytest.param(lambda m: _add(m, gen.ALL, "dependencies", gen.MCP_ALL), "must not include mcp-all", id="all pulling mcp-all"),
     pytest.param(lambda m: _add(m, "game", "dependencies", "mcp-redis"), "must not include mcp-redis", id="all reaching a server through a domain"),
 ]

@@ -83,7 +83,7 @@ git fetch agent-standards
 Pull the production-ready paths:
 
 ```bash
-git checkout agent-standards/master -- .agents .claude .opencode .kilo .codex .github/agents .github/hooks .vscode/mcp.json .mcp.json .github/mcp.json opencode.json docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md AGENTS.md.example
+git checkout agent-standards/master -- .agents .claude .opencode .kilo .codex .github/agents .github/hooks .vscode/mcp.json .mcp.json .github/mcp.json opencode.json .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md AGENTS.md.example
 ```
 
 Rename the one template. PowerShell:
@@ -178,8 +178,8 @@ If any of them came through as a small text file instead of a link, go back to S
 
 [docs/AGENTS-UPDATE.md](AGENTS-UPDATE.md) ships from upstream, holds the per-shell update commands, and refreshes
 itself on every run. Open it and run the block for your shell. It refreshes the shipped documents, all four hook
-scripts and the plugin, the Copilot hook file, and only the skills, subagents and saved Claude Code workflows already
-present in your tree. Nothing new appears behind your back.
+scripts and the plugin, the Copilot hook file, the quality tools in `.metrics/tools`, and only the skills, subagents
+and saved Claude Code workflows already present in your tree. Nothing new appears behind your back.
 
 It deliberately leaves your `AGENTS.md`, your five MCP config files, and `.claude/settings.json` alone. Those are
 yours. A project imported before agent-standards stopped shipping `.claude/CLAUDE.md` still has one, and
@@ -411,6 +411,49 @@ Unix shell:
 ```bash
 ls .agents/agents
 ```
+
+---
+
+### The quality loop
+
+The `quality-loop` subagent runs the measure-and-fix loop Robert C. Martin (Uncle Bob) practises on agent-written code,
+with his three tools: [crapper](https://github.com/unclebob/crapper) scores every function by complexity and test
+coverage, [dryer](https://github.com/unclebob/dryer) lists pairs of functions with the same shape, and
+[mutator](https://github.com/unclebob/mutator) plants small bugs and reports the ones the tests miss. It fixes the worst
+first, measures again, and stops when nothing is over the limits or after three rounds: no CRAP score over 30, no
+surviving mutant in changed code, and every duplicate pair at or above 0.82 reviewed. `code-reviewer` then cites the
+scores in later reviews without running anything.
+
+The import brings his tools, copied unchanged, and the wrapper that runs them into
+[.metrics/tools/](../.metrics/tools/README.md). The scores go into `.metrics/` beside them and are committed. Ask for a
+cleanup, or hand finished work to the subagent, rather than running the wrapper from the main conversation, which the
+preflight gate keeps from running scripts. The first run on a machine needs network access to build each tool's
+environment and download the parsing grammars, and it readies the project: a `target/` line in `.gitignore`, a `.venv`
+for a Python project with its own `.gitignore` line, and for Gradle a JaCoCo report block added to the build file once.
+
+It measures Clojure, Java with Maven or Gradle, Go, TypeScript and JavaScript, Rust, and Python. Kotlin and other
+languages are not measured. On Windows the wrapper is `.metrics\tools\run.cmd`, and mutator needs Developer Mode on
+(Settings, System, For developers), because it builds each mutant's copy of the project from symbolic links, the same
+setting the symlinks in [Step 0](#step-0-prerequisites) need. The wrapper says so when it is missing.
+
+---
+
+#### If your linters see it
+
+`.metrics/tools` holds about 15,700 lines of Python, Robert C. Martin's and the wrapper's, in their own style. Its own
+`.gitattributes` marks every file `linguist-vendored`, which keeps it out of GitHub's language statistics, but a linter
+or a scanner pointed at the whole project still reads it. Leave it out in each tool's own setting:
+
+| Tool | Setting | Source |
+| --- | --- | --- |
+| Ruff | `extend-exclude = [".metrics"]` under `[tool.ruff]` | [extend-exclude](https://docs.astral.sh/ruff/settings/#extend-exclude) |
+| Black | `extend-exclude = '^/\.metrics/'` under `[tool.black]` | [--extend-exclude](https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#extend-exclude) |
+| mypy | `exclude = ['^\.metrics/']` under `[tool.mypy]` | [exclude](https://mypy.readthedocs.io/en/stable/config_file.html#confval-exclude) |
+| CodeQL | `paths-ignore: [.metrics/tools]` in the code scanning configuration file | [Specifying directories to scan](https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/customizing-your-advanced-setup-for-code-scanning#specifying-directories-to-scan) |
+
+mypy already skips a folder whose name starts with a dot when it walks a directory, so its `exclude` matters only when
+its `files` setting or its command line names `.metrics`. CodeQL honours `paths-ignore` for Python, JavaScript and
+TypeScript, and for a compiled language only when it analyses without building.
 
 ---
 

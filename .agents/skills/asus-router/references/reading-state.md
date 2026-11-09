@@ -115,13 +115,31 @@ grep -E 'WAN[ _]Connection' <workspace>/router-syslog.log | sed -E 's/^.*WAN[ _]
 
 ### The clock in the log is not one clock
 
-VERIFIED on build 386: `date` on the router printed the local summer time, the `pppd` lines and most other daemon lines were one hour behind it, and the `wan: finish adding multi routes` lines of the same reconnect were in local time, one hour after the `pppd` lines of the same event. Matched against an outside ping log kept in UTC, the `pppd` times were UTC+1.
+The offset of a tag was not the same in summer and in winter on the same router, so a reading holds only for the season it was taken in.
+
+Summer reading, taken on 2026-10-23 in summer time, VERIFIED on build 386: `date` on the router printed the local summer time, the `pppd` lines and most other daemon lines were one hour behind it, and the `wan: finish adding multi routes` lines of the same reconnect were in local time, one hour after the `pppd` lines of the same event. Matched against an outside ping log kept in UTC, the `pppd` times were UTC+1.
+
+Winter reading, taken on 2026-11-06 in winter time, when local time was UTC+1, VERIFIED on build 386: `date` on the router printed the same second as the agent's machine, and the `dropbear` line of that login in the log showed the same second. In one PPPoE reconnect the `pppd` line `Connect: ppp0 <--> <wan-ifname>`, the `wan` line `finish adding multi routes`, the `WAN Connection` line `WAN was restored.` and the `kernel` lines all fell within 6 seconds of each other, so every tag had offset 0. An outside ping log kept in UTC put the start of that drop about half a minute before the `pppd` lines of it, which fits offset 0 and not one hour. The `pppd` lines were matched to the second only against the other tags, never against an outside clock.
+
+Two time zone sources are at work on the router. A daemon that has `TZ` set from `time_zone_x` follows the router's time zone rule. A login shell and a process without `TZ` read `/etc/localtime`, so `date` in a login shell follows the zone file and not the rule. A tag can follow either source, so measure the offset of each tag and never take it from `date`.
+
+The router's time zone rule moves the lines of every daemon that follows it, so read it before the offsets. `time_zone_x_mapping` in `rc/common.c` of the Asuswrt-Merlin source at tag `3006.102.9`, fetched on 2026-11-06, takes `time_zone`, adds `time_zone_dstoff` after a comma when `time_zone_dst` is `1`, stores the result in `time_zone_x` and writes it to `/etc/TZ`. `shared/defaults.c` sets `time_zone_dstoff` to `M3.2.0/2,M10.2.0/2` by default. POSIX, section 8.3 of https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap08.html, defines `Mm.n.d` as "The d'th day (0 <= d <= 6) of week n of month m of the year", says that week 5 means "the last d day in month m", and says "Day zero is Sunday." So that default starts summer time on the second Sunday of March and ends it on the second Sunday of October. The European Union rule in the `europe` file of the tz database at https://github.com/eggert/tz is `Mar lastSun` and `Oct lastSun`, which is `M3.5.0` and `M10.5.0` in the POSIX form. A rule whose dates differ from the zone's real ones puts the lines of every daemon that follows it one hour off for the weeks between the two dates, while `date` in a login shell stays on the zone file. Read both values and compare their dates with the real ones for the zone. VERIFIED on build 386, which printed the default second Sunday dates on a router in a zone that changes on the last Sundays. The cause of the summer offset above was found on 2026-11-06 on a GT-AX6000 with build 386. It is INFERRED with high confidence and not measured, because the October log no longer exists. VERIFIED on that build: nearly every daemon (`pppd`, `syslogd`, `klogd`, `wlceventd`, `httpd`, `wanduck`, `ntp`) has `TZ` set to the `time_zone_x` string in `/proc/<pid>/environ`, and with the default second Sunday rule that string leaves summer time on the second Sunday of October. Also VERIFIED: a login shell has `TZ` empty and reads `/etc/localtime`, which is a real zone file with the correct last Sunday rule, so `date` and processes without `TZ` stayed in summer time until the last Sunday. So between the second and the last Sunday of October the `pppd` lines ran one hour behind `date`, which matches the summer reading dated 2026-10-23 without any fixed UTC+1 in `pppd`. On that build the rule moved the daemon lines and not `date`. A fix of the time zone rule reaches the daemons only after they restart.
+
+```sh
+nvram get time_zone_x
+```
+
+```sh
+nvram get time_zone_dstoff
+```
 
 So before you match a log line against a ping log or against another machine:
 
-1. Find one event that shows in both sources, such as a reconnect, and read the difference.
-2. Do this for each tag you use, `pppd`, `WAN Connection` and `wan`, because they can differ from each other.
-3. Write the offset you found next to the result.
+1. Read the time zone rule, as above, and compare its dates with the real ones for the zone.
+2. Find one event that shows in both sources, such as a reconnect, and read the difference.
+3. Do this for each tag you use, `pppd`, `WAN Connection` and `wan`, because they can differ from each other.
+4. Measure again after each change between summer time and winter time, because the offset of a tag can change with it.
+5. Write the offset you found next to the result, with the date you measured it on.
 
 ---
 
@@ -248,7 +266,9 @@ nvram get wan0_auxstate_t
 grep '^lcp-echo' /tmp/ppp/options.wan0
 ```
 
-What they mean, from `pppd/pppd/lcp.c`: `lcp-echo-adaptive` sends a keep alive request only when nothing was received in the last interval, "request echo only if the link was idle". With an interval of 6 seconds and 10 failures, the session ends only after about 60 seconds in which nothing at all came back from the ISP. A shorter gap never ends the PPPoE session, so it leaves no `pppd` line in the log.
+What they mean, from `pppd/pppd/lcp.c`: `lcp-echo-adaptive` sends a keep alive request only when nothing was received in the last interval, "request echo only if the link was idle". With an interval of 6 seconds and 10 failures, the figure derived from these settings is about 60 seconds in which nothing at all came back from the ISP before the session ends. A gap that does not end the session leaves no `pppd` line in the log.
+
+One measured drop ended sooner than that figure. VERIFIED on build 386 on 2026-11-06, with a ping log kept in the LAN: internet targets beyond the ISP's peer failed from 00:03:02, the ISP's peer itself answered until 00:03:17 and failed from 00:03:20, and `Serial link appears to be disconnected.` came at 00:03:30, which is 28 seconds after the first failure and 10 seconds after the peer stopped answering. The reason is not traced. A shorter gap can therefore end a session, so do not reject a PPPoE match only because the gap is under 60 seconds. The expected line `No response to 10 echo-requests` was absent in that drop, with `nvram get log_level` printing `6`. Filtering as the cause of the missing line is UNVERIFIED.
 
 ---
 

@@ -84,7 +84,8 @@ relying on it or changing its wiring, read
 - A review spawns `code-reviewer` plus every specialist the diff touches: `security-auditor` for auth, payments,
   secrets or personal data, `database-expert` for schema or queries, `accessibility-expert` for UI,
   `performance-engineer` after a hot-path edit, `api-tester` for an API change, `legal-advisor` for terms or privacy.
-- A feature: `backend-architect` for the contract first, the stack expert for the code, `test-automator` for the tests.
+- A feature: `backend-architect` for the contract first, the stack expert for the code, `test-automator` for the tests,
+  then `quality-loop` to measure and fix the new code before `code-reviewer` sees it.
 - Debugging: `debugger` for one failing test, `error-detective` across service logs, `devops-troubleshooter` for a
   live incident. Unfamiliar legacy code: `code-archaeologist` first, then `legacy-modernizer`.
 - Docs: `docs-architect` for long-form writing, `api-documenter` for API reference.

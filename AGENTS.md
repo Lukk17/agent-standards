@@ -84,6 +84,8 @@ script and must never be hand-edited, and some are symlinks the generator create
 | `.github/agents/*.agent.md` | generated (Copilot `*.agent.md`) | never hand-edit, run the generator |
 | `.opencode/agents`, `.kilo/agents` | symlinks to `../.agents/agents` | created and repaired by the generator |
 | `.claude/skills` | symlink to `../.agents/skills` | never edit through the link |
+| `.metrics/tools/crapper/`, `dryer/`, `mutator/`, `VERSIONS`, `constraints.txt` | vendored: Robert C. Martin's tools copied unchanged at the commits `VERSIONS` pins | never hand-edit, only `tools/update_quality_tools.py` changes them |
+| `.metrics/tools/run`, `run.cmd`, `run.py`, `quality_loop/`, `.gitattributes` | canonical: the wrapper that builds the tools' environments and runs them | edit directly, then run the pytest suite |
 
 Regenerate the subagent trees and repair the symlinks after any `subagents/*.md` change:
 
@@ -130,9 +132,9 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
 - This file and the template obey the rules they ship. `AGENTS.md` and `AGENTS.md.example` follow "Writing
   AGENTS.md files" in [AGENTS.md.example](AGENTS.md.example), and [tools/check-agents-md.py](tools/check-agents-md.py)
   fails CI on a tracked `CLAUDE.md` or a file over its limit. Detail goes to `docs/`, never back in here.
-- **CI runs on every pull request and every push to `master`,** with three parallel jobs: `actionlint`, `validate` for
-  the local checks, and `sandbox` for the containerised suite. Before you push, run every command under "Local checks"
-  in [CONTRIBUTING.md](CONTRIBUTING.md), which are the checks `validate` runs.
+- **CI runs on every pull request and every push to `master`,** with four parallel jobs: `actionlint`, `validate` for
+  the local checks, `sandbox` for the containerised suite, and `quality-loop` for the samples. Before you push, run
+  every command under "Local checks" in [CONTRIBUTING.md](CONTRIBUTING.md), which are the checks `validate` runs.
 - **[.github/workflows/agent-live-tests.yml](.github/workflows/agent-live-tests.yml) is a separate workflow and never
   part of CI.** It runs only on `workflow_dispatch` and drives each agent against a real model with
   `REQUESTY_API_KEY` (Claude Code, OpenCode, Kilo Code) or `OPENAI_API_KEY` (Codex and Copilot on `gpt-6-luna`), so

@@ -15,6 +15,8 @@
 #   that server and nothing else, with category mcp.
 # - A bundle holds dependencies only. mcp-all depends on every server plugin,
 #   and all installs core and every development plugin, nothing else.
+# - A plugin's `files` copy a repository folder into one of its own skills,
+#   leaving out each tool's .venv, caches and egg-info.
 #
 # Which domain or host group a subagent or an unpreloaded skill serves is a
 # convention the tests cannot check. CONTRIBUTING.md describes it.
@@ -113,10 +115,13 @@ plugins:
 
   - name: testing
     category: development
-    description: Tests, debugging and performance measurement, with four subagents and the regression, end-to-end runbook and Playwright skills.
+    description: Tests, debugging, performance measurement and the quality loop, with five subagents and the regression, end-to-end, Playwright and quality-loop skills. The quality loop carries Robert C. Martin's crapper, dryer and mutator (github.com/unclebob), copied into a project that lacks them.
     dependencies: [core]
-    agents: [test-automator, debugger, e2e-runner, performance-engineer]
-    skills: [ai-regression-testing, e2e-runbooks, e2e-testing]
+    agents: [test-automator, debugger, e2e-runner, performance-engineer, quality-loop]
+    skills: [ai-regression-testing, e2e-runbooks, e2e-testing, quality-loop]
+    files:
+      - source: .metrics/tools
+        target: skills/quality-loop/tools
 
   - name: docs-and-product
     category: development
@@ -160,11 +165,11 @@ plugins:
 
   - name: homelab
     category: host
-    description: Homelab hosts and services, with the home-assistant-engineer subagent and the Proxmox, router, Syncthing and machine health skills. Off until you enable it.
+    description: Homelab hosts and services, with the home-assistant-engineer subagent and the Proxmox, router, Syncthing, Samsung TV, WLED and machine health skills. Off until you enable it.
     defaultEnabled: false
     dependencies: [core]
     agents: [home-assistant-engineer]
-    skills: [home-assistant, proxmox, homelab-services, asus-router, syncthing, machine-health]
+    skills: [home-assistant, proxmox, homelab-services, asus-router, syncthing, samsung-tv, wled, machine-health]
 
   - name: personal-tools
     category: host

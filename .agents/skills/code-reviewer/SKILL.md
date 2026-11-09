@@ -69,17 +69,13 @@ Run the verification command the project's AGENTS.md documents before reading a 
 
 Cite `path:line` for every finding across correctness, maintainability, readability, doc comments (the `coding-standards` "Doc Comments" rule plus the language delta), efficiency, security, styling (against `design-system` when styling changes), edge cases and error handling, and testability.
 
+When the project has a `.metrics/crap.edn`, read the scores the `quality-loop` skill's tools wrote under `.metrics/` for the files the change touches, and cite the worst as findings: a function over CRAP 30 from `.metrics/crap.edn` as Critical, a surviving mutant in changed code from `.metrics/mutate/` as an Improvement naming the missing test, and a duplicate pair at or above 0.82 from `.metrics/dry.edn` for the duplication pass. Never run the tools in a review. Say so when the scores predate the change, because they are only as fresh as the last full run.
+
 ---
 
 ### Standards checklist
 
-Every review also runs [standards-checklist.md](references/standards-checklist.md) over the diff, section by section for the files it touches, and reports each violation as a finding with its `path:line`, every instance rather than the first. It covers, in short:
-
-- Comments and size: no divider banners, section labels or long comment blocks, nothing past about 300 lines, no cryptic names.
-- Java and Spring: no tunable in code, no `@Query` string, no nested types, OpenAPI meta-annotations with honest codes, a blank line after a wrapped signature, `Set` for membership, `StringUtils.hasText`.
-- Tests: only Given, When and Then markers, `@InjectMocks`, Lombok fixtures, split classes, digest-pinned Testcontainers.
-- Web: every string in the catalogues, English identifiers, no locale literal.
-- CI and repository: actions pinned to a SHA with `# vX.Y.Z`, no `-latest` runner or `:latest` image, no bump bots, no scratch documents, generated files marked.
+Every review also runs [standards-checklist.md](references/standards-checklist.md) over the diff, section by section for the files it touches, and reports each violation as a finding with its `path:line`, every instance rather than the first. It covers comments and file size, Java and Spring, tests, web copy, and CI, image and repository hygiene, each item with the skill that owns it.
 
 ---
 

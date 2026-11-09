@@ -10,7 +10,9 @@ tracked file already deleted from the working tree is treated as gone:
 2. The root AGENTS.md, and the AGENTS.md.example template a project renames into one, each have
    fewer than ROOT_MAX_LINES lines and are under ROOT_MAX_BYTES bytes, the most Codex reads by
    default before it truncates silently.
-3. Every other AGENTS.md has fewer than NESTED_MAX_LINES lines.
+3. Every other AGENTS.md has fewer than NESTED_MAX_LINES lines, except inside VENDORED_TREE, which holds
+   Robert C. Martin's tools copied unchanged. Rule 1 still applies there, because a CLAUDE.md anywhere in the
+   project switches off AGENTS.md loading whoever wrote it.
 
 Exit codes: 0 every rule holds, 1 a rule is broken and the output names the file, the measured
 value and the limit, 2 git could not list the files or a tracked file could not be read.
@@ -31,6 +33,7 @@ NESTED_MAX_LINES = 60
 AGENTS_FILE_NAME = "AGENTS.md"
 TEMPLATE_FILE_NAME = "AGENTS.md.example"
 FORBIDDEN_FILE_NAME = "CLAUDE.md"
+VENDORED_TREE = ".metrics/tools/"
 
 
 def tracked_files(root: Path) -> list[str]:
@@ -102,7 +105,7 @@ def main() -> int:
 
     paths = tracked_files(root)
     agents_files = [path for path in paths if Path(path).name == AGENTS_FILE_NAME]
-    nested = [path for path in agents_files if path != AGENTS_FILE_NAME]
+    nested = [path for path in agents_files if path != AGENTS_FILE_NAME and not path.startswith(VENDORED_TREE)]
 
     findings = check_no_claude_md(paths)
     for name in (AGENTS_FILE_NAME, TEMPLATE_FILE_NAME):

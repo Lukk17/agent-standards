@@ -36,6 +36,7 @@ readonly IMPORT_PATHS=(
   "docs/MCP_SETUP.md"
   "docs/AGENTS-UPDATE.md"
   "AGENTS.md.example"
+  ".metrics/tools"
 )
 
 readonly SYMLINKS=(

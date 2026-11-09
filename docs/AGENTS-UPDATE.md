@@ -15,6 +15,8 @@
   the markdown lint pass that runs after an edit, and the task-list mirror. Beside them,
   [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), the OpenCode and Kilo Code adapter that runs them all.
 - [.github/hooks/preflight.json](../.github/hooks/preflight.json), the GitHub Copilot hook configuration.
+- [.metrics/tools/](../.metrics/tools/README.md), Robert C. Martin's three quality tools, copied unchanged, and the wrapper
+  that runs them. The scores the tools write beside it in `.metrics/` are yours.
 - [AGENT_TOOLING.md](AGENT_TOOLING.md), [MCP_SETUP.md](MCP_SETUP.md), [GLOBAL_SETUP.md](GLOBAL_SETUP.md), and
   [AGENTS-UPDATE.md](AGENTS-UPDATE.md), this file, which refreshes itself.
 
@@ -24,7 +26,8 @@ and wrong every time after, because it re-adds skills and subagents you removed 
 The routine refresh, the Unix shell and PowerShell sections below, touches only what is already in your working
 tree. A skill you added locally that does not exist upstream is left alone. A skill you deleted stays deleted. To
 adopt a brand-new upstream skill or subagent, run a one-off `git checkout agent-standards/master -- <path>` for it
-once, and later refreshes will keep it current.
+once, and later refreshes will keep it current. To adopt the quality loop, check out `.agents/skills/quality-loop`, the four
+`quality-loop` subagent files and `.metrics/tools` once.
 
 Your configuration files are outside that routine entirely. Each shell section below ends with the two commands that
 handle them, and [what this skips](#what-this-skips-and-why) says which half of each file is yours.
@@ -155,10 +158,17 @@ Refresh the shipped documents, including this one.
 git checkout agent-standards/master -- docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
-Refresh all four hook scripts, the OpenCode and Kilo plugin, and the Copilot hook file.
+Remove Robert C. Martin's three tools first, so a file upstream deleted does not linger. Only the files git tracks go,
+so the tool environments, which git ignores, stay in place.
 
 ```bash
-for p in .agents/hooks .agents/plugin .github/hooks; do [ -e "$p" ] && git checkout agent-standards/master -- "$p" 2>/dev/null || true; done
+if [ -d .metrics/tools ]; then git rm -r -q --ignore-unmatch -- .metrics/tools/crapper .metrics/tools/dryer .metrics/tools/mutator; fi
+```
+
+Refresh all four hook scripts, the OpenCode and Kilo plugin, the Copilot hook file, and the quality tools.
+
+```bash
+for p in .agents/hooks .agents/plugin .github/hooks .metrics/tools; do [ -e "$p" ] && git checkout agent-standards/master -- "$p" 2>/dev/null || true; done
 ```
 
 Pull the upstream copy of every skill you currently have. Skills missing upstream are skipped silently.
@@ -219,10 +229,17 @@ Refresh the shipped documents, including this one.
 git checkout agent-standards/master -- docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
-Refresh all four hook scripts, the OpenCode and Kilo plugin, and the Copilot hook file.
+Remove Robert C. Martin's three tools first, so a file upstream deleted does not linger. Only the files git tracks go,
+so the tool environments, which git ignores, stay in place.
 
 ```powershell
-foreach ($p in '.agents/hooks', '.agents/plugin', '.github/hooks') { if (Test-Path $p) { git checkout agent-standards/master -- $p 2>$null } }
+if (Test-Path .metrics/tools) { git rm -r -q --ignore-unmatch -- .metrics/tools/crapper .metrics/tools/dryer .metrics/tools/mutator }
+```
+
+Refresh all four hook scripts, the OpenCode and Kilo plugin, the Copilot hook file, and the quality tools.
+
+```powershell
+foreach ($p in '.agents/hooks', '.agents/plugin', '.github/hooks', '.metrics/tools') { if (Test-Path $p) { git checkout agent-standards/master -- $p 2>$null } }
 ```
 
 Pull the upstream copy of every skill you currently have.
