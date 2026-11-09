@@ -21,7 +21,7 @@ Three categories, and mixing them up is the one mistake that breaks a rebuild.
 | Symlink | `.opencode/agents`, `.kilo/agents`, `.claude/skills` | never edit through the link, fix the link itself |
 | Canonical, global install only | `global/bin/update-global.sh`, `global/bin/update-global.ps1` | edit both together, verified by `tools/tests/test_update_global.py`, shipped to `~/.config/agents/bin` by the global install and never by a project import |
 | Vendored | `.metrics/tools/crapper/`, `dryer/`, `mutator/`, `VERSIONS`, `constraints.txt`: Robert C. Martin's tools copied unchanged at pinned commits | never hand-edit, only `tools/update_quality_tools.py` changes them. Shipped by the import |
-| Canonical | `.metrics/tools/run`, `run.cmd`, `run.py`, `quality_loop/`, `README.md`: the wrapper that builds the tools' environments and runs them | edit directly, verified by `tools/tests/test_quality_loop_*.py`. Shipped by the import |
+| Canonical | `.metrics/tools/run`, `run.cmd`, `run.py`, `quality_loop/`, `README.md`, `.gitattributes`: the wrapper that builds the tools' environments and runs them | edit directly, verified by `tools/tests/test_quality_loop_*.py`. Shipped by the import |
 | Canonical, this repo only | `main-thread-allowlist.txt` | edit directly, verified by the pytest suite under `tools/tests/`, never shipped |
 | Runtime state | `tasks.md` at the project root | written by `task_list_sync.py` and by the model, git-ignored, never committed |
 | Runtime state | `.agents/tasks.widget.json` beside `tasks.md` | generated widget snapshot, git-ignored, never committed |
@@ -66,6 +66,7 @@ agent-standards/
     tools/                       # Shipped. Robert C. Martin's crapper, dryer and mutator, VENDORED unchanged
       run, run.cmd, run.py       # CANONICAL wrapper launchers, POSIX sh and Windows cmd
       quality_loop/              # CANONICAL wrapper package, standard library only
+      .gitattributes             # CANONICAL, launcher line endings and linguist-vendored, kept by the update script
   global/
     bin/                         # CANONICAL global updater, update-global.sh and update-global.ps1
                                  # shipped only by the global install to ~/.config/agents/bin, never by a project import

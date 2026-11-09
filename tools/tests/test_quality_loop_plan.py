@@ -45,10 +45,24 @@ def test_gradle_gets_its_report_task_and_an_honest_baseline_on_every_system(tmp_
 
     item = only(tmp_path, languages.JAVA, host)
 
-    assert item.coverage_command == f"{gradle} test jacocoTestReport"
-    assert item.test_command == f"{gradle} -q --offline --rerun-tasks test"
+    assert item.coverage_command == f"{gradle} --no-daemon test jacocoTestReport"
+    assert item.test_command == f"{gradle} --no-daemon -q --offline --rerun-tasks test"
     assert "target/site/jacoco/jacoco.xml" in item.reports
     assert item.timeout_factor == plan.JVM_TIMEOUT_FACTOR
+
+
+@pytest.mark.parametrize("host", [POSIX, WINDOWS])
+@pytest.mark.parametrize("wrapper", [None, "gradlew", "gradlew.bat"])
+def test_every_gradle_command_runs_without_a_daemon(tmp_path, host, wrapper):
+    """A daemon a mutant's build leaves behind keeps writing into its worker folder while mutator deletes it."""
+    write(tmp_path, "build.gradle")
+    if wrapper:
+        write(tmp_path, wrapper)
+
+    item = only(tmp_path, languages.JAVA, host)
+
+    commands = [item.coverage_command, item.test_command]
+    assert all(command is not None and command.split()[1] == "--no-daemon" for command in commands), commands
 
 
 def test_maven_on_windows_runs_through_the_shell_that_finds_mvn_cmd(tmp_path):
@@ -111,7 +125,7 @@ def test_python_in_two_folders_on_windows_warns_rather_than_guess(tmp_path):
             "npx vitest run --coverage --coverage.reporter=lcov "
             "--coverage.reportsDirectory=target/coverage/typescript --coverage.reportOnFailure=true",
         ),
-        ({"test": "node --test"}, "npx --yes c8 --reporter=lcov --reports-dir target/coverage/typescript npm test"),
+        ({"test": "node --test"}, "npx --yes c8@12.0.0 --reporter=lcov --reports-dir target/coverage/typescript npm test"),
         ({}, None),
     ],
 )

@@ -27,6 +27,9 @@ JACOCO_REPORTS = ("target/site/jacoco", "*/target/site/jacoco", "*/*/target/site
 JACOCO_FILES = tuple(f"{folder}/jacoco.xml" for folder in JACOCO_REPORTS)
 PYTHON_REPORT_DIR = "target/coverage/python"
 TYPESCRIPT_REPORT_DIR = "target/coverage/typescript"
+# The c8 a Windows run wraps `npm test` in, an exact version so npx never fetches a different one. 12.0.0 needs
+# Node.js 20.19, 22.12 or 23 and newer.
+C8_VERSION = "12.0.0"
 LCOV_FILES = ("target/coverage/**/lcov.info", "coverage/**/lcov.info")
 
 # mutator stops a mutant at ten times the baseline run. A JVM build in a fresh worker, starting its own Gradle
@@ -107,7 +110,9 @@ def _java_plan(root: Path, host: Host) -> LanguagePlan:
     filters = languages.extension_filters(languages.JAVA)
     kind = build.java_build(root)
     if kind == build.GRADLE:
-        gradle = build.gradle_executable(root, host)
+        # --no-daemon: a daemon outlives the build and keeps writing into a mutant's worker folder while mutator
+        # deletes it, which crashes mutator's cleanup with "Directory not empty".
+        gradle = f"{build.gradle_executable(root, host)} --no-daemon"
         return LanguagePlan(
             languages.JAVA,
             filters,
@@ -181,7 +186,7 @@ def typescript_coverage_command(root: Path, scripts: dict[str, str]) -> str | No
             f"--coverage.reportsDirectory={TYPESCRIPT_REPORT_DIR} --coverage.reportOnFailure=true"
         )
     if "test" in scripts:
-        return f"npx --yes c8 --reporter=lcov --reports-dir {TYPESCRIPT_REPORT_DIR} npm test"
+        return f"npx --yes c8@{C8_VERSION} --reporter=lcov --reports-dir {TYPESCRIPT_REPORT_DIR} npm test"
     return None
 
 

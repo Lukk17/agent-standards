@@ -13,6 +13,9 @@ from typing import Protocol
 # Exit status of a program that could not be started at all, the shell's own convention.
 NOT_STARTED = 127
 
+# The quiet pip install every environment the wrapper builds goes through, after `<python>`.
+PIP = ("-m", "pip", "install", "--disable-pip-version-check", "--quiet")
+
 
 class Runner(Protocol):
     """Runs one argument vector in a directory and returns its exit status."""

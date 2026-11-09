@@ -432,12 +432,31 @@ The import brings his tools, copied unchanged, and the wrapper that runs them in
 cleanup, or hand finished work to the subagent, rather than running the wrapper from the main conversation, which the
 preflight gate keeps from running scripts. The first run on a machine needs network access to build each tool's
 environment and download the parsing grammars, and it readies the project: a `target/` line in `.gitignore`, a `.venv`
-for a Python project, and for Gradle a JaCoCo report block added to the build file once.
+for a Python project with its own `.gitignore` line, and for Gradle a JaCoCo report block added to the build file once.
 
 It measures Clojure, Java with Maven or Gradle, Go, TypeScript and JavaScript, Rust, and Python. Kotlin and other
 languages are not measured. On Windows the wrapper is `.metrics\tools\run.cmd`, and mutator needs Developer Mode on
 (Settings, System, For developers), because it builds each mutant's copy of the project from symbolic links, the same
 setting the symlinks in [Step 0](#step-0-prerequisites) need. The wrapper says so when it is missing.
+
+---
+
+#### If your linters see it
+
+`.metrics/tools` holds about 15,700 lines of Python, Robert C. Martin's and the wrapper's, in their own style. Its own
+`.gitattributes` marks every file `linguist-vendored`, which keeps it out of GitHub's language statistics, but a linter
+or a scanner pointed at the whole project still reads it. Leave it out in each tool's own setting:
+
+| Tool | Setting | Source |
+| --- | --- | --- |
+| Ruff | `extend-exclude = [".metrics"]` under `[tool.ruff]` | [extend-exclude](https://docs.astral.sh/ruff/settings/#extend-exclude) |
+| Black | `extend-exclude = '^/\.metrics/'` under `[tool.black]` | [--extend-exclude](https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#extend-exclude) |
+| mypy | `exclude = ['^\.metrics/']` under `[tool.mypy]` | [exclude](https://mypy.readthedocs.io/en/stable/config_file.html#confval-exclude) |
+| CodeQL | `paths-ignore: [.metrics/tools]` in the code scanning configuration file | [Specifying directories to scan](https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/customizing-your-advanced-setup-for-code-scanning#specifying-directories-to-scan) |
+
+mypy already skips a folder whose name starts with a dot when it walks a directory, so its `exclude` matters only when
+its `files` setting or its command line names `.metrics`. CodeQL honours `paths-ignore` for Python, JavaScript and
+TypeScript, and for a compiled language only when it analyses without building.
 
 ---
 

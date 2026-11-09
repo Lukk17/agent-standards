@@ -158,6 +158,13 @@ Refresh the shipped documents, including this one.
 git checkout agent-standards/master -- docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
+Remove Robert C. Martin's three tools first, so a file upstream deleted does not linger. Only the files git tracks go,
+so the tool environments, which git ignores, stay in place.
+
+```bash
+if [ -d .metrics/tools ]; then git rm -r -q --ignore-unmatch -- .metrics/tools/crapper .metrics/tools/dryer .metrics/tools/mutator; fi
+```
+
 Refresh all four hook scripts, the OpenCode and Kilo plugin, the Copilot hook file, and the quality tools.
 
 ```bash
@@ -220,6 +227,13 @@ Refresh the shipped documents, including this one.
 
 ```powershell
 git checkout agent-standards/master -- docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+```
+
+Remove Robert C. Martin's three tools first, so a file upstream deleted does not linger. Only the files git tracks go,
+so the tool environments, which git ignores, stay in place.
+
+```powershell
+if (Test-Path .metrics/tools) { git rm -r -q --ignore-unmatch -- .metrics/tools/crapper .metrics/tools/dryer .metrics/tools/mutator }
 ```
 
 Refresh all four hook scripts, the OpenCode and Kilo plugin, the Copilot hook file, and the quality tools.

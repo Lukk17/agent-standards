@@ -1,8 +1,10 @@
 """Tests for .metrics/tools/quality_loop/languages.py: which languages a project holds, as the tools see it."""
 
+import ast
 from pathlib import Path
 
-from tests.quality_loop_support import write
+import pytest
+from tests.quality_loop_support import QUALITY_TOOLS, write
 
 from quality_loop import languages
 
@@ -46,3 +48,23 @@ def test_the_typescript_filters_select_every_typescript_and_javascript_extension
 
     assert set(filters) == {".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"}
     assert all(languages.language_of(Path(f"x{suffix}")) == languages.TYPESCRIPT for suffix in filters)
+
+
+def module_constants(path: Path) -> dict[str, object]:
+    """The literal module-level constants of a vendored file, read with ast so none of its code runs."""
+    constants = {}
+    for node in ast.parse(path.read_text(encoding="utf-8")).body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            try:
+                constants[node.targets[0].id] = ast.literal_eval(node.value)
+            except ValueError:
+                continue
+    return constants
+
+
+@pytest.mark.parametrize("tool", ["crapper", "dryer"])
+def test_the_copy_of_the_discovery_rules_matches_the_vendored_tool(tool):
+    vendored = module_constants(QUALITY_TOOLS / tool / "src" / tool / "discover.py")
+
+    assert languages.SKIPPED_DIRECTORIES == vendored["SKIP_DIRS"] | vendored["TEST_DIRS"]
+    assert {extension: languages.EXTENSIONS.get(extension) for extension in vendored["EXTENSIONS"]} == vendored["EXTENSIONS"]

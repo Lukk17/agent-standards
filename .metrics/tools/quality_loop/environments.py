@@ -15,13 +15,11 @@ from collections.abc import Callable
 from pathlib import Path
 
 from quality_loop.host import Host
-from quality_loop.process import Runner
+from quality_loop.process import PIP, Runner
 
 TOOLS = ("crapper", "dryer", "mutator")
 STAMP_NAME = "quality-loop.json"
 CONSTRAINTS_NAME = "constraints.txt"
-
-PIP = ("-m", "pip", "install", "--disable-pip-version-check", "--quiet")
 
 
 def _digest(path: Path) -> str:

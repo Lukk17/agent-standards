@@ -31,14 +31,15 @@ def git(*args, cwd):
 
 
 def upstream(root, tool, files):
-    """A local repository standing in for one of the tools, with one commit holding `files`."""
+    """A local repository standing in for one of the tools, with one commit holding `files`, text or bytes."""
     repo = root / "upstream" / tool
     repo.mkdir(parents=True)
     git("init", "-q", cwd=repo)
-    for relative, text in files.items():
+    git("config", "core.autocrlf", "false", cwd=repo)
+    for relative, content in files.items():
         path = repo / relative
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
+        path.write_bytes(content if isinstance(content, bytes) else content.encode("utf-8"))
     (repo / tool).chmod(0o755)
     git("add", "-A", cwd=repo)
     git("-c", "user.name=u", "-c", "user.email=u@example.invalid", "commit", "-q", "-m", "v", cwd=repo)
@@ -59,6 +60,7 @@ def tools(tmp_path):
         lines.append(f"{tool} {repo.as_uri()} {'0' * 40}")
         commits[tool] = commit
     (folder / "VERSIONS").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (folder / ".gitattributes").write_text("*.cmd text eol=crlf\n", encoding="utf-8")
     (folder / "constraints.txt").write_text("tree-sitter==0.26.0\ntree-sitter-language-pack==1.25.0\ncoverage==7.17.2\n", encoding="utf-8")
     return folder, commits
 
@@ -150,3 +152,59 @@ def test_every_tool_suite_runs_even_after_one_fails(tmp_path):
 
     assert ran == list(UPDATE.TOOLS)
     assert results == {"crapper": False, "dryer": True, "mutator": True}
+
+
+def commit_all(repo, message):
+    git("add", "-A", cwd=repo)
+    git("-c", "user.name=u", "-c", "user.email=u@example.invalid", "commit", "-q", "-m", message, cwd=repo)
+    return git("rev-parse", "HEAD", cwd=repo)
+
+
+@pytest.mark.parametrize("spelling", ["short", "tag"])
+def test_a_short_commit_or_a_tag_is_pinned_as_the_full_commit(tools, tmp_path, spelling):
+    folder, commits = tools
+    repo = tmp_path / "upstream" / "crapper"
+    git("tag", "v1", cwd=repo)
+    wanted = commits["crapper"][:10] if spelling == "short" else "v1"
+
+    code = UPDATE.main(["--tools-dir", str(folder), "--no-verify", f"--crapper={wanted}"])
+
+    assert code == 0
+    pins = UPDATE.parse_versions((folder / "VERSIONS").read_text(encoding="utf-8"))
+    assert pins["crapper"].commit == commits["crapper"]
+
+
+def test_every_file_is_copied_byte_for_byte_whatever_its_attributes_say(tools, tmp_path):
+    folder, _commits = tools
+    repo = tmp_path / "upstream" / "dryer"
+    (repo / ".gitattributes").write_bytes(b"notes.txt export-ignore\nstamp.py export-subst\n*.bat text eol=crlf\n")
+    (repo / "notes.txt").write_bytes(b"kept\n")
+    (repo / "stamp.py").write_bytes(b"VERSION = '$Format:%H$'\n")
+    (repo / "go.bat").write_bytes(b"@echo off\necho hi\n")
+    commit_all(repo, "attributes")
+
+    assert UPDATE.main(["--tools-dir", str(folder), "--no-verify"]) == 0
+
+    copied = folder / "dryer"
+    assert (copied / "notes.txt").read_bytes() == b"kept\n"
+    assert (copied / "stamp.py").read_bytes() == b"VERSION = '$Format:%H$'\n"
+    assert (copied / "go.bat").read_bytes() == b"@echo off\necho hi\n"
+
+
+def test_the_files_agent_standards_owns_in_the_tools_folder_are_kept(tools):
+    folder, _commits = tools
+
+    UPDATE.main(["--tools-dir", str(folder), "--no-verify"])
+
+    assert (folder / ".gitattributes").read_text(encoding="utf-8") == "*.cmd text eol=crlf\n"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="creating a symlink needs Developer Mode on Windows")
+def test_a_tool_that_brings_a_symbolic_link_is_refused(tools, tmp_path):
+    folder, _commits = tools
+    repo = tmp_path / "upstream" / "crapper"
+    (repo / "escape").symlink_to("/etc/passwd")
+    commit_all(repo, "link")
+
+    assert UPDATE.main(["--tools-dir", str(folder), "--no-verify"]) == 2
+    assert (folder / "crapper" / "old.py").exists()

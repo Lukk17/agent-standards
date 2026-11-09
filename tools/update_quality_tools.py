@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Copy newer pinned commits of Robert C. Martin's crapper, dryer and mutator into .metrics/tools/.
 
-His code is copied unchanged: every file git tracks at the chosen commit, with its mode, and nothing else. The
-script reads each tool's repository from .metrics/tools/VERSIONS, takes the commit named on the command line or
-else the upstream HEAD, refuses a commit whose LICENSE is no longer the BSD Zero Clause License or that brings a
-CLAUDE.md, and only then replaces the three folders and rewrites VERSIONS. Nothing changes when one tool fails.
+His code is copied unchanged: every file git tracks at the chosen commit, byte for byte from the object store,
+with its mode, and nothing else. The script reads each tool's repository from .metrics/tools/VERSIONS, takes the
+commit, tag or branch named on the command line or else the upstream HEAD, resolves it to the full commit,
+refuses a commit whose LICENSE is no longer the BSD Zero Clause License or that brings a CLAUDE.md, and only then
+replaces the three folders and rewrites VERSIONS. Nothing changes when one tool fails. Every other file in
+.metrics/tools, such as .gitattributes, README.md and the wrapper, belongs to agent-standards and is kept.
 
 With verification on, the default, it then resolves the newest tree-sitter and tree-sitter-language-pack the three
 tools install with into a scratch environment, pins them in constraints.txt, runs each tool's own test suite there,
@@ -15,7 +17,7 @@ This script is for agent-standards maintainers and never ships.
 
 Usage:
   python tools/update_quality_tools.py                                  each tool at its upstream HEAD
-  python tools/update_quality_tools.py --crapper <commit> --dryer <commit> --mutator <commit>
+  python tools/update_quality_tools.py --crapper <rev> --dryer <rev> --mutator <rev>
   python tools/update_quality_tools.py --no-verify                      copy and pin only
 
 Exit codes: 0 updated and verified, 1 a verification step failed, 2 usage, git or licence error.
@@ -24,13 +26,12 @@ Exit codes: 0 updated and verified, 1 a verification step failed, 2 usage, git o
 from __future__ import annotations
 
 import argparse
-import io
 import json
+import os
 import re
 import shutil
 import subprocess
 import sys
-import tarfile
 import tempfile
 import venv
 from collections.abc import Iterable, Sequence
@@ -46,6 +47,9 @@ RESOLVED_PACKAGES = ("tree-sitter", "tree-sitter-language-pack")
 LICENSE_FIRST_LINE = "BSD Zero Clause License"
 FORBIDDEN_NAMES = frozenset({"CLAUDE.md"})
 COMMIT = re.compile(r"[0-9a-f]{40}")
+# git's modes for an executable file and a symbolic link in a tree. Only regular files are vendored.
+EXECUTABLE_MODE = "100755"
+SYMLINK_MODE = "120000"
 SAMPLE_CHECK = REPO_ROOT / "tools" / "tests" / "quality_samples" / "run_sample.py"
 
 
@@ -93,10 +97,6 @@ def _git(*args: str, cwd: Path | None = None) -> str:
     return result.stdout.strip()
 
 
-def upstream_head(url: str) -> str:
-    return _git("ls-remote", url, "HEAD").split()[0]
-
-
 def check_tree(tool: str, tree: Path) -> list[str]:
     """Reasons a copied tree must not be vendored."""
     problems = []
@@ -108,18 +108,49 @@ def check_tree(tool: str, tree: Path) -> list[str]:
     return problems
 
 
-def export(pin: Pin, scratch: Path) -> Path:
-    """Every file git tracks at the pinned commit, with its mode, in a fresh folder."""
-    clone = scratch / "clones" / pin.tool
-    _git("clone", "--quiet", "--no-checkout", pin.url, str(clone))
-    tree = scratch / "trees" / pin.tool
+def clone(tool: str, url: str, scratch: Path) -> Path:
+    repository = scratch / "clones" / tool
+    _git("clone", "--quiet", "--no-checkout", url, str(repository))
+    return repository
+
+
+def resolve(repository: Path, revision: str) -> str:
+    """The full commit a short commit, a tag, a branch or HEAD names, so VERSIONS always pins 40 characters."""
+    return _git("-C", str(repository), "rev-parse", "--verify", "--end-of-options", f"{revision}^{{commit}}")
+
+
+def _blob(repository: Path, blob: str) -> bytes:
+    result = subprocess.run(["git", "-C", str(repository), "cat-file", "blob", blob], capture_output=True, check=False)
+    if result.returncode != 0:
+        raise UpdateError(f"git cat-file blob {blob} failed: {result.stderr.decode(errors='replace').strip()}")
+    return result.stdout
+
+
+def export(tool: str, repository: Path, commit: str, scratch: Path) -> Path:
+    """Every file git tracks at the commit, as its stored bytes and mode, in a fresh folder. Raises UpdateError on
+    a symbolic link or a submodule.
+
+    The bytes come straight from the object store, so neither the tool's own .gitattributes (export-ignore,
+    export-subst, eol) nor the local core.autocrlf can alter a file the way git archive or a checkout would.
+    """
+    tree = scratch / "trees" / tool
     tree.mkdir(parents=True)
-    _git("-C", str(clone), "cat-file", "-e", f"{pin.commit}^{{commit}}")
-    archive = subprocess.run(["git", "-C", str(clone), "archive", pin.commit], capture_output=True, check=False)
-    if archive.returncode != 0:
-        raise UpdateError(f"git archive {pin.commit} failed for {pin.tool}")
-    with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as bundle:
-        bundle.extractall(tree, filter="data")
+    listing = subprocess.run(
+        ["git", "-C", str(repository), "ls-tree", "-r", "-z", "--full-tree", commit], capture_output=True, check=False
+    )
+    if listing.returncode != 0:
+        raise UpdateError(f"git ls-tree {commit} failed for {tool}")
+    for entry in filter(None, listing.stdout.split(b"\0")):
+        header, _, raw_path = entry.partition(b"\t")
+        mode, kind, blob = header.decode("ascii").split()
+        relative = os.fsdecode(raw_path)
+        if kind != "blob" or mode == SYMLINK_MODE:
+            # A plugin ships real files only, and a link could point outside the project.
+            raise UpdateError(f"{tool}: {relative} is not a regular file, so it cannot be vendored")
+        target = tree / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(_blob(repository, blob))
+        target.chmod(0o755 if mode == EXECUTABLE_MODE else 0o644)
     return tree
 
 
@@ -165,7 +196,7 @@ def parser() -> argparse.ArgumentParser:
     commands = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands.add_argument("--tools-dir", type=Path, default=TOOLS_DIR, help="the .metrics/tools folder to update")
     for tool in TOOLS:
-        commands.add_argument(f"--{tool}", metavar="COMMIT", help=f"the {tool} commit, default its upstream HEAD")
+        commands.add_argument(f"--{tool}", metavar="REV", help=f"the {tool} commit, tag or branch, default its upstream HEAD")
     commands.add_argument("--no-verify", action="store_true", help="copy and pin only, without tests or constraints")
     return commands
 
@@ -173,8 +204,13 @@ def parser() -> argparse.ArgumentParser:
 def vendor(tools_dir: Path, wanted: dict[str, str | None], scratch: Path) -> list[Pin]:
     """Export and check all three tools, then replace them together. Raises UpdateError before any change."""
     current = parse_versions((tools_dir / VERSIONS_NAME).read_text(encoding="utf-8"))
-    pins = [Pin(tool, current[tool].url, wanted.get(tool) or upstream_head(current[tool].url)) for tool in TOOLS]
-    trees = {pin.tool: export(pin, scratch) for pin in pins}
+    pins: list[Pin] = []
+    trees: dict[str, Path] = {}
+    for tool in TOOLS:
+        repository = clone(tool, current[tool].url, scratch)
+        pin = Pin(tool, current[tool].url, resolve(repository, wanted.get(tool) or "HEAD"))
+        trees[tool] = export(tool, repository, pin.commit, scratch)
+        pins.append(pin)
     problems = [problem for tool, tree in trees.items() for problem in check_tree(tool, tree)]
     if problems:
         raise UpdateError("\n  ".join(["a tool cannot be vendored:", *problems]))

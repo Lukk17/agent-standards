@@ -50,6 +50,10 @@ allprojects {{
 }}
 """
 
+class BuildFileError(Exception):
+    """A Gradle build file the wrapper cannot read, so it cannot add the report block."""
+
+
 # The coordinates crapper itself runs Maven with, so a Windows run measures the same way.
 JACOCO_MAVEN_PLUGIN = "org.jacoco:jacoco-maven-plugin:0.8.12"
 
@@ -91,9 +95,18 @@ def ensure_gradle_report(root: Path) -> Path | None:
 
     Returns:
         The build file the block was written into, or None when it already holds the block.
+
+    Raises:
+        BuildFileError: the build file is not UTF-8. It is left unchanged.
     """
     build_file = gradle_build_file(root)
-    text = build_file.read_bytes().decode("utf-8") if build_file.is_file() else ""
+    try:
+        text = build_file.read_bytes().decode("utf-8") if build_file.is_file() else ""
+    except UnicodeDecodeError as exc:
+        raise BuildFileError(
+            f"{build_file.name} is not UTF-8 (byte {exc.start}: {exc.reason}), so the JaCoCo report block the tools "
+            "need was not added."
+        ) from exc
     if REPORT_MARKER in text:
         return None
     block = KOTLIN_BLOCK if build_file.suffix == ".kts" else GROOVY_BLOCK

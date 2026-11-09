@@ -948,7 +948,7 @@ filenames stay in this repo only.
 | [docs/MCP_SETUP.md](docs/MCP_SETUP.md) | The real MCP config files, prerequisites, keys, env-var export per OS, the manual JetBrains and cloud-agent blocks, verification. |
 | [docs/AGENTS-UPDATE.md](docs/AGENTS-UPDATE.md) | Per-shell selective update commands including the diff-first configuration-file pair, the Windows symlink prerequisite, and the OpenSpec init and update guidance. Refreshes itself. |
 | [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md) | Installing the same skills, subagents and gate into your home directory so every project on the machine inherits them, per agent and per shell. |
-| [.metrics/tools/README.md](.metrics/tools/README.md) | Robert C. Martin's crapper, dryer and mutator, the wrapper that runs them on Linux, macOS and Windows, what it fixes, and how the copies are updated. |
+| [.metrics/tools/README.md](.metrics/tools/README.md) | Robert C. Martin's crapper, dryer and mutator, the wrapper that runs them on Linux, macOS and Windows, what it fixes, and how the copies are updated. It travels with `.metrics/tools`, so every import but the [gate-only import](#the-gate-beside-the-plugins) delivers it. |
 
 #### This repo only
 

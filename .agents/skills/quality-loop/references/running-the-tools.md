@@ -26,6 +26,12 @@ On Windows, from PowerShell or cmd, call `run.cmd` instead:
 .metrics\tools\run.cmd measure
 ```
 
+From Git Bash, which is the shell Claude Code's Bash tool runs on Windows, call the POSIX launcher, `.metrics/tools/run measure`, which hands the path to `run.py` through Git Bash's own path conversion. When it stops with exit 2 because only the `py` launcher is installed, go through `cmd` instead:
+
+```bash
+cmd //c .metrics\\tools\\run.cmd measure
+```
+
 | Command | Use it for |
 |---|---|
 | `measure` | The first run and the last one: crapper and dryer over the whole project, then mutator on the coverage crapper wrote. Writes `.metrics/crap.edn`, `.metrics/dry.edn` and `.metrics/mutate/` |
@@ -55,7 +61,7 @@ The first run needs network access to PyPI and to GitHub releases. The wrapper b
 It also readies the project without asking:
 
 - one `target/` line in the root `.gitignore`, because the tools write coverage data and mutation workers into `target/`, unless the project already ignores it
-- a `.venv` beside a Python project that has none, with the project's requirements and the pinned `coverage` and `pytest`, because mutator otherwise runs the tests with its own interpreter
+- a `.venv` beside a Python project that has none, with the project's requirements and the pinned `coverage` and `pytest`, because mutator otherwise runs the tests with its own interpreter, and a line for it in the root `.gitignore`, such as `.venv/` or `services/api/.venv/`, unless the project already ignores it
 - `npm ci`, or `npm install` without a lockfile, when `node_modules` is missing
 - for Gradle, a JaCoCo report block appended once to `build.gradle` or `build.gradle.kts`, which writes the XML where crapper and mutator read it. Commit that change on its own
 - the coverage tool a language needs, such as coverage.py, the Vitest coverage provider or cargo-llvm-cov, which crapper installs itself
@@ -76,7 +82,7 @@ It also readies the project without asking:
 
 The wrapper runs on Windows, and builds each tool's environment with `Scripts\python.exe`. Two things differ:
 
-- mutator runs each mutant in a copy of the project built from symbolic links, and Windows lets an account create one only with Developer Mode on (Settings, System, For developers) or from a terminal started as administrator. The wrapper tries one first. When it prints the Developer Mode message, report that to the caller as the fix, because a subagent cannot change the setting.
+- mutator runs each mutant in a copy of the project built from symbolic links, and Windows lets an account create one only with Developer Mode on (Settings, System, For developers) or from a terminal started as administrator. The wrapper tries one first. When Windows refuses, it prints the Developer Mode fix, skips mutator and exits 1. Report that message to the caller as the fix, because a subagent cannot change the setting.
 - The tools start `mvn`, `npm` and `npx` in a way Windows cannot run, so the wrapper passes its own Maven, npm and Python commands to the tools. A Python project tested from more than one folder gets no working mutator run on Windows, and the wrapper says so.
 
 ---
@@ -88,4 +94,5 @@ The wrapper runs on Windows, and builds each tool's environment with `Scripts\py
 | `.metrics/crap.edn`, `.metrics/dry.edn`, `.metrics/mutate/` | Yes, from a `measure` run, so later reviews can cite them |
 | `.metrics/tools/` | Yes, as the import delivered it, never edited |
 | The JaCoCo block in a Gradle build file | Yes, in its own commit |
-| `target/`, each tool's `.venv` | Never. The ignore lines keep them out |
+| The `target/` and `.venv/` lines the wrapper added to the root `.gitignore` | Yes, with the first scores |
+| `target/`, the project `.venv` the wrapper created, each tool's `.venv` | Never. The ignore lines keep them out |

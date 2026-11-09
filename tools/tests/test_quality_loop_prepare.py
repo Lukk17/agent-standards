@@ -14,20 +14,36 @@ POSIX = Host(windows=False)
 WINDOWS = Host(windows=True)
 
 
-def not_ignored(_root):
+def not_ignored(_root, _folder):
     return False
 
 
 def test_target_is_added_to_a_new_gitignore(tmp_path):
-    assert prepare.ensure_target_ignored(tmp_path, git_check=not_ignored) is True
+    assert prepare.ensure_ignored(tmp_path, "target", git_check=not_ignored) is True
 
     assert (tmp_path / ".gitignore").read_text(encoding="utf-8") == "target/\n"
+
+
+def test_a_folder_below_the_root_is_ignored_by_its_path_from_the_root(tmp_path):
+    write(tmp_path, ".gitignore", "build/\n")
+
+    assert prepare.ensure_ignored(tmp_path, "svc/.venv", git_check=not_ignored) is True
+
+    assert (tmp_path / ".gitignore").read_text(encoding="utf-8") == "build/\nsvc/.venv/\n"
+
+
+@pytest.mark.parametrize("line", [".venv", ".venv/", "**/.venv/", "svc/.venv", "/svc/.venv/"])
+def test_a_gitignore_line_that_already_covers_a_nested_folder_is_enough(tmp_path, line):
+    write(tmp_path, ".gitignore", f"{line}\n")
+
+    assert prepare.ensure_ignored(tmp_path, "svc/.venv", git_check=not_ignored) is False
+    assert (tmp_path / ".gitignore").read_text(encoding="utf-8") == f"{line}\n"
 
 
 def test_target_is_appended_on_its_own_line_keeping_crlf(tmp_path):
     (tmp_path / ".gitignore").write_bytes(b"node_modules/\r\n.env")
 
-    prepare.ensure_target_ignored(tmp_path, git_check=not_ignored)
+    prepare.ensure_ignored(tmp_path, "target", git_check=not_ignored)
 
     assert (tmp_path / ".gitignore").read_bytes() == b"node_modules/\r\n.env\r\ntarget/\r\n"
 
@@ -36,28 +52,28 @@ def test_target_is_appended_on_its_own_line_keeping_crlf(tmp_path):
 def test_a_gitignore_that_already_names_target_is_left_alone(tmp_path, line):
     write(tmp_path, ".gitignore", f"build/\n{line}\n")
 
-    assert prepare.ensure_target_ignored(tmp_path, git_check=not_ignored) is False
+    assert prepare.ensure_ignored(tmp_path, "target", git_check=not_ignored) is False
     assert (tmp_path / ".gitignore").read_text(encoding="utf-8") == f"build/\n{line}\n"
 
 
-def test_git_ignoring_target_elsewhere_is_enough(tmp_path):
-    assert prepare.ensure_target_ignored(tmp_path, git_check=lambda _root: True) is False
+def test_git_ignoring_the_folder_elsewhere_is_enough(tmp_path):
+    assert prepare.ensure_ignored(tmp_path, "target", git_check=lambda _root, _folder: True) is False
     assert not (tmp_path / ".gitignore").exists()
 
 
-def test_git_answers_whether_it_ignores_target(tmp_path):
+def test_git_answers_whether_it_ignores_a_folder(tmp_path):
     subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
-    assert prepare.git_ignores_target(tmp_path) is False
+    assert prepare.git_ignores(tmp_path, "svc/.venv") is False
 
-    write(tmp_path, ".gitignore", "target/\n")
+    write(tmp_path, ".gitignore", ".venv/\n")
 
-    assert prepare.git_ignores_target(tmp_path) is True
+    assert prepare.git_ignores(tmp_path, "svc/.venv") is True
 
 
 def test_outside_a_repository_git_has_no_answer(tmp_path, monkeypatch):
     monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
 
-    assert prepare.git_ignores_target(tmp_path) is None
+    assert prepare.git_ignores(tmp_path, "target") is None
 
 
 def test_a_fresh_environment_installs_requirements_and_the_project_with_its_test_extras(tmp_path):
@@ -90,6 +106,29 @@ def test_a_project_without_an_environment_gets_a_venv_and_the_pinned_test_module
     installed = [command[-1] for command in runner.commands if "install" in command]
     assert installed == ["coverage", "pytest"]
     assert all("-c" in command and str(tmp_path / "c.txt") in command for command in runner.commands if "install" in command)
+
+
+@pytest.mark.parametrize(("folder", "line"), [("", ".venv/"), ("svc", "svc/.venv/")])
+def test_a_venv_the_wrapper_creates_is_ignored_from_the_root_it_was_made_in(tmp_path, monkeypatch, folder, line):
+    monkeypatch.setattr(prepare, "git_ignores", not_ignored)
+    write(tmp_path, f"{folder}/pyproject.toml" if folder else "pyproject.toml", "[project]\nname = 'x'\n")
+    source = write(tmp_path, f"{folder}/app.py" if folder else "app.py")
+    said = []
+
+    prepare.project_interpreters(tmp_path, [source], POSIX, tmp_path / "c.txt", RecordingRunner(), said.append)
+
+    assert (tmp_path / ".gitignore").read_text(encoding="utf-8") == f"{line}\n"
+    assert f"Added {line} to .gitignore." in said
+
+
+def test_an_existing_venv_is_not_added_to_gitignore(tmp_path, monkeypatch):
+    monkeypatch.setattr(prepare, "git_ignores", not_ignored)
+    write(tmp_path, ".venv/bin/python")
+    source = write(tmp_path, "app.py")
+
+    prepare.project_interpreters(tmp_path, [source], POSIX, tmp_path / "c.txt", RecordingRunner(), lambda _m: None)
+
+    assert not (tmp_path / ".gitignore").exists()
 
 
 def test_an_existing_venv_is_reused_and_nothing_is_installed_when_ready(tmp_path):

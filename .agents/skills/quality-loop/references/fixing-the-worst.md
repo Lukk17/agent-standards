@@ -46,7 +46,7 @@ dryer compares shape, not meaning. Two copies are one rule when they change for 
 |---|---|---|
 | Python | coverage.py around pytest, or unittest, with the project's `.venv` | Add the test under the project's test folder. The wrapper creates `.venv` when it is missing |
 | Java, Maven | JaCoCo through Maven, `mvn test` per mutant | Mutants take seconds each, because every worker compiles |
-| Java, Gradle | `gradle test jacocoTestReport`, then `gradle --rerun-tasks test` per mutant | Needs the JaCoCo block the wrapper adds once |
+| Java, Gradle | `gradle --no-daemon test jacocoTestReport`, then `gradle --no-daemon --rerun-tasks test` per mutant | Needs the JaCoCo block the wrapper adds once |
 | TypeScript, JavaScript | `npm run coverage`, else Vitest's own report, else c8 around `npm test` | A `coverage` script must write LCOV into `coverage/` |
 | Go | `go test ./... -coverprofile` | Table-driven cases kill boundary mutants cheaply |
 | Rust | cargo-llvm-cov, else cargo-tarpaulin | crapper installs cargo-llvm-cov when neither is present |

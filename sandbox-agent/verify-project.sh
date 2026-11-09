@@ -112,6 +112,16 @@ assert_absent() {
   fi
 }
 
+assert_executable() {
+  local label="$1" path="$2"
+
+  if [[ -f "${PROJECT}/${path}" && -x "${PROJECT}/${path}" ]]; then
+    pass "${label} (${path})"
+  else
+    fail "${label} (${path} is missing or not executable)"
+  fi
+}
+
 assert_symlinked_dir() {
   local label="$1" path="$2"
 
@@ -342,6 +352,12 @@ verify_import() {
   assert_file "the OpenCode and Kilo Code plugin landed" ".agents/plugin/hooks.js"
   assert_file "the plugin directory entry landed beside it" ".agents/plugin/index.js"
   assert_file "the GitHub Copilot CLI fallback MCP configuration landed" ".github/mcp.json"
+  assert_executable "the quality loop launcher landed with its execute bit" ".metrics/tools/run"
+  assert_file "the Windows quality loop launcher landed" ".metrics/tools/run.cmd"
+  assert_file "the quality tools carry their own line-ending rules" ".metrics/tools/.gitattributes"
+  assert_file "crapper landed unchanged beside the wrapper" ".metrics/tools/crapper/LICENSE"
+  assert_file "dryer landed unchanged beside the wrapper" ".metrics/tools/dryer/LICENSE"
+  assert_file "mutator landed unchanged beside the wrapper" ".metrics/tools/mutator/LICENSE"
   assert_glob_count "every canonical skill landed" ".agents/skills/*/SKILL.md" "$SKILL_COUNT"
   assert_symlinked_dir "Claude Code skills symlink resolves" ".claude/skills"
   assert_symlinked_dir "OpenCode subagents symlink resolves" ".opencode/agents"

@@ -96,3 +96,13 @@ def test_a_kotlin_settings_file_alone_gets_a_new_kotlin_build_file(tmp_path):
 
     assert created == tmp_path / "build.gradle.kts"
     assert created.read_text(encoding="utf-8").startswith("\n// " + build.REPORT_MARKER)
+
+
+def test_a_build_file_that_is_not_utf8_is_named_and_left_unchanged(tmp_path):
+    build_file = tmp_path / "build.gradle"
+    build_file.write_bytes(b"// caf\xe9\nplugins { id 'java' }\n")
+
+    with pytest.raises(build.BuildFileError, match="build.gradle is not UTF-8"):
+        build.ensure_gradle_report(tmp_path)
+
+    assert build_file.read_bytes() == b"// caf\xe9\nplugins { id 'java' }\n"

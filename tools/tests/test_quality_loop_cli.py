@@ -58,15 +58,20 @@ def test_the_posix_launcher_is_plain_sh():
     assert (result.returncode, result.stderr) == (0, "")
 
 
-def test_the_windows_launcher_checks_out_with_crlf_endings():
+@pytest.mark.parametrize(("launcher", "eol"), [("run.cmd", "crlf"), ("run", "lf")])
+def test_the_tools_folder_alone_sets_each_launchers_line_endings(tmp_path, launcher, eol):
+    """A consumer project has no .gitattributes of ours, so .metrics/tools must carry its own."""
+    shutil.copytree(QUALITY_TOOLS, tmp_path / ".metrics" / "tools", ignore=shutil.ignore_patterns(".venv", "__pycache__"))
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+
     result = subprocess.run(
-        ["git", "-C", str(REPO_ROOT), "check-attr", "eol", "--", ".metrics/tools/run.cmd"],
+        ["git", "-C", str(tmp_path), "check-attr", "eol", "--", f".metrics/tools/{launcher}"],
         capture_output=True,
         text=True,
         check=True,
     )
 
-    assert result.stdout.strip().endswith("eol: crlf")
+    assert result.stdout.strip() == f".metrics/tools/{launcher}: eol: {eol}"
 
 
 def test_the_windows_launcher_prefers_python_and_falls_back_to_the_py_launcher():

@@ -46,6 +46,7 @@ EXPECTED_SURVIVORS = {
 }
 PLANTED_SURVIVOR = {sample: survivors[0][0] for sample, survivors in EXPECTED_SURVIVORS.items()}
 
+LAUNCHERS = ("run", "run.cmd")
 IGNORED = shutil.ignore_patterns(".venv", "__pycache__", "*.egg-info", "node_modules", "target", "build", ".gradle")
 
 
@@ -58,6 +59,11 @@ def stage(sample: str, workdir: Path) -> Path:
     subprocess.run([*git, "init", "-q"], check=True)
     subprocess.run([*git, "add", "-A"], check=True)
     subprocess.run([*git, "commit", "-q", "-m", "sample"], check=True)
+    # Check the launchers out again, so they hold the bytes .metrics/tools/.gitattributes gives a consumer's
+    # checkout rather than the bytes of this repository's own.
+    for name in LAUNCHERS:
+        (project / ".metrics" / "tools" / name).unlink()
+    subprocess.run([*git, "checkout", "--", ".metrics/tools"], check=True)
     return project
 
 

@@ -60,7 +60,8 @@ class Prepared:
 
 
 def prepare_project(session: Session) -> Prepared | None:
-    """Ready the project and the three tool environments. None when a tool environment cannot be built."""
+    """Ready the project and the three tool environments. None when the Gradle build file or a tool environment
+    cannot be readied."""
     root = session.root
     files = languages.source_files(root)
     found = {languages.language_of(path) for path in files}
@@ -69,7 +70,7 @@ def prepare_project(session: Session) -> Prepared | None:
         session.say(f"No Clojure, Go, Java, JavaScript, Python, Rust or TypeScript source under {root}.")
         return Prepared([], {})
     session.say(f"Languages: {', '.join(present)}.")
-    if prepare.ensure_target_ignored(root):
+    if prepare.ensure_ignored(root, prepare.WORK_FOLDER):
         session.say("Added target/ to .gitignore, the folder the tools write their working files into.")
     interpreters: dict[Path, Path] = {}
     constraints = session.tools_dir / environments.CONSTRAINTS_NAME
@@ -79,7 +80,12 @@ def prepare_project(session: Session) -> Prepared | None:
         prepare.ensure_node_modules(root, session.host, session.run, session.say)
         prepare.ensure_vitest_provider(root, session.host, session.run, session.say)
     if languages.JAVA in present and build.java_build(root) == build.GRADLE:
-        changed = build.ensure_gradle_report(root)
+        try:
+            changed = build.ensure_gradle_report(root)
+        except build.BuildFileError as exc:
+            # Without the block crapper reads an old report or none, so the Java scores would be wrong.
+            session.say(f"{exc} Save it as UTF-8 and run again. Nothing was measured.")
+            return None
         if changed is not None:
             session.say(f"Added the JaCoCo report block to {changed.name}. Commit it on its own.")
     plans = plan.plan_languages(root, present, session.host, interpreters)

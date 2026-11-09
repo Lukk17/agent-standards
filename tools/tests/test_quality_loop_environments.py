@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from tests.quality_loop_support import RecordingRunner, write
 
-from quality_loop import environments
+from quality_loop import environments, process
 from quality_loop.host import Host
 
 POSIX = Host(windows=False)
@@ -44,8 +44,8 @@ def test_a_missing_environment_is_built_pinned_and_editable(tools, host, relativ
     constraints = str(tools / "constraints.txt")
     assert runner.commands == [
         [sys.executable, "-m", "venv", str(venv)],
-        [str(python), *environments.PIP, "-c", constraints, "setuptools"],
-        [str(python), *environments.PIP, "--no-build-isolation", "-c", constraints, "-e", str(tools / "crapper")],
+        [str(python), *process.PIP, "-c", constraints, "setuptools"],
+        [str(python), *process.PIP, "--no-build-isolation", "-c", constraints, "-e", str(tools / "crapper")],
     ]
 
 

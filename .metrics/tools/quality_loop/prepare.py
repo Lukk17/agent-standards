@@ -15,26 +15,30 @@ from pathlib import Path
 
 from quality_loop import plan
 from quality_loop.host import Host
-from quality_loop.process import Runner
+from quality_loop.process import PIP, Runner
 
 # The tools write coverage data and mutation workers here. The folder name is fixed in their code.
 WORK_FOLDER = "target"
-IGNORE_LINE = "target/"
-_IGNORING_LINES = frozenset({"target", "target/", "/target", "/target/", "**/target", "**/target/"})
+VENV_FOLDER = ".venv"
 
 REQUIREMENT_FILES = ("requirements.txt", "requirements-dev.txt", "requirements-test.txt", "dev-requirements.txt")
 TEST_EXTRAS = ("dev", "test", "tests")
-PIP = ("-m", "pip", "install", "--disable-pip-version-check", "--quiet")
 
 VITEST_PROVIDER = "@vitest/coverage-v8"
 NPM_MANIFESTS = ("package.json", "package-lock.json", "npm-shrinkwrap.json")
 
+GitCheck = Callable[[Path, str], bool | None]
 
-def git_ignores_target(root: Path) -> bool | None:
-    """git's own answer, which counts every ignore file it reads. None when git cannot answer here."""
+
+def git_ignores(root: Path, folder: str) -> bool | None:
+    """git's own answer for `folder`, a path from root, counting every ignore file it reads.
+
+    Returns:
+        None when git cannot answer here, such as outside a repository.
+    """
     try:
         result = subprocess.run(
-            ["git", "-C", str(root), "check-ignore", "-q", "--no-index", f"{WORK_FOLDER}/"],
+            ["git", "-C", str(root), "check-ignore", "-q", "--no-index", f"{folder}/"],
             capture_output=True,
             check=False,
         )
@@ -43,28 +47,41 @@ def git_ignores_target(root: Path) -> bool | None:
     return {0: True, 1: False}.get(result.returncode)
 
 
-def gitignore_names_target(gitignore: Path) -> bool:
+def ignoring_lines(folder: str) -> frozenset[str]:
+    """The root `.gitignore` lines that ignore `folder`: its path from the root, or its name at any depth."""
+    name = folder.rsplit("/", 1)[-1]
+    anchored = {folder, f"{folder}/", f"/{folder}", f"/{folder}/"}
+    anywhere = {name, f"{name}/", f"**/{name}", f"**/{name}/"}
+    return frozenset(anchored | anywhere)
+
+
+def gitignore_names(gitignore: Path, folder: str) -> bool:
     if not gitignore.is_file():
         return False
     lines = gitignore.read_text(encoding="utf-8", errors="replace").splitlines()
-    return any(line.strip() in _IGNORING_LINES for line in lines)
+    accepted = ignoring_lines(folder)
+    return any(line.strip() in accepted for line in lines)
 
 
-def ensure_target_ignored(root: Path, git_check: Callable[[Path], bool | None] = git_ignores_target) -> bool:
-    """Add one `target/` line to the root `.gitignore` unless the project already ignores the folder.
+def ensure_ignored(root: Path, folder: str, git_check: GitCheck | None = None) -> bool:
+    """Add one `<folder>/` line to the root `.gitignore` unless the project already ignores the folder.
+
+    Args:
+        folder: the folder's path from root, with forward slashes, such as `target` or `svc/.venv`.
+        git_check: asks git first, `git_ignores` by default.
 
     Returns:
         True when the line was added.
     """
-    if git_check(root) is True:
+    if (git_check or git_ignores)(root, folder) is True:
         return False
     gitignore = root / ".gitignore"
-    if gitignore_names_target(gitignore):
+    if gitignore_names(gitignore, folder):
         return False
     existing = gitignore.read_bytes().decode("utf-8", errors="replace") if gitignore.is_file() else ""
     newline = "\r\n" if "\r\n" in existing else "\n"
     separator = "" if not existing or existing.endswith("\n") else newline
-    gitignore.write_bytes((existing + separator + IGNORE_LINE + newline).encode("utf-8"))
+    gitignore.write_bytes((existing + separator + f"{folder}/" + newline).encode("utf-8"))
     return True
 
 
@@ -119,7 +136,7 @@ def project_interpreters(
     run: Runner,
     say: Callable[[str], None],
 ) -> dict[Path, Path]:
-    """The Python each Python root tests with, creating `.venv` where there is none.
+    """The Python each Python root tests with, creating `.venv` where there is none and keeping it out of git.
 
     Without a project environment, mutator runs the tests with its own interpreter, which has none of the
     project's dependencies, so every baseline fails.
@@ -128,11 +145,14 @@ def project_interpreters(
     for directory in plan.python_roots(root, files):
         python = existing_interpreter(directory, host)
         if python is None:
-            python = host.venv_python(directory / ".venv")
-            say(f"Creating the project environment {directory / '.venv'} for the Python tests.")
-            if run([sys.executable, "-m", "venv", str(directory / ".venv")], directory) != 0:
-                say(f"Could not create {directory / '.venv'}. Python tests will fail their baseline.")
+            python = host.venv_python(directory / VENV_FOLDER)
+            say(f"Creating the project environment {directory / VENV_FOLDER} for the Python tests.")
+            if run([sys.executable, "-m", "venv", str(directory / VENV_FOLDER)], directory) != 0:
+                say(f"Could not create {directory / VENV_FOLDER}. Python tests will fail their baseline.")
                 continue
+            folder = (directory / VENV_FOLDER).relative_to(root).as_posix()
+            if ensure_ignored(root, folder):
+                say(f"Added {folder}/ to .gitignore.")
             for argv in install_steps(directory, python):
                 if run(argv, directory) != 0:
                     say("A project dependency did not install. The tests may fail until it does.")

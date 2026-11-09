@@ -45,7 +45,7 @@ Measure the code, fix the worst mess first, and measure again. The method and th
 7. Merge a duplicate pair only when both copies encode the same rule and change for the same reason. `review-duplication` and `coding-standards` decide, and a pair that only looks alike stays as it is.
 8. After each round of fixes, run `mutate --changed` for the mutants and `measure` for the full scores, and keep the project's own tests green.
 9. Stop when nothing is over the limits, or after three rounds, and report what is left with the reason it is left.
-10. Commit the full-run scores in `.metrics/` with the fixes. A JaCoCo block the wrapper adds to a Gradle build file goes into its own commit.
+10. Commit the fixes and the full-run scores in `.metrics/` only when the caller asked for commits, with a JaCoCo block the wrapper added to a Gradle build file in its own commit. Otherwise leave them staged for the caller.
 
 ---
 
@@ -77,4 +77,4 @@ Measure the code, fix the worst mess first, and measure again. The method and th
 - [ ] Every duplicate pair at or above 0.82 was reviewed, and merged only when both copies are one rule
 - [ ] No test was weakened, skipped or deleted
 - [ ] The project's own tests pass after the last round
-- [ ] The full-run scores in `.metrics/` are committed, and the report shows them before and after
+- [ ] The full-run scores in `.metrics/` are committed when the caller asked, staged otherwise, and the report shows them before and after

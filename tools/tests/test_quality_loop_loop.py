@@ -21,7 +21,7 @@ def ready_tool_environments(monkeypatch):
     monkeypatch.setattr(
         environments, "tool_python", lambda _tools, tool, _host, _run, _say: Path(f"/envs/{tool}/python")
     )
-    monkeypatch.setattr(loop.prepare, "git_ignores_target", lambda _root: True)
+    monkeypatch.setattr(loop.prepare, "git_ignores", lambda _root, _folder: True)
 
 
 def session(root, runner, host=POSIX, said=None):
@@ -88,9 +88,9 @@ def test_gradle_gets_the_report_block_and_the_wrapper_commands(tmp_path):
 
     assert code == loop.SUCCESS
     assert "Added the JaCoCo report block to build.gradle. Commit it on its own." in said
-    assert runner.tool_runs("crapper") == [["--coverage-command", "gradle test jacocoTestReport"]]
+    assert runner.tool_runs("crapper") == [["--coverage-command", "gradle --no-daemon test jacocoTestReport"]]
     assert runner.tool_runs("mutator") == [
-        ["--reuse-coverage", "--test-command", "gradle -q --offline --rerun-tasks test", "--timeout-factor", "30"]
+        ["--reuse-coverage", "--test-command", "gradle --no-daemon -q --offline --rerun-tasks test", "--timeout-factor", "30"]
     ]
 
 
@@ -115,13 +115,13 @@ def test_two_languages_where_one_needs_the_wrappers_commands_run_once_per_langua
 
     assert code == loop.SUCCESS
     assert runner.tool_runs("crapper") == [
-        ["--coverage-command", "gradle test jacocoTestReport", ".java"],
+        ["--coverage-command", "gradle --no-daemon test jacocoTestReport", ".java"],
         [".py"],
         ["--use-existing-coverage"],
     ]
     assert runner.tool_runs("dryer") == [[]]
     assert runner.tool_runs("mutator") == [
-        ["--reuse-coverage", "--test-command", "gradle -q --offline --rerun-tasks test", "--timeout-factor", "30", ".java"],
+        ["--reuse-coverage", "--test-command", "gradle --no-daemon -q --offline --rerun-tasks test", "--timeout-factor", "30", ".java"],
         ["--reuse-coverage", ".py"],
     ]
 
@@ -137,9 +137,9 @@ def test_mutate_changed_produces_its_own_coverage_with_the_wrappers_command(tmp_
         [
             "--changed",
             "--coverage-command",
-            "gradle test jacocoTestReport",
+            "gradle --no-daemon test jacocoTestReport",
             "--test-command",
-            "gradle -q --offline --rerun-tasks test",
+            "gradle --no-daemon -q --offline --rerun-tasks test",
             "--timeout-factor",
             "30",
         ]
@@ -211,3 +211,14 @@ def test_a_maven_project_never_gets_a_gradle_build_file(tmp_path):
     loop.measure(session(tmp_path, RecordingRunner()))
 
     assert not (tmp_path / "build.gradle").exists()
+
+
+def test_a_gradle_build_file_that_is_not_utf8_stops_the_run_before_any_tool(tmp_path):
+    (tmp_path / "build.gradle").write_bytes(b"// caf\xe9\nplugins { id 'java' }\n")
+    write(tmp_path, "src/main/java/App.java")
+    said = []
+    runner = RecordingRunner()
+
+    assert loop.measure(session(tmp_path, runner, said=said)) == loop.FAILED
+    assert runner.commands == []
+    assert any("build.gradle is not UTF-8" in line and "Nothing was measured" in line for line in said)
