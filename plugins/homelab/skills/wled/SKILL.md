@@ -11,7 +11,7 @@ How an agent reads and controls a WLED device, and how it makes a change the use
 | Task | Open |
 |---|---|
 | Reading or changing state, segments, effects, palettes, info or config, the WebSocket, the `/win` API, JSON over serial | [json-api.md](references/json-api.md) |
-| Checking whether a device has a PIN or the OTA lock, unlocking and locking it, what the PIN guards | [security-and-pin.md](references/security-and-pin.md) |
+| Checking, setting, removing, unlocking or locking a PIN or the OTA lock, what the PIN guards | [security-and-pin.md](references/security-and-pin.md) |
 | Before the first write, restoring `/presets.json` or `/cfg.json`, judging whether a call is risky | [backup-and-restore.md](references/backup-and-restore.md) |
 | Saving, applying, deleting or listing presets, building a playlist | [presets-playlists.md](references/presets-playlists.md) |
 | A new or reset device, WLED-AP, Improv over serial, finding the device on the network | [first-setup.md](references/first-setup.md) |
@@ -47,9 +47,9 @@ The address, mDNS name, PIN and OTA password of a real device, the Wi-Fi credent
 ### Hard rules
 
 1. Read-only calls are free: a `GET` of `/json`, `/json/state`, `/json/info`, `/json/si`, `/json/nodes`, `/json/eff`, `/json/fxdata`, `/json/pal`, `/json/palx`, `/json/cfg`, `/json/pins`, `/presets.json`, `/cfg.json`, and a settings page other than `/settings/lock`. Listening on the WebSocket is free only below the client limit, 8 on ESP32 and 3 on ESP8266, because a new client closes the oldest one, so read `ws` in `GET /json/info` first. The serial `v` byte is free only on a port opened with DTR and RTS held off, because toggling them can reset the board. `GET /json/net` starts a Wi-Fi scan, so call it only when the user wants the network list.
-2. Some `GET` calls write: `/reset` reboots, `/settings/lock` locks the settings for every client, `/update?revert` rolls back the firmware, and any URL holding `win` runs the HTTP API. Treat them as writes.
+2. Some `GET` calls write: `/reset` reboots, `/settings/lock` locks the settings for every client, `/update?revert` rolls back the firmware, and a `/win&...` URL runs the HTTP API. Treat them as writes. A bare `GET /win` only reads.
 3. Before any write, back up `/presets.json` and `/cfg.json`, then tell the user what changes, the worst case and the undo, and wait for a yes. One yes covers one change. When the device cannot be reached over HTTP, such as a bare board or one that does not boot, say that no backup over HTTP is possible, offer `esptool read-flash` over USB, and go on only after a yes.
-4. Firmware and bootloader updates, `erase-flash`, a factory reset and any Wi-Fi or access point change happen only when the user asks for that action by name.
+4. Firmware and bootloader updates, `erase-flash`, a PIN change, a factory reset (the `RS` field of `POST /settings/sec`) and any Wi-Fi or access point change happen only when the user asks for that action by name.
 5. Never post a partial `/settings/*` form. Every missing field is saved as empty or off, so a partial Wi-Fi form disables mDNS and opens an access point with no password, and a partial security form, while the OTA lock is off, switches the same subnet rule, ArduinoOTA and the Wi-Fi lock off. Change settings with `POST /json/cfg` instead, but never with only the wanted key: a missing `light.gc.bri`, `light.gc.col`, `hw.led.rgbwm`, `hw.led.fps` or `nw.linked_remote` is reset and saved. Read `GET /json/cfg`, send the wanted keys plus those five copied from it, then read it again and compare, as [json-api.md](references/json-api.md) shows.
 6. Ask the user for the PIN and the OTA password. Never guess, loop over or print them, and never keep them beyond the one call that uses them: send them on standard input, or from a file readable only by the user that is deleted right after the call. A wrong PIN locks the settings for every client.
 7. Never retry a call that is not idempotent: `"on":"t"`, `"np":true`, `"psave"`. Read the state and send the value you want.
@@ -91,6 +91,6 @@ curl -s -o /dev/null -w '%{http_code}\n' http://<wled-host>/settings/sec
 - [ ] No partial `/settings/*` form was posted
 - [ ] `GET /json/cfg` was read before and after each config change, and only the intended keys differ
 - [ ] The OTA lock is back in the state it had before the work
-- [ ] Firmware, bootloader, factory reset and Wi-Fi changes happened only when the user named them
+- [ ] Firmware, bootloader, PIN, factory reset and Wi-Fi changes happened only when the user named them
 - [ ] No PIN, OTA password or Wi-Fi password was guessed or printed, and no file holding one outlived its call
 - [ ] Every UNVERIFIED fact relied on was named to the user as unverified

@@ -2,7 +2,7 @@
 
 Read this before working with a device whose settings ask for a PIN, whose update page says OTA is locked, or whose protection you do not know yet. The rules live in [SKILL.md](../SKILL.md). Rule 6 there matters most on this page: ask the user for the PIN, never guess it.
 
-Written for WLED 16. Sources: https://kno.wled.ge/advanced/ota-lock/ and https://kno.wled.ge/features/settings/, and the WLED 16 source files `wled00/wled_server.cpp`, `set.cpp`, `cfg.cpp`, `util.cpp`, `file.cpp`, `wled.h`, `wled.cpp` and `const.h` at https://github.com/wled/WLED, with the build flags in `platformio.ini`. No call here was sent to a device.
+Written for WLED 16. Sources: https://kno.wled.ge/advanced/ota-lock/ and https://kno.wled.ge/features/settings/, and the WLED 16 source files `wled00/wled_server.cpp`, `set.cpp`, `xml.cpp`, `cfg.cpp`, `util.cpp`, `file.cpp`, `wled.h`, `wled.cpp`, `const.h` and `data/settings_sec.htm` at https://github.com/wled/WLED, with the build flags in `platformio.ini`.
 
 Contents:
 
@@ -10,9 +10,10 @@ Contents:
 2. [Check the state without changing it](#check-the-state-without-changing-it)
 3. [How the PIN works](#how-the-pin-works)
 4. [Unlock](#unlock)
-5. [What the PIN guards and what it does not](#what-the-pin-guards-and-what-it-does-not)
-6. [The OTA lock](#the-ota-lock)
-7. [Work on an unprotected device](#work-on-an-unprotected-device)
+5. [Set or remove a PIN](#set-or-remove-a-pin)
+6. [What the PIN guards and what it does not](#what-the-pin-guards-and-what-it-does-not)
+7. [The OTA lock](#the-ota-lock)
+8. [Work on an unprotected device](#work-on-an-unprotected-device)
 
 ---
 
@@ -38,7 +39,17 @@ curl -s -o /dev/null -w '%{http_code}\n' http://<wled-host>/settings/sec
 
 `401` means a PIN is set and locked, `200` means open now, either no PIN or entered in the last 15 minutes. VERIFIED in `wled_server.cpp` `serveSettings`: a page numbered above the Wi-Fi page (above the menu once Wi-Fi is configured) and below the lock page gets the PIN form with code 401 while `!correctPIN && strlen(settingsPIN) > 0`, and a `GET` saves nothing. The Security page is number 6 in `const.h`, so it is guarded in both cases.
 
-Do not probe with `POST /json/cfg` and `{}`. On an open device that runs `cfg.cpp` `deserializeConfig`, which clears the list of linked ESP-NOW remotes (`linked_remotes.clear()`, outside any key check), resets brightness and color gamma, the auto white mode and the frame rate, and then marks the config for saving (VERIFIED, see "Change the config safely" in [json-api.md](json-api.md)). Do not probe with `GET /settings/lock` either: it is the only call that tells "no PIN" from "unlocked", answering "No PIN set" or "Settings locked", and it locks the device for every client.
+A `200` does not say whether a PIN exists. The script of the Security page tells "no PIN" from "unlocked", and reading it locks nothing:
+
+```bash
+curl -s -w '\n%{http_code}\n' 'http://<wled-host>/settings/s.js?p=6'
+```
+
+In the script text, `d.Sf.PIN.value="";` means no PIN is set, and `d.Sf.PIN.value="0000";` means a PIN is set and the settings are unlocked now. The zeros are a placeholder, one per PIN character, so the script never holds the PIN itself. The answer `401` with `alert('PIN incorrect.');` means a PIN is set and locked (VERIFIED, `xml.cpp` `getSettingsJS`, the `SUBPAGE_SEC` block, `memset(fpass,'0',l)`, and `wled_server.cpp` `serveSettingsJS`).
+
+The pages load this script as `/settings/s.js?p=<n>`, so use that name. `/settings/settings.js?p=<n>` answers the same, because `serveSettings` sends any `/settings` URL holding `.js` to `serveSettingsJS` (VERIFIED, `wled_server.cpp`, `url.indexOf(F(".js"))`, and `data/settings_sec.htm`, `/settings/s.js?p=6`).
+
+Do not probe with `POST /json/cfg` and `{}`. On an open device that runs `cfg.cpp` `deserializeConfig`, which clears the list of linked ESP-NOW remotes (`linked_remotes.clear()`, outside any key check), resets brightness and color gamma, the auto white mode and the frame rate, and then marks the config for saving (VERIFIED, see "Change the config safely" in [json-api.md](json-api.md)). Do not probe with `GET /settings/lock` either: it answers "No PIN set" or "Settings locked", and it locks the device for every client.
 
 Whether OTA is locked:
 
@@ -79,6 +90,40 @@ Lock again when the work is done, which is a write the user should know about:
 curl -s -o /dev/null -w '%{http_code}\n' http://<wled-host>/settings/lock
 ```
 
+`correctPIN = !strlen(settingsPIN)` runs here, so with a PIN set the settings lock at once and the page says "Settings locked", and with no PIN nothing locks and it says "No PIN set" (VERIFIED, `wled_server.cpp` `serveSettings`, `SUBPAGE_LOCK`).
+
+---
+
+### Set or remove a PIN
+
+The rules in [SKILL.md](../SKILL.md) apply. Rule 4: set or remove a PIN only when the user names that action. Rule 3: back up, say what changes, and wait for a yes. Rule 6: the user gives the PIN, and it never lands in a command line or the output. A forgotten PIN cannot be read back, as the last section says.
+
+Warning: never send the field `RS`. It is the factory reset. If `RS` is in the form at all, whatever its value, `RS=`, `RS=0` and `RS=off` included, the device runs `WLED_FS.format()`, which erases the whole file system: settings, presets and passwords. It then answers "All Settings erased." and reboots into WLED-AP (VERIFIED, `set.cpp` `handleSettingsSet`, `if (request->hasArg(F("RS")))`). Send it only when the user names a factory reset, as rule 4 says.
+
+Only the `POST /settings/sec` form sets the PIN. A `"pin"` key in a JSON body only unlocks (VERIFIED, `cfg.cpp`, `settingsPIN` is written only when `deserializeConfigSec` reads `wsec.json`). A partial form resets what it leaves out, so post every field, as follows.
+
+1. Read the current values, with the `GET /settings/s.js?p=6` call from [Check the state without changing it](#check-the-state-without-changing-it). If it answers `401`, unlock first as [Unlock](#unlock) shows, because a `POST` while locked counts as a PIN attempt and saves nothing (VERIFIED, `wled_server.cpp` `serveSettings`, `pinRequired`, `SUBPAGE_PINREQ`).
+2. Build the body from this table. The fields are the ones `set.cpp` reads in its `SUBPAGE_SEC` block and `data/settings_sec.htm` names (VERIFIED). The file inputs `data` and `data2` on that page belong to its restore buttons and the handler does not read them, so leave them out.
+
+| Field | Meaning | Value to send |
+|---|---|---|
+| `PIN` | Settings PIN | `PIN=<pin>` to set it, `PIN=` to remove it. A length other than 0 or 4 and the value `0000` are ignored with no error |
+| `OP` | OTA passphrase, not in the script | `OP=` empty. While the OTA lock is off a value here sets a new OTA password, and while it is on the correct value makes the checkboxes count |
+| `NO` | OTA lock | `NO=on` only when the script has `d.Sf.NO.checked=1;` |
+| `OW` | Wi-Fi settings lock | `OW=on` only when the script has `d.Sf.OW.checked=1;` |
+| `AO` | ArduinoOTA | `AO=on` only when the script has `d.Sf.AO.checked=1;` |
+| `SU` | Same subnet rule | `SU=on` only when the script has `d.Sf.SU.checked=1;` |
+| `RS` | Factory reset, not in the script | Never, see the warning above |
+
+3. Send the body on standard input. With `AO` and `SU` checked and `NO` and `OW` not, the body is `PIN=<pin>&OP=&AO=on&SU=on`. While the OTA lock is on, the four checkboxes stay as they are and the `PIN` field still applies (VERIFIED, `set.cpp`, the `PIN` block comes before `bool pwdCorrect = !otaLock`).
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' --data-binary @- http://<wled-host>/settings/sec
+```
+
+4. Read `GET /settings/s.js?p=6` again and compare every field, because the form answers `200` "Security settings saved." even when it ignored the PIN. After a set, `PIN.value` is `"0000"`, and after a remove it is `""`. The save reaches `wsec.json`, so the change survives a reboot (VERIFIED, `set.cpp` `configNeedsWrite`, `cfg.cpp` `serializeConfigToFS` and `serializeConfigSec`).
+5. A new PIN does not lock the settings, which stay open for up to 15 minutes after the save (VERIFIED, `wled.cpp`, `PIN_TIMEOUT`, and `set.cpp`, `lastEditTime = millis()`). To lock at once, send `GET /settings/lock` as [Unlock](#unlock) shows, then check that `GET /settings/sec` answers `401`.
+
 ---
 
 ### What the PIN guards and what it does not
@@ -90,7 +135,7 @@ VERIFIED in `wled_server.cpp`, `set.cpp` and `file.cpp`.
 | `POST /json/cfg` | 401 `{"error":1}` |
 | Settings pages from LED settings to the pin info page | 401 with the PIN form |
 | The Wi-Fi settings page, once Wi-Fi is configured | 401 with the PIN form |
-| `GET /settings/settings.js?p=<n>` for a page above 0 | 401 |
+| `GET /settings/s.js?p=<n>` for a page above 0 | 401 |
 | `/edit`, the file editor, listing, download and delete | 401, and 403 for `wsec.json` even when open |
 | `POST /upload` | 401 "Please unlock settings using PIN code!" |
 | `POST /update` and `POST /updatebootloader` | 401 |
