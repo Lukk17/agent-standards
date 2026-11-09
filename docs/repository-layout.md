@@ -13,7 +13,7 @@ Three categories, and mixing them up is the one mistake that breaks a rebuild.
 
 | Category | Paths | How to change it |
 | --- | --- | --- |
-| Canonical | `subagents/*.md`, `.agents/skills/*/SKILL.md` and their `references/*.md`, `.agents/hooks/*.py`, `.agents/hooks/claude/sync_skill_links.py`, `.agents/plugin/hooks.js`, `.agents/plugin/index.js`, `docs/*.md` | edit directly |
+| Canonical | `subagents/*.md`, `.agents/skills/*/SKILL.md` and their `references/*.md`, `.agents/hooks/*.py`, `.agents/hooks/claude/sync_skill_links.py`, `.agents/hooks/claude/standards_advisory_check.py`, `.agents/plugin/hooks.js`, `.agents/plugin/index.js`, `docs/*.md` | edit directly |
 | Canonical config | `.mcp.json`, `opencode.json`, `.opencode/opencode.json`, `.opencode/opencode.json.v1`, `.codex/config.toml`, `.vscode/mcp.json`, `.github/mcp.json`, `.claude/settings.json`, `.github/hooks/preflight.json` | edit directly, keep the server set and the gate wording in sync |
 | Generated | `.claude/agents/*.md`, `.agents/agents/*.md`, `.codex/agents/*.toml`, `.github/agents/*.agent.md` | never hand-edit, run `python tools/gen_subagents.py` |
 | Canonical, this repo only | `tools/plugins.yaml`, the plugin map: which Claude Code plugin holds each skill, subagent and MCP server | edit directly, verified by `tools/tests/test_gen_plugins.py`, never shipped |
@@ -60,6 +60,9 @@ agent-standards/
       status_block_check.py      # CANONICAL, footer shape gate for user-facing replies
       question_numbering_check.py # CANONICAL, numbered questions check on new prose
       task_watchdog.py           # CANONICAL, reply Tasks line must match live tool todo state
+      claude/                    # CANONICAL, Claude Code only, never run by the OpenCode and Kilo Code runner
+        sync_skill_links.py      # global install, keeps per-skill links in the Claude Code and Codex skills folders
+        standards_advisory_check.py # advisory warnings after an edit: action pins, :latest, @Query, test banners
     plugin/
       hooks.js                   # CANONICAL, OpenCode and Kilo Code runner for every hook in hooks/
   .metrics/

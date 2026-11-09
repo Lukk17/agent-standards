@@ -45,6 +45,8 @@ per-stack mechanics.
 8. Mocking boundaries. Mock only interfaces the project owns, only in unit tests. Never mock a database you can exercise, and never use a shared staging instance. For third-party HTTP clients, ORMs and cloud SDKs, prefer a real instance, the official test double, or an HTTP fake such as WireMock or MSW.
 9. Flaky tests. `e2e-testing` holds the one flaky-test policy, for every layer. Do not restate it or adopt a second one.
 10. Continuous testing. Watch mode while developing, tests and lint gate the commit, CI runs with coverage and uploads the report through an action pinned to a full commit SHA.
+11. Test comments. The only comments in a test are the bare `// Given`, `// When`, `// Then` and `// When & Then` markers (`#` in Python). No divider banner, section label, file-header description or trailing explanation: the meaning goes into the test name or `@DisplayName`, because a comment is the part of a test nobody keeps true.
+12. Test file size. A test class or file past about 300 lines covers several behaviours, so split it into focused classes named for the behaviour, sharing builders through one `<Subject>TestFixtures`, and fold a coverage-driven `*BranchTest` into the behaviour class it belongs to.
 
 ---
 
@@ -52,7 +54,7 @@ per-stack mechanics.
 
 | Task | Open |
 | --- | --- |
-| Applying a rule above: the journey and case examples, RED pass and fail output, the Jest coverage block, naming forms, isolation, mock seams, the watch, commit and CI commands | [references/loop-and-rules.md](references/loop-and-rules.md) |
+| Applying a rule above: the journey and case examples, RED pass and fail output, the Jest coverage block, naming forms, isolation, test comments and splitting, mock seams, the watch, commit and CI commands | [references/loop-and-rules.md](references/loop-and-rules.md) |
 | Test pyramid proportions, contract testing, mutation testing, performance testing, JaCoCo and PIT config, the Testcontainers mandate, the test data factory pattern | [references/advanced-testing.md](references/advanced-testing.md) |
 
 ---
@@ -79,6 +81,8 @@ per-stack mechanics.
 - [ ] The coverage config uses the key the tool actually reads.
 - [ ] Test names describe behaviour and condition, in one convention across the codebase.
 - [ ] Every test builds its own data and passes in any order.
+- [ ] No comment in a test but the bare Given, When and Then markers.
+- [ ] No test class or file past about 300 lines, and no `*BranchTest` beside its behaviour class.
 - [ ] Assertions target observable behaviour, and none was weakened to get green.
 - [ ] Mocks sit at interfaces the project owns, and integration tests use Testcontainers.
 - [ ] The full suite ran, not just the one test that was being fixed.

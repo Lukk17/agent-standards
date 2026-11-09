@@ -159,21 +159,41 @@ Fail: a hardcoded sunset date nobody revisits, or a version removed in the relea
 
 ### OpenAPI
 
-Add `springdoc-openapi-starter-webmvc-ui`, taking the version from the project version catalog, and annotate the
-controllers.
+Add `springdoc-openapi-starter-webmvc-ui`, taking the version from the project version catalog, and annotate the controllers. The response annotations are not repeated on every method. Declare them once as composable meta-annotations in a shared `openapi` package, and put the matching ones on every endpoint, so the spec is complete and a change to an error description is one edit.
+
+```java
+@Target({ElementType.METHOD, ElementType.TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+@ApiResponse(responseCode = "400", description = "Invalid request",
+        content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+@ApiResponse(responseCode = "500", description = "Unexpected server error",
+        content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ApiProblem.class)))
+public @interface ApiCommonErrorResponses {}
+```
+
+A useful set, each its own file: `ApiCommonSuccessResponses` (200), `ApiCreatedResponses` (201), `ApiAcceptedResponses` (202), `ApiNoContentResponses` (204), `ApiRedirectResponses` (302), `ApiCommonErrorResponses` (400, 500), `ApiSecuredResponses` (401, 403), `ApiNotFoundResponses` (404), `ApiConflictResponses` (409), and `ApiTooManyRequestsResponses` (429). Compose them per endpoint:
 
 ```java
 @Tag(name = "Users", description = "User management")
 @RestController
 class UserController {
 
-    @Operation(summary = "Get user by ID")
-    @ApiResponse(responseCode = "200", description = "User found")
-    @ApiResponse(responseCode = "404", description = "User not found")
-    @GetMapping("/api/v1/users/{id}")
-    UserDto getUser(@PathVariable Long id) { ... }
+    @Operation(summary = "Create a user")
+    @ApiCreatedResponses
+    @ApiCommonErrorResponses
+    @ApiSecuredResponses
+    @ApiConflictResponses
+    @PostMapping("/api/v1/users")
+    @ResponseStatus(HttpStatus.CREATED)
+    UserDto create(@Valid @RequestBody CreateUserRequest request) { ... }
 }
 ```
+
+Two rules keep the spec honest. The success annotation matches what the endpoint really returns: a `@ResponseStatus(CREATED)` method declares 201, a method returning nothing declares 204, an accepted asynchronous job 202, a redirect 302, never a blanket 200. And every error response references the schema of what the project actually sends: the project's own problem record (`ApiProblem` above, carrying `type`, `title`, `status`, `detail`, `instance` and whatever extra members such as `traceId` or field errors the handler adds) with media type `application/problem+json`. Point at Spring's `ProblemDetail` only when the wire shape is exactly that class, because a generated client deserialises what the spec says, not what the server sends.
+
+Pass: `@ApiNoContentResponses` on a `DELETE` that returns `204`, and errors described as `application/problem+json` with the project's problem schema.
+
+Fail: one `@ApiResponse(responseCode = "200")` copied onto a `201` endpoint, and error responses declared as `application/json` with no schema.
 
 Commit the generated `openapi.yaml` so a contract change shows up as a reviewable diff rather than as a surprise in
 a consumer. Generate it from the running application at the path `springdoc.api-docs.path` exposes.

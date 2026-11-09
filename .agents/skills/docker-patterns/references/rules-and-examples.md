@@ -67,10 +67,29 @@ Full reference Dockerfiles for Node, Go, and Python, plus the apt-get, OCI label
 
 ### Pin the base image
 
-`:latest` makes a build unreproducible and silently changes the runtime under you. Pin a tag that names the runtime
-version and the OS variant, and pin a digest where the registry supports it. The examples show `@sha256:<digest>` in
-place of a real digest. Read the digest a tag resolves to with `docker buildx imagetools inspect <image>:<tag>`, and let
-Dependabot or Renovate bump the tag and the digest together.
+`:latest` makes a build unreproducible and silently changes the runtime under you. Pin a tag that names the runtime version and the OS variant, and pin a digest where the registry supports it. The examples show `@sha256:<digest>` in place of a real digest. Read the digest a tag resolves to with `docker buildx imagetools inspect <image>:<tag>`, and bump the tag and the digest together in a deliberate pull request rather than through Dependabot or Renovate, per `build-dependency-management`.
+
+The rule covers every image reference, not only the base image of a Dockerfile: a compose `image:`, the fallback in a variable default such as `${API_IMAGE:-ghcr.io/acme/api:latest}`, a `services:` container in a CI job, a sidecar such as `cloudflare/cloudflared` or `nginx`, and the images a test suite starts through Testcontainers. A floating tag in any of them changes what runs without a commit. Publish only immutable version tags too: a release that also pushes a moving `:latest` invites every consumer to depend on it.
+
+Pass:
+
+```yaml
+services:
+  api:
+    image: ${API_IMAGE:-ghcr.io/acme/api:v<version>}
+  tunnel:
+    image: cloudflare/cloudflared:<version-tag>@sha256:<digest>
+```
+
+Fail:
+
+```yaml
+services:
+  api:
+    image: ${API_IMAGE:-ghcr.io/acme/api:latest}
+  tunnel:
+    image: cloudflare/cloudflared:latest
+```
 
 Pass:
 

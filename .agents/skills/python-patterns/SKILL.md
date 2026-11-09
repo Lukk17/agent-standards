@@ -48,6 +48,7 @@ Written for Python 3.14 and pytest 9. Every example assumes them, so builtin gen
 9. Cover around 90 percent of real logic and 100 percent of critical paths. A failing gate means a missing test, never a lower threshold, and only generated output is excluded.
 10. Run the whole suite from the project root before calling a change good, and avoid the legal-but-wrong traps listed in the core rules reference.
 11. The startup readiness log belongs to `observability-and-logging`. Do not restate it or invent a local variant.
+12. One job per module. A script is a thin command-line entry that parses arguments and calls pure helper modules, each with one responsibility and its own pytest tests, and no module carries a long comment block, because a 400-line script mixing parsing, conversion and output cannot be tested or reused piece by piece.
 
 ---
 
@@ -61,7 +62,7 @@ Docstrings follow the Doc Comments rules in `coding-standards`. Python delta: us
 
 | Open this | When |
 | --- | --- |
-| [references/core-rules.md](references/core-rules.md) | A hub rule needs its BAD and GOOD example, its full reasoning, or the trap table |
+| [references/core-rules.md](references/core-rules.md) | A hub rule needs its BAD and GOOD example, its full reasoning, the module split, or the trap table |
 | [references/typing.md](references/typing.md) | Protocols, type aliases, generics, `TypeVar`, narrowing |
 | [references/idioms.md](references/idioms.md) | EAFP, context managers, decorators, comprehensions, generators, `__slots__` |
 | [references/concurrency.md](references/concurrency.md) | Thread pools, process pools, asyncio, cancellation |

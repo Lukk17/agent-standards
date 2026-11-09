@@ -8,6 +8,8 @@ Contents:
 - [Test layers](#test-layers)
 - [Test naming](#test-naming)
 - [Test structure](#test-structure)
+- [Test comments](#test-comments)
+- [Test file size](#test-file-size)
 - [Test what the user observes](#test-what-the-user-observes)
 - [Mocking boundaries](#mocking-boundaries)
 - [Flaky tests](#flaky-tests)
@@ -209,6 +211,46 @@ test('updates a user', () => {
 
 ---
 
+### Test comments
+
+The three phases are marked with bare comments and nothing else: `// Given`, `// When`, `// Then`, or `// When & Then` when the action and the assertion are one call, with `#` in Python. They are the only comments a test file carries. A divider banner (`// ---- helpers ----`, `// ─── MODULE MOCKS ───`), a numbered section label (`// 7.1 Directory listing happy path`), a file header saying what the file tests and how its environment is chosen, and a trailing explanation after an assertion all go. What a test proves belongs in its name, or in `@DisplayName` where the name alone cannot carry it, and grouping belongs in a nested class or a separate file.
+
+Pass:
+
+```java
+@Test
+@DisplayName("a note longer than the limit is rejected before the decision is stored")
+void decide_withOversizedNote_isRejected() {
+    // Given
+    var decision = decisionWithNoteOfLength(NOTE_LIMIT + 1);
+
+    // When & Then
+    assertThatThrownBy(() -> service.decide(decision)).isInstanceOf(NoteTooLongException.class);
+    verifyNoInteractions(repository);
+}
+```
+
+Fail:
+
+```java
+// ---- validation ----
+@Test
+void decide_withOversizedNote_isRejected() {
+    var decision = decisionWithNoteOfLength(NOTE_LIMIT + 1); // one over the limit
+    assertThatThrownBy(() -> service.decide(decision)).isInstanceOf(NoteTooLongException.class);
+}
+```
+
+The CI-guard pragmas a project defines, such as `// biome-ignore` or an `i18n-allow` marker, are tool input rather than prose and stay.
+
+---
+
+### Test file size
+
+Past about 300 lines a test class is testing several behaviours, and a failure in it no longer points at one. Split it by behaviour into focused classes, for example `SubmissionServiceCreateTest`, `SubmissionServiceStatusTransitionTest` and `SubmissionServiceQueryTest`, and move the builders and canned data they share into one `<Subject>TestFixtures` class or module. A test class created only to push branch coverage up, typically named `*BranchTest`, is folded into the behaviour class whose branches it covers, because a branch is part of a behaviour. The same rule covers TypeScript and Python test files: `vendors.test.ts` becomes one file per behaviour area beside a shared fixtures module.
+
+---
+
 ### Test what the user observes
 
 Assert the behaviour the caller can see, not the internal state that produced it. A test coupled to internals fails on
@@ -297,5 +339,5 @@ trailing comment, `<commit-sha>` standing in for a real one, resolved with
 - name: Run tests
   run: npm test -- --coverage
 - name: Upload coverage
-  uses: codecov/codecov-action@<commit-sha> # v7
+  uses: codecov/codecov-action@<commit-sha> # vX.Y.Z
 ```

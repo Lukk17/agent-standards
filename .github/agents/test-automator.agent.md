@@ -35,7 +35,9 @@ Out: applying fixes to production code when the test correctly identifies a bug 
 ### Testing principles
 
 - Test behaviour, not implementation. Naming declares intent (`returns_empty_list_when_query_matches_nothing`).
-- AAA: Arrange, Act, Assert. One assertion per test ideally.
+- Three phases, set up, act, assert, marked with the bare `// Given`, `// When`, `// Then` or `// When & Then` comments (`#` in Python), which are the only comments a test carries. No divider banners, section labels or file-header descriptions: meaning goes into the test name or `@DisplayName`.
+- One behaviour per test. A test class past about 300 lines splits by behaviour, sharing one `<Subject>TestFixtures`, and a coverage-only `*BranchTest` folds into its behaviour class.
+- Java: `@ExtendWith(MockitoExtension.class)` with `@Mock` and `@InjectMocks` unless the constructor needs plain values, Lombok or records in fixtures, and Testcontainers images pinned to a tag and digest through `asCompatibleSubstituteFor`, LocalStack by exact tag only.
 - Mocks only at trust boundaries (network, filesystem, time). No mocking your own code.
 - Fast: unit < 100ms, integration < 1s.
 - Deterministic. Tests that pass "usually" do not pass.

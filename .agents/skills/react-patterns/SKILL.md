@@ -58,7 +58,7 @@ Written for React 19 with TypeScript and React Compiler. Server Components, stre
 5. With React Compiler on, hand-write no `useMemo`, `useCallback` or `React.memo` except as a stated escape hatch, and leave existing memoisation until a test proves removal safe. Without it, memoise only what you measured.
 6. Copy before `sort`, `splice` or `reverse`, because they mutate a prop or state in place.
 7. Lazy load heavy client modules behind `Suspense`, and virtualise long lists.
-8. Send every user-facing string through the i18n layer by key.
+8. Send every user-facing string through the i18n layer by key, metadata titles, labels and toasts included, with a catalogue per supported locale and at least English beside the product's own language. Identifiers and keys are English, no component holds a locale literal such as `"pl"`: one i18n config module owns the locales and reads the default from validated environment, and an AST guard fails lint on new hard-coded copy.
 
 ---
 
@@ -89,6 +89,6 @@ Doc comments follow the Doc Comments rules in `coding-standards`, whose TSDoc ex
 - With React Compiler on, a hand-written `useMemo`, `useCallback`, or `React.memo` is an escape hatch with a stated reason. Without it, each traces back to a measurement.
 - No sort, splice, or reverse mutates a prop or a state value in place.
 - Heavy client-only modules are lazy loaded, and lists past a few hundred rows are virtualised.
-- Every user-facing string goes through the i18n layer.
+- Every user-facing string goes through the i18n layer, keys and identifiers are English, and no component hard-codes a locale.
 - Every animation respects `prefers-reduced-motion`.
 - Doc comments follow `coding-standards`, and a prop is documented on its props type, never as a `@param` on the component.
