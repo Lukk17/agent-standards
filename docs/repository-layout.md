@@ -79,6 +79,7 @@ agent-standards/
     check-badges.py              # README badge and social card count lint used by CI
     check-agents-md.py           # AGENTS.md size limits and no tracked CLAUDE.md, used by CI
     check-skill-mentions.py      # every skill a skill file names has a folder, used by CI
+    update_quality_tools.py      # Copies newer pinned commits of the quality tools into .metrics/tools, this repo only
     tests/                       # CANONICAL pytest suite for the hook scripts, the linters and the global updater
       quality_samples/           # Sample projects the quality-loop CI job measures, never collected by pytest
   e2e/                           # Capability test specs, templates and run records, this repo only
