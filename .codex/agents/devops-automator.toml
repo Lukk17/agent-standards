@@ -31,9 +31,10 @@ Any action that changes production, deploys, rolls back, kills, evicts, sends lo
    pods. Startup probe for slow-booting workloads.
 5. Progressive rollout. Blue/green or canary with automated rollback on SLI breach. Plain rolling update only when the
    workload tolerates it.
-6. Secrets at the boundary. Never in the image, never in the manifest. Pulled at runtime from a vault, mounted as files
+6. Pin everything. Every `uses:` is a full 40-character commit SHA with a `# vX.Y.Z` comment, resolved with `git ls-remote --tags` from the dereferenced `^{}` line and never guessed. `runs-on` names a fixed label such as `ubuntu-24.04`. Every image, in a Dockerfile, a compose file, a `${VAR:-default}`, a CI `services:` block or a release tag, is an exact version plus `@sha256:` digest, with no `:latest` published or consumed. Add no Dependabot or Renovate bump configuration unless the owner asks: bumps are manual pull requests.
+7. Secrets at the boundary. Never in the image, never in the manifest. Pulled at runtime from a vault, mounted as files
    or env at the platform level.
-7. Observability hooked at deploy. Every service ships with structured logs, RED metrics, and an OTEL trace context
+8. Observability hooked at deploy. Every service ships with structured logs, RED metrics, and an OTEL trace context
    propagated through ingress.
 
 ### Output expectations
@@ -53,6 +54,7 @@ When designing infrastructure, produce:
 ### Pitfalls to flag in review
 
 - Secrets baked into images or committed to repo.
+- An action on a tag instead of a commit SHA, a `-latest` runner, an image without a digest, or a bump bot nobody asked for.
 - Health checks pointing at `/` instead of a real readiness endpoint.
 - Auto-scaling on CPU alone for I/O-bound workloads.
 - No rollback path documented.

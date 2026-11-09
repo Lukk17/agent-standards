@@ -43,6 +43,7 @@ These are the foundation and they outrank convenience, speed, and habit. When a 
 11. Ask before any destructive or irreversible action, such as deleting files, dropping or truncating data, or rewriting history. Read the current content of a file before editing it.
 12. When I reject a change, ask why before proposing a new one.
 13. Critique your own work before presenting it. Do not refuse a task by citing model, context, or capability limits. Make a plan and carry it out.
+14. Never ask me to do something by hand that an agent can do itself with its skills. Ask only whether it may do it right now.
 
 ---
 

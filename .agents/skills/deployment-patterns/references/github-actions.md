@@ -3,8 +3,13 @@
 A reference pipeline, the authentication and permission rules, and the canary automation that sits on top of it. The
 strategy and gating rules live in [SKILL.md](../SKILL.md).
 
-Every action below is pinned to a full 40-character commit SHA with its version tag in a trailing comment, because a
-tag can be moved to other code and a SHA cannot. The examples show `<commit-sha>` in place of a real one. Resolve the SHA for a tag with `git ls-remote https://github.com/<owner>/<repo> refs/tags/<tag> refs/tags/<tag>^{}`, taking the `^{}` line when the tag is annotated, and let Dependabot or Renovate bump the SHA and the comment together. Bump majors deliberately, a major bump usually changes the runner Node version.
+Every action below is pinned to a full 40-character commit SHA with the exact release tag it was resolved from in a trailing comment, `# vX.Y.Z`, because a tag can be moved to other code and a SHA cannot, and a moving major such as `# v5` says nothing about which code the SHA is. This holds for every `uses:` in a workflow and in a composite action, first-party `actions/*` included. The examples show `<commit-sha>` and `vX.Y.Z` in place of real values.
+
+Resolve the SHA for a tag, never guess it or copy it from memory, with `git ls-remote --tags https://github.com/<owner>/<repo> refs/tags/<tag> refs/tags/<tag>^{}`. An annotated tag prints two lines, and the commit is the dereferenced `^{}` one; the other is the tag object, which `uses:` will not run. A lightweight tag prints only the commit. Then check the SHA resolves on GitHub before committing.
+
+Runners are pinned the same way: `runs-on: ubuntu-24.04`, never `ubuntu-latest`, which GitHub moves to a new image, and a new toolchain, without a commit in your repository.
+
+Bumps are manual. No Dependabot version updates and no Renovate bump pull requests unless the project owner asks for them: a dependency or action bump is a deliberate pull request that re-resolves the SHA and the tag together, per `build-dependency-management`. Bump majors deliberately, a major bump usually changes the runner Node version.
 
 ---
 
@@ -37,12 +42,12 @@ env:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@<commit-sha> # v5
-      - uses: actions/setup-node@<commit-sha> # v5
+      - uses: actions/checkout@<commit-sha> # vX.Y.Z
+      - uses: actions/setup-node@<commit-sha> # vX.Y.Z
         with:
           node-version: 26
           cache: npm
@@ -50,7 +55,7 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test -- --coverage
-      - uses: actions/upload-artifact@<commit-sha> # v4
+      - uses: actions/upload-artifact@<commit-sha> # vX.Y.Z
         if: always()
         with:
           name: coverage
@@ -58,7 +63,7 @@ jobs:
 
   build:
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: github.ref == 'refs/heads/main'
     permissions:
       contents: read
@@ -67,20 +72,20 @@ jobs:
     outputs:
       digest: ${{ steps.push.outputs.digest }}
     steps:
-      - uses: actions/checkout@<commit-sha> # v5
-      - uses: docker/setup-buildx-action@<commit-sha> # v3
-      - uses: docker/login-action@<commit-sha> # v3
+      - uses: actions/checkout@<commit-sha> # vX.Y.Z
+      - uses: docker/setup-buildx-action@<commit-sha> # vX.Y.Z
+      - uses: docker/login-action@<commit-sha> # vX.Y.Z
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@<commit-sha> # v7
+      - uses: docker/build-push-action@<commit-sha> # vX.Y.Z
         with:
           load: true
           tags: ${{ env.IMAGE }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - uses: aquasecurity/trivy-action@<commit-sha> # v0.36.0
+      - uses: aquasecurity/trivy-action@<commit-sha> # vX.Y.Z
         with:
           image-ref: ${{ env.IMAGE }}:${{ github.sha }}
           exit-code: '1'
@@ -88,23 +93,23 @@ jobs:
           ignore-unfixed: true
           format: json
           output: trivy-report.json
-      - uses: actions/upload-artifact@<commit-sha> # v4
+      - uses: actions/upload-artifact@<commit-sha> # vX.Y.Z
         if: always()
         with:
           name: trivy-report
           path: trivy-report.json
       - id: push
-        uses: docker/build-push-action@<commit-sha> # v7
+        uses: docker/build-push-action@<commit-sha> # vX.Y.Z
         with:
           push: true
           tags: ${{ env.IMAGE }}:${{ github.sha }}
           cache-from: type=gha
-      - uses: anchore/sbom-action@<commit-sha> # v0.24.2
+      - uses: anchore/sbom-action@<commit-sha> # vX.Y.Z
         with:
           image: ${{ env.IMAGE }}@${{ steps.push.outputs.digest }}
           format: cyclonedx-json
           output-file: sbom.json
-      - uses: sigstore/cosign-installer@<commit-sha> # v4.1.2
+      - uses: sigstore/cosign-installer@<commit-sha> # vX.Y.Z
       - name: Sign the image and attest the SBOM
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
@@ -115,20 +120,20 @@ jobs:
 
   deploy-staging:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: staging
     permissions:
       contents: read
       packages: read
       id-token: write
     steps:
-      - uses: actions/checkout@<commit-sha> # v5
-      - uses: docker/login-action@<commit-sha> # v3
+      - uses: actions/checkout@<commit-sha> # vX.Y.Z
+      - uses: docker/login-action@<commit-sha> # vX.Y.Z
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: sigstore/cosign-installer@<commit-sha> # v4.1.2
+      - uses: sigstore/cosign-installer@<commit-sha> # vX.Y.Z
       - name: Verify the image signature
         env:
           COSIGN_PUBLIC_KEY: ${{ vars.COSIGN_PUBLIC_KEY }}
@@ -138,30 +143,30 @@ jobs:
 
   smoke-test:
     needs: deploy-staging
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@<commit-sha> # v5
+      - uses: actions/checkout@<commit-sha> # vX.Y.Z
       - name: Smoke test staging
         run: ./scripts/smoke-test.sh staging
 
   deploy-production:
     needs: [build, smoke-test]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: production
     permissions:
       contents: read
       packages: read
       id-token: write
     steps:
-      - uses: actions/checkout@<commit-sha> # v5
-      - uses: docker/login-action@<commit-sha> # v3
+      - uses: actions/checkout@<commit-sha> # vX.Y.Z
+      - uses: docker/login-action@<commit-sha> # vX.Y.Z
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: sigstore/cosign-installer@<commit-sha> # v4.1.2
+      - uses: sigstore/cosign-installer@<commit-sha> # vX.Y.Z
       - name: Verify the image signature
         env:
           COSIGN_PUBLIC_KEY: ${{ vars.COSIGN_PUBLIC_KEY }}
@@ -187,7 +192,7 @@ Exchange a short-lived token for a cloud role. A long-lived access key in CI sec
 and stays valid.
 
 ```yaml
-- uses: aws-actions/configure-aws-credentials@<commit-sha> # v5
+- uses: aws-actions/configure-aws-credentials@<commit-sha> # vX.Y.Z
   with:
     role-to-assume: arn:aws:iam::123456789:role/deploy-role
     aws-region: eu-west-1
@@ -221,7 +226,7 @@ workflow runs.
 
 ```yaml
 - name: Lint GitHub Actions workflows
-  uses: rhysd/actionlint@<commit-sha> # v1
+  uses: rhysd/actionlint@<commit-sha> # vX.Y.Z
 ```
 
 ---
@@ -233,7 +238,7 @@ Notify the author and a shared channel on any pipeline failure, with a link back
 ```yaml
 - name: Notify on failure
   if: failure()
-  uses: slackapi/slack-github-action@<commit-sha> # v4
+  uses: slackapi/slack-github-action@<commit-sha> # vX.Y.Z
   with:
     payload: |
       {
@@ -256,7 +261,7 @@ Notify the author and a shared channel on any pipeline failure, with a link back
 strategy:
   fail-fast: true
   matrix:
-    os: [ubuntu-latest, windows-latest]
+    os: [ubuntu-24.04, windows-2025]
     java: ['21', '25']
 ```
 

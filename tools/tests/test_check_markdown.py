@@ -990,6 +990,24 @@ def test_the_generated_agent_trees_are_in_the_default_targets(tmp_path):
     assert len([t for t in targets if t.parent.name == "agents"]) == 4
 
 
+def test_the_quality_tools_readme_is_linted_and_the_vendored_tools_are_not(tmp_path):
+    # Given the agent-standards readme beside Robert C. Martin's three vendored tools, each with its own readme
+    readme = tmp_path / ".metrics" / "tools" / "README.md"
+    readme.parent.mkdir(parents=True)
+    readme.write_text("### Heading\n\nProse.\n", encoding="utf-8")
+    for tool in ("crapper", "dryer", "mutator"):
+        vendored = tmp_path / ".metrics" / "tools" / tool / "README.md"
+        vendored.parent.mkdir(parents=True)
+        vendored.write_text("## His heading\n\nHis prose \u2014 in his style.\n", encoding="utf-8")
+
+    # When
+    targets = MARKDOWN.default_targets(tmp_path)
+
+    # Then our readme is linted and nothing of his is
+    assert readme in targets
+    assert [t for t in targets if t.parent.parent.name == "tools" and t.parent.name in {"crapper", "dryer", "mutator"}] == []
+
+
 def test_no_subagent_source_or_generated_agent_states_a_dated_baseline(capsys):
     # Given every canonical subagent and every generated agent this repository ships
     targets = sorted((REPO_ROOT / "subagents").glob("*.md"))

@@ -8,6 +8,7 @@ Contents:
 - [Error handling](#error-handling)
 - [Independent async calls](#independent-async-calls)
 - [Type safety](#type-safety)
+- [Generic type parameter names](#generic-type-parameter-names)
 
 Worked pass and fail pairs for the language-neutral rules in SKILL.md, written in TypeScript. Load this file when you
 want a concrete example of a rule rather than its statement, or when the code under review is TypeScript or
@@ -170,4 +171,29 @@ Fail:
 async function getMarket(id: any): Promise<any> {
   return marketClient.get(id)
 }
+```
+
+---
+
+### Generic type parameter names
+
+A single-letter type parameter is fine where the meaning is universal, such as `T` in `identity<T>(value: T)`. Once there are two, or the parameter stands for a domain role, name it for that role with a `T` prefix, so no doc comment has to explain what `T` and `D` mean.
+
+Pass:
+
+```typescript
+export function useAdminCrudDialog<TRow extends { id: string }, TDraft>(
+  toDraft: (row: TRow) => TDraft,
+  emptyDraft: TDraft,
+): AdminCrudDialog<TRow, TDraft> { ... }
+```
+
+Fail:
+
+```typescript
+/**
+ * @typeParam T the row type shown in the table
+ * @typeParam D the draft type edited in the dialog
+ */
+export function useAdminCrudDialog<T extends { id: string }, D>(toDraft: (row: T) => D, emptyDraft: D) { ... }
 ```

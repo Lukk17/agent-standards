@@ -57,7 +57,7 @@ Written for Next.js 16 on the App Router, where Turbopack is the default dev bun
 4. Mutate through Server Actions that invalidate their own caches: `updateTag` when the user must see the write on the next request, `revalidateTag(tag, 'max')` when a stale read is fine. The single-argument `revalidateTag(tag)` is deprecated.
 5. Parse every route handler input through a schema, hand the work to a service, and return errors through the `node-backend-patterns` problem+json handler, with 422 for a failed schema.
 6. Run route handlers and pages on the Node.js runtime unless a specific deployment constraint says otherwise.
-7. Derive metadata with `generateMetadata` from the data the page renders, and pre-render the known set with `generateStaticParams`.
+7. Derive metadata with `generateMetadata` from the data the page renders, titles from the message catalogue per the i18n rule in `react-patterns`, and pre-render the known set with `generateStaticParams`.
 8. Serve images through `next/image` with explicit dimensions, the LCP image with `loading="eager"` and `fetchPriority="high"`, and load heavy below-the-fold modules with `dynamic`.
 9. Develop on Turbopack, and fall back to `next dev --webpack` only for a specific bug, with the reason written down.
 

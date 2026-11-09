@@ -7,6 +7,7 @@ Data modeling, repositories, and query performance for the persistence layer. Op
 ### Contents
 
 - Map entities explicitly
+- Query through Specifications, never strings
 - Keep associations lazy and fetch what you need per query
 - Project the columns a read path uses
 - Javadoc
@@ -58,12 +59,52 @@ of the enum. Auditing itself needs one `@EnableJpaAuditing` on a configuration c
 
 ---
 
+### Query through Specifications, never strings
+
+Every read, count, existence check and bulk delete goes through Spring Data JPA: a derived query method for a trivial match on one or two properties (`countByStatus`, `existsByEmail`), and a `Specification` for anything else, with the repository extending `JpaSpecificationExecutor`. Aggregates such as `SUM` and `GROUP BY` are built with `CriteriaBuilder` from the same specifications. `@Query` with JPQL or `nativeQuery = true`, `@NamedQuery`, `@Modifying` and `EntityManager.createQuery(String)` or `createNativeQuery` are not used. A query string is checked by nothing until it runs: a renamed field or entity compiles cleanly and fails in production, and a string invites concatenation.
+
+Keep the reusable predicates in one final `<Context>Specifications` class per persistence context, compose them with `and` and `or`, and let `Pageable` and `Sort` carry paging and order.
+
+```java
+final class SubmissionSpecifications {
+
+    static Specification<SubmissionEntity> hasStatus(SubmissionStatus status) {
+        return (root, query, cb) -> cb.equal(root.get(SubmissionEntity_.status), status);
+    }
+
+    static Specification<SubmissionEntity> createdAfter(Instant since) {
+        return (root, query, cb) -> cb.greaterThan(root.get(SubmissionEntity_.createdAt), since);
+    }
+}
+```
+
+```java
+Page<SubmissionEntity> page = repository.findAll(hasStatus(OPEN).and(createdAfter(since)), pageable);
+```
+
+Enforce it with an ArchUnit rule in the architecture test, so a string query fails the build rather than a review:
+
+```java
+@ArchTest
+static final ArchRule noStringQueries = noMethods().should().beAnnotatedWith(Query.class)
+        .orShould().beAnnotatedWith(Modifying.class)
+        .because("reads go through Specifications or derived query methods");
+```
+
+Add a second rule for calls to `EntityManager.createQuery(String)` and `createNativeQuery`. The one allowlisted exception is generic whole-table tooling, such as a backup and restore that streams every table through JDBC without knowing the entities, kept in its own package that the rule excludes. Liquibase or Flyway changesets are SQL by nature and are not code. Tests seed data through entities and repositories, and use raw SQL only to prove a database-level behaviour such as a trigger or a row-level security policy.
+
+Pass: `repository.findAll(SubmissionSpecifications.hasStatus(OPEN), pageable)`, and `countByStatus(OPEN)`.
+
+Fail: `@Query("select s from SubmissionEntity s where s.status = :status")`, and `@Query(value = "SELECT * FROM submission", nativeQuery = true)`.
+
+---
+
 ### Keep associations lazy and fetch what you need per query
 
 Every association defaults to lazy, and the query that needs the children asks for them. An eager collection loads
 on every read path including the ones that never touch it, and the cost is invisible until production.
 
-Pass: lazy mapping, then one `join fetch` in the query that actually needs the children.
+Pass: lazy mapping, then an entity graph, or a `root.fetch(...)` inside a `Specification`, on the one read that needs the children.
 
 ```java
 @OneToMany(mappedBy = "market", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -71,8 +112,8 @@ private List<PositionEntity> positions = new ArrayList<>();
 ```
 
 ```java
-@Query("select m from MarketEntity m left join fetch m.positions where m.id = :id")
-Optional<MarketEntity> findWithPositions(@Param("id") Long id);
+@EntityGraph(attributePaths = "positions")
+Optional<MarketEntity> findWithPositionsById(Long id);
 ```
 
 Fail: `fetch = FetchType.EAGER` on a collection, which turns one list endpoint into one query per row.
@@ -253,6 +294,7 @@ and pool alerts are in [connection-pooling.md](connection-pooling.md).
 ### Checklist
 
 - [ ] Every column declares nullability and length, and enums are stored as strings.
+- [ ] Every query is a `Specification` or a derived method, no `@Query` string exists, and an ArchUnit rule enforces it.
 - [ ] No association is eager, and every read path that needs children fetches them explicitly.
 - [ ] Read paths project the columns they use rather than loading whole entities.
 - [ ] Every multi-step write shares one transaction, and read paths are `readOnly = true`.

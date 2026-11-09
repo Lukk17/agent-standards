@@ -187,11 +187,12 @@ class OrderRepositoryTest {
 
   @Container
   @ServiceConnection
-  static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:18-alpine");
+  static PostgreSQLContainer postgres = new PostgreSQLContainer(
+      DockerImageName.parse("postgres:<version-tag>@sha256:<digest>").asCompatibleSubstituteFor("postgres"));
 }
 ```
 
-`@ServiceConnection` hands Spring Boot the URL, the username and the password together. Outside Spring Boot, register
+Pin the image to a version tag and its digest, wrapped in `asCompatibleSubstituteFor` so the module still accepts it. `springboot-patterns` explains the wrapper and the LocalStack exception, which is pinned by tag alone. `@ServiceConnection` hands Spring Boot the URL, the username and the password together. Outside Spring Boot, register
 the URL, username and password from the container yourself, because the container creates its own user and a URL alone
 fails authentication. The class shown is the Testcontainers 2 one, which moved each module into its own package and
 dropped the generic type parameter.

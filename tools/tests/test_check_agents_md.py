@@ -206,6 +206,24 @@ def test_nested_agents_md_is_not_held_to_the_root_limit(repo):
     _assert_fails_naming(result, "module/AGENTS.md has 110 lines")
 
 
+def test_an_agents_md_inside_the_vendored_quality_tools_is_not_held_to_a_limit(repo):
+    repo.track("AGENTS.md", _lines(10))
+    repo.track(".metrics/tools/crapper/AGENTS.md", _lines(GUARD.NESTED_MAX_LINES + 40))
+
+    result = _run_guard(repo.root)
+
+    _assert_passes(result)
+
+
+def test_a_claude_md_inside_the_vendored_quality_tools_still_fails(repo):
+    repo.track("AGENTS.md", _lines(10))
+    repo.track(".metrics/tools/mutator/CLAUDE.md", "notes\n")
+
+    result = _run_guard(repo.root)
+
+    _assert_fails_naming(result, ".metrics/tools/mutator/CLAUDE.md")
+
+
 def test_last_line_without_a_newline_still_counts(repo):
     repo.track("AGENTS.md", _lines(GUARD.ROOT_MAX_LINES - 1) + "last")
 

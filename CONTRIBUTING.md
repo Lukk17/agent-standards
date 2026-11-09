@@ -23,12 +23,13 @@ CI runs on every pull request and on every push to `master`. The workflow keeps 
 so you can still start it by hand from the
 [Actions tab](https://github.com/Lukk17/agent-standards/actions/workflows/ci.yml) against any branch.
 
-Three jobs run in parallel, and none of them waits on another:
+Four jobs run in parallel, and none of them waits on another:
 
 - `actionlint` lints the workflow YAML, including a ShellCheck pass over every `run:` block.
 - `validate` runs the JSON and TOML checks, the generator drift check, the markdown linter, the badge-count check, and
   the pytest suite. Every one of those is a command you can run locally, listed further down this page.
 - `sandbox` builds the container image once and then runs the containerised suite three times over: the per-project import assertions, a global install run twice against the container's own home to prove it is idempotent, and a scoped single-agent install to prove it writes only that agent's paths. The per-project run includes the subagent-write section, where each pinned agent binary has a real `python-pro` subagent write a real file and the gate refuse the main thread's own write, against a scripted mock model, as [sandbox-agent/README.md](sandbox-agent/README.md) describes under "A real subagent writes a real file, on every agent". This is the slow job, several minutes against the other two, which is why it runs alongside them rather than behind them.
+- `quality-loop` copies each sample project under [tools/tests/quality_samples/](tools/tests/quality_samples/) into a fresh repository with `.metrics/tools`, the way an import delivers it, runs `.metrics/tools/run measure` and `summary` through the launcher of the runner's system, and checks that coverage was read, the planted duplicate was found and exactly the planted mutants survived. It runs Python, TypeScript, Java with Maven and Java with Gradle on Ubuntu, and Python and Java with Gradle on Windows, where mutator's symlinks and the wrapper's Windows commands are measured. Run one sample locally with `python tools/tests/quality_samples/run_sample.py python`.
 
 The scoped check names the individual files the installer writes rather than asserting that `~/.claude` and its
 siblings are absent. Asking each agent command-line tool for its version, which the container does on startup, already

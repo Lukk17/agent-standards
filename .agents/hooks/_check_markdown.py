@@ -637,6 +637,8 @@ def default_targets(repo_root: Path) -> list[Path]:
     targets = [
         repo_root / "README.md",
         repo_root / "AGENTS.md.example",
+        # Only the agent-standards readme. The tools beside it are Robert C. Martin's, vendored in his own style.
+        repo_root / ".metrics" / "tools" / "README.md",
     ]
     targets.extend(sorted((repo_root / "docs").glob("*.md")))
     targets.extend(sorted((repo_root / ".agents" / "skills").glob("**/*.md")))

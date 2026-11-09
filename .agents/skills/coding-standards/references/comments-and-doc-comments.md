@@ -42,7 +42,15 @@ count++
 // TICKET-001 section 4.4: switch to ArrayList
 // PR #15 review comment fix
 // added for the cleanup pass
+
+// FAIL: BAD: divider banners, section labels and a file header that says what the file holds
+// ---- helpers ----
+// ─── MODULE MOCKS ───
+/* ---- Owner-zone shimmer skeleton ---- */
+// Component tests for the expense table. Environment is picked up automatically.
 ```
+
+Structure is shown by structure. A divider banner, a section label or a file-header comment describing the file restates what the file name, the function names and the order already say, and it goes stale the first time someone moves code between sections. When a file needs signposts, it holds several things and wants splitting, per the oversized-file smell in [code-smells.md](code-smells.md). This holds in tests too, where the bare `// Given`, `// When` and `// Then` markers are the only comments, per `tdd-workflow`. A long block comment explaining a function is the same smell: keep at most a short line of non-obvious why, and move the rest into names. Tool pragmas such as `// biome-ignore`, `# noqa` or a project's own guard annotation are not prose and stay.
 
 ---
 

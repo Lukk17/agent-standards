@@ -6,7 +6,7 @@ license: Apache-2.0
 
 # Spring Boot Patterns
 
-How a production Spring Boot service is put together, from the controller down to the database, the security around it, the tests, and the pipeline that ships it. Each reference below carries the depth for one area.
+How a production Spring Boot service is put together, from controller to database, its security, tests and pipeline. Each reference carries the depth for one area.
 
 Written for Spring Boot 4, with the Spring Security 7, Hibernate 7, Jackson 3 and JUnit 6 that ship with it, on blocking Spring MVC with virtual threads. WebFlux is out of scope, and Spring Boot 3 is an upgrade target, as the core rules reference explains.
 
@@ -14,15 +14,11 @@ Written for Spring Boot 4, with the Spring Security 7, Hibernate 7, Jackson 3 an
 
 ### When to activate
 
-- Building or restructuring a REST API on Spring MVC, and layering its controllers, services, and repositories.
-- The user says "structure this Spring Boot API", "add JWT auth to this endpoint", "lock this down to admins", "why does this query run two hundred times", "write a @WebMvcTest for this controller", "rate limit this endpoint", or "verify this before I open the PR".
-- Adding validation, exception handling, or pagination to endpoints.
-- Configuring caching, asynchronous processing, or Spring events.
-- Calling another service over HTTP and making that call survive the other service.
-- Adding authentication, authorization, CORS, response headers, or rate limiting.
-- Designing entities, choosing a fetch strategy, chasing an N+1 query, or sizing the connection pool.
-- Writing the tests, choosing a slice, wiring Testcontainers, or fixing a coverage gate.
-- Running the build, analysis, and scan pipeline before a pull request or a deployment.
+- Building or restructuring a REST API on Spring MVC: layering, validation, errors, pagination, OpenAPI and outbound calls.
+- The user says "structure this Spring Boot API", "add JWT auth to this endpoint", "why does this query run two hundred times", "write a @WebMvcTest for this controller", or "verify this before I open the PR".
+- Caching, asynchronous work, events, authentication, authorization, CORS, headers or rate limiting.
+- Entities, queries, fetch strategy, an N+1 query, or connection pool sizing.
+- Tests, slices, Testcontainers, the coverage gate, and the pipeline before a pull request or a deployment.
 
 ---
 
@@ -48,9 +44,11 @@ Written for Spring Boot 4, with the Spring Security 7, Hibernate 7, Jackson 3 an
 5. `@Transactional` sits on service methods only, `readOnly = true` on query paths. A self-call bypasses the proxy, so extract the method into another bean.
 6. Every cache has `@EnableCaching`, a time to live, a size bound, and a `@CacheEvict` written in the same change.
 7. Deny by default with `@EnableMethodSecurity` and a `@PreAuthorize` beside the method it guards, and reject bad payloads with `@Valid` constrained DTOs before business code runs.
-8. Write the failing test first, in the narrowest slice: JUnit and Mockito for services, `@WebMvcTest` for the web layer, `@DataJpaTest` with Testcontainers for repositories, `@SpringBootTest` only for wiring.
-9. Apply the production defaults: virtual threads on, `ddl-auto=validate` with migrations owning the schema, a sized HikariCP, `/api/v1/` paths, and a `Sunset` date on anything deprecated.
+8. Write the failing test first, in the narrowest slice: JUnit and Mockito with `@InjectMocks` for services, `@WebMvcTest` for the web layer, `@DataJpaTest` with digest-pinned Testcontainers images for repositories, `@SpringBootTest` only for wiring.
+9. Apply the production defaults: tunables in `application.yml` per `java-coding-standards`, virtual threads on, `ddl-auto=validate` with migrations owning the schema, a sized HikariCP, `/api/v1/` paths, and a `Sunset` date on anything deprecated.
 10. The startup readiness block belongs to `observability-and-logging`, emitted from an `@EventListener(ApplicationReadyEvent.class)` method, never `ApplicationStartedEvent`.
+11. Query through a `Specification` or a derived method, aggregates through the Criteria API on the same specifications. Never an `@Query` JPQL or native string, which no compiler checks, and an ArchUnit rule guards it. Whole-table backup and restore is the one exception.
+12. Every endpoint carries composable OpenAPI response meta-annotations with its honest success code, and error responses name the project's own problem schema, because generated clients trust the spec.
 
 ---
 
@@ -65,17 +63,16 @@ Javadoc follows `java-coding-standards`, which carries the Java delta of the `co
 | Task | Reference |
 | --- | --- |
 | A hub rule needs its Pass and Fail example, the baseline detail, the production defaults, or the related skills | [references/core-rules.md](references/core-rules.md) |
-| Controllers, DTOs, validation, the pagination envelope, the exception handler, versioning, OpenAPI | [references/rest-api-and-validation.md](references/rest-api-and-validation.md) |
+| Controllers, DTOs, validation, the pagination envelope, the exception handler, versioning, OpenAPI response annotations | [references/rest-api-and-validation.md](references/rest-api-and-validation.md) |
 | RestClient beans, Resilience4j retry and circuit breaker settings, timeouts, fallbacks | [references/outbound-and-resilience.md](references/outbound-and-resilience.md) |
 | Redis cache manager, `@Async` executors, transactional events, scheduled jobs, request filters | [references/caching-async-and-events.md](references/caching-async-and-events.md) |
 | Authentication, method authorization, SQL injection, password hashing, CSRF, secrets, uploads, rate limiting | [references/security.md](references/security.md) |
 | OAuth 2.1 flows, refresh token rotation, JWT claim validation, the auth filter, session cookies | [references/oauth2-and-jwt.md](references/oauth2-and-jwt.md) |
 | The full response header block, the CORS configuration source, mutual TLS between services | [references/headers-cors-mtls.md](references/headers-cors-mtls.md) |
-| Entity mapping, fetch strategy, N+1, projections, transactions, paging, indexing, second-level cache | [references/jpa.md](references/jpa.md) |
+| Entity mapping, Specifications instead of query strings, fetch strategy, N+1, projections, transactions, paging, indexing | [references/jpa.md](references/jpa.md) |
 | HikariCP sizing formula, pool configuration, utilisation alerts | [references/connection-pooling.md](references/connection-pooling.md) |
-| Test slices, MockMvc, Testcontainers, AssertJ, test data builders, the JaCoCo gate | [references/testing.md](references/testing.md) |
+| Test slices, `@InjectMocks`, test comments and size, MockMvc, pinned Testcontainers, fixtures, the JaCoCo gate | [references/testing.md](references/testing.md) |
 | The six pre-merge phases, the scan commands, the report template, the re-run loop | [references/verification-pipeline.md](references/verification-pipeline.md) |
-| The startup banner and readiness log block, which `observability-and-logging` owns | `references/startup-readiness-log.md` in the `observability-and-logging` skill |
 
 ---
 
@@ -86,11 +83,11 @@ Javadoc follows `java-coding-standards`, which carries the Java delta of the `co
 - [ ] Every error response is a `ProblemDetail` from one `@ControllerAdvice`.
 - [ ] Outbound HTTP goes through `RestClient`, with a retry, a circuit breaker, and explicit timeouts.
 - [ ] `@Transactional` sits on service methods only, with `readOnly = true` on query paths.
-- [ ] Event listeners that must not run on a rollback use `AFTER_COMMIT`.
 - [ ] Every cache has a TTL, a size bound, and an eviction path.
 - [ ] Every sensitive path carries an authorization rule, and every request body is a validated DTO.
 - [ ] No association is eager, every paged query has a sort, and no N+1 is left as a follow-up.
 - [ ] Every behaviour change started with a test that failed for the right reason, in the narrowest slice.
-- [ ] Repository tests run against the production database engine through Testcontainers.
-- [ ] Javadoc follows `java-coding-standards`.
+- [ ] No `@Query` string, every read a `Specification` or derived method, guarded by ArchUnit.
+- [ ] Every endpoint has the OpenAPI response meta-annotations, honest codes and the problem schema.
+- [ ] Repository tests run on the production engine through digest-pinned Testcontainers.
 - [ ] The verification pipeline ran in order and every gate is green before the pull request opens.

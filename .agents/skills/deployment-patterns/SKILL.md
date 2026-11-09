@@ -7,7 +7,7 @@ description: Deployment and CI/CD standards for rolling, blue-green and canary r
 
 How a change reaches production without a surprise: a rollout strategy chosen on purpose, an explicit human gate in front of production, config validated before the process serves traffic, and a rehearsed rollback. The pipeline is the control, not the documentation around it.
 
-Written for GitHub Actions on `ubuntu-latest`, Kubernetes 1.37 and Helm 4. Every GitHub Action a project runs is pinned to a full commit SHA with its version tag in a trailing comment, such as `uses: actions/checkout@<commit-sha> # v5`, and every image to a tag plus digest. The examples use placeholders rather than real values, and [references/github-actions.md](references/github-actions.md) shows how to resolve them.
+Written for GitHub Actions on a fixed runner label such as `ubuntu-24.04`, Kubernetes 1.37 and Helm 4. Every GitHub Action a project runs is pinned to a full commit SHA with its exact release tag in a trailing comment, such as `uses: actions/checkout@<commit-sha> # vX.Y.Z`, and every image to a tag plus digest. The examples use placeholders rather than real values, and [references/github-actions.md](references/github-actions.md) shows how to resolve them.
 
 | Task | Open |
 |---|---|
@@ -49,7 +49,7 @@ Written for GitHub Actions on `ubuntu-latest`, Kubernetes 1.37 and Helm 4. Every
 4. A merge to `main` never deploys to production. It may build, deploy to staging and run smoke tests, then production is a separate approved step: an `environment: production` with a required-reviewer protection rule, or a manual `workflow_dispatch`. The `environment:` key gates nothing until that rule exists.
 5. Pipeline shape: a pull request runs lint, typecheck, unit and integration tests and a preview deploy. Merge runs the same plus image build, staging deploy and smoke tests. Then the gate, then production.
 6. Image build, base pinning, the non-root user and the Trivy, SBOM and cosign gate belong to `docker-patterns`. The pipeline invokes them and fails on their findings, never with `|| true`.
-7. Authenticate to a cloud with OIDC, never a stored long-lived key, and declare minimum `permissions` on every job, never `write-all`, because a compromised action inherits what the job holds. Pin every action to a commit SHA, since a moved tag swaps the code.
+7. Authenticate to a cloud with OIDC, never a stored long-lived key, and declare minimum `permissions` on every job, never `write-all`, because a compromised action inherits what the job holds. Pin every `uses:` to a full 40-character commit SHA with a `# vX.Y.Z` comment, the SHA resolved with `git ls-remote --tags` from the dereferenced `^{}` line and never guessed, and `runs-on` to a fixed label, never `ubuntu-latest`, since a moved tag or image swaps the code. Bumps are manual pull requests, not Dependabot or Renovate.
 8. Liveness touches nothing and readiness reports what this instance needs to serve, per `observability-and-logging`, keeping shared dependencies out. Use the `api-design` paths `/health` and `/ready`. Liveness on a dependency-checking endpoint turns a database blip into a restart storm.
 9. This skill owns the probe manifests. Probe timings and the `startupProbe` are in the Kubernetes reference, and what the endpoints report is owned by `observability-and-logging`.
 10. Every environment-varying value comes from an environment variable, and the process validates the whole set against a schema before serving, so a missing value kills it at boot rather than surfacing as a 500 later.

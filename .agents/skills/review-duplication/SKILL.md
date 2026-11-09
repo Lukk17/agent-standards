@@ -41,7 +41,7 @@ skill, live in the `coding-standards` hub.
 ### Steps
 
 1. Extract the core logic. Look past the business wrapper to the algorithm, utility, data structure or component underneath, because reuse is found by shape, not by feature name.
-2. Hypothesise where it would already live. Name candidate locations from the project's real layout before searching: shared utilities, UI components, domain services, configuration, cross-cutting logic. Trace a newly imported library to its existing usage and wrapper, and check the manifest for an installed library that already provides a hand-written algorithm.
+2. Hypothesise where it would already live. Name candidate locations from the project's real layout before searching: shared utilities, UI components, domain services, configuration, cross-cutting logic. Trace a newly imported library to its existing usage and wrapper, and check the manifest for an installed library that already provides a hand-written algorithm. The usual suspects are a hand-rolled null-or-blank check where `StringUtils.hasText` or the project's helper exists, and hand-written format sniffing, such as reading the first byte to tell JSON from ZIP, where a content-type detector or the archive library already decides.
 3. Delegate the investigation with a specific objective built from step 1. `code-archaeologist` answers structural questions and how to refactor onto what it finds, a fast read-only search subagent narrows candidates, and a general subagent does turn-intensive semantic comparison. A single-fact check, such as one package name in the manifest, is done directly. A subagent with no tool to spawn another, such as the `code-reviewer` agent, searches directly with grep and glob from the candidates of step 2, and names the open-ended delegation as a next step for its caller.
 4. Evaluate against project conventions. Bypassing an established pattern duplicates the decision behind it: error types and logging, state stores, styling tokens, the config object. Name a genuinely new pattern explicitly. Before proposing a merge, show the two copies encode the same rule and change for the same reason; coincidental lookalikes stay separate.
 5. Report what should have been reused. Cite the project-relative path and the exact symbol, show the replacement call, and state the value in one clause: consistency, maintenance, or edge cases the existing code already handles.
@@ -62,7 +62,7 @@ skill, live in the `coding-standards` hub.
 - [ ] The underlying mechanic was named, not just the feature.
 - [ ] Candidate locations were hypothesised from the project's real layout before searching.
 - [ ] Any newly imported library was traced to its existing usage and wrapper.
-- [ ] The manifest was checked for an installed library that already solves the problem.
+- [ ] The manifest was checked for an installed library that already solves the problem, blank checks and format detection included.
 - [ ] Open-ended searching was delegated to `code-archaeologist`, a read-only search subagent, or a general subagent,
   or, from a subagent that cannot spawn one, done directly with grep and glob and the delegation named for the caller.
 - [ ] Convention bypasses were checked, not only copied code.

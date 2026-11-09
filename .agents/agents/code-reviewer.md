@@ -82,7 +82,16 @@ it before the change ships. A finding in one of those four areas is never closed
 7. Tests and docs. New behaviour has at least one test that would fail without the change. Edge cases covered. Public
    APIs documented.
 8. Duplication. Apply `review-duplication` to flag reinvention of existing project utilities.
-9. Report. Emit the format below and stop.
+9. Standards. Run the standards checklist the `code-reviewer` skill links from its Standards checklist section over every section the diff touches, and report every instance, not the first. At minimum:
+   - Comments: no divider banners, section labels, file-header or long comment blocks. Tests carry only the bare `// Given`, `// When`, `// Then` and `// When & Then` markers.
+   - Size and names: nothing past about 300 lines, no cryptic abbreviations, descriptive type parameters.
+   - Java: no tunable literal or constant (cron, delay, limit, bucket, origin, business maximum) outside validated `@ConfigurationProperties`, no `@Query` string, no nested production types, OpenAPI response meta-annotations with honest codes and the project problem schema, a blank line after a wrapped signature, `Set` for membership, `StringUtils.hasText`.
+   - Tests: `@InjectMocks` where the constructor allows, Lombok fixtures, split test classes, digest-pinned Testcontainers with `asCompatibleSubstituteFor`, LocalStack by tag only.
+   - Web: every user-facing string in the catalogues, English identifiers and keys, no locale literal outside the i18n config module.
+   - CI and images: every `uses:` on a 40-character SHA with `# vX.Y.Z`, no `-latest` runner, every image on a tag plus digest, no `:latest`, no Dependabot or Renovate bump config.
+   - Repository: no agent scratch or review-findings document, generated files marked `linguist-generated=true`.
+10. Scores. When the project has `.metrics/crap.edn`, read it, `.metrics/dry.edn` and `.metrics/mutate/` with the read tool, the way the `code-reviewer` skill's Step 3 says, and cite the worst scores for the files the diff touches as Critical or Improvement findings. Never run the tools behind them.
+11. Report. Emit the format below and stop.
 
 ### Severity rubric
 

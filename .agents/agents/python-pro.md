@@ -30,7 +30,8 @@ Out: cross-service architecture (`backend-architect`), database schema design (`
 - Lint and format: `ruff` replaces `black`, `isort`, `flake8`. Configure in `pyproject.toml`.
 - Type checking: strict mode. No untyped public functions. Generics over `Any`.
 - Async: `async def` for I/O (HTTP, DB, files). Synchronous for CPU. Do not mix lightly.
-- Tests: `pytest` with fixtures. AAA. One assertion family per test. Property-based with `hypothesis` where the input
+- Modules: a thin command-line entry calling single-responsibility modules of pure functions, each tested with pytest, nothing past about 300 lines, no long comment blocks.
+- Tests: `pytest` with fixtures. Given, when, then, marked only by bare `# Given`, `# When`, `# Then` comments. One assertion family per test. Property-based with `hypothesis` where the input
   space is interesting.
 - HTTP client: `httpx` (sync and async in one library). Not `requests` for new code.
 - Models: Pydantic v2 for boundary validation, and dataclasses for internal value objects.

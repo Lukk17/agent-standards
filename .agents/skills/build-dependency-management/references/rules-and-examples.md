@@ -119,8 +119,11 @@ Pass: the pull request says what the dependency does, what it replaces, and what
 Fail: a utility library appears in the diff with no mention in the description.
 
 Honor any explicit list of allowed or forbidden libraries for the project, including license constraints such as
-forbidding copyleft licenses in distributed code. Review and update dependencies on a schedule with a vulnerability
-scan. Automated update pull requests are allowed once approved, auto-merge never is.
+forbidding copyleft licenses in distributed code. Review and update dependencies on a schedule with a vulnerability scan.
+
+Bumps are manual by default. Do not add a `.github/dependabot.yml` with version updates, a Renovate configuration or any other bot that opens bump pull requests, unless the project owner explicitly asks for one, and never enable auto-merge. A bump is a deliberate pull request that names what changed and why, re-resolves the lock file, the action SHA or the image digest together with its tag, and runs the full suite. Reading security alerts, such as Dependabot alerts, is a separate matter and stays on: an alert names a vulnerable version, and the fix still lands as a manual bump.
+
+Fail: a `dependabot.yml` with `package-ecosystem: npm`, `github-actions` and `docker` on a weekly schedule, opening a dozen pull requests a week that are merged on a green check.
 
 Refuse versions younger than the package manager's release-age cooldown (pnpm `minimumReleaseAge`, Renovate
 `minimumReleaseAge`, uv `exclude-newer`), so a freshly published malicious version has time to be caught before it

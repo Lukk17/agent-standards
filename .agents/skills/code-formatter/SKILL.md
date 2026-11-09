@@ -46,6 +46,7 @@ Each rule below has its full body, its reasoning, and its wrong-and-right forms 
 | Rule | What it requires |
 |---|---|
 | Brace every inline exit | A `return` or `throw` never shares a line with its `if`. Braced, body on its own indented line |
+| Blank line after a wrapped signature | When a method, constructor or record parameter list wraps onto several lines, a blank line follows the opening brace, so the end of the signature and the start of the body are visually distinct |
 | Empty lines around try, catch and finally | A `try` is a control-flow landmark, so it gets a blank line before it and after it |
 | Empty line above a standalone async call | A hand-off to network or disk is a phase transition and reads as its own beat. Not for an await inside an assignment |
 | Empty line above a closing return | A `return` ending a multi-statement block gets a blank line above it. Not for single-expression bodies |
@@ -122,6 +123,7 @@ local arithmetic around them.
 
 ### Checklist
 
+- [ ] Every wrapped parameter list is followed by a blank line before the body
 - [ ] No control-flow exit shares a line with its condition
 - [ ] Blank lines mark the try, the async hand-off and the terminating call as distinct beats
 - [ ] Every comment sits above the line it describes

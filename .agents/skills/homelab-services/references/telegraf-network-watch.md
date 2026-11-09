@@ -86,7 +86,7 @@ It must include 1000. Ubuntu Server ships `0 2147483647` from systemd. Every pin
 
 ### CSV output with rotation
 
-One `[[outputs.file]]` per input, selected with `namepass`, with a short fixed list of columns, rotated daily and kept 30 days:
+One `[[outputs.file]]` per input, selected with `namepass`, with a short fixed list of columns, rotated every 24 hours and kept 30 days:
 
 ```toml
 [[outputs.file]]
@@ -102,7 +102,11 @@ One `[[outputs.file]]` per input, selected with `namepass`, with a short fixed l
 
 The file README says of `rotation_max_archives`: "Maximum number of rotated archives to keep, any older logs are deleted." Pinning `csv_columns` keeps the rows short. VERIFIED: about 535,000 rows and 22.6 MiB a day across three files for four ping targets.
 
-`csv_header` writes the header only when Telegraf creates a file, as the CSV README says, "Enable the header when outputting metrics to a new file". VERIFIED: the current day's `ping.csv` held no header line, while a rotated file held three, one per container start that day. So a script that reads the files tells a ping file by its name, not by its header, and skips every header line it meets.
+`rotation_interval = "24h"` is a length of time, not a time of day. In `internal/rotate/file_writer.go` of Telegraf 1.40.1, opening a file sets the next rotation 24 hours ahead (line 113, `w.expireTime = time.Now().Add(w.interval)`) and then replaces that with 24 hours after the file's modification time (line 127), so a new file counts from the moment it was opened and a file that already exists counts from its last write. There is no timer: while Telegraf runs, the check happens only inside `Write`, and the only other checks are when a file is opened or closed. With a row every second the last write is a moment before a restart, so the time of day of the rotation comes from the last Telegraf restart and creeps later a little each day. VERIFIED: measured on 2026-11-06, rotations at 18:05:44 to 18:05:50 local on eight days after a restart at 17:05 UTC.
+
+Row times are always UTC, whatever `TZ` the container has: with a layout in `csv_timestamp_format`, `plugins/serializers/csv/csv.go` of the same release (lines 169 and 208) uses `metric.Time().UTC().Format(s.TimestampFormat)`. Archive file names use the container's local time and are named after the rotation moment, as `ping.<date>-<unix-seconds>.csv`. So an archive holds the 24 hours that end at the moment in its name, and the rows of one day can sit in two files. After a rotation before noon most rows in the archive are from the day before the name, and after a later rotation most are from the day in the name.
+
+`csv_header` writes the header once per Telegraf start, not once per file: `SerializeBatch` in the same `csv.go` writes it with the first rows and then sets `s.Header` to false (line 92). It goes into whatever file is open then, so a file that a rotation starts while Telegraf runs has no header. The CSV README only advises "Enable the header when outputting metrics to a new file". VERIFIED: the current day's `ping.csv` held no header line, while a rotated file held three, one per container start that day. So a script that reads the files tells a ping file by its name, not by its header, and skips every header line it meets.
 
 A failed row has `result_code` other than 0. A ping that timed out can still carry `result_code` 0 with `percent_packet_loss` at 100, so count both. Two failed rows in a row is a drop, which filters out one lost packet.
 

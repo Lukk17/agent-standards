@@ -36,7 +36,7 @@ Use when reviewing or designing backend code, APIs, database access, auth, secre
 not the strategic audit.
 
 Checklist. Input validation at every trust boundary (allowlist over denylist) → parameterised queries everywhere →
-secrets never in code, never in images → authn flow correct for the standard you claim to use (OAuth 2.1 with PKCE,
+secrets never in code, never in images → supply chain pinned: every GitHub Action `uses:` on a full commit SHA with a `# vX.Y.Z` comment, every image on a version tag plus `@sha256:` digest, no `:latest` image or `-latest` runner, because a moved tag swaps the code that runs with the job's credentials → authn flow correct for the standard you claim to use (OAuth 2.1 with PKCE,
 OIDC, JWT signature + expiry + audience checks) → authz consistent (RBAC / ABAC / ReBAC) and enforced at the API layer,
 not just UI → rate limiting and abuse protection → secure error handling (no stack traces to clients, no info leakage) →
 audit logging on auth events and sensitive operations.

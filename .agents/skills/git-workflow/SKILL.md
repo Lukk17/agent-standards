@@ -65,6 +65,7 @@ a rewrite is a break everyone has to repair by hand.
 7. Prevent conflicts with small, short branches rebased often, a word to the team before touching a shared file, and feature flags. When one happens, read both sides, never accept a side just to clear the markers, and run the tests after.
 8. Stage explicit paths or review each hunk (`git add -p`), never `git add .`.
 9. Releases (semantic versioning, tags, changelog, publishing) live in `github-ops`.
+10. Commit only what the project keeps. Never an AI review scratch document such as `*-review-findings.md`, a plan or a run log an agent wrote, because nobody maintains it once the session ends. A generated file that is committed, such as a lock file or OpenAPI-generated types, stays committed and is marked `linguist-generated=true` in `.gitattributes`, so review diffs and language statistics skip it.
 
 ---
 
@@ -78,7 +79,9 @@ a rewrite is a break everyone has to repair by hand.
 | A commit message that says update | The history stops answering why anything happened | Conventional commits with a body |
 | Rewriting a public branch | Everyone who pulled has to repair by hand | Revert on a public branch |
 | A feature branch alive for weeks | Conflicts compound and integration is deferred | Short branches plus a feature flag |
-| Committing generated output | Every regeneration is a diff nobody can review | Ignore the artifact, build it |
+| Committing generated output a consumer can rebuild | Every regeneration is a diff nobody can review | Ignore the artifact, build it |
+| Committing an agent's review findings or scratch notes | A stale document that reads as project truth | Keep it out of the tree, or in the scratch folder the agent was given |
+| A committed lock file or generated type file with no `linguist-generated` mark | Every bump buries the real diff under thousands of lines | Mark it in `.gitattributes` |
 
 ---
 

@@ -12,6 +12,7 @@ for security, and lead every finding with a `path:line` reference.
 | Task | Open |
 |---|---|
 | Running a step in full: the commands, the fork rule and its source, the pillar questions, the report shape, pass and fail forms | [review-steps.md](references/review-steps.md) |
+| The standards checklist every review runs in Step 3, item by item with the skill that owns each rule | [standards-checklist.md](references/standards-checklist.md) |
 
 ---
 
@@ -70,6 +71,14 @@ Run the verification command the project's AGENTS.md documents before reading a 
 
 Cite `path:line` for every finding across correctness, maintainability, readability, doc comments (the `coding-standards` "Doc Comments" rule plus the language delta), efficiency, security, styling (against `design-system` when styling changes), edge cases and error handling, and testability.
 
+When the project has a `.metrics/crap.edn`, read the scores the `quality-loop` skill's tools wrote under `.metrics/` for the files the change touches, and cite the worst as findings: a function over CRAP 30 from `.metrics/crap.edn` as Critical, a surviving mutant in changed code from `.metrics/mutate/` as an Improvement naming the missing test, and a duplicate pair at or above 0.82 from `.metrics/dry.edn` for the duplication pass. Never run the tools in a review. Say so when the scores predate the change, because they are only as fresh as the last full run.
+
+---
+
+### Standards checklist
+
+Every review also runs [standards-checklist.md](references/standards-checklist.md) over the diff, section by section for the files it touches, and reports each violation as a finding with its `path:line`, every instance rather than the first. It covers comments and file size, Java and Spring, tests, web copy, and CI, image and repository hygiene, each item with the skill that owns it.
+
 ---
 
 ### Step 4: escalate the sensitive findings
@@ -104,6 +113,7 @@ Summary with the verdict in two or three sentences, findings grouped Critical, I
   reported as `not run`.
 - [ ] Nothing from a fork or an outside author ran without the user's approval.
 - [ ] Every pillar was considered, including doc comments.
+- [ ] The standards checklist ran over every section the diff touches, and every instance was reported.
 - [ ] Every finding cites `path:line`.
 - [ ] Findings are grouped by severity, not listed flat.
 - [ ] Auth, payment, and sensitive-data findings were escalated to the `security-auditor` agent.

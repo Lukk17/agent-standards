@@ -44,8 +44,8 @@ The gate is enforcing, not advisory. One shared rule in
 - No MCP tool is gated, and `playwright` and `chrome-devtools` in [.mcp.json](.mcp.json) can write local files. The
   vendor quotes are in [docs/agent-compatibility.md](docs/agent-compatibility.md).
 - Known limits of the write rule are accepted rather than open, and listed under "What the gate cannot place" in
-  [docs/agent-compatibility.md](docs/agent-compatibility.md). Re-audit only when the rule changes, and record a new
-  limit there rather than chasing it.
+  [docs/agent-compatibility.md](docs/agent-compatibility.md). Re-audit only when the rule changes, and record a new limit
+  there rather than chasing it.
 
 Each agent wires that one script, and the hooks beside it, to its own hook surface. Before you touch any wiring, read
 "Wiring details per surface" in [docs/agent-compatibility.md](docs/agent-compatibility.md).
@@ -75,7 +75,7 @@ script and must never be hand-edited, and some are symlinks the generator create
 | --- | --- | --- |
 | `subagents/*.md` | canonical | edit directly, then regenerate |
 | `.agents/skills/*/SKILL.md` and its `references/*.md` | canonical | edit directly, keep the manifest short and the depth in `references/` |
-| `.agents/hooks/preflight_gate.py`, `.agents/hooks/no_ai_markers_check.py`, `.agents/hooks/task_list_sync.py`, `.agents/hooks/markdown_lint_check.py`, `.agents/hooks/_check_markdown.py`, `.agents/hooks/question_numbering_check.py`, `.agents/hooks/status_block_check.py`, `.agents/hooks/task_watchdog.py`, `.agents/hooks/copilot/prompt_reminder.py`, `.agents/hooks/claude/sync_skill_links.py` | canonical | edit directly, then run the pytest suite |
+| `.agents/hooks/preflight_gate.py`, `.agents/hooks/no_ai_markers_check.py`, `.agents/hooks/task_list_sync.py`, `.agents/hooks/markdown_lint_check.py`, `.agents/hooks/_check_markdown.py`, `.agents/hooks/question_numbering_check.py`, `.agents/hooks/status_block_check.py`, `.agents/hooks/task_watchdog.py`, `.agents/hooks/copilot/prompt_reminder.py`, `.agents/hooks/claude/sync_skill_links.py`, `.agents/hooks/claude/standards_advisory_check.py` | canonical | edit directly, then run the pytest suite |
 | `tasks.md` | runtime state, git-ignored | written by the hook and by the model, never committed |
 | `.agents/plugin/hooks.js`, `.agents/plugin/index.js` | canonical | edit directly, `index.js` only re-exports |
 | `AGENTS.md.example`, `docs/*.md` | canonical | edit directly |
@@ -87,6 +87,8 @@ script and must never be hand-edited, and some are symlinks the generator create
 | `.github/agents/*.agent.md` | generated (Copilot `*.agent.md`) | never hand-edit, run the generator |
 | `.opencode/agents`, `.kilo/agents` | symlinks to `../.agents/agents` | created and repaired by the generator |
 | `.claude/skills` | symlink to `../.agents/skills` | never edit through the link |
+| `.metrics/tools/crapper/`, `dryer/`, `mutator/`, `VERSIONS`, `constraints.txt` | vendored: Robert C. Martin's tools copied unchanged at the commits `VERSIONS` pins | never hand-edit, only `tools/update_quality_tools.py` changes them |
+| `.metrics/tools/run`, `run.cmd`, `run.py`, `quality_loop/`, `.gitattributes` | canonical: the wrapper that builds the tools' environments and runs them | edit directly, then run the pytest suite |
 
 Regenerate the subagent trees and repair the symlinks after any `subagents/*.md` change:
 
@@ -106,21 +108,19 @@ Full layout: [docs/repository-layout.md](docs/repository-layout.md). Who reads w
 
 On top of the global rules in `~/.claude/CLAUDE.md`:
 
-- **The consumer boundary is the filename case.** A consumer gets the configuration the import pulls and the UPPERCASE
-  documents under `docs/`. Lowercase documents, [README.md](README.md), [e2e/](e2e/), [sandbox-agent/](sandbox-agent/),
-  [subagents/](subagents/) and [tools/](tools/) never ship, so no shipped document may link into them: the link
-  resolves here and 404s there. [global/](global/) ships only through the global install in
-  [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md), so no project-import pathspec may name it.
-  [main-thread-allowlist.txt](main-thread-allowlist.txt) never ships by either route.
+- **The consumer boundary is the filename case.** A consumer gets the configuration the import pulls and the UPPERCASE documents
+  under `docs/`. Lowercase documents, [README.md](README.md), [e2e/](e2e/), [sandbox-agent/](sandbox-agent/),
+  [subagents/](subagents/) and [tools/](tools/) never ship, so no shipped document may link into them: the link resolves here and
+  404s there. [global/](global/) ships only through the global install in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md), so no
+  project-import pathspec may name it. [main-thread-allowlist.txt](main-thread-allowlist.txt) never ships by either route.
 - **Markdown lint.** The rules live in [.agents/hooks/_check_markdown.py](.agents/hooks/_check_markdown.py), which ships so the lint hook works downstream, and [tools/check-markdown.py](tools/check-markdown.py) only runs them. They cover every human-facing document but this
   `AGENTS.md`, whose style matches anyway. One runnable command per fenced code block, language tag, no `#` comments.
 - **One server set, one schema per file.** Change all five MCP files together: [.mcp.json](.mcp.json),
   [opencode.json](opencode.json), [.codex/config.toml](.codex/config.toml), [.vscode/mcp.json](.vscode/mcp.json) and
   [.github/mcp.json](.github/mcp.json). Which agent reads which, and why, is in [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
-- **No substitution token may appear in [opencode.json](opencode.json).** Kilo Code rejects the whole file on a
-  `{env:VAR}`, which drops the MCP block and the `plugin` array that declares the gate. Local servers inherit the
-  environment instead, and `context7` ships with no `headers` block. The detail is in
-  [docs/MCP_SETUP.md](docs/MCP_SETUP.md) and nowhere else.
+- **No substitution token may appear in [opencode.json](opencode.json).** Kilo Code rejects the whole file on a `{env:VAR}`, which
+  drops the MCP block and the `plugin` array that declares the gate. Local servers inherit the environment instead, and `context7`
+  ships with no `headers` block. The detail is in [docs/MCP_SETUP.md](docs/MCP_SETUP.md) and nowhere else.
 - **One gate, one rule, one wording.** A behaviour change is a change to
   [.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) plus a case in
   [tools/tests/test_preflight_gate.py](tools/tests/test_preflight_gate.py), never a second copy of the logic. The
@@ -133,9 +133,9 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
 - This file and the template obey the rules they ship. `AGENTS.md` and `AGENTS.md.example` follow "Writing
   AGENTS.md files" in [AGENTS.md.example](AGENTS.md.example), and [tools/check-agents-md.py](tools/check-agents-md.py)
   fails CI on a tracked `CLAUDE.md` or a file over its limit. Detail goes to `docs/`, never back in here.
-- **CI runs on every pull request and every push to `master`,** with three parallel jobs: `actionlint`, `validate` for
-  the local checks, and `sandbox` for the containerised suite. Before you push, run every command under "Local checks"
-  in [CONTRIBUTING.md](CONTRIBUTING.md), which are the checks `validate` runs.
+- **CI runs on every pull request and every push to `master`,** with four parallel jobs: `actionlint`, `validate` for
+  the local checks, `sandbox` for the containerised suite, and `quality-loop` for the samples. Before you push, run
+  every command under "Local checks" in [CONTRIBUTING.md](CONTRIBUTING.md), which are the checks `validate` runs.
 - **[.github/workflows/agent-live-tests.yml](.github/workflows/agent-live-tests.yml) is a separate workflow and never
   part of CI.** It runs only on `workflow_dispatch` and drives each agent against a real model with
   `REQUESTY_API_KEY` (Claude Code, OpenCode, Kilo Code) or `OPENAI_API_KEY` (Codex and Copilot on `gpt-6-luna`), so
@@ -190,7 +190,7 @@ scripts, `bash` and `powershell` the update scripts in [docs/AGENTS-UPDATE.md](d
 - **The Copilot `preToolUse` payload carries no agent identifier,** so no gate rule fires on that surface. When one
   lands, pass it with `--subagent` from [.github/hooks/preflight.json](.github/hooks/preflight.json) and set
   `GATE_KNOWN_GAP=0` in [sandbox-agent/live/copilot.sh](sandbox-agent/live/copilot.sh) in the same change.
-- **Whether a Codex `Stop` hook can reject a reply is not measured.** Confirm it and say so plainly here. The markdown lint stays Claude-only, because Codex has no post-tool event.
+- **Whether a Codex `Stop` hook can reject a reply is not measured.** Confirm it and say so plainly here. The markdown lint and the standards advisory stay Claude-only, because Codex sends an `apply_patch` edit to `PostToolUse` as patch text in `tool_input.command` (`https://developers.openai.com/codex/hooks`), which neither hook parses, and that path is not measured here.
 - **Reply rules outside OpenCode.** OpenCode 2.x gets `.agents/instructions/reply-rules.md` from the plugin's session
   `context` hook, main thread only, and 1.x and Kilo Code from `instructions`. TODO: decide how a global install loads them on Claude
   Code, Codex and Copilot, keeping them out of `AGENTS.md`, and document it in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md).
