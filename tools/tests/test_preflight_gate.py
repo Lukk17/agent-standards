@@ -2754,8 +2754,8 @@ def home_at(path):
     "command",
     [
         "rm -rf ~/.claude/projects/stale-session",
-        "rm -rf ~",
         "echo note > ~/notes.txt",
+        "echo note > ~/.claude/CLAUDE.md",
     ],
 )
 def test_a_tilde_path_is_expanded_to_the_home_directory(tmp_path, command):
@@ -7697,44 +7697,56 @@ def test_a_plugin_copy_of_the_gate_judges_the_session_project(tmp_path):
     inside = run_process({**edit(str(project / "app.py")), "cwd": str(project)}, "claude", cwd=project, script=gate)
     cache = run_process({**edit(str(gate.parent / "x.py")), "cwd": str(project)}, "claude", cwd=project, script=gate)
 
-    # Then the project is protected and the cache is not treated as one
+    # Then the project is protected, and so is the gate's own folder, though it is no project
     assert json.loads(inside[1])["hookSpecificOutput"]["permissionDecision"] == "deny"
-    assert cache[1] == ""
+    assert json.loads(cache[1])["hookSpecificOutput"]["permissionDecision"] == "deny"
 
 
-def wire_project_gate(project):
-    settings = project / ".claude" / "settings.json"
-    settings.parent.mkdir(parents=True)
-    command = 'cd "${CLAUDE_PROJECT_DIR}" && python3 -S -E .agents/hooks/preflight-gate/preflight_gate.py --format claude ; exit 0'
-    settings.write_text(json.dumps({"hooks": {"PreToolUse": [{"matcher": "Edit", "hooks": [{"type": "command", "command": command}]}]}}), encoding="utf-8")
-    own = project / ".agents" / "hooks" / "preflight-gate" / "preflight_gate.py"
-    own.parent.mkdir(parents=True)
-    own.write_text("# the project's own copy\n", encoding="utf-8")
+PROJECT_GATE = ".agents/hooks/preflight-gate/preflight_gate.py"
+GATE_RUN = 'cd "${CLAUDE_PROJECT_DIR}" && python3 -S -E '
 
 
-@pytest.mark.parametrize(("plugin_root", "wired", "denied"), [
-    pytest.param(True, True, False, id="plugin-copy-with-project-wiring-stands-down"),
-    pytest.param(True, False, True, id="plugin-copy-alone-decides"),
-    pytest.param(False, True, True, id="no-plugin-root-decides"),
-])
-def test_a_plugin_copy_stands_down_only_when_the_project_wiring_runs_the_gate(tmp_path, plugin_root, wired, denied):
-    # Given the plugin copy and a project that may wire its own gate
-    gate = plugin_copy_of_the_gate(tmp_path / "home")
+@pytest.mark.parametrize(
+    ("command", "matcher", "own_gate"),
+    [
+        pytest.param("true # " + PROJECT_GATE, "Edit", "# own\n", id="comment-mention"),
+        pytest.param(GATE_RUN + PROJECT_GATE + " --format plain ; exit 0", "Edit", "# own\n", id="format-plain"),
+        pytest.param(GATE_RUN + PROJECT_GATE + " --format claude --subagent ; exit 0", "Edit", "# own\n", id="subagent-flag"),
+        pytest.param(GATE_RUN + PROJECT_GATE + " --format claude >/dev/null ; exit 0", "Edit", "# own\n", id="output-discarded"),
+        pytest.param(GATE_RUN + ".agents/hooks/preflight_gate.py --format claude ; exit 0", "Edit", "# own\n", id="flat-legacy-path"),
+        pytest.param(GATE_RUN + PROJECT_GATE + " --format claude ; exit 0", "Edit", "", id="empty-project-gate"),
+        pytest.param(GATE_RUN + PROJECT_GATE + " --format claude ; exit 0", "(?i)edit", "# own\n", id="case-insensitive-matcher"),
+        pytest.param(GATE_RUN + PROJECT_GATE + " --format claude ; exit 0", "Edit", "# own\n", id="real-call"),
+    ],
+)
+def test_a_plugin_copy_of_the_gate_never_stands_down_whatever_the_project_wires(tmp_path, command, matcher, own_gate):
+    # Given the gate in a Claude Code plugin cache, and a project whose own wiring names a gate
+    config = tmp_path / "config"
+    folder = config / "plugins" / "cache" / "agent-standards" / "hook-preflight-gate" / "1.0.0"
+    folder.mkdir(parents=True)
+    gate = folder / PREFLIGHT_GATE.name
+    shutil.copy2(PREFLIGHT_GATE, gate)
     project = tmp_path / "work" / "project"
-    project.mkdir(parents=True)
-    if wired:
-        wire_project_gate(project)
-    env = {"CLAUDE_PROJECT_DIR": str(project)}
-    if plugin_root:
-        env["CLAUDE_PLUGIN_ROOT"] = str(gate.parent)
+    (project / ".claude").mkdir(parents=True)
+    (project / ".claude" / "settings.json").write_text(
+        json.dumps({"hooks": {"PreToolUse": [{"matcher": matcher, "hooks": [{"type": "command", "command": command}]}]}}), encoding="utf-8"
+    )
+    for relative in (PROJECT_GATE, ".agents/hooks/preflight_gate.py"):
+        (project / relative).parent.mkdir(parents=True, exist_ok=True)
+        (project / relative).write_text(own_gate, encoding="utf-8")
+    env = {"CLAUDE_PROJECT_DIR": str(project), "CLAUDE_PLUGIN_ROOT": str(folder), "CLAUDE_CONFIG_DIR": str(config)}
     payload = {**edit(str(project / "app.py")), "cwd": str(project), "hook_event_name": "PreToolUse"}
 
-    # When
+    # When the main thread edits a project file
     code, out, err = run_process(payload, "claude", cwd=project, env=env, script=gate)
 
-    # Then
+    # Then the plugin copy denies it, as the project's own copy would
     assert (code, err) == (0, "")
-    assert bool(out) is denied
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_the_gate_carries_no_plugin_copy_stand_down():
+    assert "_plugin_copy_is_shadowed" not in PREFLIGHT_GATE.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("skills_first", [True, False], ids=["flat-declares-skills", "nested-declares-skills"])
@@ -7762,3 +7774,145 @@ def test_rule_b_still_allows_an_agent_whose_own_tree_copies_all_declare_skills_b
 
     # When / Then the Claude Code caller is judged by its own tree
     assert run(payload, "claude", cwd=tmp_path)[1] == ""
+
+
+# Rule A on the claude format also protects the Claude Code locations that
+# decide which hooks, plugins and agents run.
+
+
+def claude_config(tmp_path):
+    config = tmp_path / "config"
+    (config / "plugins" / "cache" / "agent-standards" / "hook-preflight-gate" / "1.0.0").mkdir(parents=True)
+    return config
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "plugins/cache/agent-standards/hook-preflight-gate/1.0.0/preflight_gate.py",
+        "plugins/known_marketplaces.json",
+        "agents/rogue.md",
+        "settings.json",
+        "settings.local.json",
+    ],
+)
+def test_a_main_thread_write_to_a_protected_claude_code_location_is_denied(tmp_path, relative):
+    config = claude_config(tmp_path)
+    project = tmp_path / "project"
+    project.mkdir()
+    payload = {"tool_name": "Write", "tool_input": {"file_path": str(config / relative), "content": "x"}, "cwd": str(project)}
+
+    code, out, err = run(payload, "claude", cwd=project, env={"CLAUDE_CONFIG_DIR": str(config)})
+
+    assert (code, err) == (0, "")
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_a_main_thread_write_to_the_gate_s_own_file_and_plugin_root_is_denied(tmp_path):
+    project = tmp_path / "project"
+    project.mkdir()
+    plugin_root = tmp_path / "elsewhere" / "plugin"
+    plugin_root.mkdir(parents=True)
+
+    for target in (PREFLIGHT_GATE, plugin_root / "x.py"):
+        payload = {"tool_name": "Write", "tool_input": {"file_path": str(target), "content": "x"}, "cwd": str(project)}
+        code, out, err = run(payload, "claude", cwd=project, env={"CLAUDE_PLUGIN_ROOT": str(plugin_root)})
+
+        assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny", target
+
+
+def test_a_main_thread_shell_redirect_into_the_plugin_cache_and_its_removal_are_denied(tmp_path):
+    config = claude_config(tmp_path)
+    project = tmp_path / "project"
+    project.mkdir()
+
+    for command in (f"echo x > {config}/plugins/cache/agent-standards/hook-preflight-gate/1.0.0/preflight_gate.py", f"rm -rf {config}"):
+        code, out, _err = run({**shell(command), "cwd": str(project)}, "claude", cwd=project, env={"CLAUDE_CONFIG_DIR": str(config)})
+
+        assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny", command
+
+
+@pytest.mark.parametrize("relative", ["projects/p/memory/note.md", "CLAUDE.md", "settings-backup/old.txt"])
+def test_other_claude_code_files_stay_writable_for_the_main_thread(tmp_path, relative):
+    config = claude_config(tmp_path)
+    project = tmp_path / "project"
+    project.mkdir()
+    payload = {"tool_name": "Write", "tool_input": {"file_path": str(config / relative), "content": "x"}, "cwd": str(project)}
+
+    assert run(payload, "claude", cwd=project, env={"CLAUDE_CONFIG_DIR": str(config)})[1] == ""
+
+
+def test_a_subagent_may_still_write_to_a_protected_claude_code_location(tmp_path):
+    # Given a subagent with skills, whose writes Rule A never judged
+    config = claude_config(tmp_path)
+    project = project_with_agent(tmp_path / "project", "writer", WITH_SKILLS)
+    payload = {
+        "tool_name": "Write", "tool_input": {"file_path": str(config / "agents" / "new.md"), "content": "x"},
+        "cwd": str(project), "agent_id": "sub-1", "agent_type": "writer",
+    }
+
+    assert run(payload, "claude", cwd=project, env={"CLAUDE_CONFIG_DIR": str(config)})[1] == ""
+
+
+@pytest.mark.parametrize("fmt", ["codex", "copilot"])
+def test_other_formats_keep_their_boundary(tmp_path, fmt):
+    config = claude_config(tmp_path)
+    project = tmp_path / "project"
+    project.mkdir()
+    payload = {"tool_name": "Write", "tool_input": {"file_path": str(config / "settings.json"), "content": "x"}, "cwd": str(project)}
+
+    assert run(payload, fmt, cwd=project, env={"CLAUDE_CONFIG_DIR": str(config)})[1] == ""
+
+
+def test_rm_rf_home_is_denied_because_it_removes_the_claude_code_configuration(tmp_path):
+    home = tmp_path / "home"
+    home.mkdir()
+
+    code, out, _err = run(shell("rm -rf ~"), "claude", env=home_at(home))
+
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+# A user-level Claude Code agent lives in <config dir>/agents, which the claude
+# format always reads as the caller's own tree.
+
+
+@pytest.mark.parametrize("nested", [False, True], ids=["flat", "own-folder"])
+def test_a_user_level_claude_agent_with_no_skills_is_held_to_rule_b(tmp_path, nested):
+    config = tmp_path / "config"
+    folder = config / "agents" / ("bare" if nested else "")
+    folder.mkdir(parents=True)
+    (folder / "bare.md").write_text(WITHOUT_SKILLS.format(name="bare"), encoding="utf-8")
+    project = tmp_path / "project"
+    project.mkdir()
+    payload = {**edit(str(project / "app.py"), agent_id="sub-1", agent_type="bare"), "cwd": str(project)}
+
+    code, out, _err = run(payload, "claude", cwd=project, env={"CLAUDE_CONFIG_DIR": str(config)})
+
+    assert "declares no skills" in json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"]
+
+
+def test_a_user_level_read_only_claude_agent_is_held_to_its_list(tmp_path):
+    import gen_subagents
+
+    config = tmp_path / "config"
+    (config / "agents").mkdir(parents=True)
+    (config / "agents" / "fixture-reviewer.md").write_text(gen_subagents.render("claude", READ_ONLY_REVIEWER, "You review.\n"), encoding="utf-8")
+    project = tmp_path / "project"
+    project.mkdir()
+    payload = {**shell("touch made.txt"), "agent_id": "sub-1", "agent_type": "fixture-reviewer", "cwd": str(project)}
+
+    code, out, _err = run(payload, "claude", cwd=project, env={"CLAUDE_CONFIG_DIR": str(config)})
+
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"].endswith("Blocked: touch made.txt")
+
+
+def test_the_user_level_tree_is_not_read_for_another_format(tmp_path):
+    config = tmp_path / "config"
+    (config / "agents").mkdir(parents=True)
+    (config / "agents" / "bare.md").write_text(WITHOUT_SKILLS.format(name="bare"), encoding="utf-8")
+    project = tmp_path / "project"
+    project.mkdir()
+    payload = {**edit(str(project / "app.py"), agent_id="sub-1", agent_type="bare"), "cwd": str(project)}
+
+    assert run(payload, "codex", cwd=project, env={"CLAUDE_CONFIG_DIR": str(config)})[1] == ""

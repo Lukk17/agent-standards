@@ -44,24 +44,47 @@ REMINDER = (
 # wiring already runs this same script for the same call, so one call never
 # runs it twice. Claude Code exports CLAUDE_PLUGIN_ROOT and CLAUDE_PROJECT_DIR
 # to a hook's process (https://code.claude.com/docs/en/hooks, "Reference
-# scripts by path"). It stands down only on a payload that names its event,
-# for a wiring group of that event whose matcher takes the call's tool, and
-# for a command that runs a script of the same name under the project's own
-# .agents/hooks/ that exists. Anything else, or any doubt, runs the hook.
-# tools/tests/test_plugin_copy.py holds this block equal in every hook that
-# carries it.
+# scripts by path"). It stands down only on the claude format, only as a copy
+# installed in the Claude Code plugin cache under CLAUDE_CONFIG_DIR or
+# ~/.claude, only on a payload that names its event, for a wiring group of
+# that event whose matcher takes the call's tool, and for a synchronous
+# command hook that runs a script of the same name under the project's own
+# .agents/hooks/ that exists and is not this very file. Anything else, or any
+# doubt, runs the hook. The preflight gate never stands down: running it twice
+# only repeats a deny. tools/tests/test_plugin_copy.py holds this block equal
+# in every hook that carries it.
 PLUGIN_ROOT_VARIABLE = "CLAUDE_PLUGIN_ROOT"
 PROJECT_DIR_VARIABLE = "CLAUDE_PROJECT_DIR"
+CONFIG_DIR_VARIABLE = "CLAUDE_CONFIG_DIR"
+CLAUDE_HOME = ".claude"
+PLUGIN_CACHE = ("plugins", "cache")
 PROJECT_CLAUDE_WIRING = (".claude", "settings.json")
 PROJECT_HOOK_PATH = r"\.agents/hooks/(?:[a-z0-9-]+/)*"
 TOOL_EVENTS = frozenset({"PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest"})
 MATCH_ALL = (None, "", "*")
+GUARDED_FORMAT = "claude"
 
 
-def _project_runs_this_script(project: Path, command: str, script: str) -> bool:
-    """True when the command runs this script from the project's .agents/hooks/ and that file exists."""
-    for match in re.finditer(PROJECT_HOOK_PATH + re.escape(script) + r"(?![A-Za-z0-9_.])", command):
-        if project.joinpath(*match.group(0).split("/")).is_file():
+def _plugin_caches() -> list:
+    """The Claude Code plugin cache under CLAUDE_CONFIG_DIR, when set, and under ~/.claude."""
+    caches = []
+
+    for base in (os.environ.get(CONFIG_DIR_VARIABLE, ""), "~/" + CLAUDE_HOME):
+        try:
+            if base:
+                caches.append(Path(base).expanduser().resolve().joinpath(*PLUGIN_CACHE))
+        except (OSError, RuntimeError, ValueError, KeyError):
+            continue
+
+    return caches
+
+
+def _project_runs_this_script(project: Path, command: str, script: Path) -> bool:
+    """True when the command runs a copy of this script from the project's .agents/hooks/ other than this file."""
+    for match in re.finditer(PROJECT_HOOK_PATH + re.escape(script.name) + r"(?![A-Za-z0-9_.])", command):
+        own = project.joinpath(*match.group(0).split("/"))
+
+        if own.is_file() and own.resolve() != script:
             return True
 
     return False
@@ -83,13 +106,18 @@ def _matcher_takes(group: object, event: str, tool: object) -> bool:
         return False
 
 
-def _plugin_copy_is_shadowed(payload: object) -> bool:
-    """True when this copy runs as a Claude Code plugin and the project's own wiring runs it for this call."""
+def _plugin_copy_is_shadowed(payload: object, fmt: str) -> bool:
+    """True when this copy runs from the Claude Code plugin cache and the project's own wiring runs it for this call."""
     try:
         plugin_root = os.environ.get(PLUGIN_ROOT_VARIABLE, "")
         script = Path(__file__).resolve()
 
-        if not plugin_root or not script.is_relative_to(Path(plugin_root).resolve()):
+        if fmt != GUARDED_FORMAT or not plugin_root:
+            return False
+
+        installed = Path(plugin_root).resolve()
+
+        if not script.is_relative_to(installed) or not any(installed.is_relative_to(cache) for cache in _plugin_caches()):
             return False
 
         fields = payload if isinstance(payload, dict) else {}
@@ -107,7 +135,10 @@ def _plugin_copy_is_shadowed(payload: object) -> bool:
                 continue
 
             for entry in group["hooks"]:
-                if _project_runs_this_script(root, str(entry.get("command", "")), script.name):
+                if entry.get("type") != "command" or entry.get("async"):
+                    continue
+
+                if _project_runs_this_script(root, str(entry.get("command", "")), script):
                     return True
     except Exception:
         return False
@@ -121,7 +152,7 @@ def main() -> int:
     except Exception:
         payload = {}
 
-    if _plugin_copy_is_shadowed(payload):
+    if _plugin_copy_is_shadowed(payload, GUARDED_FORMAT):
         return 0
 
     sys.stdout.buffer.write((REMINDER + "\n").encode("utf-8"))

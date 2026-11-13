@@ -591,6 +591,17 @@ def _agent_type(payload: Dict[str, Any]) -> str:
 # only through _decide, which clears it again once the call has been decided.
 _PAYLOAD_ROOT: Optional[Path] = None
 
+# The Claude Code locations Rule A protects on the claude format besides the
+# project: the folders that decide what runs and what an agent is. Set only
+# through _decide, like _PAYLOAD_ROOT, and empty for every other format.
+_PROTECTED_FOLDERS: List[Path] = []
+_PROTECTED_SETTINGS: List[Path] = []
+CLAUDE_FORMAT = "claude"
+CLAUDE_USER_AGENTS = "agents"
+PLUGIN_ROOT_ENVIRONMENT = "CLAUDE_PLUGIN_ROOT"
+PROTECTED_CONFIG_FOLDERS = ("plugins", "agents")
+PROTECTED_SETTINGS_GLOB = "settings*.json"
+
 
 def _payload_root(payload: Dict[str, Any]) -> Optional[Path]:
     """The project root the payload's cwd names, kept exactly as sent, or None.
@@ -8333,6 +8344,9 @@ def _resolves_inside_repo(target: str) -> bool:
         if _is_unplaceable_windows_path(str(resolved)) or any(_is_within(resolved, root) for root in roots):
             return True
 
+        if _is_protected(resolved):
+            return True
+
     return False
 
 
@@ -8458,7 +8472,7 @@ def _contains_repo(target: str) -> bool:
         except (OSError, ValueError, RuntimeError):
             return True
 
-        if any(_is_above(resolved, root) for root in roots):
+        if any(_is_above(resolved, root) for root in (*roots, *_PROTECTED_FOLDERS)):
             return True
 
     return False
@@ -8642,7 +8656,9 @@ def _agent_definition_candidates(agent_type: str, fmt: str) -> List[Tuple[Option
     The calling format's own trees come first, so Rule B judges the file that
     agent runs, and Rule E is applied when any candidate is read-only. A
     plugin-scoped Claude Code name, `<plugin>:<name>`, also reads the plugin's
-    installed copies ahead of the trees, and each part has to be one plain
+    installed copies ahead of the trees, and the claude format always reads
+    the user-level agents under each Claude Code configuration directory,
+    <config dir>/agents, flat and one folder deep. Each part has to be one plain
     file name. Every project root is read, and the install root as well: Rule
     A drops it as a project boundary, but a user-level install keeps its agent
     trees there. Each tree is read flat, <tree>/<name><ext>, and one folder
@@ -8658,6 +8674,15 @@ def _agent_definition_candidates(agent_type: str, fmt: str) -> List[Tuple[Option
         return []
 
     paths = _plugin_agent_paths(plugin, name) if separator else []
+
+    if fmt == CLAUDE_FORMAT:
+        # A user-level agent: Claude Code reads <config dir>/agents on every session.
+        paths += [
+            directory / CLAUDE_USER_AGENTS / Path(*folder) / (name + ".md")
+            for directory in _claude_config_directories()
+            for folder in ((), (name,))
+        ]
+
     own = set(paths)
     roots = _roots()
     install = _install_root()
@@ -9350,16 +9375,62 @@ def _shell_commands(tool_input: Dict[str, Any]) -> Optional[List[str]]:
     return [value for value in values if value.strip()]
 
 
+def _protected_locations() -> Tuple[List[Path], List[Path]]:
+    """The folders and the settings folders Rule A protects on the claude format besides the project.
+
+    A main-thread write there would change which hooks, plugins and agents run
+    or what an agent may do: the gate's own folder, the plugin root of a hook
+    plugin, `plugins/` and `agents/` under each Claude Code configuration
+    directory, and the user-level install in ~/.config/agents. The second
+    list holds the configuration directories, whose `settings*.json` files are
+    protected one by one. Claude Code installs a plugin or edits its settings
+    itself, never through a tool call, so none of this stands in its way, and
+    Rule A never applies to a subagent.
+    """
+    folders: List[Optional[Path]] = [Path(__file__).parent]
+    settings: List[Path] = []
+    plugin_root = os.environ.get(PLUGIN_ROOT_ENVIRONMENT, "")
+
+    if plugin_root:
+        folders.append(Path(plugin_root))
+
+    for directory in _claude_config_directories():
+        settings.append(directory)
+        folders.extend(directory / name for name in PROTECTED_CONFIG_FOLDERS)
+
+    try:
+        folders.append(Path.home().joinpath(*GLOBAL_INSTALL_DIRECTORY))
+    except (OSError, RuntimeError, KeyError):
+        pass
+
+    return _resolved_roots(tuple(folders)), _resolved_roots(tuple(settings))
+
+
+def _is_protected(resolved: Path) -> bool:
+    """True for a resolved path inside a protected Claude Code folder, or a protected settings file."""
+    if any(_is_within(resolved, folder) for folder in _PROTECTED_FOLDERS):
+        return True
+
+    return any(
+        _same_path(resolved.parent, directory, directory) and fnmatch.fnmatch(resolved.name.lower(), PROTECTED_SETTINGS_GLOB)
+        for directory in _PROTECTED_SETTINGS
+    )
+
+
 def _decide(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Optional[str]:
     """Return a deny reason, or None to allow."""
-    global _PAYLOAD_ROOT
+    global _PAYLOAD_ROOT, _PROTECTED_FOLDERS, _PROTECTED_SETTINGS
 
     _PAYLOAD_ROOT = _payload_root(payload)
+
+    if fmt == CLAUDE_FORMAT:
+        _PROTECTED_FOLDERS, _PROTECTED_SETTINGS = _protected_locations()
 
     try:
         return _apply_rules(payload, fmt, subagent_flag)
     finally:
         _PAYLOAD_ROOT = None
+        _PROTECTED_FOLDERS, _PROTECTED_SETTINGS = [], []
 
 
 def _apply_rules(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Optional[str]:
@@ -9549,81 +9620,6 @@ def _speaks_contract(payload: Dict[str, Any]) -> bool:
     return type(version) is int and version in CONTRACTS
 
 
-# A plugin copy of this hook stands down when the project's own Claude Code
-# wiring already runs this same script for the same call, so one call never
-# runs it twice. Claude Code exports CLAUDE_PLUGIN_ROOT and CLAUDE_PROJECT_DIR
-# to a hook's process (https://code.claude.com/docs/en/hooks, "Reference
-# scripts by path"). It stands down only on a payload that names its event,
-# for a wiring group of that event whose matcher takes the call's tool, and
-# for a command that runs a script of the same name under the project's own
-# .agents/hooks/ that exists. Anything else, or any doubt, runs the hook.
-# tools/tests/test_plugin_copy.py holds this block equal in every hook that
-# carries it.
-PLUGIN_ROOT_VARIABLE = "CLAUDE_PLUGIN_ROOT"
-PROJECT_DIR_VARIABLE = "CLAUDE_PROJECT_DIR"
-PROJECT_CLAUDE_WIRING = (".claude", "settings.json")
-PROJECT_HOOK_PATH = r"\.agents/hooks/(?:[a-z0-9-]+/)*"
-TOOL_EVENTS = frozenset({"PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest"})
-MATCH_ALL = (None, "", "*")
-
-
-def _project_runs_this_script(project: Path, command: str, script: str) -> bool:
-    """True when the command runs this script from the project's .agents/hooks/ and that file exists."""
-    for match in re.finditer(PROJECT_HOOK_PATH + re.escape(script) + r"(?![A-Za-z0-9_.])", command):
-        if project.joinpath(*match.group(0).split("/")).is_file():
-            return True
-
-    return False
-
-
-def _matcher_takes(group: object, event: str, tool: object) -> bool:
-    """True when a wiring group of a tool event matches the call's tool, as Claude Code matches it."""
-    if event not in TOOL_EVENTS:
-        return True
-
-    matcher = group.get("matcher") if isinstance(group, dict) else None
-
-    if matcher in MATCH_ALL:
-        return True
-
-    try:
-        return isinstance(tool, str) and re.fullmatch(str(matcher), tool) is not None
-    except re.error:
-        return False
-
-
-def _plugin_copy_is_shadowed(payload: object) -> bool:
-    """True when this copy runs as a Claude Code plugin and the project's own wiring runs it for this call."""
-    try:
-        plugin_root = os.environ.get(PLUGIN_ROOT_VARIABLE, "")
-        script = Path(__file__).resolve()
-
-        if not plugin_root or not script.is_relative_to(Path(plugin_root).resolve()):
-            return False
-
-        fields = payload if isinstance(payload, dict) else {}
-        event = fields.get("hook_event_name")
-        project = os.environ.get(PROJECT_DIR_VARIABLE) or fields.get("cwd")
-
-        if not isinstance(event, str) or not event or not isinstance(project, str) or not project:
-            return False
-
-        root = Path(project)
-        settings = json.loads(root.joinpath(*PROJECT_CLAUDE_WIRING).read_text(encoding="utf-8"))
-
-        for group in settings["hooks"].get(event, []):
-            if not _matcher_takes(group, event, fields.get("tool_name")):
-                continue
-
-            for entry in group["hooks"]:
-                if _project_runs_this_script(root, str(entry.get("command", "")), script.name):
-                    return True
-    except Exception:
-        return False
-
-    return False
-
-
 def main(argv: Optional[List[str]] = None) -> int:
     real_stderr = sys.stderr
     sys.stderr = io.StringIO()
@@ -9637,9 +9633,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         try:
             raw = sys.stdin.buffer.read().decode("utf-8", errors="replace")
             payload = _as_dict(json.loads(raw or "{}"))
-
-            if _plugin_copy_is_shadowed(payload):
-                return 0
 
             if fmt == "plain" and not _speaks_contract(payload):
                 return 0

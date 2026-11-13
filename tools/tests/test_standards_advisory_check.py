@@ -269,7 +269,7 @@ def run_plugin_copy(tmp_path, wired):
     import os
     import shutil
 
-    folder = tmp_path / "cache" / "agent-standards" / "hook-standards-advisory-check" / "1.0.0"
+    folder = tmp_path / "config" / "plugins" / "cache" / "agent-standards" / "hook-standards-advisory-check" / "1.0.0"
     folder.mkdir(parents=True)
     hook = folder / STANDARDS_ADVISORY_HOOK.name
     shutil.copy(STANDARDS_ADVISORY_HOOK, hook)
@@ -284,7 +284,7 @@ def run_plugin_copy(tmp_path, wired):
         own.parent.mkdir(parents=True)
         own.write_text("# own\n", encoding="utf-8")
     payload = {**write("ci.yml", "uses: actions/checkout@v5\n"), "hook_event_name": "PostToolUse"}
-    environment = {**os.environ, "CLAUDE_PROJECT_DIR": str(project), "CLAUDE_PLUGIN_ROOT": str(folder)}
+    environment = {**os.environ, "CLAUDE_PROJECT_DIR": str(project), "CLAUDE_PLUGIN_ROOT": str(folder), "CLAUDE_CONFIG_DIR": str(tmp_path / "config")}
     result = run_bounded(
         [sys.executable, "-S", "-E", str(hook), "--format", "claude"],
         input=json.dumps(payload),

@@ -256,7 +256,7 @@ def test_a_copy_with_no_rules_beside_it_or_in_the_project_reports_nothing(tmp_pa
 
 
 def plugin_copy(tmp_path):
-    return hook_copy(tmp_path / "cache" / "agent-standards" / "hook-markdown-lint-check" / "1.0.0", with_rules=True)
+    return hook_copy(tmp_path / "config" / "plugins" / "cache" / "agent-standards" / "hook-markdown-lint-check" / "1.0.0", with_rules=True)
 
 
 def test_a_plugin_copy_lints_a_project_that_imported_no_hooks_with_the_rules_beside_it(tmp_path):
@@ -264,7 +264,7 @@ def test_a_plugin_copy_lints_a_project_that_imported_no_hooks_with_the_rules_bes
     hook = plugin_copy(tmp_path)
     project = tmp_path / "project"
     path = write(project, "docs/GUIDE.md", DIRTY)
-    env = {"CLAUDE_PROJECT_DIR": str(project), "CLAUDE_PLUGIN_ROOT": str(hook.parent)}
+    env = {"CLAUDE_PROJECT_DIR": str(project), "CLAUDE_PLUGIN_ROOT": str(hook.parent), "CLAUDE_CONFIG_DIR": str(tmp_path / "config")}
 
     # When
     code, out, err = run_copy(hook, project, {**edit(path), "hook_event_name": "PostToolUse"}, env)
@@ -282,7 +282,7 @@ def test_a_plugin_copy_stands_down_when_the_project_wiring_runs_the_lint(tmp_pat
     command = 'cd "${CLAUDE_PROJECT_DIR}" && python3 -S -E .agents/hooks/markdown-lint-check/markdown_lint_check.py --format claude ; exit 0'
     write(project, ".claude/settings.json", json.dumps({"hooks": {"PostToolUse": [{"matcher": "Edit", "hooks": [{"type": "command", "command": command}]}]}}))
     write(project, ".agents/hooks/markdown-lint-check/markdown_lint_check.py", "# own\n")
-    env = {"CLAUDE_PROJECT_DIR": str(project), "CLAUDE_PLUGIN_ROOT": str(hook.parent)}
+    env = {"CLAUDE_PROJECT_DIR": str(project), "CLAUDE_PLUGIN_ROOT": str(hook.parent), "CLAUDE_CONFIG_DIR": str(tmp_path / "config")}
 
     # When / Then
     assert run_copy(hook, project, {**edit(path), "hook_event_name": "PostToolUse"}, env) == (0, "", "")

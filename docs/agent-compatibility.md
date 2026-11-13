@@ -588,6 +588,18 @@ read-only as the repository it reviews. That covers:
 - A Claude Code plugin loaded for one session with `--plugin-dir` is not under `plugins/cache`, so the gate finds no
   definition for its `<plugin>:<name>` agents and allows them as unknown, a read-only one included. `--plugin-url` is
   assumed to behave the same, not measured.
+- A plugin agent's version folder in the cache is read as `<version>/<name>.md` as well as `<version>/agents/<name>.md`,
+  so a markdown file at a plugin version's root that is no agent but carries the agent's name and no skills makes Rule B
+  deny that plugin's agent. That costs availability only, never a write the gate would otherwise deny.
+- The project roots are the directory the session started in, the payload's `cwd` and the gate's own project, not the
+  git top level. A session started in a subfolder of a repository leaves the rest of that repository writable to the
+  main thread. This predates the marketplace.
+- The gate finds a subagent's definition by file name, `<name>.md` or `<name>/<name>.md`, while Claude Code names an
+  agent by its front-matter `name`. A definition whose file name differs from its `name` is not found, and the agent is
+  allowed as unknown. This predates the marketplace.
+- A hook plugin other than the gate takes the project from `CLAUDE_PROJECT_DIR`, and from the payload's `cwd` when that
+  is unset, to decide whether the project's own wiring already runs it. A wrong `cwd` there can only make such a copy
+  stand down or run, never change what the gate decides, because the gate never stands down.
 - On Codex before `rust-v0.166.0`, a call's `workdir` never reaches the gate, and on every Codex version `tty`,
   `shell` and `login` do not either, so a read-only agent there can still run a listed command in another folder,
   under another shell, or on a terminal it then types into through `write_stdin`. No listed command opens a pager
