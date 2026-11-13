@@ -347,6 +347,7 @@ def test_a_dependency_cycle_is_refused(lab):
     [
         pytest.param("{name: gate, version: 1.0.0,", "{name: gate, version: 1.0,", "MAJOR.MINOR.PATCH", id="two-part-version"),
         pytest.param("{name: docs, version: 1.0.0,", "{name: docs, version: v1.0.0,", "MAJOR.MINOR.PATCH", id="v-prefix"),
+        pytest.param("{name: docs, version: 1.0.0,", "{name: docs, version: \"1.0.1\u0661\",", "MAJOR.MINOR.PATCH", id="non-ascii-digit"),
         pytest.param("{name: core, version: 1.0.0,", "{name: core, version: 1.0.0, defaultEnabled: false,", "unknown key", id="unknown-key"),
         pytest.param("{name: gate, version: 1.0.0,", "{name: gate, folder: ../gate, version: 1.0.0,", "folder", id="hook-folder-escapes"),
         pytest.param("{name: gate, version: 1.0.0,", "{name: gate, folder: /tmp/gate, version: 1.0.0,", "folder", id="hook-folder-absolute"),

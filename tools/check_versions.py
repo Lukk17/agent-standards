@@ -70,7 +70,13 @@ class Shipped:
 
 
 def version_key(version: str) -> tuple[int, int, int]:
-    """MAJOR.MINOR.PATCH as numbers, so 1.10.0 sorts above 1.9.0."""
+    """MAJOR.MINOR.PATCH as numbers, so 1.10.0 sorts above 1.9.0.
+
+    Raises:
+        VersionCheckError: the version is not MAJOR.MINOR.PATCH in ASCII digits.
+    """
+    if not isinstance(version, str) or not gen_plugins.SEMVER.fullmatch(version):
+        raise VersionCheckError(f"version {version!r} is not MAJOR.MINOR.PATCH in ASCII digits")
     major, minor, patch = (int(part) for part in version.split("."))
     return major, minor, patch
 
@@ -258,7 +264,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if note:
         print(f"note: {note}")
-    found = problems(base, head, existing_tags(ROOT))
+    try:
+        found = problems(base, head, existing_tags(ROOT))
+    except VersionCheckError as exc:
+        print(f"ERROR {exc}", file=sys.stderr)
+        return 2
     for problem in found:
         print(f"::error::{problem}")
     changed = sum(1 for name, now in head.items() if name in base and now.digest != base[name].digest)

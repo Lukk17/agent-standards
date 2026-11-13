@@ -127,7 +127,7 @@ VERSION_KEY = "version"
 SKILL_VERSION_KEY = "metadata"
 # MAJOR.MINOR.PATCH and nothing else, each part without a leading zero, the
 # version a marketplace entry and a release tag carry.
-SEMANTIC_VERSION = re.compile(r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)")
+SEMANTIC_VERSION = re.compile(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", re.ASCII)
 MAX_DESCRIPTION = 1024
 MAX_SKILL_MANIFEST_CHARACTERS = 8000
 YAML_INDICATORS = "*&!%@`[{>|\"'"

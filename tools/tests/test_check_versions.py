@@ -323,3 +323,9 @@ def test_a_raised_version_whose_tag_already_exists_fails(repository):
     bump_skill(repository, "solo", "1.0.1")
 
     assert [p.split(":")[0] for p in run(repository)[0]] == ["solo"]
+
+
+@pytest.mark.parametrize("version", ["1.0.1\u0661", "\u0661.0.0", "1.0", "1.0.0-rc1"])
+def test_a_version_that_is_not_ascii_major_minor_patch_is_an_error(version):
+    with pytest.raises(guard.VersionCheckError, match="MAJOR.MINOR.PATCH"):
+        guard.version_key(version)

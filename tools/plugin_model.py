@@ -10,7 +10,6 @@ import pathlib
 import re
 from dataclasses import dataclass
 
-import yaml
 
 MAP_FILE = pathlib.PurePosixPath("tools/plugins.yaml")
 MARKETPLACE_FILE = pathlib.PurePosixPath(".claude-plugin/marketplace.json")
@@ -40,9 +39,9 @@ HOOK_CATEGORY = "hook"
 MCP_CATEGORY = "mcp"
 
 # Kebab-case, matched whole: lowercase words joined by single hyphens.
-KEBAB = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+KEBAB = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*", re.ASCII)
 # MAJOR.MINOR.PATCH, each part without a leading zero, the form a release tag carries.
-SEMVER = re.compile(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)")
+SEMVER = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", re.ASCII)
 GITHUB_REPOSITORY = re.compile(r"https://github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/?")
 # A hook command of the project wiring names its script as .agents/hooks/<folder>/<script>.py.
 HOOK_FOLDER = r"(?:[a-z0-9-]+/)*[a-z0-9-]+"
@@ -226,6 +225,8 @@ def parse_map(raw: object, path: pathlib.Path) -> PluginMap:
 
 
 def load_map(path: pathlib.Path) -> PluginMap:
+    import yaml  # here, so the tag plan job can import the names above with no third-party package
+
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as exc:

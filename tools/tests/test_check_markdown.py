@@ -1143,6 +1143,7 @@ def _write_raw(tmp_path, relative, text):
         pytest.param("subagents/demo-agent.md", AGENT_WITHOUT_VERSION + "---\n", "version is missing", id="agent-missing"),
         pytest.param("subagents/demo-agent.md", AGENT_WITHOUT_VERSION + "version: 1.0.0-beta\n---\n", "version is '1.0.0-beta'", id="agent-pre-release"),
         pytest.param("subagents/demo-agent.md", AGENT_WITHOUT_VERSION + "version: 01.0.0\n---\n", "version is '01.0.0'", id="agent-leading-zero"),
+        pytest.param("subagents/demo-agent.md", AGENT_WITHOUT_VERSION + 'version: "1.0.1\u0661"\n---\n', "not a MAJOR.MINOR.PATCH", id="agent-non-ascii-digit"),
     ],
 )
 def test_a_manifest_without_a_plain_semantic_version_is_reported(tmp_path, capsys, relative, front_matter, message):

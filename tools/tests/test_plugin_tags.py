@@ -59,3 +59,23 @@ def test_the_command_line_exits_1_on_a_bad_entry(tmp_path, monkeypatch, capsys):
 
     assert plugin_tags.main(["--all"]) == 1
     assert "cannot be tagged" in capsys.readouterr().err
+
+
+def test_a_version_with_a_non_ascii_digit_is_refused():
+    with pytest.raises(ValueError, match="cannot be tagged"):
+        plugin_tags.tag_names({"plugins": [{"name": "core", "version": "1.0.1\u0661"}]})
+
+
+def test_the_tag_lister_needs_no_third_party_package():
+    # The tag plan job runs it with the runner's own python3, before any pip install
+    import subprocess
+    import sys
+
+    from tests.conftest import REPO_ROOT
+
+    probe = "import sys, builtins; real = builtins.__import__\n" \
+        "def guard(name, *a, **k):\n    assert name != 'yaml', 'yaml imported'\n    return real(name, *a, **k)\n" \
+        "builtins.__import__ = guard\nsys.path.insert(0, sys.argv[1])\nimport plugin_tags\n"
+    result = subprocess.run([sys.executable, "-c", probe, str(REPO_ROOT / "tools")], capture_output=True, text=True)
+
+    assert result.returncode == 0, result.stderr

@@ -8,9 +8,10 @@ name: Plugins
 # validate runs the pinned Claude Code validator on the marketplace. install
 # serves the repository over smart HTTP and installs single plugins and a
 # bundle with the same pinned release, checking what lands in the plugin cache.
-# tag runs only on a push to master, after both, and pushes a
-# <name>--v<version> tag for every plugin version that has none yet, with the
-# default token.
+# On a push to master only, after both, tag-plan lists every plugin version
+# with no <name>--v<version> tag yet, read-only and with no package installed,
+# and tag creates those tags at the tested commit and pushes them. The default
+# token reaches the push step alone, and no checkout keeps credentials.
 
 on:
   push:
@@ -95,46 +96,69 @@ jobs:
           claude --version
           python -m pytest tests/test_marketplace_install.py -v
 
-  tag:
+  tag-plan:
     needs: [validate, install]
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      contents: write
+      contents: read
+    outputs:
+      tags: ${{ steps.plan.outputs.tags }}
     steps:
-      - name: Checkout with every tag
+      - name: Checkout with every tag, keeping no credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           fetch-tags: true
+          persist-credentials: false
 
-      - name: Set up Python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: "3.14"
-          cache: pip
-          cache-dependency-path: tools/pyproject.toml
-
-      - name: Pin pip to a version that supports dependency groups
-        run: python -m pip install --upgrade "pip==26.2.1"
-
-      - name: Install the pinned tooling
-        run: pip install ./tools
-
-      - name: Check the marketplace being tagged matches its sources
-        run: python tools/gen_plugins.py --check
-
-      - name: Tag every plugin version that has no tag yet and push the new tags
+      - name: List every plugin version that has no tag yet
+        id: plan
         run: |
           set -euo pipefail
-          python tools/plugin_tags.py > "${RUNNER_TEMP}/new-tags.txt"
-          if [ ! -s "${RUNNER_TEMP}/new-tags.txt" ]; then
-            echo "Every plugin version at ${GITHUB_SHA} is already tagged."
-            exit 0
-          fi
-          while IFS= read -r tag; do
+          tags="$(python3 tools/plugin_tags.py | tr '\n' ' ')"
+          echo "tags=${tags% }" >> "$GITHUB_OUTPUT"
+          echo "New plugin tags at ${GITHUB_SHA}: ${tags:-none}"
+
+  tag:
+    needs: tag-plan
+    if: needs.tag-plan.outputs.tags != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout the tested commit, keeping no credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Create each planned tag at the tested commit
+        env:
+          TAGS: ${{ needs.tag-plan.outputs.tags }}
+        run: |
+          set -euo pipefail
+          pattern='^[a-z0-9]+(-[a-z0-9]+)*--v(0|[1-9][0-9]*)[.](0|[1-9][0-9]*)[.](0|[1-9][0-9]*)$'
+          for tag in $TAGS; do
+            if [[ ! "$tag" =~ $pattern ]]; then
+              echo "::error::refusing to create the tag ${tag}, which is not <name>--v<version>"
+              exit 1
+            fi
             git tag "$tag" "$GITHUB_SHA"
-          done < "${RUNNER_TEMP}/new-tags.txt"
-          sed 's#^#refs/tags/#' "${RUNNER_TEMP}/new-tags.txt" | xargs git push --atomic origin
-          echo "Pushed $(wc -l < "${RUNNER_TEMP}/new-tags.txt") plugin tags at ${GITHUB_SHA}."
+          done
+
+      - name: Push the new tags, the only step that holds the token
+        env:
+          TAGS: ${{ needs.tag-plan.outputs.tags }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          auth="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
+          echo "::add-mask::${auth}"
+          refs=()
+          for tag in $TAGS; do
+            refs+=("refs/tags/${tag}")
+          done
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth}" push --atomic origin "${refs[@]}"
+          echo "Pushed ${#refs[@]} plugin tags at ${GITHUB_SHA}."
