@@ -72,8 +72,9 @@ const REPLY_RULES = join(".agents", "instructions", "reply-rules.md")
 // ships in its own .agents/hooks/.
 const OPT_OUT = join(".agents", "no-global-hooks")
 
-// The subagent text, word for word the SubagentStart text in
-// .claude/settings.json. tools/tests/test_reminder_plugin.py compares the two.
+// The subagent text, word for word the SUBAGENT_TEXT of the Claude Code hook
+// .agents/hooks/claude/subagent-reminder/subagent_reminder.py.
+// tools/tests/test_reminder_plugin.py compares the two.
 const SUBAGENT_TEXT =
   "PREFLIGHT for a subagent: you are a subagent, and the main thread delegated this task to you. " +
   "Do the work yourself with your own tools and load the skills your definition names. " +

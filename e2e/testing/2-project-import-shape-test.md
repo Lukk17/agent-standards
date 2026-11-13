@@ -271,7 +271,7 @@ Expect exit 0.
 Claude Code also injects the gate text on every prompt, which is the advisory half of the same rule.
 
 ```bash
-jq -e '[.hooks.UserPromptSubmit[].hooks[].command] | any(contains("PREFLIGHT"))' /work/project/.claude/settings.json
+jq -e '[.hooks.UserPromptSubmit[].hooks[].command] | any(contains("claude/preflight-reminder/preflight_reminder.py"))' /work/project/.claude/settings.json
 ```
 
 Expect exit 0.

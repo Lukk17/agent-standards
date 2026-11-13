@@ -26,7 +26,7 @@ import yaml
 
 from tests.conftest import PREFLIGHT_GATE, REPO_ROOT
 from tests.process_tree import run_bounded
-from tests.reminder_support import canonical_reminder, canonical_subagent_reminder, posix_shell
+from tests.reminder_support import CLAUDE_REMINDER, canonical_reminder, canonical_subagent_reminder, posix_shell
 
 LIB = REPO_ROOT / "sandbox-agent" / "live" / "lib.sh"
 BASH = posix_shell()
@@ -1801,7 +1801,8 @@ def test_the_scrub_subcommand_with_no_work_directory_does_nothing(tmp_path):
 OPENCODE_ADAPTER = REPO_ROOT / "sandbox-agent" / "live" / "opencode.sh"
 KILO_ADAPTER = REPO_ROOT / "sandbox-agent" / "live" / "kilo-code.sh"
 AGENTS_MD_EXAMPLE = (REPO_ROOT / "AGENTS.md.example").read_text(encoding="utf-8")
-CLAUDE_MAIN_REMINDER = json.loads((REPO_ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
+# What the preflight reminder hook prints on UserPromptSubmit, the text a leak would carry.
+CLAUDE_MAIN_REMINDER = CLAUDE_REMINDER
 
 
 def lib_constant(name: str) -> str:

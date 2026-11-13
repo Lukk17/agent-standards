@@ -126,7 +126,7 @@ agent_calls() {
   } | jq -s -c 'foreach .[] as $call ({}; .[$call.id] += 1; if .[$call.id] == 1 then $call | del(.id) else empty end)'
 }
 
-# SessionStart echoes the same text, so only a UserPromptSubmit hook event, in
+# SessionStart prints the same text, so only a UserPromptSubmit hook event, in
 # the stream or in the session transcript, counts as the per-prompt reminder.
 agent_reminder_seen() {
   local dir="$1" found

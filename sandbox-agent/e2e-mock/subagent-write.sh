@@ -150,13 +150,7 @@ def first_sentence(text):
 
 reminder = constants(root / ".agents/hooks/copilot/prompt-reminder/prompt_reminder.py")
 gate = constants(root / ".agents/hooks/preflight-gate/preflight_gate.py")
-settings = json.loads((root / ".claude/settings.json").read_text(encoding="utf-8"))
-claude = next(
-    hook["command"].split("echo '", 1)[1]
-    for entry in settings["hooks"]["UserPromptSubmit"]
-    for hook in entry["hooks"]
-    if "echo '" in hook.get("command", "")
-)
+claude = constants(root / ".agents/hooks/claude/preflight-reminder/preflight_reminder.py")["REMINDER"]
 
 
 def body(path):

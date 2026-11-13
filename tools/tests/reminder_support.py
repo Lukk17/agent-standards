@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.conftest import HOOKS_DIR, PROMPT_REMINDER_HOOK, REPO_ROOT
+from tests.conftest import BACKGROUND_SUBAGENT_REMINDER_HOOK, HOOKS_DIR, PROMPT_REMINDER_HOOK, REPO_ROOT, SUBAGENT_REMINDER_HOOK
 
 from tests.process_tree import run_bounded
 
@@ -58,14 +58,12 @@ CLAUDE_MARKER = "PREFLIGHT: before code work"
 SUBAGENT_MARKER = "PREFLIGHT for a subagent:"
 
 WIRED_COPIES = {
-    ".claude/settings.json": 2,
     ".codex/config.toml": 2,
     ".github/hooks/preflight.json": 2,
     "docs/GLOBAL_SETUP.md": 6,
 }
 
 SUBAGENT_WIRED_COPIES = {
-    ".claude/settings.json": 1,
     ".codex/config.toml": 2,
     ".github/hooks/preflight.json": 2,
     "docs/GLOBAL_SETUP.md": 5,
@@ -231,16 +229,13 @@ def plugin_subagent_reminder(_relative: str, tmp_path) -> list[str]:
     return [part["text"] for part in drive(tmp_path, [user_message(session=CHILD_SESSION)])[0]["parts"]]
 
 def canonical_subagent_reminder() -> str:
-    """The SubagentStart echo in .claude/settings.json."""
-    import json as _json
+    """The subagent text: the SUBAGENT_TEXT constant of the Claude Code subagent reminder hook."""
+    return _load_module("subagent_reminder_canonical", SUBAGENT_REMINDER_HOOK).SUBAGENT_TEXT
 
-    settings = _json.loads((REPO_ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
-    for entry in settings["hooks"]["SubagentStart"]:
-        for hook in entry["hooks"]:
-            cmd = hook.get("command", "")
-            if "PREFLIGHT for a subagent:" in cmd:
-                return _json.loads(delivered_text(printed_literal(cmd)))["hookSpecificOutput"]["additionalContext"] if delivered_text(printed_literal(cmd)).startswith("{") else delivered_text(printed_literal(cmd))
-    raise AssertionError("no subagent text")
+
+def canonical_background_subagent_reminder() -> str:
+    """The background-subagent note: the SUPERVISION_TEXT constant of its Claude Code hook."""
+    return _load_module("background_subagent_reminder_canonical", BACKGROUND_SUBAGENT_REMINDER_HOOK).SUPERVISION_TEXT
 
 def canonical_reminder() -> str:
     """The short opening line: the REMINDER constant of the Copilot hook."""
@@ -342,7 +337,6 @@ CLAUDE_REMINDER = (
 )
 
 EXPECTED_REMINDERS = {
-    ".claude/settings.json": [CLAUDE_REMINDER, CLAUDE_REMINDER],
     ".codex/config.toml": [SHORT_REMINDER, SHORT_REMINDER],
     ".github/hooks/preflight.json": [SHORT_REMINDER, SHORT_REMINDER],
     "sandbox-agent/setup-global.sh": [SHORT_REMINDER],

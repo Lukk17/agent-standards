@@ -7,7 +7,24 @@ every copy equal to the one in the preflight gate.
 
 import pytest
 
-from tests.conftest import MARKDOWN_LINT_HOOK, PREFLIGHT_GATE, STANDARDS_ADVISORY_HOOK, TASK_LIST_SYNC_HOOK
+from tests.conftest import (
+    BACKGROUND_SUBAGENT_REMINDER_HOOK,
+    MARKDOWN_LINT_HOOK,
+    PREFLIGHT_GATE,
+    PREFLIGHT_REMINDER_HOOK,
+    STANDARDS_ADVISORY_HOOK,
+    SUBAGENT_REMINDER_HOOK,
+    TASK_LIST_SYNC_HOOK,
+)
+
+GUARDED = [
+    TASK_LIST_SYNC_HOOK,
+    MARKDOWN_LINT_HOOK,
+    STANDARDS_ADVISORY_HOOK,
+    PREFLIGHT_REMINDER_HOOK,
+    BACKGROUND_SUBAGENT_REMINDER_HOOK,
+    SUBAGENT_REMINDER_HOOK,
+]
 
 START = "# A plugin copy of this hook stands down"
 
@@ -22,13 +39,13 @@ def guard_block(path):
     return text[start:end]
 
 
-@pytest.mark.parametrize("hook", [TASK_LIST_SYNC_HOOK, MARKDOWN_LINT_HOOK, STANDARDS_ADVISORY_HOOK], ids=lambda p: p.stem)
+@pytest.mark.parametrize("hook", GUARDED, ids=lambda p: p.stem)
 def test_every_plugin_hook_carries_the_gate_s_guard_word_for_word(hook):
     assert guard_block(hook) == guard_block(PREFLIGHT_GATE)
 
 
 def test_the_guard_is_called_by_every_hook_that_carries_it():
-    for hook in (PREFLIGHT_GATE, TASK_LIST_SYNC_HOOK, MARKDOWN_LINT_HOOK, STANDARDS_ADVISORY_HOOK):
+    for hook in (PREFLIGHT_GATE, *GUARDED):
         assert hook.read_text(encoding="utf-8").count("_plugin_copy_is_shadowed(") == 2, hook.name
 
 

@@ -546,13 +546,13 @@ start adding or removing skills locally, switch to the selective refresh in
 
 ### Claude Code plugins
 
-Claude Code can also take everything here as plugins from the marketplace in [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) on `master`, so a project installs only what it uses. Every skill, every subagent, every Claude Code hook and every MCP server is its own plugin with its own version, and bundles install a group of them by name. A plugin cannot add `AGENTS.md`, or the reminders [.claude/settings.json](.claude/settings.json) prints at session start and on each prompt, which run no script, so a project on the plugins takes those from the [gate-only import](#the-gate-beside-the-plugins) below or from the global install in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md).
+Claude Code can also take everything here as plugins from the marketplace in [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) on `master`, so a project installs only what it uses. Every skill, every subagent, every Claude Code hook and every MCP server is its own plugin with its own version, and bundles install a group of them by name. Every hook is selectable, the reminders [.claude/settings.json](.claude/settings.json) prints at session start, on each prompt and when a subagent starts included. A plugin cannot add `AGENTS.md`, so a project on the plugins takes it from the [gate-only import](#the-gate-beside-the-plugins) below or from the global install in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md).
 
 | Plugin | What it installs |
 | --- | --- |
 | The skill's own name, such as `python-patterns` or `quality-loop` | That one skill. `quality-loop` also carries Robert C. Martin's tools from [.metrics/tools/](.metrics/tools/) |
 | `agent-<name>`, such as `agent-python-pro` | That one subagent and every skill it preloads |
-| `hook-<name>`, such as `hook-preflight-gate` | One Claude Code hook, wired with the same events, matchers and timeouts as [.claude/settings.json](.claude/settings.json) |
+| `hook-<name>`, such as `hook-preflight-gate` or `hook-preflight-reminder` | One Claude Code hook, wired with the same events, matchers and timeouts as [.claude/settings.json](.claude/settings.json). `hook-preflight-reminder`, `hook-background-subagent-reminder` and `hook-subagent-reminder` print its three reminders |
 | `mcp-<server>`, such as `mcp-context7` | One MCP server, the same block as [.mcp.json](.mcp.json) |
 | `core` | The skills that subagents in two or more domains preload |
 | `python`, `jvm`, `go`, `backend`, `data`, `web-frontend`, `mobile`, `devops`, `review-and-security`, `testing`, `docs-and-product`, `embedded`, `game`, `agent-tooling` | One domain each: its subagents, the skills only they use, and `core` |
@@ -685,7 +685,7 @@ A project that takes Claude Code's skills, subagents, hooks and MCP servers from
 git checkout agent-standards/master -- .agents .opencode .kilo .codex opencode.json .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md AGENTS.md.example
 ```
 
-Rename the template as above. Claude Code then reads `AGENTS.md` and its plugins, while OpenCode, Kilo Code and Codex read the imported trees. The reminders of [.claude/settings.json](.claude/settings.json) are not part of this import, so Claude Code runs the hook plugins without them.
+Rename the template as above. Claude Code then reads `AGENTS.md` and its plugins, while OpenCode, Kilo Code and Codex read the imported trees. Install `hooks-all`, or the hook plugins you want, so Claude Code gets the gate, the checks and the reminders [.claude/settings.json](.claude/settings.json) would have run.
 
 ---
 

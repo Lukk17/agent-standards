@@ -281,6 +281,9 @@ the table below is what this repo wires today. Each cell names the event in that
 | `markdown_lint_check.py` | `PostToolUse` on `Edit`, `Write`, `MultiEdit` | not wired | not wired |
 | `claude/standards-advisory-check/standards_advisory_check.py` | `PostToolUse` on `Edit`, `Write`, `MultiEdit` | not wired | not wired |
 | `copilot/prompt-reminder/prompt_reminder.py` | not wired | not wired | `userPromptTransformed` |
+| `claude/preflight-reminder/preflight_reminder.py` | `SessionStart`, `UserPromptSubmit` | not wired | not wired |
+| `claude/background-subagent-reminder/background_subagent_reminder.py` | `SessionStart` | not wired | not wired |
+| `claude/subagent-reminder/subagent_reminder.py` | `SubagentStart` | not wired | not wired |
 
 Three limits behind that table are worth knowing before extending it.
 

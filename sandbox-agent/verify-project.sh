@@ -381,10 +381,10 @@ verify_claude() {
     '[.hooks.PreToolUse[].hooks[].command] | any(endswith("; exit 0"))'
   assert_json "the gate matcher covers every writing tool, the PowerShell tool and both web tools" ".claude/settings.json" \
     '[.hooks.PreToolUse[].matcher] | any(type == "string" and test("Edit") and test("Write") and test("MultiEdit") and test("NotebookEdit") and test("Bash") and test("PowerShell") and test("WebFetch") and test("WebSearch"))'
-  assert_json "the gate text is injected on every prompt" ".claude/settings.json" \
-    '[.hooks.UserPromptSubmit[].hooks[].command] | any(contains("PREFLIGHT"))'
-  assert_json "the subagent supervision text is injected at session start" ".claude/settings.json" \
-    '[.hooks.SessionStart[].hooks[].command] | any(contains("When you launch a background subagent") and contains("every 10 minutes"))'
+  assert_json "the gate text is injected on every prompt, by its reminder hook" ".claude/settings.json" \
+    '[.hooks.UserPromptSubmit[].hooks[].command] | any(contains("claude/preflight-reminder/preflight_reminder.py"))'
+  assert_json "the subagent supervision text is injected at session start, by its reminder hook" ".claude/settings.json" \
+    '[.hooks.SessionStart[].hooks[].command] | any(contains("claude/background-subagent-reminder/background_subagent_reminder.py"))'
   # shellcheck disable=SC2016  # the $ belongs to the hook command text the jq filter looks for
   assert_json "every hook Claude Code calls resolves python3 first and falls back to python, on -S -E" ".claude/settings.json" \
     '[.hooks[][].hooks[].command] | map(select(contains(".agents/hooks/"))) | ((length > 0) and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E")))'

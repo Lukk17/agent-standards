@@ -64,6 +64,21 @@ hooks:
     version: 1.0.0
     description: Warns after an edit about an action on a moving tag, an image on latest, a JPA query string or a divider banner in a test.
 
+  - name: preflight-reminder
+    folder: claude/preflight-reminder
+    version: 1.0.0
+    description: The PREFLIGHT reminder at session start and on every prompt, naming the owning skills and subagents first and ending each reply with the status block.
+
+  - name: background-subagent-reminder
+    folder: claude/background-subagent-reminder
+    version: 1.0.0
+    description: The session-start note to check a background subagent every 10 minutes against how long its task should take.
+
+  - name: subagent-reminder
+    folder: claude/subagent-reminder
+    version: 1.0.0
+    description: The reminder a subagent gets when it starts, that it does the delegated work itself and reports what it changed.
+
 servers:
   - name: context7
     version: 1.0.0
@@ -306,3 +321,6 @@ bundles:
       - hook-no-ai-markers-check
       - hook-markdown-lint-check
       - hook-standards-advisory-check
+      - hook-preflight-reminder
+      - hook-background-subagent-reminder
+      - hook-subagent-reminder

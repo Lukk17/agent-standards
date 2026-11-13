@@ -352,7 +352,10 @@
         "hook-task-list-sync",
         "hook-no-ai-markers-check",
         "hook-markdown-lint-check",
-        "hook-standards-advisory-check"
+        "hook-standards-advisory-check",
+        "hook-preflight-reminder",
+        "hook-background-subagent-reminder",
+        "hook-subagent-reminder"
       ]
     },
     {
@@ -1607,6 +1610,77 @@
                 "type": "command",
                 "timeout": 10,
                 "command": "cd \"${CLAUDE_PROJECT_DIR}\" && PY=$(command -v python3 || command -v python) && \"$PY\" -S -E \"${CLAUDE_PLUGIN_ROOT}\"/standards_advisory_check.py --format claude ; exit 0"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "hook-preflight-reminder",
+      "source": "./.agents/hooks/claude/preflight-reminder",
+      "version": "1.0.0",
+      "description": "The PREFLIGHT reminder at session start and on every prompt, naming the owning skills and subagents first and ending each reply with the status block.",
+      "category": "hook",
+      "hooks": {
+        "SessionStart": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "timeout": 10,
+                "command": "cd \"${CLAUDE_PROJECT_DIR}\" && PY=$(command -v python3 || command -v python) && \"$PY\" -S -E \"${CLAUDE_PLUGIN_ROOT}\"/preflight_reminder.py ; exit 0"
+              }
+            ]
+          }
+        ],
+        "UserPromptSubmit": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "timeout": 10,
+                "command": "cd \"${CLAUDE_PROJECT_DIR}\" && PY=$(command -v python3 || command -v python) && \"$PY\" -S -E \"${CLAUDE_PLUGIN_ROOT}\"/preflight_reminder.py ; exit 0"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "hook-background-subagent-reminder",
+      "source": "./.agents/hooks/claude/background-subagent-reminder",
+      "version": "1.0.0",
+      "description": "The session-start note to check a background subagent every 10 minutes against how long its task should take.",
+      "category": "hook",
+      "hooks": {
+        "SessionStart": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "timeout": 10,
+                "command": "cd \"${CLAUDE_PROJECT_DIR}\" && PY=$(command -v python3 || command -v python) && \"$PY\" -S -E \"${CLAUDE_PLUGIN_ROOT}\"/background_subagent_reminder.py ; exit 0"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "hook-subagent-reminder",
+      "source": "./.agents/hooks/claude/subagent-reminder",
+      "version": "1.0.0",
+      "description": "The reminder a subagent gets when it starts, that it does the delegated work itself and reports what it changed.",
+      "category": "hook",
+      "hooks": {
+        "SubagentStart": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "timeout": 10,
+                "command": "cd \"${CLAUDE_PROJECT_DIR}\" && PY=$(command -v python3 || command -v python) && \"$PY\" -S -E \"${CLAUDE_PLUGIN_ROOT}\"/subagent_reminder.py ; exit 0"
               }
             ]
           }
