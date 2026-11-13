@@ -2,6 +2,8 @@
 name: seo
 description: 'Search visibility work across technical SEO, on-page optimisation, structured data, Core Web Vitals, keyword mapping and internal linking. Use when the user says "audit this site for SEO", "why is this page not indexed", "add schema markup to the product pages" or "map these keywords to URLs". Not for the performance work behind Core Web Vitals, use `performance-optimization`.'
 license: Apache-2.0
+metadata:
+  version: "1.0.0"
 ---
 
 # SEO

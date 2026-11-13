@@ -208,7 +208,7 @@ checks the database, so a transient outage makes the orchestrator restart a perf
 
 This section is the canonical definition of the rate-limit headers, the 429 response and the tiers for this repository.
 Every public endpoint sits in a tier and carries a limit. Other skills implement it and must not restate it. The policy behind the tiers, what each counter is keyed on
-and why authentication endpoints get their own budget, is in `security-review`.
+and why authentication endpoints get their own budget, is in `application-security-review`.
 
 ```text
 HTTP/1.1 200 OK

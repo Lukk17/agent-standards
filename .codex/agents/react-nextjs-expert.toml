@@ -64,7 +64,7 @@ When reviewing Next.js code, raise:
 
 ### Skills to load on demand
 
-Load when the change touches that stack, the way the Preloaded skills section below describes: `node-backend-patterns` for anything on the Node side of a route handler or Server Action, `design-system` for tokens and shared components, `api-design` for a route handler contract, `seo` for metadata and structured data, `e2e-testing` for a Playwright journey, `web-accessibility` for per-component accessibility, `security-review` for auth, Server Actions or user HTML, `database-migrations` for a schema change, `performance-optimization` for Core Web Vitals, `build-dependency-management` for a dependency bump, `review-duplication` when adding a component the project may already have, `git-workflow` when committing.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `node-backend-patterns` for anything on the Node side of a route handler or Server Action, `design-system` for tokens and shared components, `api-design` for a route handler contract, `seo` for metadata and structured data, `e2e-testing` for a Playwright journey, `web-accessibility` for per-component accessibility, `application-security-review` for auth, Server Actions or user HTML, `database-migrations` for a schema change, `performance-optimization` for Core Web Vitals, `build-dependency-management` for a dependency bump, `review-duplication` when adding a component the project may already have, `git-workflow` when committing.
 
 ### Done when
 

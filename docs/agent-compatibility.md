@@ -87,7 +87,7 @@ a generated tree.
 
 ### Hook enforcement, what each agent can actually block
 
-The gate is one shared rule in [../.agents/hooks/preflight_gate.py](../.agents/hooks/preflight_gate.py). It reads a hook
+The gate is one shared rule in [../.agents/hooks/preflight-gate/preflight_gate.py](../.agents/hooks/preflight-gate/preflight_gate.py). It reads a hook
 payload on standard input and denies six things: a write of any file resolving inside the repository working tree
 coming from the main thread, with no exemption left for markdown, configuration, or `docs/` (delegate the change to a
 subagent that owns the area instead), any tool call at all from a subagent whose own definition declares no skills
@@ -108,7 +108,7 @@ sends that the lexer cannot read denies, because it matches nothing on that agen
 directory a read-only subagent's call reports that does not exist or cannot be resolved, because the gate cannot tell
 which repository a command run there would read.
 
-Three more hooks live beside it in [../.agents/hooks/](../.agents/hooks/) and ride the same wirings: `no_ai_markers_check.py` checks the reply, `markdown_lint_check.py` lints a file just after it was edited, and `task_list_sync.py` mirrors the session task list into `tasks.md`. On Claude Code only, `claude/standards_advisory_check.py` warns after an edit about an unpinned action, an image on `:latest`, an `@Query` string or a divider banner in a test, and never blocks. Every hook is invoked on `-S -E`, under the first of `python3` and `python` its wiring resolves, and none of them uses `argparse`, because it exits 2 on a usage error and 2 is the deny code in the plain format.
+Three more hooks live beside it in [../.agents/hooks/](../.agents/hooks/) and ride the same wirings: `no_ai_markers_check.py` checks the reply, `markdown_lint_check.py` lints a file just after it was edited, and `task_list_sync.py` mirrors the session task list into `tasks.md`. On Claude Code only, `claude/standards-advisory-check/standards_advisory_check.py` warns after an edit about an unpinned action, an image on `:latest`, an `@Query` string or a divider banner in a test, and never blocks. Every hook is invoked on `-S -E`, under the first of `python3` and `python` its wiring resolves, and none of them uses `argparse`, because it exits 2 on a usage error and 2 is the deny code in the plain format.
 
 Each agent wires those scripts through its own hook surface, and the surfaces differ in what they can stop.
 
@@ -138,10 +138,10 @@ runner hands every tool call to every hook.
 Reading the tables row by row:
 
 - Every row anchors the gate at the project root before calling it, so a session started in a subdirectory still finds
-  [../.agents/hooks/preflight_gate.py](../.agents/hooks/preflight_gate.py), and a missing script allows rather than
+  [../.agents/hooks/preflight-gate/preflight_gate.py](../.agents/hooks/preflight-gate/preflight_gate.py), and a missing script allows rather than
   denies. Python exits 2 when it cannot open the file it was handed, and 2 is the deny code, so an unanchored path used
   to block every tool call.
-- [../.agents/hooks/no_ai_markers_check.py](../.agents/hooks/no_ai_markers_check.py) finds an em dash, an en dash, a
+- [../.agents/hooks/no-ai-markers-check/no_ai_markers_check.py](../.agents/hooks/no-ai-markers-check/no_ai_markers_check.py) finds an em dash, an en dash, a
   semicolon, or a bold or italic marker, asterisk or underscore form, and asks only for `Correction:` lines. Claude
   Code first fixes dashes, bold and italic on screen through `MessageDisplay`, so its `Stop` blocks only on what that
   fix leaves, a semicolon above all. No subagent's reply is checked on any agent, because only the main thread's reply reaches the user. Codex runs the full check on `Stop`.
@@ -279,8 +279,10 @@ Reading the tables row by row:
   any other exception alike, and so does a tool the gate does not know that carries a command. Rule E applies when
   any definition the name resolves to is read-only: the calling format's own tree is read first and decides Rule B,
   and every other tree still counts for Rule E. A plugin subagent, which Claude Code names `<plugin>:<name>`, is
-  also looked up in the plugin cache at `plugins/cache/<marketplace>/<plugin>/<version>/agents/<name>.md` under
-  `CLAUDE_CONFIG_DIR` and `~/.claude` (measured on Claude Code 2.1.314), and a name part that holds a path or is
+  also looked up in the plugin cache at `plugins/cache/<marketplace>/<plugin>/<version>/agents/<name>.md`, and at
+  `<version>/<name>.md`, where this repository's `agent-<name>` plugins land, under `CLAUDE_CONFIG_DIR` and
+  `~/.claude` (measured on Claude Code 2.1.314 and 2.1.323). Every agent tree is read flat and one folder deep,
+  `<tree>/<name>/<name><ext>`, the layout of the generated Claude Code tree. A name part that holds a path or is
   `.` is refused a lookup. A `CLAUDE_CONFIG_DIR` the gate cannot expand, such as an unknown `~user`, is skipped
   rather than allowing the call. A definition that exists but cannot be read counts as read-only with no command allowed. A
   heading inside a fenced code block marks nothing. On Claude Code this
@@ -449,6 +451,16 @@ denied, while the same command on a sibling folder that holds no root is allowed
 path it could match, compared one component at a time and case-insensitively on Windows, is the root, a directory
 above it, or a path inside it, so `rm -rf ../agent-*` and `Remove-Item ..\*` are denied.
 
+On the claude format Rule A also protects the files that decide which hooks, plugins and agents Claude Code runs,
+outside every project: the gate's own folder, the plugin root of a hook plugin (`CLAUDE_PLUGIN_ROOT`), `plugins/`,
+`agents/` and every `settings*.json` under each Claude Code configuration directory (`CLAUDE_CONFIG_DIR` and
+`~/.claude`), and the user-level install in `~/.config/agents`. A write target that is one of those folders, a
+configuration directory itself or any folder above one denies as well, so `unzip -d ~/.claude`, `tar -C ~`, `rsync`
+of a folder's contents into `~/.claude/` and `cp -T` onto it are denied, and so is a wildcard that could name any of
+them, such as `~/.claude/plug*`. Writing beside them, such as `~/.claude/CLAUDE.md` or a project's memory under
+`~/.claude/projects/`, stays allowed. Claude Code installs a plugin and edits its settings itself, not through a tool
+call, and a subagent is never judged by Rule A, so neither is affected.
+
 A write outside the repository, a write to the null device or to a PowerShell drive that holds no files such as `Env:`
 or `Function:`, each spelled with no blank around it, a write to `tasks.md` at the project root, and git branch switching stay allowed, so the main thread
 keeps full use of git and keeps ownership of its own task list.
@@ -573,6 +585,37 @@ CIM queries. A top-level command the lexer cannot read still allows on the main 
 Unicode code point and substitutions or parentheses nested more than 16 deep included, while code nested inside a
 readable command that cannot be read denies.
 
+Known limits of Rule A, accepted rather than open:
+
+- The project roots are the directory the session started in, the payload's `cwd` and the gate's own project, not the
+  git top level. A gate imported into a project keeps that whole repository protected through its install root, three
+  folders up from `.agents/hooks/preflight-gate/`, wherever the session starts. A user-level or plugin install has no
+  such root, so a session started in a subfolder of a repository leaves the rest of that repository writable to the
+  main thread. This predates the marketplace.
+- Every hook runs the first `python3` or `python` on `PATH`. A main-thread write of a user-writable interpreter or shim
+  that comes ahead of the system Python, or into the standard library of an interpreter the user owns, outside every
+  protected location, swaps the interpreter every hook runs on and so can switch off every hook.
+- The protection of Claude Code's own files applies on the claude format only. On Codex and through the OpenCode and
+  Kilo Code runner the main thread can still overwrite `~/.config/agents/hooks/...` and the files under `~/.codex`,
+  as before the marketplace.
+
+Known limits of Rule B, accepted rather than open, each costing availability only and never allowing a write the gate
+would otherwise deny:
+
+- A plugin agent's version folder in the cache is read as `<version>/<name>.md` as well as `<version>/agents/<name>.md`,
+  so a markdown file at a plugin version's root that is no agent but carries the agent's name and no skills makes Rule B
+  deny that plugin's agent.
+- On the claude format a stale `~/.claude/agents/<name>.md`, or `<name>/<name>.md`, that declares no skills makes Rule B
+  deny a project agent of the same name, because both are the caller's own candidates.
+
+Known limits of the plugin-copy stand-down of the six hooks other than the gate, accepted rather than open, because
+none of those hooks is an authorisation control and the gate never stands down:
+
+- A hook plugin takes the project from `CLAUDE_PROJECT_DIR`, and from the payload's `cwd` when that is unset, to decide
+  whether the project's own wiring already runs it, so a wrong `cwd` can make such a copy stand down or run.
+- A copy stands down on a project command that names a script of its name under the project's `.agents/hooks/`, which
+  exists, whatever else the command does with it, such as discarding its output.
+
 Rule E is something a definition opts into, not a defence against a repository's own configuration. Known limits of
 Rule E, accepted rather than open: a listed git command still runs any program the repository's own configuration
 names, and Rule E reads the command line, not the configuration it runs under, so a read-only agent is only as
@@ -586,6 +629,9 @@ read-only as the repository it reviews. That covers:
 - A Claude Code plugin loaded for one session with `--plugin-dir` is not under `plugins/cache`, so the gate finds no
   definition for its `<plugin>:<name>` agents and allows them as unknown, a read-only one included. `--plugin-url` is
   assumed to behave the same, not measured.
+- The gate finds a subagent's definition by file name, `<name>.md` or `<name>/<name>.md`, while Claude Code names an
+  agent by its front-matter `name`. A definition whose file name differs from its `name` is not found, and the agent is
+  allowed as unknown. This predates the marketplace.
 - On Codex before `rust-v0.166.0`, a call's `workdir` never reaches the gate, and on every Codex version `tty`,
   `shell` and `login` do not either, so a read-only agent there can still run a listed command in another folder,
   under another shell, or on a terminal it then types into through `write_stdin`. No listed command opens a pager
@@ -737,7 +783,7 @@ Read these before you touch any hook wiring. They moved here from `AGENTS.md`, w
 - Every wiring that can reach a subagent injects the subagent text and never the reminder. The per-agent evidence is
   in [hooks-contract.md](hooks-contract.md).
 - Copilot gets the reminder on every prompt from `userPromptTransformed` through
-  [.agents/hooks/copilot/prompt_reminder.py](../.agents/hooks/copilot/prompt_reminder.py), which sits in a
+  [.agents/hooks/copilot/prompt-reminder/prompt_reminder.py](../.agents/hooks/copilot/prompt-reminder/prompt_reminder.py), which sits in a
   subdirectory so the OpenCode and Kilo Code runner skips it.
 - [sandbox-agent/live/](../sandbox-agent/live/) proves the wiring against a real model, run by the manual live
   workflow under Repo conventions in `AGENTS.md`. On Copilot, tests 1 and 2 can report `KNOWN-GAP`, as the

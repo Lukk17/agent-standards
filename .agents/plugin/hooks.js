@@ -16,7 +16,7 @@
 // never checked.
 //
 // This file holds no rules. It discovers every hook in the project's own
-// .agents/hooks/, or in the user's ~/.config/agents/hooks/ when the project has none,
+// .agents/hooks/<hook>/, or in the user's ~/.config/agents/hooks/<hook>/ when the project has none,
 // runs them in declared order against one envelope, and turns the first exit
 // code 2 into a thrown Error. Adding a hook needs no edit here. The contract a
 // hook must follow is documented at
@@ -35,7 +35,7 @@
 // Every session the plugin can place gets one per-prompt text, on every user
 // message (chat.message on 1.x and Kilo Code) and on every model request (the
 // session context hook on 2.x). A root session gets the main-thread reminder,
-// read from the REMINDER constant of copilot/prompt_reminder.py beside the
+// read from the REMINDER constant of copilot/prompt-reminder/prompt_reminder.py beside the
 // hooks this project runs, the same text Codex and Copilot inject on every
 // prompt. A child session gets SUBAGENT_TEXT, the same words Claude Code, Codex
 // and Copilot inject on their subagent-start events, and never the reminder,
@@ -72,8 +72,9 @@ const REPLY_RULES = join(".agents", "instructions", "reply-rules.md")
 // ships in its own .agents/hooks/.
 const OPT_OUT = join(".agents", "no-global-hooks")
 
-// The subagent text, word for word the SubagentStart text in
-// .claude/settings.json. tools/tests/test_reminder_plugin.py compares the two.
+// The subagent text, word for word the SUBAGENT_TEXT of the Claude Code hook
+// .agents/hooks/claude/subagent-reminder/subagent_reminder.py.
+// tools/tests/test_reminder_plugin.py compares the two.
 const SUBAGENT_TEXT =
   "PREFLIGHT for a subagent: you are a subagent, and the main thread delegated this task to you. " +
   "Do the work yourself with your own tools and load the skills your definition names. " +
@@ -87,7 +88,7 @@ const SUBAGENT_TEXT =
 // double-quoted literals, one per sentence. Anything else yields no reminder.
 // tools/tests/test_reminder_plugin.py holds what this reads equal to the
 // constant Python loads.
-const REMINDER_HOOK = join("copilot", "prompt_reminder.py")
+const REMINDER_HOOK = join("copilot", "prompt-reminder", "prompt_reminder.py")
 const REMINDER_CONSTANT = /^REMINDER = \(\n((?:[ \t]+"[^"\\\n]*"\n)+)\)$/m
 const REMINDER_LITERAL = /"([^"\\\n]*)"/g
 
@@ -157,6 +158,32 @@ const hooksDirectory = (root) => {
   }
 }
 
+// The hook scripts directly in one directory: every *.py file whose name
+// starts with neither "_", which marks a helper module, nor ".".
+const scriptsIn = (dir) => {
+  let entries = []
+
+  try {
+    entries = readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return []
+  }
+
+  return entries
+    .filter((entry) => !entry.isDirectory())
+    .map((entry) => entry.name)
+    .filter((name) => name.endsWith(".py") && !name.startsWith("_") && !name.startsWith("."))
+    .map((name) => inspect(name, join(dir, name)))
+}
+
+// Each hook sits in its own folder, <hooks>/<hook>/<script>.py, so the runner
+// reads every folder of the hooks directory one level down, and a script left
+// directly in the hooks directory too. The folders of hooks only one other
+// agent runs, AGENT_ONLY_FOLDERS, are skipped by name, so a script in them is
+// never run here at any depth.
+const AGENT_ONLY_FOLDERS = new Set(["claude", "copilot"])
+
+//
 // Re-read on every call so a hook dropped into the directory mid-session is
 // picked up without a restart. A missing or unreadable directory yields no
 // hooks, which allows the call.
@@ -176,12 +203,10 @@ const discover = (root) => {
     return []
   }
 
-  const hooks = entries
-    .filter((entry) => !entry.isDirectory())
-    .map((entry) => entry.name)
-    .filter((name) => name.endsWith(".py") && !name.startsWith("_") && !name.startsWith("."))
-    .map((name) => inspect(name, join(dir, name)))
-    .filter(Boolean)
+  const folders = entries
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith(".") && !AGENT_ONLY_FOLDERS.has(entry.name))
+    .map((entry) => join(dir, entry.name))
+  const hooks = [dir, ...folders].flatMap(scriptsIn).filter(Boolean)
 
   hooks.sort((a, b) => a.order - b.order || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
 
@@ -464,7 +489,7 @@ const partID = () => {
 }
 
 // The main-thread reminder, or "" when the hooks directory holds no
-// copilot/prompt_reminder.py or its constant is not in the expected shape.
+// copilot/prompt-reminder/prompt_reminder.py or its constant is not in the expected shape.
 // Re-read on every call, like the hooks, so an update lands without a restart.
 const mainReminder = (root) => {
   const dir = hooksDirectory(root)

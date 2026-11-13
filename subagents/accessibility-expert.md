@@ -1,5 +1,6 @@
 ---
 name: accessibility-expert
+version: "1.0.0"
 description: 'Use when the user says "audit this page for WCAG 2.2", "is this component accessible" or "fix the screen reader issues". Audits against WCAG 2.2 with screen readers, keyboard-only use and voice control in mind, not only automated scanners, and returns a report with remediation guidance rather than applying fixes. Not for design tokens and theming, use `design-system-architect`.'
 tools: [read, grep, glob]
 skills:

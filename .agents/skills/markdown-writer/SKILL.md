@@ -1,6 +1,8 @@
 ---
 name: markdown-writer
 description: 'Human-facing markdown: README structure, an honest voice with no AI tells, Mermaid diagrams, badges, audit passes over stale docs, and translated copies. Use when the user says "fix my README", "write a README for this repo", "this reads like AI wrote it" or "add an architecture diagram to the docs". Not for architecture decision records, use `architecture-decision-records`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Markdown Writer

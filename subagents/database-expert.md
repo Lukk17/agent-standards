@@ -1,5 +1,6 @@
 ---
 name: database-expert
+version: "1.0.0"
 description: 'Use when the user says "design the schema", "which database should we use", "plan this migration" or "this query is slow". Designs a data layer or tunes an existing one, measuring only on a database the caller names as disposable and handing migrations to an implementer, read-only on shared and production schemas. Not for a bottleneck not yet located, use `performance-engineer`.'
 tools: [read, grep, glob, bash]
 skills:
@@ -120,7 +121,7 @@ Routine.
 
 ### Skills to load on demand
 
-Load when the change touches that stack, the way the Preloaded skills section below describes: `mongodb-patterns` for MongoDB, `hexagonal-architecture` and `backend-patterns` for the repository layer, `springboot-patterns` for JPA and Hikari settings, `docker-patterns` for a disposable database container, `deployment-patterns` for a migration rollout, `security-review` for row-level security, roles or personal data.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `mongodb-patterns` for MongoDB, `hexagonal-architecture` and `backend-patterns` for the repository layer, `springboot-patterns` for JPA and Hikari settings, `docker-patterns` for a disposable database container, `deployment-patterns` for a migration rollout, `application-security-review` for row-level security, roles or personal data.
 
 ### Done when
 

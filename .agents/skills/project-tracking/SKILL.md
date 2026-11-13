@@ -1,6 +1,8 @@
 ---
 name: project-tracking
 description: 'Tracker-independent standards for planning and tracking work: kinds of work, sizing and splitting, epics as outcomes, labels, statuses and closure, testable acceptance criteria, links and bounded work in progress. Use when the user says "write this ticket", "split this story", "are these criteria testable" or "can we close this". Not for Jira API mechanics, use `jira-integration`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Project Tracking

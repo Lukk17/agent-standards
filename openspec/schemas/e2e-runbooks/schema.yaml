@@ -92,7 +92,7 @@ artifacts:
       corrupted run and a forced re-execution.
 
       The e2e-runner subagent is available in agent-standards at
-      `.claude/agents/e2e-runner.md` and `.opencode/agents/e2e-runner.md`.
+      `.claude/agents/e2e-runner/e2e-runner.md` and `.opencode/agents/e2e-runner.md`.
       Use it as the sweep delegate; it owns the runner contract and the
       dual-write into `e2e/testing/runs/`.
 
@@ -198,7 +198,7 @@ artifacts:
         7. Log anything done outside the spec under "Additional tasks I did".
 
       The e2e-runner subagent is available in agent-standards at
-      `.claude/agents/e2e-runner.md` and `.opencode/agents/e2e-runner.md`.
+      `.claude/agents/e2e-runner/e2e-runner.md` and `.opencode/agents/e2e-runner.md`.
       Use it as the sweep delegate; it owns the runner contract and the
       dual-write into `e2e/testing/runs/`.
     requires: [tasks-template]

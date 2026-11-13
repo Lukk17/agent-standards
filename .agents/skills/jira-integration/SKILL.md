@@ -1,6 +1,8 @@
 ---
 name: jira-integration
 description: 'Jira mechanics from a coding session through the Atlassian MCP server or the REST v3 API: fetching an issue, running JQL, progress comments, status transitions and linking branches to the key. Use when the user says "pull up PROJ-1234", "move this ticket to In Review", "comment the PR link on the ticket" or "find my open issues this sprint". Not for writing a work item, use `project-tracking`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Jira Integration
@@ -70,7 +72,7 @@ you would make, and run it only after they approve that one action.
 - `github-ops` owns the same operational surface when the tracker is GitHub issues
 - `git-workflow` owns branch naming and commit messages that carry the issue key
 - `code-reviewer` owns reviewing the change the issue produced
-- `security-review` owns handling and rotation of the API token itself
+- `application-security-review` owns handling and rotation of the API token itself
 
 ---
 

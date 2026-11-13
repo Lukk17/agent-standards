@@ -14,7 +14,7 @@ and why, as the first line of your reply. This is a hard gate.
 Follow [.agents/instructions/reply-rules.md](.agents/instructions/reply-rules.md) when writing to the user. Name skills and ownership in the footer status tail it defines, never as the reply first line.
 
 The gate is enforcing, not advisory. One shared rule in
-[.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) decides every tool call, on every agent:
+[.agents/hooks/preflight-gate/preflight_gate.py](.agents/hooks/preflight-gate/preflight_gate.py) decides every tool call, on every agent:
 
 - It denies the main thread a write of any file inside the repository, by any tool or shell, markdown, configuration
   and documentation included. A write outside it, to the null device or to `tasks.md` at the root, and git branch
@@ -75,13 +75,13 @@ script and must never be hand-edited, and some are symlinks the generator create
 | --- | --- | --- |
 | `subagents/*.md` | canonical | edit directly, then regenerate |
 | `.agents/skills/*/SKILL.md` and its `references/*.md` | canonical | edit directly, keep the manifest short and the depth in `references/` |
-| `.agents/hooks/preflight_gate.py`, `.agents/hooks/no_ai_markers_check.py`, `.agents/hooks/task_list_sync.py`, `.agents/hooks/markdown_lint_check.py`, `.agents/hooks/_check_markdown.py`, `.agents/hooks/question_numbering_check.py`, `.agents/hooks/status_block_check.py`, `.agents/hooks/task_watchdog.py`, `.agents/hooks/copilot/prompt_reminder.py`, `.agents/hooks/claude/sync_skill_links.py`, `.agents/hooks/claude/standards_advisory_check.py` | canonical | edit directly, then run the pytest suite |
+| `.agents/hooks/<hook>/*.py`, one folder per hook, and the Claude-only and Copilot-only hooks in `.agents/hooks/claude/<hook>/` and `.agents/hooks/copilot/<hook>/` | canonical | edit directly, then run the pytest suite |
 | `tasks.md` | runtime state, git-ignored | written by the hook and by the model, never committed |
 | `.agents/plugin/hooks.js`, `.agents/plugin/index.js` | canonical | edit directly, `index.js` only re-exports |
 | `AGENTS.md.example`, `docs/*.md` | canonical | edit directly |
 | `tools/*.py`, `tools/tests/*.py`, `tools/pyproject.toml` | canonical | edit directly, then run the pytest suite |
-| `tools/plugins.yaml` | canonical plugin map: every skill, subagent and MCP server in exactly one plugin (domains, host groups, `core`, `mcp-<server>`) | edit directly, then run `python -m pytest tools/tests/test_gen_plugins.py` |
-| `.claude/agents/*.md` | generated (Claude front matter with a `skills` key) | never hand-edit, run the generator |
+| `tools/plugins.yaml`, and `.claude-plugin/marketplace.json` generated from it | canonical plugin map (hook, server and bundle versions, every skill and subagent in one bundle), and the generated marketplace: one plugin per skill, subagent, hook and server, plus the bundles | edit the map, never the marketplace, then run `python tools/gen_plugins.py` |
+| `.claude/agents/<name>/<name>.md` | generated (Claude front matter with a `skills` key, one folder per agent) | never hand-edit, run the generator |
 | `.agents/agents/*.md` | generated (OpenCode format) | never hand-edit, run the generator |
 | `.codex/agents/*.toml` | generated (Codex TOML) | never hand-edit, run the generator |
 | `.github/agents/*.agent.md` | generated (Copilot `*.agent.md`) | never hand-edit, run the generator |
@@ -113,7 +113,7 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
   [subagents/](subagents/) and [tools/](tools/) never ship, so no shipped document may link into them: the link resolves here and
   404s there. [global/](global/) ships only through the global install in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md), so no
   project-import pathspec may name it. [main-thread-allowlist.txt](main-thread-allowlist.txt) never ships by either route.
-- **Markdown lint.** The rules live in [.agents/hooks/_check_markdown.py](.agents/hooks/_check_markdown.py), which ships so the lint hook works downstream, and [tools/check-markdown.py](tools/check-markdown.py) only runs them. They cover every human-facing document but this
+- **Markdown lint.** The rules live in [.agents/hooks/markdown-lint-check/_check_markdown.py](.agents/hooks/markdown-lint-check/_check_markdown.py), which ships so the lint hook works downstream, and [tools/check-markdown.py](tools/check-markdown.py) only runs them. They cover every human-facing document but this
   `AGENTS.md`, whose style matches anyway. One runnable command per fenced code block, language tag, no `#` comments.
 - **One server set, one schema per file.** Change all five MCP files together: [.mcp.json](.mcp.json),
   [opencode.json](opencode.json), [.codex/config.toml](.codex/config.toml), [.vscode/mcp.json](.vscode/mcp.json) and
@@ -122,11 +122,11 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
   drops the MCP block and the `plugin` array that declares the gate. Local servers inherit the environment instead, and `context7`
   ships with no `headers` block. The detail is in [docs/MCP_SETUP.md](docs/MCP_SETUP.md) and nowhere else.
 - **One gate, one rule, one wording.** A behaviour change is a change to
-  [.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) plus a case in
+  [.agents/hooks/preflight-gate/preflight_gate.py](.agents/hooks/preflight-gate/preflight_gate.py) plus a case in
   [tools/tests/test_preflight_gate.py](tools/tests/test_preflight_gate.py), never a second copy of the logic. The
   `tools/tests/test_reminder_*.py` suites compare each reminder copy in a wiring file to its canonical source.
 - **One tail, one check, one wording.** [.agents/instructions/reply-rules.md](.agents/instructions/reply-rules.md),
-  [.agents/hooks/status_block_check.py](.agents/hooks/status_block_check.py) and its tests ship as one
+  [.agents/hooks/status-block-check/status_block_check.py](.agents/hooks/status-block-check/status_block_check.py) and its tests ship as one
   consistent set with no conflicts, and the hook is the enforcement.
 - **The tooling is a package under [tools/](tools/).** [tools/pyproject.toml](tools/pyproject.toml) is the only place
   a dependency or a version is written, each an exact pin with no lock file, and `--group` needs pip 25.1 or newer.
@@ -149,7 +149,7 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
   [CONTRIBUTING.md](CONTRIBUTING.md). A subagent's source and its four generated trees are committed together, and
   each kind bumps its count badge in [README.md](README.md) and its count on the social card.
 - **An MCP server:** add the block to all five MCP files (the ones listed under Repo conventions) and an
-  `mcp-<server>` plugin to [tools/plugins.yaml](tools/plugins.yaml), document it in [docs/MCP_SETUP.md](docs/MCP_SETUP.md),
+  entry to the `servers` list of [tools/plugins.yaml](tools/plugins.yaml), document it in [docs/MCP_SETUP.md](docs/MCP_SETUP.md),
   and bump the MCP count in the badge and on the social card. A file that leaves a server out or ships it switched off
   gets its reason under "What ships" there, never a silent gap.
 - **A shipped document:** name it in UPPERCASE under `docs/`, add its path to every

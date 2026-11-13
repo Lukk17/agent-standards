@@ -5,7 +5,7 @@ The plugin carries the subagent text as the SUBAGENT_TEXT constant in
 ship, reach a child session on both loaders, and never reach a root session.
 
 The main-thread reminder is not copied into the plugin. It is read at run time
-from the REMINDER constant of .agents/hooks/copilot/prompt_reminder.py beside
+from the REMINDER constant of .agents/hooks/copilot/prompt-reminder/prompt_reminder.py beside
 the hooks the project runs, so what the plugin reads must equal what Python
 loads. A root session gets it on every prompt on 1.x and Kilo Code and on
 every model request on 2.x, a child session never does, and a session that
@@ -43,8 +43,8 @@ def plugin_constant() -> str:
 
 
 def with_reminder_hook(hooks_dir: Path, source: str | None = None) -> Path:
-    """Puts copilot/prompt_reminder.py under hooks_dir, the shipped file unless source is given."""
-    target = hooks_dir / "copilot" / "prompt_reminder.py"
+    """Puts copilot/prompt-reminder/prompt_reminder.py under hooks_dir, the shipped file unless source is given."""
+    target = hooks_dir / "copilot" / "prompt-reminder" / "prompt_reminder.py"
     target.parent.mkdir(parents=True, exist_ok=True)
     if source is None:
         shutil.copy(PROMPT_REMINDER_HOOK, target)

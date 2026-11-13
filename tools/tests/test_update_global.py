@@ -31,9 +31,9 @@ IMPLEMENTATIONS = [
 ACTION_VERBS = ("update ", "add ", "remove ", "keep ", "skip ")
 
 FIRST_RELEASE = {
-    ".agents/hooks/preflight_gate.py": "gate v1\n",
+    ".agents/hooks/preflight-gate/preflight_gate.py": "gate v1\n",
     ".agents/hooks/old_hook.py": "old hook\n",
-    ".agents/hooks/copilot/prompt_reminder.py": "reminder\n",
+    ".agents/hooks/copilot/prompt-reminder/prompt_reminder.py": "reminder\n",
     ".agents/plugin/hooks.js": "plugin v1\n",
     "global/bin/update-global.sh": "updater v1\n",
     ".agents/skills/alpha/SKILL.md": "alpha v1\n",
@@ -57,7 +57,7 @@ FIRST_RELEASE = {
 }
 
 SECOND_RELEASE_CHANGES = {
-    ".agents/hooks/preflight_gate.py": "gate v2\n",
+    ".agents/hooks/preflight-gate/preflight_gate.py": "gate v2\n",
     ".agents/hooks/new_hook.py": "new hook\n",
     "global/bin/update-global.sh": "updater v2\n",
     ".agents/skills/alpha/SKILL.md": "alpha v2\n",
@@ -75,7 +75,7 @@ SECOND_RELEASE_CHANGES = {
 
 SECOND_RELEASE_REMOVALS = (
     ".agents/hooks/old_hook.py",
-    ".agents/hooks/copilot/prompt_reminder.py",
+    ".agents/hooks/copilot/prompt-reminder/prompt_reminder.py",
     ".agents/skills/alpha/references/old.md",
     ".agents/skills/delta/SKILL.md",
     ".agents/agents/c.md",
@@ -240,8 +240,8 @@ def test_an_update_refreshes_only_what_is_installed(released, implementation):
     assert result.returncode == 0, result.stderr
     assert action_lines(result.stdout) == [
         "add     ~/.config/agents/hooks/new_hook.py",
-        "update  ~/.config/agents/hooks/preflight_gate.py",
-        "remove  ~/.config/agents/hooks/copilot/prompt_reminder.py",
+        "update  ~/.config/agents/hooks/preflight-gate/preflight_gate.py",
+        "remove  ~/.config/agents/hooks/copilot/prompt-reminder/prompt_reminder.py",
         "remove  ~/.config/agents/hooks/old_hook.py",
         "update  ~/.config/agents/bin/update-global.sh",
         "update  ~/.config/agents/skills/alpha/SKILL.md",
@@ -264,7 +264,7 @@ def test_an_update_refreshes_only_what_is_installed(released, implementation):
     assert "by hand" not in result.stdout
 
     files = snapshot(home)
-    assert files[".config/agents/hooks/preflight_gate.py"] == b"gate v2\n"
+    assert files[".config/agents/hooks/preflight-gate/preflight_gate.py"] == b"gate v2\n"
     assert files[".config/agents/hooks/new_hook.py"] == b"new hook\n"
     assert ".config/agents/hooks/old_hook.py" not in files
     assert not (home / ".config" / "agents" / "hooks" / "copilot").exists()
@@ -308,14 +308,14 @@ def test_a_dry_run_writes_nothing_and_lists_what_the_update_does(released, imple
 def test_uncommitted_work_in_the_source_never_reaches_the_home(released, implementation):
     # Given a source checkout with an edited and an untracked hook, neither committed
     repo, home, first = released
-    write_files(repo, {".agents/hooks/preflight_gate.py": "uncommitted\n", ".agents/hooks/dirty.py": "untracked\n"})
+    write_files(repo, {".agents/hooks/preflight-gate/preflight_gate.py": "uncommitted\n", ".agents/hooks/dirty.py": "untracked\n"})
 
     # When
     result = run_updater(implementation, home, str(repo))
 
     # Then
     assert result.returncode == 0, result.stderr
-    assert (home / ".config" / "agents" / "hooks" / "preflight_gate.py").read_bytes() == b"gate v1\n"
+    assert (home / ".config" / "agents" / "hooks" / "preflight-gate" / "preflight_gate.py").read_bytes() == b"gate v1\n"
     assert not (home / ".config" / "agents" / "hooks" / "dirty.py").exists()
 
 
@@ -458,7 +458,7 @@ def test_an_install_in_the_old_layout_is_refused_with_the_migration_pointer(tmp_
     # Given an install made before ~/.config/agents, and nothing at the new place
     repo, first = make_upstream(tmp_path)
     home = tmp_path / "old-home"
-    write_files(home, {".agents/.upstream-commit": f"{first}\n", ".agents/hooks/preflight_gate.py": "gate v1\n"})
+    write_files(home, {".agents/.upstream-commit": f"{first}\n", ".agents/hooks/preflight-gate/preflight_gate.py": "gate v1\n"})
 
     # When
     result = run_updater(implementation, home, str(repo))
@@ -474,7 +474,7 @@ def test_an_install_in_the_old_layout_is_refused_with_the_migration_pointer(tmp_
 def test_an_update_brings_the_claude_code_skill_links_in_step(tmp_path, implementation):
     # Given an upstream that ships the skill link hook, and a home with no links yet
     repo, first = make_upstream(tmp_path)
-    write_files(repo, {".agents/hooks/claude/sync_skill_links.py": SYNC_SKILL_LINKS_HOOK.read_text(encoding="utf-8")})
+    write_files(repo, {".agents/hooks/claude/sync-skill-links/sync_skill_links.py": SYNC_SKILL_LINKS_HOOK.read_text(encoding="utf-8")})
     first = commit_all(repo, "ship the hook")
     home = install_home(tmp_path, repo, first)
 
@@ -498,7 +498,7 @@ def test_an_update_brings_the_claude_code_skill_links_in_step(tmp_path, implemen
 def test_an_update_of_another_home_links_nothing_into_the_callers_agent_homes(tmp_path, monkeypatch, implementation):
     # Given a home that ships the skill link hook, and a caller whose own agent homes are stand-in folders
     repo, first = make_upstream(tmp_path)
-    write_files(repo, {".agents/hooks/claude/sync_skill_links.py": SYNC_SKILL_LINKS_HOOK.read_text(encoding="utf-8")})
+    write_files(repo, {".agents/hooks/claude/sync-skill-links/sync_skill_links.py": SYNC_SKILL_LINKS_HOOK.read_text(encoding="utf-8")})
     first = commit_all(repo, "ship the hook")
     home = install_home(tmp_path, repo, first)
     stand_ins = {name: tmp_path / "caller" / name.lower() for name in AGENT_HOME_VARIABLES}
@@ -568,3 +568,110 @@ def test_an_updater_that_replaces_itself_with_a_longer_copy_finishes_cleanly(tmp
     assert result.stdout.count("agent-standards global update") == 1
     assert f"update  ~/.config/agents/bin/{script}" in result.stdout
     assert (installed_bin / script).read_bytes() == longer
+
+
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+def test_an_update_moves_a_flat_claude_subagent_into_its_own_folder(released, implementation):
+    # Given a home installed while the Claude Code tree was flat, and a release that nests each agent in its own folder
+    repo, home, _first = released
+    (repo / ".claude" / "agents" / "a.md").unlink()
+    write_files(repo, {".claude/agents/a/a.md": "claude a nested\n", ".claude/agents/c/c.md": "claude c nested\n"})
+    (repo / ".claude" / "agents" / "c.md").unlink()
+    commit_all(repo, "nested release")
+
+    # When
+    result = run_updater(implementation, home, repo.as_posix())
+
+    # Then the installed agents move into their folders, and nothing the user removed or owns comes back or moves
+    assert result.returncode == 0, result.stderr
+    agents = home / ".claude" / "agents"
+    assert (agents / "a" / "a.md").read_text(encoding="utf-8") == "claude a nested\n"
+    assert (agents / "c" / "c.md").read_text(encoding="utf-8") == "claude c nested\n"
+    assert not (agents / "a.md").exists() and not (agents / "c.md").exists()
+    assert not (agents / "b").exists() and not (agents / "b.md").exists()
+    assert (agents / "mine.md").read_text(encoding="utf-8") == "my own subagent\n"
+    assert "remove  ~/.claude/agents/a.md (moved into a/a.md)" in result.stdout
+
+
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+def test_an_update_refreshes_a_nested_claude_subagent(released, implementation):
+    # Given a home whose Claude Code agents already sit one folder deep
+    repo, home, _first = released
+    agents = home / ".claude" / "agents"
+    (agents / "a.md").unlink()
+    write_files(home, {".claude/agents/a/a.md": "claude a v1\n"})
+    (repo / ".claude" / "agents" / "a.md").unlink()
+    write_files(repo, {".claude/agents/a/a.md": "claude a v3\n"})
+    commit_all(repo, "nested release")
+
+    # When
+    result = run_updater(implementation, home, repo.as_posix())
+
+    # Then
+    assert result.returncode == 0, result.stderr
+    assert (agents / "a" / "a.md").read_text(encoding="utf-8") == "claude a v3\n"
+    assert "update  ~/.claude/agents/a/a.md" in result.stdout
+
+
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+def test_an_update_moves_a_skill_upstream_renamed(released, implementation):
+    # Given an installed security-review, which upstream renamed to application-security-review
+    repo, home, _first = released
+    write_files(repo, {".agents/skills/security-review/SKILL.md": "old name\n", ".agents/skills/security-review/references/a.md": "ref\n"})
+    installed = commit_all(repo, "add security-review")
+    shutil.copytree(repo / ".agents" / "skills" / "security-review", home / ".config" / "agents" / "skills" / "security-review")
+    (home / ".config" / "agents" / ".upstream-commit").write_bytes(f"{installed}\n".encode("ascii"))
+    git(repo, "mv", ".agents/skills/security-review", ".agents/skills/application-security-review")
+    write_files(repo, {".agents/skills/application-security-review/SKILL.md": "new name\n"})
+    commit_all(repo, "rename security-review")
+
+    # When
+    result = run_updater(implementation, home, repo.as_posix())
+
+    # Then the renamed folder takes its place, and the old one is gone
+    assert result.returncode == 0, result.stderr
+    skills = home / ".config" / "agents" / "skills"
+    assert not (skills / "security-review").exists()
+    assert (skills / "application-security-review" / "SKILL.md").read_text(encoding="utf-8") == "new name\n"
+    assert (skills / "application-security-review" / "references" / "a.md").read_text(encoding="utf-8") == "ref\n"
+    assert "remove  ~/.config/agents/skills/security-review (renamed to application-security-review)" in result.stdout
+
+
+WIRED_SETTINGS = {
+    ".claude/settings.json": '{"hooks": {"PreToolUse": [{"hooks": [{"type": "command", "command": "python3 -S -E HOME/.config/agents/hooks/old_hook.py --format claude"}]}]}}\n',
+    ".config/codex/hooks.json": '{"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "python3 HOME/.config/agents/hooks/old_hook.py --format codex"}]}]}}\n',
+    ".config/copilot/hooks/preflight.json": '{"hooks": {"preToolUse": [{"bash": "python3 HOME/.config/agents/hooks/old_hook.py --format copilot"}]}}\n',
+    ".config/codex/config.toml": '[[hooks.Stop.hooks]]\ncommand = "python C:\\\\Users\\\\you\\\\.config\\\\agents\\\\hooks\\\\old_hook.py"\n',
+}
+
+
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+@pytest.mark.parametrize("wiring", list(WIRED_SETTINGS))
+def test_a_hook_the_live_wiring_still_runs_is_kept_and_named(released, implementation, wiring):
+    # Given a home whose wiring still runs a hook file the second release removes
+    repo, home, _first = released
+    write_files(home, {wiring: WIRED_SETTINGS[wiring].replace("HOME", home.as_posix())})
+    release_second(repo)
+
+    # When
+    result = run_updater(implementation, home, repo.as_posix())
+
+    # Then the file stays, and the report says so, loudly
+    assert result.returncode == 0, result.stderr
+    assert (home / ".config" / "agents" / "hooks" / "old_hook.py").read_text(encoding="utf-8") == "old hook\n"
+    assert "keep    ~/.config/agents/hooks/old_hook.py (still wired)" in result.stdout
+    assert "WARNING: ~/.config/agents/hooks/old_hook.py is still run by your hook wiring" in result.stdout
+    assert "remove  ~/.config/agents/hooks/old_hook.py" not in result.stdout
+
+
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+def test_a_removed_hook_no_wiring_names_is_still_removed(released, implementation):
+    repo, home, _first = released
+    write_files(home, {".claude/settings.json": '{"hooks": {"Stop": [{"hooks": [{"command": "python3 hooks/new_hook.py"}]}]}}\n'})
+    release_second(repo)
+
+    result = run_updater(implementation, home, repo.as_posix())
+
+    assert result.returncode == 0, result.stderr
+    assert not (home / ".config" / "agents" / "hooks" / "old_hook.py").exists()
+    assert "WARNING" not in result.stdout

@@ -13,11 +13,11 @@ Three categories, and mixing them up is the one mistake that breaks a rebuild.
 
 | Category | Paths | How to change it |
 | --- | --- | --- |
-| Canonical | `subagents/*.md`, `.agents/skills/*/SKILL.md` and their `references/*.md`, `.agents/hooks/*.py`, `.agents/hooks/claude/sync_skill_links.py`, `.agents/hooks/claude/standards_advisory_check.py`, `.agents/plugin/hooks.js`, `.agents/plugin/index.js`, `docs/*.md` | edit directly |
+| Canonical | `subagents/*.md`, `.agents/skills/*/SKILL.md` and their `references/*.md`, `.agents/hooks/<hook>/*.py`, one folder per hook, `.agents/hooks/claude/<hook>/*.py`, `.agents/hooks/copilot/<hook>/*.py`, `.agents/plugin/hooks.js`, `.agents/plugin/index.js`, `docs/*.md` | edit directly |
 | Canonical config | `.mcp.json`, `opencode.json`, `.opencode/opencode.json`, `.opencode/opencode.json.v1`, `.codex/config.toml`, `.vscode/mcp.json`, `.github/mcp.json`, `.claude/settings.json`, `.github/hooks/preflight.json` | edit directly, keep the server set and the gate wording in sync |
-| Generated | `.claude/agents/*.md`, `.agents/agents/*.md`, `.codex/agents/*.toml`, `.github/agents/*.agent.md` | never hand-edit, run `python tools/gen_subagents.py` |
-| Canonical, this repo only | `tools/plugins.yaml`, the plugin map: which Claude Code plugin holds each skill, subagent and MCP server | edit directly, verified by `tools/tests/test_gen_plugins.py`, never shipped |
-| Generated, `plugins` branch only | `.claude-plugin/marketplace.json` and `plugins/<name>/` | never hand-edit and never on `master`. The `Plugins` workflow runs `python tools/gen_plugins.py <out-dir>` on every push to `master` and commits the result to the `plugins` branch |
+| Generated | `.claude/agents/<name>/<name>.md`, `.agents/agents/*.md`, `.codex/agents/*.toml`, `.github/agents/*.agent.md` | never hand-edit, run `python tools/gen_subagents.py` |
+| Canonical, this repo only | `tools/plugins.yaml`, the plugin map: the hook, server and bundle versions, and the one bundle each skill and subagent sits in | edit directly, then run `python tools/gen_plugins.py`, never shipped |
+| Generated, this repo only | `.claude-plugin/marketplace.json`, one plugin per skill, subagent, Claude Code hook and MCP server, plus the bundles, each pointing at files already in the repository | never hand-edit, run `python tools/gen_plugins.py`. CI fails a stale copy, and the `Plugins` workflow validates it, test-installs from it and tags each new plugin version on `master`. Never shipped by an import, users add it as a marketplace |
 | Symlink | `.opencode/agents`, `.kilo/agents`, `.claude/skills` | never edit through the link, fix the link itself |
 | Canonical, global install only | `global/bin/update-global.sh`, `global/bin/update-global.ps1` | edit both together, verified by `tools/tests/test_update_global.py`, shipped to `~/.config/agents/bin` by the global install and never by a project import |
 | Vendored | `.metrics/tools/crapper/`, `dryer/`, `mutator/`, `VERSIONS`, `constraints.txt`: Robert C. Martin's tools copied unchanged at pinned commits | never hand-edit, only `tools/update_quality_tools.py` changes them. Shipped by the import |
@@ -76,9 +76,15 @@ agent-standards/
   subagents/                     # CANONICAL subagent sources, this repo only, inside the markdown lint scope
   tools/                         # Generator, linter and tests, this repo only
     gen_subagents.py             # Emits four trees plus the two agent symlinks, validates skills and tools
-    gen_plugins.py               # Renders the Claude Code plugin marketplace from plugins.yaml into a given directory
-    plugins.yaml                 # CANONICAL plugin map: every skill, subagent and MCP server in exactly one plugin (domains, host groups, core, mcp-<server>)
-    check-markdown.py            # Markdown lint used by CI, runs .agents/hooks/_check_markdown.py
+    gen_plugins.py               # Writes .claude-plugin/marketplace.json from plugins.yaml and the items' own files
+    plugin_model.py              # The plugin map's names and types, and how plugins.yaml is read
+    plugin_map_rules.py          # check_map: every rule the plugin map has to meet
+    plugins.yaml                 # CANONICAL plugin map: hook, server and bundle versions, every skill and subagent in one bundle
+    check_versions.py            # Fails a changed plugin whose version did not go up since the merge base
+    plugin_tags.py               # Lists the <name>--v<version> tags the Plugins workflow creates
+    check_tags.py                # Fails a plugin tag that moved, points off master or was deleted
+    git_http.py                  # Smart HTTP git server for the marketplace install test
+    check-markdown.py            # Markdown lint used by CI, runs .agents/hooks/markdown-lint-check/_check_markdown.py
     pyproject.toml               # CANONICAL, the only pinned dependency and pytest configuration
     check-badges.py              # README badge and social card count lint used by CI
     check-agents-md.py           # AGENTS.md size limits and no tracked CLAUDE.md, used by CI
@@ -92,8 +98,10 @@ agent-standards/
   .claude/
     settings.json                # gate, formatting, markdown lint and task-list hooks
     skills -> ../.agents/skills  # SYMLINK, the only way Claude Code sees the canonical skills
-    agents/                      # GENERATED, Claude-format subagents
+    agents/                      # GENERATED, Claude-format subagents, <name>/<name>.md, one folder each
     workflows/skill-audit.js     # CANONICAL, read-only skill audit, a saved Claude Code workflow
+  .claude-plugin/
+    marketplace.json             # GENERATED by tools/gen_plugins.py, the Claude Code marketplace, this repo only
   .opencode/
     agents -> ../.agents/agents  # SYMLINK maintained by the generator
     opencode.json                # native edit backstop, OpenCode 2.x permissions form, refused by 1.x
@@ -107,7 +115,7 @@ agent-standards/
     agents/                      # GENERATED, GitHub Copilot subagents (*.agent.md)
     hooks/preflight.json         # Copilot hook config, camelCase events
     mcp.json                     # the GitHub Copilot CLI fallback, key "mcpServers", read only where no .mcp.json exists
-    workflows/                   # CI, release, live agent tests, and plugins.yml, which builds the plugins branch
+    workflows/                   # CI, release, live agent tests, plugins.yml, which validates, test-installs and tags the marketplace, and plugin-tags.yml, which checks the tags
   .vscode/
     mcp.json                     # GitHub Copilot in VS Code, key "servers"
   AGENTS.md                      # This repo's own instructions, never shipped downstream
@@ -151,7 +159,7 @@ your-project/
   .agents/plugin/index.js        # the directory entry every loader resolves, re-exports hooks.js
   .claude/settings.json          # Claude Code hooks, consumer-owned after import
   .claude/skills                 # symlink to ../.agents/skills
-  .claude/agents/                # generated Claude-format subagents
+  .claude/agents/                # generated Claude-format subagents, one folder each
   .claude/workflows/skill-audit.js # read-only skill audit, a saved Claude Code workflow
   .opencode/agents               # symlink to ../.agents/agents
   .opencode/opencode.json        # native edit backstop for OpenCode 2.x

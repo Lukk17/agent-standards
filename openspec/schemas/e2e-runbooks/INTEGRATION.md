@@ -47,7 +47,7 @@ The methodology lives in three places that ship together via
 [Lukk17/agent-standards](https://github.com/Lukk17/agent-standards):
 
 - `.agents/skills/e2e-runbooks/SKILL.md` is the methodology source of truth.
-- `.claude/agents/e2e-runner.md` and `.opencode/agents/e2e-runner.md` are the runner subagent — the recommended
+- `.claude/agents/e2e-runner/e2e-runner.md` and `.opencode/agents/e2e-runner.md` are the runner subagent — the recommended
   delegate when driving a sweep. It enforces the runner contract (Start/End UTC, Duration, tokens, Verdict) and the
   dual-write into `e2e/testing/runs/`.
 - This schema is the operational shape for OpenSpec users.

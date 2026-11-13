@@ -1,6 +1,8 @@
 ---
 name: e2e-testing
 description: Playwright browser end-to-end testing, covering suite layout, the Page Object Model, configuration, semantic locators, the canonical flaky-test policy, artifacts and CI wiring. Use when the user says "write a Playwright test for the login flow", "our e2e suite is flaky" or "add e2e tests to CI". Not for backend capability sweeps against a live stack, use `e2e-runbooks`.
+metadata:
+  version: "1.0.0"
 ---
 
 # E2E Testing Patterns

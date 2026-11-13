@@ -7,7 +7,7 @@ into the imported project and deleted again inside the same run.
 
 ### What this verifies
 
-- The gate copy the import delivered, `.agents/hooks/preflight_gate.py` inside the project, is the one exercised
+- The gate copy the import delivered, `.agents/hooks/preflight-gate/preflight_gate.py` inside the project, is the one exercised
   here. [1-project-gate-decisions-test.md](1-project-gate-decisions-test.md) drives the upstream copy in isolation.
   This spec drives the copy the hook wirings asserted in
   [2-project-import-shape-test.md](2-project-import-shape-test.md) actually point at.
@@ -115,13 +115,13 @@ rm -f /work/project/.claude/agents/e2e-no-skills-probe.md
 1. Judge a main-thread source edit with the project's own gate copy.
 
 ```bash
-python3 .agents/hooks/preflight_gate.py --format claude < /repo/e2e/fixtures/gate-payloads/main-thread-source-edit.json > /tmp/project-gate-source.json
+python3 .agents/hooks/preflight-gate/preflight_gate.py --format claude < /repo/e2e/fixtures/gate-payloads/main-thread-source-edit.json > /tmp/project-gate-source.json
 ```
 
 2. Establish the baseline: judge the probe subagent's payload before the probe definition exists.
 
 ```bash
-python3 .agents/hooks/preflight_gate.py --format claude < /repo/e2e/fixtures/gate-payloads/subagent-without-skills.json > /tmp/project-gate-probe-before.json
+python3 .agents/hooks/preflight-gate/preflight_gate.py --format claude < /repo/e2e/fixtures/gate-payloads/subagent-without-skills.json > /tmp/project-gate-probe-before.json
 ```
 
 3. Write the probe definition into the subagent directory the gate reads.
@@ -133,27 +133,27 @@ cp /repo/e2e/fixtures/e2e-no-skills-probe.md /work/project/.claude/agents/e2e-no
 4. Judge the same payload again, now that the definition is on disk.
 
 ```bash
-python3 .agents/hooks/preflight_gate.py --format claude < /repo/e2e/fixtures/gate-payloads/subagent-without-skills.json > /tmp/project-gate-probe-after.json
+python3 .agents/hooks/preflight-gate/preflight_gate.py --format claude < /repo/e2e/fixtures/gate-payloads/subagent-without-skills.json > /tmp/project-gate-probe-after.json
 ```
 
 5. Judge it through the Copilot adapter, which learns it is looking at a subagent from the `--subagent` flag rather
    than from an `agent_id` field.
 
 ```bash
-python3 .agents/hooks/preflight_gate.py --format copilot --subagent < /repo/e2e/fixtures/gate-payloads/subagent-without-skills.json > /tmp/project-gate-probe-copilot.json
+python3 .agents/hooks/preflight-gate/preflight_gate.py --format copilot --subagent < /repo/e2e/fixtures/gate-payloads/subagent-without-skills.json > /tmp/project-gate-probe-copilot.json
 ```
 
 6. Judge it through the plain adapter, the one the OpenCode and Kilo Code plugin shim reads. This one signals through
    its exit status, so read the status immediately after the step.
 
 ```bash
-python3 .agents/hooks/preflight_gate.py --format plain --subagent < /repo/e2e/fixtures/gate-payloads/subagent-without-skills.json
+python3 .agents/hooks/preflight-gate/preflight_gate.py --format plain --subagent < /repo/e2e/fixtures/gate-payloads/subagent-without-skills.json
 ```
 
 7. Judge a subagent that does declare skills and may write, `python-pro`, which the import delivered.
 
 ```bash
-python3 .agents/hooks/preflight_gate.py --format claude < /repo/e2e/fixtures/gate-payloads/subagent-with-skills.json > /tmp/project-gate-specialist.json
+python3 .agents/hooks/preflight-gate/preflight_gate.py --format claude < /repo/e2e/fixtures/gate-payloads/subagent-with-skills.json > /tmp/project-gate-specialist.json
 ```
 
 8. Delete the probe. The container is discarded on exit anyway, but a fixture written into an agent directory is

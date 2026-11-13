@@ -155,5 +155,5 @@ return NextResponse.json(
 
 - `node-backend-patterns` for the hub these rules belong to.
 - `api-design` for status codes, the problem body shape, and auth headers on the wire.
-- `security-review` for session fixation and input handling, and the `security-auditor` agent for threat modelling.
+- `application-security-review` for session fixation and input handling, and the `security-auditor` agent for threat modelling.
 - `keycloak-patterns` when the identity provider is Keycloak, for both the server and the .NET client.

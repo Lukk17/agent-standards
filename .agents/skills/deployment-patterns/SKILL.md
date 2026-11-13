@@ -1,6 +1,8 @@
 ---
 name: deployment-patterns
 description: Deployment and CI/CD standards for rolling, blue-green and canary rollouts, a production approval gate, GitHub Actions with OIDC and least privilege, health probes, config validation, rollback and Kubernetes defaults. Use when the user says "set up a CI/CD pipeline", "add a canary rollout" or "how do we roll this back". Not for writing the Dockerfile itself, use `docker-patterns`.
+metadata:
+  version: "1.0.0"
 ---
 
 # Deployment Patterns
@@ -36,8 +38,8 @@ Written for GitHub Actions on a fixed runner label such as `ubuntu-24.04`, Kuber
 - Configuring the hosts underneath, use `ansible`.
 - Instrumenting the application with logs, metrics, and traces, use `observability-and-logging`.
 - Planning a schema change that has to survive the rollout, use `database-migrations`.
-- Reviewing the application's own auth and input handling, use `security-review`.
-- Secret scanning and dependency scanning inside the pipeline, use `security-review`.
+- Reviewing the application's own auth and input handling, use `application-security-review`.
+- Secret scanning and dependency scanning inside the pipeline, use `application-security-review`.
 
 ---
 
@@ -66,7 +68,7 @@ Written for GitHub Actions on a fixed runner label such as `ubuntu-24.04`, Kuber
 - `observability-and-logging` for the health, metrics, and readiness signals the probes read.
 - `database-migrations` for schema changes that must survive a rolling deployment.
 - `ansible` for configuring the hosts under the cluster.
-- `security-review` before a release touching auth, payments, or personal data.
+- `application-security-review` before a release touching auth, payments, or personal data.
 
 ---
 

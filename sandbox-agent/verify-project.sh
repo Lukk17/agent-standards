@@ -23,7 +23,7 @@ IFS=$'\n\t'
 readonly PROJECT="${SANDBOX_PROJECT:-/work/project}"
 readonly SETUP="/sandbox/setup-project.sh"
 readonly CLI_TIMEOUT="${SANDBOX_CLI_TIMEOUT:-300}"
-readonly GATE=".agents/hooks/preflight_gate.py"
+readonly GATE=".agents/hooks/preflight-gate/preflight_gate.py"
 readonly PROBE_AGENT=".claude/agents/sandbox-no-skills-probe.md"
 readonly SAMPLE_SKILL="python-patterns"
 
@@ -372,36 +372,36 @@ verify_claude() {
   assert_file "a known skill resolves through the symlink" \
     ".claude/skills/${SAMPLE_SKILL}/SKILL.md"
   assert_glob_count "subagents are discoverable in Claude Code format" \
-    ".claude/agents/*.md" "${#SUBAGENTS[@]}"
+    ".claude/agents/*/*.md" "${#SUBAGENTS[@]}"
   assert_json "the gate is wired into PreToolUse" ".claude/settings.json" \
-    '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py") and contains("--format claude"))'
+    '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight-gate/preflight_gate.py") and contains("--format claude"))'
   assert_json "the gate call is direct, formats claude, forces a zero exit, and the DEVNULL wrapper does not return" ".claude/settings.json" \
-    '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py") and contains("--format claude") and endswith("; exit 0") and (contains("subprocess.DEVNULL") | not))'
+    '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight-gate/preflight_gate.py") and contains("--format claude") and endswith("; exit 0") and (contains("subprocess.DEVNULL") | not))'
   assert_json "the gate call forces a zero exit with a trailing ; exit 0" ".claude/settings.json" \
     '[.hooks.PreToolUse[].hooks[].command] | any(endswith("; exit 0"))'
   assert_json "the gate matcher covers every writing tool, the PowerShell tool and both web tools" ".claude/settings.json" \
     '[.hooks.PreToolUse[].matcher] | any(type == "string" and test("Edit") and test("Write") and test("MultiEdit") and test("NotebookEdit") and test("Bash") and test("PowerShell") and test("WebFetch") and test("WebSearch"))'
-  assert_json "the gate text is injected on every prompt" ".claude/settings.json" \
-    '[.hooks.UserPromptSubmit[].hooks[].command] | any(contains("PREFLIGHT"))'
-  assert_json "the subagent supervision text is injected at session start" ".claude/settings.json" \
-    '[.hooks.SessionStart[].hooks[].command] | any(contains("When you launch a background subagent") and contains("every 10 minutes"))'
+  assert_json "the gate text is injected on every prompt, by its reminder hook" ".claude/settings.json" \
+    '[.hooks.UserPromptSubmit[].hooks[].command] | any(contains("claude/preflight-reminder/preflight_reminder.py"))'
+  assert_json "the subagent supervision text is injected at session start, by its reminder hook" ".claude/settings.json" \
+    '[.hooks.SessionStart[].hooks[].command] | any(contains("claude/background-subagent-reminder/background_subagent_reminder.py"))'
   # shellcheck disable=SC2016  # the $ belongs to the hook command text the jq filter looks for
   assert_json "every hook Claude Code calls resolves python3 first and falls back to python, on -S -E" ".claude/settings.json" \
     '[.hooks[][].hooks[].command] | map(select(contains(".agents/hooks/"))) | ((length > 0) and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E")))'
   assert_json "the formatting check is wired into Stop" ".claude/settings.json" \
-    '[.hooks.Stop[].hooks[].command] | any(contains("no_ai_markers_check.py"))'
+    '[.hooks.Stop[].hooks[].command] | any(contains("no-ai-markers-check/no_ai_markers_check.py"))'
   assert_json "no reply-style check runs when a subagent stops, because reply style is checked on the main thread only" ".claude/settings.json" \
     '[(.hooks.SubagentStop // [])[].hooks[].command] | any(contains("no_ai_markers_check.py") or contains("status_block_check.py") or contains("question_numbering_check.py")) | not'
   assert_json "the formatting fix is wired into MessageDisplay and Stop checks what it leaves" ".claude/settings.json" \
-    '([.hooks.MessageDisplay[].hooks[].command] | any(contains("no_ai_markers_check.py --format claude --display "))) and ([.hooks.Stop[].hooks[].command] | any(contains("no_ai_markers_check.py --format claude --display-fixed")))'
+    '([.hooks.MessageDisplay[].hooks[].command] | any(contains("no-ai-markers-check/no_ai_markers_check.py --format claude --display "))) and ([.hooks.Stop[].hooks[].command] | any(contains("no-ai-markers-check/no_ai_markers_check.py --format claude --display-fixed")))'
   assert_json "the task list is wired into TaskCreated" ".claude/settings.json" \
-    '[.hooks.TaskCreated[].hooks[].command] | any(contains("task_list_sync.py"))'
+    '[.hooks.TaskCreated[].hooks[].command] | any(contains("task-list-sync/task_list_sync.py"))'
   assert_json "the task list is wired into TaskCompleted" ".claude/settings.json" \
-    '[.hooks.TaskCompleted[].hooks[].command] | any(contains("task_list_sync.py"))'
+    '[.hooks.TaskCompleted[].hooks[].command] | any(contains("task-list-sync/task_list_sync.py"))'
   assert_json "the markdown lint is wired into PostToolUse" ".claude/settings.json" \
-    '[.hooks.PostToolUse[].hooks[].command] | any(contains("markdown_lint_check.py"))'
+    '[.hooks.PostToolUse[].hooks[].command] | any(contains("markdown-lint-check/markdown_lint_check.py"))'
   assert_json "the standards advisory is wired into PostToolUse" ".claude/settings.json" \
-    '[.hooks.PostToolUse[].hooks[].command] | any(contains("claude/standards_advisory_check.py --format claude"))'
+    '[.hooks.PostToolUse[].hooks[].command] | any(contains("claude/standards-advisory-check/standards_advisory_check.py --format claude"))'
   assert_json "MCP servers are present in the file Claude Code reads" ".mcp.json" \
     '(.mcpServers | length) > 0'
 
@@ -419,7 +419,7 @@ verify_codex() {
   assert_glob_count "subagents are discoverable in Codex TOML format" \
     ".codex/agents/*.toml" "${#SUBAGENTS[@]}"
   assert_toml "the gate is wired into PreToolUse" ".codex/config.toml" \
-    '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py --format codex"))'
+    '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight-gate/preflight_gate.py --format codex"))'
   assert_toml "the gate is scoped to the tools that can write" ".codex/config.toml" \
     '[.hooks.PreToolUse[].matcher] | any(type == "string" and test("Bash") and test("apply_patch"))'
   assert_toml "the gate text is injected on every prompt" ".codex/config.toml" \
@@ -433,7 +433,7 @@ verify_codex() {
   assert_toml "every Windows command Codex runs forces a zero exit with a trailing ; exit 0, the PowerShell form" ".codex/config.toml" \
     '[.hooks[][].hooks[] | (.commandWindows // empty)] | ((length > 0) and all(endswith("; exit 0")))'
   assert_toml "the formatting check is wired into Stop" ".codex/config.toml" \
-    '[.hooks.Stop[].hooks[] | (.command // empty), (.commandWindows // empty)] | any(contains("no_ai_markers_check.py"))'
+    '[.hooks.Stop[].hooks[] | (.command // empty), (.commandWindows // empty)] | any(contains("no-ai-markers-check/no_ai_markers_check.py"))'
   assert_toml "MCP servers are present in the file Codex reads" ".codex/config.toml" \
     '(.mcp_servers | length) > 0'
 
@@ -567,13 +567,13 @@ verify_copilot() {
   assert_glob_count "subagents are discoverable in Copilot agent format" \
     ".github/agents/*.agent.md" "${#SUBAGENTS[@]}"
   assert_json "the gate is wired into preToolUse" ".github/hooks/preflight.json" \
-    '[.hooks.preToolUse[].bash] | any(contains("preflight_gate.py --format copilot"))'
+    '[.hooks.preToolUse[].bash] | any(contains("preflight-gate/preflight_gate.py --format copilot"))'
   assert_json "the gate text is injected on session start" ".github/hooks/preflight.json" \
     '[.hooks.sessionStart[].bash] | any(contains("Before code work, name the skills"))'
   assert_json "the gate text is appended to every prompt" ".github/hooks/preflight.json" \
-    '[.hooks.userPromptTransformed[].bash] | any(contains(".agents/hooks/copilot/prompt_reminder.py"))'
+    '[.hooks.userPromptTransformed[].bash] | any(contains(".agents/hooks/copilot/prompt-reminder/prompt_reminder.py"))'
   assert_json "the formatting check is wired into agentStop" ".github/hooks/preflight.json" \
-    '[.hooks.agentStop[].bash] | any(contains("no_ai_markers_check.py --format copilot"))'
+    '[.hooks.agentStop[].bash] | any(contains("no-ai-markers-check/no_ai_markers_check.py --format copilot"))'
   assert_json "the gate is scoped to the tools that can write" ".github/hooks/preflight.json" \
     '[.hooks.preToolUse[].matcher] | any(type == "string" and test("bash") and test("powershell") and test("create") and test("edit") and test("apply_patch"))'
   # shellcheck disable=SC2016  # the $ belongs to the hook command text the jq filter looks for

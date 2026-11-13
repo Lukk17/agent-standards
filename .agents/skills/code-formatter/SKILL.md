@@ -1,6 +1,8 @@
 ---
 name: code-formatter
 description: 'Reading flow inside Dart, Java and Python function bodies: braced control-flow exits, blank lines between phases, comments above the line, doc comments on their declaration, and chain breaks where no formatter owns them. Use when the user says "format this function", "clean up the spacing here", or "break this method chain up". Not for whether a comment should exist, use `coding-standards`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Code Formatter

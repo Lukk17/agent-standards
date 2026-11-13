@@ -1,0 +1,44 @@
+name: Plugin tags
+
+# Detects a plugin release tag that moved, points off master, names a version
+# master never shipped at that commit, or was deleted. A GitHub tag ruleset on
+# *--v* that lets only GitHub Actions create a tag and nobody update or delete
+# one is the prevention, and this workflow is the detection. It reads only:
+# no token is used beyond read access, and nothing is pushed or deleted. The
+# job checks master out and runs master's copy of tools/check_tags.py with the
+# runner's Python, but on a tag push GitHub runs this workflow file as it is at
+# the tagged commit, so only the deletion and the daily runs are sure to use
+# master's own workflow. The daily run is the one to rely on.
+
+on:
+  push:
+    tags:
+      - "*--v*"
+  delete:
+  schedule:
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plugin-tags
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: github.event_name != 'delete' || (github.event.ref_type == 'tag' && contains(github.event.ref, '--v'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout master with every tag, keeping no credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: master
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Check every plugin tag against the marketplace on master
+        run: python3 tools/check_tags.py --master origin/master

@@ -1,5 +1,6 @@
 ---
 name: python-pro
+version: "1.0.0"
 description: 'Use when the user says "write this FastAPI endpoint", "review this Python module" or "modernise this Python project". Applies Python 3.14 idioms, type hints, dataclasses, structural pattern matching and async where the work is I/O-bound, with uv, ruff and pytest discipline, as an implementer. Not for PyTorch training and inference, use `ml-engineer`.'
 tools: [read, write, edit, grep, glob, bash]
 skills:
@@ -61,7 +62,7 @@ When reviewing Python code, raise:
 
 ### Skills to load on demand
 
-Load when the change touches that stack, the way the Preloaded skills section below describes: `hexagonal-architecture` for a ports-and-adapters layout, `api-design` and `backend-patterns` for an endpoint, `postgres-patterns`, `mongodb-patterns` or `database-migrations` for persistence, `ai-regression-testing` for an AI-feature regression suite, `security-review` for auth or input handling, `docker-patterns` for the image, `bash` for scripts, `observability-and-logging` for logging and metrics, `performance-optimization` for a measured slowdown, `build-dependency-management` for a dependency bump, `review-duplication` when adding a utility, `git-workflow` when committing.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `hexagonal-architecture` for a ports-and-adapters layout, `api-design` and `backend-patterns` for an endpoint, `postgres-patterns`, `mongodb-patterns` or `database-migrations` for persistence, `ai-regression-testing` for an AI-feature regression suite, `application-security-review` for auth or input handling, `docker-patterns` for the image, `bash` for scripts, `observability-and-logging` for logging and metrics, `performance-optimization` for a measured slowdown, `build-dependency-management` for a dependency bump, `review-duplication` when adding a utility, `git-workflow` when committing.
 
 ### Done when
 

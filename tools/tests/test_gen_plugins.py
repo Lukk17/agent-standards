@@ -1,571 +1,388 @@
-"""Tests for tools/gen_plugins.py and the plugin map in tools/plugins.yaml.
+"""Tests for tools/gen_plugins.py, the plugin map in tools/plugins.yaml, and the committed marketplace.
 
-The map is data, so the first group holds the real map to its rules: one home
-per skill and per subagent, a core that holds exactly the skills two or more
-plugins share, dependencies that exist and never loop. The second group
-renders the real map once into a temp directory and checks the output against
-its sources byte for byte. The third group feeds check_map broken maps, so
-each rule is seen to fail on the input it exists to catch.
+The first group holds the committed .claude-plugin/marketplace.json to its
+sources: one entry per skill, subagent, Claude Code hook and MCP server, each
+pointing at files that already sit in the repository. The second group holds
+the real map to its rules. The third feeds check_map a small fixture
+repository broken one rule at a time, so each rule is seen to fail on the
+input it exists to catch.
 """
 
-import dataclasses
 import json
-import os
 import pathlib
-import re
-from collections import Counter
+import shutil
 
 import pytest
 import yaml
 
 import gen_plugins as gen
-import gen_subagents
 from tests.conftest import REPO_ROOT
 
-SOURCES = gen.Sources(REPO_ROOT)
-NEVER_SHIP_PARTS = {"tools", "subagents", "e2e", "sandbox-agent", "docs", "openspec", "global"}
-NEVER_SHIP_NAMES = {"main-thread-allowlist.txt", "AGENTS.md", "AGENTS.md.example", "CLAUDE.md", "CONTRIBUTING.md"}
-PLUGIN_ENTRIES = {gen.MANIFEST_DIR, "skills", "agents", gen.MCP_FILE}
+
+@pytest.fixture(scope="module")
+def sources() -> gen.Sources:
+    return gen.load_sources(REPO_ROOT)
 
 
 @pytest.fixture(scope="module")
-def plugin_map() -> gen.PluginMap:
-    return gen.load_map()
+def committed() -> dict:
+    return json.loads((REPO_ROOT / gen.MARKETPLACE_FILE).read_text(encoding="utf-8"))
 
 
 @pytest.fixture(scope="module")
-def skills() -> set[str]:
-    return gen_subagents.installed_skills(SOURCES.skills)
+def by_name(committed) -> dict[str, dict]:
+    return {entry["name"]: entry for entry in committed["plugins"]}
 
 
-@pytest.fixture(scope="module")
-def agents(skills) -> dict[str, gen.Agent]:
-    return gen.load_agents(SOURCES, skills)
+def _category(by_name: dict[str, dict], category: str) -> dict[str, dict]:
+    return {name: entry for name, entry in by_name.items() if entry["category"] == category}
 
 
-@pytest.fixture(scope="module")
-def servers() -> dict[str, dict[str, object]]:
-    return gen.load_servers(SOURCES)
+# The committed marketplace
 
 
-@pytest.fixture(scope="module")
-def rendered(plugin_map, tmp_path_factory) -> tuple[pathlib.Path, dict[str, str]]:
-    out = tmp_path_factory.mktemp("marketplace") / "out"
-    versions = gen.render(plugin_map, out, SOURCES)
-    return out, versions
+def test_the_committed_marketplace_matches_its_sources(sources):
+    assert (REPO_ROOT / gen.MARKETPLACE_FILE).read_text(encoding="utf-8") == gen.render_text(gen.marketplace(sources))
 
 
-def _manifest(out: pathlib.Path, name: str) -> dict:
-    return json.loads((out / "plugins" / name / gen.MANIFEST_DIR / gen.PLUGIN_MANIFEST).read_text(encoding="utf-8"))
+def test_every_skill_is_its_own_plugin_at_its_own_folder(by_name):
+    skills = {path.parent.name for path in (REPO_ROOT / gen.SKILLS_DIR).glob("*/SKILL.md")}
+
+    assert set(_category(by_name, gen.SKILL_CATEGORY)) == skills
+    for skill in skills:
+        entry = by_name[skill]
+        metadata = gen.front_matter(REPO_ROOT / gen.SKILLS_DIR / skill / "SKILL.md")["metadata"]
+        assert entry["source"] == f"./.agents/skills/{skill}"
+        assert entry["version"] == metadata["version"]
+        assert set(entry) == {"name", "source", "version", "description", "category"}
 
 
-def _files(directory: pathlib.Path) -> dict[str, bytes]:
-    return {
-        p.relative_to(directory).as_posix(): p.read_bytes()
-        for p in directory.rglob("*")
-        if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc"
-    }
+def test_every_subagent_is_its_own_plugin_holding_one_agent_file_and_its_preloads(by_name):
+    canonical = {path.stem: gen.front_matter(path) for path in (REPO_ROOT / gen.SUBAGENTS_DIR).glob("*.md")}
+
+    assert set(_category(by_name, gen.AGENT_CATEGORY)) == {f"agent-{name}" for name in canonical}
+    for name, data in canonical.items():
+        entry = by_name[f"agent-{name}"]
+        folder = REPO_ROOT / ".claude" / "agents" / name
+        assert entry["source"] == f"./.claude/agents/{name}"
+        assert entry["strict"] is False
+        assert entry["agents"] == [f"./{name}.md"]
+        assert sorted(p.name for p in folder.iterdir()) == [f"{name}.md"]
+        assert entry["version"] == data["version"]
+        assert entry.get("dependencies", []) == list(data.get("skills") or [])
+
+
+def test_every_hook_plugin_runs_the_project_wiring_from_its_own_folder(by_name):
+    settings = json.loads((REPO_ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    project_commands = [hook["command"] for groups in settings["hooks"].values() for group in groups for hook in group["hooks"]]
+    hooks = _category(by_name, gen.HOOK_CATEGORY)
+    prefix = 'cd "${CLAUDE_PROJECT_DIR}" && PY=$(command -v python3 || command -v python) && "$PY" -S -E "${CLAUDE_PLUGIN_ROOT}"/'
+
+    assert hooks
+    plugin_commands = []
+    for entry in hooks.values():
+        folder = REPO_ROOT / entry["source"]
+        for groups in entry["hooks"].values():
+            for group in groups:
+                for hook in group["hooks"]:
+                    command = hook["command"]
+                    script = command.removeprefix(prefix).split()[0]
+                    assert command.startswith(prefix) and command.endswith(" ; exit 0"), command
+                    assert (folder / script).is_file(), command
+                    plugin_commands.append(command)
+    wired = [gen.plugin_command(command) for command in project_commands if ".agents/hooks/" in command]
+    assert sorted(plugin_commands) == sorted(wired)
+
+
+def test_a_hook_plugin_keeps_each_argument_of_the_project_command():
+    command = 'cd "${CLAUDE_PROJECT_DIR}" && PY=$(command -v python3 || command -v python) && "$PY" -S -E .agents/hooks/task-list-sync/task_list_sync.py --event stop --format claude ; exit 0'
+
+    assert gen.plugin_command(command) == (
+        'cd "${CLAUDE_PROJECT_DIR}" && PY=$(command -v python3 || command -v python) && "$PY" -S -E '
+        '"${CLAUDE_PLUGIN_ROOT}"/task_list_sync.py --event stop --format claude ; exit 0'
+    )
+
+
+def test_every_server_plugin_carries_its_root_block_inline(by_name):
+    servers = json.loads((REPO_ROOT / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]
+    plugins = _category(by_name, gen.MCP_CATEGORY)
+
+    assert set(plugins) == {f"mcp-{name}" for name in servers}
+    for name, block in servers.items():
+        assert plugins[f"mcp-{name}"]["mcpServers"] == {name: block}
+        assert plugins[f"mcp-{name}"]["source"] == gen.ENTRY_ONLY_SOURCE
+
+
+def test_bundles_hold_only_plugin_names_and_no_files(committed, by_name):
+    bundles = [entry for entry in committed["plugins"] if entry["category"] in gen.BUNDLE_CATEGORIES]
+
+    assert {entry["name"] for entry in bundles} >= {"core", "python", "jvm", "backend", "all", "mcp-all", "hooks-all"}
+    for entry in bundles:
+        assert entry["source"] == gen.ENTRY_ONLY_SOURCE
+        assert set(entry) == {"name", "source", "version", "description", "category", "dependencies"}
+        assert all(dependency in by_name for dependency in entry["dependencies"]), entry["name"]
+
+
+def test_no_dependency_carries_a_version_range(committed):
+    # Claude Code ignores a range on an entry dependency, so every dependency is a bare plugin name
+    for entry in committed["plugins"]:
+        assert all(isinstance(dependency, str) for dependency in entry.get("dependencies", [])), entry["name"]
+
+
+def test_every_plugin_carries_a_semantic_version_and_a_unique_name(committed):
+    names = [entry["name"] for entry in committed["plugins"]]
+
+    assert len(names) == len(set(names))
+    assert all(gen.SEMVER.fullmatch(entry["version"]) for entry in committed["plugins"])
+
+
+def test_no_plugin_json_is_committed_anywhere():
+    # The entry is the manifest, so a version is never written twice
+    assert not [p for p in REPO_ROOT.rglob("plugin.json") if not {".git", "node_modules"} & set(p.parts)]
+
+
+def test_every_entry_source_exists_inside_the_repository(committed):
+    for entry in committed["plugins"]:
+        source = (REPO_ROOT / entry["source"]).resolve()
+        assert source.is_dir() and source.is_relative_to(REPO_ROOT.resolve()), entry["name"]
+
+
+def test_the_quality_loop_skill_carries_robert_c_martins_tools_through_a_link():
+    link = REPO_ROOT / ".agents" / "skills" / "quality-loop" / "tools"
+
+    assert link.is_symlink()
+    assert link.readlink().as_posix() == "../../../.metrics/tools"
+    assert link.resolve() == (REPO_ROOT / ".metrics" / "tools").resolve()
+    assert (link / "run").is_file() and (link / "crapper").is_dir()
+
+
+def test_owned_paths_name_the_folder_and_the_canonical_agent(by_name):
+    assert gen.owned_paths(by_name["agent-python-pro"]) == [
+        pathlib.PurePosixPath(".claude/agents/python-pro"),
+        pathlib.PurePosixPath("subagents/python-pro.md"),
+    ]
+    assert gen.owned_paths(by_name["python-patterns"]) == [pathlib.PurePosixPath(".agents/skills/python-patterns")]
+    assert gen.owned_paths(by_name["hook-preflight-gate"]) == [pathlib.PurePosixPath(".agents/hooks/preflight-gate")]
+    assert gen.owned_paths(by_name["mcp-context7"]) == []
+    assert gen.owned_paths(by_name["core"]) == []
 
 
 # The real map
 
 
-def test_real_map_breaks_no_rule(plugin_map, skills, agents, servers):
-    assert gen.check_map(plugin_map, skills, agents, servers) == []
+def test_the_real_map_breaks_no_rule(sources):
+    assert gen.check_map(sources) == []
 
 
-def test_every_skill_sits_in_exactly_one_plugin(plugin_map, skills):
-    homes = Counter(skill for plugin in plugin_map.plugins for skill in plugin.skills)
+def test_core_holds_exactly_the_skills_two_bundles_share(sources):
+    assert set(sources.plugin_map.bundle(gen.CORE).skills) == gen.shared_skills(sources)
 
-    assert set(homes) == skills
-    assert {skill: count for skill, count in homes.items() if count > 1} == {}
 
+def test_installing_all_pulls_every_development_bundle_and_no_host_group(sources):
+    closure = gen.dependency_closure(gen.ALL, gen.dependency_graph(sources))
+    bundles = {bundle.name: bundle for bundle in sources.plugin_map.bundles}
 
-def test_every_subagent_sits_in_exactly_one_plugin(plugin_map, agents):
-    homes = Counter(agent for plugin in plugin_map.plugins for agent in plugin.agents)
+    assert {name for name in closure if name in bundles} == {n for n, b in bundles.items() if b.category == gen.DEVELOPMENT}
 
-    assert set(homes) == set(agents)
-    assert {agent: count for agent, count in homes.items() if count > 1} == {}
 
+def test_the_map_comment_names_the_rules_this_file_tests():
+    header = (REPO_ROOT / gen.MAP_FILE).read_text(encoding="utf-8").split("\nmarketplace:")[0]
 
-def test_every_dependency_exists_and_none_loops(plugin_map):
-    plugins = plugin_map.by_name()
+    for phrase in ("core holds exactly", "mcp-all depends on", "hooks-all on every hook plugin", "metadata.version"):
+        assert phrase in header
 
-    assert {d for p in plugin_map.plugins for d in p.dependencies} <= set(plugins)
-    assert gen.find_cycle(plugins) is None
 
+def test_the_map_lists_as_many_hooks_servers_and_bundles_as_the_marketplace(committed):
+    raw = yaml.safe_load((REPO_ROOT / gen.MAP_FILE).read_text(encoding="utf-8"))
+    categories = [entry["category"] for entry in committed["plugins"]]
 
-def test_core_holds_exactly_the_skills_two_plugins_share(plugin_map, agents):
-    core = plugin_map.by_name()[gen.CORE]
+    assert categories.count(gen.HOOK_CATEGORY) == len(raw["hooks"])
+    assert categories.count(gen.MCP_CATEGORY) == len(raw["servers"])
+    assert sum(categories.count(c) for c in gen.BUNDLE_CATEGORIES) == len(raw["bundles"])
 
-    assert set(core.skills) == gen.shared_skills(plugin_map, agents)
-    assert core.agents == () and core.dependencies == ()
 
+# check_map against a fixture repository, one broken rule at a time
 
-def test_every_preloaded_skill_is_in_core_or_the_subagents_own_plugin(plugin_map, agents):
-    home = {skill: p.name for p in plugin_map.plugins for skill in p.skills}
-    plugins = plugin_map.by_name()
 
-    for plugin in plugin_map.plugins:
-        for agent in plugin.agents:
-            for skill in agents[agent].skills:
-                assert home[skill] in (plugin.name, gen.CORE), f"{agent} preloads {skill} from {home[skill]}"
-                if home[skill] == gen.CORE:
-                    assert gen.CORE in gen.dependency_closure(plugin.name, plugins)
+MAP = """
+marketplace:
+  name: lab
+  owner: {name: Lab}
+  repository: https://github.com/lab/agents
+hooks:
+  - {name: gate, version: 1.0.0, description: The gate.}
+servers:
+  - {name: docs, version: 1.0.0, description: Docs server.}
+bundles:
+  - {name: core, version: 1.0.0, category: development, description: Shared., skills: [shared]}
+  - {name: py, version: 1.0.0, category: development, description: Python., dependencies: [core], agents: [pro], skills: [own]}
+  - {name: web, version: 1.0.0, category: development, description: Web., dependencies: [core], agents: [front], skills: [solo]}
+  - {name: all, version: 1.0.0, category: bundle, description: All., dependencies: [core, py, web]}
+  - {name: mcp-all, version: 1.0.0, category: bundle, description: Servers., dependencies: [mcp-docs]}
+  - {name: hooks-all, version: 1.0.0, category: bundle, description: Hooks., dependencies: [hook-gate]}
+"""
 
+GATE_COMMAND = 'cd "${CLAUDE_PROJECT_DIR}" && python3 .agents/hooks/gate/gate.py --format claude ; exit 0'
 
-def test_host_groups_are_off_and_everything_else_is_on(plugin_map):
-    for plugin in plugin_map.plugins:
-        assert plugin.default_enabled is (plugin.category != gen.HOST_CATEGORY), plugin.name
+SETTINGS = {
+    "hooks": {
+        "PreToolUse": [
+            {
+                "matcher": "^(Edit)$",
+                "hooks": [
+                    {"type": "command", "command": "echo reminder"},
+                    {"type": "command", "timeout": 10, "command": GATE_COMMAND},
+                ],
+            }
+        ]
+    }
+}
 
 
-def test_one_plugin_per_root_server_and_mcp_all_depends_on_each(plugin_map, servers):
-    served = {p.mcp: p.name for p in plugin_map.plugins if p.mcp}
+def write(path: pathlib.Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
 
-    assert set(served) == set(servers)
-    assert set(plugin_map.by_name()["mcp-all"].dependencies) == set(served.values())
 
+def skill(root: pathlib.Path, name: str) -> None:
+    write(root / ".agents" / "skills" / name / "SKILL.md", f'---\nname: {name}\ndescription: The {name} skill.\nmetadata:\n  version: "1.0.0"\n---\nBody.\n')
 
-def test_all_installs_core_and_every_development_plugin_and_nothing_else(plugin_map):
-    plugins = plugin_map.by_name()
-    development = {p.name for p in plugin_map.plugins if p.category == gen.DEVELOPMENT_CATEGORY}
 
-    assert gen.dependency_closure(gen.ALL, plugins) == development | {gen.CORE}
+def agent(root: pathlib.Path, name: str, skills: list[str]) -> None:
+    listed = "".join(f"  - {s}\n" for s in skills)
+    write(root / "subagents" / f"{name}.md", f"---\nname: {name}\nversion: 1.0.0\ndescription: Use when {name}.\nskills:\n{listed}---\nBody.\n")
 
 
-def test_bundles_hold_nothing_but_dependencies(plugin_map):
-    plugins = plugin_map.by_name()
+def build_lab(root: pathlib.Path) -> pathlib.Path:
+    """A small repository the map in MAP renders cleanly from, also used by tests/test_check_versions.py."""
+    for name in ("shared", "own", "solo"):
+        skill(root, name)
+    agent(root, "pro", ["shared", "own"])
+    agent(root, "front", ["shared", "solo"])
+    write(root / ".claude" / "settings.json", json.dumps(SETTINGS))
+    write(root / ".agents" / "hooks" / "gate" / "gate.py", "print()\n")
+    write(root / ".mcp.json", json.dumps({"mcpServers": {"docs": {"type": "http", "url": "https://docs.example"}}}))
+    write(root / "tools" / "plugins.yaml", MAP)
+    return root
 
-    assert plugins["all"].is_bundle and plugins["mcp-all"].is_bundle
 
+@pytest.fixture
+def lab(tmp_path) -> pathlib.Path:
+    return build_lab(tmp_path)
 
-# The rendered output
 
-
-def _carried(plugin: gen.Plugin, skill: str) -> tuple[str, ...]:
-    """The folders a plugin carries into one of its skills, relative to that skill."""
-    prefix = f"skills/{skill}/"
-    return tuple(f"{c.target.removeprefix(prefix)}/" for c in plugin.files if c.target.startswith(prefix))
-
-
-def test_skill_copies_are_byte_identical_to_their_sources(plugin_map, rendered):
-    out, _ = rendered
-
-    for plugin in plugin_map.plugins:
-        for skill in plugin.skills:
-            copy = out / "plugins" / plugin.name / "skills" / skill
-            carried = _carried(plugin, skill)
-            own = {path: data for path, data in _files(copy).items() if not path.startswith(carried or ("\0",))}
-            assert own == _files(SOURCES.skills / skill), skill
-
-
-def test_the_testing_plugin_carries_the_quality_tools_into_the_quality_loop_skill(plugin_map, rendered):
-    # Given the tools a project lacks, which the quality-loop skill copies from its own folder
-    out, _ = rendered
-    source = REPO_ROOT / ".metrics" / "tools"
-    copy = out / "plugins" / "testing" / "skills" / "quality-loop" / "tools"
-
-    # Then the copy holds every tracked-style file and none of a local run's leftovers
-    expected = {path: data for path, data in _files(source).items() if not gen.is_build_leftover(pathlib.PurePosixPath(path))}
-    assert _files(copy) == expected
-    assert {"run", "run.cmd", "VERSIONS", "crapper/LICENSE", "dryer/LICENSE", "mutator/LICENSE"} <= set(expected)
-    assert gen._is_executable(copy / "run")
-    assert gen._is_executable(copy / "crapper" / "crapper")
-
-
-def _qualified(name: str, home: dict[str, str]) -> str:
-    return f"{home[name]}:{name}"
-
-
-def test_agent_copies_equal_the_claude_render_with_qualified_skill_names(plugin_map, rendered, skills):
-    out, _ = rendered
-    home = {skill: p.name for p in plugin_map.plugins for skill in p.skills}
-
-    for plugin in plugin_map.plugins:
-        for agent in plugin.agents:
-            copy = (out / "plugins" / plugin.name / "agents" / f"{agent}.md").read_text(encoding="utf-8")
-            front_matter, body = gen_subagents.parse(SOURCES.subagents / f"{agent}.md", skills)
-            qualified = [_qualified(s, home) for s in front_matter.get("skills") or ()]
-            assert copy == gen_subagents.emit_claude({**front_matter, "skills": qualified}, body), agent
-
-
-def test_plugin_agents_differ_from_the_project_tree_only_in_the_skill_names(plugin_map, rendered):
-    out, _ = rendered
-    home = {skill: p.name for p in plugin_map.plugins for skill in p.skills}
-
-    for plugin in plugin_map.plugins:
-        for agent in plugin.agents:
-            copy = (out / "plugins" / plugin.name / "agents" / f"{agent}.md").read_text(encoding="utf-8")
-            project = (REPO_ROOT / ".claude" / "agents" / f"{agent}.md").read_text(encoding="utf-8")
-            for skill in sorted(home, key=len, reverse=True):
-                project = re.sub(rf"(?m)^(  - |- `){re.escape(skill)}(`?)$", rf"\g<1>{_qualified(skill, home)}\g<2>", project)
-            assert copy == project, agent
-
-
-def test_every_plugin_agent_preloads_skills_by_their_full_plugin_name(plugin_map, rendered):
-    # Given the built-in /security-review that a bare security-review resolved to in live run 41255837007
-    out, _ = rendered
-    home = {skill: p.name for p in plugin_map.plugins for skill in p.skills}
-    plugins = plugin_map.by_name()
-
-    for plugin in plugin_map.plugins:
-        installed = {plugin.name} | gen.dependency_closure(plugin.name, plugins)
-        for agent in plugin.agents:
-            text = (out / "plugins" / plugin.name / "agents" / f"{agent}.md").read_text(encoding="utf-8")
-            front = yaml.safe_load(text.split("---\n")[1])
-            for entry in front.get("skills") or []:
-                owner, _, skill = entry.partition(":")
-                assert skill and home.get(skill) == owner, f"{agent} preloads {entry!r}"
-                assert owner in installed, f"{agent} preloads {entry!r} from a plugin {plugin.name!r} does not install"
-
-
-def test_each_server_plugin_mcp_file_equals_its_root_block(plugin_map, rendered, servers):
-    out, _ = rendered
-
-    for plugin in plugin_map.plugins:
-        mcp_file = out / "plugins" / plugin.name / gen.MCP_FILE
-        if plugin.mcp:
-            assert json.loads(mcp_file.read_text(encoding="utf-8")) == {"mcpServers": {plugin.mcp: servers[plugin.mcp]}}
-        else:
-            assert not mcp_file.exists(), plugin.name
-
-
-def test_output_holds_no_symlink(rendered):
-    out, _ = rendered
-
-    assert [p for p in out.rglob("*") if p.is_symlink()] == []
-
-
-def test_output_holds_no_never_ship_file(rendered):
-    out, _ = rendered
-
-    assert {p.name for p in out.iterdir()} == {gen.MANIFEST_DIR, "plugins", "LICENSE", "README.md"}
-    assert (out / "README.md").read_bytes() != (REPO_ROOT / "README.md").read_bytes()
-    for plugin_dir in (out / "plugins").iterdir():
-        assert {p.name for p in plugin_dir.iterdir()} <= PLUGIN_ENTRIES, plugin_dir.name
-        for path in plugin_dir.rglob("*"):
-            relative = path.relative_to(plugin_dir)
-            assert path.name not in NEVER_SHIP_NAMES, relative
-            if relative.parts[0] != "skills":
-                assert not NEVER_SHIP_PARTS & set(relative.parts), relative
-
-
-def test_version_equals_the_content_hash(plugin_map, rendered):
-    out, versions = rendered
-
-    for plugin in plugin_map.plugins:
-        version = _manifest(out, plugin.name)["version"]
-        assert version == versions[plugin.name] == gen.content_hash(out / "plugins" / plugin.name)
-        assert len(version) == gen.VERSION_LENGTH
-
-
-def test_rendering_twice_gives_the_same_bytes(plugin_map, rendered, tmp_path):
-    out, versions = rendered
-
-    again = gen.render(plugin_map, tmp_path / "again", SOURCES)
-
-    assert again == versions
-    assert _files(tmp_path / "again") == _files(out)
-
-
-def test_marketplace_entries_match_the_plugin_manifests(plugin_map, rendered):
-    out, _ = rendered
-    market = json.loads((out / gen.MANIFEST_DIR / gen.MARKETPLACE_MANIFEST).read_text(encoding="utf-8"))
-
-    assert market["name"] == plugin_map.marketplace["name"]
-    assert [e["name"] for e in market["plugins"]] == [p.name for p in plugin_map.plugins]
-    for entry, plugin in zip(market["plugins"], plugin_map.plugins):
-        manifest = _manifest(out, plugin.name)
-        assert entry["source"] == f"./plugins/{plugin.name}"
-        assert "version" not in entry
-        assert entry.get("defaultEnabled", True) is plugin.default_enabled
-        assert manifest.get("defaultEnabled", True) is plugin.default_enabled
-        assert manifest.get("dependencies", []) == list(plugin.dependencies)
-        assert manifest["name"] == plugin.name and manifest["description"] == entry["description"]
-
-
-# The hash, the guards and the command line
-
-
-def test_content_hash_ignores_the_version_and_follows_every_byte(tmp_path):
-    plugin = tmp_path / "p"
-    (plugin / gen.MANIFEST_DIR).mkdir(parents=True)
-    (plugin / "skills" / "s").mkdir(parents=True)
-    manifest = plugin / gen.MANIFEST_DIR / gen.PLUGIN_MANIFEST
-    skill = plugin / "skills" / "s" / "SKILL.md"
-    manifest.write_text('{"name": "p", "version": "one"}')
-    skill.write_text("body")
-    first = gen.content_hash(plugin)
-
-    manifest.write_text('{"name": "p", "version": "two"}')
-    unchanged = gen.content_hash(plugin)
-    skill.write_text("body!")
-    changed = gen.content_hash(plugin)
-
-    assert unchanged == first
-    assert changed != first
-
-
-def test_render_refuses_a_directory_that_is_not_empty(plugin_map, tmp_path):
-    (tmp_path / "keep.txt").write_text("mine")
-
-    with pytest.raises(gen.PluginMapError, match="not an empty directory"):
-        gen.render(plugin_map, tmp_path, SOURCES)
-    assert (tmp_path / "keep.txt").read_text() == "mine"
-
-
-def test_a_symlink_inside_a_skill_is_refused(tmp_path):
-    skill = tmp_path / "s"
-    skill.mkdir()
-    (skill / "SKILL.md").write_text("body")
-    (tmp_path / "outside.md").write_text("secret")
-    try:
-        os.symlink(tmp_path / "outside.md", skill / "linked.md")
-    except OSError:
-        pytest.skip("this platform cannot create a symlink")
-
-    with pytest.raises(gen.PluginMapError, match="symlink"):
-        list(gen.skill_files(skill))
-
-
-def test_carried_files_leave_out_environments_caches_and_build_metadata(tmp_path):
-    for relative in ("run", "crapper/src/crapper/cli.py", "crapper/.venv/bin/python", "crapper/src/crapper.egg-info/PKG-INFO", "x/__pycache__/a.pyc", "b.pyc"):
-        (tmp_path / relative).parent.mkdir(parents=True, exist_ok=True)
-        (tmp_path / relative).write_text("x")
-
-    found = [path.relative_to(tmp_path).as_posix() for path in gen.carried_files(tmp_path)]
-
-    assert found == ["crapper/src/crapper/cli.py", "run"]
-
-
-def test_a_carried_folder_that_does_not_exist_stops_the_render(plugin_map, tmp_path):
-    testing = _get(plugin_map, "testing")
-    broken = _replace(plugin_map, "testing", files=(dataclasses.replace(testing.files[0], source=".metrics/nothing-here"),))
-
-    with pytest.raises(gen.PluginMapError, match="nothing-here"):
-        gen.render(broken, tmp_path / "out", SOURCES)
-
-
-def test_main_exits_with_an_error_on_a_non_empty_directory(tmp_path):
-    (tmp_path / "keep.txt").write_text("mine")
-
-    with pytest.raises(SystemExit) as exc:
-        gen.main([str(tmp_path)])
-
-    assert str(exc.value.code).startswith("ERROR")
-
-
-GOOD_MARKETPLACE = "marketplace: {name: m, owner: {name: o}, repository: 'https://github.com/o/r'}\n"
+def problems(root: pathlib.Path) -> list[str]:
+    return gen.check_map(gen.load_sources(root))
+
+
+def edit_map(root: pathlib.Path, old: str, new: str) -> None:
+    path = root / "tools" / "plugins.yaml"
+    text = path.read_text(encoding="utf-8")
+    assert old in text
+    path.write_text(text.replace(old, new), encoding="utf-8")
+
+
+def test_the_fixture_repository_renders_with_the_reminder_left_to_the_project(lab):
+    document = gen.marketplace(gen.load_sources(lab))
+    names = [entry["name"] for entry in document["plugins"]]
+
+    assert names == ["core", "py", "web", "all", "mcp-all", "hooks-all", "agent-front", "agent-pro", "own", "shared", "solo", "hook-gate", "mcp-docs"]
+    hook = next(entry for entry in document["plugins"] if entry["name"] == "hook-gate")
+    assert hook["hooks"] == {
+        "PreToolUse": [
+            {
+                "matcher": "^(Edit)$",
+                "hooks": [{"type": "command", "timeout": 10, "command": 'cd "${CLAUDE_PROJECT_DIR}" && python3 "${CLAUDE_PLUGIN_ROOT}"/gate.py --format claude ; exit 0'}],
+            }
+        ]
+    }
 
 
 @pytest.mark.parametrize(
-    ("text", "expected"),
+    ("old", "new", "expected"),
     [
-        pytest.param(
-            GOOD_MARKETPLACE + "plugins:\n  - {name: core, description: d, category: development, skils: [x]}\n",
-            "unknown key",
-            id="an unknown plugin key",
-        ),
-        pytest.param(
-            GOOD_MARKETPLACE + "plugins:\n  - {name: core, description: d, category: development, defaultEnabled: 'false'}\n",
-            "'defaultEnabled' must be true or false",
-            id="a defaultEnabled that is not a boolean",
-        ),
-        pytest.param(
-            GOOD_MARKETPLACE + "plugins:\n  - {name: core, description: d, category: development, files: [{source: a, into: b}]}\n",
-            "'files' entries take exactly 'source' and 'target'",
-            id="a carried folder with an unknown key",
-        ),
-        pytest.param(
-            GOOD_MARKETPLACE + "plugins:\n  - {name: core, description: d, category: development, files: [{source: a, target: ../b}]}\n",
-            "relative path inside",
-            id="a carried folder written outside the plugin",
-        ),
-        pytest.param(
-            GOOD_MARKETPLACE + "plugins:\n  - {name: core, description: d, category: development, files: [{source: /etc, target: b}]}\n",
-            "relative path inside",
-            id="a carried folder read from outside the repository",
-        ),
-        pytest.param(
-            "marketplace: {name: m, owner: {name: o}}\nplugins: []\n",
-            "needs a 'repository'",
-            id="a marketplace with no repository",
-        ),
-        pytest.param(
-            "marketplace: {name: m, owner: {name: o}, repository: 'https://gitlab.com/o/r'}\nplugins: []\n",
-            "needs a 'repository'",
-            id="a repository that is not on GitHub",
-        ),
+        pytest.param("skills: [own]", "skills: [own, solo]", "skill 'solo' sits in 2 bundles: py, web", id="skill-in-two-bundles"),
+        pytest.param("skills: [solo]", "skills: []", "skill 'solo' sits in no development or host bundle", id="skill-in-no-bundle"),
+        pytest.param("agents: [front]", "agents: [front, ghost]", "subagent 'ghost' in bundle 'web' does not exist", id="unknown-agent"),
+        pytest.param("dependencies: [core], agents: [front]", "agents: [front]", "bundle 'web' preloads 'core' skill 'shared' but does not depend on 'core'", id="no-core-dependency"),
+        pytest.param("dependencies: [core, py, web]", "dependencies: [core, py]", "'all' installs core and every development bundle: missing web", id="all-misses-a-domain"),
+        pytest.param("dependencies: [mcp-docs]", "dependencies: [core]", "'mcp-all' depends on every server plugin", id="mcp-all-wrong"),
+        pytest.param("dependencies: [hook-gate]", "dependencies: [core]", "'hooks-all' depends on every hook plugin", id="hooks-all-wrong"),
+        pytest.param("category: bundle, description: All.", "category: misc, description: All.", "unknown category 'misc'", id="unknown-category"),
+        pytest.param("{name: py, version", "{name: own, version", "plugin name 'own' is used by 2 plugins", id="name-collision"),
+        pytest.param("{name: web, version", "{name: Web, version", "plugin name 'Web' is not kebab-case", id="not-kebab"),
+        pytest.param("dependencies: [core, py, web]", "dependencies: [core, py, web, nowhere]", "depends on unknown plugin 'nowhere'", id="unknown-dependency"),
+        pytest.param("description: Shared., skills: [shared]}", "description: Shared., skills: [shared], dependencies: [py]}", "'core' must hold skills only", id="core-with-dependency"),
+        pytest.param("  - {name: gate, version: 1.0.0, description: The gate.}\n", "", "runs a script in .agents/hooks/gate that no hook entry covers", id="wired-hook-without-entry"),
+        pytest.param("  - {name: docs, version: 1.0.0, description: Docs server.}\n", "", "server 'docs' in the root .mcp.json has no server entry", id="server-without-entry"),
     ],
 )
-def test_load_map_rejects_a_malformed_map(text, expected, tmp_path):
-    bad = tmp_path / "plugins.yaml"
-    bad.write_text(text)
+def test_a_broken_map_names_the_rule_it_breaks(lab, old, new, expected):
+    edit_map(lab, old, new)
 
-    with pytest.raises(gen.PluginMapError, match=expected):
-        gen.load_map(bad)
+    assert any(expected in problem for problem in problems(lab)), problems(lab)
 
 
-def test_render_refuses_an_output_directory_inside_the_repository(plugin_map):
-    out = REPO_ROOT / "plugins-render-test"
+def test_a_hook_entry_the_wiring_never_runs_is_refused(lab):
+    write(lab / ".agents" / "hooks" / "idle" / "idle.py", "print()\n")
+    edit_map(lab, "  - {name: gate,", "  - {name: idle, version: 1.0.0, description: Idle.}\n  - {name: gate,")
 
-    with pytest.raises(gen.PluginMapError, match="inside the repository"):
-        gen.render(plugin_map, out, SOURCES)
-    assert not out.exists()
-
-
-def test_render_measures_inside_against_the_sources_root(plugin_map, tmp_path):
-    with pytest.raises(gen.PluginMapError, match="inside the repository"):
-        gen.render(plugin_map, tmp_path / "out", gen.Sources(tmp_path))
+    assert any("hook 'idle' is not run by .claude/settings.json" in p for p in problems(lab))
 
 
-def test_a_failed_render_leaves_the_output_directory_as_it_was(plugin_map, tmp_path, monkeypatch):
-    out = tmp_path / "out"
-    out.mkdir()
-    real = gen.render_plugin
-    calls = []
+def test_a_skill_two_bundles_preload_outside_core_is_refused(lab):
+    agent(lab, "front", ["shared", "solo", "own"])
 
-    def fail_on_the_third(*args, **kwargs):
-        calls.append(args[0].name)
-        if len(calls) == 3:
-            raise gen.PluginMapError("disk full")
-        return real(*args, **kwargs)
-
-    monkeypatch.setattr(gen, "render_plugin", fail_on_the_third)
-
-    with pytest.raises(gen.PluginMapError, match="disk full"):
-        gen.render(plugin_map, out, SOURCES)
-    assert list(tmp_path.iterdir()) == [out]
-    assert list(out.iterdir()) == []
+    assert any("preloads 'own' from 'py'" in p for p in problems(lab))
 
 
-def test_executable_skill_files_stay_executable(plugin_map, rendered):
-    out, _ = rendered
-    executables = 0
+def test_a_dependency_cycle_is_refused(lab):
+    edit_map(lab, "dependencies: [core], agents: [pro]", "dependencies: [core, all], agents: [pro]")
 
-    for plugin in plugin_map.plugins:
-        for skill in plugin.skills:
-            for source in gen.skill_files(SOURCES.skills / skill):
-                copy = out / "plugins" / plugin.name / "skills" / skill / source.relative_to(SOURCES.skills / skill)
-                assert gen._is_executable(copy) is gen._is_executable(source), copy
-                executables += gen._is_executable(source)
-
-    assert executables > 0
+    assert any(p.startswith("dependency cycle:") for p in problems(lab))
 
 
-def test_readme_names_a_development_domain_and_the_repository(plugin_map, rendered):
-    out, _ = rendered
-    domain = next(p.name for p in plugin_map.plugins if p.category == gen.DEVELOPMENT_CATEGORY and p.name != gen.CORE)
-    text = (out / "README.md").read_text(encoding="utf-8")
+@pytest.mark.parametrize(
+    ("old", "new", "message"),
+    [
+        pytest.param("{name: gate, version: 1.0.0,", "{name: gate, version: 1.0,", "MAJOR.MINOR.PATCH", id="two-part-version"),
+        pytest.param("{name: docs, version: 1.0.0,", "{name: docs, version: v1.0.0,", "MAJOR.MINOR.PATCH", id="v-prefix"),
+        pytest.param("{name: docs, version: 1.0.0,", "{name: docs, version: \"1.0.1\u0661\",", "MAJOR.MINOR.PATCH", id="non-ascii-digit"),
+        pytest.param("{name: core, version: 1.0.0,", "{name: core, version: 1.0.0, defaultEnabled: false,", "unknown key", id="unknown-key"),
+        pytest.param("{name: gate, version: 1.0.0,", "{name: gate, folder: ../gate, version: 1.0.0,", "folder", id="hook-folder-escapes"),
+        pytest.param("{name: gate, version: 1.0.0,", "{name: gate, folder: /tmp/gate, version: 1.0.0,", "folder", id="hook-folder-absolute"),
+        pytest.param("{name: gate, version: 1.0.0,", "{name: gate, folder: Gate, version: 1.0.0,", "folder", id="hook-folder-not-kebab"),
+    ],
+)
+def test_a_malformed_map_is_refused_before_any_rule(lab, old, new, message):
+    edit_map(lab, old, new)
 
-    assert f"claude plugin install {domain}@{plugin_map.marketplace['name']}\n" in text
-    assert "claude plugin marketplace add Lukk17/agent-standards#plugins\n" in text
-
-
-def _replace(plugin_map: gen.PluginMap, target: str, /, **changes) -> gen.PluginMap:
-    return dataclasses.replace(
-        plugin_map,
-        plugins=tuple(dataclasses.replace(p, **changes) if p.name == target else p for p in plugin_map.plugins),
-    )
-
-
-def _without(plugin_map: gen.PluginMap, name: str) -> gen.PluginMap:
-    return dataclasses.replace(plugin_map, plugins=tuple(p for p in plugin_map.plugins if p.name != name))
-
-
-def _plus(plugin_map: gen.PluginMap, plugin: gen.Plugin) -> gen.PluginMap:
-    return dataclasses.replace(plugin_map, plugins=plugin_map.plugins + (plugin,))
+    with pytest.raises(gen.PluginMapError, match=message):
+        gen.load_sources(lab)
 
 
-def _get(plugin_map: gen.PluginMap, name: str) -> gen.Plugin:
-    return plugin_map.by_name()[name]
+def test_a_skill_without_a_version_is_refused(lab):
+    shutil.rmtree(lab / ".agents" / "skills" / "solo")
+    write(lab / ".agents" / "skills" / "solo" / "SKILL.md", "---\nname: solo\ndescription: No version.\n---\nBody.\n")
+
+    with pytest.raises(gen.PluginMapError, match="metadata.version"):
+        gen.load_sources(lab)
 
 
-def _add(plugin_map: gen.PluginMap, name: str, field: str, *items: str) -> gen.PluginMap:
-    return _replace(plugin_map, name, **{field: getattr(_get(plugin_map, name), field) + items})
+def test_a_subagent_without_a_version_is_refused(lab):
+    write(lab / "subagents" / "front.md", "---\nname: front\ndescription: Use when front.\nskills:\n  - shared\n---\nBody.\n")
+
+    with pytest.raises(gen.PluginMapError, match="front.md version"):
+        gen.load_sources(lab)
 
 
-def _drop(plugin_map: gen.PluginMap, name: str, field: str, item: str) -> gen.PluginMap:
-    return _replace(plugin_map, name, **{field: tuple(i for i in getattr(_get(plugin_map, name), field) if i != item)})
+def test_the_check_mode_fails_on_a_stale_marketplace_and_passes_once_written(lab, monkeypatch, capsys):
+    monkeypatch.setattr(gen, "ROOT", lab)
 
+    with pytest.raises(SystemExit, match="STALE"):
+        gen.main(["--check"])
 
-BROKEN_MAPS = [
-    pytest.param(lambda m: _add(m, "jvm", "skills", "pytorch-patterns"), "sits in 2 plugins", id="a skill in two plugins"),
-    pytest.param(lambda m: _replace(m, "python", skills=()), "'pytorch-patterns' sits in no plugin", id="a skill in no plugin"),
-    pytest.param(lambda m: _add(m, "python", "skills", "no-such-skill"), "does not exist", id="an unknown skill"),
-    pytest.param(lambda m: _replace(m, "python", agents=("python-pro",)), "'ml-engineer' sits in no plugin", id="a subagent in no plugin"),
-    pytest.param(
-        lambda m: _add(_replace(m, "python", agents=("python-pro",)), "jvm", "agents", "ml-engineer"),
-        "preloads 'pytorch-patterns' from 'python'",
-        id="a subagent away from its own skill",
-    ),
-    pytest.param(
-        lambda m: _add(_replace(m, "python", skills=()), gen.CORE, "skills", "pytorch-patterns"),
-        "fewer than two plugins",
-        id="a single-use skill in core",
-    ),
-    pytest.param(
-        lambda m: _add(_drop(m, gen.CORE, "skills", "bash"), "devops", "skills", "bash"),
-        "belongs in 'core'",
-        id="a shared skill outside core",
-    ),
-    pytest.param(lambda m: _replace(m, "python", dependencies=("core", "nope")), "unknown plugin 'nope'", id="an unknown dependency"),
-    pytest.param(lambda m: _replace(m, "python", dependencies=("core", "python")), "'python' depends on itself", id="a self-dependency"),
-    pytest.param(lambda m: _replace(m, gen.CORE, dependencies=("python",)), "dependency cycle", id="a dependency cycle"),
-    pytest.param(lambda m: _replace(m, "python", dependencies=()), "does not depend on 'core'", id="a missing core dependency"),
-    pytest.param(lambda m: _without(m, gen.CORE), "no 'core' plugin", id="a missing core plugin"),
-    pytest.param(lambda m: _without(m, gen.ALL), "no 'all' plugin", id="a missing all plugin"),
-    pytest.param(lambda m: _without(m, gen.MCP_ALL), "no 'mcp-all' plugin", id="a missing mcp-all plugin"),
-    pytest.param(lambda m: _plus(m, _get(m, "game")), "duplicate plugin name 'game'", id="a duplicate plugin name"),
-    pytest.param(lambda m: _replace(m, "game", name="Game"), "plugin name 'Game' is not kebab-case", id="a plugin name in capitals"),
-    pytest.param(lambda m: _replace(m, "game", name="game\n"), "is not kebab-case", id="a plugin name ending in a newline"),
-    pytest.param(lambda m: _replace(m, "game", name="game--dev"), "is not kebab-case", id="a plugin name with a double hyphen"),
-    pytest.param(lambda m: _add(m, "python", "skills", "Bad_Skill"), "skill name 'Bad_Skill' in plugin 'python' is not kebab-case", id="a skill name not in kebab-case"),
-    pytest.param(lambda m: _add(m, "python", "agents", "Python Pro"), "subagent name 'Python Pro' in plugin 'python' is not kebab-case", id="a subagent name not in kebab-case"),
-    pytest.param(lambda m: _replace(m, "game", category="games"), "unknown category 'games'", id="an unknown category"),
-    pytest.param(lambda m: _replace(m, "linux", default_enabled=True), "defaultEnabled: false", id="a host group switched on"),
-    pytest.param(lambda m: _replace(m, "game", default_enabled=False), "'game' is not a host group, so it must stay on", id="a domain switched off"),
-    pytest.param(lambda m: _replace(m, "mcp-redis", mcp="grafana"), "sits in 2 plugins", id="two plugins for one server"),
-    pytest.param(lambda m: _replace(m, "mcp-redis", skills=("unity",)), "nothing else", id="a server plugin holding a skill"),
-    pytest.param(lambda m: _replace(m, "mcp-redis", name="mcp-cache"), "must be named 'mcp-redis'", id="a server plugin named off its server"),
-    pytest.param(lambda m: _replace(m, "mcp-redis", category="development"), "exactly when it names a server", id="a server plugin outside category mcp"),
-    pytest.param(lambda m: _replace(m, "game", category="mcp"), "exactly when it names a server", id="category mcp with no server"),
-    pytest.param(lambda m: _replace(m, gen.MCP_ALL, dependencies=()), "holds nothing and depends on nothing", id="an empty plugin"),
-    pytest.param(lambda m: _replace(m, gen.MCP_ALL, category="development"), "its category must be 'bundle'", id="a bundle outside category bundle"),
-    pytest.param(lambda m: _add(_drop(m, "game", "skills", "unity"), gen.MCP_ALL, "skills", "unity"), "must hold dependencies only", id="a bundle holding a skill"),
-    pytest.param(lambda m: _replace(m, gen.CORE, dependencies=("game",)), "'core' must hold skills only", id="core with a dependency"),
-    pytest.param(
-        lambda m: _add(_replace(m, "game", agents=()), gen.CORE, "agents", "unity-game-dev"),
-        "'core' must hold skills only",
-        id="core with a subagent",
-    ),
-    pytest.param(lambda m: _drop(m, gen.MCP_ALL, "dependencies", "mcp-redis"), "every server plugin: missing mcp-redis", id="mcp-all missing a server"),
-    pytest.param(lambda m: _add(m, gen.MCP_ALL, "dependencies", "game"), "every server plugin: must not include game", id="mcp-all pulling a domain"),
-    pytest.param(lambda m: _drop(m, gen.ALL, "dependencies", "game"), "every development plugin: missing game", id="all missing a domain"),
-    pytest.param(lambda m: _add(m, gen.ALL, "dependencies", "linux"), "must not include linux", id="all pulling a host group"),
-    pytest.param(
-        lambda m: _replace(m, "game", files=(gen.CarriedFiles(".metrics/tools", "skills/quality-loop/tools"),)),
-        "carries files into skill 'quality-loop', which it does not hold",
-        id="files carried into another plugin's skill",
-    ),
-    pytest.param(
-        lambda m: _replace(m, "game", files=(gen.CarriedFiles(".metrics/tools", "agents/tools"),)),
-        "carries files outside a skill it holds",
-        id="files carried outside any skill",
-    ),
-    pytest.param(lambda m: _add(m, gen.ALL, "dependencies", gen.MCP_ALL), "must not include mcp-all", id="all pulling mcp-all"),
-    pytest.param(lambda m: _add(m, "game", "dependencies", "mcp-redis"), "must not include mcp-redis", id="all reaching a server through a domain"),
-]
-
-
-@pytest.mark.parametrize(("breaks", "expected"), BROKEN_MAPS)
-def test_check_map_catches_each_broken_rule(breaks, expected, plugin_map, skills, agents, servers):
-    problems = gen.check_map(breaks(plugin_map), skills, agents, servers)
-
-    assert any(expected in problem for problem in problems), problems
-
-
-def test_check_map_catches_a_root_server_with_no_plugin(plugin_map, skills, agents, servers):
-    problems = gen.check_map(plugin_map, skills, agents, [*servers, "new-server"])
-
-    assert "server 'new-server' in the root .mcp.json has no plugin" in problems
+    gen.main([])
+    gen.main(["--check"])
+    assert "is up to date" in capsys.readouterr().out
+    assert json.loads((lab / gen.MARKETPLACE_FILE).read_text(encoding="utf-8"))["name"] == "lab"

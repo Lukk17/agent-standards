@@ -1,6 +1,8 @@
 ---
 name: docker-patterns
 description: Docker and Compose standards for multi-stage builds, pinned base images, non-root users, network isolation, secrets, and the Trivy, SBOM and cosign supply-chain gate. Use when the user says "write a Dockerfile for this service", "set up compose for local dev", "shrink this image" or "scan and sign this image". Not for Kubernetes manifests and rollout strategy, use `deployment-patterns`.
+metadata:
+  version: "1.0.0"
 ---
 
 # Docker Patterns
@@ -34,7 +36,7 @@ Written for Docker Engine 29 and Docker Compose v5. The Compose v1 `docker-compo
 - Configuring hosts rather than containers, use `ansible`.
 - Writing the entrypoint script itself, use `bash` or `powershell`.
 - Instrumenting the application inside the container, use `observability-and-logging`.
-- Reviewing the application's own authentication or input handling, use `security-review`.
+- Reviewing the application's own authentication or input handling, use `application-security-review`.
 
 ---
 
@@ -70,7 +72,7 @@ This section is canonical for the repository. Other skills point here rather tha
 - `observability-and-logging` for the health, readiness, and log output the container emits.
 - `bash` and `powershell` for entrypoint and healthcheck scripts.
 - `ansible` for configuring the hosts the daemon runs on.
-- `security-review` before shipping an image that handles credentials or faces the internet.
+- `application-security-review` before shipping an image that handles credentials or faces the internet.
 
 ---
 

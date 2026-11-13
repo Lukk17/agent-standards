@@ -1,4 +1,4 @@
-"""Tests for .agents/hooks/claude/sync_skill_links.py.
+"""Tests for .agents/hooks/claude/sync-skill-links/sync_skill_links.py.
 
 Driven as a subprocess with HOME and USERPROFILE pointing at a throwaway home,
 because that is how Claude Code and the updaters run it. No test reads or
@@ -245,6 +245,6 @@ def test_an_unwritable_target_is_reported_and_still_exits_0(home):
 
 
 def test_the_hook_sits_where_the_opencode_runner_never_discovers_it():
-    # The runner picks up only files directly in .agents/hooks, see docs/hooks-contract.md
-    assert SYNC_SKILL_LINKS_HOOK.parent != HOOKS_DIR
-    assert SYNC_SKILL_LINKS_HOOK.parent.parent == HOOKS_DIR
+    # The runner runs a script one folder down only, see docs/hooks-contract.md
+    assert SYNC_SKILL_LINKS_HOOK.parents[1] != HOOKS_DIR
+    assert SYNC_SKILL_LINKS_HOOK.parents[2] == HOOKS_DIR

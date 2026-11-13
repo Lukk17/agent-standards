@@ -92,3 +92,20 @@ def test_the_sandbox_install_renders_the_canonical_newlines():
     subagent = [command for text in rendered for _key, command in subagent_start_commands(json.loads(text))]
     assert len(subagent) == 3
     assert all(delivered_text(printed_literal(command)) == canonical_subagent_reminder() for command in subagent)
+
+
+def test_every_copy_of_the_background_subagent_note_matches_its_hook():
+    from tests.reminder_support import canonical_background_subagent_reminder
+
+    canonical = canonical_background_subagent_reminder()
+    script = (REPO_ROOT / "sandbox-agent" / "setup-global.sh").read_text(encoding="utf-8")
+    guide = (REPO_ROOT / "docs" / "GLOBAL_SETUP.md").read_text(encoding="utf-8")
+    sandbox_copies = re.findall(r'^readonly SUPERVISION_TEXT="([^"]*)"$', script, re.MULTILINE)
+    guide_copies = [
+        delivered_text(printed_literal(command))
+        for block in json_blocks(guide)
+        for _key, command in reminder_commands(block, marker="When you launch a background subagent")
+    ]
+
+    assert sandbox_copies == [canonical]
+    assert guide_copies and all(copy == canonical for copy in guide_copies)

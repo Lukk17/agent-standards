@@ -323,14 +323,13 @@ def test_a_description_holding_a_colon_and_a_quote_stays_valid_yaml(emitter):
     [("claude", ".md"), ("agents", ".md"), ("copilot", ".agent.md")],
 )
 def test_every_generated_markdown_agent_parses_and_keeps_its_description(tool, extension):
-    outdir = gen.TARGETS[tool][0]
     sources = sorted(gen.SRC.glob("*.md"))
 
     assert sources, f"no canonical agents under {gen.SRC}"
 
     for source in sources:
         canonical = front_matter(source.read_text(encoding="utf-8"))
-        generated = outdir / f"{canonical['name']}{extension}"
+        generated = gen.target_path(tool, canonical["name"])
 
         assert generated.is_file(), f"{generated} was never generated"
 
@@ -442,8 +441,8 @@ def test_every_generated_agent_listing_only_read_tools_is_read_only_in_every_tre
         if not canonical.get("tools") or not set(canonical["tools"]) <= gen.READ_ONLY_TOOLS:
             continue
 
-        for tool, (outdir, ext) in gen.TARGETS.items():
-            text = (outdir / f"{canonical['name']}{ext}").read_text(encoding="utf-8")
+        for tool in gen.TARGETS:
+            text = gen.target_path(tool, canonical["name"]).read_text(encoding="utf-8")
 
             assert GATE._read_only_patterns(text) == [], (canonical["name"], tool)
 
@@ -512,8 +511,8 @@ def test_every_generated_agent_runs_on_the_session_model():
 
         assert "model" not in canonical, f"{source.name} pins a model"
 
-        for tool, (outdir, extension) in gen.TARGETS.items():
-            rendered = (outdir / f"{name}{extension}").read_text(encoding="utf-8")
+        for tool in gen.TARGETS:
+            rendered = gen.target_path(tool, name).read_text(encoding="utf-8")
             header = tomllib.loads(rendered) if tool == "codex" else front_matter(rendered)
 
             assert "model" not in header, f"{tool}: {name}"
@@ -835,3 +834,96 @@ def test_every_subagent_description_follows_the_contributing_rule(source):
     assert pointer, description
     assert pointer.group(1) != source.stem, "the pointer names the agent itself"
     assert (gen.SRC / f"{pointer.group(1)}.md").is_file(), pointer.group(1)
+
+
+def nested_fixture(tmp_path, monkeypatch, names=("solo",)):
+    """A canonical source tree and an output tree with the Claude target, for a full generator run."""
+    src = tmp_path / "subagents"
+    src.mkdir()
+    skills = tmp_path / "skills"
+    (skills / "coding-standards").mkdir(parents=True)
+    for name in names:
+        write_agent(src, name, f"name: {name}\ndescription: Use when {name}.\nskills:\n  - coding-standards")
+    monkeypatch.setattr(gen, "SRC", src)
+    monkeypatch.setattr(gen, "SKILLS", skills)
+    monkeypatch.setattr(gen, "SYMLINKS", {})
+    monkeypatch.setattr(gen, "TARGETS", {"claude": (tmp_path / "claude", ".md"), "agents": (tmp_path / "agents", ".md")})
+    monkeypatch.setattr(gen, "ROOT", tmp_path)
+    return tmp_path
+
+
+def run_generator(monkeypatch, *argv):
+    monkeypatch.setattr(gen.sys, "argv", ["gen_subagents.py", *argv])
+    gen.main()
+
+
+def test_the_claude_target_writes_one_folder_per_agent(tmp_path, monkeypatch):
+    root = nested_fixture(tmp_path, monkeypatch)
+
+    run_generator(monkeypatch)
+
+    assert (root / "claude" / "solo" / "solo.md").is_file()
+    assert not (root / "claude" / "solo.md").exists()
+    assert (root / "agents" / "solo.md").is_file()
+
+
+def test_a_flat_claude_file_from_the_old_layout_is_an_orphan(tmp_path, monkeypatch):
+    # Given a tree generated before the Claude target moved each agent into its own folder
+    root = nested_fixture(tmp_path, monkeypatch)
+    (root / "claude").mkdir()
+    (root / "claude" / "solo.md").write_text("old\n", encoding="utf-8")
+
+    # When --check runs, it names the flat file
+    with pytest.raises(SystemExit):
+        run_generator(monkeypatch, "--check")
+
+    # Then a normal run removes it and writes the nested copy
+    run_generator(monkeypatch)
+    assert not (root / "claude" / "solo.md").exists()
+    assert (root / "claude" / "solo" / "solo.md").is_file()
+
+
+def test_a_removed_agent_leaves_no_empty_folder_behind(tmp_path, monkeypatch):
+    root = nested_fixture(tmp_path, monkeypatch, names=("solo", "gone"))
+    run_generator(monkeypatch)
+    (root / "subagents" / "gone.md").unlink()
+
+    run_generator(monkeypatch)
+
+    assert not (root / "claude" / "gone").exists()
+    assert (root / "claude" / "solo" / "solo.md").is_file()
+
+
+@pytest.mark.parametrize("tool", ["claude", "agents", "codex", "copilot"])
+def test_the_plugin_version_never_reaches_a_generated_agent_file(tool):
+    # Given a canonical agent carrying the version the marketplace entry takes
+    versioned = {**WRITER, "version": "4.5.6"}
+
+    # When / Then no target writes it, so no format has to accept or ignore the key
+    assert "4.5.6" not in gen.render(tool, versioned, BODY)
+
+
+def test_every_canonical_subagent_carries_a_version():
+    for source in sorted(gen.SRC.glob("*.md")):
+        assert isinstance(front_matter(source.read_text(encoding="utf-8")).get("version"), str), source.name
+
+
+def test_a_user_subfolder_in_a_flat_tree_is_left_alone(tmp_path, monkeypatch):
+    # Given a folder of the user's own inside a flat target tree, such as .codex/agents/mine/
+    root = nested_fixture(tmp_path, monkeypatch)
+    own = root / "agents" / "mine" / "mine.md"
+    own.parent.mkdir(parents=True)
+    own.write_text("my own agent\n", encoding="utf-8")
+
+    # When the generator runs, and checks
+    run_generator(monkeypatch)
+    run_generator(monkeypatch, "--check")
+
+    # Then the folder is neither an orphan nor removed
+    assert own.read_text(encoding="utf-8") == "my own agent\n"
+
+
+def test_every_canonical_subagent_quotes_its_version():
+    # Quoted, the value stays a string under every YAML reader, the way a skill's metadata.version is written
+    for source in sorted(gen.SRC.glob("*.md")):
+        assert re.search(r'^version: "\d+\.\d+\.\d+"$', source.read_text(encoding="utf-8"), re.M), source.name

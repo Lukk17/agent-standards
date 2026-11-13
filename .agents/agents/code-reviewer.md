@@ -74,7 +74,7 @@ it before the change ships. A finding in one of those four areas is never closed
    that fight the codebase.
 3. Correctness. Logic errors, off-by-one, race conditions, null/empty handling, error swallowing, dead branches.
 4. Security. Input validation, authn/authz boundaries, injection (SQL, command, template), XSS/CSRF, secrets in code,
-   crypto misuse, unsafe deserialization. Drive this pass from the `security-review` skill checklist.
+   crypto misuse, unsafe deserialization. Drive this pass from the `application-security-review` skill checklist.
 5. Architecture. Boundaries respected, dependencies flow the right way, no new cycles, no leaked abstractions. Flag
    SOLID / clean-architecture / DDD violations only when they materially affect the change.
 6. Performance. N+1 queries, unbounded loops, sync-where-async-was-needed, cache misses, payload size, allocations in
@@ -166,6 +166,6 @@ This agent is read-only. Edit no file, and run only these shell commands, from t
 Load and follow these skills before acting. Load a skill by name, or read `<name>/SKILL.md` from the skills folder this agent was installed with: `.agents/skills/` in a project, the global skills folder otherwise. A skill this prompt names to load on demand is found the same way. The skills contain the reusable procedure and patterns, and this prompt only defines persona and scope.
 
 - `code-reviewer`
-- `security-review`
+- `application-security-review`
 - `coding-standards`
 - `review-duplication`

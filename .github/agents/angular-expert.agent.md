@@ -59,7 +59,7 @@ When reviewing Angular code, raise:
 
 ### Skills to load on demand
 
-Load when the change touches that stack, the way the Preloaded skills section below describes: `design-system` for tokens and shared components, `web-accessibility` for per-component accessibility, `api-design` for an HTTP layer, `security-review` for auth, interceptors or user HTML, `e2e-testing` for a browser journey, `performance-optimization` for a measured slowdown, `observability-and-logging` for client logging or tracing, `build-dependency-management` for a dependency bump, `architecture-decision-records` for a design decision, `git-workflow` when committing.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `design-system` for tokens and shared components, `web-accessibility` for per-component accessibility, `api-design` for an HTTP layer, `application-security-review` for auth, interceptors or user HTML, `e2e-testing` for a browser journey, `performance-optimization` for a measured slowdown, `observability-and-logging` for client logging or tracing, `build-dependency-management` for a dependency bump, `architecture-decision-records` for a design decision, `git-workflow` when committing.
 
 ### Done when
 

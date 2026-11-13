@@ -2,6 +2,8 @@
 name: build-dependency-management
 description: 'Build files and dependency versions: one version catalog, bill-of-materials imports, shared build logic, lock files, release-age cooldowns, hash verification, and deliberate dependency admission. Use when the user says "add this dependency", "centralise our versions", or "import the Spring Boot BOM". Not for Java language style, use `java-coding-standards`.'
 license: Apache-2.0
+metadata:
+  version: "1.0.0"
 ---
 
 # Build and Dependency Management

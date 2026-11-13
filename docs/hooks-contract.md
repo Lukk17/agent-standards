@@ -1,9 +1,9 @@
 # The hook runner contract
 
-Every `*.py` file directly in [.agents/hooks/](../.agents/hooks/) is a hook. The OpenCode and Kilo Code plugin
+Every hook lives in its own folder, and every `*.py` file directly in a folder of [.agents/hooks/](../.agents/hooks/) is a hook, such as `.agents/hooks/preflight-gate/preflight_gate.py`. The folder is also the source of that hook's own Claude Code plugin in the marketplace. The OpenCode and Kilo Code plugin
 [.agents/plugin/hooks.js](../.agents/plugin/hooks.js) discovers them at runtime and runs them all. There is no
-registry, no manifest, and no list to keep in sync: dropping a file in that directory is the whole registration step,
-and a project that checks out only some of these files runs only the ones it has.
+registry, no manifest, and no list to keep in sync: dropping a folder with its script in that directory is the whole registration step,
+and a project that checks out only some of these folders runs only the ones it has.
 
 This file stays in the agent-standards repo only. It is not shipped to consumer projects.
 
@@ -32,14 +32,14 @@ yields no hooks, which allows the call.
 
 Inside the chosen directory, a file is picked up when all of these hold:
 
-1. It sits directly in `.agents/hooks/`, not in a subdirectory.
+1. It sits directly in a folder of `.agents/hooks/`, such as `.agents/hooks/task-list-sync/`, or, from an older layout, directly in `.agents/hooks/` itself. A script two folders down is never run, and neither is anything under `claude/` or `copilot/`, which the runner skips by name.
 2. Its name ends in `.py`.
-3. Its name does not start with `_` or `.`, so `__pycache__` and editor droppings are skipped.
+3. Its name does not start with `_` or `.`, so `__pycache__`, editor droppings and a helper module such as `markdown-lint-check/_check_markdown.py` are skipped.
 
 The choice of directory and its listing are both re-read on every tool call. A hook added mid-session, an opt-out
 file created, or a project import landing takes effect on the next call, with no restart and no edit to the plugin.
 
-The first rule is also the one way to keep a script out of the runner. A helper that only one agent calls, from its own wiring and on an event the runner never sees, goes in a subdirectory named for that agent, so it costs OpenCode and Kilo Code no interpreter start on every tool call. Three such helpers exist: [.agents/hooks/copilot/prompt_reminder.py](../.agents/hooks/copilot/prompt_reminder.py), which GitHub Copilot runs on `userPromptTransformed`, [.agents/hooks/claude/sync_skill_links.py](../.agents/hooks/claude/sync_skill_links.py), which the global install runs for Claude Code on `SessionStart`, and [.agents/hooks/claude/standards_advisory_check.py](../.agents/hooks/claude/standards_advisory_check.py), which Claude Code runs on `PostToolUse`. They still ship with every import, because every pathspec pulls `.agents/hooks` whole.
+The first rule is also the one way to keep a script out of the runner. A helper that only one agent calls, from its own wiring and on an event the runner never sees, goes in its own folder inside a folder named for that agent, two folders down, so it costs OpenCode and Kilo Code no interpreter start on every tool call. Three such helpers exist: [.agents/hooks/copilot/prompt-reminder/prompt_reminder.py](../.agents/hooks/copilot/prompt-reminder/prompt_reminder.py), which GitHub Copilot runs on `userPromptTransformed`, [.agents/hooks/claude/sync-skill-links/sync_skill_links.py](../.agents/hooks/claude/sync-skill-links/sync_skill_links.py), which the global install runs for Claude Code on `SessionStart`, and [.agents/hooks/claude/standards-advisory-check/standards_advisory_check.py](../.agents/hooks/claude/standards-advisory-check/standards_advisory_check.py), which Claude Code runs on `PostToolUse`. They still ship with every import, because every pathspec pulls `.agents/hooks` whole.
 
 The executable bit is irrelevant. Hooks are always run through the interpreter, so the shebang is decoration and
 nothing needs `chmod +x`. This is also why the same file works unchanged on Windows.
@@ -279,8 +279,11 @@ the table below is what this repo wires today. Each cell names the event in that
 | `no_ai_markers_check.py` | `MessageDisplay`, `Stop` | `Stop` | `agentStop` |
 | `task_list_sync.py` | `TaskCreated`, `TaskUpdated`, `TaskCompleted`, `SessionStart`, `PreCompact`, `Stop` | `SessionStart` | `sessionStart` |
 | `markdown_lint_check.py` | `PostToolUse` on `Edit`, `Write`, `MultiEdit` | not wired | not wired |
-| `claude/standards_advisory_check.py` | `PostToolUse` on `Edit`, `Write`, `MultiEdit` | not wired | not wired |
-| `copilot/prompt_reminder.py` | not wired | not wired | `userPromptTransformed` |
+| `claude/standards-advisory-check/standards_advisory_check.py` | `PostToolUse` on `Edit`, `Write`, `MultiEdit` | not wired | not wired |
+| `copilot/prompt-reminder/prompt_reminder.py` | not wired | not wired | `userPromptTransformed` |
+| `claude/preflight-reminder/preflight_reminder.py` | `SessionStart`, `UserPromptSubmit` | not wired | not wired |
+| `claude/background-subagent-reminder/background_subagent_reminder.py` | `SessionStart` | not wired | not wired |
+| `claude/subagent-reminder/subagent_reminder.py` | `SubagentStart` | not wired | not wired |
 
 Three limits behind that table are worth knowing before extending it.
 
@@ -303,7 +306,7 @@ hook:
 
 - A root session gets the main-thread reminder, the same text Codex and Copilot inject on every prompt. The plugin
   holds no copy of it: it reads the `REMINDER` constant of
-  [.agents/hooks/copilot/prompt_reminder.py](../.agents/hooks/copilot/prompt_reminder.py) at run time, from the
+  [.agents/hooks/copilot/prompt-reminder/prompt_reminder.py](../.agents/hooks/copilot/prompt-reminder/prompt_reminder.py) at run time, from the
   hooks directory this project runs, and adds nothing when that file or that constant is not there. On 2.x it follows
   the reply rules.
 - A session with a `parentID` gets the subagent text, `SUBAGENT_TEXT` in
@@ -343,10 +346,10 @@ model. Claude Code prints plain text through `echo` with the newlines inside the
 Git Bash and PowerShell all print unchanged. Codex and Copilot read JSON, so they carry `\n` escapes inside
 `additionalContext`, printed by `printf '%s\n'` in a POSIX shell, because `dash` turns an `echo` argument's `\n` into a
 raw newline that breaks the JSON, and by `echo` in PowerShell, which prints a single-quoted literal as written.
-[.agents/hooks/copilot/prompt_reminder.py](../.agents/hooks/copilot/prompt_reminder.py) holds the text as a
+[.agents/hooks/copilot/prompt-reminder/prompt_reminder.py](../.agents/hooks/copilot/prompt-reminder/prompt_reminder.py) holds the text as a
 string constant, which the OpenCode and Kilo Code plugin reads as well.
 
-The markdown lint and the standards advisory below are the two hooks wired to a post-tool event, and the only two gated behind a single format rather than run on the runner surface. `markdown_lint_check.py` returns 0 before it even reads standard input unless it is called with `--format claude`, returns 0 for any tool other than `Edit`, `Write`, or `MultiEdit`, and returns 0 when `.agents/hooks/_check_markdown.py` is missing. The rules ship inside `.agents/hooks/`, which every consumer pulls whole, so the lint runs in a consumer repository as it does here, and `tools/check-markdown.py` is only the runner CI calls. On OpenCode and on Kilo Code it does nothing at all. On Claude Code it reads the edited path from `tool_input.file_path`, checks that path against the lint scope (`README.md`, `AGENTS.md.example`, `docs/`, `.agents/skills/` and `subagents/`), runs `.agents/hooks/_check_markdown.py` over that one file, and hands the violations back as `additionalContext`. It reports rather than denies, so it always returns 0 there too.
+The markdown lint and the standards advisory below are the two hooks wired to a post-tool event, and the only two gated behind a single format rather than run on the runner surface. `markdown_lint_check.py` returns 0 before it even reads standard input unless it is called with `--format claude`, returns 0 for any tool other than `Edit`, `Write`, or `MultiEdit`, and returns 0 when `.agents/hooks/markdown-lint-check/_check_markdown.py` is missing. The rules ship inside `.agents/hooks/`, which every consumer pulls whole, so the lint runs in a consumer repository as it does here, and `tools/check-markdown.py` is only the runner CI calls. On OpenCode and on Kilo Code it does nothing at all. On Claude Code it reads the edited path from `tool_input.file_path`, checks that path against the lint scope (`README.md`, `AGENTS.md.example`, `docs/`, `.agents/skills/` and `subagents/`), runs `.agents/hooks/markdown-lint-check/_check_markdown.py` over that one file, and hands the violations back as `additionalContext`. It reports rather than denies, so it always returns 0 there too.
 
 The same script also validates front matter on every `.agents/skills/*/SKILL.md` and `subagents/*.md` file it lints:
 the block has to parse as YAML, `name` has to match the skill folder or the subagent file stem, and `description` has
@@ -354,7 +357,7 @@ to be a non-empty single-line string of at most 1024 characters. A skill's front
 `description`, `license`, `compatibility` and `metadata`, and a description containing a colon followed by a space
 has to be double-quoted, because GitHub Copilot refuses to load a manifest that breaks that rule.
 
-The standards advisory is the second post-tool hook, and it follows the same shape for the same reason. [.agents/hooks/claude/standards_advisory_check.py](../.agents/hooks/claude/standards_advisory_check.py) returns 0 at once unless it is called with `--format claude` for `Edit`, `Write` or `MultiEdit`. It reads the text the tool wrote from the payload, `content`, `new_string` or every `edits[].new_string`, skips a line an edit only carried over from `old_string`, and reports four review rules the owner of a consumer project kept repeating: a `uses:` in YAML that is not a full 40-character commit SHA with a `# vX.Y.Z` comment, or a `runs-on` label ending in `-latest`; an image reference ending in `:latest` outside markdown; an `@Query`, `@NamedQuery` or `@NamedNativeQuery` annotation in Java or Kotlin; and a divider-banner comment in a test file. The findings go back as `additionalContext`, at most twenty with a count of the rest, and it always exits 0. It is advisory by design. The rules it checks belong to skills (`deployment-patterns`, `docker-patterns`, `springboot-patterns`, `tdd-workflow`) and to the standards checklist of `code-reviewer`, and a project can have a legitimate exception, such as the backup tooling the Specification rule allowlists, which a deny could not tell apart.
+The standards advisory is the second post-tool hook, and it follows the same shape for the same reason. [.agents/hooks/claude/standards-advisory-check/standards_advisory_check.py](../.agents/hooks/claude/standards-advisory-check/standards_advisory_check.py) returns 0 at once unless it is called with `--format claude` for `Edit`, `Write` or `MultiEdit`. It reads the text the tool wrote from the payload, `content`, `new_string` or every `edits[].new_string`, skips a line an edit only carried over from `old_string`, and reports four review rules the owner of a consumer project kept repeating: a `uses:` in YAML that is not a full 40-character commit SHA with a `# vX.Y.Z` comment, or a `runs-on` label ending in `-latest`; an image reference ending in `:latest` outside markdown; an `@Query`, `@NamedQuery` or `@NamedNativeQuery` annotation in Java or Kotlin; and a divider-banner comment in a test file. The findings go back as `additionalContext`, at most twenty with a count of the rest, and it always exits 0. It is advisory by design. The rules it checks belong to skills (`deployment-patterns`, `docker-patterns`, `springboot-patterns`, `tdd-workflow`) and to the standards checklist of `code-reviewer`, and a project can have a legitimate exception, such as the backup tooling the Specification rule allowlists, which a deny could not tell apart.
 
 No other surface gets it, for the reason the markdown lint has none. Codex does have a post-tool event, and "PostToolUse runs after supported tools produce output, including Bash, apply_patch, MCP tool calls, and other local function tools", but in the same section "Bash and apply_patch use tool_input.command" ([Codex hooks, PostToolUse](https://developers.openai.com/codex/hooks)). A Codex file edit therefore arrives as `apply_patch` patch text, which neither hook parses. Both take the edited path from `tool_input.file_path`, and the advisory takes the written text from `content`, `new_string` or `edits`, so a patch gives them nothing to check. The Codex post-tool path is also not measured here, so neither hook is wired to it. GitHub Copilot's post-tool output does not reach the model. The OpenCode and Kilo Code runner has only `tool.execute.before`, where the file is not written yet and anything but exit 2 is thrown away, so a warning there would have to be a denial. It sits in `hooks/claude/` so that runner never starts it. The global install copies it with the rest of the directory and does not wire it, because a project that imported `.agents/hooks` already runs it from its own `.claude/settings.json`.
 

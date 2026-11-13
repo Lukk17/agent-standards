@@ -2,6 +2,8 @@
 name: audio-scribe
 description: 'Speech-to-text through the self-hosted AudioScribe service, with a local faster-whisper backend, hosted API backends, and speaker merging for multi-track Audacity or Craig recordings. Use when the user says "transcribe this", "turn this recording into text" or "write up this meeting", or hands over an audio or video file or a multi-track .zip. Not for reading a web page, use `research`.'
 compatibility: Requires the self-hosted AudioScribe service reachable over HTTP. Its base URL is configured by the user and appears in the examples as the placeholder $BASE, for example `http://audio-scribe.local:8080`. No default base URL is assumed.
+metadata:
+  version: "1.0.0"
 ---
 
 # AudioScribe

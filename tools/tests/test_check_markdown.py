@@ -1,4 +1,4 @@
-"""Tests for the markdown rules in .agents/hooks/_check_markdown.py.
+"""Tests for the markdown rules in .agents/hooks/markdown-lint-check/_check_markdown.py.
 
 The rules ship inside the hooks directory so a consumer checkout has them, and
 tools/check-markdown.py is only the command CI runs over this repository. The
@@ -38,12 +38,15 @@ MARKDOWN = _load_check_markdown_module()
 CLEAN_SKILL_FRONT_MATTER = """---
 name: demo-skill
 description: Demo skill for the lint tests. Use when you say "run the lint tests".
+metadata:
+  version: "1.0.0"
 ---
 """
 
 CLEAN_SUBAGENT_FRONT_MATTER = """---
 name: demo-agent
 description: Demo subagent for the lint tests.
+version: 1.0.0
 tools: Read, Grep, Glob
 skills: [coding-standards]
 ---
@@ -56,7 +59,17 @@ Body prose that breaks none of the other rules.
 """
 
 
+def _with_version(front_matter, line):
+    """The front matter with a version line before its closing fence, unless it already names one."""
+    if "version" in front_matter or not front_matter.startswith("---\n") or front_matter.startswith("---\n- ") or "\n---\n" not in front_matter[3:]:
+        return front_matter
+    head, _, tail = front_matter.rpartition("---\n")
+
+    return f"{head}{line}---\n{tail}"
+
+
 def _write_skill(tmp_path, front_matter, name="demo-skill"):
+    front_matter = _with_version(front_matter, 'metadata:\n  version: "1.0.0"\n')
     directory = tmp_path / ".agents" / "skills" / name
     directory.mkdir(parents=True)
     path = directory / "SKILL.md"
@@ -66,6 +79,7 @@ def _write_skill(tmp_path, front_matter, name="demo-skill"):
 
 
 def _write_subagent(tmp_path, front_matter, name="demo-agent"):
+    front_matter = _with_version(front_matter, "version: 1.0.0\n")
     directory = tmp_path / "subagents"
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{name}.md"
@@ -106,7 +120,8 @@ description: Demo skill for the lint tests.
 license: Apache-2.0
 compatibility: Works anywhere.
 metadata:
-  version: 1
+  version: "2.1.0"
+  owner: demo
 ---
 """
     path = _write_skill(tmp_path, front_matter)
@@ -590,7 +605,7 @@ description: Demo skill for the lint tests.
 """
     path = _write_skill(tmp_path, front_matter)
     path.write_text(
-        front_matter + "\n# Demo\n\nProse with an em-dash — in it.\n",
+        _with_version(front_matter, 'metadata:\n  version: "1.0.0"\n') + "\n# Demo\n\nProse with an em-dash — in it.\n",
         encoding="utf-8",
     )
 
@@ -945,7 +960,7 @@ def test_a_dated_baseline_in_a_subagent_description_is_reported(tmp_path, capsys
 
 @pytest.mark.parametrize(
     ("tree", "name"),
-    [(".claude", "demo.md"), (".agents", "demo.md"), (".codex", "demo.toml"), (".github", "demo.agent.md")],
+    [(".claude", "demo/demo.md"), (".agents", "demo.md"), (".codex", "demo.toml"), (".github", "demo.agent.md")],
 )
 def test_a_generated_agent_file_gets_the_dated_baseline_rule_and_no_other(tmp_path, capsys, tree, name):
     # Given a generated agent file carrying a dated baseline and an em dash
@@ -1006,6 +1021,14 @@ def test_the_quality_tools_readme_is_linted_and_the_vendored_tools_are_not(tmp_p
     # Then our readme is linted and nothing of his is
     assert readme in targets
     assert [t for t in targets if t.parent.parent.name == "tools" and t.parent.name in {"crapper", "dryer", "mutator"}] == []
+
+
+def test_the_generated_targets_hold_every_agent_of_every_tree():
+    targets = MARKDOWN.generated_agent_targets(REPO_ROOT)
+    agents = {p.stem for p in (REPO_ROOT / "subagents").glob("*.md")}
+
+    assert {p.parent.name for p in targets if p.parts[-4:-2] == (".claude", "agents")} == agents
+    assert len(targets) == 4 * len(agents)
 
 
 def test_no_subagent_source_or_generated_agent_states_a_dated_baseline(capsys):
@@ -1096,3 +1119,60 @@ def test_a_real_digest_in_a_subagent_source_is_reported(tmp_path, capsys):
     # Then
     assert failures == 1
     assert "real hash pin" in capsys.readouterr().out
+
+
+SKILL_WITHOUT_VERSION = '---\nname: demo-skill\ndescription: Demo skill.\n'
+AGENT_WITHOUT_VERSION = '---\nname: demo-agent\ndescription: Demo subagent.\n'
+
+
+def _write_raw(tmp_path, relative, text):
+    path = tmp_path / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text + BODY, encoding="utf-8")
+
+    return path
+
+
+@pytest.mark.parametrize(
+    ("relative", "front_matter", "message"),
+    [
+        pytest.param(".agents/skills/demo-skill/SKILL.md", SKILL_WITHOUT_VERSION + "---\n", "metadata.version is missing", id="skill-missing"),
+        pytest.param(".agents/skills/demo-skill/SKILL.md", SKILL_WITHOUT_VERSION + "metadata:\n  version: 1\n---\n", "metadata.version is 1", id="skill-integer"),
+        pytest.param(".agents/skills/demo-skill/SKILL.md", SKILL_WITHOUT_VERSION + 'metadata:\n  version: "1.0"\n---\n', "metadata.version is '1.0'", id="skill-two-parts"),
+        pytest.param(".agents/skills/demo-skill/SKILL.md", SKILL_WITHOUT_VERSION + "metadata: 1.0.0\n---\n", "metadata.version is missing", id="skill-metadata-not-a-mapping"),
+        pytest.param("subagents/demo-agent.md", AGENT_WITHOUT_VERSION + "---\n", "version is missing", id="agent-missing"),
+        pytest.param("subagents/demo-agent.md", AGENT_WITHOUT_VERSION + "version: 1.0.0-beta\n---\n", "version is '1.0.0-beta'", id="agent-pre-release"),
+        pytest.param("subagents/demo-agent.md", AGENT_WITHOUT_VERSION + "version: 01.0.0\n---\n", "version is '01.0.0'", id="agent-leading-zero"),
+        pytest.param("subagents/demo-agent.md", AGENT_WITHOUT_VERSION + 'version: "1.0.1\u0661"\n---\n', "not a MAJOR.MINOR.PATCH", id="agent-non-ascii-digit"),
+    ],
+)
+def test_a_manifest_without_a_plain_semantic_version_is_reported(tmp_path, capsys, relative, front_matter, message):
+    # Given a skill or a subagent whose version is missing or not MAJOR.MINOR.PATCH
+    path = _write_raw(tmp_path, relative, front_matter)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 1
+    assert message in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("relative", "front_matter"),
+    [
+        pytest.param(".agents/skills/demo-skill/SKILL.md", SKILL_WITHOUT_VERSION + 'metadata:\n  version: "10.2.33"\n---\n', id="skill"),
+        pytest.param("subagents/demo-agent.md", AGENT_WITHOUT_VERSION + "version: 0.1.0\n---\n", id="agent"),
+    ],
+)
+def test_a_manifest_with_a_plain_semantic_version_passes(tmp_path, capsys, relative, front_matter):
+    assert MARKDOWN.check_file(_write_raw(tmp_path, relative, front_matter)) == 0, capsys.readouterr().out
+
+
+def test_every_shipped_skill_and_subagent_carries_a_version():
+    # Given the repository's own manifests
+    manifests = sorted((REPO_ROOT / ".agents" / "skills").glob("*/SKILL.md")) + sorted((REPO_ROOT / "subagents").glob("*.md"))
+
+    # When / Then
+    for path in manifests:
+        assert MARKDOWN.check_front_matter(path.read_text(encoding="utf-8").splitlines(), path) == 0, path

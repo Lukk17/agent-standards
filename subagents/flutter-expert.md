@@ -1,5 +1,6 @@
 ---
 name: flutter-expert
+version: "1.0.0"
 description: 'Use when the user says "build this Flutter screen", "review this Dart code" or "fix this widget rebuild". Writes and reviews Flutter and Dart 3 code for mobile, web and desktop with records, patterns, sealed classes, null safety, const widget composition and the state management the project already uses. Not for the backend API it calls, use `backend-architect`.'
 tools: [read, write, edit, grep, glob, bash]
 skills:
@@ -64,7 +65,7 @@ When reviewing Flutter code, raise:
 
 ### Skills to load on demand
 
-Load when the change touches that stack, the way the Preloaded skills section below describes: `api-design` for an HTTP or JSON layer, `security-review` for auth, storage of secrets or platform channels, `build-dependency-management` for a package bump, `review-duplication` when adding a widget the project may already have, `git-workflow` when committing.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `api-design` for an HTTP or JSON layer, `application-security-review` for auth, storage of secrets or platform channels, `build-dependency-management` for a package bump, `review-duplication` when adding a widget the project may already have, `git-workflow` when committing.
 
 ### Done when
 

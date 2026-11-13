@@ -1,6 +1,8 @@
 ---
 name: embedded-c-arduino
 description: Embedded C and Arduino standards for heap-free memory, bounded loops and watchdogs, non-blocking millis state machines, flag-and-return ISRs, MISRA C:2012 rules, a hardware abstraction layer and host-side unit tests. Use when the user says "replace this delay with a state machine", "write the ISR for this encoder" or "my sketch runs out of SRAM". Not for the PCB the firmware runs on, use `kicad`.
+metadata:
+  version: "1.0.0"
 ---
 
 # Embedded C and Arduino Standards

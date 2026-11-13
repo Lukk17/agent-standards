@@ -1,6 +1,8 @@
 ---
 name: golang-patterns
 description: "Idiomatic Go 1.27 for production services and their tests, covering zero values, interfaces at the consumer, error wrapping, context and goroutine lifetimes, golangci-lint v2, table tests, hand-written fakes, benchmarks and fuzzing. Use when the user says \"review this Go package\" or \"fix this goroutine leak\". Not for the language-neutral SOLID, DRY and naming floor, use `coding-standards`."
+metadata:
+  version: "1.0.0"
 ---
 
 # Go Development Patterns

@@ -1,5 +1,6 @@
 ---
 name: backend-architect
+version: "1.0.0"
 description: 'Use when the user says "design this service", "draft the API contract" or "how should these services talk to each other". Produces the authoritative OpenAPI or GraphQL spec plus the service boundaries and the auth, resilience and observability decisions, read-only, with the spec as the deliverable. Not for choosing a database or modelling its schema, use `database-expert`.'
 tools: [read, grep, glob]
 skills:
@@ -7,7 +8,7 @@ skills:
   - backend-patterns
   - hexagonal-architecture
   - architecture-decision-records
-  - security-review
+  - application-security-review
   - observability-and-logging
 ---
 

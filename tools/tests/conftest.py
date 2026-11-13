@@ -1,6 +1,6 @@
 """Shared filesystem paths for the hook and tooling test suite.
 
-The hook scripts live in .agents/hooks/ at the repository root, two levels
+The hook scripts live in .agents/hooks/<hook>/ at the repository root, two levels
 above this package, and resolving that root once here keeps the location in a
 single place. SUBPROCESS_TIMEOUT_SECONDS bounds every child a test starts, so
 a hung hook fails its test instead of stalling the run. isolated_temp_directory
@@ -18,14 +18,17 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HOOKS_DIR = REPO_ROOT / ".agents" / "hooks"
-PREFLIGHT_GATE = HOOKS_DIR / "preflight_gate.py"
-NO_AI_MARKERS_HOOK = HOOKS_DIR / "no_ai_markers_check.py"
-TASK_LIST_SYNC_HOOK = HOOKS_DIR / "task_list_sync.py"
-MARKDOWN_LINT_HOOK = HOOKS_DIR / "markdown_lint_check.py"
-MARKDOWN_LINT_RULES = HOOKS_DIR / "_check_markdown.py"
-PROMPT_REMINDER_HOOK = HOOKS_DIR / "copilot" / "prompt_reminder.py"
-SYNC_SKILL_LINKS_HOOK = HOOKS_DIR / "claude" / "sync_skill_links.py"
-STANDARDS_ADVISORY_HOOK = HOOKS_DIR / "claude" / "standards_advisory_check.py"
+PREFLIGHT_GATE = HOOKS_DIR / "preflight-gate" / "preflight_gate.py"
+NO_AI_MARKERS_HOOK = HOOKS_DIR / "no-ai-markers-check" / "no_ai_markers_check.py"
+TASK_LIST_SYNC_HOOK = HOOKS_DIR / "task-list-sync" / "task_list_sync.py"
+MARKDOWN_LINT_HOOK = HOOKS_DIR / "markdown-lint-check" / "markdown_lint_check.py"
+MARKDOWN_LINT_RULES = HOOKS_DIR / "markdown-lint-check" / "_check_markdown.py"
+PROMPT_REMINDER_HOOK = HOOKS_DIR / "copilot" / "prompt-reminder" / "prompt_reminder.py"
+SYNC_SKILL_LINKS_HOOK = HOOKS_DIR / "claude" / "sync-skill-links" / "sync_skill_links.py"
+STANDARDS_ADVISORY_HOOK = HOOKS_DIR / "claude" / "standards-advisory-check" / "standards_advisory_check.py"
+PREFLIGHT_REMINDER_HOOK = HOOKS_DIR / "claude" / "preflight-reminder" / "preflight_reminder.py"
+BACKGROUND_SUBAGENT_REMINDER_HOOK = HOOKS_DIR / "claude" / "background-subagent-reminder" / "background_subagent_reminder.py"
+SUBAGENT_REMINDER_HOOK = HOOKS_DIR / "claude" / "subagent-reminder" / "subagent_reminder.py"
 PLUGIN = REPO_ROOT / ".agents" / "plugin" / "hooks.js"
 RUNNER_DRIVER = Path(__file__).resolve().parent / "hook_runner_driver.mjs"
 SUBPROCESS_TIMEOUT_SECONDS = 60

@@ -10,8 +10,8 @@
       {
         "type": "command",
         "cwd": ".",
-        "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E .agents/hooks/task_list_sync.py --event sessionstart --format copilot 2>/dev/null || exit 0",
-        "powershell": "python -S -E .agents/hooks/task_list_sync.py --event sessionstart --format copilot 2>$null; exit 0"
+        "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E .agents/hooks/task-list-sync/task_list_sync.py --event sessionstart --format copilot 2>/dev/null || exit 0",
+        "powershell": "python -S -E .agents/hooks/task-list-sync/task_list_sync.py --event sessionstart --format copilot 2>$null; exit 0"
       }
     ],
     "subagentStart": [
@@ -25,8 +25,8 @@
       {
         "type": "command",
         "cwd": ".",
-        "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E .agents/hooks/copilot/prompt_reminder.py 2>/dev/null || exit 0",
-        "powershell": "python -S -E .agents/hooks/copilot/prompt_reminder.py 2>$null; exit 0"
+        "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E .agents/hooks/copilot/prompt-reminder/prompt_reminder.py 2>/dev/null || exit 0",
+        "powershell": "python -S -E .agents/hooks/copilot/prompt-reminder/prompt_reminder.py 2>$null; exit 0"
       }
     ],
     "preToolUse": [
@@ -34,16 +34,16 @@
         "type": "command",
         "matcher": "bash|powershell|create|edit|apply_patch",
         "cwd": ".",
-        "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E .agents/hooks/preflight_gate.py --format copilot 2>/dev/null || exit 0",
-        "powershell": "python -S -E .agents/hooks/preflight_gate.py --format copilot 2>$null; exit 0"
+        "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E .agents/hooks/preflight-gate/preflight_gate.py --format copilot 2>/dev/null || exit 0",
+        "powershell": "python -S -E .agents/hooks/preflight-gate/preflight_gate.py --format copilot 2>$null; exit 0"
       }
     ],
     "agentStop": [
       {
         "type": "command",
         "cwd": ".",
-        "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E .agents/hooks/no_ai_markers_check.py --format copilot 2>/dev/null || exit 0",
-        "powershell": "python -S -E .agents/hooks/no_ai_markers_check.py --format copilot 2>$null; exit 0"
+        "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E .agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format copilot 2>/dev/null || exit 0",
+        "powershell": "python -S -E .agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format copilot 2>$null; exit 0"
       }
     ]
   }

@@ -108,44 +108,44 @@ cd /repo
 3. Ask the gate to judge a main-thread source edit in Claude Code's format.
 
 ```bash
-python3 /repo/.agents/hooks/preflight_gate.py --format claude < /repo/e2e/fixtures/gate-payloads/main-thread-source-edit.json > /tmp/gate-claude-source.json
+python3 /repo/.agents/hooks/preflight-gate/preflight_gate.py --format claude < /repo/e2e/fixtures/gate-payloads/main-thread-source-edit.json > /tmp/gate-claude-source.json
 ```
 
 4. The same payload in Codex format.
 
 ```bash
-python3 /repo/.agents/hooks/preflight_gate.py --format codex < /repo/e2e/fixtures/gate-payloads/main-thread-source-edit.json > /tmp/gate-codex-source.json
+python3 /repo/.agents/hooks/preflight-gate/preflight_gate.py --format codex < /repo/e2e/fixtures/gate-payloads/main-thread-source-edit.json > /tmp/gate-codex-source.json
 ```
 
 5. The same payload in GitHub Copilot format.
 
 ```bash
-python3 /repo/.agents/hooks/preflight_gate.py --format copilot < /repo/e2e/fixtures/gate-payloads/main-thread-source-edit.json > /tmp/gate-copilot-source.json
+python3 /repo/.agents/hooks/preflight-gate/preflight_gate.py --format copilot < /repo/e2e/fixtures/gate-payloads/main-thread-source-edit.json > /tmp/gate-copilot-source.json
 ```
 
 6. The same payload in the plain format the OpenCode and Kilo Code plugin shim reads. This one signals through its
    exit status, so read the status immediately after the step.
 
 ```bash
-python3 /repo/.agents/hooks/preflight_gate.py --format plain < /repo/e2e/fixtures/gate-payloads/main-thread-source-edit.json
+python3 /repo/.agents/hooks/preflight-gate/preflight_gate.py --format plain < /repo/e2e/fixtures/gate-payloads/main-thread-source-edit.json
 ```
 
 7. A shell command that redirects into a source file.
 
 ```bash
-python3 /repo/.agents/hooks/preflight_gate.py --format claude < /repo/e2e/fixtures/gate-payloads/main-thread-shell-redirect.json > /tmp/gate-claude-redirect.json
+python3 /repo/.agents/hooks/preflight-gate/preflight_gate.py --format claude < /repo/e2e/fixtures/gate-payloads/main-thread-shell-redirect.json > /tmp/gate-claude-redirect.json
 ```
 
 8. A main-thread edit of a documentation file, which the gate now denies too.
 
 ```bash
-python3 /repo/.agents/hooks/preflight_gate.py --format claude < /repo/e2e/fixtures/gate-payloads/main-thread-markdown-edit.json > /tmp/gate-claude-markdown.json
+python3 /repo/.agents/hooks/preflight-gate/preflight_gate.py --format claude < /repo/e2e/fixtures/gate-payloads/main-thread-markdown-edit.json > /tmp/gate-claude-markdown.json
 ```
 
 9. A payload that is not JSON at all.
 
 ```bash
-python3 /repo/.agents/hooks/preflight_gate.py --format claude < /repo/e2e/fixtures/gate-payloads/malformed.txt > /tmp/gate-claude-malformed.json
+python3 /repo/.agents/hooks/preflight-gate/preflight_gate.py --format claude < /repo/e2e/fixtures/gate-payloads/malformed.txt > /tmp/gate-claude-malformed.json
 ```
 
 ---

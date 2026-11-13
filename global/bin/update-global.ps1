@@ -40,7 +40,14 @@ $SubagentTrees = @(
     @('.config/copilot/agents', '.github/agents')
 )
 $ReservedSkillNames = @('synced', '.trash')
-$SkillLinkHook = 'hooks/claude/sync_skill_links.py'
+# Skills upstream renamed, old name to new. An installed old one moves to the new name.
+$RenamedSkills = @{ 'security-review' = 'application-security-review' }
+# The live hook wiring of each agent in the home directory. A hook file one of
+# them still names is never pruned, because the agent would lose that hook.
+$LiveWiringFiles = @('.claude/settings.json', "$CodexHomeDir/hooks.json", "$CodexHomeDir/config.toml")
+$LiveWiringDirs = @('.config/copilot/hooks', '.copilot/hooks')
+$script:StillWired = [Collections.Generic.List[string]]::new()
+$SkillLinkHook = 'hooks/claude/sync-skill-links/sync_skill_links.py'
 $WiringAdvice = 'Take it in with the one-line command that writes the hook file of each agent, under "Per-agent setup" in docs/GLOBAL_SETUP.md, run against a new temporary copy.'
 
 $Counts = @{ update = 0; add = 0; remove = 0; unchanged = 0; keep = 0; skip = 0 }
@@ -138,6 +145,32 @@ function Remove-InstalledFile {
     }
 }
 
+# True when a live wiring file names the home-relative path, with forward
+# slashes, with backslashes, or with the doubled backslashes of a JSON or TOML
+# string on Windows.
+function Test-StillWired([string]$Relative) {
+    $forms = @($Relative, $Relative.Replace('/', '\'), $Relative.Replace('/', '\\'))
+    $files = @(foreach ($name in $LiveWiringFiles) { Join-Relative $HomeDir $name })
+    foreach ($dir in $LiveWiringDirs) {
+        $folder = Join-Relative $HomeDir $dir
+        if (Test-Path -LiteralPath $folder -PathType Container) {
+            $files += @(Get-ChildItem -LiteralPath $folder -File -Filter *.json | ForEach-Object FullName)
+        }
+    }
+    foreach ($file in $files) {
+        if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
+            continue
+        }
+        $text = [IO.File]::ReadAllText($file)
+        foreach ($form in $forms) {
+            if ($text.Contains($form)) {
+                return $true
+            }
+        }
+    }
+    return $false
+}
+
 function Sync-Tree([string]$UpstreamPrefix, [string]$HomePrefix) {
     $upstreamRoot = Join-Relative $script:Tree $UpstreamPrefix
     foreach ($relative in (Get-RelativeFileList $upstreamRoot)) {
@@ -156,6 +189,11 @@ function Sync-Tree([string]$UpstreamPrefix, [string]$HomePrefix) {
         $relative = $path.Substring($prefix.Length)
         $target = Join-Relative $homeRoot $relative
         if ((Test-Path -LiteralPath (Join-Relative $upstreamRoot $relative)) -or -not (Test-Path -LiteralPath $target -PathType Leaf)) {
+            continue
+        }
+        if (Test-StillWired "$HomePrefix/$relative") {
+            Write-Action -Verb 'keep' -Relative "$HomePrefix/$relative" -Note ' (still wired)'
+            $script:StillWired.Add("$HomePrefix/$relative")
             continue
         }
         Write-Action -Verb 'remove' -Relative "$HomePrefix/$relative"
@@ -188,7 +226,17 @@ function Sync-InstalledSkill {
         }
         $upstream = ".agents/skills/$name"
         $relative = "$InstallDir/skills/$name"
-        if (Test-Path -LiteralPath (Join-Relative $script:Tree $upstream) -PathType Container) {
+        $newName = $RenamedSkills[$name]
+        if ($newName -and -not (Test-Path -LiteralPath (Join-Relative $script:Tree $upstream)) -and
+            (Test-Path -LiteralPath (Join-Relative $script:Tree ".agents/skills/$newName") -PathType Container) -and
+            -not (Test-Path -LiteralPath (Join-Relative $HomeDir "$InstallDir/skills/$newName"))) {
+            Write-Action -Verb 'remove' -Relative $relative -Note " (renamed to $newName)"
+            Sync-Tree ".agents/skills/$newName" "$InstallDir/skills/$newName"
+            if (-not $DryRun) {
+                Remove-Item -Recurse -Force -LiteralPath (Join-Relative $HomeDir $relative)
+            }
+        }
+        elseif (Test-Path -LiteralPath (Join-Relative $script:Tree $upstream) -PathType Container) {
             Sync-Tree $upstream $relative
         }
         elseif (Test-ShippedBeforeUnder $upstream) {
@@ -200,14 +248,35 @@ function Sync-InstalledSkill {
     }
 }
 
+# A subagent sits flat, <tree>/<name><ext>, or in its own folder,
+# <tree>/<name>/<name><ext>, the layout the Claude Code tree ships in. An
+# installed flat file whose agent now ships in its own folder moves there.
+function Get-InstalledSubagentList([string]$Root) {
+    $nested = @(foreach ($folder in (Get-VisibleNameList $Root -Directory)) {
+        foreach ($file in (Get-VisibleNameList (Join-Relative $Root $folder))) { "$folder/$file" }
+    })
+    $flat = Get-VisibleNameList $Root
+    $sortedNested = Get-OrdinalSorted -Value $nested
+    return , [string[]]($flat + $sortedNested)
+}
+
 function Sync-InstalledSubagent {
     foreach ($pair in $SubagentTrees) {
         $homeTree = $pair[0]
         $upstreamTree = $pair[1]
-        foreach ($name in (Get-VisibleNameList (Join-Relative $HomeDir $homeTree))) {
+        foreach ($name in (Get-InstalledSubagentList (Join-Relative $HomeDir $homeTree))) {
             $upstreamFile = Join-Relative $script:Tree "$upstreamTree/$name"
+            $nestedName = '{0}/{1}' -f $name.Split('.')[0], $name
+            $nestedFile = Join-Relative $script:Tree "$upstreamTree/$nestedName"
             if (Test-Path -LiteralPath $upstreamFile -PathType Leaf) {
                 Copy-UpstreamFile $upstreamFile "$homeTree/$name"
+            }
+            elseif (-not $name.Contains('/') -and (Test-Path -LiteralPath $nestedFile -PathType Leaf)) {
+                Copy-UpstreamFile $nestedFile "$homeTree/$nestedName"
+                Write-Action -Verb 'remove' -Relative "$homeTree/$name" -Note " (moved into $nestedName)"
+                if (-not $DryRun) {
+                    Remove-Item -LiteralPath (Join-Relative $HomeDir "$homeTree/$name") -Force
+                }
             }
             elseif (Test-ShippedBefore "$upstreamTree/$name") {
                 Write-Action -Verb 'keep' -Relative "$homeTree/$name" -Note ' (removed upstream, left in place)'
@@ -362,6 +431,9 @@ try {
     Write-WiringReport
     Write-CommitRecord
     Sync-SkillLink
+    foreach ($wired in $script:StillWired) {
+        "WARNING: ~/$wired is still run by your hook wiring, so it was kept, and that hook stays on this old copy until you rewire it. $WiringAdvice"
+    }
     Write-Summary
 }
 finally {

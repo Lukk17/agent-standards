@@ -1,6 +1,8 @@
 ---
 name: asus-router
 description: 'Working on an ASUS router over SSH from an agent, read only unless the owner approves one exact change: stock Asuswrt and Merlin, SSH key access, the system log, WAN and PPPoE state, and telling a link drop from an ISP outage. Use when the user says "let the agent into my router", "read the router log" or "why does the internet drop". Not for a Proxmox host behind the router, use `proxmox`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # ASUS Router Administration

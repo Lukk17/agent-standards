@@ -1,6 +1,8 @@
 ---
 name: automation-inventory
 description: 'Evidence-first inventory of every live automation, from scheduled jobs and hooks to CI workflows, MCP servers and wrapper scripts, each classified by live state and backed by a command and its output. Use when the user says "what automations do I have", "what is actually running", "which of these jobs is broken" or "audit our tooling". Not for operating one CI system, use `github-ops`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Automation Inventory
@@ -164,7 +166,7 @@ Everything else appears to be working normally.
 - `deployment-patterns` owns designing the pipeline and rollout strategy for the automations you keep
 - `observability-and-logging` owns the metrics, logs and alerts that keep a kept automation honest
 - `docker-patterns` owns container and compose wiring when an automation runs in a container
-- `security-review` owns the credential and permission review for any automation holding a secret
+- `application-security-review` owns the credential and permission review for any automation holding a secret
 - `project-tracking` owns turning each fix-next call into a tracked work item
 
 ---

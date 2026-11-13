@@ -1,6 +1,8 @@
 ---
 name: performance-optimization
 description: 'Measure-first performance work for application code and data access: profiling, N+1 queries, fetch and index discipline, when a cache is justified, streaming, and bounded concurrent IO. Use when the user says "this endpoint is slow", "profile this before I change anything", or "this query runs inside a loop". Not for schema and index design on Postgres itself, use `postgres-patterns`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Performance Optimization

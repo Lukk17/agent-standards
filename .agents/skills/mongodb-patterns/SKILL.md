@@ -6,6 +6,8 @@ compatibility: >-
   Best with MongoDB MCP server. Uses collection-indexes, collection-schema and explain when the connection string
   works; uses Atlas Performance Advisor when the Atlas API is configured. Without either, work from the query shape
   and the code alone. The user creates indexes in Atlas or in a migration unless the tooling allows otherwise.
+metadata:
+  version: "1.0.0"
 ---
 
 # MongoDB Patterns

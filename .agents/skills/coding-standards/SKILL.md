@@ -1,6 +1,8 @@
 ---
 name: coding-standards
 description: 'The cross-project engineering floor: SOLID as heuristics under KISS and YAGNI, DRY without coincidental merges, naming, guard clauses, one error shape, layering, feature flags, and when a comment or doc comment belongs. Use when the user says "review this for quality", "refactor to our conventions", or "should this have a comment". Not for stack-specific patterns, use `springboot-patterns`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Coding Standards
@@ -19,7 +21,7 @@ The shared floor every project stands on, stated without reference to a language
 
 ### When to activate
 
-- Starting a module, reviewing for quality, or refactoring toward the conventions, as in "review this for quality" or "refactor to our conventions"
+- Starting a module, reviewing for quality,, or refactoring, as in "review this for quality" or "refactor to our conventions"
 - Enforcing naming, structure, file size or control-flow consistency, or setting up linting and type-checking
 - Deciding whether a comment belongs at all, as in "should this have a comment"
 - Deciding whether to introduce an abstraction or merge two similar blocks

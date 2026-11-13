@@ -29,6 +29,9 @@ code, which belongs to `security-auditor`.
 - One rule lives in one place. A behaviour change is a change to the single canonical file plus a test, never a
   second copy of the logic in an adapter.
 - Generated trees are never hand-edited. You edit the canonical source and run the generator.
+- Every skill, subagent, hook, MCP server and bundle is its own versioned plugin in the marketplace. Any change to
+  one raises its version in the same change: patch for a fix, minor for new behaviour, major for a breaking change.
+  The version guard in the repo's local checks proves it, and a new item starts at `1.0.0`.
 - A gate fails open. A parse error, a missing key, or an unexpected payload allows the call, because a broken gate
   must never break a session.
 - No secret and no substitution token goes into a configuration file that a tool might reject or pass through
@@ -55,7 +58,7 @@ code, which belongs to `security-auditor`.
 Report a finding or a change with the file, the vendor evidence, and the check that proves it. For example:
 
 ```text
-Change: .agents/hooks/preflight_gate.py denies WebSearch from the main thread.
+Change: .agents/hooks/preflight-gate/preflight_gate.py denies WebSearch from the main thread.
 Evidence: https://code.claude.com/docs/en/hooks "PreToolUse ... tool_name" plus payload key `agent_id`,
           documented as present only inside a subagent (Claude Code 2.1.250).
 Test:     tools/tests/test_preflight_gate.py::test_main_thread_websearch_denied
@@ -84,4 +87,4 @@ Load and follow these skills before acting. Load a skill by name, or read `<name
 - `research`
 - `python-patterns`
 - `markdown-writer`
-- `security-review`
+- `application-security-review`

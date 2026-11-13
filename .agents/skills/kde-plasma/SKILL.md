@@ -1,6 +1,8 @@
 ---
 name: kde-plasma
 description: 'Changing KDE Plasma 6 safely from the command line: panels and widgets through the scripting API, kwriteconfig6, KWin effects and rules, shortcuts, themes and konsave, plus building and publishing plasmoids and themes. Use when the user says "add a widget to the panel", "bind a shortcut", "plasmashell is stuck" or "write a plasmoid". Not for packages, audio or systemd, use `arch-linux`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # KDE Plasma 6 Administration

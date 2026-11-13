@@ -1,6 +1,8 @@
 ---
 name: soap-webservices
 description: 'Contract-first SOAP integration in Java: WSDL and XSD as the source of truth, JAXB bindings, CXF code generation, XXE prevention, WS-Security, fault taxonomy, PII-safe logging, retries and MTOM. Use when the user says "generate Java classes from this WSDL", "call a partner SOAP service", "add WS-Security UsernameToken" or "our SOAP client hangs". Not for REST contracts, use `api-design`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # SOAP Web Service Standards
@@ -68,7 +70,7 @@ Written for Java 21 LTS as the minimum and Java 25 LTS as the recommended target
 - `springboot-patterns` for the service and repository layers around the generated client.
 - `java-coding-standards` for the hand-written mapping and exception classes.
 - `build-dependency-management` for pinning CXF, JAXB, and WSS4J versions in one place.
-- `security-review` before an integration handles credentials, payments, or personal data.
+- `application-security-review` before an integration handles credentials, payments, or personal data.
 - `observability-and-logging` for correlating a SOAP call with the request that triggered it.
 
 ---

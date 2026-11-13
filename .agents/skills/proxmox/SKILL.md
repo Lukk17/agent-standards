@@ -1,6 +1,8 @@
 ---
 name: proxmox
 description: 'Working with a Proxmox VE 8 or 9 host from an agent, every change asked of the owner first: API tokens, listing VMs and storage, creating and deleting VMs, growing a guest disk, snapshots, vzdump backups and thin pools. Use when the user says "give the agent access to Proxmox", "grow the disk of this VM" or "snapshot this VM first". Not for the services inside the VM, use `homelab-services`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Proxmox VE Administration

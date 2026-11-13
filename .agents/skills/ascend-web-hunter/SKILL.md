@@ -2,6 +2,8 @@
 name: ascend-web-hunter
 description: 'Page-content extraction through the self-hosted ascend-web-hunter service for pages a normal fetch cannot read: WAF bypass, CAPTCHA escalation to a remote browser and cached login sessions. Use when the user says "this page is behind Cloudflare", "the fetch got a bot check" or "this site needs a login". Not for a search a normal fetch can answer, use `research`.'
 compatibility: Requires the self-hosted ascend-web-hunter service of AscendAI (https://github.com/Lukk17/AscendAI) reachable over HTTP. The base URL comes from ASCEND_WEB_HUNTER_URL, else the first of http://ascend-web-hunter.internal and http://localhost:7021 whose /health answers, and appears in the examples as $BASE.
+metadata:
+  version: "1.0.0"
 ---
 
 # Ascend Web Hunter

@@ -1,6 +1,8 @@
 ---
 name: agentic-engineering
 description: 'Running engineering work where agents write most of the code and a human holds the quality bar: eval-first execution, agent-sized units, capability-tier routing, approval gates, context budgets and subagents. Use when the user says "plan this work for agents", "which tier should run this" or "split this into agent-sized units". Not for the regression suite itself, use `ai-regression-testing`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Agentic Engineering

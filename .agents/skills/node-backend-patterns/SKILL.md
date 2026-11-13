@@ -1,6 +1,8 @@
 ---
 name: node-backend-patterns
 description: "Node.js server-side patterns for Express and Next.js route handlers, covering service and repository layering, query batching, RFC 9457 errors, typed config, pino logging, caching, rate limiting and graceful shutdown. Use when the user says \"structure my Express API\" or \"my Node app never exits on SIGTERM\". Not for language-neutral backend design, use `backend-patterns`."
+metadata:
+  version: "1.0.0"
 ---
 
 # Node Backend Patterns
@@ -74,7 +76,7 @@ Doc comments follow the Doc Comments rules in `coding-standards`, whose TSDoc ex
 - `nextjs-app-router-patterns` for the rendering and caching half of a Next.js app.
 - `postgres-patterns` and `database-migrations` for schema, indexes, and safe schema change.
 - `observability-and-logging` for the startup banner, log levels, and trace correlation.
-- `security-review` before shipping auth, payment, or personal-data handling.
+- `application-security-review` before shipping auth, payment, or personal-data handling.
 
 ---
 

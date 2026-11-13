@@ -1,6 +1,8 @@
 ---
 name: pytorch-patterns
 description: "PyTorch 2 patterns for reproducible deep learning, covering device-agnostic code, seeding, nn.Module structure, training and validation loops, DataLoader throughput, checkpointing, mixed precision, torch.compile and DDP. Use when the user says \"write a training loop\", \"my GPU is starved\" or \"scale this to several GPUs\". Not for general Python idioms and typing, use `python-patterns`."
+metadata:
+  version: "1.0.0"
 ---
 
 # PyTorch Development Patterns

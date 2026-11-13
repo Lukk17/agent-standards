@@ -132,4 +132,4 @@ A GraphQL schema has no URL version to bump, so evolution is additive only.
 
 - `api-design` for the REST half of the contract and the shared rate-limit rules.
 - `node-backend-patterns` for resolver and data-loader wiring in a Node service.
-- `security-review` before exposing a GraphQL endpoint to the public internet.
+- `application-security-review` before exposing a GraphQL endpoint to the public internet.

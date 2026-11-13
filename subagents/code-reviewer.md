@@ -1,12 +1,13 @@
 ---
 name: code-reviewer
+version: "1.0.0"
 description: 'Use when the user says "review my changes", "review PR #123" or "is this ready to merge", and after any code change before it merges. Runs a severity-tagged review across correctness, security, performance, architecture and tests, read-only, and reports every finding with a file and line citation. Not for a threat model or a full security assessment, use `security-auditor`.'
 tools: [read, grep, glob, bash]
 readonly: true
 readonly-commands: ["gh pr diff*", "gh pr view*", "gh pr checks*"]
 skills:
   - code-reviewer
-  - security-review
+  - application-security-review
   - coding-standards
   - review-duplication
 ---
@@ -32,7 +33,7 @@ it before the change ships. A finding in one of those four areas is never closed
    that fight the codebase.
 3. Correctness. Logic errors, off-by-one, race conditions, null/empty handling, error swallowing, dead branches.
 4. Security. Input validation, authn/authz boundaries, injection (SQL, command, template), XSS/CSRF, secrets in code,
-   crypto misuse, unsafe deserialization. Drive this pass from the `security-review` skill checklist.
+   crypto misuse, unsafe deserialization. Drive this pass from the `application-security-review` skill checklist.
 5. Architecture. Boundaries respected, dependencies flow the right way, no new cycles, no leaked abstractions. Flag
    SOLID / clean-architecture / DDD violations only when they materially affect the change.
 6. Performance. N+1 queries, unbounded loops, sync-where-async-was-needed, cache misses, payload size, allocations in

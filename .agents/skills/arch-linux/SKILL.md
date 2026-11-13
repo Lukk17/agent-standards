@@ -1,6 +1,8 @@
 ---
 name: arch-linux
 description: 'Package and system administration on Arch Linux and Arch-based distributions: pacman and the AUR, upgrades and mirror errors, .pacnew files, cleanup, snapper rollback, systemd and journal triage, crashes and audio. Use when the user says "pacman -Syu", "install this from the AUR", "what is this pacnew" or "roll back the upgrade". Not for CachyOS kernels, repositories or Limine, use `cachyos`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Arch Linux Administration

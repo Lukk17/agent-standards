@@ -1,4 +1,4 @@
-"""Tests for the status tail hook at .agents/hooks/status_block_check.py.
+"""Tests for the status tail hook at .agents/hooks/status-block-check/status_block_check.py.
 
 Driven as a subprocess with --format plain and the envelope JSON on stdin. The
 tail shape is the one in .agents/instructions/reply-rules.md, rule 3. Only a
@@ -13,7 +13,7 @@ import sys
 from tests.conftest import HOOKS_DIR, REPO_ROOT
 from tests.process_tree import run_bounded
 
-HOOK = HOOKS_DIR / "status_block_check.py"
+HOOK = HOOKS_DIR / "status-block-check" / "status_block_check.py"
 
 REPLY_EVENT = "stop"
 TOOL_EVENT = "tool.execute.before"

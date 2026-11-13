@@ -1,6 +1,8 @@
 ---
 name: homelab-services
 description: 'Running a Docker Compose homelab on one VM, every change asked of the owner first: AdGuard Home, Uptime Kuma, Telegraf, Samba, File Browser, Plex, Homepage, Nginx Proxy Manager, a local CA for .internal names, and data disks. Use when the user says "add a .internal name", "https for the .internal names", "deploy the compose change" or "the VM disk is full". Not for the Proxmox host, use `proxmox`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Homelab Services
@@ -29,7 +31,7 @@ Written for AdGuard Home 0.107, Uptime Kuma 2, Telegraf 1, Samba 4, File Browser
 
 ### When to activate
 
-- Adding a service to the stack, or copying a changed Compose file or Telegraf config to the VM
+- Adding a service, or copying a changed Compose file or Telegraf config to the VM
 - A `.internal` name that does not resolve, or does not reach its service
 - Changing how long AdGuard Home keeps its query log or statistics
 - Changing monitors in Uptime Kuma, or a container log that grows by gigabytes

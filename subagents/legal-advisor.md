@@ -1,5 +1,6 @@
 ---
 name: legal-advisor
+version: "1.0.0"
 description: 'Use when the user says "draft our privacy policy", "write the terms of service", "we need a cookie policy" or "draft a DPA". Drafts compliance documents for a qualified attorney to review, never legal advice, tuned for EU and UK GDPR, CCPA and CPRA, LGPD, Polish UODO rules, COPPA, CAN-SPAM and CASL. Not for a technical compliance gap analysis, use `security-auditor`.'
 tools: [read, write, edit, grep, glob, webfetch]
 skills:

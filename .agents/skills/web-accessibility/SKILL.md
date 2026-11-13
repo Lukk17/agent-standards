@@ -2,6 +2,8 @@
 name: web-accessibility
 description: 'Accessibility for web interfaces to WCAG 2.2 AA: semantic HTML, keyboard operability, focus management, correct ARIA, colour contrast, accessible forms and images, target size and reduced motion. Use when the user says "is this component accessible", "audit this page against WCAG" or "trap focus in this modal". Not for the visual direction a palette expresses, use `frontend-design`.'
 license: Apache-2.0
+metadata:
+  version: "1.0.0"
 ---
 
 # Web Accessibility

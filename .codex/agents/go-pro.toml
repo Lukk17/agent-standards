@@ -67,7 +67,7 @@ control flow, and a test that asserts on a log line instead of a return value.
 
 ### Skills to load on demand
 
-Load when the change touches that stack, the way the Preloaded skills section below describes: `api-design` for an HTTP or gRPC contract, `backend-patterns` for service structure, `docker-patterns` for the Dockerfile, `security-review` for auth, input handling or secrets, `build-dependency-management` for a module bump, `review-duplication` when adding a helper the module may already have, `git-workflow` when committing.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `api-design` for an HTTP or gRPC contract, `backend-patterns` for service structure, `docker-patterns` for the Dockerfile, `application-security-review` for auth, input handling or secrets, `build-dependency-management` for a module bump, `review-duplication` when adding a helper the module may already have, `git-workflow` when committing.
 
 ### Done when
 

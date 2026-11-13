@@ -161,7 +161,7 @@ Expect exit 0.
 The shared gate script landed, which every hook wiring below points at.
 
 ```bash
-test -f /work/project/.agents/hooks/preflight_gate.py
+test -f /work/project/.agents/hooks/preflight-gate/preflight_gate.py
 ```
 
 Expect exit 0.
@@ -227,7 +227,7 @@ Expect exit 0.
 Claude Code sees every subagent in its own markdown format.
 
 ```bash
-test "$(find /work/project/.claude/agents -maxdepth 1 -name '*.md' | wc -l)" -eq "$(find /repo/.agents/agents -maxdepth 1 -name '*.md' | wc -l)"
+test "$(find /work/project/.claude/agents -mindepth 2 -maxdepth 2 -name '*.md' | wc -l)" -eq "$(find /repo/.agents/agents -maxdepth 1 -name '*.md' | wc -l)"
 ```
 
 Expect exit 0.
@@ -252,7 +252,7 @@ Claude Code calls the gate on `PreToolUse`, in its own format. The command runs 
 wrapper in between, so the format flag shows up as a plain ` --format claude` substring in the command string.
 
 ```bash
-jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py") and contains("--format claude"))' /work/project/.claude/settings.json
+jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight-gate/preflight_gate.py") and contains("--format claude"))' /work/project/.claude/settings.json
 ```
 
 Expect exit 0.
@@ -263,7 +263,7 @@ back: the gate script now silences its own standard error internally for this fo
 needs to.
 
 ```bash
-jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py") and contains("--format claude") and endswith("; exit 0") and (contains("subprocess.DEVNULL") | not))' /work/project/.claude/settings.json
+jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight-gate/preflight_gate.py") and contains("--format claude") and endswith("; exit 0") and (contains("subprocess.DEVNULL") | not))' /work/project/.claude/settings.json
 ```
 
 Expect exit 0.
@@ -271,7 +271,7 @@ Expect exit 0.
 Claude Code also injects the gate text on every prompt, which is the advisory half of the same rule.
 
 ```bash
-jq -e '[.hooks.UserPromptSubmit[].hooks[].command] | any(contains("PREFLIGHT"))' /work/project/.claude/settings.json
+jq -e '[.hooks.UserPromptSubmit[].hooks[].command] | any(contains("claude/preflight-reminder/preflight_reminder.py"))' /work/project/.claude/settings.json
 ```
 
 Expect exit 0.
@@ -295,7 +295,7 @@ Expect exit 0.
 GitHub Copilot calls the gate on `preToolUse`, spelled with its own lower-case first letter, in its own format.
 
 ```bash
-jq -e '[.hooks.preToolUse[].bash] | any(contains("preflight_gate.py --format copilot"))' /work/project/.github/hooks/preflight.json
+jq -e '[.hooks.preToolUse[].bash] | any(contains("preflight-gate/preflight_gate.py --format copilot"))' /work/project/.github/hooks/preflight.json
 ```
 
 Expect exit 0.
@@ -311,7 +311,7 @@ Expect exit 0.
 Copilot also appends the gate text to every prompt, through the helper that sits outside the runner's discovery set.
 
 ```bash
-jq -e '[.hooks.userPromptTransformed[].bash] | any(contains(".agents/hooks/copilot/prompt_reminder.py"))' /work/project/.github/hooks/preflight.json
+jq -e '[.hooks.userPromptTransformed[].bash] | any(contains(".agents/hooks/copilot/prompt-reminder/prompt_reminder.py"))' /work/project/.github/hooks/preflight.json
 ```
 
 Expect exit 0.
@@ -319,7 +319,7 @@ Expect exit 0.
 Copilot checks the reply formatting on `agentStop`.
 
 ```bash
-jq -e '[.hooks.agentStop[].bash] | any(contains("no_ai_markers_check.py --format copilot"))' /work/project/.github/hooks/preflight.json
+jq -e '[.hooks.agentStop[].bash] | any(contains("no-ai-markers-check/no_ai_markers_check.py --format copilot"))' /work/project/.github/hooks/preflight.json
 ```
 
 Expect exit 0.

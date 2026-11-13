@@ -1,6 +1,8 @@
 ---
 name: ansible
 description: 'Ansible standards for role structure, FQCN modules, idempotency, Vault secrets, least-privilege become, collection pinning and the ansible-lint plus Molecule gate. Use when the user says "write an Ansible role for this", "this playbook is not idempotent", "encrypt these variables with Vault" or "add Molecule tests to this role". Not for one-off host scripting, use `bash`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Ansible Standards
@@ -74,7 +76,7 @@ run. Never run a playbook against production straight from a workstation or an u
 - `deployment-patterns` for the pipeline that runs Ansible and the approval gate in front of production.
 - `docker-patterns` for the container images Ansible deploys.
 - `observability-and-logging` for the health and readiness signals a deployed service must expose.
-- The `security-auditor` agent before any change that touches credentials, privilege escalation, or a public listener. `security-review` covers application code only.
+- The `security-auditor` agent before any change that touches credentials, privilege escalation, or a public listener. `application-security-review` covers application code only.
 
 ---
 

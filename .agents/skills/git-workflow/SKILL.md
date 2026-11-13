@@ -1,6 +1,8 @@
 ---
 name: git-workflow
 description: 'Git practice for a team: branching strategy, conventional commits, merge versus rebase, branch naming and cleanup, pull request content, conflicts, and line endings, symlinks and case across systems. Use when the user says "what should I name this branch", "write the commit message", "merge or rebase here" or "set up .gitattributes". Not for issues and releases on the host, use `github-ops`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Git Workflow
@@ -92,7 +94,7 @@ a rewrite is a break everyone has to repair by hand.
 - `jira-integration` owns reading and updating the Jira issue behind the branch
 - `code-reviewer` owns reviewing the content of the diff
 - `deployment-patterns` owns what happens after the merge
-- `security-review` owns the response when a secret does reach history
+- `application-security-review` owns the response when a secret does reach history
 
 ---
 

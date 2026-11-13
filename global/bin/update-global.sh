@@ -37,7 +37,13 @@ readonly CODEX_HOME_DIR='.config/codex'
 readonly LEGACY_INSTALL_DIR='.agents'
 readonly SUBAGENT_TREES=".config/agents/agents:.agents/agents .claude/agents:.claude/agents $CODEX_HOME_DIR/agents:.codex/agents .config/copilot/agents:.github/agents"
 readonly RESERVED_SKILL_NAMES='synced .trash'
-readonly SKILL_LINK_HOOK='hooks/claude/sync_skill_links.py'
+# Skills upstream renamed, as old:new. An installed old one moves to the new name.
+readonly RENAMED_SKILLS='security-review:application-security-review'
+# The live hook wiring of each agent in the home directory. A hook file one of
+# them still names is never pruned, because the agent would lose that hook.
+readonly LIVE_WIRING_FILES=".claude/settings.json $CODEX_HOME_DIR/hooks.json $CODEX_HOME_DIR/config.toml"
+readonly LIVE_WIRING_DIRS=".config/copilot/hooks .copilot/hooks"
+readonly SKILL_LINK_HOOK='hooks/claude/sync-skill-links/sync_skill_links.py'
 readonly WIRING_ADVICE='Take it in with the one-line command that writes the hook file of each agent, under "Per-agent setup" in docs/GLOBAL_SETUP.md, run against a new temporary copy.'
 
 dry_run=0
@@ -57,6 +63,7 @@ count_remove=0
 count_unchanged=0
 count_keep=0
 count_skip=0
+still_wired_list=''
 
 usage() {
   sed -n '/^# Script:/,/^# Requires:/s/^# \{0,1\}//p' "$0"
@@ -207,6 +214,28 @@ remove_empty_parents() {
   done
 }
 
+# True when a live wiring file names the home-relative path $1, with forward
+# slashes, with backslashes, or with the doubled backslashes of a JSON or TOML
+# string on Windows.
+still_wired() {
+  wired_back=$(printf '%s' "$1" | tr '/' '\\')
+  wired_json=$(printf '%s' "$1" | sed 's#/#\\\\#g')
+
+  for wiring_file in $LIVE_WIRING_FILES; do
+    [ -f "$home_dir/$wiring_file" ] || continue
+    grep -qF -e "$1" -e "$wired_back" -e "$wired_json" "$home_dir/$wiring_file" && return 0
+  done
+
+  for wiring_dir in $LIVE_WIRING_DIRS; do
+    for wiring_file in "$home_dir/$wiring_dir"/*.json; do
+      [ -f "$wiring_file" ] || continue
+      grep -qF -e "$1" -e "$wired_back" -e "$wired_json" "$wiring_file" && return 0
+    done
+  done
+
+  return 1
+}
+
 prune() {
   [ "$old_known" -eq 1 ] || return 0
 
@@ -215,6 +244,13 @@ prune() {
   while IFS= read -r prune_rel; do
     [ -e "$tree/$1/$prune_rel" ] && continue
     [ -f "$home_dir/$2/$prune_rel" ] || continue
+
+    if still_wired "$2/$prune_rel"; then
+      report keep "$2/$prune_rel" ' (still wired)'
+      count_keep=$((count_keep + 1))
+      still_wired_list="$still_wired_list $2/$prune_rel"
+      continue
+    fi
 
     report remove "$2/$prune_rel"
     count_remove=$((count_remove + 1))
@@ -253,6 +289,26 @@ is_reserved_skill() {
   return 1
 }
 
+renamed_skill() {
+  for renamed_pair in $RENAMED_SKILLS; do
+    if [ "${renamed_pair%%:*}" = "$1" ]; then
+      printf '%s' "${renamed_pair#*:}"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+# An installed skill upstream renamed: the new folder is mirrored in under its
+# new name, and the old folder, which upstream no longer ships, is removed.
+move_renamed_skill() {
+  report remove "$INSTALL_DIR/skills/$1" " (renamed to $2)"
+  count_remove=$((count_remove + 1))
+  mirror ".agents/skills/$2" "$INSTALL_DIR/skills/$2"
+  [ "$dry_run" -eq 1 ] || rm -rf -- "$home_dir/$INSTALL_DIR/skills/$1"
+}
+
 update_skills() {
   for skill_dir in "$home_dir/$INSTALL_DIR/skills"/*/; do
     [ -d "$skill_dir" ] || continue
@@ -261,7 +317,10 @@ update_skills() {
     # Claude Code's own folders are never skills of this install.
     is_reserved_skill "$skill_name" && continue
 
-    if [ -d "$tree/.agents/skills/$skill_name" ]; then
+    if new_skill_name=$(renamed_skill "$skill_name") && [ ! -d "$tree/.agents/skills/$skill_name" ] &&
+      [ -d "$tree/.agents/skills/$new_skill_name" ] && [ ! -e "$home_dir/$INSTALL_DIR/skills/$new_skill_name" ]; then
+      move_renamed_skill "$skill_name" "$new_skill_name"
+    elif [ -d "$tree/.agents/skills/$skill_name" ]; then
       mirror ".agents/skills/$skill_name" "$INSTALL_DIR/skills/$skill_name"
     elif shipped_before_under ".agents/skills/$skill_name"; then
       report keep "$INSTALL_DIR/skills/$skill_name" ' (removed upstream, left in place)'
@@ -273,18 +332,27 @@ update_skills() {
   done
 }
 
+# A subagent sits flat, <tree>/<name><ext>, or in its own folder,
+# <tree>/<name>/<name><ext>, the layout the Claude Code tree ships in. An
+# installed flat file whose agent now ships in its own folder moves there.
 update_subagents() {
   for subagent_pair in $SUBAGENT_TREES; do
     subagent_home=${subagent_pair%%:*}
     subagent_upstream=${subagent_pair#*:}
     [ -d "$home_dir/$subagent_home" ] || continue
 
-    for subagent_file in "$home_dir/$subagent_home"/*; do
+    for subagent_file in "$home_dir/$subagent_home"/* "$home_dir/$subagent_home"/*/*; do
       [ -f "$subagent_file" ] || continue
-      subagent_name=${subagent_file##*/}
+      subagent_name=${subagent_file#"$home_dir/$subagent_home/"}
+      subagent_nested=${subagent_name%%.*}/$subagent_name
 
       if [ -f "$tree/$subagent_upstream/$subagent_name" ]; then
         put_file "$tree/$subagent_upstream/$subagent_name" "$subagent_home/$subagent_name"
+      elif [ "${subagent_name#*/}" = "$subagent_name" ] && [ -f "$tree/$subagent_upstream/$subagent_nested" ]; then
+        put_file "$tree/$subagent_upstream/$subagent_nested" "$subagent_home/$subagent_nested"
+        report remove "$subagent_home/$subagent_name" " (moved into $subagent_nested)"
+        count_remove=$((count_remove + 1))
+        [ "$dry_run" -eq 1 ] || rm -f -- "$subagent_file"
       elif shipped_before "$subagent_upstream/$subagent_name"; then
         report keep "$subagent_home/$subagent_name" ' (removed upstream, left in place)'
         count_keep=$((count_keep + 1))
@@ -360,6 +428,13 @@ report_totals() {
   printf ' Left alone: %d removed upstream, %d not from upstream.\n' "$count_keep" "$count_skip"
 }
 
+report_still_wired() {
+  for wired_path in $still_wired_list; do
+    printf 'WARNING: ~/%s is still run by your hook wiring, so it was kept, and that hook stays on this old copy until you rewire it. %s\n' \
+      "$wired_path" "$WIRING_ADVICE"
+  done
+}
+
 main() {
   parse_args "$@"
   require_commands
@@ -393,6 +468,7 @@ main() {
   report_wiring
   record_commit
   sync_skill_links
+  report_still_wired
   report_totals
 }
 

@@ -1,5 +1,6 @@
 ---
 name: legacy-modernizer
+version: "1.0.0"
 description: 'Use when the user says "upgrade us to the next major", "migrate off this framework", "split this monolith" or "pay down this tech debt". Plans the migration in phases, adds tests before each refactor, keeps backward compatibility behind feature flags, and documents the rollback for every phase. Not for mapping an unknown codebase first, use `code-archaeologist`.'
 tools: [read, write, edit, grep, glob, bash]
 skills:
@@ -64,7 +65,7 @@ performance tuning (defer to `performance-engineer`).
 
 ### Skills to load on demand
 
-Load when the change touches that stack, the way the Preloaded skills section below describes: `python-patterns`, `java-coding-standards`, `springboot-patterns`, `golang-patterns`, `nextjs-app-router-patterns`, `angular`, `dart-flutter-patterns` or `react-patterns` for the source or target stack, `database-migrations` for a data migration, `deployment-patterns` and `docker-patterns` for the rollout, `backend-patterns` for a service split, `build-dependency-management` for a dependency upgrade, `security-review` for auth or input paths, `observability-and-logging` for comparing old and new paths, `review-duplication` for duplicated legacy logic, `code-formatter` for layout inside a Dart, Java or Python function, `git-workflow` when committing.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `python-patterns`, `java-coding-standards`, `springboot-patterns`, `golang-patterns`, `nextjs-app-router-patterns`, `angular`, `dart-flutter-patterns` or `react-patterns` for the source or target stack, `database-migrations` for a data migration, `deployment-patterns` and `docker-patterns` for the rollout, `backend-patterns` for a service split, `build-dependency-management` for a dependency upgrade, `application-security-review` for auth or input paths, `observability-and-logging` for comparing old and new paths, `review-duplication` for duplicated legacy logic, `code-formatter` for layout inside a Dart, Java or Python function, `git-workflow` when committing.
 
 ### Done when
 

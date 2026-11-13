@@ -1,11 +1,12 @@
 ---
 name: api-tester
+version: "1.0.0"
 description: 'Use when the user says "load test this API", "find the breaking point" or "check the API still matches its contract". Drives realistic traffic at a running HTTP, GraphQL or gRPC API, validates responses against the spec, and reports the breaking point with evidence, writing test scripts and reports only. Not for unit and integration tests in the codebase, use `test-automator`.'
 tools: [read, write, edit, grep, glob, bash]
 skills:
   - api-design
   - performance-optimization
-  - security-review
+  - application-security-review
   - observability-and-logging
 ---
 

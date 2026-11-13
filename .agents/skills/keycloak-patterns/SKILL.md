@@ -1,6 +1,8 @@
 ---
 name: keycloak-patterns
 description: 'Keycloak server administration and the Keycloak.AuthServices .NET client: realms, clients, flows and MFA, RBAC and UMA, LDAP federation and hardening, plus JWT Bearer and OIDC wiring and the Admin SDKs. Use when the user says "set up SSO with Keycloak", "enable MFA for admins" or "add Keycloak auth to my .NET API". Not for Spring Security, use `springboot-patterns`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Keycloak Patterns
@@ -29,7 +31,7 @@ Written for Keycloak 26 and Keycloak.AuthServices 2, on .NET 8 or newer. Two thi
 - Adding JWT Bearer or OIDC authentication to an ASP.NET Core API or web application.
 - Enforcing realm or client roles through an authorization policy, or protecting a resource with UMA.
 - Calling the Keycloak Admin REST API or Protection API from C#.
-- Diagnosing a login failure, a rejected token, an audience mismatch, or a session that ends too soon.
+- Diagnosing a login failure, a rejected token, an audience mismatch, or a short session.
 - The user says "create a realm and a confidential client", "connect Keycloak to Active Directory", "why does my token fail audience validation", "require a realm role on this endpoint", "call the Keycloak Admin API from C#" or "protect this resource with UMA".
 
 ---

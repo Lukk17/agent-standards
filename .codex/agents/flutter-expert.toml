@@ -56,7 +56,7 @@ When reviewing Flutter code, raise:
 
 ### Skills to load on demand
 
-Load when the change touches that stack, the way the Preloaded skills section below describes: `api-design` for an HTTP or JSON layer, `security-review` for auth, storage of secrets or platform channels, `build-dependency-management` for a package bump, `review-duplication` when adding a widget the project may already have, `git-workflow` when committing.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `api-design` for an HTTP or JSON layer, `application-security-review` for auth, storage of secrets or platform channels, `build-dependency-management` for a package bump, `review-duplication` when adding a widget the project may already have, `git-workflow` when committing.
 
 ### Done when
 

@@ -16,7 +16,7 @@ For each of the five agents, in the agent's own terms wherever the agent offers 
 
 | Agent | Skills | Subagents | Preflight wiring | MCP servers |
 | --- | --- | --- | --- | --- |
-| Claude Code | `.claude/skills` symlink resolves to all canonical skills | `.claude/agents/*.md` count matches canonical | `.claude/settings.json` calls the gate on `PreToolUse` | `claude mcp list` names every server in `.mcp.json` |
+| Claude Code | `.claude/skills` symlink resolves to all canonical skills | `.claude/agents/*/*.md` count matches canonical | `.claude/settings.json` calls the gate on `PreToolUse` | `claude mcp list` names every server in `.mcp.json` |
 | Codex | `.agents/skills/` read natively | `.codex/agents/*.toml` count matches canonical | `.codex/config.toml` calls the gate on `PreToolUse` | `codex mcp list` names every server in `.codex/config.toml` |
 | OpenCode | `.agents/skills/` read natively | `opencode agent list` names every imported subagent | `opencode.json` declares the shared plugin | `opencode mcp list` names every server in `opencode.json` |
 | OpenCode 2.x | the same project, run as `opencode2` | a real turn starts subagent `docs-architect` | the plugin loads from its directory entry and the gate blocks a real main-thread write | none, the probe copy drops the MCP block |
@@ -26,7 +26,7 @@ For each of the five agents, in the agent's own terms wherever the agent offers 
 On top of that it proves the import itself behaved: `AGENTS.md.example` was renamed rather than copied, all three
 symlinks resolve to directories, and the upstream-only `subagents/` and `tools/` trees did not come along.
 
-It also proves the gate really denies. [.agents/hooks/preflight_gate.py](../.agents/hooks/preflight_gate.py) is run
+It also proves the gate really denies. [.agents/hooks/preflight-gate/preflight_gate.py](../.agents/hooks/preflight-gate/preflight_gate.py) is run
 directly with the payload each adapter would hand it, once per output format, and the decision is read back:
 
 - Rule A denies a main-thread write of any file inside the working tree, markdown and configuration included, in
@@ -68,7 +68,7 @@ The project suite also drives OpenCode 1.x and Kilo Code through real turns agai
 
 The last mock section of the project suite proves on every pull request that a subagent really writes a file, for all six runtimes: Claude Code, Codex, the GitHub Copilot CLI, OpenCode 2.x, OpenCode 1.x with the `.v1` backstop, and Kilo Code. Each one is the binary the [Dockerfile](Dockerfile) pins, run headless in its own copy of the imported project, with the hooks, the gate and the generated subagents as imported. Only the model is replaced, by [e2e-mock/server.mjs](e2e-mock/server.mjs), a stdlib Node server that replays a scripted conversation, so a run needs no key and costs nothing. [e2e-mock/subagent-write.sh](e2e-mock/subagent-write.sh) drives it, and [verify-project.sh](verify-project.sh) sources it.
 
-Each agent runs two scripted cases. In the first, the main thread is asked to have `python-pro` create `e2e-subagent-proof.txt`. The mock answers the main thread with that agent's own spawn tool call, answers the subagent's first turn with a write tool call carrying the fixed content, and ends both turns with text. On Codex, whose `spawn_agent` returns at once, the main thread also calls `wait_agent` on the id the spawn returned. In the second, the main thread is asked to write a file itself, and the mock answers with the write call the gate has to refuse. Claude Code runs a third: the main thread starts the project's `code-reviewer`, whose definition preloads `security-review`, and the mock ends the subagent's first turn at once, so that request shows what Claude Code preloaded.
+Each agent runs two scripted cases. In the first, the main thread is asked to have `python-pro` create `e2e-subagent-proof.txt`. The mock answers the main thread with that agent's own spawn tool call, answers the subagent's first turn with a write tool call carrying the fixed content, and ends both turns with text. On Codex, whose `spawn_agent` returns at once, the main thread also calls `wait_agent` on the id the spawn returned. In the second, the main thread is asked to write a file itself, and the mock answers with the write call the gate has to refuse. Claude Code runs a third: the main thread starts the project's `code-reviewer`, whose definition preloads `application-security-review`, and the mock ends the subagent's first turn at once, so that request shows what Claude Code preloaded.
 
 | Agent | Wire format and route | How the binary reaches the mock | Spawn call | Write call | Header that marks a subagent request |
 | --- | --- | --- | --- | --- | --- |
@@ -85,10 +85,10 @@ An agent passes when all of these hold, each its own `PASS` or `FAIL` line:
 - `e2e-subagent-proof.txt` exists with exactly the scripted content
 - the main thread's spawn call got a result, a request that both the marker and the headers place in the subagent got the result of the write call, no main-thread request carries a write of that file, and the agent's own record agrees: [e2e-mock/records.py](e2e-mock/records.py) reads the Claude Code subagent transcript, the Codex rollout whose `session_meta` names a subagent, the Copilot event carrying a `parentToolCallId`, the OpenCode 1.x and Kilo Code export of the child session, or the 2.x `session_v2` row with a `parent_id`, and finds the write there and not in the main session
 - every subagent turn carries `python-pro`'s own definition in its system text
-- every main-thread turn carries that agent's own main-thread reminder: the Claude Code reminder from `.claude/settings.json` on Claude Code, and on every other agent the `REMINDER` of `.agents/hooks/copilot/prompt_reminder.py`, which Codex and Copilot inject from their wiring and the OpenCode plugin reads from that file
-- every subagent turn carries the subagent text, `PREFLIGHT for a subagent:`, and none carries either main-thread reminder. Every text is read from the imported project, the subagent opening from `.agents/hooks/copilot/prompt_reminder.py`, so a change of wording moves the check with it
+- every main-thread turn carries that agent's own main-thread reminder: the Claude Code reminder from `.claude/settings.json` on Claude Code, and on every other agent the `REMINDER` of `.agents/hooks/copilot/prompt-reminder/prompt_reminder.py`, which Codex and Copilot inject from their wiring and the OpenCode plugin reads from that file
+- every subagent turn carries the subagent text, `PREFLIGHT for a subagent:`, and none carries either main-thread reminder. Every text is read from the imported project, the subagent opening from `.agents/hooks/copilot/prompt-reminder/prompt_reminder.py`, so a change of wording moves the check with it
 - the main thread's own write is refused with the gate's `RULE_A_REASON`, read from the imported gate, and the file was never created
-- on Claude Code, every `code-reviewer` turn carries the first prose line of the project's `.agents/skills/security-review/SKILL.md`, read at run time, and none carries the opening of the built-in `/security-review` command's prompt, `You are a senior security engineer conducting a focused security review of the changes on this branch.`, read from the pinned 2.1.314 binary. The check first confirms that line is still in the `claude` binary it runs, so its absence from the request means the project skill won the name
+- on Claude Code, every `code-reviewer` turn carries the first prose line of the project's `.agents/skills/application-security-review/SKILL.md`, read at run time, and none carries the opening of the built-in `/security-review` command's prompt, `You are a senior security engineer conducting a focused security review of the changes on this branch.`, read from the pinned 2.1.314 binary. The check first confirms that line is still in the `claude` binary it runs, so its absence from the request means the project skill won the name
 - on Codex, a scripted case starts `backend-architect`, whose canonical tools leave out `bash`, and none of its turns may offer `exec_command`, `write_stdin` or another shell tool, while the `python-pro` turns of the first case must, so the check can see one. Measured on Codex 0.167.0 without Docker: it passed with the generated `features.shell_tool = false`, and with that line removed from the project copy it failed with 1 of 1 turns offering a shell
 
 GitHub Copilot reports one `KNOWN-GAP`, the way live test 1 does, and it does not fail the run: the main thread's own write lands, because the Copilot `preToolUse` payload carries no agent identifier, as the Maintenance follow-ups in [AGENTS.md](../AGENTS.md) record. A Copilot subagent that does not write the file is a plain `FAIL`.
@@ -143,8 +143,8 @@ events the agent recorded, never from what the model wrote back.
 | 6 The one MCP server answers | `context7` is the only MCP server the session loaded, and a recorded `resolve-library-id` call for React returned a library id. A call whose result carries no id, such as a rate-limit or an invalid-key answer, is a `FAIL` quoting that result |
 | 7 Codex only: a subagent's payload names its type | The main thread started the read-only `code-reviewer`, and a `PreToolUse` payload the capture hook placed in the reviewer's own rollout, for any tool, carried `agent_id` and `agent_type` `code-reviewer`. A placed payload without either fails, and only a case with no placed payload is `INCONCLUSIVE` |
 | 7b Codex only: Rule E denies the reviewer's touch | The reviewer ran `touch readonly-probe.txt`, the payload of that call carried `agent_id` and `agent_type` `code-reviewer`, Rule E's reason is in the transcript, and the file is absent. A reviewer that never tried the touch is `INCONCLUSIVE` |
-| 8 Claude Code only: the gate sees a plugin subagent | The same probe from `review-and-security:code-reviewer`, installed from the rendered marketplace, carried `agent_type` `review-and-security:code-reviewer`, Rule E denied it, and the file is absent |
-| 9 Claude Code only: a plugin subagent preloads a `core` skill | `review-and-security:code-reviewer` returned a canary that only its preloaded `core` skill `security-review` carries, in the spawn result or, for a spawn run in the background, in its own reply or the task notification Claude Code handed the main thread, with no run-time load of that skill anywhere in the session |
+| 8 Claude Code only: the gate sees a plugin subagent | The same probe from `agent-code-reviewer:code-reviewer`, installed from the served marketplace, carried `agent_type` `agent-code-reviewer:code-reviewer`, Rule E denied it, and the file is absent |
+| 9 Claude Code only: a plugin subagent preloads its skill | `agent-code-reviewer:code-reviewer` returned a canary that only its preloaded skill plugin `application-security-review` carries, in the spawn result or, for a spawn run in the background, in its own reply or the task notification Claude Code handed the main thread, with no run-time load of that skill anywhere in the session |
 
 Three verdicts are possible besides a pass:
 
@@ -192,10 +192,7 @@ saw the call. The prompt has the subagent answer only "allowed" or "denied", so 
 subagent's own transcript rather than in the spawn result, where the Codex parser reads `PREFLIGHT:` as an error. A
 spawn the transcript marks as failed while the subagent's own calls are recorded is not reported as rejected.
 
-Tests 8 and 9 render the marketplace with [tools/gen_plugins.py](../tools/gen_plugins.py) into the work directory,
-which the job's own Python step installs the tooling for, and append a random preload marker, the canary, to that copy of the `core` skill
-`security-review` only. Each plugin subagent preloads its skills by their full plugin name, such as `core:security-review`, because a bare `security-review` resolved to the built-in `/security-review` command in live run 41255837007. They add it as a local marketplace and install `review-and-security`, which pulls `core` in as
-its dependency, into a separate `CLAUDE_CONFIG_DIR`, and run in a second project that holds only the gate-only import,
+Tests 8 and 9 copy the repository's committed tree, [.claude-plugin/marketplace.json](../.claude-plugin/marketplace.json) included, into the work directory and append a random preload marker, the canary, to that copy of the skill `application-security-review` only. They commit the copy into a bare repository, serve it over smart HTTP with [tools/git_http.py](../tools/git_http.py), because Claude Code refuses a `file://` marketplace and loads a local-path marketplace in place instead of copying a plugin into its cache, and add that URL as the marketplace. They install `agent-code-reviewer`, which pulls in every skill the reviewer preloads as its own plugin, `application-security-review` among them, into a separate `CLAUDE_CONFIG_DIR`, and run in a second project that holds only the gate-only import,
 `.agents/hooks` and `.claude/settings.json`. With no agent tree in that project, the gate can find the reviewer's
 definition only in the plugin cache, so a Rule E denial in test 8 proves that lookup. Tests 1 to 6 keep their own
 configuration and never see the plugin. Test 9 asks the subagent to repeat the canary without any tool. A spawn
@@ -203,7 +200,7 @@ Claude Code runs in the background returns only "Async agent launched successful
 subagent's own assistant text and the task notification that carries its final message to the main thread, through
 the `agent_subagent_replies` function in [live/claude-code.sh](live/claude-code.sh), never a loaded skill or the main
 thread's own text. In live run 41348146352 the spawn result was that launch notice while the reviewer's reply was
-exactly the canary. A recorded `Skill` call or `SKILL.md` read of `security-review`, a subagent tool result holding the
+exactly the canary. A recorded `Skill` call or `SKILL.md` read of `application-security-review`, a subagent tool result holding the
 canary, a main-thread call input holding it, or hook text injected into the subagent holding it makes it
 `INCONCLUSIVE`, because the canary then no longer proves the preload. Each run first clears
 the marketplace, the plugin configuration, the plugin project and cases 8 and 9 that an earlier run in the same
@@ -725,7 +722,7 @@ recorded here because they show the class of problem only a live run finds. All 
    `mapping values are not allowed in this context`, because each `description` carried an unquoted colon, which left
    both skills invisible to Copilot. Both values are quoted now. Item 2 was closed with a one-off scan, which is why
    this one got in, so the check is mechanical this time: `check_front_matter` in
-   [.agents/hooks/_check_markdown.py](../.agents/hooks/_check_markdown.py), which CI runs through [tools/check-markdown.py](../tools/check-markdown.py), parses the front matter of every skill manifest and every
+   [.agents/hooks/markdown-lint-check/_check_markdown.py](../.agents/hooks/markdown-lint-check/_check_markdown.py), which CI runs through [tools/check-markdown.py](../tools/check-markdown.py), parses the front matter of every skill manifest and every
    canonical subagent source with a strict YAML parser, and reports an unquoted colon or a leading YAML indicator in a
    description, a name that does not match the folder name or the file stem, a missing, empty, non-string or
    over-length description, and any skill key outside the Agent Skills specification. CI runs it on every pull request.

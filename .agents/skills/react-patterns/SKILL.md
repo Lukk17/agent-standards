@@ -2,6 +2,8 @@
 name: react-patterns
 description: "React 19 patterns for component composition, custom hooks, async state, a typed API client, memoisation under React Compiler, code splitting, virtualisation, forms and animation. Use when the user says \"build a React component\", \"write a custom hook\" or \"this list re-renders on every keystroke\". Not for Next.js rendering, routing and caching, use `nextjs-app-router-patterns`."
 license: Apache-2.0
+metadata:
+  version: "1.0.0"
 ---
 
 # React Development Patterns

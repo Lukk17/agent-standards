@@ -1,6 +1,8 @@
 ---
 name: cachyos
 description: 'CachyOS administration on top of Arch: linux-cachyos kernels, the x86-64-v3 and v4 repositories, chwd and NVIDIA modules, sched-ext schedulers, cachyos-settings, and Limine with snapshot boot entries. Use when the user says "switch to the bore kernel", "should I use the v4 repos", "black screen after the nvidia update" or "the system will not boot". Not for generic pacman work, use `arch-linux`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # CachyOS Administration

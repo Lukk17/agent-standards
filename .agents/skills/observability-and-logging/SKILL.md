@@ -1,6 +1,8 @@
 ---
 name: observability-and-logging
 description: 'Structured logging and production observability: log levels, key-value fields, trace correlation, what liveness and readiness check, metrics, tracing, SLO alerts, and the startup readiness banner. Use when the user says "add logging to this service", "my logs have no trace id", or "alert on our error budget". Not for Kubernetes probe manifests or CI pipelines, use `deployment-patterns`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Observability and Logging

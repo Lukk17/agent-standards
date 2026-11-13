@@ -1,9 +1,9 @@
-"""Tests for the markdown lint hook at .agents/hooks/markdown_lint_check.py.
+"""Tests for the markdown lint hook at .agents/hooks/markdown-lint-check/markdown_lint_check.py.
 
 Driven as a subprocess, because the hook contract is the process contract:
 stdin payload, --format flag, stdout shape, exit code. Every run gets its own
 project root shaped like a consumer checkout, holding a real copy of
-.agents/hooks/_check_markdown.py and no tools/ directory, so the hook shells
+.agents/hooks/markdown-lint-check/_check_markdown.py and no tools/ directory, so the hook shells
 out to the same linter CI runs rather than to a stub, and the scope decision is
 made against a tree the test controls.
 """
@@ -29,7 +29,7 @@ LONG_PROSE = "### Heading\n\n" + " ".join(["word"] * 60) + "\n"
 @pytest.fixture
 def project(tmp_path):
     """A consumer-shaped project root: the imported hooks directory and no tools/."""
-    hooks = tmp_path / ".agents" / "hooks"
+    hooks = tmp_path / ".agents" / "hooks" / MARKDOWN_LINT_RULES.parent.name
     hooks.mkdir(parents=True)
     shutil.copy(MARKDOWN_LINT_RULES, hooks)
 
@@ -218,9 +218,71 @@ def test_a_long_unwrapped_prose_line_reports_nothing(project):
     assert run(project, edit(path)) == (0, "", "")
 
 
-def test_a_project_without_the_lint_rules_reports_nothing(tmp_path):
-    # Given a hooks directory that lost the shipped rules module
-    (tmp_path / ".agents" / "hooks").mkdir(parents=True)
-    path = write(tmp_path, "docs/GUIDE.md", DIRTY)
+def hook_copy(folder, with_rules):
+    """A copy of the hook in folder, with or without the rules module beside it."""
+    folder.mkdir(parents=True)
+    shutil.copy(MARKDOWN_LINT_HOOK, folder)
+    if with_rules:
+        shutil.copy(MARKDOWN_LINT_RULES, folder)
 
-    assert run(tmp_path, edit(path)) == (0, "", "")
+    return folder / MARKDOWN_LINT_HOOK.name
+
+
+def run_copy(hook, project, payload, env=None):
+    import os
+
+    environment = {key: value for key, value in os.environ.items() if key not in ("CLAUDE_PROJECT_DIR", "CLAUDE_PLUGIN_ROOT")}
+    environment.update(env or {})
+    result = run_bounded(
+        [sys.executable, str(hook), "--format", "claude"],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(project),
+        env=environment,
+    )
+
+    return result.returncode, result.stdout, result.stderr
+
+
+def test_a_copy_with_no_rules_beside_it_or_in_the_project_reports_nothing(tmp_path):
+    # Given a hook copy that lost its rules module, in a project that imported none
+    hook = hook_copy(tmp_path / "elsewhere", with_rules=False)
+    project = tmp_path / "project"
+    path = write(project, "docs/GUIDE.md", DIRTY)
+
+    assert run_copy(hook, project, edit(path)) == (0, "", "")
+
+
+def plugin_copy(tmp_path):
+    return hook_copy(tmp_path / "config" / "plugins" / "cache" / "agent-standards" / "hook-markdown-lint-check" / "1.0.0", with_rules=True)
+
+
+def test_a_plugin_copy_lints_a_project_that_imported_no_hooks_with_the_rules_beside_it(tmp_path):
+    # Given the hook-markdown-lint-check plugin layout and a project with no .agents at all
+    hook = plugin_copy(tmp_path)
+    project = tmp_path / "project"
+    path = write(project, "docs/GUIDE.md", DIRTY)
+    env = {"CLAUDE_PROJECT_DIR": str(project), "CLAUDE_PLUGIN_ROOT": str(hook.parent), "CLAUDE_CONFIG_DIR": str(tmp_path / "config")}
+
+    # When
+    code, out, err = run_copy(hook, project, {**edit(path), "hook_event_name": "PostToolUse"}, env)
+
+    # Then
+    assert (code, err) == (0, "")
+    assert "em-dash or en-dash found" in context(out)
+
+
+def test_a_plugin_copy_stands_down_when_the_project_wiring_runs_the_lint(tmp_path):
+    # Given a project whose own .claude/settings.json runs the lint after an edit
+    hook = plugin_copy(tmp_path)
+    project = tmp_path / "project"
+    path = write(project, "docs/GUIDE.md", DIRTY)
+    command = 'cd "${CLAUDE_PROJECT_DIR}" && python3 -S -E .agents/hooks/markdown-lint-check/markdown_lint_check.py --format claude ; exit 0'
+    write(project, ".claude/settings.json", json.dumps({"hooks": {"PostToolUse": [{"matcher": "Edit", "hooks": [{"type": "command", "command": command}]}]}}))
+    write(project, ".agents/hooks/markdown-lint-check/markdown_lint_check.py", "# own\n")
+    env = {"CLAUDE_PROJECT_DIR": str(project), "CLAUDE_PLUGIN_ROOT": str(hook.parent), "CLAUDE_CONFIG_DIR": str(tmp_path / "config")}
+
+    # When / Then
+    assert run_copy(hook, project, {**edit(path), "hook_event_name": "PostToolUse"}, env) == (0, "", "")
