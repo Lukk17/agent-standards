@@ -568,3 +568,46 @@ def test_an_updater_that_replaces_itself_with_a_longer_copy_finishes_cleanly(tmp
     assert result.stdout.count("agent-standards global update") == 1
     assert f"update  ~/.config/agents/bin/{script}" in result.stdout
     assert (installed_bin / script).read_bytes() == longer
+
+
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+def test_an_update_moves_a_flat_claude_subagent_into_its_own_folder(released, implementation):
+    # Given a home installed while the Claude Code tree was flat, and a release that nests each agent in its own folder
+    repo, home, _first = released
+    (repo / ".claude" / "agents" / "a.md").unlink()
+    write_files(repo, {".claude/agents/a/a.md": "claude a nested\n", ".claude/agents/c/c.md": "claude c nested\n"})
+    (repo / ".claude" / "agents" / "c.md").unlink()
+    commit_all(repo, "nested release")
+
+    # When
+    result = run_updater(implementation, home, repo.as_posix())
+
+    # Then the installed agents move into their folders, and nothing the user removed or owns comes back or moves
+    assert result.returncode == 0, result.stderr
+    agents = home / ".claude" / "agents"
+    assert (agents / "a" / "a.md").read_text(encoding="utf-8") == "claude a nested\n"
+    assert (agents / "c" / "c.md").read_text(encoding="utf-8") == "claude c nested\n"
+    assert not (agents / "a.md").exists() and not (agents / "c.md").exists()
+    assert not (agents / "b").exists() and not (agents / "b.md").exists()
+    assert (agents / "mine.md").read_text(encoding="utf-8") == "my own subagent\n"
+    assert "remove  ~/.claude/agents/a.md (moved into a/a.md)" in result.stdout
+
+
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+def test_an_update_refreshes_a_nested_claude_subagent(released, implementation):
+    # Given a home whose Claude Code agents already sit one folder deep
+    repo, home, _first = released
+    agents = home / ".claude" / "agents"
+    (agents / "a.md").unlink()
+    write_files(home, {".claude/agents/a/a.md": "claude a v1\n"})
+    (repo / ".claude" / "agents" / "a.md").unlink()
+    write_files(repo, {".claude/agents/a/a.md": "claude a v3\n"})
+    commit_all(repo, "nested release")
+
+    # When
+    result = run_updater(implementation, home, repo.as_posix())
+
+    # Then
+    assert result.returncode == 0, result.stderr
+    assert (agents / "a" / "a.md").read_text(encoding="utf-8") == "claude a v3\n"
+    assert "update  ~/.claude/agents/a/a.md" in result.stdout

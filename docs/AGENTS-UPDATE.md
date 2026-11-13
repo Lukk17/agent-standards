@@ -185,7 +185,13 @@ Pull the upstream copy of every subagent you currently have, across the four gen
 Claude Code workflow you currently have.
 
 ```bash
-for f in .agents/agents/*.md .claude/agents/*.md .codex/agents/*.toml .github/agents/*.agent.md .claude/workflows/*.js; do [ -e "$f" ] || continue; git checkout agent-standards/master -- "$f" 2>/dev/null || true; done
+for f in .agents/agents/*.md .claude/agents/*/ .codex/agents/*.toml .github/agents/*.agent.md .claude/workflows/*.js; do [ -e "$f" ] || continue; git checkout agent-standards/master -- "$f" 2>/dev/null || true; done
+```
+
+The Claude Code tree keeps each subagent in its own folder, `.claude/agents/<name>/<name>.md`. A project imported while the tree was flat holds `.claude/agents/<name>.md` instead. Move each such file into its folder, leaving any subagent of your own in place:
+
+```bash
+for f in .claude/agents/*.md; do [ -e "$f" ] || continue; n=$(basename "$f" .md); git checkout agent-standards/master -- ".claude/agents/$n/$n.md" 2>/dev/null && rm -f -- "$f"; done
 ```
 
 ---
@@ -256,7 +262,13 @@ Pull the upstream copy of every subagent you currently have, across the four gen
 Claude Code workflow you currently have.
 
 ```powershell
-foreach ($base in '.agents/agents', '.claude/agents', '.codex/agents', '.github/agents', '.claude/workflows') { if (Test-Path $base) { foreach ($f in Get-ChildItem $base -File) { git checkout agent-standards/master -- "$base/$($f.Name)" 2>$null } } }
+foreach ($base in '.agents/agents', '.codex/agents', '.github/agents', '.claude/workflows') { if (Test-Path $base) { foreach ($f in Get-ChildItem $base -File) { git checkout agent-standards/master -- "$base/$($f.Name)" 2>$null } } }; if (Test-Path .claude/agents) { foreach ($d in Get-ChildItem .claude/agents -Directory) { git checkout agent-standards/master -- ".claude/agents/$($d.Name)" 2>$null } }
+```
+
+The Claude Code tree keeps each subagent in its own folder, `.claude/agents/<name>/<name>.md`. A project imported while the tree was flat holds `.claude/agents/<name>.md` instead. Move each such file into its folder, leaving any subagent of your own in place:
+
+```powershell
+if (Test-Path .claude/agents) { foreach ($f in Get-ChildItem .claude/agents -File -Filter *.md) { git checkout agent-standards/master -- ".claude/agents/$($f.BaseName)/$($f.Name)" 2>$null; if ($LASTEXITCODE -eq 0) { Remove-Item -LiteralPath $f.FullName } } }
 ```
 
 ---

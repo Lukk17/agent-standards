@@ -169,7 +169,7 @@ skill = root / ".agents/skills" / sys.argv[2] / "SKILL.md"
 print(json.dumps({
     "subagent": reminder["SUBAGENT_OPENING"],
     "main": [first_sentence(claude), first_sentence(reminder["REMINDER"])],
-    "definition": next(line for line in body(root / ".claude/agents/python-pro.md") if line.strip()),
+    "definition": next(line for line in body(root / ".claude/agents/python-pro/python-pro.md") if line.strip()),
     "gate": first_sentence(gate["RULE_A_REASON"]),
     "skill": next(line for line in body(skill) if line.strip() and not line.startswith("#")),
 }))

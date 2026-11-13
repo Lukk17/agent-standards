@@ -372,7 +372,7 @@ verify_claude() {
   assert_file "a known skill resolves through the symlink" \
     ".claude/skills/${SAMPLE_SKILL}/SKILL.md"
   assert_glob_count "subagents are discoverable in Claude Code format" \
-    ".claude/agents/*.md" "${#SUBAGENTS[@]}"
+    ".claude/agents/*/*.md" "${#SUBAGENTS[@]}"
   assert_json "the gate is wired into PreToolUse" ".claude/settings.json" \
     '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py") and contains("--format claude"))'
   assert_json "the gate call is direct, formats claude, forces a zero exit, and the DEVNULL wrapper does not return" ".claude/settings.json" \

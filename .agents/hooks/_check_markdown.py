@@ -331,10 +331,16 @@ def check_lines(lines: list[str], path: Path) -> int:
 
 
 def generated_agent_file(path: Path) -> bool:
-    """True for a file inside one of the generated subagent trees."""
+    """True for a file inside one of the generated subagent trees, flat or in its own folder."""
     parts = path.parts
 
-    return len(parts) >= 3 and tuple(parts[-3:-1]) in GENERATED_AGENT_TREES and path.suffix in GENERATED_AGENT_SUFFIXES
+    if path.suffix not in GENERATED_AGENT_SUFFIXES:
+        return False
+
+    flat = len(parts) >= 3 and tuple(parts[-3:-1]) in GENERATED_AGENT_TREES
+    nested = len(parts) >= 4 and tuple(parts[-4:-2]) in GENERATED_AGENT_TREES and parts[-2] == path.name.split(".")[0]
+
+    return flat or nested
 
 
 def dated_baseline_scope(path: Path) -> bool:
@@ -656,7 +662,8 @@ def generated_agent_targets(repo_root: Path) -> list[Path]:
 
     for tree in (".claude", ".agents", ".codex", ".github"):
         directory = repo_root / tree / "agents"
-        targets.extend(sorted(p for p in directory.glob("*") if p.suffix in GENERATED_AGENT_SUFFIXES))
+        found = [*directory.glob("*"), *directory.glob("*/*")]
+        targets.extend(sorted(p for p in found if p.is_file() and p.suffix in GENERATED_AGENT_SUFFIXES))
 
     return targets
 

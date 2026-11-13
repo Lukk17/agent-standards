@@ -248,10 +248,14 @@ FORMAT_AGENT_TREES = {
 # Claude Code names a plugin's subagent `<plugin>:<name>` and installs the
 # plugin under its configuration directory, CLAUDE_CONFIG_DIR or ~/.claude, at
 # plugins/cache/<marketplace>/<plugin>/<version>/agents/<name>.md (measured
-# on Claude Code 2.1.314 with a fake HOME and with CLAUDE_CONFIG_DIR set).
+# on Claude Code 2.1.314 with a fake HOME and with CLAUDE_CONFIG_DIR set). An
+# agent-<name> plugin of this repository's marketplace has the agent file at
+# the version folder's root instead, <version>/<name>.md, and is named
+# `agent-<name>:<name>` (measured on Claude Code 2.1.323).
 CLAUDE_CONFIG_ENVIRONMENT = "CLAUDE_CONFIG_DIR"
 CLAUDE_HOME_DIRECTORY = ".claude"
 CLAUDE_PLUGIN_CACHE = ("plugins", "cache")
+PLUGIN_AGENT_FOLDERS = (("agents",), ())
 PLUGIN_AGENT_SEPARATOR = ":"
 
 FRONT_MATTER_SKILLS_RE = re.compile(r"^skills:[ \t]*(.*)$")
@@ -8606,7 +8610,7 @@ def _plugin_agent_paths(plugin: str, name: str) -> List[Path]:
             except (OSError, ValueError):
                 continue
 
-            paths.extend(version / "agents" / (name + ".md") for version in versions)
+            paths.extend(version.joinpath(*folder, name + ".md") for version in versions for folder in PLUGIN_AGENT_FOLDERS)
 
     return paths
 
@@ -8620,7 +8624,9 @@ def _agent_definitions(agent_type: str, fmt: str) -> List[Optional[str]]:
     installed copies ahead of the trees, and each part has to be one plain
     file name. Every project root is read, and the install root as well: Rule
     A drops it as a project boundary, but a user-level install keeps its agent
-    trees there. A candidate that exists but cannot be read is None, which
+    trees there. Each tree is read flat, <tree>/<name><ext>, and one folder
+    deep, <tree>/<name>/<name><ext>, the layout the Claude Code tree is
+    generated in. A candidate that exists but cannot be read is None, which
     Rule E treats as read-only with no command allowed.
     """
     plugin, separator, name = agent_type.rpartition(PLUGIN_AGENT_SEPARATOR)
@@ -8635,7 +8641,12 @@ def _agent_definitions(agent_type: str, fmt: str) -> List[Optional[str]]:
     if install is not None and install not in roots:
         roots.append(install)
 
-    paths += [root / tree.directory / (name + tree.extension) for tree in _ordered_trees(fmt) for root in roots]
+    paths += [
+        root / tree.directory / Path(*folder) / (name + tree.extension)
+        for tree in _ordered_trees(fmt)
+        for root in roots
+        for folder in ((), (name,))
+    ]
     definitions: List[Optional[str]] = []
 
     for path in dict.fromkeys(paths):

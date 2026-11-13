@@ -273,18 +273,27 @@ update_skills() {
   done
 }
 
+# A subagent sits flat, <tree>/<name><ext>, or in its own folder,
+# <tree>/<name>/<name><ext>, the layout the Claude Code tree ships in. An
+# installed flat file whose agent now ships in its own folder moves there.
 update_subagents() {
   for subagent_pair in $SUBAGENT_TREES; do
     subagent_home=${subagent_pair%%:*}
     subagent_upstream=${subagent_pair#*:}
     [ -d "$home_dir/$subagent_home" ] || continue
 
-    for subagent_file in "$home_dir/$subagent_home"/*; do
+    for subagent_file in "$home_dir/$subagent_home"/* "$home_dir/$subagent_home"/*/*; do
       [ -f "$subagent_file" ] || continue
-      subagent_name=${subagent_file##*/}
+      subagent_name=${subagent_file#"$home_dir/$subagent_home/"}
+      subagent_nested=${subagent_name%%.*}/$subagent_name
 
       if [ -f "$tree/$subagent_upstream/$subagent_name" ]; then
         put_file "$tree/$subagent_upstream/$subagent_name" "$subagent_home/$subagent_name"
+      elif [ "${subagent_name#*/}" = "$subagent_name" ] && [ -f "$tree/$subagent_upstream/$subagent_nested" ]; then
+        put_file "$tree/$subagent_upstream/$subagent_nested" "$subagent_home/$subagent_nested"
+        report remove "$subagent_home/$subagent_name" " (moved into $subagent_nested)"
+        count_remove=$((count_remove + 1))
+        [ "$dry_run" -eq 1 ] || rm -f -- "$subagent_file"
       elif shipped_before "$subagent_upstream/$subagent_name"; then
         report keep "$subagent_home/$subagent_name" ' (removed upstream, left in place)'
         count_keep=$((count_keep + 1))

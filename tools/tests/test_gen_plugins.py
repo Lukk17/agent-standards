@@ -196,7 +196,7 @@ def test_plugin_agents_differ_from_the_project_tree_only_in_the_skill_names(plug
     for plugin in plugin_map.plugins:
         for agent in plugin.agents:
             copy = (out / "plugins" / plugin.name / "agents" / f"{agent}.md").read_text(encoding="utf-8")
-            project = (REPO_ROOT / ".claude" / "agents" / f"{agent}.md").read_text(encoding="utf-8")
+            project = (REPO_ROOT / ".claude" / "agents" / agent / f"{agent}.md").read_text(encoding="utf-8")
             for skill in sorted(home, key=len, reverse=True):
                 project = re.sub(rf"(?m)^(  - |- `){re.escape(skill)}(`?)$", rf"\g<1>{_qualified(skill, home)}\g<2>", project)
             assert copy == project, agent

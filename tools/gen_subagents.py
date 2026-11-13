@@ -2,7 +2,7 @@
 """Generate per-tool subagent files from canonical subagents/*.md
 
 Source of truth:  subagents/<name>.md             (this repo only; not shipped to consumers)
-Generated:        .claude/agents/<name>.md        (Claude Code)
+Generated:        .claude/agents/<name>/<name>.md (Claude Code, one folder per agent)
                   .agents/agents/<name>.md        (OpenCode format, shared)
                   .codex/agents/<name>.toml       (Codex CLI + IDE custom agents)
                   .github/agents/<name>.agent.md  (GitHub Copilot, VS Code + JetBrains + CLI)
@@ -10,6 +10,13 @@ Generated:        .claude/agents/<name>.md        (Claude Code)
 Symlinked, not generated:
                   .opencode/agents -> ../.agents/agents
                   .kilo/agents     -> ../.agents/agents
+
+The Claude Code tree keeps each agent in its own folder, so the folder is the
+source of that agent's own plugin in .claude-plugin/marketplace.json. Claude
+Code "scans `.claude/agents/` and `~/.claude/agents/` recursively", and
+"identity comes only from the `name` frontmatter field"
+(https://code.claude.com/docs/en/sub-agents, "Choose the subagent scope"), so
+the extra folder changes nothing for a project that reads the tree directly.
 
 OpenCode and Kilo Code share one format and both follow symlinks when scanning
 agent directories, so a single tree serves both. Neither tool has a config key
@@ -45,6 +52,9 @@ TARGETS = {
     "codex": (ROOT / ".codex" / "agents", ".toml"),
     "copilot": (ROOT / ".github" / "agents", ".agent.md"),
 }
+
+# Targets whose files sit one folder deep, <dir>/<name>/<name><ext>.
+NESTED_TARGETS = frozenset({"claude"})
 
 SYMLINKS = {
     ROOT / ".opencode" / "agents": "../.agents/agents",
@@ -534,6 +544,28 @@ def render(tool: str, fm: dict, body: str) -> str:
     return emit_opencode(fm, body)
 
 
+def target_path(tool: str, name: str) -> pathlib.Path:
+    """Where the generator writes one agent for one target."""
+    outdir, ext = TARGETS[tool]
+    if tool in NESTED_TARGETS:
+        return outdir / name / f"{name}{ext}"
+    return outdir / f"{name}{ext}"
+
+
+def generated_files(tool: str) -> list[pathlib.Path]:
+    """Every agent file a target tree holds, in either layout, so a file in the wrong one is an orphan."""
+    outdir, ext = TARGETS[tool]
+    if not outdir.is_dir():
+        return []
+    return sorted([*outdir.glob(f"*{ext}"), *outdir.glob(f"*/*{ext}")])
+
+
+def find_orphans(tool: str, canonical_names: set[str]) -> list[pathlib.Path]:
+    """Files in a target tree that no canonical agent renders at that exact path."""
+    expected = {target_path(tool, name) for name in canonical_names}
+    return [path for path in generated_files(tool) if path not in expected]
+
+
 def ensure_symlinks(check: bool) -> list[str]:
     """Point the OpenCode and Kilo agent dirs at the shared tree."""
     problems: list[str] = []
@@ -583,27 +615,25 @@ def main() -> None:
             sys.exit(f"ERROR duplicate agent name: {fm['name']}")
         canonical_names.add(fm["name"])
 
-        for tool, (outdir, ext) in TARGETS.items():
-            outdir.mkdir(parents=True, exist_ok=True)
-            target = outdir / f"{fm['name']}{ext}"
+        for tool in TARGETS:
+            target = target_path(tool, fm["name"])
             new = render(tool, fm, body).encode("utf-8")
             old = target.read_bytes() if target.exists() else None
             if old != new:
                 stale_paths.append(target)
                 if not check:
+                    target.parent.mkdir(parents=True, exist_ok=True)
                     target.write_bytes(new)
                     written += 1
 
     orphans: list[pathlib.Path] = []
-    for tool, (outdir, ext) in TARGETS.items():
-        if not outdir.is_dir():
-            continue
-        for f in outdir.glob(f"*{ext}"):
-            name = f.name[: -len(ext)]
-            if name not in canonical_names:
-                orphans.append(f)
-                if not check:
-                    f.unlink()
+    for tool, (outdir, _ext) in TARGETS.items():
+        for f in find_orphans(tool, canonical_names):
+            orphans.append(f)
+            if not check:
+                f.unlink()
+                if f.parent != outdir and not any(f.parent.iterdir()):
+                    f.parent.rmdir()
 
     link_problems = ensure_symlinks(check)
 

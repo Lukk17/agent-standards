@@ -200,14 +200,35 @@ function Sync-InstalledSkill {
     }
 }
 
+# A subagent sits flat, <tree>/<name><ext>, or in its own folder,
+# <tree>/<name>/<name><ext>, the layout the Claude Code tree ships in. An
+# installed flat file whose agent now ships in its own folder moves there.
+function Get-InstalledSubagentList([string]$Root) {
+    $nested = @(foreach ($folder in (Get-VisibleNameList $Root -Directory)) {
+        foreach ($file in (Get-VisibleNameList (Join-Relative $Root $folder))) { "$folder/$file" }
+    })
+    $flat = Get-VisibleNameList $Root
+    $sortedNested = Get-OrdinalSorted -Value $nested
+    return , [string[]]($flat + $sortedNested)
+}
+
 function Sync-InstalledSubagent {
     foreach ($pair in $SubagentTrees) {
         $homeTree = $pair[0]
         $upstreamTree = $pair[1]
-        foreach ($name in (Get-VisibleNameList (Join-Relative $HomeDir $homeTree))) {
+        foreach ($name in (Get-InstalledSubagentList (Join-Relative $HomeDir $homeTree))) {
             $upstreamFile = Join-Relative $script:Tree "$upstreamTree/$name"
+            $nestedName = '{0}/{1}' -f $name.Split('.')[0], $name
+            $nestedFile = Join-Relative $script:Tree "$upstreamTree/$nestedName"
             if (Test-Path -LiteralPath $upstreamFile -PathType Leaf) {
                 Copy-UpstreamFile $upstreamFile "$homeTree/$name"
+            }
+            elseif (-not $name.Contains('/') -and (Test-Path -LiteralPath $nestedFile -PathType Leaf)) {
+                Copy-UpstreamFile $nestedFile "$homeTree/$nestedName"
+                Write-Action -Verb 'remove' -Relative "$homeTree/$name" -Note " (moved into $nestedName)"
+                if (-not $DryRun) {
+                    Remove-Item -LiteralPath (Join-Relative $HomeDir "$homeTree/$name") -Force
+                }
             }
             elseif (Test-ShippedBefore "$upstreamTree/$name") {
                 Write-Action -Verb 'keep' -Relative "$homeTree/$name" -Note ' (removed upstream, left in place)'

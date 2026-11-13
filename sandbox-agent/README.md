@@ -16,7 +16,7 @@ For each of the five agents, in the agent's own terms wherever the agent offers 
 
 | Agent | Skills | Subagents | Preflight wiring | MCP servers |
 | --- | --- | --- | --- | --- |
-| Claude Code | `.claude/skills` symlink resolves to all canonical skills | `.claude/agents/*.md` count matches canonical | `.claude/settings.json` calls the gate on `PreToolUse` | `claude mcp list` names every server in `.mcp.json` |
+| Claude Code | `.claude/skills` symlink resolves to all canonical skills | `.claude/agents/*/*.md` count matches canonical | `.claude/settings.json` calls the gate on `PreToolUse` | `claude mcp list` names every server in `.mcp.json` |
 | Codex | `.agents/skills/` read natively | `.codex/agents/*.toml` count matches canonical | `.codex/config.toml` calls the gate on `PreToolUse` | `codex mcp list` names every server in `.codex/config.toml` |
 | OpenCode | `.agents/skills/` read natively | `opencode agent list` names every imported subagent | `opencode.json` declares the shared plugin | `opencode mcp list` names every server in `opencode.json` |
 | OpenCode 2.x | the same project, run as `opencode2` | a real turn starts subagent `docs-architect` | the plugin loads from its directory entry and the gate blocks a real main-thread write | none, the probe copy drops the MCP block |

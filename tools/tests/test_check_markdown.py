@@ -945,7 +945,7 @@ def test_a_dated_baseline_in_a_subagent_description_is_reported(tmp_path, capsys
 
 @pytest.mark.parametrize(
     ("tree", "name"),
-    [(".claude", "demo.md"), (".agents", "demo.md"), (".codex", "demo.toml"), (".github", "demo.agent.md")],
+    [(".claude", "demo/demo.md"), (".agents", "demo.md"), (".codex", "demo.toml"), (".github", "demo.agent.md")],
 )
 def test_a_generated_agent_file_gets_the_dated_baseline_rule_and_no_other(tmp_path, capsys, tree, name):
     # Given a generated agent file carrying a dated baseline and an em dash
@@ -1006,6 +1006,14 @@ def test_the_quality_tools_readme_is_linted_and_the_vendored_tools_are_not(tmp_p
     # Then our readme is linted and nothing of his is
     assert readme in targets
     assert [t for t in targets if t.parent.parent.name == "tools" and t.parent.name in {"crapper", "dryer", "mutator"}] == []
+
+
+def test_the_generated_targets_hold_every_agent_of_every_tree():
+    targets = MARKDOWN.generated_agent_targets(REPO_ROOT)
+    agents = {p.stem for p in (REPO_ROOT / "subagents").glob("*.md")}
+
+    assert {p.parent.name for p in targets if p.parts[-4:-2] == (".claude", "agents")} == agents
+    assert len(targets) == 4 * len(agents)
 
 
 def test_no_subagent_source_or_generated_agent_states_a_dated_baseline(capsys):

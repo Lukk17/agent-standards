@@ -15,7 +15,7 @@ Three categories, and mixing them up is the one mistake that breaks a rebuild.
 | --- | --- | --- |
 | Canonical | `subagents/*.md`, `.agents/skills/*/SKILL.md` and their `references/*.md`, `.agents/hooks/*.py`, `.agents/hooks/claude/sync_skill_links.py`, `.agents/hooks/claude/standards_advisory_check.py`, `.agents/plugin/hooks.js`, `.agents/plugin/index.js`, `docs/*.md` | edit directly |
 | Canonical config | `.mcp.json`, `opencode.json`, `.opencode/opencode.json`, `.opencode/opencode.json.v1`, `.codex/config.toml`, `.vscode/mcp.json`, `.github/mcp.json`, `.claude/settings.json`, `.github/hooks/preflight.json` | edit directly, keep the server set and the gate wording in sync |
-| Generated | `.claude/agents/*.md`, `.agents/agents/*.md`, `.codex/agents/*.toml`, `.github/agents/*.agent.md` | never hand-edit, run `python tools/gen_subagents.py` |
+| Generated | `.claude/agents/<name>/<name>.md`, `.agents/agents/*.md`, `.codex/agents/*.toml`, `.github/agents/*.agent.md` | never hand-edit, run `python tools/gen_subagents.py` |
 | Canonical, this repo only | `tools/plugins.yaml`, the plugin map: which Claude Code plugin holds each skill, subagent and MCP server | edit directly, verified by `tools/tests/test_gen_plugins.py`, never shipped |
 | Generated, `plugins` branch only | `.claude-plugin/marketplace.json` and `plugins/<name>/` | never hand-edit and never on `master`. The `Plugins` workflow runs `python tools/gen_plugins.py <out-dir>` on every push to `master` and commits the result to the `plugins` branch |
 | Symlink | `.opencode/agents`, `.kilo/agents`, `.claude/skills` | never edit through the link, fix the link itself |
@@ -151,7 +151,7 @@ your-project/
   .agents/plugin/index.js        # the directory entry every loader resolves, re-exports hooks.js
   .claude/settings.json          # Claude Code hooks, consumer-owned after import
   .claude/skills                 # symlink to ../.agents/skills
-  .claude/agents/                # generated Claude-format subagents
+  .claude/agents/                # generated Claude-format subagents, one folder each
   .claude/workflows/skill-audit.js # read-only skill audit, a saved Claude Code workflow
   .opencode/agents               # symlink to ../.agents/agents
   .opencode/opencode.json        # native edit backstop for OpenCode 2.x

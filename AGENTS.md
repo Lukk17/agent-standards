@@ -81,7 +81,7 @@ script and must never be hand-edited, and some are symlinks the generator create
 | `AGENTS.md.example`, `docs/*.md` | canonical | edit directly |
 | `tools/*.py`, `tools/tests/*.py`, `tools/pyproject.toml` | canonical | edit directly, then run the pytest suite |
 | `tools/plugins.yaml` | canonical plugin map: every skill, subagent and MCP server in exactly one plugin (domains, host groups, `core`, `mcp-<server>`) | edit directly, then run `python -m pytest tools/tests/test_gen_plugins.py` |
-| `.claude/agents/*.md` | generated (Claude front matter with a `skills` key) | never hand-edit, run the generator |
+| `.claude/agents/<name>/<name>.md` | generated (Claude front matter with a `skills` key, one folder per agent) | never hand-edit, run the generator |
 | `.agents/agents/*.md` | generated (OpenCode format) | never hand-edit, run the generator |
 | `.codex/agents/*.toml` | generated (Codex TOML) | never hand-edit, run the generator |
 | `.github/agents/*.agent.md` | generated (Copilot `*.agent.md`) | never hand-edit, run the generator |

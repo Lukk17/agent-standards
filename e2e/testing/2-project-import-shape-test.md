@@ -227,7 +227,7 @@ Expect exit 0.
 Claude Code sees every subagent in its own markdown format.
 
 ```bash
-test "$(find /work/project/.claude/agents -maxdepth 1 -name '*.md' | wc -l)" -eq "$(find /repo/.agents/agents -maxdepth 1 -name '*.md' | wc -l)"
+test "$(find /work/project/.claude/agents -mindepth 2 -maxdepth 2 -name '*.md' | wc -l)" -eq "$(find /repo/.agents/agents -maxdepth 1 -name '*.md' | wc -l)"
 ```
 
 Expect exit 0.

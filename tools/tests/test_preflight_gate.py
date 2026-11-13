@@ -6289,7 +6289,7 @@ def read_only_verdict(tmp_path, payload, agent=None):
     else:
         agents = tmp_path / ".claude" / "agents"
         agents.mkdir(parents=True, exist_ok=True)
-        shutil.copy(REPO_ROOT / ".claude" / "agents" / f"{agent}.md", agents)
+        shutil.copy(REPO_ROOT / ".claude" / "agents" / agent / f"{agent}.md", agents)
         verdict = read_only_decision(tmp_path, payload, agent)
 
     return verdict["permissionDecisionReason"] if verdict else None
@@ -7345,6 +7345,55 @@ def test_a_plugin_cache_under_claude_config_dir_is_read(tmp_path):
     assert reason.endswith("Blocked: touch made.txt")
 
 
+def test_an_agent_plugin_copy_at_the_version_root_is_held_to_its_list(tmp_path, isolated_home_directory):
+    # Given the agent-<name> plugin layout: the agent file sits at the version folder's root, not under agents/
+    import gen_subagents
+
+    version = isolated_home_directory / ".claude" / "plugins" / "cache" / "agent-standards" / "agent-fixture-reviewer" / "1.0.0"
+    version.mkdir(parents=True)
+    (version / "fixture-reviewer.md").write_text(gen_subagents.render("claude", READ_ONLY_REVIEWER, "You review.\n"), encoding="utf-8")
+    project = tmp_path / "project"
+    project.mkdir()
+
+    # When the scoped name Claude Code sends for that plugin calls the shell
+    reason = plugin_decision(project, shell("touch made.txt"), agent_type="agent-fixture-reviewer:fixture-reviewer")
+
+    # Then
+    assert reason.endswith("Blocked: touch made.txt")
+    assert plugin_decision(project, shell("git --no-pager diff"), agent_type="agent-fixture-reviewer:fixture-reviewer") is None
+
+
+NESTED_TREE_TARGETS = [
+    (tree.directory, tree.extension, {".md": "claude", ".toml": "codex", ".agent.md": "copilot"}[tree.extension])
+    for tree in GATE.AGENT_TREES + GATE.GLOBAL_AGENT_TREES
+]
+
+
+@pytest.mark.parametrize(("directory", "extension", "target"), NESTED_TREE_TARGETS)
+def test_a_read_only_agent_in_its_own_folder_is_held_to_its_list_in_every_tree(tmp_path, directory, extension, target):
+    # Given <tree>/<name>/<name><ext>, the one-folder-per-agent layout
+    import gen_subagents
+
+    folder = tmp_path.joinpath(*directory.split("/"), READ_ONLY_REVIEWER["name"])
+    folder.mkdir(parents=True)
+    rendered = gen_subagents.render(target, READ_ONLY_REVIEWER, "You review.\n")
+    (folder / f"{READ_ONLY_REVIEWER['name']}{extension}").write_text(rendered, encoding="utf-8")
+
+    # When / Then
+    verdict = read_only_decision(tmp_path, shell("touch made.txt"))
+
+    assert verdict["permissionDecision"] == "deny"
+    assert "read-only" in verdict["permissionDecisionReason"]
+
+
+def test_the_generated_claude_tree_keeps_one_folder_per_agent():
+    agents = REPO_ROOT / ".claude" / "agents"
+
+    assert not list(agents.glob("*.md"))
+    assert {p.parent.name for p in agents.glob("*/*.md")} == {p.stem for p in (REPO_ROOT / "subagents").glob("*.md")}
+    assert all(p.stem == p.parent.name for p in agents.glob("*/*.md"))
+
+
 @pytest.mark.parametrize(
     "agent_type",
     [
@@ -7607,6 +7656,7 @@ def test_the_shipped_read_only_agents_carry_their_list_in_every_tree(agent, extr
         (".codex/agents", ".toml"),
         (".github/agents", ".agent.md"),
     ]:
-        text = (REPO_ROOT / directory / f"{agent}{extension}").read_text(encoding="utf-8")
+        nested = REPO_ROOT / directory / agent / f"{agent}{extension}"
+        text = (nested if nested.is_file() else REPO_ROOT / directory / f"{agent}{extension}").read_text(encoding="utf-8")
 
         assert GATE._read_only_patterns(text) == ["git --no-pager diff*", "git --no-pager log*", "git --no-pager show*", "git --no-pager status*", *extras]

@@ -633,7 +633,7 @@ verify_install_shape() {
     "global/bin/update-global.ps1"
 
   assert_glob_count "Claude Code has every subagent in its own markdown format" \
-    ".claude/agents/*.md" "${#SUBAGENTS[@]}"
+    ".claude/agents/*/*.md" "${#SUBAGENTS[@]}"
   assert_glob_count "Codex has every subagent in TOML" \
     ".config/codex/agents/*.toml" "${#SUBAGENTS[@]}"
   assert_glob_count "the shared OpenCode-format tree holds every subagent" \
@@ -803,7 +803,7 @@ release_synthetic_upstream() {
   printf -- '---\nname: e2e-new-skill\ndescription: Shipped upstream, never installed.\n---\n' \
     >"${UPSTREAM}/.agents/skills/e2e-new-skill/SKILL.md"
   printf '\ne2e second release\n' >>"${UPSTREAM}/.agents/agents/${SUBAGENTS[0]}.md"
-  printf '\ne2e second release\n' >>"${UPSTREAM}/.claude/agents/${SUBAGENTS[0]}.md"
+  printf '\ne2e second release\n' >>"${UPSTREAM}/.claude/agents/${SUBAGENTS[0]}/${SUBAGENTS[0]}.md"
   printf '\n' >>"${UPSTREAM}/.claude/settings.json"
 
   upstream_git add --all
@@ -825,7 +825,7 @@ verify_update() {
   note "the second release changes, adds and removes files across hooks, ${kept_skill} and the subagents."
 
   rm -rf "${HOME}/.config/agents/skills/${removed_skill}"
-  rm -f "${HOME}/.claude/agents/${removed_agent}.md"
+  rm -rf "${HOME}/.claude/agents/${removed_agent}"
   mkdir -p "${HOME}/.config/agents/skills/${OWN_SKILL}"
   printf -- '---\nname: %s\ndescription: A skill of the user own.\n---\n' "$OWN_SKILL" \
     >"${HOME}/.config/agents/skills/${OWN_SKILL}/SKILL.md"
@@ -872,9 +872,9 @@ verify_update() {
   assert_matches_upstream "the update refreshed an installed subagent in the shared tree" \
     ".config/agents/agents/${SUBAGENTS[0]}.md" ".agents/agents/${SUBAGENTS[0]}.md" "$UPSTREAM"
   assert_matches_upstream "the update refreshed an installed Claude Code subagent" \
-    ".claude/agents/${SUBAGENTS[0]}.md" ".claude/agents/${SUBAGENTS[0]}.md" "$UPSTREAM"
+    ".claude/agents/${SUBAGENTS[0]}/${SUBAGENTS[0]}.md" ".claude/agents/${SUBAGENTS[0]}/${SUBAGENTS[0]}.md" "$UPSTREAM"
   assert_absent "the update did not bring back a skill the user deleted" ".config/agents/skills/${removed_skill}"
-  assert_absent "the update did not bring back a subagent the user deleted" ".claude/agents/${removed_agent}.md"
+  assert_absent "the update did not bring back a subagent the user deleted" ".claude/agents/${removed_agent}"
   assert_absent "the update did not add a skill the user never installed" ".config/agents/skills/e2e-new-skill"
   assert_output_line "the update named the Claude Code wiring as changed upstream" "  .claude/settings.json"
 
@@ -912,7 +912,7 @@ verify_update() {
 
   rm -rf "${HOME}/.config/agents/skills/${OWN_SKILL}"
   cp -R "${REPO}/.agents/skills/${removed_skill}" "${HOME}/.config/agents/skills/${removed_skill}"
-  cp "${REPO}/.claude/agents/${removed_agent}.md" "${HOME}/.claude/agents/${removed_agent}.md"
+  cp -R "${REPO}/.claude/agents/${removed_agent}" "${HOME}/.claude/agents/${removed_agent}"
 }
 
 # --- OpenCode 2.x, from the global configuration -----------------------------

@@ -100,7 +100,7 @@ This schema is one corner of a three-piece kit shipped together by
 - **Skill** at `.agents/skills/e2e-runbooks/SKILL.md` — methodology source of truth. Behaviour-only assertions, canary
   fixtures, API client alternatives (Bruno, hurl, REST Client, curl, httpie), runs-directory contract, generic worked
   examples.
-- **Subagent** at `.claude/agents/e2e-runner.md` and `.opencode/agents/e2e-runner.md` — the recommended delegate when
+- **Subagent** at `.claude/agents/e2e-runner/e2e-runner.md` and `.opencode/agents/e2e-runner.md` — the recommended delegate when
   driving a sweep end-to-end. Owns the runner contract (Start/End UTC, Duration, tokens, Verdict) and the change-dir /
   `e2e/testing/runs/` dual-write. The schema and skill also work without it; runs can be driven from the main session
   or a general runner.

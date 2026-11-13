@@ -35,7 +35,7 @@ piece of the import surfaces immediately.
 
 Subagent definitions ship as four generated trees plus two symlinks:
 
-- `.claude/agents/*.md` for Claude Code
+- `.claude/agents/<name>/<name>.md` for Claude Code
 - `.agents/agents/*.md` in OpenCode format
 - `.codex/agents/*.toml` for Codex
 - `.github/agents/*.agent.md` for GitHub Copilot
