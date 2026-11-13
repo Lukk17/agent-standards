@@ -21,7 +21,7 @@ dev = [
 gen_subagents = "gen_subagents:main"
 
 [tool.setuptools]
-py-modules = ["gen_subagents", "gen_plugins", "check_versions", "git_http"]
+py-modules = ["gen_subagents", "gen_plugins", "check_versions", "git_http", "plugin_tags"]
 
 [tool.setuptools.package-dir]
 "" = "."

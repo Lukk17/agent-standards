@@ -143,8 +143,8 @@ events the agent recorded, never from what the model wrote back.
 | 6 The one MCP server answers | `context7` is the only MCP server the session loaded, and a recorded `resolve-library-id` call for React returned a library id. A call whose result carries no id, such as a rate-limit or an invalid-key answer, is a `FAIL` quoting that result |
 | 7 Codex only: a subagent's payload names its type | The main thread started the read-only `code-reviewer`, and a `PreToolUse` payload the capture hook placed in the reviewer's own rollout, for any tool, carried `agent_id` and `agent_type` `code-reviewer`. A placed payload without either fails, and only a case with no placed payload is `INCONCLUSIVE` |
 | 7b Codex only: Rule E denies the reviewer's touch | The reviewer ran `touch readonly-probe.txt`, the payload of that call carried `agent_id` and `agent_type` `code-reviewer`, Rule E's reason is in the transcript, and the file is absent. A reviewer that never tried the touch is `INCONCLUSIVE` |
-| 8 Claude Code only: the gate sees a plugin subagent | The same probe from `review-and-security:code-reviewer`, installed from the rendered marketplace, carried `agent_type` `review-and-security:code-reviewer`, Rule E denied it, and the file is absent |
-| 9 Claude Code only: a plugin subagent preloads a `core` skill | `review-and-security:code-reviewer` returned a canary that only its preloaded `core` skill `application-security-review` carries, in the spawn result or, for a spawn run in the background, in its own reply or the task notification Claude Code handed the main thread, with no run-time load of that skill anywhere in the session |
+| 8 Claude Code only: the gate sees a plugin subagent | The same probe from `agent-code-reviewer:code-reviewer`, installed from the served marketplace, carried `agent_type` `agent-code-reviewer:code-reviewer`, Rule E denied it, and the file is absent |
+| 9 Claude Code only: a plugin subagent preloads its skill | `agent-code-reviewer:code-reviewer` returned a canary that only its preloaded skill plugin `application-security-review` carries, in the spawn result or, for a spawn run in the background, in its own reply or the task notification Claude Code handed the main thread, with no run-time load of that skill anywhere in the session |
 
 Three verdicts are possible besides a pass:
 
@@ -192,10 +192,7 @@ saw the call. The prompt has the subagent answer only "allowed" or "denied", so 
 subagent's own transcript rather than in the spawn result, where the Codex parser reads `PREFLIGHT:` as an error. A
 spawn the transcript marks as failed while the subagent's own calls are recorded is not reported as rejected.
 
-Tests 8 and 9 render the marketplace with [tools/gen_plugins.py](../tools/gen_plugins.py) into the work directory,
-which the job's own Python step installs the tooling for, and append a random preload marker, the canary, to that copy of the `core` skill
-`application-security-review` only. Each plugin subagent preloads its skills by their full plugin name, such as `core:application-security-review`, because a bare `security-review` resolved to the built-in `/security-review` command in live run 41255837007. They add it as a local marketplace and install `review-and-security`, which pulls `core` in as
-its dependency, into a separate `CLAUDE_CONFIG_DIR`, and run in a second project that holds only the gate-only import,
+Tests 8 and 9 copy the repository's committed tree, [.claude-plugin/marketplace.json](../.claude-plugin/marketplace.json) included, into the work directory and append a random preload marker, the canary, to that copy of the skill `application-security-review` only. They commit the copy into a bare repository, serve it over smart HTTP with [tools/git_http.py](../tools/git_http.py), because Claude Code refuses a `file://` marketplace and loads a local-path marketplace in place instead of copying a plugin into its cache, and add that URL as the marketplace. They install `agent-code-reviewer`, which pulls in every skill the reviewer preloads as its own plugin, `application-security-review` among them, into a separate `CLAUDE_CONFIG_DIR`, and run in a second project that holds only the gate-only import,
 `.agents/hooks` and `.claude/settings.json`. With no agent tree in that project, the gate can find the reviewer's
 definition only in the plugin cache, so a Rule E denial in test 8 proves that lookup. Tests 1 to 6 keep their own
 configuration and never see the plugin. Test 9 asks the subagent to repeat the canary without any tool. A spawn
