@@ -177,8 +177,11 @@ const scriptsIn = (dir) => {
 
 // Each hook sits in its own folder, <hooks>/<hook>/<script>.py, so the runner
 // reads every folder of the hooks directory one level down, and a script left
-// directly in the hooks directory too. A folder such as claude/ or copilot/
-// holds only further folders, so the hooks for another agent are never run.
+// directly in the hooks directory too. The folders of hooks only one other
+// agent runs, AGENT_ONLY_FOLDERS, are skipped by name, so a script in them is
+// never run here at any depth.
+const AGENT_ONLY_FOLDERS = new Set(["claude", "copilot"])
+
 //
 // Re-read on every call so a hook dropped into the directory mid-session is
 // picked up without a restart. A missing or unreadable directory yields no
@@ -200,7 +203,7 @@ const discover = (root) => {
   }
 
   const folders = entries
-    .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith(".") && !AGENT_ONLY_FOLDERS.has(entry.name))
     .map((entry) => join(dir, entry.name))
   const hooks = [dir, ...folders].flatMap(scriptsIn).filter(Boolean)
 

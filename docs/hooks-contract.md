@@ -32,7 +32,7 @@ yields no hooks, which allows the call.
 
 Inside the chosen directory, a file is picked up when all of these hold:
 
-1. It sits directly in a folder of `.agents/hooks/`, such as `.agents/hooks/task-list-sync/`, or, from an older layout, directly in `.agents/hooks/` itself. A script two folders down is never run.
+1. It sits directly in a folder of `.agents/hooks/`, such as `.agents/hooks/task-list-sync/`, or, from an older layout, directly in `.agents/hooks/` itself. A script two folders down is never run, and neither is anything under `claude/` or `copilot/`, which the runner skips by name.
 2. Its name ends in `.py`.
 3. Its name does not start with `_` or `.`, so `__pycache__`, editor droppings and a helper module such as `markdown-lint-check/_check_markdown.py` are skipped.
 

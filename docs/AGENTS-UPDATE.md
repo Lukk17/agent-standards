@@ -165,10 +165,22 @@ so the tool environments, which git ignores, stay in place.
 if [ -d .metrics/tools ]; then git rm -r -q --ignore-unmatch -- .metrics/tools/crapper .metrics/tools/dryer .metrics/tools/mutator; fi
 ```
 
-Refresh all four hook scripts, the OpenCode and Kilo plugin, the Copilot hook file, and the quality tools.
+Every hook now sits in its own folder, such as `.agents/hooks/preflight-gate/preflight_gate.py`. Remove the copies an older import left directly in `.agents/hooks/`, keeping the folder itself so the refresh below still finds it, so the OpenCode and Kilo Code runner never runs a stale one beside the new folder. Until the wiring files are refreshed at the end of this page, a Claude Code, Codex or Copilot hook that still names an old path finds no script and allows the call.
+
+```bash
+if [ -d .agents/hooks ]; then git rm -q --ignore-unmatch -- .agents/hooks/preflight_gate.py .agents/hooks/task_list_sync.py .agents/hooks/no_ai_markers_check.py .agents/hooks/markdown_lint_check.py .agents/hooks/_check_markdown.py .agents/hooks/question_numbering_check.py .agents/hooks/status_block_check.py .agents/hooks/task_watchdog.py .agents/hooks/claude/sync_skill_links.py .agents/hooks/claude/standards_advisory_check.py .agents/hooks/copilot/prompt_reminder.py; mkdir -p .agents/hooks; fi
+```
+
+Refresh the hook folders, the OpenCode and Kilo plugin, the Copilot hook file, and the quality tools.
 
 ```bash
 for p in .agents/hooks .agents/plugin .github/hooks .metrics/tools; do [ -e "$p" ] && git checkout agent-standards/master -- "$p" 2>/dev/null || true; done
+```
+
+The `security-review` skill is now `application-security-review`. If you have the old one, take the new folder and remove the old, so the refresh below finds it:
+
+```bash
+if [ -d .agents/skills/security-review ]; then git checkout agent-standards/master -- .agents/skills/application-security-review && git rm -r -q --ignore-unmatch -- .agents/skills/security-review && rm -rf -- .agents/skills/security-review; fi
 ```
 
 Pull the upstream copy of every skill you currently have. Skills missing upstream are skipped silently.
@@ -242,10 +254,22 @@ so the tool environments, which git ignores, stay in place.
 if (Test-Path .metrics/tools) { git rm -r -q --ignore-unmatch -- .metrics/tools/crapper .metrics/tools/dryer .metrics/tools/mutator }
 ```
 
-Refresh all four hook scripts, the OpenCode and Kilo plugin, the Copilot hook file, and the quality tools.
+Every hook now sits in its own folder, such as `.agents/hooks/preflight-gate/preflight_gate.py`. Remove the copies an older import left directly in `.agents/hooks/`, keeping the folder itself so the refresh below still finds it, so the OpenCode and Kilo Code runner never runs a stale one beside the new folder. Until the wiring files are refreshed at the end of this page, a Claude Code, Codex or Copilot hook that still names an old path finds no script and allows the call.
+
+```powershell
+if (Test-Path .agents/hooks) { git rm -q --ignore-unmatch -- .agents/hooks/preflight_gate.py .agents/hooks/task_list_sync.py .agents/hooks/no_ai_markers_check.py .agents/hooks/markdown_lint_check.py .agents/hooks/_check_markdown.py .agents/hooks/question_numbering_check.py .agents/hooks/status_block_check.py .agents/hooks/task_watchdog.py .agents/hooks/claude/sync_skill_links.py .agents/hooks/claude/standards_advisory_check.py .agents/hooks/copilot/prompt_reminder.py; New-Item -ItemType Directory -Force .agents/hooks | Out-Null }
+```
+
+Refresh the hook folders, the OpenCode and Kilo plugin, the Copilot hook file, and the quality tools.
 
 ```powershell
 foreach ($p in '.agents/hooks', '.agents/plugin', '.github/hooks', '.metrics/tools') { if (Test-Path $p) { git checkout agent-standards/master -- $p 2>$null } }
+```
+
+The `security-review` skill is now `application-security-review`. If you have the old one, take the new folder and remove the old, so the refresh below finds it:
+
+```powershell
+if (Test-Path .agents/skills/security-review) { git checkout agent-standards/master -- .agents/skills/application-security-review; if ($LASTEXITCODE -eq 0) { git rm -r -q --ignore-unmatch -- .agents/skills/security-review; Remove-Item -Recurse -Force -LiteralPath .agents/skills/security-review -ErrorAction SilentlyContinue } }
 ```
 
 Pull the upstream copy of every skill you currently have.

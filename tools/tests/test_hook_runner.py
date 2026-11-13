@@ -850,6 +850,23 @@ def test_subdirectories_are_ignored(tmp_path):
     assert results == [{"ok": True}]
 
 
+@pytest.mark.parametrize("folder", ["claude", "copilot"])
+def test_a_script_directly_in_an_agent_only_folder_is_never_run(tmp_path, folder):
+    # Given a per-agent helper one level down, in claude/ or copilot/, that would deny if it ran,
+    # and a hook beside it at the top level
+    log = tmp_path / "log.jsonl"
+    (tmp_path / ".agents" / "hooks" / folder).mkdir(parents=True)
+    recorder(tmp_path, f"{folder}/helper.py", 1, log, deny=True)
+    recorder(tmp_path, "top.py", 10, log)
+
+    # When
+    results = drive(tmp_path, [call()])
+
+    # Then only the top-level hook was spawned
+    assert results == [{"ok": True}]
+    assert hooks_run(log) == ["top.py"]
+
+
 def test_a_hook_file_two_folders_down_is_never_run(tmp_path):
     # Given a per-agent hook in its own folder under copilot/ that would deny if
     # it ran, and a hook in its own folder at the first level
