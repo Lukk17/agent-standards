@@ -163,6 +163,12 @@ Every skill, subagent, Claude Code hook and MCP server is its own plugin in [.cl
 
 [tools/check_versions.py](tools/check_versions.py) reads the catalog the merge base commits in its marketplace, renders the one on your branch, and fails, naming the plugin, when one changed and its version is not strictly higher, when a version went down, or when a new version's `<name>--v<version>` tag already exists. A base that commits no marketplace counts every plugin as new, and a base marketplace it cannot read fails the check. On every push to `master` the [Plugins](.github/workflows/plugins.yml) workflow tags each plugin version that has no tag yet as `<name>--v<version>`, the tag form Claude Code resolves a dependency range against ([plugin dependencies](https://code.claude.com/docs/en/plugins/dependencies)).
 
+A tag must never move or disappear once pushed. The prevention is a GitHub tag ruleset on `*--v*` that lets only GitHub Actions create a matching tag and blocks every update and deletion. The detection is the [Plugin tags](.github/workflows/plugin-tags.yml) workflow, which runs on every matching tag push, on every tag deletion and once a day, with read access only. It runs [tools/check_tags.py](tools/check_tags.py) from `master` and fails, naming the tag, when a tag is not `<name>--v<version>`, points at a commit that is not on `master`, points at a commit whose committed marketplace does not list that plugin at exactly that version, or is missing for a version `master` shipped after the first tag was pushed and still lists at that version or a higher one. It never pushes or deletes anything. Run it against your fetched tags:
+
+```bash
+python tools/check_tags.py
+```
+
 ---
 
 ### Cloning on Windows

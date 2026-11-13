@@ -82,6 +82,7 @@ agent-standards/
     plugins.yaml                 # CANONICAL plugin map: hook, server and bundle versions, every skill and subagent in one bundle
     check_versions.py            # Fails a changed plugin whose version did not go up since the merge base
     plugin_tags.py               # Lists the <name>--v<version> tags the Plugins workflow creates
+    check_tags.py                # Fails a plugin tag that moved, points off master or was deleted
     git_http.py                  # Smart HTTP git server for the marketplace install test
     check-markdown.py            # Markdown lint used by CI, runs .agents/hooks/markdown-lint-check/_check_markdown.py
     pyproject.toml               # CANONICAL, the only pinned dependency and pytest configuration
@@ -114,7 +115,7 @@ agent-standards/
     agents/                      # GENERATED, GitHub Copilot subagents (*.agent.md)
     hooks/preflight.json         # Copilot hook config, camelCase events
     mcp.json                     # the GitHub Copilot CLI fallback, key "mcpServers", read only where no .mcp.json exists
-    workflows/                   # CI, release, live agent tests, and plugins.yml, which validates, test-installs and tags the marketplace
+    workflows/                   # CI, release, live agent tests, plugins.yml, which validates, test-installs and tags the marketplace, and plugin-tags.yml, which checks the tags
   .vscode/
     mcp.json                     # GitHub Copilot in VS Code, key "servers"
   AGENTS.md                      # This repo's own instructions, never shipped downstream

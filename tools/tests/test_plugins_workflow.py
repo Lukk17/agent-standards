@@ -73,3 +73,25 @@ def test_every_push_has_its_own_uncancelled_concurrency_group():
 
     assert "github.sha" in concurrency["group"]
     assert concurrency["cancel-in-progress"] == "${{ github.event_name == 'pull_request' }}"
+
+
+TAG_GUARD = yaml.safe_load((REPO_ROOT / ".github" / "workflows" / "plugin-tags.yml").read_text(encoding="utf-8"))
+
+
+def test_the_tag_guard_runs_on_tag_pushes_deletions_and_a_schedule():
+    triggers = TAG_GUARD[True]  # YAML 1.1 reads the key `on` as True
+
+    assert triggers["push"] == {"tags": ["*--v*"]}
+    assert "delete" in triggers and triggers["schedule"]
+
+
+def test_the_tag_guard_only_reads_and_runs_master_s_own_check():
+    job = TAG_GUARD["jobs"]["check"]
+    checkout, run = job["steps"]
+
+    assert TAG_GUARD["permissions"] == {"contents": "read"} and "permissions" not in job
+    assert FULL_SHA.fullmatch(checkout["uses"])
+    assert checkout["with"]["ref"] == "master" and checkout["with"]["persist-credentials"] is False
+    assert run["run"] == "python3 tools/check_tags.py --master origin/master"
+    assert not any(installs_packages(step) for step in job["steps"])
+    assert "secrets." not in repr(TAG_GUARD)

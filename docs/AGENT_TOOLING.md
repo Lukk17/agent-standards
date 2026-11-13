@@ -264,7 +264,7 @@ Then update each plugin you installed, such as:
 claude plugin update agent-python-pro@agent-standards
 ```
 
-A plugin updates only when its version rises, and every change upstream raises the version of each plugin it touches. Each version is also tagged `<name>--v<version>` upstream.
+A plugin updates only when its version rises, and every change upstream raises the version of each plugin it touches. Each version is also tagged `<name>--v<version>` upstream. A GitHub tag ruleset on `*--v*`, under which only GitHub Actions creates such a tag and nobody updates or deletes one, is the prevention, and a daily check of every tag against the marketplace on `master`, also run on every tag push and deletion, is the detection.
 
 To give everyone on the project the same set, add both keys to `.claude/settings.json`. Claude Code registers the marketplace only after a contributor accepts the workspace trust dialog for the folder:
 
