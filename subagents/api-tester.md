@@ -5,7 +5,7 @@ tools: [read, write, edit, grep, glob, bash]
 skills:
   - api-design
   - performance-optimization
-  - security-review
+  - application-security-review
   - observability-and-logging
 ---
 

@@ -70,7 +70,7 @@ you would make, and run it only after they approve that one action.
 - `github-ops` owns the same operational surface when the tracker is GitHub issues
 - `git-workflow` owns branch naming and commit messages that carry the issue key
 - `code-reviewer` owns reviewing the change the issue produced
-- `security-review` owns handling and rotation of the API token itself
+- `application-security-review` owns handling and rotation of the API token itself
 
 ---
 

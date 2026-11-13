@@ -64,7 +64,7 @@ When reviewing Java code, raise:
 
 ### Skills to load on demand
 
-Load when the change touches that stack, the way the Preloaded skills section below describes: `hexagonal-architecture` for a ports-and-adapters layout, `api-design` and `backend-patterns` for an endpoint, `postgres-patterns`, `mongodb-patterns` or `database-migrations` for persistence, `keycloak-patterns` for Keycloak auth, `soap-webservices` for SOAP, `security-review` for auth or input handling, `docker-patterns` for the image, `observability-and-logging` for logging and metrics, `performance-optimization` for a measured slowdown, `build-dependency-management` for a dependency bump, `architecture-decision-records` for a cross-cutting decision, `review-duplication` when adding a utility, `git-workflow` when committing.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `hexagonal-architecture` for a ports-and-adapters layout, `api-design` and `backend-patterns` for an endpoint, `postgres-patterns`, `mongodb-patterns` or `database-migrations` for persistence, `keycloak-patterns` for Keycloak auth, `soap-webservices` for SOAP, `application-security-review` for auth or input handling, `docker-patterns` for the image, `observability-and-logging` for logging and metrics, `performance-optimization` for a measured slowdown, `build-dependency-management` for a dependency bump, `architecture-decision-records` for a cross-cutting decision, `review-duplication` when adding a utility, `git-workflow` when committing.
 
 ### Done when
 

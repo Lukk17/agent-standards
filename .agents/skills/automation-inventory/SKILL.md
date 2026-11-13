@@ -164,7 +164,7 @@ Everything else appears to be working normally.
 - `deployment-patterns` owns designing the pipeline and rollout strategy for the automations you keep
 - `observability-and-logging` owns the metrics, logs and alerts that keep a kept automation honest
 - `docker-patterns` owns container and compose wiring when an automation runs in a container
-- `security-review` owns the credential and permission review for any automation holding a secret
+- `application-security-review` owns the credential and permission review for any automation holding a secret
 - `project-tracking` owns turning each fix-next call into a tracked work item
 
 ---

@@ -438,7 +438,7 @@ def test_the_needles_are_read_from_the_project_itself():
 
     skill_line, shared, claude = result.stdout.splitlines()
     assert skill_line.startswith("Check application code against the failure modes")
-    assert skill_line in (REPO_ROOT / ".agents" / "skills" / "security-review" / "SKILL.md").read_text(encoding="utf-8")
+    assert skill_line in (REPO_ROOT / ".agents" / "skills" / "application-security-review" / "SKILL.md").read_text(encoding="utf-8")
     assert shared.startswith("Before code work, name the skills")
     assert claude.startswith("PREFLIGHT: before code work, name the skills")
 

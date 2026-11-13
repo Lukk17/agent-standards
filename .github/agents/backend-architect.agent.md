@@ -86,5 +86,5 @@ Load and follow these skills before acting. Load a skill by name, or read `<name
 - `backend-patterns`
 - `hexagonal-architecture`
 - `architecture-decision-records`
-- `security-review`
+- `application-security-review`
 - `observability-and-logging`

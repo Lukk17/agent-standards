@@ -92,7 +92,7 @@ a rewrite is a break everyone has to repair by hand.
 - `jira-integration` owns reading and updating the Jira issue behind the branch
 - `code-reviewer` owns reviewing the content of the diff
 - `deployment-patterns` owns what happens after the merge
-- `security-review` owns the response when a secret does reach history
+- `application-security-review` owns the response when a secret does reach history
 
 ---
 

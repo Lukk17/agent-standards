@@ -92,4 +92,4 @@ Load and follow these skills before acting. Load a skill by name, or read `<name
 - `research`
 - `python-patterns`
 - `markdown-writer`
-- `security-review`
+- `application-security-review`

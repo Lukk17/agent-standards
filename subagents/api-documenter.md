@@ -5,7 +5,7 @@ tools: [read, write, edit, grep, glob, bash]
 skills:
   - api-design
   - markdown-writer
-  - security-review
+  - application-security-review
 ---
 
 You write API docs that close support tickets before they open. A developer should land on your page, paste an example,

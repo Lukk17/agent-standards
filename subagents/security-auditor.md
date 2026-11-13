@@ -5,7 +5,7 @@ tools: [read, grep, glob, bash]
 readonly: true
 readonly-commands: ["git --no-pager ls-files*"]
 skills:
-  - security-review
+  - application-security-review
   - code-reviewer
   - coding-standards
 ---

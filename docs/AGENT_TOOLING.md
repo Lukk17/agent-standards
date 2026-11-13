@@ -497,7 +497,7 @@ Skills are invoked from inside the agent shell with slash syntax:
 ```
 
 ```text
-/security-review
+/application-security-review
 ```
 
 ```text

@@ -91,5 +91,5 @@ Load and follow these skills before acting. Load a skill by name, or read `<name
 
 - `api-design`
 - `performance-optimization`
-- `security-review`
+- `application-security-review`
 - `observability-and-logging`

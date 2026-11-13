@@ -6,7 +6,7 @@ description: 'Structured review of local changes or a remote pull request across
 # Code Reviewer
 
 Conduct a professional review of a change set, whether it lives in the working tree or in a remote pull request. Review
-against the `coding-standards` hub for the shared floor, pull in `review-duplication` for reuse and `security-review`
+against the `coding-standards` hub for the shared floor, pull in `review-duplication` for reuse and `application-security-review`
 for security, and lead every finding with a `path:line` reference.
 
 | Task | Open |
@@ -32,7 +32,7 @@ for security, and lead every finding with a `path:line` reference.
   agent for a root-cause failure.
 - A dedicated hunt for duplicated logic or a reinvented utility. Use `review-duplication`.
 - A deep security assessment or threat model rather than a review pass. Use the `security-auditor` agent, and keep
-  `security-review` for the security checklist pass.
+  `application-security-review` for the security checklist pass.
 - Profiling and optimising a slow path. Use `performance-optimization`.
 - Reviewing prose, a README, or docs. Use `markdown-writer`.
 
@@ -97,7 +97,7 @@ Summary with the verdict in two or three sentences, findings grouped Critical, I
 
 - `coding-standards` is the baseline every finding is measured against.
 - `review-duplication` finds reinvented utilities and missed reuse.
-- `security-review` supplies the security checklist behind the security pillar.
+- `application-security-review` supplies the security checklist behind the security pillar.
 - `performance-optimization` supplies the detail behind the efficiency pillar.
 - `tdd-workflow` supplies the coverage bar behind the testability pillar.
 - `design-system` supplies the styling-drift criteria when a change touches styling.

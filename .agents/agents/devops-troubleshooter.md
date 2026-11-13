@@ -97,7 +97,7 @@ Out: code-level debugging of application logic (`debugger`), root-cause analysis
 
 ### Skills to load on demand
 
-Load when the change touches that stack, the way the Preloaded skills section below describes: `powershell` for Windows hosts, `ansible` for host configuration drift, `github-ops` for a failed pipeline or release, `git-workflow` to find what changed, `database-migrations` for a failed migration, `performance-optimization` for saturation, `backend-patterns` for service behaviour, `security-review` when the incident touches credentials or exposure, `automation-inventory` for which automation fired.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `powershell` for Windows hosts, `ansible` for host configuration drift, `github-ops` for a failed pipeline or release, `git-workflow` to find what changed, `database-migrations` for a failed migration, `performance-optimization` for saturation, `backend-patterns` for service behaviour, `application-security-review` when the incident touches credentials or exposure, `automation-inventory` for which automation fired.
 
 ### Done when
 

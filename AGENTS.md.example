@@ -81,7 +81,7 @@ relying on it or changing its wiring, read
 #### When to use them
 
 - Spawn a subagent whenever one fits, proactively, and in parallel when the work is independent. Tell each one which
-  skills to load, for example "review this diff, invoke `/security-review` while you do".
+  skills to load, for example "review this diff, invoke `/application-security-review` while you do".
 - A review spawns `code-reviewer` plus every specialist the diff touches: `security-auditor` for auth, payments,
   secrets or personal data, `database-expert` for schema or queries, `accessibility-expert` for UI,
   `performance-engineer` after a hot-path edit, `api-tester` for an API change, `legal-advisor` for terms or privacy.

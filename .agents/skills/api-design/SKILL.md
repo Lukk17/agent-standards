@@ -31,7 +31,7 @@ toolchain supports, GraphQL subscriptions over the `graphql-ws` protocol.
 - Service structure, layering, or data access behind the endpoint: use `backend-patterns`.
 - Node, Express, or Next.js implementation of a handler: use `node-backend-patterns`.
 - Spring Boot controllers and their error handling: use `springboot-patterns`.
-- Authentication mechanics and token verification: use `security-review`. Threat modelling: use the `security-auditor`
+- Authentication mechanics and token verification: use `application-security-review`. Threat modelling: use the `security-auditor`
   agent.
 - SOAP and WSDL contracts: use `soap-webservices`.
 - Writing the reference documentation for a finished contract: use `markdown-writer`.
@@ -61,7 +61,7 @@ toolchain supports, GraphQL subscriptions over the `graphql-ws` protocol.
 7. Support conditional requests: `ETag` and `Last-Modified` on cacheable GETs, 304 for `If-None-Match` and `If-Modified-Since`, and `If-Match` on PUT or PATCH with 412 on a mismatch.
 8. Return 207 from `POST /resources/batch` with per-item outcomes, cap items and body size with 413, and document whether the batch is atomic.
 9. Keep liveness and readiness separate. This is the canonical definition of the paths: `GET /health` checks nothing external, `GET /ready` returns 503 when this instance cannot serve, both outside the versioned path, and no other skill renames them. What readiness checks is `observability-and-logging`'s.
-10. Advertise rate limits on every response. This is the canonical definition of the headers, the 429 and the tiers: `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset` (UTC epoch seconds) on successes too, and a 429 problem body with `Retry-After`. Add `RateLimit` and `RateLimit-Policy` once draft-ietf-httpapi-ratelimit-headers is an RFC, and document the value format sent. Every public endpoint sits in a tier below, the keying policy is `security-review`'s, and other skills implement without restating.
+10. Advertise rate limits on every response. This is the canonical definition of the headers, the 429 and the tiers: `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset` (UTC epoch seconds) on successes too, and a 429 problem body with `Retry-After`. Add `RateLimit` and `RateLimit-Policy` once draft-ietf-httpapi-ratelimit-headers is an RFC, and document the value format sent. Every public endpoint sits in a tier below, the keying policy is `application-security-review`'s, and other skills implement without restating.
 11. Version in the path, keep at most two active versions, give a deprecated one at least six months with `Deprecation` and `Sunset`, then return 410 Gone.
 
 | Tier | Keyed on | Applies to |
@@ -82,7 +82,7 @@ The values belong to each application, set from measured load and documented: Ex
 - `backend-patterns` for idempotency storage, retries, and readiness behind the contract.
 - `node-backend-patterns` and `springboot-patterns` for handler-level implementations.
 - `hexagonal-architecture` for keeping transport concerns out of the domain.
-- `security-review` before exposing an endpoint that touches credentials, payments, or personal data.
+- `application-security-review` before exposing an endpoint that touches credentials, payments, or personal data.
 - `soap-webservices` when the contract is WSDL rather than HTTP and JSON.
 - `observability-and-logging` for correlating a request identifier across services.
 

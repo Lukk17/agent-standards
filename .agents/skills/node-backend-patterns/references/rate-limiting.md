@@ -3,7 +3,7 @@
 Read this when adding a limiter to an Express or Next.js route, or when a limiter behaves differently across instances.
 
 The header names, the tier table, and the 429 body shape are owned by `api-design`. The policy of what to key on and
-where to count is owned by the "Rate limiting" section of `security-review`. This file covers only the Node
+where to count is owned by the "Rate limiting" section of `application-security-review`. This file covers only the Node
 implementation of both.
 
 ---
@@ -45,7 +45,7 @@ Fail: `const requests = new Map<string, number[]>()` in a module scope, deployed
 
 ### Choose the subject before the algorithm
 
-Which subject to key on is the policy in the "Rate limiting" section of `security-review`. In Node that subject becomes
+Which subject to key on is the policy in the "Rate limiting" section of `application-security-review`. In Node that subject becomes
 the `subject` part of the Redis key, so one user or one anonymous client address maps to `rl:<subject>:<window>` and
 every instance increments the same counter.
 
@@ -133,4 +133,4 @@ fail closed for authentication endpoints, where an unbounded retry rate is the a
 
 - `node-backend-patterns` for the hub these rules belong to.
 - `api-design` for the canonical header names, the tier table, and the 429 problem body.
-- `security-review` for brute-force and credential-stuffing defence beyond a request count.
+- `application-security-review` for brute-force and credential-stuffing defence beyond a request count.

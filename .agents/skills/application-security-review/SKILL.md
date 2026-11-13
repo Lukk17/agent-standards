@@ -1,9 +1,9 @@
 ---
-name: security-review
+name: application-security-review
 description: 'Application security review: secrets, input validation, injection, authentication and sessions, authorization with row-level security, XSS and CSP, CSRF, rate-limit policy, data exposure, and dependency risk. Use when the user says "review this endpoint before it ships", "is this file upload safe", or "check this for injection". Not for container and image hardening, use `docker-patterns`.'
 ---
 
-# Security Review
+# Application Security Review
 
 Check application code against the failure modes that actually cause incidents, with a concrete pass and fail for each.
 This skill covers the application layer. Cloud and platform hardening live in the references, container hardening

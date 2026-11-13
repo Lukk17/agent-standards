@@ -41,7 +41,7 @@ Linux commands were executed read-only on one CachyOS host with systemd and Plas
 - Fixing a finding, which belongs to the owner, guided by `arch-linux`, `cachyos`, `windows` or `macos`
 - Writing a script that automates these checks, use `bash` or `powershell`
 - Auditing scheduled jobs, hooks and CI rather than the machine, use `automation-inventory`
-- Reviewing application code for vulnerabilities, use `security-review`
+- Reviewing code for vulnerabilities, use `application-security-review`
 
 ---
 

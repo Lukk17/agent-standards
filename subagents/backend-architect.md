@@ -7,7 +7,7 @@ skills:
   - backend-patterns
   - hexagonal-architecture
   - architecture-decision-records
-  - security-review
+  - application-security-review
   - observability-and-logging
 ---
 

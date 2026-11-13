@@ -164,7 +164,7 @@ app.MapGet("/users", async (IKeycloakUserClient client) =>
 
 - [administration.md](administration.md) for creating the realm, clients, roles, and resources this consumes.
 - `api-design` for the status codes and problem bodies an authorization failure should return.
-- `security-review` for reviewing the authentication and authorization design as a whole.
+- `application-security-review` for reviewing the authentication and authorization design as a whole.
 - `build-dependency-management` for pinning the package versions across a multi-project solution.
 - `observability-and-logging` for what the OpenTelemetry instrumentation should feed into.
 

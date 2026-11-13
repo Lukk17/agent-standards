@@ -47,7 +47,7 @@ plugins:
       - observability-and-logging
       - performance-optimization
       - python-patterns
-      - security-review
+      - application-security-review
       - tdd-workflow
 
   - name: python

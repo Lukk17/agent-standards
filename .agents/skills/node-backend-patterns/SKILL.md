@@ -74,7 +74,7 @@ Doc comments follow the Doc Comments rules in `coding-standards`, whose TSDoc ex
 - `nextjs-app-router-patterns` for the rendering and caching half of a Next.js app.
 - `postgres-patterns` and `database-migrations` for schema, indexes, and safe schema change.
 - `observability-and-logging` for the startup banner, log levels, and trace correlation.
-- `security-review` before shipping auth, payment, or personal-data handling.
+- `application-security-review` before shipping auth, payment, or personal-data handling.
 
 ---
 

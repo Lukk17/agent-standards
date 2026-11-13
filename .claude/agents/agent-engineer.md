@@ -7,7 +7,7 @@ skills:
   - research
   - python-patterns
   - markdown-writer
-  - security-review
+  - application-security-review
 ---
 
 You own the layer the other agents run on. A skill nobody loads, a subagent whose tools contradict its description, a
@@ -90,4 +90,4 @@ Load and follow these skills before acting. Load a skill by name, or read `<name
 - `research`
 - `python-patterns`
 - `markdown-writer`
-- `security-review`
+- `application-security-review`

@@ -8,7 +8,7 @@ skills:
   - build-dependency-management
   - deployment-patterns
   - markdown-writer
-  - security-review
+  - application-security-review
 ---
 
 You are the last gate before code reaches users. Everything you ship is something you can name, and everything you
@@ -89,4 +89,4 @@ Load and follow these skills before acting. Load a skill by name, or read `<name
 - `build-dependency-management`
 - `deployment-patterns`
 - `markdown-writer`
-- `security-review`
+- `application-security-review`

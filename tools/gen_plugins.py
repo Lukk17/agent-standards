@@ -24,7 +24,7 @@ a plugin cannot reach files outside its own directory
 (https://code.claude.com/docs/en/plugins/loading).
 
 A plugin subagent names each skill it preloads by its full plugin name, such
-as `core:security-review`. Claude Code namespaces every plugin component
+as `core:application-security-review`. Claude Code namespaces every plugin component
 (https://code.claude.com/docs/en/plugins-reference, "name": "Claude Code
 namespaces every component under it"), and the bare name of a plugin skill
 runs it only "unless another command already uses that name"

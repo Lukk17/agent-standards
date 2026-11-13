@@ -6,7 +6,7 @@ readonly: true
 skills:
   - coding-standards
   - review-duplication
-  - security-review
+  - application-security-review
   - build-dependency-management
 ---
 

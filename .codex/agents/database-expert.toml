@@ -112,7 +112,7 @@ Routine.
 
 ### Skills to load on demand
 
-Load when the change touches that stack, the way the Preloaded skills section below describes: `mongodb-patterns` for MongoDB, `hexagonal-architecture` and `backend-patterns` for the repository layer, `springboot-patterns` for JPA and Hikari settings, `docker-patterns` for a disposable database container, `deployment-patterns` for a migration rollout, `security-review` for row-level security, roles or personal data.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `mongodb-patterns` for MongoDB, `hexagonal-architecture` and `backend-patterns` for the repository layer, `springboot-patterns` for JPA and Hikari settings, `docker-patterns` for a disposable database container, `deployment-patterns` for a migration rollout, `application-security-review` for row-level security, roles or personal data.
 
 ### Done when
 

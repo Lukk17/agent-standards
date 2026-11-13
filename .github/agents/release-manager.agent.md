@@ -82,4 +82,4 @@ Load and follow these skills before acting. Load a skill by name, or read `<name
 - `build-dependency-management`
 - `deployment-patterns`
 - `markdown-writer`
-- `security-review`
+- `application-security-review`

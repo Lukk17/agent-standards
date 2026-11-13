@@ -148,5 +148,5 @@ Load and follow these skills before acting. Load a skill by name, or read `<name
 
 - `coding-standards`
 - `review-duplication`
-- `security-review`
+- `application-security-review`
 - `build-dependency-management`

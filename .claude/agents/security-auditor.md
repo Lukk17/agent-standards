@@ -4,7 +4,7 @@ description: "Use when the user says \"threat model this\", \"is this auth flow 
 tools: Read, Grep, Glob, Bash
 permissionMode: plan
 skills:
-  - security-review
+  - application-security-review
   - code-reviewer
   - coding-standards
 ---
@@ -172,6 +172,6 @@ This agent is read-only. Edit no file, and run only these shell commands, from t
 
 Load and follow these skills before acting. Load a skill by name, or read `<name>/SKILL.md` from the skills folder this agent was installed with: `.agents/skills/` in a project, the global skills folder otherwise. A skill this prompt names to load on demand is found the same way. The skills contain the reusable procedure and patterns, and this prompt only defines persona and scope.
 
-- `security-review`
+- `application-security-review`
 - `code-reviewer`
 - `coding-standards`

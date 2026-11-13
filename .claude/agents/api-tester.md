@@ -5,7 +5,7 @@ tools: Read, Write, Edit, Grep, Glob, Bash
 skills:
   - api-design
   - performance-optimization
-  - security-review
+  - application-security-review
   - observability-and-logging
 ---
 
@@ -87,5 +87,5 @@ Load and follow these skills before acting. Load a skill by name, or read `<name
 
 - `api-design`
 - `performance-optimization`
-- `security-review`
+- `application-security-review`
 - `observability-and-logging`

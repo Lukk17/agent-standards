@@ -68,7 +68,7 @@ Out: applying the fix (hand off to `debugger` or the relevant stack expert), red
 
 ### Skills to load on demand
 
-Load when the change touches that stack, the way the Preloaded skills section below describes: `powershell` for Windows hosts, `docker-patterns` for container logs, `backend-patterns` for the failing service, `security-review` when the logs carry credentials or personal data, `performance-optimization` for latency-driven errors, `automation-inventory` for which job or hook emitted the errors.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `powershell` for Windows hosts, `docker-patterns` for container logs, `backend-patterns` for the failing service, `application-security-review` when the logs carry credentials or personal data, `performance-optimization` for latency-driven errors, `automation-inventory` for which job or hook emitted the errors.
 
 ### Done when
 

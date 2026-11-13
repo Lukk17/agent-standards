@@ -29,7 +29,7 @@ Written for Spring Boot 4, with the Spring Security 7, Hibernate 7, Jackson 3 an
 - Log format, metrics, tracing, and the startup readiness banner, use `observability-and-logging`.
 - Schema change and rollout mechanics, use `database-migrations`.
 - PostgreSQL query planning and index internals, use `postgres-patterns`.
-- Language-neutral security review checklists, use `security-review`. Threat modelling goes to the `security-auditor` agent.
+- Language-neutral security review checklists, use `application-security-review`. Threat modelling goes to the `security-auditor` agent.
 - Configuring Keycloak itself as the identity provider, use `keycloak-patterns`.
 - Version catalogs, BOM imports, and dependency admission, use `build-dependency-management`.
 

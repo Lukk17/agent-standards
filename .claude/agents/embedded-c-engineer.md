@@ -41,7 +41,7 @@ Out: cloud backends and app code (`backend-architect`, the language implementers
 
 ### Skills to load on demand
 
-Load when the change touches that stack, the way the Preloaded skills section below describes: `kicad` for a schematic or board, `g-code-3d-printing` for an enclosure print, `build-dependency-management` for library and toolchain versions, `security-review` for a networked device, `bash` or `powershell` for build scripts, `review-duplication` when adding a driver, `git-workflow` when committing.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `kicad` for a schematic or board, `g-code-3d-printing` for an enclosure print, `build-dependency-management` for library and toolchain versions, `application-security-review` for a networked device, `bash` or `powershell` for build scripts, `review-duplication` when adding a driver, `git-workflow` when committing.
 
 ### Done when
 

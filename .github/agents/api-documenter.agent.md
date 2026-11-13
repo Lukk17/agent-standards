@@ -71,4 +71,4 @@ Load and follow these skills before acting. Load a skill by name, or read `<name
 
 - `api-design`
 - `markdown-writer`
-- `security-review`
+- `application-security-review`

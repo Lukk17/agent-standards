@@ -5,7 +5,7 @@ tools: [read, write, edit, grep, glob, bash]
 skills:
   - deployment-patterns
   - docker-patterns
-  - security-review
+  - application-security-review
   - observability-and-logging
   - bash
 ---

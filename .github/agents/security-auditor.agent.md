@@ -167,6 +167,6 @@ This agent is read-only and gets no shell on this agent, because nothing here co
 
 Load and follow these skills before acting. Load a skill by name, or read `<name>/SKILL.md` from the skills folder this agent was installed with: `.agents/skills/` in a project, the global skills folder otherwise. A skill this prompt names to load on demand is found the same way. The skills contain the reusable procedure and patterns, and this prompt only defines persona and scope.
 
-- `security-review`
+- `application-security-review`
 - `code-reviewer`
 - `coding-standards`

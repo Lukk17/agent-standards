@@ -74,7 +74,7 @@ run. Never run a playbook against production straight from a workstation or an u
 - `deployment-patterns` for the pipeline that runs Ansible and the approval gate in front of production.
 - `docker-patterns` for the container images Ansible deploys.
 - `observability-and-logging` for the health and readiness signals a deployed service must expose.
-- The `security-auditor` agent before any change that touches credentials, privilege escalation, or a public listener. `security-review` covers application code only.
+- The `security-auditor` agent before any change that touches credentials, privilege escalation, or a public listener. `application-security-review` covers application code only.
 
 ---
 

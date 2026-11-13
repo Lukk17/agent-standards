@@ -36,8 +36,8 @@ Written for GitHub Actions on a fixed runner label such as `ubuntu-24.04`, Kuber
 - Configuring the hosts underneath, use `ansible`.
 - Instrumenting the application with logs, metrics, and traces, use `observability-and-logging`.
 - Planning a schema change that has to survive the rollout, use `database-migrations`.
-- Reviewing the application's own auth and input handling, use `security-review`.
-- Secret scanning and dependency scanning inside the pipeline, use `security-review`.
+- Reviewing the application's own auth and input handling, use `application-security-review`.
+- Secret scanning and dependency scanning inside the pipeline, use `application-security-review`.
 
 ---
 
@@ -66,7 +66,7 @@ Written for GitHub Actions on a fixed runner label such as `ubuntu-24.04`, Kuber
 - `observability-and-logging` for the health, metrics, and readiness signals the probes read.
 - `database-migrations` for schema changes that must survive a rolling deployment.
 - `ansible` for configuring the hosts under the cluster.
-- `security-review` before a release touching auth, payments, or personal data.
+- `application-security-review` before a release touching auth, payments, or personal data.
 
 ---
 

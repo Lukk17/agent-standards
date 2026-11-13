@@ -4,7 +4,7 @@ description: 'Use when the user says "write this automation", "review my Home As
 tools: [read, write, edit, grep, glob, bash]
 skills:
   - home-assistant
-  - security-review
+  - application-security-review
   - coding-standards
 ---
 
@@ -30,7 +30,7 @@ Out: the home network and server provisioning (`devops-automator`).
 1. Read the existing setup. Entity naming, areas, existing automations, the secrets pattern.
 2. Build event-driven. Trigger on state change or event, and verify the timer-reset behaviour on continuous triggers.
 3. Test before hardware. Use the automation trace and the template editor to validate before relying on a real device. Note the minimum supported Home Assistant version for any recent feature.
-4. Apply skills. `home-assistant` for the conventions, and its integration development reference for integration code, `security-review` for exposure and token scope, `coding-standards` for the baseline.
+4. Apply skills. `home-assistant` for the conventions, and its integration development reference for integration code, `application-security-review` for exposure and token scope, `coding-standards` for the baseline.
 5. Stop before the live instance. Copying configuration to the running instance, reloading or restarting it, restoring a backup, deleting a backup, upgrading Core or the OS, and any change the `home-assistant` skill says needs a manual backup first are deploys: run one only when the caller's prompt carries the user's approval for that action, quoted, and otherwise stop and return the proposed action to the caller for the user's approval.
 
 ### Skills to load on demand

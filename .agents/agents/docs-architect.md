@@ -74,7 +74,7 @@ Use this as the default skeleton for a comprehensive system handbook. Add or dro
 
 ### Skills to load on demand
 
-Load when the change touches that stack, the way the Preloaded skills section below describes: `api-design` for an API chapter, `backend-patterns` for service internals, `react-patterns` for a front end, `security-review` for the security model, `deployment-patterns` and `observability-and-logging` for operations, `performance-optimization` for performance characteristics, `postgres-patterns` for the data model.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `api-design` for an API chapter, `backend-patterns` for service internals, `react-patterns` for a front end, `application-security-review` for the security model, `deployment-patterns` and `observability-and-logging` for operations, `performance-optimization` for performance characteristics, `postgres-patterns` for the data model.
 
 ### Done when
 

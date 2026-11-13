@@ -68,7 +68,7 @@ Written for Java 21 LTS as the minimum and Java 25 LTS as the recommended target
 - `springboot-patterns` for the service and repository layers around the generated client.
 - `java-coding-standards` for the hand-written mapping and exception classes.
 - `build-dependency-management` for pinning CXF, JAXB, and WSS4J versions in one place.
-- `security-review` before an integration handles credentials, payments, or personal data.
+- `application-security-review` before an integration handles credentials, payments, or personal data.
 - `observability-and-logging` for correlating a SOAP call with the request that triggered it.
 
 ---

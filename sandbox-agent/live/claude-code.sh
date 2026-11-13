@@ -26,7 +26,7 @@ readonly MAX_TURNS=15
 readonly PLUGIN_NAME="review-and-security"
 readonly PLUGIN_AGENT="${PLUGIN_NAME}:${READ_ONLY_SUBAGENT}"
 readonly CANARY_PLUGIN="core"
-readonly CANARY_SKILL="security-review"
+readonly CANARY_SKILL="application-security-review"
 readonly PLUGIN_TYPE_TEST="8 the gate sees ${PLUGIN_AGENT} and denies its touch"
 readonly PLUGIN_PRELOAD_TEST="9 ${PLUGIN_AGENT} preloads ${CANARY_SKILL} from ${CANARY_PLUGIN}"
 # Seconds one `claude plugin` command may take before it counts as hung.

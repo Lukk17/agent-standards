@@ -159,7 +159,7 @@ The full header block, the CORS source bean, and mutual TLS for service-to-servi
 
 ### Rate limit with Bucket4j, refilling greedily
 
-This is the Spring implementation of the rate limiting policy in `security-review`, which owns the language-neutral
+This is the Spring implementation of the rate limiting policy in `application-security-review`, which owns the language-neutral
 rule: limit every endpoint, limit expensive ones harder, and key on the authenticated user where there is one and on
 the client address where there is not.
 

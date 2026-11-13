@@ -10,7 +10,7 @@
 #              scripted case has the main thread write a file itself, which the
 #              gate has to deny. On Claude Code a third case starts the
 #              code-reviewer subagent headless and checks that it preloaded the
-#              project's security-review skill, not the built-in
+#              project's application-security-review skill, not the built-in
 #              /security-review command. On Codex a fourth case starts
 #              backend-architect, whose tools leave out bash, and checks that
 #              its turns offer no shell tool, against the python-pro turns of
@@ -53,7 +53,7 @@ readonly E2E_SPAWN_TOOLS='["Agent","Task","task","subagent","spawn_agent"]'
 # /security-review command, read from the pinned 2.1.314 binary, which the
 # check confirms is still in the binary it runs.
 readonly E2E_REVIEWER="code-reviewer"
-readonly E2E_REVIEW_SKILL="security-review"
+readonly E2E_REVIEW_SKILL="application-security-review"
 readonly E2E_REVIEW_FILE="e2e-review-target.txt"
 readonly E2E_REVIEW_TOKEN="e2e-review"
 readonly E2E_BUILTIN_REVIEW_MARKER="You are a senior security engineer conducting a focused security review of the changes on this branch."
@@ -72,7 +72,7 @@ E2E_BIN=""
 # e2e_read_needles: the subagent opening, each main-thread reminder (Claude
 # Code's first, then the one every other agent injects), the first line of
 # python-pro's definition, the gate's main-thread write refusal, and the first
-# prose line of the project's security-review skill.
+# prose line of the project's application-security-review skill.
 E2E_SUBAGENT_TEXT=""
 E2E_MAIN_TEXTS="[]"
 E2E_DEFINITION=""
@@ -423,7 +423,7 @@ e2e_binary_holds() {
 }
 
 # Claude Code only: the main thread starts the project's code-reviewer, whose
-# definition preloads security-review, and the subagent answers at once. Its
+# definition preloads application-security-review, and the subagent answers at once. Its
 # requests must carry the project skill's own line and never the prompt of the
 # built-in /security-review command of the same name.
 e2e_check_review() {

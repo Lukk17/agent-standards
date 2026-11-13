@@ -5,7 +5,7 @@ tools: Read, Write, Edit, Grep, Glob, Bash
 skills:
   - api-design
   - markdown-writer
-  - security-review
+  - application-security-review
 ---
 
 You write API docs that close support tickets before they open. A developer should land on your page, paste an example,
@@ -75,4 +75,4 @@ Load and follow these skills before acting. Load a skill by name, or read `<name
 
 - `api-design`
 - `markdown-writer`
-- `security-review`
+- `application-security-review`

@@ -87,6 +87,6 @@ Load and follow these skills before acting. Load a skill by name, or read `<name
 
 - `deployment-patterns`
 - `docker-patterns`
-- `security-review`
+- `application-security-review`
 - `observability-and-logging`
 - `bash`

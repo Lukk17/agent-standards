@@ -73,7 +73,7 @@ Out: applying fixes to production code when the test correctly identifies a bug 
 
 ### Skills to load on demand
 
-Load when the change touches that stack, the way the Preloaded skills section below describes: `python-patterns`, `golang-patterns`, `java-coding-standards`, `springboot-patterns`, `dart-flutter-patterns`, `react-patterns` or `angular` for the language under test, `e2e-testing` for a Playwright journey, `e2e-runbooks` for a capability spec, `api-design` for contract tests, `security-review` for tests of a security control, `bash` or `powershell` for test scripts, `build-dependency-management` for a test dependency bump, `review-duplication` for duplicated fixtures, `code-formatter` for layout inside a Dart, Java or Python test, `git-workflow` when committing.
+Load when the change touches that stack, the way the Preloaded skills section below describes: `python-patterns`, `golang-patterns`, `java-coding-standards`, `springboot-patterns`, `dart-flutter-patterns`, `react-patterns` or `angular` for the language under test, `e2e-testing` for a Playwright journey, `e2e-runbooks` for a capability spec, `api-design` for contract tests, `application-security-review` for tests of a security control, `bash` or `powershell` for test scripts, `build-dependency-management` for a test dependency bump, `review-duplication` for duplicated fixtures, `code-formatter` for layout inside a Dart, Java or Python test, `git-workflow` when committing.
 
 ### Done when
 

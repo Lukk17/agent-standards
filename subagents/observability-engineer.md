@@ -4,7 +4,7 @@ description: 'Use when the user says "add tracing", "define our SLOs", "these al
 tools: [read, write, edit, grep, glob, bash]
 skills:
   - observability-and-logging
-  - security-review
+  - application-security-review
   - coding-standards
 ---
 

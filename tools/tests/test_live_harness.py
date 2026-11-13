@@ -1036,7 +1036,7 @@ def judge_canary(work: Path, calls: list[dict], context: str = "") -> str:
         "AGENT_LABEL=test; SPAWN_TOOL_RE='^(Task|Agent)$'; SKILL_TOOL_RE='^Skill$'; "
         f"agent_subagent_context() {{ printf '%s' '{context}'; }}; "
         "record() { printf '%s|%s' \"$2\" \"$3\"; }; "
-        f"judge_preloaded_canary 'n' '{case.as_posix()}' '{PLUGIN_AGENT}' security-review live-canary-123"
+        f"judge_preloaded_canary 'n' '{case.as_posix()}' '{PLUGIN_AGENT}' application-security-review live-canary-123"
     )
     result = run_bounded([BASH, "-c", script], capture_output=True, text=True)
 
@@ -1052,13 +1052,13 @@ def judge_canary(work: Path, calls: list[dict], context: str = "") -> str:
         pytest.param([{**SPAWN, "result": "live-canary-123"}], "", "PASS", id="repeated"),
         pytest.param([SPAWN], '{"attachment":"live-canary-123"}', "INCONCLUSIVE", id="a-hook-injected-it"),
         pytest.param(
-            [{**SPAWN, "result": "live-canary-123"}, {"actor": "subagent", "tool": "Skill", "input": '{"skill":"core:security-review"}', "result": "", "error": False}],
+            [{**SPAWN, "result": "live-canary-123"}, {"actor": "subagent", "tool": "Skill", "input": '{"skill":"core:application-security-review"}', "result": "", "error": False}],
             "",
             "INCONCLUSIVE",
             id="loaded-at-run-time",
         ),
         pytest.param(
-            [{**SPAWN, "result": "live-canary-123"}, {"actor": "subagent", "tool": "Read", "input": '{"file_path":"/c/core/1/skills/security-review/SKILL.md"}', "result": "", "error": False}],
+            [{**SPAWN, "result": "live-canary-123"}, {"actor": "subagent", "tool": "Read", "input": '{"file_path":"/c/core/1/skills/application-security-review/SKILL.md"}', "result": "", "error": False}],
             "",
             "INCONCLUSIVE",
             id="read-at-run-time",
@@ -1118,8 +1118,8 @@ def claude_subagent_lines(reply: str = CANARY, skill_text: str = CANARY) -> list
             "message": {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": "<command-message>core:security-review</command-message>\n<command-name>core:security-review</command-name>"},
-                    {"type": "text", "text": f"Base directory for this skill: /m/plugins/core/skills/security-review\n\n# Security Review\n\nCheck application code against\n\n### Live test preload marker\n\n{skill_text}"},
+                    {"type": "text", "text": "<command-message>core:application-security-review</command-message>\n<command-name>core:application-security-review</command-name>"},
+                    {"type": "text", "text": f"Base directory for this skill: /m/plugins/core/skills/application-security-review\n\n# Security Review\n\nCheck application code against\n\n### Live test preload marker\n\n{skill_text}"},
                 ],
             },
         },
@@ -1174,7 +1174,7 @@ def judge_recorded_canary(
     script = (
         f"source '{loadable_adapter(CLAUDE_ADAPTER, work).as_posix()}'; "
         "record() { printf '%s|%s' \"$2\" \"$3\"; }; "
-        f"judge_preloaded_canary 'n' '{case.as_posix()}' '{PLUGIN_AGENT}' security-review {CANARY}"
+        f"judge_preloaded_canary 'n' '{case.as_posix()}' '{PLUGIN_AGENT}' application-security-review {CANARY}"
     )
     result = run_bounded([BASH, "-c", script], capture_output=True, text=True)
 
@@ -1183,8 +1183,8 @@ def judge_recorded_canary(
     return result.stdout
 
 
-SUBAGENT_SKILL_CALL = {"actor": "subagent", "tool": "Skill", "input": '{"skill":"core:security-review"}', "result": "", "error": False}
-SUBAGENT_SKILL_READ = {"actor": "subagent", "tool": "Read", "input": '{"file_path":"/c/core/1/skills/security-review/SKILL.md"}', "result": "", "error": False}
+SUBAGENT_SKILL_CALL = {"actor": "subagent", "tool": "Skill", "input": '{"skill":"core:application-security-review"}', "result": "", "error": False}
+SUBAGENT_SKILL_READ = {"actor": "subagent", "tool": "Read", "input": '{"file_path":"/c/core/1/skills/application-security-review/SKILL.md"}', "result": "", "error": False}
 SEND_MESSAGE = {"actor": "main", "tool": "SendMessage", "input": json.dumps({"to": "a1", "message": f"Say {CANARY}"}), "result": "sent", "error": False}
 
 
@@ -1384,11 +1384,11 @@ def test_the_rendered_plugin_reviewer_preloads_the_core_skill_that_carries_the_c
     assert result.returncode == 0, result.stderr + (tmp_path / "render.log").read_text(encoding="utf-8")
     canary = result.stdout
     assert re.fullmatch(r"preload-marker-\d+", canary)
-    core_skill = (market / "plugins" / "core" / "skills" / "security-review" / "SKILL.md").read_text(encoding="utf-8")
+    core_skill = (market / "plugins" / "core" / "skills" / "application-security-review" / "SKILL.md").read_text(encoding="utf-8")
     assert core_skill.rstrip().endswith(canary)
-    assert canary not in (REPO_ROOT / ".agents" / "skills" / "security-review" / "SKILL.md").read_text(encoding="utf-8")
+    assert canary not in (REPO_ROOT / ".agents" / "skills" / "application-security-review" / "SKILL.md").read_text(encoding="utf-8")
     preloaded = run_bounded(
-        [BASH, "-c", f"source '{loadable_adapter(CLAUDE_ADAPTER, tmp_path).as_posix()}'; LIVE_PYTHON=\"$2\"; agent_preloads \"$1\" core:security-review && ! agent_preloads \"$1\" security-review && ! agent_preloads \"$1\" kicad", "_",
+        [BASH, "-c", f"source '{loadable_adapter(CLAUDE_ADAPTER, tmp_path).as_posix()}'; LIVE_PYTHON=\"$2\"; agent_preloads \"$1\" core:application-security-review && ! agent_preloads \"$1\" application-security-review && ! agent_preloads \"$1\" kicad", "_",
          (market / "plugins" / "review-and-security" / "agents" / "code-reviewer.md").as_posix(), Path(sys.executable).as_posix()],
         capture_output=True,
         text=True,
@@ -1399,12 +1399,12 @@ def test_the_rendered_plugin_reviewer_preloads_the_core_skill_that_carries_the_c
 @pytest.mark.parametrize(
     ("front_matter", "expected"),
     [
-        pytest.param("---\nname: r\nskills:\n  - security-review\n---\nbody\n", 0, id="block-list"),
-        pytest.param("---\nname: r\nskills: [coding-standards, security-review]\n---\nbody\n", 0, id="flow-list"),
-        pytest.param("---\nname: r\nskills:\n- 'security-review'\n---\nbody\n", 0, id="quoted-unindented"),
-        pytest.param("---\nname: r\nskills:\n  - security-review-extra\n---\nbody\n", 1, id="longer-name"),
-        pytest.param("---\nname: r\ndescription: lists skills\n---\nskills:\n  - security-review\n", 1, id="only-in-the-body"),
-        pytest.param("name: r\nskills:\n  - security-review\n", 1, id="no-front-matter"),
+        pytest.param("---\nname: r\nskills:\n  - application-security-review\n---\nbody\n", 0, id="block-list"),
+        pytest.param("---\nname: r\nskills: [coding-standards, application-security-review]\n---\nbody\n", 0, id="flow-list"),
+        pytest.param("---\nname: r\nskills:\n- 'application-security-review'\n---\nbody\n", 0, id="quoted-unindented"),
+        pytest.param("---\nname: r\nskills:\n  - application-security-review-extra\n---\nbody\n", 1, id="longer-name"),
+        pytest.param("---\nname: r\ndescription: lists skills\n---\nskills:\n  - application-security-review\n", 1, id="only-in-the-body"),
+        pytest.param("name: r\nskills:\n  - application-security-review\n", 1, id="no-front-matter"),
         pytest.param("---\nskills: [unclosed\n---\n", 1, id="malformed"),
     ],
 )
@@ -1413,7 +1413,7 @@ def test_agent_preloads_reads_the_front_matter_as_yaml(tmp_path, front_matter, e
     agent.write_text(front_matter, encoding="utf-8", newline="\n")
 
     result = run_bounded(
-        [BASH, "-c", f"source '{loadable_adapter(CLAUDE_ADAPTER, tmp_path).as_posix()}'; LIVE_PYTHON=\"$2\"; agent_preloads \"$1\" security-review", "_",
+        [BASH, "-c", f"source '{loadable_adapter(CLAUDE_ADAPTER, tmp_path).as_posix()}'; LIVE_PYTHON=\"$2\"; agent_preloads \"$1\" application-security-review", "_",
          agent.as_posix(), Path(sys.executable).as_posix()],
         capture_output=True,
         text=True,
@@ -1425,7 +1425,7 @@ def test_agent_preloads_reads_the_front_matter_as_yaml(tmp_path, front_matter, e
 
 def test_agent_preloads_reports_a_missing_file_as_not_preloaded(tmp_path):
     result = run_bounded(
-        [BASH, "-c", f"source '{loadable_adapter(CLAUDE_ADAPTER, tmp_path).as_posix()}'; LIVE_PYTHON=\"$2\"; agent_preloads \"$1\" security-review", "_",
+        [BASH, "-c", f"source '{loadable_adapter(CLAUDE_ADAPTER, tmp_path).as_posix()}'; LIVE_PYTHON=\"$2\"; agent_preloads \"$1\" application-security-review", "_",
          (tmp_path / "gone.md").as_posix(), Path(sys.executable).as_posix()],
         capture_output=True,
         text=True,
@@ -1621,13 +1621,13 @@ def test_both_plugin_checks_run_in_the_plugin_session_and_the_main_session_comes
 @needs_linux_proc
 def test_a_missing_canary_fails_check_nine_only(tmp_path):
     # Given an install whose core skill lost the planted canary
-    result, work, _ = run_plugin_checks(tmp_path, drop="skills/security-review/SKILL.md")
+    result, work, _ = run_plugin_checks(tmp_path, drop="skills/application-security-review/SKILL.md")
 
     # Then check 8 still runs, with the capture hook and the gate-only project already in place
     assert result.returncode == 0, result.stderr
     lines = result.stdout.splitlines()
     assert lines[0].startswith("ran 8|")
-    assert lines[1].startswith(f"record|9 {PLUGIN_AGENT} preloads security-review from core|FAIL|")
+    assert lines[1].startswith(f"record|9 {PLUGIN_AGENT} preloads application-security-review from core|FAIL|")
     assert "canary" in lines[1]
     assert not any(line.startswith("ran 9") for line in lines)
     assert (work / "plugin-project").is_dir()
@@ -1643,7 +1643,7 @@ def test_a_missing_plugin_agent_blocks_both_checks(tmp_path):
     lines = result.stdout.splitlines()
     assert [line.split("|")[:3] for line in lines[:2]] == [
         ["record", f"8 the gate sees {PLUGIN_AGENT} and denies its touch", "FAIL"],
-        ["record", f"9 {PLUGIN_AGENT} preloads security-review from core", "FAIL"],
+        ["record", f"9 {PLUGIN_AGENT} preloads application-security-review from core", "FAIL"],
     ]
     assert not any(line.startswith("ran ") for line in lines)
 
