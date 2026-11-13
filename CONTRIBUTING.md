@@ -111,6 +111,12 @@ Confirm the generated subagent trees still match their canonical sources:
 python tools/gen_subagents.py --check
 ```
 
+Confirm the committed plugin marketplace still matches the plugin map and the items it lists:
+
+```bash
+python tools/gen_plugins.py --check
+```
+
 Check that no `CLAUDE.md` is tracked and every `AGENTS.md` is within its size limit:
 
 ```bash
@@ -226,29 +232,30 @@ refuses to load it.
 
 ---
 
-### Placing a skill or a subagent in the plugin map
+### Placing an item in the plugin marketplace
 
-Every skill and every subagent also lives in exactly one Claude Code plugin, named in [tools/plugins.yaml](tools/plugins.yaml). Add a new one to the map in the same change that adds it, because the generator refuses a map with a skill or a subagent in no plugin or in two, and [tools/tests/test_gen_plugins.py](tools/tests/test_gen_plugins.py) fails with it. Place it by these rules:
+[.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) lists every skill, every subagent, every Claude Code hook and every MCP server as its own plugin, and groups them in bundles that install other plugins and hold no files. [tools/gen_plugins.py](tools/gen_plugins.py) writes it from [tools/plugins.yaml](tools/plugins.yaml) and the items' own files, so never edit it by hand:
 
-1. A subagent goes into the domain plugin whose work it does, and that plugin lists `core` under `dependencies`.
-2. A skill the subagent preloads goes into the subagent's own plugin, unless subagents in another plugin preload it too. Then it goes into `core`. `core` holds exactly the skills that subagents in two or more plugins preload, so a change to a `skills` list can move a skill into `core` or back out of it, and the check names the move.
-3. A skill no subagent preloads goes into the domain it serves, or into a host group when it administers a machine or a personal tool. A host group carries `category: host` and `defaultEnabled: false`.
-4. A new server in [.mcp.json](.mcp.json) gets its own `mcp-<server>` plugin with `category: mcp`, holding only `mcp: <server>`, and joins the `dependencies` of `mcp-all`. A new domain carries `category: development` and joins the `dependencies` of `all`, which installs `core` and the development domains and never a host group or a server.
-5. Add no plugin for a single subagent with no skill of its own. Put that subagent into the nearest domain instead.
+- a skill becomes the plugin named for it, with its folder as the plugin source and its `metadata.version` as the plugin version;
+- a subagent becomes `agent-<name>`, with its own folder of the generated Claude Code tree as the source, its canonical `version`, and the skills it preloads as its dependencies;
+- a hook the Claude Code wiring in [.claude/settings.json](.claude/settings.json) runs becomes `hook-<name>`, with its folder under [.agents/hooks/](.agents/hooks/) as the source and the same events, matchers, timeouts and arguments, each command running the script from `${CLAUDE_PLUGIN_ROOT}`. Its version and description live in the `hooks` list of the map;
+- a server in [.mcp.json](.mcp.json) becomes `mcp-<server>` with the block inline, and its version and description live in the `servers` list of the map.
 
-`check_map` in [tools/gen_plugins.py](tools/gen_plugins.py) enforces the mechanical half of these rules, and the tests hold one failing map for each: every skill and subagent in exactly one plugin, exactly the shared skills in `core` and no subagent or dependency there, a preloaded skill in its subagent's own plugin or in `core` with `core` among the dependencies, kebab-case names, the categories `development`, `host`, `mcp` and `bundle` with host groups off and every other plugin on, one `mcp-<server>` plugin per server, a bundle holding dependencies only, and the members of `mcp-all` and `all`. Which domain a subagent works in, which domain or host group a skill serves, and rule 5 are conventions no test can check, so review them by hand.
+Every new skill and subagent also joins exactly one bundle in the map, in the same change that adds it, because the generator refuses a map with a skill or a subagent in no bundle or in two. Place it by these rules:
 
-Check the map and render it into a scratch directory outside the repository. The generator refuses a directory inside it, and writes the tree into a temporary sibling first, so a failed render leaves nothing behind:
+1. A subagent goes into the domain bundle whose work it does, and that bundle lists `core` under `dependencies`.
+2. A skill the subagent preloads goes into the subagent's own bundle, unless subagents in another bundle preload it too. Then it goes into `core`. `core` holds exactly the skills that subagents in two or more bundles preload, so a change to a `skills` list can move a skill into `core` or back out of it, and the check names the move.
+3. A skill no subagent preloads goes into the domain it serves, or into a host group when it administers a machine or a personal tool. A host group carries `category: host`.
+4. A new server gets its own entry in the `servers` list and joins the `dependencies` of `mcp-all`. A new hook the Claude Code wiring runs gets its own entry in the `hooks` list, named for its folder, and joins `hooks-all`. A new domain carries `category: development` and joins the `dependencies` of `all`, which installs `core` and the development domains and never a host group, a server or a hook.
+5. Add no bundle for a single subagent with no skill of its own. Put that subagent into the nearest domain instead.
+
+`check_map` in [tools/gen_plugins.py](tools/gen_plugins.py) enforces the mechanical half of these rules, and [tools/tests/test_gen_plugins.py](tools/tests/test_gen_plugins.py) holds one failing map for each. Which domain a subagent works in, which domain or host group a skill serves, and rule 5 are conventions no test can check, so review them by hand. After a change, regenerate the marketplace and commit it with the change:
 
 ```bash
-python -m pytest tools/tests/test_gen_plugins.py
+python tools/gen_plugins.py
 ```
 
-```bash
-python tools/gen_plugins.py ../plugins-out
-```
-
-The rendered tree is never committed on `master`. On every push to `master`, [.github/workflows/plugins.yml](.github/workflows/plugins.yml) renders it, runs `claude plugin validate --strict` on the marketplace and on each plugin, and commits the result to the `plugins` branch.
+A dependency names a plugin and never a version range, because a range on the dependency of a marketplace entry had no effect when measured on Claude Code 2.1.323. Installing a host group installs and enables every plugin in it: `defaultEnabled: false` on a bundle would switch off only the empty bundle, measured on Claude Code 2.1.323, so no bundle carries it.
 
 ---
 

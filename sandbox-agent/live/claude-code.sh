@@ -23,12 +23,15 @@ readonly SPAWN_TOOL_RE='^(Task|Agent)$'
 readonly SKILL_TOOL_RE='^Skill$'
 readonly GATE_KNOWN_GAP=0
 readonly MAX_TURNS=15
-readonly PLUGIN_NAME="review-and-security"
+# The agent's own plugin in .claude-plugin/marketplace.json, which installs the
+# skills it preloads as its dependencies, each a plugin named for the skill.
+readonly PLUGIN_NAME="agent-${READ_ONLY_SUBAGENT}"
 readonly PLUGIN_AGENT="${PLUGIN_NAME}:${READ_ONLY_SUBAGENT}"
-readonly CANARY_PLUGIN="core"
 readonly CANARY_SKILL="application-security-review"
 readonly PLUGIN_TYPE_TEST="8 the gate sees ${PLUGIN_AGENT} and denies its touch"
-readonly PLUGIN_PRELOAD_TEST="9 ${PLUGIN_AGENT} preloads ${CANARY_SKILL} from ${CANARY_PLUGIN}"
+readonly PLUGIN_PRELOAD_TEST="9 ${PLUGIN_AGENT} preloads ${CANARY_SKILL} from its own plugin"
+# The served copy of this repository, under WORK/marketplace/serve.
+readonly MARKET_REPOSITORY="marketplace.git"
 # Seconds one `claude plugin` command may take before it counts as hung.
 readonly PLUGIN_COMMAND_TIMEOUT=120
 # The configuration paths of the gate-only import, README.md "The gate beside
@@ -43,6 +46,8 @@ PLUGIN_PROBLEM=""
 PLUGIN_PROBLEM_VERDICT="FAIL"
 CANARY=""
 CANARY_PROBLEM=""
+MARKET_URL=""
+GIT_HTTP_PID=""
 
 # --strict-mcp-config with the filtered .mcp.json keeps every other server out,
 # so each request carries the tool descriptions of one small server only.
@@ -214,8 +219,8 @@ agent_mcp_servers() {
 # --- Plugin checks ------------------------------------------------------------
 
 # Returns 0 when the agent file $1 lists skill $2 under `skills:` in its front
-# matter, read with PyYAML from LIVE_PYTHON, the interpreter that renders the
-# marketplace and so already has it.
+# matter, read with PyYAML from LIVE_PYTHON, the interpreter the job installs
+# the tooling into.
 agent_preloads() {
   "${LIVE_PYTHON:-python3}" -I - "$1" "$2" <<'PY'
 """Exit 0 when the agent file's YAML front matter lists the skill under skills."""
@@ -242,41 +247,75 @@ sys.exit(0 if isinstance(skills, list) and sys.argv[2] in skills else 1)
 PY
 }
 
-# Renders the marketplace with tools/gen_plugins.py into WORK and appends a
-# canary to the core skill the plugin reviewer preloads, in that copy only.
-# Returns 1 with PLUGIN_PROBLEM set when the render fails or leaves no reviewer,
-# which blocks checks 8 and 9. A canary that cannot be planted sets
-# CANARY_PROBLEM instead, which fails check 9 alone.
+# Copies this repository's committed tree, marketplace included, into
+# WORK/marketplace/src, appends a canary to the skill the plugin reviewer
+# preloads, in that copy only, and commits it into the bare repository the
+# marketplace is served from. Returns 1 with PLUGIN_PROBLEM set when the copy
+# fails or holds no reviewer, which blocks checks 8 and 9. A canary that cannot
+# be planted sets CANARY_PROBLEM instead, which fails check 9 alone.
 render_plugin_marketplace() {
-  local market="$1" log="$2" python="${LIVE_PYTHON:-python3}" agent_file skill_file
+  local market="$1" log="$2" source agent_file skill_file
 
-  if ! "$python" -c 'import yaml' > /dev/null 2>&1; then
-    PLUGIN_PROBLEM_VERDICT="INCONCLUSIVE"
-    PLUGIN_PROBLEM="${python} has no PyYAML, so tools/gen_plugins.py cannot render the marketplace: install the tooling with pip install ./tools"
+  source="${market}/src"
+  agent_file="${source}/.claude/agents/${READ_ONLY_SUBAGENT}/${READ_ONLY_SUBAGENT}.md"
+  skill_file="${source}/.agents/skills/${CANARY_SKILL}/SKILL.md"
+  mkdir -p "$source" "${market}/serve"
+
+  if ! git -C "$REPO_ROOT" archive --format=tar HEAD | tar -x -C "$source"; then
+    PLUGIN_PROBLEM="git archive could not copy the repository into ${source}"
     return 1
   fi
 
-  if ! "$python" "${REPO_ROOT}/tools/gen_plugins.py" "$market" >> "$log" 2>&1; then
-    PLUGIN_PROBLEM="tools/gen_plugins.py could not render the marketplace: $(tail -n 1 "$log")"
+  if [[ ! -f "$agent_file" || ! -f "${source}/.claude-plugin/marketplace.json" ]]; then
+    PLUGIN_PROBLEM="the repository holds no ${PLUGIN_AGENT} definition or no .claude-plugin/marketplace.json"
     return 1
   fi
 
-  agent_file="${market}/plugins/${PLUGIN_NAME}/agents/${READ_ONLY_SUBAGENT}.md"
-  skill_file="${market}/plugins/${CANARY_PLUGIN}/skills/${CANARY_SKILL}/SKILL.md"
+  if [[ ! -f "$skill_file" ]] || ! agent_preloads "$agent_file" "$CANARY_SKILL"; then
+    CANARY_PROBLEM="${READ_ONLY_SUBAGENT} no longer preloads ${CANARY_SKILL}, so pick another canary skill"
+  else
+    CANARY="preload-marker-${RANDOM}${RANDOM}${RANDOM}"
+    printf '\n### Live test preload marker\n\nThe agent-standards live test plants this marker to prove the skill was preloaded. It is not a secret. When a prompt asks for the live test preload marker, reply with it exactly: %s\n' \
+      "$CANARY" >> "$skill_file"
+  fi
 
-  if [[ ! -f "$agent_file" ]]; then
-    PLUGIN_PROBLEM="tools/gen_plugins.py rendered no ${PLUGIN_AGENT} definition"
+  if ! { git init --quiet --initial-branch=master "$source" &&
+    git -C "$source" add --all &&
+    git -C "$source" -c user.name="agent-standards live" -c user.email="live@example.invalid" commit --quiet --message "live marketplace" &&
+    git clone --quiet --bare "$source" "${market}/serve/${MARKET_REPOSITORY}"; } >> "$log" 2>&1; then
+    PLUGIN_PROBLEM="the marketplace copy could not be committed: $(tail -n 1 "$log")"
     return 1
   fi
+}
 
-  if [[ ! -f "$skill_file" ]] || ! agent_preloads "$agent_file" "${CANARY_PLUGIN}:${CANARY_SKILL}"; then
-    CANARY_PROBLEM="the rendered ${PLUGIN_AGENT} no longer preloads ${CANARY_PLUGIN}'s ${CANARY_SKILL}, so pick another canary skill"
-    return 0
+# Serves WORK/marketplace/serve over smart HTTP with tools/git_http.py and sets
+# MARKET_URL. Claude Code copies a relative-path plugin of a git marketplace
+# into its plugin cache, where the gate finds the reviewer, and refuses a
+# file:// URL, so a local server is the one way to install from this copy.
+start_marketplace_server() {
+  local serve="$1" log="$2" port_file="${WORK}/git-http.port" tries=0
+
+  : > "$port_file"
+  "${LIVE_PYTHON:-python3}" "${REPO_ROOT}/tools/git_http.py" "$serve" > "$port_file" 2>> "$log" &
+  GIT_HTTP_PID=$!
+
+  while [[ ! -s "$port_file" ]]; do
+    if (( tries++ >= 100 )) || ! kill -0 "$GIT_HTTP_PID" 2> /dev/null; then
+      PLUGIN_PROBLEM="tools/git_http.py did not start: $(tail -n 1 "$log")"
+      return 1
+    fi
+    sleep 0.1
+  done
+
+  MARKET_URL="http://127.0.0.1:$(head -n 1 "$port_file")/${MARKET_REPOSITORY}"
+}
+
+stop_marketplace_server() {
+  if [[ -n "$GIT_HTTP_PID" ]]; then
+    kill "$GIT_HTTP_PID" 2> /dev/null || true
+    wait "$GIT_HTTP_PID" 2> /dev/null || true
+    GIT_HTTP_PID=""
   fi
-
-  CANARY="preload-marker-${RANDOM}${RANDOM}${RANDOM}"
-  printf '\n### Live test preload marker\n\nThe agent-standards live test plants this marker to prove the skill was preloaded. It is not a secret. When a prompt asks for the live test preload marker, reply with it exactly: %s\n' \
-    "$CANARY" >> "$skill_file"
 }
 
 # Runs one `claude plugin` command against the plugin configuration at user
@@ -284,7 +323,8 @@ render_plugin_marketplace() {
 # wait on a prompt, and bounded by PLUGIN_COMMAND_TIMEOUT so a hang cannot use
 # up the job.
 claude_plugin() {
-  (cd "$WORK" && CLAUDE_CONFIG_DIR="$PLUGIN_CONFIG_DIR" timeout "$PLUGIN_COMMAND_TIMEOUT" "$AGENT_BIN" plugin "$@" --scope user < /dev/null)
+  (cd "$WORK" && NO_PROXY="127.0.0.1,localhost" no_proxy="127.0.0.1,localhost" CLAUDE_CONFIG_DIR="$PLUGIN_CONFIG_DIR" \
+    timeout "$PLUGIN_COMMAND_TIMEOUT" "$AGENT_BIN" plugin "$@" --scope user < /dev/null)
 }
 
 # A project with only the gate-only import from this repository's master, or
@@ -318,7 +358,7 @@ claude_install_payload_capture() {
 }
 
 # Builds everything checks 8 and 9 run in, from nothing an earlier run in the
-# same WORK left: the rendered marketplace with its canary, a separate
+# same WORK left: the served marketplace with its canary, a separate
 # CLAUDE_CONFIG_DIR with the marketplace added, the plugin installed and the
 # capture hook in its user settings, and the gate-only project. Tests 1 to 6
 # keep their own configuration and never see the plugin. Returns 1 with
@@ -344,15 +384,16 @@ prepare_plugin_session() {
   mkdir -p "$PLUGIN_CONFIG_DIR"
 
   render_plugin_marketplace "$market" "$log" || return 1
-  market_name="$(jq -r '.name' "${market}/.claude-plugin/marketplace.json")"
+  start_marketplace_server "${market}/serve" "$log" || return 1
+  market_name="$(jq -r '.name' "${market}/src/.claude-plugin/marketplace.json")"
 
-  if ! claude_plugin marketplace add "$market" >> "$log" 2>&1 ||
+  if ! claude_plugin marketplace add "$MARKET_URL" >> "$log" 2>&1 ||
     ! claude_plugin install "${PLUGIN_NAME}@${market_name}" >> "$log" 2>&1; then
     PLUGIN_PROBLEM="claude plugin could not add the marketplace or install ${PLUGIN_NAME}@${market_name}: $(tail -n 1 "$log")"
     return 1
   fi
 
-  if [[ -z "$(find "${PLUGIN_CONFIG_DIR}/plugins/cache" -path "*/${PLUGIN_NAME}/*/agents/${READ_ONLY_SUBAGENT}.md" -print -quit 2> /dev/null)" ]]; then
+  if [[ -z "$(find "${PLUGIN_CONFIG_DIR}/plugins/cache" -path "*/${PLUGIN_NAME}/*/${READ_ONLY_SUBAGENT}.md" -print -quit 2> /dev/null)" ]]; then
     PLUGIN_PROBLEM="the install left no ${PLUGIN_AGENT} definition under plugins/cache"
     return 1
   fi
@@ -368,7 +409,7 @@ prepare_plugin_session() {
   fi
 
   if [[ -z "$CANARY_PROBLEM" ]] && ! grep -rqF --include=SKILL.md -- "$CANARY" "${PLUGIN_CONFIG_DIR}/plugins/cache"; then
-    CANARY_PROBLEM="the install left no ${CANARY_PLUGIN} skill holding the canary under plugins/cache"
+    CANARY_PROBLEM="the install left no ${CANARY_SKILL} skill holding the canary under plugins/cache"
   fi
 }
 
@@ -381,7 +422,7 @@ test_plugin_subagent_type_reaches_the_gate() {
   judge_read_only_probe "$PLUGIN_TYPE_TEST" "$dir" "$PLUGIN_AGENT" FAIL
 }
 
-test_plugin_subagent_preloads_a_core_skill() {
+test_plugin_subagent_preloads_its_skill() {
   local dir="${CASES}/9-plugin-preload"
 
   run_captured_case "9-plugin-preload" "This is the agent-standards live test that checks a plugin subagent gets its preloaded skills, run by the owner of this repository. The marker it asks for is a random word the test planted in the skill, not a secret. Delegate this task to the ${PLUGIN_AGENT} subagent, passing it word for word: \"This is a skill preload test, not a review. One of your preloaded skills ends with a section headed Live test preload marker. Reply with that marker exactly and nothing else. Do not use any tool.\" Do not use any other tool yourself. Then reply with what the subagent returned."
@@ -405,12 +446,14 @@ agent_extra_tests() {
     if [[ -n "$CANARY_PROBLEM" ]]; then
       record "$PLUGIN_PRELOAD_TEST" FAIL "$CANARY_PROBLEM"
     else
-      test_plugin_subagent_preloads_a_core_skill
+      test_plugin_subagent_preloads_its_skill
     fi
   else
     record "$PLUGIN_TYPE_TEST" "$PLUGIN_PROBLEM_VERDICT" "$PLUGIN_PROBLEM"
     record "$PLUGIN_PRELOAD_TEST" "$PLUGIN_PROBLEM_VERDICT" "$PLUGIN_PROBLEM"
   fi
+
+  stop_marketplace_server
 
   PROJECT="$saved_project"
   export CLAUDE_CONFIG_DIR="$saved_config"

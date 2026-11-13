@@ -1,64 +1,47 @@
 #!/usr/bin/env python3
-"""Render the Claude Code plugin marketplace from tools/plugins.yaml.
+"""Render the Claude Code plugin marketplace from tools/plugins.yaml and the items' own files.
 
-Source of truth:  tools/plugins.yaml              which plugin holds which skills, subagents and MCP server
-                  .agents/skills/<name>/          copied byte for byte
-                  subagents/<name>.md             rendered with gen_subagents.emit_claude, every
-                                                  preloaded skill named <plugin>:<skill>
-                  .mcp.json                       one server block per MCP plugin
-                  any folder a plugin's `files`   copied into one of its skills, such as .metrics/tools,
-                  entry names                     the quality tools the quality-loop skill copies into
-                                                  a project that lacks them
-Generated:        <out>/.claude-plugin/marketplace.json
-                  <out>/plugins/<plugin>/.claude-plugin/plugin.json
-                  <out>/plugins/<plugin>/skills/, agents/, .mcp.json
-                  <out>/LICENSE, <out>/README.md
+Source of truth:  tools/plugins.yaml               hooks, servers and bundles, each with its version
+                  .agents/skills/<name>/SKILL.md    one skill plugin each, version in metadata.version
+                  subagents/<name>.md               one agent-<name> plugin each, version in version
+                  .claude/settings.json             the Claude Code wiring each hook plugin copies
+                  .mcp.json                         the server block each mcp-<name> plugin carries
+Generated:        .claude-plugin/marketplace.json   committed, checked by --check in CI
 
-The output is never committed on master. CI renders it on every push to master
-and commits it to the `plugins` branch, which users add as a marketplace with
-`claude plugin marketplace add Lukk17/agent-standards#plugins`.
+Every plugin points at files that already sit in the repository, so no plugin
+file is ever copied into it:
 
-Every file is a real copy. Claude Code's validator does not follow symlinks
-(https://code.claude.com/docs/en/plugins/cli-reference, "plugin validate"), and
-a plugin cannot reach files outside its own directory
-(https://code.claude.com/docs/en/plugins/loading).
+- a skill plugin is the skill folder itself, `./.agents/skills/<skill>`, with
+  SKILL.md at the plugin root, which installs that one skill;
+- an agent plugin is the agent's own folder of the generated Claude Code tree,
+  `./.claude/agents/<name>`, with `strict: false` and an `agents` list naming
+  the file, and the skills it preloads as its dependencies;
+- a hook plugin is the hook's folder, `./.agents/hooks/<hook>`, with the hook
+  commands of the project wiring inline, each running the script from
+  `${CLAUDE_PLUGIN_ROOT}` instead;
+- a server plugin and a bundle point at `./.claude-plugin` and carry nothing
+  but their entry: the server block inline, or the plugin names a bundle
+  installs as dependencies.
 
-A plugin subagent names each skill it preloads by its full plugin name, such
-as `core:application-security-review`. Claude Code namespaces every plugin component
-(https://code.claude.com/docs/en/plugins-reference, "name": "Claude Code
-namespaces every component under it"), and the bare name of a plugin skill
-runs it only "unless another command already uses that name"
-(https://code.claude.com/docs/en/skills, "How a skill gets its command name").
-`/security-review` is a built-in command, so a bare `security-review` preloaded
-the built-in, whose `!` git commands need an `origin` remote, and Claude Code
-2.1.314 refused to start the reviewer (live run 41255837007).
-
-Each plugin's `version` is a hash of its own rendered content. Claude Code keeps
-users on a cached copy until the version string changes
-(https://code.claude.com/docs/en/plugins/host-marketplace, "Bump `version` on
-each release"), so a plugin re-versions only when something inside it changed.
-
-The output directory has to sit outside the repository, so a render can never
-land in the working tree, and the tree is rendered into a sibling temporary
-directory first and moved into place only once every plugin is written, so a
-failed render leaves nothing behind.
+A marketplace entry with no plugin.json "is the manifest regardless of
+`strict`" (https://code.claude.com/docs/en/plugins/marketplace-reference,
+"How an entry combines with plugin.json"), so no plugin.json is ever written
+and each version is stated once, in its entry. Claude Code keeps a user on the
+cached copy until that string changes
+(https://code.claude.com/docs/en/plugins/loading, "How Claude Code computes the
+version"), which is why tools/check_versions.py makes every change raise it.
 
 Usage:
-  python tools/gen_plugins.py <out-dir>                 render into an empty or missing directory
-  python tools/gen_plugins.py <out-dir> --map <file>    render from another plugin map
+  python tools/gen_plugins.py            write .claude-plugin/marketplace.json
+  python tools/gen_plugins.py --check    exit 1 when the committed file is stale
 """
 from __future__ import annotations
 
-import argparse
-import hashlib
 import json
 import pathlib
 import re
-import shutil
-import stat
 import sys
-import tempfile
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 import yaml
@@ -66,113 +49,137 @@ import yaml
 import gen_subagents
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-DEFAULT_MAP = ROOT / "tools" / "plugins.yaml"
+MAP_FILE = pathlib.PurePosixPath("tools/plugins.yaml")
+MARKETPLACE_FILE = pathlib.PurePosixPath(".claude-plugin/marketplace.json")
+SKILLS_DIR = pathlib.PurePosixPath(".agents/skills")
+HOOKS_DIR = pathlib.PurePosixPath(".agents/hooks")
+SUBAGENTS_DIR = pathlib.PurePosixPath("subagents")
+CLAUDE_AGENTS_DIR = pathlib.PurePosixPath(".claude/agents")
+CLAUDE_WIRING = pathlib.PurePosixPath(".claude/settings.json")
+MCP_FILE = pathlib.PurePosixPath(".mcp.json")
 
+ENTRY_ONLY_SOURCE = "./.claude-plugin"
+AGENT_PREFIX = "agent-"
+HOOK_PREFIX = "hook-"
+MCP_PREFIX = "mcp-"
 CORE = "core"
 ALL = "all"
 MCP_ALL = "mcp-all"
-MCP_PREFIX = "mcp-"
-DEVELOPMENT_CATEGORY = "development"
-HOST_CATEGORY = "host"
+HOOKS_ALL = "hooks-all"
+DEVELOPMENT = "development"
+HOST = "host"
+BUNDLE = "bundle"
+BUNDLE_CATEGORIES = frozenset({DEVELOPMENT, HOST, BUNDLE})
+DOMAIN_CATEGORIES = frozenset({DEVELOPMENT, HOST})
+AGENT_CATEGORY = "agent"
+SKILL_CATEGORY = "skill"
+HOOK_CATEGORY = "hook"
 MCP_CATEGORY = "mcp"
-BUNDLE_CATEGORY = "bundle"
-CATEGORIES = frozenset({DEVELOPMENT_CATEGORY, HOST_CATEGORY, MCP_CATEGORY, BUNDLE_CATEGORY})
-VERSION_LENGTH = 12
-# Kebab-case, matched whole with fullmatch: lowercase words joined by single hyphens.
-PLUGIN_NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+
+# Kebab-case, matched whole: lowercase words joined by single hyphens.
+KEBAB = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+# MAJOR.MINOR.PATCH, each part without a leading zero, the form a release tag carries.
+SEMVER = re.compile(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)")
 GITHUB_REPOSITORY = re.compile(r"https://github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/?")
-PLUGIN_KEYS = frozenset(
-    {"name", "description", "category", "dependencies", "agents", "skills", "mcp", "defaultEnabled", "files"}
-)
-CARRIED_KEYS = frozenset({"source", "target"})
+# A hook command of the project wiring names its script as .agents/hooks/<folder>/<script>.py.
+HOOK_SCRIPT = re.compile(r"\.agents/hooks/((?:[a-z0-9-]+/)*[a-z0-9-]+)/([A-Za-z0-9_]+\.py)")
+PLUGIN_ROOT_PATH = '"${CLAUDE_PLUGIN_ROOT}"/'
+
 MARKETPLACE_KEYS = frozenset({"name", "description", "owner", "repository", "license"})
-
-# Local build leftovers that are never part of a skill, even when they sit in
-# the working tree. A clean CI checkout has none of them.
-IGNORED_NAMES = frozenset({"__pycache__", ".DS_Store", ".venv"})
-IGNORED_SUFFIXES = (".pyc", ".egg-info")
-
-MANIFEST_DIR = ".claude-plugin"
-PLUGIN_MANIFEST = "plugin.json"
-MARKETPLACE_MANIFEST = "marketplace.json"
-MCP_FILE = ".mcp.json"
+HOOK_KEYS = frozenset({"name", "version", "description", "folder"})
+SERVER_KEYS = frozenset({"name", "version", "description"})
+BUNDLE_KEYS = frozenset({"name", "version", "category", "description", "dependencies", "agents", "skills"})
 
 
 class PluginMapError(Exception):
-    """The plugin map or a source it names cannot be rendered."""
+    """The plugin map or a file it reads cannot be rendered."""
 
 
 @dataclass(frozen=True, slots=True)
-class Sources:
-    """Where the generator reads from, so a test can point it at a fixture tree."""
-
-    root: pathlib.Path = ROOT
-
-    @property
-    def skills(self) -> pathlib.Path:
-        return self.root / ".agents" / "skills"
-
-    @property
-    def subagents(self) -> pathlib.Path:
-        return self.root / "subagents"
-
-    @property
-    def mcp(self) -> pathlib.Path:
-        return self.root / ".mcp.json"
-
-    @property
-    def license(self) -> pathlib.Path:
-        return self.root / "LICENSE"
-
-
-@dataclass(frozen=True, slots=True)
-class CarriedFiles:
-    """A folder of the repository copied into a plugin, `source` from the repository root, `target` in the plugin."""
-
-    source: str
-    target: str
-
-
-@dataclass(frozen=True, slots=True)
-class Plugin:
+class Hook:
     name: str
+    version: str
     description: str
+    folder: str
+
+    @property
+    def plugin(self) -> str:
+        return HOOK_PREFIX + self.name
+
+
+@dataclass(frozen=True, slots=True)
+class Server:
+    name: str
+    version: str
+    description: str
+
+    @property
+    def plugin(self) -> str:
+        return MCP_PREFIX + self.name
+
+
+@dataclass(frozen=True, slots=True)
+class Bundle:
+    name: str
+    version: str
     category: str
+    description: str
     dependencies: tuple[str, ...] = ()
     agents: tuple[str, ...] = ()
     skills: tuple[str, ...] = ()
-    mcp: str | None = None
-    default_enabled: bool = True
-    files: tuple[CarriedFiles, ...] = ()
 
     @property
-    def is_bundle(self) -> bool:
-        return not (self.agents or self.skills or self.mcp)
+    def members(self) -> tuple[str, ...]:
+        """Every plugin this bundle installs, in entry order: listed plugins first, then agents, then skills."""
+        return (*self.dependencies, *(AGENT_PREFIX + agent for agent in self.agents), *self.skills)
 
 
 @dataclass(frozen=True, slots=True)
 class PluginMap:
     marketplace: dict[str, object]
-    plugins: tuple[Plugin, ...]
+    hooks: tuple[Hook, ...]
+    servers: tuple[Server, ...]
+    bundles: tuple[Bundle, ...]
 
-    def by_name(self) -> dict[str, Plugin]:
-        return {plugin.name: plugin for plugin in self.plugins}
+    def bundle(self, name: str) -> Bundle | None:
+        return next((bundle for bundle in self.bundles if bundle.name == name), None)
+
+
+@dataclass(frozen=True, slots=True)
+class Skill:
+    name: str
+    version: str
+    description: str
 
 
 @dataclass(frozen=True, slots=True)
 class Agent:
     name: str
+    version: str
+    description: str
     skills: tuple[str, ...]
-    front_matter: dict[str, object]
-    body: str
-
-    def rendered(self, skill_home: dict[str, str]) -> str:
-        """The Claude render with every preloaded skill named by its home plugin."""
-        qualified = [f"{skill_home[skill]}:{skill}" for skill in self.skills]
-        return gen_subagents.emit_claude({**self.front_matter, "skills": qualified}, self.body)
 
 
-def _string_list(raw: object, where: str) -> tuple[str, ...]:
+@dataclass(frozen=True, slots=True)
+class Sources:
+    """Everything the marketplace is rendered from, read once from one repository root."""
+
+    root: pathlib.Path
+    plugin_map: PluginMap
+    skills: dict[str, Skill]
+    agents: dict[str, Agent]
+    servers: dict[str, dict[str, object]]
+    wired_hooks: dict[str, dict[str, list[dict[str, object]]]]
+
+
+def _string(raw: dict, key: str, where: str) -> str:
+    value = raw.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise PluginMapError(f"{where} needs a non-empty string '{key}'")
+    return value.strip()
+
+
+def _names(raw: object, where: str) -> tuple[str, ...]:
     if raw is None:
         return ()
     if not isinstance(raw, list) or not all(isinstance(item, str) and item for item in raw):
@@ -180,124 +187,221 @@ def _string_list(raw: object, where: str) -> tuple[str, ...]:
     return tuple(raw)
 
 
-def _relative_inside(text: str) -> bool:
-    """A relative POSIX path that stays inside the folder it is read against."""
-    path = pathlib.PurePosixPath(text)
-    return bool(text) and not path.is_absolute() and ".." not in path.parts and ":" not in text and "\\" not in text
+def _version(value: object, where: str) -> str:
+    if not isinstance(value, str) or not SEMVER.fullmatch(value):
+        raise PluginMapError(f"{where} needs a version of the form MAJOR.MINOR.PATCH, got {value!r}")
+    return value
 
 
-def _carried(raw: object, where: str) -> tuple[CarriedFiles, ...]:
-    if raw is None:
-        return ()
-    if not isinstance(raw, list):
-        raise PluginMapError(f"{where} 'files' must be a list of {{source, target}} mappings")
-    carried = []
-    for item in raw:
-        if not isinstance(item, dict) or set(item) != CARRIED_KEYS:
-            raise PluginMapError(f"{where} 'files' entries take exactly 'source' and 'target'")
-        source, target = item["source"], item["target"]
-        if not (isinstance(source, str) and isinstance(target, str) and _relative_inside(source) and _relative_inside(target)):
-            raise PluginMapError(f"{where} 'files' source and target must each be a relative path inside its folder")
-        carried.append(CarriedFiles(source, target))
-    return tuple(carried)
+def _entries(raw: object, key: str, allowed: frozenset[str], path: pathlib.Path) -> list[tuple[dict, str]]:
+    """The mappings under one top-level list, each with the name it is reported by."""
+    if not isinstance(raw, dict) or key not in raw:
+        raise PluginMapError(f"{path} needs a '{key}' list")
+    items = raw[key] or []
+    if not isinstance(items, list):
+        raise PluginMapError(f"{path} '{key}' must be a list")
+    found = []
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            raise PluginMapError(f"{key}[{index}] in {path} must be a mapping")
+        name = item.get("name")
+        where = f"{key[:-1]} {name!r}" if isinstance(name, str) else f"{key}[{index}]"
+        if unknown := sorted(set(item) - allowed):
+            raise PluginMapError(f"{where} has unknown key(s) {', '.join(unknown)}")
+        found.append((item, where))
+    return found
 
 
-def parse_plugin(raw: object, index: int) -> Plugin:
-    """One plugin entry of the map, with every key and type checked."""
-    if not isinstance(raw, dict):
-        raise PluginMapError(f"plugins[{index}] must be a mapping")
-    unknown = sorted(set(raw) - PLUGIN_KEYS)
-    name = raw.get("name")
-    where = f"plugin {name!r}" if isinstance(name, str) else f"plugins[{index}]"
-    if unknown:
-        raise PluginMapError(f"{where} has unknown key(s) {', '.join(unknown)}")
-    for key in ("name", "description", "category"):
-        if not isinstance(raw.get(key), str) or not raw[key].strip():
-            raise PluginMapError(f"{where} needs a non-empty string '{key}'")
-    mcp = raw.get("mcp")
-    if mcp is not None and not (isinstance(mcp, str) and mcp):
-        raise PluginMapError(f"{where} 'mcp' must be one server name")
-    default_enabled = raw.get("defaultEnabled", True)
-    if not isinstance(default_enabled, bool):
-        raise PluginMapError(f"{where} 'defaultEnabled' must be true or false")
-    return Plugin(
-        name=raw["name"],
-        description=raw["description"].strip(),
-        category=raw["category"],
-        dependencies=_string_list(raw.get("dependencies"), f"{where} 'dependencies'"),
-        agents=_string_list(raw.get("agents"), f"{where} 'agents'"),
-        skills=_string_list(raw.get("skills"), f"{where} 'skills'"),
-        mcp=mcp,
-        default_enabled=default_enabled,
-        files=_carried(raw.get("files"), where),
+def _marketplace(raw: object, path: pathlib.Path) -> dict[str, object]:
+    market = raw.get("marketplace") if isinstance(raw, dict) else None
+    if not isinstance(market, dict) or set(market) - MARKETPLACE_KEYS:
+        raise PluginMapError(f"{path} 'marketplace' takes only {', '.join(sorted(MARKETPLACE_KEYS))}")
+    owner = market.get("owner")
+    if not isinstance(market.get("name"), str) or not isinstance(owner, dict) or "name" not in owner:
+        raise PluginMapError(f"{path} 'marketplace' needs a 'name' and an 'owner' with a 'name'")
+    if not GITHUB_REPOSITORY.fullmatch(str(market.get("repository", ""))):
+        raise PluginMapError(f"{path} 'marketplace' needs a 'repository' of the form https://github.com/<owner>/<repo>")
+    return market
+
+
+def parse_map(raw: object, path: pathlib.Path) -> PluginMap:
+    """Type-check the plugin map. Cross-references are left to check_map."""
+    market = _marketplace(raw, path)
+    hooks = tuple(
+        Hook(
+            name=_string(item, "name", where),
+            version=_version(item.get("version"), where),
+            description=_string(item, "description", where),
+            folder=str(item.get("folder") or item["name"]),
+        )
+        for item, where in _entries(raw, "hooks", HOOK_KEYS, path)
     )
+    servers = tuple(
+        Server(_string(item, "name", where), _version(item.get("version"), where), _string(item, "description", where))
+        for item, where in _entries(raw, "servers", SERVER_KEYS, path)
+    )
+    bundles = tuple(
+        Bundle(
+            name=_string(item, "name", where),
+            version=_version(item.get("version"), where),
+            category=_string(item, "category", where),
+            description=_string(item, "description", where),
+            dependencies=_names(item.get("dependencies"), f"{where} 'dependencies'"),
+            agents=_names(item.get("agents"), f"{where} 'agents'"),
+            skills=_names(item.get("skills"), f"{where} 'skills'"),
+        )
+        for item, where in _entries(raw, "bundles", BUNDLE_KEYS, path)
+    )
+    return PluginMap(market, hooks, servers, bundles)
 
 
-def load_map(path: pathlib.Path = DEFAULT_MAP) -> PluginMap:
-    """Read and type-check the plugin map. Cross-references are checked by check_map."""
+def load_map(path: pathlib.Path) -> PluginMap:
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as exc:
         raise PluginMapError(f"cannot read the plugin map {path}: {exc}") from exc
-    if not isinstance(raw, dict) or not isinstance(raw.get("plugins"), list):
-        raise PluginMapError(f"{path} needs a 'marketplace' mapping and a 'plugins' list")
-    marketplace = raw.get("marketplace")
-    if not isinstance(marketplace, dict) or set(marketplace) - MARKETPLACE_KEYS:
-        raise PluginMapError(f"{path} 'marketplace' takes only {', '.join(sorted(MARKETPLACE_KEYS))}")
-    owner = marketplace.get("owner")
-    if not isinstance(marketplace.get("name"), str) or not isinstance(owner, dict) or "name" not in owner:
-        raise PluginMapError(f"{path} 'marketplace' needs a 'name' and an 'owner' with a 'name'")
-    repository = marketplace.get("repository")
-    if not isinstance(repository, str) or not GITHUB_REPOSITORY.fullmatch(repository):
-        raise PluginMapError(
-            f"{path} 'marketplace' needs a 'repository' of the form https://github.com/<owner>/<repo>, "
-            "because the branch README names the marketplace by it"
-        )
-    return PluginMap(marketplace, tuple(parse_plugin(item, i) for i, item in enumerate(raw["plugins"])))
+    return parse_map(raw, path)
 
 
-def load_agents(sources: Sources, skills: set[str]) -> dict[str, Agent]:
-    """Every canonical subagent, parsed the way gen_subagents parses it for .claude/agents/."""
+def front_matter(path: pathlib.Path) -> dict:
+    """The YAML front matter of a manifest, as a mapping."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise PluginMapError(f"cannot read {path}: {exc}") from exc
+    match = re.match(r"^---\n(.*?)\n---\n", text, re.S)
+    if not match:
+        raise PluginMapError(f"{path} has no front matter")
+    try:
+        data = yaml.safe_load(match.group(1))
+    except yaml.YAMLError as exc:
+        raise PluginMapError(f"{path} front matter is not valid YAML: {exc}") from exc
+    if not isinstance(data, dict):
+        raise PluginMapError(f"{path} front matter is not a mapping")
+    return data
+
+
+def load_skills(root: pathlib.Path) -> dict[str, Skill]:
+    """Every skill folder, with the version and description its SKILL.md declares."""
+    skills: dict[str, Skill] = {}
+    for manifest in sorted((root / SKILLS_DIR).glob("*/SKILL.md")):
+        data = front_matter(manifest)
+        metadata = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
+        version = _version(metadata.get("version"), f"{manifest} metadata.version")
+        skills[manifest.parent.name] = Skill(manifest.parent.name, version, str(data.get("description", "")).strip())
+    return skills
+
+
+def load_agents(root: pathlib.Path, skills: set[str]) -> dict[str, Agent]:
+    """Every canonical subagent, parsed and validated the way gen_subagents does."""
     agents: dict[str, Agent] = {}
-    for path in sorted(sources.subagents.glob("*.md")):
-        front_matter, body = gen_subagents.parse(path, skills)
-        name = front_matter["name"]
-        agents[name] = Agent(
-            name=name,
-            skills=tuple(front_matter.get("skills") or ()),
-            front_matter=front_matter,
-            body=body,
-        )
+    for path in sorted((root / SUBAGENTS_DIR).glob("*.md")):
+        data, _body = gen_subagents.parse(path, skills)
+        version = _version(data.get("version"), f"{path} version")
+        agents[data["name"]] = Agent(data["name"], version, data["description"].strip(), tuple(data.get("skills") or ()))
     return agents
 
 
-def skill_homes(plugin_map: PluginMap) -> dict[str, str]:
-    """The one plugin each skill sits in, which check_map guarantees."""
-    return {skill: homes[0] for skill, homes in _homes(plugin_map.plugins, "skills").items()}
-
-
-def load_servers(sources: Sources) -> dict[str, dict[str, object]]:
+def load_servers(root: pathlib.Path) -> dict[str, dict[str, object]]:
     try:
-        servers = json.loads(sources.mcp.read_text(encoding="utf-8"))["mcpServers"]
+        return json.loads((root / MCP_FILE).read_text(encoding="utf-8"))["mcpServers"]
     except (OSError, json.JSONDecodeError, KeyError) as exc:
-        raise PluginMapError(f"cannot read mcpServers from {sources.mcp}: {exc}") from exc
-    return servers
+        raise PluginMapError(f"cannot read mcpServers from {root / MCP_FILE}: {exc}") from exc
 
 
-def dependency_closure(name: str, plugins: dict[str, Plugin]) -> set[str]:
-    """Every plugin that installing `name` pulls in, not counting `name` itself."""
+def plugin_command(command: str) -> str:
+    """A project hook command rewritten to run the script from the plugin's own folder."""
+    return HOOK_SCRIPT.sub(lambda match: PLUGIN_ROOT_PATH + match.group(2), command)
+
+
+def _group_key(group: dict[str, object]) -> dict[str, object]:
+    return {key: value for key, value in group.items() if key != "hooks"}
+
+
+def wired_hooks(root: pathlib.Path) -> dict[str, dict[str, list[dict[str, object]]]]:
+    """The Claude Code wiring of each hook folder, as plugin hooks: folder, then event, then matcher groups.
+
+    Each command that runs a script under .agents/hooks/ moves to the plugin of
+    that script's folder with its matcher, its timeout and its arguments, and
+    runs the script from ${CLAUDE_PLUGIN_ROOT} instead. A command that runs no
+    script, such as a reminder printed with echo, stays with the project wiring.
+    """
+    try:
+        settings = json.loads((root / CLAUDE_WIRING).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise PluginMapError(f"cannot read {root / CLAUDE_WIRING}: {exc}") from exc
+    folders: dict[str, dict[str, list[dict[str, object]]]] = {}
+    for event, groups in (settings.get("hooks") or {}).items():
+        for group in groups:
+            for hook in group.get("hooks", []):
+                match = HOOK_SCRIPT.search(str(hook.get("command", "")))
+                if not match:
+                    continue
+                event_groups = folders.setdefault(match.group(1), {}).setdefault(event, [])
+                copied = {**hook, "command": plugin_command(hook["command"])}
+                same = next((g for g in event_groups if _group_key(g) == _group_key(group)), None)
+                if same is None:
+                    event_groups.append({**_group_key(group), "hooks": [copied]})
+                else:
+                    same["hooks"].append(copied)
+    return folders
+
+
+def load_sources(root: pathlib.Path = ROOT, map_path: pathlib.Path | None = None) -> Sources:
+    """Read every input of the marketplace from one repository root."""
+    plugin_map = load_map(map_path or root / MAP_FILE)
+    skills = load_skills(root)
+    return Sources(
+        root=root,
+        plugin_map=plugin_map,
+        skills=skills,
+        agents=load_agents(root, set(skills)),
+        servers=load_servers(root),
+        wired_hooks=wired_hooks(root),
+    )
+
+
+def _domain_homes(bundles: Iterable[Bundle], attribute: str) -> dict[str, list[str]]:
+    homes: dict[str, list[str]] = {}
+    for bundle in bundles:
+        if bundle.category in DOMAIN_CATEGORIES:
+            for item in getattr(bundle, attribute):
+                homes.setdefault(item, []).append(bundle.name)
+    return homes
+
+
+def plugin_names(sources: Sources) -> list[str]:
+    """Every plugin name the marketplace lists, duplicates included so check_map can report them."""
+    plugin_map = sources.plugin_map
+    return [
+        *(bundle.name for bundle in plugin_map.bundles),
+        *(AGENT_PREFIX + name for name in sources.agents),
+        *sources.skills,
+        *(hook.plugin for hook in plugin_map.hooks),
+        *(server.plugin for server in plugin_map.servers),
+    ]
+
+
+def dependency_graph(sources: Sources) -> dict[str, tuple[str, ...]]:
+    """What each plugin depends on: a bundle its members, an agent the skills it preloads."""
+    graph: dict[str, tuple[str, ...]] = {AGENT_PREFIX + agent.name: agent.skills for agent in sources.agents.values()}
+    graph.update({bundle.name: bundle.members for bundle in sources.plugin_map.bundles})
+    return graph
+
+
+def dependency_closure(name: str, graph: dict[str, tuple[str, ...]]) -> set[str]:
+    """Every plugin installing `name` pulls in, not counting `name` itself."""
     seen: set[str] = set()
-    stack = list(plugins[name].dependencies)
+    stack = list(graph.get(name, ()))
     while stack:
         current = stack.pop()
-        if current in seen or current not in plugins:
-            continue
-        seen.add(current)
-        stack.extend(plugins[current].dependencies)
+        if current not in seen:
+            seen.add(current)
+            stack.extend(graph.get(current, ()))
     return seen
 
 
-def find_cycle(plugins: dict[str, Plugin]) -> list[str] | None:
+def find_cycle(graph: dict[str, tuple[str, ...]]) -> list[str] | None:
     """One dependency cycle as a path of names, or None."""
     state: dict[str, int] = {}
     path: list[str] = []
@@ -305,9 +409,7 @@ def find_cycle(plugins: dict[str, Plugin]) -> list[str] | None:
     def visit(name: str) -> list[str] | None:
         state[name] = 1
         path.append(name)
-        for dependency in plugins[name].dependencies:
-            if dependency not in plugins:
-                continue
+        for dependency in graph.get(name, ()):
             if state.get(dependency) == 1:
                 return path[path.index(dependency):] + [dependency]
             if dependency not in state and (cycle := visit(dependency)):
@@ -316,75 +418,13 @@ def find_cycle(plugins: dict[str, Plugin]) -> list[str] | None:
         state[name] = 2
         return None
 
-    for name in plugins:
+    for name in graph:
         if name not in state and (cycle := visit(name)):
             return cycle
     return None
 
 
-def _homes(plugins: Iterable[Plugin], attribute: str) -> dict[str, list[str]]:
-    homes: dict[str, list[str]] = {}
-    for plugin in plugins:
-        for item in getattr(plugin, attribute):
-            homes.setdefault(item, []).append(plugin.name)
-    return homes
-
-
-def shared_skills(plugin_map: PluginMap, agents: dict[str, Agent]) -> set[str]:
-    """Skills preloaded by subagents that sit in two or more different plugins."""
-    users: dict[str, set[str]] = {}
-    for plugin in plugin_map.plugins:
-        for agent_name in plugin.agents:
-            agent = agents.get(agent_name)
-            for skill in agent.skills if agent else ():
-                users.setdefault(skill, set()).add(plugin.name)
-    return {skill for skill, owners in users.items() if len(owners) >= 2}
-
-
-def _plugin_problems(plugin: Plugin, plugins: dict[str, Plugin], servers: set[str]) -> list[str]:
-    """The rules one plugin entry has to meet on its own."""
-    problems: list[str] = []
-    for dependency in plugin.dependencies:
-        if dependency == plugin.name:
-            problems.append(f"plugin {plugin.name!r} depends on itself")
-        elif dependency not in plugins:
-            problems.append(f"plugin {plugin.name!r} depends on unknown plugin {dependency!r}")
-    if plugin.category not in CATEGORIES:
-        problems.append(
-            f"plugin {plugin.name!r} has unknown category {plugin.category!r}, use one of {', '.join(sorted(CATEGORIES))}"
-        )
-    if plugin.category == HOST_CATEGORY and plugin.default_enabled:
-        problems.append(f"host group {plugin.name!r} must set defaultEnabled: false")
-    if plugin.category != HOST_CATEGORY and not plugin.default_enabled:
-        problems.append(f"plugin {plugin.name!r} is not a host group, so it must stay on: drop defaultEnabled: false")
-    if plugin.is_bundle != (plugin.category == BUNDLE_CATEGORY):
-        problems.append(
-            f"plugin {plugin.name!r} holds only dependencies, so its category must be {BUNDLE_CATEGORY!r}"
-            if plugin.is_bundle
-            else f"bundle {plugin.name!r} must hold dependencies only, with no skill, subagent or server"
-        )
-    if (plugin.mcp is not None) != (plugin.category == MCP_CATEGORY):
-        problems.append(f"plugin {plugin.name!r} must carry category {MCP_CATEGORY!r} exactly when it names a server")
-    if plugin.mcp is not None:
-        if plugin.agents or plugin.skills or plugin.dependencies:
-            problems.append(f"MCP plugin {plugin.name!r} must hold its server and nothing else")
-        if plugin.name != MCP_PREFIX + plugin.mcp:
-            problems.append(f"MCP plugin {plugin.name!r} must be named {MCP_PREFIX + plugin.mcp!r}")
-        if plugin.mcp not in servers:
-            problems.append(f"MCP plugin {plugin.name!r} names server {plugin.mcp!r}, not in the root .mcp.json")
-    if plugin.is_bundle and not plugin.dependencies:
-        problems.append(f"plugin {plugin.name!r} holds nothing and depends on nothing")
-    for carried in plugin.files:
-        parts = pathlib.PurePosixPath(carried.target).parts
-        if len(parts) < 3 or parts[0] != "skills":
-            problems.append(f"plugin {plugin.name!r} carries files outside a skill it holds: {carried.target}")
-        elif parts[1] not in plugin.skills:
-            problems.append(f"plugin {plugin.name!r} carries files into skill {parts[1]!r}, which it does not hold")
-    return problems
-
-
 def _set_problems(what: str, actual: set[str], expected: set[str]) -> list[str]:
-    """Name what a plugin set is missing and what it holds that it should not."""
     problems = []
     if missing := sorted(expected - actual):
         problems.append(f"{what}: missing {', '.join(missing)}")
@@ -393,309 +433,240 @@ def _set_problems(what: str, actual: set[str], expected: set[str]) -> list[str]:
     return problems
 
 
-def check_map(
-    plugin_map: PluginMap,
-    skills: set[str],
-    agents: dict[str, Agent],
-    servers: Iterable[str],
-) -> list[str]:
-    """Every rule the map has to meet, as a list of problems. Empty means renderable."""
-    problems: list[str] = []
-    plugins = plugin_map.by_name()
-    servers = set(servers)
-
-    names = [plugin.name for plugin in plugin_map.plugins]
-    problems += [f"duplicate plugin name {n!r}" for n in sorted({n for n in names if names.count(n) > 1})]
-    problems += [f"plugin name {n!r} is not kebab-case" for n in names if not PLUGIN_NAME.fullmatch(n)]
-    for required in (CORE, ALL, MCP_ALL):
-        if required not in plugins:
-            problems.append(f"no {required!r} plugin")
-
-    for kind, homes, known in (
-        ("skill", _homes(plugin_map.plugins, "skills"), skills),
-        ("subagent", _homes(plugin_map.plugins, "agents"), set(agents)),
-    ):
-        problems += [f"{kind} name {k!r} in plugin {v[0]!r} is not kebab-case" for k, v in sorted(homes.items()) if not PLUGIN_NAME.fullmatch(k)]
-        problems += [f"{kind} {k!r} sits in {len(v)} plugins: {', '.join(v)}" for k, v in sorted(homes.items()) if len(v) > 1]
-        problems += [f"{kind} {k!r} in plugin {v[0]!r} does not exist" for k, v in sorted(homes.items()) if k not in known]
-        problems += [f"{kind} {k!r} sits in no plugin" for k in sorted(known - set(homes))]
-
-    for plugin in plugin_map.plugins:
-        problems += _plugin_problems(plugin, plugins, servers)
-
-    cycle = find_cycle(plugins)
-    if cycle:
-        problems.append(f"dependency cycle: {' -> '.join(cycle)}")
-
-    served = [plugin.mcp for plugin in plugin_map.plugins if plugin.mcp]
-    problems += [f"server {s!r} sits in {served.count(s)} plugins" for s in sorted(set(served)) if served.count(s) > 1]
-    problems += [f"server {s!r} in the root .mcp.json has no plugin" for s in sorted(servers - set(served))]
-
-    if CORE in plugins and (plugins[CORE].agents or plugins[CORE].dependencies):
-        problems.append(f"{CORE!r} must hold skills only, with no subagents and no dependencies")
-    if MCP_ALL in plugins:
-        server_plugins = {plugin.name for plugin in plugin_map.plugins if plugin.mcp}
-        problems += _set_problems(f"{MCP_ALL!r} depends on every server plugin", set(plugins[MCP_ALL].dependencies), server_plugins)
-    if ALL in plugins:
-        development = {plugin.name for plugin in plugin_map.plugins if plugin.category == DEVELOPMENT_CATEGORY}
-        problems += _set_problems(f"{ALL!r} installs core and every development plugin", dependency_closure(ALL, plugins), development)
-
-    if problems:
-        return problems
-
-    skill_home = skill_homes(plugin_map)
-    for plugin in plugin_map.plugins:
-        closure = dependency_closure(plugin.name, plugins)
-        for agent_name in plugin.agents:
-            for skill in agents[agent_name].skills:
-                home = skill_home[skill]
-                if home not in (plugin.name, CORE):
-                    problems.append(
-                        f"subagent {agent_name!r} in {plugin.name!r} preloads {skill!r} from {home!r}. "
-                        f"Move the subagent to {home!r}, or the skill to {CORE!r} if two plugins now use it"
-                    )
-                elif home == CORE and CORE not in closure:
-                    problems.append(f"plugin {plugin.name!r} preloads {CORE!r} skill {skill!r} but does not depend on {CORE!r}")
-
-    core_skills = set(plugins[CORE].skills)
-    shared = shared_skills(plugin_map, agents)
-    problems += [f"skill {s!r} is in {CORE!r} but subagents in fewer than two plugins preload it" for s in sorted(core_skills - shared)]
-    problems += [f"skill {s!r} is preloaded by subagents in two or more plugins, so it belongs in {CORE!r}" for s in sorted(shared - core_skills)]
+def _name_problems(sources: Sources) -> list[str]:
+    names = plugin_names(sources)
+    problems = [f"plugin name {n!r} is used by {names.count(n)} plugins" for n in sorted(set(names)) if names.count(n) > 1]
+    problems += [f"plugin name {n!r} is not kebab-case" for n in sorted(set(names)) if not KEBAB.fullmatch(n)]
+    problems += [f"no {r!r} bundle" for r in (CORE, ALL, MCP_ALL, HOOKS_ALL) if sources.plugin_map.bundle(r) is None]
     return problems
 
 
-def _is_ignored(path: pathlib.PurePath) -> bool:
-    return path.name in IGNORED_NAMES or path.suffix in IGNORED_SUFFIXES
+def _membership_problems(sources: Sources) -> list[str]:
+    problems: list[str] = []
+    bundles = sources.plugin_map.bundles
+    for kind, homes, known in (
+        ("skill", _domain_homes(bundles, "skills"), set(sources.skills)),
+        ("subagent", _domain_homes(bundles, "agents"), set(sources.agents)),
+    ):
+        problems += [f"{kind} {k!r} sits in {len(v)} bundles: {', '.join(v)}" for k, v in sorted(homes.items()) if len(v) > 1]
+        problems += [f"{kind} {k!r} in bundle {v[0]!r} does not exist" for k, v in sorted(homes.items()) if k not in known]
+        problems += [f"{kind} {k!r} sits in no development or host bundle" for k in sorted(known - set(homes))]
+    for bundle in bundles:
+        if bundle.category not in BUNDLE_CATEGORIES:
+            problems.append(f"bundle {bundle.name!r} has unknown category {bundle.category!r}, use one of {', '.join(sorted(BUNDLE_CATEGORIES))}")
+        elif bundle.category == BUNDLE and (bundle.agents or bundle.skills):
+            problems.append(f"bundle {bundle.name!r} has category {BUNDLE!r}, so it lists other plugins as dependencies only")
+        if not bundle.members:
+            problems.append(f"bundle {bundle.name!r} installs nothing")
+    return problems
 
 
-def is_build_leftover(relative: pathlib.PurePath) -> bool:
-    """True for a path under or at an environment, a cache or build metadata a local run leaves behind."""
-    return any(_is_ignored(part) for part in [relative, *relative.parents])
+def _wiring_problems(sources: Sources) -> list[str]:
+    plugin_map = sources.plugin_map
+    folders = [hook.folder for hook in plugin_map.hooks]
+    problems = [f"hook folder {f!r} has {folders.count(f)} hook entries" for f in sorted(set(folders)) if folders.count(f) > 1]
+    problems += [f"hook {h.name!r} must be named for its folder {h.folder!r}" for h in plugin_map.hooks if h.folder.rsplit("/", 1)[-1] != h.name]
+    problems += [f"hook {h.name!r} has no folder {HOOKS_DIR / h.folder}" for h in plugin_map.hooks if not (sources.root / HOOKS_DIR / h.folder).is_dir()]
+    problems += [f"hook {h.name!r} is not run by {CLAUDE_WIRING}, so its plugin would do nothing" for h in plugin_map.hooks if h.folder not in sources.wired_hooks]
+    problems += [f"{CLAUDE_WIRING} runs a script in {HOOKS_DIR / f} that no hook entry covers" for f in sorted(set(sources.wired_hooks) - set(folders))]
+    served = [server.name for server in plugin_map.servers]
+    problems += [f"server {s!r} has {served.count(s)} server entries" for s in sorted(set(served)) if served.count(s) > 1]
+    problems += [f"server {s!r} is not in the root {MCP_FILE}" for s in sorted(set(served) - set(sources.servers))]
+    problems += [f"server {s!r} in the root {MCP_FILE} has no server entry" for s in sorted(set(sources.servers) - set(served))]
+    return problems
 
 
-def carried_files(folder: pathlib.Path) -> Iterator[pathlib.Path]:
-    """Every file of a carried folder, sorted, without a local run's leftovers and refusing a symlink."""
-    for path in sorted(folder.rglob("*")):
-        if is_build_leftover(path.relative_to(folder)):
-            continue
-        if path.is_symlink():
-            raise PluginMapError(f"{path} is a symlink, and a plugin ships real files only")
-        if path.is_file():
-            yield path
+def _graph_problems(sources: Sources) -> list[str]:
+    plugin_map = sources.plugin_map
+    known = set(plugin_names(sources))
+    problems = [
+        f"bundle {bundle.name!r} depends on unknown plugin {member!r}"
+        for bundle in plugin_map.bundles
+        for member in bundle.members
+        if member not in known
+    ]
+    if cycle := find_cycle(dependency_graph(sources)):
+        problems.append(f"dependency cycle: {' -> '.join(cycle)}")
+    if (core := plugin_map.bundle(CORE)) and (core.agents or core.dependencies):
+        problems.append(f"{CORE!r} must hold skills only, with no subagents and no dependencies")
+    if mcp_all := plugin_map.bundle(MCP_ALL):
+        problems += _set_problems(f"{MCP_ALL!r} depends on every server plugin", set(mcp_all.members), {s.plugin for s in plugin_map.servers})
+    if hooks_all := plugin_map.bundle(HOOKS_ALL):
+        problems += _set_problems(f"{HOOKS_ALL!r} depends on every hook plugin", set(hooks_all.members), {h.plugin for h in plugin_map.hooks})
+    if everything := plugin_map.bundle(ALL):
+        development = {b.name for b in plugin_map.bundles if b.category == DEVELOPMENT}
+        problems += _set_problems(f"{ALL!r} installs core and every development bundle", set(everything.members), development)
+    return problems
 
 
-def skill_files(skill_dir: pathlib.Path) -> Iterator[pathlib.Path]:
-    """Every file of one skill, sorted, refusing a symlink so nothing outside the skill is copied."""
-    for path in sorted(skill_dir.rglob("*")):
-        if any(_is_ignored(part) for part in [path, *path.relative_to(skill_dir).parents]):
-            continue
-        if path.is_symlink():
-            raise PluginMapError(f"{path} is a symlink, and a plugin ships real files only")
-        if path.is_file():
-            yield path
+def shared_skills(sources: Sources) -> set[str]:
+    """Skills preloaded by subagents that sit in two or more different bundles."""
+    users: dict[str, set[str]] = {}
+    for bundle in sources.plugin_map.bundles:
+        for agent_name in bundle.agents:
+            for skill in sources.agents[agent_name].skills:
+                users.setdefault(skill, set()).add(bundle.name)
+    return {skill for skill, owners in users.items() if len(owners) >= 2}
 
 
-def _is_executable(path: pathlib.Path) -> bool:
-    return bool(path.stat().st_mode & stat.S_IXUSR)
+def _core_problems(sources: Sources) -> list[str]:
+    plugin_map = sources.plugin_map
+    home = {skill: bundles[0] for skill, bundles in _domain_homes(plugin_map.bundles, "skills").items()}
+    problems: list[str] = []
+    for bundle in plugin_map.bundles:
+        for agent_name in bundle.agents:
+            for skill in sources.agents[agent_name].skills:
+                if home[skill] not in (bundle.name, CORE):
+                    problems.append(
+                        f"subagent {agent_name!r} in {bundle.name!r} preloads {skill!r} from {home[skill]!r}. "
+                        f"Move the subagent to {home[skill]!r}, or the skill to {CORE!r} if two bundles now use it"
+                    )
+                elif home[skill] == CORE and CORE not in bundle.dependencies:
+                    problems.append(f"bundle {bundle.name!r} preloads {CORE!r} skill {skill!r} but does not depend on {CORE!r}")
+    core = plugin_map.bundle(CORE)
+    core_skills = set(core.skills) if core else set()
+    shared = shared_skills(sources)
+    problems += [f"skill {s!r} is in {CORE!r} but subagents in fewer than two bundles preload it" for s in sorted(core_skills - shared)]
+    problems += [f"skill {s!r} is preloaded by subagents in two or more bundles, so it belongs in {CORE!r}" for s in sorted(shared - core_skills)]
+    return problems
 
 
-def _write(path: pathlib.Path, content: bytes, executable: bool = False) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(content)
-    path.chmod(0o755 if executable else 0o644)
+def check_map(sources: Sources) -> list[str]:
+    """Every rule the map has to meet, as a list of problems. Empty means renderable."""
+    problems = _name_problems(sources) + _membership_problems(sources) + _wiring_problems(sources) + _graph_problems(sources)
+    return problems or _core_problems(sources)
 
 
-def _json(document: object) -> bytes:
-    return (json.dumps(document, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+def _source(path: pathlib.PurePosixPath) -> str:
+    return f"./{path}"
 
 
-def content_hash(plugin_dir: pathlib.Path) -> str:
-    """A short hash of everything in a plugin directory, with the manifest's own `version` left out."""
-    digest = hashlib.sha256()
-    for path in sorted(p for p in plugin_dir.rglob("*") if p.is_file()):
-        relative = path.relative_to(plugin_dir).as_posix()
-        content = path.read_bytes()
-        if relative == f"{MANIFEST_DIR}/{PLUGIN_MANIFEST}":
-            manifest = json.loads(content)
-            manifest.pop("version", None)
-            content = json.dumps(manifest, sort_keys=True).encode("utf-8")
-        for part in (relative.encode("utf-8"), b"x" if _is_executable(path) else b"-", content):
-            digest.update(len(part).to_bytes(8, "big"))
-            digest.update(part)
-    return digest.hexdigest()[:VERSION_LENGTH]
+def bundle_entry(bundle: Bundle) -> dict[str, object]:
+    return {
+        "name": bundle.name,
+        "source": ENTRY_ONLY_SOURCE,
+        "version": bundle.version,
+        "description": bundle.description,
+        "category": bundle.category,
+        "dependencies": list(bundle.members),
+    }
 
 
-def plugin_manifest(plugin: Plugin, marketplace: dict[str, object], version: str | None) -> dict[str, object]:
-    manifest: dict[str, object] = {"name": plugin.name}
-    if version is not None:
-        manifest["version"] = version
-    manifest["description"] = plugin.description
-    manifest["author"] = marketplace["owner"]
-    for key in ("repository", "license"):
-        if key in marketplace:
-            manifest[key] = marketplace[key]
-    if not plugin.default_enabled:
-        manifest["defaultEnabled"] = False
-    if plugin.dependencies:
-        manifest["dependencies"] = list(plugin.dependencies)
-    return manifest
+def agent_entry(agent: Agent) -> dict[str, object]:
+    entry: dict[str, object] = {
+        "name": AGENT_PREFIX + agent.name,
+        "source": _source(CLAUDE_AGENTS_DIR / agent.name),
+        "strict": False,
+        "version": agent.version,
+        "description": agent.description,
+        "category": AGENT_CATEGORY,
+        "agents": [f"./{agent.name}.md"],
+    }
+    if agent.skills:
+        entry["dependencies"] = list(agent.skills)
+    return entry
 
 
-def render_plugin(
-    plugin: Plugin,
-    plugin_dir: pathlib.Path,
-    marketplace: dict[str, object],
-    sources: Sources,
-    agents: dict[str, Agent],
-    servers: dict[str, dict[str, object]],
-    skill_home: dict[str, str],
-) -> str:
-    """Write one plugin directory and return the version it was stamped with."""
-    for skill in plugin.skills:
-        source = sources.skills / skill
-        for path in skill_files(source):
-            target = plugin_dir / "skills" / skill / path.relative_to(source)
-            _write(target, path.read_bytes(), _is_executable(path))
-    for carried in plugin.files:
-        source = sources.root / carried.source
-        if not source.is_dir():
-            raise PluginMapError(f"plugin {plugin.name!r} carries {carried.source}, which does not exist")
-        for path in carried_files(source):
-            target = plugin_dir / carried.target / path.relative_to(source)
-            if target.exists():
-                raise PluginMapError(f"plugin {plugin.name!r} carries {path}, which would overwrite {target}")
-            _write(target, path.read_bytes(), _is_executable(path))
-    for agent_name in plugin.agents:
-        _write(plugin_dir / "agents" / f"{agent_name}.md", agents[agent_name].rendered(skill_home).encode("utf-8"))
-    if plugin.mcp:
-        _write(plugin_dir / MCP_FILE, _json({"mcpServers": {plugin.mcp: servers[plugin.mcp]}}))
-    manifest_path = plugin_dir / MANIFEST_DIR / PLUGIN_MANIFEST
-    _write(manifest_path, _json(plugin_manifest(plugin, marketplace, None)))
-    version = content_hash(plugin_dir)
-    _write(manifest_path, _json(plugin_manifest(plugin, marketplace, version)))
-    return version
+def skill_entry(skill: Skill) -> dict[str, object]:
+    return {
+        "name": skill.name,
+        "source": _source(SKILLS_DIR / skill.name),
+        "version": skill.version,
+        "description": skill.description,
+        "category": SKILL_CATEGORY,
+    }
 
 
-def marketplace_manifest(plugin_map: PluginMap) -> dict[str, object]:
-    market = plugin_map.marketplace
-    entries = []
-    for plugin in plugin_map.plugins:
-        entry: dict[str, object] = {
-            "name": plugin.name,
-            "source": f"./plugins/{plugin.name}",
-            "description": plugin.description,
-            "category": plugin.category,
-        }
-        if not plugin.default_enabled:
-            entry["defaultEnabled"] = False
-        entries.append(entry)
+def hook_entry(hook: Hook, wiring: dict[str, list[dict[str, object]]]) -> dict[str, object]:
+    return {
+        "name": hook.plugin,
+        "source": _source(HOOKS_DIR / hook.folder),
+        "version": hook.version,
+        "description": hook.description,
+        "category": HOOK_CATEGORY,
+        "hooks": wiring,
+    }
+
+
+def server_entry(server: Server, block: dict[str, object]) -> dict[str, object]:
+    return {
+        "name": server.plugin,
+        "source": ENTRY_ONLY_SOURCE,
+        "version": server.version,
+        "description": server.description,
+        "category": MCP_CATEGORY,
+        "mcpServers": {server.name: block},
+    }
+
+
+def entries(sources: Sources) -> list[dict[str, object]]:
+    """Every marketplace entry: bundles, then agents, skills, hooks and servers, each in a stable order."""
+    plugin_map = sources.plugin_map
+    return [
+        *(bundle_entry(bundle) for bundle in plugin_map.bundles),
+        *(agent_entry(agent) for agent in sources.agents.values()),
+        *(skill_entry(skill) for skill in sources.skills.values()),
+        *(hook_entry(hook, sources.wired_hooks[hook.folder]) for hook in plugin_map.hooks),
+        *(server_entry(server, sources.servers[server.name]) for server in plugin_map.servers),
+    ]
+
+
+def marketplace(sources: Sources) -> dict[str, object]:
+    """The whole marketplace document, after checking the map.
+
+    Raises:
+        PluginMapError: the map breaks one of its rules.
+    """
+    if problems := check_map(sources):
+        raise PluginMapError("the plugin map breaks its rules:\n  " + "\n  ".join(problems))
+    market = sources.plugin_map.marketplace
     document: dict[str, object] = {"name": market["name"], "owner": market["owner"]}
     if "description" in market:
         document["description"] = market["description"]
-    document["plugins"] = entries
+    document["plugins"] = entries(sources)
     return document
 
 
-def readme(plugin_map: PluginMap, versions: dict[str, str]) -> str:
-    """The landing page of the generated branch, so a visitor learns where it comes from."""
-    market = plugin_map.marketplace
-    name = market["name"]
-    repository = str(market["repository"]).removesuffix("/")
-    example = next(
-        (p.name for p in plugin_map.plugins if p.category == DEVELOPMENT_CATEGORY and p.name != CORE),
-        plugin_map.plugins[0].name,
-    )
-    rows = "\n".join(
-        f"| `{p.name}` | {p.category} | {'on' if p.default_enabled else 'off'} | `{versions[p.name]}` | {p.description} |"
-        for p in plugin_map.plugins
-    )
-    return (
-        f"# {name} plugins\n\n"
-        f"Generated by `tools/gen_plugins.py` from `tools/plugins.yaml` on the default branch of {repository}. "
-        "Every push there rebuilds this branch, so never edit it by hand.\n\n"
-        "Add the marketplace from this branch:\n\n"
-        "```bash\n"
-        f"claude plugin marketplace add {repository.removeprefix('https://github.com/')}#plugins\n"
-        "```\n\n"
-        "Install one plugin, which also installs the plugins it depends on:\n\n"
-        "```bash\n"
-        f"claude plugin install {example}@{name}\n"
-        "```\n\n"
-        "| Plugin | Category | Default | Version | What it holds |\n"
-        "| --- | --- | --- | --- | --- |\n"
-        f"{rows}\n"
-    )
+def owned_paths(entry: dict[str, object]) -> list[pathlib.PurePosixPath]:
+    """The repository paths whose content an entry ships, besides the entry itself.
 
-
-def _write_marketplace(
-    plugin_map: PluginMap,
-    out_dir: pathlib.Path,
-    sources: Sources,
-    agents: dict[str, Agent],
-    servers: dict[str, dict[str, object]],
-) -> dict[str, str]:
-    skill_home = skill_homes(plugin_map)
-    versions = {
-        plugin.name: render_plugin(
-            plugin, out_dir / "plugins" / plugin.name, plugin_map.marketplace, sources, agents, servers, skill_home
-        )
-        for plugin in plugin_map.plugins
-    }
-    _write(out_dir / MANIFEST_DIR / MARKETPLACE_MANIFEST, _json(marketplace_manifest(plugin_map)))
-    _write(out_dir / "LICENSE", sources.license.read_bytes())
-    _write(out_dir / "README.md", readme(plugin_map, versions).encode("utf-8"))
-    return versions
-
-
-def render(plugin_map: PluginMap, out_dir: pathlib.Path, sources: Sources = Sources()) -> dict[str, str]:
-    """Check the map, then write the whole marketplace into out_dir. Returns each plugin's version.
-
-    The tree is written into a temporary sibling of out_dir and renamed into
-    place only when every file is written, so a failure leaves out_dir as it was.
-
-    Raises:
-        PluginMapError: out_dir sits inside sources.root or is not an empty
-            directory, the map breaks a rule, or a source cannot be read.
+    A skill, an agent and a hook ship their source folder, and an agent also
+    the canonical file its folder is generated from. A server and a bundle
+    point at the marketplace folder and ship nothing but their entry.
     """
-    if out_dir.resolve().is_relative_to(sources.root.resolve()):
-        raise PluginMapError(f"{out_dir} is inside the repository {sources.root}. Render outside it, such as ../plugins-out")
-    if out_dir.exists() and (not out_dir.is_dir() or any(out_dir.iterdir())):
-        raise PluginMapError(f"{out_dir} is not an empty directory. Render into a fresh one")
-    skills = gen_subagents.installed_skills(sources.skills)
-    agents = load_agents(sources, skills)
-    servers = load_servers(sources)
-    problems = check_map(plugin_map, skills, agents, servers)
-    if problems:
-        raise PluginMapError("the plugin map breaks its rules:\n  " + "\n  ".join(problems))
+    source = str(entry["source"])
+    if source == ENTRY_ONLY_SOURCE:
+        return []
+    paths = [pathlib.PurePosixPath(source.removeprefix("./"))]
+    if entry.get("category") == AGENT_CATEGORY:
+        paths.append(SUBAGENTS_DIR / (str(entry["name"]).removeprefix(AGENT_PREFIX) + ".md"))
+    return paths
 
-    out_dir.parent.mkdir(parents=True, exist_ok=True)
-    staging = pathlib.Path(tempfile.mkdtemp(prefix=f".{out_dir.name}.", dir=out_dir.parent))
-    try:
-        staging.chmod(0o755)
-        versions = _write_marketplace(plugin_map, staging, sources, agents, servers)
-        if out_dir.exists():
-            out_dir.rmdir()
-        staging.rename(out_dir)
-    except OSError as exc:
-        shutil.rmtree(staging, ignore_errors=True)
-        raise PluginMapError(f"cannot write the marketplace into {out_dir}: {exc}") from exc
-    except BaseException:
-        shutil.rmtree(staging, ignore_errors=True)
-        raise
-    return versions
+
+def render_text(document: dict[str, object]) -> str:
+    return json.dumps(document, indent=2, ensure_ascii=False) + "\n"
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Render the Claude Code plugin marketplace.")
-    parser.add_argument("out_dir", type=pathlib.Path, help="empty or missing directory to write into")
-    parser.add_argument("--map", type=pathlib.Path, default=DEFAULT_MAP, help="plugin map, default tools/plugins.yaml")
-    args = parser.parse_args(argv)
+    args = sys.argv[1:] if argv is None else argv
+    check = "--check" in args
+    target = ROOT / MARKETPLACE_FILE
     try:
-        plugin_map = load_map(args.map)
-        versions = render(plugin_map, args.out_dir)
+        document = marketplace(load_sources(ROOT))
     except PluginMapError as exc:
         sys.exit(f"ERROR {exc}")
-    print(f"done: {len(versions)} plugins -> {args.out_dir}")
+    text = render_text(document)
+    count = len(document["plugins"])
+    current = target.read_text(encoding="utf-8") if target.is_file() else None
+    if check:
+        if current != text:
+            sys.exit(f"STALE: {MARKETPLACE_FILE} does not match its sources. Run `python tools/gen_plugins.py` and commit")
+        print(f"ok: {MARKETPLACE_FILE} lists {count} plugins and is up to date")
+        return
+    if current != text:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+    print(f"done: {count} plugins -> {MARKETPLACE_FILE}")
 
 
 if __name__ == "__main__":

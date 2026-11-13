@@ -768,7 +768,7 @@ def test_the_agents_that_share_the_openai_key_never_run_at_the_same_time():
 # --- Agent-specific checks: payload capture, read-only probe, preload canary ---
 
 CLAUDE_ADAPTER = REPO_ROOT / "sandbox-agent" / "live" / "claude-code.sh"
-PLUGIN_AGENT = "review-and-security:code-reviewer"
+PLUGIN_AGENT = "agent-code-reviewer:code-reviewer"
 READ_ONLY_PROBE = "readonly-probe.txt"
 
 
@@ -1368,11 +1368,11 @@ def test_codex_check_seven_b_reports_the_probe_on_its_own_line(tmp_path, payload
     assert probe.split("|")[:2] == [expected, "7b Rule E denies the Codex code-reviewer's probe touch"], probe
 
 
-def test_the_rendered_plugin_reviewer_preloads_the_core_skill_that_carries_the_canary(tmp_path):
-    # Given the marketplace the generator renders from tools/plugins.yaml
+def test_the_served_marketplace_copy_carries_the_canary_in_the_skill_the_reviewer_preloads(tmp_path):
+    # Given the repository's committed tree, copied by claude-code.sh into a marketplace it serves
     market = tmp_path / "market"
 
-    # When claude-code.sh renders it with this interpreter, which has the tools package, and plants the canary
+    # When it renders the copy with this interpreter and plants the canary
     script = (
         f"source '{loadable_adapter(CLAUDE_ADAPTER, tmp_path).as_posix()}'; "
         f"LIVE_PYTHON='{Path(sys.executable).as_posix()}'; "
@@ -1380,16 +1380,21 @@ def test_the_rendered_plugin_reviewer_preloads_the_core_skill_that_carries_the_c
     )
     result = run_bounded([BASH, "-c", script], capture_output=True, text=True)
 
-    # Then
+    # Then the copy holds it, the repository does not, and the bare repository serves the copy
     assert result.returncode == 0, result.stderr + (tmp_path / "render.log").read_text(encoding="utf-8")
     canary = result.stdout
     assert re.fullmatch(r"preload-marker-\d+", canary)
-    core_skill = (market / "plugins" / "core" / "skills" / "application-security-review" / "SKILL.md").read_text(encoding="utf-8")
-    assert core_skill.rstrip().endswith(canary)
+    skill = (market / "src" / ".agents" / "skills" / "application-security-review" / "SKILL.md").read_text(encoding="utf-8")
+    assert skill.rstrip().endswith(canary)
     assert canary not in (REPO_ROOT / ".agents" / "skills" / "application-security-review" / "SKILL.md").read_text(encoding="utf-8")
+    served = subprocess.run(
+        ["git", "-C", str(market / "serve" / "marketplace.git"), "show", "HEAD:.agents/skills/application-security-review/SKILL.md"],
+        capture_output=True, text=True, check=True,
+    )
+    assert served.stdout.rstrip().endswith(canary)
     preloaded = run_bounded(
-        [BASH, "-c", f"source '{loadable_adapter(CLAUDE_ADAPTER, tmp_path).as_posix()}'; LIVE_PYTHON=\"$2\"; agent_preloads \"$1\" core:application-security-review && ! agent_preloads \"$1\" application-security-review && ! agent_preloads \"$1\" kicad", "_",
-         (market / "plugins" / "review-and-security" / "agents" / "code-reviewer.md").as_posix(), Path(sys.executable).as_posix()],
+        [BASH, "-c", f"source '{loadable_adapter(CLAUDE_ADAPTER, tmp_path).as_posix()}'; LIVE_PYTHON=\"$2\"; agent_preloads \"$1\" application-security-review && ! agent_preloads \"$1\" kicad", "_",
+         (market / "src" / ".claude" / "agents" / "code-reviewer" / "code-reviewer.md").as_posix(), Path(sys.executable).as_posix()],
         capture_output=True,
         text=True,
     )
@@ -1557,13 +1562,13 @@ set -euo pipefail
 printf '%s|%s|%s|%s\n' "$PWD" "$(readlink "/proc/$$/fd/0" || true)" "$(ps -o comm= -p "$PPID" | tr -d ' ')" "$*" >> "$FAKE_CLAUDE_LOG"
 case "$1 $2" in
   "plugin marketplace")
-    printf '%s' "$4" > "${CLAUDE_CONFIG_DIR}/fake-market"
+    git clone --quiet "$4" "${CLAUDE_CONFIG_DIR}/fake-market"
     ;;
   "plugin install")
-    market="$(cat "${CLAUDE_CONFIG_DIR}/fake-market")"
-    for plugin in "${3%@*}" core; do
-      mkdir -p "${CLAUDE_CONFIG_DIR}/plugins/cache/m/${plugin}/1.0.0"
-      cp -R "${market}/plugins/${plugin}/." "${CLAUDE_CONFIG_DIR}/plugins/cache/m/${plugin}/1.0.0/"
+    market="${CLAUDE_CONFIG_DIR}/fake-market"
+    for source in "agent-code-reviewer:.claude/agents/code-reviewer" "application-security-review:.agents/skills/application-security-review"; do
+      mkdir -p "${CLAUDE_CONFIG_DIR}/plugins/cache/m/${source%%:*}/1.0.0"
+      cp -R "${market}/${source#*:}/." "${CLAUDE_CONFIG_DIR}/plugins/cache/m/${source%%:*}/1.0.0/"
     done
     if [[ -n "${FAKE_DROP:-}" ]]; then
       rm -f "${CLAUDE_CONFIG_DIR}"/plugins/cache/m/*/1.0.0/${FAKE_DROP}
@@ -1592,7 +1597,7 @@ def run_plugin_checks(tmp_path: Path, drop: str = "", setup: str = "") -> tuple[
         "section() { :; }; record() { printf 'record|%s|%s|%s\\n' \"$1\" \"$2\" \"$3\"; }; "
         "prepare_gate_only_project() { mkdir -p \"$1\"; }; "
         "test_plugin_subagent_type_reaches_the_gate() { printf 'ran 8|%s|%s\\n' \"$PROJECT\" \"$CLAUDE_CONFIG_DIR\"; }; "
-        "test_plugin_subagent_preloads_a_core_skill() { printf 'ran 9|%s\\n' \"$CANARY\"; }; "
+        "test_plugin_subagent_preloads_its_skill() { printf 'ran 9|%s\\n' \"$CANARY\"; }; "
         f"{setup}"
         "agent_extra_tests; printf 'after|%s|%s\\n' \"$PROJECT\" \"$CLAUDE_CONFIG_DIR\""
     )
@@ -1621,13 +1626,13 @@ def test_both_plugin_checks_run_in_the_plugin_session_and_the_main_session_comes
 @needs_linux_proc
 def test_a_missing_canary_fails_check_nine_only(tmp_path):
     # Given an install whose core skill lost the planted canary
-    result, work, _ = run_plugin_checks(tmp_path, drop="skills/application-security-review/SKILL.md")
+    result, work, _ = run_plugin_checks(tmp_path, drop="SKILL.md")
 
     # Then check 8 still runs, with the capture hook and the gate-only project already in place
     assert result.returncode == 0, result.stderr
     lines = result.stdout.splitlines()
     assert lines[0].startswith("ran 8|")
-    assert lines[1].startswith(f"record|9 {PLUGIN_AGENT} preloads application-security-review from core|FAIL|")
+    assert lines[1].startswith(f"record|9 {PLUGIN_AGENT} preloads application-security-review from its own plugin|FAIL|")
     assert "canary" in lines[1]
     assert not any(line.startswith("ran 9") for line in lines)
     assert (work / "plugin-project").is_dir()
@@ -1637,13 +1642,13 @@ def test_a_missing_canary_fails_check_nine_only(tmp_path):
 @needs_jq
 @needs_linux_proc
 def test_a_missing_plugin_agent_blocks_both_checks(tmp_path):
-    result, _, _ = run_plugin_checks(tmp_path, drop="agents/code-reviewer.md")
+    result, _, _ = run_plugin_checks(tmp_path, drop="code-reviewer.md")
 
     assert result.returncode == 0, result.stderr
     lines = result.stdout.splitlines()
     assert [line.split("|")[:3] for line in lines[:2]] == [
         ["record", f"8 the gate sees {PLUGIN_AGENT} and denies its touch", "FAIL"],
-        ["record", f"9 {PLUGIN_AGENT} preloads application-security-review from core", "FAIL"],
+        ["record", f"9 {PLUGIN_AGENT} preloads application-security-review from its own plugin", "FAIL"],
     ]
     assert not any(line.startswith("ran ") for line in lines)
 

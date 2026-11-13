@@ -1,39 +1,111 @@
-# Plugin map for the Claude Code marketplace. tools/gen_plugins.py renders it
-# onto the `plugins` branch, and its check_map refuses a map that breaks one of
-# these rules, which tools/tests/test_gen_plugins.py proves case by case:
+# Plugin map for the Claude Code marketplace in .claude-plugin/marketplace.json.
+# tools/gen_plugins.py renders it on master, and CI fails when the committed
+# file is stale. Every skill, every subagent, every Claude Code hook and every
+# MCP server is its own plugin with its own version, and the bundles below
+# group them by listing plugin names as dependencies, with no files of their own.
+#
+# Where each item's version lives:
+# - a skill in its SKILL.md front matter as metadata.version
+# - a subagent in its canonical subagents/<name>.md front matter as version
+# - a hook, a server and a bundle here, as version
+# Any change to an item raises its version: patch for a fix, minor for new
+# behaviour, major for a breaking change. tools/check_versions.py fails a pull
+# request that changes an item without raising it.
+#
+# check_map in tools/gen_plugins.py refuses a map that breaks one of these
+# rules, which tools/tests/test_gen_plugins.py proves case by case:
 #
 # - Every skill under .agents/skills/ and every subagent under subagents/ sits
-#   in exactly one plugin, and every plugin, skill and subagent name is kebab-case.
-# - core holds exactly the skills that subagents in two or more plugins
-#   preload, and no subagent and no dependency, so a skill moves in or out of
-#   core when a skill list changes.
-# - Every other skill a subagent preloads sits in that subagent's own plugin,
-#   and a plugin whose subagents preload a core skill depends on core.
-# - The category is development, host, mcp or bundle. Host groups carry
-#   `defaultEnabled: false` and every other plugin stays on.
-# - One plugin per server in the root .mcp.json, named mcp-<server>, holding
-#   that server and nothing else, with category mcp.
-# - A bundle holds dependencies only. mcp-all depends on every server plugin,
-#   and all installs core and every development plugin, nothing else.
-# - A plugin's `files` copy a repository folder into one of its own skills,
-#   leaving out each tool's .venv, caches and egg-info.
+#   in exactly one development or host bundle, and every name is kebab-case and
+#   unique across all plugins.
+# - core holds exactly the skills that subagents in two or more bundles
+#   preload, and no subagent and no dependency.
+# - Every other skill a subagent preloads sits in that subagent's own bundle,
+#   and a bundle whose subagents preload a core skill depends on core.
+# - Every hook script the Claude Code wiring in .claude/settings.json runs has
+#   exactly one hook entry, named for its folder under .agents/hooks/, and
+#   every hook entry is wired there.
+# - Every server in the root .mcp.json has exactly one server entry.
+# - The bundle category is development, host or bundle. mcp-all depends on
+#   every server plugin, hooks-all on every hook plugin, and all installs core
+#   and every development bundle, nothing else.
 #
-# Which domain or host group a subagent or an unpreloaded skill serves is a
-# convention the tests cannot check. CONTRIBUTING.md describes it.
+# Which bundle a subagent or an unpreloaded skill belongs to is a convention
+# the tests cannot check. CONTRIBUTING.md describes it.
 
 marketplace:
   name: agent-standards
-  description: Skills, subagents and MCP servers from agent-standards, split by domain so a project installs only what it uses.
+  description: Every skill, subagent, Claude Code hook and MCP server from agent-standards as its own versioned plugin, with bundles that group them by domain.
   owner:
     name: Łukasz Sarna
     url: https://github.com/Lukk17
   repository: https://github.com/Lukk17/agent-standards
   license: MIT
 
-plugins:
+hooks:
+  - name: preflight-gate
+    version: 1.0.0
+    description: The preflight gate on PreToolUse. The main thread may not write project files, run scripts or browse, and a subagent with no skills or a read-only one is held to its definition.
+
+  - name: task-list-sync
+    version: 1.0.0
+    description: Mirrors the session task list into tasks.md at the project root, puts it back in context after a compaction, and stops a turn that leaves tasks open.
+
+  - name: no-ai-markers-check
+    version: 1.0.0
+    description: Checks a finished reply for em dashes, en dashes and other machine-writing markers, and shows the corrected text.
+
+  - name: markdown-lint-check
+    version: 1.0.0
+    description: Lints a markdown file in the lint scope right after an edit and hands the violations back to the model.
+
+  - name: standards-advisory-check
+    folder: claude/standards-advisory-check
+    version: 1.0.0
+    description: Warns after an edit about an action on a moving tag, an image on latest, a JPA query string or a divider banner in a test.
+
+servers:
+  - name: context7
+    version: 1.0.0
+    description: The Context7 documentation MCP server.
+
+  - name: mongodb
+    version: 1.0.0
+    description: The MongoDB MCP server, read-only, started with npx.
+
+  - name: grafana
+    version: 1.0.0
+    description: The Grafana MCP server, started with uvx.
+
+  - name: playwright
+    version: 1.0.0
+    description: The Playwright browser MCP server, started with npx. It can write local files.
+
+  - name: chrome-devtools
+    version: 1.0.0
+    description: The Chrome DevTools MCP server, started with npx. It can write local files.
+
+  - name: redis
+    version: 1.0.0
+    description: The Redis MCP server, started with uvx.
+
+  - name: sonarqube
+    version: 1.0.0
+    description: The SonarQube MCP server, started with docker run, which pulls the image on every start.
+
+  - name: n8n
+    version: 1.0.0
+    description: The n8n MCP server, started with npx.
+
+  - name: home-assistant
+    version: 1.0.0
+    description: The Home Assistant MCP server, started with uvx and reading its settings from an env file in your home directory.
+
+bundles:
   - name: core
+    version: 1.0.0
     category: development
-    description: Skills that subagents in two or more domains preload, such as coding standards, security review, TDD, logging and git practice. Every domain plugin depends on it.
+    description: Skills that subagents in two or more domains preload, such as coding standards, security review, TDD, logging and git practice. Every domain bundle depends on it.
     skills:
       - architecture-decision-records
       - bash
@@ -51,6 +123,7 @@ plugins:
       - tdd-workflow
 
   - name: python
+    version: 1.0.0
     category: development
     description: Python and machine learning, with the python-pro and ml-engineer subagents and the PyTorch skill.
     dependencies: [core]
@@ -58,6 +131,7 @@ plugins:
     skills: [pytorch-patterns]
 
   - name: jvm
+    version: 1.0.0
     category: development
     description: Java and Spring Boot, with the java-pro subagent and the Java, Spring Boot and SOAP skills.
     dependencies: [core]
@@ -65,6 +139,7 @@ plugins:
     skills: [java-coding-standards, springboot-patterns, soap-webservices]
 
   - name: go
+    version: 1.0.0
     category: development
     description: Go services, with the go-pro subagent and the Go patterns skill.
     dependencies: [core]
@@ -72,6 +147,7 @@ plugins:
     skills: [golang-patterns]
 
   - name: backend
+    version: 1.0.0
     category: development
     description: Backend services and HTTP APIs, with the backend-architect, api-documenter and api-tester subagents and the API design, backend, Node.js and Keycloak skills.
     dependencies: [core]
@@ -79,6 +155,7 @@ plugins:
     skills: [api-design, backend-patterns, node-backend-patterns, keycloak-patterns]
 
   - name: data
+    version: 1.0.0
     category: development
     description: Databases, with the database-expert subagent and the PostgreSQL, migration and MongoDB skills.
     dependencies: [core]
@@ -86,6 +163,7 @@ plugins:
     skills: [postgres-patterns, database-migrations, mongodb-patterns]
 
   - name: web-frontend
+    version: 1.0.0
     category: development
     description: Web interfaces, with the Angular, React and Next.js, accessibility, design system and UI subagents and their skills.
     dependencies: [core]
@@ -93,6 +171,7 @@ plugins:
     skills: [angular, nextjs-app-router-patterns, react-patterns, frontend-design, design-system, web-accessibility]
 
   - name: mobile
+    version: 1.0.0
     category: development
     description: Flutter and Dart apps, with the flutter-expert subagent and the Dart and Flutter skill.
     dependencies: [core]
@@ -100,6 +179,7 @@ plugins:
     skills: [dart-flutter-patterns]
 
   - name: devops
+    version: 1.0.0
     category: development
     description: Delivery and operations, with the devops, incident, observability and release subagents and the deployment, Docker and Ansible skills.
     dependencies: [core]
@@ -107,6 +187,7 @@ plugins:
     skills: [deployment-patterns, docker-patterns, ansible]
 
   - name: review-and-security
+    version: 1.0.0
     category: development
     description: Code review, security audit, codebase mapping and legacy migration, with four subagents and the review and duplication skills.
     dependencies: [core]
@@ -114,16 +195,15 @@ plugins:
     skills: [code-reviewer, review-duplication]
 
   - name: testing
+    version: 1.0.0
     category: development
-    description: Tests, debugging, performance measurement and the quality loop, with five subagents and the regression, end-to-end, Playwright and quality-loop skills. The quality loop carries Robert C. Martin's crapper, dryer and mutator (github.com/unclebob), copied into a project that lacks them.
+    description: Tests, debugging, performance measurement and the quality loop, with five subagents and the regression, end-to-end, Playwright and quality-loop skills. The quality-loop skill carries Robert C. Martin's crapper, dryer and mutator (github.com/unclebob), copied into a project that lacks them.
     dependencies: [core]
     agents: [test-automator, debugger, e2e-runner, performance-engineer, quality-loop]
     skills: [ai-regression-testing, e2e-runbooks, e2e-testing, quality-loop]
-    files:
-      - source: .metrics/tools
-        target: skills/quality-loop/tools
 
   - name: docs-and-product
+    version: 1.0.0
     category: development
     description: Documentation, legal drafts, SEO and project tracking, with four subagents and the SEO, tracking and Jira skills.
     dependencies: [core]
@@ -131,6 +211,7 @@ plugins:
     skills: [seo, project-tracking, jira-integration]
 
   - name: embedded
+    version: 1.0.0
     category: development
     description: Embedded C and hardware, with the embedded-c-engineer subagent and the Arduino, KiCad and 3D printing skills.
     dependencies: [core]
@@ -138,6 +219,7 @@ plugins:
     skills: [embedded-c-arduino, kicad, g-code-3d-printing]
 
   - name: game
+    version: 1.0.0
     category: development
     description: Unity games, with the unity-game-dev subagent and the Unity skill.
     dependencies: [core]
@@ -145,6 +227,7 @@ plugins:
     skills: [unity]
 
   - name: agent-tooling
+    version: 1.0.0
     category: development
     description: Agent configuration and research, with the agent-engineer subagent and the agentic engineering, research and automation inventory skills.
     dependencies: [core]
@@ -152,77 +235,33 @@ plugins:
     skills: [agentic-engineering, research, automation-inventory]
 
   - name: linux
+    version: 1.0.0
     category: host
-    description: Linux desktop administration on Arch, CachyOS and KDE Plasma. Off until you enable it.
-    defaultEnabled: false
+    description: Linux desktop administration on Arch, CachyOS and KDE Plasma.
     skills: [arch-linux, cachyos, kde-plasma]
 
   - name: windows-and-mac
+    version: 1.0.0
     category: host
-    description: Windows and macOS administration and PowerShell scripting. Off until you enable it.
-    defaultEnabled: false
+    description: Windows and macOS administration and PowerShell scripting.
     skills: [windows, macos, powershell]
 
   - name: homelab
+    version: 1.0.0
     category: host
-    description: Homelab hosts and services, with the home-assistant-engineer subagent and the Proxmox, router, Syncthing, Samsung TV, WLED and machine health skills. Off until you enable it.
-    defaultEnabled: false
+    description: Homelab hosts and services, with the home-assistant-engineer subagent and the Proxmox, router, Syncthing, Samsung TV, WLED and machine health skills.
     dependencies: [core]
     agents: [home-assistant-engineer]
     skills: [home-assistant, proxmox, homelab-services, asus-router, syncthing, samsung-tv, wled, machine-health]
 
   - name: personal-tools
+    version: 1.0.0
     category: host
-    description: Obsidian, JetBrains IDE configuration and the self-hosted AscendMemory, ascend-web-hunter and AudioScribe services. Off until you enable it.
-    defaultEnabled: false
+    description: Obsidian, JetBrains IDE configuration and the self-hosted AscendMemory, ascend-web-hunter and AudioScribe services.
     skills: [obsidian, jetbrains-ide-ops, ascend-memory, ascend-web-hunter, audio-scribe]
 
-  - name: mcp-context7
-    category: mcp
-    description: The Context7 documentation MCP server.
-    mcp: context7
-
-  - name: mcp-mongodb
-    category: mcp
-    description: The MongoDB MCP server, read-only, started with npx.
-    mcp: mongodb
-
-  - name: mcp-grafana
-    category: mcp
-    description: The Grafana MCP server, started with uvx.
-    mcp: grafana
-
-  - name: mcp-playwright
-    category: mcp
-    description: The Playwright browser MCP server, started with npx. It can write local files.
-    mcp: playwright
-
-  - name: mcp-chrome-devtools
-    category: mcp
-    description: The Chrome DevTools MCP server, started with npx. It can write local files.
-    mcp: chrome-devtools
-
-  - name: mcp-redis
-    category: mcp
-    description: The Redis MCP server, started with uvx.
-    mcp: redis
-
-  - name: mcp-sonarqube
-    category: mcp
-    description: The SonarQube MCP server, started with docker run, which pulls the image on every start.
-    mcp: sonarqube
-
-  - name: mcp-n8n
-    category: mcp
-    description: The n8n MCP server, started with npx.
-    mcp: n8n
-
-  - name: mcp-home-assistant
-    category: mcp
-    description: The Home Assistant MCP server, started with uvx and reading its settings from an env file in your home directory.
-    mcp: home-assistant
-
   - name: mcp-all
+    version: 1.0.0
     category: bundle
     description: Every MCP server plugin in one install.
     dependencies:
@@ -237,6 +276,7 @@ plugins:
       - mcp-home-assistant
 
   - name: all
+    version: 1.0.0
     category: bundle
     description: Core and every development domain in one install. Host groups and MCP servers stay separate installs.
     dependencies:
@@ -255,3 +295,14 @@ plugins:
       - embedded
       - game
       - agent-tooling
+
+  - name: hooks-all
+    version: 1.0.0
+    category: bundle
+    description: Every Claude Code hook plugin in one install.
+    dependencies:
+      - hook-preflight-gate
+      - hook-task-list-sync
+      - hook-no-ai-markers-check
+      - hook-markdown-lint-check
+      - hook-standards-advisory-check

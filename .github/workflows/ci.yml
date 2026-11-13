@@ -64,6 +64,9 @@ jobs:
       - name: Check subagent generator output is in sync with canonical sources
         run: python tools/gen_subagents.py --check
 
+      - name: Check the plugin marketplace is in sync with its sources
+        run: python tools/gen_plugins.py --check
+
       - name: Lint human-facing markdown (em-dashes, line widths)
         run: python tools/check-markdown.py
 

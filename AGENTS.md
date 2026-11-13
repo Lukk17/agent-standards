@@ -80,7 +80,7 @@ script and must never be hand-edited, and some are symlinks the generator create
 | `.agents/plugin/hooks.js`, `.agents/plugin/index.js` | canonical | edit directly, `index.js` only re-exports |
 | `AGENTS.md.example`, `docs/*.md` | canonical | edit directly |
 | `tools/*.py`, `tools/tests/*.py`, `tools/pyproject.toml` | canonical | edit directly, then run the pytest suite |
-| `tools/plugins.yaml` | canonical plugin map: every skill, subagent and MCP server in exactly one plugin (domains, host groups, `core`, `mcp-<server>`) | edit directly, then run `python -m pytest tools/tests/test_gen_plugins.py` |
+| `tools/plugins.yaml`, and `.claude-plugin/marketplace.json` generated from it | canonical plugin map (hook, server and bundle versions, every skill and subagent in one bundle), and the generated marketplace: one plugin per skill, subagent, hook and server, plus the bundles | edit the map, never the marketplace, then run `python tools/gen_plugins.py` |
 | `.claude/agents/<name>/<name>.md` | generated (Claude front matter with a `skills` key, one folder per agent) | never hand-edit, run the generator |
 | `.agents/agents/*.md` | generated (OpenCode format) | never hand-edit, run the generator |
 | `.codex/agents/*.toml` | generated (Codex TOML) | never hand-edit, run the generator |
@@ -149,7 +149,7 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
   [CONTRIBUTING.md](CONTRIBUTING.md). A subagent's source and its four generated trees are committed together, and
   each kind bumps its count badge in [README.md](README.md) and its count on the social card.
 - **An MCP server:** add the block to all five MCP files (the ones listed under Repo conventions) and an
-  `mcp-<server>` plugin to [tools/plugins.yaml](tools/plugins.yaml), document it in [docs/MCP_SETUP.md](docs/MCP_SETUP.md),
+  entry to the `servers` list of [tools/plugins.yaml](tools/plugins.yaml), document it in [docs/MCP_SETUP.md](docs/MCP_SETUP.md),
   and bump the MCP count in the badge and on the social card. A file that leaves a server out or ships it switched off
   gets its reason under "What ships" there, never a silent gap.
 - **A shipped document:** name it in UPPERCASE under `docs/`, add its path to every
