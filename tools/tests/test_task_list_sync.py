@@ -573,6 +573,8 @@ def test_a_plugin_copy_stands_down_when_the_project_wiring_runs_the_hook(tmp_pat
     (project / ".claude" / "settings.json").write_text(
         json.dumps({"hooks": {"TaskCreated": [{"hooks": [{"type": "command", "command": command}]}]}}), encoding="utf-8"
     )
+    (project / ".agents" / "hooks" / "task-list-sync").mkdir(parents=True)
+    (project / ".agents" / "hooks" / "task-list-sync" / "task_list_sync.py").write_text("# own\n", encoding="utf-8")
 
     # When
     result = run_plugin_copy(installed, home, project)

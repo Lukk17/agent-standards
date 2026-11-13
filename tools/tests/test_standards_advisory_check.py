@@ -278,8 +278,11 @@ def run_plugin_copy(tmp_path, wired):
     if wired:
         command = 'cd "${CLAUDE_PROJECT_DIR}" && python3 -S -E .agents/hooks/claude/standards-advisory-check/standards_advisory_check.py --format claude ; exit 0'
         (project / ".claude" / "settings.json").write_text(
-            json.dumps({"hooks": {"PostToolUse": [{"matcher": "Edit", "hooks": [{"type": "command", "command": command}]}]}}), encoding="utf-8"
+            json.dumps({"hooks": {"PostToolUse": [{"matcher": "^(Edit|Write|MultiEdit)$", "hooks": [{"type": "command", "command": command}]}]}}), encoding="utf-8"
         )
+        own = project / ".agents" / "hooks" / "claude" / "standards-advisory-check" / "standards_advisory_check.py"
+        own.parent.mkdir(parents=True)
+        own.write_text("# own\n", encoding="utf-8")
     payload = {**write("ci.yml", "uses: actions/checkout@v5\n"), "hook_event_name": "PostToolUse"}
     environment = {**os.environ, "CLAUDE_PROJECT_DIR": str(project), "CLAUDE_PLUGIN_ROOT": str(folder)}
     result = run_bounded(

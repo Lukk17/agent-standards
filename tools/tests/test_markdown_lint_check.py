@@ -281,6 +281,7 @@ def test_a_plugin_copy_stands_down_when_the_project_wiring_runs_the_lint(tmp_pat
     path = write(project, "docs/GUIDE.md", DIRTY)
     command = 'cd "${CLAUDE_PROJECT_DIR}" && python3 -S -E .agents/hooks/markdown-lint-check/markdown_lint_check.py --format claude ; exit 0'
     write(project, ".claude/settings.json", json.dumps({"hooks": {"PostToolUse": [{"matcher": "Edit", "hooks": [{"type": "command", "command": command}]}]}}))
+    write(project, ".agents/hooks/markdown-lint-check/markdown_lint_check.py", "# own\n")
     env = {"CLAUDE_PROJECT_DIR": str(project), "CLAUDE_PLUGIN_ROOT": str(hook.parent)}
 
     # When / Then

@@ -7707,6 +7707,9 @@ def wire_project_gate(project):
     settings.parent.mkdir(parents=True)
     command = 'cd "${CLAUDE_PROJECT_DIR}" && python3 -S -E .agents/hooks/preflight-gate/preflight_gate.py --format claude ; exit 0'
     settings.write_text(json.dumps({"hooks": {"PreToolUse": [{"matcher": "Edit", "hooks": [{"type": "command", "command": command}]}]}}), encoding="utf-8")
+    own = project / ".agents" / "hooks" / "preflight-gate" / "preflight_gate.py"
+    own.parent.mkdir(parents=True)
+    own.write_text("# the project's own copy\n", encoding="utf-8")
 
 
 @pytest.mark.parametrize(("plugin_root", "wired", "denied"), [
