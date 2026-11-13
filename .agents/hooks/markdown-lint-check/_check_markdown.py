@@ -669,7 +669,7 @@ def generated_agent_targets(repo_root: Path) -> list[Path]:
 
 
 def main() -> int:
-    repo_root = Path(__file__).resolve().parents[2]
+    repo_root = Path(__file__).resolve().parents[3]
 
     if len(sys.argv) > 1:
         targets = [Path(arg) for arg in sys.argv[1:]]

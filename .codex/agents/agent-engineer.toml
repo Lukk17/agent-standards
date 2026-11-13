@@ -52,7 +52,7 @@ code, which belongs to `security-auditor`.
 Report a finding or a change with the file, the vendor evidence, and the check that proves it. For example:
 
 ```text
-Change: .agents/hooks/preflight_gate.py denies WebSearch from the main thread.
+Change: .agents/hooks/preflight-gate/preflight_gate.py denies WebSearch from the main thread.
 Evidence: https://code.claude.com/docs/en/hooks "PreToolUse ... tool_name" plus payload key `agent_id`,
           documented as present only inside a subagent (Claude Code 2.1.250).
 Test:     tools/tests/test_preflight_gate.py::test_main_thread_websearch_denied

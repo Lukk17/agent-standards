@@ -62,7 +62,7 @@ e2e/testing/runs/*.md
 !e2e/testing/runs/README.md
 
 ### Agent task list
-# .agents/hooks/task_list_sync.py mirrors the live session task list here so it
+# .agents/hooks/task-list-sync/task_list_sync.py mirrors the live session task list here so it
 # survives a compaction. It is per-session working state, never shared history.
 /tasks.md
 /.agents/tasks.widget.json

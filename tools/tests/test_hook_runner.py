@@ -850,20 +850,39 @@ def test_subdirectories_are_ignored(tmp_path):
     assert results == [{"ok": True}]
 
 
-def test_a_hook_file_inside_a_subdirectory_is_never_run(tmp_path):
-    # Given a per-agent helper one level down that would deny if it ran, and a
-    # hook beside it at the top level
+def test_a_hook_file_two_folders_down_is_never_run(tmp_path):
+    # Given a per-agent hook in its own folder under copilot/ that would deny if
+    # it ran, and a hook in its own folder at the first level
     log = tmp_path / "log.jsonl"
-    (tmp_path / ".agents" / "hooks" / "copilot").mkdir(parents=True)
-    recorder(tmp_path, "copilot/helper.py", 1, log, deny=True)
-    recorder(tmp_path, "top.py", 10, log)
+    (tmp_path / ".agents" / "hooks" / "copilot" / "helper").mkdir(parents=True)
+    (tmp_path / ".agents" / "hooks" / "top").mkdir(parents=True)
+    recorder(tmp_path, "copilot/helper/helper.py", 1, log, deny=True)
+    recorder(tmp_path, "top/top.py", 10, log)
 
     # When
     results = drive(tmp_path, [call()])
 
-    # Then only the top-level hook was spawned
+    # Then only the first-level hook was spawned
     assert results == [{"ok": True}]
-    assert hooks_run(log) == ["top.py"]
+    assert hooks_run(log) == ["top/top.py"]
+
+
+def test_hooks_in_their_own_folders_and_at_the_top_level_run_in_declared_order(tmp_path):
+    # Given one hook per folder, a helper module beside one of them, and a hook left at the top level
+    log = tmp_path / "log.jsonl"
+    for folder in ("gate", "lint"):
+        (tmp_path / ".agents" / "hooks" / folder).mkdir(parents=True)
+    recorder(tmp_path, "lint/lint.py", 40, log)
+    recorder(tmp_path, "gate/gate.py", 10, log)
+    recorder(tmp_path, "lint/_rules.py", 1, log, deny=True)
+    recorder(tmp_path, "top.py", 20, log)
+
+    # When
+    results = drive(tmp_path, [call()])
+
+    # Then
+    assert results == [{"ok": True}]
+    assert hooks_run(log) == ["gate/gate.py", "top.py", "lint/lint.py"]
 
 
 def test_envelope_carries_the_documented_fields(tmp_path):
@@ -1300,7 +1319,7 @@ def user_message(parts=None, message_id="msg_1", session=ROOT_SESSION):
 # The reminder a root session gets, and the rest of the per-prompt text, are
 # covered in test_reminder_plugin.py. Here the project ships no reminder hook.
 def test_a_main_thread_message_with_no_reminder_to_read_adds_no_synthetic_part(tmp_path):
-    # Given the user's own text part in the root session, and no copilot/prompt_reminder.py anywhere
+    # Given the user's own text part in the root session, and no copilot/prompt-reminder/prompt_reminder.py anywhere
     typed = {"id": "prt_0", "sessionID": ROOT_SESSION, "messageID": "msg_1", "type": "text", "text": "Hi"}
 
     # When

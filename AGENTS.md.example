@@ -22,7 +22,7 @@ CLI, GitHub Copilot). Standards and skills are imported from
 
 ### The preflight gate
 
-[.agents/hooks/preflight_gate.py](.agents/hooks/preflight_gate.py) enforces the opening move on every agent. Before
+[.agents/hooks/preflight-gate/preflight_gate.py](.agents/hooks/preflight-gate/preflight_gate.py) enforces the opening move on every agent. Before
 relying on it or changing its wiring, read
 [docs/AGENT_TOOLING.md, The preflight gate](docs/AGENT_TOOLING.md#the-preflight-gate).
 

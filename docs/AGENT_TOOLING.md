@@ -12,7 +12,7 @@ This project imports a central set of AI agent standards from a shared repositor
   [.codex/agents/](../.codex/agents/) (TOML), and [.github/agents/](../.github/agents/) (`*.agent.md`).
 - Instructions in [AGENTS.md](../AGENTS.md): shared rules every agent reads natively, Claude Code included as long as
   the project holds no `CLAUDE.md`. See [instruction files](#instruction-files).
-- A preflight gate in [.agents/hooks/preflight_gate.py](../.agents/hooks/preflight_gate.py), one shared rule wired into every agent's hook surface, that actually blocks work rather than just asking for it, plus three hooks beside it in [.agents/hooks/](../.agents/hooks/): a reply formatting check, a markdown lint pass after an edit, and a task-list mirror that keeps the session plan alive across a compaction. On Claude Code an advisory check also warns after an edit about an action not pinned to a commit SHA, an image on `:latest`, a Spring Data `@Query` string, or a divider banner in a test, and never blocks.
+- A preflight gate in [.agents/hooks/preflight-gate/preflight_gate.py](../.agents/hooks/preflight-gate/preflight_gate.py), one shared rule wired into every agent's hook surface, that actually blocks work rather than just asking for it, plus three hooks beside it in [.agents/hooks/](../.agents/hooks/): a reply formatting check, a markdown lint pass after an edit, and a task-list mirror that keeps the session plan alive across a compaction. On Claude Code an advisory check also warns after an edit about an action not pinned to a commit SHA, an image on `:latest`, a Spring Data `@Query` string, or a divider banner in a test, and never blocks.
 - MCP servers in five real config files, one per agent surface.
 - OpenSpec, optional, for spec-driven feature work.
 
@@ -101,7 +101,7 @@ Unix shell:
 mv AGENTS.md.example AGENTS.md
 ```
 
-Then ignore the agent task list. `.agents/hooks/task_list_sync.py` mirrors the live session task list into `tasks.md`
+Then ignore the agent task list. `.agents/hooks/task-list-sync/task_list_sync.py` mirrors the live session task list into `tasks.md`
 at the project root so the plan survives a compaction, and that file is per-session working state rather than shared
 history. The same hook writes the generated `.agents/tasks.widget.json` snapshot beside it, which is ignored too.
 The reply `Tasks:` line must match the live list, and the runner `event` hook keeps all three in sync whenever a
@@ -336,7 +336,7 @@ The Required opening move section of [AGENTS.md](../AGENTS.md) is the canonical 
 skills and subagents that own the task and invoke them, or say none apply and why. A rule read once at session start
 loses its grip over a long session, so the gate is also enforced mechanically.
 
-One shared script does the deciding, [.agents/hooks/preflight_gate.py](../.agents/hooks/preflight_gate.py). It reads
+One shared script does the deciding, [.agents/hooks/preflight-gate/preflight_gate.py](../.agents/hooks/preflight-gate/preflight_gate.py). It reads
 the hook payload and denies three things:
 
 - A write of any file that resolves inside the repository working tree, coming straight from the main thread.

@@ -13,7 +13,7 @@ Three categories, and mixing them up is the one mistake that breaks a rebuild.
 
 | Category | Paths | How to change it |
 | --- | --- | --- |
-| Canonical | `subagents/*.md`, `.agents/skills/*/SKILL.md` and their `references/*.md`, `.agents/hooks/*.py`, `.agents/hooks/claude/sync_skill_links.py`, `.agents/hooks/claude/standards_advisory_check.py`, `.agents/plugin/hooks.js`, `.agents/plugin/index.js`, `docs/*.md` | edit directly |
+| Canonical | `subagents/*.md`, `.agents/skills/*/SKILL.md` and their `references/*.md`, `.agents/hooks/*.py`, `.agents/hooks/claude/sync-skill-links/sync_skill_links.py`, `.agents/hooks/claude/standards-advisory-check/standards_advisory_check.py`, `.agents/plugin/hooks.js`, `.agents/plugin/index.js`, `docs/*.md` | edit directly |
 | Canonical config | `.mcp.json`, `opencode.json`, `.opencode/opencode.json`, `.opencode/opencode.json.v1`, `.codex/config.toml`, `.vscode/mcp.json`, `.github/mcp.json`, `.claude/settings.json`, `.github/hooks/preflight.json` | edit directly, keep the server set and the gate wording in sync |
 | Generated | `.claude/agents/<name>/<name>.md`, `.agents/agents/*.md`, `.codex/agents/*.toml`, `.github/agents/*.agent.md` | never hand-edit, run `python tools/gen_subagents.py` |
 | Canonical, this repo only | `tools/plugins.yaml`, the plugin map: which Claude Code plugin holds each skill, subagent and MCP server | edit directly, verified by `tools/tests/test_gen_plugins.py`, never shipped |
@@ -78,7 +78,7 @@ agent-standards/
     gen_subagents.py             # Emits four trees plus the two agent symlinks, validates skills and tools
     gen_plugins.py               # Renders the Claude Code plugin marketplace from plugins.yaml into a given directory
     plugins.yaml                 # CANONICAL plugin map: every skill, subagent and MCP server in exactly one plugin (domains, host groups, core, mcp-<server>)
-    check-markdown.py            # Markdown lint used by CI, runs .agents/hooks/_check_markdown.py
+    check-markdown.py            # Markdown lint used by CI, runs .agents/hooks/markdown-lint-check/_check_markdown.py
     pyproject.toml               # CANONICAL, the only pinned dependency and pytest configuration
     check-badges.py              # README badge and social card count lint used by CI
     check-agents-md.py           # AGENTS.md size limits and no tracked CLAUDE.md, used by CI

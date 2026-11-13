@@ -26,7 +26,7 @@ For each of the five agents, in the agent's own terms wherever the agent offers 
 On top of that it proves the import itself behaved: `AGENTS.md.example` was renamed rather than copied, all three
 symlinks resolve to directories, and the upstream-only `subagents/` and `tools/` trees did not come along.
 
-It also proves the gate really denies. [.agents/hooks/preflight_gate.py](../.agents/hooks/preflight_gate.py) is run
+It also proves the gate really denies. [.agents/hooks/preflight-gate/preflight_gate.py](../.agents/hooks/preflight-gate/preflight_gate.py) is run
 directly with the payload each adapter would hand it, once per output format, and the decision is read back:
 
 - Rule A denies a main-thread write of any file inside the working tree, markdown and configuration included, in
@@ -85,8 +85,8 @@ An agent passes when all of these hold, each its own `PASS` or `FAIL` line:
 - `e2e-subagent-proof.txt` exists with exactly the scripted content
 - the main thread's spawn call got a result, a request that both the marker and the headers place in the subagent got the result of the write call, no main-thread request carries a write of that file, and the agent's own record agrees: [e2e-mock/records.py](e2e-mock/records.py) reads the Claude Code subagent transcript, the Codex rollout whose `session_meta` names a subagent, the Copilot event carrying a `parentToolCallId`, the OpenCode 1.x and Kilo Code export of the child session, or the 2.x `session_v2` row with a `parent_id`, and finds the write there and not in the main session
 - every subagent turn carries `python-pro`'s own definition in its system text
-- every main-thread turn carries that agent's own main-thread reminder: the Claude Code reminder from `.claude/settings.json` on Claude Code, and on every other agent the `REMINDER` of `.agents/hooks/copilot/prompt_reminder.py`, which Codex and Copilot inject from their wiring and the OpenCode plugin reads from that file
-- every subagent turn carries the subagent text, `PREFLIGHT for a subagent:`, and none carries either main-thread reminder. Every text is read from the imported project, the subagent opening from `.agents/hooks/copilot/prompt_reminder.py`, so a change of wording moves the check with it
+- every main-thread turn carries that agent's own main-thread reminder: the Claude Code reminder from `.claude/settings.json` on Claude Code, and on every other agent the `REMINDER` of `.agents/hooks/copilot/prompt-reminder/prompt_reminder.py`, which Codex and Copilot inject from their wiring and the OpenCode plugin reads from that file
+- every subagent turn carries the subagent text, `PREFLIGHT for a subagent:`, and none carries either main-thread reminder. Every text is read from the imported project, the subagent opening from `.agents/hooks/copilot/prompt-reminder/prompt_reminder.py`, so a change of wording moves the check with it
 - the main thread's own write is refused with the gate's `RULE_A_REASON`, read from the imported gate, and the file was never created
 - on Claude Code, every `code-reviewer` turn carries the first prose line of the project's `.agents/skills/application-security-review/SKILL.md`, read at run time, and none carries the opening of the built-in `/security-review` command's prompt, `You are a senior security engineer conducting a focused security review of the changes on this branch.`, read from the pinned 2.1.314 binary. The check first confirms that line is still in the `claude` binary it runs, so its absence from the request means the project skill won the name
 - on Codex, a scripted case starts `backend-architect`, whose canonical tools leave out `bash`, and none of its turns may offer `exec_command`, `write_stdin` or another shell tool, while the `python-pro` turns of the first case must, so the check can see one. Measured on Codex 0.167.0 without Docker: it passed with the generated `features.shell_tool = false`, and with that line removed from the project copy it failed with 1 of 1 turns offering a shell
@@ -725,7 +725,7 @@ recorded here because they show the class of problem only a live run finds. All 
    `mapping values are not allowed in this context`, because each `description` carried an unquoted colon, which left
    both skills invisible to Copilot. Both values are quoted now. Item 2 was closed with a one-off scan, which is why
    this one got in, so the check is mechanical this time: `check_front_matter` in
-   [.agents/hooks/_check_markdown.py](../.agents/hooks/_check_markdown.py), which CI runs through [tools/check-markdown.py](../tools/check-markdown.py), parses the front matter of every skill manifest and every
+   [.agents/hooks/markdown-lint-check/_check_markdown.py](../.agents/hooks/markdown-lint-check/_check_markdown.py), which CI runs through [tools/check-markdown.py](../tools/check-markdown.py), parses the front matter of every skill manifest and every
    canonical subagent source with a strict YAML parser, and reports an unquoted colon or a leading YAML indicator in a
    description, a name that does not match the folder name or the file stem, a missing, empty, non-string or
    over-length description, and any skill key outside the Agent Skills specification. CI runs it on every pull request.

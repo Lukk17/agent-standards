@@ -104,7 +104,7 @@ READ_ONLY_TOOLS = frozenset({"read", "grep", "glob"})
 # Code also enforce it natively through the bash permission map below. Each git
 # command carries `--no-pager`, because Rule E denies git in any other form: on
 # a terminal git pipes its output into a pager, whose `!` runs any command
-# (READ_ONLY_GIT_NO_PAGER in .agents/hooks/preflight_gate.py).
+# (READ_ONLY_GIT_NO_PAGER in .agents/hooks/preflight-gate/preflight_gate.py).
 READ_ONLY_GIT = "git --no-pager"
 READ_ONLY_COMMANDS = tuple(f"{READ_ONLY_GIT} {command}*" for command in ("diff", "log", "show", "status"))
 READ_ONLY_HEADING = "Read-only shell"

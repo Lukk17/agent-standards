@@ -80,8 +80,9 @@ def test_unusable_payload_prints_nothing_and_exits_zero(stdin):
 
 
 def test_hook_sits_below_the_directory_the_tool_call_runner_discovers():
+    # The runner runs a script one folder down only, see docs/hooks-contract.md
     assert PROMPT_REMINDER_HOOK.is_file()
-    assert PROMPT_REMINDER_HOOK.parent.parent == HOOKS_DIR
+    assert PROMPT_REMINDER_HOOK.parents[2] == HOOKS_DIR
 
 
 @pytest.mark.parametrize("shell", ["bash", "powershell"])

@@ -1,4 +1,4 @@
-"""Tests for the markdown rules in .agents/hooks/_check_markdown.py.
+"""Tests for the markdown rules in .agents/hooks/markdown-lint-check/_check_markdown.py.
 
 The rules ship inside the hooks directory so a consumer checkout has them, and
 tools/check-markdown.py is only the command CI runs over this repository. The

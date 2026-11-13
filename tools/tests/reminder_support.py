@@ -275,7 +275,7 @@ WIRINGS = {
 COPIES = [
     *[(relative, wiring_reminder) for relative in WIRINGS],
     ("sandbox-agent/setup-global.sh", sandbox_reminder),
-    (".agents/hooks/copilot/prompt_reminder.py", hook_module_reminder),
+    (".agents/hooks/copilot/prompt-reminder/prompt_reminder.py", hook_module_reminder),
 ]
 
 STATUS_BLOCK_TEMPLATE = """---
@@ -346,7 +346,7 @@ EXPECTED_REMINDERS = {
     ".codex/config.toml": [SHORT_REMINDER, SHORT_REMINDER],
     ".github/hooks/preflight.json": [SHORT_REMINDER, SHORT_REMINDER],
     "sandbox-agent/setup-global.sh": [SHORT_REMINDER],
-    ".agents/hooks/copilot/prompt_reminder.py": [SHORT_REMINDER],
+    ".agents/hooks/copilot/prompt-reminder/prompt_reminder.py": [SHORT_REMINDER],
     "docs/GLOBAL_SETUP.md": [
         CLAUDE_REMINDER,
         CLAUDE_REMINDER,

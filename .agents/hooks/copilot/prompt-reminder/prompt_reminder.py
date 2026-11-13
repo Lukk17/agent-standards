@@ -6,9 +6,10 @@ whose `transformedPrompt` field is the model-facing content, and replaces that
 content with `modifiedTransformedPrompt` from the JSON the hook prints. See
 https://docs.github.com/en/copilot/reference/hooks-reference.
 
-It lives in a subdirectory of .agents/hooks/ because the OpenCode and Kilo Code
-runner discovers only the files sitting directly in that directory, so this
-Copilot-only helper never costs their tool calls an interpreter start.
+It lives under .agents/hooks/copilot/ because the OpenCode and Kilo Code
+runner discovers only a script directly inside a hook folder of
+.agents/hooks/, so this Copilot-only helper never costs their tool calls an
+interpreter start.
 
 Copilot also fires the event for the prompt that opens a subagent's session,
 and the payload names no agent. The CLI puts the subagentStart text at the

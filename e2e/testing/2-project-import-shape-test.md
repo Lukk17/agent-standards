@@ -161,7 +161,7 @@ Expect exit 0.
 The shared gate script landed, which every hook wiring below points at.
 
 ```bash
-test -f /work/project/.agents/hooks/preflight_gate.py
+test -f /work/project/.agents/hooks/preflight-gate/preflight_gate.py
 ```
 
 Expect exit 0.
@@ -311,7 +311,7 @@ Expect exit 0.
 Copilot also appends the gate text to every prompt, through the helper that sits outside the runner's discovery set.
 
 ```bash
-jq -e '[.hooks.userPromptTransformed[].bash] | any(contains(".agents/hooks/copilot/prompt_reminder.py"))' /work/project/.github/hooks/preflight.json
+jq -e '[.hooks.userPromptTransformed[].bash] | any(contains(".agents/hooks/copilot/prompt-reminder/prompt_reminder.py"))' /work/project/.github/hooks/preflight.json
 ```
 
 Expect exit 0.

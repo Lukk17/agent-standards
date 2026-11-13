@@ -128,7 +128,7 @@ Only `.mcp.json` resolves a placeholder, `${VAR}` with a default. The other four
 MCP server inherits the environment of the process that started the agent, so exporting the variable is what makes
 the token arrive.
 
-One more line belongs in the project's own `.gitignore`. `.agents/hooks/task_list_sync.py` mirrors the live session
+One more line belongs in the project's own `.gitignore`. `.agents/hooks/task-list-sync/task_list_sync.py` mirrors the live session
 task list into `tasks.md` at the project root so the plan survives a compaction, and that is per-session working
 state, never shared history. PowerShell:
 

@@ -195,7 +195,7 @@ git -C "$src" rev-parse HEAD > ~/.config/agents/.upstream-commit
 project root from the hook payload's own `cwd` field and from the working directory, and it treats its own location in
 `~/.config/agents/hooks` as the user-level install rather than as a project.
 
-Three of the hook scripts get wired per agent below, and the skill link hook in `hooks/claude/` a fourth, for Claude Code only. `markdown_lint_check.py` is not wired: it lints only files inside a project that imported `.agents/hooks`, where the project wiring already runs it, so a global wiring would start a second interpreter on every edit for nothing. It is copied anyway, together with the `_check_markdown.py` rules beside it, because the copy is one directory rather than a file list. `hooks/claude/standards_advisory_check.py` is copied and left unwired for the same reason: a project that imported `.agents/hooks` runs it from its own `.claude/settings.json`.
+Three of the hook scripts get wired per agent below, and the skill link hook in `hooks/claude/` a fourth, for Claude Code only. `markdown_lint_check.py` is not wired: it lints only files inside a project that imported `.agents/hooks`, where the project wiring already runs it, so a global wiring would start a second interpreter on every edit for nothing. It is copied anyway, together with the `_check_markdown.py` rules beside it, because the copy is one directory rather than a file list. `hooks/claude/standards-advisory-check/standards_advisory_check.py` is copied and left unwired for the same reason: a project that imported `.agents/hooks` runs it from its own `.claude/settings.json`.
 
 `task_list_sync.py` mirrors the agent's own task list into a file named `tasks.md` so a compaction cannot lose it, and writes the `tasks.widget.json` snapshot beside it. Both land at the project root when the working directory has an imported `.agents/hooks/` beside it. Your home directory never counts as a project, even when a linked `~/.agents` gives it a `.agents/hooks`, and the hook never writes either file there. A session that is in no project keeps both in the directory it started in, for example `~/.local/state/agents/workspace`, and a session started in your home directory keeps them in `$XDG_STATE_HOME/agents`, which is `~/.local/state/agents` when `XDG_STATE_HOME` is unset or not an absolute path. Add `tasks.md` and `tasks.widget.json` to your global gitignore if you start sessions inside repositories that do not import the hooks, so neither shows up as an untracked file.
 
@@ -535,7 +535,7 @@ mkdir -p ~/.claude/skills
 ```
 
 ```bash
-python3 -S -E ~/.config/agents/hooks/claude/sync_skill_links.py
+python3 -S -E ~/.config/agents/hooks/claude/sync-skill-links/sync_skill_links.py
 ```
 
 On Windows the hook does nothing, because per-skill junctions were never tested there. Link the whole directory instead, and accept that the skills Claude Code syncs from claude.ai then land in `~/.config/agents/skills/synced/`, where the updater and the hook both ignore them but other agents may scan them. PowerShell:
@@ -602,7 +602,7 @@ its PowerShell tool whenever that tool is on, and the docs say "a hook that matc
           {
             "type": "command",
             "timeout": 10,
-            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/task_list_sync.py --event sessionstart --format claude ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/task-list-sync/task_list_sync.py --event sessionstart --format claude ; exit 0"
           }
         ]
       },
@@ -612,7 +612,7 @@ its PowerShell tool whenever that tool is on, and the docs say "a hook that matc
           {
             "type": "command",
             "timeout": 10,
-            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/claude/sync_skill_links.py ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/claude/sync-skill-links/sync_skill_links.py ; exit 0"
           }
         ]
       }
@@ -644,7 +644,7 @@ its PowerShell tool whenever that tool is on, and the docs say "a hook that matc
           {
             "type": "command",
             "timeout": 10,
-            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/preflight_gate.py --format claude ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/preflight-gate/preflight_gate.py --format claude ; exit 0"
           }
         ]
       }
@@ -655,7 +655,7 @@ its PowerShell tool whenever that tool is on, and the docs say "a hook that matc
           {
             "type": "command",
             "timeout": 10,
-            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/task_list_sync.py --event precompact --format claude ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/task-list-sync/task_list_sync.py --event precompact --format claude ; exit 0"
           }
         ]
       }
@@ -666,7 +666,7 @@ its PowerShell tool whenever that tool is on, and the docs say "a hook that matc
           {
             "type": "command",
             "timeout": 10,
-            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/task_list_sync.py --event taskcreated --format claude ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/task-list-sync/task_list_sync.py --event taskcreated --format claude ; exit 0"
           }
         ]
       }
@@ -677,7 +677,7 @@ its PowerShell tool whenever that tool is on, and the docs say "a hook that matc
           {
             "type": "command",
             "timeout": 10,
-            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/task_list_sync.py --event taskcompleted --format claude ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/task-list-sync/task_list_sync.py --event taskcompleted --format claude ; exit 0"
           }
         ]
       }
@@ -688,12 +688,12 @@ its PowerShell tool whenever that tool is on, and the docs say "a hook that matc
           {
             "type": "command",
             "timeout": 10,
-            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/no_ai_markers_check.py --format claude --display-fixed ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format claude --display-fixed ; exit 0"
           },
           {
             "type": "command",
             "timeout": 10,
-            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/task_list_sync.py --event stop --format claude ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/task-list-sync/task_list_sync.py --event stop --format claude ; exit 0"
           }
         ]
       }
@@ -704,7 +704,7 @@ its PowerShell tool whenever that tool is on, and the docs say "a hook that matc
           {
             "type": "command",
             "timeout": 10,
-            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/no_ai_markers_check.py --format claude --display ; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format claude --display ; exit 0"
           }
         ]
       }
@@ -791,7 +791,7 @@ mkdir -p ~/.config/codex/skills
 ```
 
 ```bash
-python3 -S -E ~/.config/agents/hooks/claude/sync_skill_links.py
+python3 -S -E ~/.config/agents/hooks/claude/sync-skill-links/sync_skill_links.py
 ```
 
 On Windows, where the hook does nothing, link each skill folder with a junction instead, and repeat that for a skill added later. PowerShell:
@@ -879,8 +879,8 @@ look for `"agent_id"` on standard input and print nothing when they find it.
             "type": "command",
             "statusMessage": "Task list",
             "timeout": 10,
-            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/task_list_sync.py --event sessionstart --format codex 2>/dev/null || exit 0",
-            "commandWindows": "$root = git rev-parse --show-toplevel 2>$null; if ($root) { Set-Location -LiteralPath $root }; python -S -E /home/you/.config/agents/hooks/task_list_sync.py --event sessionstart --format codex 2>$null; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/task-list-sync/task_list_sync.py --event sessionstart --format codex 2>/dev/null || exit 0",
+            "commandWindows": "$root = git rev-parse --show-toplevel 2>$null; if ($root) { Set-Location -LiteralPath $root }; python -S -E /home/you/.config/agents/hooks/task-list-sync/task_list_sync.py --event sessionstart --format codex 2>$null; exit 0"
           }
         ]
       }
@@ -892,8 +892,8 @@ look for `"agent_id"` on standard input and print nothing when they find it.
             "type": "command",
             "statusMessage": "Formatting check",
             "timeout": 10,
-            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/no_ai_markers_check.py --format codex 2>/dev/null || exit 0",
-            "commandWindows": "$root = git rev-parse --show-toplevel 2>$null; if ($root) { Set-Location -LiteralPath $root }; python -S -E /home/you/.config/agents/hooks/no_ai_markers_check.py --format codex 2>$null; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format codex 2>/dev/null || exit 0",
+            "commandWindows": "$root = git rev-parse --show-toplevel 2>$null; if ($root) { Set-Location -LiteralPath $root }; python -S -E /home/you/.config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format codex 2>$null; exit 0"
           }
         ]
       }
@@ -906,8 +906,8 @@ look for `"agent_id"` on standard input and print nothing when they find it.
             "type": "command",
             "statusMessage": "Preflight gate",
             "timeout": 10,
-            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/preflight_gate.py --format codex 2>/dev/null || exit 0",
-            "commandWindows": "$root = git rev-parse --show-toplevel 2>$null; if ($root) { Set-Location -LiteralPath $root }; python -S -E /home/you/.config/agents/hooks/preflight_gate.py --format codex 2>$null; exit 0"
+            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/preflight-gate/preflight_gate.py --format codex 2>/dev/null || exit 0",
+            "commandWindows": "$root = git rev-parse --show-toplevel 2>$null; if ($root) { Set-Location -LiteralPath $root }; python -S -E /home/you/.config/agents/hooks/preflight-gate/preflight_gate.py --format codex 2>$null; exit 0"
           }
         ]
       }
@@ -1338,8 +1338,8 @@ script call and the `; exit 0` on every `powershell` one are what make a missing
       {
         "type": "command",
         "cwd": ".",
-        "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/task_list_sync.py --event sessionstart --format copilot 2>/dev/null || exit 0",
-        "powershell": "python -S -E /home/you/.config/agents/hooks/task_list_sync.py --event sessionstart --format copilot 2>$null; exit 0"
+        "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/task-list-sync/task_list_sync.py --event sessionstart --format copilot 2>/dev/null || exit 0",
+        "powershell": "python -S -E /home/you/.config/agents/hooks/task-list-sync/task_list_sync.py --event sessionstart --format copilot 2>$null; exit 0"
       }
     ],
     "subagentStart": [
@@ -1353,8 +1353,8 @@ script call and the `; exit 0` on every `powershell` one are what make a missing
       {
         "type": "command",
         "cwd": ".",
-        "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/copilot/prompt_reminder.py 2>/dev/null || exit 0",
-        "powershell": "python -S -E /home/you/.config/agents/hooks/copilot/prompt_reminder.py 2>$null; exit 0"
+        "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/copilot/prompt-reminder/prompt_reminder.py 2>/dev/null || exit 0",
+        "powershell": "python -S -E /home/you/.config/agents/hooks/copilot/prompt-reminder/prompt_reminder.py 2>$null; exit 0"
       }
     ],
     "preToolUse": [
@@ -1362,16 +1362,16 @@ script call and the `; exit 0` on every `powershell` one are what make a missing
         "type": "command",
         "matcher": "bash|powershell|create|edit|apply_patch",
         "cwd": ".",
-        "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/preflight_gate.py --format copilot 2>/dev/null || exit 0",
-        "powershell": "python -S -E /home/you/.config/agents/hooks/preflight_gate.py --format copilot 2>$null; exit 0"
+        "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/preflight-gate/preflight_gate.py --format copilot 2>/dev/null || exit 0",
+        "powershell": "python -S -E /home/you/.config/agents/hooks/preflight-gate/preflight_gate.py --format copilot 2>$null; exit 0"
       }
     ],
     "agentStop": [
       {
         "type": "command",
         "cwd": ".",
-        "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/no_ai_markers_check.py --format copilot 2>/dev/null || exit 0",
-        "powershell": "python -S -E /home/you/.config/agents/hooks/no_ai_markers_check.py --format copilot 2>$null; exit 0"
+        "bash": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E /home/you/.config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format copilot 2>/dev/null || exit 0",
+        "powershell": "python -S -E /home/you/.config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format copilot 2>$null; exit 0"
       }
     ]
   }
@@ -1432,12 +1432,12 @@ rm -rf "$src"
 
 ### The skill link hook
 
-`~/.config/agents/hooks/claude/sync_skill_links.py` keeps two folders in step with `~/.config/agents/skills`: `~/.claude/skills` when `~/.claude` exists, and `$CODEX_HOME/skills`, or `~/.config/codex/skills` when `CODEX_HOME` is unset, when that Codex home exists. In each it links every shared folder that holds a `SKILL.md` and has no entry of that name yet, and removes a link that points into the shared folder at a skill that is gone. It never touches `synced`, `.trash`, a dot entry such as Codex's `.system`, a real directory, or a link that points anywhere else, and it leaves a folder that is itself a link alone. It always exits 0 and reports to standard error, because Claude Code adds a `SessionStart` hook's standard output to the model's context.
+`~/.config/agents/hooks/claude/sync-skill-links/sync_skill_links.py` keeps two folders in step with `~/.config/agents/skills`: `~/.claude/skills` when `~/.claude` exists, and `$CODEX_HOME/skills`, or `~/.config/codex/skills` when `CODEX_HOME` is unset, when that Codex home exists. In each it links every shared folder that holds a `SKILL.md` and has no entry of that name yet, and removes a link that points into the shared folder at a skill that is gone. It never touches `synced`, `.trash`, a dot entry such as Codex's `.system`, a real directory, or a link that points anywhere else, and it leaves a folder that is itself a link alone. It always exits 0 and reports to standard error, because Claude Code adds a `SessionStart` hook's standard output to the model's context.
 
 Claude Code runs it when a session starts or resumes, and both updaters run it after an update, so a Codex-only machine picks up a new skill at the next update or when you run it by hand. The updaters run it with `HOME` set to the home they update and `CODEX_HOME` set to `.config/codex` inside that home, whatever your own `CODEX_HOME` says, so an update of another home with `--home-dir` or `-HomeDir` links nothing into your own Codex home. By hand:
 
 ```bash
-python3 -S -E ~/.config/agents/hooks/claude/sync_skill_links.py
+python3 -S -E ~/.config/agents/hooks/claude/sync-skill-links/sync_skill_links.py
 ```
 
 On Windows it does nothing, by design, because per-skill junctions were never tested there. The Windows steps above use junctions made by hand instead.
@@ -1637,7 +1637,7 @@ How a project entry is matched:
 - The built-in list names no project's own scripts, because an entry such as `python tools/check.py` would also allow a
   same-named script in every other project, and that script could write files.
 
-The built-in list lives in `MAIN_THREAD_ALLOWLIST` near the top of `.agents/hooks/preflight_gate.py`. Do not edit it
+The built-in list lives in `MAIN_THREAD_ALLOWLIST` near the top of `.agents/hooks/preflight-gate/preflight_gate.py`. Do not edit it
 in a project, because the next update overwrites that file. Add your own entries to `main-thread-allowlist.txt` at the
 project root instead, one per line, in the form described above. Blank lines and lines starting with `#` are skipped.
 The file sits at the root rather than under `.agents/`, so importing or updating `.agents` never overwrites it. For
@@ -1749,7 +1749,7 @@ The summary lists one line per file it changed or skill and subagent it left alo
 totals, for example:
 
 ```text
-update  ~/.config/agents/hooks/preflight_gate.py
+update  ~/.config/agents/hooks/preflight-gate/preflight_gate.py
 add     ~/.config/agents/skills/research/references/source-order.md
 skip    ~/.config/agents/skills/my-own-skill (not an upstream skill)
 Hook wiring: unchanged upstream since 1006f0084bd24080dcfbadb5c4bd33aaa616950d.
@@ -1999,7 +1999,7 @@ Sign out and back in, so no running application keeps the old values.
 Honest list of what a global install cannot do.
 
 1. The blocking half of the preflight gate is project-shaped. Every shipped hook wiring calls
-   `.agents/hooks/preflight_gate.py`, resolved against the session's working directory. At user level you have to
+   `.agents/hooks/preflight-gate/preflight_gate.py`, resolved against the session's working directory. At user level you have to
    rewrite that to an absolute path, which the Claude Code, Codex, and Copilot sections above tell you to do, and the
    same is true of `task_list_sync.py` and `no_ai_markers_check.py`. The gate script recognises its own place in
    `~/.config/agents/hooks` and then looks for subagent definitions in the trees this install writes, `~/.claude/agents`,

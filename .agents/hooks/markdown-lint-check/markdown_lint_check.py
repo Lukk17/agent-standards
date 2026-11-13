@@ -2,7 +2,7 @@
 """Lints a markdown file the model just wrote and reports the violations back.
 
 The repository markdown rules (no em-dash or en-dash, no level-2 heading, no
-skill linking outside its own folder) live in .agents/hooks/_check_markdown.py
+skill linking outside its own folder) live in .agents/hooks/markdown-lint-check/_check_markdown.py
 beside this hook, and CI runs them over the whole target set through
 tools/check-markdown.py. That is the second opinion rather than the first: by
 the time it fails, the edit is already committed and pushed. This hook closes
@@ -14,8 +14,9 @@ MultiEdit is the whole of it, and every other invocation returns 0 before
 reading anything: `--format plain` is the runner contract, whose only event is
 `tool.execute.before`, where the file has not been edited yet and whose runner
 throws away anything written to stderr unless the hook exits 2. The rules
-module is looked up under the project root, where every import of
-.agents/hooks puts it, and a project that lacks it is silent rather than
+module is looked up beside this hook first, where every import of
+.agents/hooks and the hook-markdown-lint-check plugin both put it, then under
+the project root, and a copy that finds neither is silent rather than
 spawning a process on every edit to learn that.
 
 It reads the edited path out of
@@ -58,7 +59,9 @@ EVENT_NAME = "PostToolUse"
 
 EDIT_TOOLS = ("edit", "write", "multiedit")
 
-LINT_SCRIPT = (".agents", "hooks", "_check_markdown.py")
+LINT_RULES_NAME = "_check_markdown.py"
+
+LINT_SCRIPT = (".agents", "hooks", "markdown-lint-check", LINT_RULES_NAME)
 
 LINT_TIMEOUT_SECONDS = 10
 
@@ -88,19 +91,35 @@ def _flag(argv: List[str], name: str) -> str:
     return ""
 
 
-def _project_root() -> Path:
-    """The repository root.
+def _project_root(payload: Dict[str, Any]) -> Path:
+    """The session's project, never the folder this copy is installed in.
 
-    Every wiring moves there before invoking a hook, so the working directory
-    is the contract. It is trusted only once it holds the hooks directory that
-    proves it is a project root, because that guarantee has broken silently
-    before (see AGENTS.md "Required opening move"). The hook's own location two
-    parents up is the fallback.
+    Claude Code names the project in CLAUDE_PROJECT_DIR, and the payload names
+    the session's directory in `cwd`. Without either, the working directory is
+    trusted once it holds the hooks directory that proves it is a project root,
+    and then the project this copy sits in, three folders up from
+    .agents/hooks/markdown-lint-check/. A plugin copy in the Claude Code plugin
+    cache has no such project, so it falls back to the working directory.
     """
-    cwd = Path.cwd().resolve()
-    anchored = Path(__file__).resolve().parents[2]
+    named = os.environ.get(PROJECT_DIR_VARIABLE) or payload.get("cwd")
 
-    return cwd if (cwd / ".agents" / "hooks").is_dir() else anchored
+    if isinstance(named, str) and named and Path(named).is_dir():
+        return Path(named).resolve()
+
+    cwd = Path.cwd().resolve()
+    script = Path(__file__).resolve()
+
+    if (cwd / ".agents" / "hooks").is_dir() or script.parents[2].name != ".agents":
+        return cwd
+
+    return script.parents[3]
+
+
+def _lint_script(root: Path) -> Path:
+    """The rules module: the one beside this hook, which a plugin copy carries, else the project's own."""
+    beside = Path(__file__).resolve().parent / LINT_RULES_NAME
+
+    return beside if beside.is_file() else root.joinpath(*LINT_SCRIPT)
 
 
 def _tool_name(payload: Dict[str, Any]) -> str:
@@ -204,6 +223,49 @@ def _report(violations: str) -> int:
     return 0
 
 
+# A plugin copy of this hook stands down when the project's own Claude Code
+# wiring already runs a script of the same name on the same event, so one event
+# never runs it twice. Claude Code exports CLAUDE_PLUGIN_ROOT and
+# CLAUDE_PROJECT_DIR to a hook's process (https://code.claude.com/docs/en/hooks,
+# "Reference scripts by path"). tools/tests/test_plugin_copy.py holds this block
+# equal in every hook that carries it.
+PLUGIN_ROOT_VARIABLE = "CLAUDE_PLUGIN_ROOT"
+PROJECT_DIR_VARIABLE = "CLAUDE_PROJECT_DIR"
+PROJECT_CLAUDE_WIRING = (".claude", "settings.json")
+
+
+def _plugin_copy_is_shadowed(payload: object) -> bool:
+    """True when this copy runs as a Claude Code plugin and the project's own wiring runs it too."""
+    try:
+        plugin_root = os.environ.get(PLUGIN_ROOT_VARIABLE, "")
+        script = Path(__file__).resolve()
+
+        if not plugin_root or not script.is_relative_to(Path(plugin_root).resolve()):
+            return False
+
+        fields = payload if isinstance(payload, dict) else {}
+        project = os.environ.get(PROJECT_DIR_VARIABLE) or fields.get("cwd")
+        event = fields.get("hook_event_name")
+
+        if not isinstance(project, str) or not project:
+            return False
+
+        settings = json.loads(Path(project).joinpath(*PROJECT_CLAUDE_WIRING).read_text(encoding="utf-8"))
+
+        for name, groups in settings["hooks"].items():
+            if event and name != event:
+                continue
+
+            for group in groups:
+                for entry in group["hooks"]:
+                    if script.name in str(entry.get("command", "")):
+                        return True
+    except Exception:
+        return False
+
+    return False
+
+
 def main(argv: List[str]) -> int:
     try:
         if _flag(argv, "--format").lower() != CLAUDE_FORMAT:
@@ -211,14 +273,14 @@ def main(argv: List[str]) -> int:
 
         payload = json.loads(_stdin_text() or "{}")
 
-        if not isinstance(payload, dict):
+        if not isinstance(payload, dict) or _plugin_copy_is_shadowed(payload):
             return 0
 
         if _tool_name(payload) not in EDIT_TOOLS:
             return 0
 
-        root = _project_root()
-        script = root.joinpath(*LINT_SCRIPT)
+        root = _project_root(payload)
+        script = _lint_script(root)
 
         if not script.is_file():
             return 0

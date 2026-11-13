@@ -87,7 +87,7 @@ a generated tree.
 
 ### Hook enforcement, what each agent can actually block
 
-The gate is one shared rule in [../.agents/hooks/preflight_gate.py](../.agents/hooks/preflight_gate.py). It reads a hook
+The gate is one shared rule in [../.agents/hooks/preflight-gate/preflight_gate.py](../.agents/hooks/preflight-gate/preflight_gate.py). It reads a hook
 payload on standard input and denies six things: a write of any file resolving inside the repository working tree
 coming from the main thread, with no exemption left for markdown, configuration, or `docs/` (delegate the change to a
 subagent that owns the area instead), any tool call at all from a subagent whose own definition declares no skills
@@ -108,7 +108,7 @@ sends that the lexer cannot read denies, because it matches nothing on that agen
 directory a read-only subagent's call reports that does not exist or cannot be resolved, because the gate cannot tell
 which repository a command run there would read.
 
-Three more hooks live beside it in [../.agents/hooks/](../.agents/hooks/) and ride the same wirings: `no_ai_markers_check.py` checks the reply, `markdown_lint_check.py` lints a file just after it was edited, and `task_list_sync.py` mirrors the session task list into `tasks.md`. On Claude Code only, `claude/standards_advisory_check.py` warns after an edit about an unpinned action, an image on `:latest`, an `@Query` string or a divider banner in a test, and never blocks. Every hook is invoked on `-S -E`, under the first of `python3` and `python` its wiring resolves, and none of them uses `argparse`, because it exits 2 on a usage error and 2 is the deny code in the plain format.
+Three more hooks live beside it in [../.agents/hooks/](../.agents/hooks/) and ride the same wirings: `no_ai_markers_check.py` checks the reply, `markdown_lint_check.py` lints a file just after it was edited, and `task_list_sync.py` mirrors the session task list into `tasks.md`. On Claude Code only, `claude/standards-advisory-check/standards_advisory_check.py` warns after an edit about an unpinned action, an image on `:latest`, an `@Query` string or a divider banner in a test, and never blocks. Every hook is invoked on `-S -E`, under the first of `python3` and `python` its wiring resolves, and none of them uses `argparse`, because it exits 2 on a usage error and 2 is the deny code in the plain format.
 
 Each agent wires those scripts through its own hook surface, and the surfaces differ in what they can stop.
 
@@ -138,10 +138,10 @@ runner hands every tool call to every hook.
 Reading the tables row by row:
 
 - Every row anchors the gate at the project root before calling it, so a session started in a subdirectory still finds
-  [../.agents/hooks/preflight_gate.py](../.agents/hooks/preflight_gate.py), and a missing script allows rather than
+  [../.agents/hooks/preflight-gate/preflight_gate.py](../.agents/hooks/preflight-gate/preflight_gate.py), and a missing script allows rather than
   denies. Python exits 2 when it cannot open the file it was handed, and 2 is the deny code, so an unanchored path used
   to block every tool call.
-- [../.agents/hooks/no_ai_markers_check.py](../.agents/hooks/no_ai_markers_check.py) finds an em dash, an en dash, a
+- [../.agents/hooks/no-ai-markers-check/no_ai_markers_check.py](../.agents/hooks/no-ai-markers-check/no_ai_markers_check.py) finds an em dash, an en dash, a
   semicolon, or a bold or italic marker, asterisk or underscore form, and asks only for `Correction:` lines. Claude
   Code first fixes dashes, bold and italic on screen through `MessageDisplay`, so its `Stop` blocks only on what that
   fix leaves, a semicolon above all. No subagent's reply is checked on any agent, because only the main thread's reply reaches the user. Codex runs the full check on `Stop`.
@@ -737,7 +737,7 @@ Read these before you touch any hook wiring. They moved here from `AGENTS.md`, w
 - Every wiring that can reach a subagent injects the subagent text and never the reminder. The per-agent evidence is
   in [hooks-contract.md](hooks-contract.md).
 - Copilot gets the reminder on every prompt from `userPromptTransformed` through
-  [.agents/hooks/copilot/prompt_reminder.py](../.agents/hooks/copilot/prompt_reminder.py), which sits in a
+  [.agents/hooks/copilot/prompt-reminder/prompt_reminder.py](../.agents/hooks/copilot/prompt-reminder/prompt_reminder.py), which sits in a
   subdirectory so the OpenCode and Kilo Code runner skips it.
 - [sandbox-agent/live/](../sandbox-agent/live/) proves the wiring against a real model, run by the manual live
   workflow under Repo conventions in `AGENTS.md`. On Copilot, tests 1 and 2 can report `KNOWN-GAP`, as the

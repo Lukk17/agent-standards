@@ -37,7 +37,7 @@ readonly CODEX_HOME_DIR='.config/codex'
 readonly LEGACY_INSTALL_DIR='.agents'
 readonly SUBAGENT_TREES=".config/agents/agents:.agents/agents .claude/agents:.claude/agents $CODEX_HOME_DIR/agents:.codex/agents .config/copilot/agents:.github/agents"
 readonly RESERVED_SKILL_NAMES='synced .trash'
-readonly SKILL_LINK_HOOK='hooks/claude/sync_skill_links.py'
+readonly SKILL_LINK_HOOK='hooks/claude/sync-skill-links/sync_skill_links.py'
 readonly WIRING_ADVICE='Take it in with the one-line command that writes the hook file of each agent, under "Per-agent setup" in docs/GLOBAL_SETUP.md, run against a new temporary copy.'
 
 dry_run=0

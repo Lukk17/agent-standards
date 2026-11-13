@@ -1,4 +1,4 @@
-"""Tests for the task-list hook at .agents/hooks/task_list_sync.py.
+"""Tests for the task-list hook at .agents/hooks/task-list-sync/task_list_sync.py.
 
 Driven as a subprocess, because the hook contract is the process contract:
 stdin payload, --event and --format flags, stdout shape, exit code. Every run
@@ -387,8 +387,8 @@ def test_a_non_ascii_subject_survives_the_round_trip(project):
 
 
 def install_user_level_copy(home):
-    """The hook installed the way docs/GLOBAL_SETUP.md does, in ~/.config/agents/hooks."""
-    hooks = home / ".config" / "agents" / "hooks"
+    """The hook installed the way docs/GLOBAL_SETUP.md does, in ~/.config/agents/hooks/task-list-sync."""
+    hooks = home / ".config" / "agents" / "hooks" / TASK_LIST_SYNC_HOOK.parent.name
     hooks.mkdir(parents=True)
     installed = hooks / TASK_LIST_SYNC_HOOK.name
     shutil.copy2(TASK_LIST_SYNC_HOOK, installed)
@@ -516,3 +516,67 @@ def test_a_start_directory_that_links_to_home_counts_as_home(tmp_path):
     assert result.returncode == 0, result.stderr
     assert (home / ".local" / "state" / "agents" / TASK_LIST).is_file()
     assert_nothing_written_to_home_or_install(home)
+
+
+def install_plugin_copy(home):
+    """The hook as the hook-task-list-sync plugin installs it, in the Claude Code plugin cache."""
+    folder = home / ".claude" / "plugins" / "cache" / "agent-standards" / "hook-task-list-sync" / "1.0.0"
+    folder.mkdir(parents=True)
+    installed = folder / TASK_LIST_SYNC_HOOK.name
+    shutil.copy2(TASK_LIST_SYNC_HOOK, installed)
+
+    return installed
+
+
+def run_plugin_copy(installed, home, project, plugin_root=True):
+    env = {key: value for key, value in os.environ.items() if key not in ("XDG_STATE_HOME", "CLAUDE_PLUGIN_ROOT")}
+    env.update({"HOME": str(home), "USERPROFILE": str(home), "CLAUDE_PROJECT_DIR": str(project)})
+
+    if plugin_root:
+        env["CLAUDE_PLUGIN_ROOT"] = str(installed.parent)
+
+    return run_bounded(
+        [sys.executable, str(installed), "--event", "taskcreated", "--format", "claude"],
+        input=json.dumps({**task("task-001", "Plugin task"), "hook_event_name": "TaskCreated"}),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(project),
+        env=env,
+    )
+
+
+def test_a_plugin_copy_writes_the_list_into_the_session_project_and_never_its_cache(tmp_path):
+    # Given a project that imported no hooks, served by the plugin copy
+    home = tmp_path / "home"
+    installed = install_plugin_copy(home)
+    project = tmp_path / "work" / "project"
+    project.mkdir(parents=True)
+
+    # When
+    result = run_plugin_copy(installed, home, project)
+
+    # Then
+    assert result.returncode == 0, result.stderr
+    assert "Plugin task" in (project / TASK_LIST).read_text(encoding="utf-8")
+    assert sorted(p.name for p in installed.parent.iterdir()) == [TASK_LIST_SYNC_HOOK.name]
+    assert not (installed.parents[1] / TASK_LIST).exists()
+
+
+def test_a_plugin_copy_stands_down_when_the_project_wiring_runs_the_hook(tmp_path):
+    # Given a project whose own .claude/settings.json runs the hook on TaskCreated
+    home = tmp_path / "home"
+    installed = install_plugin_copy(home)
+    project = tmp_path / "work" / "project"
+    (project / ".claude").mkdir(parents=True)
+    command = 'cd "${CLAUDE_PROJECT_DIR}" && python3 -S -E .agents/hooks/task-list-sync/task_list_sync.py --event taskcreated --format claude ; exit 0'
+    (project / ".claude" / "settings.json").write_text(
+        json.dumps({"hooks": {"TaskCreated": [{"hooks": [{"type": "command", "command": command}]}]}}), encoding="utf-8"
+    )
+
+    # When
+    result = run_plugin_copy(installed, home, project)
+
+    # Then the project's own copy is left to write the list
+    assert result.returncode == 0, result.stderr
+    assert not (project / TASK_LIST).exists()

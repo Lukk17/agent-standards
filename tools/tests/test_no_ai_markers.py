@@ -1,4 +1,4 @@
-"""Tests for the formatting hook at .agents/hooks/no_ai_markers_check.py.
+"""Tests for the formatting hook at .agents/hooks/no-ai-markers-check/no_ai_markers_check.py.
 
 Driven as a subprocess, because the hook contract is the process contract. The
 default mode takes a Stop or SubagentStop payload on stdin, reading the reply
@@ -740,7 +740,7 @@ CLAUDE_PROJECT_WIRING = {
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "python -S -E .agents/hooks/no_ai_markers_check.py --format claude",
+                        "command": "python -S -E .agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format claude",
                     }
                 ]
             }
@@ -750,7 +750,7 @@ CLAUDE_PROJECT_WIRING = {
 
 CODEX_PROJECT_WIRING = (
     '[[hooks.Stop]]\n\n[[hooks.Stop.hooks]]\ntype = "command"\n'
-    'command = "python -S -E .agents/hooks/no_ai_markers_check.py --format codex"\n'
+    'command = "python -S -E .agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format codex"\n'
 )
 
 
@@ -1502,7 +1502,7 @@ def test_a_main_thread_stop_asks_for_a_normal_corrected_reply():
 
 
 def test_a_global_copilot_copy_stays_silent_where_the_project_wires_agent_stop(tmp_path):
-    command = "python .agents/hooks/no_ai_markers_check.py --format copilot"
+    command = "python .agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format copilot"
     wiring = {"version": 1, "hooks": {"agentStop": [{"type": "command", "bash": command}]}}
     root = project(tmp_path, ".github/hooks/preflight.json", json.dumps(wiring))
     path = copilot_events(tmp_path, copilot_message("One; two."))
@@ -1614,4 +1614,4 @@ def test_copilot_wires_the_check_on_agent_stop(shell):
     commands = [entry[shell] for entry in wiring["hooks"]["agentStop"]]
 
     assert len(commands) == 1
-    assert "-S -E .agents/hooks/no_ai_markers_check.py --format copilot" in commands[0]
+    assert "-S -E .agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format copilot" in commands[0]

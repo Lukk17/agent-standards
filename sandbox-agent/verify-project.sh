@@ -23,7 +23,7 @@ IFS=$'\n\t'
 readonly PROJECT="${SANDBOX_PROJECT:-/work/project}"
 readonly SETUP="/sandbox/setup-project.sh"
 readonly CLI_TIMEOUT="${SANDBOX_CLI_TIMEOUT:-300}"
-readonly GATE=".agents/hooks/preflight_gate.py"
+readonly GATE=".agents/hooks/preflight-gate/preflight_gate.py"
 readonly PROBE_AGENT=".claude/agents/sandbox-no-skills-probe.md"
 readonly SAMPLE_SKILL="python-patterns"
 
@@ -401,7 +401,7 @@ verify_claude() {
   assert_json "the markdown lint is wired into PostToolUse" ".claude/settings.json" \
     '[.hooks.PostToolUse[].hooks[].command] | any(contains("markdown_lint_check.py"))'
   assert_json "the standards advisory is wired into PostToolUse" ".claude/settings.json" \
-    '[.hooks.PostToolUse[].hooks[].command] | any(contains("claude/standards_advisory_check.py --format claude"))'
+    '[.hooks.PostToolUse[].hooks[].command] | any(contains("claude/standards-advisory-check/standards_advisory_check.py --format claude"))'
   assert_json "MCP servers are present in the file Claude Code reads" ".mcp.json" \
     '(.mcpServers | length) > 0'
 
@@ -571,7 +571,7 @@ verify_copilot() {
   assert_json "the gate text is injected on session start" ".github/hooks/preflight.json" \
     '[.hooks.sessionStart[].bash] | any(contains("Before code work, name the skills"))'
   assert_json "the gate text is appended to every prompt" ".github/hooks/preflight.json" \
-    '[.hooks.userPromptTransformed[].bash] | any(contains(".agents/hooks/copilot/prompt_reminder.py"))'
+    '[.hooks.userPromptTransformed[].bash] | any(contains(".agents/hooks/copilot/prompt-reminder/prompt_reminder.py"))'
   assert_json "the formatting check is wired into agentStop" ".github/hooks/preflight.json" \
     '[.hooks.agentStop[].bash] | any(contains("no_ai_markers_check.py --format copilot"))'
   assert_json "the gate is scoped to the tools that can write" ".github/hooks/preflight.json" \

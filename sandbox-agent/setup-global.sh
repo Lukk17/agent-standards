@@ -47,11 +47,11 @@ readonly CLAUDE_INSTRUCTIONS="${HOME}/.claude/CLAUDE.md"
 readonly CLAUDE_IMPORT='@~/.config/agents/AGENTS.md'
 readonly CODEX_DIR="${CODEX_HOME:-${HOME}/.config/codex}"
 readonly COPILOT_DIR="${COPILOT_HOME:-${HOME}/.config/copilot}"
-readonly GATE_SCRIPT="${SHARED}/hooks/preflight_gate.py"
-readonly MARKER_SCRIPT="${SHARED}/hooks/no_ai_markers_check.py"
-readonly TASKS_SCRIPT="${SHARED}/hooks/task_list_sync.py"
-readonly PROMPT_SCRIPT="${SHARED}/hooks/copilot/prompt_reminder.py"
-readonly SKILL_LINK_SCRIPT="${SHARED}/hooks/claude/sync_skill_links.py"
+readonly GATE_SCRIPT="${SHARED}/hooks/preflight-gate/preflight_gate.py"
+readonly MARKER_SCRIPT="${SHARED}/hooks/no-ai-markers-check/no_ai_markers_check.py"
+readonly TASKS_SCRIPT="${SHARED}/hooks/task-list-sync/task_list_sync.py"
+readonly PROMPT_SCRIPT="${SHARED}/hooks/copilot/prompt-reminder/prompt_reminder.py"
+readonly SKILL_LINK_SCRIPT="${SHARED}/hooks/claude/sync-skill-links/sync_skill_links.py"
 
 # --- State -------------------------------------------------------------------
 

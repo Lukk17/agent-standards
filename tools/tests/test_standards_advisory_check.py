@@ -1,4 +1,4 @@
-"""Tests for the advisory hook at .agents/hooks/claude/standards_advisory_check.py.
+"""Tests for the advisory hook at .agents/hooks/claude/standards-advisory-check/standards_advisory_check.py.
 
 Driven as a subprocess, because the hook contract is the process contract:
 stdin payload, --format flag, stdout shape, exit code. The hook reads only the
@@ -257,8 +257,47 @@ def test_claude_code_runs_it_after_every_edit():
         for hook in entry["hooks"]
     ]
 
-    hook = ".agents/hooks/claude/standards_advisory_check.py --format claude"
+    hook = ".agents/hooks/claude/standards-advisory-check/standards_advisory_check.py --format claude"
     wired = [command for command in commands if hook in command]
     assert len(wired) == 1
     assert wired[0].startswith('cd "${CLAUDE_PROJECT_DIR}"')
     assert wired[0].endswith("; exit 0")
+
+
+def run_plugin_copy(tmp_path, wired):
+    """The hook as the hook-standards-advisory-check plugin installs it, run for a project that may wire its own copy."""
+    import os
+    import shutil
+
+    folder = tmp_path / "cache" / "agent-standards" / "hook-standards-advisory-check" / "1.0.0"
+    folder.mkdir(parents=True)
+    hook = folder / STANDARDS_ADVISORY_HOOK.name
+    shutil.copy(STANDARDS_ADVISORY_HOOK, hook)
+    project = tmp_path / "project"
+    (project / ".claude").mkdir(parents=True)
+    if wired:
+        command = 'cd "${CLAUDE_PROJECT_DIR}" && python3 -S -E .agents/hooks/claude/standards-advisory-check/standards_advisory_check.py --format claude ; exit 0'
+        (project / ".claude" / "settings.json").write_text(
+            json.dumps({"hooks": {"PostToolUse": [{"matcher": "Edit", "hooks": [{"type": "command", "command": command}]}]}}), encoding="utf-8"
+        )
+    payload = {**write("ci.yml", "uses: actions/checkout@v5\n"), "hook_event_name": "PostToolUse"}
+    environment = {**os.environ, "CLAUDE_PROJECT_DIR": str(project), "CLAUDE_PLUGIN_ROOT": str(folder)}
+    result = run_bounded(
+        [sys.executable, "-S", "-E", str(hook), "--format", "claude"],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(project),
+        env=environment,
+    )
+
+    return result.returncode, result.stdout
+
+
+@pytest.mark.parametrize(("wired", "warns"), [(False, True), (True, False)], ids=["alone-warns", "project-wired-stands-down"])
+def test_a_plugin_copy_warns_unless_the_project_wiring_runs_the_hook(tmp_path, wired, warns):
+    code, out = run_plugin_copy(tmp_path, wired)
+
+    assert code == 0
+    assert bool(out) is warns

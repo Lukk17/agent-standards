@@ -29,7 +29,7 @@ readonly REPO="${AGENT_STANDARDS_REPO:-/repo}"
 readonly BARE="${SANDBOX_BARE:-/work/bare}"
 readonly SETUP="/sandbox/setup-global.sh"
 readonly CLI_TIMEOUT="${SANDBOX_CLI_TIMEOUT:-300}"
-readonly GATE="${HOME}/.config/agents/hooks/preflight_gate.py"
+readonly GATE="${HOME}/.config/agents/hooks/preflight-gate/preflight_gate.py"
 readonly PROBE_NAME="e2e-no-skills-probe"
 readonly PROBE_AGENT="${HOME}/.claude/agents/${PROBE_NAME}.md"
 readonly FIXTURES="${REPO}/e2e/fixtures"
@@ -620,11 +620,11 @@ verify_install_shape() {
   assert_real_directory "Codex's skills location is a real directory, so its .system skills stay its own" ".config/codex/skills"
   assert_glob_count "every skill is reachable through a per-skill link there too" \
     ".config/codex/skills/*/SKILL.md" "$SKILL_FILE_COUNT"
-  assert_file "the gate script landed in the shared tree" ".config/agents/hooks/preflight_gate.py"
-  assert_file "the reply formatting check landed beside it" ".config/agents/hooks/no_ai_markers_check.py"
-  assert_file "the task list hook landed beside it" ".config/agents/hooks/task_list_sync.py"
-  assert_file "the skill link hook landed in its Claude Code folder" ".config/agents/hooks/claude/sync_skill_links.py"
-  assert_file "the markdown lint hook landed too, deliberately unwired" ".config/agents/hooks/markdown_lint_check.py"
+  assert_file "the gate script landed in the shared tree" ".config/agents/hooks/preflight-gate/preflight_gate.py"
+  assert_file "the reply formatting check landed beside it" ".config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py"
+  assert_file "the task list hook landed beside it" ".config/agents/hooks/task-list-sync/task_list_sync.py"
+  assert_file "the skill link hook landed in its Claude Code folder" ".config/agents/hooks/claude/sync-skill-links/sync_skill_links.py"
+  assert_file "the markdown lint hook landed too, deliberately unwired" ".config/agents/hooks/markdown-lint-check/markdown_lint_check.py"
   assert_matches_upstream "the reply rules landed beside the hooks" ".config/agents/instructions/reply-rules.md" \
     ".agents/instructions/reply-rules.md"
   assert_matches_upstream "the POSIX updater landed in the shared folder" ".config/agents/bin/update-global.sh" \
@@ -686,7 +686,7 @@ verify_install_shape() {
     ".config/copilot/hooks/preflight.json" '"subagentStart"' '"userPromptTransformed"'
 
   assert_json "Claude Code's user settings call the gate by absolute path" ".claude/settings.json" \
-    '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.config/agents/hooks/preflight_gate.py") and contains("--format claude"))'
+    '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.config/agents/hooks/preflight-gate/preflight_gate.py") and contains("--format claude"))'
   assert_json "Claude Code's user settings call the gate directly, force a zero exit, and the DEVNULL wrapper does not return" ".claude/settings.json" \
     '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py") and contains("--format claude") and endswith("; exit 0") and (contains("subprocess.DEVNULL") | not))'
   assert_json "Claude Code's user settings force a zero exit with a trailing ; exit 0" ".claude/settings.json" \
@@ -694,7 +694,7 @@ verify_install_shape() {
   assert_json "Claude Code's user settings gate the web tools and the PowerShell tool as well as the writing ones" ".claude/settings.json" \
     '[.hooks.PreToolUse[].matcher] | any(type == "string" and test("Edit") and test("Write") and test("MultiEdit") and test("NotebookEdit") and test("Bash") and test("PowerShell") and test("WebFetch") and test("WebSearch"))'
   assert_json "Claude Code's user settings run the skill link hook when a session starts or resumes" ".claude/settings.json" \
-    '[.hooks.SessionStart[] | select(.matcher == "startup|resume") | .hooks[].command] | any(contains("/.config/agents/hooks/claude/sync_skill_links.py"))'
+    '[.hooks.SessionStart[] | select(.matcher == "startup|resume") | .hooks[].command] | any(contains("/.config/agents/hooks/claude/sync-skill-links/sync_skill_links.py"))'
   assert_json "Claude Code's user settings wire every event the project wiring wires but the markdown lint's" ".claude/settings.json" \
     '[.hooks | keys[]] == ["MessageDisplay", "PreCompact", "PreToolUse", "SessionStart", "Stop", "SubagentStart", "TaskCompleted", "TaskCreated", "UserPromptSubmit"]'
   assert_json "Claude Code's user settings tell a subagent to do its task itself, never hand it the delegating reminder" ".claude/settings.json" \
@@ -704,16 +704,16 @@ verify_install_shape() {
   assert_json "Claude Code's user settings leave the markdown lint out, because it needs a tool that never ships" ".claude/settings.json" \
     '[.hooks[][].hooks[].command] | any(contains("markdown_lint_check.py")) | not'
   assert_json "Claude Code's user settings check the reply formatting on the main thread's Stop only" ".claude/settings.json" \
-    '([.hooks.Stop[].hooks[].command] | map(select(contains("/.config/agents/hooks/no_ai_markers_check.py --format claude"))) | length == 1) and (.hooks | has("SubagentStop") | not)'
+    '([.hooks.Stop[].hooks[].command] | map(select(contains("/.config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format claude"))) | length == 1) and (.hooks | has("SubagentStop") | not)'
   assert_json "Claude Code's user settings check what the display fix leaves on Stop and fix the reply on MessageDisplay" ".claude/settings.json" \
-    '([.hooks.Stop[].hooks[].command] | any(contains("/.config/agents/hooks/no_ai_markers_check.py --format claude --display-fixed"))) and ([.hooks.MessageDisplay[].hooks[].command] | any(contains("/.config/agents/hooks/no_ai_markers_check.py --format claude --display ")))'
+    '([.hooks.Stop[].hooks[].command] | any(contains("/.config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format claude --display-fixed"))) and ([.hooks.MessageDisplay[].hooks[].command] | any(contains("/.config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format claude --display ")))'
   assert_json "Claude Code's user settings mirror the task list on the five events that carry it" ".claude/settings.json" \
-    '[.hooks.SessionStart[].hooks[].command, .hooks.PreCompact[].hooks[].command, .hooks.TaskCreated[].hooks[].command, .hooks.TaskCompleted[].hooks[].command, .hooks.Stop[].hooks[].command | select(contains("/.config/agents/hooks/task_list_sync.py")) | capture("--event (?<event>[a-z]+)").event] | sort == ["precompact", "sessionstart", "stop", "taskcompleted", "taskcreated"]'
+    '[.hooks.SessionStart[].hooks[].command, .hooks.PreCompact[].hooks[].command, .hooks.TaskCreated[].hooks[].command, .hooks.TaskCompleted[].hooks[].command, .hooks.Stop[].hooks[].command | select(contains("/.config/agents/hooks/task-list-sync/task_list_sync.py")) | capture("--event (?<event>[a-z]+)").event] | sort == ["precompact", "sessionstart", "stop", "taskcompleted", "taskcreated"]'
   # shellcheck disable=SC2016  # the $ belongs to the hook command text the jq filter looks for
   assert_json "Claude Code's user settings resolve python3 first and fall back to python on every hook, calling the script by absolute path" ".claude/settings.json" \
     '[.hooks[][].hooks[].command | select(contains(".py"))] | length > 0 and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E /"))'
   assert_json "Codex's user hooks call the gate by absolute path" ".config/codex/hooks.json" \
-    '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.config/agents/hooks/preflight_gate.py --format codex"))'
+    '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.config/agents/hooks/preflight-gate/preflight_gate.py --format codex"))'
   assert_json "Codex's user hooks scope the gate to the tools that can write" ".config/codex/hooks.json" \
     '[.hooks.PreToolUse[].matcher] | any(type == "string" and test("Bash") and test("apply_patch"))'
   assert_json "Codex's user hooks force a zero exit on the POSIX gate call, so a missing gate script allows rather than denies" ".config/codex/hooks.json" \
@@ -725,9 +725,9 @@ verify_install_shape() {
   assert_json "Codex's user hooks wire the same five events the project configuration wires" ".config/codex/hooks.json" \
     '[.hooks | keys[]] == ["PreToolUse", "SessionStart", "Stop", "SubagentStart", "UserPromptSubmit"]'
   assert_json "Codex's user hooks check the reply formatting on Stop, by absolute path" ".config/codex/hooks.json" \
-    '[.hooks.Stop[].hooks[].command] | any(contains("/.config/agents/hooks/no_ai_markers_check.py --format codex"))'
+    '[.hooks.Stop[].hooks[].command] | any(contains("/.config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format codex"))'
   assert_json "Codex's user hooks put the task list back at the start of a session, by absolute path" ".config/codex/hooks.json" \
-    '[.hooks.SessionStart[].hooks[].command] | any(contains("/.config/agents/hooks/task_list_sync.py --event sessionstart --format codex"))'
+    '[.hooks.SessionStart[].hooks[].command] | any(contains("/.config/agents/hooks/task-list-sync/task_list_sync.py --event sessionstart --format codex"))'
   # shellcheck disable=SC2016  # the $ belongs to the hook command text the jq filter looks for
   assert_json "Codex's user hooks resolve python3 first and fall back to python on every POSIX command, calling the script by absolute path" ".config/codex/hooks.json" \
     '[.hooks[][].hooks[] | (.command // empty) | select(contains(".py"))] | length > 0 and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E /"))'
@@ -739,13 +739,13 @@ verify_install_shape() {
   assert_json "Codex's user hooks give every command a Windows sibling, because Codex picks one per platform" ".config/codex/hooks.json" \
     '[.hooks[][].hooks[] | select(has("command"))] | length > 0 and all(has("commandWindows"))'
   assert_json "Copilot's user hooks call the gate by absolute path" ".config/copilot/hooks/preflight.json" \
-    '[.hooks.preToolUse[].bash] | any(contains("/.config/agents/hooks/preflight_gate.py --format copilot"))'
+    '[.hooks.preToolUse[].bash] | any(contains("/.config/agents/hooks/preflight-gate/preflight_gate.py --format copilot"))'
   assert_json "Copilot's user hooks put the task list back at the start of a session, by absolute path" ".config/copilot/hooks/preflight.json" \
-    '[.hooks.sessionStart[].bash] | any(contains("/.config/agents/hooks/task_list_sync.py --event sessionstart --format copilot"))'
+    '[.hooks.sessionStart[].bash] | any(contains("/.config/agents/hooks/task-list-sync/task_list_sync.py --event sessionstart --format copilot"))'
   assert_json "Copilot's user hooks append the reminder to every prompt, by absolute path" ".config/copilot/hooks/preflight.json" \
-    '[.hooks.userPromptTransformed[].bash] | any(contains("/.config/agents/hooks/copilot/prompt_reminder.py"))'
+    '[.hooks.userPromptTransformed[].bash] | any(contains("/.config/agents/hooks/copilot/prompt-reminder/prompt_reminder.py"))'
   assert_json "Copilot's user hooks check the reply formatting on agentStop, by absolute path" ".config/copilot/hooks/preflight.json" \
-    '[.hooks.agentStop[].bash] | any(contains("/.config/agents/hooks/no_ai_markers_check.py --format copilot"))'
+    '[.hooks.agentStop[].bash] | any(contains("/.config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format copilot"))'
   # shellcheck disable=SC2016  # the $ belongs to the hook command text the jq filter looks for
   assert_json "Copilot's user hooks resolve python3 first and fall back to python on every bash command, calling the script by absolute path" ".config/copilot/hooks/preflight.json" \
     '[.hooks[][] | (.bash // empty) | select(contains(".py"))] | length > 0 and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E /"))'
@@ -793,9 +793,9 @@ release_synthetic_upstream() {
 
   git clone --quiet "file://${REPO}" "$UPSTREAM"
 
-  printf '\n# e2e second release\n' >>"${UPSTREAM}/.agents/hooks/preflight_gate.py"
+  printf '\n# e2e second release\n' >>"${UPSTREAM}/.agents/hooks/preflight-gate/preflight_gate.py"
   printf 'pass\n' >"${UPSTREAM}/.agents/hooks/e2e_added_hook.py"
-  upstream_git rm --quiet .agents/hooks/markdown_lint_check.py "$reference"
+  upstream_git rm --quiet .agents/hooks/markdown-lint-check/markdown_lint_check.py "$reference"
   printf 'e2e reference\n' >"${UPSTREAM}/.agents/skills/${kept_skill}/e2e-added.md"
   printf '\ne2e second release\n' >>"${UPSTREAM}/.agents/skills/${kept_skill}/SKILL.md"
   printf '\ne2e second release\n' >>"${UPSTREAM}/.agents/skills/${removed_skill}/SKILL.md"
@@ -829,7 +829,7 @@ verify_update() {
   mkdir -p "${HOME}/.config/agents/skills/${OWN_SKILL}"
   printf -- '---\nname: %s\ndescription: A skill of the user own.\n---\n' "$OWN_SKILL" \
     >"${HOME}/.config/agents/skills/${OWN_SKILL}/SKILL.md"
-  printf '\n# damaged\n' >>"${HOME}/.config/agents/hooks/preflight_gate.py"
+  printf '\n# damaged\n' >>"${HOME}/.config/agents/hooks/preflight-gate/preflight_gate.py"
   printf '\ndamaged\n' >>"${HOME}/.config/agents/skills/${kept_skill}/SKILL.md"
   printf '\ndamaged\n' >>"${HOME}/.config/agents/agents/${SUBAGENTS[0]}.md"
 
@@ -849,18 +849,18 @@ verify_update() {
     fail "the dry run changed files under the home directory"
   fi
   assert_output_line "the dry run lists an added hook" "add     ~/.config/agents/hooks/e2e_added_hook.py"
-  assert_output_line "the dry run lists a hook removed upstream" "remove  ~/.config/agents/hooks/markdown_lint_check.py"
+  assert_output_line "the dry run lists a hook removed upstream" "remove  ~/.config/agents/hooks/markdown-lint-check/markdown_lint_check.py"
   assert_clone_removed "no temporary clone of the repository outlived the dry run"
 
   AGENT_STANDARDS_REPO="$UPSTREAM" TMPDIR="$CLONE_TMP" "$SETUP" --update >"$CLI_OUTPUT" 2>&1 || UPDATE_STATUS=$?
 
   assert_status "the update exited 0" "$UPDATE_STATUS" 0
   assert_clone_removed "no temporary clone of the repository outlived the update"
-  assert_matches_upstream "the update refreshed a changed hook" ".config/agents/hooks/preflight_gate.py" \
-    ".agents/hooks/preflight_gate.py" "$UPSTREAM"
+  assert_matches_upstream "the update refreshed a changed hook" ".config/agents/hooks/preflight-gate/preflight_gate.py" \
+    ".agents/hooks/preflight-gate/preflight_gate.py" "$UPSTREAM"
   assert_matches_upstream "the update added a hook upstream added" ".config/agents/hooks/e2e_added_hook.py" \
     ".agents/hooks/e2e_added_hook.py" "$UPSTREAM"
-  assert_absent "the update removed a hook upstream removed" ".config/agents/hooks/markdown_lint_check.py"
+  assert_absent "the update removed a hook upstream removed" ".config/agents/hooks/markdown-lint-check/markdown_lint_check.py"
   assert_matches_upstream "the update kept the updater itself current" ".config/agents/bin/update-global.sh" \
     "global/bin/update-global.sh" "$UPSTREAM"
   assert_matches_upstream "the update refreshed an installed skill" ".config/agents/skills/${kept_skill}/SKILL.md" \
@@ -901,9 +901,9 @@ verify_update() {
   assert_status "the reverting update exited 0" "$status" 0
   assert_absent "the reverting update removed the hook the second release added" ".config/agents/hooks/e2e_added_hook.py"
   assert_matches_upstream "the reverting update brought the removed hook back" \
-    ".config/agents/hooks/markdown_lint_check.py" ".agents/hooks/markdown_lint_check.py"
-  assert_matches_upstream "the reverting update restored the changed hook" ".config/agents/hooks/preflight_gate.py" \
-    ".agents/hooks/preflight_gate.py"
+    ".config/agents/hooks/markdown-lint-check/markdown_lint_check.py" ".agents/hooks/markdown-lint-check/markdown_lint_check.py"
+  assert_matches_upstream "the reverting update restored the changed hook" ".config/agents/hooks/preflight-gate/preflight_gate.py" \
+    ".agents/hooks/preflight-gate/preflight_gate.py"
   assert_matches_upstream "the reverting update brought the removed skill file back" "$home_reference" "$reference"
   assert_absent "the reverting update removed the skill file the second release added" \
     ".config/agents/skills/${kept_skill}/e2e-added.md"
@@ -1103,8 +1103,8 @@ verify_gate_enforcement() {
 
   assert_bare_working_directory "the working directory holds none of the per-project files"
 
-  if [[ -e "${BARE}/.agents/hooks/preflight_gate.py" ]]; then
-    fail "there is no project-relative gate script to fall back on (${BARE}/.agents/hooks/preflight_gate.py exists)"
+  if [[ -e "${BARE}/.agents/hooks/preflight-gate/preflight_gate.py" ]]; then
+    fail "there is no project-relative gate script to fall back on (${BARE}/.agents/hooks/preflight-gate/preflight_gate.py exists)"
   else
     pass "there is no project-relative gate script to fall back on"
   fi
@@ -1180,7 +1180,7 @@ verify_scoped() {
     ".config/agents/skills/*/SKILL.md" "$SKILL_FILE_COUNT"
   assert_glob_count "the shared subagent tree landed, because step 2 copies all four shared trees" \
     ".config/agents/agents/*.md" "${#SUBAGENTS[@]}"
-  assert_file "the gate script landed in the shared tree" ".config/agents/hooks/preflight_gate.py"
+  assert_file "the gate script landed in the shared tree" ".config/agents/hooks/preflight-gate/preflight_gate.py"
   assert_file "the plugin landed in the shared tree" ".config/agents/plugin/hooks.js"
   assert_matches_head "the shared folder records the commit it was installed from" ".config/agents/.upstream-commit"
   assert_file_not_empty "the one instruction file landed, because step 3 is shared" ".config/agents/AGENTS.md"

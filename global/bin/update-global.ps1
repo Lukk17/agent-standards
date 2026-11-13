@@ -40,7 +40,7 @@ $SubagentTrees = @(
     @('.config/copilot/agents', '.github/agents')
 )
 $ReservedSkillNames = @('synced', '.trash')
-$SkillLinkHook = 'hooks/claude/sync_skill_links.py'
+$SkillLinkHook = 'hooks/claude/sync-skill-links/sync_skill_links.py'
 $WiringAdvice = 'Take it in with the one-line command that writes the hook file of each agent, under "Per-agent setup" in docs/GLOBAL_SETUP.md, run against a new temporary copy.'
 
 $Counts = @{ update = 0; add = 0; remove = 0; unchanged = 0; keep = 0; skip = 0 }

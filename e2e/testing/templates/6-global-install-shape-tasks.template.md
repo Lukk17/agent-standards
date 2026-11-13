@@ -28,7 +28,7 @@ go. Add anything you did beyond the spec under Additional tasks I did.
 - [ ] 2. Installer run a second time, unchanged, exit status read
 - [ ] 3. `markdown-writer` deleted from `~/.config/agents/skills`
 - [ ] 4. `e2e-own-skill` added to `~/.config/agents/skills`
-- [ ] 5. `~/.config/agents/hooks/preflight_gate.py` damaged
+- [ ] 5. `~/.config/agents/hooks/preflight-gate/preflight_gate.py` damaged
 - [ ] 6. Digest of `~/.claude/settings.json` recorded
 - [ ] 7. Update run with `--update`, exit status read
 - [ ] 8. Skills left by the update recorded

@@ -148,8 +148,8 @@ def first_sentence(text):
     return text.split(". ")[0]
 
 
-reminder = constants(root / ".agents/hooks/copilot/prompt_reminder.py")
-gate = constants(root / ".agents/hooks/preflight_gate.py")
+reminder = constants(root / ".agents/hooks/copilot/prompt-reminder/prompt_reminder.py")
+gate = constants(root / ".agents/hooks/preflight-gate/preflight_gate.py")
 settings = json.loads((root / ".claude/settings.json").read_text(encoding="utf-8"))
 claude = next(
     hook["command"].split("echo '", 1)[1]

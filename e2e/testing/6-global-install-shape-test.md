@@ -203,7 +203,7 @@ mkdir -p "$HOME/.config/agents/skills/e2e-own-skill" && printf -- '---\nname: e2
 5. Damage an installed hook script, so the update has something to restore.
 
 ```bash
-printf '\n# damaged\n' >> "$HOME/.config/agents/hooks/preflight_gate.py"
+printf '\n# damaged\n' >> "$HOME/.config/agents/hooks/preflight-gate/preflight_gate.py"
 ```
 
 6. Record the digest of the Claude Code settings, which the update must not touch.
@@ -285,7 +285,7 @@ Expect exit 0.
 The update restored the damaged hook script to the committed file.
 
 ```bash
-git -C /repo show HEAD:.agents/hooks/preflight_gate.py | cmp - "$HOME/.config/agents/hooks/preflight_gate.py"
+git -C /repo show HEAD:.agents/hooks/preflight-gate/preflight_gate.py | cmp - "$HOME/.config/agents/hooks/preflight-gate/preflight_gate.py"
 ```
 
 Expect exit 0.
@@ -351,7 +351,7 @@ Expect exit 0.
 The gate script landed in the shared tree, which every user-scope wiring below names by absolute path.
 
 ```bash
-test -f "$HOME/.config/agents/hooks/preflight_gate.py"
+test -f "$HOME/.config/agents/hooks/preflight-gate/preflight_gate.py"
 ```
 
 Expect exit 0.
@@ -360,7 +360,7 @@ The other three hook scripts landed beside it. The markdown lint is on this list
 rather than a file list, and the assertions further down are what say it stays unwired.
 
 ```bash
-test -f "$HOME/.config/agents/hooks/no_ai_markers_check.py" -a -f "$HOME/.config/agents/hooks/task_list_sync.py" -a -f "$HOME/.config/agents/hooks/markdown_lint_check.py"
+test -f "$HOME/.config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py" -a -f "$HOME/.config/agents/hooks/task-list-sync/task_list_sync.py" -a -f "$HOME/.config/agents/hooks/markdown-lint-check/markdown_lint_check.py"
 ```
 
 Expect exit 0.
@@ -469,7 +469,7 @@ The command runs the gate script directly, with no wrapper in between, so the fo
 ` --format claude` substring in the command string.
 
 ```bash
-jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.config/agents/hooks/preflight_gate.py") and contains("--format claude"))' "$HOME/.claude/settings.json"
+jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.config/agents/hooks/preflight-gate/preflight_gate.py") and contains("--format claude"))' "$HOME/.claude/settings.json"
 ```
 
 Expect exit 0.
@@ -479,7 +479,7 @@ mean the old standard-error-discarding wrapper had come back. The gate script si
 this format, so the command needs no redirect.
 
 ```bash
-jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.config/agents/hooks/preflight_gate.py") and contains("--format claude") and endswith("; exit 0") and (contains("subprocess.DEVNULL") | not))' "$HOME/.claude/settings.json"
+jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.config/agents/hooks/preflight-gate/preflight_gate.py") and contains("--format claude") and endswith("; exit 0") and (contains("subprocess.DEVNULL") | not))' "$HOME/.claude/settings.json"
 ```
 
 Expect exit 0.
@@ -540,7 +540,7 @@ Expect exit 0.
 The reply formatting check runs once, by absolute path, on the main thread's `Stop`, and nothing is wired on `SubagentStop`, because reply style is checked on the main thread only.
 
 ```bash
-jq -e '([.hooks.Stop[].hooks[].command] | map(select(contains("/.config/agents/hooks/no_ai_markers_check.py --format claude"))) | length == 1) and (.hooks | has("SubagentStop") | not)' "$HOME/.claude/settings.json"
+jq -e '([.hooks.Stop[].hooks[].command] | map(select(contains("/.config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format claude"))) | length == 1) and (.hooks | has("SubagentStop") | not)' "$HOME/.claude/settings.json"
 ```
 
 Expect exit 0.
@@ -549,7 +549,7 @@ Expect exit 0.
 only what that fix leaves.
 
 ```bash
-jq -e '([.hooks.Stop[].hooks[].command] | any(contains("/.config/agents/hooks/no_ai_markers_check.py --format claude --display-fixed"))) and ([.hooks.MessageDisplay[].hooks[].command] | any(contains("/.config/agents/hooks/no_ai_markers_check.py --format claude --display ")))' "$HOME/.claude/settings.json"
+jq -e '([.hooks.Stop[].hooks[].command] | any(contains("/.config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format claude --display-fixed"))) and ([.hooks.MessageDisplay[].hooks[].command] | any(contains("/.config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format claude --display ")))' "$HOME/.claude/settings.json"
 ```
 
 Expect exit 0.
@@ -558,7 +558,7 @@ The task-list mirror runs on the five events that carry it, each with its own `-
 lose the list and a finished turn cannot leave items open with nothing to show for them.
 
 ```bash
-jq -e '[.hooks.SessionStart[].hooks[].command, .hooks.PreCompact[].hooks[].command, .hooks.TaskCreated[].hooks[].command, .hooks.TaskCompleted[].hooks[].command, .hooks.Stop[].hooks[].command | select(contains("/.config/agents/hooks/task_list_sync.py")) | capture("--event (?<event>[a-z]+)").event] | sort == ["precompact", "sessionstart", "stop", "taskcompleted", "taskcreated"]' "$HOME/.claude/settings.json"
+jq -e '[.hooks.SessionStart[].hooks[].command, .hooks.PreCompact[].hooks[].command, .hooks.TaskCreated[].hooks[].command, .hooks.TaskCompleted[].hooks[].command, .hooks.Stop[].hooks[].command | select(contains("/.config/agents/hooks/task-list-sync/task_list_sync.py")) | capture("--event (?<event>[a-z]+)").event] | sort == ["precompact", "sessionstart", "stop", "taskcompleted", "taskcreated"]' "$HOME/.claude/settings.json"
 ```
 
 Expect exit 0.
@@ -577,7 +577,7 @@ Expect exit 0.
 Codex's user hooks file names the gate by absolute path too, and there the flag is part of the command string.
 
 ```bash
-jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.config/agents/hooks/preflight_gate.py --format codex"))' "$HOME/.config/codex/hooks.json"
+jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.config/agents/hooks/preflight-gate/preflight_gate.py --format codex"))' "$HOME/.config/codex/hooks.json"
 ```
 
 Expect exit 0.
@@ -637,7 +637,7 @@ Expect exit 0.
 Codex checks the reply formatting on `Stop`, by absolute path.
 
 ```bash
-jq -e '[.hooks.Stop[].hooks[].command] | any(contains("/.config/agents/hooks/no_ai_markers_check.py --format codex"))' "$HOME/.config/codex/hooks.json"
+jq -e '[.hooks.Stop[].hooks[].command] | any(contains("/.config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format codex"))' "$HOME/.config/codex/hooks.json"
 ```
 
 Expect exit 0.
@@ -646,7 +646,7 @@ Codex puts the task list back at the start of a session, by absolute path. `Sess
 list through a compaction, because it fires again with `source` set to `compact`.
 
 ```bash
-jq -e '[.hooks.SessionStart[].hooks[].command] | any(contains("/.config/agents/hooks/task_list_sync.py --event sessionstart --format codex"))' "$HOME/.config/codex/hooks.json"
+jq -e '[.hooks.SessionStart[].hooks[].command] | any(contains("/.config/agents/hooks/task-list-sync/task_list_sync.py --event sessionstart --format codex"))' "$HOME/.config/codex/hooks.json"
 ```
 
 Expect exit 0.
@@ -681,7 +681,7 @@ Expect exit 0.
 Copilot's user hooks file does the same, from the shipped project wiring the installer rewrote.
 
 ```bash
-jq -e '[.hooks.preToolUse[].bash] | any(contains("/.config/agents/hooks/preflight_gate.py --format copilot"))' "$HOME/.config/copilot/hooks/preflight.json"
+jq -e '[.hooks.preToolUse[].bash] | any(contains("/.config/agents/hooks/preflight-gate/preflight_gate.py --format copilot"))' "$HOME/.config/copilot/hooks/preflight.json"
 ```
 
 Expect exit 0.
@@ -690,7 +690,7 @@ Copilot puts the task list back on `sessionStart`, by absolute path, which is th
 rewrite in that file.
 
 ```bash
-jq -e '[.hooks.sessionStart[].bash] | any(contains("/.config/agents/hooks/task_list_sync.py --event sessionstart --format copilot"))' "$HOME/.config/copilot/hooks/preflight.json"
+jq -e '[.hooks.sessionStart[].bash] | any(contains("/.config/agents/hooks/task-list-sync/task_list_sync.py --event sessionstart --format copilot"))' "$HOME/.config/copilot/hooks/preflight.json"
 ```
 
 Expect exit 0.
@@ -699,7 +699,7 @@ Copilot appends the reminder to every prompt on `userPromptTransformed`, by abso
 installer has to rewrite in that file.
 
 ```bash
-jq -e '[.hooks.userPromptTransformed[].bash] | any(contains("/.config/agents/hooks/copilot/prompt_reminder.py"))' "$HOME/.config/copilot/hooks/preflight.json"
+jq -e '[.hooks.userPromptTransformed[].bash] | any(contains("/.config/agents/hooks/copilot/prompt-reminder/prompt_reminder.py"))' "$HOME/.config/copilot/hooks/preflight.json"
 ```
 
 Expect exit 0.
@@ -708,7 +708,7 @@ Copilot checks the reply formatting on `agentStop`, by absolute path, which is t
 rewrite in that file.
 
 ```bash
-jq -e '[.hooks.agentStop[].bash] | any(contains("/.config/agents/hooks/no_ai_markers_check.py --format copilot"))' "$HOME/.config/copilot/hooks/preflight.json"
+jq -e '[.hooks.agentStop[].bash] | any(contains("/.config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format copilot"))' "$HOME/.config/copilot/hooks/preflight.json"
 ```
 
 Expect exit 0.

@@ -142,19 +142,51 @@ def _state_directory(home: Path) -> Path:
     return directory
 
 
+def _project_directory() -> Path:
+    """The session's project: CLAUDE_PROJECT_DIR when Claude Code names it, else the working directory."""
+    named = os.environ.get(PROJECT_DIR_VARIABLE, "")
+
+    return Path(named).resolve() if named else Path.cwd().resolve()
+
+
+def _install_kind() -> Tuple[str, Path]:
+    """Where this copy is installed: a project, the user-level install, or anywhere else.
+
+    A project keeps the hook at <project>/.agents/hooks/task-list-sync/ and the
+    user-level install at ~/.config/agents/hooks/task-list-sync/. Anywhere
+    else, such as a Claude Code plugin cache, is "other", and the copy then
+    serves the session's project the way the user-level copy does, so it never
+    writes into its own folder.
+    """
+    script = Path(__file__).resolve()
+    hooks, installed = script.parents[1], script.parents[2]
+
+    if hooks.name != "hooks":
+        return "other", installed
+
+    try:
+        if installed == Path.home().resolve().joinpath(*GLOBAL_INSTALL_DIRECTORY).resolve():
+            return "global", installed
+    except (OSError, RuntimeError):
+        pass
+
+    return ("project", installed) if installed.name == ".agents" else ("other", installed)
+
+
 def _install_directory() -> Tuple[Path, Path]:
     """The root that holds the list and the directory that holds the widget.
 
     Every wiring moves to the project root before invoking a hook, so the
-    working directory is the contract once it holds the hooks directory that
+    session's project is the contract once it holds the hooks directory that
     proves it is a project root. Home is never a project, even when a linked
-    ~/.agents gives it one. The user-level copy in ~/.config/agents/hooks keeps
-    a non-project session's list and widget together in the start directory,
-    or in the state directory when that is home. A project copy falls back to
-    its own project, two parents up, and never to home.
+    ~/.agents gives it one. The user-level copy in ~/.config/agents/hooks, and
+    a copy installed anywhere else, such as a Claude Code plugin cache, keep a
+    non-project session's list and widget together in the start directory, or
+    in the state directory when that is home. A project copy falls back to its
+    own project, three folders up, and never to home.
     """
-    cwd = Path.cwd().resolve()
-    installed = Path(__file__).resolve().parents[1]
+    cwd = _project_directory()
+    kind, installed = _install_kind()
 
     try:
         home = Path.home().resolve()
@@ -164,15 +196,12 @@ def _install_directory() -> Tuple[Path, Path]:
     if cwd != home and (cwd / ".agents" / "hooks").is_dir():
         return cwd, cwd / ".agents"
 
-    if home is None:
-        return installed.parent, installed
-
-    if installed == home.joinpath(*GLOBAL_INSTALL_DIRECTORY).resolve():
-        root, widget_directory = cwd, cwd
-    else:
+    if kind == "project":
         root, widget_directory = installed.parent, installed
+    else:
+        root, widget_directory = cwd, cwd
 
-    if root == home:
+    if home is not None and root == home:
         state = _state_directory(home)
 
         return state, state
@@ -469,6 +498,49 @@ def _runner_mode(payload: Dict[str, Any]) -> int:
     return 0
 
 
+# A plugin copy of this hook stands down when the project's own Claude Code
+# wiring already runs a script of the same name on the same event, so one event
+# never runs it twice. Claude Code exports CLAUDE_PLUGIN_ROOT and
+# CLAUDE_PROJECT_DIR to a hook's process (https://code.claude.com/docs/en/hooks,
+# "Reference scripts by path"). tools/tests/test_plugin_copy.py holds this block
+# equal in every hook that carries it.
+PLUGIN_ROOT_VARIABLE = "CLAUDE_PLUGIN_ROOT"
+PROJECT_DIR_VARIABLE = "CLAUDE_PROJECT_DIR"
+PROJECT_CLAUDE_WIRING = (".claude", "settings.json")
+
+
+def _plugin_copy_is_shadowed(payload: object) -> bool:
+    """True when this copy runs as a Claude Code plugin and the project's own wiring runs it too."""
+    try:
+        plugin_root = os.environ.get(PLUGIN_ROOT_VARIABLE, "")
+        script = Path(__file__).resolve()
+
+        if not plugin_root or not script.is_relative_to(Path(plugin_root).resolve()):
+            return False
+
+        fields = payload if isinstance(payload, dict) else {}
+        project = os.environ.get(PROJECT_DIR_VARIABLE) or fields.get("cwd")
+        event = fields.get("hook_event_name")
+
+        if not isinstance(project, str) or not project:
+            return False
+
+        settings = json.loads(Path(project).joinpath(*PROJECT_CLAUDE_WIRING).read_text(encoding="utf-8"))
+
+        for name, groups in settings["hooks"].items():
+            if event and name != event:
+                continue
+
+            for group in groups:
+                for entry in group["hooks"]:
+                    if script.name in str(entry.get("command", "")):
+                        return True
+    except Exception:
+        return False
+
+    return False
+
+
 def main(argv: List[str]) -> int:
     try:
         event = _flag(argv, "--event").lower()
@@ -490,7 +562,7 @@ def main(argv: List[str]) -> int:
 
         payload = json.loads(_stdin_text() or "{}")
 
-        if not isinstance(payload, dict):
+        if not isinstance(payload, dict) or _plugin_copy_is_shadowed(payload):
             return 0
 
         if event in RECORDED_STATUS:

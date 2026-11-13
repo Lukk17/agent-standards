@@ -30,15 +30,16 @@ with the findings as `additionalContext` under `hookSpecificOutput`, and exits
 post-tool hook can hand context back to the model. Every other invocation, any
 other tool, a clean write, and any error at all return 0 with nothing printed.
 
-It lives in a subdirectory of .agents/hooks/ so the OpenCode and Kilo Code
-runner, which discovers only the files directly in that directory, never runs
-it on a tool call.
+It lives under .agents/hooks/claude/ so the OpenCode and Kilo Code runner,
+which discovers only a script directly inside a hook folder of
+.agents/hooks/, never runs it on a tool call.
 """
 
 import json
+import os
 import re
 import sys
-from pathlib import PurePath
+from pathlib import Path, PurePath
 from typing import Any, Dict, Iterable, List, Tuple
 
 CLAUDE_FORMAT = "claude"
@@ -234,6 +235,49 @@ def _report(path: str, findings: List[str]) -> int:
     return 0
 
 
+# A plugin copy of this hook stands down when the project's own Claude Code
+# wiring already runs a script of the same name on the same event, so one event
+# never runs it twice. Claude Code exports CLAUDE_PLUGIN_ROOT and
+# CLAUDE_PROJECT_DIR to a hook's process (https://code.claude.com/docs/en/hooks,
+# "Reference scripts by path"). tools/tests/test_plugin_copy.py holds this block
+# equal in every hook that carries it.
+PLUGIN_ROOT_VARIABLE = "CLAUDE_PLUGIN_ROOT"
+PROJECT_DIR_VARIABLE = "CLAUDE_PROJECT_DIR"
+PROJECT_CLAUDE_WIRING = (".claude", "settings.json")
+
+
+def _plugin_copy_is_shadowed(payload: object) -> bool:
+    """True when this copy runs as a Claude Code plugin and the project's own wiring runs it too."""
+    try:
+        plugin_root = os.environ.get(PLUGIN_ROOT_VARIABLE, "")
+        script = Path(__file__).resolve()
+
+        if not plugin_root or not script.is_relative_to(Path(plugin_root).resolve()):
+            return False
+
+        fields = payload if isinstance(payload, dict) else {}
+        project = os.environ.get(PROJECT_DIR_VARIABLE) or fields.get("cwd")
+        event = fields.get("hook_event_name")
+
+        if not isinstance(project, str) or not project:
+            return False
+
+        settings = json.loads(Path(project).joinpath(*PROJECT_CLAUDE_WIRING).read_text(encoding="utf-8"))
+
+        for name, groups in settings["hooks"].items():
+            if event and name != event:
+                continue
+
+            for group in groups:
+                for entry in group["hooks"]:
+                    if script.name in str(entry.get("command", "")):
+                        return True
+    except Exception:
+        return False
+
+    return False
+
+
 def main(argv: List[str]) -> int:
     try:
         if _flag(argv, "--format").lower() != CLAUDE_FORMAT:
@@ -242,6 +286,9 @@ def main(argv: List[str]) -> int:
         payload = json.loads(_stdin_text() or "{}")
 
         if not isinstance(payload, dict) or _tool_name(payload) not in EDIT_TOOLS:
+            return 0
+
+        if _plugin_copy_is_shadowed(payload):
             return 0
 
         tool_input = payload.get("tool_input")

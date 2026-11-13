@@ -1,4 +1,4 @@
-"""Tests for the question numbering hook at .agents/hooks/question_numbering_check.py.
+"""Tests for the question numbering hook at .agents/hooks/question-numbering-check/question_numbering_check.py.
 
 Driven as a subprocess with --format plain and the envelope JSON on stdin.
 """
@@ -10,7 +10,7 @@ import sys
 from tests.conftest import HOOKS_DIR, REPO_ROOT
 from tests.process_tree import run_bounded
 
-HOOK = HOOKS_DIR / "question_numbering_check.py"
+HOOK = HOOKS_DIR / "question-numbering-check" / "question_numbering_check.py"
 
 
 def run(stdin: bytes) -> subprocess.CompletedProcess:

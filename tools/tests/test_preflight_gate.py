@@ -1,4 +1,4 @@
-"""Tests for the shared preflight gate at .agents/hooks/preflight_gate.py.
+"""Tests for the shared preflight gate at .agents/hooks/preflight-gate/preflight_gate.py.
 
 The rule cases drive the gate's own main() in-process through run(), with its
 stdin, stdout, stderr, working directory and environment swapped for the call,
@@ -1463,7 +1463,7 @@ def test_edit_tool_unc_path_allows(offline_network):
 
 
 # The user-level install in docs/GLOBAL_SETUP.md copies the gate to
-# <home>/.agents/hooks/preflight_gate.py, where the script-derived root is the
+# <home>/.agents/hooks/preflight-gate/preflight_gate.py, where the script-derived root is the
 # home directory itself. Keeping it would deny every main-thread write anywhere
 # under the home directory, so it is dropped there, and the project the session
 # is in (its working directory, and the cwd the payload names) is the whole
@@ -1477,8 +1477,8 @@ class Install(NamedTuple):
 
 
 def install_gate(root):
-    """Copy the gate to <root>/.agents/hooks and return the copy's path."""
-    hooks = root / ".agents" / "hooks"
+    """Copy the gate to <root>/.agents/hooks/preflight-gate and return the copy's path."""
+    hooks = root / ".agents" / "hooks" / PREFLIGHT_GATE.parent.name
     hooks.mkdir(parents=True, exist_ok=True)
     installed = hooks / PREFLIGHT_GATE.name
     shutil.copy2(PREFLIGHT_GATE, installed)
@@ -1585,7 +1585,7 @@ def config_install(tmp_path):
     project = tmp_path / "work" / "project"
     project.mkdir(parents=True)
 
-    hooks = home / ".config" / "agents" / "hooks"
+    hooks = home / ".config" / "agents" / "hooks" / PREFLIGHT_GATE.parent.name
     hooks.mkdir(parents=True)
     gate = hooks / PREFLIGHT_GATE.name
     shutil.copy2(PREFLIGHT_GATE, gate)
@@ -1786,7 +1786,7 @@ def test_an_unusable_payload_cwd_names_no_root(value):
 
 def test_the_script_root_is_dropped_when_it_is_the_home_directory(monkeypatch):
     # Given a home directory that is exactly the gate's own project root
-    root = Path(GATE.__file__).resolve().parents[2]
+    root = Path(GATE.__file__).resolve().parents[3]
     monkeypatch.setattr(GATE.Path, "home", classmethod(lambda cls: root))
 
     # When/Then the global install protects nothing on its own
@@ -1796,7 +1796,7 @@ def test_the_script_root_is_dropped_when_it_is_the_home_directory(monkeypatch):
 def test_the_script_root_is_dropped_when_the_home_directory_sits_below_it(monkeypatch):
     # Given a home directory somewhere inside the gate's own project root,
     # which makes that root broader than the home directory
-    home = Path(GATE.__file__).resolve().parents[2] / "tools"
+    home = Path(GATE.__file__).resolve().parents[3] / "tools"
     monkeypatch.setattr(GATE.Path, "home", classmethod(lambda cls: home))
 
     # When/Then
@@ -1806,7 +1806,7 @@ def test_the_script_root_is_dropped_when_the_home_directory_sits_below_it(monkey
 def test_the_script_root_survives_an_unrelated_home_directory(monkeypatch, tmp_path):
     monkeypatch.setattr(GATE.Path, "home", classmethod(lambda cls: tmp_path))
 
-    assert GATE._script_root() == Path(GATE.__file__).resolve().parents[2]
+    assert GATE._script_root() == Path(GATE.__file__).resolve().parents[3]
 
 
 def test_a_home_directory_the_interpreter_cannot_name_leaves_the_script_root_alone(monkeypatch):
@@ -1817,7 +1817,7 @@ def test_a_home_directory_the_interpreter_cannot_name_leaves_the_script_root_alo
     monkeypatch.setattr(GATE.Path, "home", classmethod(unnameable))
 
     # When/Then the project install keeps the behaviour it always had
-    assert GATE._script_root() == Path(GATE.__file__).resolve().parents[2]
+    assert GATE._script_root() == Path(GATE.__file__).resolve().parents[3]
 
 
 # Defect 3: apply_patch carries no path key at all, so its write target has
@@ -2599,7 +2599,7 @@ def test_a_looping_global_install_folder_leaves_the_install_root_in_place(resolu
     monkeypatch.setattr(GATE, "GLOBAL_INSTALL_DIRECTORY", (".config", LOOPING))
 
     # When/Then the gate is not installed there, so its own project stays the install root
-    assert GATE._install_root() == PREFLIGHT_GATE.resolve().parents[2]
+    assert GATE._install_root() == PREFLIGHT_GATE.resolve().parents[3]
 
 
 @pytest.mark.parametrize(
@@ -7660,3 +7660,73 @@ def test_the_shipped_read_only_agents_carry_their_list_in_every_tree(agent, extr
         text = (nested if nested.is_file() else REPO_ROOT / directory / f"{agent}{extension}").read_text(encoding="utf-8")
 
         assert GATE._read_only_patterns(text) == ["git --no-pager diff*", "git --no-pager log*", "git --no-pager show*", "git --no-pager status*", *extras]
+
+
+# A Claude Code plugin copy: hook-preflight-gate installs the gate at
+# plugins/cache/<marketplace>/hook-preflight-gate/<version>/preflight_gate.py.
+
+
+def plugin_copy_of_the_gate(root):
+    folder = root / ".claude" / "plugins" / "cache" / "agent-standards" / "hook-preflight-gate" / "1.0.0"
+    folder.mkdir(parents=True)
+    gate = folder / PREFLIGHT_GATE.name
+    shutil.copy2(PREFLIGHT_GATE, gate)
+
+    return gate
+
+
+def test_a_plugin_copy_of_the_gate_has_no_install_root(tmp_path, monkeypatch):
+    # Given the gate module loaded from a plugin cache path
+    gate = plugin_copy_of_the_gate(tmp_path)
+    monkeypatch.setattr(GATE, "__file__", str(gate))
+
+    # When / Then the cache is never a project
+    assert GATE._install_root() is None
+    assert GATE._script_root() is None
+
+
+def test_a_plugin_copy_of_the_gate_judges_the_session_project(tmp_path):
+    # Given the plugin copy, run from the project the hook command moves into
+    gate = plugin_copy_of_the_gate(tmp_path / "home")
+    project = tmp_path / "work" / "project"
+    project.mkdir(parents=True)
+
+    # When the main thread writes inside the project, and then inside the plugin cache
+    inside = run_process({**edit(str(project / "app.py")), "cwd": str(project)}, "claude", cwd=project, script=gate)
+    cache = run_process({**edit(str(gate.parent / "x.py")), "cwd": str(project)}, "claude", cwd=project, script=gate)
+
+    # Then the project is protected and the cache is not treated as one
+    assert json.loads(inside[1])["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert cache[1] == ""
+
+
+def wire_project_gate(project):
+    settings = project / ".claude" / "settings.json"
+    settings.parent.mkdir(parents=True)
+    command = 'cd "${CLAUDE_PROJECT_DIR}" && python3 -S -E .agents/hooks/preflight-gate/preflight_gate.py --format claude ; exit 0'
+    settings.write_text(json.dumps({"hooks": {"PreToolUse": [{"matcher": "Edit", "hooks": [{"type": "command", "command": command}]}]}}), encoding="utf-8")
+
+
+@pytest.mark.parametrize(("plugin_root", "wired", "denied"), [
+    pytest.param(True, True, False, id="plugin-copy-with-project-wiring-stands-down"),
+    pytest.param(True, False, True, id="plugin-copy-alone-decides"),
+    pytest.param(False, True, True, id="no-plugin-root-decides"),
+])
+def test_a_plugin_copy_stands_down_only_when_the_project_wiring_runs_the_gate(tmp_path, plugin_root, wired, denied):
+    # Given the plugin copy and a project that may wire its own gate
+    gate = plugin_copy_of_the_gate(tmp_path / "home")
+    project = tmp_path / "work" / "project"
+    project.mkdir(parents=True)
+    if wired:
+        wire_project_gate(project)
+    env = {"CLAUDE_PROJECT_DIR": str(project)}
+    if plugin_root:
+        env["CLAUDE_PLUGIN_ROOT"] = str(gate.parent)
+    payload = {**edit(str(project / "app.py")), "cwd": str(project), "hook_event_name": "PreToolUse"}
+
+    # When
+    code, out, err = run_process(payload, "claude", cwd=project, env=env, script=gate)
+
+    # Then
+    assert (code, err) == (0, "")
+    assert bool(out) is denied

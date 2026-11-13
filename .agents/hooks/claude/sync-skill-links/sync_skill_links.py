@@ -29,9 +29,9 @@ itself a link, which is the layout before the migration, is left alone.
 On Windows it does nothing. Creating per-skill junctions there was never
 tested, so the guide keeps the Windows install on directory junctions.
 
-It lives in a subdirectory of .agents/hooks/ so the OpenCode and Kilo Code
-runner, which discovers only the files directly in that directory, never runs
-it on a tool call. Every outcome, an error included, exits 0, and the report
+It lives under .agents/hooks/claude/ so the OpenCode and Kilo Code runner,
+which discovers only a script directly inside a hook folder of
+.agents/hooks/, never runs it on a tool call. Every outcome, an error included, exits 0, and the report
 goes to stderr, because Claude Code adds a SessionStart hook's stdout to the
 model's context.
 """

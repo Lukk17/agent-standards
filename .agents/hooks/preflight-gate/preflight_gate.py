@@ -99,11 +99,13 @@ repository a command run there would read.
 
 Rule A protects a project, not the whole filesystem, and the boundary is
 every root in _roots(): the process working directory, the project root the
-payload names in its cwd field, and the gate's own on-disk location two
-parents up. That last one counts only while it really is a project. The
-user-level install in docs/GLOBAL_SETUP.md puts this script in
-~/.config/agents/hooks, which _install_root() maps to the home directory, so it
-is dropped there and only the project the session is in stays protected.
+payload names in its cwd field, and the project the gate itself sits in,
+three folders up from <project>/.agents/hooks/preflight-gate/. That last one
+counts only while it really is a project. The user-level install in
+docs/GLOBAL_SETUP.md puts this script in ~/.config/agents/hooks/preflight-gate,
+which _install_root() maps to the home directory, so it is dropped there, and a
+Claude Code plugin copy has no install root at all, so only the project the
+session is in stays protected.
 
 Rule A exempts exactly one path, TASK_LIST_NAME at the project root. The main
 thread owns the task list, so it keeps writing that one file directly.
@@ -205,7 +207,7 @@ FORMATS = ("claude", "codex", "copilot", "plain")
 CONTRACTS = frozenset({3})
 
 # The one file Rule A never protects, at the project root only. The main
-# thread keeps the task list itself, so .agents/hooks/task_list_sync.py and
+# thread keeps the task list itself, so .agents/hooks/task-list-sync/task_list_sync.py and
 # the model both write it without delegating.
 TASK_LIST_NAME = "tasks.md"
 
@@ -229,6 +231,11 @@ AGENT_TREES = (
 # writes there besides ~/.claude/agents: the shared OpenCode-format tree, and the
 # Codex and Copilot trees under CODEX_HOME and COPILOT_HOME.
 GLOBAL_INSTALL_DIRECTORY = (".config", "agents")
+
+# The gate sits in <install>/hooks/preflight-gate/, where <install> is a
+# project's .agents or the user-level ~/.config/agents above.
+HOOKS_DIRECTORY_NAME = "hooks"
+PROJECT_INSTALL_DIRECTORY_NAME = ".agents"
 
 GLOBAL_AGENT_TREES = (
     AgentTree(".config/agents/agents", ".md"),
@@ -405,7 +412,7 @@ RULE_D_REASON = (
     "PREFLIGHT: the main thread may not run a script or a module directly, because the "
     "gate cannot see what it writes. Delegate the run to a subagent that owns the area, "
     "or run one of the read-only checks in MAIN_THREAD_ALLOWLIST in "
-    ".agents/hooks/preflight_gate.py or in the project's main-thread-allowlist.txt. "
+    ".agents/hooks/preflight-gate/preflight_gate.py or in the project's main-thread-allowlist.txt. "
     "Blocked command: {command}"
 )
 
@@ -8473,28 +8480,37 @@ def _is_removal_target(target: str, powershell: bool = False) -> bool:
 
 
 def _install_root() -> Optional[Path]:
-    """The directory the gate was installed into, two parents up from itself.
+    """The directory the gate was installed into, from the folder it sits in.
 
-    A project keeps the script at <project>/.agents/hooks/preflight_gate.py,
-    and that project is where the agent trees Rule B reads sit beside it. The
-    user-level install in docs/GLOBAL_SETUP.md keeps it at
-    ~/.config/agents/hooks/preflight_gate.py instead, where two parents up is
-    ~/.config, so there the home directory is the answer: every agent tree of
-    that install, GLOBAL_AGENT_TREES included, hangs off it.
+    A project keeps the script at
+    <project>/.agents/hooks/preflight-gate/preflight_gate.py, and that project
+    is where the agent trees Rule B reads sit beside it. The user-level install
+    in docs/GLOBAL_SETUP.md keeps it at
+    ~/.config/agents/hooks/preflight-gate/preflight_gate.py instead, so there
+    the home directory is the answer: every agent tree of that install,
+    GLOBAL_AGENT_TREES included, hangs off it. Anywhere else, such as a Claude
+    Code plugin cache, there is no install root, and the session's own project
+    decides alone, so the cache never counts as a project.
     """
     try:
         script = Path(__file__).resolve()
-        root = script.parents[2]
+        hooks, install = script.parents[1], script.parents[2]
     except (OSError, ValueError, IndexError, RuntimeError):
+        return None
+
+    if hooks.name != HOOKS_DIRECTORY_NAME:
         return None
 
     try:
         home = Path.home().resolve()
         installed = home.joinpath(*GLOBAL_INSTALL_DIRECTORY).resolve()
     except (OSError, ValueError, RuntimeError):
-        return root
+        installed = home = None
 
-    return home if script.parent.parent == installed else root
+    if home is not None and install == installed:
+        return home
+
+    return install.parent if install.name == PROJECT_INSTALL_DIRECTORY_NAME else None
 
 
 def _script_root() -> Optional[Path]:
@@ -9505,6 +9521,49 @@ def _speaks_contract(payload: Dict[str, Any]) -> bool:
     return type(version) is int and version in CONTRACTS
 
 
+# A plugin copy of this hook stands down when the project's own Claude Code
+# wiring already runs a script of the same name on the same event, so one event
+# never runs it twice. Claude Code exports CLAUDE_PLUGIN_ROOT and
+# CLAUDE_PROJECT_DIR to a hook's process (https://code.claude.com/docs/en/hooks,
+# "Reference scripts by path"). tools/tests/test_plugin_copy.py holds this block
+# equal in every hook that carries it.
+PLUGIN_ROOT_VARIABLE = "CLAUDE_PLUGIN_ROOT"
+PROJECT_DIR_VARIABLE = "CLAUDE_PROJECT_DIR"
+PROJECT_CLAUDE_WIRING = (".claude", "settings.json")
+
+
+def _plugin_copy_is_shadowed(payload: object) -> bool:
+    """True when this copy runs as a Claude Code plugin and the project's own wiring runs it too."""
+    try:
+        plugin_root = os.environ.get(PLUGIN_ROOT_VARIABLE, "")
+        script = Path(__file__).resolve()
+
+        if not plugin_root or not script.is_relative_to(Path(plugin_root).resolve()):
+            return False
+
+        fields = payload if isinstance(payload, dict) else {}
+        project = os.environ.get(PROJECT_DIR_VARIABLE) or fields.get("cwd")
+        event = fields.get("hook_event_name")
+
+        if not isinstance(project, str) or not project:
+            return False
+
+        settings = json.loads(Path(project).joinpath(*PROJECT_CLAUDE_WIRING).read_text(encoding="utf-8"))
+
+        for name, groups in settings["hooks"].items():
+            if event and name != event:
+                continue
+
+            for group in groups:
+                for entry in group["hooks"]:
+                    if script.name in str(entry.get("command", "")):
+                        return True
+    except Exception:
+        return False
+
+    return False
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     real_stderr = sys.stderr
     sys.stderr = io.StringIO()
@@ -9518,6 +9577,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         try:
             raw = sys.stdin.buffer.read().decode("utf-8", errors="replace")
             payload = _as_dict(json.loads(raw or "{}"))
+
+            if _plugin_copy_is_shadowed(payload):
+                return 0
 
             if fmt == "plain" and not _speaks_contract(payload):
                 return 0
