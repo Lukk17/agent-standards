@@ -721,7 +721,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Removed
 
-- The generated `plugins` branch marketplace and its publish job. The remote branch itself is left in place.
+- The generated `plugins` branch marketplace and its publish job. The remote branch itself is left in place but no longer updated. A user who added `Lukk17/agent-standards#plugins` runs `claude plugin marketplace remove agent-standards`, then `claude plugin marketplace add Lukk17/agent-standards`, which reads `master`, and installs the plugins again under their new names.
 - The GitHub Copilot subagent no-write allowance: `SUBAGENT_NO_WRITE_MARKER` in `sandbox-agent/live/copilot.sh`, the `KNOWN-GAP` branch of live test 2 in `sandbox-agent/live/lib.sh`, the matching branch in the subagent-write section, and the Maintenance follow-up in `AGENTS.md`. A Copilot subagent that does not write the file is now a plain `FAIL`. Copilot keeps its one `KNOWN-GAP`, live test 1, because its `preToolUse` payload carries no agent identifier.
 - The markdown lint's 120-character limit on prose lines. Prose is never hard-wrapped, so a paragraph is one physical line however long it runs.
 - `.claude/CLAUDE.md`, which held only `@../AGENTS.md`. Any `CLAUDE.md` switches off Claude Code's native `AGENTS.md`

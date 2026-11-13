@@ -569,6 +569,12 @@ Add the marketplace once:
 claude plugin marketplace add Lukk17/agent-standards
 ```
 
+The marketplace that lived on the `plugins` branch, added as `Lukk17/agent-standards#plugins`, is retired and no longer updated. If you added it, remove it, then add the one above, which reads `master`, and install your plugins again under their new names:
+
+```bash
+claude plugin marketplace remove agent-standards
+```
+
 Install one skill:
 
 ```bash
