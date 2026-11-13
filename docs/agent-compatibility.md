@@ -279,8 +279,10 @@ Reading the tables row by row:
   any other exception alike, and so does a tool the gate does not know that carries a command. Rule E applies when
   any definition the name resolves to is read-only: the calling format's own tree is read first and decides Rule B,
   and every other tree still counts for Rule E. A plugin subagent, which Claude Code names `<plugin>:<name>`, is
-  also looked up in the plugin cache at `plugins/cache/<marketplace>/<plugin>/<version>/agents/<name>.md` under
-  `CLAUDE_CONFIG_DIR` and `~/.claude` (measured on Claude Code 2.1.314), and a name part that holds a path or is
+  also looked up in the plugin cache at `plugins/cache/<marketplace>/<plugin>/<version>/agents/<name>.md`, and at
+  `<version>/<name>.md`, where this repository's `agent-<name>` plugins land, under `CLAUDE_CONFIG_DIR` and
+  `~/.claude` (measured on Claude Code 2.1.314 and 2.1.323). Every agent tree is read flat and one folder deep,
+  `<tree>/<name>/<name><ext>`, the layout of the generated Claude Code tree. A name part that holds a path or is
   `.` is refused a lookup. A `CLAUDE_CONFIG_DIR` the gate cannot expand, such as an unknown `~user`, is skipped
   rather than allowing the call. A definition that exists but cannot be read counts as read-only with no command allowed. A
   heading inside a fenced code block marks nothing. On Claude Code this
