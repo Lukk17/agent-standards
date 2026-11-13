@@ -253,18 +253,22 @@ def agent(root: pathlib.Path, name: str, skills: list[str]) -> None:
     write(root / "subagents" / f"{name}.md", f"---\nname: {name}\nversion: 1.0.0\ndescription: Use when {name}.\nskills:\n{listed}---\nBody.\n")
 
 
+def build_lab(root: pathlib.Path) -> pathlib.Path:
+    """A small repository the map in MAP renders cleanly from, also used by tests/test_check_versions.py."""
+    for name in ("shared", "own", "solo"):
+        skill(root, name)
+    agent(root, "pro", ["shared", "own"])
+    agent(root, "front", ["shared", "solo"])
+    write(root / ".claude" / "settings.json", json.dumps(SETTINGS))
+    write(root / ".agents" / "hooks" / "gate" / "gate.py", "print()\n")
+    write(root / ".mcp.json", json.dumps({"mcpServers": {"docs": {"type": "http", "url": "https://docs.example"}}}))
+    write(root / "tools" / "plugins.yaml", MAP)
+    return root
+
+
 @pytest.fixture
 def lab(tmp_path) -> pathlib.Path:
-    """A small repository the map in MAP renders cleanly from."""
-    for name in ("shared", "own", "solo"):
-        skill(tmp_path, name)
-    agent(tmp_path, "pro", ["shared", "own"])
-    agent(tmp_path, "front", ["shared", "solo"])
-    write(tmp_path / ".claude" / "settings.json", json.dumps(SETTINGS))
-    write(tmp_path / ".agents" / "hooks" / "gate" / "gate.py", "print()\n")
-    write(tmp_path / ".mcp.json", json.dumps({"mcpServers": {"docs": {"type": "http", "url": "https://docs.example"}}}))
-    write(tmp_path / "tools" / "plugins.yaml", MAP)
-    return tmp_path
+    return build_lab(tmp_path)
 
 
 def problems(root: pathlib.Path) -> list[str]:

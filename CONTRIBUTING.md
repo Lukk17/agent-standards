@@ -117,6 +117,12 @@ Confirm the committed plugin marketplace still matches the plugin map and the it
 python tools/gen_plugins.py --check
 ```
 
+Confirm every plugin your branch changed raised its version, against the merge base with `origin/master`, which the next section explains. CI runs it on every pull request:
+
+```bash
+python tools/check_versions.py
+```
+
 Check that no `CLAUDE.md` is tracked and every `AGENTS.md` is within its size limit:
 
 ```bash
@@ -140,6 +146,22 @@ Check that the Codex configuration parses:
 ```bash
 python -c "import tomllib; tomllib.load(open('.codex/config.toml','rb'))"
 ```
+
+---
+
+### Versioning a plugin
+
+Every skill, subagent, Claude Code hook and MCP server is its own plugin in [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json), and so is every bundle. Claude Code keeps a user on the copy it cached until the plugin's version string changes ([plugin loading, "How Claude Code computes the version"](https://code.claude.com/docs/en/plugins/loading)), so any change to an item must raise its version in the same change: the patch number for a fix, the minor number for new behaviour, the major number for a breaking change. A new item starts at `1.0.0`.
+
+| Item | Where its version lives | What counts as a change |
+| --- | --- | --- |
+| Skill | `metadata.version` in its `SKILL.md` | any file in its folder, a file reached through a link in it included, such as `quality-loop/tools` |
+| Subagent | `version` in `subagents/<name>.md` | the canonical file, its generated `.claude/agents/<name>/` folder, or the skills it preloads |
+| Hook | `version` of its entry under `hooks` in [tools/plugins.yaml](tools/plugins.yaml) | any file in its folder under `.agents/hooks/`, or its wiring in [.claude/settings.json](.claude/settings.json) |
+| MCP server | `version` of its entry under `servers` in the same map | its block in [.mcp.json](.mcp.json) or its description |
+| Bundle | `version` of its entry under `bundles` in the same map | the plugins it lists or its description |
+
+[tools/check_versions.py](tools/check_versions.py) builds the catalog at the merge base and on your branch and fails, naming the plugin, when one changed and its version is not strictly higher, or when a version went down. On every push to `master` the [Plugins](.github/workflows/plugins.yml) workflow tags each plugin version that has no tag yet as `<name>--v<version>`, the tag form Claude Code resolves a dependency range against ([plugin dependencies](https://code.claude.com/docs/en/plugins/dependencies)).
 
 ---
 
