@@ -252,7 +252,7 @@ Claude Code calls the gate on `PreToolUse`, in its own format. The command runs 
 wrapper in between, so the format flag shows up as a plain ` --format claude` substring in the command string.
 
 ```bash
-jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py") and contains("--format claude"))' /work/project/.claude/settings.json
+jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight-gate/preflight_gate.py") and contains("--format claude"))' /work/project/.claude/settings.json
 ```
 
 Expect exit 0.
@@ -263,7 +263,7 @@ back: the gate script now silences its own standard error internally for this fo
 needs to.
 
 ```bash
-jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py") and contains("--format claude") and endswith("; exit 0") and (contains("subprocess.DEVNULL") | not))' /work/project/.claude/settings.json
+jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight-gate/preflight_gate.py") and contains("--format claude") and endswith("; exit 0") and (contains("subprocess.DEVNULL") | not))' /work/project/.claude/settings.json
 ```
 
 Expect exit 0.
@@ -295,7 +295,7 @@ Expect exit 0.
 GitHub Copilot calls the gate on `preToolUse`, spelled with its own lower-case first letter, in its own format.
 
 ```bash
-jq -e '[.hooks.preToolUse[].bash] | any(contains("preflight_gate.py --format copilot"))' /work/project/.github/hooks/preflight.json
+jq -e '[.hooks.preToolUse[].bash] | any(contains("preflight-gate/preflight_gate.py --format copilot"))' /work/project/.github/hooks/preflight.json
 ```
 
 Expect exit 0.
@@ -319,7 +319,7 @@ Expect exit 0.
 Copilot checks the reply formatting on `agentStop`.
 
 ```bash
-jq -e '[.hooks.agentStop[].bash] | any(contains("no_ai_markers_check.py --format copilot"))' /work/project/.github/hooks/preflight.json
+jq -e '[.hooks.agentStop[].bash] | any(contains("no-ai-markers-check/no_ai_markers_check.py --format copilot"))' /work/project/.github/hooks/preflight.json
 ```
 
 Expect exit 0.

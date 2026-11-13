@@ -688,7 +688,7 @@ verify_install_shape() {
   assert_json "Claude Code's user settings call the gate by absolute path" ".claude/settings.json" \
     '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.config/agents/hooks/preflight-gate/preflight_gate.py") and contains("--format claude"))'
   assert_json "Claude Code's user settings call the gate directly, force a zero exit, and the DEVNULL wrapper does not return" ".claude/settings.json" \
-    '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight_gate.py") and contains("--format claude") and endswith("; exit 0") and (contains("subprocess.DEVNULL") | not))'
+    '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight-gate/preflight_gate.py") and contains("--format claude") and endswith("; exit 0") and (contains("subprocess.DEVNULL") | not))'
   assert_json "Claude Code's user settings force a zero exit with a trailing ; exit 0" ".claude/settings.json" \
     '[.hooks.PreToolUse[].hooks[].command] | any(endswith("; exit 0"))'
   assert_json "Claude Code's user settings gate the web tools and the PowerShell tool as well as the writing ones" ".claude/settings.json" \

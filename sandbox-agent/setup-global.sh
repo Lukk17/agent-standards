@@ -669,7 +669,7 @@ copilot_hooks() {
     return 1
   fi
 
-  sed -e "s#[.]agents/hooks/preflight_gate[.]py#$(sed_replacement "$GATE_SCRIPT")#g" -e "s#[.]agents/hooks/task_list_sync[.]py#$(sed_replacement "$TASKS_SCRIPT")#g" -e "s#[.]agents/hooks/copilot/prompt_reminder[.]py#$(sed_replacement "$PROMPT_SCRIPT")#g" -e "s#[.]agents/hooks/no_ai_markers_check[.]py#$(sed_replacement "$MARKER_SCRIPT")#g" "$shipped"
+  sed -e "s#[.]agents/hooks/preflight-gate/preflight_gate[.]py#$(sed_replacement "$GATE_SCRIPT")#g" -e "s#[.]agents/hooks/task-list-sync/task_list_sync[.]py#$(sed_replacement "$TASKS_SCRIPT")#g" -e "s#[.]agents/hooks/copilot/prompt-reminder/prompt_reminder[.]py#$(sed_replacement "$PROMPT_SCRIPT")#g" -e "s#[.]agents/hooks/no-ai-markers-check/no_ai_markers_check[.]py#$(sed_replacement "$MARKER_SCRIPT")#g" "$shipped"
 }
 
 # --- Per-agent installers ----------------------------------------------------
