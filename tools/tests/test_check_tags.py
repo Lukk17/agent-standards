@@ -111,3 +111,13 @@ def test_an_unknown_master_ref_exits_2(repo, monkeypatch, capsys):
 
     assert check_tags.main(["--master", "no-such-ref"]) == 2
     assert "ERROR" in capsys.readouterr().err
+
+
+def test_a_tag_whose_name_starts_with_a_dash_resolves_to_its_commit_and_is_named(repo):
+    # git tag refuses such a name, while update-ref writes it, and rev-parse reads a bare one as an option
+    git(repo, "update-ref", "refs/tags/-core--v1.1.0", "HEAD")
+
+    tags = {tag.name: tag.commit for tag in check_tags.plugin_tags(repo)}
+
+    assert tags["-core--v1.1.0"] == git(repo, "rev-parse", "HEAD")
+    assert "tag -core--v1.1.0: not <name>--v<version>" in problems(repo)

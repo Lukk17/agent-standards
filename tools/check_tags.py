@@ -71,7 +71,7 @@ def version_key(version: str) -> tuple[int, ...]:
 def plugin_tags(root: pathlib.Path) -> list[Tag]:
     """Every tag holding the separator, with the commit it points at."""
     listed = git(root, "for-each-ref", "--format=%(refname:strip=2)", f"refs/tags/*{TAG_SEPARATOR}*").stdout.split()
-    return [Tag(name, git(root, "rev-parse", f"{name}^{{commit}}").stdout.strip()) for name in listed]
+    return [Tag(name, git(root, "rev-parse", "--verify", "--end-of-options", f"refs/tags/{name}^{{commit}}").stdout.strip()) for name in listed]
 
 
 def listed_versions(root: pathlib.Path, commit: str) -> dict[str, str]:

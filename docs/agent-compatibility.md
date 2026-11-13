@@ -451,6 +451,16 @@ denied, while the same command on a sibling folder that holds no root is allowed
 path it could match, compared one component at a time and case-insensitively on Windows, is the root, a directory
 above it, or a path inside it, so `rm -rf ../agent-*` and `Remove-Item ..\*` are denied.
 
+On the claude format Rule A also protects the files that decide which hooks, plugins and agents Claude Code runs,
+outside every project: the gate's own folder, the plugin root of a hook plugin (`CLAUDE_PLUGIN_ROOT`), `plugins/`,
+`agents/` and every `settings*.json` under each Claude Code configuration directory (`CLAUDE_CONFIG_DIR` and
+`~/.claude`), and the user-level install in `~/.config/agents`. A write target that is one of those folders, a
+configuration directory itself or any folder above one denies as well, so `unzip -d ~/.claude`, `tar -C ~`, `rsync`
+of a folder's contents into `~/.claude/` and `cp -T` onto it are denied, and so is a wildcard that could name any of
+them, such as `~/.claude/plug*`. Writing beside them, such as `~/.claude/CLAUDE.md` or a project's memory under
+`~/.claude/projects/`, stays allowed. Claude Code installs a plugin and edits its settings itself, not through a tool
+call, and a subagent is never judged by Rule A, so neither is affected.
+
 A write outside the repository, a write to the null device or to a PowerShell drive that holds no files such as `Env:`
 or `Function:`, each spelled with no blank around it, a write to `tasks.md` at the project root, and git branch switching stay allowed, so the main thread
 keeps full use of git and keeps ownership of its own task list.
@@ -575,6 +585,37 @@ CIM queries. A top-level command the lexer cannot read still allows on the main 
 Unicode code point and substitutions or parentheses nested more than 16 deep included, while code nested inside a
 readable command that cannot be read denies.
 
+Known limits of Rule A, accepted rather than open:
+
+- The project roots are the directory the session started in, the payload's `cwd` and the gate's own project, not the
+  git top level. A gate imported into a project keeps that whole repository protected through its install root, three
+  folders up from `.agents/hooks/preflight-gate/`, wherever the session starts. A user-level or plugin install has no
+  such root, so a session started in a subfolder of a repository leaves the rest of that repository writable to the
+  main thread. This predates the marketplace.
+- Every hook runs the first `python3` or `python` on `PATH`. A main-thread write of a user-writable interpreter or shim
+  that comes ahead of the system Python, or into the standard library of an interpreter the user owns, outside every
+  protected location, swaps the interpreter every hook runs on and so can switch off every hook.
+- The protection of Claude Code's own files applies on the claude format only. On Codex and through the OpenCode and
+  Kilo Code runner the main thread can still overwrite `~/.config/agents/hooks/...` and the files under `~/.codex`,
+  as before the marketplace.
+
+Known limits of Rule B, accepted rather than open, each costing availability only and never allowing a write the gate
+would otherwise deny:
+
+- A plugin agent's version folder in the cache is read as `<version>/<name>.md` as well as `<version>/agents/<name>.md`,
+  so a markdown file at a plugin version's root that is no agent but carries the agent's name and no skills makes Rule B
+  deny that plugin's agent.
+- On the claude format a stale `~/.claude/agents/<name>.md`, or `<name>/<name>.md`, that declares no skills makes Rule B
+  deny a project agent of the same name, because both are the caller's own candidates.
+
+Known limits of the plugin-copy stand-down of the six hooks other than the gate, accepted rather than open, because
+none of those hooks is an authorisation control and the gate never stands down:
+
+- A hook plugin takes the project from `CLAUDE_PROJECT_DIR`, and from the payload's `cwd` when that is unset, to decide
+  whether the project's own wiring already runs it, so a wrong `cwd` can make such a copy stand down or run.
+- A copy stands down on a project command that names a script of its name under the project's `.agents/hooks/`, which
+  exists, whatever else the command does with it, such as discarding its output.
+
 Rule E is something a definition opts into, not a defence against a repository's own configuration. Known limits of
 Rule E, accepted rather than open: a listed git command still runs any program the repository's own configuration
 names, and Rule E reads the command line, not the configuration it runs under, so a read-only agent is only as
@@ -588,18 +629,9 @@ read-only as the repository it reviews. That covers:
 - A Claude Code plugin loaded for one session with `--plugin-dir` is not under `plugins/cache`, so the gate finds no
   definition for its `<plugin>:<name>` agents and allows them as unknown, a read-only one included. `--plugin-url` is
   assumed to behave the same, not measured.
-- A plugin agent's version folder in the cache is read as `<version>/<name>.md` as well as `<version>/agents/<name>.md`,
-  so a markdown file at a plugin version's root that is no agent but carries the agent's name and no skills makes Rule B
-  deny that plugin's agent. That costs availability only, never a write the gate would otherwise deny.
-- The project roots are the directory the session started in, the payload's `cwd` and the gate's own project, not the
-  git top level. A session started in a subfolder of a repository leaves the rest of that repository writable to the
-  main thread. This predates the marketplace.
 - The gate finds a subagent's definition by file name, `<name>.md` or `<name>/<name>.md`, while Claude Code names an
   agent by its front-matter `name`. A definition whose file name differs from its `name` is not found, and the agent is
   allowed as unknown. This predates the marketplace.
-- A hook plugin other than the gate takes the project from `CLAUDE_PROJECT_DIR`, and from the payload's `cwd` when that
-  is unset, to decide whether the project's own wiring already runs it. A wrong `cwd` there can only make such a copy
-  stand down or run, never change what the gate decides, because the gate never stands down.
 - On Codex before `rust-v0.166.0`, a call's `workdir` never reaches the gate, and on every Codex version `tty`,
   `shell` and `login` do not either, so a read-only agent there can still run a listed command in another folder,
   under another shell, or on a terminal it then types into through `write_stdin`. No listed command opens a pager

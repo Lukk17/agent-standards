@@ -601,6 +601,7 @@ CLAUDE_USER_AGENTS = "agents"
 PLUGIN_ROOT_ENVIRONMENT = "CLAUDE_PLUGIN_ROOT"
 PROTECTED_CONFIG_FOLDERS = ("plugins", "agents")
 PROTECTED_SETTINGS_GLOB = "settings*.json"
+PROTECTED_SETTINGS_NAMES = ("settings.json", "settings.local.json")
 
 
 def _payload_root(payload: Dict[str, Any]) -> Optional[Path]:
@@ -3407,7 +3408,31 @@ def _copy_landings(tokens: List[str], powershell: bool = False) -> List[str]:
     if len(operands) < 2:
         return []
 
-    return _sourced(_copy_destinations(operands[:-1], operands[-1]), powershell)
+    landings = _copy_destinations(operands[:-1], operands[-1])
+
+    if _copies_into_the_destination(tokens, operands[:-1]):
+        landings.append(operands[-1])
+
+    return _sourced(landings, powershell)
+
+
+def _copies_into_the_destination(tokens: List[str], sources: List[str]) -> bool:
+    """True when the copy writes a source's contents straight into the destination itself.
+
+    cp -T and --no-target-directory treat the destination as the copy, and
+    rsync copies a source named with a trailing slash into the destination
+    rather than into a folder of the source's name, so every file below the
+    destination can be written.
+    """
+    name = _basename(tokens[0])
+
+    if name == "cp" and any(
+        token == "--no-target-directory" or (token.startswith("-") and not token.startswith("--") and "T" in token[1:])
+        for token in tokens[1:]
+    ):
+        return True
+
+    return name == "rsync" and any(source.endswith(("/", "\\")) for source in sources)
 
 
 def _is_install_directory_flag(flag: str) -> bool:
@@ -8251,10 +8276,43 @@ def _glob_reaches_a_root(target: str, inside: bool) -> bool:
         except (OSError, ValueError, RuntimeError):
             return True
 
-        if any(_glob_reaches(pattern, root, inside) for root in roots):
+        if any(_glob_reaches(pattern, root, inside) for root in roots) or _glob_reaches_protected(pattern):
             return True
 
     return False
+
+
+def _glob_reaches_protected(pattern: Tuple[str, ...]) -> bool:
+    """Whether a glob can name a protected Claude Code location, on the claude format.
+
+    A protected folder counts when the glob can name it, a path below it or a
+    folder above it. A configuration directory counts when the glob can name
+    it or a folder above it, and its settings files one by one: the ones on
+    disk and the two Claude Code always reads.
+    """
+    if any(_glob_reaches(pattern, folder, True) or _glob_reaches(pattern, folder, False) for folder in _PROTECTED_FOLDERS):
+        return True
+
+    for directory in _PROTECTED_SETTINGS:
+        if _glob_reaches(pattern, directory, False):
+            return True
+
+        if any(_glob_matches(pattern, directory.parts + (name,), _folds_case(directory)) for name in _settings_names(directory)):
+            return True
+
+    return False
+
+
+def _settings_names(directory: Path) -> Set[str]:
+    """The settings file names of one configuration directory: those on disk and the two always read."""
+    names = set(PROTECTED_SETTINGS_NAMES)
+
+    try:
+        names.update(entry.name for entry in directory.iterdir() if fnmatch.fnmatch(entry.name.lower(), PROTECTED_SETTINGS_GLOB))
+    except (OSError, ValueError):
+        pass
+
+    return names
 
 
 @functools.lru_cache(maxsize=None)
@@ -9407,8 +9465,16 @@ def _protected_locations() -> Tuple[List[Path], List[Path]]:
 
 
 def _is_protected(resolved: Path) -> bool:
-    """True for a resolved path inside a protected Claude Code folder, or a protected settings file."""
+    """True for a resolved path inside a protected Claude Code folder, a protected settings file, or a folder holding either.
+
+    A target that is a protected folder, a configuration directory or any
+    folder above one denies too, because an archive extracted, a tree copied
+    or a sync run into it writes the protected files underneath.
+    """
     if any(_is_within(resolved, folder) for folder in _PROTECTED_FOLDERS):
+        return True
+
+    if any(_is_above(resolved, location) for location in (*_PROTECTED_FOLDERS, *_PROTECTED_SETTINGS)):
         return True
 
     return any(

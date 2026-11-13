@@ -139,6 +139,7 @@ jobs:
           TAGS: ${{ needs.tag-plan.outputs.tags }}
         run: |
           set -euo pipefail
+          set -f
           pattern='^[a-z0-9]+(-[a-z0-9]+)*--v(0|[1-9][0-9]*)[.](0|[1-9][0-9]*)[.](0|[1-9][0-9]*)$'
           for tag in $TAGS; do
             if [[ ! "$tag" =~ $pattern ]]; then
@@ -154,6 +155,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          set -f
           auth="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
           echo "::add-mask::${auth}"
           refs=()

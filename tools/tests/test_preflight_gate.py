@@ -7916,3 +7916,61 @@ def test_the_user_level_tree_is_not_read_for_another_format(tmp_path):
     payload = {**edit(str(project / "app.py"), agent_id="sub-1", agent_type="bare"), "cwd": str(project)}
 
     assert run(payload, "codex", cwd=project, env={"CLAUDE_CONFIG_DIR": str(config)})[1] == ""
+
+
+# A glob, or a target that holds a protected location, reaches it too.
+
+
+def home_with_claude(tmp_path):
+    home = tmp_path / "home"
+    (home / ".claude" / "plugins" / "cache" / "agent-standards" / "hook-preflight-gate" / "1.0.0").mkdir(parents=True)
+    (home / ".claude" / "settings.json").write_text("{}", encoding="utf-8")
+    project = tmp_path / "project"
+    project.mkdir()
+    return home, project
+
+
+def claude_decision(home, project, command):
+    environment = {**home_at(home), "CLAUDE_CONFIG_DIR": ""}
+    code, out, err = run({**shell(command), "cwd": str(project)}, "claude", cwd=project, env=environment)
+    assert (code, err) == (0, "")
+    return json.loads(out)["hookSpecificOutput"]["permissionDecision"] if out else "allow"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "cp /tmp/g.py ~/.claude/plugins/cache/agent-standards/hook-preflight-gate/1.0.[0]/preflight_gate.py",
+        "echo x > ~/.claude/setting[s].json",
+        "rm -rf ~/.claude/plug*",
+        "rm -rf ~/.cla*",
+    ],
+)
+def test_a_glob_reaching_a_protected_claude_code_location_is_denied(tmp_path, command):
+    home, project = home_with_claude(tmp_path)
+
+    assert claude_decision(home, project, command) == "deny"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "unzip -o x.zip -d ~/.claude",
+        "tar -xf x.tar -C ~/.claude",
+        "unzip -o x.zip -d ~",
+        "tar -xf x.tar -C ~",
+        "rsync -a /tmp/x/ ~/.claude/",
+        "cp -rT /tmp/x ~/.claude",
+    ],
+)
+def test_a_write_into_a_folder_that_holds_a_protected_location_is_denied(tmp_path, command):
+    home, project = home_with_claude(tmp_path)
+
+    assert claude_decision(home, project, command) == "deny"
+
+
+@pytest.mark.parametrize("command", ["echo x > ~/.claude/CLAUDE.md", "echo x > ~/.claude/projects/p/memory/note.md", "echo x > ~/.claude/settings-notes.txt", "rm -rf ~/.claude/projects/old"])
+def test_a_shell_write_beside_the_protected_locations_stays_allowed(tmp_path, command):
+    home, project = home_with_claude(tmp_path)
+
+    assert claude_decision(home, project, command) == "allow"

@@ -95,3 +95,16 @@ def test_the_tag_guard_only_reads_and_runs_master_s_own_check():
     assert run["run"] == "python3 tools/check_tags.py --master origin/master"
     assert not any(installs_packages(step) for step in job["steps"])
     assert "secrets." not in repr(TAG_GUARD)
+
+
+def test_every_unquoted_tags_expansion_runs_with_globbing_off():
+    for step in JOBS["tag"]["steps"]:
+        script = step.get("run", "")
+        if "$TAGS" in script:
+            assert script.index("set -f") < script.index("$TAGS"), step["name"]
+
+
+def test_the_tag_guard_header_says_a_tag_push_runs_the_tagged_commit_s_workflow():
+    header = (REPO_ROOT / ".github" / "workflows" / "plugin-tags.yml").read_text(encoding="utf-8").split("\non:")[0]
+
+    assert "as it is at\n# the tagged commit" in header
