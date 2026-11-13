@@ -1720,6 +1720,10 @@ What it changes:
   removed. When the recorded commit is missing or unknown, nothing is removed and the summary says so.
 - A skill folder or a subagent file that upstream stopped shipping altogether stays in place and is reported as
   `keep`. One that never came from upstream is reported as `skip` and left alone.
+- A hook file upstream moved or removed stays in place when your own wiring, `~/.claude/settings.json`,
+  `~/.config/codex/hooks.json`, `~/.config/codex/config.toml` or a hook file in `~/.config/copilot/hooks` or `~/.copilot/hooks`, still names it. It is reported as `keep (still wired)`, and a `WARNING` line at the end says that hook stays on the old copy until you take the new wiring in.
+- A skill upstream renamed, such as `security-review`, now `application-security-review`, moves to its new name.
+- A subagent file that sits directly in `~/.claude/agents` moves into its own folder, `~/.claude/agents/<name>/<name>.md`, once upstream ships it there.
 - The new commit is written to `~/.config/agents/.upstream-commit`.
 - [The skill link hook](#the-skill-link-hook) runs last, so a skill removed upstream loses its links now rather than at the next session. A dry run skips it.
 

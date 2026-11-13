@@ -635,3 +635,43 @@ def test_an_update_moves_a_skill_upstream_renamed(released, implementation):
     assert (skills / "application-security-review" / "SKILL.md").read_text(encoding="utf-8") == "new name\n"
     assert (skills / "application-security-review" / "references" / "a.md").read_text(encoding="utf-8") == "ref\n"
     assert "remove  ~/.config/agents/skills/security-review (renamed to application-security-review)" in result.stdout
+
+
+WIRED_SETTINGS = {
+    ".claude/settings.json": '{"hooks": {"PreToolUse": [{"hooks": [{"type": "command", "command": "python3 -S -E HOME/.config/agents/hooks/old_hook.py --format claude"}]}]}}\n',
+    ".config/codex/hooks.json": '{"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "python3 HOME/.config/agents/hooks/old_hook.py --format codex"}]}]}}\n',
+    ".config/copilot/hooks/preflight.json": '{"hooks": {"preToolUse": [{"bash": "python3 HOME/.config/agents/hooks/old_hook.py --format copilot"}]}}\n',
+    ".config/codex/config.toml": '[[hooks.Stop.hooks]]\ncommand = "python C:\\\\Users\\\\you\\\\.config\\\\agents\\\\hooks\\\\old_hook.py"\n',
+}
+
+
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+@pytest.mark.parametrize("wiring", list(WIRED_SETTINGS))
+def test_a_hook_the_live_wiring_still_runs_is_kept_and_named(released, implementation, wiring):
+    # Given a home whose wiring still runs a hook file the second release removes
+    repo, home, _first = released
+    write_files(home, {wiring: WIRED_SETTINGS[wiring].replace("HOME", home.as_posix())})
+    release_second(repo)
+
+    # When
+    result = run_updater(implementation, home, repo.as_posix())
+
+    # Then the file stays, and the report says so, loudly
+    assert result.returncode == 0, result.stderr
+    assert (home / ".config" / "agents" / "hooks" / "old_hook.py").read_text(encoding="utf-8") == "old hook\n"
+    assert "keep    ~/.config/agents/hooks/old_hook.py (still wired)" in result.stdout
+    assert "WARNING: ~/.config/agents/hooks/old_hook.py is still run by your hook wiring" in result.stdout
+    assert "remove  ~/.config/agents/hooks/old_hook.py" not in result.stdout
+
+
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+def test_a_removed_hook_no_wiring_names_is_still_removed(released, implementation):
+    repo, home, _first = released
+    write_files(home, {".claude/settings.json": '{"hooks": {"Stop": [{"hooks": [{"command": "python3 hooks/new_hook.py"}]}]}}\n'})
+    release_second(repo)
+
+    result = run_updater(implementation, home, repo.as_posix())
+
+    assert result.returncode == 0, result.stderr
+    assert not (home / ".config" / "agents" / "hooks" / "old_hook.py").exists()
+    assert "WARNING" not in result.stdout
