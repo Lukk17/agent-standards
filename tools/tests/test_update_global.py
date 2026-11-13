@@ -611,3 +611,27 @@ def test_an_update_refreshes_a_nested_claude_subagent(released, implementation):
     assert result.returncode == 0, result.stderr
     assert (agents / "a" / "a.md").read_text(encoding="utf-8") == "claude a v3\n"
     assert "update  ~/.claude/agents/a/a.md" in result.stdout
+
+
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+def test_an_update_moves_a_skill_upstream_renamed(released, implementation):
+    # Given an installed security-review, which upstream renamed to application-security-review
+    repo, home, _first = released
+    write_files(repo, {".agents/skills/security-review/SKILL.md": "old name\n", ".agents/skills/security-review/references/a.md": "ref\n"})
+    installed = commit_all(repo, "add security-review")
+    shutil.copytree(repo / ".agents" / "skills" / "security-review", home / ".config" / "agents" / "skills" / "security-review")
+    (home / ".config" / "agents" / ".upstream-commit").write_bytes(f"{installed}\n".encode("ascii"))
+    git(repo, "mv", ".agents/skills/security-review", ".agents/skills/application-security-review")
+    write_files(repo, {".agents/skills/application-security-review/SKILL.md": "new name\n"})
+    commit_all(repo, "rename security-review")
+
+    # When
+    result = run_updater(implementation, home, repo.as_posix())
+
+    # Then the renamed folder takes its place, and the old one is gone
+    assert result.returncode == 0, result.stderr
+    skills = home / ".config" / "agents" / "skills"
+    assert not (skills / "security-review").exists()
+    assert (skills / "application-security-review" / "SKILL.md").read_text(encoding="utf-8") == "new name\n"
+    assert (skills / "application-security-review" / "references" / "a.md").read_text(encoding="utf-8") == "ref\n"
+    assert "remove  ~/.config/agents/skills/security-review (renamed to application-security-review)" in result.stdout

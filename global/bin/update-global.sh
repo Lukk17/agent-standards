@@ -37,6 +37,8 @@ readonly CODEX_HOME_DIR='.config/codex'
 readonly LEGACY_INSTALL_DIR='.agents'
 readonly SUBAGENT_TREES=".config/agents/agents:.agents/agents .claude/agents:.claude/agents $CODEX_HOME_DIR/agents:.codex/agents .config/copilot/agents:.github/agents"
 readonly RESERVED_SKILL_NAMES='synced .trash'
+# Skills upstream renamed, as old:new. An installed old one moves to the new name.
+readonly RENAMED_SKILLS='security-review:application-security-review'
 readonly SKILL_LINK_HOOK='hooks/claude/sync-skill-links/sync_skill_links.py'
 readonly WIRING_ADVICE='Take it in with the one-line command that writes the hook file of each agent, under "Per-agent setup" in docs/GLOBAL_SETUP.md, run against a new temporary copy.'
 
@@ -253,6 +255,26 @@ is_reserved_skill() {
   return 1
 }
 
+renamed_skill() {
+  for renamed_pair in $RENAMED_SKILLS; do
+    if [ "${renamed_pair%%:*}" = "$1" ]; then
+      printf '%s' "${renamed_pair#*:}"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+# An installed skill upstream renamed: the new folder is mirrored in under its
+# new name, and the old folder, which upstream no longer ships, is removed.
+move_renamed_skill() {
+  report remove "$INSTALL_DIR/skills/$1" " (renamed to $2)"
+  count_remove=$((count_remove + 1))
+  mirror ".agents/skills/$2" "$INSTALL_DIR/skills/$2"
+  [ "$dry_run" -eq 1 ] || rm -rf -- "$home_dir/$INSTALL_DIR/skills/$1"
+}
+
 update_skills() {
   for skill_dir in "$home_dir/$INSTALL_DIR/skills"/*/; do
     [ -d "$skill_dir" ] || continue
@@ -261,7 +283,10 @@ update_skills() {
     # Claude Code's own folders are never skills of this install.
     is_reserved_skill "$skill_name" && continue
 
-    if [ -d "$tree/.agents/skills/$skill_name" ]; then
+    if new_skill_name=$(renamed_skill "$skill_name") && [ ! -d "$tree/.agents/skills/$skill_name" ] &&
+      [ -d "$tree/.agents/skills/$new_skill_name" ] && [ ! -e "$home_dir/$INSTALL_DIR/skills/$new_skill_name" ]; then
+      move_renamed_skill "$skill_name" "$new_skill_name"
+    elif [ -d "$tree/.agents/skills/$skill_name" ]; then
       mirror ".agents/skills/$skill_name" "$INSTALL_DIR/skills/$skill_name"
     elif shipped_before_under ".agents/skills/$skill_name"; then
       report keep "$INSTALL_DIR/skills/$skill_name" ' (removed upstream, left in place)'

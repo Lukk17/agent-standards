@@ -40,6 +40,8 @@ $SubagentTrees = @(
     @('.config/copilot/agents', '.github/agents')
 )
 $ReservedSkillNames = @('synced', '.trash')
+# Skills upstream renamed, old name to new. An installed old one moves to the new name.
+$RenamedSkills = @{ 'security-review' = 'application-security-review' }
 $SkillLinkHook = 'hooks/claude/sync-skill-links/sync_skill_links.py'
 $WiringAdvice = 'Take it in with the one-line command that writes the hook file of each agent, under "Per-agent setup" in docs/GLOBAL_SETUP.md, run against a new temporary copy.'
 
@@ -188,7 +190,17 @@ function Sync-InstalledSkill {
         }
         $upstream = ".agents/skills/$name"
         $relative = "$InstallDir/skills/$name"
-        if (Test-Path -LiteralPath (Join-Relative $script:Tree $upstream) -PathType Container) {
+        $newName = $RenamedSkills[$name]
+        if ($newName -and -not (Test-Path -LiteralPath (Join-Relative $script:Tree $upstream)) -and
+            (Test-Path -LiteralPath (Join-Relative $script:Tree ".agents/skills/$newName") -PathType Container) -and
+            -not (Test-Path -LiteralPath (Join-Relative $HomeDir "$InstallDir/skills/$newName"))) {
+            Write-Action -Verb 'remove' -Relative $relative -Note " (renamed to $newName)"
+            Sync-Tree ".agents/skills/$newName" "$InstallDir/skills/$newName"
+            if (-not $DryRun) {
+                Remove-Item -Recurse -Force -LiteralPath (Join-Relative $HomeDir $relative)
+            }
+        }
+        elseif (Test-Path -LiteralPath (Join-Relative $script:Tree $upstream) -PathType Container) {
             Sync-Tree $upstream $relative
         }
         elseif (Test-ShippedBeforeUnder $upstream) {
