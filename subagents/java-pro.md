@@ -1,6 +1,6 @@
 ---
 name: java-pro
-version: 1.0.0
+version: "1.0.0"
 description: 'Use when the user says "write this Spring Boot endpoint", "review this Java code" or "modernise this JVM service". Applies Java 25 idioms, records, sealed types, pattern matching and virtual threads, with Spring Boot 4 conventions and JPA patterns, as an implementer rather than an architect. Not for schema design, use `database-expert`.'
 tools: [read, write, edit, grep, glob, bash]
 skills:

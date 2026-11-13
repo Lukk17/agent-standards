@@ -906,3 +906,24 @@ def test_the_plugin_version_never_reaches_a_generated_agent_file(tool):
 def test_every_canonical_subagent_carries_a_version():
     for source in sorted(gen.SRC.glob("*.md")):
         assert isinstance(front_matter(source.read_text(encoding="utf-8")).get("version"), str), source.name
+
+
+def test_a_user_subfolder_in_a_flat_tree_is_left_alone(tmp_path, monkeypatch):
+    # Given a folder of the user's own inside a flat target tree, such as .codex/agents/mine/
+    root = nested_fixture(tmp_path, monkeypatch)
+    own = root / "agents" / "mine" / "mine.md"
+    own.parent.mkdir(parents=True)
+    own.write_text("my own agent\n", encoding="utf-8")
+
+    # When the generator runs, and checks
+    run_generator(monkeypatch)
+    run_generator(monkeypatch, "--check")
+
+    # Then the folder is neither an orphan nor removed
+    assert own.read_text(encoding="utf-8") == "my own agent\n"
+
+
+def test_every_canonical_subagent_quotes_its_version():
+    # Quoted, the value stays a string under every YAML reader, the way a skill's metadata.version is written
+    for source in sorted(gen.SRC.glob("*.md")):
+        assert re.search(r'^version: "\d+\.\d+\.\d+"$', source.read_text(encoding="utf-8"), re.M), source.name

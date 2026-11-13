@@ -1,6 +1,6 @@
 ---
 name: embedded-c-engineer
-version: 1.0.0
+version: "1.0.0"
 description: 'Use when the user says "write this Arduino sketch", "review this firmware", "lay out the PCB" or "print an enclosure for it". Writes and reviews embedded C with memory safety, non-blocking timing, ISR discipline, a hardware abstraction layer and host-side unit tests, and designs KiCad boards and printed enclosures. Not for Home Assistant configuration, use `home-assistant-engineer`.'
 tools: [read, write, edit, grep, glob, bash]
 skills:

@@ -77,6 +77,8 @@ agent-standards/
   tools/                         # Generator, linter and tests, this repo only
     gen_subagents.py             # Emits four trees plus the two agent symlinks, validates skills and tools
     gen_plugins.py               # Writes .claude-plugin/marketplace.json from plugins.yaml and the items' own files
+    plugin_model.py              # The plugin map's names and types, and how plugins.yaml is read
+    plugin_map_rules.py          # check_map: every rule the plugin map has to meet
     plugins.yaml                 # CANONICAL plugin map: hook, server and bundle versions, every skill and subagent in one bundle
     check_versions.py            # Fails a changed plugin whose version did not go up since the merge base
     plugin_tags.py               # Lists the <name>--v<version> tags the Plugins workflow creates

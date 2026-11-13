@@ -33,3 +33,29 @@ def test_the_committed_marketplace_yields_one_tag_per_plugin(capsys):
     assert plugin_tags.main(["--all"]) == 0
     assert capsys.readouterr().out.splitlines() == plugin_tags.tag_names(document)
     assert len(set(plugin_tags.tag_names(document))) == len(document["plugins"])
+
+
+import pytest  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        pytest.param({"name": "Core", "version": "1.0.0"}, id="not-kebab"),
+        pytest.param({"name": "core;rm", "version": "1.0.0"}, id="shell-character"),
+        pytest.param({"name": "core", "version": "1.0"}, id="two-part-version"),
+        pytest.param({"name": "core", "version": "1.0.0 --force"}, id="option-in-version"),
+    ],
+)
+def test_a_plugin_whose_name_or_version_cannot_be_a_tag_is_refused(entry):
+    with pytest.raises(ValueError, match="cannot be tagged"):
+        plugin_tags.tag_names({"plugins": [entry]})
+
+
+def test_the_command_line_exits_1_on_a_bad_entry(tmp_path, monkeypatch, capsys):
+    marketplace = tmp_path / "marketplace.json"
+    marketplace.write_text(json.dumps({"plugins": [{"name": "Bad Name", "version": "1.0.0"}]}), encoding="utf-8")
+    monkeypatch.setattr(plugin_tags, "MARKETPLACE", marketplace)
+
+    assert plugin_tags.main(["--all"]) == 1
+    assert "cannot be tagged" in capsys.readouterr().err

@@ -196,11 +196,27 @@ def committed_catalog(root: pathlib.Path) -> dict[str, Shipped] | None:
         raise VersionCheckError(f"cannot read the base's {gen_plugins.MARKETPLACE_FILE}: {exc}") from exc
 
 
-def problems(base: dict[str, Shipped], head: dict[str, Shipped]) -> list[str]:
-    """Every plugin whose version does not account for its change, with the reason."""
+TAG_SEPARATOR = "--v"
+
+
+def existing_tags(root: pathlib.Path) -> frozenset[str]:
+    """Every plugin release tag the repository holds, `<name>--v<version>`."""
+    return frozenset(git(root, "tag", "--list", f"*{TAG_SEPARATOR}*").decode().split())
+
+
+def problems(base: dict[str, Shipped], head: dict[str, Shipped], tags: frozenset[str] = frozenset()) -> list[str]:
+    """Every plugin whose version does not account for its change, with the reason.
+
+    A version new to the branch whose release tag already exists was released
+    before, under that name, so it has to go higher too.
+    """
     found = []
     for name, now in sorted(head.items()):
         before = base.get(name)
+        tag = f"{name}{TAG_SEPARATOR}{now.version}"
+        if (before is None or before.version != now.version) and tag in tags:
+            found.append(f"{name}: the tag {tag} already exists, so {now.version} was released before, raise it")
+            continue
         if before is None:
             continue
         if version_key(now.version) < version_key(before.version):
@@ -242,7 +258,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if note:
         print(f"note: {note}")
-    found = problems(base, head)
+    found = problems(base, head, existing_tags(ROOT))
     for problem in found:
         print(f"::error::{problem}")
     changed = sum(1 for name, now in head.items() if name in base and now.digest != base[name].digest)

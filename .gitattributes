@@ -31,3 +31,11 @@
 *.zip binary
 *.tar binary
 *.gz binary
+
+# Generated files: never hand-edited, so GitHub folds them in diffs and leaves
+# them out of the language statistics.
+/.claude-plugin/marketplace.json linguist-generated=true
+/.claude/agents/** linguist-generated=true
+/.agents/agents/** linguist-generated=true
+/.codex/agents/** linguist-generated=true
+/.github/agents/** linguist-generated=true

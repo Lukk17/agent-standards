@@ -1,6 +1,6 @@
 ---
 name: test-automator
-version: 1.0.0
+version: "1.0.0"
 description: 'Use when the user says "write tests for this", "the suite is failing" or "raise coverage here", and after any code change that lacks tests. Writes the missing unit and integration tests, runs the suites, analyses failures and fixes them without weakening a test, reporting a genuine code bug instead. Not for load, contract or smoke tests on a running API, use `api-tester`.'
 tools: [read, write, edit, grep, glob, bash]
 skills:

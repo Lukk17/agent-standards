@@ -553,11 +553,17 @@ def target_path(tool: str, name: str) -> pathlib.Path:
 
 
 def generated_files(tool: str) -> list[pathlib.Path]:
-    """Every agent file a target tree holds, in either layout, so a file in the wrong one is an orphan."""
+    """Every agent file a target tree holds that the generator owns, so a file in the wrong place is an orphan.
+
+    A nested target owns its flat files and one folder down, so a file left
+    in the old flat layout is found. A flat target owns only its flat files,
+    so a folder of the user's own inside it is never touched.
+    """
     outdir, ext = TARGETS[tool]
     if not outdir.is_dir():
         return []
-    return sorted([*outdir.glob(f"*{ext}"), *outdir.glob(f"*/*{ext}")])
+    nested = [*outdir.glob(f"*/*{ext}")] if tool in NESTED_TARGETS else []
+    return sorted([*outdir.glob(f"*{ext}"), *nested])
 
 
 def find_orphans(tool: str, canonical_names: set[str]) -> list[pathlib.Path]:

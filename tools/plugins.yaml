@@ -12,7 +12,7 @@
 # behaviour, major for a breaking change. tools/check_versions.py fails a pull
 # request that changes an item without raising it.
 #
-# check_map in tools/gen_plugins.py refuses a map that breaks one of these
+# check_map in tools/plugin_map_rules.py refuses a map that breaks one of these
 # rules, which tools/tests/test_gen_plugins.py proves case by case:
 #
 # - Every skill under .agents/skills/ and every subagent under subagents/ sits

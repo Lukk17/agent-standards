@@ -1,6 +1,6 @@
 ---
 name: flutter-expert
-version: 1.0.0
+version: "1.0.0"
 description: 'Use when the user says "build this Flutter screen", "review this Dart code" or "fix this widget rebuild". Writes and reviews Flutter and Dart 3 code for mobile, web and desktop with records, patterns, sealed classes, null safety, const widget composition and the state management the project already uses. Not for the backend API it calls, use `backend-architect`.'
 tools: [read, write, edit, grep, glob, bash]
 skills:

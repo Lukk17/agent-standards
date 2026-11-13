@@ -45,7 +45,7 @@ def run(root: pathlib.Path, commit: bool = True) -> tuple[list[str], dict[str, g
         git(root, "add", "--all")
         git(root, "commit", "--quiet", "--allow-empty", "-m", "change")
     _commit, base, head, _note = guard.compare(root, "master")
-    return guard.problems(base, head), head
+    return guard.problems(base, head, guard.existing_tags(root)), head
 
 
 def bump_skill(root: pathlib.Path, name: str, version: str) -> None:
@@ -303,3 +303,23 @@ def test_a_link_loop_inside_a_plugin_folder_is_read_once(tmp_path):
     files = [relative for relative, _file in guard.shipped_files(tmp_path, pathlib.PurePosixPath(".agents/skills/solo"))]
 
     assert files == [".agents/skills/solo/SKILL.md"]
+
+
+def test_a_new_plugin_whose_release_tag_already_exists_fails(repository):
+    # Given a tag left by an earlier plugin of the same name and version
+    git(repository, "tag", "extra--v1.0.0")
+    write(repository / ".agents" / "skills" / "extra" / "SKILL.md", '---\nname: extra\ndescription: Extra.\nmetadata:\n  version: "1.0.0"\n---\nBody.\n')
+    edit_map(repository, "agents: [front], skills: [solo]}", "agents: [front], skills: [solo, extra]}")
+    edit_map(repository, "{name: web, version: 1.0.0,", "{name: web, version: 1.1.0,")
+
+    found = run(repository)[0]
+
+    assert found == ["extra: the tag extra--v1.0.0 already exists, so 1.0.0 was released before, raise it"]
+
+
+def test_a_raised_version_whose_tag_already_exists_fails(repository):
+    git(repository, "tag", "solo--v1.0.1")
+    append(repository / ".agents" / "skills" / "solo" / "SKILL.md", "More.\n")
+    bump_skill(repository, "solo", "1.0.1")
+
+    assert [p.split(":")[0] for p in run(repository)[0]] == ["solo"]

@@ -161,7 +161,7 @@ Every skill, subagent, Claude Code hook and MCP server is its own plugin in [.cl
 | MCP server | `version` of its entry under `servers` in the same map | its block in [.mcp.json](.mcp.json) or its description |
 | Bundle | `version` of its entry under `bundles` in the same map | the plugins it lists or its description |
 
-[tools/check_versions.py](tools/check_versions.py) builds the catalog at the merge base and on your branch and fails, naming the plugin, when one changed and its version is not strictly higher, or when a version went down. On every push to `master` the [Plugins](.github/workflows/plugins.yml) workflow tags each plugin version that has no tag yet as `<name>--v<version>`, the tag form Claude Code resolves a dependency range against ([plugin dependencies](https://code.claude.com/docs/en/plugins/dependencies)).
+[tools/check_versions.py](tools/check_versions.py) reads the catalog the merge base commits in its marketplace, renders the one on your branch, and fails, naming the plugin, when one changed and its version is not strictly higher, when a version went down, or when a new version's `<name>--v<version>` tag already exists. A base that commits no marketplace counts every plugin as new, and a base marketplace it cannot read fails the check. On every push to `master` the [Plugins](.github/workflows/plugins.yml) workflow tags each plugin version that has no tag yet as `<name>--v<version>`, the tag form Claude Code resolves a dependency range against ([plugin dependencies](https://code.claude.com/docs/en/plugins/dependencies)).
 
 ---
 
@@ -219,7 +219,7 @@ nowhere else, and [tools/check-badges.py](tools/check-badges.py) fails when eith
 
 ### Adding a new subagent
 
-Add a frontmatter-headed Markdown file under `subagents/<name>.md`, with a top-level `version: 1.0.0` beside `name` and `description`. The version is the one the agent's marketplace plugin carries, and the generator writes it into no generated agent file. Run `python tools/gen_subagents.py` to emit
+Add a frontmatter-headed Markdown file under `subagents/<name>.md`, with a top-level `version: "1.0.0"`, quoted, beside `name` and `description`. The version is the one the agent's marketplace plugin carries, and the generator writes it into no generated agent file. Run `python tools/gen_subagents.py` to emit
 per-tool copies in `.claude/agents/<name>/<name>.md`, `.agents/agents/`, `.codex/agents/`, and `.github/agents/`. The same run repairs
 the `.opencode/agents` and `.kilo/agents` symlinks, which point at `.agents/agents` rather than holding their own copy.
 Commit the canonical source AND the generated outputs, and bump the subagent-count badge in [README.md](README.md)
@@ -271,7 +271,7 @@ Every new skill and subagent also joins exactly one bundle in the map, in the sa
 4. A new server gets its own entry in the `servers` list and joins the `dependencies` of `mcp-all`. A new hook the Claude Code wiring runs gets its own entry in the `hooks` list, named for its folder, and joins `hooks-all`. A new domain carries `category: development` and joins the `dependencies` of `all`, which installs `core` and the development domains and never a host group, a server or a hook.
 5. Add no bundle for a single subagent with no skill of its own. Put that subagent into the nearest domain instead.
 
-`check_map` in [tools/gen_plugins.py](tools/gen_plugins.py) enforces the mechanical half of these rules, and [tools/tests/test_gen_plugins.py](tools/tests/test_gen_plugins.py) holds one failing map for each. Which domain a subagent works in, which domain or host group a skill serves, and rule 5 are conventions no test can check, so review them by hand. After a change, regenerate the marketplace and commit it with the change:
+`check_map` in [tools/plugin_map_rules.py](tools/plugin_map_rules.py) enforces the mechanical half of these rules, and [tools/tests/test_gen_plugins.py](tools/tests/test_gen_plugins.py) holds one failing map for each. Which domain a subagent works in, which domain or host group a skill serves, and rule 5 are conventions no test can check, so review them by hand. After a change, regenerate the marketplace and commit it with the change:
 
 ```bash
 python tools/gen_plugins.py

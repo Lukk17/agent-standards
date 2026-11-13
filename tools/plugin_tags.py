@@ -22,14 +22,27 @@ import pathlib
 import subprocess
 import sys
 
+from plugin_model import KEBAB, SEMVER
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 MARKETPLACE = ROOT / ".claude-plugin" / "marketplace.json"
 TAG_SEPARATOR = "--v"
 
 
 def tag_names(document: dict) -> list[str]:
-    """The tag of every plugin version the marketplace lists, in marketplace order."""
-    return [f"{entry['name']}{TAG_SEPARATOR}{entry['version']}" for entry in document["plugins"]]
+    """The tag of every plugin version the marketplace lists, in marketplace order.
+
+    Raises:
+        ValueError: a name is not kebab-case or a version not MAJOR.MINOR.PATCH,
+            so it could not be one safe tag name.
+    """
+    tags = []
+    for entry in document["plugins"]:
+        name, version = entry.get("name"), entry.get("version")
+        if not (isinstance(name, str) and KEBAB.fullmatch(name) and isinstance(version, str) and SEMVER.fullmatch(version)):
+            raise ValueError(f"plugin {name!r} at version {version!r} cannot be tagged: the name must be kebab-case and the version MAJOR.MINOR.PATCH")
+        tags.append(f"{name}{TAG_SEPARATOR}{version}")
+    return tags
 
 
 def missing(document: dict, existing: set[str]) -> list[str]:
@@ -49,7 +62,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--all", action="store_true", help="list every plugin version's tag, existing or not")
     args = parser.parse_args(argv)
     document = json.loads(MARKETPLACE.read_text(encoding="utf-8"))
-    tags = tag_names(document) if args.all else missing(document, existing_tags(ROOT))
+    try:
+        tags = tag_names(document) if args.all else missing(document, existing_tags(ROOT))
+    except ValueError as exc:
+        print(f"ERROR {exc}", file=sys.stderr)
+        return 1
     sys.stdout.write("".join(f"{tag}\n" for tag in tags))
     return 0
 

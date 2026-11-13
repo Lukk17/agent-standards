@@ -7735,3 +7735,30 @@ def test_a_plugin_copy_stands_down_only_when_the_project_wiring_runs_the_gate(tm
     # Then
     assert (code, err) == (0, "")
     assert bool(out) is denied
+
+
+@pytest.mark.parametrize("skills_first", [True, False], ids=["flat-declares-skills", "nested-declares-skills"])
+def test_rule_b_denies_when_any_copy_in_the_calling_format_s_own_tree_declares_no_skills(tmp_path, skills_first):
+    # Given two Claude Code definitions of one agent, flat and in its own folder, only one declaring skills
+    agents = tmp_path / ".claude" / "agents"
+    (agents / "twin").mkdir(parents=True)
+    with_skills, without = WITH_SKILLS.format(name="twin"), WITHOUT_SKILLS.format(name="twin")
+    (agents / "twin.md").write_text(with_skills if skills_first else without, encoding="utf-8")
+    (agents / "twin" / "twin.md").write_text(without if skills_first else with_skills, encoding="utf-8")
+    payload = {**edit(str(tmp_path / "src" / "app.py"), agent_id="sub-1", agent_type="twin"), "cwd": str(tmp_path)}
+
+    # When
+    code, out, _err = run(payload, "claude", cwd=tmp_path)
+
+    # Then whichever copy Claude Code loads, the gate holds the one without skills to Rule B
+    assert "declares no skills" in json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"]
+
+
+def test_rule_b_still_allows_an_agent_whose_own_tree_copies_all_declare_skills_beside_a_bare_copy_elsewhere(tmp_path):
+    # Given a Claude Code definition with skills, and a bare copy in the Codex tree only
+    project_with_agent(tmp_path, "solo", WITH_SKILLS, ".claude/agents")
+    project_with_agent(tmp_path, "solo", CODEX_WITHOUT_SKILLS, ".codex/agents")
+    payload = {**edit(str(tmp_path / "src" / "app.py"), agent_id="sub-1", agent_type="solo"), "cwd": str(tmp_path)}
+
+    # When / Then the Claude Code caller is judged by its own tree
+    assert run(payload, "claude", cwd=tmp_path)[1] == ""

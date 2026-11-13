@@ -21,12 +21,14 @@ on:
 permissions:
   contents: read
 
+# A pull request keeps one run, the newest. Every push to master gets its own
+# group, by commit, and is never cancelled, so each tagging run finishes.
 concurrency:
-  group: plugins-${{ github.ref }}
+  group: plugins-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  CLAUDE_CODE_VERSION: "2.1.314"
+  CLAUDE_CODE_VERSION: "2.1.323"
 
 jobs:
   validate:
@@ -107,10 +109,26 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: tools/pyproject.toml
+
+      - name: Pin pip to a version that supports dependency groups
+        run: python -m pip install --upgrade "pip==26.2.1"
+
+      - name: Install the pinned tooling
+        run: pip install ./tools
+
+      - name: Check the marketplace being tagged matches its sources
+        run: python tools/gen_plugins.py --check
+
       - name: Tag every plugin version that has no tag yet and push the new tags
         run: |
           set -euo pipefail
-          python3 tools/plugin_tags.py > "${RUNNER_TEMP}/new-tags.txt"
+          python tools/plugin_tags.py > "${RUNNER_TEMP}/new-tags.txt"
           if [ ! -s "${RUNNER_TEMP}/new-tags.txt" ]; then
             echo "Every plugin version at ${GITHUB_SHA} is already tagged."
             exit 0

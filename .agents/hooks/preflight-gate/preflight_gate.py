@@ -8632,7 +8632,12 @@ def _plugin_agent_paths(plugin: str, name: str) -> List[Path]:
 
 
 def _agent_definitions(agent_type: str, fmt: str) -> List[Optional[str]]:
-    """The text of every definition a subagent name can resolve to, the deciding one first.
+    """The text of every definition a subagent name can resolve to, the deciding one first."""
+    return [text for text, _own in _agent_definition_candidates(agent_type, fmt)]
+
+
+def _agent_definition_candidates(agent_type: str, fmt: str) -> List[Tuple[Optional[str], bool]]:
+    """Every definition a subagent name can resolve to, each with whether the calling format runs it.
 
     The calling format's own trees come first, so Rule B judges the file that
     agent runs, and Rule E is applied when any candidate is read-only. A
@@ -8643,7 +8648,9 @@ def _agent_definitions(agent_type: str, fmt: str) -> List[Optional[str]]:
     trees there. Each tree is read flat, <tree>/<name><ext>, and one folder
     deep, <tree>/<name>/<name><ext>, the layout the Claude Code tree is
     generated in. A candidate that exists but cannot be read is None, which
-    Rule E treats as read-only with no command allowed.
+    Rule E treats as read-only with no command allowed. A candidate counts as
+    the calling format's own when it sits in one of that format's trees or in
+    the Claude Code plugin cache, since Claude Code may load any one of them.
     """
     plugin, separator, name = agent_type.rpartition(PLUGIN_AGENT_SEPARATOR)
 
@@ -8651,19 +8658,24 @@ def _agent_definitions(agent_type: str, fmt: str) -> List[Optional[str]]:
         return []
 
     paths = _plugin_agent_paths(plugin, name) if separator else []
+    own = set(paths)
     roots = _roots()
     install = _install_root()
 
     if install is not None and install not in roots:
         roots.append(install)
 
-    paths += [
-        root / tree.directory / Path(*folder) / (name + tree.extension)
-        for tree in _ordered_trees(fmt)
-        for root in roots
-        for folder in ((), (name,))
-    ]
-    definitions: List[Optional[str]] = []
+    preferred = FORMAT_AGENT_TREES.get(fmt, ())
+
+    for tree in _ordered_trees(fmt):
+        for root in roots:
+            for folder in ((), (name,)):
+                path = root / tree.directory / Path(*folder) / (name + tree.extension)
+                paths.append(path)
+                if tree.directory in preferred:
+                    own.add(path)
+
+    candidates: List[Tuple[Optional[str], bool]] = []
 
     for path in dict.fromkeys(paths):
         try:
@@ -8673,11 +8685,26 @@ def _agent_definitions(agent_type: str, fmt: str) -> List[Optional[str]]:
             continue
 
         try:
-            definitions.append(path.read_text(encoding="utf-8", errors="replace"))
+            candidates.append((path.read_text(encoding="utf-8", errors="replace"), path in own))
         except (OSError, ValueError):
-            definitions.append(None)
+            candidates.append((None, path in own))
 
-    return definitions
+    return candidates
+
+
+def _rule_b_denies(candidates: List[Tuple[Optional[str], bool]]) -> bool:
+    """True when the definition the caller runs declares no skills.
+
+    Any readable copy in the calling format's own trees counts, because the
+    agent may load any one of them. With no copy there, the first candidate
+    found decides.
+    """
+    judged = [text for text, is_own in candidates if is_own and text is not None]
+
+    if not judged and candidates and candidates[0][0] is not None:
+        judged = [candidates[0][0]]
+
+    return any(not _declares_skills(text) for text in judged)
 
 
 def _front_matter_end(lines: List[str]) -> int:
@@ -9343,12 +9370,13 @@ def _apply_rules(payload: Dict[str, Any], fmt: str, subagent_flag: bool) -> Opti
 
     if identity == _SUBAGENT:
         agent_type = _agent_type(payload)
-        definitions = _agent_definitions(agent_type, fmt)
+        candidates = _agent_definition_candidates(agent_type, fmt)
+        definitions = [text for text, _own in candidates]
 
         if not definitions:
             return None
 
-        if definitions[0] is not None and not _declares_skills(definitions[0]):
+        if _rule_b_denies(candidates):
             return RULE_B_REASON.format(agent=agent_type)
 
         return _read_only_reason(agent_type, definitions, payload, fmt)
