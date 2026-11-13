@@ -1,6 +1,8 @@
 ---
 name: code-reviewer
 description: 'Structured review of local changes or a remote pull request across correctness, maintainability, doc comments, efficiency, security, error handling and tests, with every finding led by a path:line reference. Use when the user says "review my changes", "review PR #123", or "is this branch ready to merge". Not for hunting duplicated or reinvented code, use `review-duplication`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Code Reviewer

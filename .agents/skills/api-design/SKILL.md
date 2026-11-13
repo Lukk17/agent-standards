@@ -1,6 +1,8 @@
 ---
 name: api-design
 description: 'HTTP and GraphQL contract design: resource naming, method and status semantics, RFC 9457 problem details, pagination, idempotency keys, conditional requests, health paths, rate-limit headers and tiers, and versioning. Use when the user says "design this endpoint", "what status code should this return", or "how do we deprecate v1". Not for the service code behind it, use `backend-patterns`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # API Design

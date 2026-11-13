@@ -1,6 +1,8 @@
 ---
 name: e2e-runbooks
 description: 'Capability testing against a live stack, one feature per immutable spec, with behaviour-only assertions, canary fixtures, setup-cost ordering, token and duration accounting, and parallel subagents. Use when the user says "add an e2e test for the upload flow", "run the e2e sweep" or "verify this capability end to end". Not for Playwright browser UI testing, use `e2e-testing`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # E2E Runbooks

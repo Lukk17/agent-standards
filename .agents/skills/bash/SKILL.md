@@ -1,6 +1,8 @@
 ---
 name: bash
 description: Bash scripting standards for strict mode, quoting, argument parsing, exit codes, temp files, secret handling and ShellCheck. Use when the user says "write a bash script for this", "why does my script keep going after an error", "this loop breaks on filenames with spaces" or "make ShellCheck pass". Not for PowerShell scripting on Windows, use `powershell`.
+metadata:
+  version: "1.0.0"
 ---
 
 # Bash Standards

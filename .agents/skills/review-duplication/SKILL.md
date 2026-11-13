@@ -1,6 +1,8 @@
 ---
 name: review-duplication
 description: 'Investigates a change for duplicated logic, reinvented utilities and missed reuse of existing helpers and installed libraries, and leaves coincidental lookalikes alone. Use when the user says "check this PR for duplication", "did we already have a function for this", or "is this reinventing something". Not for a full multi-pillar review pass, use `code-reviewer`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Review Duplication

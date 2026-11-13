@@ -1,6 +1,8 @@
 ---
 name: hexagonal-architecture
 description: 'Ports and adapters design: use-case boundaries, inbound and outbound ports, dependency inversion, adapters, the composition root, and per-boundary testing in TypeScript, Java, Kotlin and Go. Use when the user says "restructure this around ports and adapters", "my domain imports the ORM", or "swap this payment provider". Not for HTTP contract design, use `api-design`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Hexagonal Architecture

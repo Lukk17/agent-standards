@@ -1,5 +1,6 @@
 ---
 name: python-pro
+version: 1.0.0
 description: 'Use when the user says "write this FastAPI endpoint", "review this Python module" or "modernise this Python project". Applies Python 3.14 idioms, type hints, dataclasses, structural pattern matching and async where the work is I/O-bound, with uv, ruff and pytest discipline, as an implementer. Not for PyTorch training and inference, use `ml-engineer`.'
 tools: [read, write, edit, grep, glob, bash]
 skills:

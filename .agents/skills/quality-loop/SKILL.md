@@ -1,6 +1,8 @@
 ---
 name: quality-loop
 description: 'The measure-and-fix loop for agent-written code, after Robert C. Martin: CRAP scores from crapper, duplicate pairs from dryer and surviving mutants from mutator, fixed worst first until clean or three rounds. Use when the user says "clean up this code", "run the quality loop", "measure the CRAP scores" or "find surviving mutants". Not for writing the tests of a new feature, use `tdd-workflow`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Quality Loop

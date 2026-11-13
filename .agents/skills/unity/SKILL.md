@@ -1,6 +1,8 @@
 ---
 name: unity
 description: Unity and C# standards for allocation-free per-frame code, object pooling, Addressables load and release pairing, cached component lookups, ScriptableObject architecture and the Unity Test Framework. Use when the user says "why does my game stutter every few seconds", "pool these bullets" or "load this asset with Addressables". Not for engine-agnostic C# and SOLID rules, use `coding-standards`.
+metadata:
+  version: "1.0.0"
 ---
 
 # Unity Game Development Standards

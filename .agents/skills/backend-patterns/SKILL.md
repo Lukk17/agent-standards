@@ -1,6 +1,8 @@
 ---
 name: backend-patterns
 description: 'Language-neutral backend service design: idempotency keys, timeouts and capped retries, the transactional outbox, the cache invalidation rule, cursor reads, and graceful shutdown. Use when the user says "make this endpoint safe to retry", "our webhook fired twice", or "we drop requests during a deploy". Not for the HTTP contract itself, use `api-design`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Backend Patterns

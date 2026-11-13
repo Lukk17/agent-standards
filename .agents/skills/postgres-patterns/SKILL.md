@@ -1,6 +1,8 @@
 ---
 name: postgres-patterns
 description: PostgreSQL working reference for index selection, data types, row-level security, cursor pagination, queues, anti-pattern queries, server settings, backups and erasure. Use when the user says "which index does this query need", "why is this query slow", "write an RLS policy for this table" or "find our unindexed foreign keys". Not for applying a schema change safely, use `database-migrations`.
+metadata:
+  version: "1.0.0"
 ---
 
 # PostgreSQL Patterns

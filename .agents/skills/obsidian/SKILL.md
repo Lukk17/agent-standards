@@ -1,6 +1,8 @@
 ---
 name: obsidian
 description: 'Working with Obsidian vaults from a terminal on Windows, Linux and macOS: finding vaults from obsidian.json, installing notesmd-cli, and searching, creating, moving with link updates and deleting notes. Use when the user says "find my Obsidian vault", "search my notes", "rename this note and fix the links" or "install obsidian-cli". Not for the prose inside a note, use `markdown-writer`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Obsidian

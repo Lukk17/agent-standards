@@ -1,6 +1,8 @@
 ---
 name: github-ops
 description: 'Operating a GitHub repository with the gh CLI: issue triage, pull request and stale-item management, CI failure investigation, release preparation and security alerts, read-only by default. Use when the user says "triage these issues", "which PRs are ready to merge", "CI is red, find out why" or "prepare the next release". Not for local branching and commits, use `git-workflow`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # GitHub Operations

@@ -1,6 +1,8 @@
 ---
 name: research
 description: 'How an agent researches a question the repository cannot answer: source order from Context7 to the web, quoting the deciding sentence, measuring instead of reading, labelling each claim, and like-for-like comparisons. Use when the user says "look this up", "does tool Y support Z", "compare these options" or "is this a known bug". Not for a page that blocks a normal fetch, use `ascend-web-hunter`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Research
@@ -20,11 +22,11 @@ Training memory is a lead to follow, never a source, because tools change betwee
 ### When to activate
 
 - A question depends on how a library, tool, service or vendor behaves today
-- The user asks for a current version, a supported option, a price, a limit, or a compatibility fact
+- The user asks for a current version, a supported option, a price, a limit or a compatibility fact
 - Two or more options have to be compared before a decision
-- A failure looks like a known bug and needs its issue, its status and a workaround
+- A failure looks like a known bug needing its issue, status and workaround
 - A claim in a document or a review has no source behind it
-- The user says "research X", "what is the current version", "find a workaround", "deep dive into X", "what is the current state of X" or "check the docs"
+- The user says "research X", "what is the current version", "find a workaround", "deep dive into X" or "check the docs"
 
 ---
 

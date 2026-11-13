@@ -1,6 +1,8 @@
 ---
 name: macos
 description: 'Administering a Mac from an agent: Homebrew formulae and casks, launchd, defaults and preference domains, Gatekeeper and TCC permissions, the Keychain, Time Machine and local snapshots, softwareupdate and the unified log. Use when the user says "run this at login", "app is damaged and cannot be opened" or "show me the logs for this app". Not for writing shell scripts, use `bash`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # macOS Administration

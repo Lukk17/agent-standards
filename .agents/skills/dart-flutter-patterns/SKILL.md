@@ -1,6 +1,8 @@
 ---
 name: dart-flutter-patterns
 description: "Dart 3 and Flutter 3 patterns across architecture, layout, routing, forms, networking, persistence, concurrency, animation, accessibility, localization, native interop, app size and testing. Use when the user says \"build a Flutter screen\", \"why does my Column overflow\" or \"write a widget test for this form\". Not for language-neutral SOLID, naming and error-handling rules, use `coding-standards`."
+metadata:
+  version: "1.0.0"
 ---
 
 # Dart and Flutter Patterns

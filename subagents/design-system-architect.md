@@ -1,5 +1,6 @@
 ---
 name: design-system-architect
+version: 1.0.0
 description: 'Use when the user says "set up design tokens", "build our component library" or "add a second brand theme". Designs the token architecture, the component library structure, multi-brand theming and the design-to-code workflow that the rest of the front end builds on, as infrastructure rather than features. Not for one feature screen or flow, use `ui-ux-designer`.'
 tools: [read, write, edit, grep, glob, bash]
 skills:

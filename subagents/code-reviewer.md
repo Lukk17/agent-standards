@@ -1,5 +1,6 @@
 ---
 name: code-reviewer
+version: 1.0.0
 description: 'Use when the user says "review my changes", "review PR #123" or "is this ready to merge", and after any code change before it merges. Runs a severity-tagged review across correctness, security, performance, architecture and tests, read-only, and reports every finding with a file and line citation. Not for a threat model or a full security assessment, use `security-auditor`.'
 tools: [read, grep, glob, bash]
 readonly: true

@@ -2,6 +2,8 @@
 name: ascend-memory
 description: 'Long-term semantic memory for one user through the self-hosted AscendMemory service: insert, semantic search, delete and wipe in a per-user Qdrant namespace. Use when the user says "remember that…", "what did I tell you about…", "save this for later" or "forget this", or when prior context about the user would change the answer. Not for web research, use `research`.'
 compatibility: Requires the self-hosted AscendMemory service reachable over HTTP. Its base URL is configured by the user and appears in the examples as the placeholder $BASE, for example `http://ascend-memory.local:8080`. No default base URL is assumed.
+metadata:
+  version: "1.0.0"
 ---
 
 # Ascend Memory

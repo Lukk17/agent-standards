@@ -2,6 +2,8 @@
 name: wled
 description: 'Controls WLED light controllers over their JSON API, WebSocket, serial and Improv, with or without a PIN, read only until the user approves a change, with presets and config backed up first. Use when the user says "turn on the WLED strip", "save this as a preset", "back up my WLED", "set up a new WLED board" or "flash WLED". Not for writing WLED firmware code or usermods, use `embedded-c-arduino`.'
 license: MIT
+metadata:
+  version: "1.0.0"
 ---
 
 # WLED
@@ -22,9 +24,9 @@ How an agent reads and controls a WLED device, and how it makes a change the use
 
 ### When to activate
 
-- Turning a WLED light on or off, or changing its color, brightness, effect, palette or segments
+- Turning a light on or off, or changing its color, brightness, effect, palette or segments
 - Saving, applying or deleting a preset, or building a playlist
-- Backing up or restoring the presets and configuration of a device
+- Backing up or restoring a device's presets and configuration
 - A device whose settings ask for a PIN, or whose update page says OTA is locked
 - Setting up a new board, flashing WLED, or updating its firmware
 - Syncing devices, streaming realtime LED data, or connecting WLED to MQTT
@@ -51,7 +53,7 @@ The address, mDNS name, PIN and OTA password of a real device, the Wi-Fi credent
 3. Before any write, back up `/presets.json` and `/cfg.json`, then tell the user what changes, the worst case and the undo, and wait for a yes. One yes covers one change. When the device cannot be reached over HTTP, such as a bare board or one that does not boot, say that no backup over HTTP is possible, offer `esptool read-flash` over USB, and go on only after a yes.
 4. Firmware and bootloader updates, `erase-flash`, a PIN change, a factory reset (the `RS` field of `POST /settings/sec`) and any Wi-Fi or access point change happen only when the user asks for that action by name.
 5. Never post a partial `/settings/*` form. Every missing field is saved as empty or off, so a partial Wi-Fi form disables mDNS and opens an access point with no password, and a partial security form, while the OTA lock is off, switches the same subnet rule, ArduinoOTA and the Wi-Fi lock off. Change settings with `POST /json/cfg` instead, but never with only the wanted key: a missing `light.gc.bri`, `light.gc.col`, `hw.led.rgbwm`, `hw.led.fps` or `nw.linked_remote` is reset and saved. Read `GET /json/cfg`, send the wanted keys plus those five copied from it, then read it again and compare, as [json-api.md](references/json-api.md) shows.
-6. Ask the user for the PIN and the OTA password. Never guess, loop over or print them, and never keep them beyond the one call that uses them: send them on standard input, or from a file readable only by the user that is deleted right after the call. A wrong PIN locks the settings for every client.
+6. Ask the user for the PIN and the OTA password. Never guess, loop over or print them, and never keep them beyond the one call that uses them: send them on standard input, or from a user-only file deleted right after the call. A wrong PIN locks the settings for every client.
 7. Never retry a call that is not idempotent: `"on":"t"`, `"np":true`, `"psave"`. Read the state and send the value you want.
 8. Never expose a device to the internet. WLED serves plain HTTP with no login and allows every web origin.
 

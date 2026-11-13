@@ -1,6 +1,8 @@
 ---
 name: home-assistant
 description: 'Home Assistant standards for YAML, automations, scripts, helpers, templates, dashboards, entity names and renames, backups, upgrades, MCP access and custom integrations in Python. Use when the user says "write a motion light automation", "rename these entities", "restore the backup" or "review my custom integration". Not for the container or network the instance runs in, use `docker-patterns`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Home Assistant Standards

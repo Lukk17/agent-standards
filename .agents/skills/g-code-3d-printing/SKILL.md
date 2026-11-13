@@ -1,6 +1,8 @@
 ---
 name: g-code-3d-printing
 description: 'G-code and 3D printing standards for thermal and motion safety, absolute positioning, Klipper macros, start and end sequences, filament calibration and slicer profile version control. Use when the user says "write start G-code for my printer", "my nozzle drags through the print", "set up a START_PRINT macro" or "calibrate pressure advance". Not for the PCB inside the printed part, use `kicad`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # G-code and 3D Printing Standards

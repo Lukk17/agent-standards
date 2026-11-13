@@ -1,6 +1,8 @@
 ---
 name: windows
 description: 'Administering Windows 10 or 11 from an agent: winget and Chocolatey, PowerShell 7 against 5.1, the registry, services, scheduled tasks, WSL, Defender and UAC, BitLocker, dual boot, event logs, line endings and symlinks. Use when the user says "install this with winget", "set a registry value", "run this as admin" or "BitLocker recovery screen". Not for PowerShell modules, use `powershell`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Windows Administration

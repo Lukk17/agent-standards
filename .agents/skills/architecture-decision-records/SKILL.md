@@ -1,6 +1,8 @@
 ---
 name: architecture-decision-records
 description: 'Capturing an architectural decision as a numbered ADR with context, the decision, rejected alternatives and honest consequences, plus the index and the status lifecycle. Use when the user says "record this decision", "ADR this", "we decided Postgres over Mongo" or "why did we choose this framework". Not for the implementation plan that follows the decision, use `project-tracking`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Architecture Decision Records

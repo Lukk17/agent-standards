@@ -1,6 +1,8 @@
 ---
 name: machine-health
 description: 'Read-only health and configuration check of one Linux, macOS or Windows computer, writing a baseline into MACHINE.md on the first run and reporting drift on later runs: CPU, RAM, disks, errors, PATH, updates and devices. Use when the user says "check the health of this machine", "what drifted since last time" or "is this disk dying". Not for fixing a finding on Arch, use `arch-linux`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Machine Health
@@ -25,9 +27,9 @@ Linux commands were executed read-only on one CachyOS host with systemd and Plas
 
 ### When to activate
 
-- The machine was just set up or bootstrapped and the owner wants a health baseline
+- The machine was just set up and the owner wants a health baseline
 - The owner asks what changed, broke or drifted since the last check
-- A crash, a slow boot, a freeze or a disk warning needs a structured look before anyone changes anything
+- A crash, a slow boot, a freeze or a disk warning needs a structured look first
 - A question about whether RAM, a disk, the GPU driver or a display is running the way it should
 - `MACHINE.md` exists and its Health section is missing or older than the owner wants
 - Also covers CPU microcode, governor, temperatures and throttling, RAM speed against the module rating and the CPU vendor's supported speed, mixed kits, channels and memory errors, SMART and NVMe health, filesystem errors, free space, mount options, encryption, failed units, crashes and error logs, PATH duplicates, shadowed binaries and env file placement, pending updates, GPU driver, display refresh rate, audio, network, firewall, time sync, Secure Boot

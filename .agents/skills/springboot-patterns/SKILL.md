@@ -2,6 +2,8 @@
 name: springboot-patterns
 description: "Spring Boot 4 services on blocking Spring MVC, covering layering, RFC 9457 errors, RestClient with Resilience4j, caching and events, Spring Security 7, JPA and HikariCP, Testcontainers tests and the pre-merge pipeline. Use when the user says \"structure this Spring Boot API\" or \"add JWT auth to this endpoint\". Not for Java language style, naming and records, use `java-coding-standards`."
 license: Apache-2.0
+metadata:
+  version: "1.0.0"
 ---
 
 # Spring Boot Patterns
@@ -18,7 +20,7 @@ Written for Spring Boot 4, with the Spring Security 7, Hibernate 7, Jackson 3 an
 - The user says "structure this Spring Boot API", "add JWT auth to this endpoint", "why does this query run two hundred times", "write a @WebMvcTest for this controller", or "verify this before I open the PR".
 - Caching, asynchronous work, events, authentication, authorization, CORS, headers or rate limiting.
 - Entities, queries, fetch strategy, an N+1 query, or connection pool sizing.
-- Tests, slices, Testcontainers, the coverage gate, and the pipeline before a pull request or a deployment.
+- Tests, slices, Testcontainers, the coverage gate, and the pipeline before a merge or deploy.
 
 ---
 
@@ -47,7 +49,7 @@ Written for Spring Boot 4, with the Spring Security 7, Hibernate 7, Jackson 3 an
 8. Write the failing test first, in the narrowest slice: JUnit and Mockito with `@InjectMocks` for services, `@WebMvcTest` for the web layer, `@DataJpaTest` with digest-pinned Testcontainers images for repositories, `@SpringBootTest` only for wiring.
 9. Apply the production defaults: tunables in `application.yml` per `java-coding-standards`, virtual threads on, `ddl-auto=validate` with migrations owning the schema, a sized HikariCP, `/api/v1/` paths, and a `Sunset` date on anything deprecated.
 10. The startup readiness block belongs to `observability-and-logging`, emitted from an `@EventListener(ApplicationReadyEvent.class)` method, never `ApplicationStartedEvent`.
-11. Query through a `Specification` or a derived method, aggregates through the Criteria API on the same specifications. Never an `@Query` JPQL or native string, which no compiler checks, and an ArchUnit rule guards it. Whole-table backup and restore is the one exception.
+11. Query through a `Specification` or a derived method, aggregates through the Criteria API on them. Never an `@Query` JPQL or native string, which no compiler checks, and an ArchUnit rule guards it. Whole-table backup and restore is the one exception.
 12. Every endpoint carries composable OpenAPI response meta-annotations with its honest success code, and error responses name the project's own problem schema, because generated clients trust the spec.
 
 ---

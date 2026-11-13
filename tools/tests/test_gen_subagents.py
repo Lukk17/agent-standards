@@ -892,3 +892,17 @@ def test_a_removed_agent_leaves_no_empty_folder_behind(tmp_path, monkeypatch):
 
     assert not (root / "claude" / "gone").exists()
     assert (root / "claude" / "solo" / "solo.md").is_file()
+
+
+@pytest.mark.parametrize("tool", ["claude", "agents", "codex", "copilot"])
+def test_the_plugin_version_never_reaches_a_generated_agent_file(tool):
+    # Given a canonical agent carrying the version the marketplace entry takes
+    versioned = {**WRITER, "version": "4.5.6"}
+
+    # When / Then no target writes it, so no format has to accept or ignore the key
+    assert "4.5.6" not in gen.render(tool, versioned, BODY)
+
+
+def test_every_canonical_subagent_carries_a_version():
+    for source in sorted(gen.SRC.glob("*.md")):
+        assert isinstance(front_matter(source.read_text(encoding="utf-8")).get("version"), str), source.name

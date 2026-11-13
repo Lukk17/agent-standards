@@ -1,5 +1,6 @@
 ---
 name: database-expert
+version: 1.0.0
 description: 'Use when the user says "design the schema", "which database should we use", "plan this migration" or "this query is slow". Designs a data layer or tunes an existing one, measuring only on a database the caller names as disposable and handing migrations to an implementer, read-only on shared and production schemas. Not for a bottleneck not yet located, use `performance-engineer`.'
 tools: [read, grep, glob, bash]
 skills:

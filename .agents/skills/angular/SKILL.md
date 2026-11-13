@@ -2,6 +2,8 @@
 name: angular
 description: "Angular 22 application standards, covering standalone components, signals and RxJS interop, inject(), OnPush change detection, functional guards and interceptors, typed reactive forms, global error handling and Vitest tests. Use when the user says \"build this Angular component\" or \"my subscription leaks\". Not for React and Next.js work, use `react-patterns`."
 license: Apache-2.0
+metadata:
+  version: "1.0.0"
 ---
 
 # Angular Standards

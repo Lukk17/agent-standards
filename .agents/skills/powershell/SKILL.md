@@ -1,6 +1,8 @@
 ---
 name: powershell
 description: PowerShell 7 scripting standards for strict error handling, advanced functions, parameter validation, module layout, secret handling, PSScriptAnalyzer and Pester 6. Use when the user says "write a PowerShell script for this", "my script ignores when git fails", "turn this into a proper cmdlet" or "add Pester tests for this module". Not for POSIX shell scripting, use `bash`.
+metadata:
+  version: "1.0.0"
 ---
 
 # PowerShell Standards

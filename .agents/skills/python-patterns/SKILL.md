@@ -1,6 +1,8 @@
 ---
 name: python-patterns
 description: "Idiomatic Python 3.14 for production code and the pytest suite that proves it, covering type hints, error handling, dataclasses, concurrency choice, package layout, fixtures, mocking boundaries and the coverage gate. Use when the user says \"review this Python module\", \"add type hints to this file\" or \"fix this flaky pytest suite\". Not for training loops and tensor code, use `pytorch-patterns`."
+metadata:
+  version: "1.0.0"
 ---
 
 # Python Development Patterns

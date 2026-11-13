@@ -1,6 +1,8 @@
 ---
 name: application-security-review
 description: 'Application security review: secrets, input validation, injection, authentication and sessions, authorization with row-level security, XSS and CSP, CSRF, rate-limit policy, data exposure, and dependency risk. Use when the user says "review this endpoint before it ships", "is this file upload safe", or "check this for injection". Not for container and image hardening, use `docker-patterns`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Application Security Review

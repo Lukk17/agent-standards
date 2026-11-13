@@ -1,6 +1,8 @@
 ---
 name: tdd-workflow
 description: 'Test-driven development: the red-green-refactor loop with an enforced RED gate, the test pyramid, mocking boundaries, test naming and isolation, and a CI coverage gate of around 90 percent of real logic. Use when the user says "write this feature test first", "add tests for this bug fix", or "what should I mock here". Not for browser journeys and the flaky-test policy, use `e2e-testing`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Test-Driven Development Workflow

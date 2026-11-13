@@ -2,6 +2,8 @@
 name: frontend-design
 description: 'Giving an interface a committed visual direction, covering composition, typography, colour, background atmosphere and motion. Use when the user says "make this page look designed", "this dashboard looks generic", "pick a visual direction for the landing page" or "it works but it has no point of view". Not for token architecture, theming and styling structure, use `design-system`.'
 license: Apache-2.0
+metadata:
+  version: "1.0.0"
 ---
 
 # Frontend Design

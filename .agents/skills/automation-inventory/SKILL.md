@@ -1,6 +1,8 @@
 ---
 name: automation-inventory
 description: 'Evidence-first inventory of every live automation, from scheduled jobs and hooks to CI workflows, MCP servers and wrapper scripts, each classified by live state and backed by a command and its output. Use when the user says "what automations do I have", "what is actually running", "which of these jobs is broken" or "audit our tooling". Not for operating one CI system, use `github-ops`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Automation Inventory

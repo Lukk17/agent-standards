@@ -1,6 +1,8 @@
 ---
 name: docker-patterns
 description: Docker and Compose standards for multi-stage builds, pinned base images, non-root users, network isolation, secrets, and the Trivy, SBOM and cosign supply-chain gate. Use when the user says "write a Dockerfile for this service", "set up compose for local dev", "shrink this image" or "scan and sign this image". Not for Kubernetes manifests and rollout strategy, use `deployment-patterns`.
+metadata:
+  version: "1.0.0"
 ---
 
 # Docker Patterns

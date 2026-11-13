@@ -1,6 +1,8 @@
 ---
 name: ansible
 description: 'Ansible standards for role structure, FQCN modules, idempotency, Vault secrets, least-privilege become, collection pinning and the ansible-lint plus Molecule gate. Use when the user says "write an Ansible role for this", "this playbook is not idempotent", "encrypt these variables with Vault" or "add Molecule tests to this role". Not for one-off host scripting, use `bash`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Ansible Standards

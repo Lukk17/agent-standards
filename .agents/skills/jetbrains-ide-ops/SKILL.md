@@ -1,6 +1,8 @@
 ---
 name: jetbrains-ide-ops
 description: 'JetBrains IDE project configuration for a multi-module monorepo: run configurations under `.run/`, which `.idea/` files are committed, Gradle module links, module naming and the rename checklist. Use when the user says "add a run configuration for this service", "which .idea files do we commit" or "I renamed a module, what else has to change". Not for the Compose file, use `docker-patterns`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # JetBrains IDE Ops

@@ -2,6 +2,8 @@
 name: nextjs-app-router-patterns
 description: "Next.js 16 App Router architecture, covering the Server and Client Component split, caching and revalidation, streaming, Server Actions, route handlers, metadata, images and Turbopack dev tuning. Use when the user says \"build a Next.js page\", \"server or client component\" or \"add a server action\". Not for framework-agnostic React state, hooks and animation, use `react-patterns`."
 license: Apache-2.0
+metadata:
+  version: "1.0.0"
 ---
 
 # Next.js App Router Patterns

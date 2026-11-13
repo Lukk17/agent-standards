@@ -40,7 +40,9 @@ the block has to be present, parse under a strict YAML parser, carry a `name`
 matching the folder name (skills) or the file stem (subagents), and carry a
 non-empty string `description` of at most 1024 characters. A skill manifest may
 carry no key beyond name, description, license, compatibility and metadata, per
-the open Agent Skills specification. A `model` key gets its own message and
+the open Agent Skills specification, and has to carry its plugin version as
+`metadata.version`, while a subagent source carries it as `version`, each
+MAJOR.MINOR.PATCH. A `model` key gets its own message and
 stays rejected even if that list widens, because skills never pin a model and
 run on the user's default model. The description scalar is read raw as well
 as parsed, so a plain scalar holding a colon-space, or opening with a character
@@ -121,6 +123,11 @@ SKILLS_DIRECTORY = "skills"
 SUBAGENTS_DIRECTORY = "subagents"
 SKILL_ALLOWED_KEYS = ("name", "description", "license", "compatibility", "metadata")
 MODEL_KEY = "model"
+VERSION_KEY = "version"
+SKILL_VERSION_KEY = "metadata"
+# MAJOR.MINOR.PATCH and nothing else, each part without a leading zero, the
+# version a marketplace entry and a release tag carry.
+SEMANTIC_VERSION = re.compile(r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)")
 MAX_DESCRIPTION = 1024
 MAX_SKILL_MANIFEST_CHARACTERS = 8000
 YAML_INDICATORS = "*&!%@`[{>|\"'"
@@ -583,7 +590,36 @@ def check_front_matter(lines: list[str], path: Path) -> int:
                 f"key {key!r} is not in the Agent Skills specification; allowed keys are {allowed}",
             )
 
-    return failures
+    return failures + check_manifest_version(data, kind, path, key_lines)
+
+
+def check_manifest_version(data: dict, kind: str, path: Path, key_lines: dict[str, int]) -> int:
+    """Require the plugin version a skill or a subagent carries. Returns the violation count.
+
+    A skill keeps it under `metadata`, the map the Agent Skills specification
+    leaves to the author, as `metadata.version`. A subagent keeps it as a
+    top-level `version`, which the generator copies into the marketplace and
+    never into a generated agent file. Either is MAJOR.MINOR.PATCH.
+    """
+    if kind == "skill":
+        metadata = data.get(SKILL_VERSION_KEY)
+        version = metadata.get(VERSION_KEY) if isinstance(metadata, dict) else None
+        label, line = f"{SKILL_VERSION_KEY}.{VERSION_KEY}", key_lines.get(SKILL_VERSION_KEY, 1)
+    else:
+        version = data.get(VERSION_KEY)
+        label, line = VERSION_KEY, key_lines.get(VERSION_KEY, 1)
+
+    if version is None:
+        return _violation(path, line, f"{label} is missing; give the {kind} a MAJOR.MINOR.PATCH version such as 1.0.0")
+
+    if not isinstance(version, str) or not SEMANTIC_VERSION.fullmatch(version):
+        return _violation(
+            path,
+            line,
+            f"{label} is {version!r}, not a MAJOR.MINOR.PATCH version such as 1.0.0; write it as a quoted string",
+        )
+
+    return 0
 
 
 def check_skill_manifest_size(text: str, path: Path) -> int:

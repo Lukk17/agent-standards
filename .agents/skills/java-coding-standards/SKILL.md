@@ -2,6 +2,8 @@
 name: java-coding-standards
 description: "Java language standards for Spring Boot services, covering naming, Lombok and constructor injection, records, Optional, streams, exceptions, generics, null safety, SLF4J logging and Javadoc. Use when the user says \"review this Java class\" or \"should this be a record\", or asks to set up Checkstyle and SpotBugs. Not for Spring Boot wiring and REST structure, use `springboot-patterns`."
 license: Apache-2.0
+metadata:
+  version: "1.0.0"
 ---
 
 # Java Coding Standards

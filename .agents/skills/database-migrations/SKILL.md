@@ -1,6 +1,8 @@
 ---
 name: database-migrations
 description: Safe, reversible schema and data migrations for production databases, covering lock-free column, index and constraint changes, expand-contract renames, batched backfills and rollback. Use when the user says "add a column to this table", "create this index without downtime", "rename a column safely" or "backfill ten million rows". Not for index choice and query tuning, use `postgres-patterns`.
+metadata:
+  version: "1.0.0"
 ---
 
 # Database Migrations

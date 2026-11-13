@@ -1,6 +1,8 @@
 ---
 name: soap-webservices
 description: 'Contract-first SOAP integration in Java: WSDL and XSD as the source of truth, JAXB bindings, CXF code generation, XXE prevention, WS-Security, fault taxonomy, PII-safe logging, retries and MTOM. Use when the user says "generate Java classes from this WSDL", "call a partner SOAP service", "add WS-Security UsernameToken" or "our SOAP client hangs". Not for REST contracts, use `api-design`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # SOAP Web Service Standards

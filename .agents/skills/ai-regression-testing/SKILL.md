@@ -1,6 +1,8 @@
 ---
 name: ai-regression-testing
 description: 'Regression testing for the blind spots of AI-assisted development: bug-driven test selection, response-contract assertions, sandbox and production path parity, and mechanical checks before any AI review. Use when the user says "an agent changed my API routes", "the same bug keeps coming back", or "test this route without a shared database". Not for the red-green-refactor loop, use `tdd-workflow`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # AI Regression Testing

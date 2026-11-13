@@ -1,6 +1,8 @@
 ---
 name: node-backend-patterns
 description: "Node.js server-side patterns for Express and Next.js route handlers, covering service and repository layering, query batching, RFC 9457 errors, typed config, pino logging, caching, rate limiting and graceful shutdown. Use when the user says \"structure my Express API\" or \"my Node app never exits on SIGTERM\". Not for language-neutral backend design, use `backend-patterns`."
+metadata:
+  version: "1.0.0"
 ---
 
 # Node Backend Patterns

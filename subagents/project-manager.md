@@ -1,5 +1,6 @@
 ---
 name: project-manager
+version: 1.0.0
 description: 'Use when the user says "write a ticket for this", "split this epic", "add acceptance criteria" or "reconcile the board with the repo". Turns a vague ask into tracked items with testable acceptance criteria, triages a backlog, and checks a Jira board or a GitHub milestone against what the repository contains, never touching product code. Not for cutting a release, use `release-manager`.'
 tools: [read, write, edit, grep, glob, bash]
 skills:

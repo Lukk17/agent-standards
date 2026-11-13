@@ -1,6 +1,8 @@
 ---
 name: syncthing
 description: 'Running Syncthing 2 from an agent on Linux, Windows and macOS without the web page: starting it as the user, the CLI and REST API, pairing, folder types, ignoreDelete, introducers, relays and Docker peers. Use when the user says "pair this device", "share this folder one way", "the folder shows Stopped" or "is it going through a relay". Not for Compose and image design, use `docker-patterns`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Syncthing Administration

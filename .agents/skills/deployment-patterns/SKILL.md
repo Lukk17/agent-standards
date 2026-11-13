@@ -1,6 +1,8 @@
 ---
 name: deployment-patterns
 description: Deployment and CI/CD standards for rolling, blue-green and canary rollouts, a production approval gate, GitHub Actions with OIDC and least privilege, health probes, config validation, rollback and Kubernetes defaults. Use when the user says "set up a CI/CD pipeline", "add a canary rollout" or "how do we roll this back". Not for writing the Dockerfile itself, use `docker-patterns`.
+metadata:
+  version: "1.0.0"
 ---
 
 # Deployment Patterns

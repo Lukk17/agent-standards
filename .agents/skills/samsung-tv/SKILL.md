@@ -1,6 +1,8 @@
 ---
 name: samsung-tv
 description: 'Controls a Samsung Tizen smart TV from 2016 on through Home Assistant, with read-only checks against its local REST API: launching apps with a Home Assistant REST command, confirming app IDs, turning it on with a guarded power key, voice assistant scripts and casting a dashboard. Use when the user says "open Netflix on the TV", "find the Disney+ app ID", "the TV does not turn on from Home Assistant" or "show a dashboard on the TV". Not for Home Assistant YAML style in general, use `home-assistant`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # Samsung TV

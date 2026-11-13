@@ -1,6 +1,8 @@
 ---
 name: kicad
 description: 'KiCad board design standards for board setup and custom DRC rules, IPC-2221 trace sizing, decoupling and placement, ground pours, ERC, BOM fields, Gerber export and Git handling of project files. Use when the user says "route this board", "check my DRC", "export gerbers for JLCPCB" or "generate a BOM with LCSC part numbers". Not for the firmware that runs on the board, use `embedded-c-arduino`.'
+metadata:
+  version: "1.0.0"
 ---
 
 # KiCad PCB Design Standards
