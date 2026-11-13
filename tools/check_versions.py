@@ -8,13 +8,19 @@ until its version string changes
 version"). So a change that keeps the version never reaches anyone who already
 installed the plugin.
 
-This check builds the plugin catalog twice with tools/gen_plugins.py, once
-from the merge base of HEAD and the base branch and once from the tracked files
-of the working tree, and compares each plugin present in both:
+This check reads the plugin catalog of the merge base of HEAD and the base
+branch from that commit's own .claude-plugin/marketplace.json, renders the
+catalog of the tracked files of the working tree with tools/gen_plugins.py,
+and compares each plugin present in both:
 
 - what it ships changed and its version is not strictly higher: fail;
 - its version went down: fail;
 - anything else, including a plugin the base does not have: pass.
+
+The base is read rather than rendered, so a rule the head adds to the plugin
+map never makes an older base unreadable. A base that commits no marketplace,
+the one before this check existed, counts every plugin as new. Any other base
+that cannot be read is an error.
 
 What a plugin ships is its marketplace entry without the version, plus every
 file under the paths gen_plugins.owned_paths names for it, read through any
@@ -88,11 +94,18 @@ def extract_commit(root: pathlib.Path, commit: str, target: pathlib.Path) -> Non
         tar.extractall(target, filter="tar")
 
 
+GITLINK_MODE = "160000"
+
+
 def copy_tracked(root: pathlib.Path, target: pathlib.Path) -> None:
-    """Every tracked file of the working tree, as it is on disk now, written under target."""
-    for name in git(root, "ls-files", "-z", "--cached").decode().split("\0"):
+    """Every tracked file of the working tree, as it is on disk now, written under target.
+
+    A submodule, which git tracks as a gitlink and not as files, is left out.
+    """
+    for record in git(root, "ls-files", "-z", "--cached", "--stage").decode().split("\0"):
+        mode, name = record.partition(" ")[0], record.partition("\t")[2]
         source = root / name
-        if not name or not os.path.lexists(source):
+        if not name or mode == GITLINK_MODE or not os.path.lexists(source):
             continue
         destination = target / name
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -114,9 +127,20 @@ def shipped_files(root: pathlib.Path, path: pathlib.PurePosixPath) -> Iterator[t
         yield path.as_posix(), start
         return
     resolved_root = root.resolve()
+    visited: set[pathlib.Path] = set()
     for directory, folders, files in os.walk(start, followlinks=True):
         current = pathlib.Path(directory)
-        folders[:] = sorted(f for f in folders if (current / f).resolve().is_relative_to(resolved_root))
+        real = current.resolve()
+        if real in visited:
+            folders[:] = []
+            continue
+        visited.add(real)
+        folders[:] = sorted(
+            f for f in folders
+            if f not in IGNORED_NAMES
+            and (current / f).resolve().is_relative_to(resolved_root)
+            and (current / f).resolve() not in visited
+        )
         for name in sorted(files):
             file = current / name
             relative = file.relative_to(root)
@@ -138,6 +162,11 @@ def digest(root: pathlib.Path, entry: dict[str, object]) -> str:
     return hasher.hexdigest()
 
 
+def shipped(root: pathlib.Path, document: dict) -> dict[str, Shipped]:
+    """Every plugin of a marketplace document, by name, with what it ships under root."""
+    return {str(entry["name"]): Shipped(str(entry["version"]), digest(root, entry)) for entry in document["plugins"]}
+
+
 def catalog(root: pathlib.Path) -> dict[str, Shipped]:
     """Every plugin of the marketplace rendered from root, by name.
 
@@ -148,7 +177,23 @@ def catalog(root: pathlib.Path) -> dict[str, Shipped]:
         document = gen_plugins.marketplace(gen_plugins.load_sources(root))
     except SystemExit as exc:
         raise gen_plugins.PluginMapError(str(exc)) from exc
-    return {str(entry["name"]): Shipped(str(entry["version"]), digest(root, entry)) for entry in document["plugins"]}
+    return shipped(root, document)
+
+
+def committed_catalog(root: pathlib.Path) -> dict[str, Shipped] | None:
+    """Every plugin of the marketplace root commits, or None when it commits none.
+
+    Raises:
+        VersionCheckError: the committed marketplace cannot be read.
+    """
+    path = root / gen_plugins.MARKETPLACE_FILE
+    if not path.is_file():
+        return None
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        return shipped(root, document)
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
+        raise VersionCheckError(f"cannot read the base's {gen_plugins.MARKETPLACE_FILE}: {exc}") from exc
 
 
 def problems(base: dict[str, Shipped], head: dict[str, Shipped]) -> list[str]:
@@ -179,11 +224,10 @@ def compare(root: pathlib.Path, base_ref: str) -> tuple[str, dict[str, Shipped],
         extract_commit(root, commit, base_root)
         copy_tracked(root, head_root)
         head = catalog(head_root)
-        try:
-            base = catalog(base_root)
-        except gen_plugins.PluginMapError as exc:
+        base = committed_catalog(base_root)
+        if base is None:
             base = {}
-            note = f"the base {commit[:12]} has no readable plugin catalog, so every plugin counts as new ({str(exc).splitlines()[0]})"
+            note = f"the base {commit[:12]} has no committed {gen_plugins.MARKETPLACE_FILE}, so every plugin counts as new"
     return commit, base, head, note
 
 

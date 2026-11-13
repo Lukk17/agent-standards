@@ -23,10 +23,16 @@ def git(root: pathlib.Path, *args: str) -> None:
     subprocess.run(["git", "-C", str(root), *IDENTITY, *args], capture_output=True, check=True)
 
 
+def write_marketplace(root: pathlib.Path) -> None:
+    """The marketplace the generator renders for root, written where the repository commits it."""
+    write(root / guard.gen_plugins.MARKETPLACE_FILE, guard.gen_plugins.render_text(guard.gen_plugins.marketplace(guard.gen_plugins.load_sources(root))))
+
+
 @pytest.fixture
 def repository(tmp_path) -> pathlib.Path:
-    """The lab repository committed on master, then checked out on a feature branch."""
+    """The lab repository with its marketplace committed on master, then checked out on a feature branch."""
     root = build_lab(tmp_path / "repo")
+    write_marketplace(root)
     git(root, "init", "--quiet", "--initial-branch=master")
     git(root, "add", "--all")
     git(root, "commit", "--quiet", "-m", "base")
@@ -149,6 +155,7 @@ def test_a_new_plugin_without_a_version_is_refused(repository):
 def test_a_lowered_version_fails_even_with_no_change(repository):
     git(repository, "switch", "--quiet", "master")
     bump_skill(repository, "own", "2.0.0")
+    write_marketplace(repository)
     git(repository, *("commit", "--quiet", "-am", "raise own"))
     git(repository, "switch", "--quiet", "-C", "feature")
     bump_skill(repository, "own", "1.9.9")
@@ -169,6 +176,7 @@ def test_a_change_behind_a_link_inside_the_repository_counts(repository):
     write(repository / ".metrics" / "tools" / "run", "#!/bin/sh\n")
     os.symlink("../../../.metrics/tools", repository / ".agents" / "skills" / "solo" / "tools")
     bump_skill(repository, "solo", "1.1.0")
+    write_marketplace(repository)
     run(repository)
     git(repository, "switch", "--quiet", "master")
     git(repository, "merge", "--quiet", "--ff-only", "feature")
@@ -179,6 +187,31 @@ def test_a_change_behind_a_link_inside_the_repository_counts(repository):
 
     # Then the skill that ships it has to raise its version
     assert [p.split(":")[0] for p in run(repository)[0]] == ["solo"]
+
+
+def test_a_base_whose_map_breaks_a_rule_the_head_added_is_still_compared(repository, monkeypatch):
+    # Given a base whose committed map the head's rules would refuse, here one with no hooks-all bundle
+    git(repository, "switch", "--quiet", "master")
+    edit_map(repository, "  - {name: hooks-all, version: 1.0.0, category: bundle, description: Hooks., dependencies: [hook-gate]}\n", "")
+    git(repository, "commit", "--quiet", "-am", "a map from before hooks-all")
+    git(repository, "switch", "--quiet", "-C", "feature")
+    edit_map(repository, "  - {name: mcp-all,", "  - {name: hooks-all, version: 1.0.0, category: bundle, description: Hooks., dependencies: [hook-gate]}\n  - {name: mcp-all,")
+
+    # When a skill changes without a raise
+    append(repository / ".agents" / "skills" / "solo" / "SKILL.md", "More.\n")
+
+    # Then the base is read from its committed marketplace, not rendered by the head's rules, and the change is caught
+    assert [p.split(":")[0] for p in run(repository)[0]] == ["solo"]
+
+
+def test_a_base_with_a_broken_marketplace_is_an_error(repository):
+    git(repository, "switch", "--quiet", "master")
+    (repository / ".claude-plugin" / "marketplace.json").write_text("{not json", encoding="utf-8")
+    git(repository, "commit", "--quiet", "-am", "break it")
+    git(repository, "switch", "--quiet", "-C", "feature")
+
+    with pytest.raises(guard.VersionCheckError, match="marketplace.json"):
+        run(repository)
 
 
 def test_a_base_with_no_plugin_catalog_counts_every_plugin_as_new(tmp_path):
@@ -197,7 +230,7 @@ def test_a_base_with_no_plugin_catalog_counts_every_plugin_as_new(tmp_path):
     _commit, base, head, note = guard.compare(root, "master")
 
     # Then
-    assert base == {} and "no readable plugin catalog" in note
+    assert base == {} and "no committed .claude-plugin/marketplace.json" in note
     assert guard.problems(base, head) == []
 
 
@@ -225,3 +258,48 @@ def test_an_unknown_base_exits_2(repository, monkeypatch, capsys):
 
     assert guard.main(["--base", "no-such-branch"]) == 2
     assert "merge-base" in capsys.readouterr().err
+
+
+def test_a_base_with_a_map_but_no_committed_marketplace_counts_every_plugin_as_new(repository):
+    # Given the first pull request: the base holds an older plugin map and no marketplace yet
+    git(repository, "switch", "--quiet", "master")
+    git(repository, "rm", "--quiet", "-r", ".claude-plugin")
+    git(repository, "commit", "--quiet", "-m", "no marketplace yet")
+    git(repository, "switch", "--quiet", "-C", "feature")
+    append(repository / ".agents" / "skills" / "solo" / "SKILL.md", "More.\n")
+
+    found, _head = run(repository)
+    _commit, base, _head, note = guard.compare(repository, "master")
+
+    assert found == [] and base == {} and "no committed" in note
+
+
+def test_a_submodule_is_left_out_of_the_working_tree_copy(tmp_path):
+    # Given a tracked gitlink whose folder holds a repository of its own
+    root = tmp_path / "repo"
+    write(root / "file.txt", "x\n")
+    git(tmp_path, "init", "--quiet", str(root))
+    sub = root / "sub"
+    git(tmp_path, "init", "--quiet", str(sub))
+    write(sub / "inner.txt", "y\n")
+    git(sub, "add", "--all")
+    git(sub, "commit", "--quiet", "-m", "inner")
+    git(root, "add", "file.txt")
+    git(root, "update-index", "--add", "--cacheinfo", f"160000,{subprocess.run(['git', '-C', str(sub), 'rev-parse', 'HEAD'], capture_output=True, text=True, check=True).stdout.strip()},sub")
+
+    # When
+    target = tmp_path / "copy"
+    guard.copy_tracked(root, target)
+
+    # Then
+    assert sorted(p.relative_to(target).as_posix() for p in target.rglob("*")) == ["file.txt"]
+
+
+def test_a_link_loop_inside_a_plugin_folder_is_read_once(tmp_path):
+    folder = tmp_path / ".agents" / "skills" / "solo"
+    write(folder / "SKILL.md", "x\n")
+    os.symlink(".", folder / "loop")
+
+    files = [relative for relative, _file in guard.shipped_files(tmp_path, pathlib.PurePosixPath(".agents/skills/solo"))]
+
+    assert files == [".agents/skills/solo/SKILL.md"]
