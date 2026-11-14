@@ -1,5 +1,18 @@
 # Verification is a discipline, not a result
 
+Contents:
+
+- [A zero-violation DRC proves only that the enabled rules found nothing](#a-zero-violation-drc-proves-only-that-the-enabled-rules-found-nothing)
+- [A check that skips what it cannot parse looks identical to a pass](#a-check-that-skips-what-it-cannot-parse-looks-identical-to-a-pass)
+- [A check nobody has seen fail is not yet a check](#a-check-nobody-has-seen-fail-is-not-yet-a-check)
+- [Design-time arithmetic has to be re-measured on the filled board](#design-time-arithmetic-has-to-be-re-measured-on-the-filled-board)
+- [A threshold nobody can trace back to a reason is itself a defect](#a-threshold-nobody-can-trace-back-to-a-reason-is-itself-a-defect)
+- [Making a warning impossible is the same as suppressing it](#making-a-warning-impossible-is-the-same-as-suppressing-it)
+- [An acceptance step has to ask the gate's own question](#an-acceptance-step-has-to-ask-the-gates-own-question)
+- [Renaming something breaks every script that matches on its old name](#renaming-something-breaks-every-script-that-matches-on-its-old-name)
+- [When two checks disagree, settle it with a primary source](#when-two-checks-disagree-settle-it-with-a-primary-source)
+- [Read the whole output before forming a hypothesis](#read-the-whole-output-before-forming-a-hypothesis)
+
 Why a clean DRC report is not the same as a clean board, and what to do about it. The layout and export rules live
 in [SKILL.md](../SKILL.md).
 
@@ -76,3 +89,33 @@ check gets ignored rather than fixed.
 
 Give every enforced number a traceable origin and record that origin next to the check itself, in the rule comment
 or the netclass description, not only in whoever's memory set it.
+
+---
+
+### Making a warning impossible is the same as suppressing it
+
+Hiding every reference designator to zero out the silkscreen warnings, shrinking a courtyard until an overlap stops reporting, or adding an exclusion for each finding all leave the defect on the board and remove the only thing that reported it. Fix the placement or the geometry. If a finding is genuinely unfixable, record it in the project's register of accepted deviations with the reason, and leave the check able to fire.
+
+---
+
+### An acceptance step has to ask the gate's own question
+
+When an early step judges a candidate, such as a router attempt or a scripted placement, it must ask the same question the final gate asks, with the same threshold. One project's router wrapper asked whether a scripted connection could be placed at all, while the gate asked whether it landed close enough to count. Routes were accepted early and rejected several steps later. Run the gate's own check script, read-only, against the candidate, so the two standards cannot drift apart.
+
+---
+
+### Renaming something breaks every script that matches on its old name
+
+After changing how anything is named, whether a footprint gaining a library prefix, a net renamed, or a reference designator changed, search the whole source tree for every script that matches on that name, not only the one the change was aimed at. A pattern anchored to the start of a bare footprint name stopped matching once the name gained a prefix, and the script that split a large solder-paste opening processed zero parts with nothing loud in its output. A count of items examined, as in the section above on checks that skip what they cannot parse, is what makes this visible.
+
+---
+
+### When two checks disagree, settle it with a primary source
+
+Two checks that contradict each other cannot both be right, and the one that flags more is not the stricter one by default. Read the manufacturer's datasheet, the standard, or the assembler's own published guidance, and test each check's underlying assumption against it. Then prove the fix with a deliberately broken case, a synthetic one if the real board no longer reproduces the defect.
+
+---
+
+### Read the whole output before forming a hypothesis
+
+A gate that keeps only a script's standard output, or only its last line, records a failure logged to standard error under a 0 exit code as a silent pass. The same habit misleads a person. On one project two wrong causes for a routing failure were proposed and tested while the router's own log already showed the real one. Read every tool's full output, on both streams, before deciding what it means.

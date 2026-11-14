@@ -1,8 +1,8 @@
 ---
 name: kicad
-description: 'KiCad board design standards for board setup and custom DRC rules, IPC-2221 trace sizing, decoupling and placement, ground pours, ERC, BOM fields, Gerber export and Git handling of project files. Use when the user says "route this board", "check my DRC", "export gerbers for JLCPCB" or "generate a BOM with LCSC part numbers". Not for the firmware that runs on the board, use `embedded-c-arduino`.'
+description: 'KiCad board design standards for board setup and custom DRC rules, IPC-2221 trace sizing, decoupling, ground pours, ERC, BOM, Gerber export, Git, pcbnew scripting, freerouting and assembly orders. Use when the user says "route this board", "check my DRC", "export gerbers for JLCPCB" or "generate a BOM with LCSC part numbers". Not for the firmware that runs on the board, use `embedded-c-arduino`.'
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # KiCad PCB Design Standards
@@ -22,6 +22,7 @@ Written for KiCad 10. Custom design rules in `.kicad_dru` and the `kicad-cli` co
 - Running ERC or DRC, or interpreting a clean report.
 - Creating or verifying footprints and 3D models.
 - Generating a BOM, Gerbers, or drill files for fabrication.
+- Writing a `pcbnew` script, running freerouting, or placing an assembly order.
 - Deciding what of a KiCad project goes into Git and how a release is tagged.
 - The user says "write a kicad_dru rule for mains clearance".
 
@@ -42,9 +43,10 @@ Written for KiCad 10. Custom design rules in `.kicad_dru` and the `kicad-cli` co
 | Open this | For |
 |---|---|
 | [references/layout.md](references/layout.md) | The `.kicad_dru` example, IPC-2221 sizing, decoupling, pours and thermal reliefs, footprints, schematic sheets, with pass and fail cases |
-| [references/fabrication-and-release.md](references/fabrication-and-release.md) | The BOM field table and export command, the Gerber layer table and export commands, Git and release tagging |
+| [references/fabrication-and-release.md](references/fabrication-and-release.md) | BOM and Gerber export, fabrication limits, the export plugin pin, the IPC-D-356 netlist, rotation, assembly ordering and stock, Git and release tagging |
 | [references/signal-integrity.md](references/signal-integrity.md) | Deriving a skew budget for a differential pair, target impedances, and length tuning |
 | [references/verification-discipline.md](references/verification-discipline.md) | Deciding whether a clean DRC or a passing check script actually proves anything |
+| [references/automation-toolchain.md](references/automation-toolchain.md) | The `pcbnew` interpreter and its traps, `kicad-cli` pipelines, running freerouting safely, renders |
 
 ---
 
@@ -63,6 +65,10 @@ Written for KiCad 10. Custom design rules in `.kicad_dru` and the `kicad-cli` co
 11. Export every layer the board uses plus separate PTH and NPTH Excellon drill files, run DRC again, and open the output in gerbv or KiCad's Gerber Viewer before it goes to the fab.
 12. Commit the KiCad text files, disable "Save with full paths", and track `.step`, `.wrl`, renders and fab PDFs with Git LFS.
 13. Tag `fab/vX.Y` when Gerbers are sent, never rewrite a tag after ordering, and put the same revision in the PCB title block.
+14. Run `pcbnew` only on the pinned KiCad's own interpreter, checking its build first. Never open the project in a newer major version.
+15. Judge a route by DRC on a throwaway copy, never by the router's exit code or summary. No hand-drawn copper, only committed pre-route scripts.
+16. Pin the export plugin to one release, verified by hash. Check IPC-D-356 net names after truncation and two-pad lands against their size class.
+17. At order time read assembly stock, not retail. Low stock means wait, never swap. Undersized boards get edge rails, so request depanelling.
 
 ---
 
@@ -90,3 +96,6 @@ Written for KiCad 10. Custom design rules in `.kicad_dru` and the `kicad-cli` co
 - [ ] BOM generated from the schematic with all required fields, committed under `docs/bom/`.
 - [ ] Every needed layer plus separate PTH and NPTH drill files exported and opened in an independent viewer.
 - [ ] Release tagged `fab/vX.Y`, title block revision matching, tag never rewritten after ordering.
+- [ ] `pcbnew` build confirmed, route accepted by DRC on a copy, renders refused while any 3D model was missing.
+- [ ] Export plugin hashes match the pin, IPC-D-356 names unique, rotations checked against the assembler's preview.
+- [ ] Assembly stock read on the order day, through-hole and depanel options set where the board needs them.
