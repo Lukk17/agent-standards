@@ -7,6 +7,7 @@ Contents:
 - [Placement and decoupling](#placement-and-decoupling)
 - [Ground pours and thermal reliefs](#ground-pours-and-thermal-reliefs)
 - [Footprints, libraries, and 3D models](#footprints-libraries-and-3d-models)
+- [Two-pad chip lands](#two-pad-chip-lands)
 - [Hierarchical schematics and ERC](#hierarchical-schematics-and-erc)
 
 Companion reference for the [kicad](../SKILL.md) skill. Load it for the reasoning, the `.kicad_dru` example and the pass and fail cases behind board setup, trace sizing, placement and decoupling, ground pours and thermal reliefs, footprints, and hierarchical schematics.
@@ -141,6 +142,28 @@ Fail:
 
 ```text
 Footprint edited in place inside the shared KiCad system library.
+```
+
+---
+
+### Two-pad chip lands
+
+A footprint check that compares the board's row of pads against the supplier's drawing, by lead pitch, finds no row on a resistor, capacitor, inductor or small diode with two pads. It can then record the part as checked and compare nothing. On one project, two pads moved far enough apart to make an 0603 land into a 1206 land still passed. A part on the wrong land solders badly or tombstones, standing up on one end during reflow.
+
+Check two-pad parts with their own rule. Measure the pad gap, pad length, pad width and outer span on the board's copper, and compare them with the land KiCad's footprint generator produces for the part's size class (0402, 0603, 0805 and so on), within plus or minus 0.05 mm, which is half the generator's own 0.1 mm fabrication tolerance. Then confirm the part's nominal body length and width, read from its own datasheet, fall inside that size class, so an 0805 body declared as 0603 fails. Where the maker publishes a land for a package with no size class, such as SMA and SMB diodes or a power inductor, compare against that land instead. A part whose body size nobody has recorded fails by name rather than passing on nothing.
+
+Two tempting alternatives failed in practice. Computing an IPC-7351B land from each maker's own body dimensions rejected nearly every stock KiCad footprint by a few hundredths of a millimetre, because the chip heel goal is zero at every density level, so the computed gap is a single value with no tolerance at all. A check that fails good boards that often gets ignored. A loose window picked from a few makers' tables has no traceable origin, which [verification-discipline.md](verification-discipline.md#a-threshold-nobody-can-trace-back-to-a-reason-is-itself-a-defect) already counts as a defect.
+
+Pass:
+
+```text
+C3 0603: gap, length, width and outer span within 0.05 mm of the generator's 0603 land. Body 1.6 x 0.8 mm, inside the 0603 class.
+```
+
+Fail:
+
+```text
+Lead-pitch check: 0 two-pad parts compared, N recorded as declared. OVERALL: PASS.
 ```
 
 ---
