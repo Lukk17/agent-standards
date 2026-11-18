@@ -36,7 +36,7 @@ Full file paths, never labels.
 
 Each full path goes on its own line inside its own fenced block, never inline.
 
-One command per code block.
+One command per code block. Anything the user must copy, such as a prompt, a command, a comment or a message, goes in one code block, never in a quote block, with each paragraph on one unbroken line. Any other code block holds only one short command or a few short lines of config, each line under about 60 characters.
 
 Each command goes in its own fenced block, one per block.
 
