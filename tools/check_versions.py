@@ -15,6 +15,7 @@ and compares each plugin present in both:
 
 - what it ships changed and its version is not strictly higher: fail;
 - its version went down: fail;
+- a skill it preloads changed and its own version is not strictly higher: fail;
 - anything else, including a plugin the base does not have: pass.
 
 The base is read rather than rendered, so a rule the head adds to the plugin
@@ -63,10 +64,11 @@ class VersionCheckError(Exception):
 
 @dataclass(frozen=True, slots=True)
 class Shipped:
-    """One plugin as the check compares it: its version and a digest of everything it ships."""
+    """One plugin as the check compares it: its version, a digest of everything it ships, and the skills a subagent preloads."""
 
     version: str
     digest: str
+    preloads: tuple[str, ...] = ()
 
 
 def version_key(version: str) -> tuple[int, int, int]:
@@ -168,9 +170,17 @@ def digest(root: pathlib.Path, entry: dict[str, object]) -> str:
     return hasher.hexdigest()
 
 
+def preloads(entry: dict[str, object]) -> tuple[str, ...]:
+    """The skills a subagent entry preloads, which it lists as its dependencies, and none for any other entry."""
+    dependencies = entry.get("dependencies")
+    if entry.get("category") != gen_plugins.AGENT_CATEGORY or not isinstance(dependencies, list):
+        return ()
+    return tuple(str(skill) for skill in dependencies)
+
+
 def shipped(root: pathlib.Path, document: dict) -> dict[str, Shipped]:
     """Every plugin of a marketplace document, by name, with what it ships under root."""
-    return {str(entry["name"]): Shipped(str(entry["version"]), digest(root, entry)) for entry in document["plugins"]}
+    return {str(entry["name"]): Shipped(str(entry["version"]), digest(root, entry), preloads(entry)) for entry in document["plugins"]}
 
 
 def catalog(root: pathlib.Path) -> dict[str, Shipped]:
@@ -229,6 +239,23 @@ def problems(base: dict[str, Shipped], head: dict[str, Shipped], tags: frozenset
             found.append(f"{name}: version {now.version} is lower than {before.version} on the base")
         elif now.digest != before.digest and version_key(now.version) <= version_key(before.version):
             found.append(f"{name}: changed since the base but still at {now.version}, raise it (patch for a fix, minor for new behaviour, major for a breaking change)")
+    found.extend(unraised_preloads(base, head))
+    return found
+
+
+def unraised_preloads(base: dict[str, Shipped], head: dict[str, Shipped]) -> list[str]:
+    """Every subagent that preloads a skill changed since the base and kept its version, once per skill."""
+    changed = {
+        name for name, now in head.items()
+        if name in base and now.digest != base[name].digest and version_key(now.version) >= version_key(base[name].version)
+    }
+    found: list[str] = []
+    for name, now in sorted(head.items()):
+        before = base.get(name)
+        if before is None or version_key(now.version) != version_key(before.version):
+            continue
+        for skill in sorted(changed.intersection(now.preloads)):
+            found.append(f"{name}: preloads the skill {skill}, which changed since the base, but is still at {now.version}, raise it (a change to a skill counts as a change to every subagent that preloads it)")
     return found
 
 
