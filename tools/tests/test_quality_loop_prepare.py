@@ -175,7 +175,8 @@ def test_without_npm_the_user_is_told_and_nothing_runs(tmp_path, monkeypatch):
     assert said == ["npm is not on PATH, so the TypeScript and JavaScript tests cannot run."]
 
 
-def test_on_windows_the_vitest_provider_is_installed_and_the_manifests_restored(tmp_path, monkeypatch):
+@pytest.mark.parametrize("host", [POSIX, WINDOWS])
+def test_the_vitest_provider_is_installed_against_the_lockfile_and_the_manifests_restored(tmp_path, monkeypatch, host):
     manifest = json.dumps({"scripts": {"test": "vitest run"}})
     write(tmp_path, "package.json", manifest)
     write(tmp_path, "node_modules/vitest/package.json", json.dumps({"version": "5.1.0"}))
@@ -188,9 +189,9 @@ def test_on_windows_the_vitest_provider_is_installed_and_the_manifests_restored(
 
     runner = RecordingRunner(respond=npm_rewrites_the_manifest)
 
-    prepare.ensure_vitest_provider(tmp_path, WINDOWS, runner, lambda _m: None)
+    prepare.ensure_vitest_provider(tmp_path, host, runner, lambda _m: None)
 
-    assert runner.commands == [["C:/node/npm.cmd", "install", "--no-save", "--no-package-lock", "@vitest/coverage-v8@5.1.0"]]
+    assert runner.commands == [["C:/node/npm.cmd", "install", "--no-save", "@vitest/coverage-v8@5.1.0"]]
     assert (tmp_path / "package.json").read_text(encoding="utf-8") == manifest
     assert not (tmp_path / "package-lock.json").exists()
 
@@ -220,8 +221,10 @@ def test_a_manifest_npm_deletes_is_written_back(tmp_path, monkeypatch):
     assert (tmp_path / "package.json").read_text(encoding="utf-8") == manifest
 
 
-def test_on_posix_crapper_installs_the_vitest_provider_itself(tmp_path):
+def test_an_installed_vitest_provider_is_not_installed_again(tmp_path, monkeypatch):
     write(tmp_path, "package.json", json.dumps({"scripts": {"test": "vitest run"}}))
+    write(tmp_path, "node_modules/@vitest/coverage-v8/package.json", json.dumps({"version": "5.1.0"}))
+    monkeypatch.setattr(prepare.Host, "which", lambda _self, name: f"/usr/bin/{name}")
     runner = RecordingRunner()
 
     prepare.ensure_vitest_provider(tmp_path, POSIX, runner, lambda _m: None)

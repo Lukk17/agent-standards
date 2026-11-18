@@ -833,7 +833,7 @@
       "name": "agent-quality-loop",
       "source": "./.claude/agents/quality-loop",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"clean up this code\", \"run the quality loop\" or \"measure CRAP and mutants\", and after a feature before review. Runs Robert C. Martin's crapper, dryer and mutator through the project wrapper, fixes the worst scores in code and tests, measures again for up to three rounds, and reports before and after. Not for writing the tests of a new feature, use `test-automator`.",
       "category": "agent",
       "agents": [
@@ -1365,7 +1365,7 @@
     {
       "name": "quality-loop",
       "source": "./.agents/skills/quality-loop",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "The measure-and-fix loop for agent-written code, after Robert C. Martin: CRAP scores from crapper, duplicate pairs from dryer and surviving mutants from mutator, fixed worst first until clean or three rounds. Use when the user says \"clean up this code\", \"run the quality loop\", \"measure the CRAP scores\" or \"find surviving mutants\". Not for writing the tests of a new feature, use `tdd-workflow`.",
       "category": "skill"
     },
