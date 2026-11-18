@@ -202,12 +202,12 @@ bundles:
     skills: [deployment-patterns, docker-patterns, ansible]
 
   - name: review-and-security
-    version: 1.0.0
+    version: 1.1.0
     category: development
-    description: Code review, security audit, codebase mapping and legacy migration, with four subagents and the review and duplication skills.
+    description: Code review, security audit, codebase mapping and legacy migration, with four subagents and the review, review comment and duplication skills.
     dependencies: [core]
     agents: [code-reviewer, security-auditor, code-archaeologist, legacy-modernizer]
-    skills: [code-reviewer, review-duplication]
+    skills: [code-reviewer, review-comments, review-duplication]
 
   - name: testing
     version: 1.0.0

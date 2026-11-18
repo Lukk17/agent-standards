@@ -135,6 +135,12 @@ Check that every skill a skill file names has a folder under `.agents/skills`:
 python tools/check-skill-mentions.py
 ```
 
+Check that every wording listed in `tools/shared-wording.yaml` is still word for word the same in every file that holds a copy:
+
+```bash
+python tools/check-shared-wording.py
+```
+
 Check that every JSON configuration and hook file parses:
 
 ```bash
@@ -212,6 +218,8 @@ The markdown linter fails on the dated and "current version" forms, on a real 40
 If the skill is human-facing prose, follow the [markdown-writer](.agents/skills/markdown-writer/SKILL.md) rules
 (em-dash ban, no hard wrap, divider per section, link every file/folder mention). If the skill is machine-facing
 reference for a tool or stack, the voice rules relax, so just stay consistent with the existing skills in that genre.
+
+No skill may need another skill to work. A skill names its neighbours under "Related skills" and hands a job over to them, but every rule it states holds with only its own folder installed, because a consumer can delete any skill it does not use. Wording two skills must both carry is copied word for word into each and registered in [tools/shared-wording.yaml](tools/shared-wording.yaml), and `python tools/check-shared-wording.py` fails when the copies drift apart.
 
 Renaming or deleting a skill is not a local change. Every canonical subagent that lists it has to be updated in the
 same commit, because [tools/gen_subagents.py](tools/gen_subagents.py) exits with an error naming any skill that has

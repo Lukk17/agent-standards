@@ -8,10 +8,13 @@ Contents:
 - [Name branches by type and subject](#name-branches-by-type-and-subject)
 - [Delete a branch once it has merged](#delete-a-branch-once-it-has-merged)
 - [Put what, why, how and testing in every pull request](#put-what-why-how-and-testing-in-every-pull-request)
+- [Write the description short and human](#write-the-description-short-and-human)
+- [Drafts and posting](#drafts-and-posting)
 - [Prevent conflicts rather than resolving them](#prevent-conflicts-rather-than-resolving-them)
 - [Stage only what you changed](#stage-only-what-you-changed)
 - [Never rewrite public history, and never push unasked](#never-rewrite-public-history-and-never-push-unasked)
 - [Release management lives in github-ops](#release-management-lives-in-github-ops)
+- [Anti-patterns](#anti-patterns)
 
 Companion reference for the [git-workflow](../SKILL.md) skill. Load it for the reasoning and the pass and fail examples behind each rule: the branching strategy, commit messages, merge versus rebase, branch names and cleanup, pull request content, conflict prevention, staging, public history, and where releases live.
 
@@ -154,6 +157,47 @@ The full description template, the reviewer checklist and the review turnaround 
 
 ---
 
+### Write the description short and human
+
+A description is read by a person deciding whether to review now. Keep it short, make sure it does not read as written by an AI, and link the related open issues. Name no commit hash and do not walk through many files, because the commit list and the diff already show both. An integration pull request lists the other pull requests it contains, and not the commits added without a pull request.
+
+Pass:
+
+```text
+Cancel an order from the order detail page, because support cancels by hand in the database today. Closes #482, related to #470.
+Testing: unit tests on the guard, integration test on the endpoint.
+```
+
+Fail:
+
+```text
+This comprehensive PR introduces a robust cancellation flow. Changes in 3f9c2ab:
+- OrderController.java: added endpoint
+- OrderService.java: added guard
+- OrderRepository.java: added query
+- order-detail.component.ts: added button
+```
+
+Pass, for an integration pull request:
+
+```text
+Release integration for the sprint. Contains #501, #503 and #507.
+```
+
+Fail, for an integration pull request:
+
+```text
+Contains #501, #503, plus commits a1b2c3d and e4f5a6b that went straight to the branch.
+```
+
+---
+
+### Drafts and posting
+
+Every description draft is printed in full in the chat, numbered, so the user can approve or change it by its number, and never stored in a file, because a file outlives the session and reads as project truth. Nothing is posted until the user approves it. The description carries no trace of an agent or tool, no commit hash, no placeholder such as `#XXX`, and no em dash, en dash, semicolon joining two clauses, bold or italic.
+
+---
+
 ### Prevent conflicts rather than resolving them
 
 Most conflicts come from a branch living too long next to a file everybody edits. Keep branches small and short,
@@ -222,3 +266,19 @@ git rebase -i origin/main
 Semantic versioning, tagging, changelog generation and publishing a release are one procedure, and it lives in
 `github-ops` so there is a single place that owns it. Come back here only for the branch and commit conventions the
 release process reads from.
+
+---
+
+### Anti-patterns
+
+| Anti-pattern | Cost | Do instead |
+|---|---|---|
+| Committing straight to the protected branch | No review, no CI gate before the main line moves | Branch, review, merge |
+| Committing a secret | Rotation plus a history rewrite across every clone | Ignore the file, read from the environment |
+| A pull request over a thousand lines | Review degrades to a skim | Split into focused changes |
+| A commit message that says update | The history stops answering why anything happened | Conventional commits with a body |
+| Rewriting a public branch | Everyone who pulled has to repair by hand | Revert on a public branch |
+| A feature branch alive for weeks | Conflicts compound and integration is deferred | Short branches plus a feature flag |
+| Committing generated output a consumer can rebuild | Every regeneration is a diff nobody can review | Ignore the artifact, build it |
+| Committing an agent's review findings or scratch notes | A stale document that reads as project truth | Keep it out of the tree, or in the scratch folder the agent was given |
+| A committed lock file or generated type file with no `linguist-generated` mark | Every bump buries the real diff under thousands of lines | Mark it in `.gitattributes` |

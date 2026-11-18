@@ -153,8 +153,8 @@
     {
       "name": "review-and-security",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
-      "description": "Code review, security audit, codebase mapping and legacy migration, with four subagents and the review and duplication skills.",
+      "version": "1.1.0",
+      "description": "Code review, security audit, codebase mapping and legacy migration, with four subagents and the review, review comment and duplication skills.",
       "category": "development",
       "dependencies": [
         "core",
@@ -163,6 +163,7 @@
         "agent-code-archaeologist",
         "agent-legacy-modernizer",
         "code-reviewer",
+        "review-comments",
         "review-duplication"
       ]
     },
@@ -482,7 +483,7 @@
       "name": "agent-code-reviewer",
       "source": "./.claude/agents/code-reviewer",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Use when the user says \"review my changes\", \"review PR #123\" or \"is this ready to merge\", and after any code change before it merges. Runs a severity-tagged review across correctness, security, performance, architecture and tests, read-only, and reports every finding with a file and line citation. Not for a threat model or a full security assessment, use `security-auditor`.",
       "category": "agent",
       "agents": [
@@ -492,7 +493,8 @@
         "code-reviewer",
         "application-security-review",
         "coding-standards",
-        "review-duplication"
+        "review-duplication",
+        "review-comments"
       ]
     },
     {
@@ -797,7 +799,7 @@
       "name": "agent-project-manager",
       "source": "./.claude/agents/project-manager",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"write a ticket for this\", \"split this epic\", \"add acceptance criteria\" or \"reconcile the board with the repo\". Turns a vague ask into tracked items with testable acceptance criteria, triages a backlog, and checks a Jira board or a GitHub milestone against what the repository contains, never touching product code. Not for cutting a release, use `release-manager`.",
       "category": "agent",
       "agents": [
@@ -865,7 +867,7 @@
       "name": "agent-release-manager",
       "source": "./.claude/agents/release-manager",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"cut a release\", \"write the release notes\", \"what version is next\" or \"are we ready to tag\". Chooses the version, assembles notes from merged pull requests, checks the dependency and deployment gates, prepares the tag and records what shipped, never pushing or tagging without per-action approval. Not for the pipeline itself, use `devops-automator`.",
       "category": "agent",
       "agents": [
@@ -884,7 +886,7 @@
       "name": "agent-security-auditor",
       "source": "./.claude/agents/security-auditor",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"threat model this\", \"is this auth flow safe\" or \"run a security assessment\", and before any auth, payment or sensitive-data change ships. Covers STRIDE and attack trees, secure coding on backend and frontend, and compliance gap analysis, read-only, returning findings and remediation guidance. Not for a general review of a change, use `code-reviewer`.",
       "category": "agent",
       "agents": [
@@ -1090,7 +1092,7 @@
     {
       "name": "code-reviewer",
       "source": "./.agents/skills/code-reviewer",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Structured review of local changes or a remote pull request across correctness, maintainability, doc comments, efficiency, security, error handling and tests, with every finding led by a path:line reference. Use when the user says \"review my changes\", \"review PR #123\", or \"is this branch ready to merge\". Not for hunting duplicated or reinvented code, use `review-duplication`.",
       "category": "skill"
     },
@@ -1174,14 +1176,14 @@
     {
       "name": "git-workflow",
       "source": "./.agents/skills/git-workflow",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Git practice for a team: branching strategy, conventional commits, merge versus rebase, branch naming and cleanup, pull request content, conflicts, and line endings, symlinks and case across systems. Use when the user says \"what should I name this branch\", \"write the commit message\", \"merge or rebase here\" or \"set up .gitattributes\". Not for issues and releases on the host, use `github-ops`.",
       "category": "skill"
     },
     {
       "name": "github-ops",
       "source": "./.agents/skills/github-ops",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Operating a GitHub repository with the gh CLI: issue triage, pull request and stale-item management, CI failure investigation, release preparation and security alerts, read-only by default. Use when the user says \"triage these issues\", \"which PRs are ready to merge\", \"CI is red, find out why\" or \"prepare the next release\". Not for local branching and commits, use `git-workflow`.",
       "category": "skill"
     },
@@ -1379,6 +1381,13 @@
       "source": "./.agents/skills/research",
       "version": "1.0.0",
       "description": "How an agent researches a question the repository cannot answer: source order from Context7 to the web, quoting the deciding sentence, measuring instead of reading, labelling each claim, and like-for-like comparisons. Use when the user says \"look this up\", \"does tool Y support Z\", \"compare these options\" or \"is this a known bug\". Not for a page that blocks a normal fetch, use `ascend-web-hunter`.",
+      "category": "skill"
+    },
+    {
+      "name": "review-comments",
+      "source": "./.agents/skills/review-comments",
+      "version": "1.0.0",
+      "description": "Wording of review comments left on other people's pull requests and of replies to review comments on our own, how every draft is shown and posted, and how other people's comments are laid out in chat. Use when the user says \"draft review comments for PR #123\", \"reply to the review on my PR\" or \"go through the comments on my pull request\". Not for pull request descriptions, use `git-workflow`.",
       "category": "skill"
     },
     {

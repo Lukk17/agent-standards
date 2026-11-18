@@ -87,6 +87,9 @@ jobs:
       - name: Check every skill a skill file names has a folder
         run: python tools/check-skill-mentions.py
 
+      - name: Check every shared wording is word for word the same in each file
+        run: python tools/check-shared-wording.py
+
       - name: Run the hook and tooling test suite
         working-directory: tools
         run: python -m pytest
