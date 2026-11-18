@@ -134,7 +134,8 @@ Structure the report the same way every time.
 - Conclusion. Approved, or request changes, with the specific blockers named.
 
 Be constructive and specific. Explain why a change is requested, and on an approval name the thing the contribution
-actually got right rather than a generic compliment.
+actually got right rather than a generic compliment, in the report to the user only. An approval posted on the pull
+request carries no praise and states the build result, as the `review-comments` skill words it.
 
 For a remote pull request reviewed in a worktree, ask the user at the end whether to remove it with
 `git worktree remove`.

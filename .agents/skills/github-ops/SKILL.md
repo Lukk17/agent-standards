@@ -2,7 +2,7 @@
 name: github-ops
 description: 'Operating a GitHub repository with the gh CLI: issue triage, pull request and stale-item management, CI failure investigation, release preparation and security alerts, read-only by default. Use when the user says "triage these issues", "which PRs are ready to merge", "CI is red, find out why" or "prepare the next release". Not for local branching and commits, use `git-workflow`.'
 metadata:
-  version: "1.0.0"
+  version: "1.0.1"
 ---
 
 # GitHub Operations
@@ -32,6 +32,7 @@ state or dispatches CI waits for the user to approve it.
 - Deciding whether a work item should exist and how it should be written, use `project-tracking`
 - Reading or writing tickets in Jira rather than GitHub issues, use `jira-integration`
 - Reviewing the content of a diff for correctness, use `code-reviewer`
+- Wording a review comment, a reply to one or an approval, use `review-comments`
 - Designing the pipeline the workflow runs, use `deployment-patterns`
 - Surveying every automation surface in the project, not just this one, use `automation-inventory`
 
@@ -72,6 +73,7 @@ stop.
 - `project-tracking` owns whether a work item should exist, how it is sized and what its acceptance criteria are
 - `jira-integration` owns the same operational work when the tracker is Jira rather than GitHub issues
 - `code-reviewer` owns the correctness review of a pull request diff
+- `review-comments` owns the wording of review comments, replies and approvals posted on a pull request
 - `deployment-patterns` owns designing the pipeline that a workflow run executes
 - `automation-inventory` owns surveying every automation surface, of which CI is one
 

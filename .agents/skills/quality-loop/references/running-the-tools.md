@@ -64,7 +64,8 @@ It also readies the project without asking:
 - a `.venv` beside a Python project that has none, with the project's requirements and the pinned `coverage` and `pytest`, because mutator otherwise runs the tests with its own interpreter, and a line for it in the root `.gitignore`, such as `.venv/` or `services/api/.venv/`, unless the project already ignores it
 - `npm ci`, or `npm install` without a lockfile, when `node_modules` is missing
 - for Gradle, a JaCoCo report block appended once to `build.gradle` or `build.gradle.kts`, which writes the XML where crapper and mutator read it. Commit that change on its own
-- the coverage tool a language needs, such as coverage.py, the Vitest coverage provider or cargo-llvm-cov, which crapper installs itself
+- `@vitest/coverage-v8` at the project's Vitest version, when the tests run on Vitest and the project has no `coverage` script, installed with `npm install --no-save` against the project's lockfile, with `package.json` and the lockfile restored afterward
+- the coverage tool another language needs, such as coverage.py or cargo-llvm-cov, which crapper installs itself
 
 ---
 

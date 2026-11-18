@@ -53,6 +53,11 @@ def bump_skill(root: pathlib.Path, name: str, version: str) -> None:
     path.write_text(re.sub(r'version: "[0-9.]+"', f'version: "{version}"', path.read_text(encoding="utf-8")), encoding="utf-8")
 
 
+def bump_agent(root: pathlib.Path, name: str, version: str) -> None:
+    path = root / "subagents" / f"{name}.md"
+    path.write_text(re.sub(r"^version: [0-9.]+$", f"version: {version}", path.read_text(encoding="utf-8"), count=1, flags=re.MULTILINE), encoding="utf-8")
+
+
 def append(path: pathlib.Path, text: str) -> None:
     path.write_text(path.read_text(encoding="utf-8") + text, encoding="utf-8")
 
@@ -66,6 +71,7 @@ def test_an_unchanged_branch_passes(repository):
 
 def test_a_changed_skill_that_kept_its_version_fails_by_name(repository):
     append(repository / ".agents" / "skills" / "solo" / "SKILL.md", "More.\n")
+    bump_agent(repository, "front", "1.0.1")
 
     found, _ = run(repository)
 
@@ -75,12 +81,14 @@ def test_a_changed_skill_that_kept_its_version_fails_by_name(repository):
 def test_a_changed_skill_that_raised_its_version_passes(repository):
     append(repository / ".agents" / "skills" / "solo" / "SKILL.md", "More.\n")
     bump_skill(repository, "solo", "1.0.1")
+    bump_agent(repository, "front", "1.0.1")
 
     assert run(repository)[0] == []
 
 
 def test_a_new_reference_file_in_a_skill_counts_as_a_change(repository):
     write(repository / ".agents" / "skills" / "own" / "references" / "deep.md", "# Deep\n")
+    bump_agent(repository, "pro", "1.0.1")
 
     assert [p.split(":")[0] for p in run(repository)[0]] == ["own"]
 
@@ -167,6 +175,7 @@ def test_a_lowered_version_fails_even_with_no_change(repository):
 
 def test_an_uncommitted_change_counts(repository):
     append(repository / ".agents" / "skills" / "solo" / "SKILL.md", "More.\n")
+    bump_agent(repository, "front", "1.0.1")
 
     assert [p.split(":")[0] for p in run(repository, commit=False)[0]] == ["solo"]
 
@@ -176,6 +185,7 @@ def test_a_change_behind_a_link_inside_the_repository_counts(repository):
     write(repository / ".metrics" / "tools" / "run", "#!/bin/sh\n")
     os.symlink("../../../.metrics/tools", repository / ".agents" / "skills" / "solo" / "tools")
     bump_skill(repository, "solo", "1.1.0")
+    bump_agent(repository, "front", "1.0.1")
     write_marketplace(repository)
     run(repository)
     git(repository, "switch", "--quiet", "master")
@@ -184,6 +194,7 @@ def test_a_change_behind_a_link_inside_the_repository_counts(repository):
 
     # When only the linked file changes
     append(repository / ".metrics" / "tools" / "run", "echo changed\n")
+    bump_agent(repository, "front", "1.0.2")
 
     # Then the skill that ships it has to raise its version
     assert [p.split(":")[0] for p in run(repository)[0]] == ["solo"]
@@ -199,6 +210,7 @@ def test_a_base_whose_map_breaks_a_rule_the_head_added_is_still_compared(reposit
 
     # When a skill changes without a raise
     append(repository / ".agents" / "skills" / "solo" / "SKILL.md", "More.\n")
+    bump_agent(repository, "front", "1.0.1")
 
     # Then the base is read from its committed marketplace, not rendered by the head's rules, and the change is caught
     assert [p.split(":")[0] for p in run(repository)[0]] == ["solo"]
@@ -241,6 +253,7 @@ def test_versions_compare_as_numbers(lower, higher):
 
 def test_the_command_line_names_the_plugin_and_exits_1(repository, monkeypatch, capsys):
     append(repository / ".agents" / "skills" / "solo" / "SKILL.md", "More.\n")
+    bump_agent(repository, "front", "1.0.1")
     git(repository, "add", "--all")
     git(repository, "commit", "--quiet", "-m", "change")
     monkeypatch.setattr(guard, "ROOT", repository)
@@ -321,6 +334,7 @@ def test_a_raised_version_whose_tag_already_exists_fails(repository):
     git(repository, "tag", "solo--v1.0.1")
     append(repository / ".agents" / "skills" / "solo" / "SKILL.md", "More.\n")
     bump_skill(repository, "solo", "1.0.1")
+    bump_agent(repository, "front", "1.0.1")
 
     assert [p.split(":")[0] for p in run(repository)[0]] == ["solo"]
 
@@ -329,3 +343,89 @@ def test_a_raised_version_whose_tag_already_exists_fails(repository):
 def test_a_version_that_is_not_ascii_major_minor_patch_is_an_error(version):
     with pytest.raises(guard.VersionCheckError, match="MAJOR.MINOR.PATCH"):
         guard.version_key(version)
+
+
+def test_a_changed_preloaded_skill_fails_the_subagent_that_kept_its_version(repository):
+    # Given solo, which only front preloads, changed and raised
+    append(repository / ".agents" / "skills" / "solo" / "SKILL.md", "More.\n")
+    bump_skill(repository, "solo", "1.0.1")
+
+    # When
+    found = run(repository)[0]
+
+    # Then
+    assert found == ["agent-front: preloads the skill solo, which changed since the base, but is still at 1.0.0, raise it (a change to a skill counts as a change to every subagent that preloads it)"]
+
+
+def test_a_subagent_whose_preloaded_skills_did_not_change_needs_no_raise(repository):
+    # Given own, which only pro preloads, changed with both raised, and front left alone
+    append(repository / ".agents" / "skills" / "own" / "SKILL.md", "More.\n")
+    bump_skill(repository, "own", "1.0.1")
+    bump_agent(repository, "pro", "1.0.1")
+
+    # When
+    found = run(repository)[0]
+
+    # Then
+    assert found == []
+
+
+def test_a_skill_preloaded_by_two_subagents_fails_only_the_one_that_kept_its_version(repository):
+    # Given shared, which pro and front both preload, changed with only pro raised
+    append(repository / ".agents" / "skills" / "shared" / "SKILL.md", "More.\n")
+    bump_skill(repository, "shared", "1.0.1")
+    bump_agent(repository, "pro", "1.0.1")
+
+    # When
+    found = run(repository)[0]
+
+    # Then
+    assert len(found) == 1 and found[0].startswith("agent-front: preloads the skill shared, which changed since the base")
+
+
+def test_a_new_skill_a_subagent_newly_preloads_is_left_to_the_subagent_change(repository):
+    # Given a new skill extra that front now preloads, front not raised
+    write(repository / ".agents" / "skills" / "extra" / "SKILL.md", '---\nname: extra\ndescription: Extra.\nmetadata:\n  version: "1.0.0"\n---\nBody.\n')
+    agent(repository, "front", ["shared", "solo", "extra"])
+    edit_map(repository, "agents: [front], skills: [solo]}", "agents: [front], skills: [solo, extra]}")
+    edit_map(repository, "{name: web, version: 1.0.0,", "{name: web, version: 1.1.0,")
+
+    # When
+    found = run(repository)[0]
+
+    # Then
+    assert found == ["agent-front: changed since the base but still at 1.0.0, raise it (patch for a fix, minor for new behaviour, major for a breaking change)"]
+
+
+def test_a_lowered_subagent_with_a_changed_preloaded_skill_is_reported_only_as_lowered(repository):
+    # Given a base where front is at 2.0.0
+    git(repository, "switch", "--quiet", "master")
+    bump_agent(repository, "front", "2.0.0")
+    write_marketplace(repository)
+    git(repository, "commit", "--quiet", "-am", "raise front")
+    git(repository, "switch", "--quiet", "-C", "feature")
+
+    # When solo changes and is raised while front goes down
+    append(repository / ".agents" / "skills" / "solo" / "SKILL.md", "More.\n")
+    bump_skill(repository, "solo", "1.0.1")
+    bump_agent(repository, "front", "1.9.9")
+    found = run(repository)[0]
+
+    # Then
+    assert found == ["agent-front: version 1.9.9 is lower than 2.0.0 on the base"]
+
+
+def test_a_new_subagent_that_preloads_a_changed_skill_passes(repository):
+    # Given solo changed and raised, front raised, and a new subagent extra that preloads solo in the raised web bundle
+    append(repository / ".agents" / "skills" / "solo" / "SKILL.md", "More.\n")
+    bump_skill(repository, "solo", "1.0.1")
+    bump_agent(repository, "front", "1.0.1")
+    agent(repository, "extra", ["solo"])
+    edit_map(repository, "agents: [front], skills: [solo]}", "agents: [front, extra], skills: [solo]}")
+    edit_map(repository, "{name: web, version: 1.0.0,", "{name: web, version: 1.1.0,")
+
+    # When
+    found, head = run(repository)
+
+    # Then
+    assert found == [] and "agent-extra" in head

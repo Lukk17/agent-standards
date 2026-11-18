@@ -89,6 +89,8 @@ agent-standards/
     check-badges.py              # README badge and social card count lint used by CI
     check-agents-md.py           # AGENTS.md size limits and no tracked CLAUDE.md, used by CI
     check-skill-mentions.py      # every skill a skill file names has a folder, used by CI
+    check-shared-wording.py      # every wording in shared-wording.yaml is the same in each file it lists, used by CI
+    shared-wording.yaml          # CANONICAL map of wording kept word for word the same in several files
     update_quality_tools.py      # Copies newer pinned commits of the quality tools into .metrics/tools, this repo only
     tests/                       # CANONICAL pytest suite for the hook scripts, the linters and the global updater
       quality_samples/           # Sample projects the quality-loop CI job measures, never collected by pytest

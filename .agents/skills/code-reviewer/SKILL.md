@@ -2,7 +2,7 @@
 name: code-reviewer
 description: 'Structured review of local changes or a remote pull request across correctness, maintainability, doc comments, efficiency, security, error handling and tests, with every finding led by a path:line reference. Use when the user says "review my changes", "review PR #123", or "is this branch ready to merge". Not for hunting duplicated or reinvented code, use `review-duplication`.'
 metadata:
-  version: "1.0.0"
+  version: "1.0.1"
 ---
 
 # Code Reviewer
@@ -37,6 +37,7 @@ for security, and lead every finding with a `path:line` reference.
   `application-security-review` for the security checklist pass.
 - Profiling and optimising a slow path. Use `performance-optimization`.
 - Reviewing prose, a README, or docs. Use `markdown-writer`.
+- Wording findings as comments to post on the pull request. Use `review-comments`.
 
 ---
 
@@ -91,7 +92,7 @@ Hand authentication, authorisation, payment and personal-data findings to the `s
 
 ### Step 5: report
 
-Summary with the verdict in two or three sentences, findings grouped Critical, Improvements and Nitpicks, then a conclusion of approve or request changes with the blockers named. Explain each request, name what the change got right, and for a worktree review ask the user about `git worktree remove`.
+Summary with the verdict in two or three sentences, findings grouped Critical, Improvements and Nitpicks, then a conclusion of approve or request changes with the blockers named. Explain each request, name what the change got right here only, never in a posted approval (`review-comments`), and for a worktree review ask the user about `git worktree remove`.
 
 ---
 
@@ -104,6 +105,7 @@ Summary with the verdict in two or three sentences, findings grouped Critical, I
 - `tdd-workflow` supplies the coverage bar behind the testability pillar.
 - `design-system` supplies the styling-drift criteria when a change touches styling.
 - `git-workflow` covers branch, commit and merge hygiene when the review turns up problems there.
+- `review-comments` words the findings that get posted on the pull request.
 
 ---
 

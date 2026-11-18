@@ -183,12 +183,9 @@ def _vitest_version(root: Path) -> str | None:
 
 
 def ensure_vitest_provider(root: Path, host: Host, run: Runner, say: Callable[[str], None]) -> None:
-    """On Windows, install Vitest's coverage provider the way crapper does elsewhere, leaving the manifests as they were.
-
-    crapper installs it itself on Linux and macOS, but starts npm in a way Windows cannot run.
-    """
+    """Install Vitest's coverage provider against the lockfile before crapper looks, and restore the manifests."""
     scripts = plan.package_scripts(root)
-    if not host.windows or scripts is None or "coverage" in scripts or not plan.uses_vitest(root, scripts):
+    if scripts is None or "coverage" in scripts or not plan.uses_vitest(root, scripts):
         return
     if (root / "node_modules" / "@vitest" / "coverage-v8").is_dir():
         return
@@ -200,7 +197,7 @@ def ensure_vitest_provider(root: Path, host: Host, run: Runner, say: Callable[[s
     say(f"Installing {spec} so Vitest can write coverage. package.json and the lockfile are restored afterwards.")
     saved = {name: (root / name).read_bytes() if (root / name).is_file() else None for name in NPM_MANIFESTS}
     try:
-        run([npm, "install", "--no-save", "--no-package-lock", spec], root)
+        run([npm, "install", "--no-save", spec], root)
     finally:
         for name, content in saved.items():
             path = root / name
