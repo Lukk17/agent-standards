@@ -705,15 +705,7 @@ so a change to one of them needs a rebuild before a run sees it.
 Every failure the sandbox has reported so far was a real defect in the repository rather than a sandbox bug. They are
 recorded here because they show the class of problem only a live run finds. All three are fixed as this is written.
 
-1. Kilo Code rejected the shared `opencode.json` outright. An `{env:VAR}` reference is banned in project-scope
-   configuration, and Kilo discards the whole file rather than leaving the token literal, which took the `plugin`
-   declaration carrying the preflight gate with it. Kilo Code had no gate at all. There is now a single project-level
-   OpenCode configuration, [opencode.json](../opencode.json) at the repository root, and it carries no environment
-   reference of any kind. Local servers need none, because both tools start them with the environment of the process
-   that started the agent. The one value that cannot arrive that way is the Context7 API key, which travels as an HTTP
-   header, so `context7` is declared unauthenticated and both tools use the free tier. A paid key goes in the reader's
-   own global configuration. It cannot go in a project file, because Kilo would reject that file whole and take the
-   gate declaration with it again.
+1. Kilo Code rejected the shared `opencode.json` outright. An `{env:VAR}` reference is banned in project-scope configuration, and Kilo discards the whole file rather than leaving the token literal, which took the `plugin` declaration carrying the preflight gate with it. Kilo Code had no gate at all. There is now a single project-level OpenCode configuration, [opencode.json](../opencode.json) at the repository root, and it carries no environment reference of any kind. Local servers need none, because both tools start them with the environment of the process that started the agent. The one value that cannot arrive that way is the Context7 API key, which travels as an HTTP header, so `context7` is declared unauthenticated and both tools use the free tier. The key cannot go in a project file, because Kilo would reject that file whole and take the gate declaration with it again, and it does not go in a global configuration either, because no agent keeps an MCP server at user or global scope, as "Where a server is declared" in [docs/MCP_SETUP.md](../docs/MCP_SETUP.md#where-a-server-is-declared) explains.
 2. One skill had invalid YAML front matter. An unquoted colon in the `description` of a skill manifest made
    GitHub Copilot skip that skill entirely. The value is quoted now.
 3. The same defect came back in two more manifests. `copilot skill list` refused

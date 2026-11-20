@@ -684,7 +684,7 @@ install_claude() {
   copy_tree "${SRC}/.claude/agents" "${HOME}/.claude/agents"
   install_config "${HOME}/.claude/settings.json" "$GATE_SCRIPT" "$(claude_settings)"
 
-  log_info "Claude Code stores user-scope MCP servers in ~/.claude.json; add them with claude mcp add --scope user"
+  log_info "Claude Code gets no MCP server at user scope; each project declares its own in its .mcp.json"
 }
 
 install_codex() {

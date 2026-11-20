@@ -23,10 +23,7 @@ show which definition the gate refused, and so a stray copy left behind in a rea
    per-machine procedure in [docs/GLOBAL_SETUP.md](../../docs/GLOBAL_SETUP.md). Nothing the installer itself writes
    is fixtured, because it derives every absolute path from `$HOME` at run time, and a fixture copy of those files
    would be a second copy of the install that drifts.
-4. The global MCP fixtures carry only the two servers that are genuinely machine-wide, Context7 and Playwright, which
-   is what [docs/GLOBAL_SETUP.md](../../docs/GLOBAL_SETUP.md) tells a reader to keep at user scope. They also use
-   literal values rather than `{env:VAR}` or `${VAR}` references, so no assertion can fail because a variable was
-   unset in the container.
+4. The global MCP fixtures carry two stand-in servers, Context7 and Playwright, placed at user scope the way an older setup did, so test 8 can prove which file each agent reads at that scope. [docs/GLOBAL_SETUP.md](../../docs/GLOBAL_SETUP.md) keeps no server at user scope, and each project declares its own, as "Where a server is declared" in [docs/MCP_SETUP.md](../../docs/MCP_SETUP.md#where-a-server-is-declared) says. The fixtures also use literal values rather than `{env:VAR}` or `${VAR}` references, so no assertion can fail because a variable was unset in the container.
 
 ---
 
@@ -42,6 +39,6 @@ show which definition the gate refused, and so a stray copy left behind in a rea
 | `gate-payloads/subagent-without-skills.json` | tests 5 and 9 | Subagent payload naming `e2e-no-skills-probe` |
 | `gate-payloads/malformed.txt` | test 1 | Not JSON, so the gate has to fail open |
 | `global/codex-config.toml` | test 8 | Two `[mcp_servers]` tables plus the trust record for `/work/bare` |
-| `global/opencode.json` | test 8 | Only an `mcp` block with the two machine-wide servers, merged into the `opencode.json` the installer wrote so its `plugin` entry survives |
+| `global/opencode.json` | test 8 | Only an `mcp` block with the two stand-in servers, merged into the `opencode.json` the installer wrote so its `plugin` entry survives |
 | `global/kilo.jsonc` | test 8 | Only an `mcp` block with the same two servers, merged into the `kilo.jsonc` the installer wrote so its `instructions` and `plugin` entries survive |
 | `global/copilot-mcp-config.json` | test 8 | Copilot command-line MCP config keyed `mcpServers` |

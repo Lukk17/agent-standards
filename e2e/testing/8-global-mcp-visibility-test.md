@@ -1,7 +1,8 @@
 # Global MCP visibility: e2e test
 
-Suite B, global setup. Setup cost class 5: the whole global installation, the user-scope MCP configuration on top of
-it, and five agent command-line calls run from a directory into which nothing has been imported.
+Suite B, global setup. Setup cost class 5: the whole global installation, a stand-in user-scope MCP configuration on top of it, and five agent command-line calls run from a directory into which nothing has been imported.
+
+No agent keeps an MCP server at user or global scope: each project declares the servers it uses in its own files, as "Where a server is declared" in [docs/MCP_SETUP.md](../../docs/MCP_SETUP.md#where-a-server-is-declared) says, and the global install writes none. This spec places two servers at user scope the way an older setup did, only to prove which file each agent reads at that scope. Those are the files the commands in that section clean.
 
 ---
 
@@ -9,14 +10,10 @@ it, and five agent command-line calls run from a directory into which nothing ha
 
 - Each of the five agents, asked in its own terms from a bare directory, names the MCP servers its own user-scope
   configuration declares. Nothing in the working directory could have supplied them.
-- The scope split holds. Only the two servers that are genuinely machine-wide, Context7 and Playwright, are installed
-  globally. A connection string, a Grafana address, or a SonarQube token belongs to one project and stays out of the
-  home directory, which is why the expected set here is smaller than the full set
-  [4-project-mcp-visibility-test.md](4-project-mcp-visibility-test.md) expects.
+- The scope split holds. The two stand-in servers, Context7 and Playwright, are the only ones placed at user scope, and no project server, such as Grafana, shows up in a listing from the bare directory. That is why the expected set here is smaller than the full set [4-project-mcp-visibility-test.md](4-project-mcp-visibility-test.md) expects.
 - Codex needs the working directory trusted before it looks at anything, so the trust record here names `/work/bare`
   rather than a project.
-- Claude Code is asserted on Context7 only. The documentation gives the exact `claude mcp add` invocation for an HTTP
-  server and none for a local one, and guessing the local form would be inventing a command rather than testing one.
+- Claude Code is asserted on Context7 only, added with the remote form the Claude Code MCP docs give, `claude mcp add --transport http <name> <url>` ([MCP docs](https://code.claude.com/docs/en/mcp), "Option 1: Add a remote HTTP server", read 2026-11-20), because one server is enough to prove which file Claude Code reads at user scope.
 - Out of scope, because the container is given no provider credentials and carries neither `uvx` nor `docker`: the
   servers are listed, not proven healthy. A listing that names a server proves the agent read the user-scope
   configuration and registered it.
@@ -97,9 +94,7 @@ Then perform the whole global installation by running every command in the Reset
 installs and one update with [setup-global.sh](../../sandbox-agent/setup-global.sh), with the reset around them, and it is not
 repeated here so there is one copy to keep correct. Do not continue until it has finished.
 
-The installer writes no MCP configuration for any agent, deliberately, because which servers are machine-wide is a
-per-machine judgement rather than something an install can decide. Every server this spec asserts on is therefore
-placed by the commands below.
+The installer writes no MCP configuration for any agent, deliberately, because no server belongs at user scope. Every server this spec asserts on is therefore placed by the commands below, the way an older setup placed them.
 
 Give Codex its user-scope server tables and the trust record for the bare directory. Without the trust record Codex
 reports nothing at all and the assertion would be measuring the trust prompt rather than the configuration.

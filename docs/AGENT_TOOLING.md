@@ -594,12 +594,7 @@ fallback for a folder that has no `.mcp.json`, see
 get no file at all, the JetBrains plugin because it reads a global path only, and the cloud agent because its
 configuration lives in a repository settings page.
 
-Kilo Code accepts `opencode.json` as a project config filename, which is how one file serves both it and OpenCode.
-Kilo is unforgiving about substitution in that file. A `{env:VAR}` anywhere in project-level config makes it reject
-the file outright, taking the MCP servers and the `plugin` array that declares the preflight gate with it, so the
-shipped file carries no references at all. Local servers inherit their tokens from the environment that started the
-agent. The Context7 API key cannot be inherited, since it is an HTTP header, so `context7` ships unauthenticated on
-the free tier and a paid key goes in your own global config. Details in [MCP_SETUP.md](MCP_SETUP.md).
+Kilo Code accepts `opencode.json` as a project config filename, which is how one file serves both it and OpenCode. Kilo is unforgiving about substitution in that file. A `{env:VAR}` anywhere in project-level config makes it reject the file outright, taking the MCP servers and the `plugin` array that declares the preflight gate with it, so the shipped file carries no references at all. Local servers inherit their tokens from the environment that started the agent. The Context7 API key cannot be inherited, since it is an HTTP header, so `context7` ships unauthenticated and OpenCode and Kilo Code use the free tier. A global config would take the key, but no agent keeps an MCP server at user or global scope: each project declares its own, as [Where a server is declared](MCP_SETUP.md#where-a-server-is-declared) explains.
 
 The full human setup, prerequisites, key acquisition, environment variables per operating system, the two manual
 Copilot blocks, and verification, lives in [MCP_SETUP.md](MCP_SETUP.md). A person does that once per machine, not the

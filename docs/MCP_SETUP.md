@@ -20,7 +20,7 @@ Five real config files, committed and ready to use. They are not templates any m
 | [.vscode/mcp.json](../.vscode/mcp.json) | `servers` | GitHub Copilot in VS Code | key is `servers`, not `mcpServers` |
 | [.github/mcp.json](../.github/mcp.json) | `mcpServers` | the GitHub Copilot CLI, only in a folder that has no `.mcp.json` | a fallback, `"type": "http"` for remote, `"type": "local"` for a stdio server |
 
-The five files carry one server set, with two exceptions. [opencode.json](../opencode.json) also carries `atlassian`. [.github/mcp.json](../.github/mcp.json) leaves out `home-assistant`, because its schema has no enable flag, and the Copilot CLI gets that server from [.mcp.json](../.mcp.json). [opencode.json](../opencode.json) and [.codex/config.toml](../.codex/config.toml) leave it out too, so OpenCode, Kilo Code and Codex get `home-assistant` only from the user-level configuration: their project files cannot hold a path that works on every machine, and a switched-off project entry would override the user entry by name. The reasons are under [Home Assistant server](#home-assistant-server). Only the file name, the schema key, the `type` value, and the
+The five files carry one server set, with two exceptions. [opencode.json](../opencode.json) also carries `atlassian`. [.github/mcp.json](../.github/mcp.json) leaves out `home-assistant`, because its schema has no enable flag, and the Copilot CLI gets that server from [.mcp.json](../.mcp.json). [opencode.json](../opencode.json) and [.codex/config.toml](../.codex/config.toml) leave it out too, because their project files cannot hold a path that works on every machine, so a project that uses the server on OpenCode, Kilo Code or Codex declares it in its own copy of those two files. The reasons are under [Home Assistant server](#home-assistant-server). Only the file name, the schema key, the `type` value, and the
 environment-variable syntax change between them. The V1 shape in [opencode.json](../opencode.json), flat `mcp` plus `enabled`, loads on OpenCode 1.x and on 2.0.26, measured 2026-10-15: `opencode plugin list` from the repo shows the repo plugin, and `opencode debug config` shows the same file as `mcp.servers` plus `disabled`. V2 keeps the V1 file working by change in memory. There is no per-tool overlay beyond these five: one file per agent
 surface, and that is the whole set.
 
@@ -74,14 +74,7 @@ and its `context7` block carries no `headers` at all. Nothing is lost for a loca
 both start it with the environment of the process that started the agent, and an `environment` block in the config is
 merged on top of that rather than replacing it. Exporting the variable is enough.
 
-The one value that cannot arrive that way is the Context7 API key, because it travels as an HTTP header on a remote
-server rather than in the server process environment. If you have a paid Context7 key, put the whole `context7` block
-into your own global config (`~/.config/opencode/opencode.json` for OpenCode, `~/.config/kilo/kilo.jsonc` for Kilo
-Code), which is trusted config and does expand `{env:VAR}`. The command for each file is under
-[Kilo Code in GLOBAL_SETUP.md](GLOBAL_SETUP.md#kilo-code), and it writes the reference, never the key. It cannot live in a project file: Kilo rejects any project
-file that holds an environment reference, and it would throw away the MCP block and the `plugin` array declaring the
-preflight gate along with it. Without the global block, both tools talk to Context7 on the free tier, which is the
-shipped default.
+The one value that cannot arrive that way is the Context7 API key, because it travels as an HTTP header on a remote server rather than in the server process environment. It cannot live in a project file: Kilo rejects any project file that holds an environment reference, and it would throw away the MCP block and the `plugin` array declaring the preflight gate along with it. A global config could expand it, but no server goes into a global config, as [Where a server is declared](#where-a-server-is-declared) explains. So OpenCode and Kilo Code talk to Context7 on the free tier, which is the shipped default, while Claude Code and the Copilot CLI send your key from [.mcp.json](../.mcp.json).
 
 ---
 
@@ -139,6 +132,53 @@ The agent-standards live pipeline, which runs every agent against a real model, 
 smallest tool descriptions of the shipped servers and needs no secret, and the descriptions of all of them together pushed a
 single test past the provider's per-minute token limit. So only `context7` is proven to answer a real model there,
 and the others are proven to be discovered by every agent, not to answer.
+
+---
+
+### Where a server is declared
+
+Each project declares the MCP servers it uses in its own project files, and no server sits in a user-scope or global configuration file of any agent. Every chat starts its own copy of every server it loads, so a server at user scope runs once for each open chat in every project, whether that project uses it or not. As an example with round numbers: a local server that holds about 100 MB of memory per copy, kept at user scope while ten chats are open, holds about 1 GB, even when only one project ever calls it. Declared in that one project, it runs only in the chats opened there.
+
+Where each agent reads the project's servers:
+
+1. Claude Code reads `.mcp.json` at the project root, and `claude mcp add --scope project` writes it: "When you add a project-scoped server, Claude Code automatically creates or updates this file" ([MCP docs](https://code.claude.com/docs/en/mcp), "Project scope", read 2026-11-20). It asks once before it uses each server from that file, "For security reasons, Claude Code prompts for approval in interactive sessions before using project-scoped servers from `.mcp.json` files" (same section), and keeps your yes in `enabledMcpjsonServers`: "Claude Code writes this key to `.claude/settings.local.json` when you approve a server in the approval dialog" ([settings reference](https://code.claude.com/docs/en/settings-reference), "`enabledMcpjsonServers`", read 2026-11-20). That file counts only after you accept the workspace trust dialog in the folder (MCP docs, "Project server approvals and workspace trust").
+2. The Copilot CLI reads the same `.mcp.json`, in a trusted folder only, as [Verifying the setup](#verifying-the-setup) describes.
+3. Copilot in VS Code reads `.vscode/mcp.json`.
+4. OpenCode and Kilo Code read the `mcp` block of `opencode.json` at the project root, which holds no `{env:VAR}` token, as [What ships](#what-ships) explains.
+5. Codex reads the `[mcp_servers.<name>]` tables of `.codex/config.toml` in the project, and only in a trusted project: "you can also scope MCP servers to a project with `.codex/config.toml` (trusted projects only)" ([MCP docs](https://learn.chatgpt.com/docs/extend/mcp), read 2026-11-20). `codex mcp add` has no project option and always writes the user file, so the commands in this guide write the project table themselves, above the first `[[hooks.` table, because an update replaces everything from that table to the end of the file, as [AGENTS-UPDATE.md](AGENTS-UPDATE.md) says under "Taking only the gate half".
+
+Codex keeps trust in the user configuration, as the `projects.<path>.trust_level` key: "Untrusted projects skip project-scoped .codex/ layers, including project-local config, hooks, and rules" ([configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference), read 2026-11-20). A trust entry is not a server, so it belongs in `~/.config/codex/config.toml` under the layout in [GLOBAL_SETUP.md](GLOBAL_SETUP.md). For a project folder it reads, with the absolute path of that folder in place of `<project path>`:
+
+```toml
+[projects."<project path>"]
+trust_level = "trusted"
+```
+
+Measured on 2026-11-20 with Codex 0.169.0: `codex mcp list` in a trusted project folder listed the servers of its `.codex/config.toml` as `enabled`, and in an untrusted folder whose `.codex/config.toml` held one server it printed `No MCP servers configured yet.`.
+
+Remove what an older setup put at user scope, so the project entry is the only one. Claude Code, naming each server, in either shell:
+
+```bash
+claude mcp remove --scope user home-assistant
+```
+
+Codex, which edits the user file in the folder `CODEX_HOME` names, in either shell:
+
+```bash
+codex mcp remove home-assistant
+```
+
+OpenCode, Kilo Code and the Copilot CLI keep their user servers in JSON files, the Copilot one at its path under the layout in [GLOBAL_SETUP.md](GLOBAL_SETUP.md). This command removes the servers you name at the end, here `home-assistant` and `arch`, from each of the three files that exists and keeps every other key. Unix shell:
+
+```bash
+python3 -c 'import json,sys,pathlib;h=pathlib.Path.home();[(lambda p,k,s:([s.get(k,{}).pop(n,None) for n in sys.argv[1:]],p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")))(h/f,k,json.loads((h/f).read_text(encoding="utf-8"))) for f,k in ((".config/opencode/opencode.json","mcp"),(".config/kilo/kilo.jsonc","mcp"),(".config/copilot/mcp-config.json","mcpServers")) if (h/f).exists()]' home-assistant arch
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,sys,pathlib;h=pathlib.Path.home();[(lambda p,k,s:([s.get(k,{}).pop(n,None) for n in sys.argv[1:]],p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")))(h/f,k,json.loads((h/f).read_text(encoding="utf-8"))) for f,k in ((".config/opencode/opencode.json","mcp"),(".config/kilo/kilo.jsonc","mcp"),(".config/copilot/mcp-config.json","mcpServers")) if (h/f).exists()]' home-assistant arch
+```
 
 ---
 
@@ -364,7 +404,7 @@ or a real token.
 
 | Variable | Used by | Effect when unset |
 | --- | --- | --- |
-| `CONTEXT7_API_KEY` | `context7`, from [.mcp.json](../.mcp.json) for Claude Code and the Copilot CLI, and for OpenCode and Kilo Code only from a global config, never from `opencode.json` | Context7 free tier. The Copilot CLI then sends the header with an empty value, measured on 1.0.103 on 2026-10-25, and how Context7 answers that was not measured |
+| `CONTEXT7_API_KEY` | `context7`, from [.mcp.json](../.mcp.json) for Claude Code and the Copilot CLI, and never for OpenCode and Kilo Code, which use the free tier, as [What ships](#what-ships) explains | Context7 free tier. The Copilot CLI then sends the header with an empty value, measured on 1.0.103 on 2026-10-25, and how Context7 answers that was not measured |
 | `MONGODB_URL` | `mongodb` | falls back to `mongodb://localhost:27017` |
 | `GRAFANA_URL` | `grafana` | falls back to `http://localhost:3000` |
 | `GRAFANA_SERVICE_ACCOUNT_TOKEN` | `grafana` | token sent empty, Grafana rejects the connection |
@@ -415,8 +455,7 @@ rest keep working.
 
 ### Step 5, the surfaces with no project file
 
-Four configurations that live per machine or per repository setting, and therefore ship in this document rather than
-in the tree.
+Four configurations that live per machine or per repository setting, and therefore ship in this document rather than in the tree. Copilot in JetBrains, the Copilot cloud agent and Claude Desktop read no project file, so their servers stay in the places below. Claude Code, Codex and the Copilot CLI do read a project file, so their user-scope files below hold no server, as [Where a server is declared](#where-a-server-is-declared) says.
 
 #### GitHub Copilot in JetBrains
 
@@ -497,32 +536,12 @@ literal values and no substitution. Secrets go into the repository or organisati
 
 #### Claude Code user-global
 
-Path: `~/.claude.json`, same `mcpServers` schema and same `${VAR}` substitution as the project file. It applies when
-you work outside a project that defines its own [.mcp.json](../.mcp.json), and the project file wins on a name
-collision. Claude Code keeps its other settings and state in the same file, so never copy a file over it. Add the
-servers with `claude mcp add-json`, which writes one entry and leaves the rest of the file alone. The MCP docs say "You
-can use `--scope user` to add the server to your user configuration instead of the project-specific one"
-([MCP docs](https://code.claude.com/docs/en/mcp), "Add MCP servers from JSON configuration", read 2026-10-23).
+Path: `~/.claude.json`, same `mcpServers` schema and same `${VAR}` substitution as the project file. Claude Code keeps its other settings and state in the same file, so never copy a file over it. Keep no MCP server there, as [Where a server is declared](#where-a-server-is-declared) says: a server in this file starts in every chat of every project. Declare it in the project instead, with `claude mcp add --scope project`, which writes the project's [.mcp.json](../.mcp.json). Remove a server an older setup added at user scope with the command under [Where a server is declared](#where-a-server-is-declared).
 
-To add every server of the project file at user scope, run this from the project root. A name that already exists at
-that scope is refused and left as it is: the MCP docs say running `claude mcp add` "again with the same server name at
-the same scope fails with `MCP server sentry already exists in local config`", and `add-json` is expected to behave the
-same, which was not measured. PowerShell 7.4 or later:
-
-```powershell
-(Get-Content -Raw .mcp.json | ConvertFrom-Json).mcpServers.PSObject.Properties | ForEach-Object { claude mcp add-json $_.Name ($_.Value | ConvertTo-Json -Depth 10 -Compress) --scope user }
-```
-
-Unix shell:
+Check it from a folder that has no `.mcp.json`, in either shell. A server that is gone from every scope prints `No MCP server named "home-assistant".`, measured with Claude Code 2.1.325 on 2026-11-20:
 
 ```bash
-python3 -c 'import json,subprocess;[subprocess.run(["claude","mcp","add-json",n,json.dumps(c),"--scope","user"]) for n,c in json.load(open(".mcp.json",encoding="utf-8"))["mcpServers"].items()]'
-```
-
-Check it, in either shell. "To check that Claude Code connected, run `claude mcp get <name>`" (MCP docs):
-
-```bash
-claude mcp get context7
+claude mcp get home-assistant
 ```
 
 #### Claude Desktop
@@ -574,39 +593,19 @@ Claude Desktop must be fully quit from the system tray and relaunched after an e
 
 #### Codex and Copilot CLI globals
 
-Codex reads `config.toml` in its home directory for global scope, `~/.config/codex/config.toml` under the layout in [GLOBAL_SETUP.md](GLOBAL_SETUP.md), which sets `CODEX_HOME`, and `~/.codex/config.toml` without it, in the same TOML shape as the project file:
-
-```toml
-[mcp_servers.context7]
-command = "npx"
-args = ["-y", "@upstash/context7-mcp@latest"]
-```
-
-`codex mcp add` writes that table for you, in whichever home `CODEX_HOME` names. The Codex MCP page gives the same
-example: "to add Context7 (a free MCP server for developer documentation), you can run the following command: `codex
-mcp add context7 -- npx -y @upstash/context7-mcp`" ([MCP docs](https://learn.chatgpt.com/docs/extend/mcp), read
-2026-10-23). In either shell:
-
-```bash
-codex mcp add context7 -- npx -y @upstash/context7-mcp@latest
-```
-
-Check it. "Run `codex mcp list` to see configured servers" (same page):
+Codex reads `config.toml` in its home directory for global scope, `~/.config/codex/config.toml` under the layout in [GLOBAL_SETUP.md](GLOBAL_SETUP.md), which sets `CODEX_HOME`, and `~/.codex/config.toml` without it. Keep no `[mcp_servers.*]` table there, as [Where a server is declared](#where-a-server-is-declared) says, so leave `codex mcp add` unused, because it writes only that user file. Put the table into the project's [.codex/config.toml](../.codex/config.toml) instead, in the same TOML shape, and trust the project, or Codex skips the file. Check what Codex loads, from the project root. "Run `codex mcp list` to see configured servers" ([MCP docs](https://learn.chatgpt.com/docs/extend/mcp), read 2026-10-23):
 
 ```bash
 codex mcp list
 ```
 
-Codex has no built-in substitution. To keep a secret out of the file, wrap the command in a small script that reads it
-from your secrets manager.
+Codex has no built-in substitution. To keep a secret out of the file, wrap the command in a small script that reads it from your secrets manager.
 
-The Copilot CLI reads the project [.mcp.json](../.mcp.json), the same file Claude Code reads. It reads [.github/mcp.json](../.github/mcp.json) only in a folder that has no `.mcp.json`, because it picks one file per folder, not one entry per server name, as [The CLI, `.mcp.json`, and why a fifth file exists](#the-cli-mcpjson-and-why-a-fifth-file-exists) shows. Project files load only in a trusted folder, as [Verifying the setup](#verifying-the-setup) describes. For servers you want available everywhere, the CLI also reads
-`~/.copilot/mcp-config.json` (relocatable with `COPILOT_HOME`, so `~/.config/copilot/mcp-config.json` under the layout in [GLOBAL_SETUP.md](GLOBAL_SETUP.md)), keyed `mcpServers`, with a `tools` allowlist per
-server. That file needs no folder trust, the CLI expands `$VAR`, `${VAR}` and `${VAR:-default}` in it the same way as in the project files, and a project server hides a user server of the same name, all measured on 1.0.103 on 2026-10-25. Keep that file out of version control too.
+The Copilot CLI reads the project [.mcp.json](../.mcp.json), the same file Claude Code reads. It reads [.github/mcp.json](../.github/mcp.json) only in a folder that has no `.mcp.json`, because it picks one file per folder, not one entry per server name, as [The CLI, `.mcp.json`, and why a fifth file exists](#the-cli-mcpjson-and-why-a-fifth-file-exists) shows. Project files load only in a trusted folder, as [Verifying the setup](#verifying-the-setup) describes. The CLI also reads a user file, `~/.copilot/mcp-config.json` (relocatable with `COPILOT_HOME`, so `~/.config/copilot/mcp-config.json` under the layout in [GLOBAL_SETUP.md](GLOBAL_SETUP.md)), keyed `mcpServers`, with a `tools` allowlist per server. That file needs no folder trust, the CLI expands `$VAR`, `${VAR}` and `${VAR:-default}` in it the same way as in the project files, and a project server hides a user server of the same name, all measured on 1.0.103 on 2026-10-25. Keep no server in that file, for the reason under [Where a server is declared](#where-a-server-is-declared), and keep it out of version control.
 
 #### Arch Linux operations server, not shipped
 
-`arch-ops-server` (the Arch Wiki, AUR and pacman tools from [nihalxkumar/arch-mcp](https://github.com/nihalxkumar/arch-mcp)) is not one of the shipped servers, because it only helps on an Arch machine. Add it to your own user-scope configuration, and start it with both pins:
+`arch-ops-server` (the Arch Wiki, AUR and pacman tools from [nihalxkumar/arch-mcp](https://github.com/nihalxkumar/arch-mcp)) is not one of the shipped servers, because it only helps on an Arch machine. Declare it in the project that uses it, as [Where a server is declared](#where-a-server-is-declared) says, and start it with both pins:
 
 ```bash
 uvx --from arch-ops-server==3.4.0 --with 'mcp<2' arch-ops-server
@@ -614,28 +613,46 @@ uvx --from arch-ops-server==3.4.0 --with 'mcp<2' arch-ops-server
 
 The `--with 'mcp<2'` is not optional. Release 3.4.0 declares `mcp>=1.0.0` with no upper bound, so `uvx` resolves the newest `mcp`, and `mcp` 2.0, released on 2026-07-28, removed the decorator API the server registers its handlers with: the SDK's migration guide lists "Lowlevel decorators replaced with `on_*` constructor params" with the symptom "`AttributeError: 'Server' object has no attribute 'list_tools'`", and the server fails at start with the same `AttributeError` on `list_resources`. With `mcp<2` it starts and answers `tools/list`, measured on 2026-10-13. The last commit upstream is from 2026-03-10 and carries no fix.
 
-Add it at user scope with one command per agent. Claude Code, in either shell:
+Declare it with one command per agent, run from the project root. Claude Code writes it into the project's `.mcp.json`, in either shell:
 
 ```bash
-claude mcp add --scope user arch -- uvx --from arch-ops-server==3.4.0 --with 'mcp<2' arch-ops-server
+claude mcp add --scope project arch -- uvx --from arch-ops-server==3.4.0 --with 'mcp<2' arch-ops-server
 ```
 
-Check it:
+Start `claude` in the folder once and approve the server, then check it:
 
 ```bash
 claude mcp get arch
 ```
 
-Codex, in either shell:
+Codex gets the table in the project's `.codex/config.toml`. The command creates the file when there is none, puts the table above the first `[[hooks.` table, and leaves a table of the same name as it is. Unix shell:
 
 ```bash
-codex mcp add arch -- uvx --from arch-ops-server==3.4.0 --with 'mcp<2' arch-ops-server
+python3 -c 'import json,sys,pathlib;p=pathlib.Path(".codex/config.toml");t=p.read_text(encoding="utf-8") if p.exists() else "";h="[mcp_servers."+sys.argv[1]+"]";b=h+"\ncommand = "+json.dumps(sys.argv[2])+"\nargs = ["+", ".join(json.dumps(a) for a in sys.argv[3:])+"]\n\n";i=t.find("[[hooks.");t=t if h in t else (t[:i]+b+t[i:] if i>=0 else t+("\n" if t and not t.endswith("\n") else "")+b);p.parent.mkdir(exist_ok=True);p.write_text(t,encoding="utf-8")' arch uvx --from arch-ops-server==3.4.0 --with 'mcp<2' arch-ops-server
 ```
 
-Check it:
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,sys,pathlib;p=pathlib.Path(".codex/config.toml");t=p.read_text(encoding="utf-8") if p.exists() else "";h="[mcp_servers."+sys.argv[1]+"]";b=h+"\ncommand = "+json.dumps(sys.argv[2])+"\nargs = ["+", ".join(json.dumps(a) for a in sys.argv[3:])+"]\n\n";i=t.find("[[hooks.");t=t if h in t else (t[:i]+b+t[i:] if i>=0 else t+("\n" if t and not t.endswith("\n") else "")+b);p.parent.mkdir(exist_ok=True);p.write_text(t,encoding="utf-8")' arch uvx --from arch-ops-server==3.4.0 --with 'mcp<2' arch-ops-server
+```
+
+Check it from the project root, which Codex must trust:
 
 ```bash
 codex mcp list
+```
+
+OpenCode and Kilo Code get the block in the project's `opencode.json`. The command adds or replaces only that entry and keeps the rest of the file. Unix shell:
+
+```bash
+python3 -c 'import json,sys,pathlib;p=pathlib.Path("opencode.json");s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})[sys.argv[1]]={"type":"local","command":sys.argv[2:],"enabled":True};p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' arch uvx --from arch-ops-server==3.4.0 --with 'mcp<2' arch-ops-server
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json,sys,pathlib;p=pathlib.Path("opencode.json");s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})[sys.argv[1]]={"type":"local","command":sys.argv[2:],"enabled":True};p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' arch uvx --from arch-ops-server==3.4.0 --with 'mcp<2' arch-ops-server
 ```
 
 In a `.mcp.json` style file the same command is:
@@ -713,13 +730,13 @@ uv does not expand `~` or `$HOME` inside that path, so each project file writes 
 | --- | --- | --- |
 | [.mcp.json](../.mcp.json) | `${HOME}/.local/state/agents/workspace/homelab.env`, which Claude Code expands, because "Environment variables can be expanded in" `command`, `args` and `env` ([MCP docs](https://code.claude.com/docs/en/mcp), "Expansion locations", read 2026-10-25). The Copilot CLI expands it too, measured on 1.0.103 on 2026-10-25 | on |
 | [.vscode/mcp.json](../.vscode/mcp.json) | `${userHome}/.local/state/agents/workspace/homelab.env`. The VS Code reference says "You can use predefined variables in the server configuration" ([MCP configuration reference](https://code.visualstudio.com/docs/agents/reference/mcp-configuration), read 2026-10-25), and `${userHome}` is the "Path of the user's home folder" ([variables reference](https://code.visualstudio.com/docs/reference/variables-reference)) | on |
-| [opencode.json](../opencode.json) | none, the server is left out, add it at user scope | not present |
-| [.codex/config.toml](../.codex/config.toml) | none, the server is left out, add it at user scope | not present |
+| [opencode.json](../opencode.json) | none, the server is left out. A project that uses it adds the block with an absolute path, as below | not present |
+| [.codex/config.toml](../.codex/config.toml) | none, the server is left out. A project that uses it adds the table with an absolute path, as below | not present |
 | [.github/mcp.json](../.github/mcp.json) | none, the server is left out | not present |
 
 `.mcp.json` uses `${HOME}` with no `:-default`, unlike its other blocks, because no default path would be right. When `HOME` is unset, Claude Code names the variable in a warning: "If a referenced environment variable isn't set and has no default value, the config still loads: Claude Code reports a missing-variable warning for that server in `claude mcp list` output and uses the unexpanded `${VAR}` text as-is" (same page, "Unset variables without a default").
 
-[opencode.json](../opencode.json) and [.codex/config.toml](../.codex/config.toml) leave the server out, so OpenCode, Kilo Code and Codex get `home-assistant` only from the user-level configuration, with the commands below. Their project files cannot hold a path that works on every machine: Kilo Code throws the whole project file away on an `{env:HOME}` token, as [What ships](#what-ships) explains, and Codex has no substitution at all. A switched-off project entry does not help either, because it would override the user entry by name, as point 3 below shows.
+[opencode.json](../opencode.json) and [.codex/config.toml](../.codex/config.toml) leave the server out, because a shipped file cannot hold a path that works on every machine: Kilo Code throws the whole project file away on an `{env:HOME}` token, as [What ships](#what-ships) explains, and Codex has no substitution at all. A project that uses the server on OpenCode, Kilo Code or Codex declares it in its own copy of both files, with the commands below, which write the absolute path.
 
 [.github/mcp.json](../.github/mcp.json) leaves the server out, because its schema has no enable flag. The Copilot CLI reads `home-assistant` from [.mcp.json](../.mcp.json), the file it reads in place of `.github/mcp.json`, as [What ships](#what-ships) describes, and it expands `${HOME}` in `args`. Measured on 1.0.103 on 2026-10-25 with `HOME=/home/node`, a stand-in `uvx` received `--env-file /home/node/.local/state/agents/workspace/homelab.env ha-mcp==8.7.0`. So `home-assistant` starts under the Copilot CLI. The CLI reference lists expansion only for `env` and `headers`, so this rests on the measurement.
 
@@ -747,70 +764,52 @@ Both `/mcp disable` and `copilot mcp disable` write the name into `disabledMcpSe
 copilot mcp enable home-assistant
 ```
 
-Keep one entry per agent. The ha-mcp README warns "Configure exactly one install method per client", and says that two entries for the same server in one client are "a known cause of connection hangs". Use the name `home-assistant` in every scope, so the project entry and the user entry can never both load, because one wins by name:
+Keep one entry per agent. The ha-mcp README warns "Configure exactly one install method per client", and says that two entries for the same server in one client are "a known cause of connection hangs". Declare the server in the project only, and remove any user entry an older setup left, with the commands under [Where a server is declared](#where-a-server-is-declared). Where one is still left, the name `home-assistant` decides which entry loads, because one wins by name:
 
 1. Claude Code: "Claude Code matches duplicates across the three scopes by name", and project scope ranks above user scope ([MCP docs](https://code.claude.com/docs/en/mcp), "Scope hierarchy and precedence", read 2026-10-25). In a project that ships [.mcp.json](../.mcp.json), the project entry runs.
 2. Copilot CLI: "Project-level definitions also take precedence over those in `~/.copilot/mcp-config.json`" ([Adding MCP servers for GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers), read 2026-10-25). Measured on 1.0.103 on 2026-10-25, a project server hides a user server of the same name.
-3. Codex, OpenCode and Kilo Code: a project entry wins by name over the user entry, even when the project entry is switched off. Measured on 2026-10-25 with a working user entry in a temporary configuration, while this repository's [opencode.json](../opencode.json) and [.codex/config.toml](../.codex/config.toml) still carried a switched-off `home-assistant` entry: in this repository, `codex mcp list` (Codex 0.162.1) showed `home-assistant` as `disabled`, and in an empty folder as `enabled`. `opencode mcp list` (OpenCode 2.0.26) showed it as `disabled`, and `kilocode debug config` (Kilo Code 7.8.15) showed the project block with `"enabled": false`. That is why neither file ships the server. Do not add a `home-assistant` block to a project's copies of those two files, because it would replace the user entry there.
+3. Codex, OpenCode and Kilo Code: a project entry wins by name over the user entry, even when the project entry is switched off. Measured on 2026-10-25 with a working user entry in a temporary configuration, while this repository's [opencode.json](../opencode.json) and [.codex/config.toml](../.codex/config.toml) still carried a switched-off `home-assistant` entry: in this repository, `codex mcp list` (Codex 0.162.1) showed `home-assistant` as `disabled`, and in an empty folder as `enabled`. `opencode mcp list` (OpenCode 2.0.26) showed it as `disabled`, and `kilocode debug config` (Kilo Code 7.8.15) showed the project block with `"enabled": false`. That is why neither file ships a switched-off `home-assistant` entry: it hid the working entry beside it.
 
-Add it at user scope with one command per agent. The shell expands `$HOME` when the command runs, so each configuration stores the absolute path. Claude Code, Unix shell:
+Declare it in the project with one command per agent, run from the project root. A project that imported the shipped [.mcp.json](../.mcp.json) already has the Claude Code entry, with the path from the table above. Otherwise Claude Code, in either shell, with the path of the credential env file in place of `<env file>`. Write a path under your home folder as `${HOME}/` followed by the rest of the path, the way the shipped file does. The single quotes keep `${HOME}` as text, so `.mcp.json` holds it unchanged and Claude Code expands it when it starts the server, measured with Claude Code 2.1.325 on 2026-11-20:
 
 ```bash
-claude mcp add --scope user home-assistant -- uvx --env-file "$HOME/.local/state/agents/workspace/homelab.env" ha-mcp==8.7.0
+claude mcp add --scope project home-assistant -- uvx --env-file '<env file>' ha-mcp==8.7.0
 ```
 
-PowerShell:
-
-```powershell
-claude mcp add --scope user home-assistant -- uvx --env-file "$HOME\.local\state\agents\workspace\homelab.env" ha-mcp==8.7.0
-```
-
-Check it, in either shell. This starts the server once to test the connection:
+Start `claude` in the folder once and approve the server, as [Where a server is declared](#where-a-server-is-declared) describes. Then check it, in either shell. This starts the server once to test the connection:
 
 ```bash
 claude mcp get home-assistant
 ```
 
-Codex, Unix shell. Measured on 2026-10-25 against a temporary `CODEX_HOME`, it writes a `[mcp_servers.home-assistant]` table with that absolute path:
+Codex, OpenCode and Kilo Code read no variable in a project file, so the next commands write an absolute path. Put the absolute path of the credential env file in place of `<env file>`, and the file then holds the home folder of that one machine. Declare the server this way only in a folder that is yours on one machine, or keep that change out of version control. Codex, with the command from [Arch Linux operations server, not shipped](#arch-linux-operations-server-not-shipped). Unix shell:
 
 ```bash
-codex mcp add home-assistant -- uvx --env-file "$HOME/.local/state/agents/workspace/homelab.env" ha-mcp==8.7.0
+python3 -c 'import json,sys,pathlib;p=pathlib.Path(".codex/config.toml");t=p.read_text(encoding="utf-8") if p.exists() else "";h="[mcp_servers."+sys.argv[1]+"]";b=h+"\ncommand = "+json.dumps(sys.argv[2])+"\nargs = ["+", ".join(json.dumps(a) for a in sys.argv[3:])+"]\n\n";i=t.find("[[hooks.");t=t if h in t else (t[:i]+b+t[i:] if i>=0 else t+("\n" if t and not t.endswith("\n") else "")+b);p.parent.mkdir(exist_ok=True);p.write_text(t,encoding="utf-8")' home-assistant uvx --env-file "<env file>" ha-mcp==8.7.0
 ```
 
-PowerShell:
+PowerShell 7.4 or later:
 
 ```powershell
-codex mcp add home-assistant -- uvx --env-file "$HOME\.local\state\agents\workspace\homelab.env" ha-mcp==8.7.0
+python -c 'import json,sys,pathlib;p=pathlib.Path(".codex/config.toml");t=p.read_text(encoding="utf-8") if p.exists() else "";h="[mcp_servers."+sys.argv[1]+"]";b=h+"\ncommand = "+json.dumps(sys.argv[2])+"\nargs = ["+", ".join(json.dumps(a) for a in sys.argv[3:])+"]\n\n";i=t.find("[[hooks.");t=t if h in t else (t[:i]+b+t[i:] if i>=0 else t+("\n" if t and not t.endswith("\n") else "")+b);p.parent.mkdir(exist_ok=True);p.write_text(t,encoding="utf-8")' home-assistant uvx --env-file "<env file>" ha-mcp==8.7.0
 ```
 
-Check it, in either shell:
+Check it from the project root, which Codex must trust, in either shell:
 
 ```bash
 codex mcp list
 ```
 
-OpenCode and Kilo Code expand `{env:VAR}` in their global configuration, so the entry there names `{env:HOME}` rather than a fixed path. Measured on 2026-10-25: with the block below in a temporary global configuration, `kilocode debug config` (Kilo Code 7.8.15) and `opencode debug config` (OpenCode 2.0.26) both printed the path with `{env:HOME}` replaced by the home folder. The command adds or replaces only the `home-assistant` entry and keeps the rest of the file, and the last word names the file. For Kilo Code, Unix shell:
+OpenCode and Kilo Code share the project's `opencode.json`, so one command covers both. It adds or replaces only the `home-assistant` entry and keeps the rest of the file. Unix shell:
 
 ```bash
-python3 -c 'import json,sys,pathlib;p=pathlib.Path.home().joinpath(sys.argv[1]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})["home-assistant"]={"type":"local","command":["uvx","--env-file","{env:HOME}/.local/state/agents/workspace/homelab.env","ha-mcp==8.7.0"],"enabled":True};p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' .config/kilo/kilo.jsonc
+python3 -c 'import json,sys,pathlib;p=pathlib.Path("opencode.json");s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})[sys.argv[1]]={"type":"local","command":sys.argv[2:],"enabled":True};p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' home-assistant uvx --env-file "<env file>" ha-mcp==8.7.0
 ```
 
-For Kilo Code, PowerShell 7.4 or later. Windows sets `USERPROFILE` rather than `HOME`, so this one names `{env:USERPROFILE}`, which was not measured on Windows:
+PowerShell 7.4 or later:
 
 ```powershell
-python -c 'import json,sys,pathlib;p=pathlib.Path.home().joinpath(sys.argv[1]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})["home-assistant"]={"type":"local","command":["uvx","--env-file","{env:USERPROFILE}/.local/state/agents/workspace/homelab.env","ha-mcp==8.7.0"],"enabled":True};p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' .config/kilo/kilo.jsonc
-```
-
-For OpenCode, Unix shell:
-
-```bash
-python3 -c 'import json,sys,pathlib;p=pathlib.Path.home().joinpath(sys.argv[1]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})["home-assistant"]={"type":"local","command":["uvx","--env-file","{env:HOME}/.local/state/agents/workspace/homelab.env","ha-mcp==8.7.0"],"enabled":True};p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' .config/opencode/opencode.json
-```
-
-For OpenCode, PowerShell 7.4 or later:
-
-```powershell
-python -c 'import json,sys,pathlib;p=pathlib.Path.home().joinpath(sys.argv[1]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})["home-assistant"]={"type":"local","command":["uvx","--env-file","{env:USERPROFILE}/.local/state/agents/workspace/homelab.env","ha-mcp==8.7.0"],"enabled":True};p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' .config/opencode/opencode.json
+python -c 'import json,sys,pathlib;p=pathlib.Path("opencode.json");s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})[sys.argv[1]]={"type":"local","command":sys.argv[2:],"enabled":True};p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' home-assistant uvx --env-file "<env file>" ha-mcp==8.7.0
 ```
 
 Check Kilo Code, in either shell:

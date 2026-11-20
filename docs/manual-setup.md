@@ -212,13 +212,7 @@ Reads [AGENTS.md](../AGENTS.md) and [.agents/skills/](../.agents/skills/) native
 the same MCP block and the same plugin declaration as OpenCode. Its own configuration root is `.kilo/`, not the old
 `.kilocode/`.
 
-Kilo does not expand `{env:VAR}` in project-level config, and it does not leave the placeholder standing either. It
-treats an environment reference as a fatal error and rejects the whole file, which would leave Kilo with no MCP
-servers and no preflight gate, so `opencode.json` ships without any. Run `kilocode config check` after editing it: it
-prints `No config warnings.` when the file is accepted. Local servers get their tokens from the environment you
-exported. Context7 therefore ships unauthenticated. For a paid key, put the full `context7` block in your global
-`~/.config/kilo/kilo.jsonc`, where environment references are allowed, with the command under
-[Kilo Code in GLOBAL_SETUP.md](GLOBAL_SETUP.md#kilo-code).
+Kilo does not expand `{env:VAR}` in project-level config, and it does not leave the placeholder standing either. It treats an environment reference as a fatal error and rejects the whole file, which would leave Kilo with no MCP servers and no preflight gate, so `opencode.json` ships without any. Run `kilocode config check` after editing it: it prints `No config warnings.` when the file is accepted. Local servers get their tokens from the environment you exported. Context7 therefore ships unauthenticated, and OpenCode and Kilo Code use its free tier. No global `~/.config/kilo/kilo.jsonc` takes a paid key instead, because no agent keeps an MCP server at user or global scope, as [Where a server is declared](MCP_SETUP.md#where-a-server-is-declared) explains.
 
 #### GitHub Copilot
 

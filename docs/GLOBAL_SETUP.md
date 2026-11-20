@@ -25,7 +25,7 @@ An install made before this layout lives in `~/.agents` instead. [Migrating from
 | Subagents | own format in `~/.claude/agents` | own TOML format in `~/.config/codex/agents` | `~/.config/opencode/agents`, a link to `~/.config/agents/agents` | `~/.config/kilo/agents`, a link to `~/.config/agents/agents` | own `*.agent.md` format in `~/.config/copilot/agents` |
 | Hook scripts | shared, `~/.config/agents/hooks` | shared | shared | shared | shared |
 | Hook wiring | `hooks` in `~/.claude/settings.json` | `~/.config/codex/hooks.json` | the shared plugin, declared by its directory in `opencode.json` | the same plugin, declared by its directory in `kilo.jsonc` | `~/.config/copilot/hooks/preflight.json` |
-| MCP servers | `~/.claude.json`, written by `claude mcp add` | `[mcp_servers.*]` in `~/.config/codex/config.toml` | `mcp` in `~/.config/opencode/opencode.json`, or one shared file | `mcp` in `~/.config/kilo/kilo.jsonc`, or the same shared file | `~/.config/copilot/mcp-config.json`, VS Code user `mcp.json`, JetBrains `mcp.json` |
+| MCP servers | none at user scope, each project's `.mcp.json` | none at user scope, each project's `.codex/config.toml`, in a trusted project | none at user scope, each project's `opencode.json` | none at user scope, the same project `opencode.json` | none at user scope for the CLI and VS Code, each project's `.mcp.json` and `.vscode/mcp.json`, and JetBrains `mcp.json`, which has no project file |
 
 Claude Code keeps its own directory because `CLAUDE_CONFIG_DIR`, the variable that would move it, still leaks state back into `~/.claude` or loses it: issues [#80580](https://github.com/anthropics/claude-code/issues/80580), [#30538](https://github.com/anthropics/claude-code/issues/30538), [#98789](https://github.com/anthropics/claude-code/issues/98789), [#97680](https://github.com/anthropics/claude-code/issues/97680), [#90868](https://github.com/anthropics/claude-code/issues/90868), [#88603](https://github.com/anthropics/claude-code/issues/88603), [#100138](https://github.com/anthropics/claude-code/issues/100138) and [#80791](https://github.com/anthropics/claude-code/issues/80791) were all open when this layout was chosen. Re-check them before you move it.
 
@@ -51,15 +51,7 @@ link to `~/.config/agents/agents`. Claude Code, Codex and Copilot each need thei
 
 Two agents cannot take the shared skills folder as one directory link, because each writes into its own skills folder as well. Claude Code puts the skills it syncs from claude.ai in `~/.claude/skills/synced/` ([skills docs](https://code.claude.com/docs/en/skills): "Claude Code uses `~/.claude/skills/synced/` for skills downloaded from claude.ai"), and Codex puts its bundled skills in `$CODEX_HOME/skills/.system/`, measured with Codex 0.162.1. Through a whole-directory link both landed in the shared tree that every other agent scans. That is why both folders are real directories holding one link per shared skill, which [sync_skill_links.py](#the-skill-link-hook) keeps current.
 
-OpenCode and Kilo Code can share one MCP server list, but not by reading each other's file. Kilo Code "no longer falls
-back to opencode configuration stored in .opencode directories (such as ~/.config/opencode ...)"
-([Kilo CLI docs](https://kilo.ai/docs/code-with-ai/platforms/cli)). What both do support is a custom config file named
-by an environment variable, `OPENCODE_CONFIG` for OpenCode ([config docs](https://opencode.ai/docs/config/)) and
-`KILO_CONFIG` for Kilo Code, which Kilo lists as trusted config where `{env:VAR}` resolves. A file holding only an
-`mcp` block, named by both variables, is the one list both read. OpenCode 1.18.32 and Kilo Code 7.7.9 both showed a
-server from such a file in `debug config`, each run in a throwaway home.
-[Share one MCP list between OpenCode and Kilo Code](#share-one-mcp-list-between-opencode-and-kilo-code) has the
-commands.
+No agent gets an MCP server at user or global scope. Each project declares the servers it uses in its own files, because every chat starts its own copy of every server it loads, so a server at user scope runs in every chat of every project. The rule, the measurement behind it, the commands and the Codex trust note are under [Where a server is declared](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md#where-a-server-is-declared). OpenCode and Kilo Code share each project's list without any setup, because both read the project's `opencode.json`.
 
 ---
 
@@ -737,25 +729,7 @@ PowerShell:
 Select-String -Path $HOME\.claude\settings.json -Pattern '[^ "]*/\.config/agents/hooks/[^ "]*' -AllMatches | ForEach-Object { $_.Matches.Value }
 ```
 
-MCP at user scope is stored in `~/.claude.json`, and the supported way to write it is the CLI rather than hand-editing
-([MCP docs](https://code.claude.com/docs/en/mcp)). One server per command, so add only the ones that genuinely are
-machine-wide. PowerShell:
-
-```powershell
-claude mcp add --transport http context7 --scope user https://mcp.context7.com/mcp
-```
-
-Unix shell:
-
-```bash
-claude mcp add --transport http context7 --scope user https://mcp.context7.com/mcp
-```
-
-Check it, in either shell. "To check that Claude Code connected, run `claude mcp get <name>`" (MCP docs):
-
-```bash
-claude mcp get context7
-```
+MCP at user scope is stored in `~/.claude.json`. Keep no server there. Declare each server in the project that uses it, in its `.mcp.json`, with `claude mcp add --scope project`, and approve it on the first start of `claude` in that folder, as [Where a server is declared](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md#where-a-server-is-declared) describes with the commands.
 
 #### Codex
 
@@ -940,19 +914,7 @@ PowerShell:
 Select-String -Path $HOME\.config\codex\hooks.json -Pattern '[^ "]*/\.config/agents/hooks/[^ "]*' -AllMatches | ForEach-Object { $_.Matches.Value }
 ```
 
-MCP servers go in `[mcp_servers.<name>]` tables in `~/.config/codex/config.toml`, which is shared by the Codex CLI, the IDE extension, and the ChatGPT desktop app ([MCP docs](https://learn.chatgpt.com/codex/extend/mcp)). Add each machine-wide server with `codex mcp add`, which writes the table for you. The MCP page gives this very example: "to add Context7 (a free MCP server for developer documentation), you can run the following command: `codex mcp add context7 -- npx -y @upstash/context7-mcp`" ([MCP docs](https://learn.chatgpt.com/docs/extend/mcp), read 2026-10-23). The command below pins the same `@latest` tag the shipped table uses. In either shell:
-
-```bash
-codex mcp add context7 -- npx -y @upstash/context7-mcp@latest
-```
-
-Check it. "Run `codex mcp list` to see configured servers" (same page):
-
-```bash
-codex mcp list
-```
-
-Add another server from [MCP_SETUP.md](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md) the same way, with its command and arguments after the `--`. Never pass a token on that command line with `--env`, because it then lands in your shell history. Codex has no substitution for a token, as [Codex and Copilot CLI globals](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md#codex-and-copilot-cli-globals) explains.
+MCP servers could go in `[mcp_servers.<name>]` tables in `~/.config/codex/config.toml`, which is shared by the Codex CLI, the IDE extension, and the ChatGPT desktop app ([MCP docs](https://learn.chatgpt.com/codex/extend/mcp)), but keep no server there, and leave `codex mcp add` unused, because it writes only that file. Each project declares its servers in its own `.codex/config.toml`, which Codex loads only in a trusted project: "you can also scope MCP servers to a project with `.codex/config.toml` (trusted projects only)" ([MCP docs](https://learn.chatgpt.com/docs/extend/mcp), read 2026-11-20). The trust is a `[projects."<path>"]` table with `trust_level = "trusted"` in `~/.config/codex/config.toml`. It is not a server, so it stays there. The commands and the trust entry are under [Where a server is declared](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md#where-a-server-is-declared).
 
 #### OpenCode
 
@@ -1049,29 +1011,7 @@ alias opencode1='XDG_DATA_HOME="$HOME/.local/share/opencode-v1" opencode1'
 
 `XDG_DATA_HOME` reaches every process 1.x starts, so a local MCP server that stores data by that variable moves with it.
 
-MCP servers go under the `mcp` key of `~/.config/opencode/opencode.json` ([config docs](https://opencode.ai/docs/config/)), or in the shared file from [Share one MCP list between OpenCode and Kilo Code](#share-one-mcp-list-between-opencode-and-kilo-code). Copy the machine-wide servers out of the shipped [opencode.json](https://github.com/Lukk17/agent-standards/blob/master/opencode.json) in the temporary copy with one command, naming each server you want at the end, here `context7`. It adds or replaces only the servers you name and keeps the rest of the file. Unix shell:
-
-```bash
-python3 -c 'import json,sys,pathlib;u=json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))["mcp"];p=pathlib.Path.home().joinpath(sys.argv[2]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{}).update({n:u[n] for n in sys.argv[3:]});p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' "$src/opencode.json" .config/opencode/opencode.json context7
-```
-
-PowerShell 7.4 or later:
-
-```powershell
-python -c 'import json,sys,pathlib;u=json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))["mcp"];p=pathlib.Path.home().joinpath(sys.argv[2]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{}).update({n:u[n] for n in sys.argv[3:]});p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' "$src\opencode.json" .config/opencode/opencode.json context7
-```
-
-Check it. It prints the server names in the file. Unix shell:
-
-```bash
-python3 -c 'import json,pathlib;print(sorted(json.loads((pathlib.Path.home()/".config/opencode/opencode.json").read_text(encoding="utf-8")).get("mcp",{})))'
-```
-
-PowerShell 7.4 or later:
-
-```powershell
-python -c 'import json,pathlib;print(sorted(json.loads((pathlib.Path.home()/".config/opencode/opencode.json").read_text(encoding="utf-8")).get("mcp",{})))'
-```
+MCP servers could go under the `mcp` key of `~/.config/opencode/opencode.json` ([config docs](https://opencode.ai/docs/config/)), but keep no server there. Each project declares its servers in the `mcp` block of its own `opencode.json`, as [Where a server is declared](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md#where-a-server-is-declared) describes with the commands.
 
 #### Kilo Code
 
@@ -1150,141 +1090,35 @@ Get-Content $HOME\.config\kilo\kilo.jsonc
 Leave `~/.config/kilo/plugin/` without a copy of the plugin, for the same reason as under OpenCode: every file in that
 directory is "auto-registered at startup", so a copy there would load the runner a second time.
 
-MCP servers go under the `mcp` key of `~/.config/kilo/kilo.jsonc`, in the same shape as `opencode.json`
-([CLI docs](https://kilo.ai/docs/code-with-ai/platforms/cli)), or in the shared file below. `{env:VAR}` works here:
-Kilo refuses it in a project config file, but resolves it in "your global config (~/.config/kilo), a config passed via
-KILO_CONFIG / KILO_CONFIG_CONTENT, or organization/MDM-managed config".
-
-Copy machine-wide servers out of the shipped [opencode.json](https://github.com/Lukk17/agent-standards/blob/master/opencode.json) in the temporary copy the same way as for OpenCode, naming each server at the end. Unix shell:
-
-```bash
-python3 -c 'import json,sys,pathlib;u=json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))["mcp"];p=pathlib.Path.home().joinpath(sys.argv[2]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{}).update({n:u[n] for n in sys.argv[3:]});p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' "$src/opencode.json" .config/kilo/kilo.jsonc context7
-```
-
-PowerShell 7.4 or later:
-
-```powershell
-python -c 'import json,sys,pathlib;u=json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))["mcp"];p=pathlib.Path.home().joinpath(sys.argv[2]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{}).update({n:u[n] for n in sys.argv[3:]});p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' "$src\opencode.json" .config/kilo/kilo.jsonc context7
-```
-
-The global file is also the place for the Context7 API key header, if you want Kilo to use your key rather than the free tier. The entry looks like this:
-
-```jsonc
-{
-  "mcp": {
-    "context7": {
-      "type": "remote",
-      "url": "https://mcp.context7.com/mcp",
-      "headers": { "CONTEXT7_API_KEY": "{env:CONTEXT7_API_KEY}" },
-      "enabled": true
-    }
-  }
-}
-```
-
-Write it with one command. It writes the reference `{env:CONTEXT7_API_KEY}` and never the key itself, which Kilo reads from the variable you set in [Step 3 of MCP_SETUP.md](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md#step-3-set-environment-variables-system-wide). It replaces any `context7` entry already there and keeps the rest of the file. The last word names the file. For Kilo Code, Unix shell:
-
-```bash
-python3 -c 'import json,sys,pathlib;p=pathlib.Path.home().joinpath(sys.argv[1]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})["context7"]={"type":"remote","url":"https://mcp.context7.com/mcp","headers":{"CONTEXT7_API_KEY":"{env:CONTEXT7_API_KEY}"},"enabled":True};p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' .config/kilo/kilo.jsonc
-```
-
-PowerShell 7.4 or later:
-
-```powershell
-python -c 'import json,sys,pathlib;p=pathlib.Path.home().joinpath(sys.argv[1]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})["context7"]={"type":"remote","url":"https://mcp.context7.com/mcp","headers":{"CONTEXT7_API_KEY":"{env:CONTEXT7_API_KEY}"},"enabled":True};p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' .config/kilo/kilo.jsonc
-```
-
-For OpenCode, Unix shell:
-
-```bash
-python3 -c 'import json,sys,pathlib;p=pathlib.Path.home().joinpath(sys.argv[1]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})["context7"]={"type":"remote","url":"https://mcp.context7.com/mcp","headers":{"CONTEXT7_API_KEY":"{env:CONTEXT7_API_KEY}"},"enabled":True};p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' .config/opencode/opencode.json
-```
-
-PowerShell 7.4 or later:
-
-```powershell
-python -c 'import json,sys,pathlib;p=pathlib.Path.home().joinpath(sys.argv[1]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})["context7"]={"type":"remote","url":"https://mcp.context7.com/mcp","headers":{"CONTEXT7_API_KEY":"{env:CONTEXT7_API_KEY}"},"enabled":True};p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' .config/opencode/opencode.json
-```
-
-Check the Kilo Code file. It prints the server names in it, and the OpenCode check above does the same for `opencode.json`. Unix shell:
-
-```bash
-python3 -c 'import json,pathlib;print(sorted(json.loads((pathlib.Path.home()/".config/kilo/kilo.jsonc").read_text(encoding="utf-8")).get("mcp",{})))'
-```
-
-PowerShell 7.4 or later:
-
-```powershell
-python -c 'import json,pathlib;print(sorted(json.loads((pathlib.Path.home()/".config/kilo/kilo.jsonc").read_text(encoding="utf-8")).get("mcp",{})))'
-```
+MCP servers could go under the `mcp` key of `~/.config/kilo/kilo.jsonc`, in the same shape as `opencode.json` ([CLI docs](https://kilo.ai/docs/code-with-ai/platforms/cli)), but keep no server there. Kilo Code reads the project's `opencode.json`, so each project declares its servers there for OpenCode and Kilo Code at once, as [Where a server is declared](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md#where-a-server-is-declared) describes with the commands. That file can hold no `{env:VAR}` token, so Kilo Code uses Context7 on the free tier, as [What ships](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md#what-ships) explains.
 
 #### Share one MCP list between OpenCode and Kilo Code
 
-Optional. Put the machine-wide servers in one file that holds nothing but an `mcp` block, for example `~/.config/agents/mcp.json`, in the `opencode.json` shape from [MCP_SETUP.md](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md). The same command as under [OpenCode](#opencode) copies the servers you name out of the shipped [opencode.json](https://github.com/Lukk17/agent-standards/blob/master/opencode.json) in the temporary copy into that file. Unix shell:
+Not needed any more. No server sits in a global file, so there is no global list to share, and both agents already share each project's `opencode.json`. If an older setup made `~/.config/agents/mcp.json` and named it in `OPENCODE_CONFIG` and `KILO_CONFIG`, first declare each server it holds in the projects that use it, as [Where a server is declared](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md#where-a-server-is-declared) describes, then delete the file and clear both variables. Linux, in the environment file from step 4:
 
 ```bash
-python3 -c 'import json,sys,pathlib;u=json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))["mcp"];p=pathlib.Path.home().joinpath(sys.argv[2]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{}).update({n:u[n] for n in sys.argv[3:]});p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' "$src/opencode.json" .config/agents/mcp.json context7
+sed -i '/^OPENCODE_CONFIG=/d;/^KILO_CONFIG=/d' ~/.config/environment.d/60-agents.conf
 ```
 
-PowerShell 7.4 or later:
-
-```powershell
-python -c 'import json,sys,pathlib;u=json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))["mcp"];p=pathlib.Path.home().joinpath(sys.argv[2]);s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{}).update({n:u[n] for n in sys.argv[3:]});p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' "$src\opencode.json" .config/agents/mcp.json context7
-```
-
-Then name it in both variables, for your user account rather than one shell. PowerShell:
-
-```powershell
-[Environment]::SetEnvironmentVariable('OPENCODE_CONFIG', "$HOME\.config\agents\mcp.json", 'User')
-```
-
-```powershell
-[Environment]::SetEnvironmentVariable('KILO_CONFIG', "$HOME\.config\agents\mcp.json", 'User')
-```
-
-Check both. It prints the two names with their values:
-
-```powershell
-'OPENCODE_CONFIG', 'KILO_CONFIG' | ForEach-Object { "$_=$([Environment]::GetEnvironmentVariable($_, 'User'))" }
-```
-
-Linux, in the environment file from step 4:
-
-```bash
-printf '%s\n' 'OPENCODE_CONFIG=${HOME}/.config/agents/mcp.json' 'KILO_CONFIG=${HOME}/.config/agents/mcp.json' >> ~/.config/environment.d/60-agents.conf
-```
-
-Check it. It prints the two lines:
+Check it. It prints nothing once both lines are gone:
 
 ```bash
 grep -n '_CONFIG=' ~/.config/environment.d/60-agents.conf
 ```
 
-Both tools merge that file over their own global config, so keep the `mcp` block out of `opencode.json` and `kilo.jsonc` to have one list. This command removes it from both and keeps every other key. Unix shell:
-
-```bash
-python3 -c 'import json,pathlib;h=pathlib.Path.home();[p.write_text(json.dumps({k:v for k,v in json.loads(p.read_text(encoding="utf-8")).items() if k!="mcp"},indent=2)+"\n",encoding="utf-8") for p in (h/".config/opencode/opencode.json",h/".config/kilo/kilo.jsonc") if p.exists()]'
-```
-
-PowerShell 7.4 or later:
+PowerShell:
 
 ```powershell
-python -c 'import json,pathlib;h=pathlib.Path.home();[p.write_text(json.dumps({k:v for k,v in json.loads(p.read_text(encoding="utf-8")).items() if k!="mcp"},indent=2)+"\n",encoding="utf-8") for p in (h/".config/opencode/opencode.json",h/".config/kilo/kilo.jsonc") if p.exists()]'
+'OPENCODE_CONFIG', 'KILO_CONFIG' | ForEach-Object { [Environment]::SetEnvironmentVariable($_, $null, 'User') }
 ```
 
-Check all three files. It prints each file with the server names it holds, and only the shared file should name any. Unix shell:
+Delete the file, in either shell:
 
 ```bash
-python3 -c 'import json,pathlib;h=pathlib.Path.home();[print(p,sorted(json.loads(p.read_text(encoding="utf-8")).get("mcp",{}))) for p in (h/".config/agents/mcp.json",h/".config/opencode/opencode.json",h/".config/kilo/kilo.jsonc") if p.exists()]'
+rm ~/.config/agents/mcp.json
 ```
 
-PowerShell 7.4 or later:
-
-```powershell
-python -c 'import json,pathlib;h=pathlib.Path.home();[print(p,sorted(json.loads(p.read_text(encoding="utf-8")).get("mcp",{}))) for p in (h/".config/agents/mcp.json",h/".config/opencode/opencode.json",h/".config/kilo/kilo.jsonc") if p.exists()]'
-```
-
-Restart the agents, or sign out and in again, so they see the variables. Whether Kilo Code ever writes back into a file named by `KILO_CONFIG` was not tested.
+Restart the agents, or sign out and in again, so they stop reading the variables.
 
 #### GitHub Copilot
 
@@ -1406,11 +1240,7 @@ Do not turn on `chat.useClaudeHooks` in VS Code on top of this. With it on, the 
 `~/.claude/settings.json`, next to the ones in `~/.copilot/hooks/`, and the documentation adds that "Local ignores
 matcher values". The gate is wired in both files, so every tool call in a VS Code chat would run it twice.
 
-MCP for the CLI is `~/.config/copilot/mcp-config.json`. In VS Code, run the `MCP: Open User Configuration` command to open
-the `mcp.json` in your user profile folder, which applies across every workspace. The JetBrains plugin reads one global
-file and no project file: `C:\Users\<you>\AppData\Local\github-copilot\intellij\mcp.json` on Windows and
-`~/.config/github-copilot/intellij/mcp.json` elsewhere. GitHub documents only the in-IDE interface, not the path, so
-treat that path as observed rather than documented. The manual blocks for all three are in [MCP_SETUP.md](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md).
+MCP for the CLI could go in `~/.config/copilot/mcp-config.json`, and for VS Code in the `mcp.json` in your user profile folder, which the `MCP: Open User Configuration` command opens and which applies across every workspace. Keep no server in either. The CLI reads the project's `.mcp.json` and VS Code the project's `.vscode/mcp.json`, as [Where a server is declared](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md#where-a-server-is-declared) describes. The JetBrains plugin reads one global file and no project file: `C:\Users\<you>\AppData\Local\github-copilot\intellij\mcp.json` on Windows and `~/.config/github-copilot/intellij/mcp.json` elsewhere, so its servers can only go there. GitHub documents only the in-IDE interface, not the path, so treat that path as observed rather than documented. The manual block for JetBrains is in [MCP_SETUP.md](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md).
 
 ---
 
@@ -1660,9 +1490,7 @@ outside the project adds nothing. Commit the file so the whole team gets the sam
 
 ### What this document deliberately leaves to you
 
-1. MCP servers, everywhere. Which servers are machine-wide is a judgement about your machine, and most servers should
-   not be global at all. Each agent's subsection above says where its user-scope MCP configuration lives, and
-   [MCP_SETUP.md](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md) has the blocks.
+1. MCP servers, in each project. No server is machine-wide: each project declares the servers it uses in its own files, and no agent gets one at user scope. Which servers a project needs is a judgement about that project. [Where a server is declared](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md#where-a-server-is-declared) has the rule and the commands.
 2. The content of `~/.config/agents/AGENTS.md`. Editing the template down to the parts that are about you is a job only you
    can do.
 3. Reading the merged configuration files. No command above overwrites a configuration file you already have: each
@@ -1678,11 +1506,11 @@ writes into your repository, and they are unaffected by anything here.
 
 | Agent | Skills | Subagents | Hooks or plugin | MCP config | Global instructions | Config-dir env var |
 | --- | --- | --- | --- | --- | --- | --- |
-| Claude Code | `~/.claude/skills/`, per-skill links into `~/.config/agents/skills` | `~/.claude/agents/` | `hooks` in `~/.claude/settings.json` | `~/.claude.json`, written by `claude mcp add --scope user` | `~/.claude/CLAUDE.md`, importing `~/.config/agents/AGENTS.md`, plus `~/.claude/rules/` | `CLAUDE_CONFIG_DIR`, left unset |
-| Codex | `~/.config/codex/skills/`, per-skill links, also `$HOME/.agents/skills` and `/etc/codex/skills` | `~/.config/codex/agents/` as TOML | `~/.config/codex/hooks.json`, or inline `[[hooks.*]]` in `~/.config/codex/config.toml` | `[mcp_servers.*]` in `~/.config/codex/config.toml` | `~/.config/codex/AGENTS.md`, a link | `CODEX_HOME` |
-| OpenCode | `skills.paths`, plus `~/.agents/skills/`, `~/.claude/skills/` and `~/.config/opencode/skills/` natively | `~/.config/opencode/agents/`, a link to `~/.config/agents/agents` | `plugin` in `~/.config/opencode/opencode.json`, naming `~/.config/agents/plugin` | `mcp` in `~/.config/opencode/opencode.json`, or the file in `OPENCODE_CONFIG` | `~/.config/opencode/AGENTS.md`, a link | `OPENCODE_CONFIG_DIR`, and `OPENCODE_CONFIG` for a file |
-| Kilo Code | `skills.paths`, plus `~/.agents/skills/` and `~/.kilo/skills/` natively, `~/.claude/skills/` behind a compatibility setting | `~/.config/kilo/agents/`, a link to `~/.config/agents/agents` | `plugin` in `~/.config/kilo/kilo.jsonc`, naming `~/.config/agents/plugin` | `mcp` in `~/.config/kilo/kilo.jsonc`, or the file in `KILO_CONFIG` | `~/.config/kilo/AGENTS.md`, a link | `KILO_CONFIG` for a file |
-| GitHub Copilot | `COPILOT_SKILLS_DIRS`, plus `~/.config/copilot/skills/` | `~/.config/copilot/agents/` for the CLI, `~/.copilot/agents/` for VS Code | `~/.config/copilot/hooks/` for the CLI, `~/.copilot/hooks/` for VS Code | `~/.config/copilot/mcp-config.json` for the CLI, user-profile `mcp.json` for VS Code, `C:\Users\<you>\AppData\Local\github-copilot\intellij\mcp.json` for JetBrains on Windows | `COPILOT_CUSTOM_INSTRUCTIONS_DIRS` naming `~/.config/agents` | `COPILOT_HOME` |
+| Claude Code | `~/.claude/skills/`, per-skill links into `~/.config/agents/skills` | `~/.claude/agents/` | `hooks` in `~/.claude/settings.json` | none, `~/.claude.json` holds no server, each project's `.mcp.json` does | `~/.claude/CLAUDE.md`, importing `~/.config/agents/AGENTS.md`, plus `~/.claude/rules/` | `CLAUDE_CONFIG_DIR`, left unset |
+| Codex | `~/.config/codex/skills/`, per-skill links, also `$HOME/.agents/skills` and `/etc/codex/skills` | `~/.config/codex/agents/` as TOML | `~/.config/codex/hooks.json`, or inline `[[hooks.*]]` in `~/.config/codex/config.toml` | none, each project's `.codex/config.toml`, trusted through `projects.<path>.trust_level` in `~/.config/codex/config.toml` | `~/.config/codex/AGENTS.md`, a link | `CODEX_HOME` |
+| OpenCode | `skills.paths`, plus `~/.agents/skills/`, `~/.claude/skills/` and `~/.config/opencode/skills/` natively | `~/.config/opencode/agents/`, a link to `~/.config/agents/agents` | `plugin` in `~/.config/opencode/opencode.json`, naming `~/.config/agents/plugin` | none, each project's `opencode.json` | `~/.config/opencode/AGENTS.md`, a link | `OPENCODE_CONFIG_DIR`, and `OPENCODE_CONFIG` for a file |
+| Kilo Code | `skills.paths`, plus `~/.agents/skills/` and `~/.kilo/skills/` natively, `~/.claude/skills/` behind a compatibility setting | `~/.config/kilo/agents/`, a link to `~/.config/agents/agents` | `plugin` in `~/.config/kilo/kilo.jsonc`, naming `~/.config/agents/plugin` | none, each project's `opencode.json` | `~/.config/kilo/AGENTS.md`, a link | `KILO_CONFIG` for a file |
+| GitHub Copilot | `COPILOT_SKILLS_DIRS`, plus `~/.config/copilot/skills/` | `~/.config/copilot/agents/` for the CLI, `~/.copilot/agents/` for VS Code | `~/.config/copilot/hooks/` for the CLI, `~/.copilot/hooks/` for VS Code | none for the CLI and VS Code, each project's `.mcp.json` and `.vscode/mcp.json`, and `C:\Users\<you>\AppData\Local\github-copilot\intellij\mcp.json` for JetBrains on Windows, which has no project file | `COPILOT_CUSTOM_INSTRUCTIONS_DIRS` naming `~/.config/agents` | `COPILOT_HOME` |
 
 ---
 
@@ -1838,7 +1666,7 @@ Never refreshed, on purpose, because they become yours the moment you install th
 `~/.claude/CLAUDE.md`, `~/.claude.json`, `~/.config/codex/hooks.json`, `~/.config/codex/config.toml`,
 `~/.config/opencode/opencode.json`, `~/.config/kilo/kilo.jsonc`, `~/.config/copilot/hooks/preflight.json`,
 `~/.config/copilot/mcp-config.json`, the environment file from step 4, and `~/.config/agents/mcp.json` if you made one. When upstream changes the gate wording or the
-hook wiring, run the command that writes the file again, from the agent's section above and against a new temporary copy. When it adds an MCP server you want, add it with the MCP command in the same section.
+hook wiring, run the command that writes the file again, from the agent's section above and against a new temporary copy. When it adds an MCP server you want, declare it in the project that uses it, as [Where a server is declared](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md#where-a-server-is-declared) describes.
 
 ---
 

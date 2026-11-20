@@ -225,7 +225,7 @@ Packages installed outside the main repositories, such as AUR, PPA, casks or man
 | Agent command-line tools | `<claude, codex, opencode, kilo, copilot, with versions>` | | |
 | Global instruction file | `<path, and which agents reach it through which link>` | | |
 | Global skills, subagents, hooks | `<path, upstream commit>` | | |
-| MCP servers configured machine-wide | `<names only, never a token>` | | |
+| MCP servers at user or global scope, kept at none | `<none, or the names still to remove, never a token>` | | |
 
 ---
 
