@@ -1,6 +1,6 @@
 # CPU
 
-Model, microcode, frequency governor and power profile, temperatures and throttling. The rules live in [SKILL.md](../SKILL.md). Linux commands below were executed read-only on CachyOS on an AMD Ryzen 7 2700X, macOS and Windows commands are UNVERIFIED.
+Model, microcode, frequency governor and power profile, temperatures and throttling. The rules live in [SKILL.md](../SKILL.md). Linux commands below were executed read-only on CachyOS on an AMD test machine, macOS and Windows commands are UNVERIFIED.
 
 ---
 
@@ -9,7 +9,7 @@ Model, microcode, frequency governor and power profile, temperatures and throttl
 | OS | Command | Wrong looks like | Status |
 |---|---|---|---|
 | Linux | `lscpu` | Model differs from `MACHINE.md`, fewer online CPUs than threads | verified |
-| Linux | `grep -m1 microcode /proc/cpuinfo` | Revision differs from the baseline with no package update behind it | verified, printed `0x800820d` |
+| Linux | `grep -m1 microcode /proc/cpuinfo` | Revision differs from the baseline with no package update behind it | verified, printed `0x<revision>` |
 | Linux | `pacman -Q amd-ucode intel-ucode`, or `dpkg -l amd64-microcode intel-microcode`, or `rpm -q microcode_ctl linux-firmware` | No microcode package installed, or the package was updated after the current boot, which means a reboot is owed | Arch form verified |
 | macOS | `sysctl -n machdep.cpu.brand_string` | Model differs from `MACHINE.md`. Microcode arrives with macOS updates and is not inspectable | UNVERIFIED |
 | Windows | `Get-CimInstance Win32_Processor \| Select-Object Name,NumberOfCores,NumberOfLogicalProcessors,MaxClockSpeed,CurrentClockSpeed` | Model or core count differs from `MACHINE.md` | UNVERIFIED |
@@ -40,9 +40,9 @@ On Linux the early boot lines that name the microcode revision are often missing
 | macOS | `sudo powermetrics --samplers smc -n 1` | Needs root, so it goes to Needs root | UNVERIFIED |
 | Windows | `Get-CimInstance -Namespace root\wmi -ClassName MSAcpi_ThermalZoneTemperature` | Needs elevation on most machines and reports an ACPI zone in tenths of kelvin, often not the CPU die. Treat the value as indicative only | UNVERIFIED |
 
-Read the right sensor. On AMD the `k10temp` driver reports `Tctl` and sometimes `Tdie`. The kernel documentation says "On some AMD CPUs, there is a difference between the die temperature (Tdie) and the reported temperature (Tctl)" and "Tdie is the real measured temperature, and Tctl is used for fan control" (<https://docs.kernel.org/hwmon/k10temp.html>). On the 2700X test machine `Tctl` read 56.0 and `Tdie` 46.0 at the same moment, so judge against `Tdie` where it exists.
+Read the right sensor. On AMD the `k10temp` driver reports `Tctl` and sometimes `Tdie`. The kernel documentation says "On some AMD CPUs, there is a difference between the die temperature (Tdie) and the reported temperature (Tctl)" and "Tdie is the real measured temperature, and Tctl is used for fan control" (<https://docs.kernel.org/hwmon/k10temp.html>). On the AMD test machine `Tctl` read 56.0 and `Tdie` 46.0 at the same moment, so judge against `Tdie` where it exists.
 
-Compare with the vendor's maximum, quoted from the vendor page rather than remembered. For the 2700X, AMD's page lists "Max. Operating Temperature (Tjmax) 85°C" (<https://www.amd.com/en/support/downloads/drivers.html/processors/ryzen/ryzen-2000-series/amd-ryzen-7-2700x.html>, fetched raw). Idle well below that is `ok`. Idle within 15 degrees of it is `warn`, which usually means a cooler, paste or fan curve problem the owner has to look at.
+Compare with the vendor's maximum, quoted from the vendor page rather than remembered. Look up the page of the exact model the machine has. As a vendor example, not the test machine, AMD's page for the Ryzen 7 7700X lists "Max. Operating Temperature (Tjmax) 95°C" (<https://www.amd.com/en/products/processors/desktops/ryzen/7000-series/amd-ryzen-7-7700x.html>, fetched raw on 2026-11-20). Idle well below that is `ok`. Idle within 15 degrees of it is `warn`, which usually means a cooler, paste or fan curve problem the owner has to look at.
 
 ---
 

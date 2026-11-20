@@ -8,7 +8,7 @@ Contents:
 - [Log limits on every service](#log-limits-on-every-service)
 - [Dollar signs in Compose](#dollar-signs-in-compose)
 
-Read this before copying a change to the VM, before the first start of a new service, or before adding a service to the Compose file. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab. Every other command here is UNVERIFIED.
+Read this before copying a change to the VM, before the first start of a new service, or before adding a service to the Compose file. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on a test homelab. Every other command here is UNVERIFIED.
 
 Sources: the Docker page on the json-file logging driver at https://docs.docker.com/engine/logging/drivers/json-file/, the Compose page on interpolation at https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/, and the Compose specification at https://github.com/compose-spec/compose-spec/blob/main/12-interpolation.md.
 
@@ -18,7 +18,7 @@ Sources: the Docker page on the json-file logging driver at https://docs.docker.
 
 The Compose file and every file it mounts, such as the Telegraf config, live in a git clone on the owner's machine. The VM holds a plain copy of them in `<stack-dir>`, with no clone and no git. A change goes into the clone first and is copied from there, so the clone always says what runs.
 
-Do not fetch the files from a GitHub raw link. A raw link gives what was pushed, so a change that is committed but not pushed, or not committed yet, never reaches the VM, and nothing says so. On the owner's homelab, the Telegraf config on the VM was found two weeks older than the one in the repository, because nothing had copied it.
+Do not fetch the files from a GitHub raw link. A raw link gives what was pushed, so a change that is committed but not pushed, or not committed yet, never reaches the VM, and nothing says so. On a test homelab, the Telegraf config on the VM was found two weeks older than the one in the repository, because nothing had copied it.
 
 ---
 

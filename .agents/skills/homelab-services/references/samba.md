@@ -6,7 +6,7 @@ Contents:
 - [The login file](#the-login-file)
 - [Check it](#check-it)
 
-Read this before setting up the network drive or changing its login. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab on one Samba 4 release from the `dockurr/samba` image. Every other command here is UNVERIFIED.
+Read this before setting up the network drive or changing its login. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on a test homelab on one Samba 4 release from the `dockurr/samba` image. Every other command here is UNVERIFIED.
 
 Sources: the image README at https://github.com/dockur/samba, and the Compose page on interpolation at https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/.
 

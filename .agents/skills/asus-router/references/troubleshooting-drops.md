@@ -2,7 +2,7 @@
 
 Read this before explaining why the internet behind an ASUS router drops now and then, and before saying whose fault it is. The answer comes from two sources read side by side: the router's log, which says what the router saw, and a ping log kept on a machine in the LAN, which says when traffic really stopped. The log lines and the commands that read them are in [reading-state.md](reading-state.md). The rules live in [SKILL.md](../SKILL.md), and rule 8 there holds here: no verdict without the lines and times that show it.
 
-Sources: the same source files and stock image as [reading-state.md](reading-state.md), and `pppd/pppd/lcp.c` in the Asuswrt-Merlin 3006.102 source. The ping log command was run with `ping` from iputils in a throwaway Debian 13 container, against a local address and against an address that never answers. The patterns marked VERIFIED were seen by the owner on a GT-AX6000 with stock firmware build 386 and PPPoE on a VLAN, over about 4.5 days of log. Every router command is UNVERIFIED unless [reading-state.md](reading-state.md) marks it.
+Sources: the same source files and stock image as [reading-state.md](reading-state.md), and `pppd/pppd/lcp.c` in the Asuswrt-Merlin 3006.102 source. The ping log command was run with `ping` from iputils in a throwaway Debian 13 container, against a local address and against an address that never answers. The patterns marked VERIFIED were seen by the owner on a GT-AX6000 with stock firmware build 386, over about 4.5 days of log. Every router command is UNVERIFIED unless [reading-state.md](reading-state.md) marks it.
 
 ---
 
@@ -18,7 +18,7 @@ Two more lines change the reading of a PPPoE drop. `LCP terminated by peer` mean
 
 On a DHCP WAN the session rows do not apply. Look for `dhcp client: deconfig` or `leasefail` instead. `dhcp client: renew` with the same address is a normal renewal and no drop at all.
 
-VERIFIED on build 386: in 4.5 days every drop in the log was a PPPoE session drop. `WAN was restored.` came about 11 to 15 seconds after the drop lines, and no WAN port link down line appeared at all.
+VERIFIED on build 386: after a PPPoE session drop, `WAN was restored.` came about 11 to 15 seconds after the drop lines.
 
 ---
 
@@ -69,7 +69,7 @@ pkill -f '^ping -D -O'
 ### Read both side by side
 
 1. Copy the router log to the agent's machine, as [reading-state.md](reading-state.md) shows, as soon as a drop happened. The log covers only a few days.
-2. Find the clock offset of each tag before matching anything, and read the router's time zone rule first, as "The clock in the log is not one clock" in [reading-state.md](reading-state.md) says. On build 386 the `pppd` lines were UTC+1 while the router's `date` and the `wan:` lines were in local summer time on 2026-10-23, and every tag matched the router's `date`, offset 0, in winter time on 2026-11-06. Both VERIFIED. Measure again after each change between summer time and winter time.
+2. Find the clock offset of each tag before matching anything, and read the router's time zone rule first, as "The clock in the log is not one clock" in [reading-state.md](reading-state.md) says. On build 386 the `pppd` lines ran one hour behind the router's `date` and the `wan:` lines at one time of the year, and every tag matched the router's `date`, offset 0, at another. Both VERIFIED. Measure again after each daylight saving time change.
 3. List the drops in the ping log: runs of `no answer yet`, each with its start, its end and its length.
 4. For each drop, look in the router log within a minute of its start, after correcting the offset.
 

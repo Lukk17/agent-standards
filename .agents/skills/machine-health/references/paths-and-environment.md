@@ -48,7 +48,7 @@ The first match on PATH wins, so a version manager's shim or a second install ca
 
 | OS | Command | What it shows | Status |
 |---|---|---|---|
-| zsh | `zsh -x -ic exit 2>&1 \| grep -E 'PATH='` | Every PATH assignment, prefixed with the file and line, for example `+/home/lukk/apps_config/env.sh:41> export PATH=...` | verified |
+| zsh | `zsh -x -ic exit 2>&1 \| grep -E 'PATH='` | Every PATH assignment, prefixed with the file and line, for example `+/home/<user>/<config-dir>/env.sh:41> export PATH=...` | verified |
 | bash | `PS4='+${BASH_SOURCE}:${LINENO}: ' bash -x -ic exit 2>&1 \| grep -E 'PATH='` | Same, with the file and line from `PS4` | verified |
 | Linux, systemd user session | `systemctl --user show-environment \| grep -c '^PATH='` | Whether the graphical session carries a PATH of its own, set through `environment.d`. Print the count or the names, not the value, in the report | verified |
 | Linux | `ls /etc/profile.d/ ~/.config/environment.d/ 2>/dev/null` | Files every login shell or the session reads | verified |

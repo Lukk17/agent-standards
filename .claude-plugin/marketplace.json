@@ -430,7 +430,7 @@
       "name": "agent-api-tester",
       "source": "./.claude/agents/api-tester",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"load test this API\", \"find the breaking point\" or \"check the API still matches its contract\". Drives realistic traffic at a running HTTP, GraphQL or gRPC API, validates responses against the spec, and reports the breaking point with evidence, writing test scripts and reports only. Not for unit and integration tests in the codebase, use `test-automator`.",
       "category": "agent",
       "agents": [
@@ -447,7 +447,7 @@
       "name": "agent-backend-architect",
       "source": "./.claude/agents/backend-architect",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"design this service\", \"draft the API contract\" or \"how should these services talk to each other\". Produces the authoritative OpenAPI or GraphQL spec plus the service boundaries and the auth, resilience and observability decisions, read-only, with the spec as the deliverable. Not for choosing a database or modelling its schema, use `database-expert`.",
       "category": "agent",
       "agents": [
@@ -518,7 +518,7 @@
       "name": "agent-debugger",
       "source": "./.claude/agents/debugger",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"this test fails\", \"why does this throw\" or \"it worked yesterday\". Reproduces the failure, isolates the root cause, applies the smallest fix that removes it, verifies the fix against the reproduction, and returns a short diagnosis together with the change. Not for an error pattern spread across logs and services, use `error-detective`.",
       "category": "agent",
       "agents": [
@@ -551,7 +551,7 @@
       "name": "agent-devops-automator",
       "source": "./.claude/agents/devops-automator",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"set up CI\", \"write the Dockerfile\", \"deploy this to Kubernetes\" or \"add a rollback\". Builds pipelines, container images, manifests and infrastructure as code with zero-downtime deploys, health checks, automated rollback, secrets kept at the boundary and observability wired in. Not for a live production incident, use `devops-troubleshooter`.",
       "category": "agent",
       "agents": [
@@ -569,7 +569,7 @@
       "name": "agent-devops-troubleshooter",
       "source": "./.claude/agents/devops-troubleshooter",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"pods keep crashing\", \"the deploy broke production\", \"DNS is failing\" or \"the disk is full\". Gathers logs, metrics and traces in the infrastructure and runtime layer, tests hypotheses, proposes the restoring action for the user to approve, and drafts the postmortem. Not for errors that point at application code, use `error-detective`.",
       "category": "agent",
       "agents": [
@@ -602,7 +602,7 @@
       "name": "agent-e2e-runner",
       "source": "./.claude/agents/e2e-runner",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"run this capability spec\", \"run the e2e sweep\" or \"check spec X against the live stack\". Executes exactly one end-to-end capability spec against a running stack and returns its Verdict and Result summary, so a main session can fan a sweep out across many specs, and never adds or edits a test. Not for writing or fixing tests, use `test-automator`.",
       "category": "agent",
       "agents": [
@@ -634,7 +634,7 @@
       "name": "agent-error-detective",
       "source": "./.claude/agents/error-detective",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"this exception keeps coming back\", \"errors spiked after the release\" or \"find the pattern in these logs\". Correlates application errors across logs and traces over time, builds a root-cause hypothesis from evidence, and proposes the monitor that catches a recurrence, read-only. Not for platform and infrastructure faults, use `devops-troubleshooter`.",
       "category": "agent",
       "agents": [
@@ -667,7 +667,7 @@
       "name": "agent-go-pro",
       "source": "./.claude/agents/go-pro",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"write this Go service\", \"review this Go package\" or \"restructure this module\". Applies idiomatic Go, useful zero values, interfaces declared at the consumer, wrapped errors and context propagation, with table-driven tests and ports-and-adapters boundaries, as an implementer. Not for service decomposition, use `backend-architect`.",
       "category": "agent",
       "agents": [
@@ -767,7 +767,7 @@
       "name": "agent-observability-engineer",
       "source": "./.claude/agents/observability-engineer",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"add tracing\", \"define our SLOs\", \"these alerts are noise\" or \"build a dashboard for this service\". Designs and extends logs, metrics, traces, SLOs, alerts and dashboards toward signals that drive an action rather than vanity charts, wired into the code and the deployment. Not for responding to a live incident, use `devops-troubleshooter`.",
       "category": "agent",
       "agents": [
@@ -783,7 +783,7 @@
       "name": "agent-performance-engineer",
       "source": "./.claude/agents/performance-engineer",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"the app is slow\", \"performance regressed after the deploy\" or \"get a baseline before we optimise\". Measures first, names the bottleneck with evidence, and proposes the smallest change that moves the metric, read-only on production code and running load only where the caller allows it. Not for one known slow query, use `database-expert`.",
       "category": "agent",
       "agents": [
@@ -1036,7 +1036,7 @@
     {
       "name": "asus-router",
       "source": "./.agents/skills/asus-router",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Working on an ASUS router over SSH from an agent, read only unless the owner approves one exact change: stock Asuswrt and Merlin, SSH key access, the system log, WAN and PPPoE state, and telling a link drop from an ISP outage. Use when the user says \"let the agent into my router\", \"read the router log\" or \"why does the internet drop\". Not for a Proxmox host behind the router, use `proxmox`.",
       "category": "skill"
     },
@@ -1141,7 +1141,7 @@
     {
       "name": "e2e-runbooks",
       "source": "./.agents/skills/e2e-runbooks",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Capability testing against a live stack, one feature per immutable spec, with behaviour-only assertions, canary fixtures, setup-cost ordering, token and duration accounting, and parallel subagents. Use when the user says \"add an e2e test for the upload flow\", \"run the e2e sweep\" or \"verify this capability end to end\". Not for Playwright browser UI testing, use `e2e-testing`.",
       "category": "skill"
     },
@@ -1211,7 +1211,7 @@
     {
       "name": "homelab-services",
       "source": "./.agents/skills/homelab-services",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Running a Docker Compose homelab on one VM, every change asked of the owner first: AdGuard Home, Uptime Kuma, Telegraf, Samba, File Browser, Plex, Homepage, Nginx Proxy Manager, a local CA for .internal names, and data disks. Use when the user says \"add a .internal name\", \"https for the .internal names\", \"deploy the compose change\" or \"the VM disk is full\". Not for the Proxmox host, use `proxmox`.",
       "category": "skill"
     },
@@ -1260,7 +1260,7 @@
     {
       "name": "machine-health",
       "source": "./.agents/skills/machine-health",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Read-only health and configuration check of one Linux, macOS or Windows computer, writing a baseline into MACHINE.md on the first run and reporting drift on later runs: CPU, RAM, disks, errors, PATH, updates and devices. Use when the user says \"check the health of this machine\", \"what drifted since last time\" or \"is this disk dying\". Not for fixing a finding on Arch, use `arch-linux`.",
       "category": "skill"
     },
@@ -1302,7 +1302,7 @@
     {
       "name": "observability-and-logging",
       "source": "./.agents/skills/observability-and-logging",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Structured logging and production observability: log levels, key-value fields, trace correlation, what liveness and readiness check, metrics, tracing, SLO alerts, and the startup readiness banner. Use when the user says \"add logging to this service\", \"my logs have no trace id\", or \"alert on our error budget\". Not for Kubernetes probe manifests or CI pipelines, use `deployment-patterns`.",
       "category": "skill"
     },

@@ -36,7 +36,7 @@ Baseline: `<YYYY-MM-DD HH:MM zone>` by `<agent and version>` on `<OS and version
 
 | Area | Check | Value | Verdict | Source | Verified |
 |---|---|---|---|---|---|
-| CPU | Microcode | `0x800820d`, matches `amd-ucode <version>` | ok | `grep -m1 microcode /proc/cpuinfo`, `pacman -Q amd-ucode` | `<YYYY-MM-DD>` |
+| CPU | Microcode | `0x<revision>`, matches `amd-ucode <version>` | ok | `grep -m1 microcode /proc/cpuinfo`, `pacman -Q amd-ucode` | `<YYYY-MM-DD>` |
 
 #### Drift
 

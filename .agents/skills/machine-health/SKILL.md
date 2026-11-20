@@ -2,7 +2,7 @@
 name: machine-health
 description: 'Read-only health and configuration check of one Linux, macOS or Windows computer, writing a baseline into MACHINE.md on the first run and reporting drift on later runs: CPU, RAM, disks, errors, PATH, updates and devices. Use when the user says "check the health of this machine", "what drifted since last time" or "is this disk dying". Not for fixing a finding on Arch, use `arch-linux`.'
 metadata:
-  version: "1.0.0"
+  version: "1.0.1"
 ---
 
 # Machine Health

@@ -13,7 +13,7 @@ Read this before trying to open the management page of the ISP's optical network
 
 Sources: the Asuswrt-Merlin wiki at https://github.com/RMerl/asuswrt-merlin.ng/wiki, pages "User scripts", "Access modem Web UI on WAN port (no script)" and "Jffs", the Asuswrt-Merlin 3006.102 source (`release/src/router/rc/wan.c`, `rc/services.c` and `www/Advanced_System_Content.asp`), and a 3.0.0.6.102 stock firmware image for the GT-AX6000, read in a throwaway container.
 
-VERIFIED on a GT-AX6000 with stock firmware build 386, PPPoE on a VLAN: a ping from the router to the ONT's management address got 0 answers of 3, the VLAN interface carried only a `169.254.x.x/16` address, and no address in the ONT's subnet showed on the WAN side. Every command below is UNVERIFIED.
+VERIFIED on a GT-AX6000 with stock firmware build 386: a ping from the router to the ONT's management address got 0 answers of 3, the interface under the PPP session carried only a `169.254.x.x/16` address, and no address in the ONT's subnet showed on the WAN side. Every command below is UNVERIFIED.
 
 ---
 

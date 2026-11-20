@@ -1,6 +1,6 @@
 # Plex
 
-Read this before running Plex in the stack, claiming it, mounting the media, or adding a library. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab with the `plexinc/pms-docker` image. Every other command here is UNVERIFIED.
+Read this before running Plex in the stack, claiming it, mounting the media, or adding a library. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on a test homelab with the `plexinc/pms-docker` image. Every other command here is UNVERIFIED.
 
 Sources: the image README at https://github.com/plexinc/pms-docker. The Plex support articles "Requirements for Remote Playback of Personal Media" and "Network" at https://support.plex.tv are quoted from the owner's notes, and were not fetched again.
 

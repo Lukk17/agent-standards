@@ -68,7 +68,7 @@ A `FILE CORRUPTED` line from fs-verity names an inode. Mapping it to a path need
 
 | OS | Command | Wrong looks like | Status |
 |---|---|---|---|
-| Linux | `findmnt -rno TARGET,SOURCE,FSTYPE,OPTIONS` | A filesystem mounted twice at two targets, `warn`. A filesystem mounted `ro` that should be `rw`, which often means the kernel remounted it after an error, `fail` | verified, the test machine showed one NTFS partition at both `/mnt/dev` and `/run/media/lukk/Dev` |
+| Linux | `findmnt -rno TARGET,SOURCE,FSTYPE,OPTIONS` | A filesystem mounted twice at two targets, `warn`. A filesystem mounted `ro` that should be `rw`, which often means the kernel remounted it after an error, `fail` | verified, the test machine showed one NTFS partition at both its `fstab` mount point `/mnt/<label>` and a second desktop automount point for the same label |
 | Linux | `grep -vE '^\s*(#\|$)' /etc/fstab` | A non-boot data disk line without `nofail` | verified |
 | Linux | `systemctl --failed --type=mount --no-legend` | Any failed mount unit | verified, none |
 

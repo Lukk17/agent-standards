@@ -147,18 +147,18 @@ Bad: one log call per line of the banner. Every line gets its own timestamp / le
 art:
 
 ```text
-2026-05-22 09:28:36.586 INFO  c.l.s.i.config.StartupLogConfig [Example] : ███████╗██╗  ██╗ █████╗ ███╗   ███╗██████╗ ██╗     ███████╗
-2026-05-22 09:28:36.587 INFO  c.l.s.i.config.StartupLogConfig [Example] : ██╔════╝╚██╗██╔╝██╔══██╗████╗ ████║██╔══██╗██║     ██╔════╝
-2026-05-22 09:28:36.587 INFO  c.l.s.i.config.StartupLogConfig [Example] : █████╗   ╚███╔╝ ███████║██╔████╔██║██████╔╝██║     █████╗
-2026-05-22 09:28:36.587 INFO  c.l.s.i.config.StartupLogConfig [Example] : ██╔══╝   ██╔██╗ ██╔══██║██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝
-2026-05-22 09:28:36.587 INFO  c.l.s.i.config.StartupLogConfig [Example] : ███████╗██╔╝ ██╗██║  ██║██║ ╚═╝ ██║██║     ███████╗███████╗
-2026-05-22 09:28:36.587 INFO  c.l.s.i.config.StartupLogConfig [Example] : ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝
+2026-05-22 09:28:36.586 INFO  c.e.app.config.StartupLogConfig [Example] : ███████╗██╗  ██╗ █████╗ ███╗   ███╗██████╗ ██╗     ███████╗
+2026-05-22 09:28:36.587 INFO  c.e.app.config.StartupLogConfig [Example] : ██╔════╝╚██╗██╔╝██╔══██╗████╗ ████║██╔══██╗██║     ██╔════╝
+2026-05-22 09:28:36.587 INFO  c.e.app.config.StartupLogConfig [Example] : █████╗   ╚███╔╝ ███████║██╔████╔██║██████╔╝██║     █████╗
+2026-05-22 09:28:36.587 INFO  c.e.app.config.StartupLogConfig [Example] : ██╔══╝   ██╔██╗ ██╔══██║██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝
+2026-05-22 09:28:36.587 INFO  c.e.app.config.StartupLogConfig [Example] : ███████╗██╔╝ ██╗██║  ██║██║ ╚═╝ ██║██║     ███████╗███████╗
+2026-05-22 09:28:36.587 INFO  c.e.app.config.StartupLogConfig [Example] : ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝
 ```
 
 Good: one log call, leading `\n`, banner art rendered cleanly underneath the single prefix line:
 
 ```text
-2026-05-22 09:28:36.586 INFO  c.l.s.i.config.StartupLogConfig [Example] :
+2026-05-22 09:28:36.586 INFO  c.e.app.config.StartupLogConfig [Example] :
 ███████╗██╗  ██╗ █████╗ ███╗   ███╗██████╗ ██╗     ███████╗
 ██╔════╝╚██╗██╔╝██╔══██╗████╗ ████║██╔══██╗██║     ██╔════╝
 █████╗   ╚███╔╝ ███████║██╔████╔██║██████╔╝██║     █████╗

@@ -2,7 +2,7 @@
 name: asus-router
 description: 'Working on an ASUS router over SSH from an agent, read only unless the owner approves one exact change: stock Asuswrt and Merlin, SSH key access, the system log, WAN and PPPoE state, and telling a link drop from an ISP outage. Use when the user says "let the agent into my router", "read the router log" or "why does the internet drop". Not for a Proxmox host behind the router, use `proxmox`.'
 metadata:
-  version: "1.0.0"
+  version: "1.0.1"
 ---
 
 # ASUS Router Administration
@@ -58,7 +58,7 @@ The router address, the administrator user name, the SSH port, the ONT address, 
 6. Keep writes off the flash. A ping log or a capture goes to `/tmp` on the router, which is memory, or better to a machine in the LAN, never to `/jffs`.
 7. Read the log before it rotates away. The log file is small and keeps one older copy, so copy the lines you need into the agent's workspace right after reading them, and filter and count them there, because the router's BusyBox lacks tools such as `uniq`.
 8. A claim that the ISP is at fault needs the log lines and the ping log that show it, with their times, as [troubleshooting-drops.md](references/troubleshooting-drops.md) explains.
-9. Check the router's time zone rule and the clock offset of each kind of log line before you match it against anything else, and again after each change of summer or winter time. On build 386 the `pppd` lines ran one hour behind the router's own `date` in summer (2026-10-23), while other lines of the same event did not, and matched it in winter (2026-11-06).
+9. Check the router's time zone rule and the clock offset of each kind of log line before you match it against anything else, and again after each daylight saving time change. On build 386 the `pppd` lines ran one hour behind the router's own `date` at one time of the year, while other lines of the same event did not, and matched it at another.
 
 ---
 

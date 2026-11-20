@@ -8,7 +8,7 @@ Contents:
 - [Resetting a lost admin password](#resetting-a-lost-admin-password)
 - [Check it](#check-it)
 
-Read this before setting up File Browser, reading its first admin password, or resetting that password. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab on one File Browser Quantum 2 release from the `gtstef/filebrowser` image. Every other command here is UNVERIFIED.
+Read this before setting up File Browser, reading its first admin password, or resetting that password. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on a test homelab on one File Browser Quantum 2 release from the `gtstef/filebrowser` image. Every other command here is UNVERIFIED.
 
 Sources in https://github.com/gtsteffaniak/filebrowser: `backend/internal/state/bootstrap_admin_password.go` and `backend/pkg/settings/auth.go`, the README at the default branch, and the README of the original `filebrowser/filebrowser` at its default branch.
 

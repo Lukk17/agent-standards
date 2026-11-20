@@ -1,6 +1,6 @@
 # Devices and Network
 
-GPU driver, displays and the refresh rate actually applied, audio devices, network and firewall state, time sync and the dual boot clock. The rules live in [SKILL.md](../SKILL.md). Linux commands below were executed read-only on CachyOS with KDE Plasma 6 on Wayland and an NVIDIA RTX 2080, macOS and Windows commands are UNVERIFIED.
+GPU driver, displays and the refresh rate actually applied, audio devices, network and firewall state, time sync and the dual boot clock. The rules live in [SKILL.md](../SKILL.md). Linux commands below were executed read-only on a test machine with an NVIDIA GPU, macOS and Windows commands are UNVERIFIED.
 
 ---
 
@@ -27,7 +27,7 @@ On KDE Plasma, compare the current mode with the highest refresh at the same res
 kscreen-doctor -j | python3 -c "import json,sys; d=json.load(sys.stdin); [print(o['name'], cur['size']['width'], cur['size']['height'], round(cur['refreshRate'], 2), 'max', round(max(m['refreshRate'] for m in o['modes'] if m['size'] == cur['size']), 2)) for o in d['outputs'] if o['enabled'] for cur in [next(m for m in o['modes'] if m['id'] == o['currentModeId'])]]"
 ```
 
-Executed on the test machine, it printed `DP-3 3840 2160 60.0 max 60.0` and `HDMI-A-1 1920 1080 60 max 74.97`. The second line is a `warn`: the monitor offers 74.97 Hz at its native resolution and runs at 60.
+Executed on the test machine, it printed one line per enabled output in the form `<output> <width> <height> <refresh> max <max-refresh>`. A line such as `HDMI-A-1 2560 1440 60 max 75.0`, a sample and not a measured value, is a `warn`: the monitor offers 75 Hz at its native resolution and runs at 60.
 
 Confirm the monitor's own limit from its EDID, which works unprivileged:
 
@@ -35,7 +35,7 @@ Confirm the monitor's own limit from its EDID, which works unprivileged:
 edid-decode /sys/class/drm/card1-HDMI-A-1/edid
 ```
 
-Read `Display Product Name` and the `Display Range Limits` line. On the test machine it printed `'PL2792H'` and `Monitor ranges (GTF): 55-76 Hz V`. List the connectors with `ls /sys/class/drm/`, the card number differs between machines.
+Read `Display Product Name` and the `Display Range Limits` line. On the test machine it printed the model name as `'<model>'` and a range line of the form `Monitor ranges (GTF): <min>-<max> Hz V`. List the connectors with `ls /sys/class/drm/`, the card number differs between machines.
 
 | OS or desktop | Command | Status |
 |---|---|---|

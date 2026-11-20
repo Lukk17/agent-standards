@@ -20,7 +20,7 @@ Addresses, host names, user names, the path of the stack folder on the VM, and t
 
 ### Verification marks
 
-Facts marked VERIFIED were measured on the owner's homelab, or in throwaway containers where the mark says so. The AdGuard Home file edit and the Uptime Kuma database edit were also run end to end in throwaway containers of the same images, with no network. Each topic file names its sources. Everything else is UNVERIFIED.
+Facts marked VERIFIED were measured on a test homelab, or in throwaway containers where the mark says so. The AdGuard Home file edit and the Uptime Kuma database edit were also run end to end in throwaway containers of the same images, with no network. Each topic file names its sources. Everything else is UNVERIFIED.
 
 ---
 

@@ -8,7 +8,7 @@ Contents:
 - [A dirty NTFS volume](#a-dirty-ntfs-volume)
 - [When the disk is missing](#when-the-disk-is-missing)
 
-Read this before attaching a data disk to the VM, mounting it, sharing it, or clearing a dirty NTFS volume. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab, on an Ubuntu Server VM whose kernel has `ntfs3` and with `ntfs-3g` installed. Every other command here is UNVERIFIED. Attaching the disk on the Proxmox host is the `proxmox` skill's ground, and it is here only as the one command the VM side depends on.
+Read this before attaching a data disk to the VM, mounting it, sharing it, or clearing a dirty NTFS volume. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on a test homelab, on an Ubuntu Server VM whose kernel has `ntfs3` and with `ntfs-3g` installed. Every other command here is UNVERIFIED. Attaching the disk on the Proxmox host is the `proxmox` skill's ground, and it is here only as the one command the VM side depends on.
 
 Sources: the kernel's ntfs3 documentation, `Documentation/filesystems/ntfs3.rst`, and `fs/namei.c`, both on the `master` branch of https://github.com/torvalds/linux, and the chattr manual page at https://man7.org/linux/man-pages/man1/chattr.1.html. Quoted from the owner's notes and not fetched again: the mount manual page at https://man7.org/linux/man-pages/man8/mount.8.html, the ntfsfix manual page at https://man.archlinux.org/man/ntfsfix.8, and the Proxmox wiki page on passing a physical disk to a VM.
 
@@ -96,7 +96,7 @@ sudo mount -a
 findmnt /mnt/data
 ```
 
-VERIFIED: `findmnt` printed `/mnt/data /dev/sdb1 ntfs3 rw,relatime,uid=1000,gid=1000,acl,iocharset=utf8,prealloc`.
+VERIFIED: `findmnt` printed `<mount-point> /dev/<partition> ntfs3 rw,relatime,uid=1000,gid=1000,acl,iocharset=utf8,prealloc`, with the mount point from the `fstab` line above.
 
 ---
 
@@ -109,7 +109,7 @@ sudo dmesg | grep ntfs3
 ```
 
 ```text
-ntfs3(sdb1): volume is dirty and "force" flag is not set!
+ntfs3(<partition>): volume is dirty and "force" flag is not set!
 ```
 
 The ntfs3 documentation says of `force`: "Forces the driver to mount partitions even if volume is marked dirty. Not recommended for use." So clear the mark instead, with the owner's yes:

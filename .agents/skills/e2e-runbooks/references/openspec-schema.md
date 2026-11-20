@@ -14,33 +14,33 @@ the Directory layout section of the skill.
 Clone the schema repository into a temporary directory.
 
 ```bash
-git clone --depth 1 https://github.com/Lukk17/openspec-schemas /tmp/lukk17-schemas
+git clone --depth 1 https://github.com/Lukk17/openspec-schemas /tmp/openspec-schemas
 ```
 
 Copy the schema into the project's OpenSpec directory.
 
 ```bash
-cp -r /tmp/lukk17-schemas/e2e-runbooks openspec/schemas/
+cp -r /tmp/openspec-schemas/e2e-runbooks openspec/schemas/
 ```
 
 Remove the clone.
 
 ```bash
-rm -rf /tmp/lukk17-schemas
+rm -rf /tmp/openspec-schemas
 ```
 
 Windows equivalents, in PowerShell.
 
 ```powershell
-git clone --depth 1 https://github.com/Lukk17/openspec-schemas $env:TEMP\lukk17-schemas
+git clone --depth 1 https://github.com/Lukk17/openspec-schemas $env:TEMP\openspec-schemas
 ```
 
 ```powershell
-Copy-Item -Recurse $env:TEMP\lukk17-schemas\e2e-runbooks openspec\schemas\
+Copy-Item -Recurse $env:TEMP\openspec-schemas\e2e-runbooks openspec\schemas\
 ```
 
 ```powershell
-Remove-Item -Recurse -Force $env:TEMP\lukk17-schemas
+Remove-Item -Recurse -Force $env:TEMP\openspec-schemas
 ```
 
 ---

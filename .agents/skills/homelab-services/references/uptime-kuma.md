@@ -7,7 +7,7 @@ Contents:
 - [The labelset log flood](#the-labelset-log-flood)
 - [Editing monitors in the database](#editing-monitors-in-the-database)
 
-Read this before changing monitors, reading `/metrics` with the API key, adding a tag, or editing the database. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on the owner's homelab on one Uptime Kuma 2 release. The database edit was also run end to end in a throwaway container of that image with no network. Every other command here is UNVERIFIED.
+Read this before changing monitors, reading `/metrics` with the API key, adding a tag, or editing the database. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on a test homelab on one Uptime Kuma 2 release. The database edit was also run end to end in a throwaway container of that image with no network. Every other command here is UNVERIFIED.
 
 Sources in https://github.com/louislam/uptime-kuma: `server/server.js` and `server/auth.js` for the API key, `server/prometheus.js` for the tag labels, `server/database.js` for the database path and its WAL journal, `db/knex_init_db.js` for the `monitor` columns, and `docker/debian-base.dockerfile`, which installs `sqlite3` into the image. The wiki page Prometheus API Keys at https://github.com/louislam/uptime-kuma/wiki/Prometheus-API-Keys.
 
