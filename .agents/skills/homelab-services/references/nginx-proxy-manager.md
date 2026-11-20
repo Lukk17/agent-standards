@@ -5,14 +5,15 @@ Contents:
 - [How a name reaches a container](#how-a-name-reaches-a-container)
 - [First login](#first-login)
 - [A proxy host per name](#a-proxy-host-per-name)
+- [Block Common Exploits](#block-common-exploits)
 - [Forward Hostname takes no port](#forward-hostname-takes-no-port)
 - [A service on host networking](#a-service-on-host-networking)
 - [The Proxmox web UI behind the proxy](#the-proxmox-web-ui-behind-the-proxy)
 - [Check a proxy host](#check-a-proxy-host)
 
-Read this before adding a proxy host for a `.internal` name, before forwarding one to a service that runs on host networking or on another machine, before putting the Proxmox web UI behind the proxy, or when a proxy host answers 500. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on a test homelab on one Nginx Proxy Manager 2 release. Every other command here is UNVERIFIED.
+Read this before adding a proxy host for a `.internal` name, before forwarding one to a service that runs on host networking or on another machine, before putting the Proxmox web UI behind the proxy, before switching Block Common Exploits on or off, or when a proxy host answers 500 or 403. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured on a test homelab on one Nginx Proxy Manager 2 release. Every other command here is UNVERIFIED.
 
-Sources: in the nginx-proxy-manager repository at https://github.com/NginxProxyManager/nginx-proxy-manager, `backend/setup.js`, `backend/templates/proxy_host.conf`, `docker/rootfs/etc/nginx/conf.d/include/proxy.conf` and the setup page `docs/src/setup/index.md` on the `develop` branch. Also the nginx proxy module page https://nginx.org/en/docs/http/ngx_http_proxy_module.html, the Proxmox wiki page "Web Interface Via Nginx Proxy" at https://pve.proxmox.com/wiki/Web_Interface_Via_Nginx_Proxy, `src/Utils.js` of https://git.proxmox.com/?p=proxmox-widget-toolkit.git on its default branch, and https://www.ietf.org/archive/id/draft-ietf-httpbis-rfc6265bis-22.txt.
+Sources: in the nginx-proxy-manager repository at https://github.com/NginxProxyManager/nginx-proxy-manager, `backend/setup.js`, `backend/templates/proxy_host.conf`, `backend/templates/_exploits.conf`, `docker/rootfs/etc/nginx/conf.d/include/proxy.conf`, `docker/rootfs/etc/nginx/conf.d/include/block-exploits.conf` and the setup page `docs/src/setup/index.md` on the `develop` branch. Also the nginx proxy module page https://nginx.org/en/docs/http/ngx_http_proxy_module.html, the Proxmox wiki page "Web Interface Via Nginx Proxy" at https://pve.proxmox.com/wiki/Web_Interface_Via_Nginx_Proxy, `src/Utils.js` of https://git.proxmox.com/?p=proxmox-widget-toolkit.git on its default branch, and https://www.ietf.org/archive/id/draft-ietf-httpbis-rfc6265bis-22.txt.
 
 ---
 
@@ -47,10 +48,23 @@ Hosts, then Proxy Hosts, then Add Proxy Host. On the Details tab:
 2. Scheme: `http`.
 3. Forward Hostname / IP: the container name on the shared network, with no port after it. The port goes in Forward Port only.
 4. Forward Port: the port inside the container, the right-hand side of its Compose port mapping, not the published port.
-5. Websockets Support on, and Block Common Exploits on.
+5. Websockets Support on. Block Common Exploits on, unless the host is one where it blocks real use, as [Block Common Exploits](#block-common-exploits) says.
 6. SSL: none. A `.internal` name cannot get a public certificate, and `https` comes from the local CA include in [local-ca.md](local-ca.md), which needs this tab on None.
 
 VERIFIED: one proxy host per `.internal` name on the homelab. A forward port set to the published port instead of the container port is the usual reason a new proxy host answers 502.
+
+---
+
+### Block Common Exploits
+
+Switch it on for a new proxy host by default. Leave it off for a host where it blocks real use, for example a file manager that takes uploads, Plex, or the Proxmox web interface, and never switch it back on for a host that has it off without asking the owner first. Which hosts have it off, and why, belongs in the owner's notes. After switching it on for a host, check that the host still works: log in, open the main pages, upload a file where the service takes uploads, and play media or open a console where it has them. A 403 from the proxy that goes away with the switch off means the filter refused the request, so switch it off again for that host. UNVERIFIED: which requests of File Browser, Plex or Proxmox the filter refuses.
+
+What the switch does, read in the source and UNVERIFIED by a run: `backend/templates/_exploits.conf` writes `include conf.d/include/block-exploits.conf;` into the server block of the proxy host when the switch is on, and `block-exploits.conf` answers `return 403;` when one of its tests matches. Every test reads only `$query_string`, the part of the address after `?`, or `$http_user_agent`:
+
+1. Query strings: `union.*select.*\(`, `union.*all.*select.*` and `concat.*\(`, a parameter whose value starts with `http://` (`[a-zA-Z0-9_]=http://`), with `../` (`[a-zA-Z0-9_]=(\.\.//?)+`) or with a path whose first folder name is one character long (`[a-zA-Z0-9_]=/([a-z0-9_.]//?)+`), `<script>` in plain or `%3C` form, `GLOBALS`, `_REQUEST`, `proc/self/environ`, `mosConfig_`, `base64_encode(` or `base64_decode(`, and a list of spam words.
+2. User agents: `Indy Library`, `libwww-perl`, `GetRight`, `GetWeb!`, `Go!Zilla`, `Download Demon`, `Go-Ahead-Got-It`, `TurnitinBot` and `GrabNet`.
+
+It reads neither the path before `?` nor the request body nor its size. So a host breaks when the addresses its web page or app builds carry a matching value in the query string, or when its client sends a listed user agent.
 
 ---
 
@@ -82,7 +96,7 @@ On the Details tab:
 |---|---|---|---|
 | `<name>.internal` | https | `<proxmox-host>` | 8006 |
 
-Websockets Support on, because the console needs the websocket upgrade headers that the wiki example below passes, and Block Common Exploits on.
+Websockets Support on, because the console needs the websocket upgrade headers that the wiki example below passes. Block Common Exploits as [Block Common Exploits](#block-common-exploits) says: the Proxmox web interface is one of the hosts where it can block real use, so after switching it on check the login, the console and an ISO upload, and leave it off when one of them fails.
 
 On the Advanced tab, Custom Nginx Configuration:
 
@@ -117,6 +131,6 @@ curl -sI -H "Host: <name>.internal" http://<vm-ip> | head -1
 curl.exe -sI -H "Host: <name>.internal" http://<vm-ip>
 ```
 
-A 200 or a 3xx means the proxy found the service. A 502 means the service is down or the forward port is wrong. A 404 from the proxy means no proxy host matches the name.
+A 200 or a 3xx means the proxy found the service. A 502 means the service is down or the forward port is wrong. A 404 from the proxy means no proxy host matches the name. A 403 on a host with Block Common Exploits on can come from the filter, see [Block Common Exploits](#block-common-exploits).
 
 The proxy hosts and the users live in `<stack-dir>/nginx/data`, with `database.sqlite`. Back up that folder, and a rebuilt VM gets every proxy host back.

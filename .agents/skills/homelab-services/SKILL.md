@@ -2,7 +2,7 @@
 name: homelab-services
 description: 'Running a Docker Compose homelab on one VM, every change asked of the owner first: AdGuard Home, Uptime Kuma, Telegraf, Samba, File Browser, Plex, Homepage, Nginx Proxy Manager, a local CA for .internal names, and data disks. Use when the user says "add a .internal name", "https for the .internal names", "deploy the compose change" or "the VM disk is full". Not for the Proxmox host, use `proxmox`.'
 metadata:
-  version: "1.0.1"
+  version: "1.0.2"
 ---
 
 # Homelab Services
