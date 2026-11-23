@@ -50,7 +50,7 @@ args = [
     "SONARQUBE_TOKEN",
     "-e",
     "SONARQUBE_URL",
-    "mcp/sonarqube@sha256:925c88bc7cab2a1e1025b0bd43f0af504cd8ce1b99e9663ececaca914fb632e7",
+    "sonarsource/sonarqube-mcp:1.32.0.5118",
 ]
 env = { SONARQUBE_TOKEN = "", SONARQUBE_URL = "http://localhost:9000" }
 

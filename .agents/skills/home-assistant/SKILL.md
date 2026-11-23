@@ -2,7 +2,7 @@
 name: home-assistant
 description: 'Home Assistant YAML, automations, dashboards, renames, backups, custom integrations. Use when the user says "write a motion light automation" or "rename these entities". Not for its container, use `docker-patterns`.'
 metadata:
-  version: "1.1.0"
+  version: "1.1.1"
 ---
 
 # Home Assistant Standards

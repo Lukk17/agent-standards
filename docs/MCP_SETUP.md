@@ -241,7 +241,7 @@ claude mcp add --scope project redis -- uvx --from redis-mcp-server==0.5.1 redis
 SonarQube:
 
 ```bash
-claude mcp add --scope project sonarqube -e 'SONARQUBE_TOKEN=${SONARQUBE_TOKEN:-}' -e 'SONARQUBE_URL=${SONARQUBE_URL:-http://localhost:9000}' -- docker run --init -i --rm -e SONARQUBE_TOKEN -e SONARQUBE_URL mcp/sonarqube@sha256:925c88bc7cab2a1e1025b0bd43f0af504cd8ce1b99e9663ececaca914fb632e7
+claude mcp add --scope project sonarqube -e 'SONARQUBE_TOKEN=${SONARQUBE_TOKEN:-}' -e 'SONARQUBE_URL=${SONARQUBE_URL:-http://localhost:9000}' -- docker run --init -i --rm -e SONARQUBE_TOKEN -e SONARQUBE_URL sonarsource/sonarqube-mcp:1.32.0.5118
 ```
 
 n8n:
@@ -313,6 +313,8 @@ docker --version
 The backing services (`mongodb`, `grafana`, `redis`, `sonarqube`, `n8n`, `home-assistant`) have to be running before their server can
 connect. If you do not have one, disable that server rather than leaving it to fail.
 
+The `sonarqube` server checks its instance when it starts, and needs SonarQube Server 2025.1 or SonarQube Community Build 25.1 or newer: "At startup, the MCP server reads the connected instance version and exits with an error if it is too old" ([sonarqube-mcp-server README](https://github.com/SonarSource/sonarqube-mcp-server), "SonarQube Server", read 2026-11-23). Measured with `sonarsource/sonarqube-mcp:1.32.0.5118` on 2026-11-23, it also answers `initialize` with an error and stops with exit code 1 when nothing answers at `SONARQUBE_URL`.
+
 ---
 
 ### Step 2, acquire keys
@@ -330,7 +332,7 @@ has a fallback for every variable, and the other four hardcode their defaults.
 
 Use read-only or least-privilege tokens. A Grafana service account needs `Viewer` for dashboards, and `Editor` only
 if you want the agent to create alerts. A SonarQube token needs `Execute Analysis` only if you also write
-code-quality results back, otherwise read-only is enough.
+code-quality results back, otherwise read-only is enough. It has to be a user token, because the connection "will not function properly if project tokens or global tokens are used" ([sonarqube-mcp-server README](https://github.com/SonarSource/sonarqube-mcp-server), "SonarQube Server", read 2026-11-23).
 
 ---
 
@@ -493,7 +495,7 @@ or a real token.
 | `GRAFANA_URL` | `grafana` | falls back to `http://localhost:3000` |
 | `GRAFANA_SERVICE_ACCOUNT_TOKEN` | `grafana` | token sent empty, Grafana rejects the connection |
 | `REDIS_URL` | `redis` | falls back to `redis://localhost:6379/0` |
-| `SONARQUBE_TOKEN` | `sonarqube` | token sent empty, SonarQube rejects the connection |
+| `SONARQUBE_TOKEN` | `sonarqube` | the server stops when it starts, with `SONARQUBE_TOKEN environment variable or property must be set` and exit code 1, measured with `sonarsource/sonarqube-mcp:1.32.0.5118` on 2026-11-23 |
 | `SONARQUBE_URL` | `sonarqube` | falls back to `http://localhost:9000` |
 | `N8N_API_URL` | `n8n` | falls back to `http://localhost:5678` |
 | `N8N_API_KEY` | `n8n` | the n8n server runs in documentation-only mode |
@@ -756,7 +758,7 @@ Remove the `mcp<2` pin, and move the version pin forward, once a release of `arc
 
 #### Home Assistant server
 
-`home-assistant` runs [ha-mcp](https://github.com/homeassistant-ai/ha-mcp), pinned to release 8.7.0 from [PyPI](https://pypi.org/project/ha-mcp/8.7.0/), over stdio. The server reads two keys, `HOMEASSISTANT_URL` and `HOMEASSISTANT_TOKEN`. They live in the credential env file `~/.local/state/agents/workspace/homelab.env`, never in a configuration file and never in a system-wide variable. `uvx` reads that file itself through its `--env-file` flag ("Load environment variables from a `.env` file", `uvx --help`, uv 0.13.1), so no wrapper script is needed. Release 8.7.0 declares `Requires-Python` as `<3.15,>=3.13`, and `uvx` picks a matching Python on its own.
+`home-assistant` runs [ha-mcp](https://github.com/homeassistant-ai/ha-mcp), pinned to release 9.2.0 from [PyPI](https://pypi.org/project/ha-mcp/9.2.0/), over stdio. The server reads two keys, `HOMEASSISTANT_URL` and `HOMEASSISTANT_TOKEN`. They live in the credential env file `~/.local/state/agents/workspace/homelab.env`, never in a configuration file and never in a system-wide variable. `uvx` reads that file itself through its `--env-file` flag ("Load environment variables from a `.env` file", `uvx --help`, uv 0.13.1), so no wrapper script is needed. Release 9.2.0 declares `Requires-Python` as `<3.15,>=3.13`, and `uvx` picks a matching Python on its own.
 
 Give the agent its own Home Assistant user. The ha-mcp README suggests an account made just for ha-mcp under Settings, People, Add person, with Allow login, Local access only and Administrator switched on, so a leaked token works only from the local network. Sign in as that user and create the token under your profile, Security, Long-lived access tokens, Create token. `HOMEASSISTANT_URL` is the address of your instance, for example `http://homeassistant.local:8123`.
 
@@ -822,7 +824,7 @@ The Claude Code block uses `${HOME}` with no `:-default`, unlike the other block
 
 [opencode.json](../opencode.json) and [.codex/config.toml](../.codex/config.toml) leave the server out, because a shipped file cannot hold a path that works on every machine: Kilo Code throws the whole project file away on an `{env:HOME}` token, as [What ships](#what-ships) explains, and Codex has no substitution at all. A project that uses the server on OpenCode, Kilo Code or Codex declares it in its own copy of both files, with the commands below, which write the absolute path.
 
-[.github/mcp.json](../.github/mcp.json) leaves the server out, because its schema has no enable flag. The Copilot CLI reads `home-assistant` from the project's `.mcp.json` once the `claude mcp add` command below has put it there, because that is the file it reads in place of `.github/mcp.json`, as [What ships](#what-ships) describes, and it expands `${HOME}` in `args`. Measured on 1.0.103 on 2026-10-25 with `HOME=/home/node`, a stand-in `uvx` received `--env-file /home/node/.local/state/agents/workspace/homelab.env ha-mcp==8.7.0`. So a `home-assistant` entry in `.mcp.json` starts under the Copilot CLI too. The CLI reference lists expansion only for `env` and `headers`, so this rests on the measurement.
+[.github/mcp.json](../.github/mcp.json) leaves the server out, because its schema has no enable flag. The Copilot CLI reads `home-assistant` from the project's `.mcp.json` once the `claude mcp add` command below has put it there, because that is the file it reads in place of `.github/mcp.json`, as [What ships](#what-ships) describes, and it expands `${HOME}` in `args`. Measured on 1.0.103 on 2026-10-25 with `HOME=/home/node`, a stand-in `uvx` received `--env-file /home/node/.local/state/agents/workspace/homelab.env ha-mcp==8.7.0`, the pin of that day. So a `home-assistant` entry in `.mcp.json` starts under the Copilot CLI too. The CLI reference lists expansion only for `env` and `headers`, so this rests on the measurement.
 
 Switch the server off for the Copilot CLI in one of three ways. For one run, the reference documents `--disable-mcp-server SERVER-NAME` "to disable a specific one" ([CLI command reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference), read 2026-10-25). It lasts for that one run and saves nothing, measured on 1.0.103 on 2026-10-25:
 
@@ -857,7 +859,7 @@ Keep one entry per agent. The ha-mcp README warns "Configure exactly one install
 Declare it in the project with one command per agent, run from the project root. On Claude Code, either install the `mcp-home-assistant` plugin at project scope, as [Adding a server to Claude Code](#adding-a-server-to-claude-code) shows, which reads the credential env file at the path in the table above, or run the command below, in either shell, with the path of the credential env file in place of `<env file>`. Write a path under your home folder as `${HOME}/` followed by the rest of the path, the way the plugin does. The single quotes keep `${HOME}` as text, so `.mcp.json` holds it unchanged and Claude Code expands it when it starts the server, measured with Claude Code 2.1.325 on 2026-11-20:
 
 ```bash
-claude mcp add --scope project home-assistant -- uvx --env-file '<env file>' ha-mcp==8.7.0
+claude mcp add --scope project home-assistant -- uvx --env-file '<env file>' ha-mcp==9.2.0
 ```
 
 Start `claude` in the folder once and approve the server, as [Where a server is declared](#where-a-server-is-declared) describes. Then check it, in either shell. This starts the server once to test the connection:
@@ -869,13 +871,13 @@ claude mcp get home-assistant
 Codex, OpenCode and Kilo Code read no variable in a project file, so the next commands write an absolute path. Put the absolute path of the credential env file in place of `<env file>`, and the file then holds the home folder of that one machine. Declare the server this way only in a folder that is yours on one machine, or keep that change out of version control. Codex, with the command from [Arch Linux operations server, not shipped](#arch-linux-operations-server-not-shipped). Unix shell:
 
 ```bash
-python3 -c 'import json,sys,pathlib;p=pathlib.Path(".codex/config.toml");t=p.read_text(encoding="utf-8") if p.exists() else "";h="[mcp_servers."+sys.argv[1]+"]";b=h+"\ncommand = "+json.dumps(sys.argv[2])+"\nargs = ["+", ".join(json.dumps(a) for a in sys.argv[3:])+"]\n\n";i=t.find("[[hooks.");t=t if h in t else (t[:i]+b+t[i:] if i>=0 else t+("\n" if t and not t.endswith("\n") else "")+b);p.parent.mkdir(exist_ok=True);p.write_text(t,encoding="utf-8")' home-assistant uvx --env-file "<env file>" ha-mcp==8.7.0
+python3 -c 'import json,sys,pathlib;p=pathlib.Path(".codex/config.toml");t=p.read_text(encoding="utf-8") if p.exists() else "";h="[mcp_servers."+sys.argv[1]+"]";b=h+"\ncommand = "+json.dumps(sys.argv[2])+"\nargs = ["+", ".join(json.dumps(a) for a in sys.argv[3:])+"]\n\n";i=t.find("[[hooks.");t=t if h in t else (t[:i]+b+t[i:] if i>=0 else t+("\n" if t and not t.endswith("\n") else "")+b);p.parent.mkdir(exist_ok=True);p.write_text(t,encoding="utf-8")' home-assistant uvx --env-file "<env file>" ha-mcp==9.2.0
 ```
 
 PowerShell 7.4 or later:
 
 ```powershell
-python -c 'import json,sys,pathlib;p=pathlib.Path(".codex/config.toml");t=p.read_text(encoding="utf-8") if p.exists() else "";h="[mcp_servers."+sys.argv[1]+"]";b=h+"\ncommand = "+json.dumps(sys.argv[2])+"\nargs = ["+", ".join(json.dumps(a) for a in sys.argv[3:])+"]\n\n";i=t.find("[[hooks.");t=t if h in t else (t[:i]+b+t[i:] if i>=0 else t+("\n" if t and not t.endswith("\n") else "")+b);p.parent.mkdir(exist_ok=True);p.write_text(t,encoding="utf-8")' home-assistant uvx --env-file "<env file>" ha-mcp==8.7.0
+python -c 'import json,sys,pathlib;p=pathlib.Path(".codex/config.toml");t=p.read_text(encoding="utf-8") if p.exists() else "";h="[mcp_servers."+sys.argv[1]+"]";b=h+"\ncommand = "+json.dumps(sys.argv[2])+"\nargs = ["+", ".join(json.dumps(a) for a in sys.argv[3:])+"]\n\n";i=t.find("[[hooks.");t=t if h in t else (t[:i]+b+t[i:] if i>=0 else t+("\n" if t and not t.endswith("\n") else "")+b);p.parent.mkdir(exist_ok=True);p.write_text(t,encoding="utf-8")' home-assistant uvx --env-file "<env file>" ha-mcp==9.2.0
 ```
 
 Check it from the project root, which Codex must trust, in either shell:
@@ -887,13 +889,13 @@ codex mcp list
 OpenCode and Kilo Code share the project's `opencode.json`, so one command covers both. It adds or replaces only the `home-assistant` entry and keeps the rest of the file. Unix shell:
 
 ```bash
-python3 -c 'import json,sys,pathlib;p=pathlib.Path("opencode.json");s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})[sys.argv[1]]={"type":"local","command":sys.argv[2:],"enabled":True};p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' home-assistant uvx --env-file "<env file>" ha-mcp==8.7.0
+python3 -c 'import json,sys,pathlib;p=pathlib.Path("opencode.json");s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})[sys.argv[1]]={"type":"local","command":sys.argv[2:],"enabled":True};p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' home-assistant uvx --env-file "<env file>" ha-mcp==9.2.0
 ```
 
 PowerShell 7.4 or later:
 
 ```powershell
-python -c 'import json,sys,pathlib;p=pathlib.Path("opencode.json");s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})[sys.argv[1]]={"type":"local","command":sys.argv[2:],"enabled":True};p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' home-assistant uvx --env-file "<env file>" ha-mcp==8.7.0
+python -c 'import json,sys,pathlib;p=pathlib.Path("opencode.json");s=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {};s.setdefault("mcp",{})[sys.argv[1]]={"type":"local","command":sys.argv[2:],"enabled":True};p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")' home-assistant uvx --env-file "<env file>" ha-mcp==9.2.0
 ```
 
 Check Kilo Code, in either shell:
@@ -967,7 +969,7 @@ on Windows.
 
 ### Updating a pinned server
 
-Every local server command names one exact release: an npm package as `name@1.2.3`, a PyPI package as `name==1.2.3`, and the SonarQube image by its digest. No command says `@latest`, leaves the version out or pulls an image on every start, so a server changes only when someone changes its pin. Upstream moves the pins from time to time, and you can move one in your own copy the same way:
+Every local server command names one exact release: an npm package as `name@1.2.3`, a PyPI package as `name==1.2.3`, and the SonarQube image as `name:1.2.3.4`, a version tag. No command says `@latest`, leaves the version out or pulls an image on every start, so a server changes only when someone changes its pin. Upstream moves the pins from time to time, and you can move one in your own copy the same way:
 
 1. Read the releases from the registry itself. For an npm package, here `mongodb-mcp-server`, this prints every version with the time it was published, in either shell:
 
@@ -985,6 +987,18 @@ Every local server command names one exact release: an npm package as `name@1.2.
 
    ```powershell
    python -c 'import json,sys,urllib.request;d=json.load(urllib.request.urlopen("https://pypi.org/pypi/"+sys.argv[1]+"/json"));[print(v,f[0]["upload_time_iso_8601"]) for v,f in d["releases"].items() if f]' mcp-grafana
+   ```
+
+   For the SonarQube image, `sonarsource/sonarqube-mcp` on Docker Hub, this prints every tag with the time it was pushed. Unix shell:
+
+   ```bash
+   python3 -c 'import json,sys,urllib.request;d=json.load(urllib.request.urlopen("https://hub.docker.com/v2/repositories/"+sys.argv[1]+"/tags?page_size=100"));[print(t["name"],t["tag_last_pushed"]) for t in d["results"]]' sonarsource/sonarqube-mcp
+   ```
+
+   PowerShell 7.4 or later:
+
+   ```powershell
+   python -c 'import json,sys,urllib.request;d=json.load(urllib.request.urlopen("https://hub.docker.com/v2/repositories/"+sys.argv[1]+"/tags?page_size=100"));[print(t["name"],t["tag_last_pushed"]) for t in d["results"]]' sonarsource/sonarqube-mcp
    ```
 
 2. Take the newest stable release that is at least 7 days old. The wait gives a bad or malicious release time to be caught and withdrawn before you run it. A release under a tag such as `alpha`, `canary`, `next` or `pre` is not stable.
@@ -1018,13 +1032,9 @@ Then update the plugin:
 claude plugin update mcp-mongodb@agent-standards
 ```
 
-The SonarQube image is pinned by digest, because `mcp/sonarqube` on Docker Hub has one tag, `latest`, and no version tag to name (registry tag list read on 2026-11-23). The digest in the files is the one of the image index, which lists `linux/amd64` and `linux/arm64`, so a pull by it still picks the right image for the machine. `docker run` pulls an image it does not have and then reuses the local copy, so the server no longer pulls on every start. Read the digest `latest` points at now, in either shell:
+The SonarQube server runs SonarSource's own image, `sonarsource/sonarqube-mcp`. Its README says to use the bare name "for automatic updates (with `--pull=always`), or pin to a version tag (e.g., `sonarsource/sonarqube-mcp:1.19.0.2785`) for reproducible deployments", and with a pinned image to "remove `--pull=always` so Docker does not silently upgrade the image" ([sonarqube-mcp-server README](https://github.com/SonarSource/sonarqube-mcp-server), "Manual setup" and "I want to pin to a specific version", read 2026-11-23). `docker run` pulls an image it does not have and then reuses the local copy, so the server does not pull on every start.
 
-```bash
-docker buildx imagetools inspect mcp/sonarqube
-```
-
-SonarSource also publishes the server as `sonarsource/sonarqube-mcp` with version tags, and its README says to "pin to a version tag" there "for reproducible deployments" ([sonarqube-mcp-server README](https://github.com/SonarSource/sonarqube-mcp-server), read 2026-11-23). This setup stays on the `mcp/sonarqube` image it shipped before.
+A tag of four numbers, such as `1.32.0.5118`, is one release of the server. Among those pushed at least 7 days ago, take the one with the highest version, because an older line still gets fixes and its newest tag can be pushed later than a higher version. A tag of three numbers, such as `2026.5.2`, is a second name for one of those releases: "Some releases are also tagged with the SonarQube Server version they are aligned with, in the form `<SQS major>.<SQS minor>.<patch>`" (same README, "Manual setup"). The tag `latest` moves from release to release, so a pin never names it. Each tag holds an image for `linux/amd64` and one for `linux/arm64` (Docker Hub tag list, read 2026-11-23). Write the tag you chose with the command of step 3, here from `sonarsource/sonarqube-mcp:1.32.0.5118` to the new one.
 
 ---
 

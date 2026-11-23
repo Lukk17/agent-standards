@@ -4,7 +4,8 @@ The first group feeds the helper one command at a time, so each floating form
 is seen to fail and each exact form to pass. The second group reads the five
 MCP files and the plugin map and holds every local server in them to an exact
 version, the same one in every file. The third does the same for every
-`claude mcp add` line a document shows for a shipped server.
+command a document shows that adds a server: a `claude mcp add` line, and a
+`python -c` line that ends with the server name and its start command.
 """
 
 import json
@@ -136,16 +137,68 @@ def test_every_file_but_the_root_one_declares_local_servers():
 
 
 MCP_ADD = re.compile(r"^claude mcp add --scope project (?P<name>[a-z0-9-]+) (?:.*? )?-- (?P<command>.+)$")
+SCRIPTED_ADD = re.compile(r"^python3? -c '.+' (?P<name>[a-z0-9-]+) (?P<command>(?:docker|npx|uvx) .+)$")
+
+
+def add_command(line: str) -> tuple[str, list[str]] | None:
+    """The server a documented line adds and the command that starts it, or None for any other line."""
+    for pattern in (MCP_ADD, SCRIPTED_ADD):
+        if match := pattern.match(line.strip()):
+            return match["name"], shlex.split(match["command"])
+    return None
 
 
 def documented_commands() -> list[tuple[str, str, list[str]]]:
-    """Every `claude mcp add --scope project` line of README.md and docs/, as document, server and command."""
+    """Every line of README.md and docs/ that adds a server, as document, server and command."""
     found = []
     for document in [REPO_ROOT / "README.md", *sorted((REPO_ROOT / "docs").glob("*.md"))]:
         for line in document.read_text(encoding="utf-8").splitlines():
-            if match := MCP_ADD.match(line.strip()):
-                found.append((document.name, match["name"], shlex.split(match["command"])))
+            if added := add_command(line):
+                found.append((document.name, *added))
     return found
+
+
+@pytest.mark.parametrize(
+    ("line", "added"),
+    [
+        pytest.param(
+            "claude mcp add --scope project docs -e 'TOKEN=${TOKEN:-}' -- uvx docs-mcp==1.2.3",
+            ("docs", ["uvx", "docs-mcp==1.2.3"]),
+            id="claude-mcp-add",
+        ),
+        pytest.param(
+            "python3 -c 'import sys;print(sys.argv)' docs uvx --env-file \"<env file>\" docs-mcp==1.2.3",
+            ("docs", ["uvx", "--env-file", "<env file>", "docs-mcp==1.2.3"]),
+            id="scripted-python3",
+        ),
+        pytest.param(
+            "python -c 'import sys;print(sys.argv)' docs uvx --from docs-mcp==1.2.3 --with 'mcp<2' docs-mcp",
+            ("docs", ["uvx", "--from", "docs-mcp==1.2.3", "--with", "mcp<2", "docs-mcp"]),
+            id="scripted-python-with-a-quoted-argument",
+        ),
+        pytest.param(
+            "python3 -c 'import sys;print(sys.argv)' docs docker run -i --rm lab/docs:1.2.3",
+            ("docs", ["docker", "run", "-i", "--rm", "lab/docs:1.2.3"]),
+            id="scripted-docker",
+        ),
+        pytest.param("python3 -c 'import sys;print(sys.argv)' docs", None, id="scripted-without-a-command"),
+        pytest.param("claude mcp get docs", None, id="another-claude-command"),
+        pytest.param("uvx docs-mcp==1.2.3", None, id="a-bare-start-command"),
+    ],
+)
+def test_a_documented_line_that_adds_a_server_gives_its_name_and_command(line, added):
+    assert add_command(line) == added
+
+
+def test_the_documents_show_scripted_add_commands_for_a_shipped_server():
+    scripted = {
+        server
+        for document in [REPO_ROOT / "README.md", *sorted((REPO_ROOT / "docs").glob("*.md"))]
+        for line in document.read_text(encoding="utf-8").splitlines()
+        if (match := SCRIPTED_ADD.match(line.strip())) and (server := match["name"])
+    }
+
+    assert scripted & set(_map_commands())
 
 
 def test_every_documented_add_command_names_an_exact_version():

@@ -237,8 +237,8 @@ servers:
         - "${REDIS_URL:-redis://localhost:6379/0}"
 
   - name: sonarqube
-    version: 1.1.0
-    description: The SonarQube MCP server, started with docker run from an image pinned by its digest.
+    version: 2.0.0
+    description: The SonarQube MCP server, started with docker run from SonarSource's own image pinned to a version tag.
     block:
       type: stdio
       command: docker
@@ -251,7 +251,7 @@ servers:
         - "SONARQUBE_TOKEN"
         - "-e"
         - "SONARQUBE_URL"
-        - "mcp/sonarqube@sha256:925c88bc7cab2a1e1025b0bd43f0af504cd8ce1b99e9663ececaca914fb632e7"
+        - "sonarsource/sonarqube-mcp:1.32.0.5118"
       env:
         SONARQUBE_TOKEN: "${SONARQUBE_TOKEN:-}"
         SONARQUBE_URL: "${SONARQUBE_URL:-http://localhost:9000}"
@@ -269,7 +269,7 @@ servers:
         N8N_API_KEY: "${N8N_API_KEY:-}"
 
   - name: home-assistant
-    version: 1.0.1
+    version: 2.0.0
     description: The Home Assistant MCP server, started with uvx and reading its settings from an env file in your home directory.
     block:
       type: stdio
@@ -277,7 +277,7 @@ servers:
       args:
         - "--env-file"
         - "${HOME}/.local/state/agents/workspace/homelab.env"
-        - "ha-mcp==8.7.0"
+        - "ha-mcp==9.2.0"
 
 bundles:
   - name: core

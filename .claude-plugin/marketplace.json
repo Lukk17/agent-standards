@@ -1376,7 +1376,7 @@
       "name": "agent-home-assistant-engineer",
       "source": "./.claude/agents/home-assistant-engineer",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Use when the user says \"write this automation\", \"review my Home Assistant config\" or \"expose these entities to the assistant\". Applies strict YAML conventions, stable entity_id references, event-driven automations, safe secret handling, and exposure rules that keep security-critical entities away from any assistant. Not for firmware on the devices themselves, use `embedded-c-engineer`.",
       "category": "agent",
       "author": {
@@ -2762,7 +2762,7 @@
     {
       "name": "home-assistant",
       "source": "./.agents/skills/home-assistant",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "description": "Home Assistant YAML, automations, dashboards, renames, backups, custom integrations. Use when the user says \"write a motion light automation\" or \"rename these entities\". Not for its container, use `docker-patterns`.",
       "category": "skill",
       "author": {
@@ -4222,8 +4222,8 @@
     {
       "name": "mcp-sonarqube",
       "source": "./.claude-plugin",
-      "version": "1.1.0",
-      "description": "The SonarQube MCP server, started with docker run from an image pinned by its digest.",
+      "version": "2.0.0",
+      "description": "The SonarQube MCP server, started with docker run from SonarSource's own image pinned to a version tag.",
       "category": "mcp",
       "author": {
         "name": "Łukasz Sarna",
@@ -4253,7 +4253,7 @@
             "SONARQUBE_TOKEN",
             "-e",
             "SONARQUBE_URL",
-            "mcp/sonarqube@sha256:925c88bc7cab2a1e1025b0bd43f0af504cd8ce1b99e9663ececaca914fb632e7"
+            "sonarsource/sonarqube-mcp:1.32.0.5118"
           ],
           "env": {
             "SONARQUBE_TOKEN": "${SONARQUBE_TOKEN:-}",
@@ -4300,7 +4300,7 @@
     {
       "name": "mcp-home-assistant",
       "source": "./.claude-plugin",
-      "version": "1.0.1",
+      "version": "2.0.0",
       "description": "The Home Assistant MCP server, started with uvx and reading its settings from an env file in your home directory.",
       "category": "mcp",
       "author": {
@@ -4325,7 +4325,7 @@
           "args": [
             "--env-file",
             "${HOME}/.local/state/agents/workspace/homelab.env",
-            "ha-mcp==8.7.0"
+            "ha-mcp==9.2.0"
           ]
         }
       }
