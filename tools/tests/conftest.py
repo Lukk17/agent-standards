@@ -2,7 +2,9 @@
 
 The hook scripts live in .agents/hooks/<hook>/ at the repository root, two levels
 above this package, and resolving that root once here keeps the location in a
-single place. SUBPROCESS_TIMEOUT_SECONDS bounds every child a test starts, so
+single place. PREFLIGHT_GATE is the starter every wiring runs and GATE_RULES the
+rules it imports, and copy_gate puts both into a folder, because the starter
+alone decides nothing. SUBPROCESS_TIMEOUT_SECONDS bounds every child a test starts, so
 a hung hook fails its test instead of stalling the run. isolated_temp_directory
 gives every test its own temp directory, so no hook state is read from or left
 in the real one. isolated_home_directory does the same for the home
@@ -12,6 +14,7 @@ the code builds from the environment always lands under that folder and never
 in the user's real ~/.config/codex, ~/.claude or ~/.local/state.
 """
 
+import shutil
 from pathlib import Path
 
 import pytest
@@ -19,6 +22,8 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HOOKS_DIR = REPO_ROOT / ".agents" / "hooks"
 PREFLIGHT_GATE = HOOKS_DIR / "preflight-gate" / "preflight_gate.py"
+GATE_RULES = HOOKS_DIR / "preflight-gate" / "_gate_rules.py"
+GATE_FILES = (PREFLIGHT_GATE, GATE_RULES)
 NO_AI_MARKERS_HOOK = HOOKS_DIR / "no-ai-markers-check" / "no_ai_markers_check.py"
 TASK_LIST_SYNC_HOOK = HOOKS_DIR / "task-list-sync" / "task_list_sync.py"
 MARKDOWN_LINT_HOOK = HOOKS_DIR / "markdown-lint-check" / "markdown_lint_check.py"
@@ -44,6 +49,18 @@ RELOCATING_VARIABLES = (
     "XDG_DATA_HOME",
     "XDG_CACHE_HOME",
 )
+
+
+def copy_gate(folder: Path) -> Path:
+    """Copy the gate's starter and its rules file into folder.
+
+    Returns:
+        The path of the starter's copy, the file a wiring would run.
+    """
+    for source in GATE_FILES:
+        shutil.copy2(source, folder / source.name)
+
+    return folder / PREFLIGHT_GATE.name
 
 
 @pytest.fixture(autouse=True)

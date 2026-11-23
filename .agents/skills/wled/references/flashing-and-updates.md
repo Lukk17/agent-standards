@@ -9,14 +9,11 @@ Contents:
 1. [Pick the method](#pick-the-method)
 2. [Pick the firmware file](#pick-the-firmware-file)
 3. [The USB to serial driver](#the-usb-to-serial-driver)
-4. [Linux](#linux)
-5. [Windows](#windows)
-6. [macOS](#macos)
-7. [The web installer](#the-web-installer)
-8. [esptool](#esptool)
-9. [Boot mode and connection errors](#boot-mode-and-connection-errors)
-10. [Update over the air](#update-over-the-air)
-11. [A device that does not come back](#a-device-that-does-not-come-back)
+4. [The web installer](#the-web-installer)
+5. [esptool](#esptool)
+6. [Boot mode and connection errors](#boot-mode-and-connection-errors)
+7. [Update over the air](#update-over-the-air)
+8. [A device that does not come back](#a-device-that-does-not-come-back)
 
 ---
 
@@ -76,53 +73,7 @@ A computer needs a driver for the USB to serial chip on the board, not for the E
 
 The vendor ID `1a86` and the CH34x chip list are VERIFIED in the WCH readme at https://github.com/WCHSoftGroup/ch34xser_macos. Linux ships the drivers in the kernel: `ch341` (`drivers/usb/serial/ch341.c`), `cp210x` (`drivers/usb/serial/cp210x.c`) and `cdc_acm` for native USB (`drivers/usb/class/cdc-acm.c`), VERIFIED in the kernel source at https://github.com/torvalds/linux. A distribution can still build them as modules or leave one out, so `modinfo ch341` shows whether the running kernel has it. That native USB on ESP32-S2, S3 and C3 needs no driver on Windows and macOS is UNVERIFIED in this skill, high confidence. Many ESP32-S3 and C3 boards carry a bridge chip as well, often on a second USB socket, and then the bridge needs its driver.
 
----
-
-### Linux
-
-1. A bridge chip shows up as `/dev/ttyUSB<n>`, native USB as `/dev/ttyACM<n>`.
-2. The device belongs to the group `dialout` on Debian, Ubuntu and Fedora, and to `uucp` on Arch, so add the user to that group or the port refuses to open. The WLED docs give the same tip: "make sure you give yourself permission to use that device, for example by adding your user to the group that has access to the tty port" (VERIFIED, install-binary page). The group names are UNVERIFIED in this skill, high confidence. Read the group of the port:
-
-```bash
-ls -l /dev/ttyUSB0 /dev/ttyACM0
-```
-
-3. ModemManager can open a new serial port to probe it and get in the way of flashing, and `brltty` can claim a CH340 with ID `1a86:7523` and make the port vanish. Both are from community sources, medium confidence, UNVERIFIED. Stopping or removing either is a change on the user's computer that needs a yes.
-4. Read which bridge is attached, a read with no side effects:
-
-```bash
-lsusb
-```
-
----
-
-### Windows
-
-1. The board shows up as a COM port under Ports (COM & LPT) in Device Manager.
-2. List the port names from PowerShell (UNVERIFIED, not run here):
-
-```powershell
-[System.IO.Ports.SerialPort]::GetPortNames()
-```
-
-3. CP210x driver: Silicon Labs publishes it at https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers. That page answered HTTP 403 to an automated fetch, so its content is UNVERIFIED here.
-4. CH34x driver: WCH publishes it at https://www.wch.cn/downloads/CH341SER_ZIP.html (page reached, not read in detail). Windows Update may install it by itself, UNVERIFIED.
-5. GUI tool: the WLED docs name Espressif's Flash Download Tool, "an official GUI tool for Windows" that "can be used for the ESP8266 and ESP32" (VERIFIED, https://kno.wled.ge/basics/install-gui/). The agent uses `esptool` instead.
-6. Run `esptool` the same way as on Linux, with `--port COM<n>`.
-
----
-
-### macOS
-
-1. Use the `/dev/cu.*` name of the port, such as `/dev/cu.usbserial-<id>` or `/dev/cu.usbmodem<id>`. That `cu` rather than `tty` is the one to open is UNVERIFIED in this skill, high confidence.
-2. List the candidates:
-
-```bash
-ls /dev/cu.*
-```
-
-3. CH34x: macOS probably has no built-in driver for these chips, so the WCH driver is likely needed (UNVERIFIED). The WCH readme names "OS X 11.0(Big Sur) and above" as supported and says that from OS X 11 on, after installing, the user opens the CH34xVCPDriver app from Launchpad and clicks Install, and that newer macOS releases ask the user to allow it in the system settings (VERIFIED, https://github.com/WCHSoftGroup/ch34xser_macos). Installing a driver is a change on the user's computer that needs a yes, and the allow step is the user's.
-4. CP210x on macOS: whether a driver is built in is UNVERIFIED.
+The port name and the driver steps for each operating system are in [usb-serial-linux.md](usb-serial-linux.md), [usb-serial-windows.md](usb-serial-windows.md) and [usb-serial-macos.md](usb-serial-macos.md).
 
 ---
 

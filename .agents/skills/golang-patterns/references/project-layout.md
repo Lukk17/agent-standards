@@ -7,13 +7,13 @@ Open this when starting a module or when a package has stopped having one job.
 
 ### Contents
 
-- Standard module layout
-- Name packages for what they provide
-- Keep the import graph acyclic and shallow
-- Functional options for a constructor with many settings
-- Embed for composition, not for inheritance
-- Keep the exported surface small
-- One module unless there is a reason for more
+- [Standard module layout](#standard-module-layout)
+- [Name packages for what they provide](#name-packages-for-what-they-provide)
+- [Keep the import graph acyclic and shallow](#keep-the-import-graph-acyclic-and-shallow)
+- [Functional options for a constructor with many settings](#functional-options-for-a-constructor-with-many-settings)
+- [Embed for composition, not for inheritance](#embed-for-composition-not-for-inheritance)
+- [Keep the exported surface small](#keep-the-exported-surface-small)
+- [One module unless there is a reason for more](#one-module-unless-there-is-a-reason-for-more)
 
 ---
 

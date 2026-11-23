@@ -7,13 +7,13 @@ when the model is fast and the run is not.
 
 ### Contents
 
-- Keep the Dataset dumb and cheap
-- Open handles lazily, per worker
-- Set the loader up for throughput
-- Seed the workers
-- Collate variable-length data in one place
-- Choose the sampler deliberately
-- Transform on the GPU when the CPU is the bottleneck
+- [Keep the Dataset dumb and cheap](#keep-the-dataset-dumb-and-cheap)
+- [Open handles lazily, per worker](#open-handles-lazily-per-worker)
+- [Set the loader up for throughput](#set-the-loader-up-for-throughput)
+- [Seed the workers](#seed-the-workers)
+- [Collate variable-length data in one place](#collate-variable-length-data-in-one-place)
+- [Choose the sampler deliberately](#choose-the-sampler-deliberately)
+- [Transform on the GPU when the CPU is the bottleneck](#transform-on-the-gpu-when-the-cpu-is-the-bottleneck)
 
 ---
 

@@ -1,6 +1,6 @@
 # Container rules with examples
 
-Open this for the Pass and Fail form, the commands, and the reasoning behind any rule in [SKILL.md](../SKILL.md). Full Dockerfiles are in [dockerfiles.md](dockerfiles.md), and full Compose stacks in [compose-and-debugging.md](compose-and-debugging.md).
+Open this for the Pass and Fail form, the commands, and the reasoning behind any rule in [SKILL.md](../SKILL.md). Full Dockerfiles are in [node.md](node.md), [go.md](go.md) and [python.md](python.md), the layer rules they share in [dockerfiles.md](dockerfiles.md), full Compose stacks in [compose-and-debugging.md](compose-and-debugging.md), and the scan, bill of materials and signing commands in [supply-chain.md](supply-chain.md).
 
 ---
 
@@ -60,8 +60,7 @@ COPY . .
 RUN npm ci
 ```
 
-Full reference Dockerfiles for Node, Go, and Python, plus the apt-get, OCI label, and build-secret rules, are in
-[references/dockerfiles.md](dockerfiles.md).
+The full reference Dockerfiles are in [node.md](node.md), [go.md](go.md) and [python.md](python.md), and the apt-get, OCI label, and build-secret rules are in [dockerfiles.md](dockerfiles.md).
 
 ---
 
@@ -220,7 +219,7 @@ nothing needs a published port to talk to them.
 ### .dockerignore
 
 Without one, the whole working tree goes into the build context, which slows every build and risks copying `.env`
-and `.git` into a layer. Create it next to the Dockerfile.
+and `.git` into a layer. Create it next to the Dockerfile, excluding at least `node_modules`, build output, logs, `.git`, `.env*`, coverage and tests.
 
 Pass:
 
@@ -249,46 +248,7 @@ node_modules
 
 ### Supply chain: scan, bill of materials, signature
 
-The supply-chain rules are canonical for the repository in [SKILL.md](../SKILL.md), and other skills point there. This section carries the commands.
-
-Scan every image in CI before it is pushed, and fail the build on a fixable critical or high finding:
-
-```bash
-trivy image --exit-code 1 --severity CRITICAL,HIGH myimage:tag
-```
-
-Store the scan report as a CI artifact, so a later question about what was known at release time has an answer.
-
-Generate a Software Bill of Materials after push:
-
-```bash
-syft myimage:tag -o cyclonedx-json > sbom.json
-```
-
-Sign, attest, and verify the image by the digest the push reported, never by tag. A tag can move between the push and
-the signature, so signing by tag can sign a different image, and cosign warns when it is given one. The pipeline
-form, which reads the digest from the build step, is in `deployment-patterns`.
-
-Attach the SBOM to the pushed image as a signed attestation, so it travels with the image in the registry:
-
-```bash
-cosign attest --key cosign.key --type cyclonedx --predicate sbom.json myregistry/myimage@sha256:<digest>
-```
-
-Sign every production image after push:
-
-```bash
-cosign sign --key cosign.key myregistry/myimage@sha256:<digest>
-```
-
-Verify before deploy, in the pipeline, not by hand:
-
-```bash
-cosign verify --key cosign.pub myregistry/myimage@sha256:<digest>
-```
-
-A signature nothing verifies proves nothing. The verify step belongs in the deploy job, gating it, and a cluster
-policy should reject an unsigned image outright.
+The supply-chain rules are canonical for the repository in [SKILL.md](../SKILL.md), and other skills point there. The Trivy, syft and cosign commands that carry them out are in [supply-chain.md](supply-chain.md).
 
 ---
 

@@ -59,13 +59,3 @@ sourceSets {
 }
 tasks.withType<JavaCompile> { dependsOn("genJaxb", "generateFromWsdl") }
 ```
-
----
-
----
-
-### Related skills
-
-- `soap-webservices` for the contract rules this build implements.
-- `build-dependency-management` for pinning the `jaxb` and `cxfTools` configuration versions centrally.
-- `java-coding-standards` for the hand-written code that consumes the generated types.

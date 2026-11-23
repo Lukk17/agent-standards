@@ -65,7 +65,7 @@ py -m json.tool "<backup-dir>\<device>-presets-<time>.json" > $null
 py -m json.tool "<backup-dir>\<device>-cfg-<time>.json" > $null
 ```
 
-A board that cannot be reached over HTTP can still be copied whole over USB, settings and presets included, with esptool v5, whose `read-flash` takes `ALL` as the size (VERIFIED, `esptool/cli_util.py` `parse_size_arg`). Writing that image back restores the board as it was, and it holds `wsec.json` with the passwords, stored as a plain file (inferred, high confidence), so keep it like a password:
+A board that cannot be reached over HTTP, such as a bare board or one that does not boot, can still be copied whole over USB, settings and presets included, with esptool v5, whose `read-flash` takes `ALL` as the size (VERIFIED, `esptool/cli_util.py` `parse_size_arg`). Writing that image back restores the board as it was, and it holds `wsec.json` with the passwords, stored as a plain file (inferred, high confidence), so keep it like a password:
 
 ```bash
 esptool --port <serial-port> read-flash 0 ALL "<backup-dir>/<device>-flash-<time>.bin"

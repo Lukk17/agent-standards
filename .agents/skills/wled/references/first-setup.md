@@ -31,7 +31,7 @@ The agent usually cannot join WLED-AP itself. Joining it switches the computer's
 
 ### Path 1: Improv over USB serial
 
-1. Find the serial port as [flashing-and-updates.md](flashing-and-updates.md) shows for each operating system.
+1. Find the serial port as the file for the operating system shows: [usb-serial-linux.md](usb-serial-linux.md), [usb-serial-windows.md](usb-serial-windows.md) or [usb-serial-macos.md](usb-serial-macos.md).
 2. Use 115200 baud. The docs say: "The baud rate must remain at the default `115200` setting for the device to be detected as Improv-capable" (VERIFIED, https://kno.wled.ge/interfaces/serial/, and `wled.cpp` `WLED::setup`, `Serial.begin(115200)`).
 3. Serial works only while the RX pin is not used for LEDs, and answers need the TX pin free (VERIFIED, docs "Pin usage limitation", `wled_serial.cpp` `handleSerial`, `serialCanRX`).
 4. Check that WLED answers before sending credentials. A single `v` byte prints `WLED` and the build number (VERIFIED, `wled_serial.cpp`). Then send the Improv state request 0x02 and wait for a Current State packet, send the device information request 0x03, and go on only when the first string of the answer is `WLED`.

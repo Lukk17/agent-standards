@@ -10,3 +10,53 @@ entries:
       4. Never name a commit hash in a review comment, a reply or a pull request description.
       5. Use real issue and pull request numbers, never a placeholder.
       6. Use no em dash, no en dash, no semicolon joining two clauses, no bold and no italic.
+  - id: javadoc-rules
+    files:
+      - .agents/skills/springboot-patterns/references/javadoc.md
+      - .agents/skills/soap-webservices/references/javadoc.md
+    text: |
+      Default to none. A Javadoc block is usually a sign that the code failed to explain itself. Before writing one, extract
+      the unclear block into a well-named method, rename the parameters so they carry their own meaning, and tighten the
+      types. Do that first and most Javadoc blocks have nothing left to say, which is the outcome you want. Code that
+      explains itself cannot go stale, a comment can.
+
+      When one is still genuinely needed, the prose is capped at five lines and is usually one. Every tag line is capped at
+      one line, `@param` and `@return` and `@throws` alike, and only appears when it genuinely adds something: if the note
+      does not fit on a single line, shorten it or drop the tag. Four rules decide what goes in.
+
+      1. Prose. One sentence saying what it does, then only what a caller cannot infer from the signature. Nothing more.
+      2. `@param` only when the name and the type do not already convey it, meaning units, nullability, a valid range, or
+         who owns the argument afterwards. `@param orderId the wholesale order identifier` is noise, delete it.
+      3. `@return` only when it is non-obvious.
+      4. `@throws` always, for every exception a caller can act on. Unchecked exceptions never appear in the signature, so
+         this one is genuinely contract rather than decoration.
+
+      Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
+      example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you
+      justify in review, not a budget to spend. The one-line cap on a tag line has no exception at all: shorten it or delete
+      it.
+  - id: machine-facts
+    files:
+      - .agents/skills/arch-linux/SKILL.md
+      - .agents/skills/cachyos/SKILL.md
+      - .agents/skills/kde-plasma/SKILL.md
+      - .agents/skills/macos/SKILL.md
+      - .agents/skills/windows/SKILL.md
+    text: |
+      Machine-specific facts live in `MACHINE.md` next to the global `AGENTS.md`. Read it before acting. This skill holds no facts about any single machine.
+  - id: commands-run-on-one-host
+    files:
+      - .agents/skills/arch-linux/SKILL.md
+      - .agents/skills/cachyos/SKILL.md
+      - .agents/skills/kde-plasma/SKILL.md
+    text: |
+      The commands that ran were run on one CachyOS host, and commands that were not executed are marked UNVERIFIED in the topic files.
+  - id: machine-change-log-check
+    files:
+      - .agents/skills/arch-linux/references/checklist.md
+      - .agents/skills/cachyos/references/checklist.md
+      - .agents/skills/kde-plasma/references/checklist.md
+      - .agents/skills/macos/references/checklist.md
+      - .agents/skills/windows/references/checklist.md
+    text: |
+      - [ ] The change and its undo recorded in the `MACHINE.md` change log

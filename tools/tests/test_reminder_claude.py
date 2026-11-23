@@ -1,10 +1,11 @@
 """Claude Code reminder wiring tests.
 
-The project's .claude/settings.json runs one script per reminder, each in its
-own folder under .agents/hooks/claude/, so the marketplace can ship each as a
-hook plugin. Each script holds its text as a constant, which is the canonical
-copy, and prints exactly what the bare echo it replaced printed: the text and
-one newline.
+Each reminder is one script in its own folder under .agents/hooks/claude/,
+shipped as a hook plugin of the marketplace, and the project's
+.claude/settings.json switches those plugins on instead of wiring the scripts
+itself. Each script holds its text as a constant, which is the canonical copy,
+and prints exactly what the bare echo it replaced printed: the text and one
+newline.
 """
 import json
 import os
@@ -12,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+from tests import claude_wiring_support as wiring
 from tests.conftest import BACKGROUND_SUBAGENT_REMINDER_HOOK, PREFLIGHT_REMINDER_HOOK, REPO_ROOT, SUBAGENT_REMINDER_HOOK
 from tests.process_tree import run_bounded
 from tests.reminder_support import (
@@ -25,8 +27,6 @@ from tests.reminder_support import (
     posix_shell,
 )
 
-SETTINGS = json.loads((REPO_ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
-
 SUBAGENT_JSON = json.dumps({"hookSpecificOutput": {"hookEventName": "SubagentStart", "additionalContext": canonical_subagent_reminder()}})
 
 WIRED = [
@@ -37,27 +37,25 @@ WIRED = [
 ]
 
 
-def commands(event: str) -> list[str]:
-    return [hook["command"] for group in SETTINGS["hooks"][event] for hook in group["hooks"]]
-
-
-def wired_command(event: str, script: Path) -> str:
-    relative = script.relative_to(REPO_ROOT).as_posix()
-    found = [command for command in commands(event) if relative in command]
-    assert len(found) == 1, (event, relative, commands(event))
+def wired_handler(event: str, script: Path) -> wiring.Handler:
+    found = wiring.wired(event, script.name)
+    assert len(found) == 1 and found[0].folder == script.parent, (event, script, wiring.commands(event))
     return found[0]
 
 
 def test_the_claude_wiring_prints_no_reminder_literal_any_more():
-    every = [command for event in SETTINGS["hooks"] for command in commands(event)]
+    every = [handler.command for handler in wiring.handlers()]
 
+    assert every
     assert not [command for command in every if MARKER in command or "PREFLIGHT" in command or command.startswith("echo")]
 
 
-def test_session_start_runs_the_preflight_and_the_background_reminders_before_the_task_list():
-    order = ["preflight_reminder.py", "background_subagent_reminder.py", "task_list_sync.py"]
+def test_session_start_runs_the_preflight_reminder_the_background_reminder_and_the_task_list_once_each():
+    scripts = ["preflight_reminder.py", "background_subagent_reminder.py", "task_list_sync.py"]
+    started = wiring.commands("SessionStart")
 
-    assert [next(name for name in order if name in command) for command in commands("SessionStart")] == order
+    assert len(started) == len(scripts)
+    assert sorted(name for name in scripts for command in started if f"/{name} " in command) == sorted(scripts)
 
 
 def test_the_preflight_script_holds_the_canonical_claude_text():
@@ -75,11 +73,11 @@ def test_every_wired_reminder_prints_byte_for_byte_what_its_echo_printed(tmp_pat
     shell = posix_shell()
     if shell is None:
         pytest.skip("no POSIX shell is installed")
-    environment = {key: value for key, value in os.environ.items() if key != "CLAUDE_PLUGIN_ROOT"}
-    environment["CLAUDE_PROJECT_DIR"] = str(REPO_ROOT)
+    handler = wired_handler(event, script)
+    environment = wiring.hook_environment(handler, REPO_ROOT, dict(os.environ))
 
     result = run_bounded(
-        [shell, "-c", wired_command(event, script)],
+        [shell, "-c", handler.command],
         input=json.dumps({"hook_event_name": event, "cwd": str(REPO_ROOT)}).encode("utf-8"),
         capture_output=True,
         env=environment,

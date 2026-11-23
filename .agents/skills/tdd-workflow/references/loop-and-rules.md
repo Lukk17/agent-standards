@@ -15,7 +15,7 @@ Contents:
 - [Flaky tests](#flaky-tests)
 - [Continuous testing](#continuous-testing)
 
-The red-green-refactor loop and every testing rule in SKILL.md in full, with the reasoning, the commands, the Jest coverage key, the CI upload pin, and the pass and fail forms. Load this file when applying a rule and the one-line summary in SKILL.md is not enough.
+The red-green-refactor loop and every testing rule in SKILL.md in full, with the reasoning and the pass and fail forms that need no framework. The form each rule takes in a JavaScript or TypeScript project, with the Jest coverage key, the commands and the CI upload pin, is in [jest.md](jest.md), and the JUnit form is in [jvm-testing.md](jvm-testing.md). Load this file when applying a rule and the one-line summary in SKILL.md is not enough.
 
 ---
 
@@ -32,16 +32,7 @@ As a signed-in customer, I want to search the catalogue by keyword,
 so that I can find a product without knowing its exact name.
 ```
 
-Turn the journey into cases that name the behaviour and the condition.
-
-```typescript
-describe('catalogue search', () => {
-  it('returns matching products for a keyword', async () => {})
-  it('returns an empty list for a query that matches nothing', async () => {})
-  it('falls back to substring matching when the search index is unavailable', async () => {})
-  it('orders results by relevance score, highest first', async () => {})
-})
-```
+Turn the journey into cases that name the behaviour and the condition. The cases this journey gives are written out as a test skeleton in [jest.md](jest.md#cases-from-a-journey).
 
 ---
 
@@ -49,10 +40,6 @@ describe('catalogue search', () => {
 
 Running the new test and seeing it fail is mandatory before any production code changes. A test that was written but
 never executed proves nothing, and a failure caused by a typo proves nothing either.
-
-```bash
-npm test
-```
 
 A valid RED state is one of two things. Runtime RED: the target compiles, the new test actually executes, and the result
 is a failure. Compile-time RED: the new test references code that does not exist yet, and the compile failure is itself
@@ -78,10 +65,6 @@ FAIL  src/search.test.ts > returns an empty list for a query that matches nothin
 Do not touch production code until a valid RED state is confirmed. Then implement the minimum that turns it green, rerun
 the same target, and only refactor once green.
 
-```bash
-npm test
-```
-
 Refactoring under green means removing duplication, improving names, and simplifying structure, with the suite rerun
 after each step.
 
@@ -94,37 +77,9 @@ sits at 70 to 80 percent. Critical logic reaches 100 percent where that genuinel
 exclusion pattern may be added to dodge a meaningful test, and every edge case, error path, and boundary condition is
 covered.
 
-Enforce it as a CI gate so a pull request that drops coverage below the threshold is blocked.
+Enforce it as a CI gate so a pull request that drops coverage below the threshold is blocked, and verify locally before pushing.
 
-Fail: the config key is plural, so Jest ignores the whole block and the gate never fires.
-
-```json
-{
-  "jest": {
-    "coverageThresholds": {
-      "global": { "branches": 70, "functions": 90, "lines": 90, "statements": 90 }
-    }
-  }
-}
-```
-
-Pass: the key Jest actually reads.
-
-```json
-{
-  "jest": {
-    "coverageThreshold": {
-      "global": { "branches": 70, "functions": 90, "lines": 90, "statements": 90 }
-    }
-  }
-}
-```
-
-Verify locally before pushing.
-
-```bash
-npm run test:coverage
-```
+Write the gate with the config key the tool actually reads. Jest reads `coverageThreshold`, not `coverageThresholds`: with the plural key Jest ignores the whole block and the gate never fires. The Jest key, with its failing and passing form, is in [jest.md](jest.md#coverage-threshold), and the JaCoCo rule is in [jvm-testing.md](jvm-testing.md#coverage-configuration-with-jacoco).
 
 ---
 
@@ -147,33 +102,9 @@ Descriptive names in the project's existing style win. A reader who has never se
 and the condition from the name alone.
 
 Match what the project already does. Where a project has no convention, use the natural-language form from
-`coding-standards`, which is the canonical rule: a sentence describing the behaviour and the condition that triggers it.
+`coding-standards`, which is the canonical rule: a sentence describing the behaviour and the condition that triggers it. The names that describe nothing and the natural-language names that pass are in [jest.md](jest.md#test-naming).
 
-Fail: names that describe nothing.
-
-```typescript
-test('works', () => {})
-test('test search 2', () => {})
-test('happyPath', () => {})
-```
-
-Pass: natural-language form, the default.
-
-```typescript
-test('returns an empty list when no product matches the query', () => {})
-test('throws when the API key is missing', () => {})
-```
-
-Pass: the `<method>_<scenario>_<expectedResult>` form, which is the same rule spelled differently and is idiomatic in
-JUnit codebases. Use it when the project already uses it, not as a second convention alongside the first.
-
-```java
-@Test
-void calculateTotal_withEmptyCart_returnsZero() { }
-
-@Test
-void processPayment_whenCardDeclined_throwsPaymentException() { }
-```
+The `<method>_<scenario>_<expectedResult>` form is the same rule spelled differently and is idiomatic in JUnit codebases. Use it when the project already uses it, not as a second convention alongside the first. Its example is in [jvm-testing.md](jvm-testing.md#junit-test-naming).
 
 The two forms are alternatives, never a mix inside one codebase.
 
@@ -185,61 +116,13 @@ The three-phase shape and how its phases are labelled follow `coding-standards`,
 section adds the isolation that goes with it.
 
 One behaviour per test. Several assertions are fine when they all verify that one behaviour, and each test builds its
-own data so the order tests run in never matters.
-
-Fail: the second test depends on the first.
-
-```typescript
-test('creates a user', () => { createUser('alice') })
-test('updates the same user', () => { updateUser('alice', { name: 'Alicia' }) })
-```
-
-Pass: each test owns its setup.
-
-```typescript
-test('creates a user', () => {
-  const user = createTestUser()
-  expect(findUser(user.id)).toBeDefined()
-})
-
-test('updates a user', () => {
-  const user = createTestUser()
-  updateUser(user.id, { name: 'Alicia' })
-  expect(findUser(user.id).name).toBe('Alicia')
-})
-```
+own data so the order tests run in never matters. A second test that depends on the first fails, and a test that owns its setup passes. Both forms are in [jest.md](jest.md#test-isolation).
 
 ---
 
 ### Test comments
 
-The three phases are marked with bare comments and nothing else: `// Given`, `// When`, `// Then`, or `// When & Then` when the action and the assertion are one call, with `#` in Python. They are the only comments a test file carries. A divider banner (`// ---- helpers ----`, `// ─── MODULE MOCKS ───`), a numbered section label (`// 7.1 Directory listing happy path`), a file header saying what the file tests and how its environment is chosen, and a trailing explanation after an assertion all go. What a test proves belongs in its name, or in `@DisplayName` where the name alone cannot carry it, and grouping belongs in a nested class or a separate file.
-
-Pass:
-
-```java
-@Test
-@DisplayName("a note longer than the limit is rejected before the decision is stored")
-void decide_withOversizedNote_isRejected() {
-    // Given
-    var decision = decisionWithNoteOfLength(NOTE_LIMIT + 1);
-
-    // When & Then
-    assertThatThrownBy(() -> service.decide(decision)).isInstanceOf(NoteTooLongException.class);
-    verifyNoInteractions(repository);
-}
-```
-
-Fail:
-
-```java
-// ---- validation ----
-@Test
-void decide_withOversizedNote_isRejected() {
-    var decision = decisionWithNoteOfLength(NOTE_LIMIT + 1); // one over the limit
-    assertThatThrownBy(() -> service.decide(decision)).isInstanceOf(NoteTooLongException.class);
-}
-```
+The three phases are marked with bare comments and nothing else: `// Given`, `// When`, `// Then`, or `// When & Then` when the action and the assertion are one call, with `#` in Python. They are the only comments a test file carries, because a comment is the part of a test nobody keeps true. A divider banner (`// ---- helpers ----`, `// ─── MODULE MOCKS ───`), a numbered section label (`// 7.1 Directory listing happy path`), a file header saying what the file tests and how its environment is chosen, and a trailing explanation after an assertion all go. What a test proves belongs in its name, or in the display name the framework offers where the name alone cannot carry it, such as `@DisplayName` in JUnit, and grouping belongs in a nested class or a separate file. The pass and fail form is in [jvm-testing.md](jvm-testing.md#test-comments-and-display-names).
 
 The CI-guard pragmas a project defines, such as `// biome-ignore` or an `i18n-allow` marker, are tool input rather than prose and stay.
 
@@ -254,19 +137,7 @@ Past about 300 lines a test class is testing several behaviours, and a failure i
 ### Test what the user observes
 
 Assert the behaviour the caller can see, not the internal state that produced it. A test coupled to internals fails on
-every refactor and passes through real defects.
-
-Fail:
-
-```typescript
-expect(component.state.count).toBe(5)
-```
-
-Pass:
-
-```typescript
-expect(screen.getByText('Count: 5')).toBeInTheDocument()
-```
+every refactor and passes through real defects. The failing and passing assertion are in [jest.md](jest.md#test-what-the-user-observes).
 
 Never weaken an assertion to make a test pass. Fix the code, or fix the setup that was wrong.
 
@@ -279,33 +150,9 @@ against a real engine through Testcontainers, never a shared staging instance. F
 cloud SDKs, prefer a real instance, the library's own official test double, or an HTTP-level fake such as WireMock or
 MSW. The detail behind both rules is in [advanced-testing.md](advanced-testing.md).
 
-The mocks below replace interfaces the project owns (its repository and its client wrapper), never the vendor SDK
-underneath them, and they are not a substitute for exercising the real datastore.
-
-A repository, mocked at the interface the application defines.
-
-```typescript
-jest.mock('@/lib/repositories/product-repository', () => ({
-  productRepository: {
-    findByKeyword: jest.fn(async () => [{ id: 1, name: 'Test Product' }]),
-    findById: jest.fn(async () => ({ id: 1, name: 'Test Product' })),
-  },
-}))
-```
-
-An external HTTP client, mocked at the project's own wrapper rather than at the vendor SDK.
-
-```typescript
-jest.mock('@/lib/clients/search-client', () => ({
-  searchClient: {
-    query: jest.fn(async () => [{ id: 'test-product', score: 0.95 }]),
-    health: jest.fn(async () => ({ reachable: true })),
-  },
-}))
-```
-
-Note what both examples have in common: the seam is an interface the project defines, so the mock stays valid when the
-vendor library changes underneath it.
+A mock replaces an interface the project owns (its repository and its client wrapper), never the vendor SDK
+underneath it, and it is not a substitute for exercising the real datastore. The seam is an interface the project defines, so the mock stays valid when the
+vendor library changes underneath it. Two mocks at such a seam are in [jest.md](jest.md#mock-seams).
 
 ---
 
@@ -319,25 +166,4 @@ layer, not only browser tests. Do not restate it here, and do not adopt a second
 
 ### Continuous testing
 
-Run the suite in watch mode while developing.
-
-```bash
-npm test -- --watch
-```
-
-Gate the commit on tests and lint.
-
-```bash
-npm test && npm run lint
-```
-
-In CI, run with coverage and upload the report. The upload action is pinned to a full commit SHA with its tag in a
-trailing comment, `<commit-sha>` standing in for a real one, resolved with
-`git ls-remote https://github.com/codecov/codecov-action refs/tags/<tag> refs/tags/<tag>^{}`.
-
-```yaml
-- name: Run tests
-  run: npm test -- --coverage
-- name: Upload coverage
-  uses: codecov/codecov-action@<commit-sha> # vX.Y.Z
-```
+Run the suite in watch mode while developing. Gate the commit on tests and lint. In CI, run with coverage and upload the report, through an upload action pinned to a full commit SHA with its tag in a trailing comment. The three commands, the workflow steps and the command that resolves the SHA are in [jest.md](jest.md#watch-commit-and-ci).

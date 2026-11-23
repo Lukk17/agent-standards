@@ -6,10 +6,10 @@ What to use, what to query by, and how to keep HTTP out of unit tests.
 
 ### Contents
 
-- Runners and libraries
-- Query by role and label, never by selector
-- Mock HTTP at the transport, not the client
-- Testing signals and functional guards
+- [Runners and libraries](#runners-and-libraries)
+- [Query by role and label, never by selector](#query-by-role-and-label-never-by-selector)
+- [Mock HTTP at the transport, not the client](#mock-http-at-the-transport-not-the-client)
+- [Testing signals and functional guards](#testing-signals-and-functional-guards)
 
 ---
 

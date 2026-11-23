@@ -9,9 +9,26 @@
     {
       "name": "core",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Skills that subagents in two or more domains preload, such as coding standards, security review, TDD, logging and git practice. Every domain bundle depends on it.",
       "category": "development",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "bundle",
+        "development",
+        "core"
+      ],
+      "tags": [
+        "bundle",
+        "development",
+        "core"
+      ],
       "dependencies": [
         "architecture-decision-records",
         "bash",
@@ -32,9 +49,26 @@
     {
       "name": "python",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Python and machine learning, with the python-pro and ml-engineer subagents and the PyTorch skill.",
       "category": "development",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "bundle",
+        "development",
+        "python"
+      ],
+      "tags": [
+        "bundle",
+        "development",
+        "python"
+      ],
       "dependencies": [
         "core",
         "agent-python-pro",
@@ -45,9 +79,26 @@
     {
       "name": "jvm",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Java and Spring Boot, with the java-pro subagent and the Java, Spring Boot and SOAP skills.",
       "category": "development",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "bundle",
+        "development",
+        "jvm"
+      ],
+      "tags": [
+        "bundle",
+        "development",
+        "jvm"
+      ],
       "dependencies": [
         "core",
         "agent-java-pro",
@@ -59,9 +110,26 @@
     {
       "name": "go",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Go services, with the go-pro subagent and the Go patterns skill.",
       "category": "development",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "bundle",
+        "development",
+        "go"
+      ],
+      "tags": [
+        "bundle",
+        "development",
+        "go"
+      ],
       "dependencies": [
         "core",
         "agent-go-pro",
@@ -71,9 +139,26 @@
     {
       "name": "backend",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Backend services and HTTP APIs, with the backend-architect, api-documenter and api-tester subagents and the API design, backend, Node.js and Keycloak skills.",
       "category": "development",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "bundle",
+        "development",
+        "backend"
+      ],
+      "tags": [
+        "bundle",
+        "development",
+        "backend"
+      ],
       "dependencies": [
         "core",
         "agent-backend-architect",
@@ -88,9 +173,26 @@
     {
       "name": "data",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Databases, with the database-expert subagent and the PostgreSQL, migration and MongoDB skills.",
       "category": "development",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "bundle",
+        "development",
+        "data"
+      ],
+      "tags": [
+        "bundle",
+        "development",
+        "data"
+      ],
       "dependencies": [
         "core",
         "agent-database-expert",
@@ -102,9 +204,26 @@
     {
       "name": "web-frontend",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Web interfaces, with the Angular, React and Next.js, accessibility, design system and UI subagents and their skills.",
       "category": "development",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "bundle",
+        "development",
+        "web-frontend"
+      ],
+      "tags": [
+        "bundle",
+        "development",
+        "web-frontend"
+      ],
       "dependencies": [
         "core",
         "agent-angular-expert",
@@ -123,9 +242,26 @@
     {
       "name": "mobile",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Flutter and Dart apps, with the flutter-expert subagent and the Dart and Flutter skill.",
       "category": "development",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "bundle",
+        "development",
+        "mobile"
+      ],
+      "tags": [
+        "bundle",
+        "development",
+        "mobile"
+      ],
       "dependencies": [
         "core",
         "agent-flutter-expert",
@@ -135,9 +271,26 @@
     {
       "name": "devops",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Delivery and operations, with the devops, incident, observability and release subagents and the deployment, Docker and Ansible skills.",
       "category": "development",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "bundle",
+        "development",
+        "devops"
+      ],
+      "tags": [
+        "bundle",
+        "development",
+        "devops"
+      ],
       "dependencies": [
         "core",
         "agent-devops-automator",
@@ -153,9 +306,26 @@
     {
       "name": "review-and-security",
       "source": "./.claude-plugin",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "description": "Code review, security audit, codebase mapping and legacy migration, with four subagents and the review, review comment and duplication skills.",
       "category": "development",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "bundle",
+        "development",
+        "review-and-security"
+      ],
+      "tags": [
+        "bundle",
+        "development",
+        "review-and-security"
+      ],
       "dependencies": [
         "core",
         "agent-code-reviewer",
@@ -170,9 +340,26 @@
     {
       "name": "testing",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Tests, debugging, performance measurement and the quality loop, with five subagents and the regression, end-to-end, Playwright and quality-loop skills. The quality-loop skill carries Robert C. Martin's crapper, dryer and mutator (github.com/unclebob), copied into a project that lacks them.",
       "category": "development",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "bundle",
+        "development",
+        "testing"
+      ],
+      "tags": [
+        "bundle",
+        "development",
+        "testing"
+      ],
       "dependencies": [
         "core",
         "agent-test-automator",
@@ -189,9 +376,26 @@
     {
       "name": "docs-and-product",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Documentation, legal drafts, SEO and project tracking, with four subagents and the SEO, tracking and Jira skills.",
       "category": "development",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "bundle",
+        "development",
+        "docs-and-product"
+      ],
+      "tags": [
+        "bundle",
+        "development",
+        "docs-and-product"
+      ],
       "dependencies": [
         "core",
         "agent-docs-architect",
@@ -206,9 +410,26 @@
     {
       "name": "embedded",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Embedded C and hardware, with the embedded-c-engineer subagent and the Arduino, KiCad and 3D printing skills.",
       "category": "development",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "bundle",
+        "development",
+        "embedded"
+      ],
+      "tags": [
+        "bundle",
+        "development",
+        "embedded"
+      ],
       "dependencies": [
         "core",
         "agent-embedded-c-engineer",
@@ -220,9 +441,26 @@
     {
       "name": "game",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Unity games, with the unity-game-dev subagent and the Unity skill.",
       "category": "development",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "bundle",
+        "development",
+        "game"
+      ],
+      "tags": [
+        "bundle",
+        "development",
+        "game"
+      ],
       "dependencies": [
         "core",
         "agent-unity-game-dev",
@@ -232,9 +470,26 @@
     {
       "name": "agent-tooling",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Agent configuration and research, with the agent-engineer subagent and the agentic engineering, research and automation inventory skills.",
       "category": "development",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "bundle",
+        "development",
+        "agent-tooling"
+      ],
+      "tags": [
+        "bundle",
+        "development",
+        "agent-tooling"
+      ],
       "dependencies": [
         "core",
         "agent-agent-engineer",
@@ -246,9 +501,26 @@
     {
       "name": "linux",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Linux desktop administration on Arch, CachyOS and KDE Plasma.",
       "category": "host",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "bundle",
+        "host",
+        "linux"
+      ],
+      "tags": [
+        "bundle",
+        "host",
+        "linux"
+      ],
       "dependencies": [
         "arch-linux",
         "cachyos",
@@ -258,9 +530,26 @@
     {
       "name": "windows-and-mac",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Windows and macOS administration and PowerShell scripting.",
       "category": "host",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "bundle",
+        "host",
+        "windows-and-mac"
+      ],
+      "tags": [
+        "bundle",
+        "host",
+        "windows-and-mac"
+      ],
       "dependencies": [
         "windows",
         "macos",
@@ -270,9 +559,26 @@
     {
       "name": "homelab",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Homelab hosts and services, with the home-assistant-engineer subagent and the Proxmox, router, Syncthing, Samsung TV, WLED and machine health skills.",
       "category": "host",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "bundle",
+        "host",
+        "homelab"
+      ],
+      "tags": [
+        "bundle",
+        "host",
+        "homelab"
+      ],
       "dependencies": [
         "core",
         "agent-home-assistant-engineer",
@@ -289,9 +595,26 @@
     {
       "name": "personal-tools",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Obsidian, JetBrains IDE configuration and the self-hosted AscendMemory, ascend-web-hunter and AudioScribe services.",
       "category": "host",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "bundle",
+        "host",
+        "personal-tools"
+      ],
+      "tags": [
+        "bundle",
+        "host",
+        "personal-tools"
+      ],
       "dependencies": [
         "obsidian",
         "jetbrains-ide-ops",
@@ -303,9 +626,24 @@
     {
       "name": "mcp-all",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Every MCP server plugin in one install.",
       "category": "bundle",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "bundle",
+        "mcp-all"
+      ],
+      "tags": [
+        "bundle",
+        "mcp-all"
+      ],
       "dependencies": [
         "mcp-context7",
         "mcp-mongodb",
@@ -321,9 +659,24 @@
     {
       "name": "all",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Core and every development domain in one install. Host groups and MCP servers stay separate installs.",
       "category": "bundle",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "bundle",
+        "all"
+      ],
+      "tags": [
+        "bundle",
+        "all"
+      ],
       "dependencies": [
         "core",
         "python",
@@ -345,9 +698,24 @@
     {
       "name": "hooks-all",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Every Claude Code hook plugin in one install.",
       "category": "bundle",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "bundle",
+        "hooks-all"
+      ],
+      "tags": [
+        "bundle",
+        "hooks-all"
+      ],
       "dependencies": [
         "hook-preflight-gate",
         "hook-task-list-sync",
@@ -363,9 +731,26 @@
       "name": "agent-accessibility-expert",
       "source": "./.claude/agents/accessibility-expert",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"audit this page for WCAG 2.2\", \"is this component accessible\" or \"fix the screen reader issues\". Audits against WCAG 2.2 with screen readers, keyboard-only use and voice control in mind, not only automated scanners, and returns a report with remediation guidance rather than applying fixes. Not for design tokens and theming, use `design-system-architect`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "web-frontend",
+        "accessibility-expert"
+      ],
+      "tags": [
+        "agent",
+        "web-frontend",
+        "accessibility-expert"
+      ],
       "agents": [
         "./accessibility-expert.md"
       ],
@@ -379,9 +764,26 @@
       "name": "agent-agent-engineer",
       "source": "./.claude/agents/agent-engineer",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"fix this skill\", \"add a subagent\", \"why did the hook block that\" or \"check what this agent tool supports\". Writes and repairs skills, subagent definitions, preflight hooks, MCP server blocks and AGENTS.md files, and does the web research the main thread is gated from running. Not for long-form human documentation, use `docs-architect`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "agent-tooling",
+        "agent-engineer"
+      ],
+      "tags": [
+        "agent",
+        "agent-tooling",
+        "agent-engineer"
+      ],
       "agents": [
         "./agent-engineer.md"
       ],
@@ -397,9 +799,26 @@
       "name": "agent-angular-expert",
       "source": "./.claude/agents/angular-expert",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"build this Angular component\", \"migrate this to signals\" or \"review this Angular code\". Applies Angular 22 defaults, standalone components, signals and signal inputs, zoneless change detection, control flow and inject(), with RxJS discipline, as an implementer. Not for design tokens and the shared component library, use `design-system-architect`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "web-frontend",
+        "angular-expert"
+      ],
+      "tags": [
+        "agent",
+        "web-frontend",
+        "angular-expert"
+      ],
       "agents": [
         "./angular-expert.md"
       ],
@@ -414,9 +833,26 @@
       "name": "agent-api-documenter",
       "source": "./.claude/agents/api-documenter",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"document this API\", \"write the OpenAPI spec\" or \"our API docs are out of date\". Writes OpenAPI 3.1 or 3.2, GraphQL SDL, AsyncAPI and developer-portal prose with working examples, the error catalogue, auth flows and the versioning policy, editing only spec and documentation files. Not for designing the contract itself, use `backend-architect`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "backend",
+        "api-documenter"
+      ],
+      "tags": [
+        "agent",
+        "backend",
+        "api-documenter"
+      ],
       "agents": [
         "./api-documenter.md"
       ],
@@ -430,9 +866,26 @@
       "name": "agent-api-tester",
       "source": "./.claude/agents/api-tester",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Use when the user says \"load test this API\", \"find the breaking point\" or \"check the API still matches its contract\". Drives realistic traffic at a running HTTP, GraphQL or gRPC API, validates responses against the spec, and reports the breaking point with evidence, writing test scripts and reports only. Not for unit and integration tests in the codebase, use `test-automator`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "backend",
+        "api-tester"
+      ],
+      "tags": [
+        "agent",
+        "backend",
+        "api-tester"
+      ],
       "agents": [
         "./api-tester.md"
       ],
@@ -447,9 +900,26 @@
       "name": "agent-backend-architect",
       "source": "./.claude/agents/backend-architect",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Use when the user says \"design this service\", \"draft the API contract\" or \"how should these services talk to each other\". Produces the authoritative OpenAPI or GraphQL spec plus the service boundaries and the auth, resilience and observability decisions, read-only, with the spec as the deliverable. Not for choosing a database or modelling its schema, use `database-expert`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "backend",
+        "backend-architect"
+      ],
+      "tags": [
+        "agent",
+        "backend",
+        "backend-architect"
+      ],
       "agents": [
         "./backend-architect.md"
       ],
@@ -466,9 +936,26 @@
       "name": "agent-code-archaeologist",
       "source": "./.claude/agents/code-archaeologist",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"map this codebase\", \"I just inherited this repo\" or \"what is risky in here before we refactor\". Maps the architecture, surfaces hidden contracts and dead code, scores health and writes a prioritised action plan other agents can execute, read-only, with git history as its only shell. Not for carrying out the refactor, use `legacy-modernizer`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "review-and-security",
+        "code-archaeologist"
+      ],
+      "tags": [
+        "agent",
+        "review-and-security",
+        "code-archaeologist"
+      ],
       "agents": [
         "./code-archaeologist.md"
       ],
@@ -483,9 +970,26 @@
       "name": "agent-code-reviewer",
       "source": "./.claude/agents/code-reviewer",
       "strict": false,
-      "version": "1.1.0",
+      "version": "1.1.1",
       "description": "Use when the user says \"review my changes\", \"review PR #123\" or \"is this ready to merge\", and after any code change before it merges. Runs a severity-tagged review across correctness, security, performance, architecture and tests, read-only, and reports every finding with a file and line citation. Not for a threat model or a full security assessment, use `security-auditor`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "review-and-security",
+        "code-reviewer"
+      ],
+      "tags": [
+        "agent",
+        "review-and-security",
+        "code-reviewer"
+      ],
       "agents": [
         "./code-reviewer.md"
       ],
@@ -501,9 +1005,26 @@
       "name": "agent-database-expert",
       "source": "./.claude/agents/database-expert",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"design the schema\", \"which database should we use\", \"plan this migration\" or \"this query is slow\". Designs a data layer or tunes an existing one, measuring only on a database the caller names as disposable and handing migrations to an implementer, read-only on shared and production schemas. Not for a bottleneck not yet located, use `performance-engineer`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "data",
+        "database-expert"
+      ],
+      "tags": [
+        "agent",
+        "data",
+        "database-expert"
+      ],
       "agents": [
         "./database-expert.md"
       ],
@@ -518,9 +1039,26 @@
       "name": "agent-debugger",
       "source": "./.claude/agents/debugger",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Use when the user says \"this test fails\", \"why does this throw\" or \"it worked yesterday\". Reproduces the failure, isolates the root cause, applies the smallest fix that removes it, verifies the fix against the reproduction, and returns a short diagnosis together with the change. Not for an error pattern spread across logs and services, use `error-detective`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "testing",
+        "debugger"
+      ],
+      "tags": [
+        "agent",
+        "testing",
+        "debugger"
+      ],
       "agents": [
         "./debugger.md"
       ],
@@ -534,9 +1072,26 @@
       "name": "agent-design-system-architect",
       "source": "./.claude/agents/design-system-architect",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"set up design tokens\", \"build our component library\" or \"add a second brand theme\". Designs the token architecture, the component library structure, multi-brand theming and the design-to-code workflow that the rest of the front end builds on, as infrastructure rather than features. Not for one feature screen or flow, use `ui-ux-designer`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "web-frontend",
+        "design-system-architect"
+      ],
+      "tags": [
+        "agent",
+        "web-frontend",
+        "design-system-architect"
+      ],
       "agents": [
         "./design-system-architect.md"
       ],
@@ -551,9 +1106,26 @@
       "name": "agent-devops-automator",
       "source": "./.claude/agents/devops-automator",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Use when the user says \"set up CI\", \"write the Dockerfile\", \"deploy this to Kubernetes\" or \"add a rollback\". Builds pipelines, container images, manifests and infrastructure as code with zero-downtime deploys, health checks, automated rollback, secrets kept at the boundary and observability wired in. Not for a live production incident, use `devops-troubleshooter`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "devops",
+        "devops-automator"
+      ],
+      "tags": [
+        "agent",
+        "devops",
+        "devops-automator"
+      ],
       "agents": [
         "./devops-automator.md"
       ],
@@ -569,9 +1141,26 @@
       "name": "agent-devops-troubleshooter",
       "source": "./.claude/agents/devops-troubleshooter",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Use when the user says \"pods keep crashing\", \"the deploy broke production\", \"DNS is failing\" or \"the disk is full\". Gathers logs, metrics and traces in the infrastructure and runtime layer, tests hypotheses, proposes the restoring action for the user to approve, and drafts the postmortem. Not for errors that point at application code, use `error-detective`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "devops",
+        "devops-troubleshooter"
+      ],
+      "tags": [
+        "agent",
+        "devops",
+        "devops-troubleshooter"
+      ],
       "agents": [
         "./devops-troubleshooter.md"
       ],
@@ -586,9 +1175,26 @@
       "name": "agent-docs-architect",
       "source": "./.claude/agents/docs-architect",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"write the architecture manual\", \"document how this system works\" or \"we need an onboarding guide\". Reads the actual code and its git history, captures why the system is built the way it is, and organises long-form documentation for each audience, with the documentation as the deliverable. Not for API reference docs, use `api-documenter`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "docs-and-product",
+        "docs-architect"
+      ],
+      "tags": [
+        "agent",
+        "docs-and-product",
+        "docs-architect"
+      ],
       "agents": [
         "./docs-architect.md"
       ],
@@ -602,9 +1208,26 @@
       "name": "agent-e2e-runner",
       "source": "./.claude/agents/e2e-runner",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Use when the user says \"run this capability spec\", \"run the e2e sweep\" or \"check spec X against the live stack\". Executes exactly one end-to-end capability spec against a running stack and returns its Verdict and Result summary, so a main session can fan a sweep out across many specs, and never adds or edits a test. Not for writing or fixing tests, use `test-automator`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "testing",
+        "e2e-runner"
+      ],
+      "tags": [
+        "agent",
+        "testing",
+        "e2e-runner"
+      ],
       "agents": [
         "./e2e-runner.md"
       ],
@@ -618,9 +1241,26 @@
       "name": "agent-embedded-c-engineer",
       "source": "./.claude/agents/embedded-c-engineer",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"write this Arduino sketch\", \"review this firmware\", \"lay out the PCB\" or \"print an enclosure for it\". Writes and reviews embedded C with memory safety, non-blocking timing, ISR discipline, a hardware abstraction layer and host-side unit tests, and designs KiCad boards and printed enclosures. Not for Home Assistant configuration, use `home-assistant-engineer`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "embedded",
+        "embedded-c-engineer"
+      ],
+      "tags": [
+        "agent",
+        "embedded",
+        "embedded-c-engineer"
+      ],
       "agents": [
         "./embedded-c-engineer.md"
       ],
@@ -634,9 +1274,26 @@
       "name": "agent-error-detective",
       "source": "./.claude/agents/error-detective",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Use when the user says \"this exception keeps coming back\", \"errors spiked after the release\" or \"find the pattern in these logs\". Correlates application errors across logs and traces over time, builds a root-cause hypothesis from evidence, and proposes the monitor that catches a recurrence, read-only. Not for platform and infrastructure faults, use `devops-troubleshooter`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "devops",
+        "error-detective"
+      ],
+      "tags": [
+        "agent",
+        "devops",
+        "error-detective"
+      ],
       "agents": [
         "./error-detective.md"
       ],
@@ -650,9 +1307,26 @@
       "name": "agent-flutter-expert",
       "source": "./.claude/agents/flutter-expert",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"build this Flutter screen\", \"review this Dart code\" or \"fix this widget rebuild\". Writes and reviews Flutter and Dart 3 code for mobile, web and desktop with records, patterns, sealed classes, null safety, const widget composition and the state management the project already uses. Not for the backend API it calls, use `backend-architect`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "mobile",
+        "flutter-expert"
+      ],
+      "tags": [
+        "agent",
+        "mobile",
+        "flutter-expert"
+      ],
       "agents": [
         "./flutter-expert.md"
       ],
@@ -667,9 +1341,26 @@
       "name": "agent-go-pro",
       "source": "./.claude/agents/go-pro",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Use when the user says \"write this Go service\", \"review this Go package\" or \"restructure this module\". Applies idiomatic Go, useful zero values, interfaces declared at the consumer, wrapped errors and context propagation, with table-driven tests and ports-and-adapters boundaries, as an implementer. Not for service decomposition, use `backend-architect`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "go",
+        "go-pro"
+      ],
+      "tags": [
+        "agent",
+        "go",
+        "go-pro"
+      ],
       "agents": [
         "./go-pro.md"
       ],
@@ -685,9 +1376,26 @@
       "name": "agent-home-assistant-engineer",
       "source": "./.claude/agents/home-assistant-engineer",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"write this automation\", \"review my Home Assistant config\" or \"expose these entities to the assistant\". Applies strict YAML conventions, stable entity_id references, event-driven automations, safe secret handling, and exposure rules that keep security-critical entities away from any assistant. Not for firmware on the devices themselves, use `embedded-c-engineer`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "homelab",
+        "home-assistant-engineer"
+      ],
+      "tags": [
+        "agent",
+        "homelab",
+        "home-assistant-engineer"
+      ],
       "agents": [
         "./home-assistant-engineer.md"
       ],
@@ -701,9 +1409,26 @@
       "name": "agent-java-pro",
       "source": "./.claude/agents/java-pro",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"write this Spring Boot endpoint\", \"review this Java code\" or \"modernise this JVM service\". Applies Java 25 idioms, records, sealed types, pattern matching and virtual threads, with Spring Boot 4 conventions and JPA patterns, as an implementer rather than an architect. Not for schema design, use `database-expert`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "jvm",
+        "java-pro"
+      ],
+      "tags": [
+        "agent",
+        "jvm",
+        "java-pro"
+      ],
       "agents": [
         "./java-pro.md"
       ],
@@ -719,9 +1444,26 @@
       "name": "agent-legacy-modernizer",
       "source": "./.claude/agents/legacy-modernizer",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"upgrade us to the next major\", \"migrate off this framework\", \"split this monolith\" or \"pay down this tech debt\". Plans the migration in phases, adds tests before each refactor, keeps backward compatibility behind feature flags, and documents the rollback for every phase. Not for mapping an unknown codebase first, use `code-archaeologist`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "review-and-security",
+        "legacy-modernizer"
+      ],
+      "tags": [
+        "agent",
+        "review-and-security",
+        "legacy-modernizer"
+      ],
       "agents": [
         "./legacy-modernizer.md"
       ],
@@ -736,9 +1478,26 @@
       "name": "agent-legal-advisor",
       "source": "./.claude/agents/legal-advisor",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"draft our privacy policy\", \"write the terms of service\", \"we need a cookie policy\" or \"draft a DPA\". Drafts compliance documents for a qualified attorney to review, never legal advice, tuned for EU and UK GDPR, CCPA and CPRA, LGPD, Polish UODO rules, COPPA, CAN-SPAM and CASL. Not for a technical compliance gap analysis, use `security-auditor`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "docs-and-product",
+        "legal-advisor"
+      ],
+      "tags": [
+        "agent",
+        "docs-and-product",
+        "legal-advisor"
+      ],
       "agents": [
         "./legal-advisor.md"
       ],
@@ -750,9 +1509,26 @@
       "name": "agent-ml-engineer",
       "source": "./.claude/agents/ml-engineer",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"write the training loop\", \"add checkpointing\", \"review this PyTorch model\" or \"package the model for serving\". Builds and hardens PyTorch pipelines, model and dataset modules, the training loop, checkpointing, the evaluation harness, mixed precision, device placement and serving, rather than proposing the architecture. Not for general Python services, use `python-pro`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "python",
+        "ml-engineer"
+      ],
+      "tags": [
+        "agent",
+        "python",
+        "ml-engineer"
+      ],
       "agents": [
         "./ml-engineer.md"
       ],
@@ -767,9 +1543,26 @@
       "name": "agent-observability-engineer",
       "source": "./.claude/agents/observability-engineer",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Use when the user says \"add tracing\", \"define our SLOs\", \"these alerts are noise\" or \"build a dashboard for this service\". Designs and extends logs, metrics, traces, SLOs, alerts and dashboards toward signals that drive an action rather than vanity charts, wired into the code and the deployment. Not for responding to a live incident, use `devops-troubleshooter`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "devops",
+        "observability-engineer"
+      ],
+      "tags": [
+        "agent",
+        "devops",
+        "observability-engineer"
+      ],
       "agents": [
         "./observability-engineer.md"
       ],
@@ -783,9 +1576,26 @@
       "name": "agent-performance-engineer",
       "source": "./.claude/agents/performance-engineer",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Use when the user says \"the app is slow\", \"performance regressed after the deploy\" or \"get a baseline before we optimise\". Measures first, names the bottleneck with evidence, and proposes the smallest change that moves the metric, read-only on production code and running load only where the caller allows it. Not for one known slow query, use `database-expert`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "testing",
+        "performance-engineer"
+      ],
+      "tags": [
+        "agent",
+        "testing",
+        "performance-engineer"
+      ],
       "agents": [
         "./performance-engineer.md"
       ],
@@ -799,9 +1609,26 @@
       "name": "agent-project-manager",
       "source": "./.claude/agents/project-manager",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Use when the user says \"write a ticket for this\", \"split this epic\", \"add acceptance criteria\" or \"reconcile the board with the repo\". Turns a vague ask into tracked items with testable acceptance criteria, triages a backlog, and checks a Jira board or a GitHub milestone against what the repository contains, never touching product code. Not for cutting a release, use `release-manager`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "docs-and-product",
+        "project-manager"
+      ],
+      "tags": [
+        "agent",
+        "docs-and-product",
+        "project-manager"
+      ],
       "agents": [
         "./project-manager.md"
       ],
@@ -816,9 +1643,26 @@
       "name": "agent-python-pro",
       "source": "./.claude/agents/python-pro",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"write this FastAPI endpoint\", \"review this Python module\" or \"modernise this Python project\". Applies Python 3.14 idioms, type hints, dataclasses, structural pattern matching and async where the work is I/O-bound, with uv, ruff and pytest discipline, as an implementer. Not for PyTorch training and inference, use `ml-engineer`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "python",
+        "python-pro"
+      ],
+      "tags": [
+        "agent",
+        "python",
+        "python-pro"
+      ],
       "agents": [
         "./python-pro.md"
       ],
@@ -833,9 +1677,26 @@
       "name": "agent-quality-loop",
       "source": "./.claude/agents/quality-loop",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Use when the user says \"clean up this code\", \"run the quality loop\" or \"measure CRAP and mutants\", and after a feature before review. Runs Robert C. Martin's crapper, dryer and mutator through the project wrapper, fixes the worst scores in code and tests, measures again for up to three rounds, and reports before and after. Not for writing the tests of a new feature, use `test-automator`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "testing",
+        "quality-loop"
+      ],
+      "tags": [
+        "agent",
+        "testing",
+        "quality-loop"
+      ],
       "agents": [
         "./quality-loop.md"
       ],
@@ -849,9 +1710,26 @@
       "name": "agent-react-nextjs-expert",
       "source": "./.claude/agents/react-nextjs-expert",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"build this Next.js page\", \"review this React component\" or \"move this to a Server Action\". Applies React 19 and Next.js 16 App Router defaults, Server Components first, Client Components only where interactivity needs them, Server Actions for mutations and Suspense for streaming. Not for design tokens and shared components, use `design-system-architect`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "web-frontend",
+        "react-nextjs-expert"
+      ],
+      "tags": [
+        "agent",
+        "web-frontend",
+        "react-nextjs-expert"
+      ],
       "agents": [
         "./react-nextjs-expert.md"
       ],
@@ -867,9 +1745,26 @@
       "name": "agent-release-manager",
       "source": "./.claude/agents/release-manager",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Use when the user says \"cut a release\", \"write the release notes\", \"what version is next\" or \"are we ready to tag\". Chooses the version, assembles notes from merged pull requests, checks the dependency and deployment gates, prepares the tag and records what shipped, never pushing or tagging without per-action approval. Not for the pipeline itself, use `devops-automator`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "devops",
+        "release-manager"
+      ],
+      "tags": [
+        "agent",
+        "devops",
+        "release-manager"
+      ],
       "agents": [
         "./release-manager.md"
       ],
@@ -886,9 +1781,26 @@
       "name": "agent-security-auditor",
       "source": "./.claude/agents/security-auditor",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Use when the user says \"threat model this\", \"is this auth flow safe\" or \"run a security assessment\", and before any auth, payment or sensitive-data change ships. Covers STRIDE and attack trees, secure coding on backend and frontend, and compliance gap analysis, read-only, returning findings and remediation guidance. Not for a general review of a change, use `code-reviewer`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "review-and-security",
+        "security-auditor"
+      ],
+      "tags": [
+        "agent",
+        "review-and-security",
+        "security-auditor"
+      ],
       "agents": [
         "./security-auditor.md"
       ],
@@ -902,9 +1814,26 @@
       "name": "agent-seo-content-marketer",
       "source": "./.claude/agents/seo-content-marketer",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"plan our content strategy\", \"write an SEO article\", \"fix the meta tags\" or \"audit this page for SEO\". Covers the whole pipeline from strategy through writing, keywords, metadata and content structure to an E-E-A-T audit, with the content and audits as the deliverable and application code untouched. Not for legal pages, use `legal-advisor`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "docs-and-product",
+        "seo-content-marketer"
+      ],
+      "tags": [
+        "agent",
+        "docs-and-product",
+        "seo-content-marketer"
+      ],
       "agents": [
         "./seo-content-marketer.md"
       ],
@@ -917,9 +1846,26 @@
       "name": "agent-test-automator",
       "source": "./.claude/agents/test-automator",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"write tests for this\", \"the suite is failing\" or \"raise coverage here\", and after any code change that lacks tests. Writes the missing unit and integration tests, runs the suites, analyses failures and fixes them without weakening a test, reporting a genuine code bug instead. Not for load, contract or smoke tests on a running API, use `api-tester`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "testing",
+        "test-automator"
+      ],
+      "tags": [
+        "agent",
+        "testing",
+        "test-automator"
+      ],
       "agents": [
         "./test-automator.md"
       ],
@@ -933,9 +1879,26 @@
       "name": "agent-ui-ux-designer",
       "source": "./.claude/agents/ui-ux-designer",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"design this flow\", \"lay out this screen\", \"plan the user research\" or \"what do these interview notes tell us\". Works in two modes, UX research to understand the user and interaction design to shape the flow, and produces specs and rationale a framework agent implements. Not for design tokens and the component library, use `design-system-architect`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "web-frontend",
+        "ui-ux-designer"
+      ],
+      "tags": [
+        "agent",
+        "web-frontend",
+        "ui-ux-designer"
+      ],
       "agents": [
         "./ui-ux-designer.md"
       ],
@@ -950,9 +1913,26 @@
       "name": "agent-unity-game-dev",
       "source": "./.claude/agents/unity-game-dev",
       "strict": false,
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Use when the user says \"write this Unity script\", \"review this C# gameplay code\" or \"why does this scene stutter\". Applies frame-budget discipline with no per-frame allocations and cached component lookups, ScriptableObject-based architecture, the Unity Test Framework and Addressables for asset loading. Not for profiling a non-game service, use `performance-engineer`.",
       "category": "agent",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "agent",
+        "game",
+        "unity-game-dev"
+      ],
+      "tags": [
+        "agent",
+        "game",
+        "unity-game-dev"
+      ],
       "agents": [
         "./unity-game-dev.md"
       ],
@@ -966,513 +1946,1752 @@
     {
       "name": "agentic-engineering",
       "source": "./.agents/skills/agentic-engineering",
-      "version": "1.0.0",
-      "description": "Running engineering work where agents write most of the code and a human holds the quality bar: eval-first execution, agent-sized units, capability-tier routing, approval gates, context budgets and subagents. Use when the user says \"plan this work for agents\", \"which tier should run this\" or \"split this into agent-sized units\". Not for the regression suite itself, use `ai-regression-testing`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Work that agents code and a human approves: evals first, unit sizing, tier routing, approval gates. Use when the user says \"plan this work for agents\". Not for a regression suite, use `ai-regression-testing`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "agent-tooling",
+        "agentic-engineering"
+      ],
+      "tags": [
+        "skill",
+        "agent-tooling",
+        "agentic-engineering"
+      ]
     },
     {
       "name": "ai-regression-testing",
       "source": "./.agents/skills/ai-regression-testing",
-      "version": "1.0.0",
-      "description": "Regression testing for the blind spots of AI-assisted development: bug-driven test selection, response-contract assertions, sandbox and production path parity, and mechanical checks before any AI review. Use when the user says \"an agent changed my API routes\", \"the same bug keeps coming back\", or \"test this route without a shared database\". Not for the red-green-refactor loop, use `tdd-workflow`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Regression tests for the defects AI-written code repeats: response contracts, sandbox parity. Use when the user says \"an agent changed my API routes\" or \"the same bug keeps coming back\". Not for TDD, use `tdd-workflow`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "testing",
+        "ai-regression-testing"
+      ],
+      "tags": [
+        "skill",
+        "testing",
+        "ai-regression-testing"
+      ]
     },
     {
       "name": "angular",
       "source": "./.agents/skills/angular",
-      "version": "1.0.0",
-      "description": "Angular 22 application standards, covering standalone components, signals and RxJS interop, inject(), OnPush change detection, functional guards and interceptors, typed reactive forms, global error handling and Vitest tests. Use when the user says \"build this Angular component\" or \"my subscription leaks\". Not for React and Next.js work, use `react-patterns`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Angular 22 standards for standalone components, signals, RxJS, inject() and typed forms. Use when the user says \"build this Angular component\" or \"my subscription leaks\". Not for React, use `react-patterns`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "web-frontend",
+        "angular"
+      ],
+      "tags": [
+        "skill",
+        "web-frontend",
+        "angular"
+      ]
     },
     {
       "name": "ansible",
       "source": "./.agents/skills/ansible",
-      "version": "1.0.0",
-      "description": "Ansible standards for role structure, FQCN modules, idempotency, Vault secrets, least-privilege become, collection pinning and the ansible-lint plus Molecule gate. Use when the user says \"write an Ansible role for this\", \"this playbook is not idempotent\", \"encrypt these variables with Vault\" or \"add Molecule tests to this role\". Not for one-off host scripting, use `bash`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Ansible roles, FQCN modules, idempotency, Vault secrets and the ansible-lint plus Molecule gate. Use when the user says \"write an Ansible role\" or \"this playbook is not idempotent\". Not for one-off scripts, use `bash`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "devops",
+        "ansible"
+      ],
+      "tags": [
+        "skill",
+        "devops",
+        "ansible"
+      ]
     },
     {
       "name": "api-design",
       "source": "./.agents/skills/api-design",
-      "version": "1.0.0",
-      "description": "HTTP and GraphQL contract design: resource naming, method and status semantics, RFC 9457 problem details, pagination, idempotency keys, conditional requests, health paths, rate-limit headers and tiers, and versioning. Use when the user says \"design this endpoint\", \"what status code should this return\", or \"how do we deprecate v1\". Not for the service code behind it, use `backend-patterns`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "HTTP and GraphQL contract design: naming, status codes, problem details, pagination, versioning. Use when the user says \"design this endpoint\" or \"how do we deprecate v1\". Not for service code, use `backend-patterns`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "backend",
+        "api-design"
+      ],
+      "tags": [
+        "skill",
+        "backend",
+        "api-design"
+      ]
     },
     {
       "name": "application-security-review",
       "source": "./.agents/skills/application-security-review",
-      "version": "1.0.0",
-      "description": "Application security review: secrets, input validation, injection, authentication and sessions, authorization with row-level security, XSS and CSP, CSRF, rate-limit policy, data exposure, and dependency risk. Use when the user says \"review this endpoint before it ships\", \"is this file upload safe\", or \"check this for injection\". Not for container and image hardening, use `docker-patterns`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Application security review: secrets, input validation, injection, auth, XSS, CSRF and rate limits. Use when the user says \"review this endpoint before it ships\". Not for container hardening, use `docker-patterns`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "core",
+        "application-security-review"
+      ],
+      "tags": [
+        "skill",
+        "core",
+        "application-security-review"
+      ]
     },
     {
       "name": "arch-linux",
       "source": "./.agents/skills/arch-linux",
-      "version": "1.0.0",
-      "description": "Package and system administration on Arch Linux and Arch-based distributions: pacman and the AUR, upgrades and mirror errors, .pacnew files, cleanup, snapper rollback, systemd and journal triage, crashes and audio. Use when the user says \"pacman -Syu\", \"install this from the AUR\", \"what is this pacnew\" or \"roll back the upgrade\". Not for CachyOS kernels, repositories or Limine, use `cachyos`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Arch Linux administration: pacman, the AUR, upgrades, .pacnew files, cleanup, rollback, journal and audio. Use when the user says \"pacman -Syu\" or \"what is this pacnew\". Not for CachyOS kernels, use `cachyos`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "linux",
+        "arch-linux"
+      ],
+      "tags": [
+        "skill",
+        "linux",
+        "arch-linux"
+      ]
     },
     {
       "name": "architecture-decision-records",
       "source": "./.agents/skills/architecture-decision-records",
-      "version": "1.0.0",
-      "description": "Capturing an architectural decision as a numbered ADR with context, the decision, rejected alternatives and honest consequences, plus the index and the status lifecycle. Use when the user says \"record this decision\", \"ADR this\", \"we decided Postgres over Mongo\" or \"why did we choose this framework\". Not for the implementation plan that follows the decision, use `project-tracking`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Recording an architectural decision as a numbered ADR with context, alternatives and consequences. Use when the user says \"record this decision\" or \"ADR this\". Not for the implementation plan, use `project-tracking`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "core",
+        "architecture-decision-records"
+      ],
+      "tags": [
+        "skill",
+        "core",
+        "architecture-decision-records"
+      ]
     },
     {
       "name": "ascend-memory",
       "source": "./.agents/skills/ascend-memory",
-      "version": "1.0.0",
-      "description": "Long-term semantic memory for one user through the self-hosted AscendMemory service: insert, semantic search, delete and wipe in a per-user Qdrant namespace. Use when the user says \"remember that…\", \"what did I tell you about…\", \"save this for later\" or \"forget this\", or when prior context about the user would change the answer. Not for web research, use `research`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Per-user long-term memory through the self-hosted AscendMemory service: insert, search, delete, wipe. Use when the user says \"remember that…\" or \"what did I tell you about…\". Not for web research, use `research`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "personal-tools",
+        "ascend-memory"
+      ],
+      "tags": [
+        "skill",
+        "personal-tools",
+        "ascend-memory"
+      ]
     },
     {
       "name": "ascend-web-hunter",
       "source": "./.agents/skills/ascend-web-hunter",
-      "version": "1.0.0",
-      "description": "Page-content extraction through the self-hosted ascend-web-hunter service for pages a normal fetch cannot read: WAF bypass, CAPTCHA escalation to a remote browser and cached login sessions. Use when the user says \"this page is behind Cloudflare\", \"the fetch got a bot check\" or \"this site needs a login\". Not for a search a normal fetch can answer, use `research`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Reads pages behind a WAF, CAPTCHA or login through the self-hosted ascend-web-hunter service. Use when the user says \"this page is behind Cloudflare\" or \"this site needs a login\". Not for other pages, use `research`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "personal-tools",
+        "ascend-web-hunter"
+      ],
+      "tags": [
+        "skill",
+        "personal-tools",
+        "ascend-web-hunter"
+      ]
     },
     {
       "name": "asus-router",
       "source": "./.agents/skills/asus-router",
-      "version": "1.0.1",
-      "description": "Working on an ASUS router over SSH from an agent, read only unless the owner approves one exact change: stock Asuswrt and Merlin, SSH key access, the system log, WAN and PPPoE state, and telling a link drop from an ISP outage. Use when the user says \"let the agent into my router\", \"read the router log\" or \"why does the internet drop\". Not for a Proxmox host behind the router, use `proxmox`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "An ASUS router over SSH, read only unless the owner approves a change: key access, the log, WAN state. Use when the user says \"read the router log\" or \"why does the internet drop\". Not for a Proxmox host, use `proxmox`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "homelab",
+        "asus-router"
+      ],
+      "tags": [
+        "skill",
+        "homelab",
+        "asus-router"
+      ]
     },
     {
       "name": "audio-scribe",
       "source": "./.agents/skills/audio-scribe",
-      "version": "1.0.0",
-      "description": "Speech-to-text through the self-hosted AudioScribe service, with a local faster-whisper backend, hosted API backends, and speaker merging for multi-track Audacity or Craig recordings. Use when the user says \"transcribe this\", \"turn this recording into text\" or \"write up this meeting\", or hands over an audio or video file or a multi-track .zip. Not for reading a web page, use `research`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Speech-to-text through the self-hosted AudioScribe service, with speaker merging for multi-track recordings. Use when the user says \"transcribe this\" or \"write up this meeting\". Not for a web page, use `research`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "personal-tools",
+        "audio-scribe"
+      ],
+      "tags": [
+        "skill",
+        "personal-tools",
+        "audio-scribe"
+      ]
     },
     {
       "name": "automation-inventory",
       "source": "./.agents/skills/automation-inventory",
-      "version": "1.0.0",
-      "description": "Evidence-first inventory of every live automation, from scheduled jobs and hooks to CI workflows, MCP servers and wrapper scripts, each classified by live state and backed by a command and its output. Use when the user says \"what automations do I have\", \"what is actually running\", \"which of these jobs is broken\" or \"audit our tooling\". Not for operating one CI system, use `github-ops`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Audit of every automation (jobs, hooks, CI, MCP servers), each with a live state and proof. Use when the user says \"what automations do I have\" or \"audit our tooling\". Not for one CI system, use `github-ops`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "agent-tooling",
+        "automation-inventory"
+      ],
+      "tags": [
+        "skill",
+        "agent-tooling",
+        "automation-inventory"
+      ]
     },
     {
       "name": "backend-patterns",
       "source": "./.agents/skills/backend-patterns",
-      "version": "1.0.0",
-      "description": "Language-neutral backend service design: idempotency keys, timeouts and capped retries, the transactional outbox, the cache invalidation rule, cursor reads, and graceful shutdown. Use when the user says \"make this endpoint safe to retry\", \"our webhook fired twice\", or \"we drop requests during a deploy\". Not for the HTTP contract itself, use `api-design`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Language-neutral backend design: idempotency, retries, the outbox, caches, shutdown. Use when the user says \"make this endpoint safe to retry\" or \"our webhook fired twice\". Not for HTTP contracts, use `api-design`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "backend",
+        "backend-patterns"
+      ],
+      "tags": [
+        "skill",
+        "backend",
+        "backend-patterns"
+      ]
     },
     {
       "name": "bash",
       "source": "./.agents/skills/bash",
-      "version": "1.0.0",
-      "description": "Bash scripting standards for strict mode, quoting, argument parsing, exit codes, temp files, secret handling and ShellCheck. Use when the user says \"write a bash script for this\", \"why does my script keep going after an error\", \"this loop breaks on filenames with spaces\" or \"make ShellCheck pass\". Not for PowerShell scripting on Windows, use `powershell`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Bash script standards: strict mode, quoting, argument parsing, exit codes, temp files and secrets. Use when the user says \"write a bash script\" or \"make ShellCheck pass\". Not for Windows, use `powershell`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "core",
+        "bash"
+      ],
+      "tags": [
+        "skill",
+        "core",
+        "bash"
+      ]
     },
     {
       "name": "build-dependency-management",
       "source": "./.agents/skills/build-dependency-management",
-      "version": "1.0.0",
-      "description": "Build files and dependency versions: one version catalog, bill-of-materials imports, shared build logic, lock files, release-age cooldowns, hash verification, and deliberate dependency admission. Use when the user says \"add this dependency\", \"centralise our versions\", or \"import the Spring Boot BOM\". Not for Java language style, use `java-coding-standards`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Build files and dependency versions: one catalog, BOM imports, lock files, admission rules. Use when the user says \"add this dependency\" or \"centralise our versions\". Not for Java style, use `java-coding-standards`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "core",
+        "build-dependency-management"
+      ],
+      "tags": [
+        "skill",
+        "core",
+        "build-dependency-management"
+      ]
     },
     {
       "name": "cachyos",
       "source": "./.agents/skills/cachyos",
-      "version": "1.0.0",
-      "description": "CachyOS administration on top of Arch: linux-cachyos kernels, the x86-64-v3 and v4 repositories, chwd and NVIDIA modules, sched-ext schedulers, cachyos-settings, and Limine with snapshot boot entries. Use when the user says \"switch to the bore kernel\", \"should I use the v4 repos\", \"black screen after the nvidia update\" or \"the system will not boot\". Not for generic pacman work, use `arch-linux`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "CachyOS administration: kernels, v3 and v4 repositories, NVIDIA, sched-ext, Limine. Use when the user says \"black screen after the nvidia update\" or \"switch to the bore kernel\". Not for plain pacman, use `arch-linux`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "linux",
+        "cachyos"
+      ],
+      "tags": [
+        "skill",
+        "linux",
+        "cachyos"
+      ]
     },
     {
       "name": "code-formatter",
       "source": "./.agents/skills/code-formatter",
-      "version": "1.0.0",
-      "description": "Reading flow inside Dart, Java and Python function bodies: braced control-flow exits, blank lines between phases, comments above the line, doc comments on their declaration, and chain breaks where no formatter owns them. Use when the user says \"format this function\", \"clean up the spacing here\", or \"break this method chain up\". Not for whether a comment should exist, use `coding-standards`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Blank lines, braces and comment placement in Dart, Java and Python function bodies. Use when the user says \"format this function\" or \"clean up the spacing here\". Not for what a comment says, use `coding-standards`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "core",
+        "code-formatter"
+      ],
+      "tags": [
+        "skill",
+        "core",
+        "code-formatter"
+      ]
     },
     {
       "name": "code-reviewer",
       "source": "./.agents/skills/code-reviewer",
-      "version": "1.0.1",
-      "description": "Structured review of local changes or a remote pull request across correctness, maintainability, doc comments, efficiency, security, error handling and tests, with every finding led by a path:line reference. Use when the user says \"review my changes\", \"review PR #123\", or \"is this branch ready to merge\". Not for hunting duplicated or reinvented code, use `review-duplication`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Structured review of local changes or a pull request, every finding led by a path:line reference. Use when the user says \"review my changes\" or \"review PR #123\". Not for duplicated code, use `review-duplication`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "review-and-security",
+        "code-reviewer"
+      ],
+      "tags": [
+        "skill",
+        "review-and-security",
+        "code-reviewer"
+      ]
     },
     {
       "name": "coding-standards",
       "source": "./.agents/skills/coding-standards",
-      "version": "1.0.0",
-      "description": "The cross-project engineering floor: SOLID as heuristics under KISS and YAGNI, DRY without coincidental merges, naming, guard clauses, one error shape, layering, feature flags, and when a comment or doc comment belongs. Use when the user says \"review this for quality\", \"refactor to our conventions\", or \"should this have a comment\". Not for stack-specific patterns, use `springboot-patterns`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "The cross-language engineering floor: SOLID, DRY, naming, errors, layering, comments. Use when the user says \"review this for quality\" or \"should this have a comment\". Not for a diff review, use `code-reviewer`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "core",
+        "coding-standards"
+      ],
+      "tags": [
+        "skill",
+        "core",
+        "coding-standards"
+      ]
     },
     {
       "name": "dart-flutter-patterns",
       "source": "./.agents/skills/dart-flutter-patterns",
-      "version": "1.0.0",
-      "description": "Dart 3 and Flutter 3 patterns across architecture, layout, routing, forms, networking, persistence, concurrency, animation, accessibility, localization, native interop, app size and testing. Use when the user says \"build a Flutter screen\", \"why does my Column overflow\" or \"write a widget test for this form\". Not for language-neutral SOLID, naming and error-handling rules, use `coding-standards`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Dart 3 and Flutter 3 patterns: architecture, layout, routing, HTTP and tests. Use when the user says \"build a Flutter screen\" or \"why does my Column overflow\". Not for SOLID or naming, use `coding-standards`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "mobile",
+        "dart-flutter-patterns"
+      ],
+      "tags": [
+        "skill",
+        "mobile",
+        "dart-flutter-patterns"
+      ]
     },
     {
       "name": "database-migrations",
       "source": "./.agents/skills/database-migrations",
-      "version": "1.0.0",
-      "description": "Safe, reversible schema and data migrations for production databases, covering lock-free column, index and constraint changes, expand-contract renames, batched backfills and rollback. Use when the user says \"add a column to this table\", \"create this index without downtime\", \"rename a column safely\" or \"backfill ten million rows\". Not for index choice and query tuning, use `postgres-patterns`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Safe schema and data migrations on a live database: lock-free changes, renames, backfills. Use when the user says \"add a column\" or \"create this index without downtime\". Not for query tuning, use `postgres-patterns`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "data",
+        "database-migrations"
+      ],
+      "tags": [
+        "skill",
+        "data",
+        "database-migrations"
+      ]
     },
     {
       "name": "deployment-patterns",
       "source": "./.agents/skills/deployment-patterns",
-      "version": "1.0.0",
-      "description": "Deployment and CI/CD standards for rolling, blue-green and canary rollouts, a production approval gate, GitHub Actions with OIDC and least privilege, health probes, config validation, rollback and Kubernetes defaults. Use when the user says \"set up a CI/CD pipeline\", \"add a canary rollout\" or \"how do we roll this back\". Not for writing the Dockerfile itself, use `docker-patterns`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Deployment and CI/CD: rolling, blue-green and canary rollouts, a production gate, rollback. Use when the user says \"set up a CI/CD pipeline\" or \"how do we roll this back\". Not for Dockerfiles, use `docker-patterns`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "devops",
+        "deployment-patterns"
+      ],
+      "tags": [
+        "skill",
+        "devops",
+        "deployment-patterns"
+      ]
     },
     {
       "name": "design-system",
       "source": "./.agents/skills/design-system",
-      "version": "1.0.0",
-      "description": "Building and auditing a design system: token architecture and naming, spacing rhythm, stylesheet organisation, Tailwind v4 CSS-first theming, dark mode and visual-consistency review. Use when the user says \"set up design tokens\", \"audit this UI for consistency\", \"migrate us to Tailwind v4 @theme\" or \"which styles bypass our tokens\". Not for choosing the visual direction, use `frontend-design`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Design tokens and naming, stylesheet layout, Tailwind theming, dark mode and UI audits. Use when the user says \"set up design tokens\" or \"audit this UI for consistency\". Not for visual direction, use `frontend-design`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "web-frontend",
+        "design-system"
+      ],
+      "tags": [
+        "skill",
+        "web-frontend",
+        "design-system"
+      ]
     },
     {
       "name": "docker-patterns",
       "source": "./.agents/skills/docker-patterns",
-      "version": "1.0.0",
-      "description": "Docker and Compose standards for multi-stage builds, pinned base images, non-root users, network isolation, secrets, and the Trivy, SBOM and cosign supply-chain gate. Use when the user says \"write a Dockerfile for this service\", \"set up compose for local dev\", \"shrink this image\" or \"scan and sign this image\". Not for Kubernetes manifests and rollout strategy, use `deployment-patterns`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Docker and Compose standards: multi-stage builds, pinned images, non-root users, secrets. Use when the user says \"write a Dockerfile\" or \"set up compose for local dev\". Not for Kubernetes, use `deployment-patterns`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "devops",
+        "docker-patterns"
+      ],
+      "tags": [
+        "skill",
+        "devops",
+        "docker-patterns"
+      ]
     },
     {
       "name": "e2e-runbooks",
       "source": "./.agents/skills/e2e-runbooks",
-      "version": "1.0.1",
-      "description": "Capability testing against a live stack, one feature per immutable spec, with behaviour-only assertions, canary fixtures, setup-cost ordering, token and duration accounting, and parallel subagents. Use when the user says \"add an e2e test for the upload flow\", \"run the e2e sweep\" or \"verify this capability end to end\". Not for Playwright browser UI testing, use `e2e-testing`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "API-client capability checks of a deployed stack, one immutable spec each. Use when the user says \"run the e2e sweep\" or \"smoke test the staging stack\". Not for browser tests, use `e2e-testing`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "testing",
+        "e2e-runbooks"
+      ],
+      "tags": [
+        "skill",
+        "testing",
+        "e2e-runbooks"
+      ]
     },
     {
       "name": "e2e-testing",
       "source": "./.agents/skills/e2e-testing",
-      "version": "1.0.0",
-      "description": "Playwright browser end-to-end testing, covering suite layout, the Page Object Model, configuration, semantic locators, the canonical flaky-test policy, artifacts and CI wiring. Use when the user says \"write a Playwright test for the login flow\", \"our e2e suite is flaky\" or \"add e2e tests to CI\". Not for backend capability sweeps against a live stack, use `e2e-runbooks`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Playwright browser tests: page objects, locators and the flaky-test policy. Use when the user says \"write a Playwright test for the login flow\" or \"our browser suite is flaky\". Not for API checks, use `e2e-runbooks`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "testing",
+        "e2e-testing"
+      ],
+      "tags": [
+        "skill",
+        "testing",
+        "e2e-testing"
+      ]
     },
     {
       "name": "embedded-c-arduino",
       "source": "./.agents/skills/embedded-c-arduino",
-      "version": "1.0.0",
-      "description": "Embedded C and Arduino standards for heap-free memory, bounded loops and watchdogs, non-blocking millis state machines, flag-and-return ISRs, MISRA C:2012 rules, a hardware abstraction layer and host-side unit tests. Use when the user says \"replace this delay with a state machine\", \"write the ISR for this encoder\" or \"my sketch runs out of SRAM\". Not for the PCB the firmware runs on, use `kicad`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Embedded C and Arduino firmware rules: no heap, bounded loops, millis timing, flag-and-return ISRs, a HAL, host tests. Use when the user says \"replace this delay\" or \"write this ISR\". Not for the PCB, use `kicad`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "embedded",
+        "embedded-c-arduino"
+      ],
+      "tags": [
+        "skill",
+        "embedded",
+        "embedded-c-arduino"
+      ]
     },
     {
       "name": "frontend-design",
       "source": "./.agents/skills/frontend-design",
-      "version": "1.0.0",
-      "description": "Giving an interface a committed visual direction, covering composition, typography, colour, background atmosphere and motion. Use when the user says \"make this page look designed\", \"this dashboard looks generic\", \"pick a visual direction for the landing page\" or \"it works but it has no point of view\". Not for token architecture, theming and styling structure, use `design-system`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Giving an interface a visual direction: composition, typography, colour and motion. Use when the user says \"make this page look designed\" or \"this dashboard looks generic\". Not for tokens, use `design-system`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "web-frontend",
+        "frontend-design"
+      ],
+      "tags": [
+        "skill",
+        "web-frontend",
+        "frontend-design"
+      ]
     },
     {
       "name": "g-code-3d-printing",
       "source": "./.agents/skills/g-code-3d-printing",
-      "version": "1.0.0",
-      "description": "G-code and 3D printing standards for thermal and motion safety, absolute positioning, Klipper macros, start and end sequences, filament calibration and slicer profile version control. Use when the user says \"write start G-code for my printer\", \"my nozzle drags through the print\", \"set up a START_PRINT macro\" or \"calibrate pressure advance\". Not for the PCB inside the printed part, use `kicad`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "G-code safety for Marlin and Klipper printers: heating, homing, start and end sequences, macros, calibration. Use when the user says \"write start G-code\" or \"calibrate pressure advance\". Not for the PCB, use `kicad`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "embedded",
+        "g-code-3d-printing"
+      ],
+      "tags": [
+        "skill",
+        "embedded",
+        "g-code-3d-printing"
+      ]
     },
     {
       "name": "git-workflow",
       "source": "./.agents/skills/git-workflow",
-      "version": "1.1.0",
-      "description": "Git practice for a team: branching strategy, conventional commits, merge versus rebase, branch naming and cleanup, pull request content, conflicts, and line endings, symlinks and case across systems. Use when the user says \"what should I name this branch\", \"write the commit message\", \"merge or rebase here\" or \"set up .gitattributes\". Not for issues and releases on the host, use `github-ops`.",
-      "category": "skill"
+      "version": "1.2.0",
+      "description": "Git practice: branching, conventional commits, merge versus rebase, pull request content, line endings. Use when the user says \"write the commit message\" or \"merge or rebase here\". Not for releases, use `github-ops`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "core",
+        "git-workflow"
+      ],
+      "tags": [
+        "skill",
+        "core",
+        "git-workflow"
+      ]
     },
     {
       "name": "github-ops",
       "source": "./.agents/skills/github-ops",
-      "version": "1.0.1",
-      "description": "Operating a GitHub repository with the gh CLI: issue triage, pull request and stale-item management, CI failure investigation, release preparation and security alerts, read-only by default. Use when the user says \"triage these issues\", \"which PRs are ready to merge\", \"CI is red, find out why\" or \"prepare the next release\". Not for local branching and commits, use `git-workflow`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "GitHub operations with the gh CLI: triage, PR readiness, CI failures, releases, security alerts. Use when the user says \"triage these issues\" or \"CI is red, find out why\". Not for local commits, use `git-workflow`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "core",
+        "github-ops"
+      ],
+      "tags": [
+        "skill",
+        "core",
+        "github-ops"
+      ]
     },
     {
       "name": "golang-patterns",
       "source": "./.agents/skills/golang-patterns",
-      "version": "1.0.0",
-      "description": "Idiomatic Go 1.27 for production services and their tests, covering zero values, interfaces at the consumer, error wrapping, context and goroutine lifetimes, golangci-lint v2, table tests, hand-written fakes, benchmarks and fuzzing. Use when the user says \"review this Go package\" or \"fix this goroutine leak\". Not for the language-neutral SOLID, DRY and naming floor, use `coding-standards`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Go 1.27 patterns and tests: interfaces, errors, context, goroutines and table tests. Use when the user says \"review this Go package\" or \"fix this goroutine leak\". Not for SOLID and naming, use `coding-standards`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "go",
+        "golang-patterns"
+      ],
+      "tags": [
+        "skill",
+        "go",
+        "golang-patterns"
+      ]
     },
     {
       "name": "hexagonal-architecture",
       "source": "./.agents/skills/hexagonal-architecture",
-      "version": "1.0.0",
-      "description": "Ports and adapters design: use-case boundaries, inbound and outbound ports, dependency inversion, adapters, the composition root, and per-boundary testing in TypeScript, Java, Kotlin and Go. Use when the user says \"restructure this around ports and adapters\", \"my domain imports the ORM\", or \"swap this payment provider\". Not for HTTP contract design, use `api-design`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Ports and adapters design: use cases, ports, adapters, the composition root. Use when the user says \"restructure this around ports and adapters\" or \"my domain imports the ORM\". Not for HTTP contracts, use `api-design`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "core",
+        "hexagonal-architecture"
+      ],
+      "tags": [
+        "skill",
+        "core",
+        "hexagonal-architecture"
+      ]
     },
     {
       "name": "home-assistant",
       "source": "./.agents/skills/home-assistant",
-      "version": "1.0.0",
-      "description": "Home Assistant standards for YAML, automations, scripts, helpers, templates, dashboards, entity names and renames, backups, upgrades, MCP access and custom integrations in Python. Use when the user says \"write a motion light automation\", \"rename these entities\", \"restore the backup\" or \"review my custom integration\". Not for the container or network the instance runs in, use `docker-patterns`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Home Assistant YAML, automations, dashboards, renames, backups, custom integrations. Use when the user says \"write a motion light automation\" or \"rename these entities\". Not for its container, use `docker-patterns`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "homelab",
+        "home-assistant"
+      ],
+      "tags": [
+        "skill",
+        "homelab",
+        "home-assistant"
+      ]
     },
     {
       "name": "homelab-services",
       "source": "./.agents/skills/homelab-services",
-      "version": "1.0.2",
-      "description": "Running a Docker Compose homelab on one VM, every change asked of the owner first: AdGuard Home, Uptime Kuma, Telegraf, Samba, File Browser, Plex, Homepage, Nginx Proxy Manager, a local CA for .internal names, and data disks. Use when the user says \"add a .internal name\", \"https for the .internal names\", \"deploy the compose change\" or \"the VM disk is full\". Not for the Proxmox host, use `proxmox`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "A Docker Compose homelab on one VM, each change asked of the owner first: DNS, shares, a proxy, a CA. Use when the user says \"add a .internal name\" or \"the VM disk is full\". Not for the Proxmox host, use `proxmox`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "homelab",
+        "homelab-services"
+      ],
+      "tags": [
+        "skill",
+        "homelab",
+        "homelab-services"
+      ]
     },
     {
       "name": "java-coding-standards",
       "source": "./.agents/skills/java-coding-standards",
-      "version": "1.0.0",
-      "description": "Java language standards for Spring Boot services, covering naming, Lombok and constructor injection, records, Optional, streams, exceptions, generics, null safety, SLF4J logging and Javadoc. Use when the user says \"review this Java class\" or \"should this be a record\", or asks to set up Checkstyle and SpotBugs. Not for Spring Boot wiring and REST structure, use `springboot-patterns`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Java standards for naming, records, Optional, streams, exceptions and nulls. Use when the user says \"review this Java class\" or \"should this be a record\". Not for Spring Boot wiring, use `springboot-patterns`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "jvm",
+        "java-coding-standards"
+      ],
+      "tags": [
+        "skill",
+        "jvm",
+        "java-coding-standards"
+      ]
     },
     {
       "name": "jetbrains-ide-ops",
       "source": "./.agents/skills/jetbrains-ide-ops",
-      "version": "1.0.0",
-      "description": "JetBrains IDE project configuration for a multi-module monorepo: run configurations under `.run/`, which `.idea/` files are committed, Gradle module links, module naming and the rename checklist. Use when the user says \"add a run configuration for this service\", \"which .idea files do we commit\" or \"I renamed a module, what else has to change\". Not for the Compose file, use `docker-patterns`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "JetBrains IDE monorepo files: run configurations, `.idea/` commits, Gradle modules, renames. Use when the user says \"add a run configuration\" or \"which .idea files do we commit\". Not for Compose, use `docker-patterns`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "personal-tools",
+        "jetbrains-ide-ops"
+      ],
+      "tags": [
+        "skill",
+        "personal-tools",
+        "jetbrains-ide-ops"
+      ]
     },
     {
       "name": "jira-integration",
       "source": "./.agents/skills/jira-integration",
-      "version": "1.0.0",
-      "description": "Jira mechanics from a coding session through the Atlassian MCP server or the REST v3 API: fetching an issue, running JQL, progress comments, status transitions and linking branches to the key. Use when the user says \"pull up PROJ-1234\", \"move this ticket to In Review\", \"comment the PR link on the ticket\" or \"find my open issues this sprint\". Not for writing a work item, use `project-tracking`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Jira over the Atlassian MCP server or REST v3: fetch, JQL, comment, transition. Use when the user says \"pull up PROJ-1234\" or \"move this ticket to In Review\". Not for writing a work item, use `project-tracking`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "docs-and-product",
+        "jira-integration"
+      ],
+      "tags": [
+        "skill",
+        "docs-and-product",
+        "jira-integration"
+      ]
     },
     {
       "name": "kde-plasma",
       "source": "./.agents/skills/kde-plasma",
-      "version": "1.0.0",
-      "description": "Changing KDE Plasma 6 safely from the command line: panels and widgets through the scripting API, kwriteconfig6, KWin effects and rules, shortcuts, themes and konsave, plus building and publishing plasmoids and themes. Use when the user says \"add a widget to the panel\", \"bind a shortcut\", \"plasmashell is stuck\" or \"write a plasmoid\". Not for packages, audio or systemd, use `arch-linux`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "KDE Plasma 6 from the command line: panels, widgets, KWin, shortcuts, themes, konsave, plasmoids. Use when the user says \"add a widget to the panel\" or \"plasmashell is stuck\". Not for packages, use `arch-linux`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "linux",
+        "kde-plasma"
+      ],
+      "tags": [
+        "skill",
+        "linux",
+        "kde-plasma"
+      ]
     },
     {
       "name": "keycloak-patterns",
       "source": "./.agents/skills/keycloak-patterns",
-      "version": "1.0.0",
-      "description": "Keycloak server administration and the Keycloak.AuthServices .NET client: realms, clients, flows and MFA, RBAC and UMA, LDAP federation and hardening, plus JWT Bearer and OIDC wiring and the Admin SDKs. Use when the user says \"set up SSO with Keycloak\", \"enable MFA for admins\" or \"add Keycloak auth to my .NET API\". Not for Spring Security, use `springboot-patterns`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Keycloak administration and Keycloak.AuthServices for .NET: realms, flows, MFA. Use when the user says \"set up SSO with Keycloak\" or \"add Keycloak auth to my .NET API\". Not for Spring Security, use `springboot-patterns`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "backend",
+        "keycloak-patterns"
+      ],
+      "tags": [
+        "skill",
+        "backend",
+        "keycloak-patterns"
+      ]
     },
     {
       "name": "kicad",
       "source": "./.agents/skills/kicad",
-      "version": "1.1.0",
-      "description": "KiCad board design standards for board setup and custom DRC rules, IPC-2221 trace sizing, decoupling, ground pours, ERC, BOM, Gerber export, Git, pcbnew scripting, freerouting and assembly orders. Use when the user says \"route this board\", \"check my DRC\", \"export gerbers for JLCPCB\" or \"generate a BOM with LCSC part numbers\". Not for the firmware that runs on the board, use `embedded-c-arduino`.",
-      "category": "skill"
+      "version": "1.2.0",
+      "description": "KiCad board design: board setup, DRC rules, trace sizing, ERC, BOM, Gerber export, pcbnew scripts, freerouting. Use when the user says \"route this board\" or \"export gerbers\". Not for firmware, use `embedded-c-arduino`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "embedded",
+        "kicad"
+      ],
+      "tags": [
+        "skill",
+        "embedded",
+        "kicad"
+      ]
     },
     {
       "name": "machine-health",
       "source": "./.agents/skills/machine-health",
-      "version": "1.0.1",
-      "description": "Read-only health and configuration check of one Linux, macOS or Windows computer, writing a baseline into MACHINE.md on the first run and reporting drift on later runs: CPU, RAM, disks, errors, PATH, updates and devices. Use when the user says \"check the health of this machine\", \"what drifted since last time\" or \"is this disk dying\". Not for fixing a finding on Arch, use `arch-linux`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Read-only health check on Linux, macOS or Windows: a MACHINE.md baseline, then drift. Use when the user says \"check the health of this machine\" or \"what drifted since last time\". Not for Arch fixes, use `arch-linux`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "homelab",
+        "machine-health"
+      ],
+      "tags": [
+        "skill",
+        "homelab",
+        "machine-health"
+      ]
     },
     {
       "name": "macos",
       "source": "./.agents/skills/macos",
-      "version": "1.0.0",
-      "description": "Administering a Mac from an agent: Homebrew formulae and casks, launchd, defaults and preference domains, Gatekeeper and TCC permissions, the Keychain, Time Machine and local snapshots, softwareupdate and the unified log. Use when the user says \"run this at login\", \"app is damaged and cannot be opened\" or \"show me the logs for this app\". Not for writing shell scripts, use `bash`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Administering a Mac: Homebrew, launchd, defaults, Gatekeeper, Keychain, Time Machine and logs. Use when the user says \"run this at login\" or \"app is damaged and cannot be opened\". Not for shell scripts, use `bash`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "windows-and-mac",
+        "macos"
+      ],
+      "tags": [
+        "skill",
+        "windows-and-mac",
+        "macos"
+      ]
     },
     {
       "name": "markdown-writer",
       "source": "./.agents/skills/markdown-writer",
-      "version": "1.0.0",
-      "description": "Human-facing markdown: README structure, an honest voice with no AI tells, Mermaid diagrams, badges, audit passes over stale docs, and translated copies. Use when the user says \"fix my README\", \"write a README for this repo\", \"this reads like AI wrote it\" or \"add an architecture diagram to the docs\". Not for architecture decision records, use `architecture-decision-records`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Human-facing markdown: README structure, voice without AI tells, diagrams, badges. Use when the user says \"fix my README\" or \"this reads like AI wrote it\". Not for an ADR, use `architecture-decision-records`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "core",
+        "markdown-writer"
+      ],
+      "tags": [
+        "skill",
+        "core",
+        "markdown-writer"
+      ]
     },
     {
       "name": "mongodb-patterns",
       "source": "./.agents/skills/mongodb-patterns",
-      "version": "1.0.0",
-      "description": "MongoDB connection pooling, query and index tuning, schema design and anti-patterns, and Atlas Search, Vector Search and Hybrid Search. Use when the user says \"configure the connection pool\", \"how do I index this\", \"design this schema\", \"embed vs reference\" or \"combine keyword and semantic search\". Not for relational modelling on PostgreSQL, use `postgres-patterns`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "MongoDB connection pooling, query and index tuning, schema design, Atlas Search and Vector Search. Use when the user says \"how do I index this\" or \"embed vs reference\". Not for PostgreSQL, use `postgres-patterns`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "data",
+        "mongodb-patterns"
+      ],
+      "tags": [
+        "skill",
+        "data",
+        "mongodb-patterns"
+      ]
     },
     {
       "name": "nextjs-app-router-patterns",
       "source": "./.agents/skills/nextjs-app-router-patterns",
-      "version": "1.0.0",
-      "description": "Next.js 16 App Router architecture, covering the Server and Client Component split, caching and revalidation, streaming, Server Actions, route handlers, metadata, images and Turbopack dev tuning. Use when the user says \"build a Next.js page\", \"server or client component\" or \"add a server action\". Not for framework-agnostic React state, hooks and animation, use `react-patterns`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Next.js 16 App Router rules for Server and Client Components, caching, streaming and Server Actions. Use when the user says \"build a Next.js page\" or \"add a server action\". Not for plain React, use `react-patterns`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "web-frontend",
+        "nextjs-app-router-patterns"
+      ],
+      "tags": [
+        "skill",
+        "web-frontend",
+        "nextjs-app-router-patterns"
+      ]
     },
     {
       "name": "node-backend-patterns",
       "source": "./.agents/skills/node-backend-patterns",
-      "version": "1.0.0",
-      "description": "Node.js server-side patterns for Express and Next.js route handlers, covering service and repository layering, query batching, RFC 9457 errors, typed config, pino logging, caching, rate limiting and graceful shutdown. Use when the user says \"structure my Express API\" or \"my Node app never exits on SIGTERM\". Not for language-neutral backend design, use `backend-patterns`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Node.js service patterns for Express and Next.js handlers: layering, RFC 9457 errors, logging, shutdown. Use when the user says \"structure my Express API\". Not for language-neutral design, use `backend-patterns`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "backend",
+        "node-backend-patterns"
+      ],
+      "tags": [
+        "skill",
+        "backend",
+        "node-backend-patterns"
+      ]
     },
     {
       "name": "observability-and-logging",
       "source": "./.agents/skills/observability-and-logging",
-      "version": "1.0.1",
-      "description": "Structured logging and production observability: log levels, key-value fields, trace correlation, what liveness and readiness check, metrics, tracing, SLO alerts, and the startup readiness banner. Use when the user says \"add logging to this service\", \"my logs have no trace id\", or \"alert on our error budget\". Not for Kubernetes probe manifests or CI pipelines, use `deployment-patterns`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Structured logging and observability: log levels, trace ids, health checks, metrics, SLO alerts, startup banner. Use when the user says \"add logging to this service\". Not for probe manifests, use `deployment-patterns`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "core",
+        "observability-and-logging"
+      ],
+      "tags": [
+        "skill",
+        "core",
+        "observability-and-logging"
+      ]
     },
     {
       "name": "obsidian",
       "source": "./.agents/skills/obsidian",
-      "version": "1.0.0",
-      "description": "Working with Obsidian vaults from a terminal on Windows, Linux and macOS: finding vaults from obsidian.json, installing notesmd-cli, and searching, creating, moving with link updates and deleting notes. Use when the user says \"find my Obsidian vault\", \"search my notes\", \"rename this note and fix the links\" or \"install obsidian-cli\". Not for the prose inside a note, use `markdown-writer`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Obsidian vaults from a terminal with notesmd-cli: find a vault, search, move and delete notes. Use when the user says \"search my notes\" or \"rename this note and fix the links\". Not for note prose, use `markdown-writer`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "personal-tools",
+        "obsidian"
+      ],
+      "tags": [
+        "skill",
+        "personal-tools",
+        "obsidian"
+      ]
     },
     {
       "name": "performance-optimization",
       "source": "./.agents/skills/performance-optimization",
-      "version": "1.0.0",
-      "description": "Measure-first performance work for application code and data access: profiling, N+1 queries, fetch and index discipline, when a cache is justified, streaming, and bounded concurrent IO. Use when the user says \"this endpoint is slow\", \"profile this before I change anything\", or \"this query runs inside a loop\". Not for schema and index design on Postgres itself, use `postgres-patterns`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Measure-first performance work: profiling, N+1 queries, indexes, caches. Use when the user says \"this endpoint is slow\" or \"this query runs inside a loop\". Not for Postgres schema design, use `postgres-patterns`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "core",
+        "performance-optimization"
+      ],
+      "tags": [
+        "skill",
+        "core",
+        "performance-optimization"
+      ]
     },
     {
       "name": "postgres-patterns",
       "source": "./.agents/skills/postgres-patterns",
-      "version": "1.0.0",
-      "description": "PostgreSQL working reference for index selection, data types, row-level security, cursor pagination, queues, anti-pattern queries, server settings, backups and erasure. Use when the user says \"which index does this query need\", \"why is this query slow\", \"write an RLS policy for this table\" or \"find our unindexed foreign keys\". Not for applying a schema change safely, use `database-migrations`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "PostgreSQL reference: indexes, data types, row-level security, queues, backups. Use when the user says \"which index does this query need\" or \"why is this query slow\". Not for schema changes, use `database-migrations`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "data",
+        "postgres-patterns"
+      ],
+      "tags": [
+        "skill",
+        "data",
+        "postgres-patterns"
+      ]
     },
     {
       "name": "powershell",
       "source": "./.agents/skills/powershell",
-      "version": "1.0.0",
-      "description": "PowerShell 7 scripting standards for strict error handling, advanced functions, parameter validation, module layout, secret handling, PSScriptAnalyzer and Pester 6. Use when the user says \"write a PowerShell script for this\", \"my script ignores when git fails\", \"turn this into a proper cmdlet\" or \"add Pester tests for this module\". Not for POSIX shell scripting, use `bash`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "PowerShell 7 script standards: strict errors, advanced functions, validation, modules, Pester. Use when the user says \"write a PowerShell script\" or \"add Pester tests for this module\". Not for POSIX shell, use `bash`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "windows-and-mac",
+        "powershell"
+      ],
+      "tags": [
+        "skill",
+        "windows-and-mac",
+        "powershell"
+      ]
     },
     {
       "name": "project-tracking",
       "source": "./.agents/skills/project-tracking",
-      "version": "1.0.0",
-      "description": "Tracker-independent standards for planning and tracking work: kinds of work, sizing and splitting, epics as outcomes, labels, statuses and closure, testable acceptance criteria, links and bounded work in progress. Use when the user says \"write this ticket\", \"split this story\", \"are these criteria testable\" or \"can we close this\". Not for Jira API mechanics, use `jira-integration`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Tracker-independent rules for work items: kind, size, epics, labels, closure, acceptance criteria. Use when the user says \"write this ticket\" or \"split this story\". Not for Jira API calls, use `jira-integration`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "docs-and-product",
+        "project-tracking"
+      ],
+      "tags": [
+        "skill",
+        "docs-and-product",
+        "project-tracking"
+      ]
     },
     {
       "name": "proxmox",
       "source": "./.agents/skills/proxmox",
-      "version": "1.0.0",
-      "description": "Working with a Proxmox VE 8 or 9 host from an agent, every change asked of the owner first: API tokens, listing VMs and storage, creating and deleting VMs, growing a guest disk, snapshots, vzdump backups and thin pools. Use when the user says \"give the agent access to Proxmox\", \"grow the disk of this VM\" or \"snapshot this VM first\". Not for the services inside the VM, use `homelab-services`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Proxmox VE, each change asked of the owner first: tokens, VMs, disks, backups. Use when the user says \"give the agent access to Proxmox\" or \"grow the disk of this VM\". Not for services in a VM, use `homelab-services`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "homelab",
+        "proxmox"
+      ],
+      "tags": [
+        "skill",
+        "homelab",
+        "proxmox"
+      ]
     },
     {
       "name": "python-patterns",
       "source": "./.agents/skills/python-patterns",
-      "version": "1.0.0",
-      "description": "Idiomatic Python 3.14 for production code and the pytest suite that proves it, covering type hints, error handling, dataclasses, concurrency choice, package layout, fixtures, mocking boundaries and the coverage gate. Use when the user says \"review this Python module\", \"add type hints to this file\" or \"fix this flaky pytest suite\". Not for training loops and tensor code, use `pytorch-patterns`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Python 3.14 patterns and tests: type hints, errors, dataclasses, concurrency, mocking. Use when the user says \"review this Python module\" or \"fix this flaky pytest suite\". Not for tensor code, use `pytorch-patterns`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "core",
+        "python-patterns"
+      ],
+      "tags": [
+        "skill",
+        "core",
+        "python-patterns"
+      ]
     },
     {
       "name": "pytorch-patterns",
       "source": "./.agents/skills/pytorch-patterns",
-      "version": "1.0.0",
-      "description": "PyTorch 2 patterns for reproducible deep learning, covering device-agnostic code, seeding, nn.Module structure, training and validation loops, DataLoader throughput, checkpointing, mixed precision, torch.compile and DDP. Use when the user says \"write a training loop\", \"my GPU is starved\" or \"scale this to several GPUs\". Not for general Python idioms and typing, use `python-patterns`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "PyTorch 2 patterns: devices, seeding, training loops, data loading, checkpoints, AMP and DDP. Use when the user says \"write a training loop\" or \"my GPU is starved\". Not for plain Python, use `python-patterns`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "python",
+        "pytorch-patterns"
+      ],
+      "tags": [
+        "skill",
+        "python",
+        "pytorch-patterns"
+      ]
     },
     {
       "name": "quality-loop",
       "source": "./.agents/skills/quality-loop",
-      "version": "1.0.1",
-      "description": "The measure-and-fix loop for agent-written code, after Robert C. Martin: CRAP scores from crapper, duplicate pairs from dryer and surviving mutants from mutator, fixed worst first until clean or three rounds. Use when the user says \"clean up this code\", \"run the quality loop\", \"measure the CRAP scores\" or \"find surviving mutants\". Not for writing the tests of a new feature, use `tdd-workflow`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Measure-and-fix loop: CRAP scores, duplicate pairs, surviving mutants, worst first. Use when the user says \"run the quality loop\" or \"measure the CRAP scores\". Not for new feature tests, use `tdd-workflow`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "testing",
+        "quality-loop"
+      ],
+      "tags": [
+        "skill",
+        "testing",
+        "quality-loop"
+      ]
     },
     {
       "name": "react-patterns",
       "source": "./.agents/skills/react-patterns",
-      "version": "1.0.0",
-      "description": "React 19 patterns for component composition, custom hooks, async state, a typed API client, memoisation under React Compiler, code splitting, virtualisation, forms and animation. Use when the user says \"build a React component\", \"write a custom hook\" or \"this list re-renders on every keystroke\". Not for Next.js rendering, routing and caching, use `nextjs-app-router-patterns`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "React 19 patterns for composition, hooks, async state, data fetching, forms and animation. Use when the user says \"build a React component\" or \"write a custom hook\". Not for Next.js, use `nextjs-app-router-patterns`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "web-frontend",
+        "react-patterns"
+      ],
+      "tags": [
+        "skill",
+        "web-frontend",
+        "react-patterns"
+      ]
     },
     {
       "name": "research",
       "source": "./.agents/skills/research",
-      "version": "1.0.0",
-      "description": "How an agent researches a question the repository cannot answer: source order from Context7 to the web, quoting the deciding sentence, measuring instead of reading, labelling each claim, and like-for-like comparisons. Use when the user says \"look this up\", \"does tool Y support Z\", \"compare these options\" or \"is this a known bug\". Not for a page that blocks a normal fetch, use `ascend-web-hunter`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Answering a question the repository cannot: source order, quoted evidence, labelled claims. Use when the user says \"look this up\" or \"is this a known bug\". Not for a blocked page, use `ascend-web-hunter`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "agent-tooling",
+        "research"
+      ],
+      "tags": [
+        "skill",
+        "agent-tooling",
+        "research"
+      ]
     },
     {
       "name": "review-comments",
       "source": "./.agents/skills/review-comments",
-      "version": "1.0.0",
-      "description": "Wording of review comments left on other people's pull requests and of replies to review comments on our own, how every draft is shown and posted, and how other people's comments are laid out in chat. Use when the user says \"draft review comments for PR #123\", \"reply to the review on my PR\" or \"go through the comments on my pull request\". Not for pull request descriptions, use `git-workflow`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Wording and posting of pull request review comments and of replies to them. Use when the user says \"draft review comments for PR #123\" or \"reply to the review on my PR\". Not for PR descriptions, use `git-workflow`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "review-and-security",
+        "review-comments"
+      ],
+      "tags": [
+        "skill",
+        "review-and-security",
+        "review-comments"
+      ]
     },
     {
       "name": "review-duplication",
       "source": "./.agents/skills/review-duplication",
-      "version": "1.0.0",
-      "description": "Investigates a change for duplicated logic, reinvented utilities and missed reuse of existing helpers and installed libraries, and leaves coincidental lookalikes alone. Use when the user says \"check this PR for duplication\", \"did we already have a function for this\", or \"is this reinventing something\". Not for a full multi-pillar review pass, use `code-reviewer`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Finds duplicated logic, reinvented utilities and missed reuse. Use when the user says \"check this PR for duplication\" or \"did we already have a function for this\". Not for a full review, use `code-reviewer`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "review-and-security",
+        "review-duplication"
+      ],
+      "tags": [
+        "skill",
+        "review-and-security",
+        "review-duplication"
+      ]
     },
     {
       "name": "samsung-tv",
       "source": "./.agents/skills/samsung-tv",
-      "version": "1.0.0",
-      "description": "Controls a Samsung Tizen smart TV from 2016 on through Home Assistant, with read-only checks against its local REST API: launching apps with a Home Assistant REST command, confirming app IDs, turning it on with a guarded power key, voice assistant scripts and casting a dashboard. Use when the user says \"open Netflix on the TV\", \"find the Disney+ app ID\", \"the TV does not turn on from Home Assistant\" or \"show a dashboard on the TV\". Not for Home Assistant YAML style in general, use `home-assistant`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "A Samsung Tizen TV through Home Assistant, read only on its REST API: app launch, power on. Use when the user says \"open Netflix on the TV\" or \"find the Disney+ app ID\". Not for Home Assistant YAML, use `home-assistant`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "homelab",
+        "samsung-tv"
+      ],
+      "tags": [
+        "skill",
+        "homelab",
+        "samsung-tv"
+      ]
     },
     {
       "name": "seo",
       "source": "./.agents/skills/seo",
-      "version": "1.0.0",
-      "description": "Search visibility work across technical SEO, on-page optimisation, structured data, Core Web Vitals, keyword mapping and internal linking. Use when the user says \"audit this site for SEO\", \"why is this page not indexed\", \"add schema markup to the product pages\" or \"map these keywords to URLs\". Not for the performance work behind Core Web Vitals, use `performance-optimization`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Technical and on-page SEO, structured data, keyword mapping and internal links. Use when the user says \"audit this site for SEO\" or \"why is this page not indexed\". Not for speed fixes, use `performance-optimization`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "docs-and-product",
+        "seo"
+      ],
+      "tags": [
+        "skill",
+        "docs-and-product",
+        "seo"
+      ]
     },
     {
       "name": "soap-webservices",
       "source": "./.agents/skills/soap-webservices",
-      "version": "1.0.0",
-      "description": "Contract-first SOAP integration in Java: WSDL and XSD as the source of truth, JAXB bindings, CXF code generation, XXE prevention, WS-Security, fault taxonomy, PII-safe logging, retries and MTOM. Use when the user says \"generate Java classes from this WSDL\", \"call a partner SOAP service\", \"add WS-Security UsernameToken\" or \"our SOAP client hangs\". Not for REST contracts, use `api-design`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Contract-first SOAP in Java: WSDL, JAXB bindings, CXF code generation, WS-Security. Use when the user says \"generate Java classes from this WSDL\" or \"our SOAP client hangs\". Not for REST design, use `api-design`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "jvm",
+        "soap-webservices"
+      ],
+      "tags": [
+        "skill",
+        "jvm",
+        "soap-webservices"
+      ]
     },
     {
       "name": "springboot-patterns",
       "source": "./.agents/skills/springboot-patterns",
-      "version": "1.0.0",
-      "description": "Spring Boot 4 services on blocking Spring MVC, covering layering, RFC 9457 errors, RestClient with Resilience4j, caching and events, Spring Security 7, JPA and HikariCP, Testcontainers tests and the pre-merge pipeline. Use when the user says \"structure this Spring Boot API\" or \"add JWT auth to this endpoint\". Not for Java language style, naming and records, use `java-coding-standards`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Spring Boot 4 on Spring MVC: layering, RFC 9457 errors, security, JPA, tests. Use when the user says \"structure this Spring Boot API\" or \"add JWT auth to this endpoint\". Not for Java style, use `java-coding-standards`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "jvm",
+        "springboot-patterns"
+      ],
+      "tags": [
+        "skill",
+        "jvm",
+        "springboot-patterns"
+      ]
     },
     {
       "name": "syncthing",
       "source": "./.agents/skills/syncthing",
-      "version": "1.0.0",
-      "description": "Running Syncthing 2 from an agent on Linux, Windows and macOS without the web page: starting it as the user, the CLI and REST API, pairing, folder types, ignoreDelete, introducers, relays and Docker peers. Use when the user says \"pair this device\", \"share this folder one way\", \"the folder shows Stopped\" or \"is it going through a relay\". Not for Compose and image design, use `docker-patterns`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Syncthing 2 from a terminal: the CLI and REST API, pairing, folder types, relays, Docker peers. Use when the user says \"pair this device\" or \"the folder shows Stopped\". Not for Compose design, use `docker-patterns`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "homelab",
+        "syncthing"
+      ],
+      "tags": [
+        "skill",
+        "homelab",
+        "syncthing"
+      ]
     },
     {
       "name": "tdd-workflow",
       "source": "./.agents/skills/tdd-workflow",
-      "version": "1.0.0",
-      "description": "Test-driven development: the red-green-refactor loop with an enforced RED gate, the test pyramid, mocking boundaries, test naming and isolation, and a CI coverage gate of around 90 percent of real logic. Use when the user says \"write this feature test first\", \"add tests for this bug fix\", or \"what should I mock here\". Not for browser journeys and the flaky-test policy, use `e2e-testing`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "The test-driven loop: red, green, refactor, with mocking boundaries and a coverage gate. Use when the user says \"write this feature test first\" or \"what should I mock here\". Not for browser tests, use `e2e-testing`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "core",
+        "tdd-workflow"
+      ],
+      "tags": [
+        "skill",
+        "core",
+        "tdd-workflow"
+      ]
     },
     {
       "name": "unity",
       "source": "./.agents/skills/unity",
-      "version": "1.0.0",
-      "description": "Unity and C# standards for allocation-free per-frame code, object pooling, Addressables load and release pairing, cached component lookups, ScriptableObject architecture and the Unity Test Framework. Use when the user says \"why does my game stutter every few seconds\", \"pool these bullets\" or \"load this asset with Addressables\". Not for engine-agnostic C# and SOLID rules, use `coding-standards`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Unity and C# standards: allocation-free frames, pooling, asset loading, ScriptableObjects. Use when the user says \"why does my game stutter\" or \"pool these bullets\". Not for plain C#, use `coding-standards`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "game",
+        "unity"
+      ],
+      "tags": [
+        "skill",
+        "game",
+        "unity"
+      ]
     },
     {
       "name": "web-accessibility",
       "source": "./.agents/skills/web-accessibility",
-      "version": "1.0.0",
-      "description": "Accessibility for web interfaces to WCAG 2.2 AA: semantic HTML, keyboard operability, focus management, correct ARIA, colour contrast, accessible forms and images, target size and reduced motion. Use when the user says \"is this component accessible\", \"audit this page against WCAG\" or \"trap focus in this modal\". Not for the visual direction a palette expresses, use `frontend-design`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Web accessibility to WCAG 2.2 AA: semantics, keyboard, focus, ARIA, contrast and forms. Use when the user says \"is this component accessible\" or \"audit this page for WCAG\". Not for visual design, use `frontend-design`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "web-frontend",
+        "web-accessibility"
+      ],
+      "tags": [
+        "skill",
+        "web-frontend",
+        "web-accessibility"
+      ]
     },
     {
       "name": "windows",
       "source": "./.agents/skills/windows",
-      "version": "1.0.0",
-      "description": "Administering Windows 10 or 11 from an agent: winget and Chocolatey, PowerShell 7 against 5.1, the registry, services, scheduled tasks, WSL, Defender and UAC, BitLocker, dual boot, event logs, line endings and symlinks. Use when the user says \"install this with winget\", \"set a registry value\", \"run this as admin\" or \"BitLocker recovery screen\". Not for PowerShell modules, use `powershell`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "Administering Windows: winget, PowerShell 7, the registry, WSL, Defender, BitLocker, dual boot. Use when the user says \"install this with winget\" or \"run this as admin\". Not for PowerShell modules, use `powershell`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "windows-and-mac",
+        "windows"
+      ],
+      "tags": [
+        "skill",
+        "windows-and-mac",
+        "windows"
+      ]
     },
     {
       "name": "wled",
       "source": "./.agents/skills/wled",
-      "version": "1.0.0",
-      "description": "Controls WLED light controllers over their JSON API, WebSocket, serial and Improv, with or without a PIN, read only until the user approves a change, with presets and config backed up first. Use when the user says \"turn on the WLED strip\", \"save this as a preset\", \"back up my WLED\", \"set up a new WLED board\" or \"flash WLED\". Not for writing WLED firmware code or usermods, use `embedded-c-arduino`.",
-      "category": "skill"
+      "version": "1.1.0",
+      "description": "WLED light controllers over the JSON API, read only until the user approves a change: presets, backup. Use when the user says \"turn on the WLED strip\" or \"flash WLED\". Not for firmware code, use `embedded-c-arduino`.",
+      "category": "skill",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "skill",
+        "homelab",
+        "wled"
+      ],
+      "tags": [
+        "skill",
+        "homelab",
+        "wled"
+      ]
     },
     {
       "name": "hook-preflight-gate",
       "source": "./.agents/hooks/preflight-gate",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "The preflight gate on PreToolUse. The main thread may not write project files, run scripts or browse, and a subagent with no skills or a read-only one is held to its definition.",
       "category": "hook",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "hook",
+        "preflight-gate"
+      ],
+      "tags": [
+        "hook",
+        "preflight-gate"
+      ],
       "hooks": {
         "PreToolUse": [
           {
@@ -1491,9 +3710,24 @@
     {
       "name": "hook-task-list-sync",
       "source": "./.agents/hooks/task-list-sync",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Mirrors the session task list into tasks.md at the project root, puts it back in context after a compaction, and stops a turn that leaves tasks open.",
       "category": "hook",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "hook",
+        "task-list-sync"
+      ],
+      "tags": [
+        "hook",
+        "task-list-sync"
+      ],
       "hooks": {
         "SessionStart": [
           {
@@ -1555,9 +3789,24 @@
     {
       "name": "hook-no-ai-markers-check",
       "source": "./.agents/hooks/no-ai-markers-check",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Checks a finished reply for em dashes, en dashes and other machine-writing markers, and shows the corrected text.",
       "category": "hook",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "hook",
+        "no-ai-markers-check"
+      ],
+      "tags": [
+        "hook",
+        "no-ai-markers-check"
+      ],
       "hooks": {
         "Stop": [
           {
@@ -1586,9 +3835,24 @@
     {
       "name": "hook-markdown-lint-check",
       "source": "./.agents/hooks/markdown-lint-check",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Lints a markdown file in the lint scope right after an edit and hands the violations back to the model.",
       "category": "hook",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "hook",
+        "markdown-lint-check"
+      ],
+      "tags": [
+        "hook",
+        "markdown-lint-check"
+      ],
       "hooks": {
         "PostToolUse": [
           {
@@ -1607,9 +3871,24 @@
     {
       "name": "hook-standards-advisory-check",
       "source": "./.agents/hooks/claude/standards-advisory-check",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Warns after an edit about an action on a moving tag, an image on latest, a JPA query string or a divider banner in a test.",
       "category": "hook",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "hook",
+        "standards-advisory-check"
+      ],
+      "tags": [
+        "hook",
+        "standards-advisory-check"
+      ],
       "hooks": {
         "PostToolUse": [
           {
@@ -1628,9 +3907,24 @@
     {
       "name": "hook-preflight-reminder",
       "source": "./.agents/hooks/claude/preflight-reminder",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "The PREFLIGHT reminder at session start and on every prompt, naming the owning skills and subagents first and ending each reply with the status block.",
       "category": "hook",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "hook",
+        "preflight-reminder"
+      ],
+      "tags": [
+        "hook",
+        "preflight-reminder"
+      ],
       "hooks": {
         "SessionStart": [
           {
@@ -1659,9 +3953,24 @@
     {
       "name": "hook-background-subagent-reminder",
       "source": "./.agents/hooks/claude/background-subagent-reminder",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "The session-start note to check a background subagent every 10 minutes against how long its task should take.",
       "category": "hook",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "hook",
+        "background-subagent-reminder"
+      ],
+      "tags": [
+        "hook",
+        "background-subagent-reminder"
+      ],
       "hooks": {
         "SessionStart": [
           {
@@ -1679,9 +3988,24 @@
     {
       "name": "hook-subagent-reminder",
       "source": "./.agents/hooks/claude/subagent-reminder",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "The reminder a subagent gets when it starts, that it does the delegated work itself and reports what it changed.",
       "category": "hook",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "hook",
+        "subagent-reminder"
+      ],
+      "tags": [
+        "hook",
+        "subagent-reminder"
+      ],
       "hooks": {
         "SubagentStart": [
           {
@@ -1699,9 +4023,24 @@
     {
       "name": "mcp-context7",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "The Context7 documentation MCP server.",
       "category": "mcp",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "mcp",
+        "context7"
+      ],
+      "tags": [
+        "mcp",
+        "context7"
+      ],
       "mcpServers": {
         "context7": {
           "type": "http",
@@ -1715,16 +4054,31 @@
     {
       "name": "mcp-mongodb",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "The MongoDB MCP server, read-only, started with npx.",
       "category": "mcp",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "mcp",
+        "mongodb"
+      ],
+      "tags": [
+        "mcp",
+        "mongodb"
+      ],
       "mcpServers": {
         "mongodb": {
           "type": "stdio",
           "command": "npx",
           "args": [
             "-y",
-            "mongodb-mcp-server@latest",
+            "mongodb-mcp-server@3.3.0",
             "--readOnly",
             "--connectionString",
             "${MONGODB_URL:-mongodb://localhost:27017}"
@@ -1735,15 +4089,30 @@
     {
       "name": "mcp-grafana",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "The Grafana MCP server, started with uvx.",
       "category": "mcp",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "mcp",
+        "grafana"
+      ],
+      "tags": [
+        "mcp",
+        "grafana"
+      ],
       "mcpServers": {
         "grafana": {
           "type": "stdio",
           "command": "uvx",
           "args": [
-            "mcp-grafana"
+            "mcp-grafana==2.2.0"
           ],
           "env": {
             "GRAFANA_URL": "${GRAFANA_URL:-http://localhost:3000}",
@@ -1755,15 +4124,30 @@
     {
       "name": "mcp-playwright",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "The Playwright browser MCP server, started with npx. It can write local files.",
       "category": "mcp",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "mcp",
+        "playwright"
+      ],
+      "tags": [
+        "mcp",
+        "playwright"
+      ],
       "mcpServers": {
         "playwright": {
           "type": "stdio",
           "command": "npx",
           "args": [
-            "@playwright/mcp@latest"
+            "@playwright/mcp@0.0.85"
           ]
         }
       }
@@ -1771,16 +4155,31 @@
     {
       "name": "mcp-chrome-devtools",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "The Chrome DevTools MCP server, started with npx. It can write local files.",
       "category": "mcp",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "mcp",
+        "chrome-devtools"
+      ],
+      "tags": [
+        "mcp",
+        "chrome-devtools"
+      ],
       "mcpServers": {
         "chrome-devtools": {
           "type": "stdio",
           "command": "npx",
           "args": [
             "-y",
-            "chrome-devtools-mcp@latest"
+            "chrome-devtools-mcp@1.13.0"
           ]
         }
       }
@@ -1788,16 +4187,31 @@
     {
       "name": "mcp-redis",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "The Redis MCP server, started with uvx.",
       "category": "mcp",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "mcp",
+        "redis"
+      ],
+      "tags": [
+        "mcp",
+        "redis"
+      ],
       "mcpServers": {
         "redis": {
           "type": "stdio",
           "command": "uvx",
           "args": [
             "--from",
-            "redis-mcp-server@latest",
+            "redis-mcp-server==0.5.1",
             "redis-mcp-server",
             "--url",
             "${REDIS_URL:-redis://localhost:6379/0}"
@@ -1808,9 +4222,24 @@
     {
       "name": "mcp-sonarqube",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
-      "description": "The SonarQube MCP server, started with docker run, which pulls the image on every start.",
+      "version": "1.1.0",
+      "description": "The SonarQube MCP server, started with docker run from an image pinned by its digest.",
       "category": "mcp",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "mcp",
+        "sonarqube"
+      ],
+      "tags": [
+        "mcp",
+        "sonarqube"
+      ],
       "mcpServers": {
         "sonarqube": {
           "type": "stdio",
@@ -1818,14 +4247,13 @@
           "args": [
             "run",
             "--init",
-            "--pull=always",
             "-i",
             "--rm",
             "-e",
             "SONARQUBE_TOKEN",
             "-e",
             "SONARQUBE_URL",
-            "mcp/sonarqube"
+            "mcp/sonarqube@sha256:925c88bc7cab2a1e1025b0bd43f0af504cd8ce1b99e9663ececaca914fb632e7"
           ],
           "env": {
             "SONARQUBE_TOKEN": "${SONARQUBE_TOKEN:-}",
@@ -1837,15 +4265,30 @@
     {
       "name": "mcp-n8n",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "The n8n MCP server, started with npx.",
       "category": "mcp",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "mcp",
+        "n8n"
+      ],
+      "tags": [
+        "mcp",
+        "n8n"
+      ],
       "mcpServers": {
         "n8n": {
           "type": "stdio",
           "command": "npx",
           "args": [
-            "n8n-mcp"
+            "n8n-mcp@2.102.0"
           ],
           "env": {
             "N8N_API_URL": "${N8N_API_URL:-http://localhost:5678}",
@@ -1857,9 +4300,24 @@
     {
       "name": "mcp-home-assistant",
       "source": "./.claude-plugin",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "The Home Assistant MCP server, started with uvx and reading its settings from an env file in your home directory.",
       "category": "mcp",
+      "author": {
+        "name": "Łukasz Sarna",
+        "url": "https://github.com/Lukk17"
+      },
+      "homepage": "https://github.com/Lukk17/agent-standards#readme",
+      "repository": "https://github.com/Lukk17/agent-standards",
+      "license": "MIT",
+      "keywords": [
+        "mcp",
+        "home-assistant"
+      ],
+      "tags": [
+        "mcp",
+        "home-assistant"
+      ],
       "mcpServers": {
         "home-assistant": {
           "type": "stdio",

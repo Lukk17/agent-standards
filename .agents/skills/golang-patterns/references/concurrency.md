@@ -9,13 +9,13 @@ Written for Go 1.27, so range variables are per-iteration and `sync.WaitGroup.Go
 
 ### Contents
 
-- Worker pool over a channel
-- errgroup for coordinated work that can fail
-- Give every blocking call a context
-- Close the leak: buffer or select
-- Shut down gracefully
-- Guard shared state, or do not share it
-- Reuse buffers only after a benchmark says so
+- [Worker pool over a channel](#worker-pool-over-a-channel)
+- [errgroup for coordinated work that can fail](#errgroup-for-coordinated-work-that-can-fail)
+- [Give every blocking call a context](#give-every-blocking-call-a-context)
+- [Close the leak: buffer or select](#close-the-leak-buffer-or-select)
+- [Shut down gracefully](#shut-down-gracefully)
+- [Guard shared state, or do not share it](#guard-shared-state-or-do-not-share-it)
+- [Reuse buffers only after a benchmark says so](#reuse-buffers-only-after-a-benchmark-says-so)
 
 ---
 

@@ -18,12 +18,12 @@ import pytest
 import yaml
 
 import gen_subagents as gen
-from tests.conftest import PREFLIGHT_GATE
+from tests.conftest import GATE_RULES
 
 
 def _load_gate():
     """The preflight gate in-process, so the native map can be held against Rule E itself."""
-    spec = importlib.util.spec_from_file_location("preflight_gate_for_gen_subagents", PREFLIGHT_GATE)
+    spec = importlib.util.spec_from_file_location("preflight_gate_for_gen_subagents", GATE_RULES)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
 

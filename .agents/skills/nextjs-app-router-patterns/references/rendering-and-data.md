@@ -6,12 +6,12 @@ Where a component runs, when its output is produced, and how long that output st
 
 ### Contents
 
-- Rendering modes
-- Choosing the boundary
-- Server Component with search params
-- Client Component at the leaf
-- Streaming with Suspense
-- Caching layers
+- [Rendering modes](#rendering-modes)
+- [Choosing the boundary](#choosing-the-boundary)
+- [Server Component with search params](#server-component-with-search-params)
+- [Client Component at the leaf](#client-component-at-the-leaf)
+- [Streaming with Suspense](#streaming-with-suspense)
+- [Caching layers](#caching-layers)
 
 ---
 

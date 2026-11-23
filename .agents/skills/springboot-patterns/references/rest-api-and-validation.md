@@ -8,12 +8,12 @@ response shape needs to be settled.
 
 ### Contents
 
-- Controller
-- Request and response types
-- Pagination envelope
-- Global exception handler
-- Version in the path, and deprecate with a real date
-- OpenAPI
+- [Controller](#controller)
+- [Request and response types](#request-and-response-types)
+- [Pagination envelope](#pagination-envelope)
+- [Global exception handler](#global-exception-handler)
+- [Version in the path, and deprecate with a real date](#version-in-the-path-and-deprecate-with-a-real-date)
+- [OpenAPI](#openapi)
 
 ---
 

@@ -6,15 +6,15 @@ Unit, widget, and integration tests, the fakes that make them cheap, and the cov
 
 ### Contents
 
-- TDD and FIRST
-- The three test kinds
-- What to test where
-- Unit tests
-- Widget tests
-- Accessibility assertions
-- Integration tests
-- Plugin testing
-- Checklist
+- [TDD and FIRST](#tdd-and-first)
+- [The three test kinds](#the-three-test-kinds)
+- [What to test where](#what-to-test-where)
+- [Unit tests](#unit-tests)
+- [Widget tests](#widget-tests)
+- [Accessibility assertions](#accessibility-assertions)
+- [Integration tests](#integration-tests)
+- [Plugin testing](#plugin-testing)
+- [Checklist](#checklist)
 
 ---
 
@@ -95,40 +95,12 @@ test('GetActiveUsersUseCase returns an empty list when none are active', () asyn
 });
 ```
 
-```dart
-blocTest<AuthCubit, AuthState>(
-  'emits loading then error on a failed login',
-  build: () => AuthCubit(FakeAuthService(throwsOn: 'login')),
-  act: (cubit) => cubit.login('user@test.com', 'wrong'),
-  expect: () => [isA<AuthLoading>(), isA<AuthFailed>()],
-);
-```
-
-For Riverpod, drive a `ProviderContainer` with overrides and always register the teardown:
-
-```dart
-final container = ProviderContainer(overrides: [
-  userRepositoryProvider.overrideWithValue(FakeUserRepository()),
-]);
-addTearDown(container.dispose);
-```
+A cubit test with `blocTest` is in [bloc.md](bloc.md), and a Riverpod container with overrides is in
+[riverpod.md](riverpod.md).
 
 ---
 
 ### Widget tests
-
-```dart
-testWidgets('CartBadge shows the item count', (tester) async {
-  await tester.pumpWidget(
-    ProviderScope(
-      overrides: [cartNotifierProvider.overrideWith(() => FakeCartNotifier(count: 3))],
-      child: const MaterialApp(home: CartBadge()),
-    ),
-  );
-
-  expect(find.text('3'), findsOneWidget);
-});
-```
 
 ```dart
 testWidgets('HomeScreen renders the seeded booking', (tester) async {
@@ -153,6 +125,8 @@ Pumping rules worth knowing:
   `MaterialApp`, or it throws.
 - Prefer `find.byKey` and `find.text` over `find.byType` for anything the test is actually asserting on. Type
   finders break the moment someone wraps the widget.
+
+A widget test under a Riverpod `ProviderScope` is in [riverpod.md](riverpod.md).
 
 ---
 

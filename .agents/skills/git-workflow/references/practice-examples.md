@@ -16,7 +16,7 @@ Contents:
 - [Release management lives in github-ops](#release-management-lives-in-github-ops)
 - [Anti-patterns](#anti-patterns)
 
-Companion reference for the [git-workflow](../SKILL.md) skill. Load it for the reasoning and the pass and fail examples behind each rule: the branching strategy, commit messages, merge versus rebase, branch names and cleanup, pull request content, conflict prevention, staging, public history, and where releases live.
+Companion reference for the [git-workflow](../SKILL.md) skill. Load it for the reasoning and the pass and fail examples behind each rule: the branching strategy, commit messages, merge versus rebase, branch names and cleanup, pull request content, conflict prevention, staging, public history and where releases live.
 
 ---
 

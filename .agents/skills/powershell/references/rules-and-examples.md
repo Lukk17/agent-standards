@@ -1,6 +1,6 @@
 # PowerShell rules with examples
 
-Open this for the Pass and Fail form of any rule in [SKILL.md](../SKILL.md), the full comment-based help example, and the reasoning behind each rule.
+Open this for the Pass and Fail form of any rule in [SKILL.md](../SKILL.md), the full comment-based help example, and the reasoning behind each rule. The lint gate is in [psscriptanalyzer.md](psscriptanalyzer.md) and the test rules are in [pester.md](pester.md).
 
 ---
 
@@ -13,7 +13,6 @@ Open this for the Pass and Fail form of any rule in [SKILL.md](../SKILL.md), the
 - [Comment-Based Help](#comment-based-help)
 - [Logging through the right stream](#logging-through-the-right-stream)
 - [Secret handling](#secret-handling)
-- [PSScriptAnalyzer and Pester 6](#psscriptanalyzer-and-pester-6)
 - [Cross-platform rules](#cross-platform-rules)
 - [Startup readiness log](#startup-readiness-log)
 
@@ -178,34 +177,9 @@ Fail:
 
 ---
 
-### PSScriptAnalyzer and Pester 6
-
-Run PSScriptAnalyzer in CI with the PSGallery ruleset and a zero-finding policy. Suppress a rule only with
-`[Diagnostics.CodeAnalysis.SuppressMessageAttribute]` plus a justification.
-
-Pass:
-
-```powershell
-Invoke-ScriptAnalyzer -Path ./src -Recurse -EnableExit
-```
-
-Fail:
-
-```powershell
-Invoke-ScriptAnalyzer -Path ./src -ExcludeRule PSAvoidUsingPlainTextForPassword
-```
-
-Structure tests with `Describe` / `Context` / `It`, mock dependencies with `Mock` and verify with `Should -Invoke`,
-and use `BeforeAll` / `AfterAll` for shared setup rather than repeating expensive work in `BeforeEach`. Pester 6
-allows one of each setup and teardown block per `Describe` or `Context` and throws on a duplicate, and it removed
-`Assert-MockCalled`, so `Should -Invoke` is the call-count check. Classic `Should -Be` keeps working, and the newer
-`Should-*` assertions are optional.
-
----
-
 ### Cross-platform rules
 
-Guard Windows-only cmdlets and build every path with `Join-Path` or `[System.IO.Path]::Combine()` so the separator is
+Guard Windows-only cmdlets with `$IsWindows` / `$IsLinux`, use `Get-CimInstance` and never `Get-WmiObject`, and build every path with `Join-Path` or `[System.IO.Path]::Combine()` so the separator is
 never hardcoded.
 
 Pass:

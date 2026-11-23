@@ -4,20 +4,27 @@
 # Description: Proves, for every supported agent, that a real subagent writes
 #              a real file. Each pinned agent binary runs in a copy of the
 #              imported project, hooks, gate and generated subagents included,
-#              against server.mjs, a free local model that replays a scripted
+#              and Claude Code with the plugins of the project settings
+#              installed into that copy, so its subagents carry their plugin
+#              names. All run against server.mjs, a free local model that
+#              replays a scripted
 #              conversation: the main thread starts python-pro, python-pro
 #              writes e2e-subagent-proof.txt, and both turns end. A second
 #              scripted case has the main thread write a file itself, which the
 #              gate has to deny. On Claude Code a third case starts the
 #              code-reviewer subagent headless and checks that it preloaded the
 #              project's application-security-review skill, not the built-in
-#              /security-review command. On Codex a fourth case starts
+#              /security-review command, and a clone of the repository
+#              itself, whose own settings name its folder as the marketplace
+#              and switch on the hook plugins, has to deny the main thread's
+#              write with nothing installed. On Codex a fourth case starts
 #              backend-architect, whose tools leave out bash, and checks that
 #              its turns offer no shell tool, against the python-pro turns of
 #              the first case, which do. Only the model is mocked.
 # Usage: sourced by verify-project.sh, which defines pass, fail, note and
-#        one_line, sources lib-opencode2.sh first, calls
-#        verify_subagent_write <project> and calls e2e_end from its EXIT trap.
+#        one_line, sources lib-opencode2.sh and lib-claude-plugins.sh first,
+#        calls verify_subagent_write <project> and calls e2e_end and
+#        claude_market_stop from its EXIT trap.
 #        Or run directly against an imported project:
 #          subagent-write.sh <project> [claude-code|codex|copilot|opencode2|opencode|kilo-code ...]
 # Environment:
@@ -44,6 +51,9 @@ readonly E2E_CONTENT="written-by-the-python-pro-subagent"
 readonly E2E_MAIN_PROOF="e2e-main-thread-proof.txt"
 readonly E2E_MAIN_CONTENT="written-by-the-main-thread"
 readonly E2E_AGENTS=(claude-code codex copilot opencode2 opencode kilo-code)
+# The remote the import added, which names the repository the Claude Code
+# marketplace is served from.
+readonly E2E_REMOTE="agent-standards"
 # Every tool name a supported agent writes a file with, as records.py counts
 # them, and every tool name one starts a subagent with, as server.mjs offers.
 readonly E2E_WRITE_TOOLS='["Write","Edit","MultiEdit","Bash","create","edit","write","apply_patch","exec_command","shell","bash"]'
@@ -149,7 +159,7 @@ def first_sentence(text):
 
 
 reminder = constants(root / ".agents/hooks/copilot/prompt-reminder/prompt_reminder.py")
-gate = constants(root / ".agents/hooks/preflight-gate/preflight_gate.py")
+gate = constants(root / ".agents/hooks/preflight-gate/_gate_rules.py")
 claude = constants(root / ".agents/hooks/claude/preflight-reminder/preflight_reminder.py")["REMINDER"]
 
 
@@ -163,7 +173,7 @@ skill = root / ".agents/skills" / sys.argv[2] / "SKILL.md"
 print(json.dumps({
     "subagent": reminder["SUBAGENT_OPENING"],
     "main": [first_sentence(claude), first_sentence(reminder["REMINDER"])],
-    "definition": next(line for line in body(root / ".claude/agents/python-pro/python-pro.md") if line.strip()),
+    "definition": next(line for line in body(root / ".agents/agents/python-pro.md") if line.strip()),
     "gate": first_sentence(gate["RULE_A_REASON"]),
     "skill": next(line for line in body(skill) if line.strip() and not line.startswith("#")),
 }))
@@ -187,6 +197,17 @@ e2e_own_main_text() {
   fi
 }
 
+# The name an agent starts a subagent by. Claude Code takes its subagents from
+# plugins and names each <plugin>:<name>, and every other agent reads its own
+# tree, where the name stands alone.
+e2e_subagent_name() {
+  if [[ "$1" == "claude-code" ]]; then
+    printf 'agent-%s:%s\n' "$2" "$2"
+  else
+    printf '%s\n' "$2"
+  fi
+}
+
 # The agent's label and binary, set into E2E_LABEL and E2E_BIN.
 e2e_identify() {
   case "$1" in
@@ -200,11 +221,23 @@ e2e_identify() {
   esac
 }
 
+# Installs the plugins the project settings switch on into the copy, with the
+# copy's own configuration directory, as a contributor does in each clone: a
+# project-scope install belongs to one project folder on one machine.
+e2e_install_claude_plugins() {
+  local dir="$1" repo=""
+
+  repo="$(git -C "${dir}/project" remote get-url "$E2E_REMOTE" 2>/dev/null)" || return 1
+  claude_market_start "$repo" || return 1
+  CLAUDE_CONFIG_DIR="${dir}/state/claude-config" claude_plugins_install "${dir}/project" >"${dir}/plugins.log" 2>&1
+}
+
 # A fresh copy of the imported project for one agent, with what that agent
 # needs to reach the mock: Claude Code, Codex and Copilot keep the project as
 # imported and switch MCP servers off on the command line, while the OpenCode
 # family drops the MCP block, as every other sandbox turn does, and 1.x copies
 # its .v1 backstop in the way docs/AGENT_TOOLING.md tells a 1.x user to.
+# Returns 1 when the Claude Code plugins cannot be installed into the copy.
 e2e_prepare() {
   local agent="$1" project="$2" dir="$3"
 
@@ -214,6 +247,7 @@ e2e_prepare() {
   case "$agent" in
     claude-code)
       printf '{"mcpServers": {}}\n' >"${dir}/state/no-mcp.json"
+      e2e_install_claude_plugins "$dir" || return 1
       ;;
     codex)
       mkdir -p "${dir}/state/codex-home"
@@ -424,7 +458,7 @@ e2e_check_review() {
   local dir="$1" status=0 turns=0 with_skill=0 with_builtin=0 spawns=0
 
   e2e_invoke claude-code "$dir" \
-    "E2E-REVIEW ${E2E_REVIEWER} ${dir}/project/${E2E_REVIEW_FILE} ${E2E_REVIEW_TOKEN}" review || status=$?
+    "E2E-REVIEW $(e2e_subagent_name claude-code "$E2E_REVIEWER") ${dir}/project/${E2E_REVIEW_FILE} ${E2E_REVIEW_TOKEN}" review || status=$?
   IFS=' ' read -r turns with_skill with_builtin spawns <<<"$(e2e_review_facts "${dir}/review.requests.jsonl")"
 
   if ! e2e_binary_holds "$E2E_BUILTIN_REVIEW_MARKER"; then
@@ -435,6 +469,54 @@ e2e_check_review() {
     pass "${E2E_LABEL}: ${E2E_REVIEWER} preloads the project's ${E2E_REVIEW_SKILL} skill and not the built-in /${E2E_REVIEW_SKILL} command (${turns} of ${turns} turns)"
   else
     fail "${E2E_LABEL}: ${E2E_REVIEWER} preloads the project's ${E2E_REVIEW_SKILL} skill and not the built-in /${E2E_REVIEW_SKILL} command (exit ${status}, ${spawns} spawn(s) answered, ${turns} subagent turn(s), ${with_skill} with '${E2E_SKILL_LINE}', ${with_builtin} with the built-in prompt)"
+  fi
+}
+
+# Claude Code only: the repository's own wiring. A clone of the branch the
+# import reads, whose .claude/settings.json names its own folder as the
+# marketplace and switches on the hook plugins. Nothing is installed, because a
+# relative-path plugin of a marketplace in a local folder loads in place, and
+# the clone is trusted first, because Claude Code registers a marketplace a
+# project declares only in a trusted folder
+# (https://code.claude.com/docs/en/plugins/org, "Require plugins per
+# repository"). CLAUDE_CODE_SYNC_PLUGIN_INSTALL=1 makes this first headless run
+# wait for that registration, which otherwise happens in the background and
+# leaves the first turn of a machine's first run without the plugins (same
+# page, "When each surface applies the plugin keys", measured on 2.1.314). The
+# gate has to deny the main thread's write, and every main-thread turn has to
+# carry the reminder.
+e2e_check_own_wiring() {
+  local project="$1" dir="${E2E_TMP}/claude-code-own" repo="" branch="" denied="" own="" status=0
+  local _spawns=0 _sub_writes=0 main_writes=0 _conflicts=0 _turns=0 _with_sub=0 _with_main=0 _with_def=0
+  local main_turns=0 main_with_own=0 refusals=0
+
+  repo="$(git -C "$project" remote get-url "$E2E_REMOTE" 2>/dev/null)" && branch="$(claude_market_branch "$repo")"
+  mkdir -p "${dir}/state/claude-config"
+
+  if [[ -z "$branch" ]] || ! git clone --quiet --single-branch --branch "$branch" "$repo" "${dir}/project" 2>"${dir}/clone.err"; then
+    fail "${E2E_LABEL}: the repository itself is cloned to check its own wiring ($(one_line "$(cat "${dir}/clone.err" 2>/dev/null)"))"
+    return
+  fi
+
+  printf '{"mcpServers": {}}\n' >"${dir}/state/no-mcp.json"
+  jq -n --arg path "${dir}/project" '{projects: {($path): {hasTrustDialogAccepted: true}}}' >"${dir}/state/claude-config/.claude.json"
+  denied="${dir}/project/${E2E_MAIN_PROOF}"
+  own="$(e2e_own_main_text claude-code)"
+
+  CLAUDE_CODE_SYNC_PLUGIN_INSTALL=1 e2e_invoke claude-code "$dir" "E2E-MAIN-WRITE ${denied} ${E2E_MAIN_CONTENT}" own-wiring || status=$?
+  IFS=' ' read -r _spawns _sub_writes main_writes _conflicts _turns _with_sub _with_main _with_def main_turns main_with_own refusals \
+    <<<"$(e2e_facts "${dir}/own-wiring.requests.jsonl" "$denied" "$own")"
+
+  if [[ "$main_writes" -gt 0 && "$refusals" -gt 0 && ! -e "$denied" ]]; then
+    pass "${E2E_LABEL}: in a clone of the repository itself, with nothing installed, the gate plugin its own settings switch on denies the main thread's write"
+  else
+    fail "${E2E_LABEL}: in a clone of the repository itself, with nothing installed, the gate plugin its own settings switch on denies the main thread's write (exit ${status}, ${main_writes} main-thread write call(s), ${refusals} carrying '${E2E_GATE_TEXT}', file present: $([[ -e "$denied" ]] && echo yes || echo no))"
+  fi
+
+  if [[ "$main_turns" -gt 0 && "$main_with_own" -eq "$main_turns" ]]; then
+    pass "${E2E_LABEL}: in that clone every main-thread turn carries the main-thread reminder, from its plugin (${main_turns} of ${main_turns})"
+  else
+    fail "${E2E_LABEL}: in that clone every main-thread turn carries the main-thread reminder, from its plugin (${main_with_own} of ${main_turns} with '${own}')"
   fi
 }
 
@@ -470,12 +552,16 @@ e2e_check_agent() {
     return
   fi
 
-  e2e_prepare "$agent" "$project" "$dir"
+  if ! e2e_prepare "$agent" "$project" "$dir"; then
+    fail "${E2E_LABEL}: the plugins of the project settings install into its copy of the project ($(one_line "$(cat "${dir}/plugins.log" 2>/dev/null)"))"
+    return
+  fi
+
   proof="${dir}/project/${E2E_PROOF}"
   denied="${dir}/project/${E2E_MAIN_PROOF}"
   own="$(e2e_own_main_text "$agent")"
 
-  e2e_invoke "$agent" "$dir" "E2E-SPAWN ${E2E_SUBAGENT} ${proof} ${E2E_CONTENT}" spawn || status=$?
+  e2e_invoke "$agent" "$dir" "E2E-SPAWN $(e2e_subagent_name "$agent" "$E2E_SUBAGENT") ${proof} ${E2E_CONTENT}" spawn || status=$?
   # Both verify scripts set IFS to newline and tab, so each read names its own separator.
   IFS=' ' read -r spawns sub_writes main_writes conflicts turns with_sub with_main with_def main_turns main_with_own refusals \
     <<<"$(e2e_facts "${dir}/spawn.requests.jsonl" "$proof" "$own")"
@@ -530,6 +616,7 @@ e2e_check_agent() {
 
   if [[ "$agent" == "claude-code" ]]; then
     e2e_check_review "$dir"
+    e2e_check_own_wiring "$project"
   fi
 
   if [[ "$agent" == "codex" ]]; then
@@ -592,7 +679,9 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
 
   # shellcheck source-path=SCRIPTDIR source=../lib-opencode2.sh
   source "${E2E_DIR}/../lib-opencode2.sh"
-  trap e2e_end EXIT
+  # shellcheck source-path=SCRIPTDIR source=../lib-claude-plugins.sh
+  source "${E2E_DIR}/../lib-claude-plugins.sh"
+  trap 'e2e_end; claude_market_stop' EXIT
 
   verify_subagent_write "$(cd "$1" && pwd)" "${@:2}"
 

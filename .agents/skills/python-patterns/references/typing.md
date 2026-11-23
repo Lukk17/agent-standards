@@ -1,7 +1,8 @@
 # Python Typing Depth
 
 Protocols, aliases, generics, and narrowing for code that has to pass `mypy --strict`. Open this when a signature
-needs more than a builtin generic, or when the checker rejects something that looks correct.
+needs more than a builtin generic, or when the checker rejects something that looks correct. The checker's own setup is in
+[mypy.md](mypy.md).
 
 Written for Python 3.14, so PEP 695 type parameter syntax and the `type` statement are available.
 
@@ -9,13 +10,12 @@ Written for Python 3.14, so PEP 695 type parameter syntax and the `type` stateme
 
 ### Contents
 
-- Declare an alias with the `type` statement
-- Use PEP 695 syntax for generics
-- Describe a shape with a Protocol, not a base class
-- Narrow with a TypeGuard when the checker cannot follow
-- Prefer a discriminated union to a bag of optional fields
-- Type the callable, not just `Callable`
-- Make the checker strict and keep it that way
+- [Declare an alias with the `type` statement](#declare-an-alias-with-the-type-statement)
+- [Use PEP 695 syntax for generics](#use-pep-695-syntax-for-generics)
+- [Describe a shape with a Protocol, not a base class](#describe-a-shape-with-a-protocol-not-a-base-class)
+- [Narrow with a TypeGuard when the checker cannot follow](#narrow-with-a-typeguard-when-the-checker-cannot-follow)
+- [Prefer a discriminated union to a bag of optional fields](#prefer-a-discriminated-union-to-a-bag-of-optional-fields)
+- [Type the callable, not just `Callable`](#type-the-callable-not-just-callable)
 
 ---
 
@@ -161,24 +161,4 @@ def timed[**P, R](func: Callable[P, R]) -> Callable[P, R]:
             logger.debug("%s took %.4fs", func.__name__, time.perf_counter() - start)
 
     return wrapper
-```
-
----
-
-### Make the checker strict and keep it that way
-
-Run `mypy --strict` as a CI gate. When a third-party package ships no stubs, silence it once in configuration rather
-than sprinkling `# type: ignore` through the code.
-
-```toml
-[[tool.mypy.overrides]]
-module = ["untyped_vendor.*"]
-ignore_missing_imports = true
-```
-
-Every remaining `# type: ignore` carries a specific error code, so it stops suppressing errors it was never meant to
-cover.
-
-```python
-value = legacy.call()  # type: ignore[no-any-return]
 ```

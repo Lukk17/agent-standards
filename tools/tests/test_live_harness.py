@@ -24,7 +24,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests.conftest import PREFLIGHT_GATE, REPO_ROOT
+from tests.conftest import GATE_RULES, REPO_ROOT
 from tests.process_tree import run_bounded
 from tests.reminder_support import CLAUDE_REMINDER, canonical_reminder, canonical_subagent_reminder, posix_shell
 
@@ -37,7 +37,7 @@ pytestmark = pytest.mark.skipif(BASH is None, reason="bash is not installed")
 
 def gate_reasons() -> dict[str, str]:
     """Every RULE_*_REASON in the gate, with its placeholders filled."""
-    spec = importlib.util.spec_from_file_location("preflight_gate_reasons", PREFLIGHT_GATE)
+    spec = importlib.util.spec_from_file_location("preflight_gate_reasons", GATE_RULES)
     gate = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(gate)
 
@@ -1439,21 +1439,46 @@ def test_agent_preloads_reports_a_missing_file_as_not_preloaded(tmp_path):
     assert (result.returncode, "Traceback" in result.stderr) == (1, False)
 
 
-def test_the_gate_only_project_takes_only_paths_the_readme_gate_only_import_names():
-    # Given the pathspec of the gate-only import in README.md, "The gate beside the plugins"
-    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
-    section = readme.split("#### The gate beside the plugins", 1)[1].split("\n---\n", 1)[0]
-    command = next(line for line in section.splitlines() if line.startswith("git checkout agent-standards/master -- "))
-    pathspec = set(shlex.split(command.split(" -- ", 1)[1]))
-    declared = re.search(r"^readonly GATE_ONLY_PATHS=\(([^)]*)\)$", CLAUDE_ADAPTER.read_text(encoding="utf-8"), re.MULTILINE)
+def test_the_plugin_project_holds_one_empty_commit_and_no_file_of_the_repository(tmp_path):
+    # Given the adapter's own function for the project checks 8 and 9 run in
+    project = tmp_path / "plugin-project"
+    script = f"source '{loadable_adapter(CLAUDE_ADAPTER, tmp_path).as_posix()}'; prepare_plugin_project '{project.as_posix()}'"
 
     # When
-    assert declared is not None
-    gate_only_paths = set(shlex.split(declared.group(1)))
+    result = run_bounded([BASH, "-c", script], capture_output=True, text=True, env={**os.environ, "GIT_CONFIG_GLOBAL": os.devnull})
 
-    # Then
-    assert gate_only_paths
-    assert gate_only_paths <= pathspec, gate_only_paths - pathspec
+    # Then the project is a repository with one commit and nothing but its .git folder
+    assert result.returncode == 0, result.stderr
+    assert [path.name for path in project.iterdir()] == [".git"]
+    log = subprocess.run(["git", "-C", str(project), "log", "--format=%s"], capture_output=True, text=True, check=True)
+    assert log.stdout.splitlines() == ["plugin project"]
+
+
+def test_the_gate_of_checks_8_and_9_is_a_hook_plugin_of_the_marketplace():
+    declared = re.search(r'^readonly GATE_PLUGIN="([^"]+)"$', CLAUDE_ADAPTER.read_text(encoding="utf-8"), re.MULTILINE)
+    market = json.loads((REPO_ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
+
+    assert declared is not None
+    entry = next(plugin for plugin in market["plugins"] if plugin["name"] == declared.group(1))
+    assert any("preflight_gate.py" in handler["command"] for group in entry["hooks"]["PreToolUse"] for handler in group["hooks"])
+
+
+def test_claude_code_names_its_configuration_directory_before_the_project_import(tmp_path):
+    # Given the import installs the Claude Code plugins at project scope, into the configuration directory in force
+    script = (
+        f"source '{loadable_adapter(CLAUDE_ADAPTER, tmp_path).as_posix()}'; WORK='{tmp_path.as_posix()}'; "
+        "agent_before_import; printf '%s\n' \"$CLAUDE_CONFIG_DIR\"; "
+        "declare -f run_suite | grep -n 'agent_before_import\\|prepare_project\\|agent_configure' | cut -d: -f2 | tr -d ' ;' | grep -v '^if'"
+    )
+
+    # When
+    result = run_bounded([BASH, "-c", script], capture_output=True, text=True)
+
+    # Then it is the directory the runs read, and the hook runs before the import
+    assert result.returncode == 0, result.stderr
+    lines = result.stdout.splitlines()
+    assert lines[0] == (tmp_path / "claude-config").as_posix() and (tmp_path / "claude-config").is_dir()
+    assert lines[1:] == ["agent_before_import", "prepare_project", "agent_configure"]
 
 
 def loadable_adapter(adapter_path: Path, directory: Path) -> Path:
@@ -1566,7 +1591,7 @@ case "$1 $2" in
     ;;
   "plugin install")
     market="${CLAUDE_CONFIG_DIR}/fake-market"
-    for source in "agent-code-reviewer:.claude/agents/code-reviewer" "application-security-review:.agents/skills/application-security-review"; do
+    for source in "agent-code-reviewer:.claude/agents/code-reviewer" "application-security-review:.agents/skills/application-security-review" "hook-preflight-gate:.agents/hooks/preflight-gate"; do
       mkdir -p "${CLAUDE_CONFIG_DIR}/plugins/cache/m/${source%%:*}/1.0.0"
       cp -R "${market}/${source#*:}/." "${CLAUDE_CONFIG_DIR}/plugins/cache/m/${source%%:*}/1.0.0/"
     done
@@ -1595,7 +1620,7 @@ def run_plugin_checks(tmp_path: Path, drop: str = "", setup: str = "") -> tuple[
         f"WORK='{work.as_posix()}'; CASES='{(work / 'cases').as_posix()}'; PROJECT=main-project; export CLAUDE_CONFIG_DIR=main-config; "
         f"LIVE_PYTHON='{Path(sys.executable).as_posix()}'; "
         "section() { :; }; record() { printf 'record|%s|%s|%s\\n' \"$1\" \"$2\" \"$3\"; }; "
-        "prepare_gate_only_project() { mkdir -p \"$1\"; }; "
+        "prepare_plugin_project() { mkdir -p \"$1\"; }; "
         "test_plugin_subagent_type_reaches_the_gate() { printf 'ran 8|%s|%s\\n' \"$PROJECT\" \"$CLAUDE_CONFIG_DIR\"; }; "
         "test_plugin_subagent_preloads_its_skill() { printf 'ran 9|%s\\n' \"$CANARY\"; }; "
         f"{setup}"
@@ -1628,7 +1653,7 @@ def test_a_missing_canary_fails_check_nine_only(tmp_path):
     # Given an install whose core skill lost the planted canary
     result, work, _ = run_plugin_checks(tmp_path, drop="SKILL.md")
 
-    # Then check 8 still runs, with the capture hook and the gate-only project already in place
+    # Then check 8 still runs, with the capture hook and the plugin project already in place
     assert result.returncode == 0, result.stderr
     lines = result.stdout.splitlines()
     assert lines[0].startswith("ran 8|")
@@ -1658,7 +1683,7 @@ def test_a_missing_plugin_agent_blocks_both_checks(tmp_path):
 def test_the_plugin_commands_run_from_the_work_directory_bounded_and_without_stdin(tmp_path):
     _, work, calls = run_plugin_checks(tmp_path)
 
-    assert len(calls) == 2
+    assert len(calls) == 3
     for call in calls:
         cwd, stdin, parent, args = call.split("|")
         assert (cwd, stdin, parent) == (work.as_posix(), "/dev/null", "timeout")
@@ -1744,9 +1769,9 @@ def test_every_agent_prompt_fits_the_job_time_limit():
     run_agent = next(step for step in live_steps() if "${{ matrix.agent }}.sh run" in str(step.get("run", "")))
     per_prompt = int(run_agent["env"]["LIVE_AGENT_TIMEOUT"])
 
-    # When the busiest script, claude-code.sh, runs its five shared prompts, checks 8 and 9 and two plugin commands
+    # When the busiest script, claude-code.sh, runs its five shared prompts, checks 8 and 9 and three plugin commands
     plugin_command = int(re.search(r"^readonly PLUGIN_COMMAND_TIMEOUT=(\d+)$", CLAUDE_ADAPTER.read_text(encoding="utf-8"), re.MULTILINE).group(1))
-    worst = 7 * per_prompt + 2 * plugin_command
+    worst = 7 * per_prompt + 3 * plugin_command
 
     # Then it ends before the job limit cancels it, with five minutes left for install and upload
     assert worst + 300 <= job["timeout-minutes"] * 60

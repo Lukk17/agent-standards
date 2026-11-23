@@ -18,8 +18,8 @@ import pytest
 
 from tests.conftest import (
     BACKGROUND_SUBAGENT_REMINDER_HOOK,
+    GATE_FILES,
     MARKDOWN_LINT_HOOK,
-    PREFLIGHT_GATE,
     PREFLIGHT_REMINDER_HOOK,
     STANDARDS_ADVISORY_HOOK,
     SUBAGENT_REMINDER_HOOK,
@@ -56,7 +56,7 @@ def test_every_guarded_hook_carries_the_same_guard_word_for_word(hook):
 def test_the_guard_is_called_by_every_hook_that_carries_it_and_never_by_the_gate():
     for hook in GUARDED:
         assert hook.read_text(encoding="utf-8").count("_plugin_copy_is_shadowed(") == 2, hook.name
-    assert "_plugin_copy_is_shadowed" not in PREFLIGHT_GATE.read_text(encoding="utf-8")
+    assert all("_plugin_copy_is_shadowed" not in file.read_text(encoding="utf-8") for file in GATE_FILES)
 
 
 # The stand-down, driven through a plugin copy of the standards advisory on PostToolUse.

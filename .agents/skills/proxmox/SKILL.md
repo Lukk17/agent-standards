@@ -1,57 +1,27 @@
 ---
 name: proxmox
-description: 'Working with a Proxmox VE 8 or 9 host from an agent, every change asked of the owner first: API tokens, listing VMs and storage, creating and deleting VMs, growing a guest disk, snapshots, vzdump backups and thin pools. Use when the user says "give the agent access to Proxmox", "grow the disk of this VM" or "snapshot this VM first". Not for the services inside the VM, use `homelab-services`.'
+description: 'Proxmox VE, each change asked of the owner first: tokens, VMs, disks, backups. Use when the user says "give the agent access to Proxmox" or "grow the disk of this VM". Not for services in a VM, use `homelab-services`.'
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # Proxmox VE Administration
 
-How an agent works on a Proxmox VE host through the API, and how a change the owner approved is done in the right order. The main option is an admin token for a user of its own. It can create, change and delete VMs and storage content, manage storages and SDN, create users and groups but not grant permissions, and download ISO files. Narrower tokens are described as alternatives in [api-access.md](references/api-access.md). Whatever the token, anything that changes a VM, a storage or the host is proposed to the owner first, with what can go wrong and how to undo it.
-
-Written for Proxmox VE 8 and 9, from the `qm` and `pveum` manual pages, the admin guide sources, the wiki and the API schema. Only the admin token commands were run on a real host. How far each command is verified is in [conventions.md](references/conventions.md#verification).
-
-| You are about to | Open |
-|---|---|
-| Give an agent the admin token or a narrower one, create a token, store the secret, call the API with curl, read nodes, VMs and storage, resize, snapshot, start or stop through the API, create or delete a VM, upload or download an ISO | [api-access.md](references/api-access.md) |
-| Grow a VM disk, then the partition and the file system in a Linux or Windows guest | [disk-resize.md](references/disk-resize.md) |
-| Take or roll back a snapshot, run a backup, read or plan a backup job | [snapshots-and-backups.md](references/snapshots-and-backups.md) |
-| Read storage use, thin pool data and metadata, judge whether a pool is too full | [storage.md](references/storage.md) |
-| Name a host, node, VM or storage in a command or note, or judge how verified a command is | [conventions.md](references/conventions.md) |
-
----
-
-### Facts about one setup
-
-Setup facts belong in the owner's notes, never here. Examples use `<placeholders>`, listed in [conventions.md](references/conventions.md#facts-about-one-setup).
-
----
-
-### When to activate
-
-- Giving an agent or a script access to a Proxmox VE host
-- Listing nodes, VMs, a VM's hardware, or storage use
-- A guest that runs out of disk space, or a resize that the guest does not show
-- Snapshotting or backing up a Proxmox VM before a risky change inside the guest
-- Letting the agent create or delete VMs
-- Judging whether `local-lvm` or another thin pool is close to full
-- The user says "let the agent manage my VMs", "list my VMs", "the guest still shows the old size", "snapshot this VM first", "back up this VM" or "how full is local-lvm"
+How an agent works on a Proxmox VE host through the API, and how a change the owner approved is done in the right order. Written for Proxmox VE 8 and 9. Setup facts belong in the owner's notes, never here, and examples use `<placeholders>`.
 
 ---
 
 ### When not to activate
 
-- Software inside a guest, use the skill for that guest's operating system or application, such as `syncthing`, `docker-patterns` or `home-assistant`
 - The services running inside a VM, such as the proxy, the dashboard, DNS or monitoring, use `homelab-services`
+- Software inside a guest, use the skill for that guest's operating system or application, such as `syncthing`, `docker-patterns` or `home-assistant`
 - Provisioning many VMs reproducibly, use `ansible`
-- Writing a script that wraps these calls, use `bash` or `powershell`
-- Judging whether a token, an exposed port or a firewall rule is acceptable, use the `security-auditor` agent
 
 ---
 
 ### Hard rules
 
-1. The agent works through the API with a token on a user of its own: the admin token in [api-access.md](references/api-access.md), or one of the narrower alternatives there when the owner chose one. The agent never gets a password, never logs in to the web page, and never uses `root@pam`.
+1. The agent works through the API with a token on a user of its own: the admin token in [admin-token.md](references/admin-token.md), or one of the narrower alternatives in [narrower-tokens.md](references/narrower-tokens.md) when the owner chose one. The agent never gets a password, never logs in to the web page, and never uses `root@pam`.
 2. Each token secret lives in an env file the owner fills, outside every repository, readable only by the owner, mode 600 on Linux and macOS. It is never printed, never written into the session, and never passed as a command line argument. With an alternative that keeps a separate change token, that token's file is loaded only for a change the owner approved, and only for that call.
 3. TLS stays verified: `--cacert` with the cluster CA, or `-k` only together with `--pinnedpubkey`. Never `-k` alone.
 4. Ask before anything that changes a VM, a storage or the host: resize, snapshot, rollback, backup, start, stop, creating a VM, uploading or downloading an ISO, a configuration change, a permission change, a package update. Say what changes, the worst case, and how to undo it, then wait for a yes. This holds with the admin token too: the token makes a change possible, it is not permission to make one, and one yes covers one change.
@@ -63,27 +33,18 @@ Setup facts belong in the owner's notes, never here. Examples use `<placeholders
 
 ---
 
-### Related skills
+### Reference files
 
-- `syncthing` owns Syncthing inside a guest, including its disk space error, which often leads here
-- `home-assistant` owns Home Assistant OS once it runs in a VM
-- `docker-patterns` owns containers inside a guest
-- `windows` owns the Windows guest beyond Disk Management and `Resize-Partition`
-- The `security-auditor` agent owns judging tokens, roles and exposed ports
-- `bash` and `powershell` own scripts that wrap these calls
-
----
-
-### Checklist
-
-- [ ] The agent uses a token on a user of its own, the admin token or a chosen alternative, never a password or `root@pam`
-- [ ] The token's permissions were checked with `pveum user token permissions` before it was handed over
-- [ ] With an alternative, a change token belongs to its own user and was used only for the one change the owner approved
-- [ ] Every delete had its own yes after the VM's newest backup was named
-- [ ] The env file sits outside every repository, readable only by the owner
-- [ ] Every curl call verifies TLS by CA file or by pinned public key, never `-k` alone
-- [ ] Every change was approved by the owner after the worst case and the undo were stated
-- [ ] A backup exists before a disk change, and the thin pool has room for the growth
-- [ ] After a resize, the guest's partition and file system were grown and checked with `lsblk` and `df -h` or `Get-Volume`
-- [ ] On an Ubuntu guest, `vgs` checked for free space before asking for a bigger virtual disk
-- [ ] Thin pool data and metadata use read and reported after the change
+| You are about to | Open |
+|---|---|
+| Give an agent the admin token, check it or take it away, or a command differs between Proxmox VE 8 and 9 | [admin-token.md](references/admin-token.md) |
+| Fill the env file, verify the certificate, call the API with curl for any read or change | [api-calls.md](references/api-calls.md) |
+| Set up a narrower token the owner chose | [narrower-tokens.md](references/narrower-tokens.md) |
+| Grow a VM disk on the host | [disk-resize.md](references/disk-resize.md) |
+| Grow the partition and the file system in a Linux guest, or use the free space Ubuntu Server leaves | [disk-resize-linux-guest.md](references/disk-resize-linux-guest.md) |
+| Extend the volume in a Windows guest | [disk-resize-windows-guest.md](references/disk-resize-windows-guest.md) |
+| Take or roll back a snapshot, run a backup, read or plan a backup job | [snapshots-and-backups.md](references/snapshots-and-backups.md) |
+| Read storage use, thin pool data and metadata, judge whether a pool is too full | [storage.md](references/storage.md) |
+| Name a host, node, VM or storage, or judge how verified a command is | [conventions.md](references/conventions.md) |
+| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
+| Before calling the work done | [checklist.md](references/checklist.md) |

@@ -10,13 +10,12 @@ implementation of both.
 
 ### Contents
 
-- Count in a shared store once you run more than one process
-- Choose the subject before the algorithm
-- Fixed window is fine, sliding window is better at the edges
-- Always emit the headers, not only on rejection
-- Limit the expensive endpoints separately
-- Never let the limiter take the service down
-- Related skills
+- [Count in a shared store once you run more than one process](#count-in-a-shared-store-once-you-run-more-than-one-process)
+- [Choose the subject before the algorithm](#choose-the-subject-before-the-algorithm)
+- [Fixed window is fine, sliding window is better at the edges](#fixed-window-is-fine-sliding-window-is-better-at-the-edges)
+- [Always emit the headers, not only on rejection](#always-emit-the-headers-not-only-on-rejection)
+- [Limit the expensive endpoints separately](#limit-the-expensive-endpoints-separately)
+- [Never let the limiter take the service down](#never-let-the-limiter-take-the-service-down)
 
 ---
 
@@ -126,11 +125,3 @@ same subject.
 
 If Redis is unreachable, decide explicitly. Fail open for ordinary read traffic (log at warn, serve the request) and
 fail closed for authentication endpoints, where an unbounded retry rate is the attack you were defending against.
-
----
-
-### Related skills
-
-- `node-backend-patterns` for the hub these rules belong to.
-- `api-design` for the canonical header names, the tier table, and the 429 problem body.
-- `application-security-review` for brute-force and credential-stuffing defence beyond a request count.

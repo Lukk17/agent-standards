@@ -57,9 +57,9 @@ Configure: max entries, lifespan, eviction policy (LRU). In clustered mode, cach
 #### Health Endpoints
 
 ```
-GET /health/live     — liveness probe (is Keycloak running)
-GET /health/ready    — readiness probe (ready to serve)
-GET /metrics         — Prometheus metrics
+GET /health/live       liveness probe (is Keycloak running)
+GET /health/ready      readiness probe (ready to serve)
+GET /metrics           Prometheus metrics
 ```
 
 #### Key Metrics

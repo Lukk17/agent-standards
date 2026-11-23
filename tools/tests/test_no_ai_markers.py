@@ -15,6 +15,7 @@ import sys
 
 import pytest
 
+from tests import claude_wiring_support as claude_wiring
 from tests.conftest import NO_AI_MARKERS_HOOK, REPO_ROOT
 from tests.process_tree import run_bounded
 
@@ -1563,26 +1564,19 @@ def test_the_claude_subagent_stop_wiring_still_checks_under_copilot():
 
 # The shipped wiring: a display fix only where the surface has one.
 
-CLAUDE_SETTINGS = REPO_ROOT / ".claude" / "settings.json"
 COPILOT_HOOKS = REPO_ROOT / ".github" / "hooks" / "preflight.json"
 CODEX_CONFIG = REPO_ROOT / ".codex" / "config.toml"
 
 
-def claude_commands(event):
-    settings = json.loads(CLAUDE_SETTINGS.read_text(encoding="utf-8"))
-
-    return [entry["command"] for group in settings["hooks"][event] for entry in group["hooks"]]
-
-
 def test_claude_code_wires_the_display_fix():
-    commands = claude_commands("MessageDisplay")
+    commands = claude_wiring.commands("MessageDisplay")
 
     assert len(commands) == 1
     assert "no_ai_markers_check.py --format claude --display ;" in commands[0]
 
 
 def test_claude_code_stop_checks_only_what_the_display_fix_leaves():
-    stop = [command for command in claude_commands("Stop") if "no_ai_markers_check.py" in command]
+    stop = [command for command in claude_wiring.commands("Stop") if "no_ai_markers_check.py" in command]
 
     assert len(stop) == 1 and "--format claude --display-fixed" in stop[0]
 
@@ -1591,11 +1585,9 @@ REPLY_STYLE_HOOKS = ("no_ai_markers_check.py", "status_block_check.py", "questio
 
 
 def test_claude_code_checks_reply_style_on_the_main_thread_only():
-    # Given the project wiring, where a subagent's report is read by its caller and never by the user
-    settings = json.loads(CLAUDE_SETTINGS.read_text(encoding="utf-8"))
-    subagent_stop = [
-        entry["command"] for group in settings["hooks"].get("SubagentStop", []) for entry in group["hooks"]
-    ]
+    # Given the hook plugins the project switches on, where a subagent's report is read by its caller and never by the user
+    subagent_stop = claude_wiring.commands("SubagentStop")
+    assert claude_wiring.commands("Stop")
 
     # Then no reply-style check runs when a subagent stops
     assert [command for command in subagent_stop if any(hook in command for hook in REPLY_STYLE_HOOKS)] == []

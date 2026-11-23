@@ -2,6 +2,7 @@
 
 Contents:
 
+- [Versions](#versions)
 - [Decide which side of the boundary the task is on](#decide-which-side-of-the-boundary-the-task-is-on)
 - [One realm per application and environment](#one-realm-per-application-and-environment)
 - [Assign roles to groups, never directly to users](#assign-roles-to-groups-never-directly-to-users)
@@ -10,7 +11,18 @@ Contents:
 - [Keep every secret out of the repository and out of the process list](#keep-every-secret-out-of-the-repository-and-out-of-the-process-list)
 - [Pin the version on both sides](#pin-the-version-on-both-sides)
 
-Companion reference for the [keycloak-patterns](../SKILL.md) skill. Load it for the reasoning behind the rules that hold on both sides of the identity boundary: which side owns a problem, realms, roles through groups, copied flows, audience and issuer, secrets, and version pinning.
+Companion reference for the [keycloak-patterns](../SKILL.md) skill. Load it for the version notes and the reasoning behind the rules that hold on both sides of the identity boundary: which side owns a problem, realms, roles through groups, copied flows, audience and issuer, secrets, and version pinning.
+
+---
+
+### Versions
+
+Written for Keycloak 26 and Keycloak.AuthServices 2, on .NET 8 or newer. Two things follow from that pairing and are easy to get wrong:
+
+- Keycloak 26 renamed the bootstrap admin variables to `KC_BOOTSTRAP_ADMIN_USERNAME` and
+  `KC_BOOTSTRAP_ADMIN_PASSWORD`. The older `KEYCLOAK_ADMIN` pair no longer works.
+- A .NET application binds the `Keycloak` configuration section in the kebab-case adapter format, so `auth-server-url`
+  and `verify-token-audience` are keys, not properties invented locally.
 
 ---
 
@@ -24,7 +36,7 @@ Server side: the realm, the client registration, the flow, the mappers, the role
 Client side: the audience check, the policy, the claims transformation, the token cache, the SDK call.
 ```
 
-The two reference tables in the skill split along exactly that line.
+The server side and .NET side reference tables in the skill split along exactly that line.
 
 ---
 

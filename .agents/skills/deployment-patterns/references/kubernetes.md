@@ -5,10 +5,14 @@ and strategy rules live in [SKILL.md](../SKILL.md).
 
 Written for Kubernetes 1.37 and Helm 4.
 
+Every production workload carries a non-root security context, a PodDisruptionBudget, a default-deny NetworkPolicy in its namespace, resource requests and limits, and an HPA with a minimum of two replicas. Enforce them at admission with Kyverno or OPA Gatekeeper rather than at review time.
+
 ---
 
 ### Contents
 
+- [Rolling update strategy](#rolling-update-strategy)
+- [Rollback](#rollback)
 - [Probes](#probes)
 - [Pod security context, required on every deployment](#pod-security-context-required-on-every-deployment)
 - [PodDisruptionBudget, required for every production deployment](#poddisruptionbudget-required-for-every-production-deployment)
@@ -22,7 +26,46 @@ Written for Kubernetes 1.37 and Helm 4.
 
 ---
 
+### Rolling update strategy
+
+Rolling is the default rollout for a backward-compatible change, with `maxUnavailable: 0` and `maxSurge: 1`, never `Recreate`.
+
+Pass, a rolling update that cannot take the service below capacity:
+
+```yaml
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 0
+    maxSurge: 1
+```
+
+Fail:
+
+```yaml
+strategy:
+  type: Recreate
+```
+
+---
+
+### Rollback
+
+Rollback is a rehearsed pipeline path, so it takes seconds and leaves a record.
+
+Pass:
+
+```bash
+kubectl rollout undo deployment/app
+```
+
+The Fail form, a revert and rebuild, and what to confirm before a release are in [rules-and-examples.md](rules-and-examples.md#rollback-is-a-rehearsed-path).
+
+---
+
 ### Probes
+
+This skill owns the probe manifests, and `observability-and-logging` owns what the endpoints report.
 
 Three probes, three different questions. `startupProbe` answers "has it finished booting", and while it is failing
 the other two are suspended, which is what stops a slow start from being killed as a liveness failure.
@@ -55,9 +98,33 @@ readinessProbe:
 Point liveness at a check that touches no dependency. Pointing it at a readiness endpoint that checks the database
 turns a database blip into a cluster-wide restart storm.
 
+Pass, the two endpoints kept apart:
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 3000
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 3000
+```
+
+Fail, liveness on a dependency-checking endpoint:
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health/detailed
+    port: 3000
+```
+
 ---
 
 ### Pod security context, required on every deployment
+
+Pass:
 
 ```yaml
 securityContext:
@@ -67,6 +134,12 @@ securityContext:
   allowPrivilegeEscalation: false
   capabilities:
     drop: [ALL]
+```
+
+Fail:
+
+```yaml
+securityContext: {}
 ```
 
 ---

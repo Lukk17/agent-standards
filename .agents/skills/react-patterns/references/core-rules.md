@@ -6,13 +6,14 @@ The Pass and Fail examples and the reasoning behind each rule the SKILL.md hub s
 
 ### Contents
 
-- Declare components as named functions
-- Compose components, never inherit
-- Model async state as one discriminated union
-- Route every network call through one typed API client
-- Let the compiler memoise, and measure the rest
-- Load heavy modules lazily and virtualise long lists
-- Send every user-facing string through the i18n layer
+- [Declare components as named functions](#declare-components-as-named-functions)
+- [Compose components, never inherit](#compose-components-never-inherit)
+- [Model async state as one discriminated union](#model-async-state-as-one-discriminated-union)
+- [Route every network call through one typed API client](#route-every-network-call-through-one-typed-api-client)
+- [Let the compiler memoise, and measure the rest](#let-the-compiler-memoise-and-measure-the-rest)
+- [Load heavy modules lazily and virtualise long lists](#load-heavy-modules-lazily-and-virtualise-long-lists)
+- [Send every user-facing string through the i18n layer](#send-every-user-facing-string-through-the-i18n-layer)
+- [Doc comments](#doc-comments)
 
 ---
 
@@ -168,3 +169,9 @@ const LOCALE = 'pl' as const
 ```
 
 Enforce it mechanically. A lint step walks the source with an AST parser, the TypeScript compiler API or a Babel or Biome plugin, and fails on a string literal in JSX text, in a user-facing attribute (`title`, `alt`, `placeholder`, `aria-label`) or in a known copy prop, and on a non-ASCII letter in source outside the catalogues. A regular expression over the source misses template literals and attribute values, and an allow-pragma, if the project needs one, is accepted in test files only.
+
+---
+
+### Doc comments
+
+Doc comments follow the Doc Comments rules in `coding-standards`, whose TSDoc examples already cover TypeScript. React delta: props are the parameters of a component, so a prop that needs a note gets it on its field in the props type, where the editor shows it at every call site, and never as a `@param` on the component function. A hook documents its return only when it is non-obvious, such as `null` until the first message arrives.

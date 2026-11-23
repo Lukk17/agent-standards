@@ -9,15 +9,15 @@ Written for Go 1.27, so `b.Loop` is available and is the form to use.
 
 ### Contents
 
-- Write the benchmark with b.Loop
-- Report allocations, because they are usually the answer
-- Allocate once when the size is known
-- Compare implementations with sub-benchmarks
-- Compare runs with benchstat, not by eye
-- Profile when the benchmark says there is something to find
-- Fuzz anything that parses untrusted input
-- Read the coverage profile, not the headline
-- Detect a flaky test by repeating it
+- [Write the benchmark with b.Loop](#write-the-benchmark-with-bloop)
+- [Report allocations, because they are usually the answer](#report-allocations-because-they-are-usually-the-answer)
+- [Allocate once when the size is known](#allocate-once-when-the-size-is-known)
+- [Compare implementations with sub-benchmarks](#compare-implementations-with-sub-benchmarks)
+- [Compare runs with benchstat, not by eye](#compare-runs-with-benchstat-not-by-eye)
+- [Profile when the benchmark says there is something to find](#profile-when-the-benchmark-says-there-is-something-to-find)
+- [Fuzz anything that parses untrusted input](#fuzz-anything-that-parses-untrusted-input)
+- [Read the coverage profile, not the headline](#read-the-coverage-profile-not-the-headline)
+- [Detect a flaky test by repeating it](#detect-a-flaky-test-by-repeating-it)
 
 ---
 

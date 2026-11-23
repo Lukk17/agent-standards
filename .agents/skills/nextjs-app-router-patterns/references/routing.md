@@ -6,12 +6,12 @@ File conventions, the advanced routing primitives, HTTP endpoints, and per-route
 
 ### Contents
 
-- File conventions
-- Route organisation
-- Parallel routes
-- Intercepting routes, the modal pattern
-- Route handlers
-- Metadata
+- [File conventions](#file-conventions)
+- [Route organisation](#route-organisation)
+- [Parallel routes](#parallel-routes)
+- [Intercepting routes, the modal pattern](#intercepting-routes-the-modal-pattern)
+- [Route handlers](#route-handlers)
+- [Metadata](#metadata)
 
 ---
 

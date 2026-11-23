@@ -11,7 +11,7 @@ No agent tool is invoked, so every assertion here is a filesystem or configurati
   `AGENTS.md.example` is renamed rather than copied, and the upstream-only `subagents/` and `tools/` trees stay
   behind.
 - Skills are discoverable at the path each agent reads. Codex, OpenCode, Kilo Code, and GitHub Copilot read
-  `.agents/skills/` directly, and Claude Code reaches the same files through the `.claude/skills` symlink.
+  `.agents/skills/` directly, and Claude Code takes each skill as a plugin its project settings switch on.
 - Subagent definitions are present in each agent's own format, and there are as many of them as the canonical source
   holds: Claude Code markdown, Codex TOML, Copilot `*.agent.md`, and the OpenCode-format tree that OpenCode and Kilo
   Code reach through symlinks.
@@ -158,10 +158,10 @@ test ! -e /work/project/tools
 
 Expect exit 0.
 
-The shared gate script landed, which every hook wiring below points at.
+The shared gate script landed, which every hook wiring below points at, and so did the rules file it imports, without which it allows every call.
 
 ```bash
-test -f /work/project/.agents/hooks/preflight-gate/preflight_gate.py
+test -f /work/project/.agents/hooks/preflight-gate/preflight_gate.py -a -f /work/project/.agents/hooks/preflight-gate/_gate_rules.py
 ```
 
 Expect exit 0.
@@ -182,28 +182,27 @@ test "$(find /work/project/.agents/skills -mindepth 1 -maxdepth 1 -type d | wc -
 
 Expect exit 0.
 
-Claude Code's skills path is a symlink that resolves to a directory rather than a text file holding a path, which is
-the failure mode on a machine where git was not told to honour symlinks.
+Claude Code gets no skills link and no agent tree by checkout, because the plugins carry both and a second copy would
+load every skill twice.
 
 ```bash
-test -L /work/project/.claude/skills -a -d /work/project/.claude/skills
+test ! -e /work/project/.claude/skills -a ! -e /work/project/.claude/agents
 ```
 
 Expect exit 0.
 
-The same number of skills is reachable through that symlink, so nothing flattened on the way.
+The project settings name the marketplace and switch on the two bundles the setup installs.
 
 ```bash
-test "$(find -L /work/project/.claude/skills -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l)" -eq "$(find /repo/.agents/skills -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l)"
+jq -e '(.extraKnownMarketplaces["agent-standards"].source.source == "git") and (.enabledPlugins["all@agent-standards"] == true) and (.enabledPlugins["hooks-all@agent-standards"] == true)' /work/project/.claude/settings.json
 ```
 
 Expect exit 0.
 
-One named skill resolves through the link, which catches a symlink that resolves as a directory but points somewhere
-empty.
+One named skill sits in the plugin cache, which catches an install that recorded the plugin and copied nothing.
 
 ```bash
-test -f /work/project/.claude/skills/python-patterns/SKILL.md
+test -f "$HOME"/.claude/plugins/cache/agent-standards/python-patterns/*/SKILL.md
 ```
 
 Expect exit 0.
@@ -224,10 +223,10 @@ test -L /work/project/.kilo/agents -a -d /work/project/.kilo/agents
 
 Expect exit 0.
 
-Claude Code sees every subagent in its own markdown format.
+Claude Code holds one agent file for every subagent plugin its settings switch on.
 
 ```bash
-test "$(find /work/project/.claude/agents -mindepth 2 -maxdepth 2 -name '*.md' | wc -l)" -eq "$(find /repo/.agents/agents -maxdepth 1 -name '*.md' | wc -l)"
+test "$(find "$HOME/.claude/plugins/cache/agent-standards" -mindepth 3 -maxdepth 3 -path '*/agent-*/*' -name '*.md' | wc -l)" -eq "$(jq '[.enabledPlugins | keys[] | select(startswith("agent-"))] | length' /work/project/.claude/settings.json)"
 ```
 
 Expect exit 0.
@@ -248,11 +247,27 @@ test "$(find /work/project/.github/agents -maxdepth 1 -name '*.agent.md' | wc -l
 
 Expect exit 0.
 
-Claude Code calls the gate on `PreToolUse`, in its own format. The command runs the gate script directly, with no
-wrapper in between, so the format flag shows up as a plain ` --format claude` substring in the command string.
+Claude Code's project settings wire no hook themselves, because each hook arrives as a plugin and a hook wired in both
+places runs twice.
 
 ```bash
-jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight-gate/preflight_gate.py") and contains("--format claude"))' /work/project/.claude/settings.json
+jq -e 'has("hooks") | not' /work/project/.claude/settings.json
+```
+
+Expect exit 0.
+
+The `hook-preflight-gate` plugin is switched on and calls the gate on `PreToolUse`, in Claude Code's own format. The
+command runs the gate script directly from the plugin's folder, with no wrapper in between, so the format flag shows up
+as a plain ` --format claude` substring in the command string.
+
+```bash
+jq -e '.enabledPlugins["hook-preflight-gate@agent-standards"] == true' /work/project/.claude/settings.json
+```
+
+Expect exit 0.
+
+```bash
+jq -e '[.plugins[] | select(.name == "hook-preflight-gate") | .hooks.PreToolUse[].hooks[].command] | any(contains("\"${CLAUDE_PLUGIN_ROOT}\"/preflight_gate.py") and contains("--format claude"))' "$HOME/.claude/plugins/marketplaces/agent-standards/.claude-plugin/marketplace.json"
 ```
 
 Expect exit 0.
@@ -263,7 +278,7 @@ back: the gate script now silences its own standard error internally for this fo
 needs to.
 
 ```bash
-jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight-gate/preflight_gate.py") and contains("--format claude") and endswith("; exit 0") and (contains("subprocess.DEVNULL") | not))' /work/project/.claude/settings.json
+jq -e '[.plugins[] | select(.name == "hook-preflight-gate") | .hooks.PreToolUse[].hooks[].command] | any(contains("--format claude") and endswith("; exit 0") and (contains("subprocess.DEVNULL") | not))' "$HOME/.claude/plugins/marketplaces/agent-standards/.claude-plugin/marketplace.json"
 ```
 
 Expect exit 0.
@@ -271,7 +286,7 @@ Expect exit 0.
 Claude Code also injects the gate text on every prompt, which is the advisory half of the same rule.
 
 ```bash
-jq -e '[.hooks.UserPromptSubmit[].hooks[].command] | any(contains("claude/preflight-reminder/preflight_reminder.py"))' /work/project/.claude/settings.json
+jq -e '[.plugins[] | select(.name == "hook-preflight-reminder") | .hooks.UserPromptSubmit[].hooks[].command] | any(contains("\"${CLAUDE_PLUGIN_ROOT}\"/preflight_reminder.py"))' "$HOME/.claude/plugins/marketplaces/agent-standards/.claude-plugin/marketplace.json"
 ```
 
 Expect exit 0.

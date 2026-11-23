@@ -604,7 +604,7 @@ Example:
   $vectorSearch: {
     queryVector: [<array>],
     path: "embedding",
-    numCandidates: 200,  // 20x the limit — good starting point; tune between 10-50x based on recall and latency requirements
+    numCandidates: 200,  // 20x the limit is a good starting point. Tune between 10-50x based on recall and latency requirements
     limit: 10
   }
 }

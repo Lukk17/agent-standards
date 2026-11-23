@@ -32,18 +32,19 @@ None beyond the fresh container. `setup-project.sh` rebuilds `/work/project` its
 - [ ] `AGENTS.md.example` is gone, so the template was renamed rather than copied
 - [ ] `subagents/` stayed upstream
 - [ ] `tools/` stayed upstream
-- [ ] The shared gate script landed
+- [ ] The shared gate script landed with its rules file
 - [ ] The plugin shim landed
 - [ ] Every canonical skill landed, counted against the mounted repository
-- [ ] `.claude/skills` is a symlink that resolves to a directory
-- [ ] The same skill count is reachable through that symlink
-- [ ] `python-patterns` resolves through the symlink
+- [ ] `.claude/skills` and `.claude/agents` are absent
+- [ ] `.claude/settings.json` names the marketplace and switches on `all` and `hooks-all`
+- [ ] `python-patterns` sits in the Claude Code plugin cache
 - [ ] `.opencode/agents` is a symlink that resolves to a directory
 - [ ] `.kilo/agents` is a symlink that resolves to a directory
-- [ ] Claude Code subagent count matches canonical
+- [ ] Claude Code holds one agent file for every subagent plugin its settings switch on
 - [ ] Codex TOML subagent count matches canonical
 - [ ] Copilot `*.agent.md` subagent count matches canonical
-- [ ] Claude Code calls the gate on `PreToolUse` in its own format, with the flag matched separately
+- [ ] Claude Code's project settings wire no hook themselves
+- [ ] The `hook-preflight-gate` plugin is switched on and calls the gate on `PreToolUse` in Claude Code's own format
 - [ ] Claude Code's gate call runs the gate script directly, with no wrapper, and forces a zero exit
 - [ ] Claude Code injects the gate text on every prompt
 - [ ] Codex calls the gate on `PreToolUse` in its own format

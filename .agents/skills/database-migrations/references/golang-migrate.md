@@ -85,11 +85,3 @@ the schema it expects.
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 ```
-
----
-
-### Related skills
-
-- `database-migrations` for the safety rules these commands have to satisfy.
-- `golang-patterns` for the surrounding service code.
-- `postgres-patterns` for index selection and query plans.

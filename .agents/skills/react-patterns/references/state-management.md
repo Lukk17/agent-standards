@@ -6,10 +6,10 @@ Compound components, context stores, and the small custom hooks that keep state 
 
 ### Contents
 
-- Compound components
-- Context plus reducer store
-- Small state hooks
-- Debouncing
+- [Compound components](#compound-components)
+- [Context plus reducer store](#context-plus-reducer-store)
+- [Small state hooks](#small-state-hooks)
+- [Debouncing](#debouncing)
 
 ---
 

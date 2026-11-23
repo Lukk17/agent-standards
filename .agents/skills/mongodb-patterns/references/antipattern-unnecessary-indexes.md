@@ -44,13 +44,13 @@ db.orders.aggregate([{ $indexStats: {} }])
 db.orders.getIndexes()
 
 // A compound index {a: 1, b: 1} makes a single-field index {a: 1} redundant
-// — the compound index serves all queries that {a: 1} alone serves
-db.col.createIndex({ a: 1 })         // drop this — redundant
+// because the compound index serves all queries that {a: 1} alone serves
+db.col.createIndex({ a: 1 })         // drop this, redundant
 db.col.createIndex({ a: 1, b: 1 })   // keep this
 
 // NOTE: Different leading field is NOT redundant
 db.col.createIndex({ a: 1, b: 1 })
-db.col.createIndex({ b: 1 })         // NOT covered by above — keep
+db.col.createIndex({ b: 1 })         // NOT covered by above, keep
 ```
 
 Safe removal process (hide → monitor → drop):
@@ -101,7 +101,7 @@ db.orders.stats().indexSizes
 for (const idx of db.orders.getIndexes()) {
   print(`${idx.name}: ${JSON.stringify(idx.key)}`)
 }
-// Compare index key prefixes — if {a:1} exists alongside {a:1,b:1}, the former is redundant
+// Compare index key prefixes: if {a:1} exists alongside {a:1,b:1}, the former is redundant
 ```
 
 Reference:

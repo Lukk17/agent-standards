@@ -6,13 +6,14 @@ The Pass and Fail examples and the reasoning behind each rule the SKILL.md hub s
 
 ### Contents
 
-- Declare components standalone
-- Hold synchronous state in signals, not BehaviorSubject
-- Tear down subscriptions with takeUntilDestroyed
-- Inject dependencies with inject()
-- Use the functional form of guards, interceptors, and forms
-- Handle uncaught errors globally
-- Keep change detection cheap
+- [Declare components standalone](#declare-components-standalone)
+- [Hold synchronous state in signals, not BehaviorSubject](#hold-synchronous-state-in-signals-not-behaviorsubject)
+- [Tear down subscriptions with takeUntilDestroyed](#tear-down-subscriptions-with-takeuntildestroyed)
+- [Inject dependencies with inject()](#inject-dependencies-with-inject)
+- [Use the functional form of guards, interceptors, and forms](#use-the-functional-form-of-guards-interceptors-and-forms)
+- [Handle uncaught errors globally](#handle-uncaught-errors-globally)
+- [Keep change detection cheap](#keep-change-detection-cheap)
+- [Doc comments](#doc-comments)
 
 ---
 
@@ -224,3 +225,9 @@ runs on every check, which is what makes a template-bound method the most common
 ```
 
 Defer heavy sections with `@defer` so they load on interaction or when they enter the viewport rather than on first paint. Keep constructors free of work and put initialisation in `ngOnInit`, except for wiring that needs the injection context, such as `takeUntilDestroyed()`, `toSignal` and `effect`, which belongs in the constructor. Follow the Angular style guide for file names: hyphens between words, and a file name matching the class it exports, so a `UserProfile` component lives in `user-profile.ts` with `user-profile.html`, `user-profile.css` and `user-profile.spec.ts` beside it. Keep a `.component.ts` type suffix only in a project that already uses that convention throughout.
+
+---
+
+### Doc comments
+
+Doc comments follow the Doc Comments rules in `coding-standards`, whose TSDoc examples already cover TypeScript. Angular delta: an `Observable` return is non-obvious by nature, so `@returns` says whether it completes, replays, or has to be unsubscribed, for example `@returns a cold Observable that completes after one emission`.

@@ -52,6 +52,20 @@ def _write_card(root: Path, *, skills: int | None, subagents: int | None, mcp_se
     return card_path
 
 
+def _write_marketplace(root: Path, mcp_count: int) -> Path:
+    """Write a marketplace with `mcp_count` server plugins beside one skill and one bundle that must never count."""
+    plugins = [
+        {"name": "some-skill", "category": "skill"},
+        {"name": "mcp-all", "category": "bundle"},
+        *({"name": f"mcp-server-{i}", "category": "mcp"} for i in range(mcp_count)),
+    ]
+    marketplace_path = root / ".claude-plugin" / "marketplace.json"
+    marketplace_path.parent.mkdir(parents=True, exist_ok=True)
+    marketplace_path.write_text(json.dumps({"name": "lab", "plugins": plugins}), encoding="utf-8")
+
+    return marketplace_path
+
+
 def _build_repo(
     tmp_path: Path,
     *,
@@ -77,8 +91,7 @@ def _build_repo(
     # A non-.md file under subagents/ must never count as a subagent.
     (subagents_dir / "notes.txt").write_text("ignore me", encoding="utf-8")
 
-    mcp_json = {"mcpServers": {f"server-{i}": {"type": "stdio"} for i in range(mcp_count)}}
-    (tmp_path / ".mcp.json").write_text(json.dumps(mcp_json), encoding="utf-8")
+    _write_marketplace(tmp_path, mcp_count)
 
     lines = ["# Title", ""]
     if skills_badge is not None:
@@ -318,19 +331,27 @@ def test_count_subagents_only_counts_markdown_files(tmp_path):
     assert count == 2
 
 
-def test_count_mcp_servers_reads_top_level_key(tmp_path):
-    # Given an .mcp.json with three servers under mcpServers
-    mcp_json = tmp_path / ".mcp.json"
-    mcp_json.write_text(
-        json.dumps({"mcpServers": {"a": {}, "b": {}, "c": {}}}),
-        encoding="utf-8",
-    )
+def test_count_mcp_servers_counts_the_server_plugins_of_the_marketplace(tmp_path):
+    # Given a marketplace with three server plugins, one skill and one bundle
+    marketplace_path = _write_marketplace(tmp_path, 3)
 
     # When
-    count = BADGES.count_mcp_servers(mcp_json)
+    count = BADGES.count_mcp_servers(marketplace_path)
 
-    # Then
+    # Then only the plugins of the mcp category count
     assert count == 3
+
+
+def test_count_mcp_servers_ignores_the_servers_one_agent_file_starts(tmp_path):
+    # Given a marketplace with four server plugins and an .mcp.json that starts one of them
+    marketplace_path = _write_marketplace(tmp_path, 4)
+    (tmp_path / ".mcp.json").write_text(json.dumps({"mcpServers": {"server-0": {}}}), encoding="utf-8")
+
+    # When
+    count = BADGES.count_mcp_servers(marketplace_path)
+
+    # Then the count is every server the repository ships, not the ones one file starts
+    assert count == 4
 
 
 def test_find_badge_returns_none_when_label_absent():
@@ -395,10 +416,10 @@ def test_check_badges_reports_missing_subagents_directory(tmp_path, capsys):
     assert str(subagents_dir) in out
 
 
-def test_check_badges_reports_malformed_mcp_json(tmp_path, capsys):
-    # Given a repo root whose .mcp.json is not valid JSON
+def test_check_badges_reports_a_malformed_marketplace(tmp_path, capsys):
+    # Given a repo root whose marketplace is not valid JSON
     root = _all_correct_repo(tmp_path)
-    mcp_json_path = root / ".mcp.json"
+    mcp_json_path = root / ".claude-plugin" / "marketplace.json"
     mcp_json_path.write_text("{not valid json", encoding="utf-8")
 
     # When

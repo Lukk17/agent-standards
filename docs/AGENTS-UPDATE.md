@@ -8,8 +8,8 @@
 
 - [.agents/skills/](../.agents/skills/), the canonical skills every agent loads.
 - [.agents/agents/](../.agents/agents/), the OpenCode-format subagents shared by OpenCode and Kilo Code, plus the
-  three per-tool trees generated beside it: [.claude/agents/](../.claude/agents/), [.codex/agents/](../.codex/agents/),
-  and [.github/agents/](../.github/agents/).
+  per-tool trees generated beside it: [.codex/agents/](../.codex/agents/)
+  and [.github/agents/](../.github/agents/), and `.claude/agents/` in a project imported before Claude Code moved to the plugins.
 - [.claude/workflows/](../.claude/workflows/), the saved Claude Code workflows, such as the skill audit.
 - [.agents/hooks/](../.agents/hooks/), the four hook scripts: the shared preflight gate, the reply formatting check,
   the markdown lint pass that runs after an edit, and the task-list mirror. Beside them,
@@ -26,8 +26,8 @@ and wrong every time after, because it re-adds skills and subagents you removed 
 The routine refresh, the Unix shell and PowerShell sections below, touches only what is already in your working
 tree. A skill you added locally that does not exist upstream is left alone. A skill you deleted stays deleted. To
 adopt a brand-new upstream skill or subagent, run a one-off `git checkout agent-standards/master -- <path>` for it
-once, and later refreshes will keep it current. To adopt the quality loop, check out `.agents/skills/quality-loop`, the four
-`quality-loop` subagent files and `.metrics/tools` once.
+once, and later refreshes will keep it current. To adopt the quality loop, check out `.agents/skills/quality-loop`, the
+`quality-loop` subagent file of each agent tree you hold and `.metrics/tools` once. On Claude Code, install the `agent-quality-loop` plugin, which brings the skill and the tools.
 
 Your configuration files are outside that routine entirely. Each shell section below ends with the two commands that
 handle them, and [what this skips](#what-this-skips-and-why) says which half of each file is yours.
@@ -78,7 +78,7 @@ git check-ignore -v tasks.md .agents/tasks.widget.json
 
 ### Windows prerequisite
 
-Three paths in this setup are symlinks: `.claude/skills`, `.opencode/agents`, and `.kilo/agents`. Git on Windows
+Up to three paths in this setup are symlinks: `.opencode/agents`, `.kilo/agents`, and `.claude/skills` in a project imported before Claude Code moved to the plugins. Git on Windows
 writes them as ordinary text files containing the target path unless symlink support is on, and every agent that
 depends on them then quietly sees nothing.
 
@@ -141,6 +141,50 @@ With native loading every `AGENTS.md` should stay small: the root one under 200 
 ```bash
 git show agent-standards/master:AGENTS.md.example
 ```
+
+---
+
+### Moving Claude Code to the plugins
+
+Claude Code now takes its skills, subagents and hooks as plugins from the upstream marketplace, as [Claude Code plugins](AGENT_TOOLING.md#claude-code-plugins) describes, and the first-time import no longer brings `.claude/skills` or `.claude/agents`. A project imported before that holds both, keeps working, and the refresh below still updates what it holds. Move it once all the same, before you install any plugin: Claude Code loads a project skill and a plugin skill of the same name side by side, "because plugin skills are namespaced as `/plugin-name:skill-name`" ([skills docs](https://code.claude.com/docs/en/skills), "Resolve skills that share a name", read 2026-11-23), so a project that holds both routes lists every skill twice.
+
+Remove the skills link and the Claude Code agent tree. The skills themselves stay in `.agents/skills/` for the other agents, because git removes the link and never follows it. A subagent of your own in `.claude/agents/` goes too, so move it out first. PowerShell or Unix shell, same command:
+
+```bash
+git rm -r -q --ignore-unmatch -- .claude/skills .claude/agents
+```
+
+Add the marketplace to the project:
+
+```bash
+claude plugin marketplace add Lukk17/agent-standards --scope project
+```
+
+Install `core` and every development domain, or one domain such as `python` in its place:
+
+```bash
+claude plugin install all@agent-standards --scope project
+```
+
+Both commands write into your `.claude/settings.json` and keep what it holds. An import made before the plugins left a `hooks` block there, which runs the scripts in `.agents/hooks/`. Upstream ships no such block any more, so nothing refreshes it. Delete the block, then install the hooks as plugins. A hook the settings file and a plugin both carry runs twice, so never keep both. Unix shell:
+
+```bash
+python3 -c 'import json;p=".claude/settings.json";s=json.load(open(p,encoding="utf-8"));s.pop("hooks",None);open(p,"w",encoding="utf-8").write(json.dumps(s,indent=2)+"\n")'
+```
+
+PowerShell 7.4 or later:
+
+```powershell
+python -c 'import json;p=".claude/settings.json";s=json.load(open(p,encoding="utf-8"));s.pop("hooks",None);open(p,"w",encoding="utf-8").write(json.dumps(s,indent=2)+"\n")'
+```
+
+PowerShell or Unix shell, same command:
+
+```bash
+claude plugin install hooks-all@agent-standards --scope project
+```
+
+Your `.mcp.json` is yours and still starts every server it lists. Upstream's copy now holds `context7` alone, for the reason under [What ships](MCP_SETUP.md#what-ships). Delete the blocks the project does not use with the command under [Default servers](MCP_SETUP.md#default-servers), and move the ones you keep to a pinned version as [Updating a pinned server](MCP_SETUP.md#updating-a-pinned-server) shows.
 
 ---
 
@@ -210,25 +254,24 @@ for f in .claude/agents/*.md; do [ -e "$f" ] || continue; n=$(basename "$f" .md)
 
 #### ⚠️ Stop here before the destructive part
 
-The last command in this section overwrites all six configuration files with the upstream copies. What you lose:
+The last command in this section overwrites all five configuration files with the upstream copies. What you lose:
 
 - API tokens you inlined.
 - Servers you disabled or repointed.
-- Permissions you granted.
 
 Diff first, and run the checkout only once you are sure nothing of yours is in them.
 
-Your six configuration files are kept out of the loops above, for the reasons under
+Your five configuration files are kept out of the loops above, for the reasons under
 [what this skips](#what-this-skips-and-why). See what upstream would change in them.
 
 ```bash
-git diff agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .github/mcp.json .codex/config.toml .claude/settings.json
+git diff agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .github/mcp.json .codex/config.toml
 ```
 
-Take upstream's copy of all six once the diff has shown you nothing of yours is in them.
+Take upstream's copy of all five once the diff has shown you nothing of yours is in them.
 
 ```bash
-git checkout agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .github/mcp.json .codex/config.toml .claude/settings.json
+git checkout agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .github/mcp.json .codex/config.toml
 ```
 
 ---
@@ -299,25 +342,24 @@ if (Test-Path .claude/agents) { foreach ($f in Get-ChildItem .claude/agents -Fil
 
 #### ⚠️ Stop here before the destructive part
 
-The last command in this section overwrites all six configuration files with the upstream copies. What you lose:
+The last command in this section overwrites all five configuration files with the upstream copies. What you lose:
 
 - API tokens you inlined.
 - Servers you disabled or repointed.
-- Permissions you granted.
 
 Diff first, and run the checkout only once you are sure nothing of yours is in them.
 
-Your six configuration files are kept out of the loops above, for the reasons under
+Your five configuration files are kept out of the loops above, for the reasons under
 [what this skips](#what-this-skips-and-why). See what upstream would change in them.
 
 ```powershell
-git diff agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .github/mcp.json .codex/config.toml .claude/settings.json
+git diff agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .github/mcp.json .codex/config.toml
 ```
 
-Take upstream's copy of all six once the diff has shown you nothing of yours is in them.
+Take upstream's copy of all five once the diff has shown you nothing of yours is in them.
 
 ```powershell
-git checkout agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .github/mcp.json .codex/config.toml .claude/settings.json
+git checkout agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json .github/mcp.json .codex/config.toml
 ```
 
 ---
@@ -326,11 +368,10 @@ git checkout agent-standards/master -- .mcp.json opencode.json .vscode/mcp.json 
 
 Nothing in this list is refreshed. Each one is either derived or yours.
 
-- The three symlinks, `.claude/skills`, `.opencode/agents`, and `.kilo/agents`. They point at
+- The symlinks, `.opencode/agents` and `.kilo/agents`, and `.claude/skills` where an older import left it. They point at
   [.agents/skills/](../.agents/skills/) and [.agents/agents/](../.agents/agents/), so they update the moment those
   directories do. Pulling the link itself would only risk turning it into a file.
-- [.claude/settings.json](../.claude/settings.json), which ships the Claude Code hooks on first import and then
-  becomes yours, because it is also where your project permissions live.
+- Your `.claude/settings.json`, which is yours alone. A project-scope plugin install writes the marketplace and the plugins into it, and it is also where your project permissions live. Never take upstream's copy: it names upstream's own folder as the marketplace, which another project does not have.
 - [opencode.json](../opencode.json) and [.codex/config.toml](../.codex/config.toml). Both carry your MCP servers
   next to a piece of gate wiring: `opencode.json` declares the plugin path, `.codex/config.toml` holds the Codex hook
   tables inline.
@@ -339,13 +380,13 @@ Nothing in this list is refreshed. Each one is either derived or yours.
 - [AGENTS.md.example](../AGENTS.md.example) and your own `AGENTS.md`. The first is consumed once at setup, the
   second is the source of truth for your project's conventions.
 
-Six of those are the configuration files: [.mcp.json](../.mcp.json), [opencode.json](../opencode.json),
-[.vscode/mcp.json](../.vscode/mcp.json), [.github/mcp.json](../.github/mcp.json),
-[.codex/config.toml](../.codex/config.toml), and [.claude/settings.json](../.claude/settings.json). Between them
-they carry every MCP server, your Claude Code settings, and three of the six pieces of preflight wiring. That is why
+Five of those are the configuration files: [.mcp.json](../.mcp.json), [opencode.json](../opencode.json),
+[.vscode/mcp.json](../.vscode/mcp.json), [.github/mcp.json](../.github/mcp.json), and
+[.codex/config.toml](../.codex/config.toml). Between them
+they carry every MCP server and two pieces of preflight wiring. That is why
 they get their own two commands at the end of each shell section instead of riding the loops: `git checkout`
 replaces a file whole, and everything local in it goes with it, an inlined token, a server you disabled, a host you
-repointed, a permission you granted. Diff first, every time, and run the checkout only once you are sure nothing of
+repointed. Diff first, every time, and run the checkout only once you are sure nothing of
 yours is in them.
 
 Who owns which half:
@@ -357,10 +398,9 @@ Who owns which half:
 | [.github/mcp.json](../.github/mcp.json) | the whole file: server set, hosts, tokens | nothing |
 | [opencode.json](../opencode.json) | the `mcp` block, including the newly added `atlassian` server | the `plugin` array and the `instructions` array, which declare the gate and track upstream |
 | [.codex/config.toml](../.codex/config.toml) | the `[mcp_servers.*]` tables | the `[[hooks.*]]` tables, which declare the gate |
-| [.claude/settings.json](../.claude/settings.json) | anything you add beside the hooks, typically a `permissions` block | the `hooks` block, which declares the gate |
 
 The three MCP-only files become yours outright at import and never need to follow upstream again, unless you want a
-newly added server. The other three are split: the gate half should stay identical to upstream so the preflight rule
+newly added server. The other two are split: the gate half should stay identical to upstream so the preflight rule
 keeps firing, and it shares a file with something of yours, so an upstream gate change is taken in on its own rather
 than checked out. The release notes say when there is one.
 
@@ -369,18 +409,6 @@ than checked out. The release notes say when there is one.
 Each command below replaces the gate half of one file with upstream's copy, read through `git show`, and keeps
 everything else in that file. Run them from the project root after `git fetch agent-standards`, only for the files you
 have.
-
-`.claude/settings.json`, whose `hooks` block is replaced and whose other keys stay. Unix shell:
-
-```bash
-python3 -c 'import json,subprocess;p=".claude/settings.json";u=json.loads(subprocess.check_output(["git","show","agent-standards/master:"+p],text=True,encoding="utf-8"));s=json.load(open(p,encoding="utf-8"));s["hooks"]=u["hooks"];open(p,"w",encoding="utf-8").write(json.dumps(s,indent=2)+"\n")'
-```
-
-PowerShell 7.4 or later:
-
-```powershell
-python -c 'import json,subprocess;p=".claude/settings.json";u=json.loads(subprocess.check_output(["git","show","agent-standards/master:"+p],text=True,encoding="utf-8"));s=json.load(open(p,encoding="utf-8"));s["hooks"]=u["hooks"];open(p,"w",encoding="utf-8").write(json.dumps(s,indent=2)+"\n")'
-```
 
 `opencode.json`, whose `plugin` and `instructions` arrays are replaced and whose `mcp` block stays. Unix shell:
 
@@ -411,7 +439,7 @@ python -c 'import re,subprocess;p=".codex/config.toml";u=subprocess.check_output
 Check the result against what you had. PowerShell or Unix shell, same command:
 
 ```bash
-git diff -- .claude/settings.json opencode.json .codex/config.toml
+git diff -- opencode.json .codex/config.toml
 ```
 
 ---
@@ -446,8 +474,7 @@ openspec init --tools agents
 ```
 
 `--tools agents` writes its skills into `.agents/skills/` and creates no per-tool directories at all. That single
-target covers every agent you run: Codex, OpenCode, Kilo Code, and GitHub Copilot read `.agents/skills/` natively, and
-Claude Code reaches the same files through its `.claude/skills` symlink.
+target covers Codex, OpenCode, Kilo Code, and GitHub Copilot, which read `.agents/skills/` natively. Claude Code reads project skills from `.claude/skills` only, and the import no longer brings that link, so OpenSpec's skills reach Claude Code only in a project that links them there itself.
 
 Do not reach for a per-tool target. `--tools kilocode` is the clearest example of why: OpenSpec 1.10.0 still hardcodes
 the old `.kilocode` directory for its Kilo target, which Kilo Code itself has moved away from in favour of `.kilo`, so

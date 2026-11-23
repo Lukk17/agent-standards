@@ -169,7 +169,7 @@ def subagent_start_commands(document) -> list[tuple[str, str]]:
 
 def wiring_commands(relative: str, marker: str = MARKER) -> list[tuple[str, str]]:
     text = (REPO_ROOT / relative).read_text(encoding="utf-8")
-    if marker == MARKER and relative in (".claude/settings.json", "docs/GLOBAL_SETUP.md"):
+    if marker == MARKER and relative == "docs/GLOBAL_SETUP.md":
         short = [pair for document in WIRINGS[relative](text) for pair in reminder_commands(document, marker=marker)]
         long = [pair for document in WIRINGS[relative](text) for pair in reminder_commands(document, marker=CLAUDE_MARKER)]
         # The long Claude text never contains the short marker, the short never the long one.
@@ -215,8 +215,6 @@ def shells_for(relative: str, key: str) -> list[str]:
     if key in POWERSHELL_KEYS:
         return POWERSHELLS
     shell = posix_shell()
-    if relative == ".claude/settings.json":
-        return [s for s in (shell, *POWERSHELLS) if s]
 
     return [shell] if shell else []
 
@@ -261,7 +259,6 @@ def expected_reminder_for_command(command: str) -> str:
     return SHORT_REMINDER
 
 WIRINGS = {
-    ".claude/settings.json": lambda text: [json.loads(text)],
     ".codex/config.toml": lambda text: [tomllib.loads(text)],
     ".github/hooks/preflight.json": lambda text: [json.loads(text)],
     "docs/GLOBAL_SETUP.md": json_blocks,

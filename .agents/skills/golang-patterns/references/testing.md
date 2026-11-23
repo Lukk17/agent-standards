@@ -10,17 +10,17 @@ Written for Go 1.27. That gives per-iteration range variables, `t.Context`, `t.C
 
 ### Contents
 
-- Write the failing test first
-- Make the table the default shape
-- Report with Errorf, stop with Fatalf
-- Let the testing package own setup and cleanup
-- Fake with a struct, not a mock framework
-- Never sleep to wait
-- Test through the exported API
-- Run subtests in parallel only when they are independent
-- Benchmark before you optimise, fuzz what parses input
-- Sibling references
-- Checklist
+- [Write the failing test first](#write-the-failing-test-first)
+- [Make the table the default shape](#make-the-table-the-default-shape)
+- [Report with Errorf, stop with Fatalf](#report-with-errorf-stop-with-fatalf)
+- [Let the testing package own setup and cleanup](#let-the-testing-package-own-setup-and-cleanup)
+- [Fake with a struct, not a mock framework](#fake-with-a-struct-not-a-mock-framework)
+- [Never sleep to wait](#never-sleep-to-wait)
+- [Test through the exported API](#test-through-the-exported-api)
+- [Run subtests in parallel only when they are independent](#run-subtests-in-parallel-only-when-they-are-independent)
+- [Benchmark before you optimise, fuzz what parses input](#benchmark-before-you-optimise-fuzz-what-parses-input)
+- [Sibling references](#sibling-references)
+- [Checklist](#checklist)
 
 ---
 
@@ -310,7 +310,8 @@ Both are in [benchmarks.md](benchmarks.md), including `b.Loop`, sub-benchmarks b
 
 | Open this | For |
 | --- | --- |
-| [table-tests.md](table-tests.md) | Table shapes, error cases, subtests, golden files, comparison |
+| [table-tests.md](table-tests.md) | Table shapes, error cases, subtests, golden files |
+| [go-cmp.md](go-cmp.md) | Comparing structs with `cmp.Diff` |
 | [mocks-and-fakes.md](mocks-and-fakes.md) | Fakes, stubs, spies, interfaces at the consumer, `httptest` |
 | [integration.md](integration.md) | Real databases, containers, build tags, HTTP handler tests |
 | [benchmarks.md](benchmarks.md) | Benchmarks, allocation counts, profiles, fuzzing, coverage |

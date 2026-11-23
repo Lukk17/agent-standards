@@ -50,7 +50,7 @@ go. Add anything you did beyond the spec under Additional tasks I did.
 - [ ] The shared skills tree holds every canonical skill
 - [ ] `~/.claude/skills` is a real directory, not a link
 - [ ] The same skill count is reachable through its per-skill links
-- [ ] The gate script landed in the shared tree
+- [ ] The gate script landed in the shared tree with its rules file
 - [ ] Claude Code subagent count matches canonical
 - [ ] Codex TOML subagent count matches canonical
 - [ ] `~/.config/opencode/agents` and `~/.config/kilo/agents` are links to `~/.config/agents/agents`

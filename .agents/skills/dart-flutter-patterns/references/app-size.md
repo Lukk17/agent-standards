@@ -7,13 +7,13 @@ it.
 
 ### Contents
 
-- Size concepts
-- Generating a size report
-- Reading the report
-- Estimating the real iOS download size
-- Reducing size
-- Runtime performance
-- Checklist
+- [Size concepts](#size-concepts)
+- [Generating a size report](#generating-a-size-report)
+- [Reading the report](#reading-the-report)
+- [Estimating the real iOS download size](#estimating-the-real-ios-download-size)
+- [Reducing size](#reducing-size)
+- [Runtime performance](#runtime-performance)
+- [Checklist](#checklist)
 
 ---
 

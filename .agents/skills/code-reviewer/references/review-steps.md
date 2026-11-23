@@ -5,10 +5,11 @@ Contents:
 - [Step 1: determine the review target](#step-1-determine-the-review-target)
 - [Step 2: run the project's verification first](#step-2-run-the-projects-verification-first)
 - [Step 3: analyse against the review pillars](#step-3-analyse-against-the-review-pillars)
+- [Standards checklist: how to run it](#standards-checklist-how-to-run-it)
 - [Step 4: escalate the sensitive findings](#step-4-escalate-the-sensitive-findings)
 - [Step 5: report](#step-5-report)
 
-Each review step in full, with the exact commands, the reasoning behind the fork rule, the pillar questions, and the pass and fail forms. Load this file when running a step and the one-line summary in SKILL.md is not enough.
+Each review step in full, with the exact commands, the reasoning behind the fork rule, the pillar questions, the metric scores, how to run and grade the standards checklist, and the pass and fail forms. Load this file when running a step and the one-line summary in SKILL.md is not enough.
 
 ---
 
@@ -16,6 +17,8 @@ Each review step in full, with the exact commands, the reasoning behind the fork
 
 A remote pull request is named by number or URL. Anything else, including "review my changes", means the local working
 tree, staged and unstaged.
+
+A change that is only prose, a README or docs is not a code review. Use `markdown-writer` for it.
 
 For a remote pull request, read it without checking it out. The diff:
 
@@ -95,11 +98,23 @@ Work through each pillar and cite `path:line` for every finding.
 - Doc comments. Apply the `coding-standards` "Doc Comments" rule and the language skill's delta. Flag one that
   restates the signature, a wrapped tag line, and a missing throws or `Raises:` entry for an error the caller can act
   on.
-- Efficiency. Any query in a loop, unbounded fetch, or sequential await of independent calls introduced here?
-- Security. Any injection, missing authorisation check, leaked secret, or unvalidated input?
+- Efficiency. Any query in a loop, unbounded fetch, or sequential await of independent calls introduced here? `performance-optimization` supplies the detail behind this pillar, and profiling and optimising a slow path is its job, not a review's.
+- Security. Any injection, missing authorisation check, leaked secret, or unvalidated input? `application-security-review` supplies the security checklist behind this pillar.
 - Styling. When the change touches styling, check it against the styling-drift criteria in `design-system`.
 - Edge cases and error handling. Null, empty, boundary, concurrent, and failure paths.
-- Testability. Is the new behaviour actually covered, and which cases are missing?
+- Testability. Is the new behaviour actually covered, and which cases are missing? `tdd-workflow` supplies the coverage bar behind this pillar.
+
+`coding-standards` is the baseline every finding is measured against. `review-duplication` finds reinvented utilities and missed reuse, and a dedicated hunt for duplicated logic is its job. `git-workflow` covers branch, commit and merge hygiene when the review turns up problems there.
+
+When the project has a `.metrics/crap.edn`, read the scores the `quality-loop` skill's tools wrote under `.metrics/` for the files the change touches, and cite the worst as findings: a function over CRAP 30 from `.metrics/crap.edn` as Critical, a surviving mutant in changed code from `.metrics/mutate/` as an Improvement naming the missing test, and a duplicate pair at or above 0.82 from `.metrics/dry.edn` for the duplication pass. Never run the tools in a review. Say so when the scores predate the change, because they are only as fresh as the last full run.
+
+---
+
+### Standards checklist: how to run it
+
+The standards checklist is the rules a project owner has had to repeat in review, as one explicit pass. Every item names the skill that owns the rule and its reasoning, so a finding can cite it. Run it in Step 3 of every review: the items in SKILL.md over every diff, then each of [java-spring.md](java-spring.md), [web.md](web.md), [python.md](python.md) and [ci.md](ci.md) whose technology the diff touches. Together they cover comments and file size, Java and Spring, tests, web copy, and CI, image and repository hygiene.
+
+Walk the diff once per file that applies to the files it touches. A violation is a finding like any other: lead with `path:line`, name the item, and give the concrete fix. Grade it Major when it repeats across the diff or would need a release to undo, such as a tunable in code or a floating image tag, and Minor when it is one local instance. Report every instance, not the first one, because "there are many more like this" is the comment a review exists to prevent. When the project's `AGENTS.md` states a stricter or different rule, the project wins, and the finding cites the project file instead.
 
 ---
 

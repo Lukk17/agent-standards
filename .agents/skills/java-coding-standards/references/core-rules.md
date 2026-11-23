@@ -1,24 +1,23 @@
 # Java Core Rules in Depth
 
-The Pass and Fail examples and the reasoning behind each rule the SKILL.md hub states in one or two lines. Open it when a hub rule needs its worked form or its full explanation. Written for Java 25, with Java 21 as the minimum.
+The Pass and Fail examples and the reasoning behind each rule the SKILL.md hub states in one or two lines. Open it when a hub rule needs its worked form or its full explanation. The form a rule takes with Spring or Lombok is in [spring-and-lombok.md](spring-and-lombok.md). Written for Java 25, with Java 21 as the minimum.
 
 ---
 
 ### Contents
 
-- Name things after what they are
-- Inject through the constructor, log through Lombok
-- Make it immutable unless something has to change
-- Return Optional, never store it
-- Keep stream pipelines short and named
-- Write for the next reader
-- One type per file, nothing nested
-- Pick the collection that states the contract
-- Use the shared blank check
-- Fail with a domain exception, handle it centrally
-- Declare your generics
-- Say where null is allowed
-- Log through SLF4J with structured messages
+- [Name things after what they are](#name-things-after-what-they-are)
+- [Make it immutable unless something has to change](#make-it-immutable-unless-something-has-to-change)
+- [Return Optional, never store it](#return-optional-never-store-it)
+- [Keep stream pipelines short and named](#keep-stream-pipelines-short-and-named)
+- [Write for the next reader](#write-for-the-next-reader)
+- [One type per file, nothing nested](#one-type-per-file-nothing-nested)
+- [Pick the collection that states the contract](#pick-the-collection-that-states-the-contract)
+- [Fail with a domain exception, handle it centrally](#fail-with-a-domain-exception-handle-it-centrally)
+- [Declare your generics](#declare-your-generics)
+- [Say where null is allowed](#say-where-null-is-allowed)
+- [Log through SLF4J with structured messages](#log-through-slf4j-with-structured-messages)
+- [Javadoc](#javadoc)
 
 ---
 
@@ -51,33 +50,7 @@ Map<ArrearsAgeBucket, BigDecimal> arrearsByAge = new EnumMap<>(ArrearsAgeBucket.
 
 Fail: `BigDecimal b0to30, b31to60, b61to90, bOver90;`, and `ZipInputStream zis`.
 
-A business limit such as a maximum page size is not a constant at all. It is a tunable, bound from configuration as [serialization-and-config.md](serialization-and-config.md) describes.
-
----
-
-### Inject through the constructor, log through Lombok
-
-Lombok removes boilerplate that carries no decisions. `@RequiredArgsConstructor` for injection, `@Slf4j` for the
-logger, `@Builder` where construction is genuinely complex, `@Value` for immutable value objects, and `@Getter` or
-`@Setter` only where neither a record nor `@Value` fits.
-
-Pass: final fields, one generated constructor, no annotation on the field.
-
-```java
-@Service
-@Slf4j
-@RequiredArgsConstructor
-public class MarketService {
-  private final MarketRepository marketRepository;
-}
-```
-
-Fail: field injection, which hides the dependency from every constructor call and from every test.
-
-```java
-@Autowired
-private MarketRepository marketRepository;
-```
+A business limit such as a maximum page size is not a constant at all. It is a tunable, bound from configuration as [spring-and-lombok.md](spring-and-lombok.md) describes.
 
 ---
 
@@ -179,20 +152,10 @@ Fail: `List<UUID> visibleCategoryIds` used only for `contains`, which leaves the
 
 ---
 
-### Use the shared blank check
-
-A hand-written `value == null || value.isBlank()` repeated across a codebase drifts: one copy trims, one does not, one forgets the null. Use `org.springframework.util.StringUtils.hasText(value)` where Spring is on the classpath, and one small shared helper in a module where it is not, such as a pure domain module.
-
-Pass: `if (!StringUtils.hasText(translation)) { ... }`
-
-Fail: `if (translation == null || translation.trim().isEmpty()) { ... }` in a validator, and a slightly different copy in the next one.
-
----
-
 ### Fail with a domain exception, handle it centrally
 
 Domain errors are unchecked exceptions named after the thing that went wrong. Technical exceptions get wrapped with
-context rather than swallowed. One `@ControllerAdvice` translates them into responses, so business methods stay
+context rather than swallowed. One central handler translates them into responses, so business methods stay
 free of try-catch blocks.
 
 Pass:
@@ -235,14 +198,19 @@ Fail: annotations added for documentation with nothing enforcing them, which dri
 
 ### Log through SLF4J with structured messages
 
-Use SLF4J as the API, and never import Logback or Log4j2 in business code. Take the logger from `@Slf4j`. Message
+Use SLF4J as the API, and never import Logback or Log4j2 in business code. Message
 keys are stable tokens with the variable parts as parameters, so a log aggregator can group them.
 
-Pass: `log.info("fetch_market slug={}", slug);` inside a class annotated `@Slf4j`.
+Pass: `log.info("fetch_market slug={}", slug);`
 
-Fail: `log.info("Fetching market " + slug)`, or a logger built by hand with
-`LoggerFactory.getLogger(MarketService.class)`.
+Fail: `log.info("Fetching market " + slug)`.
 
 Levels: `ERROR` for unhandled exceptions, `WARN` for recoverable problems, `INFO` for significant domain events,
 `DEBUG` for diagnostics. Structured JSON output and the production logging stack belong to
 `observability-and-logging`.
+
+---
+
+### Javadoc
+
+Javadoc follows the Doc Comments rules in `coding-standards`. Java delta: write `@throws` for every unchecked exception a caller can act on, because unchecked exceptions never appear in the signature, and give a declared checked exception a `@throws` line only when it names the condition.

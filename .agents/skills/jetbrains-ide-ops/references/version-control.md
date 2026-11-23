@@ -2,6 +2,7 @@
 
 Contents:
 
+- [Commit what the IDE reads, ignore what a build tool regenerates](#commit-what-the-ide-reads-ignore-what-a-build-tool-regenerates)
 - [The rule behind the table](#the-rule-behind-the-table)
 - [Commit and ignore, per file](#commit-and-ignore-per-file)
 - [What JetBrains says](#what-jetbrains-says)
@@ -13,6 +14,30 @@ Which files under `.idea/` are committed, which are ignored, why each one falls 
 state looks like from the next machine. Load this file when writing the ignore rules for a JetBrains project or when
 a committed `modules.xml` has produced duplicate modules on somebody else's clone. The rules live in
 [SKILL.md](../SKILL.md).
+
+---
+
+### Commit what the IDE reads, ignore what a build tool regenerates
+
+Gradle and Maven regenerate the module files on every import, so a committed copy coexists with the generated one and
+the project tree shows every module twice, or worse, under a second name. The files nothing regenerates are the ones
+to commit: the root module, `gradle.xml`, `misc.xml`, `vcs.xml`, `.name` and every run configuration. Watch for the
+half-done state, where `modules.xml` is committed and the module files it points at are ignored: a fresh clone gets a
+registry naming files that never arrive, and the IDE invents placeholder modules to satisfy it.
+
+Pass:
+
+```text
+.idea/modules.xml lists .idea/monorepo.iml only, and that file is committed beside it.
+```
+
+Fail:
+
+```text
+.idea/modules.xml lists 28 files under .idea/modules/, and .gitignore excludes that directory.
+```
+
+The per-file table, the vendor guidance behind it and the check-ignore verification follow below.
 
 ---
 

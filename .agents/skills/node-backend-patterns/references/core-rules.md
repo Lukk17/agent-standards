@@ -1,21 +1,22 @@
 # Node Backend Core Rules in Depth
 
-The Pass and Fail examples and the reasoning behind each rule the SKILL.md hub states in one or two lines. Open it when a hub rule needs its worked form or its full explanation. Written for Node.js 26, Express 5, Next.js 16 and TypeScript 7, with Zod 4 for schemas.
+The Pass and Fail examples and the reasoning behind each rule the SKILL.md hub states in one or two lines. Open it when a hub rule needs its worked form or its full explanation. The code that belongs to one library is in that library's file: [express.md](express.md), [nextjs.md](nextjs.md), [zod.md](zod.md) and [pino.md](pino.md). Written for Node.js 26, Express 5, Next.js 16 and TypeScript 7, with Zod 4 for schemas.
 
 ---
 
 ### Contents
 
-- Layer the request path
-- Select the columns you need and batch the related reads
-- Put every multi-statement write in one transaction
-- Validate configuration once, at startup
-- Return every error through one handler, as problem+json
-- Retry only what is safe to repeat, with a cap and a timeout
-- Await independent work concurrently
-- Log through pino, with a request-scoped child logger
-- Model async state as a discriminated union
-- Emit a startup readiness log and shut down gracefully
+- [Layer the request path](#layer-the-request-path)
+- [Select the columns you need and batch the related reads](#select-the-columns-you-need-and-batch-the-related-reads)
+- [Put every multi-statement write in one transaction](#put-every-multi-statement-write-in-one-transaction)
+- [Validate configuration once, at startup](#validate-configuration-once-at-startup)
+- [Return every error through one handler, as problem+json](#return-every-error-through-one-handler-as-problemjson)
+- [Retry only what is safe to repeat, with a cap and a timeout](#retry-only-what-is-safe-to-repeat-with-a-cap-and-a-timeout)
+- [Await independent work concurrently](#await-independent-work-concurrently)
+- [Log through one logger, with a request-scoped child logger](#log-through-one-logger-with-a-request-scoped-child-logger)
+- [Model async state as a discriminated union](#model-async-state-as-a-discriminated-union)
+- [Emit a startup readiness log and shut down gracefully](#emit-a-startup-readiness-log-and-shut-down-gracefully)
+- [Doc comments](#doc-comments)
 
 ---
 
@@ -42,7 +43,7 @@ Fail: a route handler that calls the query builder directly, checks the status i
 re-implemented by the next caller.
 
 This skill owns the layering, error responses, logging, and shutdown of a Next.js route handler as well as of an
-Express route. `nextjs-app-router-patterns` owns the `route.ts` file convention, the runtime choice, and caching.
+Express route. What `nextjs-app-router-patterns` owns instead is in [nextjs.md](nextjs.md).
 
 ---
 
@@ -91,16 +92,7 @@ Fail: `await createMarket(data)` then `await createPosition(data)`, leaving an o
 Reading `process.env` inside business logic means a missing variable surfaces as `undefined` in the middle of a request,
 hours after deploy. Parse the whole environment once against a schema so the process refuses to start instead.
 
-```typescript
-// PASS: one schema, parsed once, exported as the only way to read configuration
-const schema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  DATABASE_URL: z.url(),
-  JWT_SECRET: z.string().min(32),
-  PORT: z.coerce.number().default(3000),
-})
-export const config = schema.parse(process.env)
-```
+Pass: one schema, parsed once, exported as the only way to read configuration. The Zod form is in [zod.md](zod.md#configuration-schema).
 
 Fail: `const port = Number(process.env.PORT) || 3000` repeated in four files, with no check that `JWT_SECRET` exists.
 
@@ -114,17 +106,14 @@ One function turns a thrown error into a response, so the shape is identical acr
 export function toProblemResponse(error: unknown, path: string): Response {
   if (error instanceof ApiError) return problem(error.statusCode, error.title, error.detail, path)
 
-  if (error instanceof z.ZodError) {
-    const errors = error.issues.map((i) => ({ field: i.path.join('.'), message: i.message, code: i.code }))
-    return problem(422, 'Validation Failed', `${errors.length} field(s) failed validation`, path, { errors })
-  }
-
   logger.error({ err: error }, 'unhandled error')
   return problem(500, 'Internal Server Error', 'An unexpected error occurred', path)
 }
 ```
 
-Fail: `res.status(500).json({ error: err.message })`, which ships the database error text to the caller.
+A schema failure gets its own branch before the last two lines and answers 422. The Zod form of that branch is in [zod.md](zod.md#schema-failure-in-the-error-handler).
+
+Fail: a handler that puts the error's own message in the body, which ships the database error text to the caller. The Express form is in [express.md](express.md#error-responses).
 
 ---
 
@@ -165,20 +154,10 @@ const permissions = await authService.loadPermissions(userId)
 
 ---
 
-### Log through pino, with a request-scoped child logger
+### Log through one logger, with a request-scoped child logger
 
 `console.log` writes unstructured text that no aggregator can query, and it blocks the event loop on some transports.
-Use pino, and put `correlationId` and `requestId` on a child logger so every line from one request joins up.
-
-```typescript
-export async function GET(request: Request) {
-  const correlationId = request.headers.get('x-correlation-id') ?? crypto.randomUUID()
-  const log = logger.child({ correlationId, requestId: crypto.randomUUID() })
-
-  log.info({ path: '/api/markets' }, 'fetching markets')
-  return NextResponse.json({ data: await fetchMarkets() })
-}
-```
+Put `correlationId` and `requestId` on a child logger so every line from one request joins up. The logger is pino, and its code is in [pino.md](pino.md).
 
 Fail: `console.error('failed', error)` inside a catch block, with no request identifier anywhere in the line.
 
@@ -204,8 +183,9 @@ Fail: `type UserState = { loading: boolean; error: Error | null; user: User | nu
 ### Emit a startup readiness log and shut down gracefully
 
 See `observability-and-logging` for the universal startup banner convention (sections, 2-second probe timeouts, and the
-`<url> [Connected|Warning|FAILED]` result format). The Node hook is the `app.listen` callback, the post-`app.listen()`
-line in a NestJS `bootstrap()`, or the post-bind callback of a custom Next.js server. Emit the whole block in one log
+`<url> [Connected|Warning|FAILED]` result format). The Node hook is the callback that runs once the server is bound:
+the `app.listen` callback in Express ([express.md](express.md#startup-hook)), the post-`app.listen()` line in a NestJS
+`bootstrap()`, or the post-bind callback of a custom Next.js server ([nextjs.md](nextjs.md#startup-hook)). Emit the whole block in one log
 call with a leading newline, because a logger stamps a timestamp per call and would shred the banner across many.
 
 On `SIGTERM`, stop accepting connections, drain in-flight requests, close the pools, and keep a hard timer so a stuck
@@ -226,3 +206,9 @@ process.on('SIGTERM', () => void shutdown('SIGTERM'))
 ```
 
 Fail: no signal handler at all, so the orchestrator kills the process mid-transaction on every deploy.
+
+---
+
+### Doc comments
+
+Doc comments follow the Doc Comments rules in `coding-standards`, whose TSDoc examples already cover TypeScript on Node. Node delta: an async function documents the errors its promise rejects with under `@throws`, because a rejection is the Node form of a throw and the signature says only `Promise<T>`.

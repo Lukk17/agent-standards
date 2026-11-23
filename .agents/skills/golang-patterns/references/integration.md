@@ -7,12 +7,12 @@ this when a unit test would only be testing a fake.
 
 ### Contents
 
-- Separate the slow set with a build tag
-- Start the dependency once per package with TestMain
-- Isolate each test inside a transaction
-- Test the router, not the handler, when routing is the point
-- Assert on the contract, not on the whole body
-- Keep the integration suite honest in CI
+- [Separate the slow set with a build tag](#separate-the-slow-set-with-a-build-tag)
+- [Start the dependency once per package with TestMain](#start-the-dependency-once-per-package-with-testmain)
+- [Isolate each test inside a transaction](#isolate-each-test-inside-a-transaction)
+- [Test the router, not the handler, when routing is the point](#test-the-router-not-the-handler-when-routing-is-the-point)
+- [Assert on the contract, not on the whole body](#assert-on-the-contract-not-on-the-whole-body)
+- [Keep the integration suite honest in CI](#keep-the-integration-suite-honest-in-ci)
 
 ---
 

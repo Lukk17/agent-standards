@@ -10,7 +10,7 @@ Contents:
 - [Emit metrics that drive action](#emit-metrics-that-drive-action)
 - [Emit one startup readiness block](#emit-one-startup-readiness-block)
 
-Each logging, health, metrics and startup rule in SKILL.md in full, with its reasoning and its pass and fail forms. Load this file when applying a rule and the one-line summary in SKILL.md is not enough.
+Each logging, health, metrics and startup rule in SKILL.md in full, with its reasoning and its pass and fail forms. The Java and Spring Boot code is in [java-spring.md](java-spring.md) and the PromQL query in [prometheus.md](prometheus.md). Load this file when applying a rule and the one-line summary in SKILL.md is not enough.
 
 ---
 
@@ -18,17 +18,11 @@ Each logging, health, metrics and startup rule in SKILL.md in full, with its rea
 
 Business code names a logger interface, never a concrete backend. Swapping the backend must not touch a call site.
 
-Pass:
+Pass: the class holds a logger taken from the logging facade.
 
-```java
-private static final Logger log = LoggerFactory.getLogger(OrderService.class);
-```
+Fail: the class builds a logger from one backend's own context factory.
 
-Fail:
-
-```java
-private static final org.apache.logging.log4j.core.Logger log = new Log4jContextFactory().getContext().getLogger("x");
-```
+Code: [java-spring.md](java-spring.md#log-through-one-abstraction).
 
 ---
 
@@ -39,17 +33,11 @@ An expected, handled condition is not an error. Put every variable in a key-valu
 text, so a pipeline can filter on it. Identify the service through the logger's resource (`service.name`), and let the
 log appender attach `trace_id` and `span_id` from the active span, so one request can be followed across services.
 
-Pass:
+Pass: a declined payment that is retried logs at warn, with the order identifier and the attempt as key-value fields.
 
-```java
-log.atWarn().setMessage("payment declined, retrying").addKeyValue("orderId", orderId).addKeyValue("attempt", attempt).log();
-```
+Fail, the wrong level and nothing to filter on: the same event logs at error with a bare message.
 
-Fail, the wrong level and nothing to filter on:
-
-```java
-log.error("payment declined");
-```
+Code: [java-spring.md](java-spring.md#use-levels-that-mean-something).
 
 ---
 
@@ -57,17 +45,11 @@ log.error("payment declined");
 
 Mask credentials, tokens, decrypted payloads, and personal data everywhere they could reach a log or a crash dump.
 
-Pass:
+Pass: a token-issued event logs the subject and a masked token suffix.
 
-```java
-log.atInfo().setMessage("token issued").addKeyValue("subject", subject).addKeyValue("tokenSuffix", "***" + tokenSuffix).log();
-```
+Fail: the same event logs the access token itself.
 
-Fail:
-
-```java
-log.info("token issued: {}", accessToken);
-```
+Code: [java-spring.md](java-spring.md#never-log-a-secret).
 
 ---
 
@@ -75,19 +57,11 @@ log.info("token issued: {}", accessToken);
 
 Logging is a side effect. Do not branch on a log call, and do not build an expensive message the logger may discard.
 
-Pass:
+Pass: the expensive snapshot is rendered only inside a check that the debug level is enabled.
 
-```java
-if (log.isDebugEnabled()) {
-    log.atDebug().setMessage("cart snapshot").addKeyValue("snapshot", renderExpensiveSnapshot(cart)).log();
-}
-```
+Fail: the snapshot is rendered and concatenated into a debug message that is then discarded.
 
-Fail:
-
-```java
-log.debug("cart snapshot=" + renderExpensiveSnapshot(cart));
-```
+Code: [java-spring.md](java-spring.md#keep-logging-out-of-control-flow).
 
 The error-handling rules (specific exception types, chaining to preserve the cause, central handling, structured
 error shape) live in the `coding-standards` hub. This skill covers how those errors are logged, not how they are
@@ -103,14 +77,15 @@ shared dependency behind a circuit breaker or fallback stays out of readiness an
 instead, because when every instance checks it, one downstream failure takes every instance out of rotation at once
 and turns a degraded service into a total outage. This skill owns that rule, and `api-design` and `backend-patterns`
 point to it. Keep both outside the versioned API path, so a version bump cannot move the probe URL. The generic paths are `/health` and `/ready`, defined by
-`api-design`. Spring Boot Actuator serves the same two checks under its own paths, shown below. This skill owns what
+`api-design`. Spring Boot Actuator serves the same two checks under its own paths, shown in
+[java-spring.md](java-spring.md#health-checks-under-spring-boot-actuator). This skill owns what
 each endpoint reports. The probe manifests that point Kubernetes at them belong to `deployment-patterns`.
 
 Pass:
 
 ```text
-GET /actuator/health/liveness    200 while the process runs, touches no dependency
-GET /actuator/health/readiness   200 once startup finished and this instance's own pools are open, 503 otherwise
+GET /health   200 while the process runs, touches no dependency
+GET /ready    200 once startup finished and this instance's own pools are open, 503 otherwise
 ```
 
 Fail:
@@ -128,21 +103,13 @@ Propagate W3C Trace Context (`traceparent`, `tracestate`) on every hop, and put 
 record. Define SLOs in terms a user would recognise, a fast response or a
 successful request, and alert on the SLO burn rate rather than every transient blip.
 
-Pass:
+Pass: the alert reads the share of failed requests over all requests.
 
-```promql
-sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m])) / sum(rate(http_server_request_duration_seconds_count[5m]))
-```
+Fail: the alert reads a process counter, such as CPU seconds, that no user feels.
 
-The series comes from the stable OpenTelemetry metric `http.server.request.duration` and its attribute
-`http.response.status_code`. The exported name depends on the exporter's name translation, so check it against the
-service's `/metrics` output before copying the query into an alert.
-
-Fail:
-
-```promql
-process_cpu_seconds_total
-```
+The exported series name depends on the exporter's name translation, so check it against the service's `/metrics`
+output before copying a query into an alert. The PromQL form of both, and the OpenTelemetry metric the series comes
+from, are in [prometheus.md](prometheus.md).
 
 ---
 
@@ -155,14 +122,8 @@ the same fields instead, and either way a dependency URL is printed without its 
 convention, the ANSI Shadow banner, the section order, the probe timeouts, and the per-stack hooks live in
 [startup-readiness-log.md](startup-readiness-log.md).
 
-Pass:
+Pass: the whole block is built first and logged in one call whose message starts with a newline.
 
-```java
-log.info("\n{}", buildStartupLog());
-```
+Fail: the block is logged one line per call.
 
-Fail:
-
-```java
-buildStartupLog().lines().forEach(log::info);
-```
+Code: [java-spring.md](java-spring.md#emit-one-startup-readiness-block).

@@ -162,8 +162,8 @@ them makes a transient dependency failure trigger a restart loop that fixes noth
 `observability-and-logging`.
 
 ```text
-GET /health   -> 200 while the process is alive; checks nothing external
-GET /ready    -> 200 when this instance can serve; 503 while starting or draining; body lists each check
+GET /health   -> 200 while the process is alive, checks nothing external
+GET /ready    -> 200 when this instance can serve, 503 while starting or draining, body lists each check
 
 on SIGTERM:
   mark /ready as 503                 # the load balancer stops sending new work

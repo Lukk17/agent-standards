@@ -33,11 +33,11 @@ readonly PLUGIN_PRELOAD_TEST="9 ${PLUGIN_AGENT} preloads ${CANARY_SKILL} from it
 # The served copy of this repository, under WORK/marketplace/serve.
 readonly MARKET_REPOSITORY="marketplace.git"
 # Seconds one `claude plugin` command may take before it counts as hung.
-readonly PLUGIN_COMMAND_TIMEOUT=120
-# The configuration paths of the gate-only import, README.md "The gate beside
-# the plugins", so the plugin project holds no agent tree of its own and the
-# gate can find the reviewer's definition only in the plugin cache.
-readonly GATE_ONLY_PATHS=(".agents/hooks" ".claude/settings.json")
+readonly PLUGIN_COMMAND_TIMEOUT=100
+# The hook plugin that carries the gate, installed beside the agent's plugin,
+# so the plugin project holds no file of this repository at all and the gate
+# can find the reviewer's definition only in the plugin cache.
+readonly GATE_PLUGIN="hook-preflight-gate"
 
 MCP_CONFIG=""
 PLUGIN_CONFIG_DIR=""
@@ -51,6 +51,13 @@ GIT_HTTP_PID=""
 
 # --strict-mcp-config with the filtered .mcp.json keeps every other server out,
 # so each request carries the tool descriptions of one small server only.
+# The project import installs the Claude Code plugins at project scope, so the
+# configuration directory every later run reads is named before it runs.
+agent_before_import() {
+  export CLAUDE_CONFIG_DIR="${WORK}/claude-config"
+  mkdir -p "$CLAUDE_CONFIG_DIR"
+}
+
 agent_configure() {
   unset ANTHROPIC_API_KEY
   MCP_CONFIG="${WORK}/mcp-live.json"
@@ -327,21 +334,14 @@ claude_plugin() {
     timeout "$PLUGIN_COMMAND_TIMEOUT" "$AGENT_BIN" plugin "$@" --scope user < /dev/null)
 }
 
-# A project with only the gate-only import from this repository's master, or
-# main, the branch setup-project.sh imports from. git archive reads a shallow
-# clone too, where a fetch from it is refused.
-prepare_gate_only_project() {
-  local project="$1" ref
-
-  for ref in master main; do
-    git -C "$REPO_ROOT" rev-parse --verify --quiet "refs/heads/${ref}" > /dev/null && break
-  done
+# An empty project with one commit. The gate and the reviewer both come from
+# plugins installed at user scope, so nothing of this repository is imported.
+prepare_plugin_project() {
+  local project="$1"
 
   git init --quiet --initial-branch=main "$project" &&
-    git -C "$REPO_ROOT" archive --format=tar "$ref" -- "${GATE_ONLY_PATHS[@]}" | tar -x -C "$project" &&
-    git -C "$project" add --all &&
     git -C "$project" -c user.name="agent-standards live" -c user.email="live@example.invalid" \
-      commit --quiet --message "gate-only import"
+      commit --quiet --allow-empty --message "plugin project"
 }
 
 # Adds the capture hook, with no matcher so it sees every PreToolUse call, to
@@ -359,8 +359,9 @@ claude_install_payload_capture() {
 
 # Builds everything checks 8 and 9 run in, from nothing an earlier run in the
 # same WORK left: the served marketplace with its canary, a separate
-# CLAUDE_CONFIG_DIR with the marketplace added, the plugin installed and the
-# capture hook in its user settings, and the gate-only project. Tests 1 to 6
+# CLAUDE_CONFIG_DIR with the marketplace added, the agent's plugin and the
+# gate's plugin installed and the capture hook in its user settings, and the
+# empty plugin project. Tests 1 to 6
 # keep their own configuration and never see the plugin. Returns 1 with
 # PLUGIN_PROBLEM set when a step check 8 needs fails. A canary the install did
 # not carry only sets CANARY_PROBLEM, checked last so check 8 still runs.
@@ -388,8 +389,14 @@ prepare_plugin_session() {
   market_name="$(jq -r '.name' "${market}/src/.claude-plugin/marketplace.json")"
 
   if ! claude_plugin marketplace add "$MARKET_URL" >> "$log" 2>&1 ||
-    ! claude_plugin install "${PLUGIN_NAME}@${market_name}" >> "$log" 2>&1; then
-    PLUGIN_PROBLEM="claude plugin could not add the marketplace or install ${PLUGIN_NAME}@${market_name}: $(tail -n 1 "$log")"
+    ! claude_plugin install "${PLUGIN_NAME}@${market_name}" >> "$log" 2>&1 ||
+    ! claude_plugin install "${GATE_PLUGIN}@${market_name}" >> "$log" 2>&1; then
+    PLUGIN_PROBLEM="claude plugin could not add the marketplace or install ${PLUGIN_NAME}@${market_name} and ${GATE_PLUGIN}@${market_name}: $(tail -n 1 "$log")"
+    return 1
+  fi
+
+  if [[ -z "$(find "${PLUGIN_CONFIG_DIR}/plugins/cache" -path "*/${GATE_PLUGIN}/*/preflight_gate.py" -print -quit 2> /dev/null)" ]]; then
+    PLUGIN_PROBLEM="the install left no ${GATE_PLUGIN} script under plugins/cache"
     return 1
   fi
 
@@ -403,8 +410,8 @@ prepare_plugin_session() {
     return 1
   fi
 
-  if ! prepare_gate_only_project "$PLUGIN_PROJECT" >> "$log" 2>&1; then
-    PLUGIN_PROBLEM="the gate-only project could not be imported: $(tail -n 1 "$log")"
+  if ! prepare_plugin_project "$PLUGIN_PROJECT" >> "$log" 2>&1; then
+    PLUGIN_PROBLEM="the plugin project could not be created: $(tail -n 1 "$log")"
     return 1
   fi
 

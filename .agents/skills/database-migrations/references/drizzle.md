@@ -74,11 +74,3 @@ Keep a concurrent index in its own migration file, because Drizzle runs each fil
 - Never edit a migration that has been applied outside your machine. Generate a new one.
 - Never use `push` against a shared database, however tempting it is for a small change. It leaves the environments with
   no shared history.
-
----
-
-### Related skills
-
-- `database-migrations` for the safety rules these commands have to satisfy.
-- `node-backend-patterns` for the query layer built on the schema.
-- `postgres-patterns` for index selection and query plans.

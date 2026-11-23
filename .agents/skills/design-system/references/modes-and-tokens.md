@@ -6,12 +6,10 @@ Contents:
 - [Put every visual value in a token](#put-every-visual-value-in-a-token)
 - [Name tokens by category, variant, and scale](#name-tokens-by-category-variant-and-scale)
 - [Keep spacing on one rhythm](#keep-spacing-on-one-rhythm)
-- [Configure Tailwind v4 in CSS](#configure-tailwind-v4-in-css)
-- [Organise stylesheets with the 7-1 pattern](#organise-stylesheets-with-the-7-1-pattern)
 - [Build dark mode on day one](#build-dark-mode-on-day-one)
 - [Write mobile-first media queries](#write-mobile-first-media-queries)
 
-Companion reference for the [design-system](../SKILL.md) skill. Load it for the full description of the generate, audit and slop-check modes, and for the pass and fail code behind tokens, naming, spacing, Tailwind v4, the 7-1 layout, dark mode and media queries.
+Companion reference for the [design-system](../SKILL.md) skill. Load it for the full description of the generate, audit and slop-check modes, and for the pass and fail code behind tokens, naming, spacing, dark mode and media queries. Tailwind is in [tailwind.md](tailwind.md), the 7-1 stylesheet layout in [sass.md](sass.md), and tokens inside a React component in [react.md](react.md).
 
 ---
 
@@ -19,11 +17,11 @@ Companion reference for the [design-system](../SKILL.md) skill. Load it for the 
 
 This skill runs in one of three modes. Say which one you want, or the intent will be inferred from the request.
 
-Generate builds a system from what the codebase already does. Scan the CSS, Tailwind classes, and styled-components
+Generate builds a system from what the codebase already does. Scan the CSS, and every other place the project keeps visual values, such as utility classes and styles written in JavaScript,
 for existing values, extract the colours, type scale, spacing, radii, shadows, and breakpoints actually in use, then
 propose a consolidated token set with a reason for each decision. The output is a written design document, a token
 file in both JSON and CSS custom properties, and a self-contained preview page that renders every token so the set
-can be reviewed without running the application.
+can be reviewed without running the application. What to scan in a Tailwind project is in [tailwind.md](tailwind.md), and in a React project in [react.md](react.md).
 
 Audit scores an existing interface across ten dimensions, each out of ten: colour consistency, type hierarchy,
 spacing rhythm, component consistency, responsive behaviour, dark mode completeness, purposefulness of animation,
@@ -53,13 +51,15 @@ time someone needs it. Define the value once and reference it everywhere.
 }
 ```
 
-```tsx
-// PASS: the component references the token
-<Button style={{ background: 'var(--color-primary-500)' }} />
+```css
+/* PASS: the component stylesheet references the token */
+.button { background: var(--color-primary-500); }
 
-// FAIL: the value is welded into the component
-<Button style={{ background: '#2563eb' }} />
+/* FAIL: the value is welded into the component */
+.button { background: #2563eb; }
 ```
+
+The same pair written in JSX is in [react.md](react.md).
 
 ---
 
@@ -110,69 +110,6 @@ height: 47px;
 
 ---
 
-### Configure Tailwind v4 in CSS
-
-Tailwind v4 no longer auto-detects `tailwind.config.js`. A project may still load one with the `@config` directive, so search the stylesheets for `@config` before treating a config file as dead. The [upgrade guide](https://tailwindcss.com/docs/upgrade-guide) says "JavaScript config files are still supported for backward compatibility, but they are no longer detected automatically in v4". New configuration lives in the `@theme` block, and every token defined there becomes both a CSS custom property and a Tailwind utility.
-
-```css
-/* PASS: styles/main.css, one source for the theme */
-@import "tailwindcss";
-
-@theme {
-  --color-primary: #2563eb;
-  --color-primary-foreground: #ffffff;
-  --font-sans: "Inter Variable", sans-serif;
-  --radius-md: 0.5rem;
-  --spacing-18: 4.5rem;
-}
-
-@layer components {
-  .btn-primary {
-    @apply bg-[--color-primary] text-[--color-primary-foreground] rounded-[--radius-md] px-4 py-2;
-  }
-}
-```
-
-```javascript
-// FAIL: a v3 config file that Tailwind v4 does not read
-module.exports = {
-  theme: { extend: { colors: { primary: '#2563eb' } } },
-}
-```
-
----
-
-### Organise stylesheets with the 7-1 pattern
-
-Seven folders and one entry file, so a reader knows where a rule lives before opening anything.
-
-```text
-styles/
-├── abstracts/    Variables, functions, mixins, placeholders
-├── base/         Reset, typography, base element styles
-├── components/   Component styles, BEM named
-├── layout/       Grid, header, footer, sidebar
-├── pages/        Page-specific overrides
-├── themes/       Light and dark token overrides
-├── vendors/      Third-party overrides
-└── main.scss     Imports only, no rules of its own
-```
-
-```scss
-// PASS: abstracts holds logic only, and main.scss only imports
-// abstracts/_spacing.scss
-@function space($step) { @return $step * 8px; }
-
-// FAIL: abstracts emitting CSS, and a rule written straight into main.scss
-// abstracts/_spacing.scss
-.container { padding: 16px; }
-```
-
-`abstracts/` emits no CSS, `components/` is never imported into `abstracts/`, and component classes follow
-`.block__element--modifier`.
-
----
-
 ### Build dark mode on day one
 
 Retrofitting dark mode means auditing every component for hardcoded colour. Building it in means overriding a handful
@@ -191,10 +128,12 @@ of semantic tokens. Do the second.
 }
 ```
 
-```tsx
-// FAIL: an arbitrary value that no theme can override
-<div className="bg-[#ffffff] text-[#111827]" />
+```css
+/* FAIL: a raw value in a component, which no theme can override */
+.card { background: #ffffff; color: #111827; }
 ```
+
+The same failure written as a Tailwind arbitrary value is in [tailwind.md](tailwind.md).
 
 Both themes get exercised before a pull request lands, in a component workbench or the running application.
 

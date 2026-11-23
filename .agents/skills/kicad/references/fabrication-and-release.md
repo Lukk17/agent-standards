@@ -120,10 +120,10 @@ When a KiCad plugin, such as a Fabrication Toolkit, writes the bundle the assemb
 
 A driver script that runs the plugin should refuse in each of these cases, all seen on one project:
 
-- **A different release.** Any file whose hash does not match the pinned release stops the export, naming the file.
-- **A rotation table the checks do not read.** A plugin may read its rotation table only from its own folder. Make the project's rotation checks read that same file, or refuse.
-- **An unknown option.** An options file written by one release may be read differently by another. Stop on any option the pinned release does not have.
-- **Output not rewritten.** A plugin's command-line mode can ignore the options file and exit 0 when it crashes. Check that every output file was rewritten by this run and that the plugin logged no error.
+- A different release. Any file whose hash does not match the pinned release stops the export, naming the file.
+- A rotation table the checks do not read. A plugin may read its rotation table only from its own folder. Make the project's rotation checks read that same file, or refuse.
+- An unknown option. An options file written by one release may be read differently by another. Stop on any option the pinned release does not have.
+- Output not rewritten. A plugin's command-line mode can ignore the options file and exit 0 when it crashes. Check that every output file was rewritten by this run and that the plugin logged no error.
 
 Normalise the CSV line endings before committing, because a plugin may write Windows line endings on every system. Expect the copper refill an export runs to move a zone corner very slightly on some runs, so two exports of one board are not always byte-identical.
 
@@ -213,9 +213,9 @@ Fiducials are the board's own job even when the assembler adds rails. Place at l
 
 Assembly order forms default to the cheapest case. Check each of these against the board rather than accepting the default:
 
-- **Through-hole assembly.** Some services assemble surface-mount parts only unless through-hole assembly is requested. Without the request every through-hole part arrives unfitted. Say "surface-mount and through-hole assembly required" in the assembly remark and list the through-hole parts. The assembler's part library often tags such parts as hand-soldered, which is expected.
-- **Double-sided placement.** The cheapest assembly tier may place one side only. A board with surface-mount parts on both faces needs the tier that places both.
-- **Placement and photo confirmation.** Turn on whatever lets you approve the placement before it runs. It is cheap next to a wrong build.
+- Through-hole assembly. Some services assemble surface-mount parts only unless through-hole assembly is requested. Without the request every through-hole part arrives unfitted. Say "surface-mount and through-hole assembly required" in the assembly remark and list the through-hole parts. The assembler's part library often tags such parts as hand-soldered, which is expected.
+- Double-sided placement. The cheapest assembly tier may place one side only. A board with surface-mount parts on both faces needs the tier that places both.
+- Placement and photo confirmation. Turn on whatever lets you approve the placement before it runs. It is cheap next to a wrong build.
 
 ---
 
@@ -223,11 +223,11 @@ Assembly order forms default to the cheapest case. Check each of these against t
 
 An assembler's own parts pool, the parts its pick-and-place line draws from, is a different pool from the same distributor's retail shop. Read the assembly stock on the assembler's own part pages or interface. A third-party mirror can disagree with the assembler's figures. A healthy retail listing says nothing about whether the line can build the board.
 
-- **Count against the real minimum.** A part can need a minimum quantity plus an attrition allowance (the parts a machine wastes loading a new reel). A pool holding fewer than that is effectively empty, whatever the number.
-- **Set a margin and flag below it.** Flag any part whose assembly stock is under a fixed multiple of the order's need. One project used ten times.
-- **Unknown is not zero.** A lookup that returns nothing, text, or a non-integer is "stock unknown" and is reported as such, never read as zero and never as healthy.
-- **Low or zero stock is a warning, not a reason to swap.** A validated part has had its footprint, rotation, datasheet limits and circuit checked. Swapping it for stock reasons throws that work away. Report the shortfall with the count and the date it was read, wait for restock, or let the board owner decide on a documented drop-in alternative chosen in advance.
-- **Re-read on the day of ordering.** Stock moves daily, and a part can go from hundreds to zero overnight.
+- Count against the real minimum. A part can need a minimum quantity plus an attrition allowance (the parts a machine wastes loading a new reel). A pool holding fewer than that is effectively empty, whatever the number.
+- Set a margin and flag below it. Flag any part whose assembly stock is under a fixed multiple of the order's need. One project used ten times.
+- Unknown is not zero. A lookup that returns nothing, text, or a non-integer is "stock unknown" and is reported as such, never read as zero and never as healthy.
+- Low or zero stock is a warning, not a reason to swap. A validated part has had its footprint, rotation, datasheet limits and circuit checked. Swapping it for stock reasons throws that work away. Report the shortfall with the count and the date it was read, wait for restock, or let the board owner decide on a documented drop-in alternative chosen in advance.
+- Re-read on the day of ordering. Stock moves daily, and a part can go from hundreds to zero overnight.
 
 The design-time preference for parts stocked by two distributors still holds. It reduces how often the order-time warning fires, without making a swap at order time any safer.
 

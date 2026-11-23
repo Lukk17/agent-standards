@@ -49,7 +49,7 @@ RUN npm install --global --prefix /home/sandbox/.opencode-v2 --loglevel=error \
         @opencode/cli@2.0.28
 
 COPY --chown=sandbox:sandbox entrypoint.sh setup-project.sh setup-global.sh verify-project.sh verify-global.sh \
-     lib-opencode2.sh opencode2.sh mcp-guard.sh mock-model.mjs /sandbox/
+     lib-opencode2.sh lib-claude-plugins.sh opencode2.sh mcp-guard.sh mock-model.mjs /sandbox/
 
 # The subagent-write check and its scripted model, sourced by verify-project.sh.
 COPY --chown=sandbox:sandbox e2e-mock/ /sandbox/e2e-mock/

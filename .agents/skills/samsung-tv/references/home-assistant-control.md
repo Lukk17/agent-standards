@@ -1,5 +1,14 @@
 # Controlling the TV from Home Assistant
 
+Contents:
+
+- [Two media players for one TV](#two-media-players-for-one-tv)
+- [Launch an app](#launch-an-app)
+- [Why not play_media](#why-not-play_media)
+- [Change a channel](#change-a-channel)
+- [Send a remote key](#send-a-remote-key)
+- [Turn off](#turn-off)
+
 Read this before writing a script or an automation that launches an app, changes a channel or sends a key. The rules live in [SKILL.md](../SKILL.md), and the general YAML style lives in the `home-assistant` skill. Facts marked VERIFIED were read in the Home Assistant core source, `homeassistant/components/samsungtv/media_player.py` at https://github.com/home-assistant/core/blob/dev/homeassistant/components/samsungtv/media_player.py, or on https://www.home-assistant.io/integrations/samsungtv/, or measured on a 2024 QN85D in the Polish region on 2026-11-06 with Home Assistant 2026.10.4.
 
 More sources, read on 2026-11-07: the core source at tag 2026.10.4, `homeassistant/components/samsungtv/bridge.py` and `homeassistant/components/rest_command/__init__.py` under https://github.com/home-assistant/core/tree/2026.10.4/homeassistant/components, `samsungtvws/remote.py` of `samsungtvws` 3.0.6, the version the integration's `manifest.json` pins, at https://github.com/xchwarze/samsung-tv-ws-api/blob/v3.0.6/samsungtvws/remote.py, the RESTful Command page at https://www.home-assistant.io/integrations/rest_command/, the Stop building block at https://www.home-assistant.io/building-blocks/stop/ and the Scripts page at https://www.home-assistant.io/integrations/script/.

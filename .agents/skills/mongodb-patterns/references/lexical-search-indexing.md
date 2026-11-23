@@ -118,7 +118,7 @@ Specify per-field or top-level for all fields:
     "analyzer": "lucene.standard"  // Or omit to use default
   },
   "category": {
-    "type": "token"   // Exact matching — use token, not string with lucene.keyword
+    "type": "token"   // Exact matching: use token, not string with lucene.keyword
   }
 }
 

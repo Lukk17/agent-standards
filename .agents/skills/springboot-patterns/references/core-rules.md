@@ -1,23 +1,22 @@
 # Spring Boot Core Rules in Depth
 
-The baseline detail, the Pass and Fail examples, and the reasoning behind each rule the SKILL.md hub states in one or two lines, plus the production defaults, the startup hook and the related skills. Open it when a hub rule needs its worked form or its full explanation. Written for Spring Boot 4 on blocking Spring MVC.
+The baseline detail, the Pass and Fail examples, and the reasoning behind each rule the SKILL.md hub states in one or two lines, plus the production defaults and the startup hook. Open it when a hub rule needs its worked form or its full explanation. Written for Spring Boot 4 on blocking Spring MVC.
 
 ---
 
 ### Contents
 
-- Baseline
-- Keep the layers doing one job each
-- Never let a framework type into the API contract
-- Return RFC 9457 problem details
-- Call other services with RestClient, wrapped in Resilience4j
-- Put the transaction on the service method
-- Cache with a TTL and an eviction path
-- Deny by default and validate at the edge
-- Write the failing test first
-- Production defaults
-- Startup readiness log
-- Related skills
+- [Baseline](#baseline)
+- [Keep the layers doing one job each](#keep-the-layers-doing-one-job-each)
+- [Never let a framework type into the API contract](#never-let-a-framework-type-into-the-api-contract)
+- [Return RFC 9457 problem details](#return-rfc-9457-problem-details)
+- [Call other services with RestClient, wrapped in Resilience4j](#call-other-services-with-restclient-wrapped-in-resilience4j)
+- [Put the transaction on the service method](#put-the-transaction-on-the-service-method)
+- [Cache with a TTL and an eviction path](#cache-with-a-ttl-and-an-eviction-path)
+- [Deny by default and validate at the edge](#deny-by-default-and-validate-at-the-edge)
+- [Write the failing test first](#write-the-failing-test-first)
+- [Production defaults](#production-defaults)
+- [Startup readiness log](#startup-readiness-log)
 
 ---
 
@@ -175,6 +174,7 @@ Testcontainers wiring, builders, and the JaCoCo gate are in [references/testing.
 ### Production defaults
 
 - Constructor injection everywhere, no field injection.
+- Tunables in `application.yml`, per `java-coding-standards`.
 - `spring.mvc.problemdetails.enabled=true` so framework errors match your own.
 - `spring.threads.virtual.enabled=true`, since this skill targets blocking MVC on virtual threads.
 - `spring.jpa.hibernate.ddl-auto=validate`, with the schema owned by Flyway or Liquibase migrations.
@@ -190,20 +190,3 @@ The banner and its format belong to `observability-and-logging`. What is Spring-
 from an `@EventListener(ApplicationReadyEvent.class)` method. Spring Boot sends that event after every application and
 command-line runner has run, right before readiness moves to `ACCEPTING_TRAFFIC`, whereas `ApplicationStartedEvent`
 fires before those runners.
-
----
-
-### Related skills
-
-| Skill | What it owns |
-| --- | --- |
-| `java-coding-standards` | Java naming, records, immutability, exceptions, and logging style. |
-| `coding-standards` | The cross-language engineering floor these patterns sit on. |
-| `hexagonal-architecture` | Ports and adapters layering, when the project has chosen it over layered packages. |
-| `api-design` | Resource naming, status codes, and versioning policy above the framework. |
-| `database-migrations` | Migration authoring, rollback, and zero-downtime schema change. |
-| `postgres-patterns` | PostgreSQL-specific indexing and query planning. |
-| `observability-and-logging` | Log format, metrics, tracing, health, and the startup banner. |
-| `build-dependency-management` | Version catalogs, BOM imports, and where the plugin versions live. |
-| `keycloak-patterns` | Configuring Keycloak as the identity provider behind these flows. |
-| `code-reviewer` | Reviewing a Spring Boot diff against all of the above. |

@@ -1,6 +1,6 @@
 # Unity rules with examples
 
-Open this for the Pass and Fail code behind any rule in [SKILL.md](../SKILL.md), and the reasoning behind each rule.
+Open this for the Pass and Fail code behind any rule in [SKILL.md](../SKILL.md), and the reasoning behind each rule. Asset loading is in [addressables.md](addressables.md) and the test rules are in [test-framework.md](test-framework.md).
 
 ---
 
@@ -8,14 +8,12 @@ Open this for the Pass and Fail code behind any rule in [SKILL.md](../SKILL.md),
 
 - [Nothing allocates per frame](#nothing-allocates-per-frame)
 - [Pool instead of Instantiate](#pool-instead-of-instantiate)
-- [Addressables, and every load has a release](#addressables-and-every-load-has-a-release)
 - [Cache component lookups](#cache-component-lookups)
 - [Make execution order explicit](#make-execution-order-explicit)
 - [Physics without allocation](#physics-without-allocation)
 - [C# naming](#c-naming)
 - [Doc Comments](#doc-comments)
 - [ScriptableObject architecture](#scriptableobject-architecture)
-- [Testing with the Unity Test Framework](#testing-with-the-unity-test-framework)
 
 ---
 
@@ -82,37 +80,6 @@ Fail:
 ```csharp
 private void Fire() => Destroy(Instantiate(bulletPrefab), 3f);
 ```
-
----
-
-### Addressables, and every load has a release
-
-`Resources.Load` pulls its whole folder into the build and gives no control over memory. Use Addressables, and pair
-every `LoadAssetAsync` with a `Release` when the asset is no longer needed, so the reference count reaches zero and
-the bundle actually unloads.
-
-Pass:
-
-```csharp
-var handle = Addressables.LoadAssetAsync<Sprite>("ui/icons/health");
-await handle.Task;
-_healthIcon.sprite = handle.Result;
-```
-
-Then release it when the screen closes:
-
-```csharp
-Addressables.Release(handle);
-```
-
-Fail:
-
-```csharp
-_healthIcon.sprite = Resources.Load<Sprite>("icons/health");
-```
-
-Organise groups by load context, `UI`, `Level_01`, `Shared_Audio`, so a download is scoped to what the player is
-about to need and content updates stay incremental.
 
 ---
 
@@ -239,10 +206,9 @@ public Projectile Fire(float speed) { }
 Put configuration in ScriptableObject assets rather than hardcoding it in MonoBehaviours, so a designer can tune it
 without a recompile, and use ScriptableObject event channels to decouple systems instead of direct references or
 static events. Never store runtime mutable state in one: it persists between Play Mode sessions in the Editor and
-produces a bug that only reproduces on the second run. Full data-container and event-channel examples are in
-[references/architecture-and-testing.md](architecture-and-testing.md).
+produces a bug that only reproduces on the second run.
 
-Pass:
+Pass, a data container and an event channel:
 
 ```csharp
 [CreateAssetMenu(menuName = "Game/WeaponData")]
@@ -250,38 +216,27 @@ public class WeaponData : ScriptableObject
 {
     [SerializeField] private float _damage;
     [SerializeField] private float _fireRate;
+    [SerializeField] private AudioClip _shootSound;
 
     public float Damage => _damage;
     public float FireRate => _fireRate;
+    public AudioClip ShootSound => _shootSound;
+}
+
+[CreateAssetMenu(menuName = "Events/GameEvent")]
+public class GameEvent : ScriptableObject
+{
+    private readonly List<GameEventListener> _listeners = new();
+    public void Raise() => _listeners.ForEach(l => l.OnEventRaised());
+    public void Register(GameEventListener l) => _listeners.Add(l);
+    public void Unregister(GameEventListener l) => _listeners.Remove(l);
 }
 ```
 
-Fail:
+Fail, runtime state in a ScriptableObject, which persists between Play Mode sessions in the Editor and produces a
+bug that only reproduces on the second run:
 
 ```csharp
 [CreateAssetMenu(menuName = "Game/PlayerState")]
 public class PlayerState : ScriptableObject { public int currentHealth; }
-```
-
----
-
-### Testing with the Unity Test Framework
-
-Tests live in a dedicated `Tests/` assembly definition. Edit Mode for pure logic, ScriptableObject configuration,
-utilities, and data validation, which need no scene and run fastest. Play Mode for gameplay, physics, coroutines,
-component lifecycle, and integration. Mock through interfaces and hand-written doubles, and build a minimal scene
-per test rather than loading a production one, which breaks whenever a designer moves something.
-
-Pass:
-
-```csharp
-[Test]
-public void WeaponData_DamageIsPositive() => Assert.Greater(_weaponData.Damage, 0f);
-```
-
-Fail:
-
-```csharp
-[UnityTest]
-public IEnumerator Player_TakesDamage() { SceneManager.LoadScene("Level_01_Production"); yield return null; }
 ```

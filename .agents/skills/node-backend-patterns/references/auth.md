@@ -7,16 +7,15 @@ trusts the client.
 
 ### Contents
 
-- Verify the token, never decode it
-- Check issuer, audience, and expiry, then check the subject exists
-- Authenticate once at the edge, authorize per resource
-- Return 404 when disclosing existence is itself a leak
-- Keep the permission table in one place
-- Deny by default
-- Store refresh tokens server-side and rotate them
-- Never log a token, and never put one in a URL
-- Return RFC 9457 problem bodies for auth failures
-- Related skills
+- [Verify the token, never decode it](#verify-the-token-never-decode-it)
+- [Check issuer, audience, and expiry, then check the subject exists](#check-issuer-audience-and-expiry-then-check-the-subject-exists)
+- [Authenticate once at the edge, authorize per resource](#authenticate-once-at-the-edge-authorize-per-resource)
+- [Return 404 when disclosing existence is itself a leak](#return-404-when-disclosing-existence-is-itself-a-leak)
+- [Keep the permission table in one place](#keep-the-permission-table-in-one-place)
+- [Deny by default](#deny-by-default)
+- [Store refresh tokens server-side and rotate them](#store-refresh-tokens-server-side-and-rotate-them)
+- [Never log a token, and never put one in a URL](#never-log-a-token-and-never-put-one-in-a-url)
+- [Return RFC 9457 problem bodies for auth failures](#return-rfc-9457-problem-bodies-for-auth-failures)
 
 ---
 
@@ -148,12 +147,3 @@ return NextResponse.json(
   { status: 401, headers: { 'Content-Type': 'application/problem+json', 'WWW-Authenticate': 'Bearer' } },
 )
 ```
-
----
-
-### Related skills
-
-- `node-backend-patterns` for the hub these rules belong to.
-- `api-design` for status codes, the problem body shape, and auth headers on the wire.
-- `application-security-review` for session fixation and input handling, and the `security-auditor` agent for threat modelling.
-- `keycloak-patterns` when the identity provider is Keycloak, for both the server and the .NET client.

@@ -1,5 +1,7 @@
 # Client Runtime, Security and Testing
 
+Match the Spring-WS and CXF line to the Spring generation: on Spring Boot 4 and Spring Framework 7 use Spring-WS 5 and the CXF 4.2 line, and on Spring Boot 3 and Spring Framework 6 use Spring-WS 4 and the CXF 4.1 line, because each of those lines is built against that one Spring generation.
+
 Contents:
 
 - [Security Practices](#security-practices)

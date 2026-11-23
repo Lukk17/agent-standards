@@ -10,6 +10,7 @@ import sys
 
 import pytest
 
+from tests import claude_wiring_support as wiring
 from tests.conftest import REPO_ROOT, STANDARDS_ADVISORY_HOOK
 from tests.process_tree import run_bounded
 
@@ -249,17 +250,11 @@ def test_a_clean_write_reports_nothing():
 
 
 def test_claude_code_runs_it_after_every_edit():
-    settings = json.loads((REPO_ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
-    commands = [
-        hook["command"]
-        for entry in settings["hooks"]["PostToolUse"]
-        if entry.get("matcher") == "^(Edit|Write|MultiEdit)$"
-        for hook in entry["hooks"]
-    ]
+    handlers = [handler for handler in wiring.wired("PostToolUse", STANDARDS_ADVISORY_HOOK.name) if handler.matcher == "^(Edit|Write|MultiEdit)$"]
 
-    hook = ".agents/hooks/claude/standards-advisory-check/standards_advisory_check.py --format claude"
-    wired = [command for command in commands if hook in command]
+    wired = [handler.command for handler in handlers if '"${CLAUDE_PLUGIN_ROOT}"/standards_advisory_check.py --format claude' in handler.command]
     assert len(wired) == 1
+    assert handlers[0].folder == STANDARDS_ADVISORY_HOOK.parent
     assert wired[0].startswith('cd "${CLAUDE_PROJECT_DIR}"')
     assert wired[0].endswith("; exit 0")
 

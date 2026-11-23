@@ -1,7 +1,7 @@
 # Table Tests, Subtests, and Golden Files
 
-Table shapes for the cases a hub example does not cover: error paths, comparison of structs, grouped subtests, and
-output compared against a checked-in file. Open this when a table is getting awkward.
+Table shapes for the cases a hub example does not cover: error paths, grouped subtests, and output compared against a
+checked-in file. Open this when a table is getting awkward. Comparing structs with `cmp.Diff` is in [go-cmp.md](go-cmp.md).
 
 Written for Go 1.27, so range variables are per-iteration and no `tt := tt` copy is needed.
 
@@ -9,12 +9,11 @@ Written for Go 1.27, so range variables are per-iteration and no `tt := tt` copy
 
 ### Contents
 
-- The standard table
-- Error cases in the same table
-- Compare structs with cmp.Diff, not DeepEqual
-- Group related subtests when they share setup
-- Golden files for large output
-- Keep the table declarative
+- [The standard table](#the-standard-table)
+- [Error cases in the same table](#error-cases-in-the-same-table)
+- [Group related subtests when they share setup](#group-related-subtests-when-they-share-setup)
+- [Golden files for large output](#golden-files-for-large-output)
+- [Keep the table declarative](#keep-the-table-declarative)
 
 ---
 
@@ -94,22 +93,6 @@ Fail:
 ```
 
 `errors.Is(nil, nil)` is true, so the same check covers the success cases and no separate branch is needed.
-
----
-
-### Compare structs with cmp.Diff, not DeepEqual
-
-`reflect.DeepEqual` answers yes or no. `cmp.Diff` prints the field that differs, which is the difference between a
-one-minute fix and a debugging session. It also lets you ignore fields that are legitimately not comparable.
-
-```go
-if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(User{}, "CreatedAt")); diff != "" {
-    t.Errorf("mismatch (-want +got):\n%s", diff)
-}
-```
-
-`cmp.Diff` panics on unexported fields unless you pass `cmp.AllowUnexported` or the type provides an `Equal` method.
-Adding `Equal` to the type is usually the better answer, because production code benefits from it too.
 
 ---
 

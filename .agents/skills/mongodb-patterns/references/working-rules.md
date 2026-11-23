@@ -50,6 +50,9 @@ field structure, `collection-indexes` for what already exists, `explain` for the
 `atlas-get-performance-advisor` for slow query logs and index suggestions. When neither the connection string nor the
 Atlas API is available, say so plainly and reason from the query shape instead of pretending to have measured.
 
+`atlas-get-performance-advisor` needs the Atlas API to be configured. The user creates indexes in Atlas or in a
+migration unless the tooling allows otherwise.
+
 ---
 
 ### Never run a write through MCP without explicit approval

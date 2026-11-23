@@ -6,14 +6,15 @@ The Pass and Fail examples and the reasoning behind each rule the SKILL.md hub s
 
 ### Contents
 
-- Keep components on the server until interactivity forces otherwise
-- State the cache behaviour on every fetch
-- Stream slow regions behind their own Suspense boundary
-- Mutate through Server Actions, not client fetch calls
-- Validate and type every route handler boundary
-- Generate metadata from the same data the page renders
-- Serve images through next/image and split heavy client modules
-- Develop on Turbopack
+- [Keep components on the server until interactivity forces otherwise](#keep-components-on-the-server-until-interactivity-forces-otherwise)
+- [State the cache behaviour on every fetch](#state-the-cache-behaviour-on-every-fetch)
+- [Stream slow regions behind their own Suspense boundary](#stream-slow-regions-behind-their-own-suspense-boundary)
+- [Mutate through Server Actions, not client fetch calls](#mutate-through-server-actions-not-client-fetch-calls)
+- [Validate and type every route handler boundary](#validate-and-type-every-route-handler-boundary)
+- [Generate metadata from the same data the page renders](#generate-metadata-from-the-same-data-the-page-renders)
+- [Serve images through next/image and split heavy client modules](#serve-images-through-nextimage-and-split-heavy-client-modules)
+- [Develop on Turbopack](#develop-on-turbopack)
+- [Doc comments](#doc-comments)
 
 ---
 
@@ -174,3 +175,9 @@ next dev --webpack
 
 The first command is the normal path. The second is the escape hatch, and a project that needs it permanently has a
 plugin problem worth fixing rather than a default worth changing.
+
+---
+
+### Doc comments
+
+Doc comments follow the Doc Comments rules in `coding-standards`, whose TSDoc examples already cover TypeScript. Next.js delta: a Server Action returns its failure as a value rather than throwing it across the network boundary, so its error contract goes in `@returns`, for example `@returns { error } when the form fails validation`.

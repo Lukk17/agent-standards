@@ -1,6 +1,6 @@
 # Bash rules with examples
 
-Open this for the Pass and Fail form of any rule in [SKILL.md](../SKILL.md), and the reasoning behind it.
+Open this for the Pass and Fail form of any rule in [SKILL.md](../SKILL.md), and the reasoning behind it. The ShellCheck gate is in [shellcheck.md](shellcheck.md).
 
 ---
 
@@ -14,7 +14,7 @@ Open this for the Pass and Fail form of any rule in [SKILL.md](../SKILL.md), and
 - [Exit codes](#exit-codes)
 - [Temporary files](#temporary-files)
 - [Secret handling](#secret-handling)
-- [Portability and ShellCheck](#portability-and-shellcheck)
+- [Portability](#portability)
 - [Startup readiness log](#startup-readiness-log)
 
 ---
@@ -185,26 +185,10 @@ Fail:
 
 ---
 
-### Portability and ShellCheck
+### Portability
 
-Run ShellCheck on every script in CI with a zero-warning policy. Suppress a rule only with an inline
-`# shellcheck disable=SCxxxx` comment that states the justification.
-
-Pass:
-
-```bash
-shellcheck --severity=style --external-sources scripts/*.sh
-```
-
-Fail:
-
-```bash
-shellcheck --severity=error scripts/deploy.sh || true
-```
-
-- Ref: https://www.shellcheck.net/
-- Document the minimum Bash version in the header, and flag Bash-only features (arrays, `[[ ]]`, `declare`) when the
-  script might be sourced from a POSIX `sh`.
+Document the minimum Bash version in the header, and flag Bash-only features (arrays, `[[ ]]`, `declare`) when the
+script might be sourced from a POSIX `sh`. Target Bash 4.4 or newer for anything that must run on older distributions.
 
 ---
 

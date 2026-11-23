@@ -45,8 +45,8 @@ Four things. The first two matter in every project, the last two depend on your 
   `python3` first and falls back to `python`, which is the name the python.org installer puts on a Windows path, so
   either name is enough. With neither on the path the gate reads as an allow, which means it is silently off
   rather than loudly broken. Check before you trust it.
-- Windows only: Developer Mode (Settings, System, For developers) plus git told to honour symlinks. Three paths in the
-  import are symlinks, and without both git writes each one out as a text file holding its target path.
+- Windows only: Developer Mode (Settings, System, For developers) plus git told to honour symlinks. The import holds
+  symlinks, and without both git writes each one out as a text file holding its target path.
 - Node, only if you run OpenCode or Kilo Code. Their gate adapter is
   [.agents/plugin/hooks.js](.agents/plugin/hooks.js), loaded by their own runtime. The other three agents need none.
 
@@ -120,16 +120,16 @@ Unix shell:
 git fetch agent-standards
 ```
 
-Check out the production-ready paths. PowerShell:
+Check out the production-ready paths. They leave out `.claude/skills`, `.claude/agents` and `.claude/settings.json`, because Claude Code takes its skills, subagents and hooks from the plugin marketplace in the last three steps. PowerShell:
 
 ```powershell
-git checkout agent-standards/master -- .agents .claude .opencode .kilo .codex .github/agents .github/hooks .vscode/mcp.json .mcp.json .github/mcp.json opencode.json .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md AGENTS.md.example
+git checkout agent-standards/master -- .agents .claude/workflows .opencode .kilo .codex .github/agents .github/hooks .vscode/mcp.json .mcp.json .github/mcp.json opencode.json .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md AGENTS.md.example
 ```
 
 Unix shell:
 
 ```bash
-git checkout agent-standards/master -- .agents .claude .opencode .kilo .codex .github/agents .github/hooks .vscode/mcp.json .mcp.json .github/mcp.json opencode.json .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md AGENTS.md.example
+git checkout agent-standards/master -- .agents .claude/workflows .opencode .kilo .codex .github/agents .github/hooks .vscode/mcp.json .mcp.json .github/mcp.json opencode.json .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md AGENTS.md.example
 ```
 
 Rename the one template. PowerShell:
@@ -156,12 +156,32 @@ Unix shell:
 printf '\n/tasks.md\n' >> .gitignore
 ```
 
+Claude Code takes its skills, subagents and hooks as plugins, not from the checkout. Skip these three steps in a project that never runs Claude Code. Add the marketplace to the project. PowerShell or Unix shell, same command:
+
+```bash
+claude plugin marketplace add Lukk17/agent-standards --scope project
+```
+
+Install `core` and every development domain, or one domain such as `python` in its place:
+
+```bash
+claude plugin install all@agent-standards --scope project
+```
+
+Install the hooks, the preflight gate included:
+
+```bash
+claude plugin install hooks-all@agent-standards --scope project
+```
+
+Claude Code has its own route because of double loading. It loads a project skill and a plugin skill of the same name side by side, "because plugin skills are namespaced as `/plugin-name:skill-name`" ([skills docs](https://code.claude.com/docs/en/skills), "Resolve skills that share a name", read 2026-11-23), so a project that both checks out `.claude` and installs the plugins lists every skill twice, once as `/python-patterns` and once as `/python-patterns:python-patterns`. The other four agents have no such marketplace and keep the Git import.
+
 That's it. Open the project in Claude Code, Kilo Code, OpenCode, Codex, or GitHub Copilot and skills are live. On
 OpenCode 1.x, first copy `.opencode/opencode.json.v1` over `.opencode/opencode.json`, as the OpenCode section below
 shows, because 1.x refuses to start on the 2.x form the default ships in.
 
 The MCP config files arrive as real files, ready to use, so nothing else needs renaming:
-[.mcp.json](.mcp.json) for Claude Code and the Copilot CLI, [opencode.json](opencode.json) for OpenCode and Kilo Code,
+[.mcp.json](.mcp.json) for Claude Code and the Copilot CLI, which holds `context7` alone so Claude Code starts one server by default ([why, and how to add the others](docs/MCP_SETUP.md#what-ships)), [opencode.json](opencode.json) for OpenCode and Kilo Code,
 [.codex/config.toml](.codex/config.toml) for Codex, [.vscode/mcp.json](.vscode/mcp.json) for Copilot in VS Code, and
 [.github/mcp.json](.github/mcp.json), the Copilot CLI fallback for a folder that has no `.mcp.json`. `AGENTS.md.example` is the only template left in the repo.
 
@@ -174,8 +194,8 @@ Full walkthrough lives in [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md).
 
 ### Per-agent setup
 
-The Quickstart above is the recommended path and stays right for most projects: it pulls the whole setup once and
-every agent then finds what it reads. If a project only ever sees one agent, the subsection for that agent pulls just
+The Quickstart above is the recommended path and stays right for most projects: it pulls the whole setup once,
+installs the Claude Code plugins, and every agent then finds what it reads. If a project only ever sees one agent, the subsection for that agent pulls just
 its share instead.
 
 Run the first three Quickstart commands once so the read-only remote exists (`git remote add`,
@@ -186,33 +206,14 @@ paths are the same files.
 #### Claude Code
 
 Claude Code 2.1.277 and later reads `AGENTS.md` natively, but only while the project holds no `CLAUDE.md`, so this
-setup ships none and you add none ([why](docs/AGENT_TOOLING.md#instruction-files)). It is the one agent that does not
-read [.agents/skills/](.agents/skills/) on its own, so it gets the skills through the `.claude/skills` symlink,
-subagents from [.claude/agents/](.claude/agents/), hooks from [.claude/settings.json](.claude/settings.json), and MCP
-servers from [.mcp.json](.mcp.json) at the project root.
-To take the skills, subagents, hooks and MCP servers as plugins from the marketplace instead, see
-[Claude Code plugins](#claude-code-plugins).
+setup ships none and you add none ([why](docs/AGENT_TOOLING.md#instruction-files)). It takes its skills, subagents and hooks as plugins from the marketplace in [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json), described under [Claude Code plugins](#claude-code-plugins). The Git checkout brings only what no plugin can carry: the `AGENTS.md` template, the `context7` server in [.mcp.json](.mcp.json) and the shipped documents.
 
-`.claude/skills` is a symlink, so Windows needs Developer Mode on (Settings, System, For developers) and git told to
-honour symlinks. Without both, git writes a text file holding the target path and Claude Code sees no skills at all.
-PowerShell:
+Do not check out `.claude` or `.agents/skills` for Claude Code as well. Claude Code loads a project skill and a plugin skill of the same name side by side, "because plugin skills are namespaced as `/plugin-name:skill-name`" ([skills docs](https://code.claude.com/docs/en/skills), "Resolve skills that share a name", read 2026-11-23), so a project with both lists every skill twice, once as `/python-patterns` and once as `/python-patterns:python-patterns`. Nothing here is a symlink, so Windows needs neither Developer Mode nor `git config core.symlinks true`.
 
-```powershell
-git config core.symlinks true
-```
-
-The Unix shells need nothing here.
-
-Pull what Claude Code reads. PowerShell:
-
-```powershell
-git checkout agent-standards/master -- .agents/skills .agents/hooks .claude .mcp.json AGENTS.md.example .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
-```
-
-Unix shell:
+Pull the template, the MCP file and the documents. PowerShell or Unix shell, same command:
 
 ```bash
-git checkout agent-standards/master -- .agents/skills .agents/hooks .claude .mcp.json AGENTS.md.example .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+git checkout agent-standards/master -- .mcp.json AGENTS.md.example docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 Rename the template so Claude Code reads it as `AGENTS.md`. PowerShell:
@@ -227,29 +228,30 @@ Unix shell:
 mv AGENTS.md.example AGENTS.md
 ```
 
-To update later, fetch first. PowerShell:
-
-```powershell
-git fetch agent-standards
-```
-
-Unix shell:
+Add the marketplace to the project. PowerShell or Unix shell, same command, here and in the next two steps:
 
 ```bash
-git fetch agent-standards
+claude plugin marketplace add Lukk17/agent-standards --scope project
 ```
 
-Then pull upstream's half back over your tree. Your `AGENTS.md`, `.claude/settings.json`, and `.mcp.json` are left
-out on purpose, because they become yours at import. PowerShell:
-
-```powershell
-git checkout agent-standards/master -- .agents/skills .agents/hooks .claude/agents .claude/workflows .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
-```
-
-Unix shell:
+Install `core` and every development domain, or one domain such as `python` in its place:
 
 ```bash
-git checkout agent-standards/master -- .agents/skills .agents/hooks .claude/agents .claude/workflows .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
+claude plugin install all@agent-standards --scope project
+```
+
+Install the hooks, the preflight gate included:
+
+```bash
+claude plugin install hooks-all@agent-standards --scope project
+```
+
+Project scope writes the marketplace and each plugin into the project's `.claude/settings.json`. Commit that file, and each contributor runs the two install commands once in their own clone. [.mcp.json](.mcp.json) starts `context7` alone. Add each other server the project uses as its own plugin at project scope or with `claude mcp add --scope project`, as [docs/MCP_SETUP.md](docs/MCP_SETUP.md#adding-a-server-to-claude-code) shows.
+
+To update later, refresh the marketplace and update the plugins, with the two commands under [Claude Code plugins](#claude-code-plugins). Refresh the documents with the checkout above without `.mcp.json` and `AGENTS.md.example`, which became yours at import. PowerShell or Unix shell, same command:
+
+```bash
+git checkout agent-standards/master -- docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
 ```
 
 #### Codex
@@ -485,8 +487,8 @@ file at all, and the cloud agent takes JSON pasted into a repository settings pa
 [.github/mcp.json](.github/mcp.json) is kept only as a fallback. The CLI reads it only in a folder that has no
 [.mcp.json](.mcp.json), because when both files are in one folder it reads `.mcp.json` and not `.github/mcp.json` at
 all, measured on 1.0.103 on 2026-10-25. The full Quickstart above pulls both files, so there the CLI reads
-[.mcp.json](.mcp.json). The Copilot block below pulls only [.github/mcp.json](.github/mcp.json), so there the CLI reads
-the fallback. Measurement and full detail: [docs/MCP_SETUP.md](docs/MCP_SETUP.md#the-cli-mcpjson-and-why-a-fifth-file-exists).
+[.mcp.json](.mcp.json), which holds `context7` alone. The Copilot block below pulls only [.github/mcp.json](.github/mcp.json), so there the CLI reads
+the fallback with the full server set. Measurement and full detail: [docs/MCP_SETUP.md](docs/MCP_SETUP.md#the-cli-mcpjson-and-why-a-fifth-file-exists).
 
 Pull what Copilot reads. PowerShell:
 
@@ -546,14 +548,14 @@ start adding or removing skills locally, switch to the selective refresh in
 
 ### Claude Code plugins
 
-Claude Code can also take everything here as plugins from the marketplace in [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) on `master`, so a project installs only what it uses. Every skill, every subagent, every Claude Code hook and every MCP server is its own plugin with its own version, and bundles install a group of them by name. Every hook is selectable, the reminders [.claude/settings.json](.claude/settings.json) prints at session start, on each prompt and when a subagent starts included. A plugin cannot add `AGENTS.md`, so a project on the plugins takes it from the [gate-only import](#the-gate-beside-the-plugins) below or from the global install in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md).
+Claude Code takes its skills, subagents and hooks as plugins from the marketplace in [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) on `master`, and its MCP servers too, so a project installs only what it uses. Every skill, every subagent, every Claude Code hook and every MCP server is its own plugin with its own version, and bundles install a group of them by name. Every hook is selectable, the reminders printed at session start, on each prompt and when a subagent starts included. A plugin cannot add `AGENTS.md`, so a project on the plugins takes it from the [Git import](#the-git-import-beside-the-plugins) below or from the global install in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md).
 
 | Plugin | What it installs |
 | --- | --- |
 | The skill's own name, such as `python-patterns` or `quality-loop` | That one skill. `quality-loop` also carries Robert C. Martin's tools from [.metrics/tools/](.metrics/tools/) |
 | `agent-<name>`, such as `agent-python-pro` | That one subagent and every skill it preloads |
 | `hook-<name>`, such as `hook-preflight-gate` or `hook-preflight-reminder` | One Claude Code hook, wired with the same events, matchers and timeouts as [.claude/settings.json](.claude/settings.json). `hook-preflight-reminder`, `hook-background-subagent-reminder` and `hook-subagent-reminder` print its three reminders |
-| `mcp-<server>`, such as `mcp-context7` | One MCP server, the same block as [.mcp.json](.mcp.json) |
+| `mcp-<server>`, such as `mcp-mongodb` | One MCP server, on a pinned version. Install it at project scope only |
 | `core` | The skills that subagents in two or more domains preload |
 | `python`, `jvm`, `go`, `backend`, `data`, `web-frontend`, `mobile`, `devops`, `review-and-security`, `testing`, `docs-and-product`, `embedded`, `game`, `agent-tooling` | One domain each: its subagents, the skills only they use, and `core` |
 | `linux`, `windows-and-mac`, `homelab`, `personal-tools` | Host and tool skill groups |
@@ -563,10 +565,12 @@ Claude Code can also take everything here as plugins from the marketplace in [.c
 
 A bundle holds no files of its own. It lists plugin names, and installing it installs each of them. The plugins come straight from the files on `master`, and every change to one raises its version, so an update moves only the plugins that changed. Each version is also tagged `<name>--v<version>`.
 
-Add the marketplace once:
+Every command below installs at project scope, which records the marketplace and the plugin in the project's `.claude/settings.json` for everyone who works there. A plugin that carries an MCP server must be installed at project scope and never at user scope, the default of `claude plugin install`, because a plugin at user scope is on in every project on the machine and its server would start in every chat. The reason and the vendor quotes are in [docs/MCP_SETUP.md](docs/MCP_SETUP.md#adding-a-server-to-claude-code).
+
+Add the marketplace to the project once:
 
 ```bash
-claude plugin marketplace add Lukk17/agent-standards
+claude plugin marketplace add Lukk17/agent-standards --scope project
 ```
 
 The marketplace that lived on the `plugins` branch, added as `Lukk17/agent-standards#plugins`, is retired and no longer updated. If you added it, remove it, then add the one above, which reads `master`, and install your plugins again under their new names:
@@ -578,49 +582,49 @@ claude plugin marketplace remove agent-standards
 Install one skill:
 
 ```bash
-claude plugin install python-patterns@agent-standards
+claude plugin install python-patterns@agent-standards --scope project
 ```
 
 Install one subagent. The skills it preloads come along:
 
 ```bash
-claude plugin install agent-python-pro@agent-standards
+claude plugin install agent-python-pro@agent-standards --scope project
 ```
 
 Install one hook, such as the preflight gate:
 
 ```bash
-claude plugin install hook-preflight-gate@agent-standards
+claude plugin install hook-preflight-gate@agent-standards --scope project
 ```
 
-Install one MCP server:
+Install one MCP server, here `mongodb`. A project that has no `.mcp.json` installs `mcp-context7` the same way:
 
 ```bash
-claude plugin install mcp-context7@agent-standards
+claude plugin install mcp-mongodb@agent-standards --scope project
 ```
 
 Install one domain:
 
 ```bash
-claude plugin install python@agent-standards
+claude plugin install python@agent-standards --scope project
 ```
 
 Install `core` and every domain in one go:
 
 ```bash
-claude plugin install all@agent-standards
+claude plugin install all@agent-standards --scope project
 ```
 
 Install every hook:
 
 ```bash
-claude plugin install hooks-all@agent-standards
+claude plugin install hooks-all@agent-standards --scope project
 ```
 
-`mcp-all` installs every MCP server plugin at once, and each server starts with the session, including SonarQube's `docker run --pull=always`:
+`mcp-all` installs every MCP server plugin at once, and all nine servers then start with every session in that project, so install it only where the project uses all of them:
 
 ```bash
-claude plugin install mcp-all@agent-standards
+claude plugin install mcp-all@agent-standards --scope project
 ```
 
 Claude Code does not refresh this marketplace in the background, because auto-update is off by default for a marketplace outside Anthropic's own. Refresh the marketplace first:
@@ -635,7 +639,7 @@ Then update each plugin you installed, such as:
 claude plugin update agent-python-pro@agent-standards
 ```
 
-To give everyone on a project the same set, commit both keys to that project's `.claude/settings.json`. Claude Code registers the marketplace only after a contributor accepts the workspace trust dialog for the folder:
+Project scope writes two keys into that project's `.claude/settings.json`, measured with Claude Code 2.1.325 on 2026-11-23. Commit the file to give everyone on the project the same set. Claude Code registers the marketplace only after a contributor accepts the workspace trust dialog for the folder:
 
 ```json
 {
@@ -651,47 +655,29 @@ To give everyone on a project the same set, commit both keys to that project's `
 }
 ```
 
-Every component is namespaced under its plugin, so the Python subagent is `agent-python-pro:python-pro` and the Python skill is `/python-patterns:python-patterns`. Each plugin installs only its own folder, so a project that both imports `.claude/` and enables the plugins carries two copies of each skill and subagent, one under each name. Pick one route per project for Claude Code: the full checkout, or the plugins with the [git import without `.claude/`](#the-git-import-beside-the-plugins) for the other agents.
+Every component is namespaced under its plugin, so the Python subagent is `agent-python-pro:python-pro` and the Python skill is `/python-patterns:python-patterns`. Each plugin installs only its own folder, so a project that both imports `.claude/` and enables the plugins carries two copies of each skill and subagent, one under each name. That double loading is why the plugins are the one route for Claude Code, and why the Git import in the [Quickstart](#quickstart) leaves `.claude/skills` and `.claude/agents` out and serves the other agents.
 
 The GitHub Copilot CLI reads a marketplace from `.claude-plugin/` too: it "also looks for the `marketplace.json` file in the `.claude-plugin/` directory" ([Copilot CLI plugin reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference)). It takes the skill plugins and the MCP server plugins from it and nothing else, because its plugin agents are `.agent.md` files and its hooks use their own format. Copilot keeps its subagents and hooks from the git import.
 
 #### The hooks as plugins
 
-Each hook plugin runs the hook's script from the plugin's own folder, from the project directory, with the same arguments the project wiring passes. The gate in `hook-preflight-gate` judges the session's project, never the plugin cache, and finds a plugin subagent's definition in the cache, so a read-only agent such as `agent-code-reviewer:code-reviewer` is held to the commands under its "Read-only shell" heading. When a project's own [.claude/settings.json](.claude/settings.json) already runs a reminder, the task list, the markdown lint or the standards advisory, the plugin copy installed in the Claude Code plugin cache stands down, so no event runs it twice. The gate never stands down: with both the project wiring and `hook-preflight-gate`, it runs twice, which only repeats a deny. On the claude format the gate also denies a main-thread write to its own folder, to the plugin root, to `plugins/`, `agents/` and `settings*.json` under each Claude Code configuration directory, and to `~/.config/agents`. A plugin loaded for one session with `--plugin-dir` is not in the cache, so the gate allows its agents as unknown, a read-only one included. That limit is accepted and listed under "What the gate cannot place" in [docs/agent-compatibility.md](docs/agent-compatibility.md).
+Each hook plugin runs the hook's script from the plugin's own folder, from the project directory, with the events, matcher and arguments its own entry in the marketplace carries. The gate in `hook-preflight-gate` judges the session's project, never the plugin cache, and finds a plugin subagent's definition in the cache, so a read-only agent such as `agent-code-reviewer:code-reviewer` is held to the commands under its "Read-only shell" heading. When a project's own [.claude/settings.json](.claude/settings.json) already runs a reminder, the task list, the markdown lint or the standards advisory, the plugin copy installed in the Claude Code plugin cache stands down, so no event runs it twice. The gate never stands down: with both the project wiring and `hook-preflight-gate`, it runs twice, which only repeats a deny. On the claude format the gate also denies a main-thread write to its own folder, to the plugin root, to `plugins/`, `agents/` and `settings*.json` under each Claude Code configuration directory, and to `~/.config/agents`. A plugin loaded for one session with `--plugin-dir` is not in the cache, so the gate allows its agents as unknown, a read-only one included. That limit is accepted and listed under "What the gate cannot place" in [docs/agent-compatibility.md](docs/agent-compatibility.md).
 
-#### The gate beside the plugins
+#### A project that still wires the hooks itself
 
-The gate-only import brings the hook scripts in [.agents/hooks/](.agents/hooks/), the Claude Code wiring in [.claude/settings.json](.claude/settings.json) with its reminders, the [AGENTS.md.example](AGENTS.md.example) template and the shipped documents. It leaves out [.agents/skills/](.agents/skills/), every agent tree and [.mcp.json](.mcp.json), which the plugins supply. A hook plugin other than the gate stands down where this wiring already runs that hook, and the gate runs from both, which only repeats a deny.
-
-Add the read-only remote and fetch, as in the [Quickstart](#quickstart), then pull the gate. PowerShell or Unix shell, same command:
-
-```bash
-git checkout agent-standards/master -- .agents/hooks .claude/settings.json AGENTS.md.example docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md
-```
-
-Rename the template. PowerShell:
-
-```powershell
-Rename-Item AGENTS.md.example AGENTS.md
-```
-
-Unix shell:
-
-```bash
-mv AGENTS.md.example AGENTS.md
-```
-
-Then add the `extraKnownMarketplaces` and `enabledPlugins` keys above to the imported `.claude/settings.json`, beside its hooks. To update later, run the block for your shell in [docs/AGENTS-UPDATE.md](docs/AGENTS-UPDATE.md) up to its stop sign. It refreshes only what your tree already holds, so the skills and the agent trees stay out. Skip its last checkout, which would add `.mcp.json` and the other agents' configuration files.
+An import made before Claude Code moved to the plugins put the Claude Code hooks into the project's own `.claude/settings.json`, as a `hooks` block that runs the scripts in [.agents/hooks/](.agents/hooks/). Upstream ships no such block any more: its own [.claude/settings.json](.claude/settings.json) names its own folder as the marketplace and is of no use in another project, so never check it out. Move that project to the plugins by deleting the `hooks` block and installing `hooks-all`, or the hook plugins you want. Until then keep the hook plugins out of it, because a hook the settings file and a plugin both carry runs twice.
 
 #### The git import beside the plugins
 
-A project that takes Claude Code's skills, subagents, hooks and MCP servers from the plugins can still import the files OpenCode, Kilo Code and Codex read. Leave `.claude/` and [.mcp.json](.mcp.json) out of the checkout, so Claude Code never finds a second copy of a skill, a subagent or a server beside its plugins. After adding the remote and fetching as in the [Quickstart](#quickstart), PowerShell or Unix shell, same command:
+The [Quickstart](#quickstart) checkout is the Git import that sits beside the plugins. It brings what OpenCode, Kilo Code, Codex and Copilot read, and leaves `.claude/skills`, `.claude/agents` and `.claude/settings.json` out, so Claude Code never finds a second copy of a skill or a subagent beside its plugins.
+
+A project that wants every Claude Code server from a plugin leaves [.mcp.json](.mcp.json) out as well and installs `mcp-context7` at project scope. The Copilot CLI then reads [.github/mcp.json](.github/mcp.json). After adding the remote and fetching as in the [Quickstart](#quickstart), PowerShell or Unix shell, same command:
 
 ```bash
-git checkout agent-standards/master -- .agents .opencode .kilo .codex opencode.json .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md AGENTS.md.example
+git checkout agent-standards/master -- .agents .opencode .kilo .codex .github/agents .github/hooks .vscode/mcp.json .github/mcp.json opencode.json .metrics/tools docs/AGENT_TOOLING.md docs/MCP_SETUP.md docs/GLOBAL_SETUP.md docs/AGENTS-UPDATE.md AGENTS.md.example
 ```
 
-Rename the template as above. Claude Code then reads `AGENTS.md` and its plugins, while OpenCode, Kilo Code and Codex read the imported trees. Install `hooks-all`, or the hook plugins you want, so Claude Code gets the gate, the checks and the reminders [.claude/settings.json](.claude/settings.json) would have run.
+Rename the template as above. Claude Code then reads `AGENTS.md` and its plugins, while the other agents read the imported trees. Install `hooks-all`, or the hook plugins you want, so Claude Code gets the gate, the checks and the reminders.
 
 ---
 
@@ -780,14 +766,13 @@ deny is the only one that stops anything. That is why Python 3 is a prerequisite
 ### Agent support
 
 All five agents read `AGENTS.md` natively, Claude Code only while the project holds no `CLAUDE.md`. Four read
-[.agents/skills/](.agents/skills/) natively, and Claude Code gets a symlink for the skills, a pattern its own
-documentation supports. Subagents and MCP are per tool because no shared format exists. Full per-surface detail,
+[.agents/skills/](.agents/skills/) natively, and Claude Code takes the same skills as plugins from the marketplace. Subagents and MCP are per tool because no shared format exists. Full per-surface detail,
 including what each hook surface can actually block, lives in
 [docs/agent-compatibility.md](docs/agent-compatibility.md).
 
 | Agent | Instructions | Skills | Subagents | Preflight | MCP config |
 | --- | --- | --- | --- | --- | --- |
-| Claude Code | `AGENTS.md` (native, with no `CLAUDE.md`) | `.claude/skills` (symlink) | `.claude/agents/` | hooks in `.claude/settings.json`, blocks tools and replies | `.mcp.json` |
+| Claude Code | `AGENTS.md` (native, with no `CLAUDE.md`) | skill plugins from the marketplace | `agent-<name>` plugins | `hook-<name>` plugins, block tools and replies | `.mcp.json` with `context7`, each other server as an `mcp-<server>` plugin at project scope |
 | OpenCode | `AGENTS.md` (native) | `.agents/skills/` (native) | `.opencode/agents` (symlink) | shared plugin, blocks tools | `opencode.json` |
 | Kilo Code | `AGENTS.md` (native) | `.agents/skills/` (native) | `.kilo/agents` (symlink) | the same plugin, blocks tools | `opencode.json` |
 | Codex | `AGENTS.md` (native) | `.agents/skills/` (native) | `.codex/agents/` (TOML) | inline hooks in `.codex/config.toml`, blocks tools | `.codex/config.toml` |
@@ -802,7 +787,7 @@ including what each hook surface can actually block, lives in
   `compatibility`) following the open [Agent Skills specification](https://agentskills.io/specification), a
   description written as the phrases that should trigger it, and its depth in a `references/` subdirectory rather
   than in the manifest. Browse the catalogue to see what's available.
-- [.agents/hooks/](.agents/hooks/): the hook scripts, Python and standard library only, all run on `-S -E` under whichever of `python3` and `python` the wiring resolves first. [.agents/hooks/preflight-gate/preflight_gate.py](.agents/hooks/preflight-gate/preflight_gate.py) is the one shared gate rule every agent surface wires into. [.agents/hooks/no-ai-markers-check/no_ai_markers_check.py](.agents/hooks/no-ai-markers-check/no_ai_markers_check.py) rejects a reply whose prose carries a dash, a semicolon, or a bold or italic marker. [.agents/hooks/markdown-lint-check/markdown_lint_check.py](.agents/hooks/markdown-lint-check/markdown_lint_check.py) reports lint violations back as context after an edit to a linted file. [.agents/hooks/claude/standards-advisory-check/standards_advisory_check.py](.agents/hooks/claude/standards-advisory-check/standards_advisory_check.py) warns after an edit on Claude Code, without blocking, about an action not pinned to a commit SHA, an image on `:latest`, a Spring Data `@Query` string, or a divider banner in a test. [.agents/hooks/task-list-sync/task_list_sync.py](.agents/hooks/task-list-sync/task_list_sync.py) mirrors the live task list into `tasks.md` at the project root and injects it again after a compaction, so the session's own plan survives. `tasks.md` is per-session working state: add it to your `.gitignore` rather than committing it. [.agents/hooks/copilot/prompt-reminder/prompt_reminder.py](.agents/hooks/copilot/prompt-reminder/prompt_reminder.py) appends the gate text to every GitHub Copilot prompt, and sits one level down so the OpenCode and Kilo Code runner never spawns it. [.agents/plugin/hooks.js](.agents/plugin/hooks.js): the OpenCode and Kilo Code adapter, a runner that hands every tool call to every hook in that directory. Contract: [docs/hooks-contract.md](docs/hooks-contract.md).
+- [.agents/hooks/](.agents/hooks/): the hook scripts, Python and standard library only, all run on `-S -E` under whichever of `python3` and `python` the wiring resolves first. [.agents/hooks/preflight-gate/preflight_gate.py](.agents/hooks/preflight-gate/preflight_gate.py) is the starter every agent surface wires into, and [.agents/hooks/preflight-gate/_gate_rules.py](.agents/hooks/preflight-gate/_gate_rules.py) beside it holds the one shared gate rule. [.agents/hooks/no-ai-markers-check/no_ai_markers_check.py](.agents/hooks/no-ai-markers-check/no_ai_markers_check.py) rejects a reply whose prose carries a dash, a semicolon, or a bold or italic marker. [.agents/hooks/markdown-lint-check/markdown_lint_check.py](.agents/hooks/markdown-lint-check/markdown_lint_check.py) reports lint violations back as context after an edit to a linted file. [.agents/hooks/claude/standards-advisory-check/standards_advisory_check.py](.agents/hooks/claude/standards-advisory-check/standards_advisory_check.py) warns after an edit on Claude Code, without blocking, about an action not pinned to a commit SHA, an image on `:latest`, a Spring Data `@Query` string, or a divider banner in a test. [.agents/hooks/task-list-sync/task_list_sync.py](.agents/hooks/task-list-sync/task_list_sync.py) mirrors the live task list into `tasks.md` at the project root and injects it again after a compaction, so the session's own plan survives. `tasks.md` is per-session working state: add it to your `.gitignore` rather than committing it. [.agents/hooks/copilot/prompt-reminder/prompt_reminder.py](.agents/hooks/copilot/prompt-reminder/prompt_reminder.py) appends the gate text to every GitHub Copilot prompt, and sits one level down so the OpenCode and Kilo Code runner never spawns it. [.agents/plugin/hooks.js](.agents/plugin/hooks.js): the OpenCode and Kilo Code adapter, a runner that hands every tool call to every hook in that directory. Contract: [docs/hooks-contract.md](docs/hooks-contract.md).
 - [subagents/](subagents/) (this repo only): canonical subagent sources. Generator emits the per-tool copies. Each
   source names the skills its agent preloads, and the generator refuses to run when one of those names has no folder
   under [.agents/skills/](.agents/skills/), so a renamed skill fails the build instead of silently doing nothing.
@@ -814,7 +799,7 @@ including what each hook surface can actually block, lives in
   `permissionMode: plan` on Claude Code for the read-only agents, and refuses a source that names a `model`, so no
   generated agent pins one and each runs on the user's subagent default or the session's model.
 - [.claude/](.claude/): Claude Code's own folder, with a `skills` symlink, a generated `agents/` tree, and the hooks
-  in `settings.json`. It holds no `CLAUDE.md`, because any `CLAUDE.md` stops Claude Code reading `AGENTS.md`.
+  in `settings.json`. The marketplace renders its plugins from these files, and a consumer project installs the plugins and does not check the folder out. It holds no `CLAUDE.md`, because any `CLAUDE.md` stops Claude Code reading `AGENTS.md`.
 - [.metrics/tools/](.metrics/tools/): the quality loop's three measuring tools by Robert C. Martin (Uncle Bob),
   [crapper](https://github.com/unclebob/crapper), [dryer](https://github.com/unclebob/dryer) and
   [mutator](https://github.com/unclebob/mutator), copied unchanged at pinned commits under their 0BSD licence, and the
@@ -825,9 +810,8 @@ including what each hook surface can actually block, lives in
   `/skill-audit`, that audits the skills. See [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md#auditing-the-skills).
 - OpenSpec scaffold (consumer side only, this repo ships no `openspec-*` skills of its own, because OpenSpec is a
   consumer concern): spec-driven workflow. Initialise it with the vendor-neutral `openspec init --tools agents`, which
-  writes into `.agents/skills/` and creates no per-tool directories. That one target covers every agent, since Codex,
-  OpenCode, Kilo Code, and Copilot read `.agents/skills/` natively and Claude Code reaches the same files through its
-  `.claude/skills` symlink. Later, `openspec update` regenerates the per-agent files for the tools already configured
+  writes into `.agents/skills/` and creates no per-tool directories. That one target covers four of the five agents, since Codex,
+  OpenCode, Kilo Code, and Copilot read `.agents/skills/` natively. Claude Code reads project skills from `.claude/skills` only, and the Quickstart leaves that link out, so OpenSpec's skills reach Claude Code only in a project that links them there itself. Later, `openspec update` regenerates the per-agent files for the tools already configured
   in the project and takes no tools flag. Skip the per-tool targets: on top of fragmenting a layout built for one
   skills directory, OpenSpec 1.10.0 still hardcodes the abandoned `.kilocode` path for its Kilo target. See
   [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md#openspec-integration).
@@ -844,7 +828,7 @@ including what each hook surface can actually block, lives in
   matrix still omits it.
 - MCP config: [.mcp.json](.mcp.json) (Claude Code and the Copilot CLI), [opencode.json](opencode.json) (OpenCode and Kilo Code),
   [.codex/config.toml](.codex/config.toml) (Codex), [.vscode/mcp.json](.vscode/mcp.json) (Copilot in VS Code), and
-  [.github/mcp.json](.github/mcp.json) (the Copilot CLI fallback, read only in a folder that has no `.mcp.json`). Five real files, not templates.
+  [.github/mcp.json](.github/mcp.json) (the Copilot CLI fallback, read only in a folder that has no `.mcp.json`). Five real files, not templates. [.mcp.json](.mcp.json) holds `context7` alone, and the other four hold the full set.
 
 Server list and configuration live in [docs/MCP_SETUP.md](docs/MCP_SETUP.md). Claude Code's file, which the Copilot
 CLI reads too, uses `${VAR}` with defaults. The others hardcode their URLs, because the OpenCode and VS Code syntax has
@@ -858,10 +842,10 @@ that contains one.
 
 There are no ports and no service to run. Everything is files, and they split into three groups.
 
-MCP servers live in five files, one per agent surface, all carrying the same servers, apart from the exceptions listed in [docs/MCP_SETUP.md](docs/MCP_SETUP.md#what-ships), and differing only in the
-top-level key, the `type` value, and the substitution syntax: [.mcp.json](.mcp.json),
+MCP servers live in five files, one per agent surface. Four carry the same servers, apart from the exceptions listed in [docs/MCP_SETUP.md](docs/MCP_SETUP.md#what-ships), and differ only in the
+top-level key, the `type` value, and the substitution syntax:
 [opencode.json](opencode.json), [.codex/config.toml](.codex/config.toml), [.vscode/mcp.json](.vscode/mcp.json), and
-[.github/mcp.json](.github/mcp.json). Change one, change all five. Keys, environment variables per operating system,
+[.github/mcp.json](.github/mcp.json). Change one, change all four. The fifth, [.mcp.json](.mcp.json), holds `context7` alone, so Claude Code starts one server by default and takes each other one as a plugin at project scope. Every server command names one exact version. Keys, environment variables per operating system,
 and the two Copilot surfaces that get no project file at all are in [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
 
 Hook wiring lives beside them, one file per agent, all calling the same scripts in
@@ -945,21 +929,21 @@ itself on every run. It contains bash and PowerShell commands that:
 - Enumerate the saved Claude Code workflows already in `.claude/workflows/` and pull only those.
 
 The per-agent update commands earlier in this README work differently: they check out whole folders such as
-`.agents/skills`, `.claude/agents` and `.claude/workflows`, so they also bring in skills, subagents and workflows your
-project did not have yet.
+`.agents/skills` and `.agents/agents`, so they also bring in skills and subagents your
+project did not have yet. Claude Code's plugins update through the marketplace, as [Claude Code plugins](#claude-code-plugins) shows, and not through this document.
 
 Files intentionally NOT touched by the update: the three symlinks (`.claude/skills`, `.opencode/agents`,
 `.kilo/agents`, all of which follow their canonical directories anyway), `AGENTS.md.example`, the consumer's
-customised `AGENTS.md`, and the six configuration files (`.mcp.json`, `opencode.json`,
-`.vscode/mcp.json`, `.github/mcp.json`, `.codex/config.toml`, `.claude/settings.json`). Three of those six hold gate
-wiring next to something of yours, so a checkout would take your MCP servers or your permissions with it.
+customised `AGENTS.md`, your `.claude/settings.json`, and the five configuration files (`.mcp.json`, `opencode.json`,
+`.vscode/mcp.json`, `.github/mcp.json`, `.codex/config.toml`). Two of those five hold gate
+wiring next to something of yours, so a checkout would take your MCP servers with it.
 
 A project imported before agent-standards stopped shipping `.claude/CLAUDE.md` deletes it once, as
 [retiring .claude/CLAUDE.md](docs/AGENTS-UPDATE.md#retiring-claudeclaudemd) describes, because any `CLAUDE.md` stops
 Claude Code reading `AGENTS.md` natively.
 
-When you do want an upstream change in one of the six, each shell section of that doc ends with a diff command and a
-checkout for all six, and [what this skips](docs/AGENTS-UPDATE.md#what-this-skips-and-why) says which half of
+When you do want an upstream change in one of the five, each shell section of that doc ends with a diff command and a
+checkout for all five, and [what this skips](docs/AGENTS-UPDATE.md#what-this-skips-and-why) says which half of
 each file is yours and which should track upstream.
 
 If your project was imported before this doc shipped and has no `docs/AGENTS-UPDATE.md`, pull it with a one-off
@@ -982,7 +966,7 @@ filenames stay in this repo only.
 | [docs/MCP_SETUP.md](docs/MCP_SETUP.md) | The real MCP config files, prerequisites, keys, env-var export per OS, the manual JetBrains and cloud-agent blocks, verification. |
 | [docs/AGENTS-UPDATE.md](docs/AGENTS-UPDATE.md) | Per-shell selective update commands including the diff-first configuration-file pair, the Windows symlink prerequisite, and the OpenSpec init and update guidance. Refreshes itself. |
 | [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md) | Installing the same skills, subagents and gate into your home directory so every project on the machine inherits them, per agent and per shell. |
-| [.metrics/tools/README.md](.metrics/tools/README.md) | Robert C. Martin's crapper, dryer and mutator, the wrapper that runs them on Linux, macOS and Windows, what it fixes, and how the copies are updated. It travels with `.metrics/tools`, so every import but the [gate-only import](#the-gate-beside-the-plugins) delivers it. |
+| [.metrics/tools/README.md](.metrics/tools/README.md) | Robert C. Martin's crapper, dryer and mutator, the wrapper that runs them on Linux, macOS and Windows, what it fixes, and how the copies are updated. It travels with `.metrics/tools`, so every import delivers it. |
 
 #### This repo only
 

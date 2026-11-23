@@ -1,6 +1,7 @@
-"""Tests for the shared preflight gate at .agents/hooks/preflight-gate/preflight_gate.py.
+"""Tests for the shared preflight gate in .agents/hooks/preflight-gate/.
 
-The rule cases drive the gate's own main() in-process through run(), with its
+The rules live in _gate_rules.py, and preflight_gate.py beside it is the
+starter every wiring runs. The rule cases drive the rules' own main() in-process through run(), with its
 stdin, stdout, stderr, working directory and environment swapped for the call,
 so every case still sees the exit code and both streams the command line
 produces. The command-line contract itself (formats, exit codes, stdin
@@ -25,12 +26,15 @@ from typing import NamedTuple
 import pytest
 
 from tests.conftest import (
+    GATE_FILES,
+    GATE_RULES,
     NO_AI_MARKERS_HOOK,
     PLUGIN,
     PREFLIGHT_GATE,
     REPO_ROOT,
     SUBPROCESS_TIMEOUT_SECONDS,
     TASK_LIST_SYNC_HOOK,
+    copy_gate,
 )
 from tests.process_tree import run_bounded
 
@@ -733,7 +737,7 @@ def _load_module(name, path):
     return module
 
 
-GATE = _load_module("preflight_gate_inprocess", PREFLIGHT_GATE)
+GATE = _load_module("preflight_gate_inprocess", GATE_RULES)
 
 TASK_LIST_SYNC = _load_module("task_list_sync_inprocess", TASK_LIST_SYNC_HOOK)
 
@@ -1480,10 +1484,8 @@ def install_gate(root):
     """Copy the gate to <root>/.agents/hooks/preflight-gate and return the copy's path."""
     hooks = root / ".agents" / "hooks" / PREFLIGHT_GATE.parent.name
     hooks.mkdir(parents=True, exist_ok=True)
-    installed = hooks / PREFLIGHT_GATE.name
-    shutil.copy2(PREFLIGHT_GATE, installed)
 
-    return installed
+    return copy_gate(hooks)
 
 
 def fake_home(home):
@@ -1587,8 +1589,7 @@ def config_install(tmp_path):
 
     hooks = home / ".config" / "agents" / "hooks" / PREFLIGHT_GATE.parent.name
     hooks.mkdir(parents=True)
-    gate = hooks / PREFLIGHT_GATE.name
-    shutil.copy2(PREFLIGHT_GATE, gate)
+    gate = copy_gate(hooks)
 
     return Install(gate, home, project, fake_home(home))
 
@@ -7176,7 +7177,7 @@ def test_a_git_pointer_that_is_a_named_pipe_is_refused_without_blocking(tmp_path
     result = run_bounded(
         [sys.executable, "-I", "-c", "import importlib.util, sys\n"
          "spec = importlib.util.spec_from_file_location('g', sys.argv[1]); g = importlib.util.module_from_spec(spec); spec.loader.exec_module(g)\n"
-         "from pathlib import Path; print(g._git_pointer_value(Path(sys.argv[2])))", str(PREFLIGHT_GATE), str(fifo)],
+         "from pathlib import Path; print(g._git_pointer_value(Path(sys.argv[2])))", str(GATE_RULES), str(fifo)],
         capture_output=True,
         text=True,
         timeout=20,
@@ -7672,8 +7673,7 @@ def test_the_shipped_read_only_agents_carry_their_list_in_every_tree(agent, extr
 def plugin_copy_of_the_gate(root):
     folder = root / ".claude" / "plugins" / "cache" / "agent-standards" / "hook-preflight-gate" / "1.0.0"
     folder.mkdir(parents=True)
-    gate = folder / PREFLIGHT_GATE.name
-    shutil.copy2(PREFLIGHT_GATE, gate)
+    gate = copy_gate(folder)
 
     return gate
 
@@ -7725,8 +7725,7 @@ def test_a_plugin_copy_of_the_gate_never_stands_down_whatever_the_project_wires(
     config = tmp_path / "config"
     folder = config / "plugins" / "cache" / "agent-standards" / "hook-preflight-gate" / "1.0.0"
     folder.mkdir(parents=True)
-    gate = folder / PREFLIGHT_GATE.name
-    shutil.copy2(PREFLIGHT_GATE, gate)
+    gate = copy_gate(folder)
     project = tmp_path / "work" / "project"
     (project / ".claude").mkdir(parents=True)
     (project / ".claude" / "settings.json").write_text(
@@ -7747,7 +7746,7 @@ def test_a_plugin_copy_of_the_gate_never_stands_down_whatever_the_project_wires(
 
 
 def test_the_gate_carries_no_plugin_copy_stand_down():
-    assert "_plugin_copy_is_shadowed" not in PREFLIGHT_GATE.read_text(encoding="utf-8")
+    assert all("_plugin_copy_is_shadowed" not in file.read_text(encoding="utf-8") for file in GATE_FILES)
 
 
 @pytest.mark.parametrize("skills_first", [True, False], ids=["flat-declares-skills", "nested-declares-skills"])
@@ -7815,7 +7814,7 @@ def test_a_main_thread_write_to_the_gate_s_own_file_and_plugin_root_is_denied(tm
     plugin_root = tmp_path / "elsewhere" / "plugin"
     plugin_root.mkdir(parents=True)
 
-    for target in (PREFLIGHT_GATE, plugin_root / "x.py"):
+    for target in (*GATE_FILES, plugin_root / "x.py"):
         payload = {"tool_name": "Write", "tool_input": {"file_path": str(target), "content": "x"}, "cwd": str(project)}
         code, out, err = run(payload, "claude", cwd=project, env={"CLAUDE_PLUGIN_ROOT": str(plugin_root)})
 

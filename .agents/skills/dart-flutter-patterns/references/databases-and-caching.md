@@ -1,21 +1,21 @@
 # Databases and Caching
 
 Local persistence with SQLite and its wrappers, repositories as the single source of truth, offline-first
-synchronization, and the caching layers above it (files, images, scroll extents, and the Android engine).
+synchronization, and the caching layers above it (files, images, scroll extents, and the Android engine). The SQLite
+service built on `sqflite` is in [sqflite.md](sqflite.md).
 
 ---
 
 ### Contents
 
-- Picking a store
-- Repositories and services
-- SQLite service
-- Offline-first synchronization
-- Image caching
-- Scroll caching
-- Widget caching
-- Pre-warming the Android FlutterEngine
-- Checklist
+- [Picking a store](#picking-a-store)
+- [Repositories and services](#repositories-and-services)
+- [Offline-first synchronization](#offline-first-synchronization)
+- [Image caching](#image-caching)
+- [Scroll caching](#scroll-caching)
+- [Widget caching](#widget-caching)
+- [Pre-warming the Android FlutterEngine](#pre-warming-the-android-flutterengine)
+- [Checklist](#checklist)
 
 ---
 
@@ -45,62 +45,6 @@ They perform no business logic beyond serialization and return raw models.
 Repositories are the single source of truth for one domain entity. They consume services as private members,
 own caching, polling, retry, and offline sync, and map raw models into domain models that carry only what the UI
 needs. Strip backend-only fields such as pagination tokens and metadata before they leave the repository.
-
----
-
-### SQLite service
-
-- Add `sqflite` and `path`. Build the file path with `join(await getDatabasesPath(), 'app.db')` so it is correct
-  on every platform.
-- Declare table and column names as constants. A typo in a string literal fails at runtime, a typo in a constant
-  fails at compile time.
-- Use `id INTEGER PRIMARY KEY AUTOINCREMENT`.
-- Always pass values through `whereArgs`. String interpolation into a `where` clause is SQL injection.
-
-```dart
-class DatabaseService {
-  static const String _tableName = 'todos';
-  static const String _colId = 'id';
-  static const String _colTask = 'task';
-  static const String _colIsSynced = 'is_synced';
-
-  Database? _database;
-
-  Future<Database> _open() async {
-    final existing = _database;
-    if (existing != null) {
-      return existing;
-    }
-
-    final dbPath = join(await getDatabasesPath(), 'app_database.db');
-    final opened = await openDatabase(
-      dbPath,
-      version: 1,
-      onCreate: (db, version) => db.execute(
-        'CREATE TABLE $_tableName('
-        '$_colId INTEGER PRIMARY KEY AUTOINCREMENT, '
-        '$_colTask TEXT NOT NULL, '
-        '$_colIsSynced INTEGER NOT NULL DEFAULT 0)',
-      ),
-    );
-    _database = opened;
-    return opened;
-  }
-
-  Future<void> updateTodo(TodoDbModel todo) async {
-    final db = await _open();
-    await db.update(
-      _tableName,
-      todo.toMap(),
-      where: '$_colId = ?',
-      whereArgs: [todo.id],
-    );
-  }
-}
-```
-
-Returning the non-null `Database` from `_open` removes the nullable handle from every call site, so no caller ever
-reaches for `!`.
 
 ---
 

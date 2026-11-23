@@ -6,16 +6,37 @@ Written for WLED 16. Sources: https://kno.wled.ge/interfaces/json-api/, https://
 
 Contents:
 
-1. [Read routes](#read-routes)
-2. [How a POST works](#how-a-post-works)
-3. [Change the config safely](#change-the-config-safely)
-4. [Wi-Fi sleep](#wi-fi-sleep)
-5. [State keys](#state-keys)
-6. [Segment keys](#segment-keys)
-7. [WebSocket](#websocket)
-8. [HTTP API](#http-api)
-9. [JSON over serial](#json-over-serial)
-10. [Error codes](#error-codes)
+1. [Pick the interface](#pick-the-interface)
+2. [Which reads are free](#which-reads-are-free)
+3. [Read routes](#read-routes)
+4. [How a POST works](#how-a-post-works)
+5. [Change the config safely](#change-the-config-safely)
+6. [Wi-Fi sleep](#wi-fi-sleep)
+7. [State keys](#state-keys)
+8. [Segment keys](#segment-keys)
+9. [WebSocket](#websocket)
+10. [HTTP API](#http-api)
+11. [JSON over serial](#json-over-serial)
+12. [Error codes](#error-codes)
+
+---
+
+### Pick the interface
+
+1. Light state, segments, presets: `POST /json/state`.
+2. Watching changes made elsewhere: the WebSocket at `ws://<wled-host>/ws`.
+3. Settings: `POST /json/cfg` with the wanted keys and the five keys of rule 5 in [SKILL.md](../SKILL.md), which [Change the config safely](#change-the-config-safely) names, plus the PIN when one is set.
+4. Backup and restore: `GET /presets.json`, `GET /cfg.json`, `POST /upload`.
+5. No Wi-Fi yet: Improv or JSON over USB serial at 115200 baud.
+6. Flashing or recovering a board: the web installer or `esptool` over USB.
+7. Updating a running device: `POST /update`.
+8. A tool that can only open a URL: the `/win` HTTP API.
+
+---
+
+### Which reads are free
+
+Rule 1 in [SKILL.md](../SKILL.md), in full. Read-only calls are free: a `GET` of `/json`, `/json/state`, `/json/info`, `/json/si`, `/json/nodes`, `/json/eff`, `/json/fxdata`, `/json/pal`, `/json/palx`, `/json/cfg`, `/json/pins`, `/presets.json`, `/cfg.json`, and a settings page other than `/settings/lock`. Listening on the WebSocket is free only below the client limit, 8 on ESP32 and 3 on ESP8266, because a new client closes the oldest one, so read `ws` in `GET /json/info` first. The serial `v` byte is free only on a port opened with DTR and RTS held off, because toggling them can reset the board. `GET /json/net` starts a Wi-Fi scan, so call it only when the user wants the network list.
 
 ---
 
@@ -78,6 +99,8 @@ curl -s -X POST -H 'Content-Type: application/json' -d '{"seg":[{"id":0,"col":[[
 ---
 
 ### Change the config safely
+
+Rule 5 in [SKILL.md](../SKILL.md), in full. Never post a partial `/settings/*` form. Every missing field is saved as empty or off, so a partial Wi-Fi form disables mDNS and opens an access point with no password, and a partial security form, while the OTA lock is off, switches the same subnet rule, ArduinoOTA and the Wi-Fi lock off. Change settings with `POST /json/cfg` instead, but never with only the wanted key: a missing `light.gc.bri`, `light.gc.col`, `hw.led.rgbwm`, `hw.led.fps` or `nw.linked_remote` is reset and saved. Read `GET /json/cfg`, send the wanted keys plus those five copied from it, then read it again and compare, as the steps below show.
 
 `POST /json/cfg` runs `cfg.cpp` `deserializeConfig` on the body. Most keys go through `CJSON(a,b)`, defined as `a = b | a`, so a missing key keeps its value. A few do not, and a body without them resets them and the change is saved (VERIFIED, `cfg.cpp` `deserializeConfig`, and the open WLED pull request https://github.com/wled/WLED/pull/5885 "Keep linked remotes, FPS, auto-white mode and gamma on a partial /json/cfg POST"):
 

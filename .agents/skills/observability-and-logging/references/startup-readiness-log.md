@@ -185,36 +185,7 @@ Equally important: the builder must return one multi-line String. Building it vi
 same bug from a different angle. Per-call emission is non-atomic, so other threads' logs (background pools, Axon
 coordinators, scheduled jobs) can interleave between your readiness lines and rip the block apart visually.
 
-Wrong (Java, per-line emission):
-
-```java
-log.info("----------------------------------------------------------");
-log.info("    Application '{}' is running!", appName);
-log.info("");
-log.info("    Access URLs:");
-log.info("      Local:     {}", localUrl);
-log.info("      Hostname:  {}", hostnameUrl);
-// ...one log call per line, each gets its own timestamp + level + logger prefix,
-// and a Coordinator / scheduler / pool thread can log between any two of these.
-```
-
-Right (Java, build then emit once):
-
-```java
-String block = String.join("\n",
-    "----------------------------------------------------------",
-    "    Application '" + appName + "' is running!",
-    "",
-    "    Access URLs:",
-    "      Local:     " + localUrl,
-    "      Hostname:  " + hostnameUrl,
-    // ... rest of sections
-    "----------------------------------------------------------"
-);
-log.info("\n{}", block);
-// One prefix line, the rest of the block flows under it at column 0. Atomic;
-// nothing can interleave between sections.
-```
+The Java form of the wrong and the right emission is in [java-spring.md](java-spring.md#emit-one-startup-readiness-block).
 
 Same shape for every framework: build the whole block first (StringBuilder, `String.join`, template literal, Python
 f-string, Go `strings.Builder`), then emit once. If the builder needs to probe dependencies asynchronously, do that work
@@ -230,7 +201,7 @@ identical.
 | Stack | Hook |
 | --- | --- |
 | Spring Boot | A listener for `ApplicationReadyEvent`, per `springboot-patterns` |
-| Python on FastAPI | Inside `lifespan`, after the probes and before `yield`, per `references/fastapi-stack.md` in `python-patterns` |
+| Python on FastAPI | Inside `lifespan`, after the probes and before `yield`, per `references/fastapi.md` in `python-patterns` |
 | Node, Express, NestJS, Next.js | The `app.listen` callback and its kin, per `node-backend-patterns` |
 | Go | After `net.Listen` returns and before `srv.Serve(listener)`, per `golang-patterns` |
 | Shell service | Right before `exec` or the main loop, per `bash` |

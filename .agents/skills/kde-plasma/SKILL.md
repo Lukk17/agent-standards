@@ -1,15 +1,17 @@
 ---
 name: kde-plasma
-description: 'Changing KDE Plasma 6 safely from the command line: panels and widgets through the scripting API, kwriteconfig6, KWin effects and rules, shortcuts, themes and konsave, plus building and publishing plasmoids and themes. Use when the user says "add a widget to the panel", "bind a shortcut", "plasmashell is stuck" or "write a plasmoid". Not for packages, audio or systemd, use `arch-linux`.'
+description: 'KDE Plasma 6 from the command line: panels, widgets, KWin, shortcuts, themes, konsave, plasmoids. Use when the user says "add a widget to the panel" or "plasmashell is stuck". Not for packages, use `arch-linux`.'
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # KDE Plasma 6 Administration
 
 How to read and change a Plasma 6 desktop through its live interfaces, so a change applies at once, is easy to read back, and has a snapshot behind it. Plasma rewrites several of its own files while it runs, which is why the live API comes first and a hand edit comes last.
 
-Written for Plasma 6 and KWin 6 on Wayland, with Qt 6. The commands that ran were run on one CachyOS host, and commands that were not executed are marked UNVERIFIED in the topic files.
+Written for Plasma 6 and KWin 6 on Wayland, with Qt 6.
+
+The commands that ran were run on one CachyOS host, and commands that were not executed are marked UNVERIFIED in the topic files.
 
 | Task | Open |
 |---|---|
@@ -23,26 +25,16 @@ Written for Plasma 6 and KWin 6 on Wayland, with Qt 6. The commands that ran wer
 | Save, export, import and apply konsave profiles | [konsave.md](references/konsave.md) |
 | Build, test, package and publish a Plasma 6 widget (plasmoid) | [widget-development.md](references/widget-development.md) |
 | Make a Plasma Style, color scheme, style or decoration fork, icon theme or Global Theme safely | [theme-development.md](references/theme-development.md) |
+| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
+| Call a Plasma change done | [checklist.md](references/checklist.md) |
 
 ---
 
 ### Machine facts
 
-Machine-specific facts live in `MACHINE.md` next to the global `AGENTS.md`: the monitors and their scales, the owner's saved konsave profile and where its archive lives, custom widgets, and the change log. Read it before acting. This skill describes no particular layout. Read the live one with the read-only commands in [panels-and-widgets.md](references/panels-and-widgets.md), and never assume a panel or widget id.
+Machine-specific facts live in `MACHINE.md` next to the global `AGENTS.md`. Read it before acting. This skill holds no facts about any single machine.
 
----
-
-### When to activate
-
-- Any change to a panel, a widget, the system tray or a desktop containment
-- `kreadconfig6`, `kwriteconfig6`, or a file under `~/.config` that Plasma or KWin owns
-- KWin effects, window rules, tiling layouts or virtual desktops
-- Global shortcuts
-- Themes, colors, cursors, icons, look-and-feel packages or wallpapers
-- konsave, or restarting, recovering or rolling back plasmashell
-- Writing, testing, packaging or publishing a plasmoid, or building a theme set
-- Also covers panels, widgets and plasmoids through the Plasma scripting API and evaluateScript, widget plugin ids, kreadconfig6 and kwriteconfig6, which file under ~/.config holds what, KWin effects, window rules, tiling and virtual desktops, global shortcuts in kglobalshortcutsrc, color scheme, Plasma theme, cursor, icons, look-and-feel and wallpaper, konsave profiles, and restarting plasmashell. Also building, testing and publishing a plasmoid, and making a Plasma Style or Global Theme
-- The user says "move the clock", "what is the plugin id", "change the color scheme", "disable the blur effect", "save my desktop with konsave", "restore my panel layout", "publish my widget on the KDE Store", "make a Plasma theme" or "build a Global Theme"
+For this skill they are the monitors and their scales, the owner's saved konsave profile and where its archive lives, custom widgets, and the change log. This skill describes no particular layout. Read the live one with the read-only commands in [panels-and-widgets.md](references/panels-and-widgets.md), and never assume a panel or widget id.
 
 ---
 
@@ -62,22 +54,3 @@ Machine-specific facts live in `MACHINE.md` next to the global `AGENTS.md`: the 
 4. Use `qdbus6`. Check with `command -v qdbus6 qdbus`, because plain `qdbus` is often absent on Plasma 6.
 5. Restart plasmashell through its user unit, `systemctl --user restart plasma-plasmashell`, never `kquitapp6 plasmashell && plasmashell`. The unit restarts on failure and a manual launch fights it.
 6. After a change, read it back with `kreadconfig6` or a read-only script, and report what you saw.
-
----
-
-### Related skills
-
-- `arch-linux` owns packages, partial upgrades, journal triage and audio
-- `cachyos` owns the CachyOS defaults package and the login manager
-- `bash` owns any script that wraps these commands
-
----
-
-### Checklist
-
-- [ ] `MACHINE.md` read, and the live layout read before any panel change
-- [ ] Config files copied and the layout dumped before the first write
-- [ ] The live API used, or plasmashell stopped before a hand edit
-- [ ] Nothing written under `/usr/share` or `/usr/lib`
-- [ ] The change read back and reported
-- [ ] The change and its undo recorded in the `MACHINE.md` change log

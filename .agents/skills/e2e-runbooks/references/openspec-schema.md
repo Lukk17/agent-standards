@@ -4,8 +4,8 @@ The methodology in [SKILL.md](../SKILL.md) works on its own. A project that alre
 [OpenSpec](https://github.com/Fission-AI/OpenSpec) can install the matching schema on top of it to get the slash-command
 lifecycle, with an artifact chain that mirrors the methodology: proposal, then test spec, then tasks template, then run.
 
-The schema also scaffolds the `e2e/` tree and its four README files on first use, which is the manual step described in
-the Directory layout section of the skill.
+The schema also scaffolds the `e2e/` tree and its four README files on first use, which is the manual step described
+under Directory layout in [spec-format.md](spec-format.md#directory-layout).
 
 ---
 

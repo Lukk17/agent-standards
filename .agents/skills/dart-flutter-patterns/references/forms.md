@@ -6,12 +6,12 @@ Building a `Form`, validating several fields together, gating the submit, and te
 
 ### Contents
 
-- Form architecture
-- Field validation
-- Submit gating
-- A validated multi-field form
-- Testing a form
-- Checklist
+- [Form architecture](#form-architecture)
+- [Field validation](#field-validation)
+- [Submit gating](#submit-gating)
+- [A validated multi-field form](#a-validated-multi-field-form)
+- [Testing a form](#testing-a-form)
+- [Checklist](#checklist)
 
 ---
 

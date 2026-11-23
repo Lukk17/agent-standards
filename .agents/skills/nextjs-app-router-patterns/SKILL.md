@@ -1,9 +1,9 @@
 ---
 name: nextjs-app-router-patterns
-description: "Next.js 16 App Router architecture, covering the Server and Client Component split, caching and revalidation, streaming, Server Actions, route handlers, metadata, images and Turbopack dev tuning. Use when the user says \"build a Next.js page\", \"server or client component\" or \"add a server action\". Not for framework-agnostic React state, hooks and animation, use `react-patterns`."
+description: 'Next.js 16 App Router rules for Server and Client Components, caching, streaming and Server Actions. Use when the user says "build a Next.js page" or "add a server action". Not for plain React, use `react-patterns`.'
 license: Apache-2.0
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # Next.js App Router Patterns
@@ -14,40 +14,11 @@ Written for Next.js 16 on the App Router, where Turbopack is the default dev bun
 
 ---
 
-### When to activate
-
-- Building or reviewing any route, layout, or component in an `app/` directory.
-- The user says "build a Next.js page", "server or client component", "revalidate this fetch", "add a server action", "parallel routes for a dashboard", or "next dev is slow".
-- Deciding whether a component belongs on the server or the client.
-- Choosing a caching or revalidation strategy for fetched data.
-- Adding a Server Action, a route handler, or per-route metadata.
-- Migrating a Pages Router application to the App Router.
-- Diagnosing a slow `next dev` start or a slow hot update.
-- Fixing a Core Web Vitals regression in a Next.js app. This skill owns that work.
-
----
-
 ### When not to activate
 
-- Framework-agnostic React work: component composition, hooks, forms, animation. Use `react-patterns`.
-- Visual direction, typography, and composition decisions. Use `frontend-design`.
-- Token architecture and theming. Use `design-system`.
-- Keyboard, focus, ARIA, and contrast requirements. Use `web-accessibility`.
-- Titles, meta descriptions, structured data, and keyword mapping. Use `seo`.
-- Profiling the server code and data access behind a slow route. Use `performance-optimization`.
-- Layering, error responses, logging, and shutdown inside a route handler. Use `node-backend-patterns`.
-
----
-
-### Reference map
-
-| Task | Open |
-| --- | --- |
-| A hub rule needs its Pass and Fail example or its full reasoning | [references/core-rules.md](references/core-rules.md) |
-| Server and Client split, streaming, caching layers | [references/rendering-and-data.md](references/rendering-and-data.md) |
-| File conventions, parallel and intercepting routes, route handlers, metadata | [references/routing.md](references/routing.md) |
-| Server Actions, form mutations, revalidation | [references/server-actions.md](references/server-actions.md) |
-| Images, bundle splitting, Turbopack, bundle analysis | [references/performance-and-tooling.md](references/performance-and-tooling.md) |
+- Framework-agnostic React work: component composition, hooks, forms and animation, use `react-patterns`.
+- Titles, meta descriptions, structured data and keyword mapping, use `seo`.
+- Profiling the server code and data access behind a slow route, use `performance-optimization`, while a Core Web Vitals regression in a Next.js app stays here.
 
 ---
 
@@ -62,36 +33,18 @@ Written for Next.js 16 on the App Router, where Turbopack is the default dev bun
 7. Derive metadata with `generateMetadata` from the data the page renders, titles from the message catalogue per the i18n rule in `react-patterns`, and pre-render the known set with `generateStaticParams`.
 8. Serve images through `next/image` with explicit dimensions, the LCP image with `loading="eager"` and `fetchPriority="high"`, and load heavy below-the-fold modules with `dynamic`.
 9. Develop on Turbopack, and fall back to `next dev --webpack` only for a specific bug, with the reason written down.
+10. Doc comments follow the Doc Comments rules in `coding-standards`, plus: a Server Action that returns its failure as a value documents that error contract in `@returns`.
 
 ---
 
-### Doc Comments
+### Reference map
 
-Doc comments follow the Doc Comments rules in `coding-standards`, whose TSDoc examples already cover TypeScript. Next.js delta: a Server Action returns its failure as a value rather than throwing it across the network boundary, so its error contract goes in `@returns`, for example `@returns { error } when the form fails validation`.
-
----
-
-### Related skills
-
-- `react-patterns` for React composition, hooks, forms, and animation that do not depend on Next.js.
-- `frontend-design` for visual direction and composition.
-- `design-system` for tokens, theming, and styling architecture.
-- `web-accessibility` for keyboard, focus, ARIA, and contrast requirements.
-- `seo` for titles, structured data, and keyword mapping behind `generateMetadata`.
-- `performance-optimization` for profiling server code and data access. Core Web Vitals work stays here.
-- `api-design` for the contract shape of route handlers exposed to other clients.
-
----
-
-### Checklist
-
-- Every `'use client'` sits at the smallest leaf that needs it.
-- Every fetch declares a revalidate window, a cache tag, or `no-store`.
-- Every slow region has a Suspense boundary with a real skeleton, and every route has `loading.tsx` or an equivalent.
-- Every mutation is a Server Action that invalidates the caches it dirties.
-- Every route handler parses its input through a schema and returns a meaningful status code.
-- Every dynamic route derives its metadata from its own data.
-- Every image goes through `next/image` with explicit dimensions, and the above-the-fold LCP image sets `loading="eager"` and `fetchPriority="high"`, never the deprecated `priority`.
-- Every heavy client-only module is loaded dynamically.
-- `next dev` runs on Turbopack, with any webpack fallback justified in writing.
-- Doc comments follow `coding-standards`, and a Server Action that returns its error documents that in `@returns`.
+| Task | Open |
+| --- | --- |
+| A rule above needs its Pass and Fail example, its full reasoning or the doc comment delta | [references/core-rules.md](references/core-rules.md) |
+| Server and Client split, streaming, caching layers | [references/rendering-and-data.md](references/rendering-and-data.md) |
+| File conventions, parallel and intercepting routes, route handlers, metadata | [references/routing.md](references/routing.md) |
+| Server Actions, form mutations, revalidation | [references/server-actions.md](references/server-actions.md) |
+| Images, bundle splitting, Turbopack, bundle analysis | [references/performance-and-tooling.md](references/performance-and-tooling.md) |
+| Whether a neighbouring skill owns the job | [references/scope.md](references/scope.md) |
+| Before calling a Next.js change or a Next.js review done | [references/checklist.md](references/checklist.md) |

@@ -7,14 +7,14 @@ Open this after the hub rule has told you which model the bottleneck calls for.
 
 ### Contents
 
-- Thread pool for blocking I/O
-- Process pool for CPU-bound work
-- TaskGroup for concurrent awaits
-- Handle the failures a TaskGroup raises
-- Bound concurrency with a semaphore
-- Always give an await a timeout
-- Never block the event loop
-- Keep shared mutable state behind a lock or out of reach
+- [Thread pool for blocking I/O](#thread-pool-for-blocking-io)
+- [Process pool for CPU-bound work](#process-pool-for-cpu-bound-work)
+- [TaskGroup for concurrent awaits](#taskgroup-for-concurrent-awaits)
+- [Handle the failures a TaskGroup raises](#handle-the-failures-a-taskgroup-raises)
+- [Bound concurrency with a semaphore](#bound-concurrency-with-a-semaphore)
+- [Always give an await a timeout](#always-give-an-await-a-timeout)
+- [Never block the event loop](#never-block-the-event-loop)
+- [Keep shared mutable state behind a lock or out of reach](#keep-shared-mutable-state-behind-a-lock-or-out-of-reach)
 
 ---
 

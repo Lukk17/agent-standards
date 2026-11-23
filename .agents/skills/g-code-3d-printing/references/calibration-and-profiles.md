@@ -1,7 +1,6 @@
 # Calibration, post-processing, multi-material, and profile control
 
-Everything that is per-filament, per-material, or per-profile rather than per-move. The safety and sequencing rules
-live in [SKILL.md](../SKILL.md).
+Everything that is per-filament, per-material, or per-profile rather than per-move. The safety and sequencing rules live in [SKILL.md](../SKILL.md), with their Pass and Fail G-code in [start-and-end-gcode.md](start-and-end-gcode.md) and [motion-rules.md](motion-rules.md).
 
 ---
 

@@ -10,8 +10,9 @@ Contents:
 - [Treat the vitals as thresholds, not scores](#treat-the-vitals-as-thresholds-not-scores)
 - [Link internally with descriptive anchors](#link-internally-with-descriptive-anchors)
 - [Report findings against a real location](#report-findings-against-a-real-location)
+- [Anti-patterns](#anti-patterns)
 
-Companion reference for the [seo](../SKILL.md) skill. Load it for the definitions and the pass and fail examples behind each rule: technical blockers, one intent per page, titles and descriptions, headings, structured data, the vitals, internal links, and the finding format.
+Companion reference for the [seo](../SKILL.md) skill. Load it for the definitions and the pass and fail examples behind each rule: technical blockers, one intent per page, titles and descriptions, headings, structured data, the vitals, internal links, and the finding format, then the anti-pattern table.
 
 ---
 
@@ -184,3 +185,16 @@ Fix: Generate a unique title per product using the product name and primary cate
 ```text
 [HIGH] Improve SEO on the site
 ```
+
+---
+
+### Anti-patterns
+
+| Anti-pattern | Fix |
+| --- | --- |
+| Keyword stuffing | Write for users first |
+| Thin near-duplicate pages | Consolidate or differentiate them |
+| Schema for content that is not on the page | Match schema to reality |
+| Content advice without reading the page | Read the real page first |
+| Generic "improve SEO" output | Tie every recommendation to a page or asset |
+| Chasing a lab score past the thresholds | Measure field data at the 75th percentile |

@@ -8,19 +8,19 @@ shows.
 
 ### Contents
 
-- Prefer EAFP over LBYL
-- Acquire every resource with `with`
-- Keep side effects out of import time
-- Comprehend simply, generate lazily
-- Write a context manager with `@contextmanager`
-- Write a context manager class when it owns state
-- Stack optional managers with `ExitStack`
-- Preserve metadata in every decorator
-- Validate a dataclass in `__post_init__`
-- Reach for `NamedTuple` only when tuple behaviour is wanted
-- Yield from a generator instead of returning a list
-- Add `slots=True` when instances are many
-- Build strings with `join`, not `+=`
+- [Prefer EAFP over LBYL](#prefer-eafp-over-lbyl)
+- [Acquire every resource with `with`](#acquire-every-resource-with-with)
+- [Keep side effects out of import time](#keep-side-effects-out-of-import-time)
+- [Comprehend simply, generate lazily](#comprehend-simply-generate-lazily)
+- [Write a context manager with `@contextmanager`](#write-a-context-manager-with-contextmanager)
+- [Write a context manager class when it owns state](#write-a-context-manager-class-when-it-owns-state)
+- [Stack optional managers with `ExitStack`](#stack-optional-managers-with-exitstack)
+- [Preserve metadata in every decorator](#preserve-metadata-in-every-decorator)
+- [Validate a dataclass in `__post_init__`](#validate-a-dataclass-in-__post_init__)
+- [Reach for `NamedTuple` only when tuple behaviour is wanted](#reach-for-namedtuple-only-when-tuple-behaviour-is-wanted)
+- [Yield from a generator instead of returning a list](#yield-from-a-generator-instead-of-returning-a-list)
+- [Add `slots=True` when instances are many](#add-slotstrue-when-instances-are-many)
+- [Build strings with `join`, not `+=`](#build-strings-with-join-not-)
 
 ---
 

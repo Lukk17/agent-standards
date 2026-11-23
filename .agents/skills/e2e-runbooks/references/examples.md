@@ -7,7 +7,7 @@ Contents:
 - [Example 3: fixture upload and retrieval, `4-rag-canary-test.md`](#example-3-fixture-upload-and-retrieval-4-rag-canary-testmd)
 - [What to copy from which](#what-to-copy-from-which)
 
-Three complete specs at increasing setup cost, matching the classes in [SKILL.md](../SKILL.md). Copy the closest one and
+Three complete specs at increasing setup cost, matching the classes in [writing-tests.md](writing-tests.md#number-by-setup-cost). Copy the closest one and
 replace the endpoints, commands and assertions. Every one keeps the same seven sections in the same order.
 
 ---

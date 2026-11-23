@@ -9,7 +9,7 @@ Contents:
 - [Keep memory bounded](#keep-memory-bounded)
 - [Run independent IO concurrently](#run-independent-io-concurrently)
 
-Each rule in SKILL.md in full, with its reasoning and its pass and fail forms in Python, SQL, TypeScript and Go. Load this file when applying a rule and the one-line summary in SKILL.md is not enough.
+Each rule in SKILL.md in full, with its reasoning and its pass and fail forms. The code sits in one file per language: [python.md](python.md), [sql.md](sql.md), [typescript.md](typescript.md) and [go.md](go.md). Load this file when applying a rule and the one-line summary in SKILL.md is not enough.
 
 ---
 
@@ -43,20 +43,9 @@ or let the ORM fetch the relation eagerly.
 
 Fail: one query for the list, then one more per row.
 
-```python
-orders = order_repository.list_recent(limit=100)
-for order in orders:
-    order.customer = customer_repository.get(order.customer_id)
-```
-
 Pass: one query for the list, one for every customer it references.
 
-```python
-orders = order_repository.list_recent(limit=100)
-customers = customer_repository.get_many({order.customer_id for order in orders})
-for order in orders:
-    order.customer = customers[order.customer_id]
-```
+Code: [python.md](python.md#avoid-the-n1-query).
 
 The same shape appears in every stack: `JOIN FETCH` or an entity graph in JPA, `select_related` / `prefetch_related` in
 Django, a DataLoader in a GraphQL resolver. Confirm the fix by counting the queries the request issues, not by looking
@@ -72,15 +61,9 @@ queries is write cost for no read benefit.
 
 Fail: unbounded and over-wide.
 
-```sql
-SELECT * FROM events WHERE tenant_id = $1 ORDER BY created_at DESC;
-```
+Pass: narrow, bounded, paged by cursor, and backed by an index on the filter and sort columns.
 
-Pass: narrow, bounded, paged by cursor, and backed by an index on `(tenant_id, created_at DESC, id DESC)`.
-
-```sql
-SELECT id, kind, created_at FROM events WHERE tenant_id = $1 AND (created_at, id) < ($2, $3) ORDER BY created_at DESC, id DESC LIMIT 50;
-```
+Code: [sql.md](sql.md).
 
 ---
 
@@ -110,20 +93,9 @@ lazily instead of loading all of it, because a file or result set that fits toda
 
 Fail: the whole export is materialised in memory before the first byte is sent.
 
-```python
-rows = [format_row(row) for row in repository.fetch_all_orders()]
-return Response("".join(rows), media_type="text/csv")
-```
-
 Pass: the rows are produced and released one at a time.
 
-```python
-def row_stream():
-    for row in repository.iter_orders(chunk_size=1000):
-        yield format_row(row)
-
-return StreamingResponse(row_stream(), media_type="text/csv")
-```
+Code: [python.md](python.md#keep-memory-bounded).
 
 ---
 
@@ -132,50 +104,11 @@ return StreamingResponse(row_stream(), media_type="text/csv")
 Sequential awaits of unrelated calls waste the whole duration of every call but the slowest. Start them together and
 join once.
 
-Fail (TypeScript): three independent calls cost the sum of their latencies.
+Fail: three independent calls cost the sum of their latencies.
 
-```typescript
-const profile = await api.getProfile(userId)
-const orders = await api.getOrders(userId)
-const preferences = await api.getPreferences(userId)
-```
+Pass: they cost the slowest one.
 
-Pass (TypeScript): they cost the slowest one.
-
-```typescript
-const [profile, orders, preferences] = await Promise.all([
-  api.getProfile(userId),
-  api.getOrders(userId),
-  api.getPreferences(userId),
-])
-```
-
-Fail (Go): the same serial shape.
-
-```go
-profile, err := client.Profile(ctx, userID)
-if err != nil {
-    return err
-}
-orders, err := client.Orders(ctx, userID)
-if err != nil {
-    return err
-}
-```
-
-Pass (Go): `errgroup` runs them together and returns the first error.
-
-```go
-var profile Profile
-var orders []Order
-
-g, ctx := errgroup.WithContext(ctx)
-g.Go(func() (err error) { profile, err = client.Profile(ctx, userID); return err })
-g.Go(func() (err error) { orders, err = client.Orders(ctx, userID); return err })
-if err := g.Wait(); err != nil {
-    return err
-}
-```
+Code: [typescript.md](typescript.md) with `Promise.all`, and [go.md](go.md) with `errgroup`.
 
 Two rules survive the translation to any language: only parallelise calls with no data dependency between them, and cap
 the fan-out so a batch of 10,000 ids does not open 10,000 sockets.

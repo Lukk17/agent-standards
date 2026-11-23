@@ -54,6 +54,8 @@
 #                        server the session knew, status "disabled" for one it
 #                        left off, and returns non-zero when nothing records
 #                        which servers the agent loaded.
+#   agent_before_import  Optional. Runs after the work directory exists and
+#                        before the project import, for what the import reads.
 #   agent_extra_tests    Optional. Runs this agent's own checks after the six
 #                        shared ones, with run_captured_case and the judges in
 #                        "Agent-specific checks" below.
@@ -112,7 +114,7 @@ readonly PROVIDER_V1_URL="${PROVIDER_URL}/v1"
 readonly MODEL="${LIVE_MODEL:-${AGENT_MODEL:-$DEFAULT_MODEL}}"
 readonly AGENT_TIMEOUT="${LIVE_AGENT_TIMEOUT:-600}"
 
-readonly GATE_SCRIPT="${REPO_ROOT}/.agents/hooks/preflight-gate/preflight_gate.py"
+readonly GATE_RULES="${REPO_ROOT}/.agents/hooks/preflight-gate/_gate_rules.py"
 readonly REMINDER_MARKER="name the skills and subagents that own this task and invoke them"
 readonly SUBAGENT_TEXT_MARKER="PREFLIGHT for a subagent:"
 readonly SUBAGENT_NAME="docs-architect"
@@ -497,7 +499,7 @@ gate_deny_markers() {
 
   python="$(command -v python3 || command -v python)" || return "$EXIT_USAGE"
 
-  "$python" -S -E - "$GATE_SCRIPT" "${1:-}" <<'EOF'
+  "$python" -S -E - "$GATE_RULES" "${1:-}" <<'EOF'
 import importlib.util
 import re
 import sys
@@ -597,7 +599,7 @@ test_gate_blocks_main_thread() {
   elif [[ -e "${PROJECT}/${MAIN_PROBE}" ]]; then
     record "$name" FAIL "${attempts} main-thread write attempt(s) and ${MAIN_PROBE} was created, the gate let it through"
   elif [[ "$denial" -eq "$EXIT_USAGE" ]]; then
-    record "$name" FAIL "the deny reasons could not be read from ${GATE_SCRIPT}"
+    record "$name" FAIL "the deny reasons could not be read from ${GATE_RULES}"
   elif [[ "$denial" -eq 0 ]]; then
     record "$name" PASS "${attempts} main-thread write attempt(s), all denied by the gate, file absent"
   else
@@ -899,7 +901,7 @@ judge_read_only_probe() {
   elif [[ "$typed" -gt 0 && "$landed" == "landed" ]]; then
     record "$name" FAIL "the payload named agent_type ${agent_type} with agent_id, yet ${READ_ONLY_PROBE} landed, so Rule E did not find the read-only definition (${summary})"
   elif [[ "$typed" -gt 0 && "$denial" -eq "$EXIT_USAGE" ]]; then
-    record "$name" FAIL "the Rule E reason could not be read from ${GATE_SCRIPT}"
+    record "$name" FAIL "the Rule E reason could not be read from ${GATE_RULES}"
   elif [[ "$typed" -gt 0 && "$denial" -eq 0 ]]; then
     record "$name" PASS "the probe call's payload named agent_type ${agent_type} with agent_id, Rule E denied the touch and ${READ_ONLY_PROBE} is absent (${summary})"
   elif [[ "$typed" -gt 0 ]]; then
@@ -1103,6 +1105,11 @@ run_suite() {
 
   install_agent
   prepare_workspace
+
+  if declare -F agent_before_import > /dev/null; then
+    agent_before_import
+  fi
+
   prepare_project
   agent_configure
 

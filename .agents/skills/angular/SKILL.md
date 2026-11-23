@@ -1,9 +1,9 @@
 ---
 name: angular
-description: "Angular 22 application standards, covering standalone components, signals and RxJS interop, inject(), OnPush change detection, functional guards and interceptors, typed reactive forms, global error handling and Vitest tests. Use when the user says \"build this Angular component\" or \"my subscription leaks\". Not for React and Next.js work, use `react-patterns`."
+description: 'Angular 22 standards for standalone components, signals, RxJS, inject() and typed forms. Use when the user says "build this Angular component" or "my subscription leaks". Not for React, use `react-patterns`.'
 license: Apache-2.0
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # Angular Standards
@@ -14,36 +14,11 @@ Written for Angular 22. Standalone components, signals, RxJS interop, `inject()`
 
 ---
 
-### When to activate
-
-- Building or reviewing any Angular component, service, guard, interceptor, or form.
-- The user says "build this Angular component", "replace this BehaviorSubject with a signal", "my subscription leaks", "write a functional auth guard", or "add an HTTP error interceptor".
-- Choosing between a signal and an observable for a piece of state.
-- Fixing a subscription leak or a change-detection performance problem.
-- Migrating NgModules to standalone components, or class-based guards and interceptors to functional ones.
-- Setting up global error handling, HTTP plumbing, or route-level data loading.
-
----
-
 ### When not to activate
 
-- React, Next.js, and framework-agnostic web patterns. Use `react-patterns`.
-- Next.js rendering and routing. Use `nextjs-app-router-patterns`.
-- Visual direction and composition. Use `frontend-design`.
-- Tokens, theming, and stylesheet architecture. Use `design-system`.
-- WCAG conformance, ARIA, and screen-reader behaviour. Use `web-accessibility`.
-- The cross-language engineering baseline of SOLID, naming, and error handling. Use `coding-standards`.
-
----
-
-### Reference map
-
-| Task | Open |
-| --- | --- |
-| A hub rule needs its Pass and Fail example or its full reasoning | [references/core-rules.md](references/core-rules.md) |
-| Functional guards and resolvers, HTTP interceptors, typed forms | [references/routing-http-and-forms.md](references/routing-http-and-forms.md) |
-| Unit tests, component tests, HTTP mocking, end-to-end setup | [references/testing.md](references/testing.md) |
-| Sanitisation, CSP, and internationalisation | [references/security-and-i18n.md](references/security-and-i18n.md) |
+- React, Next.js and framework-agnostic web patterns, use `react-patterns` or `nextjs-app-router-patterns`.
+- Tokens, theming and stylesheet architecture, use `design-system`.
+- WCAG conformance, ARIA and screen-reader behaviour, use `web-accessibility`.
 
 ---
 
@@ -59,36 +34,17 @@ Written for Angular 22. Standalone components, signals, RxJS interop, `inject()`
 8. Run `OnPush`, the default from Angular 22 and set explicitly on an older project, and never bind a template to a method call.
 9. Defer heavy sections with `@defer`. Keep constructors to injection-context wiring such as `takeUntilDestroyed()`, `toSignal` and `effect`, with other initialisation in `ngOnInit`.
 10. Name files by the style guide, hyphenated and matching the exported class, such as `user-profile.ts`. Keep a `.component.ts` suffix only where the project already uses it throughout.
+11. Doc comments follow the Doc Comments rules in `coding-standards`, plus a `@returns` on every `Observable` return that says whether it completes, replays, or has to be unsubscribed.
 
 ---
 
-### Doc Comments
+### Reference map
 
-Doc comments follow the Doc Comments rules in `coding-standards`, whose TSDoc examples already cover TypeScript. Angular delta: an `Observable` return is non-obvious by nature, so `@returns` says whether it completes, replays, or has to be unsubscribed, for example `@returns a cold Observable that completes after one emission`.
-
----
-
-### Related skills
-
-- `react-patterns` for React and framework-agnostic web patterns.
-- `frontend-design` for visual direction and composition.
-- `design-system` for tokens, theming, and stylesheet architecture.
-- `web-accessibility` for keyboard, focus, ARIA, and contrast requirements in Angular templates.
-- `coding-standards` for the cross-language engineering baseline.
-- `e2e-testing` for the Playwright suite that drives the application.
-- `api-design` for the contracts the data services call.
-
----
-
-### Checklist
-
-- Every new component is standalone and runs `OnPush`, the default from Angular 22, set explicitly only on an older project. `ChangeDetectionStrategy.Eager` carries a justification.
-- Synchronous UI state lives in signals, and no `BehaviorSubject` is used as a state container.
-- Every component-level subscription ends with `takeUntilDestroyed`, and no `ngOnDestroy` destroy subject remains.
-- No `subscribe` call in a component assigns a field that a signal or the `async` pipe could hold.
-- Dependencies arrive through `inject()`, and no component injects `HttpClient` directly.
-- Guards, resolvers, and interceptors are functions, not classes.
-- Every reactive form is typed, and no untyped form variant remains.
-- A custom `ErrorHandler` is registered, and no `catchError` discards an error without logging it.
-- No template binds to a method call.
-- Doc comments follow `coding-standards`, and every `Observable` return says whether it completes, replays, or must be unsubscribed.
+| Task | Open |
+| --- | --- |
+| A rule above needs its Pass and Fail example, its full reasoning or the doc comment delta | [references/core-rules.md](references/core-rules.md) |
+| Functional guards and resolvers, HTTP interceptors, typed forms | [references/routing-http-and-forms.md](references/routing-http-and-forms.md) |
+| Unit tests, component tests, HTTP mocking, end-to-end setup | [references/testing.md](references/testing.md) |
+| Sanitisation, CSP, and internationalisation | [references/security-and-i18n.md](references/security-and-i18n.md) |
+| Whether a neighbouring skill owns the job | [references/scope.md](references/scope.md) |
+| Before calling an Angular change or an Angular review done | [references/checklist.md](references/checklist.md) |

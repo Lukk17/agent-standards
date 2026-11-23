@@ -8,7 +8,7 @@
     "playwright": {
       "type": "local",
       "command": "npx",
-      "args": ["@playwright/mcp@latest"],
+      "args": ["@playwright/mcp@0.0.85"],
       "tools": ["*"]
     }
   }

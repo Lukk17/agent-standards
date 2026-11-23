@@ -1,20 +1,8 @@
 # Advanced testing standards
 
-Contents:
-
-- [Test pyramid](#test-pyramid)
-- [Test data factory](#test-data-factory)
-- [Contract testing](#contract-testing)
-- [Mutation testing](#mutation-testing)
-- [Performance gates](#performance-gates)
-- [Coverage configuration on the JVM](#coverage-configuration-on-the-jvm)
-- [Do not mock what you do not own](#do-not-mock-what-you-do-not-own)
-- [Testcontainers mandate](#testcontainers-mandate)
-- [Run the whole suite](#run-the-whole-suite)
-
 Depth behind [SKILL.md](../SKILL.md): the pyramid proportions, the test data factory pattern, contract and mutation
-testing, performance gates, the coverage configuration for JVM projects, and the two rules that decide what may be
-mocked.
+testing, performance gates, and the two rules that decide what may be mocked. The configuration and code for one stack
+is in [jvm-testing.md](jvm-testing.md), [jest.md](jest.md) and [k6.md](k6.md).
 
 ---
 
@@ -37,38 +25,8 @@ keep green.
 Object construction repeated inline across tests is duplication with a long tail: every schema change becomes a sweep
 through the test suite. Extract construction into a factory that exposes named states.
 
-```java
-public final class OrderTestFactory {
-
-  public static Order valid() {
-    return Order.builder()
-      .id(UUID.randomUUID())
-      .customerId("cust-001")
-      .items(List.of(OrderItem.of("SKU-1", 2, BigDecimal.valueOf(9.99))))
-      .status(OrderStatus.PENDING)
-      .build();
-  }
-
-  public static Order cancelled() {
-    return valid().toBuilder().status(OrderStatus.CANCELLED).build();
-  }
-}
-```
-
-```typescript
-export const OrderFactory = {
-  valid: (): Order => ({
-    id: crypto.randomUUID(),
-    customerId: 'cust-001',
-    items: [{ sku: 'SKU-1', quantity: 2, price: 9.99 }],
-    status: 'pending',
-  }),
-  cancelled: (): Order => ({ ...OrderFactory.valid(), status: 'cancelled' }),
-}
-```
-
 Each named state describes a domain condition, so a test reads as `given a cancelled order` rather than as fifteen lines
-of builder calls.
+of builder calls. The factory in Java is in [jvm-testing.md](jvm-testing.md#test-data-factory) and in TypeScript in [jest.md](jest.md#test-data-factory).
 
 ---
 
@@ -79,22 +37,8 @@ both sides still lets a provider break a consumer it never runs against. A publi
 individually identified, uses a schema-diff gate on its OpenAPI description instead, since a consumer-driven contract
 needs a known consumer to write it.
 
-```groovy
-Contract.make {
-  request {
-    method 'GET'
-    url '/api/users/123'
-  }
-  response {
-    status 200
-    body([id: '123', name: 'Alice'])
-    headers { contentType(applicationJson()) }
-  }
-}
-```
-
 Use Pact in polyglot estates and Spring Cloud Contract for JVM-to-JVM service pairs. The contract lives with the
-consumer and is verified in the provider's pipeline, which is what makes it a gate rather than documentation.
+consumer and is verified in the provider's pipeline, which is what makes it a gate rather than documentation. A Spring Cloud Contract example is in [jvm-testing.md](jvm-testing.md#contract-testing-with-spring-cloud-contract).
 
 ---
 
@@ -103,63 +47,19 @@ consumer and is verified in the provider's pipeline, which is what makes it a ga
 Line coverage says a line ran. Mutation testing says the test would have noticed if that line were wrong. Run it on
 critical business logic and gate CI at a minimum score of 70 percent.
 
-```xml
-<plugin>
-  <groupId>org.pitest</groupId>
-  <artifactId>pitest-maven</artifactId>
-  <configuration>
-    <mutationThreshold>70</mutationThreshold>
-    <coverageThreshold>80</coverageThreshold>
-  </configuration>
-</plugin>
-```
-
 PIT covers the JVM, Stryker covers TypeScript and JavaScript, `mutmut` and `cosmic-ray` cover Python. Scope it to the
-modules that hold business rules. Running it over the whole repository is slow enough that teams switch it off.
+modules that hold business rules. Running it over the whole repository is slow enough that teams switch it off. The PIT configuration is in [jvm-testing.md](jvm-testing.md#mutation-testing-with-pit).
 
 ---
 
 ### Performance gates
 
 Required before a major release and for any change to a hot path. Assert thresholds inside the load test so a regression
-fails the run rather than needing someone to read a chart.
-
-```javascript
-export const options = {
-  thresholds: {
-    http_req_duration: ['p(99)<200'],
-    http_req_failed: ['rate<0.01'],
-  },
-}
-```
+fails the run rather than needing someone to read a chart. The k6 form is in [k6.md](k6.md).
 
 k6 and Gatling cover HTTP services, `pytest-benchmark` covers Python hot paths, and JMH covers JVM micro-benchmarks.
 Alert on a p99 regression above 20 percent against the previous release baseline. The measurement discipline itself
 lives in the `performance-optimization` skill.
-
----
-
-### Coverage configuration on the JVM
-
-The gate is the same as in the skill: 90 percent line coverage of real logic, 70 percent branch coverage minimum.
-
-```xml
-<rule>
-  <element>BUNDLE</element>
-  <limits>
-    <limit>
-      <counter>LINE</counter>
-      <value>COVEREDRATIO</value>
-      <minimum>0.90</minimum>
-    </limit>
-    <limit>
-      <counter>BRANCH</counter>
-      <value>COVEREDRATIO</value>
-      <minimum>0.70</minimum>
-    </limit>
-  </limits>
-</rule>
-```
 
 ---
 
@@ -176,26 +76,8 @@ test double, or a fake at the wire protocol (WireMock, MSW) so the real client c
 ### Testcontainers mandate
 
 Every integration test that touches a database, message queue, cache, or cloud service runs it as a container the test
-owns.
-
-```java
-import org.testcontainers.postgresql.PostgreSQLContainer;
-
-@Testcontainers
-@SpringBootTest
-class OrderRepositoryTest {
-
-  @Container
-  @ServiceConnection
-  static PostgreSQLContainer postgres = new PostgreSQLContainer(
-      DockerImageName.parse("postgres:<version-tag>@sha256:<digest>").asCompatibleSubstituteFor("postgres"));
-}
-```
-
-Pin the image to a version tag and its digest, wrapped in `asCompatibleSubstituteFor` so the module still accepts it. `springboot-patterns` explains the wrapper and the LocalStack exception, which is pinned by tag alone. `@ServiceConnection` hands Spring Boot the URL, the username and the password together. Outside Spring Boot, register
-the URL, username and password from the container yourself, because the container creates its own user and a URL alone
-fails authentication. The class shown is the Testcontainers 2 one, which moved each module into its own package and
-dropped the generic type parameter.
+owns, with the image pinned to a version tag and its digest. The Java and Spring Boot form, with the pin and the
+connection details, is in [jvm-testing.md](jvm-testing.md#testcontainers).
 
 Never point automated tests at a shared staging database. Tests must be hermetic and reproducible, and a shared instance
 makes them neither: results depend on whoever else was running at the time.

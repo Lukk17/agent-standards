@@ -6,10 +6,10 @@ Mutations that run on the server, work without client JavaScript, and invalidate
 
 ### Contents
 
-- Shape of an action
-- Actions as form handlers
-- Rules that keep actions safe
-- Pairing with the client
+- [Shape of an action](#shape-of-an-action)
+- [Actions as form handlers](#actions-as-form-handlers)
+- [Rules that keep actions safe](#rules-that-keep-actions-safe)
+- [Pairing with the client](#pairing-with-the-client)
 
 ---
 

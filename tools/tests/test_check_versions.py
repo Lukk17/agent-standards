@@ -122,16 +122,22 @@ def test_a_changed_hook_script_must_raise_the_hook_version_in_the_map(repository
 
 
 def test_a_changed_hook_wiring_must_raise_the_hook_version(repository):
-    settings = repository / ".claude" / "settings.json"
-    settings.write_text(settings.read_text(encoding="utf-8").replace('"timeout": 10', '"timeout": 20'), encoding="utf-8")
+    edit_map(repository, "timeout: 10", "timeout: 20")
 
     assert [p.split(":")[0] for p in run(repository)[0]] == ["hook-gate"]
 
 
 def test_a_changed_server_block_must_raise_the_server_version(repository):
+    edit_map(repository, 'url: "https://docs.example"}', 'url: "https://docs.example/v2"}')
     write(repository / ".mcp.json", json.dumps({"mcpServers": {"docs": {"type": "http", "url": "https://docs.example/v2"}}}))
 
     assert [p.split(":")[0] for p in run(repository)[0]] == ["mcp-docs"]
+
+
+def test_a_server_the_root_file_stops_starting_keeps_its_plugin_and_its_version(repository):
+    write(repository / ".mcp.json", json.dumps({"mcpServers": {}}))
+
+    assert run(repository)[0] == []
 
 
 def test_a_changed_bundle_membership_must_raise_the_bundle_version(repository):

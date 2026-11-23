@@ -7,12 +7,12 @@ tablet, and desktop.
 
 ### Contents
 
-- The constraint rule
-- Structural widgets
-- Unbounded constraints in a flex box
-- Responsive versus adaptive
-- Building a complex layout
-- Checklist
+- [The constraint rule](#the-constraint-rule)
+- [Structural widgets](#structural-widgets)
+- [Unbounded constraints in a flex box](#unbounded-constraints-in-a-flex-box)
+- [Responsive versus adaptive](#responsive-versus-adaptive)
+- [Building a complex layout](#building-a-complex-layout)
+- [Checklist](#checklist)
 
 ---
 

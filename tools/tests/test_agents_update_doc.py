@@ -93,6 +93,22 @@ def test_the_update_removes_every_old_flat_hook_before_it_refreshes_the_hook_fol
     assert left == ["claude/sync-skill-links/sync_skill_links.py", "preflight-gate/preflight_gate.py", "task-list-sync/task_list_sync.py"]
 
 
+def test_moving_claude_code_to_the_plugins_removes_the_link_and_the_agent_tree_and_keeps_the_skills(tmp_path):
+    root = tmp_path / "project"
+    write(root, ".agents/skills/kept/SKILL.md", "kept\n")
+    write(root, ".claude/agents/pro/pro.md", "agent\n")
+    write(root, ".claude/settings.json", "{}\n")
+    (root / ".claude" / "skills").symlink_to("../.agents/skills")
+    git(tmp_path, "init", "--quiet", "--initial-branch=main", str(root))
+    git(root, "add", "--all")
+    git(root, "commit", "--quiet", "-m", "import with the Claude Code trees")
+
+    run(root, bash_block("git rm -r -q --ignore-unmatch -- .claude/skills .claude/agents"))
+
+    assert sorted(p.name for p in (root / ".claude").iterdir()) == ["settings.json"]
+    assert (root / ".agents" / "skills" / "kept" / "SKILL.md").read_text(encoding="utf-8") == "kept\n"
+
+
 def test_every_old_flat_hook_is_named_in_the_removal(project):
     block = bash_block("git rm -q --ignore-unmatch -- .agents/hooks/preflight_gate.py")
 

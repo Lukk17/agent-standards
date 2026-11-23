@@ -7,14 +7,14 @@ large, after the data pipeline has been ruled out.
 
 ### Contents
 
-- Measure before changing anything
-- Mixed precision with autocast and a scaler
-- Trade compute for memory with gradient checkpointing
-- Compile the model
-- Profile the step
-- Remove the hidden synchronisation points
-- Diagnose out-of-memory before lowering the batch size
-- Set the matmul precision
+- [Measure before changing anything](#measure-before-changing-anything)
+- [Mixed precision with autocast and a scaler](#mixed-precision-with-autocast-and-a-scaler)
+- [Trade compute for memory with gradient checkpointing](#trade-compute-for-memory-with-gradient-checkpointing)
+- [Compile the model](#compile-the-model)
+- [Profile the step](#profile-the-step)
+- [Remove the hidden synchronisation points](#remove-the-hidden-synchronisation-points)
+- [Diagnose out-of-memory before lowering the batch size](#diagnose-out-of-memory-before-lowering-the-batch-size)
+- [Set the matmul precision](#set-the-matmul-precision)
 
 ---
 

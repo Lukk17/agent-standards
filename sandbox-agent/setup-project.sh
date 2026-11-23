@@ -3,15 +3,20 @@
 # Script: setup-project.sh
 # Description: Builds a throwaway consumer project inside the container and
 #              imports the shared configuration from the mounted agent-standards
-#              repository exactly as docs/AGENT_TOOLING.md tells a consumer to.
+#              repository as docs/AGENT_TOOLING.md tells a consumer to: the
+#              Git checkout for OpenCode, Kilo Code, Codex and Copilot, and
+#              for Claude Code the marketplace added and its plugins installed
+#              at project scope (lib-claude-plugins.sh). A machine with no
+#              claude command skips the Claude Code step, as a project that
+#              never runs Claude Code does.
 # Usage: setup-project.sh
 # Environment:
 #   AGENT_STANDARDS_REPO  Mounted upstream repository. Default /repo.
 #   SANDBOX_PROJECT       Throwaway project directory. Default /work/project.
 # Exit codes:
 #   0  The project was created and every imported path landed.
-#   1  A prerequisite was missing, the import failed, or a symlink did not
-#      resolve.
+#   1  A prerequisite was missing, the import failed, a symlink did not
+#      resolve, or the Claude Code plugins could not be installed.
 # -----------------------------------------------------------------------------
 set -euo pipefail
 IFS=$'\n\t'
@@ -20,9 +25,12 @@ readonly REPO="${AGENT_STANDARDS_REPO:-/repo}"
 readonly PROJECT="${SANDBOX_PROJECT:-/work/project}"
 readonly REMOTE="agent-standards"
 
+# shellcheck source=lib-claude-plugins.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib-claude-plugins.sh"
+
 readonly IMPORT_PATHS=(
   ".agents"
-  ".claude"
+  ".claude/workflows"
   ".opencode"
   ".kilo"
   ".codex"
@@ -40,7 +48,6 @@ readonly IMPORT_PATHS=(
 )
 
 readonly SYMLINKS=(
-  ".claude/skills:../.agents/skills"
   ".opencode/agents:../.agents/agents"
   ".kilo/agents:../.agents/agents"
 )
@@ -150,12 +157,39 @@ verify_symlinks() {
   fi
 }
 
+# Claude Code takes its skills, subagents and hooks from the marketplace, so
+# the project gets no .claude/skills, no .claude/agents and no hook wiring by
+# checkout: the install writes .claude/settings.json itself.
+install_claude_plugins() {
+  local IFS=' '
+
+  if ! command -v claude >/dev/null 2>&1; then
+    log_info "no claude command on PATH, skipping the Claude Code plugins"
+    return 0
+  fi
+
+  log_info "adding the marketplace and installing ${CLAUDE_PROJECT_PLUGINS[*]} at project scope"
+
+  if ! claude_market_start "$REPO"; then
+    log_error "the marketplace could not be served from ${REPO} on port ${CLAUDE_MARKET_PORT}"
+    return 1
+  fi
+
+  if ! claude_plugins_install "$PROJECT" >&2; then
+    log_error "the Claude Code plugins could not be installed into ${PROJECT}"
+    return 1
+  fi
+}
+
 main() {
+  trap claude_market_stop EXIT
+
   require_tools
   require_source_repo
   create_empty_project
   import_standards
   verify_symlinks
+  install_claude_plugins
 
   log_info "project ready at ${PROJECT}"
 }

@@ -9,7 +9,6 @@ Read this when running migrations with Kysely and kysely-ctl on a TypeScript or 
 - [Workflow](#workflow)
 - [Migration file](#migration-file)
 - [Programmatic migrator](#programmatic-migrator)
-- [Related skills](#related-skills)
 
 ---
 
@@ -107,11 +106,3 @@ The `fileURLToPath` line is for ESM. Under CommonJS, use `__dirname` directly.
 
 Leave `allowUnorderedMigrations` off. It disables timestamp-ordering validation, which is what stops two branches
 merging into a history that applies differently in each environment.
-
----
-
-### Related skills
-
-- `database-migrations` for the safety rules these commands have to satisfy.
-- `node-backend-patterns` for the repository layer built on the Kysely instance.
-- `postgres-patterns` for index selection and query plans.

@@ -3,7 +3,8 @@
 # Script: verify-project.sh
 # Description: Asserts that every supported agent discovers the shared skills,
 #              its own subagent tree, its preflight wiring and its MCP servers
-#              in the imported throwaway project, that the preflight gate
+#              in the imported throwaway project, with Claude Code held to the
+#              plugins its project settings switch on, that the preflight gate
 #              really denies what it claims to deny, and that on every agent a
 #              real python-pro subagent writes a real file while the gate
 #              denies the main thread's own write, against a scripted mock
@@ -24,8 +25,14 @@ readonly PROJECT="${SANDBOX_PROJECT:-/work/project}"
 readonly SETUP="/sandbox/setup-project.sh"
 readonly CLI_TIMEOUT="${SANDBOX_CLI_TIMEOUT:-300}"
 readonly GATE=".agents/hooks/preflight-gate/preflight_gate.py"
+readonly GATE_RULES=".agents/hooks/preflight-gate/_gate_rules.py"
 readonly PROBE_AGENT=".claude/agents/sandbox-no-skills-probe.md"
 readonly SAMPLE_SKILL="python-patterns"
+readonly CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}"
+readonly CLAUDE_MARKET="agent-standards"
+readonly CLAUDE_CATALOG="${CLAUDE_HOME}/plugins/marketplaces/${CLAUDE_MARKET}/.claude-plugin/marketplace.json"
+readonly CLAUDE_CACHE="${CLAUDE_HOME}/plugins/cache/${CLAUDE_MARKET}"
+readonly PLUGIN_REVIEWER="agent-code-reviewer:code-reviewer"
 
 # Every agent CLI is captured into this file rather than into a pipe. OpenCode
 # exits without draining a large stdout when stdout is a pipe, which silently
@@ -35,6 +42,8 @@ readonly CLI_OUTPUT
 
 # shellcheck source=lib-opencode2.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib-opencode2.sh"
+# shellcheck source=lib-claude-plugins.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib-claude-plugins.sh"
 # shellcheck source=e2e-mock/subagent-write.sh
 source "$(dirname "${BASH_SOURCE[0]}")/e2e-mock/subagent-write.sh"
 
@@ -43,6 +52,8 @@ FAILURES=0
 SKILL_COUNT=0
 
 SUBAGENTS=()
+CLAUDE_PLUGINS=()
+CLAUDE_WIRING=""
 MCP_JSON_SERVERS=()
 CODEX_MCP_SERVERS=()
 OPENCODE_MCP_SERVERS=()
@@ -51,9 +62,10 @@ OPENCODE_V1_PROJECT=""
 cleanup() {
   local exit_code=$?
 
-  rm -f "$CLI_OUTPUT"
+  rm -f "$CLI_OUTPUT" "$CLAUDE_WIRING"
   opencode2_end
   e2e_end
+  claude_market_stop
 
   if [[ -n "$OPENCODE_V1_PROJECT" ]]; then
     rm -rf "$OPENCODE_V1_PROJECT"
@@ -150,19 +162,43 @@ assert_glob_count() {
 
 assert_json() {
   local label="$1" path="$2" filter="$3"
+
+  assert_json_at "$label" "${PROJECT}/${path}" "$filter" "$path"
+}
+
+# The same check over a file outside the project, named in full. The optional
+# fourth argument is the name a failure reports the file by.
+assert_json_at() {
+  local label="$1" file="$2" filter="$3" name="${4:-$2}"
   local result=""
 
-  if [[ ! -f "${PROJECT}/${path}" ]]; then
-    fail "${label} (${path} is missing)"
+  if [[ ! -f "$file" ]]; then
+    fail "${label} (${name} is missing)"
     return
   fi
 
-  result="$(jq -r "$filter" "${PROJECT}/${path}" 2>/dev/null || echo "error")"
+  result="$(jq -r "$filter" "$file" 2>/dev/null || echo "error")"
 
   if [[ "$result" == "true" ]]; then
     pass "${label}"
   else
-    fail "${label} (the check over ${path} returned '${result}')"
+    fail "${label} (the check over ${name} returned '${result}')"
+  fi
+}
+
+# Passes when two sorted lists, one name per line, are the same.
+assert_same_names() {
+  local label="$1" expected="$2" actual="$3"
+  local count=0 missing="" extra=""
+
+  count="$(grep -c . <<<"$expected" || true)"
+  missing="$(comm -23 <(printf '%s\n' "$expected") <(printf '%s\n' "$actual") | tr '\n' ' ')"
+  extra="$(comm -13 <(printf '%s\n' "$expected") <(printf '%s\n' "$actual") | tr '\n' ' ')"
+
+  if [[ "$count" -gt 0 && -z "$missing" && -z "$extra" ]]; then
+    pass "${label} (${count} of ${count})"
+  else
+    fail "${label} (missing: ${missing:-none}, not expected: ${extra:-none})"
   fi
 }
 
@@ -349,6 +385,7 @@ verify_import() {
   assert_absent "the canonical subagent source stays upstream" "subagents"
   assert_absent "the generator stays upstream" "tools"
   assert_file "the shared gate script landed" "$GATE"
+  assert_file "the rules file the gate script imports landed beside it" "$GATE_RULES"
   assert_file "the OpenCode and Kilo Code plugin landed" ".agents/plugin/hooks.js"
   assert_file "the plugin directory entry landed beside it" ".agents/plugin/index.js"
   assert_file "the GitHub Copilot CLI fallback MCP configuration landed" ".github/mcp.json"
@@ -359,49 +396,170 @@ verify_import() {
   assert_file "dryer landed unchanged beside the wrapper" ".metrics/tools/dryer/LICENSE"
   assert_file "mutator landed unchanged beside the wrapper" ".metrics/tools/mutator/LICENSE"
   assert_glob_count "every canonical skill landed" ".agents/skills/*/SKILL.md" "$SKILL_COUNT"
-  assert_symlinked_dir "Claude Code skills symlink resolves" ".claude/skills"
+  assert_absent "the Claude Code skills link stays upstream, because the plugins carry the skills" ".claude/skills"
+  assert_absent "the Claude Code subagent tree stays upstream, because the plugins carry the subagents" ".claude/agents"
   assert_symlinked_dir "OpenCode subagents symlink resolves" ".opencode/agents"
   assert_symlinked_dir "Kilo Code subagents symlink resolves" ".kilo/agents"
 }
 
+# Every plugin the bundles of CLAUDE_PROJECT_PLUGINS install, from the catalog
+# Claude Code cloned, one "<category> <name>" per line.
+claude_plugin_closure() {
+  python3 -I -S - "$CLAUDE_CATALOG" "${CLAUDE_PROJECT_PLUGINS[@]}" <<'PY'
+import json
+import sys
+
+entries = {entry["name"]: entry for entry in json.load(open(sys.argv[1], encoding="utf-8"))["plugins"]}
+seen, stack = set(), list(sys.argv[2:])
+
+while stack:
+    name = stack.pop()
+
+    if name not in seen:
+        seen.add(name)
+        stack.extend(entries[name].get("dependencies", []))
+
+for name in sorted(seen):
+    print(entries[name]["category"], name)
+PY
+}
+
+# The names of one category in CLAUDE_PLUGINS, one per line.
+claude_plugins_of() {
+  local category="$1" line=""
+
+  for line in "${CLAUDE_PLUGINS[@]}"; do
+    [[ "$line" == "${category} "* ]] && printf '%s\n' "${line#* }"
+  done
+
+  return 0
+}
+
+# Writes the hook wiring Claude Code runs in the project into CLAUDE_WIRING: the
+# hooks of every hook plugin the project settings switch on, merged by event,
+# in the shape a settings file holds them.
+claude_wiring() {
+  CLAUDE_WIRING="$(mktemp -t sandbox-claude-wiring-XXXXXXXX)"
+
+  jq --slurpfile settings "${PROJECT}/.claude/settings.json" '
+    ($settings[0].enabledPlugins // {}) as $on
+    | .name as $market
+    | {hooks: ([.plugins[] | select(.category == "hook" and $on["\(.name)@\($market)"] == true) | .hooks | to_entries[]]
+        | group_by(.key) | map({key: .[0].key, value: (map(.value) | add)}) | from_entries)}' \
+    "$CLAUDE_CATALOG" >"$CLAUDE_WIRING" 2>/dev/null || : >"$CLAUDE_WIRING"
+}
+
+# Counts the plugins of one category whose cached folder holds the file the
+# pattern names, where @ stands for the plugin's item name.
+assert_claude_cache() {
+  local label="$1" category="$2" prefix="$3" pattern="$4"
+  local name="" file="" found=0 total=0 missing=()
+  local matches=()
+
+  while IFS= read -r name; do
+    [[ -n "$name" ]] || continue
+    total=$((total + 1))
+    file="${pattern//@/${name#"$prefix"}}"
+    shopt -s nullglob
+    # shellcheck disable=SC2206
+    matches=( ${CLAUDE_CACHE}/${name}/*/${file} )
+    shopt -u nullglob
+
+    if [[ "${#matches[@]}" -eq 1 ]]; then
+      found=$((found + 1))
+    else
+      missing+=("$name")
+    fi
+  done < <(claude_plugins_of "$category")
+
+  if [[ "$total" -gt 0 && "$found" -eq "$total" ]]; then
+    pass "${label} (${found} of ${total})"
+  else
+    fail "${label} (${found} of ${total}, missing: $(join_commas "${missing[@]}"))"
+  fi
+}
+
 verify_claude() {
+  local expected="" enabled="" listed="" status=0
+
   section "Claude Code"
 
-  assert_glob_count "skills are discoverable through the symlink Claude Code reads" \
-    ".claude/skills/*/SKILL.md" "$SKILL_COUNT"
-  assert_file "a known skill resolves through the symlink" \
-    ".claude/skills/${SAMPLE_SKILL}/SKILL.md"
-  assert_glob_count "subagents are discoverable in Claude Code format" \
-    ".claude/agents/*/*.md" "${#SUBAGENTS[@]}"
-  assert_json "the gate is wired into PreToolUse" ".claude/settings.json" \
-    '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight-gate/preflight_gate.py") and contains("--format claude"))'
-  assert_json "the gate call is direct, formats claude, forces a zero exit, and the DEVNULL wrapper does not return" ".claude/settings.json" \
-    '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight-gate/preflight_gate.py") and contains("--format claude") and endswith("; exit 0") and (contains("subprocess.DEVNULL") | not))'
-  assert_json "the gate call forces a zero exit with a trailing ; exit 0" ".claude/settings.json" \
-    '[.hooks.PreToolUse[].hooks[].command] | any(endswith("; exit 0"))'
-  assert_json "the gate matcher covers every writing tool, the PowerShell tool and both web tools" ".claude/settings.json" \
-    '[.hooks.PreToolUse[].matcher] | any(type == "string" and test("Edit") and test("Write") and test("MultiEdit") and test("NotebookEdit") and test("Bash") and test("PowerShell") and test("WebFetch") and test("WebSearch"))'
-  assert_json "the gate text is injected on every prompt, by its reminder hook" ".claude/settings.json" \
-    '[.hooks.UserPromptSubmit[].hooks[].command] | any(contains("claude/preflight-reminder/preflight_reminder.py"))'
-  assert_json "the subagent supervision text is injected at session start, by its reminder hook" ".claude/settings.json" \
-    '[.hooks.SessionStart[].hooks[].command] | any(contains("claude/background-subagent-reminder/background_subagent_reminder.py"))'
-  # shellcheck disable=SC2016  # the $ belongs to the hook command text the jq filter looks for
-  assert_json "every hook Claude Code calls resolves python3 first and falls back to python, on -S -E" ".claude/settings.json" \
-    '[.hooks[][].hooks[].command] | map(select(contains(".agents/hooks/"))) | ((length > 0) and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E")))'
-  assert_json "the formatting check is wired into Stop" ".claude/settings.json" \
-    '[.hooks.Stop[].hooks[].command] | any(contains("no-ai-markers-check/no_ai_markers_check.py"))'
-  assert_json "no reply-style check runs when a subagent stops, because reply style is checked on the main thread only" ".claude/settings.json" \
-    '[(.hooks.SubagentStop // [])[].hooks[].command] | any(contains("no_ai_markers_check.py") or contains("status_block_check.py") or contains("question_numbering_check.py")) | not'
-  assert_json "the formatting fix is wired into MessageDisplay and Stop checks what it leaves" ".claude/settings.json" \
-    '([.hooks.MessageDisplay[].hooks[].command] | any(contains("no-ai-markers-check/no_ai_markers_check.py --format claude --display "))) and ([.hooks.Stop[].hooks[].command] | any(contains("no-ai-markers-check/no_ai_markers_check.py --format claude --display-fixed")))'
-  assert_json "the task list is wired into TaskCreated" ".claude/settings.json" \
-    '[.hooks.TaskCreated[].hooks[].command] | any(contains("task-list-sync/task_list_sync.py"))'
-  assert_json "the task list is wired into TaskCompleted" ".claude/settings.json" \
-    '[.hooks.TaskCompleted[].hooks[].command] | any(contains("task-list-sync/task_list_sync.py"))'
-  assert_json "the markdown lint is wired into PostToolUse" ".claude/settings.json" \
-    '[.hooks.PostToolUse[].hooks[].command] | any(contains("markdown-lint-check/markdown_lint_check.py"))'
-  assert_json "the standards advisory is wired into PostToolUse" ".claude/settings.json" \
-    '[.hooks.PostToolUse[].hooks[].command] | any(contains("claude/standards-advisory-check/standards_advisory_check.py --format claude"))'
+  assert_json "the project settings name the marketplace the project was given" ".claude/settings.json" \
+    ".extraKnownMarketplaces[\"${CLAUDE_MARKET}\"].source == {source: \"git\", url: \"${CLAUDE_MARKET_URL}\"}"
+  assert_json "the project settings wire no hook themselves, because the hook plugins carry every one" ".claude/settings.json" \
+    'has("hooks") | not'
+  assert_json_at "the catalog Claude Code cloned is the one the project was given" "$CLAUDE_CATALOG" \
+    ".name == \"${CLAUDE_MARKET}\" and (.plugins | length) > 0"
+
+  if [[ ! -f "$CLAUDE_CATALOG" || ! -f "${PROJECT}/.claude/settings.json" ]]; then
+    fail "the Claude Code plugins were installed at project scope (no catalog at ${CLAUDE_CATALOG} or no project settings)"
+    return
+  fi
+
+  mapfile -t CLAUDE_PLUGINS < <(claude_plugin_closure)
+  claude_wiring
+  expected="$(printf '%s\n' "${CLAUDE_PLUGINS[@]#* }" | sed "s/\$/@${CLAUDE_MARKET}/" | sort)"
+  enabled="$(jq -r '.enabledPlugins | to_entries[] | select(.value == true) | .key' "${PROJECT}/.claude/settings.json" | sort)"
+  assert_same_names "the project settings switch on every plugin $(join_commas "${CLAUDE_PROJECT_PLUGINS[@]}") install, and nothing else" "$expected" "$enabled"
+
+  capture_cli claude plugin list --json || status=$?
+  listed="$(jq -r --arg project "$PROJECT" '.[] | select(.enabled == true and .scope == "project" and .projectPath == $project) | .id' "$CLI_OUTPUT" 2>/dev/null | sort)"
+  if [[ "$status" -eq 0 ]]; then
+    assert_same_names "Claude Code itself lists every one of them as enabled for this project" "$expected" "$listed"
+  else
+    fail "Claude Code itself lists every one of them as enabled for this project (claude exited ${status}: $(one_line_capture))"
+  fi
+
+  assert_same_names "all eight hook plugins are among them" \
+    "$(printf 'hook-%s\n' background-subagent-reminder markdown-lint-check no-ai-markers-check preflight-gate preflight-reminder standards-advisory-check subagent-reminder task-list-sync)" \
+    "$(claude_plugins_of hook | sort)"
+  assert_claude_cache "every skill plugin holds its SKILL.md in the plugin cache" skill "" "SKILL.md"
+  assert_claude_cache "every subagent plugin holds its one agent file in the plugin cache" agent "agent-" "@.md"
+  assert_claude_cache "every hook plugin holds a script in the plugin cache" hook "hook-" "[a-z]*.py"
+  if [[ -f "${CLAUDE_CACHE}/${SAMPLE_SKILL}/$(jq -r --arg n "$SAMPLE_SKILL" '.plugins[] | select(.name == $n) | .version' "$CLAUDE_CATALOG")/SKILL.md" ]]; then
+    pass "a known skill sits in the cache under the version its catalog entry names (${SAMPLE_SKILL})"
+  else
+    fail "a known skill sits in the cache under the version its catalog entry names (${SAMPLE_SKILL})"
+  fi
+  if [[ -f "$(printf '%s\n' "${CLAUDE_CACHE}"/hook-preflight-gate/*/_gate_rules.py | head -n 1)" ]]; then
+    pass "the rules file the gate script imports sits beside it in the plugin cache"
+  else
+    fail "the rules file the gate script imports sits beside it in the plugin cache"
+  fi
+
+  # shellcheck disable=SC2016  # the $ belongs to the hook command text the jq filters look for
+  {
+    assert_json_at "the gate is wired into PreToolUse, from its plugin's own folder" "$CLAUDE_WIRING" \
+      '[.hooks.PreToolUse[].hooks[].command] | any(contains("\"${CLAUDE_PLUGIN_ROOT}\"/preflight_gate.py") and contains("--format claude"))' "the plugin wiring"
+    assert_json_at "the gate call is direct, formats claude, forces a zero exit, and the DEVNULL wrapper does not return" "$CLAUDE_WIRING" \
+      '[.hooks.PreToolUse[].hooks[].command] | any(contains("\"${CLAUDE_PLUGIN_ROOT}\"/preflight_gate.py") and contains("--format claude") and endswith("; exit 0") and (contains("subprocess.DEVNULL") | not))' "the plugin wiring"
+    assert_json_at "the gate matcher covers every writing tool, the PowerShell tool and both web tools" "$CLAUDE_WIRING" \
+      '[.hooks.PreToolUse[].matcher] | any(type == "string" and test("Edit") and test("Write") and test("MultiEdit") and test("NotebookEdit") and test("Bash") and test("PowerShell") and test("WebFetch") and test("WebSearch"))' "the plugin wiring"
+    assert_json_at "the gate text is injected on every prompt, by its reminder hook" "$CLAUDE_WIRING" \
+      '[.hooks.UserPromptSubmit[].hooks[].command] | any(contains("\"${CLAUDE_PLUGIN_ROOT}\"/preflight_reminder.py"))' "the plugin wiring"
+    assert_json_at "the subagent supervision text is injected at session start, by its reminder hook" "$CLAUDE_WIRING" \
+      '[.hooks.SessionStart[].hooks[].command] | any(contains("\"${CLAUDE_PLUGIN_ROOT}\"/background_subagent_reminder.py"))' "the plugin wiring"
+    assert_json_at "a subagent is told to do its task itself when it starts, by its reminder hook" "$CLAUDE_WIRING" \
+      '[.hooks.SubagentStart[].hooks[].command] | any(contains("\"${CLAUDE_PLUGIN_ROOT}\"/subagent_reminder.py"))' "the plugin wiring"
+    assert_json_at "every hook Claude Code calls starts in the project, resolves python3 first and falls back to python, on -S -E, and forces a zero exit" "$CLAUDE_WIRING" \
+      '[.hooks[][].hooks[].command] | ((length > 0) and all(startswith("cd \"${CLAUDE_PROJECT_DIR}\" && PY=$(command -v python3 || command -v python) && \"$PY\" -S -E \"${CLAUDE_PLUGIN_ROOT}\"/") and endswith("; exit 0")))' "the plugin wiring"
+    assert_json_at "no hook names a script by a project path, which the plugin cache does not have" "$CLAUDE_WIRING" \
+      '[.hooks[][].hooks[].command] | any(contains(".agents/hooks/")) | not' "the plugin wiring"
+    assert_json_at "the formatting check is wired into Stop" "$CLAUDE_WIRING" \
+      '[.hooks.Stop[].hooks[].command] | any(contains("\"${CLAUDE_PLUGIN_ROOT}\"/no_ai_markers_check.py"))' "the plugin wiring"
+    assert_json_at "no reply-style check runs when a subagent stops, because reply style is checked on the main thread only" "$CLAUDE_WIRING" \
+      '((.hooks | length) > 0) and ([(.hooks.SubagentStop // [])[].hooks[].command] | any(contains("no_ai_markers_check.py") or contains("status_block_check.py") or contains("question_numbering_check.py")) | not)' "the plugin wiring"
+    assert_json_at "the formatting fix is wired into MessageDisplay and Stop checks what it leaves" "$CLAUDE_WIRING" \
+      '([.hooks.MessageDisplay[].hooks[].command] | any(contains("/no_ai_markers_check.py --format claude --display "))) and ([.hooks.Stop[].hooks[].command] | any(contains("/no_ai_markers_check.py --format claude --display-fixed")))' "the plugin wiring"
+    assert_json_at "the task list is wired into TaskCreated" "$CLAUDE_WIRING" \
+      '[.hooks.TaskCreated[].hooks[].command] | any(contains("\"${CLAUDE_PLUGIN_ROOT}\"/task_list_sync.py"))' "the plugin wiring"
+    assert_json_at "the task list is wired into TaskCompleted" "$CLAUDE_WIRING" \
+      '[.hooks.TaskCompleted[].hooks[].command] | any(contains("\"${CLAUDE_PLUGIN_ROOT}\"/task_list_sync.py"))' "the plugin wiring"
+    assert_json_at "the markdown lint is wired into PostToolUse" "$CLAUDE_WIRING" \
+      '[.hooks.PostToolUse[].hooks[].command] | any(contains("\"${CLAUDE_PLUGIN_ROOT}\"/markdown_lint_check.py"))' "the plugin wiring"
+    assert_json_at "the standards advisory is wired into PostToolUse" "$CLAUDE_WIRING" \
+      '[.hooks.PostToolUse[].hooks[].command] | any(contains("\"${CLAUDE_PLUGIN_ROOT}\"/standards_advisory_check.py --format claude"))' "the plugin wiring"
+  }
   assert_json "MCP servers are present in the file Claude Code reads" ".mcp.json" \
     '(.mcpServers | length) > 0'
 
@@ -639,6 +797,7 @@ assert_gate() {
 }
 
 write_probe_agent() {
+  mkdir -p "$(dirname "${PROJECT}/${PROBE_AGENT}")"
   cat > "${PROJECT}/${PROBE_AGENT}" <<'AGENT'
 ---
 name: sandbox-no-skills-probe
@@ -660,6 +819,8 @@ verify_gate_behaviour() {
   local reviewer_paged='{"agent_id":"a1","agent_type":"code-reviewer","tool_name":"Bash","tool_input":{"command":"git diff"}}'
   local reviewer_gh='{"agent_id":"a1","agent_type":"code-reviewer","tool_name":"Bash","tool_input":{"command":"gh pr diff 12"}}'
   local generalist='{"agent_id":"a1","agent_type":"sandbox-no-skills-probe","tool_name":"Edit","tool_input":{"file_path":"src/app.py"}}'
+  local plugin_edit="{\"agent_id\":\"a1\",\"agent_type\":\"${PLUGIN_REVIEWER}\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"src/app.py\"}}"
+  local plugin_diff="{\"agent_id\":\"a1\",\"agent_type\":\"${PLUGIN_REVIEWER}\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git --no-pager diff\"}}"
 
   section "Preflight gate behaviour"
 
@@ -682,11 +843,14 @@ verify_gate_behaviour() {
   done
   assert_gate "rule E allows the read-only code-reviewer a listed gh pr diff where the gate sees the terminal" claude allow "$reviewer_gh"
   assert_gate "rule E denies the read-only code-reviewer every gh command on Codex, whose terminal the gate never sees" codex deny "$reviewer_gh"
+  assert_gate "rule E denies ${PLUGIN_REVIEWER} an edit, from the definition in the Claude Code plugin cache" claude deny "$plugin_edit"
+  assert_gate "rule E allows ${PLUGIN_REVIEWER} a listed git --no-pager diff" claude allow "$plugin_diff"
 
   write_probe_agent
   assert_gate "rule B denies a subagent that declares no skills" claude deny "$generalist"
   assert_gate "rule B reaches the OpenCode and Kilo Code adapter too" plain deny "$generalist" --subagent
   rm -f "${PROJECT}/${PROBE_AGENT}"
+  rmdir "$(dirname "${PROJECT}/${PROBE_AGENT}")" 2>/dev/null || true
 
   assert_gate "a malformed payload fails open" claude allow 'not json at all'
 }

@@ -137,10 +137,10 @@ bin/kc.sh start-dev --log-level=DEBUG
 bin/kc.sh start-dev --log-level=org.keycloak:DEBUG
 
 # Useful categories
-# org.keycloak.authentication — auth flow debugging
-# org.keycloak.authorization — policy evaluation
-# org.keycloak.broker — identity provider issues
-# org.keycloak.storage — user federation/LDAP
+# org.keycloak.authentication: auth flow debugging
+# org.keycloak.authorization: policy evaluation
+# org.keycloak.broker: identity provider issues
+# org.keycloak.storage: user federation/LDAP
 ```
 
 #### Event Logging
@@ -156,7 +156,7 @@ Admin Events: realm/client/user/role CRUD operations
 #### Health Endpoints
 
 ```
-GET /health/ready    — readiness probe
-GET /health/live     — liveness probe
-GET /metrics         — Prometheus metrics
+GET /health/ready      readiness probe
+GET /health/live       liveness probe
+GET /metrics           Prometheus metrics
 ```

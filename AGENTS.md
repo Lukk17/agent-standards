@@ -14,7 +14,7 @@ and why, as the first line of your reply. This is a hard gate.
 Follow [.agents/instructions/reply-rules.md](.agents/instructions/reply-rules.md) when writing to the user. Name skills and ownership in the footer status tail it defines, never as the reply first line.
 
 The gate is enforcing, not advisory. One shared rule in
-[.agents/hooks/preflight-gate/preflight_gate.py](.agents/hooks/preflight-gate/preflight_gate.py) decides every tool call, on every agent:
+[.agents/hooks/preflight-gate/_gate_rules.py](.agents/hooks/preflight-gate/_gate_rules.py), which every wiring runs through the starter [preflight_gate.py](.agents/hooks/preflight-gate/preflight_gate.py) beside it, decides every tool call, on every agent:
 
 - It denies the main thread a write of any file inside the repository, by any tool or shell, markdown, configuration
   and documentation included. A write outside it, to the null device or to `tasks.md` at the root, and git branch
@@ -29,7 +29,7 @@ The gate is enforcing, not advisory. One shared rule in
 - It denies the main thread a web fetch or web search tool on Claude Code, the one format whose tool names are
   confirmed. Codex has no confirmed tool name for this yet. The main thread spawns a subagent to do the research.
 - It denies the main thread running a script or a module, because the gate cannot see what a script writes, unless the
-  command, run from inside the project with no directory change, passes `MAIN_THREAD_ALLOWLIST` in the gate or an entry of the project's own
+  command, run from inside the project with no directory change, passes `MAIN_THREAD_ALLOWLIST` in `_gate_rules.py` or an entry of the project's own
   `main-thread-allowlist.txt`. The rules are in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md) under "What the main thread
   may run". This repository's own checks sit in [main-thread-allowlist.txt](main-thread-allowlist.txt), which never ships.
 - It denies the main thread a shell, an interpreter, an editor, a pager or any other program that waits for typed input, such as
@@ -38,27 +38,28 @@ The gate is enforcing, not advisory. One shared rule in
 - Every rule fires only on a caller positively identified as the main thread. Claude Code and Codex send `agent_id`
   only inside a subagent. An unknown caller is allowed: GitHub Copilot on every call, and an OpenCode or Kilo Code
   call whose session the plugin could not read.
-- It fails open: a parse error, a missing key, an unexpected payload, an unknown `--format`, or a top-level command
+- It fails open: a parse error, a missing key, an unexpected payload, an unknown `--format`, a rules file the starter cannot import, or a top-level command
   it cannot lex allows the call. The exceptions are a path or write target the gate cannot place, such as the `$f` in
   `rm $f`, which denies on the main thread, and a command it cannot lex or a working directory it cannot resolve from a read-only subagent, which denies. The list is in [docs/agent-compatibility.md](docs/agent-compatibility.md).
-- No MCP tool is gated, and `playwright` and `chrome-devtools` in [.mcp.json](.mcp.json) can write local files. The
+- No MCP tool is gated, and the shipped `playwright` and `chrome-devtools` servers can write local files. The
   vendor quotes are in [docs/agent-compatibility.md](docs/agent-compatibility.md).
 - Known limits of the write rule are accepted rather than open, and listed under "What the gate cannot place" in
   [docs/agent-compatibility.md](docs/agent-compatibility.md). Re-audit only when the rule changes, and record a new limit
   there rather than chasing it.
 
-Each agent wires that one script, and the hooks beside it, to its own hook surface. Before you touch any wiring, read
-"Wiring details per surface" in [docs/agent-compatibility.md](docs/agent-compatibility.md).
+Each agent wires the starter, and the hooks beside it, to its own hook surface. Before you touch any wiring, read
+"Wiring details per surface" in [docs/agent-compatibility.md](docs/agent-compatibility.md). On Claude Code the hooks
+are plugins loaded in place, so they run only in a trusted folder, and a worktree runs the main checkout's copies.
 
 | Agent | Wiring | Gate matcher |
 | --- | --- | --- |
-| Claude Code | [.claude/settings.json](.claude/settings.json) | `^(Edit\|Write\|MultiEdit\|NotebookEdit\|Bash\|PowerShell\|WebFetch\|WebSearch)$` |
+| Claude Code | the eight `hook-<name>` plugins, wired in [tools/plugins.yaml](tools/plugins.yaml) and switched on from the repository's own marketplace by [.claude/settings.json](.claude/settings.json), which wires no hook itself | `^(Edit\|Write\|MultiEdit\|NotebookEdit\|Bash\|PowerShell\|WebFetch\|WebSearch)$` |
 | Codex | inline `[[hooks.*]]` tables in [.codex/config.toml](.codex/config.toml) | `^(Bash\|shell\|apply_patch\|Edit\|Write\|NotebookEdit)$` |
 | OpenCode 1.x and 2.x, Kilo Code | [.agents/plugin/hooks.js](.agents/plugin/hooks.js), one default export `{ id, server, setup }`, declared by its directory `./.agents/plugin` in the `plugin` array of [opencode.json](opencode.json) | none, every tool call |
 | GitHub Copilot | [.github/hooks/preflight.json](.github/hooks/preflight.json) | `bash\|powershell\|create\|edit\|apply_patch` |
 
 Verified against Claude Code 2.1.281, Codex 0.156.1, OpenCode 1.18.32, and Kilo Code 7.7.9. The dual-format plugin was measured on OpenCode 1.19.0 and 2.0.26 and Kilo Code 7.8.9. GitHub Copilot CLI was
-last verified on 1.0.81 and is not installed here, so nothing above was re-measured against it.
+last verified on 1.0.81 and is not installed here, so nothing above was re-measured against it. The Claude Code hook plugins were measured on 2.1.314 in the sandbox.
 
 ---
 
@@ -80,7 +81,7 @@ script and must never be hand-edited, and some are symlinks the generator create
 | `.agents/plugin/hooks.js`, `.agents/plugin/index.js` | canonical | edit directly, `index.js` only re-exports |
 | `AGENTS.md.example`, `docs/*.md` | canonical | edit directly |
 | `tools/*.py`, `tools/tests/*.py`, `tools/pyproject.toml` | canonical | edit directly, then run the pytest suite |
-| `tools/plugins.yaml`, and `.claude-plugin/marketplace.json` generated from it | canonical plugin map (hook, server and bundle versions, every skill and subagent in one bundle), and the generated marketplace: one plugin per skill, subagent, hook and server, plus the bundles | edit the map, never the marketplace, then run `python tools/gen_plugins.py` |
+| `tools/plugins.yaml`, and `.claude-plugin/marketplace.json` generated from it | canonical plugin map (hook, server and bundle versions, each hook's Claude Code wiring, every skill and subagent in one bundle), and the generated marketplace: one plugin per skill, subagent, hook and server, plus the bundles | edit the map, never the marketplace, then run `python tools/gen_plugins.py` |
 | `.claude/agents/<name>/<name>.md` | generated (Claude front matter with a `skills` key, one folder per agent) | never hand-edit, run the generator |
 | `.agents/agents/*.md` | generated (OpenCode format) | never hand-edit, run the generator |
 | `.codex/agents/*.toml` | generated (Codex TOML) | never hand-edit, run the generator |
@@ -115,15 +116,15 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
   project-import pathspec may name it. [main-thread-allowlist.txt](main-thread-allowlist.txt) never ships by either route.
 - **Markdown lint.** The rules live in [.agents/hooks/markdown-lint-check/_check_markdown.py](.agents/hooks/markdown-lint-check/_check_markdown.py), which ships so the lint hook works downstream, and [tools/check-markdown.py](tools/check-markdown.py) only runs them. They cover every human-facing document but this
   `AGENTS.md`, whose style matches anyway. One runnable command per fenced code block, language tag, no `#` comments.
-- **One server set, one schema per file.** Change all five MCP files together: [.mcp.json](.mcp.json),
-  [opencode.json](opencode.json), [.codex/config.toml](.codex/config.toml), [.vscode/mcp.json](.vscode/mcp.json) and
-  [.github/mcp.json](.github/mcp.json). Which agent reads which, and why, is in [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
+- **One server list, one pinned command per server.** The `servers` list of [tools/plugins.yaml](tools/plugins.yaml) holds every server block, each on an exact version. [opencode.json](opencode.json), [.codex/config.toml](.codex/config.toml), [.vscode/mcp.json](.vscode/mcp.json) and
+  [.github/mcp.json](.github/mcp.json) carry that set and change together. [.mcp.json](.mcp.json) holds `context7` alone, so Claude Code starts one server and takes each other one as a project-scope plugin or by `claude mcp add --scope project`, never at user scope.
+  Each difference has its reason under "What ships" in [docs/MCP_SETUP.md](docs/MCP_SETUP.md), and [tools/tests/test_mcp_pins.py](tools/tests/test_mcp_pins.py) fails on a command that floats.
 - **No substitution token may appear in [opencode.json](opencode.json).** Kilo Code rejects the whole file on a `{env:VAR}`, which
   drops the MCP block and the `plugin` array that declares the gate. Local servers inherit the environment instead, and `context7`
   ships with no `headers` block. The detail is in [docs/MCP_SETUP.md](docs/MCP_SETUP.md) and nowhere else.
 - **One gate, one rule, one wording.** A behaviour change is a change to
-  [.agents/hooks/preflight-gate/preflight_gate.py](.agents/hooks/preflight-gate/preflight_gate.py) plus a case in
-  [tools/tests/test_preflight_gate.py](tools/tests/test_preflight_gate.py), never a second copy of the logic. The
+  [.agents/hooks/preflight-gate/_gate_rules.py](.agents/hooks/preflight-gate/_gate_rules.py) plus a case in
+  [tools/tests/test_preflight_gate.py](tools/tests/test_preflight_gate.py), never a second copy of the logic and never a rule in the starter `preflight_gate.py`. The
   `tools/tests/test_reminder_*.py` suites compare each reminder copy in a wiring file to its canonical source.
 - **One tail, one check, one wording.** [.agents/instructions/reply-rules.md](.agents/instructions/reply-rules.md),
   [.agents/hooks/status-block-check/status_block_check.py](.agents/hooks/status-block-check/status_block_check.py) and its tests ship as one
@@ -148,13 +149,12 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
 - **A skill or a subagent:** before adding one, read "Adding a new skill" or "Adding a new subagent" in
   [CONTRIBUTING.md](CONTRIBUTING.md). A subagent's source and its four generated trees are committed together, and
   each kind bumps its count badge in [README.md](README.md) and its count on the social card.
-- **An MCP server:** add the block to all five MCP files (the ones listed under Repo conventions) and an
-  entry to the `servers` list of [tools/plugins.yaml](tools/plugins.yaml), document it in [docs/MCP_SETUP.md](docs/MCP_SETUP.md),
+- **An MCP server:** add an entry with its block, pinned as "Updating a pinned server" in [docs/MCP_SETUP.md](docs/MCP_SETUP.md) says, to the `servers` list of [tools/plugins.yaml](tools/plugins.yaml) and to `mcp-all`, and the block to the four files that carry the full set, never to [.mcp.json](.mcp.json). Document it in [docs/MCP_SETUP.md](docs/MCP_SETUP.md),
   and bump the MCP count in the badge and on the social card. A file that leaves a server out or ships it switched off
   gets its reason under "What ships" there, never a silent gap.
 - **A shipped document:** name it in UPPERCASE under `docs/`, add its path to every
-  `git checkout agent-standards/master --` pathspec that delivers documents (the Quickstart, all five per-agent blocks
-  and the gate-only import in [README.md](README.md), the import and the gate-only import in
+  `git checkout agent-standards/master --` pathspec that delivers documents (the Quickstart and all five per-agent blocks
+  in [README.md](README.md), the import in
   [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md), and both shell sections of [docs/AGENTS-UPDATE.md](docs/AGENTS-UPDATE.md)),
   and list it under Shipped in the README docs map. A document a consumer cannot pull is not shipped, whatever its name says.
 - **A gate rule:** follow "One gate, one rule, one wording" above, and leave the wiring files alone unless the hook

@@ -22,7 +22,7 @@ exact historical state.
 Incorrect (overwrite history with no trail):
 
 ```javascript
-// Policy document — only current state exists
+// Policy document: only current state exists
 {
   _id: "POL-001",
   holder: "Jane Smith",
@@ -36,7 +36,7 @@ db.policies.updateOne(
   { _id: "POL-001" },
   { $set: { premium: 475, updatedAt: new Date() } }
 )
-// Previous premium of 450 is gone — no audit trail
+// Previous premium of 450 is gone, no audit trail
 // Cannot reproduce what the policy looked like on 2024-03-15
 // Compliance audit fails: "show me the policy as of Q1"
 ```
@@ -44,7 +44,7 @@ db.policies.updateOne(
 Correct (current collection + revisions collection):
 
 ```javascript
-// currentPolicies collection — current state only (fast reads)
+// currentPolicies collection: current state only (fast reads)
 {
   _id: "POL-001",
   holder: "Jane Smith",
@@ -54,7 +54,7 @@ Correct (current collection + revisions collection):
   updatedAt: ISODate("2024-06-01")
 }
 
-// policyRevisions collection — full history snapshots
+// policyRevisions collection: full history snapshots
 {
   policyId: "POL-001",
   v: 2,
@@ -156,7 +156,7 @@ db.policyRevisions.aggregate([
 
 // Verify current docs have version field
 db.currentPolicies.countDocuments({ v: { $exists: false } })
-// Should be 0 — all documents need version tracking
+// Should be 0, all documents need version tracking
 
 // Check that revisions are consistent with current version
 db.currentPolicies.aggregate([

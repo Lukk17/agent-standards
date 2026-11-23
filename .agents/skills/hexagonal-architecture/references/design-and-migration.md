@@ -11,7 +11,7 @@ Contents:
 - [Migration Playbook](#migration-playbook)
 - [Testing Guidance (Same Hexagonal Boundaries)](#testing-guidance-same-hexagonal-boundaries)
 
-The ports-and-adapters method in full: the six steps, the diagram, the module layout, the per-language mapping, the anti-patterns, the migration playbook and the per-boundary testing guidance. Load this file when designing a slice, laying out a module, or migrating an existing system.
+The ports-and-adapters method in full: the six steps, the diagram, the module layout, the pointer to each language mapping, the anti-patterns, the migration playbook and the per-boundary testing guidance. Load this file when designing a slice, laying out a module, or migrating an existing system.
 
 ---
 
@@ -130,29 +130,9 @@ src/
 
 ### Multi-Language Mapping
 
-Use the same boundary rules across ecosystems. Only the syntax and the wiring style change.
-
-- TypeScript/JavaScript
-  - Ports: `application/ports/*` as interfaces/types.
-  - Use cases: classes/functions with constructor/argument injection.
-  - Adapters: `adapters/inbound/*`, `adapters/outbound/*`.
-  - Composition: explicit factory/container module (no hidden globals).
-- Java
-  - Packages: `domain`, `application.port.in`, `application.port.out`, `application.usecase`, `adapter.in`,
-    `adapter.out`.
-  - Ports: interfaces in `application.port.*`.
-  - Use cases: plain classes (Spring `@Service` is optional, not required).
-  - Composition: Spring config or a manual wiring class, keeping wiring out of domain and use-case classes.
-- Kotlin
-  - Modules/packages mirror the Java split (`domain`, `application.port`, `application.usecase`, `adapter`).
-  - Ports: Kotlin interfaces.
-  - Use cases: classes with constructor injection (Koin/Dagger/Spring/manual).
-  - Composition: module definitions or dedicated composition functions, never a service locator.
-- Go
-  - Packages: `internal/<feature>/domain`, `application`, `adapters/inbound`, `adapters/outbound`.
-  - Ports: small interfaces declared in the consuming `application` package, not in a separate `ports` package.
-  - Use cases: structs with interface fields plus explicit `New...` constructors.
-  - Composition: wire in `cmd/<app>/main.go` (or dedicated wiring package), keep constructors explicit.
+Use the same boundary rules across ecosystems. Only the syntax and the wiring style change. The mapping for each
+language sits in its own file: [typescript.md](typescript.md) for TypeScript and JavaScript, [java.md](java.md),
+[kotlin.md](kotlin.md) and [go.md](go.md).
 
 ---
 

@@ -1,19 +1,18 @@
 # Suite Layout and Integration Tests
 
 Where test files live, and how to exercise an HTTP app or a database for real rather than through a mock. Open this
-when adding the first integration test to a project or when a hub rule points here.
+when adding the first integration test to a project or when a hub rule points here. Testing a FastAPI app through its real
+transport is in [fastapi.md](fastapi.md), and the session fixture that rolls the database back is in
+[sqlalchemy-and-alembic.md](sqlalchemy-and-alembic.md).
 
 ---
 
 ### Contents
 
-- Lay the suite out by kind
-- Group with a class only when the tests share setup
-- Test an async FastAPI app through ASGITransport
-- Override a dependency instead of patching it
-- Roll the database back instead of mocking it
-- Run the real engine, not SQLite standing in for Postgres
-- Assert on behaviour, not on the response shape you happen to get
+- [Lay the suite out by kind](#lay-the-suite-out-by-kind)
+- [Group with a class only when the tests share setup](#group-with-a-class-only-when-the-tests-share-setup)
+- [Run the real engine, not SQLite standing in for Postgres](#run-the-real-engine-not-sqlite-standing-in-for-postgres)
+- [Assert on behaviour, not on the response shape you happen to get](#assert-on-behaviour-not-on-the-response-shape-you-happen-to-get)
 
 ---
 
@@ -72,76 +71,6 @@ class TestCalculator:
     def test_result_is_five(self):
         assert self.result == 5
 ```
-
----
-
-### Test an async FastAPI app through ASGITransport
-
-`httpx.AsyncClient` over `ASGITransport` runs the real application, middleware and dependency overrides included,
-with no server to start and no port to collide.
-
-```python
-@pytest.fixture
-async def client() -> AsyncIterator[AsyncClient]:
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as test_client:
-        yield test_client
-
-async def test_create_user_returns_201(client: AsyncClient):
-    response = await client.post("/users", json={"name": "Alice", "email": "alice@example.com"})
-
-    assert response.status_code == 201
-    assert response.json()["name"] == "Alice"
-
-async def test_get_missing_user_returns_404(client: AsyncClient):
-    assert (await client.get("/users/nonexistent")).status_code == 404
-```
-
-For a synchronous app, `fastapi.testclient.TestClient` wraps the same transport and needs no async fixture.
-
----
-
-### Override a dependency instead of patching it
-
-FastAPI's `dependency_overrides` swaps a dependency for the whole app, which is cleaner than patching a module path
-and is undone by clearing the mapping.
-
-```python
-@pytest.fixture
-def client_with_fake_clock() -> Iterator[TestClient]:
-    app.dependency_overrides[get_clock] = lambda: FrozenClock("2026-01-01T00:00:00Z")
-    with TestClient(app) as client:
-        yield client
-    app.dependency_overrides.clear()
-```
-
----
-
-### Roll the database back instead of mocking it
-
-A nested transaction rolled back after each test gives real SQL, real constraints, and real isolation, at a fraction
-of the cost of recreating the schema.
-
-```python
-@pytest.fixture
-def db_session() -> Iterator[Session]:
-    connection = engine.connect()
-    transaction = connection.begin()
-    session = Session(bind=connection)
-    yield session
-    session.close()
-    transaction.rollback()
-    connection.close()
-
-def test_created_user_is_retrievable(db_session):
-    db_session.add(User(name="Alice", email="alice@example.com"))
-    db_session.flush()
-
-    retrieved = db_session.query(User).filter_by(name="Alice").one()
-
-    assert retrieved.email == "alice@example.com"
-```
-
-Use `flush` rather than `commit` inside the test so the outer transaction stays open and the rollback still works.
 
 ---
 

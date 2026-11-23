@@ -7,20 +7,20 @@ parametrization variants, and every patching technique worth using. Open this wh
 
 ### Contents
 
-- Basic fixture
-- Setup and teardown with yield
-- Fixture scopes
-- Parametrized fixture
-- Autouse fixture
-- Shared fixtures in conftest.py
-- Parametrization variants
-- Patch a function where it is used
-- Raise from a mock with side_effect
-- Use autospec so signature drift breaks the test
-- Mock a context manager and a property
-- Mock async callables with AsyncMock
-- Async fixtures
-- Assert on calls, not on internals
+- [Basic fixture](#basic-fixture)
+- [Setup and teardown with yield](#setup-and-teardown-with-yield)
+- [Fixture scopes](#fixture-scopes)
+- [Parametrized fixture](#parametrized-fixture)
+- [Autouse fixture](#autouse-fixture)
+- [Shared fixtures in conftest.py](#shared-fixtures-in-conftestpy)
+- [Parametrization variants](#parametrization-variants)
+- [Patch a function where it is used](#patch-a-function-where-it-is-used)
+- [Raise from a mock with side_effect](#raise-from-a-mock-with-side_effect)
+- [Use autospec so signature drift breaks the test](#use-autospec-so-signature-drift-breaks-the-test)
+- [Mock a context manager and a property](#mock-a-context-manager-and-a-property)
+- [Mock async callables with AsyncMock](#mock-async-callables-with-asyncmock)
+- [Async fixtures](#async-fixtures)
+- [Assert on calls, not on internals](#assert-on-calls-not-on-internals)
 
 ---
 

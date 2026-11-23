@@ -7,13 +7,13 @@ debugging session. Open this when setting a project up or when a run needs narro
 
 ### Contents
 
-- Configure pytest in pyproject.toml
-- Coverage settings live with coverage, not in addopts
-- Selecting what to run
-- Flags for a debugging loop
-- Prove the suite is order-independent
-- Coverage reports
-- Wire the gate into CI
+- [Configure pytest in pyproject.toml](#configure-pytest-in-pyprojecttoml)
+- [Coverage settings live with coverage, not in addopts](#coverage-settings-live-with-coverage-not-in-addopts)
+- [Selecting what to run](#selecting-what-to-run)
+- [Flags for a debugging loop](#flags-for-a-debugging-loop)
+- [Prove the suite is order-independent](#prove-the-suite-is-order-independent)
+- [Coverage reports](#coverage-reports)
+- [Wire the gate into CI](#wire-the-gate-into-ci)
 
 ---
 

@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Render the Claude Code plugin marketplace from tools/plugins.yaml and the items' own files.
 
-Source of truth:  tools/plugins.yaml               hooks, servers and bundles, each with its version
+Source of truth:  tools/plugins.yaml               hooks with their wiring, servers and bundles, each with its version
                   .agents/skills/<name>/SKILL.md    one skill plugin each, version in metadata.version
                   subagents/<name>.md               one agent-<name> plugin each, version in version
-                  .claude/settings.json             the Claude Code wiring each hook plugin copies
-                  .mcp.json                         the server block each mcp-<name> plugin carries
+                  .mcp.json                         the servers Claude Code starts in a project, checked against the map
 Generated:        .claude-plugin/marketplace.json   committed, checked by --check in CI
 
 Every plugin points at files that already sit in the repository, so no plugin
@@ -16,12 +15,20 @@ file is ever copied into it:
 - an agent plugin is the agent's own folder of the generated Claude Code tree,
   `./.claude/agents/<name>`, with `strict: false` and an `agents` list naming
   the file, and the skills it preloads as its dependencies;
-- a hook plugin is the hook's folder, `./.agents/hooks/<hook>`, with the hook
-  commands of the project wiring inline, each running the script from
-  `${CLAUDE_PLUGIN_ROOT}` instead;
+- a hook plugin is the hook's folder, `./.agents/hooks/<hook>`, with the
+  wiring of its map entry inline, each command starting in the session's
+  project and running the script from `${CLAUDE_PLUGIN_ROOT}`;
 - a server plugin and a bundle point at `./.claude-plugin` and carry nothing
-  but their entry: the server block inline, or the plugin names a bundle
-  installs as dependencies.
+  but their entry: the server block of the map inline, or the plugin names a
+  bundle installs as dependencies.
+
+Every entry also carries the listing fields a plugin manifest documents
+(https://code.claude.com/docs/en/plugins/manifest-reference, "Fields"):
+`author`, `homepage`, `repository` and `license` from the `marketplace` block
+of the map, and `keywords` naming the kind of plugin, the bundle that holds it
+and the item. `tags`, which the marketplace reference lists for search
+(https://code.claude.com/docs/en/plugins/marketplace-reference, "Plugin
+entries"), repeats the keywords.
 
 A marketplace entry with no plugin.json "is the manifest regardless of
 `strict`" (https://code.claude.com/docs/en/plugins/marketplace-reference,
@@ -47,11 +54,12 @@ import yaml
 import gen_subagents
 from plugin_map_rules import check_map, dependency_closure, dependency_graph, find_cycle, plugin_names, shared_skills
 from plugin_model import (  # noqa: F401, the names tools/check_versions.py and the tests read from here
-    AGENT_CATEGORY, AGENT_PREFIX, ALL, Agent, BUNDLE, BUNDLE_CATEGORIES, BUNDLE_KEYS, Bundle, CLAUDE_AGENTS_DIR,
-    CLAUDE_WIRING, CORE, DEVELOPMENT, DOMAIN_CATEGORIES, ENTRY_ONLY_SOURCE, GITHUB_REPOSITORY, HOOKS_ALL,
-    HOOKS_DIR, HOOK_CATEGORY, HOOK_FOLDER, HOOK_KEYS, HOOK_PREFIX, HOOK_SCRIPT, HOST, Hook, KEBAB, MAP_FILE,
-    MARKETPLACE_FILE, MARKETPLACE_KEYS, MCP_ALL, MCP_CATEGORY, MCP_FILE, MCP_PREFIX, PLUGIN_ROOT_PATH, PluginMap,
-    PluginMapError, SEMVER, SERVER_KEYS, SKILLS_DIR, SKILL_CATEGORY, SUBAGENTS_DIR, Server, Skill, Sources,
+    AGENT_CATEGORY, AGENT_PREFIX, ALL, AUTHOR_KEYS, Agent, BUNDLE, BUNDLE_CATEGORIES, BUNDLE_KEYS, Bundle, CLAUDE_AGENTS_DIR,
+    CORE, DEVELOPMENT, DOMAIN_CATEGORIES, ENTRY_ONLY_SOURCE, GITHUB_REPOSITORY, HOOKS_ALL,
+    HOOKS_DIR, HOOK_CATEGORY, HOOK_FOLDER, HOOK_KEYS, HOOK_PREFIX, HOST, Hook, KEBAB, MAP_FILE,
+    MARKETPLACE_FILE, MARKETPLACE_KEYS, MCP_ALL, MCP_CATEGORY, MCP_FILE, MCP_PREFIX, PLUGIN_SCRIPT, PROJECT_SCRIPT,
+    PROJECT_START, PluginMap, PluginMapError, SEMVER, SERVER_KEYS, SKILLS_DIR, SKILL_CATEGORY, SUBAGENTS_DIR, Server,
+    Skill, Sources,
     load_map, parse_map, _version,
 )
 
@@ -102,49 +110,12 @@ def load_agents(root: pathlib.Path, skills: set[str]) -> dict[str, Agent]:
     return agents
 
 
-def load_servers(root: pathlib.Path) -> dict[str, dict[str, object]]:
+def load_root_servers(root: pathlib.Path) -> dict[str, dict[str, object]]:
+    """The servers the root .mcp.json starts in a project, by name."""
     try:
         return json.loads((root / MCP_FILE).read_text(encoding="utf-8"))["mcpServers"]
     except (OSError, json.JSONDecodeError, KeyError) as exc:
         raise PluginMapError(f"cannot read mcpServers from {root / MCP_FILE}: {exc}") from exc
-
-
-def plugin_command(command: str) -> str:
-    """A project hook command rewritten to run the script from the plugin's own folder."""
-    return HOOK_SCRIPT.sub(lambda match: PLUGIN_ROOT_PATH + match.group(2), command)
-
-
-def _group_key(group: dict[str, object]) -> dict[str, object]:
-    return {key: value for key, value in group.items() if key != "hooks"}
-
-
-def wired_hooks(root: pathlib.Path) -> dict[str, dict[str, list[dict[str, object]]]]:
-    """The Claude Code wiring of each hook folder, as plugin hooks: folder, then event, then matcher groups.
-
-    Each command that runs a script under .agents/hooks/ moves to the plugin of
-    that script's folder with its matcher, its timeout and its arguments, and
-    runs the script from ${CLAUDE_PLUGIN_ROOT} instead. A command that runs no
-    script, such as a reminder printed with echo, stays with the project wiring.
-    """
-    try:
-        settings = json.loads((root / CLAUDE_WIRING).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise PluginMapError(f"cannot read {root / CLAUDE_WIRING}: {exc}") from exc
-    folders: dict[str, dict[str, list[dict[str, object]]]] = {}
-    for event, groups in (settings.get("hooks") or {}).items():
-        for group in groups:
-            for hook in group.get("hooks", []):
-                match = HOOK_SCRIPT.search(str(hook.get("command", "")))
-                if not match:
-                    continue
-                event_groups = folders.setdefault(match.group(1), {}).setdefault(event, [])
-                copied = {**hook, "command": plugin_command(hook["command"])}
-                same = next((g for g in event_groups if _group_key(g) == _group_key(group)), None)
-                if same is None:
-                    event_groups.append({**_group_key(group), "hooks": [copied]})
-                else:
-                    same["hooks"].append(copied)
-    return folders
 
 
 def load_sources(root: pathlib.Path = ROOT, map_path: pathlib.Path | None = None) -> Sources:
@@ -156,8 +127,7 @@ def load_sources(root: pathlib.Path = ROOT, map_path: pathlib.Path | None = None
         plugin_map=plugin_map,
         skills=skills,
         agents=load_agents(root, set(skills)),
-        servers=load_servers(root),
-        wired_hooks=wired_hooks(root),
+        root_servers=load_root_servers(root),
     )
 
 
@@ -165,18 +135,37 @@ def _source(path: pathlib.PurePosixPath) -> str:
     return f"./{path}"
 
 
-def bundle_entry(bundle: Bundle) -> dict[str, object]:
+def listing(market: dict[str, object], *keywords: str | None) -> dict[str, object]:
+    """The listing fields every entry carries: who publishes it, where it lives, and the words it is found by.
+
+    The keywords keep their order and lose repeats and gaps, so a bundle whose
+    category is its kind, or an item no bundle holds, names each word once.
+    """
+    words = list(dict.fromkeys(word for word in keywords if word))
+    owner = market["owner"]
+    return {
+        "author": {key: owner[key] for key in AUTHOR_KEYS if key in owner},
+        "homepage": market["homepage"],
+        "repository": market["repository"],
+        "license": market["license"],
+        "keywords": words,
+        "tags": words,
+    }
+
+
+def bundle_entry(bundle: Bundle, market: dict[str, object]) -> dict[str, object]:
     return {
         "name": bundle.name,
         "source": ENTRY_ONLY_SOURCE,
         "version": bundle.version,
         "description": bundle.description,
         "category": bundle.category,
+        **listing(market, BUNDLE, bundle.category, bundle.name),
         "dependencies": list(bundle.members),
     }
 
 
-def agent_entry(agent: Agent) -> dict[str, object]:
+def agent_entry(agent: Agent, market: dict[str, object], bundle: str | None) -> dict[str, object]:
     entry: dict[str, object] = {
         "name": AGENT_PREFIX + agent.name,
         "source": _source(CLAUDE_AGENTS_DIR / agent.name),
@@ -184,6 +173,7 @@ def agent_entry(agent: Agent) -> dict[str, object]:
         "version": agent.version,
         "description": agent.description,
         "category": AGENT_CATEGORY,
+        **listing(market, AGENT_CATEGORY, bundle, agent.name),
         "agents": [f"./{agent.name}.md"],
     }
     if agent.skills:
@@ -191,47 +181,58 @@ def agent_entry(agent: Agent) -> dict[str, object]:
     return entry
 
 
-def skill_entry(skill: Skill) -> dict[str, object]:
+def skill_entry(skill: Skill, market: dict[str, object], bundle: str | None) -> dict[str, object]:
     return {
         "name": skill.name,
         "source": _source(SKILLS_DIR / skill.name),
         "version": skill.version,
         "description": skill.description,
         "category": SKILL_CATEGORY,
+        **listing(market, SKILL_CATEGORY, bundle, skill.name),
     }
 
 
-def hook_entry(hook: Hook, wiring: dict[str, list[dict[str, object]]]) -> dict[str, object]:
+def hook_entry(hook: Hook, market: dict[str, object]) -> dict[str, object]:
     return {
         "name": hook.plugin,
         "source": _source(HOOKS_DIR / hook.folder),
         "version": hook.version,
         "description": hook.description,
         "category": HOOK_CATEGORY,
-        "hooks": wiring,
+        **listing(market, HOOK_CATEGORY, hook.name),
+        "hooks": hook.wiring,
     }
 
 
-def server_entry(server: Server, block: dict[str, object]) -> dict[str, object]:
+def server_entry(server: Server, market: dict[str, object]) -> dict[str, object]:
     return {
         "name": server.plugin,
         "source": ENTRY_ONLY_SOURCE,
         "version": server.version,
         "description": server.description,
         "category": MCP_CATEGORY,
-        "mcpServers": {server.name: block},
+        **listing(market, MCP_CATEGORY, server.name),
+        "mcpServers": {server.name: server.block},
     }
+
+
+def bundle_of(bundles: tuple[Bundle, ...], attribute: str) -> dict[str, str]:
+    """The development or host bundle that holds each skill or each subagent, by item name."""
+    return {item: bundle.name for bundle in bundles if bundle.category in DOMAIN_CATEGORIES for item in getattr(bundle, attribute)}
 
 
 def entries(sources: Sources) -> list[dict[str, object]]:
     """Every marketplace entry: bundles, then agents, skills, hooks and servers, each in a stable order."""
     plugin_map = sources.plugin_map
+    market = plugin_map.marketplace
+    agent_bundle = bundle_of(plugin_map.bundles, "agents")
+    skill_bundle = bundle_of(plugin_map.bundles, "skills")
     return [
-        *(bundle_entry(bundle) for bundle in plugin_map.bundles),
-        *(agent_entry(agent) for agent in sources.agents.values()),
-        *(skill_entry(skill) for skill in sources.skills.values()),
-        *(hook_entry(hook, sources.wired_hooks[hook.folder]) for hook in plugin_map.hooks),
-        *(server_entry(server, sources.servers[server.name]) for server in plugin_map.servers),
+        *(bundle_entry(bundle, market) for bundle in plugin_map.bundles),
+        *(agent_entry(agent, market, agent_bundle.get(agent.name)) for agent in sources.agents.values()),
+        *(skill_entry(skill, market, skill_bundle.get(skill.name)) for skill in sources.skills.values()),
+        *(hook_entry(hook, market) for hook in plugin_map.hooks),
+        *(server_entry(server, market) for server in plugin_map.servers),
     ]
 
 

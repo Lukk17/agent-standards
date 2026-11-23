@@ -122,7 +122,7 @@ mv AGENTS.md.example AGENTS.md
 ```
 
 [.mcp.json](../.mcp.json), [opencode.json](../opencode.json), [.codex/config.toml](../.codex/config.toml),
-[.vscode/mcp.json](../.vscode/mcp.json), and [.github/mcp.json](../.github/mcp.json) arrive ready to use. Follow
+[.vscode/mcp.json](../.vscode/mcp.json), and [.github/mcp.json](../.github/mcp.json) arrive ready to use. `.mcp.json` holds `context7` alone and the other four hold the full set, as "What ships" in [MCP_SETUP.md](MCP_SETUP.md#what-ships) explains. Follow
 [MCP_SETUP.md](MCP_SETUP.md) to install the prerequisites, acquire the keys, and export the environment variables.
 Only `.mcp.json` resolves a placeholder, `${VAR}` with a default. The other four read no placeholders at all: a local
 MCP server inherits the environment of the process that started the agent, so exporting the variable is what makes
@@ -152,8 +152,9 @@ All five agents share the same instructions and the same skills. Pick whichever 
 
 Reads [AGENTS.md](../AGENTS.md) natively on 2.1.277 and later, because the project has no `CLAUDE.md`. Add none, or
 Claude Code stops reading `AGENTS.md`. Skills come through the `.claude/skills` symlink, subagents from
-[.claude/agents/](../.claude/agents/), hooks from [.claude/settings.json](../.claude/settings.json). No further
-configuration.
+[.claude/agents/](../.claude/agents/), hooks from the eight hook plugins of the repository's own marketplace, which
+[.claude/settings.json](../.claude/settings.json) switches on. Accept the workspace trust dialog, because Claude Code
+loads those plugins only in a trusted folder.
 
 ```bash
 claude

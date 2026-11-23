@@ -13,7 +13,11 @@ The commands behind the base-URL rule in the manifest. Load this file when resol
 
 A candidate counts only when `GET /health` answers with a success status inside a short timeout. When no candidate
 answers, stop and tell the user the service is down, naming the candidates tried. A silent switch to a normal fetch
-hides the outage and returns the partial or blocked page this service exists to avoid.
+hides the outage and returns the partial or blocked page this service exists to avoid. Do not fall back to a normal web fetch without saying so. Use the resolved value as `$BASE` in every call.
+
+Pass: `ASCEND_WEB_HUNTER_URL` is unset, the `.internal` probe times out, `localhost:7021/health` answers, use that.
+
+Fail: every probe fails, and the page is read with the built-in web fetch as if nothing happened.
 
 ---
 

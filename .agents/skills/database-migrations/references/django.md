@@ -10,7 +10,6 @@ Read this when running migrations in a Django project.
 - [Data migration](#data-migration)
 - [Removing a column in two deploys](#removing-a-column-in-two-deploys)
 - [Concurrent indexes](#concurrent-indexes)
-- [Related skills](#related-skills)
 
 ---
 
@@ -117,11 +116,3 @@ class Migration(migrations.Migration):
     atomic = False
     operations = [AddIndexConcurrently("user", models.Index(fields=["email"], name="idx_user_email"))]
 ```
-
----
-
-### Related skills
-
-- `database-migrations` for the safety rules these commands have to satisfy.
-- `python-patterns` for the surrounding application code.
-- `postgres-patterns` for index selection and query plans.

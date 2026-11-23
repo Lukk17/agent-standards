@@ -7,14 +7,14 @@ error needs to be more than a wrapped message.
 
 ### Contents
 
-- Define sentinels for conditions a caller branches on
-- Use a custom type when the error carries data
-- Match with errors.Is and errors.AsType
-- Wrap with %w, format with %v
-- Join independent failures
-- Return errors, do not panic
-- Keep the error path unindented
-- Log an error once, at the boundary
+- [Define sentinels for conditions a caller branches on](#define-sentinels-for-conditions-a-caller-branches-on)
+- [Use a custom type when the error carries data](#use-a-custom-type-when-the-error-carries-data)
+- [Match with errors.Is and errors.AsType](#match-with-errorsis-and-errorsastype)
+- [Wrap with %w, format with %v](#wrap-with-w-format-with-v)
+- [Join independent failures](#join-independent-failures)
+- [Return errors, do not panic](#return-errors-do-not-panic)
+- [Keep the error path unindented](#keep-the-error-path-unindented)
+- [Log an error once, at the boundary](#log-an-error-once-at-the-boundary)
 
 ---
 

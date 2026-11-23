@@ -11,7 +11,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "mongodb-mcp-server@latest",
+        "mongodb-mcp-server@3.3.0",
         "--readOnly",
         "--connectionString",
         "mongodb://localhost:27017"
@@ -22,7 +22,7 @@
       "type": "local",
       "command": "uvx",
       "args": [
-        "mcp-grafana"
+        "mcp-grafana==2.2.0"
       ],
       "env": {
         "GRAFANA_URL": "http://localhost:3000"
@@ -33,7 +33,7 @@
       "type": "local",
       "command": "npx",
       "args": [
-        "@playwright/mcp@latest"
+        "@playwright/mcp@0.0.85"
       ]
     },
 
@@ -42,7 +42,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "chrome-devtools-mcp@latest"
+        "chrome-devtools-mcp@1.13.0"
       ]
     },
 
@@ -51,7 +51,7 @@
       "command": "uvx",
       "args": [
         "--from",
-        "redis-mcp-server@latest",
+        "redis-mcp-server==0.5.1",
         "redis-mcp-server",
         "--url",
         "redis://localhost:6379/0"
@@ -64,14 +64,13 @@
       "args": [
         "run",
         "--init",
-        "--pull=always",
         "-i",
         "--rm",
         "-e",
         "SONARQUBE_TOKEN",
         "-e",
         "SONARQUBE_URL",
-        "mcp/sonarqube"
+        "mcp/sonarqube@sha256:925c88bc7cab2a1e1025b0bd43f0af504cd8ce1b99e9663ececaca914fb632e7"
       ],
       "env": {
         "SONARQUBE_URL": "http://localhost:9000"
@@ -82,7 +81,7 @@
       "type": "local",
       "command": "npx",
       "args": [
-        "n8n-mcp"
+        "n8n-mcp@2.102.0"
       ],
       "env": {
         "N8N_API_URL": "http://localhost:5678"

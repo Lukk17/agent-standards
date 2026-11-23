@@ -8,8 +8,9 @@ tests/test_check_badges.py uses for its own hyphenated sibling.
 
 Every case drives a real file under a throwaway repo root, because the check
 reads the skill folder name and the subagent file stem out of the path itself.
-The last test runs the check over the real repository, so a manifest that stops
-parsing can never reach a green suite.
+The check also runs over the real repository, every file of every skill and
+every subagent source, so a manifest that stops parsing or a skill that leaves
+the lean layout can never reach a green suite.
 """
 
 import importlib.util
@@ -34,6 +35,8 @@ def _load_check_markdown_module():
 
 
 MARKDOWN = _load_check_markdown_module()
+
+SKILLS_ROOT = REPO_ROOT / ".agents" / "skills"
 
 CLEAN_SKILL_FRONT_MATTER = """---
 name: demo-skill
@@ -84,6 +87,23 @@ def _write_subagent(tmp_path, front_matter, name="demo-agent"):
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{name}.md"
     path.write_text(front_matter + BODY, encoding="utf-8")
+
+    return path
+
+
+def _write_manifest(tmp_path, body, name="demo-skill"):
+    directory = tmp_path / ".agents" / "skills" / name
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / "SKILL.md"
+    path.write_text(CLEAN_SKILL_FRONT_MATTER + "\n# Demo\n\n" + body, encoding="utf-8")
+
+    return path
+
+
+def _write_reference(tmp_path, relative, body, name="demo-skill"):
+    path = tmp_path / ".agents" / "skills" / name / "references" / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body, encoding="utf-8")
 
     return path
 
@@ -358,36 +378,80 @@ description: 42
     assert "description has to be a string, found int" in capsys.readouterr().out
 
 
-def test_description_over_the_cap_is_reported(tmp_path, capsys):
-    # Given a description one character past the 1024 cap
+DESCRIPTION_CAPS = {"skill": MARKDOWN.MAX_SKILL_DESCRIPTION_CHARACTERS, "subagent": MARKDOWN.MAX_DESCRIPTION}
+
+OVER_THE_CAP_MESSAGES = {
+    "skill": 'description is 221 characters, over the 220 character limit for a skill. Keep what the skill covers, the phrases a user says and one "Not for X, use `skill`" pointer',
+    "subagent": "description is 1025 characters, over the 1024 character cap",
+}
+
+
+def _with_description(tmp_path, kind, length):
+    name, write = ("demo-skill", _write_skill) if kind == "skill" else ("demo-agent", _write_subagent)
     front_matter = f"""---
-name: demo-skill
-description: {"d" * (MARKDOWN.MAX_DESCRIPTION + 1)}
+name: {name}
+description: {"d" * length}
 ---
 """
-    path = _write_skill(tmp_path, front_matter)
+
+    return write(tmp_path, front_matter)
+
+
+@pytest.mark.parametrize("kind", sorted(DESCRIPTION_CAPS))
+def test_description_over_the_cap_is_reported(tmp_path, capsys, kind):
+    # Given a description one character past the cap of its kind
+    path = _with_description(tmp_path, kind, DESCRIPTION_CAPS[kind] + 1)
 
     # When
     failures = MARKDOWN.check_file(path)
 
-    # Then
+    # Then the description line is reported once, with the size, the cap and, for a skill, what a description keeps
+    out = capsys.readouterr().out
     assert failures == 1
-    assert f"description is 1025 characters, over the {MARKDOWN.MAX_DESCRIPTION} character cap" in capsys.readouterr().out
+    assert "line=3::" in out
+    assert OVER_THE_CAP_MESSAGES[kind] in out
 
 
-def test_description_exactly_at_the_cap_passes(tmp_path, capsys):
-    # Given a description of exactly 1024 characters
-    front_matter = f"""---
-name: demo-skill
-description: {"d" * MARKDOWN.MAX_DESCRIPTION}
----
-"""
-    path = _write_skill(tmp_path, front_matter)
+@pytest.mark.parametrize("kind", sorted(DESCRIPTION_CAPS))
+def test_description_exactly_at_the_cap_passes(tmp_path, capsys, kind):
+    # Given a description of exactly the cap of its kind
+    path = _with_description(tmp_path, kind, DESCRIPTION_CAPS[kind])
 
     # When
     failures = MARKDOWN.check_file(path)
 
     # Then the cap is inclusive
+    assert failures == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_a_skill_description_over_the_subagent_cap_is_reported_once(tmp_path, capsys):
+    # Given a skill description past the cap of a subagent too
+    path = _with_description(tmp_path, "skill", MARKDOWN.MAX_DESCRIPTION + 1)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then one violation names the skill limit, and the subagent cap stays silent
+    out = capsys.readouterr().out
+    assert failures == 1
+    assert out.count("::error") == 1
+    assert "description is 1025 characters, over the 220 character limit for a skill" in out
+
+
+def test_subagent_description_is_not_held_to_the_skill_limit(tmp_path, capsys):
+    # Given a subagent description of the length its own rule asks for, past the skill limit
+    front_matter = f"""---
+name: demo-agent
+description: {"d" * 400}
+---
+"""
+    path = _write_subagent(tmp_path, front_matter)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
     assert failures == 0
     assert capsys.readouterr().out == ""
 
@@ -408,7 +472,7 @@ def test_skill_manifest_over_the_size_limit_is_reported(tmp_path, capsys):
     # Then the message names the size, the limit and where the depth goes
     out = capsys.readouterr().out
     assert failures == 1
-    assert "skill manifest is 8001 characters, over the 8000 character limit" in out
+    assert "skill manifest is 4501 characters, over the 4500 character limit" in out
     assert "references/" in out
 
 
@@ -439,6 +503,519 @@ def test_reference_file_over_the_size_limit_is_not_reported(tmp_path, capsys):
     # Then
     assert failures == 0
     assert capsys.readouterr().out == ""
+
+
+TRIGGERS_ADVICE = "The description already carries the triggers, so delete the section"
+NEIGHBOUR_ADVICE = 'Name a neighbouring skill in the description or under "When not to activate"'
+CHECKLIST_ADVICE = "Move it to references/checklist.md and link that file from the routing table"
+
+
+@pytest.mark.parametrize(
+    ("heading", "title", "advice"),
+    [
+        ("### When to activate", "When to activate", TRIGGERS_ADVICE),
+        ("### When to Activate", "When to Activate", TRIGGERS_ADVICE),
+        ("### __When to activate__", "When to activate", TRIGGERS_ADVICE),
+        ("### Related skills", "Related skills", NEIGHBOUR_ADVICE),
+        ("### Related Skills", "Related Skills", NEIGHBOUR_ADVICE),
+        ("### *Related skills*", "Related skills", NEIGHBOUR_ADVICE),
+        ("### Checklist", "Checklist", CHECKLIST_ADVICE),
+        ("#### Checklist:", "Checklist", CHECKLIST_ADVICE),
+        ("### Checklists", "Checklists", CHECKLIST_ADVICE),
+        ("### **Checklist**", "Checklist", CHECKLIST_ADVICE),
+        ("### **Checklists:**", "Checklists", CHECKLIST_ADVICE),
+    ],
+)
+def test_a_section_that_left_the_manifest_is_reported(tmp_path, capsys, heading, title, advice):
+    # Given a manifest still carrying a section the lean layout moved out, in any case, plural or emphasis
+    path = _write_manifest(tmp_path, f"Purpose line.\n\n{heading}\n\n- An item.\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the heading line is reported once, with where its content goes
+    out = capsys.readouterr().out
+    assert failures == 1
+    assert "line=12::" in out
+    assert f'section "{title}" is not allowed in a skill manifest. {advice}' in out
+
+
+@pytest.mark.parametrize("heading", ["### Checklist of the release", "### Related work", "### When to activate the alarm"])
+def test_a_heading_that_only_starts_like_a_section_that_left_passes(tmp_path, capsys, heading):
+    # Given a manifest heading that holds more than one of the three names
+    path = _write_manifest(tmp_path, f"Purpose line.\n\n{heading}\n\n- An item.\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 0, capsys.readouterr().out
+
+
+def test_a_section_that_left_the_manifest_may_stay_in_a_reference(tmp_path, capsys):
+    # Given a reference file with the same headings, linked from its manifest
+    _write_manifest(tmp_path, "Open [topic](references/topic.md) for the depth.\n")
+    path = _write_reference(tmp_path, "topic.md", "# Topic\n\n### Related skills\n\n- `bash` owns scripts.\n\n### Checklist\n\n- [ ] Done.\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 0, capsys.readouterr().out
+
+
+def test_a_forbidden_heading_inside_a_code_fence_is_a_specimen(tmp_path, capsys):
+    # Given a manifest showing the heading inside a fenced example
+    path = _write_manifest(tmp_path, "Purpose line.\n\n```markdown\n### Related skills\n```\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 0, capsys.readouterr().out
+
+
+WHEN_NOT = "### When not to activate\n\n"
+
+NOT_A_ONE_LINE_ITEM = 'line under "When not to activate" is not a one-line list item. Write each item on one line and keep nothing else in the section'
+
+
+def test_three_one_line_items_each_naming_a_skill_pass(tmp_path, capsys):
+    # Given the longest "When not to activate" section the lean layout allows, a numbered item included
+    body = WHEN_NOT + "- Shell scripts, use `bash`.\n- Tests, use `tdd-workflow`.\n1. A full audit, use the `security-auditor` agent.\n\n---\n\n### Rules\n\n1. A rule.\n"
+    path = _write_manifest(tmp_path, body)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 0, capsys.readouterr().out
+
+
+def test_a_fourth_when_not_to_activate_item_is_reported(tmp_path, capsys):
+    # Given one item more than the limit
+    items = "".join(f"- Job {number}, use `skill-{number}`.\n" for number in range(MARKDOWN.MAX_WHEN_NOT_TO_ACTIVATE_ITEMS + 1))
+    path = _write_manifest(tmp_path, WHEN_NOT + items)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the heading line is reported once, naming the count and the limit
+    out = capsys.readouterr().out
+    assert failures == 1
+    assert "line=10::" in out
+    assert '"When not to activate" holds 4 items, over the limit of 3. Keep the nearest neighbouring jobs only' in out
+
+
+def test_a_when_not_to_activate_heading_in_emphasis_marks_is_still_held_to_the_limit(tmp_path, capsys):
+    # Given the section under a heading wrapped in emphasis marks, one item over the limit
+    items = "".join(f"- Job {number}, use `skill-{number}`.\n" for number in range(MARKDOWN.MAX_WHEN_NOT_TO_ACTIVATE_ITEMS + 1))
+    path = _write_manifest(tmp_path, "### **When Not To Activate:**\n\n" + items)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    out = capsys.readouterr().out
+    assert failures == 1
+    assert '"When not to activate" holds 4 items, over the limit of 3' in out
+
+
+def test_a_when_not_to_activate_item_wrapped_onto_a_second_line_is_reported(tmp_path, capsys):
+    # Given an item that continues on an indented second line
+    path = _write_manifest(tmp_path, WHEN_NOT + "- Shell scripts, use `bash`,\n  and everything around them.\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the continuation line is reported
+    out = capsys.readouterr().out
+    assert failures == 1
+    assert "line=13::" in out
+    assert NOT_A_ONE_LINE_ITEM in out
+
+
+def test_a_prose_line_under_when_not_to_activate_is_reported(tmp_path, capsys):
+    # Given a sentence above the items
+    path = _write_manifest(tmp_path, WHEN_NOT + "Hand these jobs over.\n\n- Shell scripts, use `bash`.\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 1
+    assert NOT_A_ONE_LINE_ITEM in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("fence", ["```", "~~~", "```text"])
+def test_a_fenced_block_under_when_not_to_activate_is_reported_once(tmp_path, capsys, fence):
+    # Given a fenced block under the items, holding lines that look like items and like a heading
+    block = f"{fence}\n- Job 1, use `skill-1`.\n- Job 2, use `skill-2`.\n\n### Rules\n{fence[:3]}\n"
+    path = _write_manifest(tmp_path, WHEN_NOT + "- Shell scripts, use `bash`.\n\n" + block + "\n- Tests, use `tdd-workflow`.\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the line that opens the block is reported, and nothing inside it counts as an item or a heading
+    out = capsys.readouterr().out
+    assert failures == 1
+    assert "line=14::" in out
+    assert NOT_A_ONE_LINE_ITEM in out
+
+
+def test_a_deeper_heading_under_when_not_to_activate_is_reported_and_does_not_end_the_section(tmp_path, capsys):
+    # Given a deeper heading under the section with a line of prose below it
+    path = _write_manifest(tmp_path, WHEN_NOT + "- Shell scripts, use `bash`.\n\n#### More\n\nHand these jobs over.\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the heading and the prose are both content the section may not hold
+    out = capsys.readouterr().out
+    assert failures == 2
+    assert "line=14::" in out
+    assert "line=16::" in out
+    assert out.count(NOT_A_ONE_LINE_ITEM) == 2
+
+
+def test_the_next_section_of_the_same_level_ends_when_not_to_activate(tmp_path, capsys):
+    # Given prose and a fenced block under the section that follows
+    body = WHEN_NOT + "- Shell scripts, use `bash`.\n\n### Rules\n\nProse of the next section.\n\n```bash\nls\n```\n"
+    path = _write_manifest(tmp_path, body)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 0, capsys.readouterr().out
+
+
+def test_a_when_not_to_activate_item_naming_no_skill_or_agent_is_reported(tmp_path, capsys):
+    # Given an item that names no owner in backticks
+    path = _write_manifest(tmp_path, WHEN_NOT + "- Shell scripts, use `bash`.\n- The answer is already in the repository.\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then that item is reported
+    out = capsys.readouterr().out
+    assert failures == 1
+    assert "line=13::" in out
+    assert '"When not to activate" item names no skill or agent. Name the skill or the agent that owns the job in backticks, as in use `bash`' in out
+
+
+def test_a_reference_not_linked_from_its_manifest_is_reported(tmp_path, capsys):
+    # Given a manifest linking one reference and a second reference it never names
+    _write_manifest(tmp_path, "Open [topic](references/topic.md) for the depth.\n")
+    path = _write_reference(tmp_path, "orphan.md", "# Orphan\n\nPlain reference prose.\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    out = capsys.readouterr().out
+    assert failures == 1
+    assert "references/orphan.md is not linked from SKILL.md. Add it to the routing table with a cue saying when to open it, or delete the file" in out
+
+
+@pytest.mark.parametrize(
+    "link",
+    ["[topic](references/topic.md)", "[part](references/topic.md#part)", "| Cue | [topic](./references/topic.md) |"],
+    ids=["plain", "with-anchor", "table-row-with-dot-prefix"],
+)
+def test_a_reference_linked_from_its_manifest_passes(tmp_path, capsys, link):
+    # Given a manifest that links the reference in one of the forms a routing table uses
+    _write_manifest(tmp_path, link + "\n")
+    path = _write_reference(tmp_path, "topic.md", "# Topic\n\n### Part\n\nPlain reference prose.\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 0, capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "body",
+    ["Named as `[topic](references/topic.md)` only.\n", "```markdown\n[topic](references/topic.md)\n```\n", "Named as references/topic.md only.\n"],
+    ids=["inline-code", "code-fence", "bare-path"],
+)
+def test_a_reference_named_but_not_linked_is_reported(tmp_path, capsys, body):
+    # Given a manifest that shows the path without linking it
+    _write_manifest(tmp_path, body)
+    path = _write_reference(tmp_path, "topic.md", "# Topic\n\nPlain reference prose.\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 1
+    assert "is not linked from SKILL.md" in capsys.readouterr().out
+
+
+def test_a_reference_linked_only_from_another_reference_is_reported(tmp_path, capsys):
+    # Given a chain: the manifest links one reference, and only that reference links the second
+    _write_manifest(tmp_path, "Open [topic](references/topic.md) for the depth.\n")
+    _write_reference(tmp_path, "topic.md", "# Topic\n\nSee [deeper](deeper.md).\n")
+    path = _write_reference(tmp_path, "deeper.md", "# Deeper\n\nPlain reference prose.\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the second file is one hop too far from the manifest
+    assert failures == 1
+    assert "is not linked from SKILL.md" in capsys.readouterr().out
+
+
+def test_a_reference_in_a_subfolder_of_references_is_reported(tmp_path, capsys):
+    # Given a reference one folder deeper than references/, linked from the manifest
+    _write_manifest(tmp_path, "Open [topic](references/deep/topic.md) for the depth.\n")
+    path = _write_reference(tmp_path, "deep/topic.md", "# Topic\n\nPlain reference prose.\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    out = capsys.readouterr().out
+    assert failures == 1
+    assert "references/deep/topic.md sits deeper than one level under references/. Move it directly into that folder" in out
+
+
+@pytest.mark.parametrize("manifest", [None, b"\xff\xfe\x00"], ids=["missing", "not-utf-8"])
+def test_a_reference_whose_manifest_cannot_be_read_is_not_reported_as_unlinked(tmp_path, capsys, manifest):
+    # Given a reference in a folder whose SKILL.md is missing or cannot be decoded
+    path = _write_reference(tmp_path, "topic.md", "# Topic\n\nPlain reference prose.\n")
+    if manifest is not None:
+        (path.parent.parent / "SKILL.md").write_bytes(manifest)
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the folder is no skill the link rule can speak for
+    assert failures == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_a_reference_in_a_subfolder_is_reported_even_when_its_manifest_is_missing(tmp_path, capsys):
+    # Given a reference one folder too deep in a folder with no SKILL.md
+    path = _write_reference(tmp_path, "deep/topic.md", "# Topic\n\nPlain reference prose.\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the place is reported and the link is not
+    out = capsys.readouterr().out
+    assert failures == 1
+    assert "sits deeper than one level under references/" in out
+    assert "is not linked from" not in out
+
+
+def test_a_markdown_file_directly_in_the_skills_folder_is_held_to_no_layout_rule(tmp_path, capsys):
+    # Given a file beside the skill folders, in no skill of its own, longer than a reference may be without Contents
+    path = tmp_path / ".agents" / "skills" / "README.md"
+    path.parent.mkdir(parents=True)
+    path.write_text("# Skills\n\n### Checklist\n\n" + "Plain prose.\n" * 120, encoding="utf-8")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the check returns instead of raising
+    assert failures == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_a_manifest_link_to_a_missing_file_is_reported(tmp_path, capsys):
+    # Given a manifest linking a reference that was never written
+    path = _write_manifest(tmp_path, "Open [topic](references/missing.md#part) for the depth.\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the line is reported with the target as written
+    out = capsys.readouterr().out
+    assert failures == 1
+    assert "line=10::" in out
+    assert "links to references/missing.md#part, which does not exist. Fix the path or remove the link" in out
+
+
+def test_a_reference_link_to_a_missing_sibling_is_reported(tmp_path, capsys):
+    # Given a linked reference pointing at a sibling that does not exist
+    _write_manifest(tmp_path, "Open [topic](references/topic.md) for the depth.\n")
+    path = _write_reference(tmp_path, "topic.md", "# Topic\n\nSee [gone](gone.md) and [the manifest](../SKILL.md).\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then only the missing target is reported, resolved from the reference's own folder
+    out = capsys.readouterr().out
+    assert failures == 1
+    assert "links to gone.md, which does not exist" in out
+
+
+def test_a_reference_style_link_to_a_missing_file_is_reported(tmp_path, capsys):
+    # Given a linked reference whose link definition names a sibling that does not exist
+    _write_manifest(tmp_path, "Open [topic](references/topic.md) for the depth.\n")
+    path = _write_reference(tmp_path, "topic.md", "# Topic\n\nSee [the sibling][gone].\n\n[gone]: gone.md\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    out = capsys.readouterr().out
+    assert failures == 1
+    assert "line=5::" in out
+    assert "links to gone.md, which does not exist" in out
+
+
+@pytest.mark.parametrize(
+    "definition",
+    ["[^1]: Measured on one host.", "[^note]: ../other-skill/SKILL.md says the same.", "   [^1]: gone.md"],
+    ids=["prose", "path-leaving-the-folder", "indented-file-name"],
+)
+def test_a_footnote_is_not_a_link(tmp_path, capsys, definition):
+    # Given a linked reference with a footnote, whose first word is no link target
+    _write_manifest(tmp_path, "Open [topic](references/topic.md) for the depth.\n")
+    path = _write_reference(tmp_path, "topic.md", f"# Topic\n\nA claim.[^1]\n\n{definition}\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then neither link rule speaks
+    assert failures == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_a_link_leaving_the_skill_folder_is_reported_once(tmp_path, capsys):
+    # Given a manifest linking a sibling skill that does not exist on disk
+    path = _write_manifest(tmp_path, "See [sibling](../other-skill/SKILL.md).\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the folder rule speaks and the missing-file rule stays silent
+    out = capsys.readouterr().out
+    assert failures == 1
+    assert "links outside its own skill folder" in out
+    assert "does not exist" not in out
+
+
+def _long_reference(opening, lines=101):
+    filler = [f"Line {number}." for number in range(lines)]
+    text = opening + "\n\n### First section\n\n"
+    padding = lines - len(text.splitlines())
+
+    return text + "\n".join(filler[:padding]) + "\n"
+
+
+CONTENTS_OPENINGS = {
+    "contents-line": "# Topic\n\nContents:\n\n- [First section](#first-section)",
+    "contents-heading": "# Topic\n\nWhat the file holds.\n\n---\n\n### Contents\n\n- [First section](#first-section)",
+    "numbered-list": "# Topic\n\nContents:\n\n1. [First section](#first-section)",
+    "no-title": "### Contents\n\n- [First section](#first-section)",
+    "nested-items": "# Topic\n\nContents:\n\n- [First section](#first-section)\n  - [A part of it](#a-part-of-it)",
+    "code-in-the-link-text": "# Topic\n\nContents:\n\n- [`first` section](#first-section)",
+}
+
+
+@pytest.mark.parametrize("opening", list(CONTENTS_OPENINGS.values()), ids=list(CONTENTS_OPENINGS))
+def test_a_long_reference_opening_with_a_contents_list_passes(tmp_path, capsys, opening):
+    # Given a linked reference over the line limit that opens with a Contents list
+    _write_manifest(tmp_path, "Open [topic](references/topic.md) for the depth.\n")
+    path = _write_reference(tmp_path, "topic.md", _long_reference(opening))
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 101
+    assert failures == 0, capsys.readouterr().out
+
+
+MISSING_CONTENTS_OPENINGS = {
+    "no-contents": "# Topic\n\nWhat the file holds.",
+    "contents-with-no-list": "# Topic\n\nContents:\n\nThe sections follow.",
+    "contents-after-the-first-section": "# Topic\n\n### Early section\n\nProse.\n\n### Contents\n\n- First section",
+}
+
+
+@pytest.mark.parametrize("opening", list(MISSING_CONTENTS_OPENINGS.values()), ids=list(MISSING_CONTENTS_OPENINGS))
+def test_a_long_reference_without_an_opening_contents_list_is_reported(tmp_path, capsys, opening):
+    # Given a linked reference over the line limit with no Contents list before its first section
+    _write_manifest(tmp_path, "Open [topic](references/topic.md) for the depth.\n")
+    path = _write_reference(tmp_path, "topic.md", _long_reference(opening))
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the message names the length and the limit
+    out = capsys.readouterr().out
+    assert failures == 1
+    assert "line=1::" in out
+    assert 'reference is 101 lines, over 100, and has no Contents list before its first section. Open it with "Contents:" and a list that links its sections' in out
+
+
+UNLINKED_CONTENTS_OPENINGS = {
+    "no-item-linked": ("# Topic\n\nContents:\n\n- First section\n- Second section", 5, "2 of 2"),
+    "one-item-not-linked": ("# Topic\n\nContents:\n\n- [First section](#first-section)\n- Second section\n- [Third](#third)", 6, "1 of 3"),
+    "link-to-another-file": ("# Topic\n\nContents:\n\n- [First section](#first-section)\n- [Topic](topic.md)", 6, "1 of 2"),
+    "link-shown-as-code": ("# Topic\n\nContents:\n\n- `[First section](#first-section)`", 5, "1 of 1"),
+    "nested-item-not-linked": ("# Topic\n\nContents:\n\n- [First section](#first-section)\n  - A part of it", 6, "1 of 2"),
+}
+
+
+@pytest.mark.parametrize(("opening", "line", "share"), list(UNLINKED_CONTENTS_OPENINGS.values()), ids=list(UNLINKED_CONTENTS_OPENINGS))
+def test_a_contents_list_item_that_links_no_section_is_reported(tmp_path, capsys, opening, line, share):
+    # Given a linked reference over the line limit whose Contents list holds an item with no link to a section
+    _write_manifest(tmp_path, "Open [topic](references/topic.md) for the depth.\n")
+    path = _write_reference(tmp_path, "topic.md", _long_reference(opening))
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the first such item is reported once, with how many items lack the link
+    out = capsys.readouterr().out
+    assert failures == 1
+    assert f"line={line}::" in out
+    assert f"Contents list items without a link to a section: {share}, the first on this line. Write each item as a link to its section, as in [Setup](#setup)" in out
+
+
+def test_a_short_reference_may_keep_a_contents_list_without_links(tmp_path, capsys):
+    # Given a linked reference of exactly the line limit whose Contents list links nothing
+    _write_manifest(tmp_path, "Open [topic](references/topic.md) for the depth.\n")
+    path = _write_reference(tmp_path, "topic.md", _long_reference("# Topic\n\nContents:\n\n- First section", lines=100))
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the Contents rule starts past the limit
+    assert failures == 0, capsys.readouterr().out
+
+
+def test_a_reference_at_the_line_limit_needs_no_contents_list(tmp_path, capsys):
+    # Given a linked reference of exactly the line limit with no Contents list
+    _write_manifest(tmp_path, "Open [topic](references/topic.md) for the depth.\n")
+    path = _write_reference(tmp_path, "topic.md", _long_reference("# Topic\n\nWhat the file holds.", lines=100))
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the limit is inclusive
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 100
+    assert failures == 0, capsys.readouterr().out
+
+
+def test_the_layout_rules_leave_a_document_outside_the_skills_tree_alone(tmp_path, capsys):
+    # Given a shipped document with a forbidden heading, a dead link and more than the line limit
+    body = "# Guide\n\n### Related skills\n\nSee [gone](gone.md).\n" + "Line.\n" * 120
+    path = tmp_path / "docs" / "GUIDE.md"
+    path.parent.mkdir(parents=True)
+    path.write_text(body, encoding="utf-8")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 0, capsys.readouterr().out
 
 
 def test_skill_key_outside_the_specification_is_reported(tmp_path, capsys):
@@ -680,16 +1257,16 @@ def test_generated_subagent_trees_are_out_of_front_matter_scope():
     assert MARKDOWN.front_matter_target(generated) is None
 
 
-def test_every_real_manifest_and_subagent_source_parses():
-    # Given the actual repository this test suite lives in
-    targets = sorted((REPO_ROOT / ".agents" / "skills").glob("*/SKILL.md"))
+def test_every_subagent_source_and_every_skill_file_passes_every_rule(capsys):
+    # Given every file of every skill and every subagent source in the actual repository
+    targets = sorted(SKILLS_ROOT.glob("*/**/*.md"))
     targets.extend(sorted((REPO_ROOT / "subagents").glob("*.md")))
 
     # When
     failures = sum(MARKDOWN.check_file(path) for path in targets)
 
-    # Then every manifest an agent loads is valid by the time the suite is green
-    assert failures == 0
+    # Then every file an agent loads is valid by the time the suite is green
+    assert failures == 0, capsys.readouterr().out
 
 
 def _write_document(tmp_path, body):
@@ -763,10 +1340,8 @@ def test_a_rooted_link_in_a_skill_given_as_a_relative_path_is_reported(tmp_path,
 
 def test_a_skill_reference_file_linking_to_a_sibling_skill_is_reported(tmp_path, capsys):
     # Given a reference file one level down linking two levels up into another skill
-    _write_skill(tmp_path, CLEAN_SKILL_FRONT_MATTER)
-    path = tmp_path / ".agents" / "skills" / "demo-skill" / "references" / "topic.md"
-    path.parent.mkdir()
-    path.write_text("### Topic\n\nPer [node](../../node-backend-patterns/SKILL.md).\n", encoding="utf-8")
+    _write_manifest(tmp_path, "Open [topic](references/topic.md) for the depth.\n")
+    path = _write_reference(tmp_path, "topic.md", "### Topic\n\nPer [node](../../node-backend-patterns/SKILL.md).\n")
 
     # When
     failures = MARKDOWN.check_file(path)
@@ -787,9 +1362,9 @@ def test_a_skill_reference_file_linking_to_a_sibling_skill_is_reported(tmp_path,
     ids=["own-reference", "anchor", "absolute-url", "inside-inline-code"],
 )
 def test_a_skill_link_staying_inside_its_folder_passes(tmp_path, capsys, link):
-    # Given a skill manifest linking only within itself or to the web
-    path = _write_skill(tmp_path, CLEAN_SKILL_FRONT_MATTER)
-    path.write_text(CLEAN_SKILL_FRONT_MATTER + "\n# Demo\n\nSee " + link + ".\n", encoding="utf-8")
+    # Given a skill manifest linking only within itself or to the web, and the reference it names
+    path = _write_manifest(tmp_path, "Open [topic](references/topic.md) for the depth. See " + link + ".\n")
+    _write_reference(tmp_path, "topic.md", "### Topic\n\nPlain reference prose.\n")
 
     # When
     failures = MARKDOWN.check_file(path)
@@ -813,10 +1388,10 @@ def test_a_document_outside_the_skills_tree_may_link_anywhere(tmp_path, capsys):
 
 def test_no_real_skill_links_outside_its_own_folder(capsys):
     # Given every markdown file of every skill this repository ships
-    targets = sorted((REPO_ROOT / ".agents" / "skills").glob("**/*.md"))
+    targets = sorted(SKILLS_ROOT.glob("**/*.md"))
 
     # When
-    failures = sum(MARKDOWN.check_file(path) for path in targets)
+    failures = sum(MARKDOWN.check_lines(path.read_text(encoding="utf-8").splitlines(), path) for path in targets)
 
     # Then a consumer that removed any one skill still has no dead link in the others
     assert failures == 0, capsys.readouterr().out

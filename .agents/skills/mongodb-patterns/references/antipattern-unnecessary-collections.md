@@ -29,14 +29,14 @@ application code must dynamically resolve the collection name for each query.
 Correct (single collection with an index):
 
 ```javascript
-// All readings in one collection — the index does the partitioning work
+// All readings in one collection, the index does the partitioning work
 { _id: ObjectId(), timestamp: ISODate("2024-05-10T10:00:00Z"), temperature: 60 }
 { _id: ObjectId(), timestamp: ISODate("2024-05-10T11:00:00Z"), temperature: 61 }
 { _id: ObjectId(), timestamp: ISODate("2024-05-11T10:00:00Z"), temperature: 68 }
 
 db.temperatures.createIndex({ timestamp: 1 })
 
-// Efficient range query — one collection, one index
+// Efficient range query: one collection, one index
 db.temperatures.find({
   timestamp: { $gte: ISODate("2024-05-10"), $lt: ISODate("2024-05-11") }
 })
@@ -51,7 +51,7 @@ For high-volume time-stamped data, group readings into buckets or use a native t
 optimized for this workload:
 
 ```javascript
-// Bucket pattern — one document per day
+// Bucket pattern: one document per day
 {
   _id: ISODate("2024-05-10T00:00:00Z"),
   readings: [

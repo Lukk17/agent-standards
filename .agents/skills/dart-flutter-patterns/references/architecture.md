@@ -7,16 +7,16 @@ globally, and separate build flavors.
 
 ### Contents
 
-- Core principles
-- The layers
-- Feature implementation order
-- Data layer example
-- State management, all three options
-- Dependency injection
-- Global error handling
-- Analysis options
-- Environment flavors
-- Checklist
+- [Core principles](#core-principles)
+- [The layers](#the-layers)
+- [Feature implementation order](#feature-implementation-order)
+- [Data layer example](#data-layer-example)
+- [State management, all three options](#state-management-all-three-options)
+- [Dependency injection](#dependency-injection)
+- [Global error handling](#global-error-handling)
+- [Analysis options](#analysis-options)
+- [Environment flavors](#environment-flavors)
+- [Checklist](#checklist)
 
 ---
 
@@ -110,112 +110,8 @@ through the data layer are the shared-mutable-state anti-pattern: keep any cache
 
 ### State management, all three options
 
-Match the project. Never mix two in one feature. Each example below drives the same user profile screen.
-
-Riverpod, when dependencies form a graph and state derives from other state:
-
-```dart
-final userProvider = AsyncNotifierProvider<UserNotifier, User>(UserNotifier.new);
-
-class UserNotifier extends AsyncNotifier<User> {
-  @override
-  Future<User> build() => ref.watch(userRepositoryProvider).getUser('current');
-
-  Future<void> reload(String userId) async {
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() => ref.read(userRepositoryProvider).getUser(userId));
-  }
-}
-
-class UserProfileView extends ConsumerWidget {
-  const UserProfileView({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return ref.watch(userProvider).when(
-      loading: () => const CircularProgressIndicator(),
-      error: (err, _) => ErrorView(message: '$err'),
-      data: (user) => Text(AppLocalizations.of(context).greeting(user.name)),
-    );
-  }
-}
-```
-
-BLoC, when a feature is event-driven and the emitted state log is worth having:
-
-```dart
-sealed class UserState {}
-final class UserLoading extends UserState {}
-final class UserLoaded extends UserState { UserLoaded(this.user); final User user; }
-final class UserFailed extends UserState { UserFailed(this.message); final String message; }
-
-class UserCubit extends Cubit<UserState> {
-  UserCubit(this._repository) : super(UserLoading());
-  final UserRepository _repository;
-
-  Future<void> loadUser(String userId) async {
-    emit(UserLoading());
-    try {
-      emit(UserLoaded(await _repository.getUser(userId)));
-    } on Exception catch (e) {
-      emit(UserFailed(e.toString()));
-    }
-  }
-}
-
-class UserProfileView extends StatelessWidget {
-  const UserProfileView({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<UserCubit, UserState>(
-      builder: (context, state) => switch (state) {
-        UserLoading() => const CircularProgressIndicator(),
-        UserLoaded(:final user) => Text(AppLocalizations.of(context).greeting(user.name)),
-        UserFailed(:final message) => ErrorView(message: message),
-      },
-    );
-  }
-}
-```
-
-`ChangeNotifier` with `Provider`, for a small app or one screen's local state. It is a supported Flutter class, so
-the only real constraint is that it mutates in place: hold an immutable value and replace it wholesale.
-
-```dart
-class UserModel extends ChangeNotifier {
-  UserModel(this._repository);
-  final UserRepository _repository;
-
-  UserState _state = UserLoading();
-  UserState get state => _state;
-
-  Future<void> loadUser(String userId) async {
-    _state = UserLoading();
-    notifyListeners();
-    try {
-      _state = UserLoaded(await _repository.getUser(userId));
-    } on Exception catch (e) {
-      _state = UserFailed(e.toString());
-    }
-    notifyListeners();
-  }
-}
-
-class UserProfileView extends StatelessWidget {
-  const UserProfileView({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final state = context.watch<UserModel>().state;
-    return switch (state) {
-      UserLoading() => const CircularProgressIndicator(),
-      UserLoaded(:final user) => Text(AppLocalizations.of(context).greeting(user.name)),
-      UserFailed(:final message) => ErrorView(message: message),
-    };
-  }
-}
-```
+Match the project. Never mix two in one feature. The same user profile screen is worked through once per option, in
+[riverpod.md](riverpod.md), [bloc.md](bloc.md) and [provider.md](provider.md).
 
 Which one fits:
 

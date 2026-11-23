@@ -127,7 +127,7 @@ python3 .agents/hooks/preflight-gate/preflight_gate.py --format claude < /repo/e
 3. Write the probe definition into the subagent directory the gate reads.
 
 ```bash
-cp /repo/e2e/fixtures/e2e-no-skills-probe.md /work/project/.claude/agents/e2e-no-skills-probe.md
+install -D /repo/e2e/fixtures/e2e-no-skills-probe.md /work/project/.claude/agents/e2e-no-skills-probe.md
 ```
 
 4. Judge the same payload again, now that the definition is on disk.

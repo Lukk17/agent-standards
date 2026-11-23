@@ -1,21 +1,21 @@
 # Python Core Rules in Depth
 
-The BAD and GOOD examples, the reasoning, and the trap table behind each rule the SKILL.md hub states in one or two lines. Open it when a hub rule needs its worked form or its full explanation. Written for Python 3.14 and pytest 9.
+The BAD and GOOD examples, the reasoning, and the trap table behind each rule the SKILL.md hub states in one or two lines. Open it when a hub rule needs its worked form or its full explanation. Written for Python 3.14 and pytest 9. Every example assumes them, so builtin generics, `X | None`, `match`, and `asyncio.TaskGroup` appear without a compatibility note.
 
 ---
 
 ### Contents
 
-- Name and annotate every public signature
-- Docstrings
-- Raise specific exceptions and chain the cause
-- Model data with dataclasses, not loose dicts
-- Pick the concurrency model from the bottleneck
-- Lay the package out under src and import absolutely
-- Give each module one job, behind a thin entry point
-- Test it, and watch the test fail first
-- Avoid the classic traps
-- Startup readiness log
+- [Name and annotate every public signature](#name-and-annotate-every-public-signature)
+- [Docstrings](#docstrings)
+- [Raise specific exceptions and chain the cause](#raise-specific-exceptions-and-chain-the-cause)
+- [Model data with dataclasses, not loose dicts](#model-data-with-dataclasses-not-loose-dicts)
+- [Pick the concurrency model from the bottleneck](#pick-the-concurrency-model-from-the-bottleneck)
+- [Lay the package out under src and import absolutely](#lay-the-package-out-under-src-and-import-absolutely)
+- [Give each module one job, behind a thin entry point](#give-each-module-one-job-behind-a-thin-entry-point)
+- [Test it, and watch the test fail first](#test-it-and-watch-the-test-fail-first)
+- [Avoid the classic traps](#avoid-the-classic-traps)
+- [Startup readiness log](#startup-readiness-log)
 
 ---
 
@@ -135,10 +135,27 @@ async with asyncio.TaskGroup() as group:
 
 ### Lay the package out under src and import absolutely
 
-A `src/` layout stops tests from importing the working directory instead of the installed package, and a relative
-import that climbs past one level makes a module unreadable and unmovable. State the public surface in `__init__.py`
-with `__all__`: everything absent from it is internal and can be moved without a deprecation. The tree and the
-`pyproject.toml` beside it are in [references/tooling.md](tooling.md).
+A `src/` layout stops tests from importing the working directory instead of the installed package, which is how a
+suite passes against files that were never packaged.
+
+```text
+src/myapp/__init__.py
+src/myapp/domain/user.py
+tests/conftest.py
+pyproject.toml
+```
+
+State the public surface in `__init__.py` with `__all__` and re-export only what callers are meant to use. Everything
+absent from it is internal and can be moved without a deprecation.
+
+```python
+from myapp.domain.user import User
+
+__all__ = ["User"]
+```
+
+Imports are absolute everywhere. A relative import that climbs past one level, `from ...domain.user import User`,
+makes the module unreadable and unmovable.
 
 ```python
 # BAD
@@ -148,11 +165,13 @@ from ...domain.user import User
 from myapp.domain.user import User
 ```
 
+The `pyproject.toml` beside the tree is in [uv.md](uv.md).
+
 ---
 
 ### Give each module one job, behind a thin entry point
 
-A script that parses its arguments, walks a MIME tree, cleans HTML, renders an image and writes files in one module has five reasons to change and cannot be tested without running all of them. Keep the command-line entry point thin: it parses arguments, wires the pieces together and maps failures to exit codes. Everything it calls lives in single-responsibility modules of pure functions, which take values and return values, and each of those gets its own pytest tests without a subprocess or a temporary directory. A module past about 300 lines is the signal to split, per `coding-standards`.
+A script that parses its arguments, walks a MIME tree, cleans HTML, renders an image and writes files in one module has five reasons to change and cannot be tested without running all of them. A 400-line script mixing parsing, conversion and output cannot be tested or reused piece by piece. Keep the command-line entry point thin: it parses arguments, wires the pieces together and maps failures to exit codes. Everything it calls lives in single-responsibility modules of pure functions, which take values and return values, and each of those gets its own pytest tests without a subprocess or a temporary directory. A module past about 300 lines is the signal to split, per `coding-standards`.
 
 ```text
 converter/

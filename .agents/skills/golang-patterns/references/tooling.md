@@ -1,21 +1,20 @@
 # Go Tooling
 
-The commands a Go project runs and the `golangci-lint` v2 configuration that backs them. Open this when setting a
-repository up, or when a v1 configuration file has started failing.
+The commands a Go project runs. Open this when setting a repository up. The linter those commands sit beside, and the
+configuration that backs it, are in [golangci-lint.md](golangci-lint.md).
 
-Written for Go 1.27 and golangci-lint v2. Confirm both with `go version` and `golangci-lint version` before assuming.
+Written for Go 1.27. Confirm with `go version` before assuming.
 
 ---
 
 ### Contents
 
-- Build, run, and format
-- Vet and lint
-- Modernise after a toolchain bump
-- golangci-lint v2 configuration
-- Test and race
-- Modules and supply chain
-- CI gate
+- [Build, run, and format](#build-run-and-format)
+- [Vet](#vet)
+- [Modernise after a toolchain bump](#modernise-after-a-toolchain-bump)
+- [Test and race](#test-and-race)
+- [Modules and supply chain](#modules-and-supply-chain)
+- [CI gate](#ci-gate)
 
 ---
 
@@ -47,7 +46,7 @@ goimports -w .
 
 ---
 
-### Vet and lint
+### Vet
 
 `go vet` ships with the toolchain and catches the mistakes the compiler allows, such as a printf verb that does not
 match its argument:
@@ -56,17 +55,8 @@ match its argument:
 go vet ./...
 ```
 
-`golangci-lint` runs the wider set, including `go vet` itself:
-
-```bash
-golangci-lint run
-```
-
-Apply the fixes the enabled linters can make safely:
-
-```bash
-golangci-lint run --fix
-```
+`golangci-lint` runs the wider set, including `go vet` itself. Its commands and configuration are in
+[golangci-lint.md](golangci-lint.md).
 
 ---
 
@@ -76,59 +66,6 @@ golangci-lint run --fix
 
 ```bash
 go fix ./...
-```
-
----
-
-### golangci-lint v2 configuration
-
-Version 2 changed the schema. A v1 file fails on startup rather than degrading, so it has to be converted rather than
-left alone.
-
-```yaml
-version: "2"
-
-linters:
-  default: standard
-  enable:
-    - misspell
-    - unconvert
-    - unparam
-  settings:
-    errcheck:
-      check-type-assertions: true
-    govet:
-      enable:
-        - shadow
-  exclusions:
-    presets:
-      - comments
-      - std-error-handling
-
-formatters:
-  enable:
-    - gofmt
-    - goimports
-```
-
-What changed from v1, and why a v1 file no longer loads:
-
-| v1 | v2 |
-| --- | --- |
-| No `version` key | `version: "2"` is required as the first key |
-| `linters-settings:` at the top level | `linters.settings:` nested under `linters` |
-| `issues.exclude-use-default: false` | Removed. Default exclusions are opt-in through `linters.exclusions.presets` |
-| `govet.check-shadowing: true` | Removed. Enable the analyzer with `govet.enable: [shadow]` |
-| `gosimple` as its own linter | Merged into `staticcheck`, which now reports its checks |
-| `gofmt` and `goimports` under `linters` | Moved to the top-level `formatters` section |
-
-`default: standard` enables `errcheck`, `govet`, `ineffassign`, `staticcheck`, and `unused`, so those need no entry
-under `enable`. Listing them again is harmless but says nothing.
-
-Convert an existing file rather than rewriting it by hand:
-
-```bash
-golangci-lint migrate
 ```
 
 ---

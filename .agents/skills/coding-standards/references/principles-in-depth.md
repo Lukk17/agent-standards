@@ -12,9 +12,8 @@ Contents:
 - [Performance](#performance)
 - [Test structure](#test-structure)
 - [Code smells](#code-smells)
-- [Neighbouring skills](#neighbouring-skills)
 
-The full statement of each floor rule in SKILL.md, with its pass and fail forms. Load this file when a rule's one-line summary in SKILL.md does not settle the case in front of you.
+The full statement of each floor rule in SKILL.md, with its pass and fail forms. A framework skill extends this floor and never contradicts it, so when the two disagree, this hub is the one that needs fixing. Load this file when a rule's one-line summary in SKILL.md does not settle the case in front of you.
 
 ---
 
@@ -56,8 +55,8 @@ Put a PriceCalculator interface in front of the only calculator. No second imple
 
 ### Naming and control flow
 
-Names explain themselves, so logic that needs a comment to say what it does gets extracted into a well-named function
-instead. Functions read verb then noun. Booleans start with is, has or can. No magic number or string survives
+Names explain themselves, with no cryptic abbreviation, so logic that needs a comment to say what it does gets extracted into a well-named function
+instead. A type parameter that stands for a domain role is named for it, such as `TRow`, rather than explained in a doc comment, as [typescript-examples.md](typescript-examples.md) shows. A fixed value gets a named constant and a tunable goes to configuration, as [code-smells.md](code-smells.md) shows. Functions read verb then noun. Booleans start with is, has or can. No magic number or string survives
 outside a named constant. Guard clauses and early returns replace deep nesting. Annotate every public signature
 (parameters and return types). For locals, follow the language's idiom: infer where the initializer makes the type
 obvious, and name the type where it does not. Use imports rather than inline fully-qualified names. Keep functions
@@ -95,26 +94,25 @@ they own. Neither a reviewer nor a skill argues with their output.
 
 ### Functional pipelines over imperative cascades
 
-When transforming a collection, reach for a pipeline of filter, map and aggregate before an imperative loop with an
-if-else cascade and an accumulator. The pipeline states what is being done to the data. Keep the loop where the body
-has side effects, where early termination does not map cleanly onto a pipeline operation, or where the cascade is
-genuinely clearer to a reader. The rule is prefer, not always. Worked examples per language are in
-[functional-pipelines.md](functional-pipelines.md).
+When transforming a collection, filter then map then aggregate, prefer a pipeline with one operation per step
+reading top down, over an imperative loop with an if-else cascade and an explicit accumulator. The pipeline reads as
+what is being done to the data. The cascade reads as how the bookkeeping goes. The pass and fail form per language is
+in [dart.md](dart.md), [java.md](java.md) and [python.md](python.md).
 
-Pass:
+This is a code-shape rule, not a syntax-level formatting one. Where the project runs a formatter that owns line
+breaking (dart format, google-java-format, ruff format, black), its output decides how a chain wraps. Where none does,
+the sibling `code-formatter` skill says one chain step per line. This rule says reach for the chain in the first
+place.
 
-```python
-active_names = [e.name for e in exercises if e.is_active]
-```
+Keep the loop, and do not convert it, in three cases:
 
-Fail:
+- Side effects inside the loop body, such as writing to disk, calling an API with an index-dependent argument, or
+  mutating an outside variable. Those belong in an explicit loop, because a pipeline should be pure.
+- Early termination on a complex condition that does not map cleanly onto a take-while or a first-match operation.
+- Cases where the cascade is genuinely clearer to a reader unfamiliar with the codebase style. Clarity outranks
+  compactness.
 
-```python
-active_names = []
-for e in exercises:
-    if e.is_active:
-        active_names.append(e.name)
-```
+The point is prefer, not always.
 
 ---
 
@@ -245,20 +243,3 @@ the two naming forms are in `tdd-workflow`, and the per-language mechanics in `p
 Watch for long functions, deep nesting, magic numbers, and any block that needs a comment to be understood. Each of
 those calls for restructuring rather than for a comment. The failing and repaired forms are in
 [code-smells.md](code-smells.md).
-
----
-
-### Neighbouring skills
-
-- `code-formatter` owns blank lines, chain breaking and where a comment sits inside a Dart, Java or Python function
-  body, and leaves brace placement and indent width to each language's default formatter
-- `react-patterns` owns React composition, hooks, state and rendering
-- `backend-patterns` and `api-design` own service structure, endpoints and contracts
-- `api-design` owns the HTTP error shape, RFC 9457 problem details, that the error rule above points to
-- `review-duplication` applies the DRY rule, coincidental lookalikes included, to a change under review
-- `hexagonal-architecture` owns ports, adapters and dependency direction in depth
-- `observability-and-logging` owns structured logging, tracing, metrics and health
-- `performance-optimization` owns profiling and the measure-first loop
-- `architecture-decision-records` owns the decisions this hub keeps out of source files
-- `tdd-workflow`, `python-patterns`, `golang-patterns` and `springboot-patterns` own the testing playbook
-- `java-coding-standards`, `python-patterns`, `golang-patterns` and `dart-flutter-patterns` own per-language idiom

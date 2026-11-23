@@ -6,14 +6,14 @@ The BAD and GOOD examples, the reasoning, and the trap table behind each rule th
 
 ### Contents
 
-- Make the zero value useful, and inject what it cannot hold
-- Accept interfaces, return structs, and declare them at the consumer
-- Doc comments on every exported name
-- Wrap every error with context
-- Take a context first, and never start a goroutine you cannot stop
-- Test it, and watch the test fail first
-- Startup readiness log
-- Avoid the classic traps
+- [Make the zero value useful, and inject what it cannot hold](#make-the-zero-value-useful-and-inject-what-it-cannot-hold)
+- [Accept interfaces, return structs, and declare them at the consumer](#accept-interfaces-return-structs-and-declare-them-at-the-consumer)
+- [Doc comments on every exported name](#doc-comments-on-every-exported-name)
+- [Wrap every error with context](#wrap-every-error-with-context)
+- [Take a context first, and never start a goroutine you cannot stop](#take-a-context-first-and-never-start-a-goroutine-you-cannot-stop)
+- [Test it, and watch the test fail first](#test-it-and-watch-the-test-fail-first)
+- [Startup readiness log](#startup-readiness-log)
+- [Avoid the classic traps](#avoid-the-classic-traps)
 
 ---
 

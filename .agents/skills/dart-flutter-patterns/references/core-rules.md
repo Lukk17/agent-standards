@@ -1,22 +1,22 @@
 # Dart and Flutter Core Rules in Depth
 
-The baseline detail, the BAD and GOOD examples, and the reasoning behind each rule the SKILL.md hub states in one or two lines, plus the related skills. Open it when a hub rule needs its worked form or its full explanation. Written for Dart 3 and Flutter 3.
+The baseline detail, the BAD and GOOD examples, and the reasoning behind each rule the SKILL.md hub states in one or two lines. Open it when a hub rule needs its worked form or its full explanation. Written for Dart 3 and Flutter 3.
 
 ---
 
 ### Contents
 
-- Baseline
-- Never force-unwrap
-- Model state as a sealed type, never as nullable flags
-- Guard BuildContext across every await
-- Extract widgets to classes, not to builder methods
-- Match the project's state management
-- Match the project's HTTP client
-- Keep constraints bounded
-- Move CPU work off the main isolate
-- Route every user-facing string through localization
-- Related skills
+- [Baseline](#baseline)
+- [Never force-unwrap](#never-force-unwrap)
+- [Model state as a sealed type, never as nullable flags](#model-state-as-a-sealed-type-never-as-nullable-flags)
+- [Guard BuildContext across every await](#guard-buildcontext-across-every-await)
+- [Extract widgets to classes, not to builder methods](#extract-widgets-to-classes-not-to-builder-methods)
+- [Match the project's state management](#match-the-projects-state-management)
+- [Match the project's HTTP client](#match-the-projects-http-client)
+- [Keep constraints bounded](#keep-constraints-bounded)
+- [Move CPU work off the main isolate](#move-cpu-work-off-the-main-isolate)
+- [Route every user-facing string through localization](#route-every-user-facing-string-through-localization)
+- [Doc comments](#doc-comments)
 
 ---
 
@@ -127,37 +127,9 @@ class _PageHeader extends StatelessWidget {
 Riverpod, BLoC, and `ChangeNotifier` all work. Mixing two in one feature is worse than any of them alone, so read
 the existing code first and follow it.
 
-- Riverpod fits when dependencies form a graph and most state derives from other state. It is also the DI
-  container, so do not add `get_it` beside it.
-- BLoC fits event-driven features where the event log helps debugging and the team wants one rigid shape. Pair it
-  with `get_it` and `injectable` for DI.
-- `ChangeNotifier` with `Provider` fits small apps and a single screen's local state. It is a first-class Flutter
-  class, not a deprecated one. It mutates in place, so keep the notified value immutable and replace it wholesale.
-
-```dart
-@riverpod
-class CartNotifier extends _$CartNotifier {
-  @override
-  List<CartItem> build() => const [];
-  void clear() => state = const [];
-}
-
-class AuthCubit extends Cubit<AuthState> {
-  AuthCubit(this._service) : super(const AuthLoading());
-  final AuthService _service;
-  Future<void> login(String email, String password) async =>
-      emit(AuthLoaded(await _service.login(email, password)));
-}
-
-class CartModel extends ChangeNotifier {
-  List<CartItem> _items = const [];
-  List<CartItem> get items => _items;
-  void clear() { _items = const []; notifyListeners(); }
-}
-```
-
-Never run two of these in the same feature, and never expose a mutable collection from any of them. Worked
-examples of all three sit in [references/architecture.md](architecture.md).
+Never run two of these in the same feature, and never expose a mutable collection from any of them. When each one
+fits, its short form and its worked example are in [riverpod.md](riverpod.md), [bloc.md](bloc.md) and
+[provider.md](provider.md), and the table that picks between them is in [architecture.md](architecture.md).
 
 ---
 
@@ -167,26 +139,10 @@ examples of all three sit in [references/architecture.md](architecture.md).
 adds interceptors, cancellation, and typed errors, which pay off once you need token refresh or retries. Check
 `pubspec.yaml` first and use whichever is there.
 
-```dart
-// package:http
-final response = await client.get(Uri.https('api.example.com', '/users/$id'));
-if (response.statusCode != 200) {
-  throw HttpException('GET /users/$id failed');
-}
-final user = User.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
-
-// package:dio
-final response = await dio.get<Map<String, dynamic>>('/users/$id');
-final data = response.data;
-if (data == null) {
-  throw ApiException('GET /users/$id returned no body');
-}
-final user = User.fromJson(data);
-```
-
 Both get the same treatment: never concatenate a host or a query string, check the status code and throw rather
 than returning null, and never leave a token in source. `package:http` builds its URL with `Uri.https`. `dio` takes
-the host from `baseUrl` in its `BaseOptions` and query values through `queryParameters`.
+the host from `baseUrl` in its `BaseOptions` and query values through `queryParameters`. The short form and the full service class for each client are in
+[http-package.md](http-package.md) and [dio.md](dio.md).
 
 ---
 
@@ -235,11 +191,6 @@ return Semantics(label: AppLocalizations.of(context).deleteItem, child: const Ic
 
 ---
 
-### Related skills
+### Doc comments
 
-- `coding-standards` for the cross-language engineering floor these patterns sit on.
-- `code-formatter` for reading flow inside function bodies in Dart, Java and Python, and no other language.
-- `tdd-workflow` for the red, green, refactor discipline behind [references/testing.md](testing.md).
-- `web-accessibility` for WCAG conformance when a Flutter web build sits inside a wider site.
-- `code-reviewer` for reviewing a Dart diff against all of the above.
-- `build-dependency-management` for pinning and admitting the packages named in these references.
+Doc comments follow the Doc Comments rules in `coding-standards`. Dart delta: write them as `///` and refer to a parameter or a type in square brackets, such as `[holdFor]` or `[InsufficientStockException]`, so `dart doc` links it. Dart has no tags and no checked exceptions, so every exception a caller can act on gets a plain `Throws [SomeException] when ...` line, which is the contract slot. The `public_member_api_docs` lint wanting a comment on every public member is not a reason to write a sentence that adds nothing.

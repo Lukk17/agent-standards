@@ -1,47 +1,24 @@
 ---
 name: web-accessibility
-description: 'Accessibility for web interfaces to WCAG 2.2 AA: semantic HTML, keyboard operability, focus management, correct ARIA, colour contrast, accessible forms and images, target size and reduced motion. Use when the user says "is this component accessible", "audit this page against WCAG" or "trap focus in this modal". Not for the visual direction a palette expresses, use `frontend-design`.'
+description: 'Web accessibility to WCAG 2.2 AA: semantics, keyboard, focus, ARIA, contrast and forms. Use when the user says "is this component accessible" or "audit this page for WCAG". Not for visual design, use `frontend-design`.'
 license: Apache-2.0
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # Web Accessibility
 
-Make web interfaces usable by people who navigate with a keyboard, a screen reader, voice control, or a magnifier.
-The target is WCAG 2.2 AA, treated as a default, not a final-sprint audit.
+Make web interfaces usable by people who navigate with a keyboard, a screen reader, voice control, or a magnifier. The target is WCAG 2.2 AA, treated as a default, not a final-sprint audit.
 
 Written for WCAG 2.2 Level AA.
 
 ---
 
-### When to activate
-
-- Building or reviewing any web UI component, page, or flow.
-- Auditing an existing interface for accessibility.
-- Designing forms, modals, navigation, or any interactive widget.
-- Deciding whether a pattern needs ARIA, and which role is correct.
-- Checking a palette or a focus indicator against contrast minimums.
-- The user says "the screen reader skips my error message" or "check these colours for contrast".
-
----
-
 ### When not to activate
 
-- Choosing the visual direction a palette and type scale express. Use `frontend-design`.
-- Where token values live and what they are called. Use `design-system`.
-- React composition, hooks, and animation implementation. Use `react-patterns`.
-- Angular components, templates, and i18n wiring. Use `angular`.
-- Flutter semantics and screen-reader support. Use `dart-flutter-patterns`.
-- Search visibility and structured data. Use `seo`.
-
----
-
-### Reference files
-
-| Task | Open |
-| --- | --- |
-| Pass and fail markup for semantics, focus, the dialog trap code, contrast, images, motion, targets, forms and i18n | [references/patterns.md](references/patterns.md) |
+- Choosing the visual direction a palette and type scale express, use `frontend-design`.
+- Where token values live and what they are called, use `design-system`.
+- Building the component, its state and its animation in a framework, use `react-patterns`, `angular` or `dart-flutter-patterns`.
 
 ---
 
@@ -64,30 +41,10 @@ Written for WCAG 2.2 Level AA.
 
 ---
 
-### Related skills
+### Reference files
 
-- `frontend-design` for the visual direction the palette and type scale express.
-- `design-system` for where colour, spacing, and focus-ring tokens live.
-- `react-patterns` for the React mechanics of keyboard handling and focus management.
-- `angular` for the same work in an Angular codebase.
-- `nextjs-app-router-patterns` for route changes, which are where focus is most often dropped.
-- `dart-flutter-patterns` for the equivalent semantics work in Flutter.
-- `e2e-testing` for driving the keyboard path in a browser as a regression test.
-
----
-
-### Checklist
-
-- Every interactive element is a native control, or has a justified reason not to be.
-- One `h1` per page, and no skipped heading levels.
-- The whole flow is operable by keyboard, in a sensible order, with a visible focus indicator throughout.
-- Every dialog moves focus in, traps it, closes on Escape, and restores focus to its trigger.
-- Client-side route changes move focus to the new content or a status region.
-- Text meets 4.5:1, and large text, UI boundaries, and the focus ring meet 3:1.
-- No state or meaning is carried by colour alone.
-- Every image has a purposeful alt, or an empty alt when decorative.
-- Non-essential motion is gated behind `prefers-reduced-motion`.
-- Targets are at least 24 by 24 CSS pixels, with padding rather than a bigger icon.
-- Every field has a real label, and every error is linked with `aria-describedby` and `aria-invalid`.
-- The document language is set and layout uses logical properties.
-- The keyboard path and a screen-reader pass have both been run by hand, not only a scanner.
+| Task | Open |
+| --- | --- |
+| Pass and fail markup for semantics, focus, the dialog trap code, contrast, images, motion, targets, forms and i18n | [references/patterns.md](references/patterns.md) |
+| Whether a neighbouring skill owns the job | [references/scope.md](references/scope.md) |
+| Before calling a component, a page or an audit accessible | [references/checklist.md](references/checklist.md) |

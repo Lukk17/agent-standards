@@ -7,16 +7,17 @@ Contents:
 - [Create](#create)
 - [Move and rename](#move-and-rename)
 - [Delete](#delete)
-- [The official obsidian command](#the-official-obsidian-command)
+- [Edit note content directly](#edit-note-content-directly)
 
 Every `notesmd-cli` command below runs unchanged in PowerShell, bash and zsh. Commands take `--vault "<vault-name>"`
 to pick a vault, and fall back to the default vault when it is omitted. Note paths are relative to the vault root,
 and the `.md` suffix is optional.
 
+The official `obsidian` command, a different tool, is in [official-obsidian-cli.md](official-obsidian-cli.md).
+
 Sources:
 
 - `https://github.com/Yakitrak/notesmd-cli`, README section Usage, and `notesmd-cli --help` from a 0.3 release
-- `https://help.obsidian.md/cli`, for the official `obsidian` command
 
 ---
 
@@ -31,6 +32,8 @@ notesmd-cli set-default-vault "<vault-name>"
 ---
 
 ### Search
+
+`notesmd-cli search` is a fuzzy picker that waits for a keypress, and `search-content` opens a picker by default. An agent has no terminal to press keys in, so it uses `search-content` with `--no-interactive` or `--format json`, and `list` to walk folders.
 
 Search note content and print matches to standard output, the form an agent should use:
 
@@ -83,6 +86,8 @@ the vault root.
 
 ### Move and rename
 
+`notesmd-cli move` rewrites every link in the vault that pointed at the old path. A plain `mv` or `Move-Item` leaves those links broken. Use the CLI for any move or rename.
+
 Moves the note and rewrites every link to it across the vault. Giving the same folder with a new name is a rename:
 
 ```bash
@@ -95,6 +100,20 @@ Never move a note with `mv`, `Move-Item` or a file manager, because none of them
 
 ### Delete
 
+`notesmd-cli delete` removes the file with no trash and no undo. Before running it, name the exact note path and the vault, and wait for the user to say yes. A delete agreed for one note is not agreement for the next one.
+
+Pass:
+
+```text
+About to delete "Inbox/Old draft.md" in vault "<vault-name>". It does not go to the trash. Proceed?
+```
+
+Fail:
+
+```text
+Cleaned up three notes that looked unused.
+```
+
 Confirm with the user first, naming the exact note path and vault. The command removes the file permanently, with no
 trash, because it calls `os.Remove` on the path (`pkg/obsidian/note.go` in the notesmd-cli source):
 
@@ -104,22 +123,6 @@ notesmd-cli delete "<note-path>"
 
 ---
 
-### The official obsidian command
+### Edit note content directly
 
-Obsidian 1.12 added its own CLI, named `obsidian`. It is turned on in Settings, General, Command line interface,
-which registers it on the `PATH`: a user `PATH` entry on Windows, a symlink at `/usr/local/bin/obsidian` on macOS,
-and a copy at `~/.local/bin/obsidian` on Linux. It needs the Obsidian app running, and starts it if it is not.
-
-Its equivalents use `name=value` parameters:
-
-```bash
-obsidian search query="<term>" format=json
-```
-
-```bash
-obsidian move path="<current-note-path>" to="<new-note-path>"
-```
-
-Its `move` updates links only when the vault setting Automatically update internal links is on. Its `delete` sends
-the file to the trash unless `permanent` is passed, and the confirm-before-delete rule applies to it the same way.
-Prefer `notesmd-cli` when the app may not be running, such as on a server or in a scheduled job.
+A note is a plain `.md` file, and Obsidian picks up an outside edit on its own. Open the file and change it with the normal editing tools. Leave the `.obsidian/` folder alone unless the user asks, because it holds the vault's settings and plugin state.

@@ -21,6 +21,7 @@ from contextlib import contextmanager
 import pytest
 
 from tests.conftest import (
+    GATE_RULES,
     MARKDOWN_LINT_HOOK,
     NO_AI_MARKERS_HOOK,
     PLUGIN,
@@ -28,6 +29,7 @@ from tests.conftest import (
     REPO_ROOT,
     RUNNER_DRIVER,
     TASK_LIST_SYNC_HOOK,
+    copy_gate,
 )
 from tests.process_tree import run_bounded
 from tests.reminder_support import CLAUDE_MARKER, MARKER, canonical_subagent_reminder
@@ -93,6 +95,16 @@ HOOK_ORDER = 10
 
 time.sleep(60)
 sys.exit(2)
+"""
+
+RULES_THAT_RECORD_THEIR_NAME = """import json
+
+with open({log}, "a", encoding="utf-8") as handle:
+    handle.write(json.dumps({{"hook": __name__}}) + "\\n")
+
+
+def main():
+    return 0
 """
 
 EM_DASH_PROSE = "The plan is simple — delegate the work."
@@ -250,7 +262,7 @@ def real_hooks(root):
     hooks = root / ".agents" / "hooks"
     hooks.mkdir(parents=True, exist_ok=True)
 
-    for source in SHIPPED_HOOKS:
+    for source in (*SHIPPED_HOOKS, GATE_RULES):
         shutil.copy(source, hooks / source.name)
 
     return root
@@ -435,7 +447,7 @@ def test_the_shipped_gate_installed_globally_protects_a_bare_project(tmp_path):
     project = tmp_path / "project"
     project.mkdir()
     home, hooks = global_home(tmp_path)
-    shutil.copy(PREFLIGHT_GATE, hooks / PREFLIGHT_GATE.name)
+    copy_gate(hooks)
 
     # When the main thread edits a project file, then a file under the home directory
     edit_inside = call(tool="Edit", args={"file_path": "src/app.py"}, session=ROOT_SESSION)
@@ -585,7 +597,7 @@ def test_the_shipped_gate_outside_git_protects_the_start_folder_and_not_the_whol
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     home, hooks = global_home(tmp_path)
-    shutil.copy(PREFLIGHT_GATE, hooks / PREFLIGHT_GATE.name)
+    copy_gate(hooks)
 
     # When the main thread writes inside the start folder, then outside it
     edit_inside = call(tool="Edit", args={"file_path": str(start / "notes.md")}, session=ROOT_SESSION)
@@ -900,6 +912,22 @@ def test_hooks_in_their_own_folders_and_at_the_top_level_run_in_declared_order(t
     # Then
     assert results == [{"ok": True}]
     assert hooks_run(log) == ["gate/gate.py", "top.py", "lint/lint.py"]
+
+
+def test_the_gate_s_rules_are_imported_by_the_starter_and_never_started_by_the_runner(tmp_path):
+    # Given the shipped starter in its folder, beside a rules file that records the name it was loaded under
+    log = tmp_path / "log.jsonl"
+    folder = tmp_path / ".agents" / "hooks" / PREFLIGHT_GATE.parent.name
+    folder.mkdir(parents=True)
+    shutil.copy(PREFLIGHT_GATE, folder / PREFLIGHT_GATE.name)
+    (folder / GATE_RULES.name).write_text(RULES_THAT_RECORD_THEIR_NAME.format(log=json.dumps(str(log))), encoding="utf-8")
+
+    # When one tool call goes through the runner
+    results = drive(tmp_path, [call()])
+
+    # Then the rules were loaded once, as the starter's module, and never run as a hook of their own
+    assert results == [{"ok": True}]
+    assert hooks_run(log) == [GATE_RULES.stem]
 
 
 def test_envelope_carries_the_documented_fields(tmp_path):
@@ -1239,7 +1267,7 @@ def test_a_project_with_only_the_gate_still_works(tmp_path):
     # Given a checkout that pulled one of the two shipped hooks
     hooks = tmp_path / ".agents" / "hooks"
     hooks.mkdir(parents=True)
-    shutil.copy(PREFLIGHT_GATE, hooks / PREFLIGHT_GATE.name)
+    copy_gate(hooks)
 
     # When
     steps = [

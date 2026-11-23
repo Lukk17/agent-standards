@@ -14,7 +14,6 @@ Contents:
 - [Tier 7: Sector and industry pages, standards](#tier-7-sector-and-industry-pages-standards)
 - [Tier 8: General web search](#tier-8-general-web-search)
 - [Pages that block fetching](#pages-that-block-fetching)
-- [Optional search tools: Firecrawl and Exa MCP](#optional-search-tools-firecrawl-and-exa-mcp)
 
 The tiers in the order to try them, what each one is good and bad at, and the command that queries it. Load this
 file when picking where to look next or when a tier returns nothing useful.
@@ -26,7 +25,7 @@ file when picking where to look next or when a tier returns nothing useful.
 Before the first query, check which research tools this session has: the Context7 MCP server, a web fetch, a web
 search, `gh`, and `curl`. Name any missing one right after the answer, with the evidence, and give the route used
 instead. Note whether a Firecrawl or Exa MCP server is also connected, but do not report either as missing, because
-both are optional extras covered at the end of this file.
+both are optional extras, covered in [firecrawl.md](firecrawl.md) and [exa.md](exa.md).
 
 Pass:
 
@@ -242,30 +241,3 @@ Report that the page was reached through it, so the reader knows the route.
 `ascend-web-hunter` needs its own self-hosted service, so a project or a machine may not have it installed. Without
 it, report the page as not read, with the status code or the block you measured and the routes you tried, and never
 quote the page from a search snippet or a summarising fetch instead.
-
----
-
-### Optional search tools: Firecrawl and Exa MCP
-
-Use these only when the session already has the server connected. They are routes, not tiers: a search through
-either one is still tier 8, so its results point at a primary source you then read, and a scrape through either one
-is a way to get the page text for tiers 2 to 7. Never add a server or an API key to a configuration file just to run
-one query.
-
-| Server | Tool | Use it for |
-|---|---|---|
-| Firecrawl | `firecrawl_search` | Ranked web results from a query, with page content only when `scrapeOptions` is set |
-| Firecrawl | `firecrawl_scrape` | One known URL, returned as markdown or as JSON against a schema you supply |
-| Firecrawl | `firecrawl_crawl` | Many pages under one site, bounded with `limit` and path filters |
-| Exa | `web_search_exa` | Web search that returns page content with each result |
-| Exa | `web_fetch_exa` | The full content of one or more URLs as markdown |
-| Exa | `web_search_advanced_exa` | Search filtered by domain and date, off by default and enabled through the `tools` URL parameter |
-
-Firecrawl documents its JSON format as the preferred one, but that format extracts fields rather than returning the
-page. For a quote, a number or a verdict, request markdown and read it, the same raw-text rule as above. Exa's
-date filters make it a good route to the newest sources when recency decides the question.
-
-Exa's hosted server accepts an API key on the URL as `?exaApiKey=`. Authenticate with OAuth or a header set from the
-environment instead, because a key in a URL lands in a configuration file and in logs.
-
-Tool names as documented in https://github.com/firecrawl/firecrawl-mcp-server (section "When to Use This Server") and https://github.com/exa-labs/exa-mcp-server (section "Available Tools"). Older guides name Exa's fetch tool `crawling_exa`, which the current README no longer lists, so check the connected server's own tool list before calling one.

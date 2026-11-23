@@ -33,7 +33,8 @@ The new code debounces input and formats a relative timestamp. Searching for exi
 
 ### Step 2: hypothesise where it would already live
 
-Name concrete candidate locations from the repo root before searching, so the search is directed rather than exhaustive.
+Name concrete candidate locations from the repo root before searching, so the search is directed rather than exhaustive:
+shared utilities, UI components, domain services, configuration, cross-cutting logic.
 Read the project's own layout first, then map each category onto it. In a layered service the categories usually land
 like this:
 
@@ -49,6 +50,8 @@ Trace third-party dependencies too. When the diff introduces an import of a util
 already uses that library, because a wrapper or a shared helper usually exists. Before flagging a hand-written
 implementation of a standard algorithm, check the manifest (`package.json`, `pyproject.toml`, `build.gradle.kts`,
 `go.mod`) for a library already installed that provides it.
+
+The usual suspects are a hand-rolled null-or-blank check where `StringUtils.hasText` or the project's helper exists, and hand-written format sniffing, such as reading the first byte to tell JSON from ZIP, where a content-type detector or the archive library already decides.
 
 ---
 

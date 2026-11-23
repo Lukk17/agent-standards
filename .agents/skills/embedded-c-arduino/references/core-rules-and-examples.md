@@ -1,6 +1,6 @@
 # Core firmware rules with examples
 
-Open this for the Pass and Fail code behind any rule in [SKILL.md](../SKILL.md): the full millis state machine, the AVR and ESP32 ISR patterns, and the reasoning behind each rule.
+Open this for the Pass and Fail code behind any rule in [SKILL.md](../SKILL.md): the full millis state machine, the ISR pattern in its AVR form, and the reasoning behind each rule. The ESP32 form of the ISR pattern is in [esp32.md](esp32.md).
 
 ---
 
@@ -189,24 +189,7 @@ the main loop never sees the change. `pulse_count` is 32-bit, so an 8-bit core r
 interrupt landing between them yields a torn value: that is why the copy sits inside `noInterrupts()` /
 `interrupts()`, and why that section contains nothing but the copy.
 
-`ISR(INT0_vect)` and `noInterrupts()` are the AVR form. On a dual-core ESP32, disabling interrupts masks only the
-calling core, so the other core can still touch the shared state. Attach the handler with `attachInterrupt`, place it
-in IRAM with `IRAM_ATTR`, and guard the shared state with a `portMUX_TYPE` spinlock, taking it with
-`taskENTER_CRITICAL_ISR` inside the handler and `taskENTER_CRITICAL` in the main loop.
-
-```c
-static portMUX_TYPE pulse_mux = portMUX_INITIALIZER_UNLOCKED;
-
-void IRAM_ATTR on_pulse(void) {
-  taskENTER_CRITICAL_ISR(&pulse_mux);
-  pulse_count++;
-  pulse_pending = true;
-  taskEXIT_CRITICAL_ISR(&pulse_mux);
-}
-```
-
-The main loop makes the same copy as above between `taskENTER_CRITICAL(&pulse_mux)` and
-`taskEXIT_CRITICAL(&pulse_mux)`.
+`ISR(INT0_vect)` and `noInterrupts()` are the AVR form. The form for a dual-core ESP32, where disabling interrupts masks only the calling core, is in [esp32.md](esp32.md).
 
 ---
 
@@ -272,19 +255,4 @@ PORTB |= _BV(PB5);
 
 ### Host-side unit tests
 
-Write tests with Unity, generate mocks with CMock, orchestrate with Ceedling, and run all of it on the host for a
-fast loop with no flashing. Mock every HAL function, mirror `src/` under `test/`, and target at least 80 percent
-branch coverage on business-logic modules. Setup and coverage detail is in
-[references/style-and-testing.md](style-and-testing.md).
-
-Pass:
-
-```bash
-ceedling test:all
-```
-
-Fail:
-
-```bash
-arduino-cli upload --fqbn arduino:avr:uno --port COM3
-```
+Run the tests on the host for a fast loop with no flashing. Mock every HAL function, mirror `src/` under `test/`, and target at least 80 percent branch coverage on business-logic modules. The Unity, CMock and Ceedling setup, with its Pass and Fail commands, is in [ceedling.md](ceedling.md).

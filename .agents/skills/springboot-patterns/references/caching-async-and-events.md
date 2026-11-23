@@ -7,11 +7,11 @@ moving work off the request thread, decoupling components with events, or adding
 
 ### Contents
 
-- Redis cache manager
-- Asynchronous work
-- Intra-service events
-- Background jobs
-- Request filters
+- [Redis cache manager](#redis-cache-manager)
+- [Asynchronous work](#asynchronous-work)
+- [Intra-service events](#intra-service-events)
+- [Background jobs](#background-jobs)
+- [Request filters](#request-filters)
 
 ---
 

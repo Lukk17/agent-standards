@@ -164,7 +164,7 @@ db.createCollection("users", {
 // 2. Application-level checks before write
 const doc = await db.users.findOne({ _id: userId })
 const currentSize = BSON.calculateObjectSize(doc)
-if (currentSize > 200 * 1024) {  // 200KB warning — well before trouble
+if (currentSize > 200 * 1024) {  // 200KB warning, well before trouble
   logger.warn("Document size exceeding recommended threshold")
 }
 

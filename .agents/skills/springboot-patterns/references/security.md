@@ -6,18 +6,18 @@ Authentication, authorization, and the hardening around them for a Spring Boot s
 
 ### Contents
 
-- Authenticate statelessly, validate every claim
-- Deny by default, then authorize per method
-- Validate input at the edge
-- Parameterise every query
-- Hash passwords with a memory-hard function
-- Pick a CSRF posture and write down why
-- Set response headers, and leave the ones Spring already decides
-- Rate limit with Bucket4j, refilling greedily
-- Keep secrets out of the source tree
-- Validate uploads before you store them
-- Keep dependencies patched
-- Checklist
+- [Authenticate statelessly, validate every claim](#authenticate-statelessly-validate-every-claim)
+- [Deny by default, then authorize per method](#deny-by-default-then-authorize-per-method)
+- [Validate input at the edge](#validate-input-at-the-edge)
+- [Parameterise every query](#parameterise-every-query)
+- [Hash passwords with a memory-hard function](#hash-passwords-with-a-memory-hard-function)
+- [Pick a CSRF posture and write down why](#pick-a-csrf-posture-and-write-down-why)
+- [Set response headers, and leave the ones Spring already decides](#set-response-headers-and-leave-the-ones-spring-already-decides)
+- [Rate limit with Bucket4j, refilling greedily](#rate-limit-with-bucket4j-refilling-greedily)
+- [Keep secrets out of the source tree](#keep-secrets-out-of-the-source-tree)
+- [Validate uploads before you store them](#validate-uploads-before-you-store-them)
+- [Keep dependencies patched](#keep-dependencies-patched)
+- [Checklist](#checklist)
 
 ---
 

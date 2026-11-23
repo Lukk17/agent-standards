@@ -7,15 +7,14 @@ disappears.
 
 ### Contents
 
-- An in-process array is not a queue
-- Enqueue the identifier, not the object
-- Every handler must be idempotent
-- Publish through an outbox when the job must follow a committed write
-- Bound every retry and terminate on a dead-letter queue
-- Give the worker its own timeout and its own shutdown
-- Log the job like a request
-- Scheduled work needs a lock
-- Related skills
+- [An in-process array is not a queue](#an-in-process-array-is-not-a-queue)
+- [Enqueue the identifier, not the object](#enqueue-the-identifier-not-the-object)
+- [Every handler must be idempotent](#every-handler-must-be-idempotent)
+- [Publish through an outbox when the job must follow a committed write](#publish-through-an-outbox-when-the-job-must-follow-a-committed-write)
+- [Bound every retry and terminate on a dead-letter queue](#bound-every-retry-and-terminate-on-a-dead-letter-queue)
+- [Give the worker its own timeout and its own shutdown](#give-the-worker-its-own-timeout-and-its-own-shutdown)
+- [Log the job like a request](#log-the-job-like-a-request)
+- [Scheduled work needs a lock](#scheduled-work-needs-a-lock)
 
 ---
 
@@ -155,12 +154,3 @@ Without it, a failed job cannot be traced back to the user action that produced 
 
 A cron entry that runs on every instance runs N times. Use the broker's repeatable job support, or take a short
 advisory lock in Postgres, so exactly one instance performs the run.
-
----
-
-### Related skills
-
-- `node-backend-patterns` for the hub these rules belong to.
-- `backend-patterns` for the language-neutral outbox and retry rules.
-- `postgres-patterns` for `FOR UPDATE SKIP LOCKED` queue mechanics and advisory locks.
-- `observability-and-logging` for tracing a job back to its originating request.

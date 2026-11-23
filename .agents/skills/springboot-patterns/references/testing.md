@@ -6,16 +6,16 @@ Test-first development with JUnit 6, Mockito, MockMvc, `@DataJpaTest`, Testconta
 
 ### Contents
 
-- Write the failing test first
-- Unit tests with JUnit 6 and Mockito
-- Shape of a test class
-- Web layer tests with MockMvc
-- Integration tests with the real context
-- Persistence tests against the production engine
-- Assert with AssertJ
-- Build test data through builders
-- Enforce coverage in the build
-- Checklist
+- [Write the failing test first](#write-the-failing-test-first)
+- [Unit tests with JUnit 6 and Mockito](#unit-tests-with-junit-6-and-mockito)
+- [Shape of a test class](#shape-of-a-test-class)
+- [Web layer tests with MockMvc](#web-layer-tests-with-mockmvc)
+- [Integration tests with the real context](#integration-tests-with-the-real-context)
+- [Persistence tests against the production engine](#persistence-tests-against-the-production-engine)
+- [Assert with AssertJ](#assert-with-assertj)
+- [Build test data through builders](#build-test-data-through-builders)
+- [Enforce coverage in the build](#enforce-coverage-in-the-build)
+- [Checklist](#checklist)
 
 ---
 

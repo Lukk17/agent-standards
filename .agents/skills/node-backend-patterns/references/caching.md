@@ -6,15 +6,14 @@ Read this when adding a cache in front of a repository, choosing a TTL, or debug
 
 ### Contents
 
-- Decorate the repository, do not scatter cache calls
-- Key naming
-- Pick the TTL from the tolerated staleness
-- Invalidate on write, never on a timer alone
-- Guard against the stampede
-- Never let a cache failure fail the request
-- Do not cache what belongs to one user in a shared key
-- HTTP caching is a separate layer
-- Related skills
+- [Decorate the repository, do not scatter cache calls](#decorate-the-repository-do-not-scatter-cache-calls)
+- [Key naming](#key-naming)
+- [Pick the TTL from the tolerated staleness](#pick-the-ttl-from-the-tolerated-staleness)
+- [Invalidate on write, never on a timer alone](#invalidate-on-write-never-on-a-timer-alone)
+- [Guard against the stampede](#guard-against-the-stampede)
+- [Never let a cache failure fail the request](#never-let-a-cache-failure-fail-the-request)
+- [Do not cache what belongs to one user in a shared key](#do-not-cache-what-belongs-to-one-user-in-a-shared-key)
+- [HTTP caching is a separate layer](#http-caching-is-a-separate-layer)
 
 ---
 
@@ -134,11 +133,3 @@ put the subject in the key, or cache the unfiltered rows and apply authorization
 
 `Cache-Control`, `ETag`, and `304 Not Modified` live on the response, not in Redis. They are covered by `api-design`
 under conditional requests. Set both when the resource is public and cheap to revalidate.
-
----
-
-### Related skills
-
-- `node-backend-patterns` for the hub these rules belong to.
-- `api-design` for `ETag`, `Cache-Control`, and conditional requests on the wire.
-- `postgres-patterns` when the right fix is an index rather than a cache.

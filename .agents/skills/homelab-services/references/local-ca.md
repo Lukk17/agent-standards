@@ -17,7 +17,7 @@ Contents:
 - [Revoke or replace the CA](#revoke-or-replace-the-ca)
 - [When https fails](#when-https-fails)
 
-Read this before giving the `.internal` names `https`, before making or replacing the local certificate authority (CA for short), before adding a name to its certificate, before trusting the CA on a device, or when a `.internal` name fails over `https` only. The rules live in [SKILL.md](../SKILL.md). Facts marked VERIFIED were measured with OpenSSL 3 and Nginx Proxy Manager 2, on a test homelab or in throwaway containers as the mark says, unless the mark names another version. Facts marked UNVERIFIED were read in documentation or source and never run.
+Read this before giving the `.internal` names `https`, before making or replacing the local certificate authority (CA for short), before adding a name to its certificate, before trusting the CA on a device, or when a `.internal` name fails over `https` only. The rules live in [SKILL.md](../SKILL.md), and one more holds here: the local CA carries a critical name constraint permitting only `DNS:internal`, and its key lives only on the owner's computer and in `.env` on the VM. Once its include serves `https`, the SSL tab of every proxy host stays on None, because a picked certificate adds a second `listen 443` and takes that host Offline. Facts marked VERIFIED were measured with OpenSSL 3 and Nginx Proxy Manager 2, on a test homelab or in throwaway containers as the mark says, unless the mark names another version. Facts marked UNVERIFIED were read in documentation or source and never run.
 
 Sources: `backend/templates/proxy_host.conf`, `backend/internal/nginx.js`, `docker/rootfs/etc/s6-overlay/s6-rc.d/prepare/50-ipv6.sh` and `docker/rootfs/usr/bin/common.sh` of https://github.com/NginxProxyManager/nginx-proxy-manager, `net/cert/x509_certificate.cc` and `net/cert/internal/trust_store_nss.cc` of https://github.com/chromium/chromium, `pki/verify_certificate_chain.cc` of https://github.com/google/boringssl, `lib/mozpkix/lib/pkixnames.cpp` and `lib/mozpkix/lib/pkixbuild.cpp` of https://github.com/nss-dev/nss, `crypto/x509/x509_vfy.c` and `crypto/x509/v3_utl.c` on the `openssl-3.5` branch of https://github.com/openssl/openssl, and the trust store pages each section names.
 
@@ -102,7 +102,7 @@ Chrome refuses a wildcard certificate for `*.internal`. `X509Certificate::Verify
 
 ### The CA in .env
 
-The service reads three values from `<stack-dir>/.env`, next to the other secrets of hard rule 8:
+The service reads three values from `<stack-dir>/.env`, next to the other secrets of hard rule 7:
 
 | Key | Value |
 |---|---|

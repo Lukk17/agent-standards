@@ -17,7 +17,6 @@ SKILLS_DIR = pathlib.PurePosixPath(".agents/skills")
 HOOKS_DIR = pathlib.PurePosixPath(".agents/hooks")
 SUBAGENTS_DIR = pathlib.PurePosixPath("subagents")
 CLAUDE_AGENTS_DIR = pathlib.PurePosixPath(".claude/agents")
-CLAUDE_WIRING = pathlib.PurePosixPath(".claude/settings.json")
 MCP_FILE = pathlib.PurePosixPath(".mcp.json")
 
 ENTRY_ONLY_SOURCE = "./.claude-plugin"
@@ -43,14 +42,19 @@ KEBAB = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*", re.ASCII)
 # MAJOR.MINOR.PATCH, each part without a leading zero, the form a release tag carries.
 SEMVER = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", re.ASCII)
 GITHUB_REPOSITORY = re.compile(r"https://github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/?")
-# A hook command of the project wiring names its script as .agents/hooks/<folder>/<script>.py.
+HTTPS_URL = re.compile(r"https://[A-Za-z0-9.-]+(?:/\S*)?", re.ASCII)
 HOOK_FOLDER = r"(?:[a-z0-9-]+/)*[a-z0-9-]+"
-HOOK_SCRIPT = re.compile(rf"\.agents/hooks/({HOOK_FOLDER})/([A-Za-z0-9_]+\.py)")
-PLUGIN_ROOT_PATH = '"${CLAUDE_PLUGIN_ROOT}"/'
+# A hook plugin command starts in the session's project and runs a script of the plugin's own folder.
+PROJECT_START = 'cd "${CLAUDE_PROJECT_DIR}" && '
+PLUGIN_SCRIPT = re.compile(r'"\$\{CLAUDE_PLUGIN_ROOT\}"/([A-Za-z0-9_]+\.py)')
+# A script named by its path in a project, which a plugin copied into the plugin cache does not have.
+PROJECT_SCRIPT = re.compile(rf"\.agents/hooks/{HOOK_FOLDER}/[A-Za-z0-9_]+\.py")
+COMMAND_HANDLER = "command"
 
-MARKETPLACE_KEYS = frozenset({"name", "description", "owner", "repository", "license"})
-HOOK_KEYS = frozenset({"name", "version", "description", "folder"})
-SERVER_KEYS = frozenset({"name", "version", "description"})
+MARKETPLACE_KEYS = frozenset({"name", "description", "owner", "repository", "homepage", "license"})
+AUTHOR_KEYS = ("name", "email", "url")
+HOOK_KEYS = frozenset({"name", "version", "description", "folder", "wiring"})
+SERVER_KEYS = frozenset({"name", "version", "description", "block"})
 BUNDLE_KEYS = frozenset({"name", "version", "category", "description", "dependencies", "agents", "skills"})
 
 
@@ -64,10 +68,16 @@ class Hook:
     version: str
     description: str
     folder: str
+    wiring: dict[str, list[dict[str, object]]]
 
     @property
     def plugin(self) -> str:
         return HOOK_PREFIX + self.name
+
+    @property
+    def commands(self) -> list[tuple[str, str]]:
+        """Every command the wiring runs, each with its event."""
+        return [(event, str(handler["command"])) for event, groups in self.wiring.items() for group in groups for handler in group["hooks"]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +85,7 @@ class Server:
     name: str
     version: str
     description: str
+    block: dict[str, object]
 
     @property
     def plugin(self) -> str:
@@ -131,8 +142,7 @@ class Sources:
     plugin_map: PluginMap
     skills: dict[str, Skill]
     agents: dict[str, Agent]
-    servers: dict[str, dict[str, object]]
-    wired_hooks: dict[str, dict[str, list[dict[str, object]]]]
+    root_servers: dict[str, dict[str, object]]
 
 def _string(raw: dict, key: str, where: str) -> str:
     value = raw.get(key)
@@ -159,6 +169,35 @@ def _hook_folder(value: object, where: str) -> str:
     """A hook folder relative to .agents/hooks/: kebab-case names joined by slashes, never leaving it."""
     if not isinstance(value, str) or not re.fullmatch(HOOK_FOLDER, value):
         raise PluginMapError(f"{where} needs a 'folder' of kebab-case names joined by '/', got {value!r}")
+    return value
+
+
+def _block(value: object, where: str) -> dict[str, object]:
+    """The server block of a server entry, in the mcpServers form Claude Code reads."""
+    if not isinstance(value, dict) or not value:
+        raise PluginMapError(f"{where} needs a 'block', the mapping Claude Code reads as the server's mcpServers entry")
+    return value
+
+
+def _handler(value: object, where: str) -> dict[str, object]:
+    if not isinstance(value, dict) or value.get("type") != COMMAND_HANDLER or not isinstance(value.get("command"), str) or not value["command"].strip():
+        raise PluginMapError(f"{where} takes handlers of type '{COMMAND_HANDLER}' with a 'command' only")
+    return value
+
+
+def _wiring(value: object, where: str) -> dict[str, list[dict[str, object]]]:
+    """The wiring of a hook entry, in the hooks form Claude Code reads: event, then matcher groups, then handlers."""
+    if not isinstance(value, dict) or not value:
+        raise PluginMapError(f"{where} needs a 'wiring', the mapping Claude Code reads as the plugin's hooks")
+    for event, groups in value.items():
+        at = f"{where} 'wiring' on {event}"
+        if not isinstance(event, str) or not isinstance(groups, list) or not groups:
+            raise PluginMapError(f"{at} needs a list of matcher groups")
+        for group in groups:
+            if not isinstance(group, dict) or not isinstance(group.get("hooks"), list) or not group["hooks"]:
+                raise PluginMapError(f"{at} needs a 'hooks' list in every matcher group")
+            for handler in group["hooks"]:
+                _handler(handler, at)
     return value
 
 
@@ -190,6 +229,10 @@ def _marketplace(raw: object, path: pathlib.Path) -> dict[str, object]:
         raise PluginMapError(f"{path} 'marketplace' needs a 'name' and an 'owner' with a 'name'")
     if not GITHUB_REPOSITORY.fullmatch(str(market.get("repository", ""))):
         raise PluginMapError(f"{path} 'marketplace' needs a 'repository' of the form https://github.com/<owner>/<repo>")
+    if not HTTPS_URL.fullmatch(str(market.get("homepage", ""))):
+        raise PluginMapError(f"{path} 'marketplace' needs a 'homepage' that is an https URL")
+    if not isinstance(market.get("license"), str) or not market["license"].strip():
+        raise PluginMapError(f"{path} 'marketplace' needs a 'license', an SPDX identifier such as MIT")
     return market
 
 
@@ -202,11 +245,17 @@ def parse_map(raw: object, path: pathlib.Path) -> PluginMap:
             version=_version(item.get("version"), where),
             description=_string(item, "description", where),
             folder=_hook_folder(item.get("folder") or item["name"], where),
+            wiring=_wiring(item.get("wiring"), where),
         )
         for item, where in _entries(raw, "hooks", HOOK_KEYS, path)
     )
     servers = tuple(
-        Server(_string(item, "name", where), _version(item.get("version"), where), _string(item, "description", where))
+        Server(
+            name=_string(item, "name", where),
+            version=_version(item.get("version"), where),
+            description=_string(item, "description", where),
+            block=_block(item.get("block"), where),
+        )
         for item, where in _entries(raw, "servers", SERVER_KEYS, path)
     )
     bundles = tuple(

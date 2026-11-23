@@ -10,11 +10,11 @@ library, so a codebase still importing it should be migrated rather than mixed.
 
 ### Contents
 
-- List and presence animation
-- Modal animation
-- Reduced motion is not optional
-- Timing budgets
-- Token-driven CSS transitions
+- [List and presence animation](#list-and-presence-animation)
+- [Modal animation](#modal-animation)
+- [Reduced motion is not optional](#reduced-motion-is-not-optional)
+- [Timing budgets](#timing-budgets)
+- [Token-driven CSS transitions](#token-driven-css-transitions)
 
 ---
 

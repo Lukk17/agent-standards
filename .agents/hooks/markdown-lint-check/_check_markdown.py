@@ -12,10 +12,28 @@ Enforces a subset of the `markdown-writer` skill rules:
   Another skill is named in backticks instead.
 
 - A skill manifest, `.agents/skills/<name>/SKILL.md`, stays at or under
-  8,000 characters, front matter included, which is about 2,000 tokens. The
-  manifest loads in full whenever the skill activates, and a subagent preloads
-  it on every run, while a file under `references/` loads only on demand, so
-  depth past the limit moves there.
+  4,500 characters, front matter included. The manifest loads in full whenever
+  the skill activates, and a subagent preloads it on every run, while a file
+  under `references/` loads only on demand, so depth past the limit moves
+  there.
+
+- A skill description stays at or under 220 characters, because every skill
+  description in a project shares one listing budget.
+
+- A skill manifest carries no "When to activate", "Related skills" or
+  "Checklist" section. The description carries the triggers, a neighbouring
+  skill is named in the description or under "When not to activate", and the
+  checklist lives in `references/checklist.md`. A heading is compared without
+  case, emphasis marks, a trailing colon or a plural "s".
+
+- "When not to activate" in a skill manifest holds at most three items, each
+  one line, each naming in backticks the skill or the agent that owns the job,
+  and nothing else: no prose, no fenced block and no deeper heading.
+
+- A file inside `.agents/skills/<name>/` links only to files that exist. A
+  file under `references/` sits directly in that folder, is linked from its
+  `SKILL.md`, and opens with a Contents list that links its sections once it
+  runs past 100 lines.
 
 - No dated or "current version" baseline in an agent-facing file: a skill
   file under `.agents/skills/`, a `subagents/<name>.md` source, or a file in a
@@ -38,7 +56,8 @@ It also validates the YAML front matter of the two manifest kinds an agent
 loads by parsing it, `.agents/skills/<name>/SKILL.md` and `subagents/<name>.md`:
 the block has to be present, parse under a strict YAML parser, carry a `name`
 matching the folder name (skills) or the file stem (subagents), and carry a
-non-empty string `description` of at most 1024 characters. A skill manifest may
+non-empty string `description` of at most 1024 characters in a subagent and 220
+in a skill. A skill manifest may
 carry no key beyond name, description, license, compatibility and metadata, per
 the open Agent Skills specification, and has to carry its plugin version as
 `metadata.version`, while a subagent source carries it as `version`, each
@@ -92,6 +111,7 @@ unchecked.
 import os
 import re
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 try:
@@ -113,7 +133,7 @@ SUMMARY_TAG = re.compile(r"^\s*<summary[\s>]", re.IGNORECASE)
 BADGE_LINE = re.compile(r"^\s*\[!\[")
 INLINE_CODE = re.compile(r"``.*?``|`[^`]*`")
 INLINE_LINK_TARGET = re.compile(r"\]\(\s*<?([^)\s>]+)")
-REFERENCE_LINK_TARGET = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*<?([^\s>]+)")
+REFERENCE_LINK_TARGET = re.compile(r"^\s{0,3}\[(?!\^)[^\]]+\]:\s*<?([^\s>]+)")
 URL_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 AGENTS_DIRECTORY = ".agents"
 
@@ -129,7 +149,35 @@ SKILL_VERSION_KEY = "metadata"
 # version a marketplace entry and a release tag carry.
 SEMANTIC_VERSION = re.compile(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", re.ASCII)
 MAX_DESCRIPTION = 1024
-MAX_SKILL_MANIFEST_CHARACTERS = 8000
+MAX_SKILL_DESCRIPTION_CHARACTERS = 220
+MAX_SKILL_MANIFEST_CHARACTERS = 4500
+MAX_WHEN_NOT_TO_ACTIVATE_ITEMS = 3
+MAX_REFERENCE_LINES_WITHOUT_CONTENTS = 100
+REFERENCES_DIRECTORY = "references"
+DESCRIPTION_LIMITS = {
+    "skill": (
+        MAX_SKILL_DESCRIPTION_CHARACTERS,
+        "character limit for a skill. Keep what the skill covers, the phrases a user says "
+        'and one "Not for X, use `skill`" pointer',
+    ),
+    "subagent": (MAX_DESCRIPTION, "character cap"),
+}
+WHEN_NOT_TO_ACTIVATE = "when not to activate"
+FORBIDDEN_MANIFEST_SECTIONS = {
+    "when to activate": "The description already carries the triggers, so delete the section",
+    "related skill": 'Name a neighbouring skill in the description or under "When not to activate"',
+    "checklist": "Move it to references/checklist.md and link that file from the routing table",
+}
+HEADING_TEXT = re.compile(r"^(#{1,6})\s+(.*?)[\s#]*$")
+EMPHASIS_MARKS = re.compile(r"[*_]")
+HORIZONTAL_RULE = re.compile(r"^\s{0,3}([-*_])(?:\s*\1){2,}\s*$")
+LIST_ITEM = re.compile(r"^(?:[-*+]|\d+[.)])\s+\S")
+BACKTICKED_NAME = re.compile(r"`[a-z0-9]+(?:-[a-z0-9]+)*`")
+CONTENTS_MARKER = re.compile(r"^(?:#{1,6}\s+)?contents:?$", re.IGNORECASE)
+SECTION_ANCHOR = "#"
+FENCE_OUTSIDE = ""
+FENCE_OPENER = "opener"
+FENCE_BODY = "body"
 YAML_INDICATORS = "*&!%@`[{>|\"'"
 QUOTES = "\"'"
 KEY_LINE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
@@ -208,8 +256,13 @@ def _link_targets(line: str) -> list[str]:
     return [target for target in targets if not URL_SCHEME.match(target) and not target.startswith("#")]
 
 
+def _location(target: str) -> str:
+    """The file part of a link target, its anchor and query removed."""
+    return target.split("#", 1)[0].split("?", 1)[0]
+
+
 def _escapes_folder(target: str, path: Path, folder: Path) -> bool:
-    location = target.split("#", 1)[0].split("?", 1)[0]
+    location = _location(target)
 
     if not location:
         return False
@@ -241,11 +294,13 @@ def _skill_link_violations(line: str, line_no: int, path: Path, folder: Path | N
     return failures
 
 
-def _outside_fences(lines: list[str], first_index: int = 0):
-    """Yield (line number, line) for every line outside a fenced code block.
+def _fenced_lines(lines: list[str], first_index: int = 0) -> Iterator[tuple[int, str, str]]:
+    """Yield (line number, line, fence) for every line from `first_index` on.
 
-    Lines before `first_index` are skipped. Fences follow CommonMark: a closer
-    uses the opener's character, is at least as long, and has no info string.
+    `fence` is FENCE_OPENER on the line that opens a fenced code block,
+    FENCE_BODY on every line inside the block and on its closer, and
+    FENCE_OUTSIDE on any other line. Fences follow CommonMark: a closer uses
+    the opener's character, is at least as long, and has no info string.
     """
     in_fence = False
     fence_char = ""
@@ -257,35 +312,39 @@ def _outside_fences(lines: list[str], first_index: int = 0):
 
         m = FENCE_OPEN.match(line)
 
-        if m:
-            marker = m.group(2)
-            this_char = marker[0]
-            this_len = len(marker)
-            info_string = m.group(3).strip()
+        if m and not in_fence:
+            in_fence = True
+            fence_char = m.group(2)[0]
+            fence_marker_len = len(m.group(2))
 
-            if not in_fence:
-                in_fence = True
-                fence_char = this_char
-                fence_marker_len = this_len
-                continue
-
-            is_closer = (
-                this_char == fence_char
-                and this_len >= fence_marker_len
-                and info_string == ""
-            )
-
-            if is_closer:
-                in_fence = False
-                fence_char = ""
-                fence_marker_len = 0
-
+            yield line_no, line, FENCE_OPENER
             continue
 
-        if in_fence:
+        if not in_fence:
+            yield line_no, line, FENCE_OUTSIDE
             continue
 
-        yield line_no, line
+        yield line_no, line, FENCE_BODY
+
+        is_closer = (
+            m is not None
+            and m.group(2)[0] == fence_char
+            and len(m.group(2)) >= fence_marker_len
+            and m.group(3).strip() == ""
+        )
+
+        if is_closer:
+            in_fence = False
+
+
+def _outside_fences(lines: list[str], first_index: int = 0) -> Iterator[tuple[int, str]]:
+    """Yield (line number, line) for every line outside a fenced code block.
+
+    Lines before `first_index` are skipped.
+    """
+    for line_no, line, fence in _fenced_lines(lines, first_index):
+        if fence == FENCE_OUTSIDE:
+            yield line_no, line
 
 
 def check_lines(lines: list[str], path: Path) -> int:
@@ -297,15 +356,7 @@ def check_lines(lines: list[str], path: Path) -> int:
     failures = 0
     folder = skill_folder(path)
 
-    # Skip a leading YAML frontmatter block; it is metadata, not prose.
-    fm_end = -1
-    if lines and lines[0].strip() == "---":
-        for i in range(1, len(lines)):
-            if lines[i].strip() == "---":
-                fm_end = i
-                break
-
-    for line_no, line in _outside_fences(lines, fm_end + 1):
+    for line_no, line in _outside_fences(lines, _body_start(lines)):
         failures += _skill_link_violations(line, line_no, path, folder)
 
         if TABLE_ROW.match(line):
@@ -444,6 +495,14 @@ def _front_matter_end(lines: list[str]) -> int:
     return -1
 
 
+def _body_start(lines: list[str]) -> int:
+    """The index of the first line after a closed leading front matter block, 0 when there is none."""
+    if lines and lines[0].strip() == FRONT_MATTER_FENCE:
+        return _front_matter_end(lines) + 1
+
+    return 0
+
+
 def _key_line_numbers(block: list[str], offset: int) -> dict[str, int]:
     """Map each top-level front matter key to the file line it is written on."""
     numbers: dict[str, int] = {}
@@ -488,6 +547,16 @@ def _description_quoting_problem(raw: str) -> str:
         )
 
     return ""
+
+
+def _description_size_problem(description: str, kind: str) -> str:
+    """The reason a description is too long for its kind, empty when it fits."""
+    limit, wording = DESCRIPTION_LIMITS[kind]
+
+    if len(description) <= limit:
+        return ""
+
+    return f"description is {len(description)} characters, over the {limit} {wording}"
 
 
 def check_front_matter(lines: list[str], path: Path) -> int:
@@ -565,12 +634,8 @@ def check_front_matter(lines: list[str], path: Path) -> int:
         )
     elif not description.strip():
         failures += _violation(path, description_line, "description is empty")
-    elif len(description) > MAX_DESCRIPTION:
-        failures += _violation(
-            path,
-            description_line,
-            f"description is {len(description)} characters, over the {MAX_DESCRIPTION} character cap",
-        )
+    elif problem := _description_size_problem(description, kind):
+        failures += _violation(path, description_line, problem)
 
     if kind == "skill":
         allowed = ", ".join(SKILL_ALLOWED_KEYS)
@@ -642,8 +707,294 @@ def check_skill_manifest_size(text: str, path: Path) -> int:
         path,
         1,
         f"skill manifest is {size} characters, over the {MAX_SKILL_MANIFEST_CHARACTERS} character limit; "
-        "keep the rules, checklist and routing table here and move the depth into references/",
+        "keep the technology-neutral rules and the routing table here and move the depth into references/, "
+        "one file per technology",
     )
+
+
+def _heading(line: str) -> tuple[int, str] | None:
+    """The level and the title of a heading line, None for any other line.
+
+    The title comes without emphasis marks and without a trailing colon, so
+    `### **Checklist:**` and `### Checklist` give the same title.
+    """
+    match = HEADING_TEXT.match(line)
+
+    if match is None:
+        return None
+
+    title = EMPHASIS_MARKS.sub("", match.group(2)).strip().rstrip(":").strip()
+
+    return len(match.group(1)), title
+
+
+def _section_key(title: str) -> str:
+    """A heading title folded for comparison, without case and without a plural "s"."""
+    return title.casefold().removesuffix("s")
+
+
+def check_manifest_sections(lines: list[str], path: Path) -> int:
+    """Report every section a skill manifest may not carry. Returns the violation count."""
+    failures = 0
+
+    for line_no, line in _outside_fences(lines, _body_start(lines)):
+        heading = _heading(line)
+
+        if heading is None:
+            continue
+
+        title = heading[1]
+        advice = FORBIDDEN_MANIFEST_SECTIONS.get(_section_key(title))
+
+        if advice:
+            failures += _violation(path, line_no, f'section "{title}" is not allowed in a skill manifest. {advice}')
+
+    return failures
+
+
+def _when_not_to_activate_lines(lines: list[str]) -> Iterator[tuple[int, str, str, bool]]:
+    """Yield (line number, line, fence, opens) for every line of a "When not to activate" section.
+
+    `opens` is True on the heading of the section and `fence` is the value
+    `_fenced_lines` gives the line. The section runs to the next heading of the
+    same level or a higher one, so a deeper heading under it is part of it, and
+    a heading inside a fenced block is no heading.
+    """
+    section_level = 0
+
+    for line_no, line, fence in _fenced_lines(lines, _body_start(lines)):
+        heading = _heading(line) if fence == FENCE_OUTSIDE else None
+        opens = heading is not None and _section_key(heading[1]) == WHEN_NOT_TO_ACTIVATE
+
+        if opens:
+            section_level = heading[0]
+        elif heading is not None and heading[0] <= section_level:
+            section_level = 0
+
+        if section_level:
+            yield line_no, line, fence, opens
+
+
+def check_when_not_to_activate(lines: list[str], path: Path) -> int:
+    """Hold "When not to activate" to a few one-line items that each name a skill or an agent.
+
+    Returns the violation count. A fenced block is reported once, on the line
+    that opens it.
+    """
+    failures = 0
+    items = 0
+    heading_line = 1
+
+    for line_no, line, fence, opens in _when_not_to_activate_lines(lines):
+        if opens:
+            heading_line = line_no
+            continue
+
+        if fence == FENCE_BODY or not line.strip() or HORIZONTAL_RULE.match(line):
+            continue
+
+        if fence == FENCE_OPENER or not LIST_ITEM.match(line):
+            failures += _violation(
+                path,
+                line_no,
+                'line under "When not to activate" is not a one-line list item. '
+                "Write each item on one line and keep nothing else in the section",
+            )
+            continue
+
+        items += 1
+
+        if not BACKTICKED_NAME.search(line):
+            failures += _violation(
+                path,
+                line_no,
+                '"When not to activate" item names no skill or agent. Name the skill or the agent that owns '
+                "the job in backticks, as in use `bash`",
+            )
+
+    if items > MAX_WHEN_NOT_TO_ACTIVATE_ITEMS:
+        failures += _violation(
+            path,
+            heading_line,
+            f'"When not to activate" holds {items} items, over the limit of {MAX_WHEN_NOT_TO_ACTIVATE_ITEMS}. '
+            "Keep the nearest neighbouring jobs only",
+        )
+
+    return failures
+
+
+def _body_link_targets(lines: list[str]) -> Iterator[tuple[int, str]]:
+    """Yield (line number, target) for every local link in the body, outside fences and inline code."""
+    for line_no, line in _outside_fences(lines, _body_start(lines)):
+        for target in _link_targets(line):
+            yield line_no, target
+
+
+def check_skill_links_resolve(lines: list[str], path: Path, folder: Path) -> int:
+    """Report every link inside the skill folder whose file does not exist. Returns the violation count.
+
+    A link that leaves the folder is left to the rule in `check_lines`, which
+    reports it whether or not the file exists.
+    """
+    failures = 0
+
+    for line_no, target in _body_link_targets(lines):
+        location = _location(target)
+
+        if not location or _escapes_folder(target, path, folder):
+            continue
+
+        if not os.path.exists(os.path.join(path.parent, location)):
+            failures += _violation(
+                path,
+                line_no,
+                f"links to {target}, which does not exist. Fix the path or remove the link",
+            )
+
+    return failures
+
+
+def _manifest_link_locations(folder: Path) -> set[str] | None:
+    """Every path the skill's manifest links, relative to the skill folder, None when it cannot be read."""
+    try:
+        lines = (folder / SKILL_MANIFEST).read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return None
+
+    return {os.path.normpath(_location(target)) for _, target in _body_link_targets(lines) if _location(target)}
+
+
+def check_reference_placement(path: Path, folder: Path, relative: Path) -> int:
+    """Report a reference that sits in a subfolder or that its manifest never links. Returns the violation count.
+
+    A reference whose manifest cannot be read is left alone, because the folder
+    is then no skill this rule can speak for.
+    """
+    shown = relative.as_posix()
+    failures = 0
+
+    if len(relative.parts) > 2:
+        failures += _violation(
+            path,
+            1,
+            f"{shown} sits deeper than one level under {REFERENCES_DIRECTORY}/. Move it directly into that folder",
+        )
+
+    linked = _manifest_link_locations(folder)
+
+    if linked is not None and os.path.normpath(relative) not in linked:
+        failures += _violation(
+            path,
+            1,
+            f"{shown} is not linked from {SKILL_MANIFEST}. Add it to the routing table with a cue saying "
+            "when to open it, or delete the file",
+        )
+
+    return failures
+
+
+def _contents_items(lines: list[str]) -> list[tuple[int, str]]:
+    """The items of the Contents list a file opens with, as (line number, text).
+
+    Empty when no Contents marker followed by a list comes before the first
+    section heading.
+    """
+    items: list[tuple[int, str]] = []
+    marker_seen = False
+
+    for line_no, line in _outside_fences(lines, _body_start(lines)):
+        text = line.strip()
+
+        if not text:
+            continue
+
+        if marker_seen:
+            if not LIST_ITEM.match(text):
+                break
+
+            items.append((line_no, text))
+            continue
+
+        if CONTENTS_MARKER.match(text):
+            marker_seen = True
+            continue
+
+        heading = HEADING.match(line)
+
+        if heading and len(heading.group(1)) > 1:
+            break
+
+    return items
+
+
+def _links_a_section(item: str) -> bool:
+    """True when a list item holds a link to an anchor of its own file, outside inline code."""
+    targets = INLINE_LINK_TARGET.findall(INLINE_CODE.sub("", item))
+
+    return any(target.startswith(SECTION_ANCHOR) for target in targets)
+
+
+def check_reference_contents(lines: list[str], path: Path) -> int:
+    """Report a long reference that does not open with a Contents list linking its sections.
+
+    Returns the violation count. A list with items that link no section is
+    reported once, on the first such item.
+    """
+    if len(lines) <= MAX_REFERENCE_LINES_WITHOUT_CONTENTS:
+        return 0
+
+    items = _contents_items(lines)
+
+    if not items:
+        return _violation(
+            path,
+            1,
+            f"reference is {len(lines)} lines, over {MAX_REFERENCE_LINES_WITHOUT_CONTENTS}, and has no Contents list "
+            'before its first section. Open it with "Contents:" and a list that links its sections',
+        )
+
+    unlinked = [line_no for line_no, item in items if not _links_a_section(item)]
+
+    if not unlinked:
+        return 0
+
+    return _violation(
+        path,
+        unlinked[0],
+        f"Contents list items without a link to a section: {len(unlinked)} of {len(items)}, the first on this line. "
+        "Write each item as a link to its section, as in [Setup](#setup)",
+    )
+
+
+def check_skill_layout(text: str, lines: list[str], path: Path) -> int:
+    """Run the layout rules of a skill folder on one of its files. Returns the violation count.
+
+    A manifest is held to its size and its sections. A file under
+    `references/` is held to its place, its link from the manifest and its
+    Contents list. Every file in the folder is held to links that resolve. A
+    path outside a skill folder returns 0, and so does a file that sits
+    directly in `.agents/skills/`, in no skill of its own.
+    """
+    folder = skill_folder(path)
+
+    if folder is None:
+        return 0
+
+    failures = check_skill_links_resolve(lines, path, folder)
+    relative = Path(os.path.relpath(path, folder))
+
+    if relative.parts == (SKILL_MANIFEST,):
+        return (
+            failures
+            + check_skill_manifest_size(text, path)
+            + check_manifest_sections(lines, path)
+            + check_when_not_to_activate(lines, path)
+        )
+
+    if relative.parts[:1] == (REFERENCES_DIRECTORY,) and path.suffix == ".md":
+        return failures + check_reference_placement(path, folder, relative) + check_reference_contents(lines, path)
+
+    return failures
 
 
 def check_file(path: Path) -> int:
@@ -669,7 +1020,7 @@ def check_file(path: Path) -> int:
     return (
         check_lines(lines, path)
         + check_front_matter(lines, path)
-        + check_skill_manifest_size(text, path)
+        + check_skill_layout(text, lines, path)
         + check_dated_baselines(lines, path)
         + pins
     )

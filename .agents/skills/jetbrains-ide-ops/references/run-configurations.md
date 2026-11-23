@@ -3,6 +3,7 @@
 Contents:
 
 - [Where the files live](#where-the-files-live)
+- [Never guess an option name](#never-guess-an-option-name)
 - [How to get an option name right](#how-to-get-an-option-name-right)
 - [Docker Compose deploy](#docker-compose-deploy)
 - [Docker image build and run](#docker-image-build-and-run)
@@ -26,6 +27,31 @@ next to the code it runs, which is what a monorepo wants, and they still appear 
 
 Paths inside these files use the `$PROJECT_DIR$` macro so the file survives a clone into a different directory. A
 literal absolute path works on the machine that wrote it and nowhere else.
+
+---
+
+### Never guess an option name
+
+The IDE reads a run configuration by matching each option name against the ones the platform knows, and it drops any
+name it does not recognise. There is no error, no warning and no log line. The file on disk keeps the invented option
+and the IDE behaves as if it was never written, so the configuration looks right in the editor and does nothing when
+run. Copy a working example written by the same IDE version, or create the configuration once through the dialog and
+read the XML the IDE wrote. Verifying costs a minute. Guessing cost three wrong attempts in one session.
+
+Pass:
+
+```xml
+<option name="upForceRecreate" value="true" />
+```
+
+Fail:
+
+```xml
+<option name="commandLineOptions" value="--build --force-recreate" />
+```
+
+The failing form runs, and the stack it brings up is indistinguishable from a plain `up`. Every configuration type
+with its verified XML follows below.
 
 ---
 

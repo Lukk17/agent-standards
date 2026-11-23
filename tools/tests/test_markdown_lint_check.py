@@ -97,6 +97,28 @@ def test_every_scoped_location_is_linted(project, relative):
     assert "em-dash or en-dash found" in context(out)
 
 
+SKILL_WITH_A_SECTION_THAT_LEFT = '---\nname: x\ndescription: Demo skill.\nmetadata:\n  version: "1.0.0"\n---\n\n# X\n\n### Related skills\n\n- `bash` owns scripts.\n'
+
+
+def test_a_skill_layout_violation_in_a_manifest_is_reported(project):
+    path = write(project, ".agents/skills/x/SKILL.md", SKILL_WITH_A_SECTION_THAT_LEFT)
+
+    code, out, err = run(project, edit(path))
+
+    assert (code, err) == (0, "")
+    assert 'section "Related skills" is not allowed in a skill manifest' in context(out)
+
+
+def test_a_reference_its_manifest_never_links_is_reported(project):
+    write(project, ".agents/skills/x/SKILL.md", SKILL_WITH_A_SECTION_THAT_LEFT)
+    path = write(project, ".agents/skills/x/references/orphan.md", CLEAN)
+
+    code, out, err = run(project, edit(path))
+
+    assert (code, err) == (0, "")
+    assert "references/orphan.md is not linked from SKILL.md" in context(out)
+
+
 def test_a_batched_edit_payload_is_read_from_its_edits_list(project):
     path = write(project, "docs/GUIDE.md", DIRTY)
     payload = {"tool_name": "MultiEdit", "tool_input": {"edits": [{"file_path": str(path)}]}}

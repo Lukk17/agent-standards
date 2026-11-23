@@ -100,7 +100,7 @@ accessed together, embedding keeps data in one read path.
 Incorrect (separate collection for few items):
 
 ```javascript
-// Addresses in separate collection — user typically has 1-3
+// Addresses in separate collection, user typically has 1-3
 { userId: "user123", type: "home", street: "123 Main", city: "Boston" }
 // Requires $lookup for ~2 addresses, orphan risk on user delete
 ```

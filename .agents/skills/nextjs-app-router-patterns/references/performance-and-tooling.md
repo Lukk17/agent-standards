@@ -6,10 +6,10 @@ Images, bundle size, and the dev server. Written for Next.js 16, where Turbopack
 
 ### Contents
 
-- Images
-- Bundle splitting
-- Turbopack
-- Bundle analysis
+- [Images](#images)
+- [Bundle splitting](#bundle-splitting)
+- [Turbopack](#turbopack)
+- [Bundle analysis](#bundle-analysis)
 
 ---
 

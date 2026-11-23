@@ -14,9 +14,9 @@ Three categories, and mixing them up is the one mistake that breaks a rebuild.
 | Category | Paths | How to change it |
 | --- | --- | --- |
 | Canonical | `subagents/*.md`, `.agents/skills/*/SKILL.md` and their `references/*.md`, `.agents/hooks/<hook>/*.py`, one folder per hook, `.agents/hooks/claude/<hook>/*.py`, `.agents/hooks/copilot/<hook>/*.py`, `.agents/plugin/hooks.js`, `.agents/plugin/index.js`, `docs/*.md` | edit directly |
-| Canonical config | `.mcp.json`, `opencode.json`, `.opencode/opencode.json`, `.opencode/opencode.json.v1`, `.codex/config.toml`, `.vscode/mcp.json`, `.github/mcp.json`, `.claude/settings.json`, `.github/hooks/preflight.json` | edit directly, keep the server set and the gate wording in sync |
+| Canonical config | `.mcp.json`, `opencode.json`, `.opencode/opencode.json`, `.opencode/opencode.json.v1`, `.codex/config.toml`, `.vscode/mcp.json`, `.github/mcp.json`, `.claude/settings.json`, `.github/hooks/preflight.json` | edit directly, keep the server set of the four full files, the pinned versions and the gate wording in sync, and `.mcp.json` on `context7` alone |
 | Generated | `.claude/agents/<name>/<name>.md`, `.agents/agents/*.md`, `.codex/agents/*.toml`, `.github/agents/*.agent.md` | never hand-edit, run `python tools/gen_subagents.py` |
-| Canonical, this repo only | `tools/plugins.yaml`, the plugin map: the hook, server and bundle versions, and the one bundle each skill and subagent sits in | edit directly, then run `python tools/gen_plugins.py`, never shipped |
+| Canonical, this repo only | `tools/plugins.yaml`, the plugin map: the hook, server and bundle versions, the Claude Code wiring of every hook, every server block on its pinned version, and the one bundle each skill and subagent sits in | edit directly, then run `python tools/gen_plugins.py`, never shipped |
 | Generated, this repo only | `.claude-plugin/marketplace.json`, one plugin per skill, subagent, Claude Code hook and MCP server, plus the bundles, each pointing at files already in the repository | never hand-edit, run `python tools/gen_plugins.py`. CI fails a stale copy, and the `Plugins` workflow validates it, test-installs from it and tags each new plugin version on `master`. Never shipped by an import, users add it as a marketplace |
 | Symlink | `.opencode/agents`, `.kilo/agents`, `.claude/skills` | never edit through the link, fix the link itself |
 | Canonical, global install only | `global/bin/update-global.sh`, `global/bin/update-global.ps1` | edit both together, verified by `tools/tests/test_update_global.py`, shipped to `~/.config/agents/bin` by the global install and never by a project import |
@@ -26,12 +26,7 @@ Three categories, and mixing them up is the one mistake that breaks a rebuild.
 | Runtime state | `tasks.md` at the project root | written by `task_list_sync.py` and by the model, git-ignored, never committed |
 | Runtime state | `.agents/tasks.widget.json` beside `tasks.md` | generated widget snapshot, git-ignored, never committed |
 
-A skill is a directory, not a file. `SKILL.md` is the manifest and stays short: standard front matter (`name`,
-`description`, and optionally `license` or `compatibility`) per the open
-[Agent Skills specification](https://agentskills.io/specification), a description written as the phrases that should
-trigger it, and the depth pushed down into `references/`. A family that used to be many sibling skills is one hub with
-a `references/` file per topic, which is how the eighteen Flutter skills became `dart-flutter-patterns` and the two
-Next.js ones became `nextjs-app-router-patterns`.
+A skill is a directory, not a file. `SKILL.md` is the manifest and stays short: standard front matter (`name`, `description`, and optionally `license` or `compatibility`) per the open [Agent Skills specification](https://agentskills.io/specification), a description of at most 220 characters written as the phrases that should trigger it, the technology-neutral rules, and a routing table into `references/`, where the depth sits in one file per technology. The whole manifest stays at or under 4,500 characters, and the rules are under "Adding a new skill" in [CONTRIBUTING.md](../CONTRIBUTING.md). A family that used to be many sibling skills is one hub with a `references/` file per topic, which is how the eighteen Flutter skills became `dart-flutter-patterns` and the two Next.js ones became `nextjs-app-router-patterns`.
 
 The generator owns two of the three symlinks. `.opencode/agents` and `.kilo/agents` both point at `../.agents/agents`,
 and `python tools/gen_subagents.py` recreates them if they go missing. `.claude/skills` points at `../.agents/skills`
@@ -52,7 +47,9 @@ agent-standards/
     skills/                      # CANONICAL SKILL.md files, shipped to consumers
     agents/                      # GENERATED, OpenCode-format subagents, shared by OpenCode and Kilo Code
     hooks/
-      preflight_gate.py          # CANONICAL, the one shared gate rule for every agent surface
+      .gitignore                 # CANONICAL, keeps every __pycache__ folder under the hooks out of git
+      preflight_gate.py          # CANONICAL, the starter of the gate that every agent surface runs
+      _gate_rules.py             # CANONICAL, the one shared gate rule, imported by the starter
       no_ai_markers_check.py     # CANONICAL, reply formatting check, main-thread Stop
       markdown_lint_check.py     # CANONICAL, lints a linted file just after it was edited
       _check_markdown.py         # CANONICAL, the markdown rules, shipped so the lint hook works downstream
@@ -79,7 +76,8 @@ agent-standards/
     gen_plugins.py               # Writes .claude-plugin/marketplace.json from plugins.yaml and the items' own files
     plugin_model.py              # The plugin map's names and types, and how plugins.yaml is read
     plugin_map_rules.py          # check_map: every rule the plugin map has to meet
-    plugins.yaml                 # CANONICAL plugin map: hook, server and bundle versions, every skill and subagent in one bundle
+    mcp_pins.py                  # Whether an MCP server command names one exact release
+    plugins.yaml                 # CANONICAL plugin map: hook, server and bundle versions, every hook's Claude Code wiring, every server block, every skill and subagent in one bundle
     check_versions.py            # Fails a changed plugin whose version did not go up since the merge base
     plugin_tags.py               # Lists the <name>--v<version> tags the Plugins workflow creates
     check_tags.py                # Fails a plugin tag that moved, points off master or was deleted
@@ -98,7 +96,7 @@ agent-standards/
   sandbox-agent/                 # Containerised sandbox that runs those specs, this repo only
   openspec/schemas/e2e-runbooks/ # Vendored companion schema, reference copy, this repo runs no OpenSpec workflow
   .claude/
-    settings.json                # gate, formatting, markdown lint and task-list hooks
+    settings.json                # names the repository's own marketplace and switches on its eight hook plugins, wires no hook itself
     skills -> ../.agents/skills  # SYMLINK, the only way Claude Code sees the canonical skills
     agents/                      # GENERATED, Claude-format subagents, <name>/<name>.md, one folder each
     workflows/skill-audit.js     # CANONICAL, read-only skill audit, a saved Claude Code workflow
@@ -123,7 +121,7 @@ agent-standards/
   AGENTS.md                      # This repo's own instructions, never shipped downstream
   AGENTS.md.example              # The template consumers rename to AGENTS.md
   opencode.json                  # OpenCode and Kilo Code, MCP plus the plugin declaration, no substitution tokens
-  .mcp.json                      # Claude Code and the GitHub Copilot CLI, key "mcpServers"
+  .mcp.json                      # Claude Code and the GitHub Copilot CLI, key "mcpServers", context7 alone
   README.md                      # Project front door, this repo only
   CONTRIBUTING.md                # Contribution rules and local checks, this repo only
   CHANGELOG.md                   # Release history, this repo only
@@ -154,14 +152,12 @@ and [global/](../global/), which only the global install in [GLOBAL_SETUP.md](GL
 
 ```text
 your-project/
-  .agents/skills/                # canonical skills, read natively by every agent except Claude Code
+  .agents/skills/                # canonical skills, read natively by every agent except Claude Code, which takes them as plugins
   .agents/agents/                # generated OpenCode-format subagents
   .agents/hooks/                 # the shared hook scripts and the markdown rules the lint hook runs
   .agents/plugin/hooks.js        # the OpenCode and Kilo Code hook runner
   .agents/plugin/index.js        # the directory entry every loader resolves, re-exports hooks.js
-  .claude/settings.json          # Claude Code hooks, consumer-owned after import
-  .claude/skills                 # symlink to ../.agents/skills
-  .claude/agents/                # generated Claude-format subagents, one folder each
+  .claude/settings.json          # written by the project-scope plugin install: the marketplace and the enabled plugins
   .claude/workflows/skill-audit.js # read-only skill audit, a saved Claude Code workflow
   .opencode/agents               # symlink to ../.agents/agents
   .opencode/opencode.json        # native edit backstop for OpenCode 2.x
@@ -173,7 +169,7 @@ your-project/
   .github/hooks/preflight.json   # Copilot hook config
   .github/mcp.json               # Copilot CLI fallback MCP servers, read only where no .mcp.json exists
   .vscode/mcp.json               # Copilot in VS Code MCP servers
-  .mcp.json                      # Claude Code and Copilot CLI MCP servers
+  .mcp.json                      # Claude Code and Copilot CLI MCP servers, context7 alone until the project adds more
   opencode.json                  # OpenCode and Kilo Code MCP servers plus the plugin declaration
   AGENTS.md                      # renamed from AGENTS.md.example, then filled in
   tasks.md                       # written by the task-list hook, add /tasks.md to your own .gitignore
@@ -190,7 +186,7 @@ The short version. The full per-surface matrix, including hook enforcement and t
 
 | Agent | Instructions | Skills | Subagents | MCP |
 | --- | --- | --- | --- | --- |
-| Claude Code | `AGENTS.md` natively, while no `CLAUDE.md` exists | `.claude/skills` symlink | `.claude/agents/` | `.mcp.json` |
+| Claude Code | `AGENTS.md` natively, while no `CLAUDE.md` exists | the skill plugins of the marketplace, and the `.claude/skills` symlink in this repository | the `agent-<name>` plugins, and `.claude/agents/` in this repository | `.mcp.json` with `context7`, each other server as an `mcp-<server>` plugin |
 | OpenCode | `AGENTS.md` natively | `.agents/skills/` natively | `.opencode/agents` symlink | `opencode.json` |
 | Kilo Code | `AGENTS.md` natively | `.agents/skills/` natively | `.kilo/agents` symlink | `opencode.json` |
 | Codex | `AGENTS.md` natively | `.agents/skills/` natively | `.codex/agents/` | `.codex/config.toml` |

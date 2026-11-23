@@ -348,10 +348,10 @@ test "$(find -L "$HOME/.claude/skills" -mindepth 2 -maxdepth 2 -name SKILL.md | 
 
 Expect exit 0.
 
-The gate script landed in the shared tree, which every user-scope wiring below names by absolute path.
+The gate script landed in the shared tree, which every user-scope wiring below names by absolute path, and so did the rules file it imports.
 
 ```bash
-test -f "$HOME/.config/agents/hooks/preflight-gate/preflight_gate.py"
+test -f "$HOME/.config/agents/hooks/preflight-gate/preflight_gate.py" -a -f "$HOME/.config/agents/hooks/preflight-gate/_gate_rules.py"
 ```
 
 Expect exit 0.

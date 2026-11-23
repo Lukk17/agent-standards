@@ -87,7 +87,7 @@ a generated tree.
 
 ### Hook enforcement, what each agent can actually block
 
-The gate is one shared rule in [../.agents/hooks/preflight-gate/preflight_gate.py](../.agents/hooks/preflight-gate/preflight_gate.py). It reads a hook
+The gate is one shared rule in [../.agents/hooks/preflight-gate/_gate_rules.py](../.agents/hooks/preflight-gate/_gate_rules.py), which every wiring runs through the starter [../.agents/hooks/preflight-gate/preflight_gate.py](../.agents/hooks/preflight-gate/preflight_gate.py) beside it. It reads a hook
 payload on standard input and denies six things: a write of any file resolving inside the repository working tree
 coming from the main thread, with no exemption left for markdown, configuration, or `docs/` (delegate the change to a
 subagent that owns the area instead), any tool call at all from a subagent whose own definition declares no skills
@@ -114,7 +114,7 @@ Each agent wires those scripts through its own hook surface, and the surfaces di
 
 | Agent | Hook config | Blocks a tool call | Injects context | Blocks a reply | Tells subagent from main thread |
 | --- | --- | --- | --- | --- | --- |
-| Claude Code | [.claude/settings.json](../.claude/settings.json) | yes, `PreToolUse` | yes, `SessionStart` and `UserPromptSubmit` on every turn, and the subagent text on `SubagentStart` | yes, `Stop` on the main thread only, after `MessageDisplay` fixes the display | yes, `agent_id` is present only inside a subagent |
+| Claude Code | the eight `hook-<name>` plugins of the marketplace, which [.claude/settings.json](../.claude/settings.json) switches on here and a project-scope install switches on in a consumer project | yes, `PreToolUse` | yes, `SessionStart` and `UserPromptSubmit` on every turn, and the subagent text on `SubagentStart` | yes, `Stop` on the main thread only, after `MessageDisplay` fixes the display | yes, `agent_id` is present only inside a subagent |
 | Codex | inline `[[hooks.*]]` in [.codex/config.toml](../.codex/config.toml) | yes, `PreToolUse` | yes, `UserPromptSubmit`, and the subagent text on `SubagentStart` | runs the check on `Stop` | yes, `agent_id` is present only inside a subagent |
 | OpenCode | plugin [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), declared by its directory under singular `plugin` in [opencode.json](../opencode.json), `server` on 1.x and `setup` on 2.x. Singular `plugin` loads on 1.x and on 2.0.26, measured 2026-10-15: `opencode plugin list` from the repo shows the repo copy beside the global copy | yes, throwing from `tool.execute.before` | yes, per session: a root session gets the main-thread reminder and a child session the subagent text, through `chat.message` as a synthetic text part on every prompt on 1.x, through the session `context` hook as a system part on every request on 2.x | no, but `experimental.text.complete` stores a fixed text part | yes, the session `parentID` read through `client.session.get` |
 | Kilo Code | the same plugin, same declaration | yes, throwing from `tool.execute.before` | yes, the main-thread reminder to a root session and the subagent text to a child session, through `chat.message` as on OpenCode 1.x | no | yes, same mechanism |
@@ -140,7 +140,7 @@ Reading the tables row by row:
 - Every row anchors the gate at the project root before calling it, so a session started in a subdirectory still finds
   [../.agents/hooks/preflight-gate/preflight_gate.py](../.agents/hooks/preflight-gate/preflight_gate.py), and a missing script allows rather than
   denies. Python exits 2 when it cannot open the file it was handed, and 2 is the deny code, so an unanchored path used
-  to block every tool call.
+  to block every tool call. A starter that cannot import [../.agents/hooks/preflight-gate/_gate_rules.py](../.agents/hooks/preflight-gate/_gate_rules.py) allows too, with exit 0 and nothing printed.
 - [../.agents/hooks/no-ai-markers-check/no_ai_markers_check.py](../.agents/hooks/no-ai-markers-check/no_ai_markers_check.py) finds an em dash, an en dash, a
   semicolon, or a bold or italic marker, asterisk or underscore form, and asks only for `Correction:` lines. Claude
   Code first fixes dashes, bold and italic on screen through `MessageDisplay`, so its `Stop` blocks only on what that
@@ -729,9 +729,9 @@ The write rule reads `gawk -i inplace` and `--include=inplace` as an in-place ed
 
 Claude Code names an MCP tool `mcp__<server>__<tool>` and compares a `PreToolUse` matcher against that name
 ([hooks](https://code.claude.com/docs/en/hooks), "MCP tools follow the naming pattern `mcp__<server>__<tool>`"), and
-the matcher in [.claude/settings.json](../.claude/settings.json) names built-in tools only. The OpenCode and Kilo Code
+the matcher of the `hook-preflight-gate` plugin, set in [tools/plugins.yaml](../tools/plugins.yaml), names built-in tools only. The OpenCode and Kilo Code
 runner hands every tool to the gate, but `EDIT_TOOLS` names built-in edit tools only, so an MCP call is allowed there
-too. Two servers in [.mcp.json](../.mcp.json) write local files that way. `playwright` does it through
+too. Two of the shipped servers write local files that way. `playwright` does it through
 `browser_take_screenshot` and `browser_pdf_save`, whose `filename` "Relative file names are resolved against the
 workspace root" ([playwright-mcp README](https://github.com/microsoft/playwright-mcp/blob/main/README.md)).
 `chrome-devtools` does it through `take_screenshot`, `take_snapshot`, `take_heapsnapshot`, `performance_stop_trace`,
@@ -752,6 +752,32 @@ repeats it verbatim. Change one, change all of them.
 
 Read these before you touch any hook wiring. They moved here from `AGENTS.md`, which links to this section.
 
+- Claude Code gets every hook as a plugin, and no settings file of this repository wires one. Each hook's entry in
+  [tools/plugins.yaml](../tools/plugins.yaml) holds its `wiring`, the event, matcher, timeout and command, and
+  [tools/gen_plugins.py](../tools/gen_plugins.py) copies it into the plugin's entry in
+  [.claude-plugin/marketplace.json](../.claude-plugin/marketplace.json), where "Entry `hooks` loads only in the inline
+  object form" (`https://code.claude.com/docs/en/plugins/manifest-reference`). A hook wired in a settings file as well
+  would run twice, because "A plugin's or skill's copy of the same handler stays separate"
+  (`https://code.claude.com/docs/en/hooks`). Each command starts with `cd "${CLAUDE_PROJECT_DIR}"` and runs its script
+  from `"${CLAUDE_PLUGIN_ROOT}"/`, which the map rules and
+  [tools/tests/test_claude_wiring.py](../tools/tests/test_claude_wiring.py) hold it to.
+- This repository's own [.claude/settings.json](../.claude/settings.json) names its own folder as the marketplace,
+  `{"source": "directory", "path": "."}`, and switches on the eight hook plugins. "If you use a local `directory` or
+  `file` source with a relative path, the path resolves against your repository's main checkout", and "When you run
+  Claude Code from a git worktree, the path still points at the main checkout"
+  (`https://code.claude.com/docs/en/plugins/org`, "Require plugins per repository"), so a session in a worktree runs
+  the hook scripts of the main checkout. A relative-path plugin of such a marketplace "loads in place from its path
+  inside the marketplace folder" (`https://code.claude.com/docs/en/plugins/loading`), so an edit to a hook takes
+  effect at the next session start with no install. Measured on 2.1.314 in the sandbox on 2026-11-23: the entry
+  registers the clone's own folder and the plugins load from `.agents/hooks/` in place.
+- That wiring needs a trusted folder, which hooks in a settings file did not. Claude Code honours
+  `extraKnownMarketplaces` in a project "only after you accept the workspace trust dialog for that folder"
+  (`https://code.claude.com/docs/en/settings-reference`), and in an untrusted folder the sandbox measured no hook at
+  all. In a headless run "marketplaces and plugins install in the background, so a plugin can be missing from the
+  first turn" unless `CLAUDE_CODE_SYNC_PLUGIN_INSTALL=1` is set (`https://code.claude.com/docs/en/plugins/org`):
+  measured on 2.1.314, a machine's first `claude -p` in a fresh clone ran with no gate, and its second run had it.
+- The marketplace name is the same here and on GitHub, `agent-standards`. Measured on 2.1.314, a session in this
+  repository replaces a registration of that name made from a git address with this folder, for the whole machine.
 - Claude Code's `SessionStart` also injects the subagent supervision text, plain context with no script behind it.
   [GLOBAL_SETUP.md](GLOBAL_SETUP.md) and [sandbox-agent/setup-global.sh](../sandbox-agent/setup-global.sh) carry it
   word for word.
@@ -772,7 +798,7 @@ Read these before you touch any hook wiring. They moved here from `AGENTS.md`, w
 - Copilot hooks are no longer CLI-only. They run in VS Code and in JetBrains as well, from the same `.github/hooks/`
   path. Event names are camelCase, and a hook entry carries `bash` and `powershell` as sibling string fields next to
   `type`, not a nested `command` object. A nested one is silently ignored, which leaves that surface ungated.
-- The Copilot CLI also runs the hooks in `.claude/settings.json`, with a Claude-shaped payload and no `agent_id`. The
+- The Copilot CLI also runs the hooks a project wires in `.claude/settings.json`, with a Claude-shaped payload and no `agent_id`. This repository wires none there any more, and whether the CLI runs a Claude Code hook plugin is not measured. The
   gate reads a claude-format call carrying `COPILOT_CLI=1` and no `transcript_path` as an unknown caller. Do not widen
   the Claude matcher to Copilot's tool names. The measurements are in [hooks-contract.md](hooks-contract.md).
 - The formatting checker fixes what it can on every surface that can rewrite the display, and blocks only on what is
@@ -806,7 +832,7 @@ rather than by agent.
 | `~/.config/github-copilot/intellij/mcp.json` | `servers` | GitHub Copilot in JetBrains, global only | none documented |
 | repository settings page | pasted JSON | GitHub Copilot cloud agent | none, values are literal |
 
-The project files mirror one server set, with the exceptions listed under "What ships" in [MCP_SETUP.md](MCP_SETUP.md#what-ships): [opencode.json](../opencode.json) also carries `atlassian`, and only [.mcp.json](../.mcp.json) and [.vscode/mcp.json](../.vscode/mcp.json) carry `home-assistant`. Only the file name, the schema key, the `type`
+Four of the project files mirror one server set, with the exceptions listed under "What ships" in [MCP_SETUP.md](MCP_SETUP.md#what-ships): [opencode.json](../opencode.json) also carries `atlassian`, and only [.vscode/mcp.json](../.vscode/mcp.json) carries `home-assistant`. [.mcp.json](../.mcp.json) holds `context7` alone, so Claude Code starts one server by default and takes each other one as a plugin at project scope or by `claude mcp add --scope project`. Only the file name, the schema key, the `type`
 value, and the environment-variable syntax differ. The last two rows are not project files at all, which is why they
 carry no template.
 

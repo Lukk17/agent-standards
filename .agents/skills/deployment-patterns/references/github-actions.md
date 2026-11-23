@@ -9,6 +9,8 @@ Resolve the SHA for a tag, never guess it or copy it from memory, with `git ls-r
 
 Runners are pinned the same way: `runs-on: ubuntu-24.04`, never `ubuntu-latest`, which GitHub moves to a new image, and a new toolchain, without a commit in your repository.
 
+Every image a workflow names is pinned too, to a tag plus digest.
+
 Bumps are manual. No Dependabot version updates and no Renovate bump pull requests unless the project owner asks for them: a dependency or action bump is a deliberate pull request that re-resolves the SHA and the tag together, per `build-dependency-management`. Bump majors deliberately, a major bump usually changes the runner Node version.
 
 ---
@@ -16,6 +18,7 @@ Bumps are manual. No Dependabot version updates and no Renovate bump pull reques
 ### Contents
 
 - [Standard pipeline](#standard-pipeline)
+- [The production gate](#the-production-gate)
 - [OIDC instead of static credentials](#oidc-instead-of-static-credentials)
 - [Job-level permissions](#job-level-permissions)
 - [Workflow linting](#workflow-linting)
@@ -186,6 +189,30 @@ protection rule with required reviewers, so the job pauses for a human. Configur
 
 ---
 
+### The production gate
+
+A merge to `main` never deploys to production. Promotion is a separate, explicitly approved step: a GitHub environment protection rule with required reviewers, or a manually triggered `workflow_dispatch` run.
+
+Pass:
+
+```yaml
+deploy-production:
+  needs: smoke-test
+  environment: production
+```
+
+Fail:
+
+```yaml
+deploy-production:
+  needs: build
+  if: github.ref == 'refs/heads/main'
+```
+
+The failing version has no gate at all. The passing version only gates once the `production` environment carries a required-reviewer protection rule, so configure that rule and treat the `environment:` key as the hook into it.
+
+---
+
 ### OIDC instead of static credentials
 
 Exchange a short-lived token for a cloud role. A long-lived access key in CI secrets is a credential that leaks once
@@ -216,6 +243,20 @@ permissions:
 ```
 
 Never use `permissions: write-all`, at workflow or job level.
+
+Pass, a job that only reads the repository and exchanges an OIDC token:
+
+```yaml
+permissions:
+  contents: read
+  id-token: write
+```
+
+Fail:
+
+```yaml
+permissions: write-all
+```
 
 ---
 

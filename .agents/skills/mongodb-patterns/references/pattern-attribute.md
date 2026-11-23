@@ -23,7 +23,7 @@ Incorrect (separate field and index per optional attribute):
   // 20+ other optional fields, varying per document
 }
 
-// One partial index per optional field — correct use of partialFilterExpression,
+// One partial index per optional field: correct use of partialFilterExpression,
 // but you end up maintaining dozens of indexes as attributes grow
 db.items.createIndex({ color: 1 }, { partialFilterExpression: { color: { $exists: true } } })
 db.items.createIndex({ size: 1 }, { partialFilterExpression: { size: { $exists: true } } })

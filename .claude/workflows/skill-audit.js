@@ -10,7 +10,7 @@ export const meta = {
 }
 
 const RULES = `The current working directory is the repository. Skills live in .agents/skills/<name>/SKILL.md with optional references/*.md. This is a READ-ONLY task: never edit, create or delete any file, and never run a script. Read files and use grep and glob only.
-What a good skill looks like: front matter carries name (equal to the folder name) and description, and at most license, compatibility and metadata besides; the description is in trigger form: what the skill covers, then the phrases a user would actually say, then what it is not for and which skill owns that instead; the manifest is short and depth sits in references/; every file a SKILL.md links to exists.`
+What a good skill looks like. Front matter carries name (equal to the folder name) and description, and at most license, compatibility and metadata besides. The description is at most 220 characters and in trigger form: what the skill covers, then the phrases a user would actually say, then exactly one "Not for X, use skill" pointer naming the skill that owns that instead. SKILL.md is at most 4500 characters and holds the purpose line, at most three one-line "When not to activate" items that each name a skill or an agent, the technology-neutral rules and a routing table, with no "When to activate", "Related skills" or "Checklist" section. Depth sits in references/, one file per technology, one level deep, each linked from SKILL.md, the checklist is references/checklist.md, and references/scope.md holds the full "When to activate", "When not to activate" and "Related skills" lists. A reference file over 100 lines opens with a Contents list that links its sections. Every file a skill file links to exists.`
 
 const SKILL_LIST = {
   type: 'object',
@@ -83,7 +83,7 @@ const results = await pipeline(
 Audit these skills: ${batch.join(', ')}.
 For each one read SKILL.md and every file under its references/ folder. Report only real defects of these kinds:
 - trigger: the description would fail to make an agent load the skill for a request it clearly owns, or would wrongly pull it in for another skill's work, or lacks the "not for, use X instead" part.
-- front-matter: name does not match the folder, a key outside the allowed set, description over 1024 characters, or unquoted description containing a colon.
+- front-matter: name does not match the folder, a key outside the allowed set, description over 220 characters, or unquoted description containing a colon.
 - stale-fact: a version, command, flag, tool name, URL or product fact that is wrong today. Only report it if you can show why it is wrong (for example a contradiction with another file in this repository, or a tool name that no agent here uses). Do not guess from memory.
 - contradiction: the skill says the opposite of another skill, of AGENTS.md, or of itself.
 - broken-reference: a linked or named file inside the repository that does not exist.

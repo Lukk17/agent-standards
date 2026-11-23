@@ -1,6 +1,6 @@
 # Safe schema changes with examples
 
-Open this for the SQL, XML and command behind any rule in [SKILL.md](../SKILL.md): lock-free column, index and constraint changes, expand and contract, batched backfills, Liquibase rollback blocks, SQL previews, and the anti-pattern table. The tool-specific commands live in the per-tool files beside this one.
+Open this for the PostgreSQL SQL behind any rule in [SKILL.md](../SKILL.md): lock-free column, index and constraint changes, expand and contract, batched backfills, rollbacks for tools that infer them, SQL previews, and the anti-pattern table. The tool-specific commands live in the per-tool files beside this one.
 
 ---
 
@@ -11,8 +11,9 @@ Open this for the SQL, XML and command behind any rule in [SKILL.md](../SKILL.md
 - [Rename with expand and contract, never in place](#rename-with-expand-and-contract-never-in-place)
 - [Backfill in bounded batches](#backfill-in-bounded-batches)
 - [Name every constraint explicitly](#name-every-constraint-explicitly)
-- [Give every Liquibase changeset a rollback block](#give-every-liquibase-changeset-a-rollback-block)
+- [Write the rollback where the tool infers one](#write-the-rollback-where-the-tool-infers-one)
 - [Preview the SQL before a production run](#preview-the-sql-before-a-production-run)
+- [Attach EXPLAIN ANALYZE output](#attach-explain-analyze-output)
 - [Anti-patterns](#anti-patterns)
 
 ---
@@ -147,44 +148,24 @@ Prefixes: `ck_` check, `uq_` unique, `fk_` foreign key, `idx_` index.
 
 ---
 
-### Give every Liquibase changeset a rollback block
+### Write the rollback where the tool infers one
 
-```xml
-<changeSet id="20240101-add-status-column" author="dev">
-    <addColumn tableName="orders">
-        <column name="status" type="VARCHAR(20)" defaultValue="pending">
-            <constraints nullable="false"/>
-        </column>
-    </addColumn>
-    <rollback>
-        <dropColumn tableName="orders" columnName="status"/>
-    </rollback>
-</changeSet>
-```
-
-Liquibase infers a rollback for some operations and silently does nothing for others, so write the block even when it
-looks redundant. Use `context` to scope a changeset to an environment, for example seed data that must never reach
-production.
+With a tool that infers rollbacks, such as Liquibase, write the rollback of every change yourself, even when it looks redundant, because the tool infers a rollback for some operations and silently does nothing for others. Scope a change that belongs to one environment, for example seed data that must never reach production, to that environment. The Liquibase form of both is in [liquibase.md](liquibase.md).
 
 ---
 
 ### Preview the SQL before a production run
 
-Generate the statements a run will execute and attach them to the change for review.
-
-```bash
-liquibase --changeLogFile=changelog.xml updateSQL > migration_preview.sql
-```
-
-Flyway offers the same thing through `-dryRunOutput`, but that flag is part of Flyway Teams and Enterprise, not the
-community edition. On community Flyway, review the migration files themselves and rely on the staging run instead.
-
-```bash
-flyway -url=jdbc:postgresql://prod/db -dryRunOutput=migration_preview.sql migrate
-```
+Generate the statements a run will execute and attach them to the change for review. The command is in [liquibase.md](liquibase.md) and [flyway.md](flyway.md). Where the tool has no preview, review the migration files themselves and rely on the staging run instead.
 
 Keep the preview as a CI artifact, and require a database owner to sign off whenever the change touches a table over a
 million rows.
+
+---
+
+### Attach EXPLAIN ANALYZE output
+
+A migration that touches data in an existing table, meaning `UPDATE`, `DELETE`, `INSERT ... SELECT`, or a concurrent index build, carries its plan in the change description. The gate, its two triggers, and how to run it without changing data are stated once in `postgres-patterns`, under "Run EXPLAIN ANALYZE before the change lands".
 
 ---
 

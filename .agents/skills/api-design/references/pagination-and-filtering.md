@@ -9,7 +9,6 @@ Contents:
 - [Sorting](#sorting)
 - [Full-text search](#full-text-search)
 - [Sparse fieldsets](#sparse-fieldsets)
-- [Related skills](#related-skills)
 
 Read this when designing the query-parameter surface of a collection endpoint, or when a list endpoint slows down as
 the table grows.
@@ -115,11 +114,3 @@ GET /api/v1/orders?fields=id,total,status&include=customer.name
 
 Honour the field list all the way down to the query, not just in the serializer. Trimming the response after loading
 every column saves bandwidth and nothing else.
-
----
-
-### Related skills
-
-- `api-design` for the response envelope these parameters produce.
-- `postgres-patterns` for the indexes a sort or filter parameter needs.
-- `backend-patterns` for the language-neutral cursor rules.

@@ -7,16 +7,16 @@ test something that moves.
 
 ### Contents
 
-- Core types
-- Choosing an approach
-- Implicit animation
-- Explicit animation
-- Hero transitions
-- Physics-based motion
-- Custom route transitions
-- Accessibility and motion
-- Testing animated state
-- Checklist
+- [Core types](#core-types)
+- [Choosing an approach](#choosing-an-approach)
+- [Implicit animation](#implicit-animation)
+- [Explicit animation](#explicit-animation)
+- [Hero transitions](#hero-transitions)
+- [Physics-based motion](#physics-based-motion)
+- [Custom route transitions](#custom-route-transitions)
+- [Accessibility and motion](#accessibility-and-motion)
+- [Testing animated state](#testing-animated-state)
+- [Checklist](#checklist)
 
 ---
 

@@ -7,12 +7,11 @@ Contents:
 - [Follow one README section order](#follow-one-readme-section-order)
 - [Write like a tired senior engineer](#write-like-a-tired-senior-engineer)
 - [Never use an em dash or an en dash](#never-use-an-em-dash-or-an-en-dash)
-- [Draw diagrams in Mermaid](#draw-diagrams-in-mermaid)
 - [Keep the badge row tight](#keep-the-badge-row-tight)
 - [End every README with a documentation map](#end-every-readme-with-a-documentation-map)
 - [Audit an existing document against this list](#audit-an-existing-document-against-this-list)
 
-Companion reference for the [markdown-writer](../SKILL.md) skill. Load it for the reasoning and the pass and fail examples behind reading ground truth, the file exclusion list, the README section order, the voice rules, the dash check commands, Mermaid diagrams, the badge row, the documentation map, and auditing an existing document.
+Companion reference for the [markdown-writer](../SKILL.md) skill. Load it for the reasoning and the pass and fail examples behind reading ground truth, the file exclusion list, the README section order, the voice rules, the dash check commands, the badge row, the documentation map, and auditing an existing document. Diagrams are in [mermaid.md](mermaid.md).
 
 ---
 
@@ -145,29 +144,6 @@ A line that joins two clauses with an em dash where a comma or a period belongs.
 ```
 
 The failing form is described in words rather than printed, because this file itself has to pass the dash lint.
-
----
-
-### Draw diagrams in Mermaid
-
-Prefer Mermaid over an image, because it renders natively on most hosts and it diffs. Use `graph TB` with subgraphs
-for a system overview and keep it under a dozen nodes, splitting into two diagrams rather than growing one. Use
-`sequenceDiagram` for the happy path of one canonical request, with dashed arrows for async hops, and leave error
-branches to `docs/`. Add `accTitle` and `accDescr` to any diagram in a portfolio-facing document.
-
-Pass:
-
-```text
-graph TB
-  Client --> API
-  API --> DB[(Postgres)]
-```
-
-Fail:
-
-```text
-![architecture](docs/img/architecture-v3-final.png)
-```
 
 ---
 

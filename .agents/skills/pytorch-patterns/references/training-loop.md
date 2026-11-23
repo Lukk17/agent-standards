@@ -7,13 +7,13 @@ rule shows a fragment and you need the loop it belongs to.
 
 ### Contents
 
-- One epoch of training
-- Evaluation
-- Step the scheduler at the right time
-- Accumulate gradients when the batch will not fit
-- Save and resume the whole state
-- Track the best model, not the last
-- Log once per epoch, from one place
+- [One epoch of training](#one-epoch-of-training)
+- [Evaluation](#evaluation)
+- [Step the scheduler at the right time](#step-the-scheduler-at-the-right-time)
+- [Accumulate gradients when the batch will not fit](#accumulate-gradients-when-the-batch-will-not-fit)
+- [Save and resume the whole state](#save-and-resume-the-whole-state)
+- [Track the best model, not the last](#track-the-best-model-not-the-last)
+- [Log once per epoch, from one place](#log-once-per-epoch-from-one-place)
 
 ---
 

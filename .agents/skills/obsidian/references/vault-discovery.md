@@ -2,6 +2,7 @@
 
 Contents:
 
+- [Read the vault list, never guess a path](#read-the-vault-list-never-guess-a-path)
 - [Where obsidian.json lives](#where-obsidianjson-lives)
 - [What the file holds](#what-the-file-holds)
 - [List vaults with the CLI](#list-vaults-with-the-cli)
@@ -11,6 +12,24 @@ Contents:
 - [A headless machine with no Obsidian installed](#a-headless-machine-with-no-obsidian-installed)
 
 Where Obsidian keeps its vault list on each platform, what the file holds, and how to read it without guessing.
+
+---
+
+### Read the vault list, never guess a path
+
+A machine often has several vaults, and a guessed path writes a note into the wrong one. Read `obsidian.json`, or ask `notesmd-cli list-vaults`, and use the entry the user named. `list-vaults` marks only the default vault, so finding the vault open in the app needs a direct read of the `open` flag in `obsidian.json`. Do not write a vault path into a script: resolve it at run time. The per-platform locations and the exact commands follow.
+
+Pass:
+
+```text
+Read obsidian.json, two vaults registered, one marked open. Asked which one before creating the note.
+```
+
+Fail:
+
+```text
+Created the note under Documents because vaults usually live there.
+```
 
 ---
 

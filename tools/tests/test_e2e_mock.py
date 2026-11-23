@@ -433,6 +433,31 @@ def test_the_driver_proves_on_codex_that_an_agent_without_bash_gets_no_shell():
     assert re.search(r'"\$agent" == "codex"[^\n]*\n\s*e2e_check_no_shell\b', source)
 
 
+@needs_node
+def test_a_claude_code_plugin_subagent_is_started_by_its_whole_plugin_name(mock):
+    body = {"stream": True, "tools": anthropic_tools("Agent", "Write"),
+            "messages": [{"role": "user", "content": [{"type": "text", "text": f"E2E-SPAWN agent-python-pro:python-pro {PATH} {TOKEN}"}]}]}
+    text, line = mock.post("/v1/messages?beta=true", body, CLAUDE_MAIN)
+    call = anthropic_tool_use(text)
+    assert call["input"]["subagent_type"] == "agent-python-pro:python-pro"
+    assert call["input"]["prompt"] == f"E2E-SUBAGENT-WRITE {PATH} {TOKEN}"
+    assert (line["role"], line["agent"]) == ("main", "agent-python-pro:python-pro")
+
+
+def test_only_claude_code_starts_a_subagent_by_its_plugin_name():
+    result = driver("for agent in claude-code codex copilot opencode2 opencode kilo-code; do e2e_subagent_name \"$agent\" python-pro; done")
+
+    assert result.stdout.splitlines() == ["agent-python-pro:python-pro", *["python-pro"] * 5]
+
+
+def test_the_driver_checks_the_repository_s_own_wiring_on_claude_code_only():
+    source = DRIVER.read_text(encoding="utf-8")
+
+    assert re.search(r'"\$agent" == "claude-code"[^\n]*\n\s*e2e_check_review "\$dir"\n\s*e2e_check_own_wiring "\$project"', source)
+    assert "hasTrustDialogAccepted: true" in source
+    assert "CLAUDE_CODE_SYNC_PLUGIN_INSTALL=1 e2e_invoke claude-code" in source
+
+
 def test_the_needles_are_read_from_the_project_itself():
     result = driver(f"e2e_read_needles '{REPO_ROOT.as_posix()}' && printf '%s\\n' \"$E2E_SKILL_LINE\" \"$(e2e_own_main_text codex)\" \"$(e2e_own_main_text claude-code)\"")
 

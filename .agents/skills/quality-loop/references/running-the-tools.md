@@ -1,5 +1,14 @@
 # Running the tools
 
+Contents:
+
+- [The three commands](#the-three-commands)
+- [Exit codes](#exit-codes)
+- [The first run on a machine](#the-first-run-on-a-machine)
+- [When the tools are missing](#when-the-tools-are-missing)
+- [Windows](#windows)
+- [What to commit](#what-to-commit)
+
 How to run Robert C. Martin's crapper, dryer and mutator through the wrapper in `.metrics/tools/`, and what each run leaves behind.
 
 ---

@@ -14,13 +14,19 @@ Five real config files, committed and ready to use. They are not templates any m
 
 | File | Schema key | Serves | Notes |
 | --- | --- | --- | --- |
-| [.mcp.json](../.mcp.json) | `mcpServers` | Claude Code and the GitHub Copilot CLI | `"type": "http"` for remote, `"type": "stdio"` for local |
+| [.mcp.json](../.mcp.json) | `mcpServers` | Claude Code and the GitHub Copilot CLI | holds `context7` alone, `"type": "http"` for remote, `"type": "stdio"` for local |
 | [opencode.json](../opencode.json) | `mcp` | OpenCode and Kilo Code | `"type": "remote"` or `"type": "local"`, sits at the project root |
 | [.codex/config.toml](../.codex/config.toml) | `[mcp_servers.*]` | Codex | TOML, also carries the preflight hook tables |
 | [.vscode/mcp.json](../.vscode/mcp.json) | `servers` | GitHub Copilot in VS Code | key is `servers`, not `mcpServers` |
 | [.github/mcp.json](../.github/mcp.json) | `mcpServers` | the GitHub Copilot CLI, only in a folder that has no `.mcp.json` | a fallback, `"type": "http"` for remote, `"type": "local"` for a stdio server |
 
-The five files carry one server set, with two exceptions. [opencode.json](../opencode.json) also carries `atlassian`. [.github/mcp.json](../.github/mcp.json) leaves out `home-assistant`, because its schema has no enable flag, and the Copilot CLI gets that server from [.mcp.json](../.mcp.json). [opencode.json](../opencode.json) and [.codex/config.toml](../.codex/config.toml) leave it out too, because their project files cannot hold a path that works on every machine, so a project that uses the server on OpenCode, Kilo Code or Codex declares it in its own copy of those two files. The reasons are under [Home Assistant server](#home-assistant-server). Only the file name, the schema key, the `type` value, and the
+The five files do not carry the same set. [.mcp.json](../.mcp.json) holds `context7` alone, and the other four hold the full set with the exceptions below.
+
+[.mcp.json](../.mcp.json) is short because Claude Code starts every server in it, in every chat of every project that imports it. With the nine servers the file held before, one chat started 8 local processes and one image pull and loaded 303 tools, and five of those servers need a service most projects do not run. So Claude Code starts one hosted server by default, and a project adds each other server it uses, as [Adding a server to Claude Code](#adding-a-server-to-claude-code) shows. All nine stay available to Claude Code as plugins.
+
+The Copilot CLI reads the same file, so in a folder that has `.mcp.json` it gets `context7` alone as well. A project that runs the Copilot CLI and wants the full set either adds the servers to its `.mcp.json`, which both tools then read, or leaves `.mcp.json` out, and the CLI then reads [.github/mcp.json](../.github/mcp.json), as [the next section](#the-cli-mcpjson-and-why-a-fifth-file-exists) describes.
+
+The other four files carry one server set, with two exceptions. [opencode.json](../opencode.json) also carries `atlassian`. Only [.vscode/mcp.json](../.vscode/mcp.json) carries `home-assistant`. [.github/mcp.json](../.github/mcp.json) leaves it out, because its schema has no enable flag to ship it switched off, and a Copilot CLI project that uses the server adds it to its `.mcp.json`. [opencode.json](../opencode.json) and [.codex/config.toml](../.codex/config.toml) leave it out too, because their project files cannot hold a path that works on every machine, so a project that uses the server on OpenCode, Kilo Code or Codex declares it in its own copy of those two files. The reasons are under [Home Assistant server](#home-assistant-server). Only the file name, the schema key, the `type` value, and the
 environment-variable syntax change between them. The V1 shape in [opencode.json](../opencode.json), flat `mcp` plus `enabled`, loads on OpenCode 1.x and on 2.0.26, measured 2026-10-15: `opencode plugin list` from the repo shows the repo plugin, and `opencode debug config` shows the same file as `mcp.servers` plus `disabled`. V2 keeps the V1 file working by change in memory. There is no per-tool overlay beyond these five: one file per agent
 surface, and that is the whole set.
 
@@ -48,7 +54,7 @@ The CLI reference lists expansion only for a local server's `env`, "Supports `$V
 
 The CLI reads one project file per folder, not one entry per server name. The vendor page says "If both `.mcp.json` and `.github/mcp.json` exist in the same directory, `.mcp.json` takes precedence." ([Adding MCP servers for GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers), read 2026-10-25). Measured on 1.0.103 on 2026-10-25 with both files in one folder, the CLI did not read `.github/mcp.json` at all: a server defined only there was missing, and `copilot mcp get gh-local --json` printed `Error: Server "gh-local" not found.`. With `.mcp.json` removed, the servers of `.github/mcp.json` appeared, with `sourcePath` set to `.github/mcp.json`.
 
-So [.github/mcp.json](../.github/mcp.json) is kept only as a fallback. The CLI reads it only in a folder that has no `.mcp.json`, for example a project that pulled the Copilot files from this repository but not `.mcp.json`. In this repository, and in every project that has both files, the CLI never reads it.
+So [.github/mcp.json](../.github/mcp.json) is kept only as a fallback. The CLI reads it only in a folder that has no `.mcp.json`, for example a project that pulled the Copilot files from this repository but not `.mcp.json`. In this repository, and in every project that has both files, the CLI never reads it, and gets only the servers `.mcp.json` holds.
 
 Every local server the CLI starts also receives the whole environment of the process that started the CLI, tokens for other servers included. [Step 4](#step-4-variables-you-can-override) says what that means.
 
@@ -91,6 +97,8 @@ The one value that cannot arrive that way is the Context7 API key, because it tr
 | `sonarqube` | Code-quality issue lookup | Docker plus a SonarQube instance and token |
 | `n8n` | n8n workflow node documentation, optional control | none for documentation only, instance plus key for control |
 | `home-assistant` | Home Assistant control and configuration | a Home Assistant instance plus a long-lived access token of an administrator user that may log in only from the local network, both keys in the credential env file, see [Home Assistant server](#home-assistant-server) |
+
+Every local server command in the five files names one exact release, as [Updating a pinned server](#updating-a-pinned-server) explains.
 
 Turn off a server you do not use. In [opencode.json](../opencode.json) set `"enabled": false` on its block, and in
 [.codex/config.toml](../.codex/config.toml) set `enabled = false` in its table. In [.mcp.json](../.mcp.json),
@@ -141,7 +149,7 @@ Each project declares the MCP servers it uses in its own project files, and no s
 
 Where each agent reads the project's servers:
 
-1. Claude Code reads `.mcp.json` at the project root, and `claude mcp add --scope project` writes it: "When you add a project-scoped server, Claude Code automatically creates or updates this file" ([MCP docs](https://code.claude.com/docs/en/mcp), "Project scope", read 2026-11-20). It asks once before it uses each server from that file, "For security reasons, Claude Code prompts for approval in interactive sessions before using project-scoped servers from `.mcp.json` files" (same section), and keeps your yes in `enabledMcpjsonServers`: "Claude Code writes this key to `.claude/settings.local.json` when you approve a server in the approval dialog" ([settings reference](https://code.claude.com/docs/en/settings-reference), "`enabledMcpjsonServers`", read 2026-11-20). That file counts only after you accept the workspace trust dialog in the folder (MCP docs, "Project server approvals and workspace trust").
+1. Claude Code reads `.mcp.json` at the project root, and `claude mcp add --scope project` writes it: "When you add a project-scoped server, Claude Code automatically creates or updates this file" ([MCP docs](https://code.claude.com/docs/en/mcp), "Project scope", read 2026-11-20). It asks once before it uses each server from that file, "For security reasons, Claude Code prompts for approval in interactive sessions before using project-scoped servers from `.mcp.json` files" (same section), and keeps your yes in `enabledMcpjsonServers`: "Claude Code writes this key to `.claude/settings.local.json` when you approve a server in the approval dialog" ([settings reference](https://code.claude.com/docs/en/settings-reference), "`enabledMcpjsonServers`", read 2026-11-20). That file counts only after you accept the workspace trust dialog in the folder (MCP docs, "Project server approvals and workspace trust"). A server that comes from a plugin is declared in the project only when the plugin is installed at project scope, with `claude plugin install <name>@agent-standards --scope project`, because a plugin at user scope starts its server in every project, as [Adding a server to Claude Code](#adding-a-server-to-claude-code) explains.
 2. The Copilot CLI reads the same `.mcp.json`, in a trusted folder only, as [Verifying the setup](#verifying-the-setup) describes.
 3. Copilot in VS Code reads `.vscode/mcp.json`.
 4. OpenCode and Kilo Code read the `mcp` block of `opencode.json` at the project root, which holds no `{env:VAR}` token, as [What ships](#what-ships) explains.
@@ -178,6 +186,82 @@ PowerShell 7.4 or later:
 
 ```powershell
 python -c 'import json,sys,pathlib;h=pathlib.Path.home();[(lambda p,k,s:([s.get(k,{}).pop(n,None) for n in sys.argv[1:]],p.write_text(json.dumps(s,indent=2)+"\n",encoding="utf-8")))(h/f,k,json.loads((h/f).read_text(encoding="utf-8"))) for f,k in ((".config/opencode/opencode.json","mcp"),(".config/kilo/kilo.jsonc","mcp"),(".config/copilot/mcp-config.json","mcpServers")) if (h/f).exists()]' home-assistant arch
+```
+
+---
+
+### Adding a server to Claude Code
+
+[.mcp.json](../.mcp.json) starts `context7` alone. Each of the other eight servers comes into a project in one of two ways. Both declare it in the project and never at user scope, as [Where a server is declared](#where-a-server-is-declared) requires.
+
+The first way is the server's own plugin from the marketplace, named `mcp-<server>`. Install it at project scope. User scope is the default of `claude plugin install`, and there "the plugin is enabled for you in every project on this machine" ([Install plugins](https://code.claude.com/docs/en/plugins/install), "Choose an install scope", read 2026-11-23), so its server would start in every chat of every project. Add the marketplace to the project once, from the project root, in either shell:
+
+```bash
+claude plugin marketplace add Lukk17/agent-standards --scope project
+```
+
+Then install the server, here `mongodb`:
+
+```bash
+claude plugin install mcp-mongodb@agent-standards --scope project
+```
+
+At project scope, "The entry goes in `.claude/settings.json`, which you commit" (same section), so everyone who works in the repository gets the same servers. Each of them runs the same install command once in their own clone, because committing the entry "doesn't download it to their machines". The plugins are `mcp-mongodb`, `mcp-grafana`, `mcp-playwright`, `mcp-chrome-devtools`, `mcp-redis`, `mcp-sonarqube`, `mcp-n8n` and `mcp-home-assistant`. `mcp-all` installs all nine servers, so use it only in a project that uses all of them. In a project that has the shipped `.mcp.json`, `mcp-context7` adds nothing: Claude Code "matches plugins and connectors by endpoint, so one that points at the same URL or command as an enabled server above counts as a duplicate" ([MCP docs](https://code.claude.com/docs/en/mcp), "Scope hierarchy and precedence", read 2026-11-23).
+
+The second way is `claude mcp add --scope project`, which writes the block into the project's `.mcp.json`. Each command below writes the same block its plugin carries, measured with Claude Code 2.1.325 on 2026-11-23. The single quotes keep each `${VAR:-default}` as text, so the file holds it unchanged and Claude Code expands it when it starts the server. Run the ones you need from the project root, in either shell. MongoDB:
+
+```bash
+claude mcp add --scope project mongodb -- npx -y mongodb-mcp-server@3.3.0 --readOnly --connectionString '${MONGODB_URL:-mongodb://localhost:27017}'
+```
+
+Grafana:
+
+```bash
+claude mcp add --scope project grafana -e 'GRAFANA_URL=${GRAFANA_URL:-http://localhost:3000}' -e 'GRAFANA_SERVICE_ACCOUNT_TOKEN=${GRAFANA_SERVICE_ACCOUNT_TOKEN:-}' -- uvx mcp-grafana==2.2.0
+```
+
+Playwright:
+
+```bash
+claude mcp add --scope project playwright -- npx @playwright/mcp@0.0.85
+```
+
+Chrome DevTools:
+
+```bash
+claude mcp add --scope project chrome-devtools -- npx -y chrome-devtools-mcp@1.13.0
+```
+
+Redis:
+
+```bash
+claude mcp add --scope project redis -- uvx --from redis-mcp-server==0.5.1 redis-mcp-server --url '${REDIS_URL:-redis://localhost:6379/0}'
+```
+
+SonarQube:
+
+```bash
+claude mcp add --scope project sonarqube -e 'SONARQUBE_TOKEN=${SONARQUBE_TOKEN:-}' -e 'SONARQUBE_URL=${SONARQUBE_URL:-http://localhost:9000}' -- docker run --init -i --rm -e SONARQUBE_TOKEN -e SONARQUBE_URL mcp/sonarqube@sha256:925c88bc7cab2a1e1025b0bd43f0af504cd8ce1b99e9663ececaca914fb632e7
+```
+
+n8n:
+
+```bash
+claude mcp add --scope project n8n -e 'N8N_API_URL=${N8N_API_URL:-http://localhost:5678}' -e 'N8N_API_KEY=${N8N_API_KEY:-}' -- npx n8n-mcp@2.102.0
+```
+
+Home Assistant has its own section, [Home Assistant server](#home-assistant-server), because it needs a credential file first.
+
+Start `claude` in the folder once and approve each server you added, as [Where a server is declared](#where-a-server-is-declared) describes. Use one way per server. A server that is in `.mcp.json` and also comes from a plugin is the duplicate described above. Take one out of `.mcp.json` again, in either shell:
+
+```bash
+claude mcp remove --scope project mongodb
+```
+
+Take a plugin out again, in either shell:
+
+```bash
+claude plugin uninstall mcp-mongodb@agent-standards --scope project
 ```
 
 ---
@@ -398,8 +482,8 @@ None of the macOS commands was run on a Mac for this guide. You can also scope a
 
 ### Step 4, variables you can override
 
-Every variable here is optional. The defaults are already in the files, either as `${VAR:-default}` in
-[.mcp.json](../.mcp.json) or as hardcoded literals in the other four. Set one only when you need a non-default host
+Every variable here is optional. The defaults are already in place, either as `${VAR:-default}` in
+[.mcp.json](../.mcp.json), in the server plugins and in the commands under [Adding a server to Claude Code](#adding-a-server-to-claude-code), or as hardcoded literals in the other four files. Set one only when you need a non-default host
 or a real token.
 
 | Variable | Used by | Effect when unset |
@@ -414,7 +498,7 @@ or a real token.
 | `N8N_API_URL` | `n8n` | falls back to `http://localhost:5678` |
 | `N8N_API_KEY` | `n8n` | the n8n server runs in documentation-only mode |
 
-The asymmetry between the files matters when you are debugging. [.mcp.json](../.mcp.json) is the only file that uses a default fallback, so it resolves cleanly with nothing set, for Claude Code and for the Copilot CLI alike. [opencode.json](../opencode.json),
+The asymmetry between the files matters when you are debugging. [.mcp.json](../.mcp.json) is the only file that uses a default fallback, in its `context7` block and in every block the commands above add to it, so it resolves cleanly with nothing set, for Claude Code and for the Copilot CLI alike. [opencode.json](../opencode.json),
 [.vscode/mcp.json](../.vscode/mcp.json) and [.codex/config.toml](../.codex/config.toml) hardcode their URLs, because `{env:VAR}` and `${env:VAR}` have no fallback
 syntax and TOML has no substitution at all. [.github/mcp.json](../.github/mcp.json) hardcodes them too. The Copilot CLI would expand `${VAR:-default}` there as well, measured on 1.0.103 on 2026-10-25, but it reads that file only in a folder that has no `.mcp.json`. To point one
 of those at a different host, change the literal string in your local copy. OpenCode also accepts
@@ -444,7 +528,7 @@ the server process itself.
 
 The Copilot CLI passes on more than its vendor page says. The page says "The `PATH` variable is automatically inherited from your environment. All other environment variables must be configured here." ([Adding MCP servers for GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers), read 2026-10-25). Measured on 1.0.103 on 2026-10-25, a local server received the whole environment of the process that started the CLI, variables that no configuration named included, in prompt mode and in interactive mode, from `.mcp.json`, `.github/mcp.json` and `~/.copilot/mcp-config.json` alike. So an exported token does reach its server under the Copilot CLI. The risk is that every local server receives every exported variable, tokens meant for other servers included.
 
-To give a token to a Copilot CLI server, export the variable as [Step 3](#step-3-set-environment-variables-system-wide) says, and the `${VAR:-}` entry in [.mcp.json](../.mcp.json) passes it on.
+To give a token to a Copilot CLI server, export the variable as [Step 3](#step-3-set-environment-variables-system-wide) says, and the `${VAR:-}` entry of that server in the project's `.mcp.json` passes it on.
 
 Codex does not pass an exported variable on. It starts a local server with an empty environment and adds back only a fixed list. In the Codex source at tag `rust-v0.162.1`, read 2026-10-25, `Command::new` in [codex-rs/utils/pty/src/child_command.rs](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/utils/pty/src/child_command.rs) calls `.env_clear()`, and `create_env_for_mcp_server` in [codex-rs/rmcp-client/src/utils.rs](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/rmcp-client/src/utils.rs) then sets `DEFAULT_ENV_VARS`, which on Unix is `"HOME"`, `"LOGNAME"`, `"PATH"`, `"SHELL"`, `"USER"`, `"__CF_USER_TEXT_ENCODING"`, `"LANG"`, `"LC_ALL"`, `"TERM"`, `"TMPDIR"` and `"TZ"`, plus the certificate variables in `CUSTOM_CA_ENV_KEYS`, plus every name in the server's `env_vars`, and lays the `env` table over all of them last. The Codex MCP page says `env_vars` is "(optional): Environment variables to allow and forward" ([MCP docs](https://learn.chatgpt.com/docs/extend/mcp), read 2026-10-25). To pass an exported token to a Codex server, name it in `env_vars` and remove it from `env`, because the empty string the shipped `env` table holds for it would replace the value.
 
@@ -728,17 +812,17 @@ uv does not expand `~` or `$HOME` inside that path, so each project file writes 
 
 | File | Path to the env file | State |
 | --- | --- | --- |
-| [.mcp.json](../.mcp.json) | `${HOME}/.local/state/agents/workspace/homelab.env`, which Claude Code expands, because "Environment variables can be expanded in" `command`, `args` and `env` ([MCP docs](https://code.claude.com/docs/en/mcp), "Expansion locations", read 2026-10-25). The Copilot CLI expands it too, measured on 1.0.103 on 2026-10-25 | on |
+| [.mcp.json](../.mcp.json) | none in the shipped file, which holds `context7` alone. The `mcp-home-assistant` plugin and the `claude mcp add` command below both write `${HOME}/.local/state/agents/workspace/homelab.env`, which Claude Code expands, because "Environment variables can be expanded in" `command`, `args` and `env` ([MCP docs](https://code.claude.com/docs/en/mcp), "Expansion locations", read 2026-10-25). The Copilot CLI expands it too in a `.mcp.json`, measured on 1.0.103 on 2026-10-25 | not present, added per project |
 | [.vscode/mcp.json](../.vscode/mcp.json) | `${userHome}/.local/state/agents/workspace/homelab.env`. The VS Code reference says "You can use predefined variables in the server configuration" ([MCP configuration reference](https://code.visualstudio.com/docs/agents/reference/mcp-configuration), read 2026-10-25), and `${userHome}` is the "Path of the user's home folder" ([variables reference](https://code.visualstudio.com/docs/reference/variables-reference)) | on |
 | [opencode.json](../opencode.json) | none, the server is left out. A project that uses it adds the block with an absolute path, as below | not present |
 | [.codex/config.toml](../.codex/config.toml) | none, the server is left out. A project that uses it adds the table with an absolute path, as below | not present |
 | [.github/mcp.json](../.github/mcp.json) | none, the server is left out | not present |
 
-`.mcp.json` uses `${HOME}` with no `:-default`, unlike its other blocks, because no default path would be right. When `HOME` is unset, Claude Code names the variable in a warning: "If a referenced environment variable isn't set and has no default value, the config still loads: Claude Code reports a missing-variable warning for that server in `claude mcp list` output and uses the unexpanded `${VAR}` text as-is" (same page, "Unset variables without a default").
+The Claude Code block uses `${HOME}` with no `:-default`, unlike the other blocks, because no default path would be right. When `HOME` is unset, Claude Code names the variable in a warning: "If a referenced environment variable isn't set and has no default value, the config still loads: Claude Code reports a missing-variable warning for that server in `claude mcp list` output and uses the unexpanded `${VAR}` text as-is" (same page, "Unset variables without a default").
 
 [opencode.json](../opencode.json) and [.codex/config.toml](../.codex/config.toml) leave the server out, because a shipped file cannot hold a path that works on every machine: Kilo Code throws the whole project file away on an `{env:HOME}` token, as [What ships](#what-ships) explains, and Codex has no substitution at all. A project that uses the server on OpenCode, Kilo Code or Codex declares it in its own copy of both files, with the commands below, which write the absolute path.
 
-[.github/mcp.json](../.github/mcp.json) leaves the server out, because its schema has no enable flag. The Copilot CLI reads `home-assistant` from [.mcp.json](../.mcp.json), the file it reads in place of `.github/mcp.json`, as [What ships](#what-ships) describes, and it expands `${HOME}` in `args`. Measured on 1.0.103 on 2026-10-25 with `HOME=/home/node`, a stand-in `uvx` received `--env-file /home/node/.local/state/agents/workspace/homelab.env ha-mcp==8.7.0`. So `home-assistant` starts under the Copilot CLI. The CLI reference lists expansion only for `env` and `headers`, so this rests on the measurement.
+[.github/mcp.json](../.github/mcp.json) leaves the server out, because its schema has no enable flag. The Copilot CLI reads `home-assistant` from the project's `.mcp.json` once the `claude mcp add` command below has put it there, because that is the file it reads in place of `.github/mcp.json`, as [What ships](#what-ships) describes, and it expands `${HOME}` in `args`. Measured on 1.0.103 on 2026-10-25 with `HOME=/home/node`, a stand-in `uvx` received `--env-file /home/node/.local/state/agents/workspace/homelab.env ha-mcp==8.7.0`. So a `home-assistant` entry in `.mcp.json` starts under the Copilot CLI too. The CLI reference lists expansion only for `env` and `headers`, so this rests on the measurement.
 
 Switch the server off for the Copilot CLI in one of three ways. For one run, the reference documents `--disable-mcp-server SERVER-NAME` "to disable a specific one" ([CLI command reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference), read 2026-10-25). It lasts for that one run and saves nothing, measured on 1.0.103 on 2026-10-25:
 
@@ -766,11 +850,11 @@ copilot mcp enable home-assistant
 
 Keep one entry per agent. The ha-mcp README warns "Configure exactly one install method per client", and says that two entries for the same server in one client are "a known cause of connection hangs". Declare the server in the project only, and remove any user entry an older setup left, with the commands under [Where a server is declared](#where-a-server-is-declared). Where one is still left, the name `home-assistant` decides which entry loads, because one wins by name:
 
-1. Claude Code: "Claude Code matches duplicates across the three scopes by name", and project scope ranks above user scope ([MCP docs](https://code.claude.com/docs/en/mcp), "Scope hierarchy and precedence", read 2026-10-25). In a project that ships [.mcp.json](../.mcp.json), the project entry runs.
+1. Claude Code: "Claude Code matches duplicates across the three scopes by name", and project scope ranks above user scope ([MCP docs](https://code.claude.com/docs/en/mcp), "Scope hierarchy and precedence", read 2026-10-25). In a project whose `.mcp.json` holds the server, the project entry runs.
 2. Copilot CLI: "Project-level definitions also take precedence over those in `~/.copilot/mcp-config.json`" ([Adding MCP servers for GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers), read 2026-10-25). Measured on 1.0.103 on 2026-10-25, a project server hides a user server of the same name.
 3. Codex, OpenCode and Kilo Code: a project entry wins by name over the user entry, even when the project entry is switched off. Measured on 2026-10-25 with a working user entry in a temporary configuration, while this repository's [opencode.json](../opencode.json) and [.codex/config.toml](../.codex/config.toml) still carried a switched-off `home-assistant` entry: in this repository, `codex mcp list` (Codex 0.162.1) showed `home-assistant` as `disabled`, and in an empty folder as `enabled`. `opencode mcp list` (OpenCode 2.0.26) showed it as `disabled`, and `kilocode debug config` (Kilo Code 7.8.15) showed the project block with `"enabled": false`. That is why neither file ships a switched-off `home-assistant` entry: it hid the working entry beside it.
 
-Declare it in the project with one command per agent, run from the project root. A project that imported the shipped [.mcp.json](../.mcp.json) already has the Claude Code entry, with the path from the table above. Otherwise Claude Code, in either shell, with the path of the credential env file in place of `<env file>`. Write a path under your home folder as `${HOME}/` followed by the rest of the path, the way the shipped file does. The single quotes keep `${HOME}` as text, so `.mcp.json` holds it unchanged and Claude Code expands it when it starts the server, measured with Claude Code 2.1.325 on 2026-11-20:
+Declare it in the project with one command per agent, run from the project root. On Claude Code, either install the `mcp-home-assistant` plugin at project scope, as [Adding a server to Claude Code](#adding-a-server-to-claude-code) shows, which reads the credential env file at the path in the table above, or run the command below, in either shell, with the path of the credential env file in place of `<env file>`. Write a path under your home folder as `${HOME}/` followed by the rest of the path, the way the plugin does. The single quotes keep `${HOME}` as text, so `.mcp.json` holds it unchanged and Claude Code expands it when it starts the server, measured with Claude Code 2.1.325 on 2026-11-20:
 
 ```bash
 claude mcp add --scope project home-assistant -- uvx --env-file '<env file>' ha-mcp==8.7.0
@@ -864,7 +948,7 @@ Useful when a variable is stubbornly not being picked up.
 
 Restart the agent after editing configs or exporting variables, then check.
 
-- Claude Code: run `claude mcp list` and read which servers loaded.
+- Claude Code: run `claude mcp list` and read which servers loaded. A project that imported the shipped `.mcp.json` and added nothing lists `context7` alone.
 - OpenCode: start it and run `/mcp`, or read the connection lines in the startup log.
 - Kilo Code: run `kilocode config check` first, which prints nothing but `No config warnings.` when the project
   config is accepted, then open the MCP Servers panel in settings, under agent behaviour, where each server shows
@@ -881,21 +965,83 @@ on Windows.
 
 ---
 
+### Updating a pinned server
+
+Every local server command names one exact release: an npm package as `name@1.2.3`, a PyPI package as `name==1.2.3`, and the SonarQube image by its digest. No command says `@latest`, leaves the version out or pulls an image on every start, so a server changes only when someone changes its pin. Upstream moves the pins from time to time, and you can move one in your own copy the same way:
+
+1. Read the releases from the registry itself. For an npm package, here `mongodb-mcp-server`, this prints every version with the time it was published, in either shell:
+
+   ```bash
+   npm view mongodb-mcp-server time --json
+   ```
+
+   For a PyPI package, here `mcp-grafana`, this prints every release with its upload time. Unix shell:
+
+   ```bash
+   python3 -c 'import json,sys,urllib.request;d=json.load(urllib.request.urlopen("https://pypi.org/pypi/"+sys.argv[1]+"/json"));[print(v,f[0]["upload_time_iso_8601"]) for v,f in d["releases"].items() if f]' mcp-grafana
+   ```
+
+   PowerShell 7.4 or later:
+
+   ```powershell
+   python -c 'import json,sys,urllib.request;d=json.load(urllib.request.urlopen("https://pypi.org/pypi/"+sys.argv[1]+"/json"));[print(v,f[0]["upload_time_iso_8601"]) for v,f in d["releases"].items() if f]' mcp-grafana
+   ```
+
+2. Take the newest stable release that is at least 7 days old. The wait gives a bad or malicious release time to be caught and withdrawn before you run it. A release under a tag such as `alpha`, `canary`, `next` or `pre` is not stable.
+3. Write the new version into every file of yours that names the old one. The last two words are the pin the files hold now and the one you chose, so put your own in place of `3.4.0`. Unix shell:
+
+   ```bash
+   python3 -c 'import sys,pathlib;[p.write_text(p.read_text(encoding="utf-8").replace(sys.argv[1],sys.argv[2]),encoding="utf-8") for p in map(pathlib.Path,(".mcp.json","opencode.json",".vscode/mcp.json",".codex/config.toml",".github/mcp.json")) if p.exists()]' mongodb-mcp-server@3.3.0 mongodb-mcp-server@3.4.0
+   ```
+
+   PowerShell 7.4 or later:
+
+   ```powershell
+   python -c 'import sys,pathlib;[p.write_text(p.read_text(encoding="utf-8").replace(sys.argv[1],sys.argv[2]),encoding="utf-8") for p in map(pathlib.Path,(".mcp.json","opencode.json",".vscode/mcp.json",".codex/config.toml",".github/mcp.json")) if p.exists()]' mongodb-mcp-server@3.3.0 mongodb-mcp-server@3.4.0
+   ```
+
+4. Start the server once and check that it connects, here on Claude Code, in either shell:
+
+   ```bash
+   claude mcp get mongodb
+   ```
+
+A server you installed as a plugin moves when upstream raises its pin and with it the plugin's version. Refresh the marketplace, in either shell:
+
+```bash
+claude plugin marketplace update agent-standards
+```
+
+Then update the plugin:
+
+```bash
+claude plugin update mcp-mongodb@agent-standards
+```
+
+The SonarQube image is pinned by digest, because `mcp/sonarqube` on Docker Hub has one tag, `latest`, and no version tag to name (registry tag list read on 2026-11-23). The digest in the files is the one of the image index, which lists `linux/amd64` and `linux/arm64`, so a pull by it still picks the right image for the machine. `docker run` pulls an image it does not have and then reuses the local copy, so the server no longer pulls on every start. Read the digest `latest` points at now, in either shell:
+
+```bash
+docker buildx imagetools inspect mcp/sonarqube
+```
+
+SonarSource also publishes the server as `sonarsource/sonarqube-mcp` with version tags, and its README says to "pin to a version tag" there "for reproducible deployments" ([sonarqube-mcp-server README](https://github.com/SonarSource/sonarqube-mcp-server), read 2026-11-23). This setup stays on the `mcp/sonarqube` image it shipped before.
+
+---
+
 ### Adding or changing a server
 
-Edit all five project files together: [.mcp.json](../.mcp.json), [opencode.json](../opencode.json), the
+Upstream keeps one list of servers, with one pinned command each, and renders the `mcp-<server>` plugins from it. A new server goes into that list and into the four project files that carry the full set: [opencode.json](../opencode.json), the
 `[mcp_servers]` tables in [.codex/config.toml](../.codex/config.toml), [.vscode/mcp.json](../.vscode/mcp.json), and
-[.github/mcp.json](../.github/mcp.json). Then update the two manual blocks in this document, the JetBrains one and the
+[.github/mcp.json](../.github/mcp.json). [.mcp.json](../.mcp.json) keeps `context7` alone, for the reason under [What ships](#what-ships). Then update the two manual blocks in this document, the JetBrains one and the
 cloud-agent one, which ship no file.
 
-Keep the server set identical across all of them, apart from the exceptions listed under [What ships](#what-ships), each with its reason in this document. Only the per-schema syntax is allowed to differ.
+Keep the server set identical across those four, apart from the exceptions listed under [What ships](#what-ships), each with its reason in this document. Only the per-schema syntax is allowed to differ, and every file names the same version of a server.
 
 To customise a single project without touching upstream, change its local copies, with the commands in this document
 where one fits. These five files are
 consumer-owned, so the routine update flow leaves every one of them alone. Picking up an upstream server change is a
 deliberate, separate step, with its own diff-and-checkout command at the end of each shell section of
-[AGENTS-UPDATE.md](AGENTS-UPDATE.md). That command covers all six configuration files together: the five MCP
-files, [.mcp.json](../.mcp.json), [opencode.json](../opencode.json), [.vscode/mcp.json](../.vscode/mcp.json),
-[.github/mcp.json](../.github/mcp.json), and [.codex/config.toml](../.codex/config.toml), plus the unrelated
-[.claude/settings.json](../.claude/settings.json). Diff before you run it, because it replaces every one of those
+[AGENTS-UPDATE.md](AGENTS-UPDATE.md). That command covers the five MCP
+files together, [.mcp.json](../.mcp.json), [opencode.json](../opencode.json), [.vscode/mcp.json](../.vscode/mcp.json),
+[.github/mcp.json](../.github/mcp.json), and [.codex/config.toml](../.codex/config.toml). Diff before you run it, because it replaces every one of those
 files wholesale.

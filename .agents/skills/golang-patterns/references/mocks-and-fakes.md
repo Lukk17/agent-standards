@@ -7,14 +7,14 @@ telling the truth. Open this when a test needs a dependency it cannot run.
 
 ### Contents
 
-- Declare the interface at the consumer
-- Stub with function fields
-- Fake with a real, simple implementation
-- Spy when the call itself is the behaviour
-- Assert the fake still matches the interface
-- Fake an HTTP dependency with httptest.Server
-- Test a handler with httptest.NewRecorder
-- Do not fake what you can run
+- [Declare the interface at the consumer](#declare-the-interface-at-the-consumer)
+- [Stub with function fields](#stub-with-function-fields)
+- [Fake with a real, simple implementation](#fake-with-a-real-simple-implementation)
+- [Spy when the call itself is the behaviour](#spy-when-the-call-itself-is-the-behaviour)
+- [Assert the fake still matches the interface](#assert-the-fake-still-matches-the-interface)
+- [Fake an HTTP dependency with httptest.Server](#fake-an-http-dependency-with-httptestserver)
+- [Test a handler with httptest.NewRecorder](#test-a-handler-with-httptestnewrecorder)
+- [Do not fake what you can run](#do-not-fake-what-you-can-run)
 
 ---
 

@@ -7,9 +7,9 @@ form in all three.
 
 ### Contents
 
-- Write guards and resolvers as functions
-- Write interceptors as functions
-- Type every reactive form
+- [Write guards and resolvers as functions](#write-guards-and-resolvers-as-functions)
+- [Write interceptors as functions](#write-interceptors-as-functions)
+- [Type every reactive form](#type-every-reactive-form)
 
 ---
 

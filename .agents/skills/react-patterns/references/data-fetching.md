@@ -6,11 +6,11 @@ The typed API client, the hooks and loaders that consume it, and the two renderi
 
 ### Contents
 
-- The API client
-- The async data hook
-- Render props loader
-- Code splitting
-- Virtualisation
+- [The API client](#the-api-client)
+- [The async data hook](#the-async-data-hook)
+- [Render props loader](#render-props-loader)
+- [Code splitting](#code-splitting)
+- [Virtualisation](#virtualisation)
 
 ---
 

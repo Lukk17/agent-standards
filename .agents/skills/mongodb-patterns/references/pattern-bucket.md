@@ -62,7 +62,7 @@ db.trades.findOneAndUpdate(
 )
 // If a bucket with room exists, the trade is pushed into it
 // Otherwise a new bucket document is created
-// Array is bounded — never exceeds 10 elements
+// Array is bounded, never exceeds 10 elements
 ```
 
 Query patterns:
@@ -74,7 +74,7 @@ db.trades.find({ _id: /^123_/ }).sort({ _id: 1 }).limit(1)
 // Page N (e.g. page 10)
 db.trades.find({ _id: /^123_/ }).sort({ _id: 1 }).skip(9).limit(1)
 
-// Each returned document IS a page — no per-trade skip/limit needed
+// Each returned document IS a page, no per-trade skip/limit needed
 ```
 
 Choosing bucket boundaries:

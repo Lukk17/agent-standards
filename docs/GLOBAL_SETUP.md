@@ -484,6 +484,8 @@ it, and make a new copy as in step 1 when you come back later.
 
 Claude Code stays in `~/.claude`. It reads personal skills from `~/.claude/skills/<skill-name>/SKILL.md`, where a `<skill-name>` entry "can be a symlink to a directory elsewhere on disk" ([skills docs](https://code.claude.com/docs/en/skills)), personal subagents from `~/.claude/agents/` ([sub-agents docs](https://code.claude.com/docs/en/sub-agents)), user hooks from `~/.claude/settings.json`, and personal instructions from `~/.claude/CLAUDE.md` ([memory docs](https://code.claude.com/docs/en/memory)).
 
+In a single project, Claude Code takes the same skills, subagents and hooks as plugins from the marketplace, not from a Git checkout, as [Claude Code plugins](https://github.com/Lukk17/agent-standards/blob/master/docs/AGENT_TOOLING.md#claude-code-plugins) describes. Use one of the two per machine. A personal skill and a plugin skill of the same name both load, "because plugin skills are namespaced as `/plugin-name:skill-name`" (skills docs, "Resolve skills that share a name", read 2026-11-23), so a machine with this global install lists every skill twice in a project that also installs the skill plugins. A project on such a machine installs only what the global install does not carry, such as an `mcp-<server>` plugin at project scope.
+
 Create the directory. PowerShell:
 
 ```powershell
@@ -729,7 +731,7 @@ PowerShell:
 Select-String -Path $HOME\.claude\settings.json -Pattern '[^ "]*/\.config/agents/hooks/[^ "]*' -AllMatches | ForEach-Object { $_.Matches.Value }
 ```
 
-MCP at user scope is stored in `~/.claude.json`. Keep no server there. Declare each server in the project that uses it, in its `.mcp.json`, with `claude mcp add --scope project`, and approve it on the first start of `claude` in that folder, as [Where a server is declared](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md#where-a-server-is-declared) describes with the commands.
+MCP at user scope is stored in `~/.claude.json`. Keep no server there, and install no `mcp-<server>` plugin at user scope either, because a plugin at user scope is on in every project. Declare each server in the project that uses it, in its `.mcp.json`, with `claude mcp add --scope project`, or as its plugin with `--scope project`, and approve it on the first start of `claude` in that folder, as [Where a server is declared](https://github.com/Lukk17/agent-standards/blob/master/docs/MCP_SETUP.md#where-a-server-is-declared) describes with the commands.
 
 #### Codex
 
@@ -1467,7 +1469,7 @@ How a project entry is matched:
 - The built-in list names no project's own scripts, because an entry such as `python tools/check.py` would also allow a
   same-named script in every other project, and that script could write files.
 
-The built-in list lives in `MAIN_THREAD_ALLOWLIST` near the top of `.agents/hooks/preflight-gate/preflight_gate.py`. Do not edit it
+The built-in list lives in `MAIN_THREAD_ALLOWLIST` near the top of `.agents/hooks/preflight-gate/_gate_rules.py`, the rules file the gate script `preflight_gate.py` imports. Do not edit it
 in a project, because the next update overwrites that file. Add your own entries to `main-thread-allowlist.txt` at the
 project root instead, one per line, in the form described above. Blank lines and lines starting with `#` are skipped.
 The file sits at the root rather than under `.agents/`, so importing or updating `.agents` never overwrites it. For

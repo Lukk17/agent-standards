@@ -69,11 +69,3 @@ The `Deprecation: true` form is not valid under it. `Sunset` stays an HTTP date 
 
 Count requests per version, per client, before announcing a sunset date, and again the week before it. Retiring a
 version you have not measured is how a partner integration breaks on a Saturday.
-
----
-
-### Related skills
-
-- `api-design` for the contract the version wraps.
-- `database-migrations` when the breaking change reaches the stored shape as well as the wire shape.
-- `deployment-patterns` for running two versions side by side during the overlap.

@@ -7,13 +7,13 @@ that bite on iOS and in tests.
 
 ### Contents
 
-- Configuration
-- ARB resources
-- App integration
-- Placeholders, plurals, and selects
-- Adding a language
-- Troubleshooting
-- Checklist
+- [Configuration](#configuration)
+- [ARB resources](#arb-resources)
+- [App integration](#app-integration)
+- [Placeholders, plurals, and selects](#placeholders-plurals-and-selects)
+- [Adding a language](#adding-a-language)
+- [Troubleshooting](#troubleshooting)
+- [Checklist](#checklist)
 
 ---
 

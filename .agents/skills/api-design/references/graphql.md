@@ -10,7 +10,6 @@ Contents:
 - [Pagination follows Relay cursor connections](#pagination-follows-relay-cursor-connections)
 - [Subscriptions](#subscriptions)
 - [Evolve the schema additively](#evolve-the-schema-additively)
-- [Related skills](#related-skills)
 
 Read this when designing a GraphQL schema, writing resolvers, or hardening a GraphQL endpoint for production.
 
@@ -125,11 +124,3 @@ A GraphQL schema has no URL version to bump, so evolution is additive only.
 - Never remove or rename a field or type without a deprecation cycle.
 - Mark the old field `@deprecated(reason: "Use totalAmountMinor instead")`.
 - Diff the schema in CI with `graphql-inspector` and fail the build on a breaking change.
-
----
-
-### Related skills
-
-- `api-design` for the REST half of the contract and the shared rate-limit rules.
-- `node-backend-patterns` for resolver and data-loader wiring in a Node service.
-- `application-security-review` before exposing a GraphQL endpoint to the public internet.

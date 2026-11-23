@@ -1,6 +1,6 @@
 # Concurrency
 
-How a Spring Boot service runs work in parallel on Java 21 or later. Open this when adding an executor, composing
+How a Java service runs work in parallel on Java 21 or later. Open this when adding an executor, composing
 asynchronous calls, or deciding whether a class is safe to share between threads.
 
 ---
@@ -24,14 +24,7 @@ shape. A virtual thread pinned to a CPU-bound loop buys nothing.
 
 Do not pool virtual threads, because creating one is cheap and a pool reintroduces the limit the threads exist to remove. On Java 25 a `synchronized` block no longer pins the carrier thread while it waits, because Java 24 removed that pinning (JEP 491), so do not rewrite `synchronized` to `ReentrantLock` for that reason alone. Pinning remains where a native frame is on the stack: a native method or foreign function that calls back into blocking Java code, and a blocking call inside a class initializer. On Java 21 to 23, do not hold a `synchronized` lock across a blocking call, because there it pins the carrier for the duration.
 
-Spring Boot switches the web server and the task executors over with one property.
-
-```yaml
-spring:
-  threads:
-    virtual:
-      enabled: true
-```
+The Spring Boot property that switches the web server and the task executors over is in [spring-and-lombok.md](spring-and-lombok.md).
 
 ---
 

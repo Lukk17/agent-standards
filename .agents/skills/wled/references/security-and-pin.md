@@ -33,6 +33,8 @@ Three separate guards exist, and each one is off unless someone switched it on:
 
 ### Check the state without changing it
 
+Read only the status code of a protected settings page, which writes nothing:
+
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' http://<wled-host>/settings/sec
 ```

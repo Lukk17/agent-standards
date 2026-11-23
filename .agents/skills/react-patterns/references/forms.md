@@ -7,9 +7,9 @@ passes through.
 
 ### Contents
 
-- Controlled form with validation
-- Error boundary
-- Internationalisation
+- [Controlled form with validation](#controlled-form-with-validation)
+- [Error boundary](#error-boundary)
+- [Internationalisation](#internationalisation)
 
 ---
 

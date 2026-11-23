@@ -81,11 +81,3 @@ must be the only statement in its migration file.
   to proceed when it changes.
 - `npx prisma migrate resolve --applied <migration>` marks a migration as applied when you had to run it by hand.
 - Keep `prisma/migrations/` in version control in full. It is the history, not a build artifact.
-
----
-
-### Related skills
-
-- `database-migrations` for the safety rules these commands have to satisfy.
-- `node-backend-patterns` for the repository layer that consumes the generated client.
-- `postgres-patterns` for the index and query-plan side of a schema change.

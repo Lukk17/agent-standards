@@ -9,16 +9,16 @@ deployment, or when somebody asks whether a change is ready and the answer needs
 
 ### Contents
 
-- Run the phases in order and stop at the first hard failure
-- Phase 1: build
-- Phase 2: static analysis
-- Phase 3: tests and coverage
-- Phase 4: security scan
-- Phase 5: format gate
-- Phase 6: diff review
-- Report the result in this template
-- Re-run on a short loop during long sessions
-- Checklist
+- [Run the phases in order and stop at the first hard failure](#run-the-phases-in-order-and-stop-at-the-first-hard-failure)
+- [Phase 1: build](#phase-1-build)
+- [Phase 2: static analysis](#phase-2-static-analysis)
+- [Phase 3: tests and coverage](#phase-3-tests-and-coverage)
+- [Phase 4: security scan](#phase-4-security-scan)
+- [Phase 5: format gate](#phase-5-format-gate)
+- [Phase 6: diff review](#phase-6-diff-review)
+- [Report the result in this template](#report-the-result-in-this-template)
+- [Re-run on a short loop during long sessions](#re-run-on-a-short-loop-during-long-sessions)
+- [Checklist](#checklist)
 
 ---
 

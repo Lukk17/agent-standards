@@ -34,7 +34,7 @@ Inside the chosen directory, a file is picked up when all of these hold:
 
 1. It sits directly in a folder of `.agents/hooks/`, such as `.agents/hooks/task-list-sync/`, or, from an older layout, directly in `.agents/hooks/` itself. A script two folders down is never run, and neither is anything under `claude/` or `copilot/`, which the runner skips by name.
 2. Its name ends in `.py`.
-3. Its name does not start with `_` or `.`, so `__pycache__`, editor droppings and a helper module such as `markdown-lint-check/_check_markdown.py` are skipped.
+3. Its name does not start with `_` or `.`, so `__pycache__`, editor droppings and a helper module such as `markdown-lint-check/_check_markdown.py` or `preflight-gate/_gate_rules.py` are skipped.
 
 The choice of directory and its listing are both re-read on every tool call. A hook added mid-session, an opt-out
 file created, or a project import landing takes effect on the next call, with no restart and no edit to the plugin.
@@ -198,6 +198,8 @@ The runner reads it, and `HOOK_TEXT_EVENT`, out of the first 16384 characters of
 nothing gets `100`, which puts it after the shipped hooks and keeps a third hook working before anyone thinks about
 ordering.
 
+The gate is the one hook in two files. [.agents/hooks/preflight-gate/preflight_gate.py](../.agents/hooks/preflight-gate/preflight_gate.py) is the starter, the file the runner and every other wiring start, and it declares the order. The rules sit beside it in [.agents/hooks/preflight-gate/_gate_rules.py](../.agents/hooks/preflight-gate/_gate_rules.py), which the starter imports, because Python "always recompiles and does not store the result for the module that's loaded directly from the command line" ([Python tutorial, "Compiled" Python files](https://docs.python.org/3.14/tutorial/modules.html#compiled-python-files)) and loads an imported module from the copy it keeps in `__pycache__`. Measured on Python 3.14.10 on Linux, a start of the gate went from about 185 milliseconds to about 100 once the compiled copy exists. The leading `_` keeps the runner from starting the rules as a second hook on every tool call. A starter that cannot import the rules exits 0 and prints nothing, which allows the call, and a folder that cannot be written only costs the compile again on every start. [.agents/hooks/.gitignore](../.agents/hooks/.gitignore) keeps every `__pycache__` folder under the hooks out of git, in this repository and in a project that imported them.
+
 Current values:
 
 | Order | Hook | Why there |
@@ -357,6 +359,8 @@ to be a non-empty single-line string of at most 1024 characters. A skill's front
 `description`, `license`, `compatibility` and `metadata`, and a description containing a colon followed by a space
 has to be double-quoted, because GitHub Copilot refuses to load a manifest that breaks that rule.
 
+It holds a skill folder to its layout as well. A `SKILL.md` stays at or under 4,500 characters with a description of at most 220, carries no "When to activate", "Related skills" or "Checklist" section, and keeps "When not to activate" to three one-line items that each name a skill or an agent in backticks. Every link in a skill file has to point at a file that exists, and a file under `references/` has to sit directly in that folder, be linked from its `SKILL.md`, and open with a Contents list that links its sections once it runs past 100 lines. The reasons are under "Adding a new skill" in [CONTRIBUTING.md](../CONTRIBUTING.md).
+
 The standards advisory is the second post-tool hook, and it follows the same shape for the same reason. [.agents/hooks/claude/standards-advisory-check/standards_advisory_check.py](../.agents/hooks/claude/standards-advisory-check/standards_advisory_check.py) returns 0 at once unless it is called with `--format claude` for `Edit`, `Write` or `MultiEdit`. It reads the text the tool wrote from the payload, `content`, `new_string` or every `edits[].new_string`, skips a line an edit only carried over from `old_string`, and reports four review rules the owner of a consumer project kept repeating: a `uses:` in YAML that is not a full 40-character commit SHA with a `# vX.Y.Z` comment, or a `runs-on` label ending in `-latest`; an image reference ending in `:latest` outside markdown; an `@Query`, `@NamedQuery` or `@NamedNativeQuery` annotation in Java or Kotlin; and a divider-banner comment in a test file. The findings go back as `additionalContext`, at most twenty with a count of the rest, and it always exits 0. It is advisory by design. The rules it checks belong to skills (`deployment-patterns`, `docker-patterns`, `springboot-patterns`, `tdd-workflow`) and to the standards checklist of `code-reviewer`, and a project can have a legitimate exception, such as the backup tooling the Specification rule allowlists, which a deny could not tell apart.
 
 No other surface gets it, for the reason the markdown lint has none. Codex does have a post-tool event, and "PostToolUse runs after supported tools produce output, including Bash, apply_patch, MCP tool calls, and other local function tools", but in the same section "Bash and apply_patch use tool_input.command" ([Codex hooks, PostToolUse](https://developers.openai.com/codex/hooks)). A Codex file edit therefore arrives as `apply_patch` patch text, which neither hook parses. Both take the edited path from `tool_input.file_path`, and the advisory takes the written text from `content`, `new_string` or `edits`, so a patch gives them nothing to check. The Codex post-tool path is also not measured here, so neither hook is wired to it. GitHub Copilot's post-tool output does not reach the model. The OpenCode and Kilo Code runner has only `tool.execute.before`, where the file is not written yet and anything but exit 2 is thrown away, so a warning there would have to be a denial. It sits in `hooks/claude/` so that runner never starts it. The global install copies it with the rest of the directory and does not wire it, because a project that imported `.agents/hooks` already runs it from its own `.claude/settings.json`.
@@ -418,7 +422,7 @@ counter whenever a stop is allowed. A payload with no session id cannot be count
 agent's own override bounds: "After 8 consecutive `block` continuations, the CLI overrides the hook and ends the turn
 anyway". Claude Code documents the same cap of 8 for its `Stop`.
 
-The Copilot CLI also runs the hooks in `.claude/settings.json`. The JetBrains plugin does not: its bundled agent
+The Copilot CLI also runs the hooks a project wires in `.claude/settings.json`. This repository wires none there any more, because Claude Code takes every hook as a plugin, so the rest of this section holds for a project that keeps such a wiring of its own, and whether the CLI runs a Claude Code hook plugin is not measured. The JetBrains plugin does not: its bundled agent
 hardcodes `.github/hooks/**/*.json` and rejects PascalCase event names. Measured on Copilot CLI 1.0.81 in the sandbox
 image, the CLI maps its own tool names to Claude's (`create` reaches the hook as `Write`) and hands the gate a
 Claude-shaped payload (`hook_event_name`, `session_id`, an ISO `timestamp`, `cwd`, `tool_name`, `tool_input`) that
@@ -441,6 +445,12 @@ present, `timestamp` a string, no `last_assistant_message`), because `stop_reaso
 could add in any release, and a payload that matches only partly is checked, which at worst checks a reply twice. The
 CLI therefore checks a reply once, from `agentStop`, which the reference describes as firing when "The main agent finishes a turn". The borrowed `SubagentStop` is gone with the Claude wiring, so the CLI checks no subagent's reply. Copilot is not installed where this was written, so this path is verified against
 the reference and the unit tests only.
+
+On Claude Code every hook is a plugin of the marketplace: its `wiring` in [tools/plugins.yaml](../tools/plugins.yaml)
+becomes the `hooks` of its `hook-<name>` entry, each command starts in `${CLAUDE_PROJECT_DIR}` and runs the script
+from `${CLAUDE_PLUGIN_ROOT}`, and a project switches the plugins on in its `.claude/settings.json` and wires no hook
+there. The quotes and the measurements are under "Wiring details per surface" in
+[agent-compatibility.md](agent-compatibility.md).
 
 Claude Code and Codex run every matching hook from every configuration layer, so a user-level install from
 [GLOBAL_SETUP.md](GLOBAL_SETUP.md) and a project wiring would both block the same reply with the same reason. In the

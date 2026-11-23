@@ -8,8 +8,9 @@ match what is actually in the repository tree:
 - skills: number of directories directly under `.agents/skills/`
 - subagents: number of `*.md` files under `subagents/`, the canonical
   source, never a generated tree
-- MCP servers: number of entries under the top-level `mcpServers` key in
-  `.mcp.json`
+- MCP servers: number of plugins of the `mcp` category in
+  `.claude-plugin/marketplace.json`, one per server the plugin map in
+  `tools/plugins.yaml` lists, whichever agent file starts it
 
 Badges are shields.io URLs of the form
 `https://img.shields.io/badge/<label>-<value>-<color>`. The label segment
@@ -41,6 +42,8 @@ from collections.abc import Callable
 from pathlib import Path
 
 CHECKS = ("skills", "subagents", "mcp_servers")
+
+MCP_CATEGORY = "mcp"
 
 CARD_WORDS = {"skills": "skills", "subagents": "subagents", "mcp_servers": "MCP servers"}
 
@@ -87,13 +90,13 @@ def count_subagents(subagents_dir: Path) -> int:
     return sum(1 for _ in subagents_dir.glob("*.md"))
 
 
-def count_mcp_servers(mcp_json_path: Path) -> int:
-    data = json.loads(mcp_json_path.read_text(encoding="utf-8"))
-    return len(data.get("mcpServers", {}))
+def count_mcp_servers(marketplace_path: Path) -> int:
+    data = json.loads(marketplace_path.read_text(encoding="utf-8"))
+    return sum(1 for plugin in data.get("plugins", []) if plugin.get("category") == MCP_CATEGORY)
 
 
 def check_badges(
-    readme_path: Path, skills_dir: Path, subagents_dir: Path, mcp_json_path: Path, card_path: Path
+    readme_path: Path, skills_dir: Path, subagents_dir: Path, marketplace_path: Path, card_path: Path
 ) -> int:
     """Compare the README badges and the card counts against the tree. Returns the violation count."""
     failures = 0
@@ -112,9 +115,9 @@ def check_badges(
         failures += 1
 
     try:
-        actual_counts["mcp_servers"] = count_mcp_servers(mcp_json_path)
-    except (OSError, json.JSONDecodeError) as exc:
-        print(f"::error file={mcp_json_path}::cannot read MCP server config: {exc}")
+        actual_counts["mcp_servers"] = count_mcp_servers(marketplace_path)
+    except (OSError, json.JSONDecodeError, AttributeError) as exc:
+        print(f"::error file={marketplace_path}::cannot read the MCP server plugins: {exc}")
         failures += 1
 
     failures += check_document(readme_path, find_badge, "badge", actual_counts)
@@ -165,10 +168,10 @@ def main(argv: list[str] | None = None) -> int:
     readme_path = repo_root / "README.md"
     skills_dir = repo_root / ".agents" / "skills"
     subagents_dir = repo_root / "subagents"
-    mcp_json_path = repo_root / ".mcp.json"
+    marketplace_path = repo_root / ".claude-plugin" / "marketplace.json"
     card_path = repo_root / "docs" / "assets" / "social-card.svg"
 
-    failures = check_badges(readme_path, skills_dir, subagents_dir, mcp_json_path, card_path)
+    failures = check_badges(readme_path, skills_dir, subagents_dir, marketplace_path, card_path)
 
     print(f"\nChecked {len(CHECKS)} badges and {len(CHECKS)} card counts. Violations: {failures}.")
 

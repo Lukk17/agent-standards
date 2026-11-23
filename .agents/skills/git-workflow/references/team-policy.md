@@ -44,7 +44,7 @@ git secrets --register-aws  # or custom patterns
 
 ### Pull Request Template
 
-Every repository must have `.github/PULL_REQUEST_TEMPLATE.md`:
+Every repository must have a pull request template. On GitHub it is the file named in [github.md](github.md#pull-request-template).
 
 ```markdown
 ## What
@@ -125,13 +125,6 @@ git add .gitattributes
 ### Monorepo Configuration
 
 For monorepos:
-- Use CODEOWNERS with path-based ownership: `.github/CODEOWNERS`
+- Use CODEOWNERS with path-based ownership. The file and its place on GitHub are in [github.md](github.md#code-ownership)
 - Configure path-based CI triggers so only affected packages re-run
 - Consider Turborepo, Pants, or Bazel for incremental build graphs
-
-```
-# .github/CODEOWNERS
-/packages/auth/   @team-security
-/apps/frontend/   @team-frontend
-/infra/           @team-platform
-```

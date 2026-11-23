@@ -34,6 +34,9 @@ def by_name(committed) -> dict[str, dict]:
     return {entry["name"]: entry for entry in committed["plugins"]}
 
 
+LISTING_KEYS = ("author", "homepage", "repository", "license", "keywords", "tags")
+
+
 def _category(by_name: dict[str, dict], category: str) -> dict[str, dict]:
     return {name: entry for name, entry in by_name.items() if entry["category"] == category}
 
@@ -54,7 +57,7 @@ def test_every_skill_is_its_own_plugin_at_its_own_folder(by_name):
         metadata = gen.front_matter(REPO_ROOT / gen.SKILLS_DIR / skill / "SKILL.md")["metadata"]
         assert entry["source"] == f"./.agents/skills/{skill}"
         assert entry["version"] == metadata["version"]
-        assert set(entry) == {"name", "source", "version", "description", "category"}
+        assert set(entry) == {"name", "source", "version", "description", "category", *LISTING_KEYS}
 
 
 def test_every_subagent_is_its_own_plugin_holding_one_agent_file_and_its_preloads(by_name):
@@ -72,39 +75,35 @@ def test_every_subagent_is_its_own_plugin_holding_one_agent_file_and_its_preload
         assert entry.get("dependencies", []) == list(data.get("skills") or [])
 
 
-def test_every_hook_plugin_runs_the_project_wiring_from_its_own_folder(by_name):
-    settings = json.loads((REPO_ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
-    project_commands = [hook["command"] for groups in settings["hooks"].values() for group in groups for hook in group["hooks"]]
-    hooks = _category(by_name, gen.HOOK_CATEGORY)
+def test_every_hook_plugin_carries_the_wiring_of_its_map_entry_inline(by_name):
+    wiring = {hook["name"]: hook["wiring"] for hook in yaml.safe_load((REPO_ROOT / gen.MAP_FILE).read_text(encoding="utf-8"))["hooks"]}
+    plugins = _category(by_name, gen.HOOK_CATEGORY)
+
+    assert set(plugins) == {f"hook-{name}" for name in wiring}
+    for name, events in wiring.items():
+        assert plugins[f"hook-{name}"]["hooks"] == events
+        assert events
+
+
+def test_every_hook_plugin_command_starts_in_the_project_and_runs_a_script_of_its_own_folder(by_name):
     prefix = 'cd "${CLAUDE_PROJECT_DIR}" && PY=$(command -v python3 || command -v python) && "$PY" -S -E "${CLAUDE_PLUGIN_ROOT}"/'
+    commands = [
+        (REPO_ROOT / entry["source"], handler["command"])
+        for entry in _category(by_name, gen.HOOK_CATEGORY).values()
+        for groups in entry["hooks"].values()
+        for group in groups
+        for handler in group["hooks"]
+    ]
 
-    assert hooks
-    plugin_commands = []
-    for entry in hooks.values():
-        folder = REPO_ROOT / entry["source"]
-        for groups in entry["hooks"].values():
-            for group in groups:
-                for hook in group["hooks"]:
-                    command = hook["command"]
-                    script = command.removeprefix(prefix).split()[0]
-                    assert command.startswith(prefix) and command.endswith(" ; exit 0"), command
-                    assert (folder / script).is_file(), command
-                    plugin_commands.append(command)
-    wired = [gen.plugin_command(command) for command in project_commands if ".agents/hooks/" in command]
-    assert sorted(plugin_commands) == sorted(wired)
+    assert commands
+    for folder, command in commands:
+        assert command.startswith(prefix) and command.endswith(" ; exit 0"), command
+        assert (folder / command.removeprefix(prefix).split()[0]).is_file(), command
+        assert ".agents/hooks/" not in command, command
 
 
-def test_a_hook_plugin_keeps_each_argument_of_the_project_command():
-    command = 'cd "${CLAUDE_PROJECT_DIR}" && PY=$(command -v python3 || command -v python) && "$PY" -S -E .agents/hooks/task-list-sync/task_list_sync.py --event stop --format claude ; exit 0'
-
-    assert gen.plugin_command(command) == (
-        'cd "${CLAUDE_PROJECT_DIR}" && PY=$(command -v python3 || command -v python) && "$PY" -S -E '
-        '"${CLAUDE_PLUGIN_ROOT}"/task_list_sync.py --event stop --format claude ; exit 0'
-    )
-
-
-def test_every_server_plugin_carries_its_root_block_inline(by_name):
-    servers = json.loads((REPO_ROOT / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]
+def test_every_server_plugin_carries_the_block_of_its_map_entry_inline(by_name):
+    servers = {server["name"]: server["block"] for server in yaml.safe_load((REPO_ROOT / gen.MAP_FILE).read_text(encoding="utf-8"))["servers"]}
     plugins = _category(by_name, gen.MCP_CATEGORY)
 
     assert set(plugins) == {f"mcp-{name}" for name in servers}
@@ -113,13 +112,44 @@ def test_every_server_plugin_carries_its_root_block_inline(by_name):
         assert plugins[f"mcp-{name}"]["source"] == gen.ENTRY_ONLY_SOURCE
 
 
+def test_the_root_mcp_file_starts_context7_alone_with_the_block_of_its_plugin(by_name):
+    root = json.loads((REPO_ROOT / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]
+
+    assert list(root) == ["context7"]
+    assert by_name["mcp-context7"]["mcpServers"] == root
+
+
+def test_every_entry_carries_the_listing_fields_of_the_map(committed):
+    market = yaml.safe_load((REPO_ROOT / gen.MAP_FILE).read_text(encoding="utf-8"))["marketplace"]
+
+    for entry in committed["plugins"]:
+        assert entry["author"] == market["owner"], entry["name"]
+        assert entry["homepage"] == market["homepage"], entry["name"]
+        assert entry["repository"] == market["repository"], entry["name"]
+        assert entry["license"] == market["license"], entry["name"]
+        assert entry["keywords"] == entry["tags"], entry["name"]
+        assert len(entry["keywords"]) >= 2 and len(set(entry["keywords"])) == len(entry["keywords"]), entry["name"]
+        assert all(gen.KEBAB.fullmatch(word) for word in entry["keywords"]), entry["name"]
+
+
+def test_keywords_name_the_kind_the_bundle_and_the_item(by_name):
+    assert by_name["pytorch-patterns"]["keywords"] == ["skill", "python", "pytorch-patterns"]
+    assert by_name["coding-standards"]["keywords"] == ["skill", "core", "coding-standards"]
+    assert by_name["agent-python-pro"]["keywords"] == ["agent", "python", "python-pro"]
+    assert by_name["hook-preflight-gate"]["keywords"] == ["hook", "preflight-gate"]
+    assert by_name["mcp-context7"]["keywords"] == ["mcp", "context7"]
+    assert by_name["python"]["keywords"] == ["bundle", "development", "python"]
+    assert by_name["homelab"]["keywords"] == ["bundle", "host", "homelab"]
+    assert by_name["mcp-all"]["keywords"] == ["bundle", "mcp-all"]
+
+
 def test_bundles_hold_only_plugin_names_and_no_files(committed, by_name):
     bundles = [entry for entry in committed["plugins"] if entry["category"] in gen.BUNDLE_CATEGORIES]
 
     assert {entry["name"] for entry in bundles} >= {"core", "python", "jvm", "backend", "all", "mcp-all", "hooks-all"}
     for entry in bundles:
         assert entry["source"] == gen.ENTRY_ONLY_SOURCE
-        assert set(entry) == {"name", "source", "version", "description", "category", "dependencies"}
+        assert set(entry) == {"name", "source", "version", "description", "category", "dependencies", *LISTING_KEYS}
         assert all(dependency in by_name for dependency in entry["dependencies"]), entry["name"]
 
 
@@ -207,12 +237,14 @@ def test_the_map_lists_as_many_hooks_servers_and_bundles_as_the_marketplace(comm
 MAP = """
 marketplace:
   name: lab
-  owner: {name: Lab}
+  owner: {name: Lab, url: "https://github.com/lab"}
   repository: https://github.com/lab/agents
+  homepage: "https://github.com/lab/agents#readme"
+  license: MIT
 hooks:
-  - {name: gate, version: 1.0.0, description: The gate.}
+  - {name: gate, version: 1.0.0, description: The gate., wiring: {PreToolUse: [{matcher: "^(Edit)$", hooks: [{type: command, timeout: 10, command: 'cd "${CLAUDE_PROJECT_DIR}" && python3 "${CLAUDE_PLUGIN_ROOT}"/gate.py --format claude ; exit 0'}]}]}}
 servers:
-  - {name: docs, version: 1.0.0, description: Docs server.}
+  - {name: docs, version: 1.0.0, description: Docs server., block: {type: http, url: "https://docs.example"}}
 bundles:
   - {name: core, version: 1.0.0, category: development, description: Shared., skills: [shared]}
   - {name: py, version: 1.0.0, category: development, description: Python., dependencies: [core], agents: [pro], skills: [own]}
@@ -222,21 +254,9 @@ bundles:
   - {name: hooks-all, version: 1.0.0, category: bundle, description: Hooks., dependencies: [hook-gate]}
 """
 
-GATE_COMMAND = 'cd "${CLAUDE_PROJECT_DIR}" && python3 .agents/hooks/gate/gate.py --format claude ; exit 0'
+DOCS_ENTRY = '  - {name: docs, version: 1.0.0, description: Docs server., block: {type: http, url: "https://docs.example"}}\n'
 
-SETTINGS = {
-    "hooks": {
-        "PreToolUse": [
-            {
-                "matcher": "^(Edit)$",
-                "hooks": [
-                    {"type": "command", "command": "echo reminder"},
-                    {"type": "command", "timeout": 10, "command": GATE_COMMAND},
-                ],
-            }
-        ]
-    }
-}
+GATE_HANDLER = "command: 'cd \"${CLAUDE_PROJECT_DIR}\" && python3 \"${CLAUDE_PLUGIN_ROOT}\"/gate.py --format claude ; exit 0'"
 
 
 def write(path: pathlib.Path, text: str) -> None:
@@ -259,7 +279,6 @@ def build_lab(root: pathlib.Path) -> pathlib.Path:
         skill(root, name)
     agent(root, "pro", ["shared", "own"])
     agent(root, "front", ["shared", "solo"])
-    write(root / ".claude" / "settings.json", json.dumps(SETTINGS))
     write(root / ".agents" / "hooks" / "gate" / "gate.py", "print()\n")
     write(root / ".mcp.json", json.dumps({"mcpServers": {"docs": {"type": "http", "url": "https://docs.example"}}}))
     write(root / "tools" / "plugins.yaml", MAP)
@@ -282,11 +301,12 @@ def edit_map(root: pathlib.Path, old: str, new: str) -> None:
     path.write_text(text.replace(old, new), encoding="utf-8")
 
 
-def test_the_fixture_repository_renders_with_the_reminder_left_to_the_project(lab):
+def test_the_fixture_repository_renders_with_the_wiring_of_its_hook_entry(lab):
     document = gen.marketplace(gen.load_sources(lab))
     names = [entry["name"] for entry in document["plugins"]]
 
     assert names == ["core", "py", "web", "all", "mcp-all", "hooks-all", "agent-front", "agent-pro", "own", "shared", "solo", "hook-gate", "mcp-docs"]
+    assert document["plugins"][-1]["mcpServers"] == {"docs": {"type": "http", "url": "https://docs.example"}}
     hook = next(entry for entry in document["plugins"] if entry["name"] == "hook-gate")
     assert hook["hooks"] == {
         "PreToolUse": [
@@ -313,8 +333,12 @@ def test_the_fixture_repository_renders_with_the_reminder_left_to_the_project(la
         pytest.param("{name: web, version", "{name: Web, version", "plugin name 'Web' is not kebab-case", id="not-kebab"),
         pytest.param("dependencies: [core, py, web]", "dependencies: [core, py, web, nowhere]", "depends on unknown plugin 'nowhere'", id="unknown-dependency"),
         pytest.param("description: Shared., skills: [shared]}", "description: Shared., skills: [shared], dependencies: [py]}", "'core' must hold skills only", id="core-with-dependency"),
-        pytest.param("  - {name: gate, version: 1.0.0, description: The gate.}\n", "", "runs a script in .agents/hooks/gate that no hook entry covers", id="wired-hook-without-entry"),
-        pytest.param("  - {name: docs, version: 1.0.0, description: Docs server.}\n", "", "server 'docs' in the root .mcp.json has no server entry", id="server-without-entry"),
+        pytest.param(GATE_HANDLER, GATE_HANDLER.replace('cd "${CLAUDE_PROJECT_DIR}" && ', ""), "hook 'gate' on PreToolUse must start with 'cd \"${CLAUDE_PROJECT_DIR}\" &&'", id="hook-outside-the-project"),
+        pytest.param('"${CLAUDE_PLUGIN_ROOT}"/gate.py', ".agents/hooks/gate/gate.py", "hook 'gate' on PreToolUse names a script by its project path", id="hook-by-project-path"),
+        pytest.param('"${CLAUDE_PLUGIN_ROOT}"/gate.py', "gate.py", "hook 'gate' on PreToolUse must run exactly one script from", id="hook-without-plugin-root"),
+        pytest.param('"${CLAUDE_PLUGIN_ROOT}"/gate.py', '"${CLAUDE_PLUGIN_ROOT}"/other.py', "hook 'gate' on PreToolUse runs other.py, which .agents/hooks/gate does not hold", id="hook-script-missing"),
+        pytest.param(DOCS_ENTRY, "", "server 'docs' in the root .mcp.json has no server entry", id="server-without-entry"),
+        pytest.param('url: "https://docs.example"}', 'url: "https://docs.example/v2"}', "server 'docs' in the root .mcp.json differs from the block of its server entry", id="root-block-differs"),
     ],
 )
 def test_a_broken_map_names_the_rule_it_breaks(lab, old, new, expected):
@@ -323,11 +347,66 @@ def test_a_broken_map_names_the_rule_it_breaks(lab, old, new, expected):
     assert any(expected in problem for problem in problems(lab)), problems(lab)
 
 
-def test_a_hook_entry_the_wiring_never_runs_is_refused(lab):
-    write(lab / ".agents" / "hooks" / "idle" / "idle.py", "print()\n")
-    edit_map(lab, "  - {name: gate,", "  - {name: idle, version: 1.0.0, description: Idle.}\n  - {name: gate,")
+def test_the_fixture_repository_gives_every_entry_the_listing_fields(lab):
+    by_name = {entry["name"]: entry for entry in gen.marketplace(gen.load_sources(lab))["plugins"]}
 
-    assert any("hook 'idle' is not run by .claude/settings.json" in p for p in problems(lab))
+    for entry in by_name.values():
+        assert entry["author"] == {"name": "Lab", "url": "https://github.com/lab"}
+        assert entry["homepage"] == "https://github.com/lab/agents#readme"
+        assert entry["repository"] == "https://github.com/lab/agents"
+        assert entry["license"] == "MIT"
+        assert entry["tags"] == entry["keywords"]
+    assert by_name["own"]["keywords"] == ["skill", "py", "own"]
+    assert by_name["shared"]["keywords"] == ["skill", "core", "shared"]
+    assert by_name["agent-pro"]["keywords"] == ["agent", "py", "pro"]
+    assert by_name["hook-gate"]["keywords"] == ["hook", "gate"]
+    assert by_name["mcp-docs"]["keywords"] == ["mcp", "docs"]
+    assert by_name["py"]["keywords"] == ["bundle", "development", "py"]
+    assert by_name["all"]["keywords"] == ["bundle", "all"]
+
+
+def test_a_server_entry_the_root_file_leaves_out_still_renders_from_its_own_block(lab):
+    edit_map(lab, DOCS_ENTRY, DOCS_ENTRY + "  - {name: cache, version: 1.0.0, description: Cache server., block: {type: stdio, command: uvx, args: [\"cache-mcp==1.2.3\"]}}\n")
+    edit_map(lab, "dependencies: [mcp-docs]", "dependencies: [mcp-docs, mcp-cache]")
+
+    document = gen.marketplace(gen.load_sources(lab))
+
+    cache = next(entry for entry in document["plugins"] if entry["name"] == "mcp-cache")
+    assert cache["mcpServers"] == {"cache": {"type": "stdio", "command": "uvx", "args": ["cache-mcp==1.2.3"]}}
+
+
+@pytest.mark.parametrize(
+    ("block", "reason"),
+    [
+        pytest.param('{type: stdio, command: npx, args: ["-y", "cache-mcp@latest"]}', "names no exact version", id="npm-latest"),
+        pytest.param("{type: stdio, command: uvx, args: [cache-mcp]}", "names no exact version", id="no-version"),
+        pytest.param("{type: stdio, command: docker, args: [run, -i, lab/cache]}", "names no tag and no digest", id="untagged-image"),
+        pytest.param('{type: stdio, command: docker, args: [run, "--pull=always", -i, "lab/cache:1.2.3"]}', "pulls the image on every start", id="pull-always"),
+    ],
+)
+def test_a_server_block_that_floats_is_refused(lab, block, reason):
+    edit_map(lab, DOCS_ENTRY, DOCS_ENTRY + f"  - {{name: cache, version: 1.0.0, description: Cache server., block: {block}}}\n")
+    edit_map(lab, "dependencies: [mcp-docs]", "dependencies: [mcp-docs, mcp-cache]")
+
+    assert any(p.startswith("server 'cache' floats: ") and reason in p for p in problems(lab)), problems(lab)
+
+
+@pytest.mark.parametrize(
+    ("wiring", "expected"),
+    [
+        pytest.param("", "hook 'idle' needs a 'wiring'", id="no-wiring"),
+        pytest.param(", wiring: {}", "hook 'idle' needs a 'wiring'", id="empty-wiring"),
+        pytest.param(", wiring: {Stop: []}", "hook 'idle' 'wiring' on Stop needs a list of matcher groups", id="no-group"),
+        pytest.param(", wiring: {Stop: [{matcher: Edit}]}", "hook 'idle' 'wiring' on Stop needs a 'hooks' list in every matcher group", id="no-handler"),
+        pytest.param(", wiring: {Stop: [{hooks: [{type: prompt, prompt: Check.}]}]}", "takes handlers of type 'command' with a 'command' only", id="not-a-command"),
+    ],
+)
+def test_a_hook_entry_that_wires_nothing_is_refused(lab, wiring, expected):
+    write(lab / ".agents" / "hooks" / "idle" / "idle.py", "print()\n")
+    edit_map(lab, "  - {name: gate,", f"  - {{name: idle, version: 1.0.0, description: Idle.{wiring}}}\n  - {{name: gate,")
+
+    with pytest.raises(gen.PluginMapError, match=expected):
+        gen.load_sources(lab)
 
 
 def test_a_skill_two_bundles_preload_outside_core_is_refused(lab):
@@ -352,6 +431,11 @@ def test_a_dependency_cycle_is_refused(lab):
         pytest.param("{name: gate, version: 1.0.0,", "{name: gate, folder: ../gate, version: 1.0.0,", "folder", id="hook-folder-escapes"),
         pytest.param("{name: gate, version: 1.0.0,", "{name: gate, folder: /tmp/gate, version: 1.0.0,", "folder", id="hook-folder-absolute"),
         pytest.param("{name: gate, version: 1.0.0,", "{name: gate, folder: Gate, version: 1.0.0,", "folder", id="hook-folder-not-kebab"),
+        pytest.param(', block: {type: http, url: "https://docs.example"}}', "}", "needs a 'block'", id="server-without-block"),
+        pytest.param('block: {type: http, url: "https://docs.example"}', "block: npx docs", "needs a 'block'", id="server-block-not-a-mapping"),
+        pytest.param("  license: MIT\n", "", "'license'", id="no-license"),
+        pytest.param('  homepage: "https://github.com/lab/agents#readme"\n', "", "'homepage'", id="no-homepage"),
+        pytest.param('homepage: "https://github.com/lab/agents#readme"', "homepage: the readme", "'homepage'", id="homepage-not-a-url"),
     ],
 )
 def test_a_malformed_map_is_refused_before_any_rule(lab, old, new, message):

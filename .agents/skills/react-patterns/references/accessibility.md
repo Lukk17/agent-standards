@@ -8,9 +8,9 @@ patterns that come up constantly, keyboard navigation and focus management.
 
 ### Contents
 
-- Keyboard navigation
-- Focus management
-- What this file does not decide
+- [Keyboard navigation](#keyboard-navigation)
+- [Focus management](#focus-management)
+- [What this file does not decide](#what-this-file-does-not-decide)
 
 ---
 

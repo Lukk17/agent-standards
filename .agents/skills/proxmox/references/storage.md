@@ -16,7 +16,7 @@ So the sum of all VM disk sizes on `local-lvm` can be larger than the pool. Noth
 
 ### Read the use
 
-Through the API with the agent's token, see [api-access.md](api-access.md):
+Through the API with the agent's token, see [api-calls.md](api-calls.md#reading):
 
 | Path | What it returns, from the API schema |
 |---|---|

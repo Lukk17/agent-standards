@@ -11,18 +11,18 @@ Written for Python 3.14 and pytest 9.
 
 ### Contents
 
-- Write the failing test first
-- Give each test one behaviour and three phases
-- Name the test after the behaviour, not the function
-- Assert with plain `assert` and `pytest.raises`
-- Parametrize instead of copying a test
-- Isolate every test
-- Test async code in auto mode
-- Patch where the name is used
-- Register markers and keep slow tests separable
-- Run the whole suite from the project root
-- Sibling references
-- Checklist
+- [Write the failing test first](#write-the-failing-test-first)
+- [Give each test one behaviour and three phases](#give-each-test-one-behaviour-and-three-phases)
+- [Name the test after the behaviour, not the function](#name-the-test-after-the-behaviour-not-the-function)
+- [Assert with plain `assert` and `pytest.raises`](#assert-with-plain-assert-and-pytestraises)
+- [Parametrize instead of copying a test](#parametrize-instead-of-copying-a-test)
+- [Isolate every test](#isolate-every-test)
+- [Test async code in auto mode](#test-async-code-in-auto-mode)
+- [Patch where the name is used](#patch-where-the-name-is-used)
+- [Register markers and keep slow tests separable](#register-markers-and-keep-slow-tests-separable)
+- [Run the whole suite from the project root](#run-the-whole-suite-from-the-project-root)
+- [Sibling references](#sibling-references)
+- [Checklist](#checklist)
 
 ---
 
@@ -285,7 +285,9 @@ pytest tests/test_users.py::test_create
 | --- | --- |
 | [fixtures-and-mocking.md](fixtures-and-mocking.md) | Fixture scopes, conftest, autouse, patching, autospec, async mocks |
 | [pytest-config.md](pytest-config.md) | pyproject configuration, markers, CLI flags, coverage, CI |
-| [integration-tests.md](integration-tests.md) | Suite layout, FastAPI clients, database sessions, test classes |
+| [integration-tests.md](integration-tests.md) | Suite layout, test classes, the real database engine |
+| [fastapi.md](fastapi.md) | FastAPI clients over the real transport, dependency overrides |
+| [sqlalchemy-and-alembic.md](sqlalchemy-and-alembic.md) | Database sessions that roll back after each test |
 
 ---
 

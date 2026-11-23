@@ -50,7 +50,7 @@ a path instead of a link, say so, because OpenCode and Kilo Code then have no su
 
 ## 3. Verify the preflight gate
 
-The gate is one shared script, `.agents/hooks/preflight-gate/preflight_gate.py`, wired into each agent through its own hook surface: `.claude/settings.json`, the inline `[[hooks.*]]` tables in `.codex/config.toml`, the plugin at `.agents/plugin/hooks.js` declared by path in `opencode.json`, and `.github/hooks/preflight.json`. Three more hooks sit beside it in `.agents/hooks/`: `no_ai_markers_check.py`, `markdown_lint_check.py`, and `task_list_sync.py`, and on Claude Code `claude/standards-advisory-check/standards_advisory_check.py` runs after every edit.
+The gate is one shared script, `.agents/hooks/preflight-gate/preflight_gate.py`, with its rules in `_gate_rules.py` beside it, wired into each agent through its own hook surface: the `hook-<name>` plugins the project's `.claude/settings.json` switches on for Claude Code, the inline `[[hooks.*]]` tables in `.codex/config.toml`, the plugin at `.agents/plugin/hooks.js` declared by path in `opencode.json`, and `.github/hooks/preflight.json`. Three more hooks sit beside it in `.agents/hooks/`: `no_ai_markers_check.py`, `markdown_lint_check.py`, and `task_list_sync.py`, and on Claude Code `claude/standards-advisory-check/standards_advisory_check.py` runs after every edit.
 
 Confirm the scripts exist and that the hook configuration your own runtime reads names them. Do not try to trigger the
 gate on purpose. Just report whether the wiring is present, and name the surface you are running on.
@@ -69,7 +69,7 @@ have disabled them, or may not have the keys set yet.
 
 The project MCP files are real files, not templates, so there is nothing to rename:
 
-- `.mcp.json` (key `mcpServers`) for Claude Code and the GitHub Copilot CLI
+- `.mcp.json` (key `mcpServers`) for Claude Code and the GitHub Copilot CLI, which ships with `context7` alone
 - `opencode.json` (key `mcp`) for OpenCode and Kilo Code
 - `.codex/config.toml` (`[mcp_servers.*]` tables) for Codex
 - `.vscode/mcp.json` (key `servers`) for GitHub Copilot in VS Code
@@ -131,7 +131,7 @@ concern, not a bootstrap concern. Just confirm the subagent exists so the patter
 
 Restate the conflict-graph rule in one sentence before any sweep: tests with overlapping `Mutates:` resources cannot
 run in parallel, tests marked `Serial: true` run alone, and the confirmed cap is a ceiling that a missing edge never
-raises. If you cannot restate it, re-read the Concurrency-constraints section of the `e2e-runbooks` skill first.
+raises. If you cannot restate it, re-read the orchestration reference of the `e2e-runbooks` skill first.
 
 If `openspec/schemas/e2e-runbooks/` exists, confirm the schema validates with
 `openspec schema validate e2e-runbooks`. If the schema is missing but `e2e/` exists, the project uses the methodology

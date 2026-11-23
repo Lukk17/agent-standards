@@ -6,17 +6,17 @@ The Pass and Fail examples, the reasoning, and the trap table behind each rule t
 
 ### Contents
 
-- Write device-agnostic code
-- Seed everything, and say so
-- Track the shape at every step
-- Build layers in `__init__`, never in `forward`
-- Set the mode, and turn gradients off for evaluation
-- Zero with `set_to_none`, clip before you step
-- Checkpoint the whole training state
-- Keep the GPU fed
-- Reach for mixed precision and compilation before more hardware
-- Scale out with DDP under torchrun
-- Avoid the classic traps
+- [Write device-agnostic code](#write-device-agnostic-code)
+- [Seed everything, and say so](#seed-everything-and-say-so)
+- [Track the shape at every step](#track-the-shape-at-every-step)
+- [Build layers in `__init__`, never in `forward`](#build-layers-in-__init__-never-in-forward)
+- [Set the mode, and turn gradients off for evaluation](#set-the-mode-and-turn-gradients-off-for-evaluation)
+- [Zero with `set_to_none`, clip before you step](#zero-with-set_to_none-clip-before-you-step)
+- [Checkpoint the whole training state](#checkpoint-the-whole-training-state)
+- [Keep the GPU fed](#keep-the-gpu-fed)
+- [Reach for mixed precision and compilation before more hardware](#reach-for-mixed-precision-and-compilation-before-more-hardware)
+- [Scale out with DDP under torchrun](#scale-out-with-ddp-under-torchrun)
+- [Avoid the classic traps](#avoid-the-classic-traps)
 
 ---
 

@@ -9,8 +9,9 @@ Contents:
 - [Choose type with character](#choose-type-with-character)
 - [Weight the palette](#weight-the-palette)
 - [Give the background atmosphere](#give-the-background-atmosphere)
+- [Anti-patterns](#anti-patterns)
 
-Companion reference for the [frontend-design](../SKILL.md) skill. Load it for the pass and fail HTML and CSS behind each rule: committing to a direction, the variable system, composition, motion, type, palette and background.
+Companion reference for the [frontend-design](../SKILL.md) skill. Load it for the pass and fail HTML and CSS behind each rule: committing to a direction, the variable system, composition, motion, type, palette and background, then the anti-pattern table.
 
 ---
 
@@ -231,3 +232,16 @@ it.
 /* FAIL: flat white, or a busy field the text has to fight */
 .hero { background: #ffffff; }
 ```
+
+---
+
+### Anti-patterns
+
+| Never default to | Do instead |
+| --- | --- |
+| Interchangeable SaaS hero sections | Lead with the one thing the user should remember |
+| Generic card piles with no hierarchy | Give one item weight and demote the rest |
+| Random accent colours with no system | One dominant field, one accent with a job |
+| Placeholder-feeling typography | A display face with real scale contrast |
+| Motion added because animation was easy | One directed sequence that stages the content |
+| A new hex value per component | A named variable in the visual system |

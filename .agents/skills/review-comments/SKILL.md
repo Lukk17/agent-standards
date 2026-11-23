@@ -1,39 +1,28 @@
 ---
 name: review-comments
-description: 'Wording of review comments left on other people''s pull requests and of replies to review comments on our own, how every draft is shown and posted, and how other people''s comments are laid out in chat. Use when the user says "draft review comments for PR #123", "reply to the review on my PR" or "go through the comments on my pull request". Not for pull request descriptions, use `git-workflow`.'
+description: 'Wording and posting of pull request review comments and of replies to them. Use when the user says "draft review comments for PR #123" or "reply to the review on my PR". Not for PR descriptions, use `git-workflow`.'
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # Review Comments
 
-How to word what we write on a pull request: the review comments we leave on other people's pull requests, the replies we write to review comments on our own, how every draft is shown and posted, and how other people's comments are laid out in chat while we work through them. Finding what is wrong in a diff belongs to `code-reviewer`, and this skill only decides how a finding is said.
+How to word what we write on a pull request: the review comments we leave on other people's pull requests, the replies we write to review comments on our own, how every draft is shown and posted, and how other people's comments are laid out in chat while we work through them. This skill only decides how a finding is said.
 
 | Task | Open |
 |---|---|
-| The reasoning and a pass and fail example for every rule below | [references/comment-examples.md](references/comment-examples.md) |
-| The gh commands that read comments, post a conversation comment, a line comment, a reply or an approval | [references/posting.md](references/posting.md) |
-
----
-
-### When to activate
-
-- Drafting review comments on somebody else's pull request
-- Drafting replies to the review comments on our own pull request
-- Writing an approval or a request for changes
-- Working through the comments other people left on our code and deciding a response to each
-- Posting comments or replies once the user has approved them
-- The user says "draft review comments for PR #123", "reply to the review on my PR", "go through the comments on my pull request" or "approve PR #456"
+| The reasoning and a pass and fail example for a rule below | [comment-examples.md](references/comment-examples.md) |
+| Reading the comments or posting an approved draft on GitHub with the gh CLI | [github.md](references/github.md) |
+| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
+| Before showing the drafts, and again before posting | [checklist.md](references/checklist.md) |
 
 ---
 
 ### When not to activate
 
-- Writing or editing a pull request description, use `git-workflow`
 - Finding what is wrong in the diff, use `code-reviewer`
+- Writing or editing a pull request description, use `git-workflow`
 - Merging, triaging, investigating CI or cutting a release, use `github-ops`
-- Writing the ticket a reply points to, use `project-tracking`
-- Recording the decision a reply points to, use `architecture-decision-records`
 
 ---
 
@@ -81,41 +70,3 @@ When working through the comments other people left on our code, show each one i
 4. Our response to that comment.
 
 Put a blank line before the horizontal line and between each of the four, because the chat renders markdown: a `---` right under a line turns that line into a heading, and a line right after the quote joins the quote.
-
-```text
----
-
-services/orders/src/main/java/com/example/orders/OrderService.java:142
-
-> This lock is never released on failure.
-
-Fixed, the lock is now released in a finally block.
-```
-
----
-
-### Related skills
-
-- `code-reviewer` owns finding what is wrong in a diff, and this skill words the findings that get posted
-- `git-workflow` owns the pull request description and the commit and branch conventions
-- `github-ops` owns merging, triage, CI and releases on the hosting platform
-- `project-tracking` owns the ticket a reply names when work moves to later
-- `architecture-decision-records` owns the decision record a reply points to
-
----
-
-### Checklist
-
-- [ ] Every linked pull request was read, and nothing a later one fixes was raised
-- [ ] Every comment is about what the pull request changes
-- [ ] Every comment and reply is one to three sentences, polite, with no filler
-- [ ] Every must-fix point says clearly what has to change
-- [ ] Points that are not about one line sit in conversation comments, small points each in their own line comment
-- [ ] An approval has no praise and states the build result
-- [ ] Every reply says fixed, how, or why not, and names its decision record, document or ticket
-- [ ] No decision number from a chat, every abbreviation explained at its first use
-- [ ] Every draft printed in full in the chat, numbered, and none stored in a file
-- [ ] Nothing posted before approval, replies only after every fix is done, green and pushed
-- [ ] No trace of an AI agent or tool, no commit hash, no placeholder number
-- [ ] No em dash, no en dash, no semicolon joining two clauses, no bold, no italic
-- [ ] Other people's comments shown in chat as a line, `path:line`, the quoted comment, then our response, with a blank line before the line and between each

@@ -136,6 +136,8 @@ notesmd-cli --version
 
 ### Migrating from obsidian-cli
 
+The tool formerly called `obsidian-cli` was renamed to `notesmd-cli` in v0.3.0, because Obsidian released an official CLI of its own. Old install commands for `obsidian-cli` point at a retired name. `notesmd-cli` writes to disk directly and does not need Obsidian running. The official `obsidian` command does need the app running, and is covered in [official-obsidian-cli.md](official-obsidian-cli.md).
+
 Remove the old package first, with the same manager that installed it, for example `scoop uninstall obsidian-cli`
 or `brew uninstall obsidian-cli`. The CLI's own preferences, which hold the default vault, moved from an
 `obsidian-cli` folder to a `notesmd-cli` folder under the user config directory: `%APPDATA%` on Windows,

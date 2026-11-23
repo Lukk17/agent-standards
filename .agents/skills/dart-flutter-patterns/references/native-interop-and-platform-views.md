@@ -1,23 +1,22 @@
 # Native Interop and Platform Views
 
 Talking to platform APIs through channels and Pigeon, binding C and C++ with FFI, embedding native views in the
-widget tree, and the web and WebAssembly rules.
+widget tree, and the web and WebAssembly rules. The Pigeon steps are in [pigeon.md](pigeon.md).
 
 ---
 
 ### Contents
 
-- Terminology
-- Choosing a mechanism
-- A platform channel handler pair
-- Pigeon
-- Threading
-- FFI
-- Platform views on Android
-- Platform views on iOS and macOS
-- Web and WebAssembly
-- Embedding Flutter in a web page
-- Checklist
+- [Terminology](#terminology)
+- [Choosing a mechanism](#choosing-a-mechanism)
+- [A platform channel handler pair](#a-platform-channel-handler-pair)
+- [Threading](#threading)
+- [FFI](#ffi)
+- [Platform views on Android](#platform-views-on-android)
+- [Platform views on iOS and macOS](#platform-views-on-ios-and-macos)
+- [Web and WebAssembly](#web-and-webassembly)
+- [Embedding Flutter in a web page](#embedding-flutter-in-a-web-page)
+- [Checklist](#checklist)
 
 ---
 
@@ -114,20 +113,6 @@ a null payload from a method typed to return a value.
 
 Handle the `else` branch with `notImplemented()` rather than silently succeeding, so a Dart-side typo surfaces as
 a `MissingPluginException` instead of a mysterious null.
-
----
-
-### Pigeon
-
-Prefer Pigeon over hand-written channels for anything beyond one or two methods. It removes the string method
-names, the manual argument packing, and the drift between the two sides.
-
-1. Add `pigeon` to `dev_dependencies`.
-2. Define the data classes and an `@HostApi()` abstract class in `pigeons/messages.dart`.
-3. Run the generator to emit the Dart, Kotlin, and Swift files.
-4. Implement the generated interface in `MainActivity.kt` or your plugin class on Android.
-5. Implement the generated protocol in `AppDelegate.swift` or your plugin class on iOS.
-6. Import the generated Dart file and call the methods.
 
 ---
 

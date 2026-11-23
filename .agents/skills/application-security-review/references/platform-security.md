@@ -16,7 +16,7 @@ Contents:
 
 The controls that sit around the application code rather than inside a single handler: how tokens are issued and
 validated, how services authenticate to each other, what headers every response carries, and what the pipeline and the
-data lifecycle owe. Depth behind [SKILL.md](../SKILL.md).
+data lifecycle owe. Depth behind [SKILL.md](../SKILL.md). The Next.js reading is in [typescript.md](typescript.md#reading).
 
 ---
 
@@ -42,22 +42,10 @@ the algorithm explicitly.
 - `iss`: must equal the expected issuer exactly.
 - `aud`: must equal the expected audience.
 
-```python
-import jwt
+Passing a wildcard or the token's own `alg` value into the library's algorithm allowlist is the algorithm-confusion
+vulnerability: an attacker re-signs the token with the public key as an HMAC secret and the library accepts it.
 
-def decode_token(token: str) -> dict:
-    return jwt.decode(
-        token,
-        public_key,
-        algorithms=["RS256"],
-        options={"require": ["exp", "iss", "aud"]},
-        audience="my-api",
-        issuer="https://auth.example.com",
-    )
-```
-
-Passing a wildcard or the token's own `alg` value into `algorithms` is the algorithm-confusion vulnerability: an
-attacker re-signs the token with the public key as an HMAC secret and the library accepts it.
+The Python form with `import jwt` is in [python.md](python.md#jwt-validation).
 
 ---
 
@@ -156,5 +144,4 @@ record of it. Retain for at least 12 months, and never expose raw audit logs to 
 ### Reading
 
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
-- [Security in Next.js Server Components and Actions](https://nextjs.org/blog/security-nextjs-server-components-actions)
 - [Web Security Academy](https://portswigger.net/web-security)

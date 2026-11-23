@@ -8,12 +8,12 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from mcp_pins import floating
 from plugin_model import (
     AGENT_PREFIX,
     ALL,
     BUNDLE,
     BUNDLE_CATEGORIES,
-    CLAUDE_WIRING,
     CORE,
     DEVELOPMENT,
     DOMAIN_CATEGORIES,
@@ -22,7 +22,11 @@ from plugin_model import (
     KEBAB,
     MCP_ALL,
     MCP_FILE,
+    PLUGIN_SCRIPT,
+    PROJECT_SCRIPT,
+    PROJECT_START,
     Bundle,
+    Hook,
     Sources,
 )
 
@@ -127,18 +131,43 @@ def _membership_problems(sources: Sources) -> list[str]:
     return problems
 
 
+def _command_problems(sources: Sources, hook: Hook) -> list[str]:
+    """What stops a command of one hook entry from finding the project or its script once the plugin is loaded."""
+    folder = HOOKS_DIR / hook.folder
+    problems: list[str] = []
+    for event, command in hook.commands:
+        where = f"hook {hook.name!r} on {event}"
+        scripts = PLUGIN_SCRIPT.findall(command)
+        if not command.startswith(PROJECT_START):
+            problems.append(f"{where} must start with {PROJECT_START.strip()!r}, so the script runs in the session's project")
+        if PROJECT_SCRIPT.search(command):
+            problems.append(f"{where} names a script by its project path, which a plugin in the plugin cache does not have")
+        if len(scripts) != 1:
+            problems.append(f"{where} must run exactly one script from \"${{CLAUDE_PLUGIN_ROOT}}\"/")
+        elif not (sources.root / folder / scripts[0]).is_file():
+            problems.append(f"{where} runs {scripts[0]}, which {folder} does not hold")
+    return problems
+
+
 def _wiring_problems(sources: Sources) -> list[str]:
     plugin_map = sources.plugin_map
     folders = [hook.folder for hook in plugin_map.hooks]
     problems = [f"hook folder {f!r} has {folders.count(f)} hook entries" for f in sorted(set(folders)) if folders.count(f) > 1]
     problems += [f"hook {h.name!r} must be named for its folder {h.folder!r}" for h in plugin_map.hooks if h.folder.rsplit("/", 1)[-1] != h.name]
     problems += [f"hook {h.name!r} has no folder {HOOKS_DIR / h.folder}" for h in plugin_map.hooks if not (sources.root / HOOKS_DIR / h.folder).is_dir()]
-    problems += [f"hook {h.name!r} is not run by {CLAUDE_WIRING}, so its plugin would do nothing" for h in plugin_map.hooks if h.folder not in sources.wired_hooks]
-    problems += [f"{CLAUDE_WIRING} runs a script in {HOOKS_DIR / f} that no hook entry covers" for f in sorted(set(sources.wired_hooks) - set(folders))]
+    problems += [problem for hook in plugin_map.hooks for problem in _command_problems(sources, hook)]
     served = [server.name for server in plugin_map.servers]
     problems += [f"server {s!r} has {served.count(s)} server entries" for s in sorted(set(served)) if served.count(s) > 1]
-    problems += [f"server {s!r} is not in the root {MCP_FILE}" for s in sorted(set(served) - set(sources.servers))]
-    problems += [f"server {s!r} in the root {MCP_FILE} has no server entry" for s in sorted(set(sources.servers) - set(served))]
+    blocks = {server.name: server.block for server in plugin_map.servers}
+    problems += [f"server {s!r} in the root {MCP_FILE} has no server entry" for s in sorted(set(sources.root_servers) - set(served))]
+    problems += [
+        f"server {s!r} in the root {MCP_FILE} differs from the block of its server entry"
+        for s, block in sorted(sources.root_servers.items())
+        if s in blocks and block != blocks[s]
+    ]
+    for server in plugin_map.servers:
+        if "command" in server.block and (reason := floating([str(server.block["command"]), *map(str, server.block.get("args") or [])])):
+            problems.append(f"server {server.name!r} floats: {reason}")
     return problems
 
 

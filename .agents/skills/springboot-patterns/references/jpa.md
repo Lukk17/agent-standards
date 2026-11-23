@@ -6,18 +6,17 @@ Data modeling, repositories, and query performance for the persistence layer. Op
 
 ### Contents
 
-- Map entities explicitly
-- Query through Specifications, never strings
-- Keep associations lazy and fetch what you need per query
-- Project the columns a read path uses
-- Javadoc
-- Put one transaction around one unit of work
-- Page with a stable sort
-- Index for the queries you actually run
-- Cache only what you can invalidate
-- Migrate schema through Flyway or Liquibase
-- Test data access against the real engine
-- Checklist
+- [Map entities explicitly](#map-entities-explicitly)
+- [Query through Specifications, never strings](#query-through-specifications-never-strings)
+- [Keep associations lazy and fetch what you need per query](#keep-associations-lazy-and-fetch-what-you-need-per-query)
+- [Project the columns a read path uses](#project-the-columns-a-read-path-uses)
+- [Put one transaction around one unit of work](#put-one-transaction-around-one-unit-of-work)
+- [Page with a stable sort](#page-with-a-stable-sort)
+- [Index for the queries you actually run](#index-for-the-queries-you-actually-run)
+- [Cache only what you can invalidate](#cache-only-what-you-can-invalidate)
+- [Migrate schema through Flyway or Liquibase](#migrate-schema-through-flyway-or-liquibase)
+- [Test data access against the real engine](#test-data-access-against-the-real-engine)
+- [Checklist](#checklist)
 
 ---
 
@@ -147,51 +146,6 @@ Fail: loading full entities and mapping them in memory just to render a name and
 
 A repository may return Spring Data's `Page`, but the public API must wrap it in a project DTO such as the
 `PageResponse` in [rest-api-and-validation.md](rest-api-and-validation.md) rather than serializing `Page` itself.
-
----
-
-### Javadoc
-
-Default to none. A Javadoc block is usually a sign that the code failed to explain itself. Before writing one, extract
-the unclear block into a well-named method, rename the parameters so they carry their own meaning, and tighten the
-types. Do that first and most Javadoc blocks have nothing left to say, which is the outcome you want. Code that
-explains itself cannot go stale, a comment can.
-
-When one is still genuinely needed, the prose is capped at five lines and is usually one. Every tag line is capped at
-one line, `@param` and `@return` and `@throws` alike, and only appears when it genuinely adds something: if the note
-does not fit on a single line, shorten it or drop the tag. Four rules decide what goes in.
-
-1. Prose. One sentence saying what it does, then only what a caller cannot infer from the signature. Nothing more.
-2. `@param` only when the name and the type do not already convey it, meaning units, nullability, a valid range, or
-   who owns the argument afterwards. `@param orderId the wholesale order identifier` is noise, delete it.
-3. `@return` only when it is non-obvious.
-4. `@throws` always, for every exception a caller can act on. Unchecked exceptions never appear in the signature, so
-   this one is genuinely contract rather than decoration.
-
-Going past the five-line prose cap is allowed only when the contract genuinely cannot be stated in fewer lines, for
-example a documented state machine, an ordering requirement, or a concurrency guarantee. It is an exception you
-justify in review, not a budget to spend. The one-line cap on a tag line has no exception at all: shorten it or delete
-it.
-
-```java
-// GOOD: says the thing the signature cannot, in one line each
-/**
- * Loads the order together with its lines in a single query.
- *
- * @return empty when the order exists but is soft-deleted
- */
-@EntityGraph(attributePaths = "lines")
-Optional<Order> findWithLinesById(OrderId id);
-
-// BAD: restates the method name and the return type
-/**
- * Finds an order with lines by id.
- *
- * @param id the id
- * @return an Optional of Order
- */
-Optional<Order> findWithLinesById(OrderId id);
-```
 
 ---
 

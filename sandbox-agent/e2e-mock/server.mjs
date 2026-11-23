@@ -42,7 +42,7 @@ import { pathToFileURL } from "node:url"
 
 import { answer as chatAnswer, completion as chatCompletion, stream as chatStream } from "../mock-model.mjs"
 
-const MARKER_RE = /E2E-((?:SPAWN|REVIEW) ([\w.-]+)|SUBAGENT-WRITE|SUBAGENT-REPORT|MAIN-WRITE) ([\w./-]+) ([\w-]+)/g
+const MARKER_RE = /E2E-((?:SPAWN|REVIEW) ([\w.:-]+)|SUBAGENT-WRITE|SUBAGENT-REPORT|MAIN-WRITE) ([\w./-]+) ([\w-]+)/g
 const SPAWN_TOOLS = ["Agent", "Task", "task", "subagent", "spawn_agent"]
 const WAIT_TOOLS = ["wait_agent"]
 // Native file writers first, a shell only where the agent offers no writer.
