@@ -148,14 +148,34 @@ def test_a_root_prompt_gets_nothing_when_no_reminder_hook_is_installed(tmp_path)
     [
         'REMINDER = "one literal on one line"\n',
         'REMINDER = (\n    "an escaped \\" quote"\n)\n',
+        'REMINDER = (\n    "an escaped \\t tab"\n)\n',
+        'REMINDER = (\n    "an escaped \\\\n backslash"\n)\n',
         "nothing here\n",
     ],
-    ids=["single-line", "escape", "no-constant"],
+    ids=["single-line", "quote-escape", "tab-escape", "backslash-escape", "no-constant"],
 )
 def test_a_reminder_constant_in_another_shape_yields_no_text(tmp_path, source):
     with_reminder_hook(tmp_path / ".agents" / "hooks", source)
 
     assert drive(tmp_path, [user_message()])[0]["parts"] == []
+
+
+@needs_node
+def test_a_newline_escape_in_the_reminder_constant_reads_as_a_line_break(tmp_path):
+    source = 'REMINDER = (\n    "first line:\\n"\n    "\\n"\n    "second line"\n)\n'
+    with_reminder_hook(tmp_path / ".agents" / "hooks", source)
+
+    assert texts(drive(tmp_path, [user_message()])[0]["parts"]) == ["first line:\n\nsecond line"]
+
+
+@needs_node
+def test_the_shipped_reminder_reaches_a_root_session_with_its_line_breaks(tmp_path):
+    with_reminder_hook(tmp_path / ".agents" / "hooks")
+
+    added = texts(drive(tmp_path, [user_message()])[0]["parts"])
+
+    assert added == [canonical_reminder()]
+    assert "\n\nRunning: `running task name` (or: nothing)\n\n~~DONE: " in added[0]
 
 
 @needs_node

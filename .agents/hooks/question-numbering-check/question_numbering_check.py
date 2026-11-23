@@ -23,10 +23,9 @@ INLINE_CODE_RE = re.compile(r"``[^\n]+?``|`[^`\n]*`")
 NUMBERED_RE = re.compile(r"^\d+(\.\d+)*([.)]\s|\s)", re.IGNORECASE)
 QUESTION_WORD_RE = re.compile(r"^Question \d+", re.IGNORECASE)
 STATUS_LINE_RE = re.compile(
-    r"^\s*(Running:|Done:|NOW:|Next:|Then:|Waiting on:|State:)", re.IGNORECASE
+    r"^\s*(Running:|Done:|NOW:|Next:|Then:|Waiting on:)", re.IGNORECASE
 )
 SEPARATOR_RE = re.compile(r"^\s*(-{2,}|_{2,}|\*{2,})\s*$")
-STATE_VALUES = frozenset({"WAITING FOR YOU", "WORKING", "DONE"})
 
 REASON = (
     "Question numbering violation in your last reply. Every question to the user "
@@ -81,21 +80,7 @@ def _is_numbered(line: str) -> bool:
 
 
 def _is_status_line(line: str) -> bool:
-    stripped = line.strip()
-
-    if SEPARATOR_RE.match(line):
-        return True
-
-    if not STATUS_LINE_RE.match(line):
-        return False
-
-    if stripped.upper().startswith("STATE:"):
-        value = stripped[6:].strip().upper().strip("`\"'*_ ")
-
-        if value in STATE_VALUES:
-            return True
-
-    return True
+    return bool(SEPARATOR_RE.match(line) or STATUS_LINE_RE.match(line))
 
 
 def find_unnumbered(text: str) -> list[str]:

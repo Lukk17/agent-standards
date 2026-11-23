@@ -44,24 +44,31 @@ Headings start at level three.
 
 ## 3. Status tail
 
-End every reply with the status tail and nothing after it.
+End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:
 
-Enforced order, blank lines skipped never breaking the sequence: dash rule line, Skills line, inline ```Tasks: N/M completed``` single line, two crossed ~~DONE~~ lines, inline ```NOW: ...``` single line, Running lines each as `Running: <task> (agent: `<name>`)`, Next line, Then line, inline ```State: WORKING|WAITING FOR YOU|DONE``` single line, Waiting on line last. Running block omitted entirely when nothing runs. Empty line above the rule required so preceding text never renders as a heading. Write the tail airy, one empty line between each tail row: the desktop app joins rows with no empty line into one line, while mobile and terminal show both forms. The footer shape is mandatory for user-facing replies. The hook never denies a tool or subagent call over it: on tool and subagent events it logs the violation and exits 0. Exit 2 applies only on a user-reply event if the runner provides one.
+Running: `running task name` (or: nothing)
 
-The tail holds these lines in this order:
+~~DONE: older finished task~~
+~~DONE: most recent finished task~~
 
-- dash rule line
-- Skills line
-- inline Tasks line
-- two crossed DONE lines
-- inline NOW line
-- Running lines, one per running task
-- Next line
-- Then line
-- inline State line
-- Waiting on line last
+NOW: what is being done right now
 
-Running block omitted entirely when nothing runs.
+Next: the next task
+Then: the task after that
+
+Waiting on: what you wait for (or: nothing)
+
+When several tasks run, list each name in backticks on the Running line, separated by commas.
+
+The block is the whole tail, and nothing comes after it.
+
+A blank line stands between the reply text and the Running line.
+
+Name the skills and subagents that own the task in the reply text above the tail, because the tail has no line for them.
+
+The hook never denies a tool or subagent call over the tail: on tool and subagent events it logs the violation and exits 0.
+
+Exit 2 applies only on a user-reply event if the runner provides one.
 
 ## 4. State honesty
 
@@ -69,9 +76,9 @@ Panel flags lie: tasks show completed from the start even while still running.
 
 The status never trusts that flag.
 
-The State section always prints all running tasks and subagents.
+The Running line always lists all running tasks and subagents.
 
-If nothing runs and the reply waits on the user, it says so.
+If nothing runs and the reply waits on the user, the Waiting on line says so.
 
 If work runs and the reply also waits, it writes both.
 
@@ -97,7 +104,7 @@ One point per paragraph, with a blank line between points and paragraphs.
 
 Enumerations become real lists, never inline comma strings.
 
-A blank line stands before headings, fences, and the rule line.
+A blank line stands before headings, fences, and the status tail.
 
 Descriptions stay on their line.
 
@@ -121,13 +128,12 @@ A user message interrupts everything: answer questions before any further tool c
 
 ## 8. Widget sync
 
-The tool task widget on mobile plus WebUI, the tasks file and the reply Tasks line always show the same state after every change.
+The tool task widget on mobile plus WebUI and the tasks file always show the same state after every change.
 
-The sync hook writes these three from the same source after every task event:
+The sync hook writes these two from the same source after every task event:
 
 - the tasks file
 - the widget snapshot file
-- the reply Tasks counts
 
 The widget snapshot file lives at the path below.
 
@@ -155,6 +161,8 @@ The hook handles every task event it receives, listed below.
 
 A hand edit of the tasks file counts as a change and is mirrored to the widget snapshot on the next hook run.
 
-The main thread keeps the widget, the file and the reply Tasks line current. A mismatch blocks the next main thread tool call until synced. Subagents stay exempt and are never blocked over it.
+The main thread keeps the widget and the file current.
+
+The status tail has no Tasks line. A reply that still writes one in its text above the tail, as Tasks: N/M completed, must match the live list: a mismatch blocks the next main thread tool call until synced. Subagents stay exempt and are never blocked over it.
 
 Every failure path allows: a broken sync must never break a session.

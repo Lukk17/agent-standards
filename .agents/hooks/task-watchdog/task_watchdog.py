@@ -4,7 +4,8 @@
 Main thread only, subagents fully exempt. Compares the reply Tasks line
 against the live tool todo state. On mismatch prints one short reminder
 ordering a sync and exits 2, aborting that single call. Match proceeds
-silently. Every failure path allows.
+silently. The status block has no Tasks line, so a reply that writes none is
+allowed. Every failure path allows.
 """
 
 import json

@@ -85,12 +85,14 @@ const SUBAGENT_TEXT =
 
 // Where the main-thread reminder is read from, under the hooks directory, and
 // the shape its constant is written in: one parenthesised run of plain
-// double-quoted literals, one per sentence. Anything else yields no reminder.
+// double-quoted literals, whose only escape is \n for a line break of the
+// status block. Anything else yields no reminder.
 // tools/tests/test_reminder_plugin.py holds what this reads equal to the
 // constant Python loads.
 const REMINDER_HOOK = join("copilot", "prompt-reminder", "prompt_reminder.py")
-const REMINDER_CONSTANT = /^REMINDER = \(\n((?:[ \t]+"[^"\\\n]*"\n)+)\)$/m
-const REMINDER_LITERAL = /"([^"\\\n]*)"/g
+const REMINDER_CONSTANT = /^REMINDER = \(\n((?:[ \t]+"(?:[^"\\\n]|\\n)*"\n)+)\)$/m
+const REMINDER_LITERAL = /"((?:[^"\\\n]|\\n)*)"/g
+const REMINDER_LINE_BREAK = /\\n/g
 
 const PART_PREFIX = "prt_"
 const PART_RANDOM_CHARS = 14
@@ -500,7 +502,11 @@ const mainReminder = (root) => {
     const source = readFileSync(join(dir, REMINDER_HOOK), "utf8").replace(/\r\n/g, "\n")
     const match = REMINDER_CONSTANT.exec(source)
 
-    return match ? Array.from(match[1].matchAll(REMINDER_LITERAL), (literal) => literal[1]).join("") : ""
+    if (!match) return ""
+
+    const written = Array.from(match[1].matchAll(REMINDER_LITERAL), (literal) => literal[1]).join("")
+
+    return written.replace(REMINDER_LINE_BREAK, "\n")
   } catch {
     return ""
   }

@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
-"""Footer shape gate for user-facing replies.
+"""Status block gate for user-facing replies.
 
-Footer shape is mandatory for user-facing replies in the exact order: dash
-rule line, Skills line, inline Tasks single line, two crossed DONE lines,
-inline NOW single line, Running lines with agent names in inline code, Next
-line, Then line, inline State single line, Waiting on line last, blank lines
-skipped never breaking the sequence. Write the tail airy, one empty line
-between each tail row, because the desktop app joins rows with no empty line
-into one line. The hook never denies a tool or
-subagent call over it: tool and subagent events log the violation and exit 0.
-Exit 2 applies only on a user-reply event if the runner provides one.
+A reply to the user ends with the block section 3 of
+.agents/instructions/reply-rules.md defines: a Running line, two crossed DONE
+lines, a NOW line, a Next line, a Then line and a Waiting on line, as plain
+lines with every blank line of the block kept and nothing after the last one.
+The Running line names each running task in backticks, separated by commas, or
+says nothing, and may end with a note in parentheses. A blank line stands
+between the reply text and the block.
+
+A heading right above the block, a bullet, a number or any other marker before
+a line, a code fence around the block, a missing or an added blank line, a line
+the block does not have and text after the block all fail.
+
+The hook never denies a tool or subagent call over it: tool and subagent events
+log the violation and exit 0. Exit 2 applies only on a user-reply event if the
+runner provides one. Every failure path allows.
 """
 
 import json
@@ -33,114 +39,102 @@ TOOL_EVENTS = frozenset({
     "tool.execute.before",
 })
 
-SEPARATOR_RE = re.compile(r"^\s*-{2,}\s*$")
-SKILLS_RE = re.compile(r"^\s*Skills:")
-TASK_RE = re.compile(r"^\s*`{3}.*Tasks:\s*\d+\s*/\s*\d+.*`{3}\s*$")
-DONE_RE = re.compile(r"^\s*~~DONE:.*~~\s*$")
-NOW_RE = re.compile(r"^\s*`{3}.*NOW:.*`{3}\s*$")
-RUNNING_RE = re.compile(r"^\s*Running:\s*\S.*\(agent:\s*`[^`]+`\)\s*$")
-NEXT_RE = re.compile(r"^\s*Next:")
-THEN_RE = re.compile(r"^\s*Then:")
-STATE_RE = re.compile(r"^\s*`{3}.*State:\s*(WAITING FOR YOU|WORKING|DONE).*`{3}\s*$", re.IGNORECASE)
-WAITING_RE = re.compile(r"^\s*Waiting on:")
+BLANK_RE = re.compile(r"[ \t]*")
+DONE_RE = re.compile(r"~~DONE: \S.*~~[ \t]*")
 
-REASON = (
-    "Status block violation in your last reply. End every reply with the "
-    "Status tail in order: dash rule line, Skills line, fenced Tasks line "
-    "directly below Skills, two crossed DONE lines, fenced one-line NOW "
-    "above Running lines, Running lines, Next line, Then line, fenced "
-    "one-line State line, Waiting on line last. Fix what was flagged and "
-    "anything else other hooks asked you to fix, then end with the status block."
+BLOCK = (
+    re.compile(r"Running: (?:nothing|`[^`]+`(?:, `[^`]+`)*)(?: \(.*\))?[ \t]*"),
+    BLANK_RE,
+    DONE_RE,
+    DONE_RE,
+    BLANK_RE,
+    re.compile(r"NOW: \S.*"),
+    BLANK_RE,
+    re.compile(r"Next: \S.*"),
+    re.compile(r"Then: \S.*"),
+    BLANK_RE,
+    re.compile(r"Waiting on: \S.*"),
 )
 
-TASK_LINE_RE = re.compile(r"^\s*`{0,3}.*Tasks:\s*\d+\s*/\s*\d+")
-TASK_ITEM_RE = re.compile(r"^\s*-\s*\[(open|in progress|done|blocked)\]", re.IGNORECASE)
-TASK_REASON = ("Task list violation in your last reply. The project task file holds items, so add a Tasks: N/M completed line with the pending items and their priorities.")
+HEADING_RE = re.compile(r" {0,3}#{1,6}(?:[ \t]|$)")
+UNDERLINE_RE = re.compile(r" {0,3}(?:=+|-+)[ \t]*")
+FENCE_RE = re.compile(r" {0,3}(`{3,}|~{3,})(.*)")
+
+REASON = (
+    "Status block violation in your last reply. Fix what was flagged and anything else other hooks "
+    "asked you to fix. "
+    "End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered "
+    "list, plain lines only, keeping every blank line:\n"
+    "\n"
+    "Running: `running task name` (or: nothing)\n"
+    "\n"
+    "~~DONE: older finished task~~\n"
+    "~~DONE: most recent finished task~~\n"
+    "\n"
+    "NOW: what is being done right now\n"
+    "\n"
+    "Next: the next task\n"
+    "Then: the task after that\n"
+    "\n"
+    "Waiting on: what you wait for (or: nothing)\n"
+    "\n"
+    "When several tasks run, list each name in backticks on the Running line, separated by commas."
+)
 
 
-def has_status_tail(text: str) -> bool:
-    lines = text.splitlines()
-    start = None
+def _inside_fence(lines: list[str]) -> bool:
+    fence = ""
 
-    for index, line in enumerate(lines):
-        if SEPARATOR_RE.match(line):
-            start = index
+    for line in lines:
+        match = FENCE_RE.match(line)
 
-    if start is None:
-        return False
-
-    tail = lines[start:]
-    if start == 0 or lines[start - 1].strip():
-        return False
-    stage = 0
-
-    for line in tail:
-        if not line.strip():
+        if not match:
             continue
 
-        if stage == 0:
-            if SEPARATOR_RE.match(line):
-                stage = 1
-            else:
-                return False
-        elif stage == 1:
-            if SKILLS_RE.match(line):
-                stage = 2
-            else:
-                return False
-        elif stage == 2:
-            if TASK_RE.match(line):
-                stage = 3
-            elif DONE_RE.match(line):
-                stage = 4
-            else:
-                return False
-        elif stage == 3:
-            if DONE_RE.match(line):
-                stage = 4
-            else:
-                return False
-        elif stage == 4:
-            if DONE_RE.match(line):
-                stage = 5
-            else:
-                return False
-        elif stage == 5:
-            if NOW_RE.match(line):
-                stage = 6
-            else:
-                return False
-        elif stage == 6:
-            if RUNNING_RE.match(line):
-                stage = 7
-            elif NEXT_RE.match(line):
-                stage = 8
-            else:
-                return False
-        elif stage == 7:
-            if RUNNING_RE.match(line):
-                pass
-            elif NEXT_RE.match(line):
-                stage = 8
-            else:
-                return False
-        elif stage == 8:
-            if THEN_RE.match(line):
-                stage = 9
-            else:
-                return False
-        elif stage == 9:
-            if STATE_RE.match(line):
-                stage = 10
-            else:
-                return False
-        elif stage == 10:
-            if WAITING_RE.match(line):
-                return True
+        marker = match.group(1)
 
-            return False
+        if not fence:
+            fence = "" if marker[0] == "`" and "`" in match.group(2) else marker
+        elif marker[0] == fence[0] and len(marker) >= len(fence) and not match.group(2).strip():
+            fence = ""
 
-    return False
+    return bool(fence)
+
+
+def _is_heading(lines: list[str], index: int) -> bool:
+    if HEADING_RE.match(lines[index]):
+        return True
+
+    return index > 0 and bool(lines[index - 1].strip()) and UNDERLINE_RE.fullmatch(lines[index]) is not None
+
+
+def _stands_free(above: list[str]) -> bool:
+    if not above:
+        return True
+
+    if above[-1].strip() or _inside_fence(above):
+        return False
+
+    written = [index for index, line in enumerate(above) if line.strip()]
+
+    return not written or not _is_heading(above, written[-1])
+
+
+def has_status_block(text: str) -> bool:
+    lines = text.splitlines()
+
+    while lines and not lines[-1].strip():
+        lines.pop()
+
+    if len(lines) < len(BLOCK):
+        return False
+
+    above, block = lines[: -len(BLOCK)], lines[-len(BLOCK) :]
+
+    if not all(pattern.fullmatch(line) for pattern, line in zip(BLOCK, block)):
+        return False
+
+    return _stands_free(above)
 
 
 def _stdin_text() -> str:
@@ -153,22 +147,6 @@ def _speaks_contract(payload: dict[str, object]) -> bool:
     return type(version) is int and version in CONTRACTS
 
 
-def tasks_present(root: str) -> bool:
-    try:
-        from pathlib import Path
-
-        candidate = Path(root) / "tasks.md"
-
-        if not candidate.is_file():
-            return False
-
-        text = candidate.read_text(encoding="utf-8", errors="replace")
-
-        return any(TASK_ITEM_RE.match(line) for line in text.splitlines())
-    except Exception:
-        return False
-
-
 def _runner_mode() -> int:
     try:
         payload = json.loads(_stdin_text() or "{}")
@@ -179,7 +157,7 @@ def _runner_mode() -> int:
         if payload.get("is_subagent") is True:
             text = payload.get("assistant_text")
 
-            if isinstance(text, str) and text.strip() and not has_status_tail(text):
+            if isinstance(text, str) and text.strip() and not has_status_block(text):
                 sys.stderr.buffer.write(("Subagent footer note (not blocking): " + REASON).encode("utf-8"))
                 sys.stderr.buffer.flush()
 
@@ -190,7 +168,7 @@ def _runner_mode() -> int:
         if event in TOOL_EVENTS:
             text = payload.get("assistant_text")
 
-            if isinstance(text, str) and text.strip() and not has_status_tail(text):
+            if isinstance(text, str) and text.strip() and not has_status_block(text):
                 sys.stderr.buffer.write(("Tool-event footer note (not blocking): " + REASON).encode("utf-8"))
                 sys.stderr.buffer.flush()
 
@@ -204,15 +182,7 @@ def _runner_mode() -> int:
         if not isinstance(text, str) or not text.strip():
             return 0
 
-        if has_status_tail(text):
-            root = payload.get("cwd") if isinstance(payload.get("cwd"), str) else ""
-
-            if tasks_present(root) and not any(TASK_LINE_RE.match(line) for line in text.splitlines()):
-                sys.stderr.buffer.write(TASK_REASON.encode("utf-8"))
-                sys.stderr.buffer.flush()
-
-                return 2
-
+        if has_status_block(text):
             return 0
 
         sys.stderr.buffer.write(REASON.encode("utf-8"))

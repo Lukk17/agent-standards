@@ -206,10 +206,10 @@ Current values:
 | --- | --- | --- |
 | 10 | `preflight_gate.py` | A policy denial about the action being attempted outranks a note about prose already sent. |
 | 20 | `no_ai_markers_check.py` | Formatting, checked only when there is new prose to check. It is also the one hook that rewrites a finished text part. |
-| 20 | `task_watchdog.py` | Watchdog, compares the reply Tasks line against live todo state. Ties at 20 resolve by file name. |
+| 20 | `task_watchdog.py` | Watchdog, compares a Tasks line the reply writes against live todo state, and allows a reply with none, because the status block has no such line. Ties at 20 resolve by file name. |
 | 30 | `question_numbering_check.py` | Numbered questions, checked on new prose. It never takes the text event. Ties at 30 resolve by file name. |
 | 30 | `task_list_sync.py` | Bookkeeping, and it never denies. On the plain runner format it syncs live tool todos. |
-| 35 | `status_block_check.py` | Footer shape gate, logs on tool events, exit 2 only on user-reply events. |
+| 35 | `status_block_check.py` | Status block gate, holds the end of a reply to the block in section 3 of `.agents/instructions/reply-rules.md`, logs on tool events, exit 2 only on user-reply events. |
 | 40 | `markdown_lint_check.py` | Gated behind `--format claude` only. It exits 0 at once on the plain format. |
 
 The first denial stops the chain. Later hooks are not run.
@@ -306,7 +306,7 @@ Kilo Code and `ctx.session.get` on 2.x, then adds one text, on 1.x and Kilo Code
 each user message through `chat.message`, on 2.x as a system part on each model request through the session `context`
 hook:
 
-- A root session gets the main-thread reminder, the same text Codex and Copilot inject on every prompt. The plugin
+- A root session gets the main-thread reminder, the same text Codex and Copilot inject on every prompt, ending with the status block. The plugin
   holds no copy of it: it reads the `REMINDER` constant of
   [.agents/hooks/copilot/prompt-reminder/prompt_reminder.py](../.agents/hooks/copilot/prompt-reminder/prompt_reminder.py) at run time, from the
   hooks directory this project runs, and adds nothing when that file or that constant is not there. On 2.x it follows

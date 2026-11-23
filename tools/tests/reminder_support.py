@@ -236,7 +236,7 @@ def canonical_background_subagent_reminder() -> str:
     return _load_module("background_subagent_reminder_canonical", BACKGROUND_SUBAGENT_REMINDER_HOOK).SUPERVISION_TEXT
 
 def canonical_reminder() -> str:
-    """The short opening line: the REMINDER constant of the Copilot hook."""
+    """The main-thread reminder of every agent but Claude Code: the REMINDER constant of the Copilot hook."""
     hook = _load_module("prompt_reminder_canonical", PROMPT_REMINDER_HOOK)
 
     return hook.REMINDER
@@ -252,7 +252,7 @@ def _load_module(name, path):
     return module
 
 def expected_reminder_for_command(command: str) -> str:
-    """The Claude wiring carries the long text, every other wiring the short one."""
+    """The Claude wiring carries the Claude Code text, every other wiring the shared one."""
     text = delivered_text(printed_literal(command))
     if text == CLAUDE_REMINDER:
         return CLAUDE_REMINDER
@@ -270,37 +270,40 @@ COPIES = [
     (".agents/hooks/copilot/prompt-reminder/prompt_reminder.py", hook_module_reminder),
 ]
 
-STATUS_BLOCK_TEMPLATE = """---
+REPLY_RULES = REPO_ROOT / ".agents" / "instructions" / "reply-rules.md"
 
-Skills: name of each skill used
-
-Owners: name of each owner
-
-Status
-
-~~DONE: older finished task~~
-
-~~DONE: most recent finished task~~
-
-Running: name of each running task, with progress like 3 of 10 todos done
-
-```text
-NOW: what is being done right now, one line
-```
-
-Next: the next task
-
-Then: the task after that
-
-```text
-State: WAITING FOR YOU
-```
-
-Waiting on: what the agent waits for"""
-
-SEVERAL_RUNNING_TASKS = (
-    "When several tasks run, list each name on the Running line separated by commas."
+STATUS_BLOCK_LINES = (
+    "Running: `running task name` (or: nothing)",
+    "",
+    "~~DONE: older finished task~~",
+    "~~DONE: most recent finished task~~",
+    "",
+    "NOW: what is being done right now",
+    "",
+    "Next: the next task",
+    "Then: the task after that",
+    "",
+    "Waiting on: what you wait for (or: nothing)",
 )
+
+STATUS_BLOCK_OPENING = (
+    "End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered "
+    "list, plain lines only, keeping every blank line:"
+)
+
+STATUS_BLOCK_CLOSING = "When several tasks run, list each name in backticks on the Running line, separated by commas."
+
+STATUS_BLOCK = "\n\n".join((STATUS_BLOCK_OPENING, "\n".join(STATUS_BLOCK_LINES), STATUS_BLOCK_CLOSING))
+
+
+def canonical_status_block() -> str:
+    """The status block with its two instruction sentences, as section 3 of the reply rules writes it."""
+    rules = REPLY_RULES.read_text(encoding="utf-8").replace("\r\n", "\n")
+    start = rules.index("End every reply to the user with this block")
+    end = rules.index("\n", rules.index("When several tasks run", start))
+
+    return rules[start:end]
+
 
 SUBAGENT_COPIES = [
     *[(relative, wiring_subagent_reminder) for relative in WIRINGS],
@@ -314,24 +317,8 @@ SHORT_REMINDER = REMINDER
 CLAUDE_REMINDER = (
     "PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, "
     "or say none apply and why. Delegate investigation, review and bounded implementation by default. "
-    "If the prompt asks anything, answer "
-    "every question first, then start the work. End every reply to the user with this block, exactly as "
-    "shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:\n"
-    "\n"
-    "Running: `running task name` (or: nothing)\n"
-    "\n"
-    "~~DONE: older finished task~~\n"
-    "~~DONE: most recent finished task~~\n"
-    "\n"
-    "NOW: what is being done right now\n"
-    "\n"
-    "Next: the next task\n"
-    "Then: the task after that\n"
-    "\n"
-    "Waiting on: what you wait for (or: nothing)\n"
-    "\n"
-    "When several tasks run, list each name in backticks on the Running line, separated by commas."
-)
+    "If the prompt asks anything, answer every question first, then start the work. "
+) + STATUS_BLOCK
 
 EXPECTED_REMINDERS = {
     ".codex/config.toml": [SHORT_REMINDER, SHORT_REMINDER],

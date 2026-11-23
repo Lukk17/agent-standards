@@ -7,8 +7,8 @@ en dash (U+2013), a semicolon, bold, or italic. Bold and italic are matched as
 paired delimiters in both spellings, `**text**` and `__text__` for bold,
 `*text*` and `_text_` for italic, so a bullet marker, a multiplication sign and
 a snake_case identifier are not mistaken for emphasis. No bold line is
-allowed. The status block carries NOW inside a fenced text block, which is
-stripped from the check like any other fenced block.
+allowed. The status block is plain lines, so its text is checked like any other
+prose, and the two crossed DONE lines are neither bold nor italic.
 
 Four of those markers can be fixed mechanically, and `fix_prose` does it: a
 dash becomes a comma with clean spacing (a hyphen in a digit range), and bold

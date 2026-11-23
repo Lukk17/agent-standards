@@ -11,7 +11,7 @@ unchanged.
 Before any code work on a task, name the skill(s) and subagent(s) that own it and invoke them, or state "none apply"
 and why, as the first line of your reply. This is a hard gate.
 
-Follow [.agents/instructions/reply-rules.md](.agents/instructions/reply-rules.md) when writing to the user. Name skills and ownership in the footer status tail it defines, never as the reply first line.
+Follow [.agents/instructions/reply-rules.md](.agents/instructions/reply-rules.md) when writing to the user. The status tail it defines has no line for skills or owners, so they are named in the reply text only.
 
 The gate is enforcing, not advisory. One shared rule in
 [.agents/hooks/preflight-gate/_gate_rules.py](.agents/hooks/preflight-gate/_gate_rules.py), which every wiring runs through the starter [preflight_gate.py](.agents/hooks/preflight-gate/preflight_gate.py) beside it, decides every tool call, on every agent:
@@ -126,9 +126,8 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
   [.agents/hooks/preflight-gate/_gate_rules.py](.agents/hooks/preflight-gate/_gate_rules.py) plus a case in
   [tools/tests/test_preflight_gate.py](tools/tests/test_preflight_gate.py), never a second copy of the logic and never a rule in the starter `preflight_gate.py`. The
   `tools/tests/test_reminder_*.py` suites compare each reminder copy in a wiring file to its canonical source.
-- **One tail, one check, one wording.** [.agents/instructions/reply-rules.md](.agents/instructions/reply-rules.md),
-  [.agents/hooks/status-block-check/status_block_check.py](.agents/hooks/status-block-check/status_block_check.py) and its tests ship as one
-  consistent set with no conflicts, and the hook is the enforcement.
+- **One tail, one check, one wording.** Section 3 of [.agents/instructions/reply-rules.md](.agents/instructions/reply-rules.md) defines the status block for every agent. [tools/tests/test_status_template.py](tools/tests/test_status_template.py) holds each reminder and
+  [.agents/hooks/status-block-check/status_block_check.py](.agents/hooks/status-block-check/status_block_check.py) to it, and the hook is the enforcement.
 - **The tooling is a package under [tools/](tools/).** [tools/pyproject.toml](tools/pyproject.toml) is the only place
   a dependency or a version is written, each an exact pin with no lock file, and `--group` needs pip 25.1 or newer.
 - This file and the template obey the rules they ship. `AGENTS.md` and `AGENTS.md.example` follow "Writing

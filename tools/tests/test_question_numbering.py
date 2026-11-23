@@ -74,11 +74,31 @@ def test_question_on_blockquote_line_is_ignored():
     assert result.returncode == 0
 
 
-def test_status_block_with_waiting_state_exits_zero():
-    text = "Running: nothing\n\nNOW: check the build\n\nState: WAITING FOR YOU"
-    result = run(payload(text))
+STATUS_BLOCK_WITH_QUESTION_MARKS = (
+    "Running: `which port?`\n"
+    "\n"
+    "~~DONE: ask which port to use?~~\n"
+    "~~DONE: is the build green?~~\n"
+    "\n"
+    "NOW: does the suite pass?\n"
+    "\n"
+    "Next: which version to raise?\n"
+    "Then: who reviews?\n"
+    "\n"
+    "Waiting on: your answer to 3, commit now?"
+)
+
+
+def test_status_block_lines_are_never_read_as_questions():
+    result = run(payload("The build is green.\n\n" + STATUS_BLOCK_WITH_QUESTION_MARKS))
 
     assert result.returncode == 0
+
+
+def test_a_state_line_is_no_status_line_any_more():
+    result = run(payload("State: should we ship today?"))
+
+    assert result.returncode == 2
 
 
 def test_subpoint_counts_as_numbered():

@@ -246,8 +246,8 @@ def _widget_path() -> Path:
 def _sync_widget(lines: List[str]) -> None:
     """Mirror the tasks file into the widget snapshot from the same source.
 
-    The widget file, the tasks file, and the reply Tasks line then show the
-    same state after every change. Counts here feed the Tasks line.
+    The widget file and the tasks file then show the same state after every
+    change. The counts here are what a Tasks line in a reply has to match.
     """
     items = []
     done = 0

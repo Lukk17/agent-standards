@@ -556,8 +556,8 @@ Wire the hooks into `~/.claude/settings.json`. Hooks in that file apply to every
 command below it writes your real one in its place, with forward slashes on Windows too, which work there and need no
 escaping inside JSON.
 
-This is the same event set the per-project wiring uses, minus the markdown lint pass, plus the skill link hook. Claude Code keeps the long
-preflight text with the full status block, while Codex and Copilot below use the short one-line opening.
+This is the same event set the per-project wiring uses, minus the markdown lint pass, plus the skill link hook. Claude Code keeps its longer
+preflight opening, while Codex and Copilot below use the shorter one. Every one of them ends with the same status block, the one section 3 of `.agents/instructions/reply-rules.md` defines.
 `SessionStart` and `UserPromptSubmit` inject the gate text, `SessionStart` also injects the rule for checking on
 background subagents
 every 10 minutes, and its second group runs the skill link hook when a session starts or resumes: the `startup` and `resume` matcher values are the ones Claude Code documents for "New session" and resumed sessions (hooks docs), so a `/clear` or a compaction never runs it again. `SubagentStart` tells a subagent to do its delegated task itself rather than hand it on,
@@ -830,8 +830,8 @@ look for `"agent_id"` on standard input and print nothing when they find it.
           {
             "type": "command",
             "statusMessage": "Preflight gate",
-            "command": "grep -F '\"agent_id\"' >/dev/null || printf '%s\\n' '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"Before code work, name the skills and subagents that own this task and invoke them, or say none apply and why, in one line. End every reply with the status block the skill describes, plain text only.\"}}'",
-            "commandWindows": "if (-not [Console]::In.ReadToEnd().Contains(\"`\"agent_id`\"\")) { echo '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"Before code work, name the skills and subagents that own this task and invoke them, or say none apply and why, in one line. End every reply with the status block the skill describes, plain text only.\"}}' }; exit 0"
+            "command": "grep -F '\"agent_id\"' >/dev/null || printf '%s\\n' '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"Before code work, name the skills and subagents that own this task and invoke them, or say none apply and why, in one line. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:\\n\\nRunning: `running task name` (or: nothing)\\n\\n~~DONE: older finished task~~\\n~~DONE: most recent finished task~~\\n\\nNOW: what is being done right now\\n\\nNext: the next task\\nThen: the task after that\\n\\nWaiting on: what you wait for (or: nothing)\\n\\nWhen several tasks run, list each name in backticks on the Running line, separated by commas.\"}}'",
+            "commandWindows": "if (-not [Console]::In.ReadToEnd().Contains(\"`\"agent_id`\"\")) { echo '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"Before code work, name the skills and subagents that own this task and invoke them, or say none apply and why, in one line. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:\\n\\nRunning: `running task name` (or: nothing)\\n\\n~~DONE: older finished task~~\\n~~DONE: most recent finished task~~\\n\\nNOW: what is being done right now\\n\\nNext: the next task\\nThen: the task after that\\n\\nWaiting on: what you wait for (or: nothing)\\n\\nWhen several tasks run, list each name in backticks on the Running line, separated by commas.\"}}' }; exit 0"
           }
         ]
       }
@@ -1168,8 +1168,8 @@ script call and the `; exit 0` on every `powershell` one are what make a missing
     "sessionStart": [
       {
         "type": "command",
-        "bash": "printf '%s\\n' '{\"additionalContext\": \"Before code work, name the skills and subagents that own this task and invoke them, or say none apply and why, in one line. End every reply with the status block the skill describes, plain text only.\"}'",
-        "powershell": "echo '{\"additionalContext\": \"Before code work, name the skills and subagents that own this task and invoke them, or say none apply and why, in one line. End every reply with the status block the skill describes, plain text only.\"}'"
+        "bash": "printf '%s\\n' '{\"additionalContext\": \"Before code work, name the skills and subagents that own this task and invoke them, or say none apply and why, in one line. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:\\n\\nRunning: `running task name` (or: nothing)\\n\\n~~DONE: older finished task~~\\n~~DONE: most recent finished task~~\\n\\nNOW: what is being done right now\\n\\nNext: the next task\\nThen: the task after that\\n\\nWaiting on: what you wait for (or: nothing)\\n\\nWhen several tasks run, list each name in backticks on the Running line, separated by commas.\"}'",
+        "powershell": "echo '{\"additionalContext\": \"Before code work, name the skills and subagents that own this task and invoke them, or say none apply and why, in one line. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:\\n\\nRunning: `running task name` (or: nothing)\\n\\n~~DONE: older finished task~~\\n~~DONE: most recent finished task~~\\n\\nNOW: what is being done right now\\n\\nNext: the next task\\nThen: the task after that\\n\\nWaiting on: what you wait for (or: nothing)\\n\\nWhen several tasks run, list each name in backticks on the Running line, separated by commas.\"}'"
       },
       {
         "type": "command",

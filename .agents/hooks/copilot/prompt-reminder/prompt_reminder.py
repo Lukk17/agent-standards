@@ -23,8 +23,12 @@ output and passes the prompt through unchanged.
 REMINDER is also the main-thread reminder the OpenCode and Kilo Code plugin,
 .agents/plugin/hooks.js, reads from this file and adds to every prompt of a
 root session. The plugin reads it as written, a parenthesised run of plain
-double-quoted literals with no escape, so keep that shape.
+double-quoted literals whose only escape is the newline, so keep that shape.
 tools/tests/test_reminder_plugin.py fails when the two readings differ.
+
+The reminder ends with the status block section 3 of
+.agents/instructions/reply-rules.md defines, and
+tools/tests/test_status_template.py holds the two equal.
 """
 
 import json
@@ -34,7 +38,22 @@ from typing import Optional
 REMINDER = (
     "Before code work, name the skills and subagents that own this task and invoke them, "
     "or say none apply and why, in one line. "
-    "End every reply with the status block the skill describes, plain text only."
+    "End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered "
+    "list, plain lines only, keeping every blank line:\n"
+    "\n"
+    "Running: `running task name` (or: nothing)\n"
+    "\n"
+    "~~DONE: older finished task~~\n"
+    "~~DONE: most recent finished task~~\n"
+    "\n"
+    "NOW: what is being done right now\n"
+    "\n"
+    "Next: the next task\n"
+    "Then: the task after that\n"
+    "\n"
+    "Waiting on: what you wait for (or: nothing)\n"
+    "\n"
+    "When several tasks run, list each name in backticks on the Running line, separated by commas."
 )
 
 

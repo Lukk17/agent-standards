@@ -16,7 +16,8 @@ CLI, GitHub Copilot). Standards and skills are imported from
   session is the failure this rule exists to prevent.
 - Every wiring injects the same reminder into each main-thread prompt and a separate subagent text into each subagent,
   so a subagent does its own task rather than handing it on. Both texts are in
-  [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md).
+  [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md). The reminder ends with the status block that closes every reply. The
+  block has no line for skills or owners, so they stay in the first line.
 
 ---
 

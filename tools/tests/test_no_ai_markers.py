@@ -652,32 +652,39 @@ def test_italic_is_reported_alongside_the_other_markers():
         assert label in err
 
 
-# The status block carries NOW and State in fenced text blocks, which the
-# check strips like any other fenced block. No bold line is allowed.
+# The status block is plain lines, checked like any other prose. Its two
+# crossed DONE lines are neither bold nor italic. No bold line is allowed.
 
 STATUS_BLOCK = (
-    "Running: Run containerised sandbox suite\n"
+    "Running: `Run containerised sandbox suite`\n"
     "\n"
     "~~DONE: Fix code review findings~~\n"
     "~~DONE: First Docker test run (2 checks failed)~~\n"
     "\n"
-    "```text\n"
     "NOW: fix the two Docker checks and rerun the suite\n"
-    "```\n"
     "\n"
     "Next: build the live test pipeline once you answer 3.6\n"
     "Then: build the research skill once you answer 13.1\n"
-    "\n"
-    "```text\n"
-    "State: WAITING FOR YOU\n"
-    "```\n"
     "\n"
     "Waiting on: your answers to 3.6, 10.1, 11.1, 12.1 and 13.1"
 )
 
 
-def test_the_status_block_fenced_now_is_ignored():
+def test_the_status_block_passes_as_plain_lines():
     assert run_text("Done with the review.\n\n" + STATUS_BLOCK) == (0, "", "")
+
+
+def test_the_status_block_template_passes_as_plain_lines():
+    from tests.reminder_support import STATUS_BLOCK_LINES
+
+    assert run_text("Done with the review.\n\n" + "\n".join(STATUS_BLOCK_LINES)) == (0, "", "")
+
+
+def test_a_dash_in_a_status_block_line_is_reported():
+    code, _out, err = run_text("Done.\n\n" + STATUS_BLOCK.replace("NOW: fix", "NOW: wait " + EM_DASH + " then fix"))
+
+    assert code == 2
+    assert "em dash" in err
 
 
 def test_several_bold_now_lines_now_block():
