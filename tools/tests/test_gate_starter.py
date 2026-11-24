@@ -47,6 +47,13 @@ BROKEN_RULES = {
     "raises-on-import": 'raise RuntimeError("the rules blew up")\n',
     "no-main": "VALUE = 1\n",
 }
+BROKEN_RULES_ERRORS = {
+    "missing": "ModuleNotFoundError",
+    "not-python": "SyntaxError",
+    "raises-on-import": "RuntimeError",
+    "no-main": "ImportError",
+}
+LOAD_FAILURE_PREFIX = "preflight-gate: gate_rules failed to load: "
 
 RULES_THAT_ALLOW = "def main():\n    return 0\n"
 
@@ -196,21 +203,52 @@ def test_the_wiring_s_own_command_denies_and_allows_through_the_starter(command,
     assert denied or (result.returncode, result.stdout) == (0, "")
 
 
-@pytest.mark.parametrize("fmt", sorted(WRITES))
-@pytest.mark.parametrize("rules", BROKEN_RULES.values(), ids=BROKEN_RULES.keys())
-def test_a_starter_whose_rules_cannot_be_imported_allows(tmp_path, rules, fmt):
-    # Given the starter in a folder whose rules file is missing or broken
+def starter_with_rules(tmp_path, rules):
+    """The starter in a folder of its own, beside the given rules text, or beside no rules file for None."""
     starter = tmp_path / PREFLIGHT_GATE.name
     shutil.copy2(PREFLIGHT_GATE, starter)
 
     if rules is not None:
         (tmp_path / GATE_RULES.name).write_text(rules, encoding="utf-8")
 
-    # When a main-thread write arrives, which the rules would deny
-    result = start(WRITES[fmt], fmt, script=starter, cwd=project(tmp_path))
+    return starter
 
-    # Then the call is allowed the way every allow looks: exit 0 and nothing printed
-    assert result == ALLOWED
+
+@pytest.mark.parametrize("fmt", sorted(WRITES))
+@pytest.mark.parametrize("case", BROKEN_RULES)
+def test_a_starter_whose_rules_cannot_be_imported_allows_and_names_the_failure_on_stderr(tmp_path, case, fmt):
+    # Given the starter in a folder whose rules file is missing or broken
+    starter = starter_with_rules(tmp_path, BROKEN_RULES[case])
+
+    # When a main-thread write arrives, which the rules would deny
+    code, out, err = start(WRITES[fmt], fmt, script=starter, cwd=project(tmp_path))
+
+    # Then the call is allowed with exit 0 and no decision, and stderr carries one line naming the failure
+    assert (code, out) == (0, "")
+    assert err.endswith("\n") and err.count("\n") == 1
+    assert err.startswith(f"{LOAD_FAILURE_PREFIX}{BROKEN_RULES_ERRORS[case]}: ")
+
+
+def test_the_load_failure_line_carries_the_exception_message(tmp_path):
+    # Given rules that raise while they are imported
+    starter = starter_with_rules(tmp_path, BROKEN_RULES["raises-on-import"])
+
+    # When a main-thread write arrives
+    result = start(WRITE, "claude", script=starter, cwd=project(tmp_path))
+
+    # Then the call is allowed and stderr names the exception type and its message
+    assert result == (0, "", f"{LOAD_FAILURE_PREFIX}RuntimeError: the rules blew up\n")
+
+
+def test_a_multi_line_exception_message_stays_on_one_line(tmp_path):
+    # Given rules whose import error message spans several lines
+    starter = starter_with_rules(tmp_path, 'raise RuntimeError("first\\nsecond")\n')
+
+    # When a main-thread write arrives
+    result = start(WRITE, "claude", script=starter, cwd=project(tmp_path))
+
+    # Then the message is joined into the one line
+    assert result == (0, "", f"{LOAD_FAILURE_PREFIX}RuntimeError: first second\n")
 
 
 def test_the_first_start_keeps_a_compiled_copy_of_the_rules_and_the_next_start_answers_the_same(tmp_path):

@@ -266,8 +266,8 @@ def _link_targets(line: str) -> list[str]:
 
 
 def _location(target: str) -> str:
-    """The file part of a link target, its anchor and query removed."""
-    return target.split("#", 1)[0].split("?", 1)[0]
+    """The file part of a link target, its anchor and query removed and its percent-encoding decoded."""
+    return unquote(target.split("#", 1)[0].split("?", 1)[0])
 
 
 def _escapes_folder(target: str, path: Path, folder: Path) -> bool:

@@ -68,7 +68,7 @@
         "SONARQUBE_TOKEN",
         "-e",
         "SONARQUBE_URL",
-        "sonarsource/sonarqube-mcp:1.32.0.5118"
+        "sonarsource/sonarqube-mcp:1.32.0.5118@sha256:ac7f24054fb45d57c1bcd2c6438cefb1d8ea225eb6e81e5710d0cba1aa1b0838"
       ],
       "env": {
         "SONARQUBE_TOKEN": "${env:SONARQUBE_TOKEN}",

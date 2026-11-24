@@ -57,7 +57,7 @@ a path instead of a link, say so, because OpenCode and Kilo Code then have no su
 
 ## 3. Verify the preflight gate
 
-The gate is one shared script, `.agents/hooks/preflight-gate/preflight_gate.py`, with its rules in `gate_rules.py` beside it, wired into each agent through its own hook surface: the `hook-<name>` plugins the project's `.claude/settings.json` switches on for Claude Code, the inline `[[hooks.*]]` tables in `.codex/config.toml`, the plugin at `.agents/plugin/hooks.js` declared by path in `opencode.json`, and `.github/hooks/preflight.json`. Three more hooks sit beside it in `.agents/hooks/`: `no_ai_markers_check.py`, `markdown_lint_check.py`, and `task_list_sync.py`, and on Claude Code `claude/standards-advisory-check/standards_advisory_check.py` runs after every edit.
+The gate is one shared script, `.agents/hooks/preflight-gate/preflight_gate.py`, with its rules in `gate_rules.py` beside it, wired into each agent through its own hook surface: the `hook-<name>` plugins the project's `.claude/settings.json` switches on for Claude Code, the inline `[[hooks.*]]` tables in `.codex/config.toml`, the plugin at `.agents/plugin/hooks.js` declared by path in `opencode.json`, and `.github/hooks/preflight.json`. Other hooks sit beside it in `.agents/hooks/`, among them `no_ai_markers_check.py`, `markdown_lint_check.py`, and `task_list_sync.py`, and on Claude Code `claude/standards-advisory-check/standards_advisory_check.py` runs after every edit.
 
 Confirm the scripts exist and that the hook configuration your own runtime reads names them. Do not try to trigger the
 gate on purpose. Just report whether the wiring is present, and name the surface you are running on.
@@ -221,7 +221,7 @@ failure mark for wiring that is genuinely broken or missing.
 - [ ] Subagent trees present (`.agents/agents/`, `.codex/agents/`, `.github/agents/`), the `.opencode/agents` and
       `.kilo/agents` symlinks intact, and on Claude Code the `agent-<name>` plugins switched on
 - [ ] No `.claude/skills` link and no agent-standards copy in `.claude/agents` left from an older import
-- [ ] Preflight gate wired (all four scripts in `.agents/hooks/` plus the hook config your runtime reads)
+- [ ] Preflight gate wired (the scripts in `.agents/hooks/` plus the hook config your runtime reads)
 - [ ] Python 3 on the path (version quoted, or "FAIL: gate wired but disarmed")
 - [ ] MCP runtime checked (names, or "none active") and the five config files accounted for
 - [ ] `/tasks.md` ignored (already there, or added by a subagent)

@@ -144,7 +144,7 @@ Reading the tables row by row:
 - Every row anchors the gate at the project root before calling it, so a session started in a subdirectory still finds
   [../.agents/hooks/preflight-gate/preflight_gate.py](../.agents/hooks/preflight-gate/preflight_gate.py), and a missing script allows rather than
   denies. Python exits 2 when it cannot open the file it was handed, and 2 is the deny code, so an unanchored path used
-  to block every tool call. A starter that cannot import [../.agents/hooks/preflight-gate/gate_rules.py](../.agents/hooks/preflight-gate/gate_rules.py) allows too, with exit 0 and nothing printed.
+  to block every tool call. A starter that cannot import [../.agents/hooks/preflight-gate/gate_rules.py](../.agents/hooks/preflight-gate/gate_rules.py) allows too, with exit 0, nothing on stdout and one line on stderr, `preflight-gate: gate_rules failed to load: <type>: <message>`. No agent reads that line as a decision. Claude Code: "Claude never sees stderr from a hook that exits 0. To read it yourself on events such as `PreToolUse`, enable debug logging" ([hooks](https://code.claude.com/docs/en/hooks), "Exit code 0", read 2026-11-24). Codex 0.169.0 reads only stdout on exit 0 and ignores it when empty (`Some(0) => { let trimmed_stdout = run_result.stdout.trim(); if trimmed_stdout.is_empty() {}` in [codex-rs/hooks/src/events/pre_tool_use.rs](https://github.com/openai/codex/blob/rust-v0.169.0/codex-rs/hooks/src/events/pre_tool_use.rs), read 2026-11-24). GitHub Copilot: exit 0 is "Success. `stdout` is parsed as the hook output JSON if present." ([hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference), "Exit codes for command hooks", read 2026-11-24), not measured here. The OpenCode and Kilo Code runner in [../.agents/plugin/hooks.js](../.agents/plugin/hooks.js) reads stderr only on exit 2.
 - [../.agents/hooks/no-ai-markers-check/no_ai_markers_check.py](../.agents/hooks/no-ai-markers-check/no_ai_markers_check.py) finds an em dash, an en dash, a
   semicolon, or a bold or italic marker, asterisk or underscore form, and asks only for `Correction:` lines. Claude
   Code first fixes dashes, bold and italic on screen through `MessageDisplay`, so its `Stop` blocks only on what that
@@ -760,9 +760,10 @@ Read these before you touch any hook wiring. They moved here from `AGENTS.md`, w
   [tools/plugins.yaml](../tools/plugins.yaml) holds its `wiring`, the event, matcher, timeout and command, and
   [tools/gen_plugins.py](../tools/gen_plugins.py) copies it into the plugin's entry in
   [.claude-plugin/marketplace.json](../.claude-plugin/marketplace.json), where "Entry `hooks` loads only in the inline
-  object form" (`https://code.claude.com/docs/en/plugins/manifest-reference`). A hook wired in a settings file as well
-  would run twice, because "A plugin's or skill's copy of the same handler stays separate"
-  (`https://code.claude.com/docs/en/hooks`). Each command starts with `cd "${CLAUDE_PROJECT_DIR}"` and runs its script
+  object form" (`https://code.claude.com/docs/en/plugins/manifest-reference`). For a hook wired in a settings file as well,
+  both handlers start, because "A plugin's or skill's copy of the same handler stays separate"
+  (`https://code.claude.com/docs/en/hooks`), then every plugin copy but the gate stands down, and only the gate runs
+  twice, which only repeats a deny. Each command starts with `cd "${CLAUDE_PROJECT_DIR}"` and runs its script
   from `"${CLAUDE_PLUGIN_ROOT}"/`, which the map rules and
   [tools/tests/test_claude_wiring.py](../tools/tests/test_claude_wiring.py) hold it to.
 - This repository's own [.claude/settings.json](../.claude/settings.json) names its own folder as the marketplace,

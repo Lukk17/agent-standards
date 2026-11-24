@@ -11,7 +11,7 @@
   per-tool trees generated beside it: [.codex/agents/](../.codex/agents/)
   and [.github/agents/](../.github/agents/), and `.claude/agents/` in a project imported before Claude Code moved to the plugins.
 - [.claude/workflows/](../.claude/workflows/), the saved Claude Code workflows, such as the skill audit.
-- [.agents/hooks/](../.agents/hooks/), the four hook scripts: the shared preflight gate, the reply formatting check,
+- [.agents/hooks/](../.agents/hooks/), the hook scripts, among them the shared preflight gate, the reply formatting check,
   the markdown lint pass that runs after an edit, and the task-list mirror. Beside them,
   [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), the OpenCode and Kilo Code adapter that runs them all.
 - [.github/hooks/preflight.json](../.github/hooks/preflight.json), the GitHub Copilot hook configuration.
@@ -166,7 +166,7 @@ Install `core` and every development domain, or one domain such as `python` in i
 claude plugin install all@agent-standards --scope project
 ```
 
-Both commands write into your `.claude/settings.json` and keep what it holds. An import made before the plugins left a `hooks` block there, which runs the scripts in `.agents/hooks/`. Upstream ships no such block any more, so nothing refreshes it. Delete the block, then install the hooks as plugins. A hook the settings file and a plugin both carry runs twice, so never keep both. Unix shell:
+Both commands write into your `.claude/settings.json` and keep what it holds. An import made before the plugins left a `hooks` block there, which runs the scripts in `.agents/hooks/`. Upstream ships no such block any more, so nothing refreshes it. Delete the block, then install the hooks as plugins. While the block and a plugin both carry a hook, both handlers start, every plugin copy but the gate stands down, and only the gate runs twice, which only repeats a deny. Unix shell:
 
 ```bash
 python3 -c 'import json;p=".claude/settings.json";s=json.load(open(p,encoding="utf-8"));s.pop("hooks",None);open(p,"w",encoding="utf-8").write(json.dumps(s,indent=2)+"\n")'

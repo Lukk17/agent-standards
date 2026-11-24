@@ -157,7 +157,7 @@ That is the whole setup. Commit when you are ready, the `.claude/settings.json` 
 What you just pulled:
 
 - [.agents/skills/](../.agents/skills/), the canonical skills, plus [.agents/agents/](../.agents/agents/), the shared
-  OpenCode-format subagents, [.agents/hooks/](../.agents/hooks/), the four hook scripts, and
+  OpenCode-format subagents, [.agents/hooks/](../.agents/hooks/), the hook scripts, and
   [.agents/plugin/hooks.js](../.agents/plugin/hooks.js), the OpenCode and Kilo adapter for the gate.
 - [.claude/workflows/](../.claude/workflows/): the folder holding the [skill audit](#auditing-the-skills). The rest of `.claude/` upstream, its `skills` symlink, its `agents/` tree and its `settings.json`, stays out, because the plugins carry the same skills, subagents and hooks. The import holds no `CLAUDE.md`, on
   purpose, see [instruction files](#instruction-files).
@@ -212,7 +212,7 @@ is yours.
 
 ### Claude Code plugins
 
-Claude Code takes its skills, subagents and hooks as plugins from the upstream marketplace, not from the checkout, and its MCP servers too, so a project installs only what it uses. The marketplace is the [marketplace.json](https://github.com/Lukk17/agent-standards/blob/master/.claude-plugin/marketplace.json) on the upstream `master`, and every skill, every subagent, every Claude Code hook and every MCP server is its own plugin there, with its own version. Bundles install a group of plugins by name and hold no files. Every hook is a plugin, the three reminders [.claude/settings.json](../.claude/settings.json) prints at session start, on each prompt and when a subagent starts included. `AGENTS.md` still arrives by Git, through the import in [Step 1](#step-1-initial-import), because no plugin can add it.
+Claude Code takes its skills, subagents and hooks as plugins from the upstream marketplace, not from the checkout, and its MCP servers too, so a project installs only what it uses. The marketplace is the [marketplace.json](https://github.com/Lukk17/agent-standards/blob/master/.claude-plugin/marketplace.json) on the upstream `master`, and every skill, every subagent, every Claude Code hook and every MCP server is its own plugin there, with its own version. Bundles install a group of plugins by name and hold no files. Every hook is a plugin, the three reminders the hook plugins print at session start, on each prompt and when a subagent starts included. `AGENTS.md` still arrives by Git, through the import in [Step 1](#step-1-initial-import), because no plugin can add it.
 
 | Plugin | What it installs |
 | --- | --- |
@@ -303,11 +303,11 @@ Project scope writes two keys into the project's `.claude/settings.json`, measur
 
 Every component is namespaced under its plugin, so the Python subagent is `agent-python-pro:python-pro` and the Python skill is `/python-patterns:python-patterns`.
 
-Each hook plugin runs its script from the plugin's own folder, from the project directory. The gate judges the session's project and finds a plugin subagent's definition in the plugin cache, under `CLAUDE_CONFIG_DIR` and `~/.claude`, so `agent-code-reviewer:code-reviewer` and `agent-code-archaeologist:code-archaeologist` are held to the commands under their "Read-only shell" heading and denied any edit, and a plugin subagent whose definition declares no skills is denied like any other. When the project's own `.claude/settings.json` already runs a reminder, the task list, the markdown lint or the standards advisory, the plugin copy installed in the Claude Code plugin cache stands down, so no event runs it twice. The gate never stands down: with both the project wiring and `hook-preflight-gate` it runs twice, which only repeats a deny. On the claude format it also denies a main-thread write to its own folder, to the plugin root, to `plugins/`, `agents/` and `settings*.json` under each Claude Code configuration directory, and to `~/.config/agents`. A plugin loaded for one session with `--plugin-dir` is not in the cache, so the gate allows its agents as unknown, a read-only one included. That limit is accepted.
+Each hook plugin runs its script from the plugin's own folder, from the project directory. The gate judges the session's project and finds a plugin subagent's definition in the plugin cache, under `CLAUDE_CONFIG_DIR` and `~/.claude`, so `agent-code-reviewer:code-reviewer` and `agent-code-archaeologist:code-archaeologist` are held to the commands under their "Read-only shell" heading and denied any edit, and a plugin subagent whose definition declares no skills is denied like any other. When the project's own `.claude/settings.json` also wires a hook that a plugin carries, both handlers start, every plugin copy but the gate stands down, and only the gate runs twice, which only repeats a deny. A plugin copy stands down only when it is installed in the Claude Code plugin cache. On the claude format it also denies a main-thread write to its own folder, to the plugin root, to `plugins/`, `agents/` and `settings*.json` under each Claude Code configuration directory, and to `~/.config/agents`. A plugin loaded for one session with `--plugin-dir` is not in the cache, so the gate allows its agents as unknown, a read-only one included. That limit is accepted.
 
 #### A project that still wires the hooks itself
 
-An import made before Claude Code moved to the plugins put the Claude Code hooks into the project's own `.claude/settings.json`, as a `hooks` block that runs the scripts in [.agents/hooks/](../.agents/hooks/). Upstream ships no such block any more: its own [.claude/settings.json](../.claude/settings.json) names its own folder as the marketplace and is of no use in another project, so never check it out. Move that project to the plugins by deleting the `hooks` block and installing `hooks-all`, or the hook plugins you want. Until then keep the hook plugins out of it, because a hook the settings file and a plugin both carry runs twice.
+An import made before Claude Code moved to the plugins put the Claude Code hooks into the project's own `.claude/settings.json`, as a `hooks` block that runs the scripts in [.agents/hooks/](../.agents/hooks/). Upstream ships no such block any more: its own [.claude/settings.json](https://github.com/Lukk17/agent-standards/blob/master/.claude/settings.json) names its own folder as the marketplace and is of no use in another project, so never check it out. Move that project to the plugins by deleting the `hooks` block and installing `hooks-all`, or the hook plugins you want. While the block and a plugin both carry a hook, both handlers start, every plugin copy but the gate stands down, and only the gate runs twice, which only repeats a deny.
 
 #### The git import beside the plugins
 
@@ -431,7 +431,7 @@ Codex loads its whole `.codex/` layer, hooks included, only after you trust the 
 ### Subagents
 
 Subagents are specialised agents the main session delegates to. One canonical file per agent fans out to four trees:
-[.claude/agents/](../.claude/agents/) in Claude markdown, [.agents/agents/](../.agents/agents/) in OpenCode markdown,
+[.claude/agents/](https://github.com/Lukk17/agent-standards/tree/master/.claude/agents) in Claude markdown, [.agents/agents/](../.agents/agents/) in OpenCode markdown,
 [.codex/agents/](../.codex/agents/) in TOML, and [.github/agents/](../.github/agents/) as `*.agent.md`. OpenCode and
 Kilo Code both read the OpenCode format and both follow symlinks when scanning an agent directory, so `.opencode/agents`
 and `.kilo/agents` are symlinks into the shared tree rather than two more copies. Claude Code, Codex, and Copilot each

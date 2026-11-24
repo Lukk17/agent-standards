@@ -554,7 +554,7 @@ Claude Code takes its skills, subagents and hooks as plugins from the marketplac
 | --- | --- |
 | The skill's own name, such as `python-patterns` or `quality-loop` | That one skill. `quality-loop` also carries Robert C. Martin's tools from [.metrics/tools/](.metrics/tools/) |
 | `agent-<name>`, such as `agent-python-pro` | That one subagent and every skill it preloads |
-| `hook-<name>`, such as `hook-preflight-gate` or `hook-preflight-reminder` | One Claude Code hook, wired with the same events, matchers and timeouts as [.claude/settings.json](.claude/settings.json). `hook-preflight-reminder`, `hook-background-subagent-reminder` and `hook-subagent-reminder` print its three reminders |
+| `hook-<name>`, such as `hook-preflight-gate` or `hook-preflight-reminder` | One Claude Code hook, wired from its `wiring` entry in [tools/plugins.yaml](tools/plugins.yaml). `hook-preflight-reminder`, `hook-background-subagent-reminder` and `hook-subagent-reminder` print its three reminders |
 | `mcp-<server>`, such as `mcp-mongodb` | One MCP server, on a pinned version. Install it at project scope only |
 | `core` | The skills that subagents in two or more domains preload |
 | `python`, `jvm`, `go`, `backend`, `data`, `web-frontend`, `mobile`, `devops`, `review-and-security`, `testing`, `docs-and-product`, `embedded`, `game`, `agent-tooling` | One domain each: its subagents, the skills only they use, and `core` |
@@ -621,7 +621,7 @@ Install every hook:
 claude plugin install hooks-all@agent-standards --scope project
 ```
 
-`mcp-all` installs every MCP server plugin at once, and all nine servers then start with every session in that project, so install it only where the project uses all of them:
+`mcp-all` installs every MCP server plugin at once, and every server then starts with every session in that project, so install it only where the project uses all of them:
 
 ```bash
 claude plugin install mcp-all@agent-standards --scope project
@@ -661,11 +661,11 @@ The GitHub Copilot CLI reads a marketplace from `.claude-plugin/` too: it "also 
 
 #### The hooks as plugins
 
-Each hook plugin runs the hook's script from the plugin's own folder, from the project directory, with the events, matcher and arguments its own entry in the marketplace carries. The gate in `hook-preflight-gate` judges the session's project, never the plugin cache, and finds a plugin subagent's definition in the cache, so a read-only agent such as `agent-code-reviewer:code-reviewer` is held to the commands under its "Read-only shell" heading. When a project's own [.claude/settings.json](.claude/settings.json) already runs a reminder, the task list, the markdown lint or the standards advisory, the plugin copy installed in the Claude Code plugin cache stands down, so no event runs it twice. The gate never stands down: with both the project wiring and `hook-preflight-gate`, it runs twice, which only repeats a deny. On the claude format the gate also denies a main-thread write to its own folder, to the plugin root, to `plugins/`, `agents/` and `settings*.json` under each Claude Code configuration directory, and to `~/.config/agents`. A plugin loaded for one session with `--plugin-dir` is not in the cache, so the gate allows its agents as unknown, a read-only one included. That limit is accepted and listed under "What the gate cannot place" in [docs/agent-compatibility.md](docs/agent-compatibility.md).
+Each hook plugin runs the hook's script from the plugin's own folder, from the project directory, with the events, matcher and arguments its own entry in the marketplace carries. The gate in `hook-preflight-gate` judges the session's project, never the plugin cache, and finds a plugin subagent's definition in the cache, so a read-only agent such as `agent-code-reviewer:code-reviewer` is held to the commands under its "Read-only shell" heading. When a project's own `.claude/settings.json` also wires a hook that a plugin carries, both handlers start, every plugin copy but the gate stands down, and only the gate runs twice, which only repeats a deny. A plugin copy stands down only when it is installed in the Claude Code plugin cache. On the claude format the gate also denies a main-thread write to its own folder, to the plugin root, to `plugins/`, `agents/` and `settings*.json` under each Claude Code configuration directory, and to `~/.config/agents`. A plugin loaded for one session with `--plugin-dir` is not in the cache, so the gate allows its agents as unknown, a read-only one included. That limit is accepted and listed under "What the gate cannot place" in [docs/agent-compatibility.md](docs/agent-compatibility.md).
 
 #### A project that still wires the hooks itself
 
-An import made before Claude Code moved to the plugins put the Claude Code hooks into the project's own `.claude/settings.json`, as a `hooks` block that runs the scripts in [.agents/hooks/](.agents/hooks/). Upstream ships no such block any more: its own [.claude/settings.json](.claude/settings.json) names its own folder as the marketplace and is of no use in another project, so never check it out. Move that project to the plugins by deleting the `hooks` block and installing `hooks-all`, or the hook plugins you want. Until then keep the hook plugins out of it, because a hook the settings file and a plugin both carry runs twice.
+An import made before Claude Code moved to the plugins put the Claude Code hooks into the project's own `.claude/settings.json`, as a `hooks` block that runs the scripts in [.agents/hooks/](.agents/hooks/). Upstream ships no such block any more: its own [.claude/settings.json](.claude/settings.json) names its own folder as the marketplace and is of no use in another project, so never check it out. Move that project to the plugins by deleting the `hooks` block and installing `hooks-all`, or the hook plugins you want. While the block and a plugin both carry a hook, both handlers start, every plugin copy but the gate stands down, and only the gate runs twice, which only repeats a deny.
 
 #### The git import beside the plugins
 
@@ -801,8 +801,9 @@ including what each hook surface can actually block, lives in
   `permissionMode: plan` on Claude Code for the read-only agents, sets `effort` on Claude Code from each source's
   difficulty `level`, and refuses a source that names a `model`, so no
   generated agent pins one and each runs on the user's subagent default or the session's model.
-- [.claude/](.claude/): Claude Code's own folder, with a `skills` symlink, a generated `agents/` tree, and the hooks
-  in `settings.json`. The marketplace renders its plugins from these files, and a consumer project installs the plugins and does not check the folder out. It holds no `CLAUDE.md`, because any `CLAUDE.md` stops Claude Code reading `AGENTS.md`.
+- [.claude/](.claude/): Claude Code's own folder, with a `skills` symlink, a generated `agents/` tree, and
+  `settings.json`, which holds only `extraKnownMarketplaces` and `enabledPlugins` and wires no hook. The hook plugins
+  render from [tools/plugins.yaml](tools/plugins.yaml), and the skill and subagent plugins from these files. A consumer project installs the plugins and does not check the folder out. It holds no `CLAUDE.md`, because any `CLAUDE.md` stops Claude Code reading `AGENTS.md`.
 - [.metrics/tools/](.metrics/tools/): the quality loop's three measuring tools by Robert C. Martin (Uncle Bob),
   [crapper](https://github.com/unclebob/crapper), [dryer](https://github.com/unclebob/dryer) and
   [mutator](https://github.com/unclebob/mutator), copied unchanged at pinned commits under their 0BSD licence, and the
@@ -852,7 +853,7 @@ top-level key, the `type` value, and the substitution syntax:
 and the two Copilot surfaces that get no project file at all are in [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
 
 Hook wiring lives beside them, one file per agent, all calling the same scripts in
-[.agents/hooks/](.agents/hooks/): [.claude/settings.json](.claude/settings.json), the inline `[[hooks.*]]` tables in
+[.agents/hooks/](.agents/hooks/): the `wiring` entries in [tools/plugins.yaml](tools/plugins.yaml), which render the Claude Code hook plugins, the inline `[[hooks.*]]` tables in
 [.codex/config.toml](.codex/config.toml), the `plugin` array of [opencode.json](opencode.json), and
 [.github/hooks/preflight.json](.github/hooks/preflight.json).
 

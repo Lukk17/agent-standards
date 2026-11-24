@@ -4,7 +4,9 @@ A server started as `npx <package>@latest`, as `uvx <package>` with no
 version, from an image with no tag, or with `docker run --pull=always` runs
 whatever its registry serves on the day it starts. `floating` gives the reason
 such a command floats, and None for a command that names an exact npm version,
-an exact PyPI version, or an image by a tag other than `latest` or by digest.
+an exact PyPI version, or an image by a version tag other than `latest`
+together with the `@sha256:` digest of that tag. A tag alone can be pushed
+again, and a digest alone names no release a reader can look up.
 
 tools/plugin_map_rules.py refuses a plugin map with a floating server block,
 and tools/tests/test_mcp_pins.py holds the five MCP files and the documents to
@@ -85,13 +87,14 @@ def package(command: Sequence[str]) -> str | None:
 
 
 def _image_floats(image: str) -> str | None:
-    if IMAGE_DIGEST.search(image):
-        return None
-    tag = image.rsplit("/", 1)[-1].partition(":")[2]
+    digest = IMAGE_DIGEST.search(image)
+    tag = image.partition("@")[0].rsplit("/", 1)[-1].partition(":")[2]
     if not tag:
-        return f"the image {image!r} names no tag and no digest"
+        return f"the image {image!r} names a digest but no version tag" if digest else f"the image {image!r} names no tag and no digest"
     if tag == FLOATING_TAG:
-        return f"the image {image!r} floats on the tag {FLOATING_TAG}"
+        return f"the image {image!r} names the moving tag {FLOATING_TAG}" if digest else f"the image {image!r} floats on the tag {FLOATING_TAG}"
+    if not digest:
+        return f"the image {image!r} names the tag {tag!r} but no digest"
     return None
 
 

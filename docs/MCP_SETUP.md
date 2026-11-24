@@ -208,7 +208,7 @@ Then install the server, here `mongodb`:
 claude plugin install mcp-mongodb@agent-standards --scope project
 ```
 
-At project scope, "The entry goes in `.claude/settings.json`, which you commit" (same section), so everyone who works in the repository gets the same servers. Each of them runs the same install command once in their own clone, because committing the entry "doesn't download it to their machines". The plugins are `mcp-mongodb`, `mcp-grafana`, `mcp-playwright`, `mcp-chrome-devtools`, `mcp-redis`, `mcp-sonarqube`, `mcp-n8n` and `mcp-home-assistant`. `mcp-all` installs all nine servers, so use it only in a project that uses all of them. In a project that has the shipped `.mcp.json`, `mcp-context7` adds nothing: Claude Code "matches plugins and connectors by endpoint, so one that points at the same URL or command as an enabled server above counts as a duplicate" ([MCP docs](https://code.claude.com/docs/en/mcp), "Scope hierarchy and precedence", read 2026-11-23).
+At project scope, "The entry goes in `.claude/settings.json`, which you commit" (same section), so everyone who works in the repository gets the same servers. Each of them runs the same install command once in their own clone, because committing the entry "doesn't download it to their machines". The plugins are `mcp-mongodb`, `mcp-grafana`, `mcp-playwright`, `mcp-chrome-devtools`, `mcp-redis`, `mcp-sonarqube`, `mcp-n8n` and `mcp-home-assistant`. `mcp-all` installs every server, so use it only in a project that uses all of them. In a project that has the shipped `.mcp.json`, `mcp-context7` adds nothing: Claude Code "matches plugins and connectors by endpoint, so one that points at the same URL or command as an enabled server above counts as a duplicate" ([MCP docs](https://code.claude.com/docs/en/mcp), "Scope hierarchy and precedence", read 2026-11-23).
 
 The second way is `claude mcp add --scope project`, which writes the block into the project's `.mcp.json`. Each command below writes the same block its plugin carries, measured with Claude Code 2.1.325 on 2026-11-23. The single quotes keep each `${VAR:-default}` as text, so the file holds it unchanged and Claude Code expands it when it starts the server. Run the ones you need from the project root, in either shell. MongoDB:
 
@@ -243,7 +243,7 @@ claude mcp add --scope project redis -- uvx --from redis-mcp-server==0.5.1 redis
 SonarQube:
 
 ```bash
-claude mcp add --scope project sonarqube -e 'SONARQUBE_TOKEN=${SONARQUBE_TOKEN:-}' -e 'SONARQUBE_URL=${SONARQUBE_URL:-http://localhost:9000}' -- docker run --init -i --rm -e SONARQUBE_TOKEN -e SONARQUBE_URL sonarsource/sonarqube-mcp:1.32.0.5118
+claude mcp add --scope project sonarqube -e 'SONARQUBE_TOKEN=${SONARQUBE_TOKEN:-}' -e 'SONARQUBE_URL=${SONARQUBE_URL:-http://localhost:9000}' -- docker run --init -i --rm -e SONARQUBE_TOKEN -e SONARQUBE_URL sonarsource/sonarqube-mcp:1.32.0.5118@sha256:ac7f24054fb45d57c1bcd2c6438cefb1d8ea225eb6e81e5710d0cba1aa1b0838
 ```
 
 n8n:
@@ -971,7 +971,7 @@ on Windows.
 
 ### Updating a pinned server
 
-Every local server command names one exact release: an npm package as `name@1.2.3`, a PyPI package as `name==1.2.3`, and the SonarQube image as `name:1.2.3.4`, a version tag. No command says `@latest`, leaves the version out or pulls an image on every start, so a server changes only when someone changes its pin. Upstream moves the pins from time to time, and you can move one in your own copy the same way:
+Every local server command names one exact release: an npm package as `name@1.2.3`, a PyPI package as `name==1.2.3`, and the SonarQube image as `name:1.2.3.4@sha256:<digest>`, a version tag together with the digest of the image index that tag named when it was pinned. No command says `@latest`, leaves the version out or pulls an image on every start, so a server changes only when someone changes its pin. Upstream moves the pins from time to time, and you can move one in your own copy the same way:
 
 1. Read the releases from the registry itself. For an npm package, here `mongodb-mcp-server`, this prints every version with the time it was published, in either shell:
 
@@ -1004,6 +1004,20 @@ Every local server command names one exact release: an npm package as `name@1.2.
    ```
 
 2. Take the newest stable release that is at least 7 days old. The wait gives a bad or malicious release time to be caught and withdrawn before you run it. A release under a tag such as `alpha`, `canary`, `next` or `pre` is not stable.
+
+   For the SonarQube image, read the digest of the tag you chose and write the pin as the tag, `@`, then the digest. This reads Docker Hub and pulls no image. It prints the whole pin, here for `1.32.0.5118`. Unix shell:
+
+   ```bash
+   python3 -c 'import json,sys,urllib.request;n,t=sys.argv[1].split(":");print(sys.argv[1]+"@"+json.load(urllib.request.urlopen("https://hub.docker.com/v2/repositories/"+n+"/tags/"+t))["digest"])' sonarsource/sonarqube-mcp:1.32.0.5118
+   ```
+
+   PowerShell 7.4 or later:
+
+   ```powershell
+   python -c 'import json,sys,urllib.request;n,t=sys.argv[1].split(":");print(sys.argv[1]+"@"+json.load(urllib.request.urlopen("https://hub.docker.com/v2/repositories/"+n+"/tags/"+t))["digest"])' sonarsource/sonarqube-mcp:1.32.0.5118
+   ```
+
+   The digest Docker Hub gives for a tag is the digest of its image index, the one list that holds the image for every platform. On 2026-11-24 it matched the `Digest` line of `docker buildx imagetools inspect sonarsource/sonarqube-mcp:1.32.0.5118`, Docker Buildx 0.39.0, which reads the registry too.
 3. Write the new version into every file of yours that names the old one. The last two words are the pin the files hold now and the one you chose, so put your own in place of `3.4.0`. Unix shell:
 
    ```bash
@@ -1034,9 +1048,9 @@ Then update the plugin:
 claude plugin update mcp-mongodb@agent-standards
 ```
 
-The SonarQube server runs SonarSource's own image, `sonarsource/sonarqube-mcp`. Its README says to use the bare name "for automatic updates (with `--pull=always`), or pin to a version tag (e.g., `sonarsource/sonarqube-mcp:1.19.0.2785`) for reproducible deployments", and with a pinned image to "remove `--pull=always` so Docker does not silently upgrade the image" ([sonarqube-mcp-server README](https://github.com/SonarSource/sonarqube-mcp-server), "Manual setup" and "I want to pin to a specific version", read 2026-11-23). `docker run` pulls an image it does not have and then reuses the local copy, so the server does not pull on every start.
+The SonarQube server runs SonarSource's own image, `sonarsource/sonarqube-mcp`. Its README says to use the bare name "for automatic updates (with `--pull=always`), or pin to a version tag (e.g., `sonarsource/sonarqube-mcp:1.19.0.2785`) for reproducible deployments", and with a pinned image to "remove `--pull=always` so Docker does not silently upgrade the image" ([sonarqube-mcp-server README](https://github.com/SonarSource/sonarqube-mcp-server), "Manual setup" and "I want to pin to a specific version", read 2026-11-23). `docker run` pulls an image it does not have and then reuses the local copy, so the server does not pull on every start. The pin here also names the digest, because a tag is only a name the publisher can push again, while a digest names one image: "When pulling an image by digest, you specify exactly which version of an image to pull. Doing so, allows you to "pin" an image to that version, and guarantee that the image you're using is always the same" ([docker image pull](https://docs.docker.com/reference/cli/docker/image/pull/), "Pull an image by digest (immutable identifier)", read 2026-11-24). An image reference may carry both, `name [ ":" tag ] [ "@" digest ]` ([distribution reference grammar](https://github.com/distribution/reference/blob/main/reference.go), read 2026-11-24), so the tag still says which release the digest is.
 
-A tag of four numbers, such as `1.32.0.5118`, is one release of the server. Among those pushed at least 7 days ago, take the one with the highest version, because an older line still gets fixes and its newest tag can be pushed later than a higher version. A tag of three numbers, such as `2026.5.2`, is a second name for one of those releases: "Some releases are also tagged with the SonarQube Server version they are aligned with, in the form `<SQS major>.<SQS minor>.<patch>`" (same README, "Manual setup"). The tag `latest` moves from release to release, so a pin never names it. Each tag holds an image for `linux/amd64` and one for `linux/arm64` (Docker Hub tag list, read 2026-11-23). Write the tag you chose with the command of step 3, here from `sonarsource/sonarqube-mcp:1.32.0.5118` to the new one.
+A tag of four numbers, such as `1.32.0.5118`, is one release of the server. Among those pushed at least 7 days ago, take the one with the highest version, because an older line still gets fixes and its newest tag can be pushed later than a higher version. A tag of three numbers, such as `2026.5.2`, is a second name for one of those releases: "Some releases are also tagged with the SonarQube Server version they are aligned with, in the form `<SQS major>.<SQS minor>.<patch>`" (same README, "Manual setup"). The tag `latest` moves from release to release, so a pin never names it. Each tag holds an image for `linux/amd64` and one for `linux/arm64` (Docker Hub tag list, read 2026-11-23). Read the digest of the tag you chose with the command of step 2, then write the new pin with the command of step 3, here from `sonarsource/sonarqube-mcp:1.32.0.5118@sha256:ac7f24054fb45d57c1bcd2c6438cefb1d8ea225eb6e81e5710d0cba1aa1b0838` to the new tag and its digest.
 
 ---
 

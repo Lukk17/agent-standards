@@ -33,9 +33,8 @@ DIGEST = "sha256:" + "0123456789abcdef" * 4
         pytest.param(["uvx", "docs-mcp==2.2.0"], "docs-mcp==2.2.0", id="uvx"),
         pytest.param(["uvx", "--from", "docs-mcp==0.5.1", "docs", "--url", "redis://localhost"], "docs-mcp==0.5.1", id="uvx-from"),
         pytest.param(["uvx", "--env-file", "/home/me/lab.env", "docs-mcp==8.7.0"], "docs-mcp==8.7.0", id="uvx-env-file"),
-        pytest.param(["docker", "run", "--init", "-i", "--rm", "-e", "TOKEN", "lab/docs:1.2.3"], "lab/docs:1.2.3", id="docker-tag"),
-        pytest.param(["docker", "run", "-i", "--rm", f"lab/docs@{DIGEST}"], f"lab/docs@{DIGEST}", id="docker-digest"),
-        pytest.param(["docker", "run", "--rm", f"registry.lab:5000/docs:1.2.3@{DIGEST}"], f"registry.lab:5000/docs:1.2.3@{DIGEST}", id="docker-tag-and-digest"),
+        pytest.param(["docker", "run", "--init", "-i", "--rm", "-e", "TOKEN", f"lab/docs:1.2.3@{DIGEST}"], f"lab/docs:1.2.3@{DIGEST}", id="docker-tag-and-digest"),
+        pytest.param(["docker", "run", "--rm", f"registry.lab:5000/docs:1.2.3@{DIGEST}"], f"registry.lab:5000/docs:1.2.3@{DIGEST}", id="docker-tag-and-digest-with-port"),
     ],
 )
 def test_a_command_that_names_an_exact_version_is_pinned(command, package):
@@ -56,6 +55,11 @@ def test_a_command_that_names_an_exact_version_is_pinned(command, package):
         pytest.param(["docker", "run", "-i", "--rm", "lab/docs"], "names no tag and no digest", id="docker-untagged"),
         pytest.param(["docker", "run", "-i", "--rm", "registry.lab:5000/docs"], "names no tag and no digest", id="docker-untagged-with-port"),
         pytest.param(["docker", "run", "-i", "--rm", f"lab/docs:{mcp_pins.FLOATING_TAG}"], "floats on the tag latest", id="docker-floating-tag"),
+        pytest.param(["docker", "run", "-i", "--rm", f"lab/docs:{mcp_pins.FLOATING_TAG}@{DIGEST}"], "names the moving tag latest", id="docker-floating-tag-with-digest"),
+        pytest.param(["docker", "run", "--init", "-i", "--rm", "-e", "TOKEN", "lab/docs:1.2.3"], "names the tag '1.2.3' but no digest", id="docker-tag-without-digest"),
+        pytest.param(["docker", "run", "--rm", "registry.lab:5000/docs:1.2.3"], "names the tag '1.2.3' but no digest", id="docker-tag-without-digest-with-port"),
+        pytest.param(["docker", "run", "-i", "--rm", f"lab/docs@{DIGEST}"], "names a digest but no version tag", id="docker-digest-without-tag"),
+        pytest.param(["docker", "run", "-i", "--rm", "lab/docs:1.2.3@sha256:1234"], "names the tag '1.2.3' but no digest", id="docker-short-digest"),
         pytest.param(["docker", "run", "--pull=always", "-i", "lab/docs:1.2.3"], "pulls the image on every start", id="docker-pull-always"),
         pytest.param(["docker", "run", "--pull", "always", "-i", "lab/docs:1.2.3"], "pulls the image on every start", id="docker-pull-always-two-words"),
         pytest.param(["docker", "run", "--pull=always", "-i", f"lab/docs@{DIGEST}"], "pulls the image on every start", id="docker-pull-always-with-digest"),

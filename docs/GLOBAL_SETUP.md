@@ -557,7 +557,7 @@ Choose the user-wide set by the size of the skill listing. Claude Code loads the
 | `core` and one domain bundle | 3,802 to 5,082 |
 | `core`, `agent-tooling`, `linux`, `personal-tools` and `homelab` | 8,212 |
 | the bundle `all` | 13,276 |
-| all 72 skills | 17,885 |
+| every skill of the marketplace | 17,885 |
 
 So install `core` and the bundles you use in every project with the user scope, install the rest in the project that needs them, and never install `all` with the user scope. A plugin at project scope adds its descriptions only in that project.
 
@@ -1920,9 +1920,9 @@ Honest list of what a global install cannot do.
 
 7. Codex reads the shared skills through `$CODEX_HOME/skills`, a location its own source calls deprecated. When it goes, this guide changes with it.
 
-8. Project settings win. A project that ran the per-project import brings its own `.claude/settings.json`,
-   `opencode.json`, `.codex/config.toml`, and skills, and those take precedence over the global ones. Hooks are the
-   exception: Codex runs the global and the project hooks side by side, and so does Claude Code in a project whose own `.claude/settings.json` still wires a hook that a plugin with the user scope also carries. A plugin switched on at both scopes is still one plugin. The formatting check handles
+8. Project settings win. A project that ran the per-project import brings its own `opencode.json`,
+   `.codex/config.toml`, and skills, its plugin install writes its own `.claude/settings.json`, and those take precedence over the global ones. Hooks are the
+   exception: Codex runs the global and the project hooks side by side. In a project whose own `.claude/settings.json` still wires a hook that a plugin with the user scope also carries, both handlers start, every plugin copy but the gate stands down, and only the gate runs twice, which only repeats a deny. A plugin switched on at both scopes is still one plugin. The formatting check handles
    that itself. The copy under `~/.config/agents/hooks/` stays silent in a project whose `.claude/settings.json`,
    `.claude/settings.local.json`, `.codex/config.toml`, `.codex/hooks.json` or `.github/hooks/*.json` already runs
    `no_ai_markers_check.py` on the same event, so one reply is never blocked twice and one batch never fixed twice.

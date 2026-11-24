@@ -2,10 +2,12 @@
 
 Claude Code runs a handler defined in several settings files once, but "A
 plugin's or skill's copy of the same handler stays separate"
-(https://code.claude.com/docs/en/hooks, "Hook handler fields"). So a script
-wired in .claude/settings.json and carried by a hook plugin as well runs twice
-on one event, and so does a script that two enabled plugins both wire to the
-same event. A script is known by its file name, because a plugin names it from
+(https://code.claude.com/docs/en/hooks, "Hook handler fields"). So for a
+script wired in .claude/settings.json and carried by a hook plugin as well,
+both handlers start on one event, every plugin copy but the gate stands down,
+and only the gate runs twice. A script that two enabled plugins both wire to
+the same event runs twice, because neither copy stands down for the other.
+These tests fail on either. A script is known by its file name, because a plugin names it from
 "${CLAUDE_PLUGIN_ROOT}" and a settings file by its project path. The sandbox
 suite in sandbox-agent/e2e-mock/subagent-write.sh counts the real runs in the
 debug log of a session.

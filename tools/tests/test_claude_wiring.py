@@ -2,9 +2,10 @@
 
 .claude/settings.json wires no hook itself: it names the repository's own
 marketplace by a path relative to the main checkout and switches on every hook
-plugin of it, because a handler wired in a settings file and carried by a
-plugin as well runs twice (https://code.claude.com/docs/en/hooks, "A plugin's
-or skill's copy of the same handler stays separate"). Each plugin entry carries
+plugin of it, because for a handler wired in a settings file and carried by a
+plugin as well both handlers start (https://code.claude.com/docs/en/hooks, "A
+plugin's or skill's copy of the same handler stays separate"), every plugin
+copy but the gate stands down, and only the gate runs twice. Each plugin entry carries
 the wiring its entry in tools/plugins.yaml defines, and every command starts in
 the session's project and runs a script of the plugin's own folder.
 

@@ -867,6 +867,43 @@ def test_a_reference_style_link_to_a_missing_file_is_reported(tmp_path, capsys):
     assert "links to gone.md, which does not exist" in out
 
 
+def test_a_percent_encoded_manifest_link_to_a_file_that_exists_passes(tmp_path, capsys):
+    # Given a manifest linking a reference whose name holds a space, written as %20
+    path = _write_manifest(tmp_path, "Open [topic](references/my%20file.md#part) for the depth.\n")
+    _write_reference(tmp_path, "my file.md", "# Topic\n\n### Part\n\nPlain reference prose.\n")
+
+    # When the manifest is checked
+    failures = MARKDOWN.check_file(path)
+
+    # Then the decoded path is found
+    assert failures == 0, capsys.readouterr().out
+
+
+def test_a_reference_linked_with_percent_encoding_counts_as_linked(tmp_path, capsys):
+    # Given a reference with a space in its name, linked from its manifest as %20
+    _write_manifest(tmp_path, "Open [topic](references/my%20file.md) for the depth.\n")
+    path = _write_reference(tmp_path, "my file.md", "# Topic\n\nSee [the manifest](../SKILL.md).\n")
+
+    # When the reference is checked
+    failures = MARKDOWN.check_file(path)
+
+    # Then it is neither unlinked nor broken
+    assert failures == 0, capsys.readouterr().out
+
+
+def test_a_percent_encoded_link_to_a_missing_file_is_still_reported(tmp_path, capsys):
+    # Given a manifest linking a %20 name that no file carries
+    path = _write_manifest(tmp_path, "Open [topic](references/no%20such.md) for the depth.\n")
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the link is reported as written
+    out = capsys.readouterr().out
+    assert failures == 1
+    assert "links to references/no%20such.md, which does not exist" in out
+
+
 @pytest.mark.parametrize(
     "definition",
     ["[^1]: Measured on one host.", "[^note]: ../other-skill/SKILL.md says the same.", "   [^1]: gone.md"],

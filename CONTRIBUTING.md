@@ -57,7 +57,7 @@ the same CI workflow first, so a release runs the container suite as well.
 - JSON validity for `.mcp.json`, `opencode.json`, `.vscode/mcp.json`, `.github/mcp.json`, `.claude/settings.json`,
   and `.github/hooks/preflight.json` if you touch those, and TOML validity for `.codex/config.toml`.
 - Pinned MCP servers. Every server command names one exact version, the same one in every file, chosen as "Updating a pinned server" in [docs/MCP_SETUP.md](docs/MCP_SETUP.md) says, and [.mcp.json](.mcp.json) keeps `context7` alone.
-- Tests for the shared hooks. If you change any of the four scripts in [.agents/hooks/](.agents/hooks/), add or
+- Tests for the shared hooks. If you change any script in [.agents/hooks/](.agents/hooks/), add or
   update the matching case in [tools/tests/](tools/tests/). CI runs the suite. Keep every hook standard library only,
   because they run on `-S -E`, and keep `argparse` out of them, because it exits 2 on a usage error and 2 is
   the deny code.

@@ -4223,7 +4223,7 @@
       "name": "mcp-sonarqube",
       "source": "./.claude-plugin",
       "version": "2.0.0",
-      "description": "The SonarQube MCP server, started with docker run from SonarSource's own image pinned to a version tag.",
+      "description": "The SonarQube MCP server, started with docker run from SonarSource's own image pinned to a version tag and its digest.",
       "category": "mcp",
       "author": {
         "name": "Łukasz Sarna",
@@ -4253,7 +4253,7 @@
             "SONARQUBE_TOKEN",
             "-e",
             "SONARQUBE_URL",
-            "sonarsource/sonarqube-mcp:1.32.0.5118"
+            "sonarsource/sonarqube-mcp:1.32.0.5118@sha256:ac7f24054fb45d57c1bcd2c6438cefb1d8ea225eb6e81e5710d0cba1aa1b0838"
           ],
           "env": {
             "SONARQUBE_TOKEN": "${SONARQUBE_TOKEN:-}",

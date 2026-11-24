@@ -22,14 +22,20 @@ combined descriptions of your subagents, except the built-in ones, exceed 15,000
 tokens" (https://code.claude.com/docs/en/sub-agents, read 2026-11-24). A token
 holds at least one byte, so a group whose descriptions take at most 15,000
 bytes in UTF-8 stays under that limit.
+
+docs/GLOBAL_SETUP.md gives the listing size of each set a user may install
+with the user scope, in one table, and the last tests hold every row of it to
+the size this count gives, so the table cannot go stale. "One domain bundle"
+there means a bundle of the development category.
 """
 
 import dataclasses
+import re
 
 import pytest
 
 import gen_plugins as gen
-from plugin_model import AGENT_PREFIX, ALL, CORE, DOMAIN_CATEGORIES
+from plugin_model import AGENT_PREFIX, ALL, CORE, DEVELOPMENT, DOMAIN_CATEGORIES
 from tests.conftest import REPO_ROOT
 
 BUDGET_FRACTION = 0.01
@@ -41,6 +47,13 @@ AGENT_DESCRIPTION_TOKENS = 15_000
 OVERSIZED = "x" * (DESCRIPTION_CAP * 3)
 
 SOURCES = gen.load_sources(REPO_ROOT)
+
+GLOBAL_SETUP = REPO_ROOT / "docs" / "GLOBAL_SETUP.md"
+SIZE_TABLE_HEADER = "| Installed with the user scope | Listing characters |"
+DOMAIN_ROW = "`core` and one domain bundle"
+EVERY_SKILL_ROW = "every skill of the marketplace"
+BACKTICKED_NAME = re.compile(r"`([a-z0-9-]+)`")
+DOCUMENTED_SIZE = re.compile(r"(?P<low>[0-9][0-9,]*)(?: to (?P<high>[0-9][0-9,]*))?")
 
 
 def budget(window: int) -> int:
@@ -93,6 +106,59 @@ def over_warning(sources: gen.Sources) -> list[str]:
 GROUPS = groups(SOURCES)
 
 
+def _characters(text: str) -> int:
+    return int(text.replace(",", ""))
+
+
+def documented_sizes(text: str) -> dict[str, tuple[int, int]]:
+    """Each row of the listing size table in the global guide, as its label and its lowest and highest size.
+
+    Raises:
+        ValueError: the text holds no size table, or a size cell that is no number and no range.
+    """
+    lines = text.splitlines()
+    rows: dict[str, tuple[int, int]] = {}
+
+    for line in lines[lines.index(SIZE_TABLE_HEADER) + 2 :]:
+        if not line.startswith("|"):
+            break
+
+        label, size = (cell.strip() for cell in line.strip().strip("|").split("|"))
+        match = DOCUMENTED_SIZE.fullmatch(size)
+
+        if match is None:
+            raise ValueError(f"the size {size!r} of the row {label!r} is no number and no range")
+
+        rows[label] = (_characters(match["low"]), _characters(match["high"] or match["low"]))
+
+    return rows
+
+
+def measured_size(sources: gen.Sources, label: str) -> tuple[int, int]:
+    """The lowest and highest listing size of the set a row of the size table names."""
+    if label == DOMAIN_ROW:
+        domains = [bundle.name for bundle in sources.plugin_map.bundles if bundle.category == DEVELOPMENT and bundle.name != CORE]
+        sizes = [listing_size(sources, installed(sources, CORE, name)) for name in domains]
+
+        return min(sizes), max(sizes)
+
+    if label == EVERY_SKILL_ROW:
+        size = listing_size(sources, set(sources.skills))
+    else:
+        size = listing_size(sources, installed(sources, *BACKTICKED_NAME.findall(label)))
+
+    return size, size
+
+
+def stale_sizes(sources: gen.Sources, text: str) -> dict[str, tuple[tuple[int, int], tuple[int, int]]]:
+    """Every row whose documented size is not the measured one, as label, then documented and measured."""
+    return {
+        label: (documented, measured)
+        for label, documented in documented_sizes(text).items()
+        if (measured := measured_size(sources, label)) != documented
+    }
+
+
 def test_the_budgets_are_the_characters_claude_code_gives_a_200k_and_a_1m_window():
     assert (budget(SMALL_WINDOW), budget(LARGE_WINDOW)) == (6_000, 30_000)
 
@@ -141,3 +207,34 @@ def test_oversized_subagent_descriptions_put_all_over_the_warning():
     agents = {name: dataclasses.replace(agent, description=OVERSIZED) for name, agent in SOURCES.agents.items()}
 
     assert ALL in over_warning(dataclasses.replace(SOURCES, agents=agents))
+
+
+def test_the_global_guide_gives_a_size_for_core_one_domain_all_and_every_skill():
+    rows = documented_sizes(GLOBAL_SETUP.read_text(encoding="utf-8"))
+
+    assert {f"`{CORE}`", DOMAIN_ROW, f"the bundle `{ALL}`", EVERY_SKILL_ROW} <= set(rows)
+
+
+def test_every_listing_size_the_global_guide_gives_is_the_measured_one():
+    assert stale_sizes(SOURCES, GLOBAL_SETUP.read_text(encoding="utf-8")) == {}
+
+
+def test_a_size_that_no_longer_matches_the_skills_is_caught():
+    # Given the size table with the size of core moved off by one character
+    text = GLOBAL_SETUP.read_text(encoding="utf-8")
+    core_size = measured_size(SOURCES, f"`{CORE}`")[0]
+    stale = text.replace(f"| `{CORE}` | {core_size:,} |", f"| `{CORE}` | {core_size + 1:,} |")
+
+    # When the documented sizes are compared with the measured ones
+    found = stale_sizes(SOURCES, stale)
+
+    # Then only that row is reported, with both numbers
+    assert found == {f"`{CORE}`": ((core_size + 1, core_size + 1), (core_size, core_size))}
+
+
+def test_a_range_counts_its_two_ends_and_a_row_with_no_number_is_refused():
+    table = f"{SIZE_TABLE_HEADER}\n| --- | --- |\n| {DOMAIN_ROW} | 3,802 to 5,082 |\n"
+
+    assert documented_sizes(table) == {DOMAIN_ROW: (3802, 5082)}
+    with pytest.raises(ValueError, match="is no number and no range"):
+        documented_sizes(table + "| `core` | many |\n")
