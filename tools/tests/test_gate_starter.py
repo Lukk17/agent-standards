@@ -1,10 +1,12 @@
 """Tests for the starter of the preflight gate, .agents/hooks/preflight-gate/preflight_gate.py.
 
-Every wiring runs the starter, and the starter imports the rules from
-gate_rules.py beside it, so the interpreter loads the compiled copy it keeps
-in __pycache__ instead of compiling the rules on every tool call. The cases
-start the gate the way the wirings do, with -S -E and a path relative to the
-project root, and hold each answer to the one the rules give in-process.
+Every wiring runs the starter, and the starter loads the rules from
+gate_rules.py beside it by that file's path, so the interpreter loads the
+compiled copy it keeps in __pycache__ instead of compiling the rules on every
+tool call, and no other file in the folder or the working directory can stand
+in for them. The cases start the gate the way the wirings do, with -S -E and a
+path relative to the project root, and hold each answer to the one the rules
+give in-process.
 """
 
 import importlib.util
@@ -46,16 +48,21 @@ BROKEN_RULES = {
     "not-python": "def main(:\n",
     "raises-on-import": 'raise RuntimeError("the rules blew up")\n',
     "no-main": "VALUE = 1\n",
+    "exits-on-import": "import sys\nsys.exit(2)\n",
 }
 BROKEN_RULES_ERRORS = {
-    "missing": "ModuleNotFoundError",
+    "missing": "FileNotFoundError",
     "not-python": "SyntaxError",
     "raises-on-import": "RuntimeError",
-    "no-main": "ImportError",
+    "no-main": "AttributeError",
+    "exits-on-import": "SystemExit",
 }
 LOAD_FAILURE_PREFIX = "preflight-gate: gate_rules failed to load: "
+MESSAGE_CAP = 300
 
 RULES_THAT_ALLOW = "def main():\n    return 0\n"
+ENDS_THE_PROCESS_AND_ALLOWS = "import os\nos._exit(0)\n"
+SHADOWED_STANDARD_MODULES = ("json", "re", "shlex", "ast", "pathlib")
 
 
 def _load_rules():
@@ -69,14 +76,14 @@ def _load_rules():
 RULES = _load_rules()
 
 
-def start(payload, fmt, script=STARTER, cwd=REPO_ROOT):
+def start(payload, fmt, script=STARTER, cwd=REPO_ROOT, flags=WIRING_FLAGS):
     """Start the gate the way every wiring does and return (returncode, stdout, stderr).
 
     Raises:
         subprocess.TimeoutExpired: when the gate is still running after the timeout.
     """
     result = run_bounded(
-        [sys.executable, *WIRING_FLAGS, str(script), "--format", fmt],
+        [sys.executable, *flags, str(script), "--format", fmt],
         input=json.dumps(payload),
         capture_output=True,
         text=True,
@@ -251,6 +258,184 @@ def test_a_multi_line_exception_message_stays_on_one_line(tmp_path):
     assert result == (0, "", f"{LOAD_FAILURE_PREFIX}RuntimeError: first second\n")
 
 
+def test_a_message_whose_text_cannot_be_read_still_allows_and_never_crashes_the_starter(tmp_path):
+    # Given rules that raise an exception whose own text raises
+    unreadable = 'class Unreadable(Exception):\n    def __str__(self):\n        raise ValueError("no text")\n\nraise Unreadable()\n'
+    starter = starter_with_rules(tmp_path, unreadable)
+
+    # When a main-thread write arrives
+    result = start(WRITE, "claude", script=starter, cwd=project(tmp_path))
+
+    # Then the call is allowed and no traceback reaches stderr
+    assert result == ALLOWED
+
+
+def test_characters_that_cannot_be_printed_are_replaced_in_the_load_failure_line(tmp_path):
+    # Given rules whose import error message holds an escape sequence and a null character
+    starter = starter_with_rules(tmp_path, 'raise RuntimeError("a\\x1b[31mb\\x00c\\u200bd")\n')
+
+    # When a main-thread write arrives
+    result = start(WRITE, "claude", script=starter, cwd=project(tmp_path))
+
+    # Then each of them is a question mark
+    assert result == (0, "", f"{LOAD_FAILURE_PREFIX}RuntimeError: a?[31mb?c?d\n")
+
+
+def test_a_long_load_failure_message_is_cut_to_its_cap(tmp_path):
+    # Given rules whose import error message is far longer than the cap
+    starter = starter_with_rules(tmp_path, f'raise RuntimeError("{"x" * (MESSAGE_CAP * 4)}")\n')
+
+    # When a main-thread write arrives
+    result = start(WRITE, "claude", script=starter, cwd=project(tmp_path))
+
+    # Then the message keeps only its first MESSAGE_CAP characters
+    assert result == (0, "", f"{LOAD_FAILURE_PREFIX}RuntimeError: {'x' * MESSAGE_CAP}\n")
+
+
+@pytest.mark.skipif(SHELL is None, reason="needs a POSIX shell to start the gate with stderr closed")
+def test_a_starter_started_with_no_stderr_still_allows_on_broken_rules(tmp_path):
+    # Given broken rules that report what sys.stderr is, on stdout
+    starter = starter_with_rules(tmp_path, 'import sys\nsys.stdout.write(repr(sys.stderr))\nraise RuntimeError("no stderr")\n')
+
+    # When the starter runs with its stderr file descriptor closed
+    result = run_bounded(
+        [SHELL, "-c", 'exec "$0" -S -E "$1" --format claude 2>&-', sys.executable, str(starter)],
+        input=json.dumps(WRITE),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(project(tmp_path)),
+        timeout=SUBPROCESS_TIMEOUT_SECONDS,
+    )
+
+    # Then sys.stderr was None and the starter still allowed the call with exit 0
+    assert (result.returncode, result.stdout) == (0, "None")
+
+
+def broken_gate_in_a_repository(tmp_path, rules):
+    """A git project holding the starter beside the given rules text in .agents/hooks/preflight-gate/."""
+    root = project(tmp_path)
+    folder = root / PREFLIGHT_GATE.parent.relative_to(REPO_ROOT)
+    folder.mkdir(parents=True)
+    shutil.copy2(PREFLIGHT_GATE, folder / PREFLIGHT_GATE.name)
+
+    if rules is not None:
+        (folder / GATE_RULES.name).write_text(rules, encoding="utf-8")
+
+    run_bounded([GIT, "init", "--quiet"], cwd=str(root), check=True, timeout=SUBPROCESS_TIMEOUT_SECONDS)
+
+    return root, folder
+
+
+def claude_command_for(root, folder):
+    """The gate plugin's command, with the plugin root at folder and the session in root."""
+    environment = {**os.environ, wiring.PLUGIN_ROOT_VARIABLE: str(folder), wiring.PROJECT_DIR_VARIABLE: str(root)}
+
+    return claude_handler().command, environment
+
+
+def codex_command_for(root, folder):
+    """The Codex wiring's command, which finds the gate from the git top level of root."""
+    command, _ = codex_command()
+
+    return command, dict(os.environ)
+
+
+WIRED_LOAD_FAILURE_STDERR = {"claude": True, "codex": False}
+
+
+@pytest.mark.skipif(SHELL is None or GIT is None, reason="needs a POSIX shell and git")
+@pytest.mark.parametrize("command", [claude_command_for, codex_command_for], ids=["claude", "codex"])
+@pytest.mark.parametrize("case", BROKEN_RULES)
+def test_the_wiring_s_own_command_allows_when_the_rules_cannot_be_loaded(tmp_path, command, case):
+    # Given a project whose gate rules are missing or broken, and the command a shipped wiring holds
+    root, folder = broken_gate_in_a_repository(tmp_path, BROKEN_RULES[case])
+    wired, environment = command(root, folder)
+    name = "claude" if command is claude_command_for else "codex"
+
+    # When the shell runs it from the project with a main-thread write
+    result = run_bounded(
+        [SHELL, "-c", wired],
+        input=json.dumps(WRITE),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(root),
+        env=environment,
+        timeout=SUBPROCESS_TIMEOUT_SECONDS,
+    )
+
+    # Then the call is allowed, and the load failure line reaches stderr only where the wiring keeps it
+    assert (result.returncode, result.stdout) == (0, "")
+
+    if WIRED_LOAD_FAILURE_STDERR[name]:
+        assert result.stderr == result.stderr.splitlines()[0] + "\n"
+        assert result.stderr.startswith(f"{LOAD_FAILURE_PREFIX}{BROKEN_RULES_ERRORS[case]}: ")
+    else:
+        assert result.stderr == ""
+
+
+def planted_beside(starter, relative, text):
+    planted = starter.parent / relative
+    planted.parent.mkdir(parents=True, exist_ok=True)
+    planted.write_text(text, encoding="utf-8")
+
+
+def test_a_package_planted_beside_the_rules_never_stands_in_for_them(tmp_path):
+    # Given an installed gate with a gate_rules package beside the real rules file, which would allow everything
+    starter = installed_gate(tmp_path)
+    planted_beside(starter, f"{GATE_RULES.stem}/__init__.py", ENDS_THE_PROCESS_AND_ALLOWS)
+
+    # When a main-thread write arrives
+    result = start(WRITE, "claude", script=starter, cwd=project(tmp_path))
+
+    # Then the real rules decide and deny it
+    assert is_denial(result, "claude")
+
+
+def test_a_rules_file_in_the_working_directory_never_stands_in_for_the_real_rules(tmp_path):
+    # Given an installed gate, and a decoy rules file that allows everything in the project the session runs in
+    starter = installed_gate(tmp_path)
+    root = project(tmp_path)
+    (root / GATE_RULES.name).write_text(RULES_THAT_ALLOW, encoding="utf-8")
+
+    # When a main-thread write arrives
+    result = start(WRITE, "claude", script=starter, cwd=root)
+
+    # Then the real rules decide and deny it
+    assert is_denial(result, "claude")
+
+
+@pytest.mark.parametrize("module", SHADOWED_STANDARD_MODULES)
+def test_a_standard_module_planted_beside_the_rules_never_shadows_the_real_one(tmp_path, module):
+    # Given an installed gate with a file named after a standard module the rules import, which would allow everything
+    starter = installed_gate(tmp_path)
+    planted_beside(starter, f"{module}.py", ENDS_THE_PROCESS_AND_ALLOWS)
+
+    # When a main-thread write arrives
+    result = start(WRITE, "claude", script=starter, cwd=project(tmp_path))
+
+    # Then the standard module is the one the rules get, and they deny it
+    assert is_denial(result, "claude")
+
+
+def test_rules_loaded_by_path_still_protect_the_project_the_gate_is_installed_in(tmp_path):
+    # Given a gate installed in a project, and a session started in a folder outside that project
+    root = project(tmp_path)
+    folder = root / PREFLIGHT_GATE.parent.relative_to(REPO_ROOT)
+    folder.mkdir(parents=True)
+    starter = copy_gate(folder)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    write = {**WRITE, "tool_input": {"file_path": str(root / "src" / "app.py"), "content": "x"}}
+
+    # When a main-thread write into the installed project arrives
+    result = start(write, "claude", script=starter, cwd=elsewhere)
+
+    # Then the rules found their install root from their own location and deny it
+    assert is_denial(result, "claude")
+
+
 def test_the_first_start_keeps_a_compiled_copy_of_the_rules_and_the_next_start_answers_the_same(tmp_path):
     # Given a freshly installed gate with no compiled copy yet
     starter = installed_gate(tmp_path)
@@ -278,6 +463,44 @@ def test_a_replaced_rules_file_takes_effect_on_the_next_start(tmp_path):
 
     # When an update replaces the rules file
     (starter.parent / GATE_RULES.name).write_text(RULES_THAT_ALLOW, encoding="utf-8")
+
+    # Then the new rules decide, never the compiled copy of the old ones
+    assert start(WRITE, "claude", script=starter, cwd=root) == ALLOWED
+
+
+def test_the_second_start_loads_the_compiled_copy_without_writing_it_again(tmp_path):
+    # Given an installed gate that has already compiled its rules
+    starter = installed_gate(tmp_path)
+    root = project(tmp_path)
+
+    assert is_denial(start(WRITE, "claude", script=starter, cwd=root), "claude")
+    (compiled,) = compiled_rules(starter.parent)
+    kept = compiled.stat().st_mtime_ns
+
+    # When it starts again, with the interpreter reporting every module it loads
+    code, out, err = start(WRITE, "claude", script=starter, cwd=root, flags=(*WIRING_FLAGS, "-v"))
+
+    # Then it denies as before, the compiled copy was read as valid, and it was never written again
+    assert is_denial((code, out, ""), "claude")
+    assert f"{compiled} matches {starter.parent / GATE_RULES.name}" in err
+    assert compiled.stat().st_mtime_ns == kept
+
+
+def test_a_rules_file_replaced_by_one_of_the_same_size_takes_effect_on_the_next_start(tmp_path):
+    # Given an installed gate that has already compiled its rules
+    starter = installed_gate(tmp_path)
+    root = project(tmp_path)
+    rules = starter.parent / GATE_RULES.name
+
+    assert is_denial(start(WRITE, "claude", script=starter, cwd=root), "claude")
+    old = rules.stat()
+
+    # When an update replaces the rules file with one of exactly the same size, written a second later
+    padding = old.st_size - len(RULES_THAT_ALLOW) - 1
+    rules.write_bytes(f"{RULES_THAT_ALLOW}#{'x' * (padding - 1)}\n".encode())
+    os.utime(rules, ns=(old.st_atime_ns, old.st_mtime_ns + 1_000_000_000))
+
+    assert rules.stat().st_size == old.st_size
 
     # Then the new rules decide, never the compiled copy of the old ones
     assert start(WRITE, "claude", script=starter, cwd=root) == ALLOWED

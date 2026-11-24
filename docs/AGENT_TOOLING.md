@@ -377,7 +377,7 @@ The Required opening move section of [AGENTS.md](../AGENTS.md) is the canonical 
 skills and subagents that own the task and invoke them, or say none apply and why. A rule read once at session start
 loses its grip over a long session, so the gate is also enforced mechanically.
 
-One shared rule file does the deciding, [.agents/hooks/preflight-gate/gate_rules.py](../.agents/hooks/preflight-gate/gate_rules.py). Every wiring runs the starter [.agents/hooks/preflight-gate/preflight_gate.py](../.agents/hooks/preflight-gate/preflight_gate.py) beside it, which imports the rules, so Python keeps a compiled copy of them in a `__pycache__` folder there and loads that copy on the next tool call. [.agents/hooks/.gitignore](../.agents/hooks/.gitignore) keeps that folder out of git, and a folder that cannot be written only costs the compile again on every call. The gate reads
+One shared rule file does the deciding, [.agents/hooks/preflight-gate/gate_rules.py](../.agents/hooks/preflight-gate/gate_rules.py). Every wiring runs the starter [.agents/hooks/preflight-gate/preflight_gate.py](../.agents/hooks/preflight-gate/preflight_gate.py) beside it, which loads the rules from that file by its path, so Python keeps a compiled copy of them in a `__pycache__` folder there and loads that copy on the next tool call. [.agents/hooks/.gitignore](../.agents/hooks/.gitignore) keeps that folder out of git, and a folder that cannot be written only costs the compile again on every call. The gate reads
 the hook payload and denies three things:
 
 - A write of any file that resolves inside the repository working tree, coming straight from the main thread.

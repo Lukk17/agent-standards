@@ -144,7 +144,7 @@ Reading the tables row by row:
 - Every row anchors the gate at the project root before calling it, so a session started in a subdirectory still finds
   [../.agents/hooks/preflight-gate/preflight_gate.py](../.agents/hooks/preflight-gate/preflight_gate.py), and a missing script allows rather than
   denies. Python exits 2 when it cannot open the file it was handed, and 2 is the deny code, so an unanchored path used
-  to block every tool call. A starter that cannot import [../.agents/hooks/preflight-gate/gate_rules.py](../.agents/hooks/preflight-gate/gate_rules.py) allows too, with exit 0, nothing on stdout and one line on stderr, `preflight-gate: gate_rules failed to load: <type>: <message>`. No agent reads that line as a decision. Claude Code: "Claude never sees stderr from a hook that exits 0. To read it yourself on events such as `PreToolUse`, enable debug logging" ([hooks](https://code.claude.com/docs/en/hooks), "Exit code 0", read 2026-11-24). Codex 0.169.0 reads only stdout on exit 0 and ignores it when empty (`Some(0) => { let trimmed_stdout = run_result.stdout.trim(); if trimmed_stdout.is_empty() {}` in [codex-rs/hooks/src/events/pre_tool_use.rs](https://github.com/openai/codex/blob/rust-v0.169.0/codex-rs/hooks/src/events/pre_tool_use.rs), read 2026-11-24). GitHub Copilot: exit 0 is "Success. `stdout` is parsed as the hook output JSON if present." ([hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference), "Exit codes for command hooks", read 2026-11-24), not measured here. The OpenCode and Kilo Code runner in [../.agents/plugin/hooks.js](../.agents/plugin/hooks.js) reads stderr only on exit 2.
+  to block every tool call. A starter that cannot load [../.agents/hooks/preflight-gate/gate_rules.py](../.agents/hooks/preflight-gate/gate_rules.py) allows too, with exit 0, nothing on stdout and one line on stderr, `preflight-gate: gate_rules failed to load: <type>: <message>`. No agent reads that line as a decision, and on most surfaces nobody sees it at all. Claude Code keeps it out of the session: "Claude never sees stderr from a hook that exits 0. To read it yourself on events such as `PreToolUse`, enable debug logging" ([hooks](https://code.claude.com/docs/en/hooks), "Exit code 0", read 2026-11-24), so there the line is visible only in the debug log. Codex 0.169.0 reads only stdout on exit 0 and ignores it when empty (`Some(0) => { let trimmed_stdout = run_result.stdout.trim(); if trimmed_stdout.is_empty() {}` in [codex-rs/hooks/src/events/pre_tool_use.rs](https://github.com/openai/codex/blob/rust-v0.169.0/codex-rs/hooks/src/events/pre_tool_use.rs), read 2026-11-24), and the line never reaches Codex anyway, because [../.codex/config.toml](../.codex/config.toml) sends the gate's stderr to the null device, `2>/dev/null` in `command` and `2>$null` in `commandWindows`. GitHub Copilot: exit 0 is "Success. `stdout` is parsed as the hook output JSON if present." ([hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference), "Exit codes for command hooks", read 2026-11-24), not measured here, and [../.github/hooks/preflight.json](../.github/hooks/preflight.json) discards the line the same way, `2>/dev/null` for `bash` and `2>$null` for `powershell`. The OpenCode and Kilo Code runner in [../.agents/plugin/hooks.js](../.agents/plugin/hooks.js) collects stderr but reads it only on exit 2, so it drops the line. The line is visible only in the Claude Code debug log and in a terminal where someone starts the gate by hand. A rules file that cannot load turns the gate off in every session with no warning, and no hook raises an alarm for it.
 - [../.agents/hooks/no-ai-markers-check/no_ai_markers_check.py](../.agents/hooks/no-ai-markers-check/no_ai_markers_check.py) finds an em dash, an en dash, a
   semicolon, or a bold or italic marker, asterisk or underscore form, and asks only for `Correction:` lines. Claude
   Code first fixes dashes, bold and italic on screen through `MessageDisplay`, so its `Stop` blocks only on what that
@@ -391,8 +391,9 @@ Reading the tables row by row:
 #### Where the write rule draws the repository boundary
 
 "Inside the repository" is the gate's own roots rather than a git query: the process working directory, the project
-root the hook payload names in its `cwd` field, and the gate script's own on-disk location two parents up, that last
-one only while it is a real project and not the user's home directory or a directory above it. The `cwd` root is kept
+root the hook payload names in its `cwd` field, and the project the gate is installed in, three folders up from
+`.agents/hooks/preflight-gate/`, the folder that holds the rules file, that last one only while that folder sits in
+`.agents/hooks` and the result is a real project and not the user's home directory or a directory above it. The `cwd` root is kept
 exactly as sent, so a folder named with a trailing blank is never read as the folder without it. That is what lets the
 user-level install in [GLOBAL_SETUP.md](GLOBAL_SETUP.md) protect the open project instead of everything the user owns.
 A relative path resolves against every root, and it counts as inside when it lands inside any one of them.
@@ -602,6 +603,18 @@ Known limits of Rule A, accepted rather than open:
 - The protection of Claude Code's own files applies on the claude format only. On Codex and through the OpenCode and
   Kilo Code runner the main thread can still overwrite `~/.config/agents/hooks/...` and the files under `~/.codex`,
   as before the marketplace.
+- The starter [../.agents/hooks/preflight-gate/preflight_gate.py](../.agents/hooks/preflight-gate/preflight_gate.py)
+  takes its own folder off the import path and loads the rules by the path of
+  [../.agents/hooks/preflight-gate/gate_rules.py](../.agents/hooks/preflight-gate/gate_rules.py), so a `gate_rules`
+  package, a `gate_rules` extension module or a file named after a standard module, planted beside it or in the
+  working directory, never runs. The compiled copy in `__pycache__` beside it still can, and git ignores that folder,
+  so a planted copy shows in no diff. Python runs an unchecked hash-based copy without reading the source: "For
+  unchecked hash-based `.pyc` files, Python simply assumes the cache file is valid if it exists."
+  ([The import system](https://docs.python.org/3.14/reference/import.html#cached-bytecode-invalidation), "Cached
+  bytecode invalidation", read 2026-11-24). A timestamp copy is checked only against the modification time, in whole
+  seconds, and the size of the source, so a copy written with those two values runs too, and a rules file replaced by
+  one of the same size with the same modification second keeps the old compiled rules deciding. Both were measured
+  on Python 3.14.10 with the starter of this release.
 
 Known limits of Rule B, accepted rather than open, each costing availability only and never allowing a write the gate
 would otherwise deny:
