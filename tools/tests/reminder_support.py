@@ -60,13 +60,13 @@ SUBAGENT_MARKER = "PREFLIGHT for a subagent:"
 WIRED_COPIES = {
     ".codex/config.toml": 2,
     ".github/hooks/preflight.json": 2,
-    "docs/GLOBAL_SETUP.md": 6,
+    "docs/GLOBAL_SETUP.md": 4,
 }
 
 SUBAGENT_WIRED_COPIES = {
     ".codex/config.toml": 2,
     ".github/hooks/preflight.json": 2,
-    "docs/GLOBAL_SETUP.md": 5,
+    "docs/GLOBAL_SETUP.md": 4,
 }
 
 def posix_shell() -> str | None:
@@ -169,11 +169,6 @@ def subagent_start_commands(document) -> list[tuple[str, str]]:
 
 def wiring_commands(relative: str, marker: str = MARKER) -> list[tuple[str, str]]:
     text = (REPO_ROOT / relative).read_text(encoding="utf-8")
-    if marker == MARKER and relative == "docs/GLOBAL_SETUP.md":
-        short = [pair for document in WIRINGS[relative](text) for pair in reminder_commands(document, marker=marker)]
-        long = [pair for document in WIRINGS[relative](text) for pair in reminder_commands(document, marker=CLAUDE_MARKER)]
-        # The long Claude text never contains the short marker, the short never the long one.
-        return short + [pair for pair in long if pair not in short]
 
     return [pair for document in WIRINGS[relative](text) for pair in reminder_commands(document, marker=marker)]
 
@@ -326,8 +321,6 @@ EXPECTED_REMINDERS = {
     "sandbox-agent/setup-global.sh": [SHORT_REMINDER],
     ".agents/hooks/copilot/prompt-reminder/prompt_reminder.py": [SHORT_REMINDER],
     "docs/GLOBAL_SETUP.md": [
-        CLAUDE_REMINDER,
-        CLAUDE_REMINDER,
         SHORT_REMINDER,
         SHORT_REMINDER,
         SHORT_REMINDER,

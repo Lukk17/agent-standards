@@ -29,14 +29,14 @@ and only OpenCode and Kilo Code are close enough to share one.
 
 | Agent | Native project path | Native global path | How we serve it |
 | --- | --- | --- | --- |
-| Claude Code | `.claude/skills/` | `~/.claude/skills/` | symlink `.claude/skills -> ../.agents/skills`, because Claude Code does not read `.agents/skills/` |
+| Claude Code | `.claude/skills/` | `~/.claude/skills/` | one plugin per skill from the marketplace, at project scope in the project's `.claude/settings.json` or with the user scope in `~/.claude/settings.json`, because Claude Code does not read `.agents/skills/`. The two native folders hold only a project's or a user's own skills, as real folders, never a link to `.agents/skills` |
 | Codex | `.agents/skills/` | `~/.agents/skills/` | native, scanned from the working directory up to the repo root |
 | OpenCode | `.agents/skills/`, `.opencode/skills/` | `~/.agents/skills/` | native |
 | Kilo Code | `.agents/skills/`, `.kilo/skills/` | `~/.agents/skills/` | native |
 | GitHub Copilot | `.agents/skills/`, `.github/skills/`, `.claude/skills/` | `~/.agents/skills/`, `~/.copilot/skills/` | native on VS Code, JetBrains, CLI, and the cloud agent |
 
-One symlink for one agent. Everything else reads the canonical directory directly, which is why no `.opencode/skills`,
-`.kilo/skills`, or `.codex/skills` symlink exists.
+A consumer gets no skills symlink. Claude Code takes plugins there, and everything else reads the canonical directory directly, which is why no `.opencode/skills`,
+`.kilo/skills`, or `.codex/skills` symlink exists. This repository keeps `.claude/skills -> ../.agents/skills` for its own sessions, which switch on no skill plugin, and no import delivers that link. A consumer project holds a `.claude/skills` link only from an import made before the plugins, and it lists every skill twice until it is removed.
 
 ---
 
@@ -778,9 +778,9 @@ Read these before you touch any hook wiring. They moved here from `AGENTS.md`, w
   measured on 2.1.314, a machine's first `claude -p` in a fresh clone ran with no gate, and its second run had it.
 - The marketplace name is the same here and on GitHub, `agent-standards`. Measured on 2.1.314, a session in this
   repository replaces a registration of that name made from a git address with this folder, for the whole machine.
-- Claude Code's `SessionStart` also injects the subagent supervision text, plain context with no script behind it.
-  [GLOBAL_SETUP.md](GLOBAL_SETUP.md) and [sandbox-agent/setup-global.sh](../sandbox-agent/setup-global.sh) carry it
-  word for word.
+- Claude Code's `SessionStart` also injects the subagent supervision text, which only the `hook-background-subagent-reminder` plugin carries.
+  The user-wide install in [GLOBAL_SETUP.md](GLOBAL_SETUP.md) and [sandbox-agent/setup-global.sh](../sandbox-agent/setup-global.sh) install that plugin with the user scope
+  and hold no copy of the text.
 - Every hook runs on `-S -E` under `python3`, falling back to `python`.
 - No hook uses `argparse`, which exits 2 on a usage error. Two is the deny code in the plain format, so a stray flag
   would read as a block. Each hook scans `sys.argv` by hand instead and treats an unknown flag as an allow.

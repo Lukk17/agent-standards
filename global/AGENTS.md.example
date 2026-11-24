@@ -135,8 +135,10 @@ Write in simple, common English that a non-native reader understands at once.
 ### Global agent setup
 
 1. The canonical folder is ~/.config/agents (Windows %USERPROFILE%\.config\agents): AGENTS.md, MACHINE.md, instructions/ (reply rules), skills/, agents/, hooks/, plugin/, bin/ (updaters).
-2. Agents reach it through links or environment variables: Claude Code through ~/.claude/CLAUDE.md importing AGENTS.md and a hook keeping the ~/.claude/skills links, Codex through CODEX_HOME=~/.config/codex, OpenCode and Kilo Code through ~/.config/opencode and ~/.config/kilo, Copilot through environment variables. The variables live in ~/.config/environment.d on Linux and in the user environment on macOS and Windows.
-3. Never edit generated copies. Change agent-standards and run the updater.
+2. Codex, OpenCode, Kilo Code and Copilot reach it through links or environment variables: Codex through CODEX_HOME=~/.config/codex, OpenCode and Kilo Code through ~/.config/opencode and ~/.config/kilo, Copilot through environment variables. The variables live in ~/.config/environment.d on Linux and in the user environment on macOS and Windows.
+2.1. Claude Code reads one file from it, AGENTS.md, through the one-line import in ~/.claude/CLAUDE.md. Its skills, subagents and hooks are plugins from the agent-standards marketplace, installed with the user scope, never links or copies under ~/.claude. MACHINE.md is not imported, it is a plain file read by its path.
+2.2. An MCP server is declared in the project that uses it, never with the user scope, and no plugin that carries one is installed with the user scope.
+3. Never edit generated copies or a plugin in the Claude Code cache. Change agent-standards, then run the updater and update the plugins.
 4. Machine work starts in ~/.local/state/agents/workspace.
 5. Details: docs/GLOBAL_SETUP.md in https://github.com/Lukk17/agent-standards.
 

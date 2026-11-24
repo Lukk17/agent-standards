@@ -28,7 +28,7 @@ Four jobs run in parallel, and none of them waits on another:
 - `actionlint` lints the workflow YAML, including a ShellCheck pass over every `run:` block.
 - `validate` runs the JSON and TOML checks, the generator drift check, the markdown linter, the badge-count check, and
   the pytest suite. Every one of those is a command you can run locally, listed further down this page.
-- `sandbox` builds the container image once and then runs the containerised suite three times over: the per-project import assertions, a global install run twice against the container's own home to prove it is idempotent, and a scoped single-agent install to prove it writes only that agent's paths. The per-project run includes the subagent-write section, where each pinned agent binary has a real `python-pro` subagent write a real file and the gate refuse the main thread's own write, against a scripted mock model, as [sandbox-agent/README.md](sandbox-agent/README.md) describes under "A real subagent writes a real file, on every agent". This is the slow job, several minutes against the other two, which is why it runs alongside them rather than behind them.
+- `sandbox` builds the container image once and then runs the containerised suite three times over: the per-project import assertions, a global install run twice against the container's own home to prove it is idempotent, and a scoped single-agent install to prove it writes only that agent's paths. The global run gives Claude Code its plugins with the user scope, as [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md) does, and asserts that no skill link, subagent copy or hook of the install lands under `~/.claude`. The per-project run includes the subagent-write section, where each pinned agent binary has a real `python-pro` subagent write a real file and the gate refuse the main thread's own write, against a scripted mock model, as [sandbox-agent/README.md](sandbox-agent/README.md) describes under "A real subagent writes a real file, on every agent". This is the slow job, several minutes against the other two, which is why it runs alongside them rather than behind them.
 - `quality-loop` copies each sample project under [tools/tests/quality_samples/](tools/tests/quality_samples/) into a fresh repository with `.metrics/tools`, the way an import delivers it, runs `.metrics/tools/run measure` and `summary` through the launcher of the runner's system, and checks that coverage was read, the planted duplicate was found and exactly the planted mutants survived. It runs Python, TypeScript, Java with Maven and Java with Gradle on Ubuntu, and Python and Java with Gradle on Windows, where mutator's symlinks and the wrapper's Windows commands are measured. Run one sample locally with `python tools/tests/quality_samples/run_sample.py python`.
 
 The scoped check names the individual files the installer writes rather than asserting that `~/.claude` and its
@@ -312,6 +312,17 @@ python tools/gen_plugins.py
 ```
 
 A dependency names a plugin and never a version range, because a range on the dependency of a marketplace entry had no effect when measured on Claude Code 2.1.323. Installing a host group installs and enables every plugin in it: `defaultEnabled: false` on a bundle would switch off only the empty bundle, measured on Claude Code 2.1.323, so no bundle carries it.
+
+A consumer installs a plugin at project scope, or with the user scope for every project on a machine, as [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md) describes. The user scope is for `core` and the bundles a user needs everywhere. No document may tell a reader to install `all`, `mcp-all` or an `mcp-<server>` plugin with the user scope, and [tools/tests/test_sandbox_claude_plugins.py](tools/tests/test_sandbox_claude_plugins.py) fails on one that does.
+
+---
+
+### Claude Code plugins on a contributor's machine
+
+This repository's own [.claude/settings.json](.claude/settings.json) declares the marketplace `agent-standards` as its own folder and switches on the hook plugins from it. On a machine that also installed plugins from the upstream marketplace with the user scope, two things follow:
+
+1. A session in this repository replaces the registration of `agent-standards` made from GitHub with this folder, for the whole machine, measured in the sandbox on Claude Code 2.1.314. Every project then reads its plugins from your clone. `claude plugin marketplace list` names the source that is registered, and "Updating the Claude Code plugins" in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md) has the way back.
+2. [.claude/skills](.claude/skills) links the working copy of every skill into this repository's own sessions. A skill you also installed as a plugin with the user scope is listed twice here, once from the link and once under its plugin name, because Claude Code loads a plugin skill and a skill of the same name in a skills folder side by side ([skills docs, "Resolve skills that share a name"](https://code.claude.com/docs/en/skills)). This follows from that rule and was not measured in a session.
 
 ---
 

@@ -10,13 +10,14 @@ into the global agent directory and deleted again inside the same run.
 - The gate copy in the home directory denies a main-thread edit of a source file when it is called from a directory
   that has none of the per-project files in it. This is the assertion the whole global suite exists for: the same
   refusal from a bare working directory can only have come from the home layer.
-- Rule B reaches the global subagent trees. The gate searches its own grandparent as well as the working directory,
-  so a copy at `~/.config/agents/hooks/preflight-gate/preflight_gate.py` finds `~/.claude/agents` and `~/.config/agents/agents`. This spec proves
+- There are two home copies. Claude Code runs the one its `hook-preflight-gate` plugin holds in the plugin cache, installed with the user scope, and every `claude` format step here drives that copy. Codex, Copilot, OpenCode and Kilo Code run the shared copy at `~/.config/agents/hooks/preflight-gate/preflight_gate.py`, which the `codex` and `plain` steps drive.
+- Rule B reaches a subagent of the user's own. The plugin copy reads `~/.claude/agents`, the folder Claude Code keeps for subagents you wrote yourself, which the install leaves empty. This spec proves
   that, with the probe definition and the baseline that makes the deny attributable to it.
-- A subagent that does declare skills is allowed, from the same bare directory, so the rule stays targeted.
+- Rule E reaches a subagent from a plugin with the user scope. The read-only `code-reviewer` of the `review-and-security` bundle is denied an edit and allowed a listed git command, from its definition in the plugin cache, so the rule stays targeted.
+- A main-thread write to `~/.claude/settings.json`, the file that switches the plugins on, is denied on the `claude` format.
 - The project-relative path the shipped wirings use resolves to nothing here, which is the concrete reason the global
-  wirings had to be rewritten to an absolute path in
-  [6-global-install-shape-test.md](6-global-install-shape-test.md).
+  wirings of Codex and Copilot had to be rewritten to an absolute path in
+  [6-global-install-shape-test.md](6-global-install-shape-test.md), and the reason the Claude Code hook plugins run their script from the plugin's own folder.
 - Out of scope, because the container is given no provider credentials: no agent runtime fires the hook and no model
   is asked anything. This spec proves the global gate copy refuses the payload each adapter would hand it.
 - Also out of scope: the OpenCode and Kilo Code plugin itself. In a bare directory it finds no project
@@ -105,6 +106,18 @@ Remove any probe left behind by an interrupted earlier run, so the baseline step
 rm -f "$HOME/.claude/agents/e2e-no-skills-probe.md"
 ```
 
+Name the gate copy Claude Code runs, the one in its plugin cache. Every `claude` format step below uses it.
+
+```bash
+CLAUDE_GATE="$(ls "$HOME"/.claude/plugins/cache/agent-standards/hook-preflight-gate/*/preflight_gate.py)"
+```
+
+```bash
+test -f "$CLAUDE_GATE"
+```
+
+Expect exit 0.
+
 Confirm where you are, because every assertion in this spec depends on it.
 
 ```bash
@@ -117,13 +130,13 @@ Expect `/work/bare`.
 
 ### Run
 
-1. Judge a main-thread source edit with the gate copy in the home directory, called from the bare working directory.
+1. Judge a main-thread source edit with the gate copy Claude Code runs, called from the bare working directory.
 
 ```bash
-python3 "$HOME/.config/agents/hooks/preflight-gate/preflight_gate.py" --format claude < /repo/e2e/fixtures/gate-payloads/main-thread-source-edit.json > /tmp/global-gate-source.json
+python3 "$CLAUDE_GATE" --format claude < /repo/e2e/fixtures/gate-payloads/main-thread-source-edit.json > /tmp/global-gate-source.json
 ```
 
-2. The same payload through the Codex adapter.
+2. The same payload through the Codex adapter, with the shared gate copy.
 
 ```bash
 python3 "$HOME/.config/agents/hooks/preflight-gate/preflight_gate.py" --format codex < /repo/e2e/fixtures/gate-payloads/main-thread-source-edit.json > /tmp/global-gate-source-codex.json
@@ -139,32 +152,44 @@ python3 "$HOME/.config/agents/hooks/preflight-gate/preflight_gate.py" --format p
 4. Establish the baseline: judge the probe subagent's payload before the probe definition exists anywhere.
 
 ```bash
-python3 "$HOME/.config/agents/hooks/preflight-gate/preflight_gate.py" --format claude < /repo/e2e/fixtures/gate-payloads/subagent-without-skills.json > /tmp/global-gate-probe-before.json
+python3 "$CLAUDE_GATE" --format claude < /repo/e2e/fixtures/gate-payloads/subagent-without-skills.json > /tmp/global-gate-probe-before.json
 ```
 
-5. Write the probe definition into the global subagent directory.
+5. Write the probe definition into the folder for subagents of your own, which the install left absent.
 
 ```bash
-cp /repo/e2e/fixtures/e2e-no-skills-probe.md "$HOME/.claude/agents/e2e-no-skills-probe.md"
+mkdir -p "$HOME/.claude/agents" && cp /repo/e2e/fixtures/e2e-no-skills-probe.md "$HOME/.claude/agents/e2e-no-skills-probe.md"
 ```
 
 6. Judge the same payload again, now that the definition is on disk in the home directory.
 
 ```bash
-python3 "$HOME/.config/agents/hooks/preflight-gate/preflight_gate.py" --format claude < /repo/e2e/fixtures/gate-payloads/subagent-without-skills.json > /tmp/global-gate-probe-after.json
+python3 "$CLAUDE_GATE" --format claude < /repo/e2e/fixtures/gate-payloads/subagent-without-skills.json > /tmp/global-gate-probe-after.json
 ```
 
-7. Judge a subagent that does declare skills and may write, `python-pro`, which the global install placed in the same directory.
+7. Judge an edit by the read-only `code-reviewer`, which the install gave Claude Code as a plugin with the user scope.
 
 ```bash
-python3 "$HOME/.config/agents/hooks/preflight-gate/preflight_gate.py" --format claude < /repo/e2e/fixtures/gate-payloads/subagent-with-skills.json > /tmp/global-gate-specialist.json
+printf '%s' '{"agent_id":"e2e-canary-1","agent_type":"agent-code-reviewer:code-reviewer","tool_name":"Edit","tool_input":{"file_path":"src/e2e_canary_app.py"}}' | python3 "$CLAUDE_GATE" --format claude > /tmp/global-gate-reviewer-edit.json
 ```
 
-8. Delete the probe. The container is discarded on exit anyway, but a fixture written into an agent directory is
+8. Judge a git command its definition lists.
+
+```bash
+printf '%s' '{"agent_id":"e2e-canary-1","agent_type":"agent-code-reviewer:code-reviewer","tool_name":"Bash","tool_input":{"command":"git --no-pager diff"}}' | python3 "$CLAUDE_GATE" --format claude > /tmp/global-gate-reviewer-diff.json
+```
+
+9. Judge a main-thread write to the user settings that switch the plugins on.
+
+```bash
+printf '{"tool_name":"Edit","tool_input":{"file_path":"%s"},"cwd":"/work/bare"}' "$HOME/.claude/settings.json" | python3 "$CLAUDE_GATE" --format claude > /tmp/global-gate-settings.json
+```
+
+10. Delete the probe and the folder made for it. The container is discarded on exit anyway, but a fixture written into an agent directory is
    always removed by the spec that wrote it.
 
 ```bash
-rm -f "$HOME/.claude/agents/e2e-no-skills-probe.md"
+rm -f "$HOME/.claude/agents/e2e-no-skills-probe.md" && rmdir "$HOME/.claude/agents"
 ```
 
 ---
@@ -189,7 +214,7 @@ test ! -e /work/bare/.agents/hooks/preflight-gate/preflight_gate.py
 
 Expect exit 0.
 
-The gate copy in the home directory denies the main-thread source edit.
+The gate copy in the Claude Code plugin cache denies the main-thread source edit.
 
 ```bash
 jq -e '.hookSpecificOutput.permissionDecision == "deny"' /tmp/global-gate-source.json
@@ -205,7 +230,7 @@ jq -e '.hookSpecificOutput.permissionDecisionReason | contains("may not write fi
 
 Expect exit 0.
 
-The Codex adapter denies the same payload.
+The shared gate copy denies the same payload through the Codex adapter.
 
 ```bash
 jq -e '.hookSpecificOutput.permissionDecision == "deny"' /tmp/global-gate-source-codex.json
@@ -230,8 +255,8 @@ test ! -s /tmp/global-gate-probe-before.json
 
 Expect exit 0.
 
-With the definition in the home directory, the same payload is denied, which proves the gate found the global
-subagent tree from a working directory that has none.
+With the definition in the home directory, the same payload is denied, which proves the gate found the user's own
+subagent folder from a working directory that has none.
 
 ```bash
 jq -e '.hookSpecificOutput.permissionDecision == "deny"' /tmp/global-gate-probe-after.json
@@ -247,18 +272,34 @@ jq -e '.hookSpecificOutput.permissionDecisionReason | contains("e2e-no-skills-pr
 
 Expect exit 0.
 
-A subagent that declares skills is allowed, read from the same global directory.
+The read-only reviewer from a plugin is denied the edit, and the reason names it as read-only, which proves the gate read its definition in the plugin cache.
 
 ```bash
-test ! -s /tmp/global-gate-specialist.json
+jq -e '.hookSpecificOutput.permissionDecision == "deny" and (.hookSpecificOutput.permissionDecisionReason | contains("is read-only"))' /tmp/global-gate-reviewer-edit.json
 ```
 
 Expect exit 0.
 
-The probe is gone again.
+The same reviewer is allowed the git command its definition lists. An allow prints nothing.
 
 ```bash
-test ! -e "$HOME/.claude/agents/e2e-no-skills-probe.md"
+test ! -s /tmp/global-gate-reviewer-diff.json
+```
+
+Expect exit 0.
+
+The main-thread write to the user settings is denied.
+
+```bash
+jq -e '.hookSpecificOutput.permissionDecision == "deny"' /tmp/global-gate-settings.json
+```
+
+Expect exit 0.
+
+The probe is gone again, and Claude Code is back to no subagent folder of its own.
+
+```bash
+test ! -e "$HOME/.claude/agents"
 ```
 
 Expect exit 0.
@@ -272,7 +313,7 @@ Expect exit 0.
 - `e2e/fixtures/gate-payloads/main-thread-source-edit.json`: main-thread `Edit` of `src/e2e_canary_app.py`, with
   `is_subagent: false` for the plain runner envelope, which the other formats ignore.
 - `e2e/fixtures/gate-payloads/subagent-without-skills.json`: subagent payload naming `e2e-no-skills-probe`.
-- `e2e/fixtures/gate-payloads/subagent-with-skills.json`: subagent payload naming `python-pro`.
+- The two reviewer payloads and the settings payload are written inline by their run steps, because they name a plugin subagent and the container's own home directory.
 
 ---
 
@@ -280,7 +321,7 @@ Expect exit 0.
 
 - Mutates: the container's home directory, through the install this spec inherits from
   [6-global-install-shape-test.md](6-global-install-shape-test.md), plus
-  `$HOME/.claude/agents/e2e-no-skills-probe.md`, which this spec creates and deletes. Nothing outside the container:
+  `$HOME/.claude/agents/e2e-no-skills-probe.md`, which this spec creates and deletes with its folder. Nothing outside the container:
   `/repo` is mounted read-only and the container is discarded on exit.
 - Conflicts with: every other spec in either suite when they share a container shell, and in particular
   [5-project-gate-subagent-rule-test.md](5-project-gate-subagent-rule-test.md), which writes a probe of the same name

@@ -194,7 +194,7 @@ python -c 'import json,sys,pathlib;h=pathlib.Path.home();[(lambda p,k,s:([s.get(
 
 [.mcp.json](../.mcp.json) starts `context7` alone. Each of the other eight servers comes into a project in one of two ways. Both declare it in the project and never at user scope, as [Where a server is declared](#where-a-server-is-declared) requires.
 
-The first way is the server's own plugin from the marketplace, named `mcp-<server>`. Install it at project scope. User scope is the default of `claude plugin install`, and there "the plugin is enabled for you in every project on this machine" ([Install plugins](https://code.claude.com/docs/en/plugins/install), "Choose an install scope", read 2026-11-23), so its server would start in every chat of every project. Add the marketplace to the project once, from the project root, in either shell:
+The first way is the server's own plugin from the marketplace, named `mcp-<server>`. Install it at project scope. User scope is the default of `claude plugin install`, and there "the plugin is enabled for you in every project on this machine" ([Install plugins](https://code.claude.com/docs/en/plugins/install), "Choose an install scope", read 2026-11-23), so its server would start in every chat of every project. The user scope is for plugins that carry no server, such as the `core` bundle in [GLOBAL_SETUP.md](GLOBAL_SETUP.md#claude-code), and never for an `mcp-<server>` plugin or `mcp-all`. Add the marketplace to the project once, from the project root, in either shell:
 
 ```bash
 claude plugin marketplace add Lukk17/agent-standards --scope project

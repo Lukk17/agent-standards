@@ -22,32 +22,33 @@ them, so there is one copy to keep correct.
   directory and deletes the clone when it is done, so no copy of the repository stays in the home directory. It fills
   `~/.config/agents`, the one shared folder, with the skills, the OpenCode-format subagents, the hook scripts, the plugin and the reply rules,
   and records the commit it installed in `~/.config/agents/.upstream-commit`.
-- `~/.config/agents/AGENTS.md` is the one instruction file. It starts from `global/AGENTS.md.example` when none exists, never from the per-project `AGENTS.md.example`. `~/.claude/CLAUDE.md` is a real file importing it, Codex, OpenCode and Kilo Code reach it through an `AGENTS.md` link each in their own directories, and Copilot through `COPILOT_CUSTOM_INSTRUCTIONS_DIRS`.
-- `~/.claude/skills` and `~/.config/codex/skills` are real directories holding one link per shared skill, so the folders Claude Code and Codex write there themselves stay out of the shared tree.
-- OpenCode and Kilo Code read `~/.config/agents/agents` through a link each rather than a copy. Claude Code, Codex and Copilot
-  keep their own formats in their own directories, because none of the three can read the OpenCode format.
+- `~/.config/agents/AGENTS.md` is the one instruction file. It starts from `global/AGENTS.md.example` when none exists, never from the per-project `AGENTS.md.example`. `~/.claude/CLAUDE.md` is a real file importing it, which is the one shared file Claude Code reads, Codex, OpenCode and Kilo Code reach it through an `AGENTS.md` link each in their own directories, and Copilot through `COPILOT_CUSTOM_INSTRUCTIONS_DIRS`.
+- Claude Code takes its skills, subagents and hooks as plugins with the user scope. The installer adds the marketplace and installs `core`, `review-and-security` and `hooks-all`, so `~/.claude/settings.json` names the marketplace, switches on exactly the plugins those three bundles install, none of them an MCP server, and holds no `hooks` key. No `~/.claude/skills` and no `~/.claude/agents` is written.
+- `~/.config/codex/skills` is a real directory holding one link per shared skill, so the folder Codex writes there itself stays out of the shared tree.
+- OpenCode and Kilo Code read `~/.config/agents/agents` through a link each rather than a copy. Codex and Copilot
+  keep their own formats in their own directories, because neither can read the OpenCode format.
 - OpenCode and Kilo Code both name the shared plugin directory by absolute path, OpenCode as a plain path in `opencode.json` and
   Kilo Code as a `file://` URL in `kilo.jsonc`, both name the shared skills in `skills.paths`, and neither holds a copy of the plugin, because a copy in their plugin
   directories would load the runner a second time.
-- The Claude Code and Codex user hooks are exactly the blocks the guide prints, with the guide's placeholder home
+- The Codex user hooks are exactly the block the guide prints, with the guide's placeholder home
   directory replaced by the container's own. That includes the `SubagentStart` text that tells a subagent to do its
-  delegated task itself.
+  delegated task itself. The Claude Code hooks are the ones its hook plugins carry, each run from the plugin's own folder.
 - Running the install a second time changes nothing and still exits 0, which is what makes adding a second agent later
   safe.
 - The update refreshes only what is installed. It restores a damaged hook script, leaves a skill of the user's own
-  alone, does not bring back a skill the user deleted, never touches `~/.claude/settings.json`, records the new commit,
+  alone, does not bring back a skill the user deleted, writes nothing under `~/.claude`, records the new commit,
   and leaves no clone behind.
 - Every assertion runs from `/work/bare`, a directory that has had nothing imported into it. This is the point of the
   suite. A global install is only proven when the working directory contains none of the per-project files, because
   otherwise there is no way to tell which layer the agent read.
-- Every hook call at user scope names its script by absolute path. Each shipped wiring calls
+- Every hook call at user scope of Codex and Copilot names its script by absolute path. Each shipped wiring calls
   `.agents/hooks/<name>.py`, a project-relative path that resolves to nothing in a bare directory, so the
   installer rewrites it and this spec asserts that it did, for the gate and for the task-list mirror both.
-- The user-scope wiring keeps the shape of the project wiring it stands in for: the same event set per agent, the same
+- The user-scope wiring of Codex and Copilot keeps the shape of the project wiring it stands in for: the same event set per agent, the same
   tool matcher, the same canonical wording, the same trimmed interpreter flags, and the same forced zero exit that turns a
   missing or broken hook back into an allow. A global install that drops an event or a zero exit gates less than the
   project install does, which is the exact difference this spec is here to catch.
-- One deliberate difference from the project wiring: `markdown_lint_check.py` is copied and never wired. It lints only files inside a project that imported `.agents/hooks`, where the project wiring already runs it, so wiring it globally would start a second interpreter on every edit for nothing. This spec asserts the file landed and that no wiring names it.
+- `markdown_lint_check.py` is copied into the shared tree and wired by no file of Codex or Copilot. On Claude Code the markdown lint and the standards advisory arrive with `hooks-all`, so with the user scope they run after an edit in every project. This spec asserts both.
 - Out of scope, because the container is given no provider credentials: this spec starts no agent. Whether each tool
   reports what it found is [7-global-agent-discovery-test.md](7-global-agent-discovery-test.md), and whether the
   global gate copy refuses anything is [9-global-gate-enforcement-test.md](9-global-gate-enforcement-test.md).
@@ -175,6 +176,8 @@ rebuild before this spec sees it.
 
 Everything the installer copies comes from the clone it makes, so those are committed state.
 
+For Claude Code the installer runs the guide's `claude plugin` commands with `--scope user`, with one more substitution of the same kind: the marketplace is the import branch of `/repo`, served over smart HTTP on `127.0.0.1` for the length of the install, instead of the GitHub address. Claude Code refuses a `file://` address and loads a local folder in place instead of copying each plugin into its cache.
+
 1. Install for all five agents. Read `echo $?` immediately after this step, before running the next one.
 
 ```bash
@@ -206,7 +209,7 @@ mkdir -p "$HOME/.config/agents/skills/e2e-own-skill" && printf -- '---\nname: e2
 printf '\n# damaged\n' >> "$HOME/.config/agents/hooks/preflight-gate/preflight_gate.py"
 ```
 
-6. Record the digest of the Claude Code settings, which the update must not touch.
+6. Record the digest of the Claude Code settings, which hold the marketplace and the plugins and which the update must not touch.
 
 ```bash
 sha256sum "$HOME/.claude/settings.json" > /tmp/global-settings-before.txt
@@ -332,10 +335,18 @@ test "$(find "$HOME/.config/agents/skills" -mindepth 1 -maxdepth 1 -type d | wc 
 
 Expect exit 0.
 
-Claude Code's skills location is a real directory, not a link, so the skills it syncs from claude.ai stay its own.
+Claude Code got no skills folder and no subagent copy, neither from the two installs nor from the update, because its skills and subagents are plugins.
 
 ```bash
-test -d "$HOME/.claude/skills" -a ! -L "$HOME/.claude/skills"
+test ! -e "$HOME/.claude/skills" -a ! -e "$HOME/.claude/agents"
+```
+
+Expect exit 0.
+
+Codex's skills location is a real directory, not a link, so the skills it bundles itself stay its own.
+
+```bash
+test -d "$HOME/.config/codex/skills" -a ! -L "$HOME/.config/codex/skills"
 ```
 
 Expect exit 0.
@@ -343,12 +354,12 @@ Expect exit 0.
 The same number of skills is reachable through its per-skill links.
 
 ```bash
-test "$(find -L "$HOME/.claude/skills" -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l)" -eq "$(find /repo/.agents/skills -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l)"
+test "$(find -L "$HOME/.config/codex/skills" -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l)" -eq "$(find /repo/.agents/skills -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l)"
 ```
 
 Expect exit 0.
 
-The gate script landed in the shared tree, which every user-scope wiring below names by absolute path, and so did the rules file it imports.
+The gate script landed in the shared tree, which the user-scope wiring of Codex and Copilot below names by absolute path, and so did the rules file it imports.
 
 ```bash
 test -f "$HOME/.config/agents/hooks/preflight-gate/preflight_gate.py" -a -f "$HOME/.config/agents/hooks/preflight-gate/gate_rules.py"
@@ -361,14 +372,6 @@ rather than a file list, and the assertions further down are what say it stays u
 
 ```bash
 test -f "$HOME/.config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py" -a -f "$HOME/.config/agents/hooks/task-list-sync/task_list_sync.py" -a -f "$HOME/.config/agents/hooks/markdown-lint-check/markdown_lint_check.py"
-```
-
-Expect exit 0.
-
-Claude Code has every subagent in its own markdown format.
-
-```bash
-test "$(find "$HOME/.claude/agents" -mindepth 2 -maxdepth 2 -name '*.md' | wc -l)" -eq "$(find /repo/.agents/agents -maxdepth 1 -name '*.md' | wc -l)"
 ```
 
 Expect exit 0.
@@ -410,7 +413,7 @@ directory of the same name is the classic way an install stops being repeatable,
 level deeper than any agent looks.
 
 ```bash
-test ! -e "$HOME/.config/agents/agents/agents" -a ! -e "$HOME/.config/agents/skills/skills" -a ! -e "$HOME/.claude/agents/agents"
+test ! -e "$HOME/.config/agents/agents/agents" -a ! -e "$HOME/.config/agents/skills/skills"
 ```
 
 Expect exit 0.
@@ -423,7 +426,7 @@ git -C /repo show HEAD:global/AGENTS.md.example | cmp - "$HOME/.config/agents/AG
 
 Expect exit 0.
 
-`~/.claude/CLAUDE.md` is a real file holding only the import, because a Cowork session skips a linked one.
+`~/.claude/CLAUDE.md` is a real file holding only the import, because a Cowork session skips a linked one. That import is the one thing Claude Code reads from the shared folder.
 
 ```bash
 test -f "$HOME/.claude/CLAUDE.md" -a ! -L "$HOME/.claude/CLAUDE.md" && grep -qxF '@~/.config/agents/AGENTS.md' "$HOME/.claude/CLAUDE.md"
@@ -447,16 +450,56 @@ jq -e '.skills.paths == ["~/.config/agents/skills"] and (has("instructions") | n
 
 Expect exit 0.
 
-The Claude Code user settings are exactly the guide's block, with its placeholder home directory read as the
-container's own, so the `SubagentStart` text and every other entry match what a reader pastes.
+The Claude Code user settings name the marketplace the installer added and wire no hook themselves, because the hook plugins carry every one.
 
 ```bash
-python3 -c 'import json,os,re,sys;h=os.environ["HOME"];g=open("/repo/docs/GLOBAL_SETUP.md").read();b=[x for x in re.findall(r"^\x60{3}json\n(.*?)^\x60{3}$",g,re.M|re.S) if "MessageDisplay" in x][0];sys.exit(json.loads(b.replace("/home/you/",h+"/"))!=json.load(open(h+"/.claude/settings.json")))'
+jq -e '(has("hooks") | not) and (.extraKnownMarketplaces["agent-standards"].source.source == "git")' "$HOME/.claude/settings.json"
 ```
 
 Expect exit 0.
 
-The Codex user hooks are the guide's block in the same way.
+They switch on exactly the plugins that `core`, `review-and-security` and `hooks-all` install, read from the catalog Claude Code cloned, and nothing else.
+
+```bash
+python3 -c 'import json,os,sys;h=os.environ["HOME"];c={e["name"]:e for e in json.load(open(h+"/.claude/plugins/marketplaces/agent-standards/.claude-plugin/marketplace.json"))["plugins"]};f=lambda n:{n}.union(*[f(d) for d in c[n].get("dependencies",[])]);want={n+"@agent-standards" for b in sys.argv[1:] for n in f(b)};on={k for k,v in json.load(open(h+"/.claude/settings.json"))["enabledPlugins"].items() if v};sys.exit(on!=want)' core review-and-security hooks-all
+```
+
+Expect exit 0.
+
+No plugin with the user scope carries an MCP server, because a server is declared in the project that uses it.
+
+```bash
+jq -e '[.enabledPlugins | keys[] | select(startswith("mcp-"))] == []' "$HOME/.claude/settings.json"
+```
+
+Expect exit 0.
+
+A skill, a subagent, the gate script and the rules file it imports each sit in the plugin cache.
+
+```bash
+ls "$HOME"/.claude/plugins/cache/agent-standards/coding-standards/*/SKILL.md "$HOME"/.claude/plugins/cache/agent-standards/agent-code-reviewer/*/code-reviewer.md "$HOME"/.claude/plugins/cache/agent-standards/hook-preflight-gate/*/preflight_gate.py "$HOME"/.claude/plugins/cache/agent-standards/hook-preflight-gate/*/gate_rules.py
+```
+
+Expect exit 0 and four paths.
+
+Every hook the switched-on hook plugins carry starts in the project, runs a script of the plugin's own folder, forces a zero exit, and names nothing in the shared folder.
+
+```bash
+jq -e --slurpfile s "$HOME/.claude/settings.json" '[.plugins[] | select(.category == "hook" and $s[0].enabledPlugins["\(.name)@agent-standards"] == true) | .hooks[][].hooks[].command] | length > 0 and all(startswith("cd \"${CLAUDE_PROJECT_DIR}\" && ") and contains("\"${CLAUDE_PLUGIN_ROOT}\"/") and endswith("; exit 0") and (contains(".config/agents/hooks/") | not))' "$HOME/.claude/plugins/marketplaces/agent-standards/.claude-plugin/marketplace.json"
+```
+
+Expect exit 0.
+
+The markdown lint and the standards advisory are among them, so with the user scope both run after an edit in every project.
+
+```bash
+jq -e --slurpfile s "$HOME/.claude/settings.json" '[.plugins[] | select(.category == "hook" and $s[0].enabledPlugins["\(.name)@agent-standards"] == true) | .hooks.PostToolUse[]?.hooks[].command] | any(contains("markdown_lint_check.py")) and any(contains("standards_advisory_check.py"))' "$HOME/.claude/plugins/marketplaces/agent-standards/.claude-plugin/marketplace.json"
+```
+
+Expect exit 0.
+
+The Codex user hooks are exactly the guide's block, with its placeholder home directory read as the
+container's own, so the `SubagentStart` text and every other entry match what a reader pastes.
 
 ```bash
 python3 -c 'import json,os,re,sys;h=os.environ["HOME"];g=open("/repo/docs/GLOBAL_SETUP.md").read();b=[x for x in re.findall(r"^\x60{3}json\n(.*?)^\x60{3}$",g,re.M|re.S) if "commandWindows" in x][0];sys.exit(json.loads(b.replace("/home/you/",h+"/"))!=json.load(open(h+"/.codex/hooks.json")))'
@@ -464,117 +507,7 @@ python3 -c 'import json,os,re,sys;h=os.environ["HOME"];g=open("/repo/docs/GLOBAL
 
 Expect exit 0.
 
-Claude Code's user settings call the gate by absolute path, not by the project-relative path the shipped wiring uses.
-The command runs the gate script directly, with no wrapper in between, so the format flag shows up as a plain
-` --format claude` substring in the command string.
-
-```bash
-jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.config/agents/hooks/preflight-gate/preflight_gate.py") and contains("--format claude"))' "$HOME/.claude/settings.json"
-```
-
-Expect exit 0.
-
-Claude Code's gate call runs the script directly here too, and it must carry no `subprocess.DEVNULL`, which would
-mean the old standard-error-discarding wrapper had come back. The gate script silences its own standard error for
-this format, so the command needs no redirect.
-
-```bash
-jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.config/agents/hooks/preflight-gate/preflight_gate.py") and contains("--format claude") and endswith("; exit 0") and (contains("subprocess.DEVNULL") | not))' "$HOME/.claude/settings.json"
-```
-
-Expect exit 0.
-
-Claude Code forces a zero exit as well, with a trailing `; exit 0`. The command is POSIX shell, which Claude Code runs
-under `sh -c`, or under Git Bash on Windows.
-
-```bash
-jq -e '[.hooks.PreToolUse[].hooks[].command] | any(endswith("; exit 0"))' "$HOME/.claude/settings.json"
-```
-
-Expect exit 0.
-
-Claude Code's matcher covers the two web tools as well as the six that can write, `PowerShell` among them, because
-the gate hands research to a subagent rather than letting the main thread fetch or search directly, and because Claude
-Code on Windows routes shell commands through its PowerShell tool whenever that tool is on.
-
-```bash
-jq -e '[.hooks.PreToolUse[].matcher] | any(type == "string" and test("Edit") and test("Write") and test("MultiEdit") and test("NotebookEdit") and test("Bash") and test("PowerShell") and test("WebFetch") and test("WebSearch"))' "$HOME/.claude/settings.json"
-```
-
-Expect exit 0.
-
-Claude Code wires every event the project wiring wires, apart from the `PostToolUse` the markdown lint sits on. An
-event missing here is an event the global install does not gate.
-
-```bash
-jq -e '[.hooks | keys[]] == ["MessageDisplay", "PreCompact", "PreToolUse", "SessionStart", "Stop", "SubagentStart", "TaskCompleted", "TaskCreated", "UserPromptSubmit"]' "$HOME/.claude/settings.json"
-```
-
-Expect exit 0.
-
-Claude Code tells a subagent to do its delegated task itself and never hands it the main-thread reminder, which tells
-its reader to delegate.
-
-```bash
-jq -e '[.hooks.SubagentStart[].hooks[].command] | length > 0 and all(contains("PREFLIGHT for a subagent:") and (contains("Delegate investigation") | not))' "$HOME/.claude/settings.json"
-```
-
-Expect exit 0.
-
-Claude Code injects the subagent supervision text at session start, beside the gate text.
-
-```bash
-jq -e '[.hooks.SessionStart[].hooks[].command] | any(contains("When you launch a background subagent") and contains("every 10 minutes"))' "$HOME/.claude/settings.json"
-```
-
-Expect exit 0.
-
-No wiring names the markdown lint, for the reason given under What this verifies.
-
-```bash
-jq -e '[.hooks[][].hooks[].command] | any(contains("markdown_lint_check.py")) | not' "$HOME/.claude/settings.json"
-```
-
-Expect exit 0.
-
-The reply formatting check runs once, by absolute path, on the main thread's `Stop`, and nothing is wired on `SubagentStop`, because reply style is checked on the main thread only.
-
-```bash
-jq -e '([.hooks.Stop[].hooks[].command] | map(select(contains("/.config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format claude"))) | length == 1) and (.hooks | has("SubagentStop") | not)' "$HOME/.claude/settings.json"
-```
-
-Expect exit 0.
-
-`MessageDisplay` fixes the reply before it is shown, and the `Stop` check runs with `--display-fixed` so it judges
-only what that fix leaves.
-
-```bash
-jq -e '([.hooks.Stop[].hooks[].command] | any(contains("/.config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format claude --display-fixed"))) and ([.hooks.MessageDisplay[].hooks[].command] | any(contains("/.config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format claude --display ")))' "$HOME/.claude/settings.json"
-```
-
-Expect exit 0.
-
-The task-list mirror runs on the five events that carry it, each with its own `--event` value, so a compaction cannot
-lose the list and a finished turn cannot leave items open with nothing to show for them.
-
-```bash
-jq -e '[.hooks.SessionStart[].hooks[].command, .hooks.PreCompact[].hooks[].command, .hooks.TaskCreated[].hooks[].command, .hooks.TaskCompleted[].hooks[].command, .hooks.Stop[].hooks[].command | select(contains("/.config/agents/hooks/task-list-sync/task_list_sync.py")) | capture("--event (?<event>[a-z]+)").event] | sort == ["precompact", "sessionstart", "stop", "taskcompleted", "taskcreated"]' "$HOME/.claude/settings.json"
-```
-
-Expect exit 0.
-
-Every Claude Code hook resolves its own interpreter the same way the project wiring does, `python3` first and
-`python` second, then runs it on `-S -E`. Those flags skip site initialisation and ignore the `PYTHON*` environment
-variables, which is safe because every hook is standard library only, and they take a slice off an interpreter start
-the gate pays on every single tool call.
-
-```bash
-jq -e '[.hooks[][].hooks[].command | select(contains(".py"))] | length > 0 and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E /"))' "$HOME/.claude/settings.json"
-```
-
-Expect exit 0.
-
-Codex's user hooks file names the gate by absolute path too, and there the flag is part of the command string.
+Codex's user hooks file names the gate by absolute path, not by the project-relative path the shipped wiring uses, and the flag is part of the command string.
 
 ```bash
 jq -e '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.config/agents/hooks/preflight-gate/preflight_gate.py --format codex"))' "$HOME/.config/codex/hooks.json"
@@ -770,9 +703,9 @@ Expect exit 0.
 ### Fixtures
 
 None. The installer writes every configuration file it needs, with the absolute paths taken from the container's own
-`$HOME`, so there is nothing to copy in and nothing that hard-codes a home directory. The expected Claude Code and
+`$HOME`, so there is nothing to copy in and nothing that hard-codes a home directory. The expected
 Codex wiring is read out of [docs/GLOBAL_SETUP.md](../../docs/GLOBAL_SETUP.md) itself, so the guide and this spec
-cannot drift apart.
+cannot drift apart, and the expected Claude Code plugins are read out of the catalog Claude Code cloned.
 
 ---
 

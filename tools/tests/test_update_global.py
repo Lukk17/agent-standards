@@ -6,6 +6,10 @@ runs the updater with --home-dir pointing at it. No test reads or writes the
 real home directory: HOME and USERPROFILE point at the fake one as well, and
 the isolated_home_directory fixture in conftest.py removes CODEX_HOME and the
 other variables that would send the skill link hook to a folder outside it.
+
+Claude Code takes its skills, subagents and hooks as plugins, so the upstream
+still ships .claude/agents and .claude/settings.json, and the updater has to
+leave everything under ~/.claude alone.
 """
 
 import os
@@ -43,9 +47,9 @@ FIRST_RELEASE = {
     ".agents/agents/a.md": "a v1\n",
     ".agents/agents/b.md": "b v1\n",
     ".agents/agents/c.md": "c v1\n",
-    ".claude/agents/a.md": "claude a v1\n",
-    ".claude/agents/b.md": "claude b v1\n",
-    ".claude/agents/c.md": "claude c v1\n",
+    ".claude/agents/a/a.md": "claude a v1\n",
+    ".claude/agents/b/b.md": "claude b v1\n",
+    ".claude/agents/c/c.md": "claude c v1\n",
     ".codex/agents/a.toml": "codex a v1\n",
     ".codex/agents/c.toml": "codex c v1\n",
     ".github/agents/a.agent.md": "copilot a v1\n",
@@ -65,12 +69,14 @@ SECOND_RELEASE_CHANGES = {
     ".agents/skills/beta/SKILL.md": "beta v2\n",
     ".agents/skills/gamma/SKILL.md": "gamma v2\n",
     ".agents/agents/a.md": "a v2\n",
+    ".agents/agents/b.md": "b v2\n",
     ".agents/agents/d.md": "d v2\n",
-    ".claude/agents/a.md": "claude a v2\n",
-    ".claude/agents/b.md": "claude b v2\n",
+    ".claude/agents/a/a.md": "claude a v2\n",
+    ".claude/agents/b/b.md": "claude b v2\n",
     ".codex/agents/a.toml": "codex a v2\n",
     ".github/agents/a.agent.md": "copilot a v2\n",
     ".claude/settings.json": '{"hooks": {}}\n',
+    ".codex/config.toml": "# wiring v2\n",
 }
 
 SECOND_RELEASE_REMOVALS = (
@@ -79,7 +85,7 @@ SECOND_RELEASE_REMOVALS = (
     ".agents/skills/alpha/references/old.md",
     ".agents/skills/delta/SKILL.md",
     ".agents/agents/c.md",
-    ".claude/agents/c.md",
+    ".claude/agents/c/c.md",
     ".codex/agents/c.toml",
     ".github/agents/c.agent.md",
 )
@@ -90,7 +96,6 @@ INSTALLED_TREES = {
     ".agents/hooks": ".config/agents/hooks",
     ".agents/plugin": ".config/agents/plugin",
     "global/bin": ".config/agents/bin",
-    ".claude/agents": ".claude/agents",
     ".codex/agents": ".config/codex/agents",
     ".github/agents": ".config/copilot/agents",
 }
@@ -99,7 +104,14 @@ INSTALL_ROOTS = (".config/agents", ".config/codex", ".config/copilot", ".claude"
 
 AGENT_HOME_VARIABLES = ("CODEX_HOME", "CLAUDE_CONFIG_DIR", "COPILOT_HOME")
 
-WIRING_ADVICE = 'Take it in with the one-line command that writes the hook file of each agent, under "Per-agent setup" in docs/GLOBAL_SETUP.md, run against a new temporary copy.'
+WIRING_ADVICE = 'Take it in with the one-line command that writes the hook file of Codex or Copilot, under "Per-agent setup" in docs/GLOBAL_SETUP.md, run against a new temporary copy.'
+
+CLAUDE_NOTICE = (
+    "Claude Code: this home still holds the user-wide install made before the plugins: {found}. "
+    'No update refreshes it any more. Move it once, see "Moving Claude Code to the plugins" in docs/GLOBAL_SETUP.md.'
+)
+
+OLD_CLAUDE_HOOKS = '{"hooks": {"PreToolUse": [{"hooks": [{"type": "command", "command": "python3 -S -E HOME/.config/agents/hooks/preflight-gate/preflight_gate.py --format claude ; exit 0"}]}]}}\n'
 
 USER_SETTINGS ='{"permissions": {"allow": ["mine"]}}\n'
 USER_SKILL = "---\nname: mine\ndescription: The user's own skill.\n---\n"
@@ -156,7 +168,7 @@ def install_home(root: Path, repo: Path, commit: str) -> Path:
     (home / ".config" / "agents" / ".upstream-commit").write_bytes(f"{commit}\n".encode("ascii"))
 
     shutil.rmtree(home / ".config" / "agents" / "skills" / "beta")
-    (home / ".claude" / "agents" / "b.md").unlink()
+    (home / ".config" / "agents" / "agents" / "b.md").unlink()
     write_files(home, {
         ".config/agents/skills/mine/SKILL.md": USER_SKILL,
         ".claude/agents/mine.md": "my own subagent\n",
@@ -221,9 +233,9 @@ def test_a_fresh_install_is_already_current(released, implementation):
     assert result.returncode == 0, result.stderr
     assert action_lines(result.stdout) == [
         "skip    ~/.config/agents/skills/mine (not an upstream skill)",
-        "skip    ~/.claude/agents/mine.md (not an upstream subagent)",
     ]
     assert "Updated 0, added 0, removed 0." in result.stdout
+    assert "Claude Code:" not in result.stdout
     assert snapshot(home) == before
 
 
@@ -251,16 +263,14 @@ def test_an_update_refreshes_only_what_is_installed(released, implementation):
         "skip    ~/.config/agents/skills/mine (not an upstream skill)",
         "update  ~/.config/agents/agents/a.md",
         "keep    ~/.config/agents/agents/c.md (removed upstream, left in place)",
-        "update  ~/.claude/agents/a.md",
-        "keep    ~/.claude/agents/c.md (removed upstream, left in place)",
-        "skip    ~/.claude/agents/mine.md (not an upstream subagent)",
         "update  ~/.config/codex/agents/a.toml",
         "keep    ~/.config/codex/agents/c.toml (removed upstream, left in place)",
         "update  ~/.config/copilot/agents/a.agent.md",
         "keep    ~/.config/copilot/agents/c.agent.md (removed upstream, left in place)",
     ]
-    assert "Updated 7, added 2, removed 3. Unchanged 2. Left alone: 5 removed upstream, 2 not from upstream." in result.stdout
-    assert f"Hook wiring changed upstream since {first}.\n  .claude/settings.json\n{WIRING_ADVICE}\n" in result.stdout
+    assert "Updated 6, added 2, removed 3. Unchanged 1. Left alone: 4 removed upstream, 1 not from upstream." in result.stdout
+    assert f"Hook wiring changed upstream since {first}.\n  .codex/config.toml\n{WIRING_ADVICE}\n" in result.stdout
+    assert ".claude/settings.json" not in result.stdout
     assert "by hand" not in result.stdout
 
     files = snapshot(home)
@@ -276,7 +286,8 @@ def test_an_update_refreshes_only_what_is_installed(released, implementation):
     assert files[".config/agents/skills/delta/SKILL.md"] == b"delta v1\n"
     assert files[".config/agents/skills/mine/SKILL.md"] == USER_SKILL.encode("utf-8")
     assert ".config/agents/agents/d.md" not in files
-    assert ".claude/agents/b.md" not in files
+    assert ".config/agents/agents/b.md" not in files
+    assert sorted(name for name in files if name.startswith(".claude/")) == [".claude/agents/mine.md", ".claude/settings.json"]
     assert files[".claude/agents/mine.md"] == b"my own subagent\n"
     assert files[".claude/settings.json"] == USER_SETTINGS.encode("utf-8")
     assert files[".config/copilot/agents/a.agent.md"] == b"copilot a v2\n"
@@ -296,7 +307,7 @@ def test_a_dry_run_writes_nothing_and_lists_what_the_update_does(released, imple
     # Then nothing changed, and the real run does exactly what the dry run listed
     assert planned.returncode == 0, planned.stderr
     assert snapshot(home) == before
-    assert "Dry run, nothing was written. Would update 7, add 2, remove 3." in planned.stdout
+    assert "Dry run, nothing was written. Would update 6, add 2, remove 3." in planned.stdout
 
     applied = run_updater(implementation, home, str(repo))
 
@@ -471,7 +482,7 @@ def test_an_install_in_the_old_layout_is_refused_with_the_migration_pointer(tmp_
 
 @pytest.mark.skipif(sys.platform == "win32", reason="the skill link hook does nothing on Windows by design")
 @pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
-def test_an_update_brings_the_claude_code_skill_links_in_step(tmp_path, implementation):
+def test_an_update_brings_the_codex_skill_links_in_step_and_links_nothing_for_claude_code(tmp_path, implementation):
     # Given an upstream that ships the skill link hook, and a home with no links yet
     repo, first = make_upstream(tmp_path)
     write_files(repo, {".agents/hooks/claude/sync-skill-links/sync_skill_links.py": SYNC_SKILL_LINKS_HOOK.read_text(encoding="utf-8")})
@@ -479,18 +490,19 @@ def test_an_update_brings_the_claude_code_skill_links_in_step(tmp_path, implemen
     home = install_home(tmp_path, repo, first)
 
     # When
+    links = home / ".config" / "codex" / "skills"
     planned = run_updater(implementation, home, str(repo), dry_run=True)
-    links_after_dry_run = (home / ".claude" / "skills").exists()
+    links_after_dry_run = links.exists()
     result = run_updater(implementation, home, str(repo))
 
-    # Then the dry run linked nothing and the real run linked every installed skill, for both agents of this home
+    # Then the dry run linked nothing, the real run linked every installed skill for Codex, and Claude Code got none
     assert planned.returncode == 0, planned.stderr
     assert not links_after_dry_run
     assert result.returncode == 0, result.stderr
-    assert "Skill links: the Claude Code and Codex skills folders checked against ~/.config/agents/skills." in result.stdout
-    for links in (home / ".claude" / "skills", home / ".config" / "codex" / "skills"):
-        assert sorted(path.name for path in links.iterdir()) == ["alpha", "delta", "mine"]
-        assert all((links / name).is_symlink() for name in ("alpha", "delta", "mine"))
+    assert "Skill links: the Codex skills folder checked against ~/.config/agents/skills." in result.stdout
+    assert sorted(path.name for path in links.iterdir()) == ["alpha", "delta", "mine"]
+    assert all((links / name).is_symlink() for name in ("alpha", "delta", "mine"))
+    assert not (home / ".claude" / "skills").exists()
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="the skill link hook does nothing on Windows by design")
@@ -570,47 +582,101 @@ def test_an_updater_that_replaces_itself_with_a_longer_copy_finishes_cleanly(tmp
     assert (installed_bin / script).read_bytes() == longer
 
 
+def install_old_claude_code(home: Path, repo: Path) -> None:
+    """Put the user-wide Claude Code install made before the plugins into the fake home."""
+    shutil.copytree(repo / ".claude" / "agents", home / ".claude" / "agents", dirs_exist_ok=True)
+    skills = home / ".claude" / "skills"
+    skills.mkdir()
+    (skills / "alpha").symlink_to(home / ".config" / "agents" / "skills" / "alpha", target_is_directory=True)
+    write_files(home, {".claude/settings.json": OLD_CLAUDE_HOOKS.replace("HOME", home.as_posix())})
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the old install linked per skill on Linux and macOS only")
 @pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
-def test_an_update_moves_a_flat_claude_subagent_into_its_own_folder(released, implementation):
-    # Given a home installed while the Claude Code tree was flat, and a release that nests each agent in its own folder
+def test_an_update_leaves_an_older_claude_code_install_exactly_as_it_was(released, implementation):
+    # Given a home that still holds the Claude Code copies, links and hooks block, and a release that changes them upstream
     repo, home, _first = released
-    (repo / ".claude" / "agents" / "a.md").unlink()
-    write_files(repo, {".claude/agents/a/a.md": "claude a nested\n", ".claude/agents/c/c.md": "claude c nested\n"})
-    (repo / ".claude" / "agents" / "c.md").unlink()
-    commit_all(repo, "nested release")
+    install_old_claude_code(home, repo)
+    before = {name: content for name, content in snapshot(home).items() if name.startswith(".claude/")}
+    release_second(repo)
 
     # When
     result = run_updater(implementation, home, repo.as_posix())
 
-    # Then the installed agents move into their folders, and nothing the user removed or owns comes back or moves
+    # Then nothing under ~/.claude changed, no action line names it, and the report points at the migration
     assert result.returncode == 0, result.stderr
-    agents = home / ".claude" / "agents"
-    assert (agents / "a" / "a.md").read_text(encoding="utf-8") == "claude a nested\n"
-    assert (agents / "c" / "c.md").read_text(encoding="utf-8") == "claude c nested\n"
-    assert not (agents / "a.md").exists() and not (agents / "c.md").exists()
-    assert not (agents / "b").exists() and not (agents / "b.md").exists()
-    assert (agents / "mine.md").read_text(encoding="utf-8") == "my own subagent\n"
-    assert "remove  ~/.claude/agents/a.md (moved into a/a.md)" in result.stdout
+    assert {name: content for name, content in snapshot(home).items() if name.startswith(".claude/")} == before
+    assert (home / ".claude" / "skills" / "alpha").is_symlink()
+    assert [line for line in action_lines(result.stdout) if "~/.claude" in line] == []
+    found = "the hooks block in ~/.claude/settings.json, skill links in ~/.claude/skills, subagent copies in ~/.claude/agents"
+    assert CLAUDE_NOTICE.format(found=found) in result.stdout.splitlines()
 
 
-@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
-def test_an_update_refreshes_a_nested_claude_subagent(released, implementation):
-    # Given a home whose Claude Code agents already sit one folder deep
-    repo, home, _first = released
-    agents = home / ".claude" / "agents"
-    (agents / "a.md").unlink()
+def old_hooks_block(home: Path, _repo: Path) -> None:
+    write_files(home, {".claude/settings.json": OLD_CLAUDE_HOOKS.replace("HOME", home.as_posix())})
+
+
+def old_skill_link(home: Path, _repo: Path) -> None:
+    skills = home / ".claude" / "skills"
+    skills.mkdir()
+    (skills / "alpha").symlink_to(home / ".config" / "agents" / "skills" / "alpha", target_is_directory=True)
+
+
+def old_whole_skills_link(home: Path, _repo: Path) -> None:
+    (home / ".claude" / "skills").symlink_to(home / ".config" / "agents" / "skills", target_is_directory=True)
+
+
+def old_nested_subagent(home: Path, _repo: Path) -> None:
     write_files(home, {".claude/agents/a/a.md": "claude a v1\n"})
-    (repo / ".claude" / "agents" / "a.md").unlink()
-    write_files(repo, {".claude/agents/a/a.md": "claude a v3\n"})
-    commit_all(repo, "nested release")
+
+
+def old_flat_subagent(home: Path, _repo: Path) -> None:
+    write_files(home, {".claude/agents/a.md": "claude a v1\n"})
+
+
+OLD_CLAUDE_CODE_PARTS = [
+    pytest.param(old_hooks_block, "the hooks block in ~/.claude/settings.json", id="hooks-block"),
+    pytest.param(old_skill_link, "skill links in ~/.claude/skills", id="skill-link", marks=pytest.mark.skipif(sys.platform == "win32", reason="needs a symlink")),
+    pytest.param(old_whole_skills_link, "skill links in ~/.claude/skills", id="whole-skills-link", marks=pytest.mark.skipif(sys.platform == "win32", reason="needs a symlink")),
+    pytest.param(old_nested_subagent, "subagent copies in ~/.claude/agents", id="nested-subagent"),
+    pytest.param(old_flat_subagent, "subagent copies in ~/.claude/agents", id="flat-subagent"),
+]
+
+
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+@pytest.mark.parametrize(("leave", "found"), OLD_CLAUDE_CODE_PARTS)
+def test_each_part_of_an_older_claude_code_install_is_named_on_its_own(released, implementation, leave, found):
+    # Given a home that kept one part of the Claude Code install made before the plugins
+    repo, home, _first = released
+    leave(home, repo)
+
+    # When
+    planned = run_updater(implementation, home, repo.as_posix(), dry_run=True)
+    result = run_updater(implementation, home, repo.as_posix())
+
+    # Then the dry run and the real run both name that part, and only that part
+    assert result.returncode == 0, result.stderr
+    assert CLAUDE_NOTICE.format(found=found) in planned.stdout.splitlines()
+    assert CLAUDE_NOTICE.format(found=found) in result.stdout.splitlines()
+
+
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+def test_a_users_own_claude_code_files_are_not_taken_for_an_older_install(released, implementation):
+    # Given the user's own subagent, their own skill folder and their own hook in ~/.claude
+    repo, home, _first = released
+    write_files(home, {
+        ".claude/skills/my-own/SKILL.md": USER_SKILL,
+        ".claude/settings.json": '{"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "sh ~/bin/my-hook.sh"}]}]}}\n',
+    })
+    before = snapshot(home)
 
     # When
     result = run_updater(implementation, home, repo.as_posix())
 
-    # Then
+    # Then nothing is reported and nothing changed
     assert result.returncode == 0, result.stderr
-    assert (agents / "a" / "a.md").read_text(encoding="utf-8") == "claude a v3\n"
-    assert "update  ~/.claude/agents/a/a.md" in result.stdout
+    assert "Claude Code:" not in result.stdout
+    assert snapshot(home) == before
 
 
 @pytest.mark.parametrize("implementation", IMPLEMENTATIONS)

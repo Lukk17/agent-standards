@@ -21,29 +21,36 @@ and wiring pass and report back as a checklist.
 ## 1. Verify the skills wiring
 
 Skills live canonically in `.agents/skills/`. Codex, OpenCode, Kilo Code and every GitHub Copilot surface read that
-directory natively. Claude Code does not, and reaches it through the `.claude/skills` symlink. Symlinks break often on
-Windows checkouts, so do not trust a directory listing.
+directory natively. Claude Code does not read it at all. It takes each skill as a plugin from the agent-standards
+marketplace, switched on under `enabledPlugins` in the project's `.claude/settings.json`, or in `~/.claude/settings.json`
+for a plugin installed with the user scope.
 
-If you are Claude Code, open ONE skill through the symlink path (`.claude/skills/coding-standards/SKILL.md`) and quote
-its first heading line back. If the read fails the symlink is broken: report it and stop, do not quietly fall back to
-`.agents/skills/`. Every other agent opens one skill directly from `.agents/skills/` and quotes its heading.
+If you are Claude Code, read both settings files and report which plugins each one switches on and which marketplace
+`extraKnownMarketplaces` names. Then name ONE skill from your own skill list that carries a plugin name, such as
+`coding-standards:coding-standards`. If no plugin is switched on in either file, the plugins were never installed:
+report it and stop, and do not quietly fall back to reading `.agents/skills/`. If `.claude/skills` exists, say whether
+it is a real folder or a link. A real folder holds this project's own skills and is fine. A link to `.agents/skills` is
+left from an older import and lists every skill twice, so flag it and point at "Moving Claude Code to the plugins" in
+`docs/AGENTS-UPDATE.md`. Every other agent opens one skill directly from `.agents/skills/` and quotes its heading.
 
 Then list which of `.agents`, `.claude`, `.opencode`, `.kilo`, `.codex` and `.github` actually exist here, so a missing
 piece of the import surfaces immediately.
 
 ## 2. Verify the subagent files
 
-Subagent definitions ship as four generated trees plus two symlinks:
+Subagent definitions reach a project as three generated trees plus two symlinks, and for Claude Code as plugins:
 
-- `.claude/agents/<name>/<name>.md` for Claude Code
 - `.agents/agents/*.md` in OpenCode format
 - `.codex/agents/*.toml` for Codex
 - `.github/agents/*.agent.md` for GitHub Copilot
 - `.opencode/agents` and `.kilo/agents`, both symlinks into `.agents/agents/`
+- one `agent-<name>` plugin per subagent for Claude Code, switched on in the same settings files as the skills
 
-Confirm the directory your own tool reads is non-empty, and report how many files it holds. The four generated trees
+Confirm the directory your own tool reads is non-empty, and report how many files it holds. The three generated trees
 should hold the same number as each other, so a tree that is short of the others is the signal to look for. If yours
-is empty or missing, the import pulled an incomplete subset: flag it and ask the user to re-run the checkout.
+is empty or missing, the import pulled an incomplete subset: flag it and ask the user to re-run the checkout. If you
+are Claude Code, report the `agent-<name>` plugins the settings switch on instead. A `.claude/agents` folder holds only
+this project's own subagents, so flag a copy of an agent-standards subagent there as left from an older import.
 
 Check the two symlinks specifically. If `.opencode/agents` or `.kilo/agents` came through as a small text file holding
 a path instead of a link, say so, because OpenCode and Kilo Code then have no subagents at all.
@@ -124,7 +131,7 @@ If the repository has an `e2e/` directory with `e2e/testing/*-test.md` files, li
 runner is callable (`bru --version`, `hurl --version`, or plain `curl` as the fallback). If the directory is absent
 that is a pass, not every project ships runbook tests. If it exists but no runner is installed, flag it.
 
-If the project ships an `e2e-runner` subagent (look in `.agents/agents/` or `.claude/agents/`), the orchestration
+If the project ships an `e2e-runner` subagent (look in `.agents/agents/`, or on Claude Code for the `agent-e2e-runner` plugin), the orchestration
 contract is one subagent per test with a parallel cap, default 5, confirmed with the user before each sweep and
 typically 3 to 10 depending on the environment, governed by each spec's Concurrency section. That is a sweep-time
 concern, not a bootstrap concern. Just confirm the subagent exists so the pattern is available.
@@ -208,10 +215,12 @@ lines and holds links and the rules nothing else catches. If nothing qualifies, 
 End with this checklist. Pass or "broken, needs fixing". "Considered and not needed" counts as a pass. Reserve the
 failure mark for wiring that is genuinely broken or missing.
 
-- [ ] Skills readable (Claude Code through `.claude/skills`, every other agent directly from `.agents/skills/`)
+- [ ] Skills readable (Claude Code from the plugins its settings switch on, every other agent directly from
+      `.agents/skills/`)
 - [ ] Agent directories present (`.agents`, `.claude`, `.opencode`, `.kilo`, `.codex`, `.github`)
-- [ ] Subagent trees present (`.claude/agents/`, `.agents/agents/`, `.codex/agents/`, `.github/agents/`) and the
-      `.opencode/agents` and `.kilo/agents` symlinks intact
+- [ ] Subagent trees present (`.agents/agents/`, `.codex/agents/`, `.github/agents/`), the `.opencode/agents` and
+      `.kilo/agents` symlinks intact, and on Claude Code the `agent-<name>` plugins switched on
+- [ ] No `.claude/skills` link and no agent-standards copy in `.claude/agents` left from an older import
 - [ ] Preflight gate wired (all four scripts in `.agents/hooks/` plus the hook config your runtime reads)
 - [ ] Python 3 on the path (version quoted, or "FAIL: gate wired but disarmed")
 - [ ] MCP runtime checked (names, or "none active") and the five config files accounted for

@@ -1,8 +1,8 @@
 """Tests for .agents/hooks/claude/sync-skill-links/sync_skill_links.py.
 
 Driven as a subprocess with HOME and USERPROFILE pointing at a throwaway home,
-because that is how Claude Code and the updaters run it. No test reads or
-writes the real home directory.
+because that is how the updaters run it. No test reads or writes the real home
+directory.
 """
 
 import os
@@ -20,7 +20,7 @@ pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="the hook does n
 def home(tmp_path):
     root = tmp_path / "home"
     (root / ".config" / "agents" / "skills").mkdir(parents=True)
-    (root / ".claude").mkdir()
+    (root / ".config" / "codex").mkdir()
 
     return root
 
@@ -30,6 +30,10 @@ def source(home):
 
 
 def target(home):
+    return home / ".config" / "codex" / "skills"
+
+
+def claude_skills(home):
     return home / ".claude" / "skills"
 
 
@@ -41,7 +45,7 @@ def add_skill(home, name):
     return folder
 
 
-def run(home, stdin='{"hook_event_name": "SessionStart", "source": "startup"}', codex_home=None):
+def run(home, stdin="", codex_home=None):
     environment = {key: value for key, value in os.environ.items() if key != "CODEX_HOME"}
     environment.update({"HOME": str(home), "USERPROFILE": str(home)})
     if codex_home is not None:
@@ -64,7 +68,7 @@ def entries(home):
 
 
 def test_every_skill_with_a_manifest_is_linked_into_a_real_directory(home):
-    # Given two shared skills and no ~/.claude/skills yet
+    # Given two shared skills and no Codex skills folder yet
     add_skill(home, "alpha")
     add_skill(home, "beta")
 
@@ -81,7 +85,7 @@ def test_every_skill_with_a_manifest_is_linked_into_a_real_directory(home):
 
 
 def test_synced_trash_dot_entries_and_folders_without_a_manifest_are_not_linked(home):
-    # Given folders Claude Code owns, a dot folder, and a folder that is not a skill
+    # Given folders an agent owns, a dot folder, and a folder that is not a skill
     for name in ("synced", "Synced", ".trash", ".hidden", "notes"):
         (source(home) / name).mkdir()
     (source(home) / "synced" / "SKILL.md").write_text("x", encoding="utf-8")
@@ -112,9 +116,9 @@ def test_a_link_into_the_source_whose_skill_is_gone_is_removed(home):
     assert "unlinked gone" in err
 
 
-def test_real_directories_foreign_links_and_claude_owned_entries_are_never_touched(home, tmp_path):
+def test_real_directories_foreign_links_and_reserved_entries_are_never_touched(home, tmp_path):
     # Given a real skill directory, a link to somewhere else that no longer exists,
-    # and Claude Code's own synced and .trash entries
+    # and the reserved synced and .trash entries
     add_skill(home, "alpha")
     target(home).mkdir()
     own = target(home) / "my-own"
@@ -149,7 +153,7 @@ def test_an_existing_entry_of_the_same_name_wins(home):
 
 
 def test_nothing_happens_while_the_skills_directory_is_itself_a_link(home, tmp_path):
-    # Given the layout before the migration, a whole-directory link
+    # Given a skills folder that is one link to another directory
     add_skill(home, "alpha")
     elsewhere = tmp_path / "legacy-skills"
     elsewhere.mkdir()
@@ -175,7 +179,7 @@ def test_a_second_run_changes_nothing(home):
 
 def test_a_missing_source_is_a_silent_no_op(tmp_path):
     home = tmp_path / "home"
-    (home / ".claude").mkdir(parents=True)
+    (home / ".config" / "codex").mkdir(parents=True)
 
     code, out, err = run(home)
 
@@ -183,21 +187,52 @@ def test_a_missing_source_is_a_silent_no_op(tmp_path):
     assert not target(home).exists()
 
 
-def test_an_agent_that_is_not_installed_gets_no_skills_folder(tmp_path):
-    # Given shared skills but neither a ~/.claude nor a Codex home
+def test_a_home_without_codex_gets_no_skills_folder(tmp_path):
+    # Given shared skills but no Codex home
     home = tmp_path / "home"
     add_skill(home, "alpha")
 
     code, out, err = run(home)
 
     assert (code, out, err) == (0, "", "")
-    assert not (home / ".claude").exists()
     assert not (home / ".config" / "codex").exists()
 
 
-def test_the_codex_home_gets_its_own_links_and_keeps_its_system_skills(home):
+def test_claude_code_gets_no_skill_link_because_it_takes_its_skills_as_plugins(home):
+    # Given a Claude Code home beside the Codex one
+    (home / ".claude").mkdir()
+    add_skill(home, "alpha")
+
+    # When
+    code, _out, err = run(home)
+
+    # Then only the Codex folder is filled, and nothing is created under ~/.claude
+    assert code == 0
+    assert entries(home) == ["alpha"]
+    assert list((home / ".claude").iterdir()) == []
+    assert ".claude" not in err
+
+
+def test_links_an_older_install_left_in_the_claude_code_folder_are_left_alone(home):
+    # Given per-skill links from an install made before the plugins, one live and one whose skill is gone
+    live = add_skill(home, "alpha")
+    gone = source(home) / "gone"
+    claude_skills(home).mkdir(parents=True)
+    (claude_skills(home) / "alpha").symlink_to(live, target_is_directory=True)
+    (claude_skills(home) / "gone").symlink_to(gone, target_is_directory=True)
+
+    # When
+    code, _out, _err = run(home)
+
+    # Then both stay, because only the migration in docs/GLOBAL_SETUP.md removes them
+    assert code == 0
+    assert sorted(path.name for path in claude_skills(home).iterdir()) == ["alpha", "gone"]
+    assert all(path.is_symlink() for path in claude_skills(home).iterdir())
+
+
+def test_the_codex_home_keeps_its_system_skills(home):
     # Given CODEX_HOME at the guide's location, holding the bundled skills Codex writes itself
-    codex_skills = home / ".config" / "codex" / "skills"
+    codex_skills = target(home)
     (codex_skills / ".system" / "skill-creator").mkdir(parents=True)
     add_skill(home, "alpha")
 
@@ -212,18 +247,32 @@ def test_the_codex_home_gets_its_own_links_and_keeps_its_system_skills(home):
     assert not (source(home) / ".system").exists()
 
 
-def test_without_codex_home_the_default_codex_location_is_used(home):
-    (home / ".config" / "codex").mkdir()
+def test_a_codex_home_named_by_the_environment_is_used_instead_of_the_default(home, tmp_path):
+    # Given CODEX_HOME pointing somewhere other than ~/.config/codex
+    elsewhere = tmp_path / "codex-elsewhere"
+    elsewhere.mkdir()
     add_skill(home, "alpha")
 
-    code, _out, _err = run(home)
+    # When
+    code, _out, _err = run(home, codex_home=elsewhere)
+
+    # Then the links land there, and the default location gets none
+    assert code == 0
+    assert (elsewhere / "skills" / "alpha").is_symlink()
+    assert not target(home).exists()
+
+
+def test_a_relative_codex_home_falls_back_to_the_default_location(home):
+    add_skill(home, "alpha")
+
+    code, _out, _err = run(home, codex_home="relative/codex")
 
     assert code == 0
-    assert (home / ".config" / "codex" / "skills" / "alpha").is_symlink()
+    assert (target(home) / "alpha").is_symlink()
 
 
 @pytest.mark.parametrize("stdin", ["", "not json", "{}"], ids=["empty", "garbage", "empty-object"])
-def test_any_payload_exits_0(home, stdin):
+def test_anything_on_standard_input_exits_0(home, stdin):
     add_skill(home, "alpha")
 
     code, out, _err = run(home, stdin)
@@ -232,14 +281,14 @@ def test_any_payload_exits_0(home, stdin):
 
 
 def test_an_unwritable_target_is_reported_and_still_exits_0(home):
-    # Given a ~/.claude/skills that is a file, so the skills directory cannot be made
+    # Given a Codex skills path that is a file, so the skills directory cannot be made
     add_skill(home, "alpha")
     target(home).write_text("not a directory", encoding="utf-8")
 
     # When
     code, out, err = run(home)
 
-    # Then the session is never broken
+    # Then the update that ran it is never broken
     assert (code, out) == (0, "")
     assert "skipped" in err and "File exists" in err
 

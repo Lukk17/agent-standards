@@ -70,7 +70,7 @@ Run `uname -s` where it exists, otherwise check `$env:OS` in PowerShell. Then us
 | Package managers | `cat /etc/pacman.conf` section names, `pacman -Qqm` for foreign packages, `ls /etc/*.pacnew /etc/pacman.d/*.pacnew`, or `apt-cache policy` and `ls /etc/apt/sources.list.d`, or `dnf repolist`, plus `flatpak remotes`, `snap list`, `brew --version` |
 | Runtimes | `pyenv versions`, `pyenv global`, `python3 --version`, `uv --version`, `node --version`, `ls ~/.nvm/versions/node`, `ls ~/.sdkman/candidates/*`, `java -version`, `go version`, `rustc --version`, `flutter --version`, `ls ~/Android/Sdk` |
 | Containers and VMs | `docker info --format '{{.ServerVersion}} {{.Driver}} {{.CgroupDriver}}'`, `docker compose version`, `systemctl is-enabled docker libvirtd`, `virsh -c qemu:///system list --all`, `command -v podman VBoxManage vmware` |
-| Agent tooling | `claude --version`, `codex --version`, `opencode --version`, `kilo --version`, `copilot --version`, `gh --version`, `ls -la ~/.claude ~/.codex ~/.config/opencode ~/.config/kilo ~/.copilot ~/.agents`, `cat ~/.agents/.upstream-commit` |
+| Agent tooling | `claude --version`, `codex --version`, `opencode --version`, `kilo --version`, `copilot --version`, `gh --version`, `ls -la ~/.config/agents ~/.claude ~/.config/codex ~/.config/opencode ~/.config/kilo ~/.config/copilot`, `cat ~/.config/agents/.upstream-commit`, `claude plugin marketplace list`, `claude plugin list`, and `ls -d ~/.agents ~/.codex ~/.copilot` for an install made before the `~/.config/agents` layout |
 
 Root-only commands to list for the owner on Linux, with the row each fills: `sudo dmidecode -t memory`, `sudo cat /etc/crypttab`, `sudo ls -R /boot`, `sudo snapper -c root list`, `sudo ufw status verbose`, `sudo nft list ruleset`, `sudo smartctl -a /dev/<disk>` for each disk that is not on the never-touch list, `sudo cryptsetup luksDump /dev/<luks partition>` for the TPM2 token question, `sudo efibootmgr -v` where the plain form hides the paths.
 
@@ -121,7 +121,7 @@ Run these in a normal, non-elevated PowerShell 7 session.
 | Package managers | `winget --version`, `winget source list`, `choco --version`, `scoop --version` |
 | Runtimes | `py -0p`, `pyenv versions`, `uv --version`, `node --version`, `nvm list`, `java -version`, `go version`, `rustc --version` |
 | Containers and VMs | `wsl -l -v`, `docker info`, `Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V` is elevated only |
-| Agent tooling | the same version commands as Linux, and `Get-ChildItem $HOME\.claude,$HOME\.codex,$HOME\.agents -Force` |
+| Agent tooling | the same version commands as Linux, `claude plugin marketplace list`, `claude plugin list`, `Get-ChildItem $HOME\.config\agents,$HOME\.claude,$HOME\.config\codex,$HOME\.config\copilot -Force`, `Get-Content $HOME\.config\agents\.upstream-commit`, and `Get-Item $HOME\.agents,$HOME\.codex,$HOME\.copilot` for an install made before the `~/.config/agents` layout |
 
 Elevated commands to list for the owner on Windows, written as `needs: elevated <command>`: `Get-BitLockerVolume`, `manage-bde -status`, `bcdedit /enum`, `Confirm-SecureBootUEFI`, `Get-Tpm`, `vssadmin list shadows`, `Get-ComputerRestorePoint`.
 

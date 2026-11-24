@@ -27,6 +27,7 @@ go. Add anything you did beyond the spec under Additional tasks I did.
 - [ ] 2. `kilocode agent list` captured, exit status read immediately
 - [ ] 3. `kilocode config check` captured, exit status read immediately
 - [ ] 4. `copilot skill list` captured, exit status read immediately
+- [ ] 5. `claude plugin list --json` captured, exit status read immediately
 
 #### Expected
 
@@ -40,6 +41,8 @@ go. Add anything you did beyond the spec under Additional tasks I did.
 - [ ] Copilot exited 0
 - [ ] Copilot loaded every canonical skill from the home directory
 - [ ] Copilot reported no parse or load failure
+- [ ] Claude Code exited 0
+- [ ] Claude Code listed exactly the plugins its user settings switch on, each with the user scope
 
 #### Verdict
 

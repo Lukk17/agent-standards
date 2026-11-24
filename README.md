@@ -565,7 +565,7 @@ Claude Code takes its skills, subagents and hooks as plugins from the marketplac
 
 A bundle holds no files of its own. It lists plugin names, and installing it installs each of them. The plugins come straight from the files on `master`, and every change to one raises its version, so an update moves only the plugins that changed. Each version is also tagged `<name>--v<version>`.
 
-Every command below installs at project scope, which records the marketplace and the plugin in the project's `.claude/settings.json` for everyone who works there. A plugin that carries an MCP server must be installed at project scope and never at user scope, the default of `claude plugin install`, because a plugin at user scope is on in every project on the machine and its server would start in every chat. The reason and the vendor quotes are in [docs/MCP_SETUP.md](docs/MCP_SETUP.md#adding-a-server-to-claude-code).
+Every command below installs at project scope, which records the marketplace and the plugin in the project's `.claude/settings.json` for everyone who works there. A plugin that carries an MCP server must be installed at project scope and never at user scope, the default of `claude plugin install`, because a plugin at user scope is on in every project on the machine and its server would start in every chat. The reason and the vendor quotes are in [docs/MCP_SETUP.md](docs/MCP_SETUP.md#adding-a-server-to-claude-code). A bundle that carries no server may also be installed with the user scope, for every project on the machine: `core` and the bundles you use in every project, never `all`, and never `mcp-all` or an `mcp-<server>` plugin. [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md#claude-code) has those commands, the listing sizes behind the choice, and what `hooks-all` with the user scope switches on in every project.
 
 Add the marketplace to the project once:
 
@@ -670,6 +670,8 @@ An import made before Claude Code moved to the plugins put the Claude Code hooks
 #### The git import beside the plugins
 
 The [Quickstart](#quickstart) checkout is the Git import that sits beside the plugins. It brings what OpenCode, Kilo Code, Codex and Copilot read, and leaves `.claude/skills`, `.claude/agents` and `.claude/settings.json` out, so Claude Code never finds a second copy of a skill or a subagent beside its plugins.
+
+A skill of the project's own goes into `.claude/skills/<skill-name>/SKILL.md`, in a real folder the project commits, and a subagent of its own into `.claude/agents/`. Claude Code reads both beside the plugins. Never make `.claude/skills` a link to `.agents/skills`: that folder holds the agent-standards skills for the other agents, so the link would load each of them a second time.
 
 A project that wants every Claude Code server from a plugin leaves [.mcp.json](.mcp.json) out as well and installs `mcp-context7` at project scope. The Copilot CLI then reads [.github/mcp.json](.github/mcp.json). After adding the remote and fetching as in the [Quickstart](#quickstart), PowerShell or Unix shell, same command:
 
@@ -965,7 +967,7 @@ filenames stay in this repo only.
 | [docs/AGENT_TOOLING.md](docs/AGENT_TOOLING.md) | Initial import flow, future updates, subagents, MCP overview, full OpenSpec integration and workflow. |
 | [docs/MCP_SETUP.md](docs/MCP_SETUP.md) | The real MCP config files, prerequisites, keys, env-var export per OS, the manual JetBrains and cloud-agent blocks, verification. |
 | [docs/AGENTS-UPDATE.md](docs/AGENTS-UPDATE.md) | Per-shell selective update commands including the diff-first configuration-file pair, the Windows symlink prerequisite, and the OpenSpec init and update guidance. Refreshes itself. |
-| [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md) | Installing the same skills, subagents and gate into your home directory so every project on the machine inherits them, per agent and per shell. |
+| [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md) | Installing the skills, subagents and gate for every project on the machine: the shared folder in your home directory for Codex, OpenCode, Kilo Code and Copilot, and plugins with the user scope for Claude Code, per shell, with the move from an older install. |
 | [.metrics/tools/README.md](.metrics/tools/README.md) | Robert C. Martin's crapper, dryer and mutator, the wrapper that runs them on Linux, macOS and Windows, what it fixes, and how the copies are updated. It travels with `.metrics/tools`, so every import delivers it. |
 
 #### This repo only

@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
-"""Links every shared skill into the agents that write into their own skills folder.
+"""Links every shared skill into the Codex skills folder of the global install.
 
 The global install in docs/GLOBAL_SETUP.md keeps the skills in
-~/.config/agents/skills. Two agents cannot be pointed at that folder with one
-directory link, because each writes into its own skills folder as well: Claude
-Code puts the skills it syncs from claude.ai in ~/.claude/skills/synced/, and
-Codex puts its bundled skills in $CODEX_HOME/skills/.system/. Through a
-whole-directory link either lands in the shared tree that every other agent
-scans. So both folders stay real directories holding one link per shared
-skill, and this script keeps that set current in each:
+~/.config/agents/skills. Codex cannot be pointed at that folder with one
+directory link, because it writes its bundled skills into its own skills
+folder, $CODEX_HOME/skills/.system/, and through a whole-directory link those
+land in the shared tree that every other agent scans. So the Codex folder stays
+a real directory holding one link per shared skill, and this script keeps that
+set current in $CODEX_HOME/skills, or ~/.config/codex/skills when CODEX_HOME is
+unset, when that Codex home exists.
 
-- ~/.claude/skills, when ~/.claude exists;
-- $CODEX_HOME/skills, or ~/.config/codex/skills when CODEX_HOME is unset,
-  when that Codex home exists.
+Claude Code is not a target. It takes its skills as plugins from the
+marketplace, so this script never creates, fills or cleans ~/.claude/skills,
+and links an older install left there go only with the migration in
+docs/GLOBAL_SETUP.md.
 
-Claude Code runs it on SessionStart for startup and resume, and both global
-updaters run it after an update. In each folder it:
+Both global updaters run it after an update, and the guide runs it once by
+hand. In the Codex folder it:
 
 1. links every folder in the source that holds a SKILL.md and has no entry of
    that name yet;
@@ -24,16 +25,15 @@ updaters run it after an update. In each folder it:
 
 It never touches `synced`, `.trash`, a dot entry such as `.system`, a real
 directory, or a link that points anywhere but the source. A folder that is
-itself a link, which is the layout before the migration, is left alone.
+itself a link is left alone.
 
 On Windows it does nothing. Creating per-skill junctions there was never
-tested, so the guide keeps the Windows install on directory junctions.
+tested, so the guide keeps the Windows install on junctions made by hand.
 
-It lives under .agents/hooks/claude/ so the OpenCode and Kilo Code runner,
-which discovers only a script directly inside a hook folder of
-.agents/hooks/, never runs it on a tool call. Every outcome, an error included, exits 0, and the report
-goes to stderr, because Claude Code adds a SessionStart hook's stdout to the
-model's context.
+It sits two folders below .agents/hooks/, where the OpenCode and Kilo Code
+runner, which discovers only a script directly inside a hook folder of
+.agents/hooks/, never runs it on a tool call. Every outcome, an error
+included, exits 0, and the report goes to stderr.
 """
 
 import os
@@ -42,7 +42,6 @@ from pathlib import Path
 from typing import List, Optional
 
 SOURCE = (".config", "agents", "skills")
-CLAUDE_HOME = (".claude",)
 DEFAULT_CODEX_HOME = (".config", "codex")
 SKILLS = "skills"
 SKILL_FILE = "SKILL.md"
@@ -79,8 +78,10 @@ def _codex_home(home: Path) -> Path:
 
 
 def targets(home: Path) -> List[Path]:
-    """Every skills folder to keep in step, one per agent home that exists."""
-    return [agent_home / SKILLS for agent_home in (home.joinpath(*CLAUDE_HOME), _codex_home(home)) if agent_home.is_dir()]
+    """The Codex skills folder to keep in step, when that Codex home exists."""
+    codex_home = _codex_home(home)
+
+    return [codex_home / SKILLS] if codex_home.is_dir() else []
 
 
 def sync_one(source: Path, target: Path) -> List[str]:
@@ -132,7 +133,7 @@ def main() -> int:
 
             if changes:
                 print("skill links: " + str(target) + ": " + ", ".join(changes), file=sys.stderr)
-    except Exception as error:  # a broken sync must never break a session
+    except Exception as error:  # a broken sync must never break the update that ran it
         print("skill links: skipped (" + str(error) + ")", file=sys.stderr)
 
     return 0

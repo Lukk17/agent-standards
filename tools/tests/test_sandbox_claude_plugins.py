@@ -2,7 +2,9 @@
 
 The sandbox gives Claude Code the plugin route docs/AGENT_TOOLING.md step 1
 tells a consumer to take: no .claude tree by checkout but the workflows, the
-marketplace added and the bundles installed at project scope. The library is
+marketplace added and the bundles installed at project scope. For the whole
+machine it takes the route docs/GLOBAL_SETUP.md gives: the same marketplace and
+a few bundles with the user scope, and never a server. The library is
 driven here with a real smart HTTP server over a small repository and a
 `claude` that only records what it was asked, so nothing is installed and no
 session starts.
@@ -24,13 +26,28 @@ SANDBOX = REPO_ROOT / "sandbox-agent"
 LIBRARY = SANDBOX / "lib-claude-plugins.sh"
 SETUP = SANDBOX / "setup-project.sh"
 CONSUMER_DOCUMENT = REPO_ROOT / "docs" / "AGENT_TOOLING.md"
+GLOBAL_DOCUMENT = REPO_ROOT / "docs" / "GLOBAL_SETUP.md"
+MARKETPLACE = REPO_ROOT / ".claude-plugin" / "marketplace.json"
+USER_SCOPE_INSTALL = re.compile(r"claude plugin install ([\w-]+)@agent-standards --scope user")
+DOCUMENTS_A_USER_READS = (
+    REPO_ROOT / "README.md",
+    REPO_ROOT / "CONTRIBUTING.md",
+    REPO_ROOT / "AGENTS.md.example",
+    *sorted((REPO_ROOT / "docs").glob("*.md")),
+    *sorted((REPO_ROOT / "global").glob("*.md")),
+    *sorted((REPO_ROOT / "global").glob("*.example")),
+    *sorted((REPO_ROOT / "e2e" / "testing").glob("*.md")),
+    REPO_ROOT / "sandbox-agent" / "README.md",
+)
 BASH = shutil.which("bash")
 GIT = shutil.which("git")
 FAKE_CLAUDE = """#!/usr/bin/env bash
 printf '%s\\n' "$*" >> "$CLAUDE_RECORD"
 if [[ "$2" == "marketplace" ]]; then
-  mkdir -p .claude
-  printf '{"extraKnownMarketplaces": {"lab": {"source": {"source": "git", "url": "%s"}}}}\\n' "$4" > .claude/settings.json
+  settings=.claude
+  [[ "$6" == "user" ]] && settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+  mkdir -p "$settings"
+  printf '{"extraKnownMarketplaces": {"lab": {"source": {"source": "git", "url": "%s"}}}}\\n' "$4" > "$settings/settings.json"
 fi
 """
 
@@ -49,6 +66,27 @@ def array(script: Path, name: str) -> list[str]:
     assert declared, name
 
     return shlex.split(declared.group(1))
+
+
+def claude_section() -> str:
+    """The Claude Code section of the global guide, from its heading to the next agent's."""
+    text = GLOBAL_DOCUMENT.read_text(encoding="utf-8")
+
+    return text[text.index("#### Claude Code\n") : text.index("#### Codex\n")]
+
+
+def plugin_closure(names: list[str]) -> dict[str, str]:
+    """Every plugin the named ones install, with its category, read from the committed marketplace."""
+    entries = {entry["name"]: entry for entry in json.loads(MARKETPLACE.read_text(encoding="utf-8"))["plugins"]}
+    seen: dict[str, str] = {}
+    stack = list(names)
+    while stack:
+        name = stack.pop()
+        if name not in seen:
+            seen[name] = entries[name]["category"]
+            stack.extend(entries[name].get("dependencies", []))
+
+    return seen
 
 
 def free_port() -> int:
@@ -131,3 +169,68 @@ def test_the_library_refuses_a_repository_with_no_import_branch(tmp_path):
     )
 
     assert result.stdout.strip() == "status=1 pid=none"
+
+
+def test_the_global_setup_installs_the_bundles_the_global_guide_installs_with_the_user_scope():
+    documented = list(dict.fromkeys(USER_SCOPE_INSTALL.findall(claude_section())))
+    single_items = {"skill", "agent", "hook", "mcp"}
+    bundles = [name for name in documented if plugin_closure([name])[name] not in single_items]
+
+    assert bundles
+    assert array(LIBRARY, "CLAUDE_USER_PLUGINS") == bundles
+    assert "claude plugin marketplace add Lukk17/agent-standards --scope user" in claude_section()
+
+
+def test_the_bundles_the_sandbox_installs_with_the_user_scope_carry_no_server():
+    closure = plugin_closure(array(LIBRARY, "CLAUDE_USER_PLUGINS"))
+
+    assert "core" in closure
+    assert [name for name, category in closure.items() if category == "mcp" or name.startswith("mcp-")] == []
+
+
+@pytest.mark.parametrize("document", DOCUMENTS_A_USER_READS, ids=lambda path: path.relative_to(REPO_ROOT).as_posix())
+def test_no_document_installs_a_server_or_every_skill_with_the_user_scope(document):
+    installed = USER_SCOPE_INSTALL.findall(document.read_text(encoding="utf-8"))
+    closure = plugin_closure(installed)
+
+    assert [name for name in closure if name.startswith("mcp-")] == []
+    assert "all" not in closure
+
+
+@needs_bash
+def test_the_library_installs_every_user_bundle_with_the_user_scope_and_writes_nothing_into_the_start_folder(tmp_path):
+    # Given a served repository, a home with no Claude Code settings, and an empty start folder
+    upstream, start, tools, record = tmp_path / "upstream", tmp_path / "start", tmp_path / "bin", tmp_path / "record"
+    (upstream / "tools").mkdir(parents=True)
+    shutil.copyfile(REPO_ROOT / "tools" / "git_http.py", upstream / "tools" / "git_http.py")
+    identity = ["-c", "user.name=lab", "-c", "user.email=lab@example.invalid"]
+    subprocess.run([GIT, "init", "--quiet", "--initial-branch=master", str(upstream)], check=True)
+    subprocess.run([GIT, "-C", str(upstream), "add", "--all"], check=True)
+    subprocess.run([GIT, "-C", str(upstream), *identity, "commit", "--quiet", "-m", "served"], check=True)
+    start.mkdir()
+    tools.mkdir()
+    (tools / "claude").write_text(FAKE_CLAUDE, encoding="utf-8")
+    (tools / "claude").chmod(0o755)
+    port = free_port()
+    script = (
+        f"source '{LIBRARY.as_posix()}'; trap claude_market_stop EXIT; "
+        f"claude_market_start '{upstream.as_posix()}' && claude_plugins_install_user '{start.as_posix()}'"
+    )
+
+    # When the library installs for the user
+    result = subprocess.run(
+        [BASH, "-c", script],
+        capture_output=True, text=True, timeout=SUBPROCESS_TIMEOUT_SECONDS,
+        env={"PATH": f"{tools}:{Path(BASH).parent}:{Path(GIT).parent}:{Path(shutil.which('python3')).parent}:/usr/bin:/bin",
+             "HOME": str(tmp_path), "SANDBOX_CLAUDE_MARKET_PORT": str(port), "CLAUDE_RECORD": str(record), "TMPDIR": str(tmp_path)},
+    )
+
+    # Then every command carried the user scope, in the order the guide gives, and the start folder stayed empty
+    assert result.returncode == 0, result.stderr
+    url = f"http://127.0.0.1:{port}/marketplace.git"
+    assert record.read_text(encoding="utf-8").splitlines() == [
+        f"plugin marketplace add {url} --scope user",
+        *[f"plugin install {bundle}@lab --scope user" for bundle in array(LIBRARY, "CLAUDE_USER_PLUGINS")],
+    ]
+    assert list(start.iterdir()) == []
+    assert json.loads((tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8"))["extraKnownMarketplaces"]["lab"]["source"]["url"] == url

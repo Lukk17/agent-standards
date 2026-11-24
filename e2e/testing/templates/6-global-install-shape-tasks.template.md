@@ -48,10 +48,10 @@ go. Add anything you did beyond the spec under Additional tasks I did.
 - [ ] The update did not touch `~/.claude/settings.json`
 - [ ] `/work/bare` holds none of the per-project files
 - [ ] The shared skills tree holds every canonical skill
-- [ ] `~/.claude/skills` is a real directory, not a link
+- [ ] Claude Code got no `~/.claude/skills` and no `~/.claude/agents`
+- [ ] `~/.config/codex/skills` is a real directory, not a link
 - [ ] The same skill count is reachable through its per-skill links
 - [ ] The gate script landed in the shared tree with its rules file
-- [ ] Claude Code subagent count matches canonical
 - [ ] Codex TOML subagent count matches canonical
 - [ ] `~/.config/opencode/agents` and `~/.config/kilo/agents` are links to `~/.config/agents/agents`
 - [ ] OpenCode and Kilo Code subagent counts through those links match canonical
@@ -61,14 +61,13 @@ go. Add anything you did beyond the spec under Additional tasks I did.
 - [ ] `~/.claude/CLAUDE.md` is a real file holding only the import
 - [ ] Codex, OpenCode and Kilo Code point at it with a link each, and Copilot has no link of its own
 - [ ] Kilo Code names the shared skills in `skills.paths` and carries no `instructions` key
-- [ ] Claude Code's user settings equal the guide's block
+- [ ] Claude Code's user settings name the marketplace and wire no hook themselves
+- [ ] They switch on exactly the plugins `core`, `review-and-security` and `hooks-all` install
+- [ ] No plugin with the user scope carries an MCP server
+- [ ] A skill, a subagent, the gate script and its rules file sit in the plugin cache
+- [ ] Every hook of the switched-on hook plugins starts in the project, runs from its plugin folder and forces a zero exit
+- [ ] The markdown lint and the standards advisory are among them
 - [ ] Codex's user hooks equal the guide's block
-- [ ] Claude Code's user settings call the gate by absolute path, with the flag matched separately
-- [ ] Claude Code's gate call runs the gate script directly, with no wrapper, and carries no `subprocess.DEVNULL`
-- [ ] Claude Code's gate call forces a zero exit
-- [ ] Claude Code injects the subagent supervision text at session start
-- [ ] Claude Code tells a subagent to do its task itself on `SubagentStart`, never with the delegating reminder
-- [ ] Claude Code fixes the reply on `MessageDisplay` and checks what is left on `Stop` with `--display-fixed`
 - [ ] Codex's user hooks call the gate by absolute path
 - [ ] Codex's gate call is scoped to the tools that can write
 - [ ] Codex's gate call forces a zero exit with `|| exit 0` on the POSIX command

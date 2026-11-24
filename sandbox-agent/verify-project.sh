@@ -166,42 +166,6 @@ assert_json() {
   assert_json_at "$label" "${PROJECT}/${path}" "$filter" "$path"
 }
 
-# The same check over a file outside the project, named in full. The optional
-# fourth argument is the name a failure reports the file by.
-assert_json_at() {
-  local label="$1" file="$2" filter="$3" name="${4:-$2}"
-  local result=""
-
-  if [[ ! -f "$file" ]]; then
-    fail "${label} (${name} is missing)"
-    return
-  fi
-
-  result="$(jq -r "$filter" "$file" 2>/dev/null || echo "error")"
-
-  if [[ "$result" == "true" ]]; then
-    pass "${label}"
-  else
-    fail "${label} (the check over ${name} returned '${result}')"
-  fi
-}
-
-# Passes when two sorted lists, one name per line, are the same.
-assert_same_names() {
-  local label="$1" expected="$2" actual="$3"
-  local count=0 missing="" extra=""
-
-  count="$(grep -c . <<<"$expected" || true)"
-  missing="$(comm -23 <(printf '%s\n' "$expected") <(printf '%s\n' "$actual") | tr '\n' ' ')"
-  extra="$(comm -13 <(printf '%s\n' "$expected") <(printf '%s\n' "$actual") | tr '\n' ' ')"
-
-  if [[ "$count" -gt 0 && -z "$missing" && -z "$extra" ]]; then
-    pass "${label} (${count} of ${count})"
-  else
-    fail "${label} (missing: ${missing:-none}, not expected: ${extra:-none})"
-  fi
-}
-
 # Same contract as assert_json, for a TOML file converted to JSON first so both
 # schemas are checked with one query language.
 assert_toml() {
@@ -402,84 +366,13 @@ verify_import() {
   assert_symlinked_dir "Kilo Code subagents symlink resolves" ".kilo/agents"
 }
 
-# Every plugin the bundles of CLAUDE_PROJECT_PLUGINS install, from the catalog
-# Claude Code cloned, one "<category> <name>" per line.
-claude_plugin_closure() {
-  python3 -I -S - "$CLAUDE_CATALOG" "${CLAUDE_PROJECT_PLUGINS[@]}" <<'PY'
-import json
-import sys
-
-entries = {entry["name"]: entry for entry in json.load(open(sys.argv[1], encoding="utf-8"))["plugins"]}
-seen, stack = set(), list(sys.argv[2:])
-
-while stack:
-    name = stack.pop()
-
-    if name not in seen:
-        seen.add(name)
-        stack.extend(entries[name].get("dependencies", []))
-
-for name in sorted(seen):
-    print(entries[name]["category"], name)
-PY
-}
-
-# The names of one category in CLAUDE_PLUGINS, one per line.
-claude_plugins_of() {
-  local category="$1" line=""
-
-  for line in "${CLAUDE_PLUGINS[@]}"; do
-    [[ "$line" == "${category} "* ]] && printf '%s\n' "${line#* }"
-  done
-
-  return 0
-}
-
 # Writes the hook wiring Claude Code runs in the project into CLAUDE_WIRING: the
 # hooks of every hook plugin the project settings switch on, merged by event,
 # in the shape a settings file holds them.
 claude_wiring() {
   CLAUDE_WIRING="$(mktemp -t sandbox-claude-wiring-XXXXXXXX)"
 
-  jq --slurpfile settings "${PROJECT}/.claude/settings.json" '
-    ($settings[0].enabledPlugins // {}) as $on
-    | .name as $market
-    | {hooks: ([.plugins[] | select(.category == "hook" and $on["\(.name)@\($market)"] == true) | .hooks | to_entries[]]
-        | group_by(.key) | map({key: .[0].key, value: (map(.value) | add)}) | from_entries)}' \
-    "$CLAUDE_CATALOG" >"$CLAUDE_WIRING" 2>/dev/null || : >"$CLAUDE_WIRING"
-}
-
-# Counts the plugins of one category whose cached folder holds the file the
-# pattern names, where @ stands for the plugin's item name and + for that name
-# with an underscore for every dash, the way a hook script is named.
-assert_claude_cache() {
-  local label="$1" category="$2" prefix="$3" pattern="$4"
-  local name="" item="" file="" found=0 total=0 missing=()
-  local matches=()
-
-  while IFS= read -r name; do
-    [[ -n "$name" ]] || continue
-    total=$((total + 1))
-    item="${name#"$prefix"}"
-    file="${pattern//@/$item}"
-    file="${file//+/${item//-/_}}"
-    shopt -s nullglob
-    # shellcheck disable=SC2206
-    matches=( ${CLAUDE_CACHE}/${name}/*/${file} )
-    shopt -u nullglob
-
-    if [[ "${#matches[@]}" -eq 1 ]]; then
-      found=$((found + 1))
-    else
-      missing+=("$name")
-    fi
-  done < <(claude_plugins_of "$category")
-
-  if [[ "$total" -gt 0 && "$found" -eq "$total" ]]; then
-    pass "${label} (${found} of ${total})"
-  else
-    fail "${label} (${found} of ${total}, missing: $(join_commas "${missing[@]}"))"
-  fi
+  claude_plugin_wiring "$CLAUDE_CATALOG" "${PROJECT}/.claude/settings.json" >"$CLAUDE_WIRING" 2>/dev/null || : >"$CLAUDE_WIRING"
 }
 
 verify_claude() {
@@ -499,7 +392,7 @@ verify_claude() {
     return
   fi
 
-  mapfile -t CLAUDE_PLUGINS < <(claude_plugin_closure)
+  mapfile -t CLAUDE_PLUGINS < <(claude_plugin_closure "$CLAUDE_CATALOG" "${CLAUDE_PROJECT_PLUGINS[@]}")
   claude_wiring
   expected="$(printf '%s\n' "${CLAUDE_PLUGINS[@]#* }" | sed "s/\$/@${CLAUDE_MARKET}/" | sort)"
   enabled="$(jq -r '.enabledPlugins | to_entries[] | select(.value == true) | .key' "${PROJECT}/.claude/settings.json" | sort)"

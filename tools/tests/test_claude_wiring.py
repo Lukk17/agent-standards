@@ -9,9 +9,10 @@ the wiring its entry in tools/plugins.yaml defines, and every command starts in
 the session's project and runs a script of the plugin's own folder.
 
 Claude Code tests a matcher with JavaScript's RegExp.prototype.test, which
-re.search reproduces for this anchored pattern. The hook plugin, the global
-install in docs/GLOBAL_SETUP.md and the sandbox's global install must all carry
-the same matcher.
+re.search reproduces for this anchored pattern. The hook plugin is the one
+place that carries the matcher: the global install in docs/GLOBAL_SETUP.md and
+the sandbox's global install give Claude Code the plugins with the user scope
+and wire no hook into ~/.claude/settings.json.
 """
 
 import json
@@ -27,7 +28,8 @@ from tests.conftest import REPO_ROOT, SUBPROCESS_TIMEOUT_SECONDS
 from tests.process_tree import run_bounded
 from tests.reminder_support import posix_shell
 
-GLOBAL_COPIES = ("docs/GLOBAL_SETUP.md", "sandbox-agent/setup-global.sh")
+GLOBAL_INSTALLS = ("docs/GLOBAL_SETUP.md", "sandbox-agent/setup-global.sh")
+CLAUDE_ONLY_EVENTS = ("MessageDisplay", "PreCompact", "TaskCreated", "TaskCompleted")
 PLUGIN_MAP = REPO_ROOT / "tools" / "plugins.yaml"
 GATE_SCRIPT = "preflight_gate.py"
 OWN_MARKETPLACE = {"source": {"source": "directory", "path": "."}}
@@ -115,8 +117,10 @@ def test_the_gate_matcher_is_anchored_and_case_sensitive(tool):
     assert all(re.search(matcher, tool) is None for matcher in matchers)
 
 
-@pytest.mark.parametrize("relative", GLOBAL_COPIES)
-def test_every_global_install_carries_the_plugin_matcher(relative):
+@pytest.mark.parametrize("relative", GLOBAL_INSTALLS)
+def test_no_global_install_wires_a_claude_code_hook_beside_the_plugins(relative):
     text = (REPO_ROOT / relative).read_text(encoding="utf-8")
 
-    assert '"matcher": ' + json.dumps(gate_matchers()[0]) in text
+    assert '"matcher": ' + json.dumps(gate_matchers()[0]) not in text
+    assert "--format claude" not in text
+    assert [event for event in CLAUDE_ONLY_EVENTS if f'"{event}"' in text] == []

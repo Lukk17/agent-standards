@@ -64,8 +64,8 @@ relying on it or changing its wiring, read
 
 ### Skills
 
-- Skills live only in [.agents/skills/](.agents/skills/). `.claude/skills` is the one symlink to it, so finding no
-  skills folder beside your own agent's configuration does not mean the project has none.
+- The agent-standards skills live only in [.agents/skills/](.agents/skills/), and Claude Code takes the same skills as plugins, so finding no
+  skills folder beside your own agent's configuration does not mean the project has none. A skill of this project's own goes into `.claude/skills/<skill-name>/SKILL.md` for Claude Code, in a real folder, never a link to `.agents/skills`, which would load every skill twice.
 - Read the `description` of every skill, open every matching `SKILL.md` in full, and invoke it before the work, for
   example `/code-reviewer` before a review, `/coding-standards` before new code, `/tdd-workflow` before a feature or a
   fix. Run discovery again when the task changes shape.

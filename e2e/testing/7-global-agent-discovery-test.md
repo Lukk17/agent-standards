@@ -18,9 +18,10 @@ directory into which nothing has been imported.
 - GitHub Copilot, asked in its own terms from the same bare directory, loads every skill in the shared tree and
   parses all of them. Copilot reads `~/.config/agents/skills` natively, so this is the cleanest single proof that the shared
   tree is doing its job globally.
-- Claude Code and Codex publish no skills or subagents listing command. Their global equivalents are the path and
+- Claude Code, asked in its own terms from the same bare directory, lists every plugin the global install switched on, each with the user scope. Its skills, subagents and hooks are those plugins, so this is its listing.
+- Codex publishes no skills or subagents listing command. Its global equivalents are the path and
   count assertions in [6-global-install-shape-test.md](6-global-install-shape-test.md). This spec says so rather than
-  pretending to cover them.
+  pretending to cover it.
 - Out of scope, because the container is given no provider credentials: none of these commands starts a model
   session. A listing proves the tool found and parsed the definitions from the home directory. It does not prove the
   tool would pick the right one during real work.
@@ -138,6 +139,12 @@ kilocode config check > /tmp/global-kilocode-config.txt 2>&1
 copilot skill list > /tmp/global-copilot-skills.txt 2>&1
 ```
 
+5. Ask Claude Code which plugins it has. Only standard output is kept, because the answer is JSON.
+
+```bash
+claude plugin list --json > /tmp/global-claude-plugins.json
+```
+
 ---
 
 ### Expected
@@ -225,6 +232,22 @@ grep -qiE "failed to (load|parse)" /tmp/global-copilot-skills.txt
 ```
 
 Expect exit 1, meaning no such line appears. Exit 0 here is a failure of the test.
+
+Claude Code exited 0 on run step 5.
+
+```bash
+echo $?
+```
+
+Expect `0`, read straight after run step 5.
+
+Claude Code lists exactly the plugins its user settings switch on, each enabled and with the user scope. No project file exists in the bare directory, so none of them can come from a project.
+
+```bash
+jq -e --slurpfile s "$HOME/.claude/settings.json" '([.[] | select(.enabled == true and .scope == "user") | .id] | sort) == ([$s[0].enabledPlugins | to_entries[] | select(.value == true) | .key] | sort)' /tmp/global-claude-plugins.json
+```
+
+Expect exit 0.
 
 ---
 

@@ -10,7 +10,6 @@ import pytest
 
 from tests.reminder_support import (
     CLAUDE_MARKER,
-    CLAUDE_REMINDER,
     SHORT_REMINDER,
     canonical_subagent_reminder,
     delivered_text,
@@ -48,7 +47,7 @@ def test_the_global_guide_shows_the_shipped_copilot_wiring_with_every_script_pat
 def test_the_global_guide_json_blocks_match_the_shipped_wirings():
     guide = (REPO_ROOT / "docs" / "GLOBAL_SETUP.md").read_text(encoding="utf-8")
     blocks = json_blocks(guide)
-    assert len(blocks) == 3
+    assert len(blocks) == 2
     texts = [delivered_text(printed_literal(c)) for b in blocks for _k, c in reminder_commands(b)]
     assert SHORT_REMINDER in texts
 
@@ -79,33 +78,32 @@ def test_the_sandbox_install_renders_the_canonical_newlines():
             check=True,
             timeout=60,
         ).stdout
-        for function in ("claude_settings", "codex_hooks")
+        for function in ("codex_hooks",)
     ]
-    claude_commands = [command for _key, command in reminder_commands(json.loads(rendered[0]), marker=CLAUDE_MARKER)]
-    codex_commands = [command for _key, command in reminder_commands(json.loads(rendered[1]))]
-    commands = claude_commands + codex_commands
-    assert len(commands) == 4
-    assert delivered_text(printed_literal(commands[0])) == CLAUDE_REMINDER
-    assert delivered_text(printed_literal(commands[1])) == CLAUDE_REMINDER
-    assert delivered_text(printed_literal(commands[2])) == SHORT_REMINDER
-    assert delivered_text(printed_literal(commands[3])) == SHORT_REMINDER
+    commands = [command for _key, command in reminder_commands(json.loads(rendered[0]))]
+    assert len(commands) == 2
+    assert delivered_text(printed_literal(commands[0])) == SHORT_REMINDER
+    assert delivered_text(printed_literal(commands[1])) == SHORT_REMINDER
     subagent = [command for text in rendered for _key, command in subagent_start_commands(json.loads(text))]
-    assert len(subagent) == 3
+    assert len(subagent) == 2
     assert all(delivered_text(printed_literal(command)) == canonical_subagent_reminder() for command in subagent)
 
 
-def test_every_copy_of_the_background_subagent_note_matches_its_hook():
+def test_the_sandbox_install_carries_no_copy_of_the_claude_code_reminder():
+    script = (REPO_ROOT / "sandbox-agent" / "setup-global.sh").read_text(encoding="utf-8")
+
+    assert CLAUDE_MARKER not in script
+    assert "claude_settings" not in script
+
+
+def test_the_background_subagent_note_lives_in_its_hook_and_nowhere_in_a_global_install():
     from tests.reminder_support import canonical_background_subagent_reminder
 
     canonical = canonical_background_subagent_reminder()
+    opening = canonical.split(",", 1)[0]
     script = (REPO_ROOT / "sandbox-agent" / "setup-global.sh").read_text(encoding="utf-8")
     guide = (REPO_ROOT / "docs" / "GLOBAL_SETUP.md").read_text(encoding="utf-8")
-    sandbox_copies = re.findall(r'^readonly SUPERVISION_TEXT="([^"]*)"$', script, re.MULTILINE)
-    guide_copies = [
-        delivered_text(printed_literal(command))
-        for block in json_blocks(guide)
-        for _key, command in reminder_commands(block, marker="When you launch a background subagent")
-    ]
 
-    assert sandbox_copies == [canonical]
-    assert guide_copies and all(copy == canonical for copy in guide_copies)
+    assert opening == "When you launch a background subagent"
+    assert opening not in script
+    assert opening not in guide

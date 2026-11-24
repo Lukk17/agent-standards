@@ -147,13 +147,13 @@ to the `run` command. A cold run without it spends several minutes updating the 
 There is no HTTP API under test here, so the client role is filled by two things: the `docker compose` command that
 starts the container, and each agent's own command-line tool inside it. Where an agent offers a listing command, the
 specs use it, because it answers in the agent's own terms rather than in the filesystem's. Claude Code publishes no
-skills or subagents listing, so those two assertions fall back to path and count checks, which the specs say plainly.
+skills or subagents listing, but its skills and subagents are plugins, so the specs hold `claude plugin list --json` to the plugins the settings switch on and check the plugin cache for the files.
 
 The listing commands that work without credentials, established by the sandbox:
 
 | Command | Notes |
 | --- | --- |
-| `claude mcp list` | works unauthenticated |
+| `claude mcp list`, `claude plugin list --json` | work unauthenticated |
 | `codex mcp list` | needs the working directory trusted first, which the specs do with a trust record |
 | `opencode agent list`, `opencode mcp list` | work unauthenticated |
 | `kilocode agent list`, `kilocode mcp list`, `kilocode config check` | work unauthenticated |

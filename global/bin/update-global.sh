@@ -7,9 +7,11 @@
 #              this updater are refreshed in full. Only the skills and subagents already installed
 #              are refreshed, and none is ever added. A file is removed only when
 #              the previously installed commit shipped it and the new one no
-#              longer does. Afterwards the skill links in ~/.claude/skills and
-#              ~/.config/codex/skills of that home are brought in step with
-#              the shared skills.
+#              longer does. Afterwards the skill links in ~/.config/codex/skills
+#              of that home are brought in step with the shared skills. Nothing
+#              under ~/.claude is written: Claude Code takes its skills,
+#              subagents and hooks as plugins, and an install made before them
+#              is only named, with a pointer to its migration.
 # Usage: sh update-global.sh [--dry-run] [--source PATH|URL] [--home-dir DIR]
 # Options:
 #   --dry-run       List what would change and write nothing.
@@ -30,12 +32,12 @@ LC_ALL=C
 export LC_ALL
 
 readonly UPSTREAM_URL='https://github.com/Lukk17/agent-standards.git'
-readonly UPSTREAM_PATHS='.agents/hooks .agents/plugin .agents/instructions global/bin .agents/skills .agents/agents .claude/agents .codex/agents .github/agents'
-readonly WIRING_FILES='.claude/settings.json .codex/config.toml .github/hooks/preflight.json docs/GLOBAL_SETUP.md'
+readonly UPSTREAM_PATHS='.agents/hooks .agents/plugin .agents/instructions global/bin .agents/skills .agents/agents .codex/agents .github/agents'
+readonly WIRING_FILES='.codex/config.toml .github/hooks/preflight.json docs/GLOBAL_SETUP.md'
 readonly INSTALL_DIR='.config/agents'
 readonly CODEX_HOME_DIR='.config/codex'
 readonly LEGACY_INSTALL_DIR='.agents'
-readonly SUBAGENT_TREES=".config/agents/agents:.agents/agents .claude/agents:.claude/agents $CODEX_HOME_DIR/agents:.codex/agents .config/copilot/agents:.github/agents"
+readonly SUBAGENT_TREES=".config/agents/agents:.agents/agents $CODEX_HOME_DIR/agents:.codex/agents .config/copilot/agents:.github/agents"
 readonly RESERVED_SKILL_NAMES='synced .trash'
 # Skills upstream renamed, as old:new. An installed old one moves to the new name.
 readonly RENAMED_SKILLS='security-review:application-security-review'
@@ -44,7 +46,9 @@ readonly RENAMED_SKILLS='security-review:application-security-review'
 readonly LIVE_WIRING_FILES=".claude/settings.json $CODEX_HOME_DIR/hooks.json $CODEX_HOME_DIR/config.toml"
 readonly LIVE_WIRING_DIRS=".config/copilot/hooks .copilot/hooks"
 readonly SKILL_LINK_HOOK='hooks/claude/sync-skill-links/sync_skill_links.py'
-readonly WIRING_ADVICE='Take it in with the one-line command that writes the hook file of each agent, under "Per-agent setup" in docs/GLOBAL_SETUP.md, run against a new temporary copy.'
+readonly WIRING_ADVICE='Take it in with the one-line command that writes the hook file of Codex or Copilot, under "Per-agent setup" in docs/GLOBAL_SETUP.md, run against a new temporary copy.'
+readonly CLAUDE_HOME_DIR='.claude'
+readonly CLAUDE_HOOK_MARKER='.config/agents/hooks/'
 
 dry_run=0
 source_ref=$UPSTREAM_URL
@@ -332,27 +336,18 @@ update_skills() {
   done
 }
 
-# A subagent sits flat, <tree>/<name><ext>, or in its own folder,
-# <tree>/<name>/<name><ext>, the layout the Claude Code tree ships in. An
-# installed flat file whose agent now ships in its own folder moves there.
 update_subagents() {
   for subagent_pair in $SUBAGENT_TREES; do
     subagent_home=${subagent_pair%%:*}
     subagent_upstream=${subagent_pair#*:}
     [ -d "$home_dir/$subagent_home" ] || continue
 
-    for subagent_file in "$home_dir/$subagent_home"/* "$home_dir/$subagent_home"/*/*; do
+    for subagent_file in "$home_dir/$subagent_home"/*; do
       [ -f "$subagent_file" ] || continue
-      subagent_name=${subagent_file#"$home_dir/$subagent_home/"}
-      subagent_nested=${subagent_name%%.*}/$subagent_name
+      subagent_name=${subagent_file##*/}
 
       if [ -f "$tree/$subagent_upstream/$subagent_name" ]; then
         put_file "$tree/$subagent_upstream/$subagent_name" "$subagent_home/$subagent_name"
-      elif [ "${subagent_name#*/}" = "$subagent_name" ] && [ -f "$tree/$subagent_upstream/$subagent_nested" ]; then
-        put_file "$tree/$subagent_upstream/$subagent_nested" "$subagent_home/$subagent_nested"
-        report remove "$subagent_home/$subagent_name" " (moved into $subagent_nested)"
-        count_remove=$((count_remove + 1))
-        [ "$dry_run" -eq 1 ] || rm -f -- "$subagent_file"
       elif shipped_before "$subagent_upstream/$subagent_name"; then
         report keep "$subagent_home/$subagent_name" ' (removed upstream, left in place)'
         count_keep=$((count_keep + 1))
@@ -397,8 +392,6 @@ record_commit() {
   printf 'Recorded %s in ~/%s/.upstream-commit.\n' "$commit" "$INSTALL_DIR"
 }
 
-# Runs the same hook Claude Code runs on SessionStart, so a skill the update
-# removed loses its link now rather than at the next session.
 sync_skill_links() {
   skill_link_hook=$home_dir/$INSTALL_DIR/$SKILL_LINK_HOOK
 
@@ -414,7 +407,44 @@ sync_skill_links() {
   fi
 
   HOME=$home_dir CODEX_HOME=$home_dir/$CODEX_HOME_DIR "$python_command" -S -E "$skill_link_hook" </dev/null || true
-  printf 'Skill links: the Claude Code and Codex skills folders checked against ~/%s/skills.\n' "$INSTALL_DIR"
+  printf 'Skill links: the Codex skills folder checked against ~/%s/skills.\n' "$INSTALL_DIR"
+}
+
+claude_hooks_block_left() {
+  [ -f "$home_dir/$CLAUDE_HOME_DIR/settings.json" ] && grep -qF -- "$CLAUDE_HOOK_MARKER" "$home_dir/$CLAUDE_HOME_DIR/settings.json"
+}
+
+claude_skill_links_left() {
+  [ -L "$home_dir/$CLAUDE_HOME_DIR/skills" ] && return 0
+
+  for shared_skill in "$home_dir/$INSTALL_DIR/skills"/*/; do
+    [ -L "$home_dir/$CLAUDE_HOME_DIR/skills/$(basename "$shared_skill")" ] && return 0
+  done
+
+  return 1
+}
+
+claude_subagent_copies_left() {
+  for upstream_agent in "$tree/.agents/agents"/*.md; do
+    [ -f "$upstream_agent" ] || continue
+    upstream_agent_name=$(basename "$upstream_agent" .md)
+    [ -f "$home_dir/$CLAUDE_HOME_DIR/agents/$upstream_agent_name/$upstream_agent_name.md" ] && return 0
+    [ -f "$home_dir/$CLAUDE_HOME_DIR/agents/$upstream_agent_name.md" ] && return 0
+  done
+
+  return 1
+}
+
+report_claude_leftovers() {
+  claude_left=''
+  claude_hooks_block_left && claude_left="$claude_left, the hooks block in ~/$CLAUDE_HOME_DIR/settings.json"
+  claude_skill_links_left && claude_left="$claude_left, skill links in ~/$CLAUDE_HOME_DIR/skills"
+  claude_subagent_copies_left && claude_left="$claude_left, subagent copies in ~/$CLAUDE_HOME_DIR/agents"
+
+  [ -n "$claude_left" ] || return 0
+
+  printf 'Claude Code: this home still holds the user-wide install made before the plugins: %s. No update refreshes it any more. Move it once, see "Moving Claude Code to the plugins" in docs/GLOBAL_SETUP.md.\n' \
+    "${claude_left#, }"
 }
 
 report_totals() {
@@ -468,6 +498,7 @@ main() {
   report_wiring
   record_commit
   sync_skill_links
+  report_claude_leftovers
   report_still_wired
   report_totals
 }

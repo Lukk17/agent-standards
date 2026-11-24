@@ -5,7 +5,10 @@
 #              agent-standards repository in the container's own home directory,
 #              the way docs/GLOBAL_SETUP.md describes a person doing it on their
 #              machine: a temporary clone, ~/.config/agents as the one shared folder,
-#              and nothing of the repository left behind afterwards.
+#              and nothing of the repository left behind afterwards. Claude
+#              Code gets the import of the shared AGENTS.md and its plugins
+#              with the user scope (lib-claude-plugins.sh), and no skill link,
+#              subagent copy or hook in its own directory.
 #              Global counterpart of setup-project.sh.
 # Usage: setup-global.sh [-h] [AGENT...]
 #        setup-global.sh [-h] --update
@@ -20,7 +23,8 @@
 # Exit codes:
 #   0  Every selected agent is installed, or the update ran, and nothing needs
 #      a decision.
-#   1  A step failed, or --update found nothing installed.
+#   1  A step failed, the Claude Code plugins could not be installed, or
+#      --update found nothing installed.
 #   2  Bad arguments, or a required command is missing.
 #   3  Installed, but one or more paths already existed and were left alone.
 #      Nothing this script writes is ever deleted or overwritten in place.
@@ -32,6 +36,8 @@ IFS=$'\n\t'
 
 SCRIPT_NAME="$(basename "$0")"
 readonly SCRIPT_NAME
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]:-$0}")"
+readonly SCRIPT_DIR
 readonly REPO="${AGENT_STANDARDS_REPO:-/repo}"
 readonly KNOWN_AGENTS=(claude codex opencode kilo copilot)
 
@@ -71,10 +77,14 @@ log_error() { echo "[ERROR] $*" >&2; }
 
 trap 'log_error "${SCRIPT_NAME} failed at line ${LINENO}"' ERR
 
-# Deletes the temporary clone however the script ends, so no copy of the
-# repository is ever left in the container.
+# Deletes the temporary clone and stops the marketplace server however the
+# script ends, so no copy of the repository is ever left in the container.
 # shellcheck disable=SC2317,SC2329  # reached through the EXIT trap below
 remove_clone() {
+  if declare -F claude_market_stop >/dev/null; then
+    claude_market_stop
+  fi
+
   if [[ -n "$CLONE_PARENT" && -d "$CLONE_PARENT" ]]; then
     rm -rf -- "$CLONE_PARENT"
   fi
@@ -91,7 +101,7 @@ container's home directory. Name the agents to install for, or name none and
 get all five. With --update, refreshes only what is already installed.
 
 Agents:
-  claude      Claude Code       ~/.claude
+  claude      Claude Code       ~/.claude, plugins with the user scope
   codex       Codex             ~/.config/codex (CODEX_HOME)
   opencode    OpenCode          ~/.config/opencode
   kilo        Kilo Code         ~/.config/kilo
@@ -107,7 +117,8 @@ Environment:
 
 Exit codes:
   0  Installed or updated, nothing left to decide.
-  1  A step failed, or --update found nothing installed.
+  1  A step failed, the Claude Code plugins could not be installed, or
+     --update found nothing installed.
   2  Bad arguments or a missing dependency.
   3  Installed, but a file already existed and was left alone.
 
@@ -370,7 +381,7 @@ install_instructions() {
   copy_file "${SRC}/global/AGENTS.md.example" "$INSTRUCTIONS"
 }
 
-# Runs the skill link hook the way the guide does after creating a skills folder.
+# Runs the skill link script for Codex the way the guide does after creating its skills folder.
 sync_skill_links() {
   log_step "run ${SKILL_LINK_SCRIPT}"
   python3 -S -E "$SKILL_LINK_SCRIPT"
@@ -382,10 +393,9 @@ sync_skill_links() {
 # hook script is named by absolute path, because the wirings this repository
 # ships call them as .agents/hooks/<name>.py, which resolves against the
 # session's working directory and finds nothing outside an imported project.
+# Claude Code has no such file: its hooks are plugins.
 #
-# The event sets mirror the project wirings, minus the markdown lint pass. That
-# one hook lints only inside a project that imported .agents/hooks, where the
-# project wiring already runs it, so a global wiring would only add a second run.
+# The event sets mirror the project wirings.
 
 # shellcheck disable=SC2016  # the backticks are markdown in the reminder text, never command substitution
 readonly PREFLIGHT_TEXT='Before code work, name the skills and subagents that own this task and invoke them, or say none apply and why, in one line. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:
@@ -404,25 +414,8 @@ Waiting on: what you wait for (or: nothing)
 
 When several tasks run, list each name in backticks on the Running line, separated by commas.'
 
-# shellcheck disable=SC2016  # the backticks are markdown in the reminder text, never command substitution
-readonly CLAUDE_PREFLIGHT_TEXT='PREFLIGHT: before code work, name the skills and subagents that own this task and invoke them, or say none apply and why. Delegate investigation, review and bounded implementation by default. If the prompt asks anything, answer every question first, then start the work. End every reply to the user with this block, exactly as shown: no heading, no bullets, no numbered list, plain lines only, keeping every blank line:
-
-Running: `running task name` (or: nothing)
-
-~~DONE: older finished task~~
-~~DONE: most recent finished task~~
-
-NOW: what is being done right now
-
-Next: the next task
-Then: the task after that
-
-Waiting on: what you wait for (or: nothing)
-
-When several tasks run, list each name in backticks on the Running line, separated by commas.'
-
 # Prints $1 with every newline replaced by $2, the escape a JSON string needs.
-# Claude Code's command is one JSON string deep, Codex's JSON payload two deep.
+# Codex's JSON payload is two strings deep.
 escape_newlines() {
   local newline=$'\n'
   printf '%s' "${1//"$newline"/"$2"}"
@@ -430,11 +423,6 @@ escape_newlines() {
 
 PREFLIGHT_NESTED_JSON="$(escape_newlines "$PREFLIGHT_TEXT" '\\n')"
 readonly PREFLIGHT_NESTED_JSON
-CLAUDE_PREFLIGHT_JSON="$(escape_newlines "$CLAUDE_PREFLIGHT_TEXT" '\n')"
-readonly CLAUDE_PREFLIGHT_JSON
-
-readonly SUPERVISION_TEXT="When you launch a background subagent, note how long its task should take and schedule a recurring check every 10 minutes while any subagent runs. At each check compare its running time and latest output with that expectation. Leave it alone unless it is far over (for example 30 minutes on a task that should take 1) or clearly looping, then ask it for status or stop it and tell the user why."
-
 # The subagent text holds no newline, quote or backslash, so it goes into every
 # JSON string as it is.
 readonly SUBAGENT_TEXT='PREFLIGHT for a subagent: you are a subagent, and the main thread delegated this task to you. Do the work yourself with your own tools and load the skills your definition names. The rules that the main thread must delegate and may not write files apply to the main thread only, so do not hand this task on and do not refuse it for that reason. The preflight gate still checks every tool call you make. Report back what you changed and how you verified it.'
@@ -443,136 +431,6 @@ readonly SUBAGENT_TEXT='PREFLIGHT for a subagent: you are a subagent, and the ma
 # where a bare & names the match, # ends the command, and \ starts an escape.
 sed_replacement() {
   printf '%s' "$1" | sed -e 's/[\\&#]/\\&/g'
-}
-
-claude_settings() {
-  sed -e "s#@GATE@#$(sed_replacement "$GATE_SCRIPT")#g" -e "s#@MARKERS@#$(sed_replacement "$MARKER_SCRIPT")#g" -e "s#@TASKS@#$(sed_replacement "$TASKS_SCRIPT")#g" -e "s#@PREFLIGHT@#$(sed_replacement "$CLAUDE_PREFLIGHT_JSON")#g" -e "s#@SUPERVISION@#$(sed_replacement "$SUPERVISION_TEXT")#g" -e "s#@SUBAGENT@#$(sed_replacement "$SUBAGENT_TEXT")#g" -e "s#@SKILLLINKS@#$(sed_replacement "$SKILL_LINK_SCRIPT")#g" <<'JSON'
-{
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "echo '@PREFLIGHT@'"
-          },
-          {
-            "type": "command",
-            "command": "echo '@SUPERVISION@'"
-          },
-          {
-            "type": "command",
-            "timeout": 10,
-            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E @TASKS@ --event sessionstart --format claude ; exit 0"
-          }
-        ]
-      },
-      {
-        "matcher": "startup|resume",
-        "hooks": [
-          {
-            "type": "command",
-            "timeout": 10,
-            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E @SKILLLINKS@ ; exit 0"
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "echo '@PREFLIGHT@'"
-          }
-        ]
-      }
-    ],
-    "SubagentStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"SubagentStart\", \"additionalContext\": \"@SUBAGENT@\"}}'"
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "^(Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|WebFetch|WebSearch)$",
-        "hooks": [
-          {
-            "type": "command",
-            "timeout": 10,
-            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E @GATE@ --format claude ; exit 0"
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "timeout": 10,
-            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E @TASKS@ --event precompact --format claude ; exit 0"
-          }
-        ]
-      }
-    ],
-    "TaskCreated": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "timeout": 10,
-            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E @TASKS@ --event taskcreated --format claude ; exit 0"
-          }
-        ]
-      }
-    ],
-    "TaskCompleted": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "timeout": 10,
-            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E @TASKS@ --event taskcompleted --format claude ; exit 0"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "timeout": 10,
-            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E @MARKERS@ --format claude --display-fixed ; exit 0"
-          },
-          {
-            "type": "command",
-            "timeout": 10,
-            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E @TASKS@ --event stop --format claude ; exit 0"
-          }
-        ]
-      }
-    ],
-    "MessageDisplay": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "timeout": 10,
-            "command": "PY=$(command -v python3 || command -v python) && \"$PY\" -S -E @MARKERS@ --format claude --display ; exit 0"
-          }
-        ]
-      }
-    ]
-  }
-}
-JSON
 }
 
 codex_hooks() {
@@ -688,15 +546,41 @@ copilot_hooks() {
 
 # --- Per-agent installers ----------------------------------------------------
 
+# Adds the marketplace and installs the Claude Code plugins with the user
+# scope, run from the temporary clone's parent. Writes no ~/.claude/skills
+# link, no ~/.claude/agents copy and no hook wiring.
+install_claude_plugins() {
+  local IFS=' '
+
+  if ! command -v claude >/dev/null 2>&1; then
+    log_error "no claude command on PATH, so the Claude Code plugins cannot be installed"
+    return 1
+  fi
+
+  # shellcheck source=lib-claude-plugins.sh
+  source "${SCRIPT_DIR}/lib-claude-plugins.sh"
+
+  log_step "add the marketplace and install ${CLAUDE_USER_PLUGINS[*]} with the user scope"
+
+  if ! claude_market_start "$REPO"; then
+    log_error "the marketplace could not be served from ${REPO} on port ${CLAUDE_MARKET_PORT}"
+    return 1
+  fi
+
+  if ! claude_plugins_install_user "$CLONE_PARENT" >&2; then
+    log_error "the Claude Code plugins could not be installed with the user scope"
+    return 1
+  fi
+
+  claude_market_stop
+}
+
 install_claude() {
   log_info "installing for Claude Code"
 
   ensure_dir "${HOME}/.claude"
   install_config "$CLAUDE_INSTRUCTIONS" "$CLAUDE_IMPORT" "$CLAUDE_IMPORT"
-  ensure_dir "${HOME}/.claude/skills"
-  sync_skill_links
-  copy_tree "${SRC}/.claude/agents" "${HOME}/.claude/agents"
-  install_config "${HOME}/.claude/settings.json" "$GATE_SCRIPT" "$(claude_settings)"
+  install_claude_plugins
 
   log_info "Claude Code gets no MCP server at user scope; each project declares its own in its .mcp.json"
 }

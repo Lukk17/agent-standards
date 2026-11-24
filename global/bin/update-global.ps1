@@ -5,8 +5,10 @@
 .DESCRIPTION
     The install lives in ~/.config/agents. The hook scripts, the plugin, the reply rules and this updater are refreshed in full. Only
     the skills and subagents already installed are refreshed, and none is ever added. A file is removed only when the
-    previously installed commit shipped it and the new one no longer does. Afterwards the skill links in ~/.claude/skills
-    and ~/.config/codex/skills of that home are brought in step. Exits 1 when no install is found, the install predates ~/.config/agents, or a git step fails, 2
+    previously installed commit shipped it and the new one no longer does. Afterwards the skill links in
+    ~/.config/codex/skills of that home are brought in step. Nothing under ~/.claude is written: Claude Code takes its
+    skills, subagents and hooks as plugins, and an install made before them is only named, with a pointer to its
+    migration. Exits 1 when no install is found, the install predates ~/.config/agents, or a git step fails, 2
     when a required command is missing.
 .PARAMETER DryRun
     List what would change and write nothing.
@@ -28,14 +30,13 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 
-$UpstreamPaths = @('.agents/hooks', '.agents/plugin', '.agents/instructions', 'global/bin', '.agents/skills', '.agents/agents', '.claude/agents', '.codex/agents', '.github/agents')
-$WiringFiles = @('.claude/settings.json', '.codex/config.toml', '.github/hooks/preflight.json', 'docs/GLOBAL_SETUP.md')
+$UpstreamPaths = @('.agents/hooks', '.agents/plugin', '.agents/instructions', 'global/bin', '.agents/skills', '.agents/agents', '.codex/agents', '.github/agents')
+$WiringFiles = @('.codex/config.toml', '.github/hooks/preflight.json', 'docs/GLOBAL_SETUP.md')
 $InstallDir = '.config/agents'
 $CodexHomeDir = '.config/codex'
 $LegacyInstallDir = '.agents'
 $SubagentTrees = @(
     @('.config/agents/agents', '.agents/agents'),
-    @('.claude/agents', '.claude/agents'),
     @("$CodexHomeDir/agents", '.codex/agents'),
     @('.config/copilot/agents', '.github/agents')
 )
@@ -48,7 +49,9 @@ $LiveWiringFiles = @('.claude/settings.json', "$CodexHomeDir/hooks.json", "$Code
 $LiveWiringDirs = @('.config/copilot/hooks', '.copilot/hooks')
 $script:StillWired = [Collections.Generic.List[string]]::new()
 $SkillLinkHook = 'hooks/claude/sync-skill-links/sync_skill_links.py'
-$WiringAdvice = 'Take it in with the one-line command that writes the hook file of each agent, under "Per-agent setup" in docs/GLOBAL_SETUP.md, run against a new temporary copy.'
+$WiringAdvice = 'Take it in with the one-line command that writes the hook file of Codex or Copilot, under "Per-agent setup" in docs/GLOBAL_SETUP.md, run against a new temporary copy.'
+$ClaudeHomeDir = '.claude'
+$ClaudeHookMarker = '.config/agents/hooks/'
 
 $Counts = @{ update = 0; add = 0; remove = 0; unchanged = 0; keep = 0; skip = 0 }
 
@@ -248,35 +251,14 @@ function Sync-InstalledSkill {
     }
 }
 
-# A subagent sits flat, <tree>/<name><ext>, or in its own folder,
-# <tree>/<name>/<name><ext>, the layout the Claude Code tree ships in. An
-# installed flat file whose agent now ships in its own folder moves there.
-function Get-InstalledSubagentList([string]$Root) {
-    $nested = @(foreach ($folder in (Get-VisibleNameList $Root -Directory)) {
-        foreach ($file in (Get-VisibleNameList (Join-Relative $Root $folder))) { "$folder/$file" }
-    })
-    $flat = Get-VisibleNameList $Root
-    $sortedNested = Get-OrdinalSorted -Value $nested
-    return , [string[]]($flat + $sortedNested)
-}
-
 function Sync-InstalledSubagent {
     foreach ($pair in $SubagentTrees) {
         $homeTree = $pair[0]
         $upstreamTree = $pair[1]
-        foreach ($name in (Get-InstalledSubagentList (Join-Relative $HomeDir $homeTree))) {
+        foreach ($name in (Get-VisibleNameList (Join-Relative $HomeDir $homeTree))) {
             $upstreamFile = Join-Relative $script:Tree "$upstreamTree/$name"
-            $nestedName = '{0}/{1}' -f $name.Split('.')[0], $name
-            $nestedFile = Join-Relative $script:Tree "$upstreamTree/$nestedName"
             if (Test-Path -LiteralPath $upstreamFile -PathType Leaf) {
                 Copy-UpstreamFile $upstreamFile "$homeTree/$name"
-            }
-            elseif (-not $name.Contains('/') -and (Test-Path -LiteralPath $nestedFile -PathType Leaf)) {
-                Copy-UpstreamFile $nestedFile "$homeTree/$nestedName"
-                Write-Action -Verb 'remove' -Relative "$homeTree/$name" -Note " (moved into $nestedName)"
-                if (-not $DryRun) {
-                    Remove-Item -LiteralPath (Join-Relative $HomeDir "$homeTree/$name") -Force
-                }
             }
             elseif (Test-ShippedBefore "$upstreamTree/$name") {
                 Write-Action -Verb 'keep' -Relative "$homeTree/$name" -Note ' (removed upstream, left in place)'
@@ -345,7 +327,64 @@ function Sync-SkillLink {
         $env:USERPROFILE = $previousProfile
         $env:CODEX_HOME = $previousCodexHome
     }
-    "Skill links: the Claude Code and Codex skills folders checked against ~/$InstallDir/skills."
+    "Skill links: the Codex skills folder checked against ~/$InstallDir/skills."
+}
+
+function Test-ClaudeHookBlockLeft {
+    $settings = Join-Relative $HomeDir "$ClaudeHomeDir/settings.json"
+    if (-not (Test-Path -LiteralPath $settings -PathType Leaf)) {
+        return $false
+    }
+    return [IO.File]::ReadAllText($settings).Contains($ClaudeHookMarker)
+}
+
+function Test-LinkAt([string]$Path) {
+    $item = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+    return ($null -ne $item) -and [bool]$item.LinkType
+}
+
+function Test-ClaudeSkillLinkLeft {
+    $skills = Join-Relative $HomeDir "$ClaudeHomeDir/skills"
+    if (Test-LinkAt $skills) {
+        return $true
+    }
+    foreach ($name in (Get-VisibleNameList (Join-Relative $HomeDir "$InstallDir/skills") -Directory)) {
+        if (Test-LinkAt (Join-Relative $skills $name)) {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Test-ClaudeSubagentCopyLeft {
+    $agents = Join-Relative $HomeDir "$ClaudeHomeDir/agents"
+    foreach ($file in (Get-VisibleNameList (Join-Relative $script:Tree '.agents/agents'))) {
+        if (-not $file.EndsWith('.md', [StringComparison]::Ordinal)) {
+            continue
+        }
+        $name = $file.Substring(0, $file.Length - 3)
+        if ((Test-Path -LiteralPath (Join-Relative $agents "$name/$name.md") -PathType Leaf) -or (Test-Path -LiteralPath (Join-Relative $agents "$name.md") -PathType Leaf)) {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Write-ClaudeLeftover {
+    $left = [Collections.Generic.List[string]]::new()
+    if (Test-ClaudeHookBlockLeft) {
+        $left.Add("the hooks block in ~/$ClaudeHomeDir/settings.json")
+    }
+    if (Test-ClaudeSkillLinkLeft) {
+        $left.Add("skill links in ~/$ClaudeHomeDir/skills")
+    }
+    if (Test-ClaudeSubagentCopyLeft) {
+        $left.Add("subagent copies in ~/$ClaudeHomeDir/agents")
+    }
+    if ($left.Count -eq 0) {
+        return
+    }
+    "Claude Code: this home still holds the user-wide install made before the plugins: $($left -join ', '). No update refreshes it any more. Move it once, see `"Moving Claude Code to the plugins`" in docs/GLOBAL_SETUP.md."
 }
 
 function Write-Summary {
@@ -431,6 +470,7 @@ try {
     Write-WiringReport
     Write-CommitRecord
     Sync-SkillLink
+    Write-ClaudeLeftover
     foreach ($wired in $script:StillWired) {
         "WARNING: ~/$wired is still run by your hook wiring, so it was kept, and that hook stays on this old copy until you rewire it. $WiringAdvice"
     }

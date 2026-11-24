@@ -2,7 +2,7 @@
 
 Suite B, global setup. Setup cost class 5: the whole global installation, a stand-in user-scope MCP configuration on top of it, and five agent command-line calls run from a directory into which nothing has been imported.
 
-No agent keeps an MCP server at user or global scope: each project declares the servers it uses in its own files, as "Where a server is declared" in [docs/MCP_SETUP.md](../../docs/MCP_SETUP.md#where-a-server-is-declared) says, and the global install writes none. This spec places two servers at user scope the way an older setup did, only to prove which file each agent reads at that scope. Those are the files the commands in that section clean.
+No agent keeps an MCP server at user or global scope: each project declares the servers it uses in its own files, as "Where a server is declared" in [docs/MCP_SETUP.md](../../docs/MCP_SETUP.md#where-a-server-is-declared) says, and the global install writes none and gives Claude Code no `mcp-<server>` plugin with the user scope, which [6-global-install-shape-test.md](6-global-install-shape-test.md) asserts. This spec places two servers at user scope the way an older setup did, only to prove which file each agent reads at that scope. Those are the files the commands in that section clean.
 
 ---
 

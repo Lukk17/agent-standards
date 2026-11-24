@@ -5,9 +5,11 @@
 #              its own subagent tree, its preflight wiring and its MCP servers
 #              from the container's home directory, judged from a bare working
 #              directory that holds none of the per-project files, and that the
-#              preflight gate really denies from there. Global counterpart of
-#              verify-project.sh; the assertions are those of the global specs
-#              6 to 9 under e2e/testing.
+#              preflight gate really denies from there. Claude Code is held
+#              to the plugins its user settings switch on, with no skill link,
+#              subagent copy or hook of the install in its own directory.
+#              Global counterpart of verify-project.sh; the assertions are
+#              those of the global specs 6 to 9 under e2e/testing.
 # Usage: verify-global.sh [--scoped AGENT]
 # Options:
 #   --scoped AGENT  Install for that agent alone and assert that only its own
@@ -37,6 +39,11 @@ readonly PAYLOADS="${FIXTURES}/gate-payloads"
 readonly GLOBAL_FIXTURES="${FIXTURES}/global"
 readonly GUIDE="${REPO}/docs/GLOBAL_SETUP.md"
 readonly SHARED_PLUGIN="${HOME}/.config/agents/plugin"
+readonly CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}"
+readonly CLAUDE_MARKET="agent-standards"
+readonly CLAUDE_CATALOG="${CLAUDE_HOME}/plugins/marketplaces/${CLAUDE_MARKET}/.claude-plugin/marketplace.json"
+readonly CLAUDE_CACHE="${CLAUDE_HOME}/plugins/cache/${CLAUDE_MARKET}"
+readonly PLUGIN_REVIEWER="agent-code-reviewer:code-reviewer"
 
 # The guide sets these for the user account in its step 4. The sandbox sets them
 # for this script and the installer it starts, which is the same environment an
@@ -79,7 +86,7 @@ readonly INSTALL_PATHS=(
 # agent writes that agent's paths and none of the other four's.
 # ~/.config/agents/AGENTS.md is on none of these lists: it is the one instruction
 # file every agent reads, so step 3 of the guide writes it whichever agent is named.
-readonly CLAUDE_PATHS=(".claude/CLAUDE.md" ".claude/skills" ".claude/agents" ".claude/settings.json")
+readonly CLAUDE_PATHS=(".claude/CLAUDE.md" ".claude/settings.json" ".claude/plugins/installed_plugins.json")
 readonly CODEX_PATHS=(".config/codex/agents" ".config/codex/AGENTS.md" ".config/codex/skills" ".config/codex/hooks.json")
 readonly OPENCODE_PATHS=(".config/opencode/agents" ".config/opencode/AGENTS.md" ".config/opencode/opencode.json")
 readonly KILO_PATHS=(".config/kilo/agents" ".config/kilo/AGENTS.md" ".config/kilo/kilo.jsonc")
@@ -110,6 +117,8 @@ readonly CLI_ARCHIVE
 
 # shellcheck source=lib-opencode2.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib-opencode2.sh"
+# shellcheck source=lib-claude-plugins.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib-claude-plugins.sh"
 
 PASSES=0
 FAILURES=0
@@ -118,6 +127,9 @@ SCOPED=""
 SKILL_FILE_COUNT=0
 SKILLS=()
 SUBAGENTS=()
+CLAUDE_PLUGINS=()
+CLAUDE_WIRING=""
+CLAUDE_GATE=""
 
 FIRST_INSTALL_STATUS=0
 SECOND_INSTALL_STATUS=0
@@ -126,9 +138,10 @@ UPDATE_STATUS=0
 cleanup() {
   local exit_code=$?
 
-  rm -f "$CLI_OUTPUT" "$CLI_ARCHIVE"
+  rm -f "$CLI_OUTPUT" "$CLI_ARCHIVE" "$CLAUDE_WIRING"
   rm -rf "$CLONE_TMP" "$UPSTREAM_TMP"
   opencode2_end
+  claude_market_stop
 
   exit "$exit_code"
 }
@@ -428,6 +441,17 @@ assert_file_lacks() {
   fi
 }
 
+# Passes when the file holds the exact line.
+assert_file_has_line() {
+  local label="$1" path="$2" line="$3"
+
+  if grep -qxF -- "$line" "${HOME}/${path}" 2>/dev/null; then
+    pass "${label}"
+  else
+    fail "${label} (~/${path} holds no line '${line}')"
+  fi
+}
+
 # Passes when the working directory holds none of the per-project files. Every
 # other assertion in this script depends on it, so it is asserted first and
 # again before each group that reads an agent's own answer.
@@ -612,19 +636,17 @@ verify_install_shape() {
 
   assert_glob_count "the shared skills tree holds every canonical skill" \
     ".config/agents/skills/*/SKILL.md" "$SKILL_FILE_COUNT"
-  assert_real_directory "Claude Code's skills location is a real directory, so its synced skills stay its own" ".claude/skills"
-  assert_glob_count "every skill is reachable through a per-skill link there" \
-    ".claude/skills/*/SKILL.md" "$SKILL_FILE_COUNT"
-  assert_link_to "one of those links points into the shared skills" ".claude/skills/${SKILLS[0]}" \
-    "../../.config/agents/skills/${SKILLS[0]}"
+  assert_absent "Claude Code got no skills folder, because its skills are plugins" ".claude/skills"
   assert_real_directory "Codex's skills location is a real directory, so its .system skills stay its own" ".config/codex/skills"
-  assert_glob_count "every skill is reachable through a per-skill link there too" \
+  assert_glob_count "every skill is reachable through a per-skill link there" \
     ".config/codex/skills/*/SKILL.md" "$SKILL_FILE_COUNT"
+  assert_link_to "one of those links points into the shared skills" ".config/codex/skills/${SKILLS[0]}" \
+    "../../agents/skills/${SKILLS[0]}"
   assert_file "the gate script landed in the shared tree" ".config/agents/hooks/preflight-gate/preflight_gate.py"
   assert_file "the rules file the gate script imports landed beside it" ".config/agents/hooks/preflight-gate/gate_rules.py"
   assert_file "the reply formatting check landed beside it" ".config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py"
   assert_file "the task list hook landed beside it" ".config/agents/hooks/task-list-sync/task_list_sync.py"
-  assert_file "the skill link hook landed in its Claude Code folder" ".config/agents/hooks/claude/sync-skill-links/sync_skill_links.py"
+  assert_file "the skill link hook landed, which the install and the updater run for Codex" ".config/agents/hooks/claude/sync-skill-links/sync_skill_links.py"
   assert_file "the markdown lint hook landed too, deliberately unwired" ".config/agents/hooks/markdown-lint-check/markdown_lint_check.py"
   assert_matches_upstream "the reply rules landed beside the hooks" ".config/agents/instructions/reply-rules.md" \
     ".agents/instructions/reply-rules.md"
@@ -633,8 +655,7 @@ verify_install_shape() {
   assert_matches_upstream "the PowerShell updater landed beside it" ".config/agents/bin/update-global.ps1" \
     "global/bin/update-global.ps1"
 
-  assert_glob_count "Claude Code has every subagent in its own markdown format" \
-    ".claude/agents/*/*.md" "${#SUBAGENTS[@]}"
+  assert_absent "Claude Code got no subagent copy, because its subagents are plugins" ".claude/agents"
   assert_glob_count "Codex has every subagent in TOML" \
     ".config/codex/agents/*.toml" "${#SUBAGENTS[@]}"
   assert_glob_count "the shared OpenCode-format tree holds every subagent" \
@@ -650,7 +671,6 @@ verify_install_shape() {
   assert_glob_count "GitHub Copilot has every subagent as *.agent.md" \
     ".config/copilot/agents/*.agent.md" "${#SUBAGENTS[@]}"
 
-  assert_absent "the second install nested no tree inside the Claude Code one" ".claude/agents/agents"
   assert_absent "the second install nested no tree inside the shared one" ".config/agents/agents/agents"
   assert_absent "the second install nested no tree inside the shared skills" ".config/agents/skills/skills"
 
@@ -659,6 +679,8 @@ verify_install_shape() {
   assert_differs_from_upstream "and not from the per-project template" ".config/agents/AGENTS.md" "AGENTS.md.example"
   assert_real_file "Claude Code's CLAUDE.md is a real file, which a Cowork session still reads" ".claude/CLAUDE.md"
   assert_file_lacks "and it holds only the import of the shared file" ".claude/CLAUDE.md" "PREFLIGHT"
+  assert_file_has_line "that import is the one thing Claude Code reads from the shared folder" ".claude/CLAUDE.md" \
+    "@~/.config/agents/AGENTS.md"
   assert_link_to "Codex points at it with a link" ".config/codex/AGENTS.md" "../agents/AGENTS.md"
   assert_link_to "OpenCode points at it with a link, because 2.x reads no ~/.claude/CLAUDE.md" \
     ".config/opencode/AGENTS.md" "../agents/AGENTS.md"
@@ -679,40 +701,11 @@ verify_install_shape() {
   assert_absent "OpenCode holds no copy of the plugin, which would load the runner twice" ".config/opencode/plugins"
   assert_absent "Kilo Code holds no copy of the plugin, which would load the runner twice" ".config/kilo/plugin"
 
-  assert_matches_guide "Claude Code's user settings are the guide's block, with the home directory filled in" \
-    ".claude/settings.json" '"MessageDisplay"' '"SubagentStart"'
   assert_matches_guide "Codex's user hooks are the guide's block, with the home directory filled in" \
     ".config/codex/hooks.json" '"commandWindows"' '"SubagentStart"'
   assert_matches_guide "Copilot's user hooks are the guide's block, with the home directory filled in" \
     ".config/copilot/hooks/preflight.json" '"subagentStart"' '"userPromptTransformed"'
 
-  assert_json "Claude Code's user settings call the gate by absolute path" ".claude/settings.json" \
-    '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.config/agents/hooks/preflight-gate/preflight_gate.py") and contains("--format claude"))'
-  assert_json "Claude Code's user settings call the gate directly, force a zero exit, and the DEVNULL wrapper does not return" ".claude/settings.json" \
-    '[.hooks.PreToolUse[].hooks[].command] | any(contains("preflight-gate/preflight_gate.py") and contains("--format claude") and endswith("; exit 0") and (contains("subprocess.DEVNULL") | not))'
-  assert_json "Claude Code's user settings force a zero exit with a trailing ; exit 0" ".claude/settings.json" \
-    '[.hooks.PreToolUse[].hooks[].command] | any(endswith("; exit 0"))'
-  assert_json "Claude Code's user settings gate the web tools and the PowerShell tool as well as the writing ones" ".claude/settings.json" \
-    '[.hooks.PreToolUse[].matcher] | any(type == "string" and test("Edit") and test("Write") and test("MultiEdit") and test("NotebookEdit") and test("Bash") and test("PowerShell") and test("WebFetch") and test("WebSearch"))'
-  assert_json "Claude Code's user settings run the skill link hook when a session starts or resumes" ".claude/settings.json" \
-    '[.hooks.SessionStart[] | select(.matcher == "startup|resume") | .hooks[].command] | any(contains("/.config/agents/hooks/claude/sync-skill-links/sync_skill_links.py"))'
-  assert_json "Claude Code's user settings wire every event the project wiring wires but the markdown lint's" ".claude/settings.json" \
-    '[.hooks | keys[]] == ["MessageDisplay", "PreCompact", "PreToolUse", "SessionStart", "Stop", "SubagentStart", "TaskCompleted", "TaskCreated", "UserPromptSubmit"]'
-  assert_json "Claude Code's user settings tell a subagent to do its task itself, never hand it the delegating reminder" ".claude/settings.json" \
-    '[.hooks.SubagentStart[].hooks[].command] | length > 0 and all(contains("PREFLIGHT for a subagent:") and (contains("Delegate investigation") | not))'
-  assert_json "Claude Code's user settings inject the subagent supervision text at session start" ".claude/settings.json" \
-    '[.hooks.SessionStart[].hooks[].command] | any(contains("When you launch a background subagent") and contains("every 10 minutes"))'
-  assert_json "Claude Code's user settings leave the markdown lint out, because it needs a tool that never ships" ".claude/settings.json" \
-    '[.hooks[][].hooks[].command] | any(contains("markdown_lint_check.py")) | not'
-  assert_json "Claude Code's user settings check the reply formatting on the main thread's Stop only" ".claude/settings.json" \
-    '([.hooks.Stop[].hooks[].command] | map(select(contains("/.config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format claude"))) | length == 1) and (.hooks | has("SubagentStop") | not)'
-  assert_json "Claude Code's user settings check what the display fix leaves on Stop and fix the reply on MessageDisplay" ".claude/settings.json" \
-    '([.hooks.Stop[].hooks[].command] | any(contains("/.config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format claude --display-fixed"))) and ([.hooks.MessageDisplay[].hooks[].command] | any(contains("/.config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py --format claude --display ")))'
-  assert_json "Claude Code's user settings mirror the task list on the five events that carry it" ".claude/settings.json" \
-    '[.hooks.SessionStart[].hooks[].command, .hooks.PreCompact[].hooks[].command, .hooks.TaskCreated[].hooks[].command, .hooks.TaskCompleted[].hooks[].command, .hooks.Stop[].hooks[].command | select(contains("/.config/agents/hooks/task-list-sync/task_list_sync.py")) | capture("--event (?<event>[a-z]+)").event] | sort == ["precompact", "sessionstart", "stop", "taskcompleted", "taskcreated"]'
-  # shellcheck disable=SC2016  # the $ belongs to the hook command text the jq filter looks for
-  assert_json "Claude Code's user settings resolve python3 first and fall back to python on every hook, calling the script by absolute path" ".claude/settings.json" \
-    '[.hooks[][].hooks[].command | select(contains(".py"))] | length > 0 and all(contains("PY=$(command -v python3 || command -v python)") and contains("\"$PY\" -S -E /"))'
   assert_json "Codex's user hooks call the gate by absolute path" ".config/codex/hooks.json" \
     '[.hooks.PreToolUse[].hooks[].command] | any(contains("/.config/agents/hooks/preflight-gate/preflight_gate.py --format codex"))'
   assert_json "Codex's user hooks scope the gate to the tools that can write" ".config/codex/hooks.json" \
@@ -756,6 +749,69 @@ verify_install_shape() {
     ".config/copilot/hooks/preflight.json" "-E .agents/hooks/"
 }
 
+# --- Spec 6, Claude Code on the plugins --------------------------------------
+
+# The plugin ids CLAUDE_PLUGINS holds, one "<name>@<marketplace>" per line, sorted.
+claude_plugin_ids() {
+  printf '%s\n' "${CLAUDE_PLUGINS[@]#* }" | sed "s/\$/@${CLAUDE_MARKET}/" | sort
+}
+
+verify_claude_plugins() {
+  local enabled=""
+
+  section "Claude Code, plugins with the user scope"
+
+  assert_json "the user settings name the marketplace the install added" ".claude/settings.json" \
+    ".extraKnownMarketplaces[\"${CLAUDE_MARKET}\"].source == {source: \"git\", url: \"${CLAUDE_MARKET_URL}\"}"
+  assert_json "the user settings wire no hook themselves, because the hook plugins carry every one" ".claude/settings.json" \
+    'has("hooks") | not'
+  assert_json_at "the catalog Claude Code cloned is the one the install was given" "$CLAUDE_CATALOG" \
+    ".name == \"${CLAUDE_MARKET}\" and (.plugins | length) > 0"
+
+  if [[ ! -f "$CLAUDE_CATALOG" || ! -f "${HOME}/.claude/settings.json" ]]; then
+    fail "the Claude Code plugins were installed with the user scope (no catalog at ${CLAUDE_CATALOG} or no user settings)"
+    return
+  fi
+
+  mapfile -t CLAUDE_PLUGINS < <(claude_plugin_closure "$CLAUDE_CATALOG" "${CLAUDE_USER_PLUGINS[@]}")
+  CLAUDE_WIRING="$(mktemp -t sandbox-claude-wiring-XXXXXXXX)"
+  claude_plugin_wiring "$CLAUDE_CATALOG" "${HOME}/.claude/settings.json" >"$CLAUDE_WIRING" 2>/dev/null || : >"$CLAUDE_WIRING"
+  enabled="$(jq -r '.enabledPlugins | to_entries[] | select(.value == true) | .key' "${HOME}/.claude/settings.json" | sort)"
+  assert_same_names "the user settings switch on every plugin $(join_commas "${CLAUDE_USER_PLUGINS[@]}") install, and nothing else" \
+    "$(claude_plugin_ids)" "$enabled"
+  assert_json "no plugin with the user scope carries an MCP server" ".claude/settings.json" \
+    '[.enabledPlugins | keys[] | select(startswith("mcp-"))] == []'
+  assert_same_names "all eight hook plugins are among them" \
+    "$(printf 'hook-%s\n' background-subagent-reminder markdown-lint-check no-ai-markers-check preflight-gate preflight-reminder standards-advisory-check subagent-reminder task-list-sync)" \
+    "$(claude_plugins_of hook | sort)"
+  assert_claude_cache "every skill plugin holds its SKILL.md in the plugin cache" skill "" "SKILL.md"
+  assert_claude_cache "every subagent plugin holds its one agent file in the plugin cache" agent "agent-" "@.md"
+  assert_claude_cache "every hook plugin holds the script named for it in the plugin cache" hook "hook-" "+.py"
+  if [[ -f "$(printf '%s\n' "${CLAUDE_CACHE}"/hook-preflight-gate/*/gate_rules.py | head -n 1)" ]]; then
+    pass "the rules file the gate script imports sits beside it in the plugin cache"
+  else
+    fail "the rules file the gate script imports sits beside it in the plugin cache"
+  fi
+
+  # shellcheck disable=SC2016  # the $ belongs to the hook command text the jq filters look for
+  {
+    assert_json_at "the gate is wired into PreToolUse, from its plugin's own folder" "$CLAUDE_WIRING" \
+      '[.hooks.PreToolUse[].hooks[].command] | any(contains("\"${CLAUDE_PLUGIN_ROOT}\"/preflight_gate.py") and contains("--format claude") and endswith("; exit 0"))' "the plugin wiring"
+    assert_json_at "the gate matcher covers every writing tool, the PowerShell tool and both web tools" "$CLAUDE_WIRING" \
+      '[.hooks.PreToolUse[].matcher] | any(type == "string" and test("Edit") and test("Write") and test("MultiEdit") and test("NotebookEdit") and test("Bash") and test("PowerShell") and test("WebFetch") and test("WebSearch"))' "the plugin wiring"
+    assert_json_at "every hook Claude Code calls starts in the project, resolves python3 first and falls back to python, on -S -E, and forces a zero exit" "$CLAUDE_WIRING" \
+      '[.hooks[][].hooks[].command] | ((length > 0) and all(startswith("cd \"${CLAUDE_PROJECT_DIR}\" && PY=$(command -v python3 || command -v python) && \"$PY\" -S -E \"${CLAUDE_PLUGIN_ROOT}\"/") and endswith("; exit 0")))' "the plugin wiring"
+    assert_json_at "no hook names a script in the shared folder, which Claude Code no longer reads" "$CLAUDE_WIRING" \
+      '[.hooks[][].hooks[].command] | any(contains(".config/agents/hooks/") or contains(".agents/hooks/")) | not' "the plugin wiring"
+    assert_json_at "the markdown lint runs after an edit in every project, because hooks-all has the user scope" "$CLAUDE_WIRING" \
+      '[.hooks.PostToolUse[].hooks[].command] | any(contains("\"${CLAUDE_PLUGIN_ROOT}\"/markdown_lint_check.py"))' "the plugin wiring"
+    assert_json_at "the standards advisory runs after an edit in every project, for the same reason" "$CLAUDE_WIRING" \
+      '[.hooks.PostToolUse[].hooks[].command] | any(contains("\"${CLAUDE_PLUGIN_ROOT}\"/standards_advisory_check.py --format claude"))' "the plugin wiring"
+    assert_json_at "the reminders, the formatting check and the task list come from their plugins too" "$CLAUDE_WIRING" \
+      '([.hooks.UserPromptSubmit[].hooks[].command] | any(contains("/preflight_reminder.py"))) and ([.hooks.SubagentStart[].hooks[].command] | any(contains("/subagent_reminder.py"))) and ([.hooks.SessionStart[].hooks[].command] | any(contains("/background_subagent_reminder.py"))) and ([.hooks.Stop[].hooks[].command] | any(contains("/no_ai_markers_check.py"))) and ([.hooks.TaskCreated[].hooks[].command] | any(contains("/task_list_sync.py")))' "the plugin wiring"
+  }
+}
+
 # --- Spec 6, the update ------------------------------------------------------
 
 # Digest of a file under the home directory, "missing" when it is not there.
@@ -775,6 +831,17 @@ upstream_git() {
   git -C "$UPSTREAM" -c user.name=e2e -c user.email=e2e@example.invalid "$@"
 }
 
+# Passes when no line of the captured updater output carries the needle.
+assert_output_lacks() {
+  local label="$1" needle="$2"
+
+  if grep -qF -- "$needle" "$CLI_OUTPUT"; then
+    fail "${label} ($(one_line "$(grep -m1 -F -- "$needle" "$CLI_OUTPUT")"))"
+  else
+    pass "${label}"
+  fi
+}
+
 # Passes when the captured updater output holds the exact line.
 assert_output_line() {
   local label="$1" line="$2"
@@ -788,7 +855,8 @@ assert_output_line() {
 
 # Builds the second release: a clone of the commit under test with one commit
 # on top that changes, adds and removes files in every tree the updater reads,
-# ships a skill the user never installed, and changes the Claude Code wiring.
+# ships a skill the user never installed, changes the Codex wiring, and changes
+# the Claude Code agent tree and settings the updater must leave alone.
 release_synthetic_upstream() {
   local kept_skill="$1" removed_skill="$2" reference="$3"
 
@@ -804,6 +872,8 @@ release_synthetic_upstream() {
   printf -- '---\nname: e2e-new-skill\ndescription: Shipped upstream, never installed.\n---\n' \
     >"${UPSTREAM}/.agents/skills/e2e-new-skill/SKILL.md"
   printf '\ne2e second release\n' >>"${UPSTREAM}/.agents/agents/${SUBAGENTS[0]}.md"
+  printf '\n# e2e second release\n' >>"${UPSTREAM}/.codex/agents/${SUBAGENTS[0]}.toml"
+  printf '\n# e2e second release\n' >>"${UPSTREAM}/.codex/config.toml"
   printf '\ne2e second release\n' >>"${UPSTREAM}/.claude/agents/${SUBAGENTS[0]}/${SUBAGENTS[0]}.md"
   printf '\n' >>"${UPSTREAM}/.claude/settings.json"
 
@@ -826,7 +896,7 @@ verify_update() {
   note "the second release changes, adds and removes files across hooks, ${kept_skill} and the subagents."
 
   rm -rf "${HOME}/.config/agents/skills/${removed_skill}"
-  rm -rf "${HOME}/.claude/agents/${removed_agent}"
+  rm -f "${HOME}/.config/codex/agents/${removed_agent}.toml"
   mkdir -p "${HOME}/.config/agents/skills/${OWN_SKILL}"
   printf -- '---\nname: %s\ndescription: A skill of the user own.\n---\n' "$OWN_SKILL" \
     >"${HOME}/.config/agents/skills/${OWN_SKILL}/SKILL.md"
@@ -872,12 +942,18 @@ verify_update() {
   assert_absent "the update removed a file upstream removed from an installed skill" "$home_reference"
   assert_matches_upstream "the update refreshed an installed subagent in the shared tree" \
     ".config/agents/agents/${SUBAGENTS[0]}.md" ".agents/agents/${SUBAGENTS[0]}.md" "$UPSTREAM"
-  assert_matches_upstream "the update refreshed an installed Claude Code subagent" \
-    ".claude/agents/${SUBAGENTS[0]}/${SUBAGENTS[0]}.md" ".claude/agents/${SUBAGENTS[0]}/${SUBAGENTS[0]}.md" "$UPSTREAM"
+  assert_matches_upstream "the update refreshed an installed Codex subagent" \
+    ".config/codex/agents/${SUBAGENTS[0]}.toml" ".codex/agents/${SUBAGENTS[0]}.toml" "$UPSTREAM"
   assert_absent "the update did not bring back a skill the user deleted" ".config/agents/skills/${removed_skill}"
-  assert_absent "the update did not bring back a subagent the user deleted" ".claude/agents/${removed_agent}"
+  assert_absent "the update did not bring back a subagent the user deleted" ".config/codex/agents/${removed_agent}.toml"
   assert_absent "the update did not add a skill the user never installed" ".config/agents/skills/e2e-new-skill"
-  assert_output_line "the update named the Claude Code wiring as changed upstream" "  .claude/settings.json"
+  assert_output_line "the update named the Codex wiring as changed upstream" "  .codex/config.toml"
+  assert_output_lacks "the update did not name the Claude Code settings, which carry no wiring of the install" ".claude/settings.json"
+  # shellcheck disable=SC2088  # the updater prints the path with a literal tilde
+  assert_output_lacks "the update reported no file under ~/.claude" "~/.claude/"
+  assert_output_lacks "the update found nothing of an older Claude Code install to move" "Claude Code:"
+  assert_absent "the update wrote no skill link for Claude Code" ".claude/skills"
+  assert_absent "the update wrote no subagent copy for Claude Code, though upstream changed its agent tree" ".claude/agents"
 
   if [[ "$(home_digest ".config/agents/skills/${OWN_SKILL}/SKILL.md")" == "$own_before" ]]; then
     pass "the update left the user's own skill alone"
@@ -913,7 +989,7 @@ verify_update() {
 
   rm -rf "${HOME}/.config/agents/skills/${OWN_SKILL}"
   cp -R "${REPO}/.agents/skills/${removed_skill}" "${HOME}/.config/agents/skills/${removed_skill}"
-  cp -R "${REPO}/.claude/agents/${removed_agent}" "${HOME}/.claude/agents/${removed_agent}"
+  cp "${REPO}/.codex/agents/${removed_agent}.toml" "${HOME}/.config/codex/agents/${removed_agent}.toml"
 }
 
 # --- OpenCode 2.x, from the global configuration -----------------------------
@@ -971,6 +1047,16 @@ verify_agent_discovery() {
   section "Agent discovery from a bare directory"
 
   assert_bare_working_directory "the working directory still holds none of the per-project files"
+
+  local listed="" status=0
+
+  capture_cli claude plugin list --json || status=$?
+  listed="$(jq -r '.[] | select(.enabled == true and .scope == "user") | .id' "$CLI_OUTPUT" 2>/dev/null | sort)"
+  if [[ "$status" -eq 0 ]]; then
+    assert_same_names "Claude Code itself lists every plugin of the install as enabled with the user scope" "$(claude_plugin_ids)" "$listed"
+  else
+    fail "Claude Code itself lists every plugin of the install as enabled with the user scope (claude exited ${status}: $(one_line_capture))"
+  fi
 
   assert_cli_lists "OpenCode itself names every subagent the global install placed" opencode agent list \
     < <(printf '%s\n' "${SUBAGENTS[@]}")
@@ -1046,6 +1132,20 @@ verify_mcp_visibility() {
 
 # --- Spec 9, gate enforcement ------------------------------------------------
 
+# Runs the gate copy the format's agent runs from the home directory, from the
+# bare working directory, with the payload on stdin. Claude Code runs the copy
+# its hook-preflight-gate plugin holds in the plugin cache, with the plugin's
+# folder named in CLAUDE_PLUGIN_ROOT. Every other agent runs the shared copy.
+run_gate() {
+  local format="$1"
+
+  if [[ "$format" == "claude" ]]; then
+    (cd "$BARE" && CLAUDE_PLUGIN_ROOT="$(dirname "$CLAUDE_GATE")" python3 "$CLAUDE_GATE" --format "$format")
+  else
+    (cd "$BARE" && python3 "$GATE" --format "$format")
+  fi
+}
+
 # Feeds one payload fixture to the gate copy in the home directory, from the
 # bare working directory, and checks the decision it returns.
 # Arguments: label, gate --format value, expected decision, payload file.
@@ -1053,7 +1153,7 @@ assert_gate() {
   local label="$1" format="$2" expect="$3" payload="$4"
   local output="" status=0 decision=""
 
-  output="$(cd "$BARE" && python3 "$GATE" --format "$format" <"$payload" 2>&1)" || status=$?
+  output="$(run_gate "$format" <"$payload" 2>&1)" || status=$?
 
   case "$format" in
     claude|codex)
@@ -1086,7 +1186,7 @@ assert_gate_reason() {
   local label="$1" format="$2" needle="$3" payload="$4"
   local output="" reason=""
 
-  output="$(cd "$BARE" && python3 "$GATE" --format "$format" <"$payload" 2>&1)" || true
+  output="$(run_gate "$format" <"$payload" 2>&1)" || true
   reason="$(jq -r '.hookSpecificOutput.permissionDecisionReason // ""' <<<"${output:-null}" 2>/dev/null || echo "")"
 
   if [[ "$reason" == *"$needle"* ]]; then
@@ -1101,8 +1201,17 @@ verify_gate_enforcement() {
 
   note "a live agent session needs provider credentials, so it is out of scope here."
   note "the gate copy in the home directory is driven with the payload each adapter would send it."
+  note "Claude Code runs the copy its hook-preflight-gate plugin holds, every other agent the shared copy."
 
   assert_bare_working_directory "the working directory holds none of the per-project files"
+
+  CLAUDE_GATE="$(printf '%s\n' "${CLAUDE_CACHE}"/hook-preflight-gate/*/preflight_gate.py | head -n 1)"
+  if [[ -f "$CLAUDE_GATE" ]]; then
+    pass "the gate Claude Code runs is the copy in its plugin cache"
+  else
+    fail "the gate Claude Code runs is the copy in its plugin cache (none under ${CLAUDE_CACHE}/hook-preflight-gate)"
+    return
+  fi
 
   if [[ -e "${BARE}/.agents/hooks/preflight-gate/preflight_gate.py" ]]; then
     fail "there is no project-relative gate script to fall back on (${BARE}/.agents/hooks/preflight-gate/preflight_gate.py exists)"
@@ -1110,7 +1219,7 @@ verify_gate_enforcement() {
     pass "there is no project-relative gate script to fall back on"
   fi
 
-  assert_gate "the home gate denies a main-thread source edit" claude deny \
+  assert_gate "the plugin gate denies a main-thread source edit" claude deny \
     "${PAYLOADS}/main-thread-source-edit.json"
   assert_gate_reason "the refusal is rule A rather than rule B" claude "may not write files directly" \
     "${PAYLOADS}/main-thread-source-edit.json"
@@ -1123,13 +1232,31 @@ verify_gate_enforcement() {
   assert_gate "before the probe definition existed, the subagent payload was allowed" claude allow \
     "${PAYLOADS}/subagent-without-skills.json"
 
+  mkdir -p "$(dirname "$PROBE_AGENT")"
   cp "${FIXTURES}/${PROBE_NAME}.md" "$PROBE_AGENT"
-  assert_gate "with the definition in the home directory, the same payload is denied" claude deny \
+  assert_gate "with the definition among the user's own subagents, the same payload is denied" claude deny \
     "${PAYLOADS}/subagent-without-skills.json"
   assert_gate_reason "the refusal is rule B and names the probe" claude "$PROBE_NAME" \
     "${PAYLOADS}/subagent-without-skills.json"
-  assert_gate "a subagent that declares skills is allowed from the same global directory" claude allow \
+  assert_gate "a subagent the install gave Claude Code no definition for is unknown to the gate, and an unknown one is allowed" claude allow \
     "${PAYLOADS}/subagent-with-skills.json"
+
+  local plugin_edit="" plugin_diff="" settings_edit=""
+  plugin_edit="$(mktemp -t sandbox-gate-plugin-edit-XXXXXXXX)"
+  plugin_diff="$(mktemp -t sandbox-gate-plugin-diff-XXXXXXXX)"
+  settings_edit="$(mktemp -t sandbox-gate-settings-XXXXXXXX)"
+  jq -n --arg agent "$PLUGIN_REVIEWER" '{agent_id: "e2e-canary-1", agent_type: $agent, tool_name: "Edit", tool_input: {file_path: "src/e2e_canary_app.py"}}' >"$plugin_edit"
+  jq -n --arg agent "$PLUGIN_REVIEWER" '{agent_id: "e2e-canary-1", agent_type: $agent, tool_name: "Bash", tool_input: {command: "git --no-pager diff"}}' >"$plugin_diff"
+  gate_payload "${HOME}/.claude/settings.json" "$BARE" >"$settings_edit"
+  assert_gate "rule E denies ${PLUGIN_REVIEWER} an edit, from the definition of a plugin with the user scope in the plugin cache" claude deny \
+    "$plugin_edit"
+  assert_gate_reason "the refusal says the plugin subagent is read-only" claude "is read-only" \
+    "$plugin_edit"
+  assert_gate "rule E allows ${PLUGIN_REVIEWER} a listed git --no-pager diff" claude allow \
+    "$plugin_diff"
+  assert_gate "a main-thread write to the user settings that switch the plugins on is denied" claude deny \
+    "$settings_edit"
+  rm -f "$plugin_edit" "$plugin_diff" "$settings_edit"
 
   note "the gate lives under the home directory here, so the home directory is not itself a protected project."
 
@@ -1149,7 +1276,8 @@ verify_gate_enforcement() {
   rm -rf "$project" "$notes"
 
   rm -f "$PROBE_AGENT"
-  assert_absent "the probe is gone again" ".claude/agents/${PROBE_NAME}.md"
+  rmdir "$(dirname "$PROBE_AGENT")" 2>/dev/null || true
+  assert_absent "the probe is gone again, and Claude Code is back to no subagent folder of its own" ".claude/agents"
 }
 
 # --- Scoped install ----------------------------------------------------------
@@ -1230,6 +1358,7 @@ main() {
 
   install_global
   verify_install_shape
+  verify_claude_plugins
   verify_update
   verify_agent_discovery
   verify_opencode_v2

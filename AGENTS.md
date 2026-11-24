@@ -189,9 +189,6 @@ scripts, `bash` and `powershell` the update scripts in [docs/AGENTS-UPDATE.md](d
   lands, pass it with `--subagent` from [.github/hooks/preflight.json](.github/hooks/preflight.json) and set
   `GATE_KNOWN_GAP=0` in [sandbox-agent/live/copilot.sh](sandbox-agent/live/copilot.sh) in the same change.
 - **Whether a Codex `Stop` hook can reject a reply is not measured.** Confirm it and say so plainly here. The markdown lint and the standards advisory stay Claude-only, because Codex sends an `apply_patch` edit to `PostToolUse` as patch text in `tool_input.command` (`https://developers.openai.com/codex/hooks`), which neither hook parses, and that path is not measured here.
-- **Reply rules outside OpenCode.** OpenCode 2.x gets `.agents/instructions/reply-rules.md` from the plugin's session
-  `context` hook, main thread only, and 1.x and Kilo Code from `instructions`. TODO: decide how a global install loads them on Claude
-  Code, Codex and Copilot, keeping them out of `AGENTS.md`, and document it in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md).
 - **JetBrains Copilot MCP is global-only and undocumented,** read from `~/.config/github-copilot/intellij/mcp.json`,
   so no JetBrains MCP file ships here. Ship one if GitHub documents a per-project path
   (`https://docs.github.com/en/copilot/how-tos/provide-context/use-mcp/extend-copilot-chat-with-mcp`).

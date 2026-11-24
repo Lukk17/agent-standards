@@ -2,7 +2,7 @@
 
 Facts about one specific computer, for an agent that is about to change something on it. Copy this template to `~/.config/agents/MACHINE.md` on Linux and macOS, or `%USERPROFILE%\.config\agents\MACHINE.md` on Windows, then fill it by running [bootstrap-machine.prompt.md](bootstrap-machine.prompt.md) in any agent.
 
-The file is not loaded into every session. The global instruction file (`~/.claude/CLAUDE.md`, which Codex, OpenCode, Kilo Code and Copilot reach through their own links) carries one line pointing here, so an agent reads it only when the task touches the machine itself:
+The file is not loaded into every session and no agent imports it. The global instruction file, `~/.config/agents/AGENTS.md`, which Claude Code imports from `~/.claude/CLAUDE.md` and Codex, OpenCode, Kilo Code and Copilot reach through their own links or variables, carries one line that names this file by its path, so an agent reads it only when the task touches the machine itself:
 
 ```text
 Before changing disks, mounts, boot, drivers, audio, displays, system packages or services on this computer, read ~/.config/agents/MACHINE.md, and add a change log entry to it for anything you change.
@@ -225,6 +225,7 @@ Packages installed outside the main repositories, such as AUR, PPA, casks or man
 | Agent command-line tools | `<claude, codex, opencode, kilo, copilot, with versions>` | | |
 | Global instruction file | `<path, and which agents reach it through which link>` | | |
 | Global skills, subagents, hooks | `<path, upstream commit>` | | |
+| Claude Code plugins with the user scope | `<marketplace, and the bundles installed from it>` | | |
 | MCP servers at user or global scope, kept at none | `<none, or the names still to remove, never a token>` | | |
 
 ---

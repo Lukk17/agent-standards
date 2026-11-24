@@ -57,7 +57,7 @@ agent-standards/
       question_numbering_check.py # CANONICAL, numbered questions check on new prose
       task_watchdog.py           # CANONICAL, a Tasks line in a reply must match live tool todo state
       claude/                    # CANONICAL, Claude Code only, never run by the OpenCode and Kilo Code runner
-        sync_skill_links.py      # global install, keeps per-skill links in the Claude Code and Codex skills folders
+        sync_skill_links.py      # global install, keeps per-skill links in the Codex skills folder
         standards_advisory_check.py # advisory warnings after an edit: action pins, :latest, @Query, test banners
     plugin/
       hooks.js                   # CANONICAL, OpenCode and Kilo Code runner for every hook in hooks/
@@ -217,6 +217,8 @@ conflict. Skills load on demand and sit outside this ordering.
 7. @imported files, expanded inline, up to five levels deep
 8. Skills, loaded on demand
 ```
+
+The skills, the subagents and the hooks reach Claude Code as plugins, switched on under `enabledPlugins` in `~/.claude/settings.json` for the user scope or in the project's `.claude/settings.json` for the project scope, and for one plugin id the project value wins. A bundle that carries no server may have the user scope. A plugin that carries an MCP server gets the project scope only.
 
 When no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` exists in the working directory or above it, Claude Code
 2.1.277 and later reads `AGENTS.md` in place of entries 3 to 5: every `AGENTS.md` from the working directory up at

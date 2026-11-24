@@ -1,16 +1,22 @@
 #!/usr/bin/env bash
 # -----------------------------------------------------------------------------
 # Script: lib-claude-plugins.sh
-# Description: The Claude Code plugin route of a consumer project, shared by
-#              setup-project.sh and e2e-mock/subagent-write.sh. Serves the
+# Description: The Claude Code plugin route, shared by setup-project.sh,
+#              setup-global.sh, both verify scripts and
+#              e2e-mock/subagent-write.sh. Serves the
 #              branch the import reads from the mounted repository as a git
 #              marketplace over smart HTTP on 127.0.0.1, with the repository's
 #              own tools/git_http.py, because Claude Code refuses a file:// URL
 #              and loads a local folder in place instead of copying each
 #              plugin into its cache, where a consumer's plugins sit. Then runs
 #              the three commands of docs/AGENT_TOOLING.md step 1 at project
-#              scope. Nothing here reaches a model or the network.
-# Usage: sourced. The caller calls claude_market_stop from its EXIT trap.
+#              scope, or the commands of the Claude Code section of
+#              docs/GLOBAL_SETUP.md with the user scope. Nothing here reaches a
+#              model or the network.
+# Usage: sourced. The caller calls claude_market_stop from its EXIT trap. The
+#        check helpers at the end read CLAUDE_PLUGINS and CLAUDE_CACHE and
+#        call pass, fail and join_commas, all of which the verify script
+#        that sources this file defines.
 # Environment:
 #   SANDBOX_CLAUDE_MARKET_PORT  Port the marketplace is served on. Default
 #                               49612. Fixed, so the address a project's
@@ -26,6 +32,10 @@ readonly CLAUDE_PLUGIN_TIMEOUT="${SANDBOX_CLI_TIMEOUT:-300}"
 # The bundles docs/AGENT_TOOLING.md step 1 installs: core with every
 # development domain, and every hook.
 readonly CLAUDE_PROJECT_PLUGINS=(all hooks-all)
+# The bundles the Claude Code section of docs/GLOBAL_SETUP.md installs for
+# every project of one user: core, one domain, and every hook. None carries an
+# MCP server.
+readonly CLAUDE_USER_PLUGINS=(core review-and-security hooks-all)
 
 CLAUDE_MARKET_TMP=""
 CLAUDE_MARKET_PID=""
@@ -111,4 +121,135 @@ claude_plugins_install() {
   for plugin in "${CLAUDE_PROJECT_PLUGINS[@]}"; do
     claude_plugin "$project" install "${plugin}@${market}" --scope project || return 1
   done
+}
+
+# Adds the served marketplace for the user and installs CLAUDE_USER_PLUGINS
+# with the user scope, which records both in the settings.json of the caller's
+# configuration directory, CLAUDE_CONFIG_DIR or ~/.claude. The commands run
+# from the start folder the caller names, and write nothing into it.
+claude_plugins_install_user() {
+  local start="$1" market="" plugin=""
+  local settings="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}/settings.json"
+
+  claude_plugin "$start" marketplace add "$CLAUDE_MARKET_URL" --scope user || return 1
+  market="$(jq -r '.extraKnownMarketplaces | keys[0]' "$settings")" || return 1
+
+  for plugin in "${CLAUDE_USER_PLUGINS[@]}"; do
+    claude_plugin "$start" install "${plugin}@${market}" --scope user || return 1
+  done
+}
+
+# Every plugin the named bundles install, from the catalog Claude Code cloned,
+# one "<category> <name>" per line.
+# Arguments: catalog file, then the bundle names.
+claude_plugin_closure() {
+  python3 -I -S - "$@" <<'PY'
+import json
+import sys
+
+entries = {entry["name"]: entry for entry in json.load(open(sys.argv[1], encoding="utf-8"))["plugins"]}
+seen, stack = set(), list(sys.argv[2:])
+
+while stack:
+    name = stack.pop()
+
+    if name not in seen:
+        seen.add(name)
+        stack.extend(entries[name].get("dependencies", []))
+
+for name in sorted(seen):
+    print(entries[name]["category"], name)
+PY
+}
+
+# Prints the hook wiring Claude Code runs from the hook plugins a settings file
+# switches on: their hooks merged by event, in the shape a settings file holds
+# them.
+# Arguments: catalog file, settings file.
+claude_plugin_wiring() {
+  jq --slurpfile settings "$2" '
+    ($settings[0].enabledPlugins // {}) as $on
+    | .name as $market
+    | {hooks: ([.plugins[] | select(.category == "hook" and $on["\(.name)@\($market)"] == true) | .hooks | to_entries[]]
+        | group_by(.key) | map({key: .[0].key, value: (map(.value) | add)}) | from_entries)}' "$1"
+}
+
+# Passes when the jq filter over a file named in full returns true. The
+# optional fourth argument is the name a failure reports the file by.
+assert_json_at() {
+  local label="$1" file="$2" filter="$3" name="${4:-$2}"
+  local result=""
+
+  if [[ ! -f "$file" ]]; then
+    fail "${label} (${name} is missing)"
+    return
+  fi
+
+  result="$(jq -r "$filter" "$file" 2>/dev/null || echo "error")"
+
+  if [[ "$result" == "true" ]]; then
+    pass "${label}"
+  else
+    fail "${label} (the check over ${name} returned '${result}')"
+  fi
+}
+
+# Passes when two sorted lists, one name per line, are the same.
+assert_same_names() {
+  local label="$1" expected="$2" actual="$3"
+  local count=0 missing="" extra=""
+
+  count="$(grep -c . <<<"$expected" || true)"
+  missing="$(comm -23 <(printf '%s\n' "$expected") <(printf '%s\n' "$actual") | tr '\n' ' ')"
+  extra="$(comm -13 <(printf '%s\n' "$expected") <(printf '%s\n' "$actual") | tr '\n' ' ')"
+
+  if [[ "$count" -gt 0 && -z "$missing" && -z "$extra" ]]; then
+    pass "${label} (${count} of ${count})"
+  else
+    fail "${label} (missing: ${missing:-none}, not expected: ${extra:-none})"
+  fi
+}
+
+# The names of one category in CLAUDE_PLUGINS, one per line.
+claude_plugins_of() {
+  local category="$1" line=""
+
+  for line in "${CLAUDE_PLUGINS[@]}"; do
+    [[ "$line" == "${category} "* ]] && printf '%s\n' "${line#* }"
+  done
+
+  return 0
+}
+
+# Counts the plugins of one category whose folder under CLAUDE_CACHE holds the
+# file the pattern names, where @ stands for the plugin's item name and + for
+# that name with an underscore for every dash, the way a hook script is named.
+assert_claude_cache() {
+  local label="$1" category="$2" prefix="$3" pattern="$4"
+  local name="" item="" file="" found=0 total=0 missing=()
+  local matches=()
+
+  while IFS= read -r name; do
+    [[ -n "$name" ]] || continue
+    total=$((total + 1))
+    item="${name#"$prefix"}"
+    file="${pattern//@/$item}"
+    file="${file//+/${item//-/_}}"
+    shopt -s nullglob
+    # shellcheck disable=SC2206
+    matches=( ${CLAUDE_CACHE}/${name}/*/${file} )
+    shopt -u nullglob
+
+    if [[ "${#matches[@]}" -eq 1 ]]; then
+      found=$((found + 1))
+    else
+      missing+=("$name")
+    fi
+  done < <(claude_plugins_of "$category")
+
+  if [[ "$total" -gt 0 && "$found" -eq "$total" ]]; then
+    pass "${label} (${found} of ${total})"
+  else
+    fail "${label} (${found} of ${total}, missing: $(join_commas "${missing[@]}"))"
+  fi
 }
