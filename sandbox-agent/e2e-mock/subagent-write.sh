@@ -159,7 +159,7 @@ def first_sentence(text):
 
 
 reminder = constants(root / ".agents/hooks/copilot/prompt-reminder/prompt_reminder.py")
-gate = constants(root / ".agents/hooks/preflight-gate/_gate_rules.py")
+gate = constants(root / ".agents/hooks/preflight-gate/gate_rules.py")
 claude = constants(root / ".agents/hooks/claude/preflight-reminder/preflight_reminder.py")["REMINDER"]
 
 

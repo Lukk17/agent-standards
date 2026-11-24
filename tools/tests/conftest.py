@@ -22,7 +22,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HOOKS_DIR = REPO_ROOT / ".agents" / "hooks"
 PREFLIGHT_GATE = HOOKS_DIR / "preflight-gate" / "preflight_gate.py"
-GATE_RULES = HOOKS_DIR / "preflight-gate" / "_gate_rules.py"
+GATE_RULES = HOOKS_DIR / "preflight-gate" / "gate_rules.py"
 GATE_FILES = (PREFLIGHT_GATE, GATE_RULES)
 NO_AI_MARKERS_HOOK = HOOKS_DIR / "no-ai-markers-check" / "no_ai_markers_check.py"
 TASK_LIST_SYNC_HOOK = HOOKS_DIR / "task-list-sync" / "task_list_sync.py"

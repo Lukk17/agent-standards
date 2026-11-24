@@ -1,6 +1,6 @@
 """Tests for the shared preflight gate in .agents/hooks/preflight-gate/.
 
-The rules live in _gate_rules.py, and preflight_gate.py beside it is the
+The rules live in gate_rules.py, and preflight_gate.py beside it is the
 starter every wiring runs. The rule cases drive the rules' own main() in-process through run(), with its
 stdin, stdout, stderr, working directory and environment swapped for the call,
 so every case still sees the exit code and both streams the command line

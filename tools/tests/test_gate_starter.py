@@ -1,7 +1,7 @@
 """Tests for the starter of the preflight gate, .agents/hooks/preflight-gate/preflight_gate.py.
 
 Every wiring runs the starter, and the starter imports the rules from
-_gate_rules.py beside it, so the interpreter loads the compiled copy it keeps
+gate_rules.py beside it, so the interpreter loads the compiled copy it keeps
 in __pycache__ instead of compiling the rules on every tool call. The cases
 start the gate the way the wirings do, with -S -E and a path relative to the
 project root, and hold each answer to the one the rules give in-process.

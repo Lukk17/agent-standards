@@ -317,7 +317,7 @@ A dependency names a plugin and never a version range, because a range on the de
 
 ### Changing the preflight wiring
 
-The gate's rules live in one shared file, [.agents/hooks/preflight-gate/_gate_rules.py](.agents/hooks/preflight-gate/_gate_rules.py), and each agent wires the starter beside it, [.agents/hooks/preflight-gate/preflight_gate.py](.agents/hooks/preflight-gate/preflight_gate.py), to its own hook surface. A rule change goes into the rules file and never into the starter. If your change touches
+The gate's rules live in one shared file, [.agents/hooks/preflight-gate/gate_rules.py](.agents/hooks/preflight-gate/gate_rules.py), and each agent wires the starter beside it, [.agents/hooks/preflight-gate/preflight_gate.py](.agents/hooks/preflight-gate/preflight_gate.py), to its own hook surface. A rule change goes into the rules file and never into the starter. If your change touches
 how a tool call is judged, or how any agent reaches the script, the unit tests are not the whole story. Run the
 containerised sandbox in [sandbox-agent/](sandbox-agent/README.md), which installs all five agent command-line tools,
 imports this repository into a throwaway project, and asserts what each agent actually discovers. The specs it runs

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Starter of the shared preflight gate, the file every agent wiring runs.
 
-The rules live in _gate_rules.py beside this file and are imported from it, so
+The rules live in gate_rules.py beside this file and are imported from it, so
 the interpreter keeps a compiled copy of them in __pycache__ and loads that on
 the next start. A rules file that is missing or cannot be imported allows the
 call: exit 0 and nothing printed, like every other allow.
@@ -17,7 +17,7 @@ HOOK_ORDER = 10
 
 def main() -> int:
     try:
-        from _gate_rules import main as decide
+        from gate_rules import main as decide
     except Exception:
         return 0
 

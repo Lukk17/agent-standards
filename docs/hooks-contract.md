@@ -34,7 +34,8 @@ Inside the chosen directory, a file is picked up when all of these hold:
 
 1. It sits directly in a folder of `.agents/hooks/`, such as `.agents/hooks/task-list-sync/`, or, from an older layout, directly in `.agents/hooks/` itself. A script two folders down is never run, and neither is anything under `claude/` or `copilot/`, which the runner skips by name.
 2. Its name ends in `.py`.
-3. Its name does not start with `_` or `.`, so `__pycache__`, editor droppings and a helper module such as `markdown-lint-check/_check_markdown.py` or `preflight-gate/_gate_rules.py` are skipped.
+3. Its name does not start with `_` or `.`, so `__pycache__`, editor droppings and a helper module such as `markdown-lint-check/_check_markdown.py` are skipped.
+4. Its name is not `gate_rules.py`, the rules file the gate's starter imports, which the runner skips by name. No hook may carry that name.
 
 The choice of directory and its listing are both re-read on every tool call. A hook added mid-session, an opt-out
 file created, or a project import landing takes effect on the next call, with no restart and no edit to the plugin.
@@ -198,7 +199,7 @@ The runner reads it, and `HOOK_TEXT_EVENT`, out of the first 16384 characters of
 nothing gets `100`, which puts it after the shipped hooks and keeps a third hook working before anyone thinks about
 ordering.
 
-The gate is the one hook in two files. [.agents/hooks/preflight-gate/preflight_gate.py](../.agents/hooks/preflight-gate/preflight_gate.py) is the starter, the file the runner and every other wiring start, and it declares the order. The rules sit beside it in [.agents/hooks/preflight-gate/_gate_rules.py](../.agents/hooks/preflight-gate/_gate_rules.py), which the starter imports, because Python "always recompiles and does not store the result for the module that's loaded directly from the command line" ([Python tutorial, "Compiled" Python files](https://docs.python.org/3.14/tutorial/modules.html#compiled-python-files)) and loads an imported module from the copy it keeps in `__pycache__`. Measured on Python 3.14.10 on Linux, a start of the gate went from about 185 milliseconds to about 100 once the compiled copy exists. The leading `_` keeps the runner from starting the rules as a second hook on every tool call. A starter that cannot import the rules exits 0 and prints nothing, which allows the call, and a folder that cannot be written only costs the compile again on every start. [.agents/hooks/.gitignore](../.agents/hooks/.gitignore) keeps every `__pycache__` folder under the hooks out of git, in this repository and in a project that imported them.
+The gate is the one hook in two files. [.agents/hooks/preflight-gate/preflight_gate.py](../.agents/hooks/preflight-gate/preflight_gate.py) is the starter, the file the runner and every other wiring start, and it declares the order. The rules sit beside it in [.agents/hooks/preflight-gate/gate_rules.py](../.agents/hooks/preflight-gate/gate_rules.py), which the starter imports, because Python "always recompiles and does not store the result for the module that's loaded directly from the command line" ([Python tutorial, "Compiled" Python files](https://docs.python.org/3.14/tutorial/modules.html#compiled-python-files)) and loads an imported module from the copy it keeps in `__pycache__`. Measured on Python 3.14.10 on Linux, a start of the gate went from about 185 milliseconds to about 100 once the compiled copy exists. The runner skips `gate_rules.py` by name, so it never starts the rules as a second hook on every tool call. A starter that cannot import the rules exits 0 and prints nothing, which allows the call, and a folder that cannot be written only costs the compile again on every start. [.agents/hooks/.gitignore](../.agents/hooks/.gitignore) keeps every `__pycache__` folder under the hooks out of git, in this repository and in a project that imported them.
 
 Current values:
 
@@ -209,7 +210,6 @@ Current values:
 | 20 | `task_watchdog.py` | Watchdog, compares a Tasks line the reply writes against live todo state, and allows a reply with none, because the status block has no such line. Ties at 20 resolve by file name. |
 | 30 | `question_numbering_check.py` | Numbered questions, checked on new prose. It never takes the text event. Ties at 30 resolve by file name. |
 | 30 | `task_list_sync.py` | Bookkeeping, and it never denies. On the plain runner format it syncs live tool todos. |
-| 35 | `status_block_check.py` | Status block gate, holds the end of a reply to the block in section 3 of `.agents/instructions/reply-rules.md`, logs on tool events, exit 2 only on user-reply events. |
 | 40 | `markdown_lint_check.py` | Gated behind `--format claude` only. It exits 0 at once on the plain format. |
 
 The first denial stops the chain. Later hooks are not run.

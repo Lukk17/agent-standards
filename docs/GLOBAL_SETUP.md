@@ -1469,7 +1469,7 @@ How a project entry is matched:
 - The built-in list names no project's own scripts, because an entry such as `python tools/check.py` would also allow a
   same-named script in every other project, and that script could write files.
 
-The built-in list lives in `MAIN_THREAD_ALLOWLIST` near the top of `.agents/hooks/preflight-gate/_gate_rules.py`, the rules file the gate script `preflight_gate.py` imports. Do not edit it
+The built-in list lives in `MAIN_THREAD_ALLOWLIST` near the top of `.agents/hooks/preflight-gate/gate_rules.py`, the rules file the gate script `preflight_gate.py` imports. Do not edit it
 in a project, because the next update overwrites that file. Add your own entries to `main-thread-allowlist.txt` at the
 project root instead, one per line, in the form described above. Blank lines and lines starting with `#` are skipped.
 The file sits at the root rather than under `.agents/`, so importing or updating `.agents` never overwrites it. For

@@ -25,7 +25,7 @@ readonly PROJECT="${SANDBOX_PROJECT:-/work/project}"
 readonly SETUP="/sandbox/setup-project.sh"
 readonly CLI_TIMEOUT="${SANDBOX_CLI_TIMEOUT:-300}"
 readonly GATE=".agents/hooks/preflight-gate/preflight_gate.py"
-readonly GATE_RULES=".agents/hooks/preflight-gate/_gate_rules.py"
+readonly GATE_RULES=".agents/hooks/preflight-gate/gate_rules.py"
 readonly PROBE_AGENT=".claude/agents/sandbox-no-skills-probe.md"
 readonly SAMPLE_SKILL="python-patterns"
 readonly CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}"
@@ -450,16 +450,19 @@ claude_wiring() {
 }
 
 # Counts the plugins of one category whose cached folder holds the file the
-# pattern names, where @ stands for the plugin's item name.
+# pattern names, where @ stands for the plugin's item name and + for that name
+# with an underscore for every dash, the way a hook script is named.
 assert_claude_cache() {
   local label="$1" category="$2" prefix="$3" pattern="$4"
-  local name="" file="" found=0 total=0 missing=()
+  local name="" item="" file="" found=0 total=0 missing=()
   local matches=()
 
   while IFS= read -r name; do
     [[ -n "$name" ]] || continue
     total=$((total + 1))
-    file="${pattern//@/${name#"$prefix"}}"
+    item="${name#"$prefix"}"
+    file="${pattern//@/$item}"
+    file="${file//+/${item//-/_}}"
     shopt -s nullglob
     # shellcheck disable=SC2206
     matches=( ${CLAUDE_CACHE}/${name}/*/${file} )
@@ -515,13 +518,13 @@ verify_claude() {
     "$(claude_plugins_of hook | sort)"
   assert_claude_cache "every skill plugin holds its SKILL.md in the plugin cache" skill "" "SKILL.md"
   assert_claude_cache "every subagent plugin holds its one agent file in the plugin cache" agent "agent-" "@.md"
-  assert_claude_cache "every hook plugin holds a script in the plugin cache" hook "hook-" "[a-z]*.py"
+  assert_claude_cache "every hook plugin holds the script named for it in the plugin cache" hook "hook-" "+.py"
   if [[ -f "${CLAUDE_CACHE}/${SAMPLE_SKILL}/$(jq -r --arg n "$SAMPLE_SKILL" '.plugins[] | select(.name == $n) | .version' "$CLAUDE_CATALOG")/SKILL.md" ]]; then
     pass "a known skill sits in the cache under the version its catalog entry names (${SAMPLE_SKILL})"
   else
     fail "a known skill sits in the cache under the version its catalog entry names (${SAMPLE_SKILL})"
   fi
-  if [[ -f "$(printf '%s\n' "${CLAUDE_CACHE}"/hook-preflight-gate/*/_gate_rules.py | head -n 1)" ]]; then
+  if [[ -f "$(printf '%s\n' "${CLAUDE_CACHE}"/hook-preflight-gate/*/gate_rules.py | head -n 1)" ]]; then
     pass "the rules file the gate script imports sits beside it in the plugin cache"
   else
     fail "the rules file the gate script imports sits beside it in the plugin cache"
@@ -548,7 +551,7 @@ verify_claude() {
     assert_json_at "the formatting check is wired into Stop" "$CLAUDE_WIRING" \
       '[.hooks.Stop[].hooks[].command] | any(contains("\"${CLAUDE_PLUGIN_ROOT}\"/no_ai_markers_check.py"))' "the plugin wiring"
     assert_json_at "no reply-style check runs when a subagent stops, because reply style is checked on the main thread only" "$CLAUDE_WIRING" \
-      '((.hooks | length) > 0) and ([(.hooks.SubagentStop // [])[].hooks[].command] | any(contains("no_ai_markers_check.py") or contains("status_block_check.py") or contains("question_numbering_check.py")) | not)' "the plugin wiring"
+      '((.hooks | length) > 0) and ([(.hooks.SubagentStop // [])[].hooks[].command] | any(contains("no_ai_markers_check.py") or contains("question_numbering_check.py")) | not)' "the plugin wiring"
     assert_json_at "the formatting fix is wired into MessageDisplay and Stop checks what it leaves" "$CLAUDE_WIRING" \
       '([.hooks.MessageDisplay[].hooks[].command] | any(contains("/no_ai_markers_check.py --format claude --display "))) and ([.hooks.Stop[].hooks[].command] | any(contains("/no_ai_markers_check.py --format claude --display-fixed")))' "the plugin wiring"
     assert_json_at "the task list is wired into TaskCreated" "$CLAUDE_WIRING" \

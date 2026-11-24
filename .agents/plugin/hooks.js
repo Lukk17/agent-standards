@@ -160,8 +160,13 @@ const hooksDirectory = (root) => {
   }
 }
 
+// The rules file the gate's starter preflight_gate.py imports from beside
+// itself. It is a module, never a hook, so it is skipped by name.
+const IMPORTED_MODULES = new Set(["gate_rules.py"])
+
 // The hook scripts directly in one directory: every *.py file whose name
-// starts with neither "_", which marks a helper module, nor ".".
+// starts with neither "_", which marks a helper module, nor ".", and is not
+// one of IMPORTED_MODULES.
 const scriptsIn = (dir) => {
   let entries = []
 
@@ -175,6 +180,7 @@ const scriptsIn = (dir) => {
     .filter((entry) => !entry.isDirectory())
     .map((entry) => entry.name)
     .filter((name) => name.endsWith(".py") && !name.startsWith("_") && !name.startsWith("."))
+    .filter((name) => !IMPORTED_MODULES.has(name))
     .map((name) => inspect(name, join(dir, name)))
 }
 

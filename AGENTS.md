@@ -14,7 +14,7 @@ and why, as the first line of your reply. This is a hard gate.
 Follow [.agents/instructions/reply-rules.md](.agents/instructions/reply-rules.md) when writing to the user. The status tail it defines has no line for skills or owners, so they are named in the reply text only.
 
 The gate is enforcing, not advisory. One shared rule in
-[.agents/hooks/preflight-gate/_gate_rules.py](.agents/hooks/preflight-gate/_gate_rules.py), which every wiring runs through the starter [preflight_gate.py](.agents/hooks/preflight-gate/preflight_gate.py) beside it, decides every tool call, on every agent:
+[.agents/hooks/preflight-gate/gate_rules.py](.agents/hooks/preflight-gate/gate_rules.py), which every wiring runs through the starter [preflight_gate.py](.agents/hooks/preflight-gate/preflight_gate.py) beside it, decides every tool call, on every agent:
 
 - It denies the main thread a write of any file inside the repository, by any tool or shell, markdown, configuration
   and documentation included. A write outside it, to the null device or to `tasks.md` at the root, and git branch
@@ -29,7 +29,7 @@ The gate is enforcing, not advisory. One shared rule in
 - It denies the main thread a web fetch or web search tool on Claude Code, the one format whose tool names are
   confirmed. Codex has no confirmed tool name for this yet. The main thread spawns a subagent to do the research.
 - It denies the main thread running a script or a module, because the gate cannot see what a script writes, unless the
-  command, run from inside the project with no directory change, passes `MAIN_THREAD_ALLOWLIST` in `_gate_rules.py` or an entry of the project's own
+  command, run from inside the project with no directory change, passes `MAIN_THREAD_ALLOWLIST` in `gate_rules.py` or an entry of the project's own
   `main-thread-allowlist.txt`. The rules are in [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md) under "What the main thread
   may run". This repository's own checks sit in [main-thread-allowlist.txt](main-thread-allowlist.txt), which never ships.
 - It denies the main thread a shell, an interpreter, an editor, a pager or any other program that waits for typed input, such as
@@ -123,11 +123,10 @@ On top of the global rules in `~/.claude/CLAUDE.md`:
   drops the MCP block and the `plugin` array that declares the gate. Local servers inherit the environment instead, and `context7`
   ships with no `headers` block. The detail is in [docs/MCP_SETUP.md](docs/MCP_SETUP.md) and nowhere else.
 - **One gate, one rule, one wording.** A behaviour change is a change to
-  [.agents/hooks/preflight-gate/_gate_rules.py](.agents/hooks/preflight-gate/_gate_rules.py) plus a case in
+  [.agents/hooks/preflight-gate/gate_rules.py](.agents/hooks/preflight-gate/gate_rules.py) plus a case in
   [tools/tests/test_preflight_gate.py](tools/tests/test_preflight_gate.py), never a second copy of the logic and never a rule in the starter `preflight_gate.py`. The
   `tools/tests/test_reminder_*.py` suites compare each reminder copy in a wiring file to its canonical source.
-- **One tail, one check, one wording.** Section 3 of [.agents/instructions/reply-rules.md](.agents/instructions/reply-rules.md) defines the status block for every agent. [tools/tests/test_status_template.py](tools/tests/test_status_template.py) holds each reminder and
-  [.agents/hooks/status-block-check/status_block_check.py](.agents/hooks/status-block-check/status_block_check.py) to it, and the hook is the enforcement.
+- **One tail, one definition, one wording.** Section 3 of [.agents/instructions/reply-rules.md](.agents/instructions/reply-rules.md) is the one definition of the status block, for every agent. Every reminder prints a word for word copy of it, and [tools/tests/test_status_template.py](tools/tests/test_status_template.py) fails when a copy drifts. No hook checks a reply for the block.
 - **The tooling is a package under [tools/](tools/).** [tools/pyproject.toml](tools/pyproject.toml) is the only place
   a dependency or a version is written, each an exact pin with no lock file, and `--group` needs pip 25.1 or newer.
 - This file and the template obey the rules they ship. `AGENTS.md` and `AGENTS.md.example` follow "Writing

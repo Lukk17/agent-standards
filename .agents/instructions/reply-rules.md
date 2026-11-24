@@ -66,10 +66,6 @@ A blank line stands between the reply text and the Running line.
 
 Name the skills and subagents that own the task in the reply text above the tail, because the tail has no line for them.
 
-The hook never denies a tool or subagent call over the tail: on tool and subagent events it logs the violation and exits 0.
-
-Exit 2 applies only on a user-reply event if the runner provides one.
-
 ## 4. State honesty
 
 Panel flags lie: tasks show completed from the start even while still running.

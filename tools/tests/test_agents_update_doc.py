@@ -93,6 +93,29 @@ def test_the_update_removes_every_old_flat_hook_before_it_refreshes_the_hook_fol
     assert left == ["claude/sync-skill-links/sync_skill_links.py", "preflight-gate/preflight_gate.py", "task-list-sync/task_list_sync.py"]
 
 
+@pytest.mark.parametrize("tracked", [True, False], ids=["tracked", "untracked"])
+def test_the_update_removes_the_folder_of_the_status_check_upstream_no_longer_ships(project, tracked):
+    removed = ".agents/hooks/status-block-check"
+    write(project, f"{removed}/status_block_check.py", "old\n")
+    if tracked:
+        git(project, "add", "--all")
+        git(project, "commit", "--quiet", "-m", "import with the status check")
+
+    run(project, bash_block(f"git rm -r -q --ignore-unmatch -- {removed}"))
+    run(project, bash_block("for p in .agents/hooks .agents/plugin"))
+
+    assert not (project / removed).exists()
+    assert (project / ".agents" / "hooks" / "preflight-gate" / "preflight_gate.py").read_text(encoding="utf-8") == "new\n"
+
+
+def test_the_removal_step_leaves_a_project_without_the_status_check_alone(project):
+    before = git(project, "status", "--porcelain")
+
+    run(project, bash_block("git rm -r -q --ignore-unmatch -- .agents/hooks/status-block-check"))
+
+    assert git(project, "status", "--porcelain") == before
+
+
 def test_moving_claude_code_to_the_plugins_removes_the_link_and_the_agent_tree_and_keeps_the_skills(tmp_path):
     root = tmp_path / "project"
     write(root, ".agents/skills/kept/SKILL.md", "kept\n")

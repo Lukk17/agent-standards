@@ -49,12 +49,11 @@ agent-standards/
     hooks/
       .gitignore                 # CANONICAL, keeps every __pycache__ folder under the hooks out of git
       preflight_gate.py          # CANONICAL, the starter of the gate that every agent surface runs
-      _gate_rules.py             # CANONICAL, the one shared gate rule, imported by the starter
+      gate_rules.py              # CANONICAL, the one shared gate rule, imported by the starter
       no_ai_markers_check.py     # CANONICAL, reply formatting check, main-thread Stop
       markdown_lint_check.py     # CANONICAL, lints a linted file just after it was edited
       _check_markdown.py         # CANONICAL, the markdown rules, shipped so the lint hook works downstream
       task_list_sync.py          # CANONICAL, mirrors the session task list into tasks.md
-      status_block_check.py      # CANONICAL, status block gate for user-facing replies
       question_numbering_check.py # CANONICAL, numbered questions check on new prose
       task_watchdog.py           # CANONICAL, a Tasks line in a reply must match live tool todo state
       claude/                    # CANONICAL, Claude Code only, never run by the OpenCode and Kilo Code runner

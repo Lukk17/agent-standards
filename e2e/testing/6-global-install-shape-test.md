@@ -351,7 +351,7 @@ Expect exit 0.
 The gate script landed in the shared tree, which every user-scope wiring below names by absolute path, and so did the rules file it imports.
 
 ```bash
-test -f "$HOME/.config/agents/hooks/preflight-gate/preflight_gate.py" -a -f "$HOME/.config/agents/hooks/preflight-gate/_gate_rules.py"
+test -f "$HOME/.config/agents/hooks/preflight-gate/preflight_gate.py" -a -f "$HOME/.config/agents/hooks/preflight-gate/gate_rules.py"
 ```
 
 Expect exit 0.

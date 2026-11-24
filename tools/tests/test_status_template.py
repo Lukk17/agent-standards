@@ -1,9 +1,8 @@
 """The status block has one canonical source and every reminder carries it word for word.
 
 Section 3 of .agents/instructions/reply-rules.md defines the block with its two
-instruction sentences. The Claude Code reminder, the reminder every other agent
-prints, and the reason the status check gives all end with that same text, and
-the check passes the block the rules show.
+instruction sentences. The Claude Code reminder and the reminder every other
+agent prints both end with that same text.
 """
 import pytest
 
@@ -18,8 +17,6 @@ from tests.reminder_support import (
     canonical_status_block,
     canonical_subagent_reminder,
 )
-
-STATUS_CHECK_HOOK = HOOKS_DIR / "status-block-check" / "status_block_check.py"
 
 SHARED_OPENING = (
     "Before code work, name the skills and subagents that own this task and invoke them, "
@@ -47,12 +44,6 @@ def test_the_claude_reminder_ends_with_the_canonical_status_block():
 
     assert reminder == CLAUDE_REMINDER
     assert reminder.endswith(" " + canonical_status_block())
-
-
-def test_the_status_check_reason_ends_with_the_canonical_status_block():
-    reason = _load_module("status_block_check_reason", STATUS_CHECK_HOOK).REASON
-
-    assert reason.endswith(" " + canonical_status_block())
 
 
 @pytest.mark.parametrize("character", ["'", '"', "\\"])

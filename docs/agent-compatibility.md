@@ -87,7 +87,7 @@ a generated tree.
 
 ### Hook enforcement, what each agent can actually block
 
-The gate is one shared rule in [../.agents/hooks/preflight-gate/_gate_rules.py](../.agents/hooks/preflight-gate/_gate_rules.py), which every wiring runs through the starter [../.agents/hooks/preflight-gate/preflight_gate.py](../.agents/hooks/preflight-gate/preflight_gate.py) beside it. It reads a hook
+The gate is one shared rule in [../.agents/hooks/preflight-gate/gate_rules.py](../.agents/hooks/preflight-gate/gate_rules.py), which every wiring runs through the starter [../.agents/hooks/preflight-gate/preflight_gate.py](../.agents/hooks/preflight-gate/preflight_gate.py) beside it. It reads a hook
 payload on standard input and denies six things: a write of any file resolving inside the repository working tree
 coming from the main thread, with no exemption left for markdown, configuration, or `docs/` (delegate the change to a
 subagent that owns the area instead), any tool call at all from a subagent whose own definition declares no skills
@@ -140,7 +140,7 @@ Reading the tables row by row:
 - Every row anchors the gate at the project root before calling it, so a session started in a subdirectory still finds
   [../.agents/hooks/preflight-gate/preflight_gate.py](../.agents/hooks/preflight-gate/preflight_gate.py), and a missing script allows rather than
   denies. Python exits 2 when it cannot open the file it was handed, and 2 is the deny code, so an unanchored path used
-  to block every tool call. A starter that cannot import [../.agents/hooks/preflight-gate/_gate_rules.py](../.agents/hooks/preflight-gate/_gate_rules.py) allows too, with exit 0 and nothing printed.
+  to block every tool call. A starter that cannot import [../.agents/hooks/preflight-gate/gate_rules.py](../.agents/hooks/preflight-gate/gate_rules.py) allows too, with exit 0 and nothing printed.
 - [../.agents/hooks/no-ai-markers-check/no_ai_markers_check.py](../.agents/hooks/no-ai-markers-check/no_ai_markers_check.py) finds an em dash, an en dash, a
   semicolon, or a bold or italic marker, asterisk or underscore form, and asks only for `Correction:` lines. Claude
   Code first fixes dashes, bold and italic on screen through `MessageDisplay`, so its `Stop` blocks only on what that

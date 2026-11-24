@@ -161,7 +161,7 @@ Expect exit 0.
 The shared gate script landed, which every hook wiring below points at, and so did the rules file it imports, without which it allows every call.
 
 ```bash
-test -f /work/project/.agents/hooks/preflight-gate/preflight_gate.py -a -f /work/project/.agents/hooks/preflight-gate/_gate_rules.py
+test -f /work/project/.agents/hooks/preflight-gate/preflight_gate.py -a -f /work/project/.agents/hooks/preflight-gate/gate_rules.py
 ```
 
 Expect exit 0.

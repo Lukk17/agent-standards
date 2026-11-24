@@ -114,7 +114,7 @@ readonly PROVIDER_V1_URL="${PROVIDER_URL}/v1"
 readonly MODEL="${LIVE_MODEL:-${AGENT_MODEL:-$DEFAULT_MODEL}}"
 readonly AGENT_TIMEOUT="${LIVE_AGENT_TIMEOUT:-600}"
 
-readonly GATE_RULES="${REPO_ROOT}/.agents/hooks/preflight-gate/_gate_rules.py"
+readonly GATE_RULES="${REPO_ROOT}/.agents/hooks/preflight-gate/gate_rules.py"
 readonly REMINDER_MARKER="name the skills and subagents that own this task and invoke them"
 readonly SUBAGENT_TEXT_MARKER="PREFLIGHT for a subagent:"
 readonly SUBAGENT_NAME="docs-architect"

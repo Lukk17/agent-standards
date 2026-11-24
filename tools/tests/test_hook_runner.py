@@ -914,6 +914,22 @@ def test_hooks_in_their_own_folders_and_at_the_top_level_run_in_declared_order(t
     assert hooks_run(log) == ["gate/gate.py", "top.py", "lint/lint.py"]
 
 
+@pytest.mark.parametrize("folder", ["preflight-gate/", ""], ids=["own-folder", "top-level"])
+def test_the_runner_starts_the_gate_starter_and_never_the_rules_file_beside_it(tmp_path, folder):
+    # Given a starter and, beside it, a file named as the gate's rules file that would deny if it were started
+    log = tmp_path / "log.jsonl"
+    (tmp_path / ".agents" / "hooks" / folder).mkdir(parents=True, exist_ok=True)
+    recorder(tmp_path, folder + PREFLIGHT_GATE.name, 10, log)
+    recorder(tmp_path, folder + GATE_RULES.name, 1, log, deny=True)
+
+    # When one tool call goes through the runner
+    results = drive(tmp_path, [call()])
+
+    # Then only the starter was started
+    assert results == [{"ok": True}]
+    assert hooks_run(log) == [folder + PREFLIGHT_GATE.name]
+
+
 def test_the_gate_s_rules_are_imported_by_the_starter_and_never_started_by_the_runner(tmp_path):
     # Given the shipped starter in its folder, beside a rules file that records the name it was loaded under
     log = tmp_path / "log.jsonl"

@@ -621,7 +621,7 @@ verify_install_shape() {
   assert_glob_count "every skill is reachable through a per-skill link there too" \
     ".config/codex/skills/*/SKILL.md" "$SKILL_FILE_COUNT"
   assert_file "the gate script landed in the shared tree" ".config/agents/hooks/preflight-gate/preflight_gate.py"
-  assert_file "the rules file the gate script imports landed beside it" ".config/agents/hooks/preflight-gate/_gate_rules.py"
+  assert_file "the rules file the gate script imports landed beside it" ".config/agents/hooks/preflight-gate/gate_rules.py"
   assert_file "the reply formatting check landed beside it" ".config/agents/hooks/no-ai-markers-check/no_ai_markers_check.py"
   assert_file "the task list hook landed beside it" ".config/agents/hooks/task-list-sync/task_list_sync.py"
   assert_file "the skill link hook landed in its Claude Code folder" ".config/agents/hooks/claude/sync-skill-links/sync_skill_links.py"
@@ -1182,7 +1182,7 @@ verify_scoped() {
   assert_glob_count "the shared subagent tree landed, because step 2 copies all four shared trees" \
     ".config/agents/agents/*.md" "${#SUBAGENTS[@]}"
   assert_file "the gate script landed in the shared tree" ".config/agents/hooks/preflight-gate/preflight_gate.py"
-  assert_file "the rules file the gate script imports landed beside it" ".config/agents/hooks/preflight-gate/_gate_rules.py"
+  assert_file "the rules file the gate script imports landed beside it" ".config/agents/hooks/preflight-gate/gate_rules.py"
   assert_file "the plugin landed in the shared tree" ".config/agents/plugin/hooks.js"
   assert_matches_head "the shared folder records the commit it was installed from" ".config/agents/.upstream-commit"
   assert_file_not_empty "the one instruction file landed, because step 3 is shared" ".config/agents/AGENTS.md"

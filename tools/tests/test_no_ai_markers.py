@@ -1588,7 +1588,7 @@ def test_claude_code_stop_checks_only_what_the_display_fix_leaves():
     assert len(stop) == 1 and "--format claude --display-fixed" in stop[0]
 
 
-REPLY_STYLE_HOOKS = ("no_ai_markers_check.py", "status_block_check.py", "question_numbering_check.py")
+REPLY_STYLE_HOOKS = ("no_ai_markers_check.py", "question_numbering_check.py")
 
 
 def test_claude_code_checks_reply_style_on_the_main_thread_only():

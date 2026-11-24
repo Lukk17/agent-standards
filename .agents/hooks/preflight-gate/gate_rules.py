@@ -411,7 +411,7 @@ RULE_D_REASON = (
     "PREFLIGHT: the main thread may not run a script or a module directly, because the "
     "gate cannot see what it writes. Delegate the run to a subagent that owns the area, "
     "or run one of the read-only checks in MAIN_THREAD_ALLOWLIST in "
-    ".agents/hooks/preflight-gate/_gate_rules.py or in the project's main-thread-allowlist.txt. "
+    ".agents/hooks/preflight-gate/gate_rules.py or in the project's main-thread-allowlist.txt. "
     "Blocked command: {command}"
 )
 
