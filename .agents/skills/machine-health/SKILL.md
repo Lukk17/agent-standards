@@ -18,7 +18,6 @@ A read-only health and configuration check for one computer, run after setup and
 | The machine runs macOS: every check | [macos.md](references/macos.md) |
 | The machine runs Windows: every check | [windows.md](references/windows.md) |
 | Judging a value on any OS: RAM speed, temperature limits, refresh rate, the dual boot clock, security findings | [judging.md](references/judging.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before sending the report | [checklist.md](references/checklist.md) |
 
 ---

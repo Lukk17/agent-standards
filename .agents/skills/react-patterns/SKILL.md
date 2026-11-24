@@ -47,5 +47,4 @@ Written for React 19 with TypeScript and React Compiler. Server Components, stre
 | Controlled forms, validation, error boundaries, i18n wiring | [references/forms.md](references/forms.md) |
 | Animation with `motion/react`, reduced motion, timing budgets | [references/animation.md](references/animation.md) |
 | Keyboard navigation and focus management in React | [references/accessibility.md](references/accessibility.md) |
-| Whether a neighbouring skill owns the job | [references/scope.md](references/scope.md) |
 | Before calling a React change or a React review done | [references/checklist.md](references/checklist.md) |

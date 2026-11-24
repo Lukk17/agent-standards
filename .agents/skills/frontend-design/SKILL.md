@@ -38,5 +38,4 @@ Direction and composition for interfaces that need a point of view, not just wor
 | Task | Open |
 | --- | --- |
 | The list of workable directions, pass and fail HTML and CSS for direction, variables, composition, motion, type, palette and background, and the anti-pattern table | [references/visual-direction.md](references/visual-direction.md) |
-| Whether a neighbouring skill owns the job | [references/scope.md](references/scope.md) |
 | Before calling a design or a design review done | [references/checklist.md](references/checklist.md) |

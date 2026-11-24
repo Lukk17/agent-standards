@@ -52,5 +52,4 @@ Written for Go 1.27. Confirm with `go version` before assuming an older release:
 | [mocks-and-fakes.md](references/mocks-and-fakes.md) | Fakes, stubs, spies, interfaces at the consumer, `httptest`. |
 | [integration.md](references/integration.md) | Real databases, containers, build tags, HTTP handler tests. |
 | [benchmarks.md](references/benchmarks.md) | Benchmarks, allocation counts, profiles, fuzzing, coverage. |
-| [scope.md](references/scope.md) | Whether a neighbouring skill owns the job. |
 | [checklist.md](references/checklist.md) | Before calling a Go change or a Go review done. |

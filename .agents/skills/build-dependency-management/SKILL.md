@@ -37,5 +37,4 @@ How a project declares versions, shares build logic, and admits new dependencies
 | [rules-and-examples.md](references/rules-and-examples.md) | A rule above needs its reasoning or its pass and fail form. |
 | [gradle.md](references/gradle.md) | The build is Gradle: `libs.versions.toml`, a platform BOM import, a convention plugin, dependency verification. |
 | [package-managers.md](references/package-managers.md) | The project uses pnpm, uv or pip, or someone proposes Dependabot or Renovate: cooldown settings, hash checks, library ranges, bump bots. |
-| [scope.md](references/scope.md) | Whether a neighbouring skill owns the job. |
 | [checklist.md](references/checklist.md) | Before calling a build or dependency change done. |

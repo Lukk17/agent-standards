@@ -48,5 +48,4 @@ How a Home Assistant configuration, and an integration written for it, stays rev
 | [operations.md](references/operations.md) | Backups, recovery, what needs a yes, HACS, YAML-only integrations, notifications, tests, upgrades |
 | [integration-development.md](references/integration-development.md) | An integration in Python: design, config flow, entities, tests, diagnostics, repairs |
 | [conventions.md](references/conventions.md) | How far to trust a VERIFIED, INFERRED or UNVERIFIED mark |
-| [scope.md](references/scope.md) | Whether a neighbouring skill owns the job |
 | [checklist.md](references/checklist.md) | Before calling a change or a review done |

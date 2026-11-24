@@ -25,7 +25,6 @@ The commands that ran were run on one CachyOS host, and commands that were not e
 | Save, export, import and apply konsave profiles | [konsave.md](references/konsave.md) |
 | Build, test, package and publish a Plasma 6 widget (plasmoid) | [widget-development.md](references/widget-development.md) |
 | Make a Plasma Style, color scheme, style or decoration fork, icon theme or Global Theme safely | [theme-development.md](references/theme-development.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Call a Plasma change done | [checklist.md](references/checklist.md) |
 
 ---

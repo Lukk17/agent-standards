@@ -60,5 +60,4 @@ Production patterns for Dart 3 and Flutter 3, from project layout down to the in
 | [testing.md](references/testing.md) | Writing tests. |
 | [environment-setup.md](references/environment-setup.md) | Pinning the SDK, `flutter doctor`, CI. |
 | [setup-linux.md](references/setup-linux.md), [setup-macos.md](references/setup-macos.md), [setup-windows.md](references/setup-windows.md) | Installing on that system. |
-| [scope.md](references/scope.md) | Whether a neighbouring skill owns the job. |
 | [checklist.md](references/checklist.md) | Before calling a change done. |

@@ -46,5 +46,4 @@ Written for WCAG 2.2 Level AA.
 | Task | Open |
 | --- | --- |
 | Pass and fail markup for semantics, focus, the dialog trap code, contrast, images, motion, targets, forms and i18n | [references/patterns.md](references/patterns.md) |
-| Whether a neighbouring skill owns the job | [references/scope.md](references/scope.md) |
 | Before calling a component, a page or an audit accessible | [references/checklist.md](references/checklist.md) |

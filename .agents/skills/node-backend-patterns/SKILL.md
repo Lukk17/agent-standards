@@ -34,7 +34,6 @@ Written for Node.js 26, Express 5, Next.js 16 and TypeScript 7, with Zod 4 for s
 | Throttling an endpoint, sharing counters across instances | [rate-limiting.md](references/rate-limiting.md) |
 | Moving work off the request path, queues, outbox, retries | [background-jobs.md](references/background-jobs.md) |
 | Token verification, per-resource authorization, refresh tokens | [auth.md](references/auth.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling a change to a Node service or its review done | [checklist.md](references/checklist.md) |
 
 ---

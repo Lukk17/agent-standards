@@ -36,5 +36,4 @@ An audit method for answering what automation exists in a project, what state ea
 |---|---|
 | A step needs its reasoning or its pass and fail example | [audit-steps.md](references/audit-steps.md) |
 | Writing the report: the table columns and a filled example | [evidence-table.md](references/evidence-table.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling the audit done | [checklist.md](references/checklist.md) |

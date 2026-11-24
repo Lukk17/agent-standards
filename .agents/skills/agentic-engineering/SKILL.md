@@ -55,5 +55,4 @@ Never infer approval from earlier context: agreement to a design is not agreemen
 |---|---|
 | A planning rule needs its reasoning, its example or the tier table | [planning-the-work.md](references/planning-the-work.md) |
 | A rule for running the work needs its reasoning, its example, the tool table or the defect list for the code trace | [running-the-work.md](references/running-the-work.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling the work done | [checklist.md](references/checklist.md) |

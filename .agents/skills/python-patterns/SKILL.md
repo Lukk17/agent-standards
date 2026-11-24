@@ -59,5 +59,4 @@ Written for Python 3.14 and pytest 9.
 | [fixtures-and-mocking.md](references/fixtures-and-mocking.md) | Fixtures, conftest, patching, autospec. |
 | [pytest-config.md](references/pytest-config.md) | pytest configuration, markers, flags, coverage, CI. |
 | [integration-tests.md](references/integration-tests.md) | Suite layout, test classes, the real database engine. |
-| [scope.md](references/scope.md) | Whether a neighbouring skill owns the job. |
 | [checklist.md](references/checklist.md) | Before calling a Python change or review done. |

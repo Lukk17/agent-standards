@@ -54,5 +54,4 @@ This section owns the rate-limit policy. Limit every endpoint, expensive ones ha
 | The cloud under review is AWS | [aws.md](references/aws.md) |
 | The CDN or WAF under review is Cloudflare | [cloudflare.md](references/cloudflare.md) |
 | Wallet signatures and on-chain transactions | [blockchain-security.md](references/blockchain-security.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before any production deployment | [checklist.md](references/checklist.md) |

@@ -22,7 +22,6 @@ Written for Windows 10 and 11 with PowerShell 7, from Microsoft Learn pages. No 
 | BitLocker, Fast Startup, hibernation, dual boot with Linux, the clock offset | [bitlocker-and-dual-boot.md](references/bitlocker-and-dual-boot.md) |
 | Read an event log | [event-logs.md](references/event-logs.md) |
 | Long paths, line endings, case, symlinks, junctions, Developer Mode | [files-and-links.md](references/files-and-links.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Report a Windows change as done | [checklist.md](references/checklist.md) |
 
 ---

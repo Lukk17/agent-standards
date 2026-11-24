@@ -46,5 +46,4 @@ Written for Next.js 16 on the App Router, where Turbopack is the default dev bun
 | File conventions, parallel and intercepting routes, route handlers, metadata | [references/routing.md](references/routing.md) |
 | Server Actions, form mutations, revalidation | [references/server-actions.md](references/server-actions.md) |
 | Images, bundle splitting, Turbopack, bundle analysis | [references/performance-and-tooling.md](references/performance-and-tooling.md) |
-| Whether a neighbouring skill owns the job | [references/scope.md](references/scope.md) |
 | Before calling a Next.js change or a Next.js review done | [references/checklist.md](references/checklist.md) |

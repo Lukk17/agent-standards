@@ -41,5 +41,4 @@ Written for search guidance built on mobile-first indexing and the Core Web Vita
 | Task | Open |
 | --- | --- |
 | Crawlability and indexability definitions, keyword mapping steps, title shapes, schema types per page, pass and fail examples for every rule, and the anti-pattern table | [references/seo-examples.md](references/seo-examples.md) |
-| Whether a neighbouring skill owns the job | [references/scope.md](references/scope.md) |
 | Before calling an SEO audit or an SEO change done | [references/checklist.md](references/checklist.md) |

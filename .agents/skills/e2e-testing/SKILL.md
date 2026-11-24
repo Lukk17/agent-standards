@@ -13,7 +13,6 @@ Build Playwright suites that stay stable, fast, and readable as the UI changes u
 | --- | --- |
 | The suite tree, a full page object, the Pass and Fail code behind any rule below, provider stubs, the checkout test | [patterns-and-examples.md](references/patterns-and-examples.md) |
 | Write `playwright.config.ts`, decide the retry and artifact policy, wire the suite into CI | [config-and-ci.md](references/config-and-ci.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling a suite or a spec done | [checklist.md](references/checklist.md) |
 
 ---

@@ -12,7 +12,6 @@ Investigate a codebase during review to find logic the project already has, util
 | Task | Open |
 |---|---|
 | Running a step in full: the location table, the subagent names per runtime, the pass and fail forms | [worked-steps.md](references/worked-steps.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before folding the findings into the review | [checklist.md](references/checklist.md) |
 
 ---

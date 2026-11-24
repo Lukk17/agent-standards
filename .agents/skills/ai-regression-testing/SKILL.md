@@ -15,7 +15,6 @@ The patterns are about the shape of the assertion, not the framework: the exampl
 | --- | --- |
 | Applying a rule below: the four-fix sequence, the review order, the contract, parity and production-guard code, the pattern table, the bug-trail example | [patterns-and-examples.md](references/patterns-and-examples.md) |
 | Wiring up the Vitest and Next.js harness: config, sandbox setup file, request helper, the harness on other stacks | [vitest-nextjs-harness.md](references/vitest-nextjs-harness.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling the regression work done | [checklist.md](references/checklist.md) |
 
 ---

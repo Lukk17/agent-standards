@@ -48,5 +48,4 @@ HTTP semantics per RFC 9110, problem details per RFC 9457, contracts described i
 | A working create handler as a Next.js route handler in TypeScript | [nextjs.md](references/nextjs.md) |
 | The same handler in Python on Django REST Framework | [django-rest.md](references/django-rest.md) |
 | The same handler in Go on `net/http` | [go.md](references/go.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling a contract or its review done | [checklist.md](references/checklist.md) |

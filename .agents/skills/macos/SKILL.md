@@ -22,7 +22,6 @@ Written for macOS 15 and later on Apple silicon, from Apple support and develope
 | macOS updates from the command line | [software-update.md](references/software-update.md) |
 | Read logs for a process, a subsystem or a time window | [logs.md](references/logs.md) |
 | Where settings, caches and logs live | [paths.md](references/paths.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Call a change on a Mac done | [checklist.md](references/checklist.md) |
 
 ---

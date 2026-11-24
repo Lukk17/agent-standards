@@ -45,5 +45,4 @@ How an agent reads and controls a WLED device, and how it makes a change the use
 | The serial port and its driver for flashing | [Linux](references/usb-serial-linux.md), [Windows](references/usb-serial-windows.md), [macOS](references/usb-serial-macos.md) |
 | Syncing devices, realtime streams, MQTT | [sync-realtime-mqtt.md](references/sync-realtime-mqtt.md) |
 | Naming a device or judging a VERIFIED mark | [conventions.md](references/conventions.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling the work done | [checklist.md](references/checklist.md) |

@@ -16,7 +16,6 @@ Make slow things fast without guessing, because performance work that is not dri
 | SQL: a narrow, paged query and its index | [sql.md](references/sql.md) |
 | TypeScript: independent calls with `Promise.all` | [typescript.md](references/typescript.md) |
 | Go: independent calls with `errgroup` | [go.md](references/go.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling the optimisation done | [checklist.md](references/checklist.md) |
 
 ---

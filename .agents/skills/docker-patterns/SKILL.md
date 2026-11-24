@@ -18,7 +18,6 @@ Written for Docker Engine 29 and Docker Compose v5. The Compose v1 `docker-compo
 | apt-get layering, OCI labels, and build-time secrets | [dockerfiles.md](references/dockerfiles.md) |
 | A local Compose stack, override files, networks, volumes, debugging | [compose-and-debugging.md](references/compose-and-debugging.md) |
 | The Trivy, syft and cosign commands | [supply-chain.md](references/supply-chain.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling a change done | [checklist.md](references/checklist.md) |
 
 ---

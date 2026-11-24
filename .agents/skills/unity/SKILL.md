@@ -48,5 +48,4 @@ Written for Unity 6 LTS, with the Addressables, Input System, and Test Framework
 | [input-system.md](references/input-system.md) | Reading player input or adding an input action. |
 | [ui-toolkit-and-ugui.md](references/ui-toolkit-and-ugui.md) | Choosing between UI Toolkit and UGUI for a screen. |
 | [project-and-build.md](references/project-and-build.md) | Git and LFS setup, serialisation mode, IL2CPP and stripping, the CI build matrix. |
-| [scope.md](references/scope.md) | Whether a neighbouring skill owns the job. |
 | [checklist.md](references/checklist.md) | Before calling a Unity change done. |

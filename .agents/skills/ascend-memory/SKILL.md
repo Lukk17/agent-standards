@@ -38,5 +38,4 @@ Store and retrieve per-user semantic memory through AscendMemory, which keeps em
 | --- | --- |
 | [api-endpoints.md](references/api-endpoints.md) | Choosing an endpoint or a body field, resolving the base URL, deciding when to search, insert or delete, metadata and the `user_id` boundary, each with Pass and Fail |
 | [curl-commands.md](references/curl-commands.md) | The exact Bash or PowerShell command for an insert, a search or a delete |
-| [scope.md](references/scope.md) | Whether a neighbouring skill owns the job |
 | [checklist.md](references/checklist.md) | Before calling a memory read or write done |

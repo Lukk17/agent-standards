@@ -50,5 +50,4 @@ Rules for keeping a backlog a truthful record of what is planned, what is in fli
 | Duplicate, follow-up or superseded | [links-and-duplicates.md](references/links-and-duplicates.md) |
 | Acting inside the tracker a file is named for | [jira.md](references/jira.md), [youtrack.md](references/youtrack.md), [linear.md](references/linear.md), [azure-devops.md](references/azure-devops.md), [github-issues.md](references/github-issues.md), [gitlab-issues.md](references/gitlab-issues.md), [trello.md](references/trello.md) |
 | Any other tracker, or a move between trackers | [porting.md](references/porting.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before creating or closing an item | [checklist.md](references/checklist.md) |

@@ -29,7 +29,6 @@ Verify that a deployed service actually does what it claims when poked from outs
 | Write a spec from a worked example: curl, MCP tool round trip, fixture upload and retrieval | [examples.md](references/examples.md) |
 | Set the parallel cap, declare what a test mutates, schedule a sweep around conflicts | [orchestration.md](references/orchestration.md) |
 | The project uses OpenSpec and wants the slash-command lifecycle | [openspec-schema.md](references/openspec-schema.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling a spec, a run or a sweep done | [checklist.md](references/checklist.md) |
 
 ---

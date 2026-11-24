@@ -50,5 +50,4 @@ How an agent runs and repairs a small self-hosted stack: one Ubuntu Server VM, o
 | Give `.internal` names `https`: make, extend, renew, trust or revoke the local CA | [local-ca.md](references/local-ca.md) |
 | Attach, mount and protect a data disk, or clear a dirty NTFS volume | [data-disk.md](references/data-disk.md) |
 | Explain a full disk and free space | [disk-full.md](references/disk-full.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling the work done | [checklist.md](references/checklist.md) |

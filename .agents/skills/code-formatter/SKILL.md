@@ -44,5 +44,4 @@ Formatting rules that optimise for one thing: the next reader locating a functio
 | [dart.md](references/dart.md) | The code is Dart: the wrong and right form of each rule |
 | [java.md](references/java.md) | The code is Java: the wrong and right form of each rule, and all rules applied to one method |
 | [python.md](references/python.md) | The code is Python: the wrong and right form of each rule |
-| [scope.md](references/scope.md) | Whether a neighbouring skill owns the job |
 | [checklist.md](references/checklist.md) | Before calling a formatting pass done |

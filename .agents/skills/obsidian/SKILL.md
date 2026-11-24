@@ -17,7 +17,6 @@ Written for notesmd-cli 0.3, measured on Windows 11 against a real vault list. T
 | Installing notesmd-cli on Windows, Linux or macOS, or migrating from `obsidian-cli` | [install.md](references/install.md) |
 | Search, create, move and rename with link updates, delete, and editing a note directly | [commands.md](references/commands.md) |
 | Using the official `obsidian` command, which needs the app running | [official-obsidian-cli.md](references/official-obsidian-cli.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling work in a vault done | [checklist.md](references/checklist.md) |
 
 ---

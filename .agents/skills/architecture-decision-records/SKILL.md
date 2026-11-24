@@ -43,5 +43,4 @@ An ADR directory and an ADR file are both new files in someone else's repository
 | Task | Open |
 |---|---|
 | Writing a record: the full template, the `docs/adr/` layout, the index table, and the pass and fail example for each rule | [adr-format-and-examples.md](references/adr-format-and-examples.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling a record done | [checklist.md](references/checklist.md) |

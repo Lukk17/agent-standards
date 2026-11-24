@@ -17,7 +17,6 @@ Review a change set in the working tree or in a remote pull request, against the
 | The diff touches web code, its copy, its locale handling or TypeScript | [web.md](references/web.md) |
 | The diff touches Python | [python.md](references/python.md) |
 | The diff touches a workflow, a container image or dependency automation | [ci.md](references/ci.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before sending the review | [checklist.md](references/checklist.md) |
 
 ---

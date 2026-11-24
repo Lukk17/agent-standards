@@ -12,7 +12,6 @@ Operating procedures for a GitHub repository through the gh CLI, covering the wo
 | Task | Open |
 |---|---|
 | The gh commands for auth, triage, PR checks, stale queries, failed logs, releases and security alerts, with pass and fail examples | [procedures.md](references/procedures.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before reporting the work done | [checklist.md](references/checklist.md) |
 
 ---

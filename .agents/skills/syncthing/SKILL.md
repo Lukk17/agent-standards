@@ -48,5 +48,4 @@ How to set up and repair Syncthing from a terminal so that nothing waits for a c
 | Explain a folder that shows Stopped, a disk space error, a peer with 0 files, or a warning in the log | [troubleshooting.md](references/troubleshooting.md) |
 | Run Syncthing in a container with the linuxserver image | [docker.md](references/docker.md) |
 | Name a device, a folder or an address, or judge a VERIFIED mark | [conventions.md](references/conventions.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling the work done | [checklist.md](references/checklist.md) |

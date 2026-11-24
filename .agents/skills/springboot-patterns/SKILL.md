@@ -56,5 +56,4 @@ Written for Spring Boot 4 and the libraries that ship with it, on blocking Sprin
 | Test slices, MockMvc, Testcontainers, fixtures, the JaCoCo gate | [testing.md](references/testing.md) |
 | The pre-merge phases, scan commands, report template | [verification-pipeline.md](references/verification-pipeline.md) |
 | A Javadoc block | [javadoc.md](references/javadoc.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling a change or its review done | [checklist.md](references/checklist.md) |

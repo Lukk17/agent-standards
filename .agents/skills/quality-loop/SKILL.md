@@ -14,7 +14,6 @@ Measure the code, fix the worst mess first, and measure again. The method and th
 | Running `measure`, `mutate --changed` and `summary`, the exit codes, the first run, getting the tools into a project, Windows, what to commit | [references/running-the-tools.md](references/running-the-tools.md) |
 | Reading `.metrics/crap.edn`, `.metrics/dry.edn` and `.metrics/mutate/`, and the bands that decide what must be fixed | [references/reading-the-scores.md](references/reading-the-scores.md) |
 | Fixing each kind of mess, per-language notes, and the before and after report | [references/fixing-the-worst.md](references/fixing-the-worst.md) |
-| When the loop applies, and whether a neighbouring skill owns the job | [references/scope.md](references/scope.md) |
 | Before reporting the loop as finished | [references/checklist.md](references/checklist.md) |
 
 ---

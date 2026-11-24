@@ -21,7 +21,6 @@ Written for C11 with MISRA C:2012 as the rule set, the Arduino AVR and ESP32 cor
 | MISRA C:2012 treatment, formatting, naming, the file header | [misra-style.md](references/misra-style.md) |
 | The public API of an Arduino library | [arduino-api.md](references/arduino-api.md) |
 | Host tests with Ceedling, Unity and CMock | [ceedling.md](references/ceedling.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling a firmware change done | [checklist.md](references/checklist.md) |
 
 ---

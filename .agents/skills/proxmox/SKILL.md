@@ -46,5 +46,4 @@ How an agent works on a Proxmox VE host through the API, and how a change the ow
 | Take or roll back a snapshot, run a backup, read or plan a backup job | [snapshots-and-backups.md](references/snapshots-and-backups.md) |
 | Read storage use, thin pool data and metadata, judge whether a pool is too full | [storage.md](references/storage.md) |
 | Name a host, node, VM or storage, or judge how verified a command is | [conventions.md](references/conventions.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling the work done | [checklist.md](references/checklist.md) |

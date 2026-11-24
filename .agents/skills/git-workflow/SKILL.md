@@ -17,7 +17,6 @@ Version control practice for work that more than one person touches: how branche
 | Signing, secret scanning, review turnaround, merge strategy, LFS, code ownership | [team-policy.md](references/team-policy.md) |
 | Where GitHub reads the pull request template and CODEOWNERS from | [github.md](references/github.md) |
 | The reasoning and pass and fail examples behind a rule below, or the anti-patterns table | [practice-examples.md](references/practice-examples.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before committing, and before requesting review | [checklist.md](references/checklist.md) |
 
 ---

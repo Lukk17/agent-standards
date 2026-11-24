@@ -44,5 +44,4 @@ Written for Marlin 2 and Klipper. Both accept the standard G-code below, the dif
 | [klipper-macros.md](references/klipper-macros.md) | The printer runs Klipper: macros over raw sequences, the full `START_PRINT` macro body, PID tuning |
 | [marlin.md](references/marlin.md) | The printer runs Marlin: the start sequence as slicer start G-code, PID tuning |
 | [calibration-and-profiles.md](references/calibration-and-profiles.md) | Calibrating a new filament, fan and seam post-processing, multi-material tool changes, slicer profile version control |
-| [scope.md](references/scope.md) | Whether a neighbouring skill owns the job |
 | [checklist.md](references/checklist.md) | Before calling G-code or a slicer profile done |

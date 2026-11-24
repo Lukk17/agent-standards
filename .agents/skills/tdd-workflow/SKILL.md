@@ -45,5 +45,4 @@ Write the test before the code, watch it fail for the right reason, then make it
 | The project is JavaScript or TypeScript: the Jest, npm and CI forms | [jest.md](references/jest.md) |
 | The project is on the JVM: JUnit, JaCoCo, PIT, Spring Cloud Contract, Testcontainers | [jvm-testing.md](references/jvm-testing.md) |
 | A load test runs on k6 | [k6.md](references/k6.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling the work done | [checklist.md](references/checklist.md) |

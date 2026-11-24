@@ -44,5 +44,4 @@ Written for Tizen TVs from 2016 on that use the websocket API, and Home Assistan
 | Cast a Home Assistant dashboard to the TV, or put custom content in Ambient Mode | [cast-and-ambient.md](references/cast-and-ambient.md) |
 | Write the script a voice phrase runs to open a TV app, or give it several phrases on Alexa, Google Assistant or Assist | [voice-assistants.md](references/voice-assistants.md) |
 | Name the TV, an entity or an address, or judge a VERIFIED mark | [conventions.md](references/conventions.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling the work done | [checklist.md](references/checklist.md) |

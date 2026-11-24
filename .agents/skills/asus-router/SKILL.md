@@ -42,5 +42,4 @@ How an agent reads an ASUS router over SSH without a password, and how a change 
 | Open the ONT management page from the LAN while the WAN runs PPPoE | [ont-access.md](references/ont-access.md) |
 | Explain an internet drop: a WAN link drop, a PPPoE session drop, or an outage at the ISP | [troubleshooting-drops.md](references/troubleshooting-drops.md) |
 | Name the router, a user or an address, or judge a VERIFIED mark | [conventions.md](references/conventions.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling the work done | [checklist.md](references/checklist.md) |

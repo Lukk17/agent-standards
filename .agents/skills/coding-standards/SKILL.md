@@ -56,5 +56,4 @@ Default to none, except one line per exported symbol of a published library or S
 | [comments-and-doc-comments.md](references/comments-and-doc-comments.md) | Writing or reviewing a comment or a doc comment |
 | [code-smells.md](references/code-smells.md) | Naming a structural problem and its repair |
 | [TypeScript](references/typescript-examples.md), [Dart](references/dart.md), [Java](references/java.md), [Python](references/python.md) | A worked example in that language |
-| [scope.md](references/scope.md) | Whether a neighbouring skill owns the job |
 | [checklist.md](references/checklist.md) | Before calling a change done |

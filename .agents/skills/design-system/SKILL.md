@@ -50,5 +50,4 @@ Say which mode you want, or the intent is inferred from the request.
 | The project uses Tailwind CSS: `@theme`, `@config`, a v3 config file, arbitrary values | [references/tailwind.md](references/tailwind.md) |
 | The project writes its styles in Sass: the 7-1 folders in full, `main.scss`, what `abstracts/` may hold | [references/sass.md](references/sass.md) |
 | A React component sets a visual value, or styled-components hold values | [references/react.md](references/react.md) |
-| Whether a neighbouring skill owns the job | [references/scope.md](references/scope.md) |
 | Before calling a token set, an audit or a styling change done | [references/checklist.md](references/checklist.md) |

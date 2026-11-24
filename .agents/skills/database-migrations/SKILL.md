@@ -33,7 +33,6 @@ Written for PostgreSQL 18, MySQL 8.4 LTS and 9.7 LTS, and the migration tools na
 | Kysely | [kysely.md](references/kysely.md) |
 | Django | [django.md](references/django.md) |
 | golang-migrate | [golang-migrate.md](references/golang-migrate.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before a migration is merged or reaches production | [checklist.md](references/checklist.md) |
 
 ---

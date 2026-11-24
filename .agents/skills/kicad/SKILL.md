@@ -32,7 +32,6 @@ Written for KiCad 10. Custom design rules in `.kicad_dru` and the `kicad-cli` co
 | [pcbnew.md](references/pcbnew.md) | A `pcbnew` script: its interpreter and its silent traps |
 | [kicad-cli.md](references/kicad-cli.md) | Scripting `kicad-cli`: the version pin, the headless pipeline, renders |
 | [freerouting.md](references/freerouting.md) | Running freerouting: judging a route, process traps, scripted copper, the dangling-track quirk |
-| [scope.md](references/scope.md) | Whether a neighbouring skill owns the job |
 | [checklist.md](references/checklist.md) | Before fabrication or an assembly order |
 
 ---

@@ -18,7 +18,6 @@ Written for IntelliJ IDEA on Windows 11. The XML shapes are stable across releas
 | Linking several Gradle builds under one root, module naming, per-source-set import, reopening after a hand edit | [gradle-monorepo.md](references/gradle-monorepo.md) |
 | Renaming a module, a service or an image, and checking nothing that names it was missed | [rename-checklist.md](references/rename-checklist.md) |
 | Working on Windows: case-insensitive paths, CRLF after a scripted edit, the interpreter registry | [windows-traps.md](references/windows-traps.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling a change to `.run/` or `.idea/` done | [checklist.md](references/checklist.md) |
 
 ---

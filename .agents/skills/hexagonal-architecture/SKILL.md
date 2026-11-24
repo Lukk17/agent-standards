@@ -32,7 +32,6 @@ Written for TypeScript 5, Java 25, Kotlin 2 and Go 1.27. Check the project's own
 | The code is Java: packages, ports, use cases and wiring | [java.md](references/java.md) |
 | The code is Kotlin: packages, ports, use cases and wiring | [kotlin.md](references/kotlin.md) |
 | The code is Go: packages, where the interfaces are declared, constructors and wiring | [go.md](references/go.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling a design, a refactoring step or its review done | [checklist.md](references/checklist.md) |
 
 ---

@@ -51,5 +51,4 @@ How Java itself is written, from naming through to Javadoc. Written for Java 25,
 | [mapstruct.md](references/mapstruct.md) | Entity to DTO mapping. |
 | [static-analysis.md](references/static-analysis.md) | Checkstyle, SpotBugs, and PMD wiring, and keeping build output readable. |
 | [project-layout.md](references/project-layout.md) | Package structure for a layered project, and the code smells to fix on sight. |
-| [scope.md](references/scope.md) | Whether a neighbouring skill owns the job. |
 | [checklist.md](references/checklist.md) | Before calling a Java change or a Java review done. |

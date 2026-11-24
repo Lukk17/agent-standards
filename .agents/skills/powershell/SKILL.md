@@ -47,5 +47,4 @@ Written for PowerShell 7.6 LTS, Pester 6 and PSScriptAnalyzer. Declare the floor
 | [module-layout.md](references/module-layout.md) | Writing an advanced function or laying out a new module. |
 | [psscriptanalyzer.md](references/psscriptanalyzer.md) | Wiring PSScriptAnalyzer into CI, clearing its findings, or suppressing one. |
 | [pester.md](references/pester.md) | Writing Pester tests, or moving a suite to Pester 6. |
-| [scope.md](references/scope.md) | Whether a neighbouring skill owns the job. |
 | [checklist.md](references/checklist.md) | Before calling a script or a module done. |

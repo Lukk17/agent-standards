@@ -53,5 +53,4 @@ How to answer a question from outside the repository so that the reader can chec
 | Sub-questions and parallel subagents | [planning.md](references/planning.md) |
 | A long answer or a report | [report-layout.md](references/report-layout.md) |
 | A connected Firecrawl or Exa MCP server | [firecrawl.md](references/firecrawl.md), [exa.md](references/exa.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before sending the answer | [checklist.md](references/checklist.md) |

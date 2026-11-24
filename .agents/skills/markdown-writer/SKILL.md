@@ -53,5 +53,4 @@ Asked to fix all markdown in a repository, list the files you would skip and why
 | Drawing a diagram | [mermaid.md](references/mermaid.md) |
 | Prose that reads machine-generated | [ai-tells.md](references/ai-tells.md) |
 | A translated copy of a document | [multilingual.md](references/multilingual.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling a document done | [checklist.md](references/checklist.md) |

@@ -36,7 +36,6 @@ The identity boundary from both sides: the Keycloak server that issues tokens, a
 | Both sides | Open |
 | --- | --- |
 | The reasoning behind a rule above, and the version notes | [boundary-rules.md](references/boundary-rules.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling a change or its review done | [checklist.md](references/checklist.md) |
 
 | Server side | Open |

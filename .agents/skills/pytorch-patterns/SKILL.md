@@ -46,5 +46,4 @@ Written for PyTorch 2 on Python 3.14. The examples use `torch.amp`, `torch.compi
 | [data-pipeline.md](references/data-pipeline.md) | Dataset design, collate functions, sampling, worker seeding. |
 | [performance.md](references/performance.md) | AMP, gradient checkpointing, `torch.compile`, profiling, memory. |
 | [distributed.md](references/distributed.md) | DDP, `torchrun`, samplers, rank-aware logging, FSDP. |
-| [scope.md](references/scope.md) | Whether a neighbouring skill owns the job. |
 | [checklist.md](references/checklist.md) | Before calling a model, a training loop or a data pipeline done. |

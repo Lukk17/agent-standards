@@ -46,5 +46,4 @@ Create or modify an issue only when the user asked for it, and create each new i
 |---|---|
 | Adding the MCP server, the REST v3 variables, the MCP tool table, the transition, fetch, JQL and comment commands, or a failing Jira call | [access-and-calls.md](references/access-and-calls.md) |
 | Creating an issue or proposing a progress update: the examples and the update-point table | [issue-updates.md](references/issue-updates.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling the Jira work done | [checklist.md](references/checklist.md) |

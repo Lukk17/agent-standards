@@ -13,7 +13,6 @@ How to word what we write on a pull request: the review comments we leave on oth
 |---|---|
 | The reasoning and a pass and fail example for a rule below | [comment-examples.md](references/comment-examples.md) |
 | Reading the comments or posting an approved draft on GitHub with the gh CLI | [github.md](references/github.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before showing the drafts, and again before posting | [checklist.md](references/checklist.md) |
 
 ---

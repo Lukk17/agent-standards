@@ -18,7 +18,6 @@ Written for GitHub Actions, Kubernetes 1.37 and Helm 4.
 | The workload runs on Kubernetes or Helm | [kubernetes.md](references/kubernetes.md) |
 | A TypeScript service validates its environment with Zod | [zod.md](references/zod.md) |
 | Cloud accounts: IAM, networks, Terraform state, tagging, cost, audit, disaster recovery, production readiness | [cloud-and-operations.md](references/cloud-and-operations.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling a change done, and before a release | [checklist.md](references/checklist.md) |
 
 ---

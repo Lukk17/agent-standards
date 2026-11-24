@@ -23,7 +23,6 @@ Based on Supabase Agent Skills (credit: Supabase team), MIT License.
 | Timeouts, connections, preloaded libraries, `work_mem`, schema rights | [server-settings.md](references/server-settings.md) |
 | Running the plan for the gate below | [explain-analyze.md](references/explain-analyze.md) |
 | Replica routing, alert thresholds, backups, and GDPR erasure | [operations.md](references/operations.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling the work done | [checklist.md](references/checklist.md) |
 
 ---

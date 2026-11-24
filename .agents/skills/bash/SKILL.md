@@ -46,5 +46,4 @@ Written for Bash 5 and ShellCheck. Target Bash 4.4 or newer for anything that mu
 | [rules-and-examples.md](references/rules-and-examples.md) | A rule above needs its Pass and Fail example or its reasoning. |
 | [script-template.md](references/script-template.md) | Starting a new script, or checking that one has the header, trap and logging pieces. |
 | [shellcheck.md](references/shellcheck.md) | Wiring ShellCheck into CI, clearing its findings, or suppressing one. |
-| [scope.md](references/scope.md) | Whether a neighbouring skill owns the job. |
 | [checklist.md](references/checklist.md) | Before calling a script done. |

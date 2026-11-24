@@ -28,7 +28,6 @@ Written for ansible-core 2, with ansible-lint and Molecule. Pin the exact versio
 | [role-examples.md](references/role-examples.md) | Pass and fail YAML, INI and commands for every rule below |
 | [platform-targets.md](references/platform-targets.md) | Targeting several operating systems, or wiring dynamic cloud inventory |
 | [awx.md](references/awx.md) | Setting up AWX or Ansible Automation Platform: Job Templates, surveys, credentials, approval nodes |
-| [scope.md](references/scope.md) | Whether a neighbouring skill owns the job |
 | [checklist.md](references/checklist.md) | Before calling a role or playbook change done |
 
 ---

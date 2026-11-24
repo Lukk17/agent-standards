@@ -39,5 +39,4 @@ The operability layer every long-running service needs: how it logs, how it repo
 | [java-spring.md](references/java-spring.md) | Java with SLF4J or Spring Boot: the log call forms, the Actuator health paths, the startup hook |
 | [prometheus.md](references/prometheus.md) | A PromQL alert query, its OpenTelemetry source metric, the exported series name |
 | [startup-readiness-log.md](references/startup-readiness-log.md) | The startup readiness banner: its layout, probe rules and the emission hook per stack |
-| [scope.md](references/scope.md) | Whether a neighbouring skill owns the job |
 | [checklist.md](references/checklist.md) | Before calling the work done |

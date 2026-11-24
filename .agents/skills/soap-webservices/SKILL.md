@@ -29,7 +29,6 @@ Written for Java 21 LTS as the minimum and Java 25 LTS as the recommended target
 | XXE, TLS, pooling, the `Service` singleton, WS-Security, faults, logging, retries, tests, MTOM, with code | [client-runtime.md](references/client-runtime.md) |
 | Wiring XJC and CXF code generation into a Gradle Kotlin DSL build | [code-generation.md](references/code-generation.md) |
 | Writing or reviewing a Javadoc block | [javadoc.md](references/javadoc.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling a SOAP integration or its review done | [checklist.md](references/checklist.md) |
 
 ---

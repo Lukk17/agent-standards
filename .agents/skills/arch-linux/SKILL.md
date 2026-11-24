@@ -26,7 +26,6 @@ The commands that ran were run on one CachyOS host, and commands that were not e
 | Explain a crash, a segfault, a coredump | [crash-diagnosis.md](references/crash-diagnosis.md) |
 | Fix no sound, the wrong output, a volume that resets | [pipewire-wireplumber.md](references/pipewire-wireplumber.md) |
 | Edit any configuration file, use root, write a pacman hook | [config-safety.md](references/config-safety.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Call a change done | [checklist.md](references/checklist.md) |
 
 ---

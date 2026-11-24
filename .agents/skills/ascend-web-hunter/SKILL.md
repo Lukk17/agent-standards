@@ -15,7 +15,6 @@ Pull page content through ascend-web-hunter, the web reading service of [AscendA
 | Probing the candidate base URLs before the first call | [base-url.md](references/base-url.md) |
 | The six endpoints, the tier table, and the response cases with their fields | [endpoints-and-responses.md](references/endpoints-and-responses.md) |
 | Exact Bash and PowerShell commands for read, session and search, and the CAPTCHA hand-off | [calls-and-sessions.md](references/calls-and-sessions.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling a read done | [checklist.md](references/checklist.md) |
 
 ---

@@ -16,7 +16,6 @@ HTTP semantics per RFC 9110, problem details per RFC 9457, contracts described i
 | Task | Open |
 | --- | --- |
 | Designing or reviewing a pattern below: its reasoning, its pseudocode, the IETF citation, and its failing form | [patterns-in-depth.md](references/patterns-in-depth.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Before calling a backend design or its review done | [checklist.md](references/checklist.md) |
 
 ---

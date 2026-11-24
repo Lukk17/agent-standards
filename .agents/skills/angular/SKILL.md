@@ -46,5 +46,4 @@ Written for Angular 22. Standalone components, signals, RxJS interop, `inject()`
 | Functional guards and resolvers, HTTP interceptors, typed forms | [references/routing-http-and-forms.md](references/routing-http-and-forms.md) |
 | Unit tests, component tests, HTTP mocking, end-to-end setup | [references/testing.md](references/testing.md) |
 | Sanitisation, CSP, and internationalisation | [references/security-and-i18n.md](references/security-and-i18n.md) |
-| Whether a neighbouring skill owns the job | [references/scope.md](references/scope.md) |
 | Before calling an Angular change or an Angular review done | [references/checklist.md](references/checklist.md) |

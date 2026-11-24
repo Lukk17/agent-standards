@@ -38,5 +38,4 @@ Turn speech into text through AudioScribe, which fronts three swappable transcri
 | Open this | When |
 | --- | --- |
 | [backends-and-commands.md](references/backends-and-commands.md) | Making a call: the endpoint and form field table, the Bash and PowerShell commands per backend, streaming, with pass and fail examples |
-| [scope.md](references/scope.md) | Whether a neighbouring skill owns the job |
 | [checklist.md](references/checklist.md) | Before calling a transcription done |

@@ -21,7 +21,6 @@ The commands that ran were run on one CachyOS host, and commands that were not e
 | Change the scheduler, `scx_loader`, `ananicy-cpp`, the power profile, sysctl, zram, the I/O scheduler | [performance.md](references/performance.md) |
 | Touch the bootloader, the kernel command line, snapshot boot entries, recover from a live ISO | [boot-limine.md](references/boot-limine.md) |
 | Change something a `cachyos-*-settings` package owns, the login manager, `/etc/skel` | [desktop-defaults.md](references/desktop-defaults.md) |
-| Whether a neighbouring skill owns the job | [scope.md](references/scope.md) |
 | Finish a kernel, driver, repository or boot change | [checklist.md](references/checklist.md) |
 
 ---
