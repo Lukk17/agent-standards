@@ -109,7 +109,7 @@ hooks:
               command: 'cd "${CLAUDE_PROJECT_DIR}" && PY=$(command -v python3 || command -v python) && "$PY" -S -E "${CLAUDE_PLUGIN_ROOT}"/no_ai_markers_check.py --format claude --display ; exit 0'
 
   - name: markdown-lint-check
-    version: 1.1.0
+    version: 2.0.0
     description: Lints a markdown file in the lint scope right after an edit and hands the violations back to the model.
     wiring:
       PostToolUse:

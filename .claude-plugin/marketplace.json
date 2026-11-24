@@ -3835,7 +3835,7 @@
     {
       "name": "hook-markdown-lint-check",
       "source": "./.agents/hooks/markdown-lint-check",
-      "version": "1.1.0",
+      "version": "2.0.0",
       "description": "Lints a markdown file in the lint scope right after an edit and hands the violations back to the model.",
       "category": "hook",
       "author": {

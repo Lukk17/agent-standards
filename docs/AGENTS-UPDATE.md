@@ -456,6 +456,40 @@ git diff -- opencode.json .codex/config.toml
 
 ---
 
+### Bringing your own skills to the lean layout
+
+The markdown lint that runs after an agent edits a file holds every skill under `.agents/skills/` to the lean layout, your own skills included. A skill of yours written before gets one violation for each rule it breaks, the next time an agent edits one of its files. The rules live in [.agents/hooks/markdown-lint-check/_check_markdown.py](../.agents/hooks/markdown-lint-check/_check_markdown.py):
+
+1. The `description` in the front matter of `SKILL.md` is at most 220 characters.
+2. `SKILL.md` is at most 4,500 characters, front matter included.
+3. `SKILL.md` has no "When to activate", "Related skills" or "Checklist" section.
+4. "When not to activate" holds at most 3 items, each on one line and each naming a skill or an agent in backticks, as in use `bash`.
+5. Every file in `references/` sits directly in that folder and is linked from `SKILL.md`.
+6. Every link inside the skill folder points at a file that exists.
+7. A reference file over 100 lines opens with a `Contents:` list whose items link its own sections, as in `[Setup](#setup)`.
+
+Bring each skill of yours in line once:
+
+1. Keep in `SKILL.md` the purpose line, the rules that hold for every technology, and a routing table that links each reference file with a cue saying when to open it.
+2. Move the technology detail to `references/`, one file per technology or operating system, and link every file from the routing table.
+3. Move the triggers of "When to activate" into the description, the checklist to `references/checklist.md`, and each related skill into the description or under "When not to activate".
+
+Refresh first, with the [Unix shell](#unix-shell) or [PowerShell](#powershell) section above, so the skills from upstream already follow the layout and a violation names a skill of yours. Then lint every skill file. Unix shell:
+
+```bash
+find .agents/skills -name '*.md' -exec python3 .agents/hooks/markdown-lint-check/_check_markdown.py {} +
+```
+
+PowerShell:
+
+```powershell
+python .agents/hooks/markdown-lint-check/_check_markdown.py (Get-ChildItem .agents/skills -Recurse -File -Filter *.md).FullName
+```
+
+The run ends with `Violations: 0.` once every skill follows the layout. It also reads skills another tool wrote there, such as OpenSpec's `openspec-*` skills. Leave those to the tool that writes them.
+
+---
+
 ### Initialising OpenSpec
 
 This repository ships no `openspec-*` skills of its own. OpenSpec is a consumer concern, and it matters here only
