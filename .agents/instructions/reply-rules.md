@@ -163,6 +163,6 @@ A hand edit of the tasks file counts as a change and is mirrored to the widget s
 
 The main thread keeps the widget and the file current.
 
-The status tail has no Tasks line. A reply that still writes one in its text above the tail, as Tasks: N/M completed, must match the live list: a mismatch blocks the next main thread tool call until synced. Subagents stay exempt and are never blocked over it.
+Keep the task tool of the app you run in current too, such as the plan list in the desktop app or the task tool in the terminal, and mark each task in progress when it starts and completed when it ends.
 
 Every failure path allows: a broken sync must never break a session.

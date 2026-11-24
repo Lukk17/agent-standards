@@ -223,10 +223,10 @@ Every hook now sits in its own folder, such as `.agents/hooks/preflight-gate/pre
 if [ -d .agents/hooks ]; then git rm -q --ignore-unmatch -- .agents/hooks/preflight_gate.py .agents/hooks/task_list_sync.py .agents/hooks/no_ai_markers_check.py .agents/hooks/markdown_lint_check.py .agents/hooks/_check_markdown.py .agents/hooks/question_numbering_check.py .agents/hooks/status_block_check.py .agents/hooks/task_watchdog.py .agents/hooks/claude/sync_skill_links.py .agents/hooks/claude/standards_advisory_check.py .agents/hooks/copilot/prompt_reminder.py; mkdir -p .agents/hooks; fi
 ```
 
-The status check hook, `.agents/hooks/status-block-check/status_block_check.py`, is gone upstream, because no shipped wiring ever let it reject a reply. Remove its folder if you have it, because the refresh below adds and updates files and never deletes one, so the OpenCode and Kilo Code runner would keep starting the old copy on every tool call:
+The status check hook, `.agents/hooks/status-block-check/status_block_check.py`, is gone upstream, because no shipped wiring ever let it reject a reply. The task watchdog hook, `.agents/hooks/task-watchdog/task_watchdog.py`, is gone too, because it checked a `Tasks:` line that no reply writes any more. Remove their folders if you have them, because the refresh below adds and updates files and never deletes one, so the OpenCode and Kilo Code runner would keep starting the old copies on every tool call:
 
 ```bash
-if [ -d .agents/hooks/status-block-check ]; then git rm -r -q --ignore-unmatch -- .agents/hooks/status-block-check && rm -rf -- .agents/hooks/status-block-check; fi
+if [ -d .agents/hooks/status-block-check ] || [ -d .agents/hooks/task-watchdog ]; then git rm -r -q --ignore-unmatch -- .agents/hooks/status-block-check .agents/hooks/task-watchdog && rm -rf -- .agents/hooks/status-block-check .agents/hooks/task-watchdog; fi
 ```
 
 Refresh the hook folders, the OpenCode and Kilo plugin, the Copilot hook file, and the quality tools.
@@ -317,10 +317,10 @@ Every hook now sits in its own folder, such as `.agents/hooks/preflight-gate/pre
 if (Test-Path .agents/hooks) { git rm -q --ignore-unmatch -- .agents/hooks/preflight_gate.py .agents/hooks/task_list_sync.py .agents/hooks/no_ai_markers_check.py .agents/hooks/markdown_lint_check.py .agents/hooks/_check_markdown.py .agents/hooks/question_numbering_check.py .agents/hooks/status_block_check.py .agents/hooks/task_watchdog.py .agents/hooks/claude/sync_skill_links.py .agents/hooks/claude/standards_advisory_check.py .agents/hooks/copilot/prompt_reminder.py; New-Item -ItemType Directory -Force .agents/hooks | Out-Null }
 ```
 
-The status check hook, `.agents/hooks/status-block-check/status_block_check.py`, is gone upstream, because no shipped wiring ever let it reject a reply. Remove its folder if you have it, because the refresh below adds and updates files and never deletes one, so the OpenCode and Kilo Code runner would keep starting the old copy on every tool call:
+The status check hook, `.agents/hooks/status-block-check/status_block_check.py`, is gone upstream, because no shipped wiring ever let it reject a reply. The task watchdog hook, `.agents/hooks/task-watchdog/task_watchdog.py`, is gone too, because it checked a `Tasks:` line that no reply writes any more. Remove their folders if you have them, because the refresh below adds and updates files and never deletes one, so the OpenCode and Kilo Code runner would keep starting the old copies on every tool call:
 
 ```powershell
-if (Test-Path .agents/hooks/status-block-check) { git rm -r -q --ignore-unmatch -- .agents/hooks/status-block-check; Remove-Item -Recurse -Force -LiteralPath .agents/hooks/status-block-check -ErrorAction SilentlyContinue }
+if ((Test-Path .agents/hooks/status-block-check) -or (Test-Path .agents/hooks/task-watchdog)) { git rm -r -q --ignore-unmatch -- .agents/hooks/status-block-check .agents/hooks/task-watchdog; Remove-Item -Recurse -Force -LiteralPath .agents/hooks/status-block-check, .agents/hooks/task-watchdog -ErrorAction SilentlyContinue }
 ```
 
 Refresh the hook folders, the OpenCode and Kilo plugin, the Copilot hook file, and the quality tools.

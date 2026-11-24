@@ -55,7 +55,6 @@ agent-standards/
       _check_markdown.py         # CANONICAL, the markdown rules, shipped so the lint hook works downstream
       task_list_sync.py          # CANONICAL, mirrors the session task list into tasks.md
       question_numbering_check.py # CANONICAL, numbered questions check on new prose
-      task_watchdog.py           # CANONICAL, a Tasks line in a reply must match live tool todo state
       claude/                    # CANONICAL, Claude Code only, never run by the OpenCode and Kilo Code runner
         sync_skill_links.py      # global install, keeps per-skill links in the Codex skills folder
         standards_advisory_check.py # advisory warnings after an edit: action pins, :latest, @Query, test banners

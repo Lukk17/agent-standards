@@ -33,6 +33,11 @@ OLD_FLAT_HOOKS = (
     "claude/standards_advisory_check.py",
     "copilot/prompt_reminder.py",
 )
+REMOVED_HOOK_SCRIPTS = (
+    "status-block-check/status_block_check.py",
+    "task-watchdog/task_watchdog.py",
+)
+REMOVED_HOOKS_STEP = "git rm -r -q --ignore-unmatch -- .agents/hooks/status-block-check"
 
 pytestmark = pytest.mark.skipif(BASH is None, reason="bash is not installed")
 
@@ -94,24 +99,25 @@ def test_the_update_removes_every_old_flat_hook_before_it_refreshes_the_hook_fol
 
 
 @pytest.mark.parametrize("tracked", [True, False], ids=["tracked", "untracked"])
-def test_the_update_removes_the_folder_of_the_status_check_upstream_no_longer_ships(project, tracked):
-    removed = ".agents/hooks/status-block-check"
-    write(project, f"{removed}/status_block_check.py", "old\n")
+@pytest.mark.parametrize("removed", REMOVED_HOOK_SCRIPTS, ids=lambda script: script.split("/")[0])
+def test_the_update_removes_the_folder_of_a_hook_upstream_no_longer_ships(project, tracked, removed):
+    folder = f".agents/hooks/{removed.split('/')[0]}"
+    write(project, f".agents/hooks/{removed}", "old\n")
     if tracked:
         git(project, "add", "--all")
-        git(project, "commit", "--quiet", "-m", "import with the status check")
+        git(project, "commit", "--quiet", "-m", "import with the removed hook")
 
-    run(project, bash_block(f"git rm -r -q --ignore-unmatch -- {removed}"))
+    run(project, bash_block(REMOVED_HOOKS_STEP))
     run(project, bash_block("for p in .agents/hooks .agents/plugin"))
 
-    assert not (project / removed).exists()
+    assert not (project / folder).exists()
     assert (project / ".agents" / "hooks" / "preflight-gate" / "preflight_gate.py").read_text(encoding="utf-8") == "new\n"
 
 
-def test_the_removal_step_leaves_a_project_without_the_status_check_alone(project):
+def test_the_removal_step_leaves_a_project_without_the_removed_hooks_alone(project):
     before = git(project, "status", "--porcelain")
 
-    run(project, bash_block("git rm -r -q --ignore-unmatch -- .agents/hooks/status-block-check"))
+    run(project, bash_block(REMOVED_HOOKS_STEP))
 
     assert git(project, "status", "--porcelain") == before
 

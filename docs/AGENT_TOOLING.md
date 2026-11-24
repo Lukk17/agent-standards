@@ -104,8 +104,7 @@ mv AGENTS.md.example AGENTS.md
 Then ignore the agent task list. `.agents/hooks/task-list-sync/task_list_sync.py` mirrors the live session task list into `tasks.md`
 at the project root so the plan survives a compaction, and that file is per-session working state rather than shared
 history. The same hook writes the generated `.agents/tasks.widget.json` snapshot beside it, which is ignored too.
-The status block that ends a reply has no `Tasks:` line. A `Tasks:` line a reply still writes in its text must match the live list, and the runner `event` hook keeps both files in sync whenever a
-`todo.updated` bus event arrives.
+The runner `event` hook keeps both files in sync whenever a `todo.updated` bus event arrives.
 PowerShell:
 
 ```powershell
