@@ -66,3 +66,8 @@ e2e/testing/runs/*.md
 # survives a compaction. It is per-session working state, never shared history.
 /tasks.md
 /.agents/tasks.widget.json
+
+### Kilo Code plan files
+# Kilo Code plan mode saves each plan here. It is per-session working state, and
+# the .kilo import pathspec would ship it to consumers.
+.kilo/plans/
