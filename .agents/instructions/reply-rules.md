@@ -40,7 +40,7 @@ Each full path goes on its own line inside its own fenced block, never inline.
 
 One command per code block. Anything the user must copy, such as a prompt, a command, a comment or a message, goes in one code block, never in a quote block, with each paragraph on one unbroken line. Any other code block holds only one short command or a few short lines of config, each line under about 60 characters.
 
-Never put tables, diagrams, file lists or comparisons in a code block or a markdown table. The reader's view does not wrap them, so wide lines need sideways scrolling and cannot be read. Show them as plain text lines or a short list.
+Never put tables, diagrams, file lists or comparisons in a code block or a markdown table. The reader's view does not wrap them, so wide lines need sideways scrolling and cannot be read. Show them as plain text lines or a short list. A single path in its own block, as the full path rule above asks, is not a list.
 
 Each command goes in its own fenced block, one per block.
 

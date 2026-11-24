@@ -20,7 +20,7 @@ Every `<N>-<capability>-test.md` file is the **immutable spec** for one test and
    and content, persisted state. NOT log substrings.
 6. **Fixtures.** Paths to local files the test reads.
 
-Each spec has a matching `<N>-<capability>-tasks.template.md` in the `templates/` subdirectory — the **checkbox
+Each spec has a matching `<N>-<capability>-tasks.template.md` in the `templates/` subdirectory: the **checkbox
 template** for a run. The runner never edits the spec or the template directly. Before starting a run, it copies the
 template from `templates/` into `runs/` with a timestamped filename, ticks boxes as it progresses, fills in Result
 summary and Verdict, and logs anything done outside the spec under "Additional tasks I did". See

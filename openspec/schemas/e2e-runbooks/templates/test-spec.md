@@ -60,7 +60,7 @@ The response body's `<field>` contains <expected content>.
 <!-- Paths to local files the test reads. Each must have distinctive canary
 content the model can't have memorised. "None." if none. -->
 
-- `<path>` — <one-line description of the canary content>
+- `<path>`: <one-line description of the canary content>
 
 ## Concurrency
 

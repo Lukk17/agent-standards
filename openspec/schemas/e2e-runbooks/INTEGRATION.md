@@ -3,9 +3,9 @@
 ## Lifecycle: change directory plus `e2e/` tree
 
 OpenSpec assumes every artifact lives under `openspec/changes/<change-id>/` during the proposal cycle and that
-`archive` promotes finished content to `openspec/specs/`. This schema's artifacts have a different final home —
-specs under `e2e/testing/`, their run-record templates under `e2e/testing/templates/`, and execution records under
-`e2e/testing/runs/` — so the schema instructs a **dual write** rather than relying on archive.
+`archive` promotes finished content to `openspec/specs/`. This schema's artifacts have a different final home
+(specs under `e2e/testing/`, their run-record templates under `e2e/testing/templates/`, and execution records under
+`e2e/testing/runs/`), so the schema instructs a **dual write** rather than relying on archive.
 
 ```text
 change-dir artifact                         copy kind          working-tree destination
@@ -37,7 +37,7 @@ Why two copies:
   back to. Sweeps walk `e2e/testing/*-test.md`, not the change directories.
 
 Drift between the two copies is the most likely defect class. When you modify a spec, do the same edit in the
-change-dir copy in the same commit — never let them diverge silently.
+change-dir copy in the same commit. Never let them diverge silently.
 
 Proposal stays in the change directory only. There is no `e2e/proposals/` mirror.
 
@@ -47,7 +47,7 @@ The methodology lives in three places that ship together via
 [Lukk17/agent-standards](https://github.com/Lukk17/agent-standards):
 
 - `.agents/skills/e2e-runbooks/SKILL.md` is the methodology source of truth.
-- `.claude/agents/e2e-runner/e2e-runner.md` and `.opencode/agents/e2e-runner.md` are the runner subagent — the recommended
+- `.claude/agents/e2e-runner/e2e-runner.md` and `.opencode/agents/e2e-runner.md` are the runner subagent, the recommended
   delegate when driving a sweep. It enforces the runner contract (Start/End UTC, Duration, tokens, Verdict) and the
   dual-write into `e2e/testing/runs/`.
 - This schema is the operational shape for OpenSpec users.
@@ -62,7 +62,7 @@ agent-standards. Together they reinforce each other.
 
 The main agent owns the sweep, not a runner. It reads `e2e/testing/*-test.md` in numeric order, picks one UTC
 timestamp that all runners share, and spawns one `e2e-runner` subagent per test. Before spawning, the main agent asks
-the user how many runners to spawn in parallel — there is no preset ceiling. The right number depends on the test
+the user how many runners to spawn in parallel. There is no preset ceiling. The right number depends on the test
 environment (a dedicated stack tolerates more parallelism than a shared dev stack, and external dependencies like
 license servers or paid APIs may dictate a low number).
 
@@ -90,13 +90,13 @@ run three at a time.
 
 Field semantics (the agent-standards skill carries the authoritative definitions; this is a quick reference):
 
-- `Mutates:` — every backing-service resource the test writes to, deletes from, or invalidates. Name the store and
+- `Mutates:` every backing-service resource the test writes to, deletes from, or invalidates. Name the store and
   the collection / table / bucket; add a partition (user id, tenant id) when the test only touches one. Read-only
-  probes do not count — write `none`.
-- `Conflicts with:` — tests this one cannot run alongside even when the `Mutates:` lists do not overlap. Typical
+  probes do not count, so write `none`.
+- `Conflicts with:` tests this one cannot run alongside even when the `Mutates:` lists do not overlap. Typical
   entries: "any test that restarts the stack", "any test that talks to the license server". Leave blank if the only
   conflicts are obvious from `Mutates:` overlap.
-- `Serial:` — literal `true` or `false`. `true` means schema migrations, full-stack restarts, license-server
+- `Serial:` literal `true` or `false`. `true` means schema migrations, full-stack restarts, license-server
   interactions, anything touching global config. Default `false`.
 
 A test that passes when run alone but fails when run in a sweep is almost always a missing entry in some spec's
@@ -146,5 +146,5 @@ The runner contract is the same whether human or AI is executing. CI just automa
 
 ## Recording runs in git
 
-Defaults assume `e2e/testing/runs/` is gitignored — runs are ephemeral, useful as audit when reviewed, noise when
+Defaults assume `e2e/testing/runs/` is gitignored. Runs are ephemeral, useful as audit when reviewed, noise when
 committed. For an audit trail, commit under `runs/<YYYY-MM>/` subfolders so a sweep's records cluster together.

@@ -71,14 +71,14 @@ artifacts:
         - Mutates: the resources this test writes to, deletes from, or
           invalidates. Name the store and the collection / table / bucket;
           add a partition (user id, tenant id) when the test only touches
-          one. Read-only probes do not count — write `none`.
+          one. Read-only probes do not count, so write `none`.
         - Conflicts with: tests this one cannot run alongside even when the
           Mutates lists do not overlap. Typical entries: "any test that
           restarts the stack", "any test that talks to the license server".
           Leave blank if the only conflicts are obvious from Mutates.
         - Serial: literal `true` or `false`. `true` means this test must run
-          alone — schema migrations, full-stack restarts, anything that
-          touches global config. Default `false`.
+          alone (schema migrations, full-stack restarts, anything that
+          touches global config). Default `false`.
 
       The main agent driving the sweep reads these three fields from every
       spec before spawning runners. Two specs whose Mutates lists do not
@@ -86,7 +86,7 @@ artifacts:
       the other; a `Serial: true` spec waits for the in-flight runners to
       finish, then runs alone. Before spawning, the main agent asks the
       user how many runners to spawn in parallel (there is no preset
-      ceiling — the user picks based on the test environment). When in
+      ceiling, the user picks based on the test environment). When in
       doubt about what to put in Mutates, over-declare: an extra entry
       costs minutes of extra serialisation, a missing entry costs a
       corrupted run and a forced re-execution.

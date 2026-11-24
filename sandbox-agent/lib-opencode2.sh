@@ -290,7 +290,7 @@ v1_session_facts() {
     [.[] | .body // {} | select((.messages // []) | map(select(.role == "user") | .content | tostring) | any(contains($marker)))] as $requests
     | [$requests[] | .messages[]] as $all
     | [($all | map(select(.role == "assistant") | .content | tostring | select(contains($prose)))) as $stored
-       | ($stored | length), ($stored | map(select(contains("—"))) | length),
+       | ($stored | length), ($stored | map(select(contains("\u2014"))) | length),
        ($all | map(select(.role == "tool") | .content | tostring | select(contains($needle))) | length),
        ($requests | map([.messages[] | select(.role == "tool")] | length) | max // 0)]
     | map(tostring) | join(" ")

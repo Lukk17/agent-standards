@@ -35,8 +35,8 @@ const TASK_TEXT_RE = /SANDBOX-TASK-TEXT-PROBE ([\w-]+)/
 const CHILD_TEXT_MARKER = "SANDBOX-CHILD-TEXT-PROBE"
 // An em dash a text rewrite fixes, and a semicolon and an unnumbered question
 // it leaves for the tool-call checks to refuse.
-const PROBE_PROSE = "Main prose — SANDBOX-MAIN-PROSE; Should I go on?"
-const CHILD_PROSE = "Child prose — SANDBOX-CHILD-PROSE; Should I go on?"
+const PROBE_PROSE = "Main prose \u2014 SANDBOX-MAIN-PROSE; Should I go on?"
+const CHILD_PROSE = "Child prose \u2014 SANDBOX-CHILD-PROSE; Should I go on?"
 
 export const textOf = (content) => {
   if (typeof content === "string") return content
