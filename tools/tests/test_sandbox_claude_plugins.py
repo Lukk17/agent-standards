@@ -2,7 +2,8 @@
 
 The sandbox gives Claude Code the plugin route docs/AGENT_TOOLING.md step 1
 tells a consumer to take: no .claude tree by checkout but the workflows, the
-marketplace added and the bundles installed at project scope. For the whole
+marketplace added and the bundles installed at project scope, with `all` in
+place of `core` and the domains so the suite covers every domain. For the whole
 machine it takes the route docs/GLOBAL_SETUP.md gives: the same marketplace and
 a few bundles with the user scope, and never a server. The library is
 driven here with a real smart HTTP server over a small repository and a
@@ -108,11 +109,14 @@ def test_the_project_setup_checks_out_only_paths_the_consumer_document_names():
     assert set(array(SETUP, "IMPORT_PATHS")) <= pathspec
 
 
-def test_the_project_setup_installs_the_bundles_the_consumer_document_installs():
+def test_the_project_setup_installs_the_consumer_document_s_bundles_with_all_in_place_of_core_and_the_domains():
     documented = re.findall(r"^claude plugin install ([\w-]+)@agent-standards --scope project$", step_one(), re.MULTILINE)
+    categories = plugin_closure(documented)
+    installed = array(LIBRARY, "CLAUDE_PROJECT_PLUGINS")
 
-    assert documented
-    assert array(LIBRARY, "CLAUDE_PROJECT_PLUGINS") == documented
+    assert "development" in {categories[name] for name in documented}
+    assert installed == ["all", *[name for name in documented if categories[name] != "development"]]
+    assert set(categories) <= set(plugin_closure(installed))
     assert "claude plugin marketplace add Lukk17/agent-standards --scope project" in step_one()
 
 

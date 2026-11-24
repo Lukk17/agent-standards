@@ -29,8 +29,8 @@ readonly CLAUDE_MARKET_REPOSITORY="marketplace.git"
 readonly CLAUDE_MARKET_URL="http://127.0.0.1:${CLAUDE_MARKET_PORT}/${CLAUDE_MARKET_REPOSITORY}"
 readonly CLAUDE_MARKET_BRANCHES=(master main)
 readonly CLAUDE_PLUGIN_TIMEOUT="${SANDBOX_CLI_TIMEOUT:-300}"
-# The bundles docs/AGENT_TOOLING.md step 1 installs: core with every
-# development domain, and every hook.
+# The bundles docs/AGENT_TOOLING.md step 1 installs, with all in place of
+# core and one domain so the suite covers every domain, and every hook.
 readonly CLAUDE_PROJECT_PLUGINS=(all hooks-all)
 # The bundles the Claude Code section of docs/GLOBAL_SETUP.md installs for
 # every project of one user: core, one domain, and every hook. None carries an

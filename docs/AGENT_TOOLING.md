@@ -134,17 +134,25 @@ Unix shell:
 cp .opencode/opencode.json.v1 .opencode/opencode.json
 ```
 
-For Claude Code, add the marketplace to the project and install the plugins. Skip these three commands in a project that never runs Claude Code. PowerShell or Unix shell, same command:
+For Claude Code, add the marketplace to the project and install the plugins. Skip these four commands in a project that never runs Claude Code. PowerShell or Unix shell, same command:
 
 ```bash
 claude plugin marketplace add Lukk17/agent-standards --scope project
 ```
 
-Install `core` and every development domain, or one domain such as `python` in its place:
+Install `core`, the skills that subagents in two or more domains preload:
 
 ```bash
-claude plugin install all@agent-standards --scope project
+claude plugin install core@agent-standards --scope project
 ```
+
+Install each domain bundle the project needs, and no other, such as `python`. Every bundle and what it holds is in the upstream [marketplace.json](https://github.com/Lukk17/agent-standards/blob/master/.claude-plugin/marketplace.json):
+
+```bash
+claude plugin install python@agent-standards --scope project
+```
+
+Keep the bundle `all`, every domain at once, for a model with a 1M token context window: Claude Code gives the skill list 1% of the window, as [GLOBAL_SETUP.md](GLOBAL_SETUP.md#claude-code) measures, and on a 200k window it drops descriptions past that, so the model stops picking those skills.
 
 Install the hooks, the preflight gate included:
 
@@ -152,7 +160,7 @@ Install the hooks, the preflight gate included:
 claude plugin install hooks-all@agent-standards --scope project
 ```
 
-That is the whole setup. Commit when you are ready, the `.claude/settings.json` the three commands wrote included.
+That is the whole setup. Commit when you are ready, the `.claude/settings.json` the install commands wrote included.
 
 What you just pulled:
 
@@ -265,7 +273,7 @@ Install one domain bundle, such as `python`:
 claude plugin install python@agent-standards --scope project
 ```
 
-`all` installs `core` and every domain. The host groups, `hooks-all` and `mcp-all` stay separate installs:
+`all` installs `core` and every domain. The host groups, `hooks-all` and `mcp-all` stay separate installs. Install `all` only for a model with a 1M token context window, because on a 200k window its skill list is larger than the 1% of the window Claude Code gives it and descriptions get dropped:
 
 ```bash
 claude plugin install all@agent-standards --scope project

@@ -559,6 +559,8 @@ Choose the user-wide set by the size of the skill listing. Claude Code loads the
 | the bundle `all` | 13,276 |
 | every skill of the marketplace | 17,885 |
 
+Claude Code's own built-in skills, such as `code-review` and `dataviz`, which differ by account and model, take room in the same budget of 6,000 characters on a 200k token window and 30,000 on a 1M window, so on a 200k window some descriptions get dropped anyway, and a 1M window is the setup where all of ours stay.
+
 So install `core` and the bundles you use in every project with the user scope, install the rest in the project that needs them, and never install `all` with the user scope. A plugin at project scope adds its descriptions only in that project.
 
 Install the hooks. `hooks-all` brings every hook plugin: the preflight gate, the three reminders, the reply formatting check, the task list, the markdown lint and the standards advisory.

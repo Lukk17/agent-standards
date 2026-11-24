@@ -156,17 +156,25 @@ Unix shell:
 printf '\n/tasks.md\n' >> .gitignore
 ```
 
-Claude Code takes its skills, subagents and hooks as plugins, not from the checkout. Skip these three steps in a project that never runs Claude Code. Add the marketplace to the project. PowerShell or Unix shell, same command:
+Claude Code takes its skills, subagents and hooks as plugins, not from the checkout. Skip these four steps in a project that never runs Claude Code. Add the marketplace to the project. PowerShell or Unix shell, same command:
 
 ```bash
 claude plugin marketplace add Lukk17/agent-standards --scope project
 ```
 
-Install `core` and every development domain, or one domain such as `python` in its place:
+Install `core`, the skills that subagents in two or more domains preload:
 
 ```bash
-claude plugin install all@agent-standards --scope project
+claude plugin install core@agent-standards --scope project
 ```
+
+Install each domain bundle the project needs, and no other, such as `python`. The domains are listed under [Claude Code plugins](#claude-code-plugins):
+
+```bash
+claude plugin install python@agent-standards --scope project
+```
+
+Keep the bundle `all`, every domain at once, for a model with a 1M token context window: Claude Code gives the skill list 1% of the window, as [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md#claude-code) measures, and on a 200k window it drops descriptions past that, so the model stops picking those skills.
 
 Install the hooks, the preflight gate included:
 
@@ -228,17 +236,25 @@ Unix shell:
 mv AGENTS.md.example AGENTS.md
 ```
 
-Add the marketplace to the project. PowerShell or Unix shell, same command, here and in the next two steps:
+Add the marketplace to the project. PowerShell or Unix shell, same command, here and in the next three steps:
 
 ```bash
 claude plugin marketplace add Lukk17/agent-standards --scope project
 ```
 
-Install `core` and every development domain, or one domain such as `python` in its place:
+Install `core`, the skills that subagents in two or more domains preload:
 
 ```bash
-claude plugin install all@agent-standards --scope project
+claude plugin install core@agent-standards --scope project
 ```
+
+Install each domain bundle the project needs, and no other, such as `python`. The domains are listed under [Claude Code plugins](#claude-code-plugins):
+
+```bash
+claude plugin install python@agent-standards --scope project
+```
+
+Keep the bundle `all`, every domain at once, for a model with a 1M token context window: Claude Code gives the skill list 1% of the window, as [docs/GLOBAL_SETUP.md](docs/GLOBAL_SETUP.md#claude-code) measures, and on a 200k window it drops descriptions past that, so the model stops picking those skills.
 
 Install the hooks, the preflight gate included:
 
@@ -246,7 +262,7 @@ Install the hooks, the preflight gate included:
 claude plugin install hooks-all@agent-standards --scope project
 ```
 
-Project scope writes the marketplace and each plugin into the project's `.claude/settings.json`. Commit that file, and each contributor runs the two install commands once in their own clone. [.mcp.json](.mcp.json) starts `context7` alone. Add each other server the project uses as its own plugin at project scope or with `claude mcp add --scope project`, as [docs/MCP_SETUP.md](docs/MCP_SETUP.md#adding-a-server-to-claude-code) shows.
+Project scope writes the marketplace and each plugin into the project's `.claude/settings.json`. Commit that file, and each contributor runs the install commands once in their own clone. [.mcp.json](.mcp.json) starts `context7` alone. Add each other server the project uses as its own plugin at project scope or with `claude mcp add --scope project`, as [docs/MCP_SETUP.md](docs/MCP_SETUP.md#adding-a-server-to-claude-code) shows.
 
 To update later, refresh the marketplace and update the plugins, with the two commands under [Claude Code plugins](#claude-code-plugins). Refresh the documents with the checkout above without `.mcp.json` and `AGENTS.md.example`, which became yours at import. PowerShell or Unix shell, same command:
 
@@ -609,7 +625,7 @@ Install one domain:
 claude plugin install python@agent-standards --scope project
 ```
 
-Install `core` and every domain in one go:
+Install `core` and every domain in one go, only for a model with a 1M token context window, because on a 200k window their skill list is larger than the 1% of the window Claude Code gives it and descriptions get dropped:
 
 ```bash
 claude plugin install all@agent-standards --scope project

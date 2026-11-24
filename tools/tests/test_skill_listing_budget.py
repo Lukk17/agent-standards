@@ -27,6 +27,11 @@ docs/GLOBAL_SETUP.md gives the listing size of each set a user may install
 with the user scope, in one table, and the last tests hold every row of it to
 the size this count gives, so the table cannot go stale. "One domain bundle"
 there means a bundle of the development category.
+
+The project setup in README.md, docs/AGENT_TOOLING.md and docs/AGENTS-UPDATE.md
+advises one set of plugins to install at project scope. The tests after the
+size table read the install commands of each setup, hold them to the same set,
+and hold that set to the budget of a 200k window, the smaller one.
 """
 
 import dataclasses
@@ -35,7 +40,7 @@ import re
 import pytest
 
 import gen_plugins as gen
-from plugin_model import AGENT_PREFIX, ALL, CORE, DEVELOPMENT, DOMAIN_CATEGORIES
+from plugin_model import AGENT_PREFIX, ALL, CORE, DEVELOPMENT, DOMAIN_CATEGORIES, HOOKS_ALL
 from tests.conftest import REPO_ROOT
 
 BUDGET_FRACTION = 0.01
@@ -52,6 +57,13 @@ GLOBAL_SETUP = REPO_ROOT / "docs" / "GLOBAL_SETUP.md"
 SIZE_TABLE_HEADER = "| Installed with the user scope | Listing characters |"
 DOMAIN_ROW = "`core` and one domain bundle"
 EVERY_SKILL_ROW = "every skill of the marketplace"
+PROJECT_INSTALL = re.compile(r"^claude plugin install ([a-z0-9-]+)@agent-standards --scope project$", re.MULTILINE)
+PROJECT_SETUPS = {
+    "README.md Quickstart": (REPO_ROOT / "README.md", "### Quickstart\n", "### Per-agent setup\n"),
+    "README.md Claude Code": (REPO_ROOT / "README.md", "#### Claude Code\n", "#### Codex\n"),
+    "docs/AGENT_TOOLING.md step 1": (REPO_ROOT / "docs" / "AGENT_TOOLING.md", "git checkout agent-standards/master -- ", "That is the whole setup."),
+    "docs/AGENTS-UPDATE.md moving": (REPO_ROOT / "docs" / "AGENTS-UPDATE.md", "### Moving Claude Code to the plugins\n", "### Unix shell\n"),
+}
 BACKTICKED_NAME = re.compile(r"`([a-z0-9-]+)`")
 DOCUMENTED_SIZE = re.compile(r"(?P<low>[0-9][0-9,]*)(?: to (?P<high>[0-9][0-9,]*))?")
 
@@ -238,3 +250,43 @@ def test_a_range_counts_its_two_ends_and_a_row_with_no_number_is_refused():
     assert documented_sizes(table) == {DOMAIN_ROW: (3802, 5082)}
     with pytest.raises(ValueError, match="is no number and no range"):
         documented_sizes(table + "| `core` | many |\n")
+
+
+def advised_plugins(text: str, start: str, end: str) -> list[str]:
+    """The plugins the setup from `start` to the next `end` installs at project scope, in its order."""
+    first = text.index(start)
+
+    return PROJECT_INSTALL.findall(text[first : text.index(end, first)])
+
+
+def advised(setup: str) -> list[str]:
+    """The plugins one project setup of the documents installs at project scope."""
+    path, start, end = PROJECT_SETUPS[setup]
+
+    return advised_plugins(path.read_text(encoding="utf-8"), start, end)
+
+
+def test_every_project_setup_advises_the_same_plugins():
+    advice = {setup: advised(setup) for setup in PROJECT_SETUPS}
+
+    assert all(advice.values())
+    assert len({tuple(plugins) for plugins in advice.values()}) == 1, advice
+
+
+@pytest.mark.parametrize("setup", PROJECT_SETUPS)
+def test_the_install_each_project_setup_advises_fits_a_200k_window(setup):
+    plugins = installed(SOURCES, *advised(setup))
+
+    assert listing_size(SOURCES, plugins) <= budget(SMALL_WINDOW)
+
+
+def test_a_setup_that_advises_all_is_over_the_budget_of_a_200k_window():
+    # Given a setup that installs the bundle all and every hook
+    start, end = "### Setup\n", "### Next\n"
+    commands = "".join(f"claude plugin install {name}@agent-standards --scope project\n" for name in (ALL, HOOKS_ALL))
+
+    # When the plugins it advises are read and counted
+    plugins = installed(SOURCES, *advised_plugins(f"{start}{commands}{end}", start, end))
+
+    # Then their skill listing is larger than a 200k window gives
+    assert listing_size(SOURCES, plugins) > budget(SMALL_WINDOW)
