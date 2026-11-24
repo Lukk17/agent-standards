@@ -335,7 +335,7 @@ bundles:
   - name: data
     version: 1.0.1
     category: development
-    description: Databases, with the database-expert subagent and the PostgreSQL, migration and MongoDB skills.
+    description: Databases, with the database-expert subagent and the PostgreSQL, migration and MongoDB skills. Pair it with mcp-mongodb and mcp-redis for the MongoDB and Redis servers.
     dependencies: [core]
     agents: [database-expert]
     skills: [postgres-patterns, database-migrations, mongodb-patterns]
@@ -343,7 +343,7 @@ bundles:
   - name: web-frontend
     version: 1.0.1
     category: development
-    description: Web interfaces, with the Angular, React and Next.js, accessibility, design system and UI subagents and their skills.
+    description: Web interfaces, with the Angular, React and Next.js, accessibility, design system and UI subagents and their skills. Pair it with mcp-playwright and mcp-chrome-devtools for the browser servers.
     dependencies: [core]
     agents: [angular-expert, react-nextjs-expert, accessibility-expert, design-system-architect, ui-ux-designer]
     skills: [angular, nextjs-app-router-patterns, react-patterns, frontend-design, design-system, web-accessibility]
@@ -359,7 +359,7 @@ bundles:
   - name: devops
     version: 1.0.1
     category: development
-    description: Delivery and operations, with the devops, incident, observability and release subagents and the deployment, Docker and Ansible skills.
+    description: Delivery and operations, with the devops, incident, observability and release subagents and the deployment, Docker and Ansible skills. Pair it with mcp-grafana for the Grafana server.
     dependencies: [core]
     agents: [devops-automator, devops-troubleshooter, error-detective, observability-engineer, release-manager]
     skills: [deployment-patterns, docker-patterns, ansible]
@@ -367,7 +367,7 @@ bundles:
   - name: review-and-security
     version: 1.1.1
     category: development
-    description: Code review, security audit, codebase mapping and legacy migration, with four subagents and the review, review comment and duplication skills.
+    description: Code review, security audit, codebase mapping and legacy migration, with four subagents and the review, review comment and duplication skills. Pair it with mcp-sonarqube for the SonarQube server.
     dependencies: [core]
     agents: [code-reviewer, security-auditor, code-archaeologist, legacy-modernizer]
     skills: [code-reviewer, review-comments, review-duplication]
@@ -375,7 +375,7 @@ bundles:
   - name: testing
     version: 1.0.1
     category: development
-    description: Tests, debugging, performance measurement and the quality loop, with five subagents and the regression, end-to-end, Playwright and quality-loop skills. The quality-loop skill carries Robert C. Martin's crapper, dryer and mutator (github.com/unclebob), copied into a project that lacks them.
+    description: Tests, debugging, performance measurement and the quality loop, with five subagents and the regression, end-to-end, Playwright and quality-loop skills. The quality-loop skill carries Robert C. Martin's crapper, dryer and mutator (github.com/unclebob), copied into a project that lacks them. Pair it with mcp-playwright and mcp-chrome-devtools for the browser servers.
     dependencies: [core]
     agents: [test-automator, debugger, e2e-runner, performance-engineer, quality-loop]
     skills: [ai-regression-testing, e2e-runbooks, e2e-testing, quality-loop]
@@ -427,7 +427,7 @@ bundles:
   - name: homelab
     version: 1.0.1
     category: host
-    description: Homelab hosts and services, with the home-assistant-engineer subagent and the Proxmox, router, Syncthing, Samsung TV, WLED and machine health skills.
+    description: Homelab hosts and services, with the home-assistant-engineer subagent and the Proxmox, router, Syncthing, Samsung TV, WLED and machine health skills. Pair it with mcp-home-assistant for the Home Assistant server.
     dependencies: [core]
     agents: [home-assistant-engineer]
     skills: [home-assistant, proxmox, homelab-services, asus-router, syncthing, samsung-tv, wled, machine-health]

@@ -174,7 +174,7 @@
       "name": "data",
       "source": "./.claude-plugin",
       "version": "1.0.1",
-      "description": "Databases, with the database-expert subagent and the PostgreSQL, migration and MongoDB skills.",
+      "description": "Databases, with the database-expert subagent and the PostgreSQL, migration and MongoDB skills. Pair it with mcp-mongodb and mcp-redis for the MongoDB and Redis servers.",
       "category": "development",
       "author": {
         "name": "Łukasz Sarna",
@@ -205,7 +205,7 @@
       "name": "web-frontend",
       "source": "./.claude-plugin",
       "version": "1.0.1",
-      "description": "Web interfaces, with the Angular, React and Next.js, accessibility, design system and UI subagents and their skills.",
+      "description": "Web interfaces, with the Angular, React and Next.js, accessibility, design system and UI subagents and their skills. Pair it with mcp-playwright and mcp-chrome-devtools for the browser servers.",
       "category": "development",
       "author": {
         "name": "Łukasz Sarna",
@@ -272,7 +272,7 @@
       "name": "devops",
       "source": "./.claude-plugin",
       "version": "1.0.1",
-      "description": "Delivery and operations, with the devops, incident, observability and release subagents and the deployment, Docker and Ansible skills.",
+      "description": "Delivery and operations, with the devops, incident, observability and release subagents and the deployment, Docker and Ansible skills. Pair it with mcp-grafana for the Grafana server.",
       "category": "development",
       "author": {
         "name": "Łukasz Sarna",
@@ -307,7 +307,7 @@
       "name": "review-and-security",
       "source": "./.claude-plugin",
       "version": "1.1.1",
-      "description": "Code review, security audit, codebase mapping and legacy migration, with four subagents and the review, review comment and duplication skills.",
+      "description": "Code review, security audit, codebase mapping and legacy migration, with four subagents and the review, review comment and duplication skills. Pair it with mcp-sonarqube for the SonarQube server.",
       "category": "development",
       "author": {
         "name": "Łukasz Sarna",
@@ -341,7 +341,7 @@
       "name": "testing",
       "source": "./.claude-plugin",
       "version": "1.0.1",
-      "description": "Tests, debugging, performance measurement and the quality loop, with five subagents and the regression, end-to-end, Playwright and quality-loop skills. The quality-loop skill carries Robert C. Martin's crapper, dryer and mutator (github.com/unclebob), copied into a project that lacks them.",
+      "description": "Tests, debugging, performance measurement and the quality loop, with five subagents and the regression, end-to-end, Playwright and quality-loop skills. The quality-loop skill carries Robert C. Martin's crapper, dryer and mutator (github.com/unclebob), copied into a project that lacks them. Pair it with mcp-playwright and mcp-chrome-devtools for the browser servers.",
       "category": "development",
       "author": {
         "name": "Łukasz Sarna",
@@ -560,7 +560,7 @@
       "name": "homelab",
       "source": "./.claude-plugin",
       "version": "1.0.1",
-      "description": "Homelab hosts and services, with the home-assistant-engineer subagent and the Proxmox, router, Syncthing, Samsung TV, WLED and machine health skills.",
+      "description": "Homelab hosts and services, with the home-assistant-engineer subagent and the Proxmox, router, Syncthing, Samsung TV, WLED and machine health skills. Pair it with mcp-home-assistant for the Home Assistant server.",
       "category": "host",
       "author": {
         "name": "Łukasz Sarna",

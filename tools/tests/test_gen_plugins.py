@@ -215,6 +215,30 @@ def test_installing_all_pulls_every_development_bundle_and_no_host_group(sources
     assert {name for name in closure if name in bundles} == {n for n, b in bundles.items() if b.category == gen.DEVELOPMENT}
 
 
+SERVER_PAIRINGS = {
+    "homelab": ("mcp-home-assistant",),
+    "data": ("mcp-mongodb", "mcp-redis"),
+    "web-frontend": ("mcp-playwright", "mcp-chrome-devtools"),
+    "testing": ("mcp-playwright", "mcp-chrome-devtools"),
+    "devops": ("mcp-grafana",),
+    "review-and-security": ("mcp-sonarqube",),
+}
+
+
+@pytest.mark.parametrize(("bundle", "servers"), SERVER_PAIRINGS.items(), ids=SERVER_PAIRINGS)
+def test_a_themed_bundle_names_the_server_plugins_that_go_with_it(by_name, bundle, servers):
+    assert by_name[bundle]["category"] in gen.DOMAIN_CATEGORIES
+    for server in servers:
+        assert by_name[server]["category"] == gen.MCP_CATEGORY
+        assert server in by_name[bundle]["description"], by_name[bundle]["description"]
+
+
+def test_no_plugin_but_mcp_all_depends_on_a_server_plugin(committed, by_name):
+    for entry in committed["plugins"]:
+        if entry["name"] != gen.MCP_ALL:
+            assert [d for d in entry.get("dependencies", []) if by_name[d]["category"] == gen.MCP_CATEGORY] == [], entry["name"]
+
+
 def test_the_map_comment_names_the_rules_this_file_tests():
     header = (REPO_ROOT / gen.MAP_FILE).read_text(encoding="utf-8").split("\nmarketplace:")[0]
 
