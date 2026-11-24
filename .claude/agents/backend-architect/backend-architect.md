@@ -1,8 +1,9 @@
 ---
 name: backend-architect
-description: "Use when the user says \"design this service\", \"draft the API contract\" or \"how should these services talk to each other\". Produces the authoritative OpenAPI or GraphQL spec plus the service boundaries and the auth, resilience and observability decisions, read-only, with the spec as the deliverable. Not for choosing a database or modelling its schema, use `database-expert`."
+description: "Use when the user says \"design this service\", \"draft the API contract\" or \"how should these services talk to each other\". Produces the authoritative OpenAPI or GraphQL spec plus the service boundaries and the auth, resilience and observability decisions, read-only, with the spec as the deliverable. Not for choosing a database or modelling its schema, use `database-expert`. Level 4 of 4."
 tools: Read, Grep, Glob
 permissionMode: plan
+effort: xhigh
 skills:
   - api-design
   - backend-patterns

@@ -1,5 +1,5 @@
 ---
-description: "Use when the user says \"draft our privacy policy\", \"write the terms of service\", \"we need a cookie policy\" or \"draft a DPA\". Drafts compliance documents for a qualified attorney to review, never legal advice, tuned for EU and UK GDPR, CCPA and CPRA, LGPD, Polish UODO rules, COPPA, CAN-SPAM and CASL. Not for a technical compliance gap analysis, use `security-auditor`."
+description: "Use when the user says \"draft our privacy policy\", \"write the terms of service\", \"we need a cookie policy\" or \"draft a DPA\". Drafts compliance documents for a qualified attorney to review, never legal advice, tuned for EU and UK GDPR, CCPA and CPRA, LGPD, Polish UODO rules, COPPA, CAN-SPAM and CASL. Not for a technical compliance gap analysis, use `security-auditor`. Level 3 of 4."
 mode: subagent
 permission:
   bash: deny

@@ -1,6 +1,6 @@
 ---
 name: unity-game-dev
-description: "Use when the user says \"write this Unity script\", \"review this C# gameplay code\" or \"why does this scene stutter\". Applies frame-budget discipline with no per-frame allocations and cached component lookups, ScriptableObject-based architecture, the Unity Test Framework and Addressables for asset loading. Not for profiling a non-game service, use `performance-engineer`."
+description: "Use when the user says \"write this Unity script\", \"review this C# gameplay code\" or \"why does this scene stutter\". Applies frame-budget discipline with no per-frame allocations and cached component lookups, ScriptableObject-based architecture, the Unity Test Framework and Addressables for asset loading. Not for profiling a non-game service, use `performance-engineer`. Level 3 of 4."
 tools: ["read", "create", "apply_patch", "edit", "search", "bash", "powershell"]
 ---
 

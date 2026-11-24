@@ -1,6 +1,7 @@
 ---
 name: angular-expert
-version: "1.0.1"
+version: "1.1.0"
+level: 3
 description: 'Use when the user says "build this Angular component", "migrate this to signals" or "review this Angular code". Applies Angular 22 defaults, standalone components, signals and signal inputs, zoneless change detection, control flow and inject(), with RxJS discipline, as an implementer. Not for design tokens and the shared component library, use `design-system-architect`.'
 tools: [read, write, edit, grep, glob, bash]
 skills:

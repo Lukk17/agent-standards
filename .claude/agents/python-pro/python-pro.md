@@ -1,7 +1,8 @@
 ---
 name: python-pro
-description: "Use when the user says \"write this FastAPI endpoint\", \"review this Python module\" or \"modernise this Python project\". Applies Python 3.14 idioms, type hints, dataclasses, structural pattern matching and async where the work is I/O-bound, with uv, ruff and pytest discipline, as an implementer. Not for PyTorch training and inference, use `ml-engineer`."
+description: "Use when the user says \"write this FastAPI endpoint\", \"review this Python module\" or \"modernise this Python project\". Applies Python 3.14 idioms, type hints, dataclasses, structural pattern matching and async where the work is I/O-bound, with uv, ruff and pytest discipline, as an implementer. Not for PyTorch training and inference, use `ml-engineer`. Level 3 of 4."
 tools: Read, Write, Edit, Grep, Glob, Bash
+effort: high
 skills:
   - python-patterns
   - coding-standards

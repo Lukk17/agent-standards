@@ -1,6 +1,7 @@
 ---
 name: performance-engineer
-version: "1.0.2"
+version: "1.1.0"
+level: 4
 description: 'Use when the user says "the app is slow", "performance regressed after the deploy" or "get a baseline before we optimise". Measures first, names the bottleneck with evidence, and proposes the smallest change that moves the metric, read-only on production code and running load only where the caller allows it. Not for one known slow query, use `database-expert`.'
 tools: [read, grep, glob, bash]
 skills:

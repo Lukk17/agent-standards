@@ -1,5 +1,5 @@
 ---
-description: "Use when the user says \"this test fails\", \"why does this throw\" or \"it worked yesterday\". Reproduces the failure, isolates the root cause, applies the smallest fix that removes it, verifies the fix against the reproduction, and returns a short diagnosis together with the change. Not for an error pattern spread across logs and services, use `error-detective`."
+description: "Use when the user says \"this test fails\", \"why does this throw\" or \"it worked yesterday\". Reproduces the failure, isolates the root cause, applies the smallest fix that removes it, verifies the fix against the reproduction, and returns a short diagnosis together with the change. Not for an error pattern spread across logs and services, use `error-detective`. Level 3 of 4."
 mode: subagent
 permission:
   webfetch: deny

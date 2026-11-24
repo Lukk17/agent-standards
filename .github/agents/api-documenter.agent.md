@@ -1,6 +1,6 @@
 ---
 name: api-documenter
-description: "Use when the user says \"document this API\", \"write the OpenAPI spec\" or \"our API docs are out of date\". Writes OpenAPI 3.1 or 3.2, GraphQL SDL, AsyncAPI and developer-portal prose with working examples, the error catalogue, auth flows and the versioning policy, editing only spec and documentation files. Not for designing the contract itself, use `backend-architect`."
+description: "Use when the user says \"document this API\", \"write the OpenAPI spec\" or \"our API docs are out of date\". Writes OpenAPI 3.1 or 3.2, GraphQL SDL, AsyncAPI and developer-portal prose with working examples, the error catalogue, auth flows and the versioning policy, editing only spec and documentation files. Not for designing the contract itself, use `backend-architect`. Level 2 of 4."
 tools: ["read", "create", "apply_patch", "edit", "search", "bash", "powershell"]
 ---
 

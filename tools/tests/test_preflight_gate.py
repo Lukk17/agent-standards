@@ -5974,6 +5974,7 @@ def test_a_path_that_resolves_to_a_loopback_share_is_mapped_after_resolving(monk
 READ_ONLY_REVIEWER = {
     "name": "fixture-reviewer",
     "description": "Use when the user says review this diff.",
+    "level": 3,
     "tools": ["read", "grep", "glob", "bash"],
     "readonly": True,
     "readonly-commands": ["gh pr diff*", "gh pr view*"],
@@ -6197,6 +6198,7 @@ def test_rule_e_allows_git_with_no_pager_on_every_format(tmp_path, fmt, target, 
 READ_ONLY_READER = {
     "name": "fixture-reader",
     "description": "Use when the user says read this.",
+    "level": 3,
     "tools": ["read", "grep", "glob"],
     "skills": ["code-reviewer"],
 }

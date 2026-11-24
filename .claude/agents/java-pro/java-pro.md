@@ -1,7 +1,8 @@
 ---
 name: java-pro
-description: "Use when the user says \"write this Spring Boot endpoint\", \"review this Java code\" or \"modernise this JVM service\". Applies Java 25 idioms, records, sealed types, pattern matching and virtual threads, with Spring Boot 4 conventions and JPA patterns, as an implementer rather than an architect. Not for schema design, use `database-expert`."
+description: "Use when the user says \"write this Spring Boot endpoint\", \"review this Java code\" or \"modernise this JVM service\". Applies Java 25 idioms, records, sealed types, pattern matching and virtual threads, with Spring Boot 4 conventions and JPA patterns, as an implementer rather than an architect. Not for schema design, use `database-expert`. Level 3 of 4."
 tools: Read, Write, Edit, Grep, Glob, Bash
+effort: high
 skills:
   - java-coding-standards
   - springboot-patterns

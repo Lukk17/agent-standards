@@ -1,6 +1,7 @@
 ---
 name: error-detective
-version: "1.0.2"
+version: "1.1.0"
+level: 3
 description: 'Use when the user says "this exception keeps coming back", "errors spiked after the release" or "find the pattern in these logs". Correlates application errors across logs and traces over time, builds a root-cause hypothesis from evidence, and proposes the monitor that catches a recurrence, read-only. Not for platform and infrastructure faults, use `devops-troubleshooter`.'
 tools: [read, grep, glob, bash]
 skills:

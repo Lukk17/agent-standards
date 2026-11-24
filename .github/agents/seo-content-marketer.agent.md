@@ -1,6 +1,6 @@
 ---
 name: seo-content-marketer
-description: "Use when the user says \"plan our content strategy\", \"write an SEO article\", \"fix the meta tags\" or \"audit this page for SEO\". Covers the whole pipeline from strategy through writing, keywords, metadata and content structure to an E-E-A-T audit, with the content and audits as the deliverable and application code untouched. Not for legal pages, use `legal-advisor`."
+description: "Use when the user says \"plan our content strategy\", \"write an SEO article\", \"fix the meta tags\" or \"audit this page for SEO\". Covers the whole pipeline from strategy through writing, keywords, metadata and content structure to an E-E-A-T audit, with the content and audits as the deliverable and application code untouched. Not for legal pages, use `legal-advisor`. Level 2 of 4."
 tools: ["read", "create", "apply_patch", "edit", "search", "web"]
 ---
 

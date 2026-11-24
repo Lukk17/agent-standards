@@ -1,7 +1,8 @@
 ---
 name: e2e-runner
-description: "Use when the user says \"run this capability spec\", \"run the e2e sweep\" or \"check spec X against the live stack\". Executes exactly one end-to-end capability spec against a running stack and returns its Verdict and Result summary, so a main session can fan a sweep out across many specs, and never adds or edits a test. Not for writing or fixing tests, use `test-automator`."
+description: "Use when the user says \"run this capability spec\", \"run the e2e sweep\" or \"check spec X against the live stack\". Executes exactly one end-to-end capability spec against a running stack and returns its Verdict and Result summary, so a main session can fan a sweep out across many specs, and never adds or edits a test. Not for writing or fixing tests, use `test-automator`. Level 1 of 4."
 tools: Read, Write, Edit, Bash, Grep, Glob
+effort: low
 skills:
   - e2e-runbooks
   - bash

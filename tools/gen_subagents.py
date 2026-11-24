@@ -199,6 +199,18 @@ CODEX_SHELL_OFF = "features.shell_tool = false"
 # read-only agent there.
 CLAUDE_READ_ONLY_PERMISSION_MODE = "plan"
 
+# Every canonical agent carries a difficulty `level` from 1 to 4. Every target
+# ends the description with it, and Claude Code also runs the agent at the
+# matching effort: "`effort` | No | Effort level when this subagent is active.
+# Overrides the session effort level ... Options: `low`, `medium`, `high`,
+# `xhigh`, `max`; available levels depend on the model"
+# (https://code.claude.com/docs/en/sub-agents, "Frontmatter reference").
+# A level the model lacks "falls back to the highest supported level at or
+# below the one you set" (https://code.claude.com/docs/en/model-config,
+# "Adjust effort level"). No other target gets an effort key.
+LEVEL_MAX = 4
+CLAUDE_EFFORTS = {1: "low", 2: "medium", 3: "high", 4: "xhigh"}
+
 # Subagents never pin a model, and every target omits the key. Each agent then
 # falls back to the user's configured subagent default, else the session model:
 # Claude Code reads CLAUDE_CODE_SUBAGENT_MODEL, then the main conversation's model
@@ -223,6 +235,7 @@ def parse(path: pathlib.Path, skills: set[str] | None = None) -> tuple[dict, str
     for req in ("name", "description"):
         if req not in fm:
             sys.exit(f"ERROR {path} missing required field '{req}'")
+    validate_level(path, fm)
     if "model" in fm:
         sys.exit(
             f"ERROR {path}: remove the 'model' key. Subagents never pin a model, "
@@ -249,6 +262,23 @@ def parse(path: pathlib.Path, skills: set[str] | None = None) -> tuple[dict, str
             f"{', '.join(dangling)}"
         )
     return fm, m.group(2).lstrip("\n")
+
+
+def validate_level(path: pathlib.Path, fm: dict) -> None:
+    """Reject a missing `level`, or one that is not a whole number from 1 to LEVEL_MAX."""
+    if "level" not in fm:
+        sys.exit(
+            f"ERROR {path} missing required field 'level'. Give the agent a difficulty "
+            f"from 1 to {LEVEL_MAX}, such as 'level: 3'."
+        )
+    level = fm["level"]
+    if type(level) is not int or level not in CLAUDE_EFFORTS:
+        sys.exit(f"ERROR {path}: 'level' must be a whole number from 1 to {LEVEL_MAX}, got {level!r}")
+
+
+def described(fm: dict) -> str:
+    """The description every target writes: the canonical text, then the agent's level."""
+    return f"{fm['description'].strip()} Level {fm['level']} of {LEVEL_MAX}."
 
 
 def validate_read_only(path: pathlib.Path, fm: dict) -> None:
@@ -413,13 +443,14 @@ def emit_claude(fm: dict, body: str) -> str:
     lines = [
         "---",
         f"name: {fm['name']}",
-        f"description: {_yaml_double_quoted(fm['description'].strip())}",
+        f"description: {_yaml_double_quoted(described(fm))}",
     ]
     tools = [CLAUDE_TOOLS.get(t, t) for t in fm.get("tools", [])]
     if tools:
         lines.append("tools: " + ", ".join(tools))
     if is_read_only(fm):
         lines.append("permissionMode: " + CLAUDE_READ_ONLY_PERMISSION_MODE)
+    lines.append("effort: " + CLAUDE_EFFORTS[fm["level"]])
     if fm.get("skills"):
         lines.append("skills:")
         lines += [f"  - {s}" for s in fm["skills"]]
@@ -430,7 +461,7 @@ def emit_claude(fm: dict, body: str) -> str:
 def emit_opencode(fm: dict, body: str) -> str:
     lines = [
         "---",
-        f"description: {_yaml_double_quoted(fm['description'].strip())}",
+        f"description: {_yaml_double_quoted(described(fm))}",
         "mode: subagent",
     ]
     if fm.get("tools"):
@@ -493,7 +524,7 @@ def emit_copilot(fm: dict, body: str) -> str:
     lines = [
         "---",
         f"name: {fm['name']}",
-        f"description: {_yaml_double_quoted(fm['description'].strip())}",
+        f"description: {_yaml_double_quoted(described(fm))}",
     ]
     canonical = fm.get("tools") or []
     if fm.get("readonly"):
@@ -522,7 +553,7 @@ def emit_codex(fm: dict, body: str) -> str:
         sys.exit(f"ERROR {fm['name']}: body contains ''' which breaks the Codex TOML literal string")
     lines = [
         f"name = {_toml_basic(fm['name'])}",
-        f"description = {_toml_basic(fm['description'].strip())}",
+        f"description = {_toml_basic(described(fm))}",
     ]
     if fm.get("tools") and "bash" not in fm["tools"]:
         lines.append(CODEX_SHELL_OFF)

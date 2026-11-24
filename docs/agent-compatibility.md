@@ -83,6 +83,10 @@ same file, and both follow symlinks when scanning an agent directory, so they sh
 exposes a config key naming an agent directory, which is why this is a symlink rather than a setting. Never hand-edit
 a generated tree.
 
+Every canonical source carries a `level` from 1 to 4. Every tree ends the agent's description with "Level N of 4.", and
+only the Claude Code tree also writes an `effort` key from it. The other trees get no new key. The mapping and the
+vendor quote are under "Adding a new subagent" in [../CONTRIBUTING.md](../CONTRIBUTING.md).
+
 ---
 
 ### Hook enforcement, what each agent can actually block

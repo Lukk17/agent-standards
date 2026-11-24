@@ -1,6 +1,7 @@
 ---
 name: devops-troubleshooter
-version: "1.0.2"
+version: "1.1.0"
+level: 3
 description: 'Use when the user says "pods keep crashing", "the deploy broke production", "DNS is failing" or "the disk is full". Gathers logs, metrics and traces in the infrastructure and runtime layer, tests hypotheses, proposes the restoring action for the user to approve, and drafts the postmortem. Not for errors that point at application code, use `error-detective`.'
 tools: [read, grep, glob, bash]
 skills:

@@ -1,7 +1,8 @@
 ---
 name: release-manager
-description: "Use when the user says \"cut a release\", \"write the release notes\", \"what version is next\" or \"are we ready to tag\". Chooses the version, assembles notes from merged pull requests, checks the dependency and deployment gates, prepares the tag and records what shipped, never pushing or tagging without per-action approval. Not for the pipeline itself, use `devops-automator`."
+description: "Use when the user says \"cut a release\", \"write the release notes\", \"what version is next\" or \"are we ready to tag\". Chooses the version, assembles notes from merged pull requests, checks the dependency and deployment gates, prepares the tag and records what shipped, never pushing or tagging without per-action approval. Not for the pipeline itself, use `devops-automator`. Level 2 of 4."
 tools: Read, Write, Edit, Grep, Glob, Bash
+effort: medium
 skills:
   - github-ops
   - git-workflow

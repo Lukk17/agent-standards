@@ -1,6 +1,7 @@
 ---
 name: docs-architect
-version: "1.0.1"
+version: "1.1.0"
+level: 3
 description: 'Use when the user says "write the architecture manual", "document how this system works" or "we need an onboarding guide". Reads the actual code and its git history, captures why the system is built the way it is, and organises long-form documentation for each audience, with the documentation as the deliverable. Not for API reference docs, use `api-documenter`.'
 tools: [read, write, edit, grep, glob, bash]
 skills:

@@ -731,7 +731,7 @@
       "name": "agent-accessibility-expert",
       "source": "./.claude/agents/accessibility-expert",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.1.0",
       "description": "Use when the user says \"audit this page for WCAG 2.2\", \"is this component accessible\" or \"fix the screen reader issues\". Audits against WCAG 2.2 with screen readers, keyboard-only use and voice control in mind, not only automated scanners, and returns a report with remediation guidance rather than applying fixes. Not for design tokens and theming, use `design-system-architect`.",
       "category": "agent",
       "author": {
@@ -764,7 +764,7 @@
       "name": "agent-agent-engineer",
       "source": "./.claude/agents/agent-engineer",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.1.0",
       "description": "Use when the user says \"fix this skill\", \"add a subagent\", \"why did the hook block that\" or \"check what this agent tool supports\". Writes and repairs skills, subagent definitions, preflight hooks, MCP server blocks and AGENTS.md files, and does the web research the main thread is gated from running. Not for long-form human documentation, use `docs-architect`.",
       "category": "agent",
       "author": {
@@ -799,7 +799,7 @@
       "name": "agent-angular-expert",
       "source": "./.claude/agents/angular-expert",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.1.0",
       "description": "Use when the user says \"build this Angular component\", \"migrate this to signals\" or \"review this Angular code\". Applies Angular 22 defaults, standalone components, signals and signal inputs, zoneless change detection, control flow and inject(), with RxJS discipline, as an implementer. Not for design tokens and the shared component library, use `design-system-architect`.",
       "category": "agent",
       "author": {
@@ -833,7 +833,7 @@
       "name": "agent-api-documenter",
       "source": "./.claude/agents/api-documenter",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.1.0",
       "description": "Use when the user says \"document this API\", \"write the OpenAPI spec\" or \"our API docs are out of date\". Writes OpenAPI 3.1 or 3.2, GraphQL SDL, AsyncAPI and developer-portal prose with working examples, the error catalogue, auth flows and the versioning policy, editing only spec and documentation files. Not for designing the contract itself, use `backend-architect`.",
       "category": "agent",
       "author": {
@@ -866,7 +866,7 @@
       "name": "agent-api-tester",
       "source": "./.claude/agents/api-tester",
       "strict": false,
-      "version": "1.0.2",
+      "version": "1.1.0",
       "description": "Use when the user says \"load test this API\", \"find the breaking point\" or \"check the API still matches its contract\". Drives realistic traffic at a running HTTP, GraphQL or gRPC API, validates responses against the spec, and reports the breaking point with evidence, writing test scripts and reports only. Not for unit and integration tests in the codebase, use `test-automator`.",
       "category": "agent",
       "author": {
@@ -900,7 +900,7 @@
       "name": "agent-backend-architect",
       "source": "./.claude/agents/backend-architect",
       "strict": false,
-      "version": "1.0.2",
+      "version": "1.1.0",
       "description": "Use when the user says \"design this service\", \"draft the API contract\" or \"how should these services talk to each other\". Produces the authoritative OpenAPI or GraphQL spec plus the service boundaries and the auth, resilience and observability decisions, read-only, with the spec as the deliverable. Not for choosing a database or modelling its schema, use `database-expert`.",
       "category": "agent",
       "author": {
@@ -936,7 +936,7 @@
       "name": "agent-code-archaeologist",
       "source": "./.claude/agents/code-archaeologist",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.1.0",
       "description": "Use when the user says \"map this codebase\", \"I just inherited this repo\" or \"what is risky in here before we refactor\". Maps the architecture, surfaces hidden contracts and dead code, scores health and writes a prioritised action plan other agents can execute, read-only, with git history as its only shell. Not for carrying out the refactor, use `legacy-modernizer`.",
       "category": "agent",
       "author": {
@@ -970,7 +970,7 @@
       "name": "agent-code-reviewer",
       "source": "./.claude/agents/code-reviewer",
       "strict": false,
-      "version": "1.1.1",
+      "version": "1.2.0",
       "description": "Use when the user says \"review my changes\", \"review PR #123\" or \"is this ready to merge\", and after any code change before it merges. Runs a severity-tagged review across correctness, security, performance, architecture and tests, read-only, and reports every finding with a file and line citation. Not for a threat model or a full security assessment, use `security-auditor`.",
       "category": "agent",
       "author": {
@@ -1005,7 +1005,7 @@
       "name": "agent-database-expert",
       "source": "./.claude/agents/database-expert",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.1.0",
       "description": "Use when the user says \"design the schema\", \"which database should we use\", \"plan this migration\" or \"this query is slow\". Designs a data layer or tunes an existing one, measuring only on a database the caller names as disposable and handing migrations to an implementer, read-only on shared and production schemas. Not for a bottleneck not yet located, use `performance-engineer`.",
       "category": "agent",
       "author": {
@@ -1039,7 +1039,7 @@
       "name": "agent-debugger",
       "source": "./.claude/agents/debugger",
       "strict": false,
-      "version": "1.0.2",
+      "version": "1.1.0",
       "description": "Use when the user says \"this test fails\", \"why does this throw\" or \"it worked yesterday\". Reproduces the failure, isolates the root cause, applies the smallest fix that removes it, verifies the fix against the reproduction, and returns a short diagnosis together with the change. Not for an error pattern spread across logs and services, use `error-detective`.",
       "category": "agent",
       "author": {
@@ -1072,7 +1072,7 @@
       "name": "agent-design-system-architect",
       "source": "./.claude/agents/design-system-architect",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.1.0",
       "description": "Use when the user says \"set up design tokens\", \"build our component library\" or \"add a second brand theme\". Designs the token architecture, the component library structure, multi-brand theming and the design-to-code workflow that the rest of the front end builds on, as infrastructure rather than features. Not for one feature screen or flow, use `ui-ux-designer`.",
       "category": "agent",
       "author": {
@@ -1106,7 +1106,7 @@
       "name": "agent-devops-automator",
       "source": "./.claude/agents/devops-automator",
       "strict": false,
-      "version": "1.0.2",
+      "version": "1.1.0",
       "description": "Use when the user says \"set up CI\", \"write the Dockerfile\", \"deploy this to Kubernetes\" or \"add a rollback\". Builds pipelines, container images, manifests and infrastructure as code with zero-downtime deploys, health checks, automated rollback, secrets kept at the boundary and observability wired in. Not for a live production incident, use `devops-troubleshooter`.",
       "category": "agent",
       "author": {
@@ -1141,7 +1141,7 @@
       "name": "agent-devops-troubleshooter",
       "source": "./.claude/agents/devops-troubleshooter",
       "strict": false,
-      "version": "1.0.2",
+      "version": "1.1.0",
       "description": "Use when the user says \"pods keep crashing\", \"the deploy broke production\", \"DNS is failing\" or \"the disk is full\". Gathers logs, metrics and traces in the infrastructure and runtime layer, tests hypotheses, proposes the restoring action for the user to approve, and drafts the postmortem. Not for errors that point at application code, use `error-detective`.",
       "category": "agent",
       "author": {
@@ -1175,7 +1175,7 @@
       "name": "agent-docs-architect",
       "source": "./.claude/agents/docs-architect",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.1.0",
       "description": "Use when the user says \"write the architecture manual\", \"document how this system works\" or \"we need an onboarding guide\". Reads the actual code and its git history, captures why the system is built the way it is, and organises long-form documentation for each audience, with the documentation as the deliverable. Not for API reference docs, use `api-documenter`.",
       "category": "agent",
       "author": {
@@ -1208,7 +1208,7 @@
       "name": "agent-e2e-runner",
       "source": "./.claude/agents/e2e-runner",
       "strict": false,
-      "version": "1.0.2",
+      "version": "1.1.0",
       "description": "Use when the user says \"run this capability spec\", \"run the e2e sweep\" or \"check spec X against the live stack\". Executes exactly one end-to-end capability spec against a running stack and returns its Verdict and Result summary, so a main session can fan a sweep out across many specs, and never adds or edits a test. Not for writing or fixing tests, use `test-automator`.",
       "category": "agent",
       "author": {
@@ -1241,7 +1241,7 @@
       "name": "agent-embedded-c-engineer",
       "source": "./.claude/agents/embedded-c-engineer",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.1.0",
       "description": "Use when the user says \"write this Arduino sketch\", \"review this firmware\", \"lay out the PCB\" or \"print an enclosure for it\". Writes and reviews embedded C with memory safety, non-blocking timing, ISR discipline, a hardware abstraction layer and host-side unit tests, and designs KiCad boards and printed enclosures. Not for Home Assistant configuration, use `home-assistant-engineer`.",
       "category": "agent",
       "author": {
@@ -1274,7 +1274,7 @@
       "name": "agent-error-detective",
       "source": "./.claude/agents/error-detective",
       "strict": false,
-      "version": "1.0.2",
+      "version": "1.1.0",
       "description": "Use when the user says \"this exception keeps coming back\", \"errors spiked after the release\" or \"find the pattern in these logs\". Correlates application errors across logs and traces over time, builds a root-cause hypothesis from evidence, and proposes the monitor that catches a recurrence, read-only. Not for platform and infrastructure faults, use `devops-troubleshooter`.",
       "category": "agent",
       "author": {
@@ -1307,7 +1307,7 @@
       "name": "agent-flutter-expert",
       "source": "./.claude/agents/flutter-expert",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.1.0",
       "description": "Use when the user says \"build this Flutter screen\", \"review this Dart code\" or \"fix this widget rebuild\". Writes and reviews Flutter and Dart 3 code for mobile, web and desktop with records, patterns, sealed classes, null safety, const widget composition and the state management the project already uses. Not for the backend API it calls, use `backend-architect`.",
       "category": "agent",
       "author": {
@@ -1341,7 +1341,7 @@
       "name": "agent-go-pro",
       "source": "./.claude/agents/go-pro",
       "strict": false,
-      "version": "1.0.2",
+      "version": "1.1.0",
       "description": "Use when the user says \"write this Go service\", \"review this Go package\" or \"restructure this module\". Applies idiomatic Go, useful zero values, interfaces declared at the consumer, wrapped errors and context propagation, with table-driven tests and ports-and-adapters boundaries, as an implementer. Not for service decomposition, use `backend-architect`.",
       "category": "agent",
       "author": {
@@ -1376,8 +1376,8 @@
       "name": "agent-home-assistant-engineer",
       "source": "./.claude/agents/home-assistant-engineer",
       "strict": false,
-      "version": "1.0.2",
-      "description": "Use when the user says \"write this automation\", \"review my Home Assistant config\" or \"expose these entities to the assistant\". Applies strict YAML conventions, stable entity_id references, event-driven automations, safe secret handling, and exposure rules that keep security-critical entities away from any assistant. Not for firmware on the devices themselves, use `embedded-c-engineer`.",
+      "version": "1.1.0",
+      "description": "Use when the user says \"write this automation\", \"review my Home Assistant config\" or \"expose these entities to the assistant\". Applies strict YAML rules, stable entity_id references, event-driven automations, safe secret handling, and exposure rules that keep security-critical entities away from any assistant. Not for firmware on the devices themselves, use `embedded-c-engineer`.",
       "category": "agent",
       "author": {
         "name": "Łukasz Sarna",
@@ -1409,7 +1409,7 @@
       "name": "agent-java-pro",
       "source": "./.claude/agents/java-pro",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.1.0",
       "description": "Use when the user says \"write this Spring Boot endpoint\", \"review this Java code\" or \"modernise this JVM service\". Applies Java 25 idioms, records, sealed types, pattern matching and virtual threads, with Spring Boot 4 conventions and JPA patterns, as an implementer rather than an architect. Not for schema design, use `database-expert`.",
       "category": "agent",
       "author": {
@@ -1444,7 +1444,7 @@
       "name": "agent-legacy-modernizer",
       "source": "./.claude/agents/legacy-modernizer",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.1.0",
       "description": "Use when the user says \"upgrade us to the next major\", \"migrate off this framework\", \"split this monolith\" or \"pay down this tech debt\". Plans the migration in phases, adds tests before each refactor, keeps backward compatibility behind feature flags, and documents the rollback for every phase. Not for mapping an unknown codebase first, use `code-archaeologist`.",
       "category": "agent",
       "author": {
@@ -1478,7 +1478,7 @@
       "name": "agent-legal-advisor",
       "source": "./.claude/agents/legal-advisor",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.1.0",
       "description": "Use when the user says \"draft our privacy policy\", \"write the terms of service\", \"we need a cookie policy\" or \"draft a DPA\". Drafts compliance documents for a qualified attorney to review, never legal advice, tuned for EU and UK GDPR, CCPA and CPRA, LGPD, Polish UODO rules, COPPA, CAN-SPAM and CASL. Not for a technical compliance gap analysis, use `security-auditor`.",
       "category": "agent",
       "author": {
@@ -1509,8 +1509,8 @@
       "name": "agent-ml-engineer",
       "source": "./.claude/agents/ml-engineer",
       "strict": false,
-      "version": "1.0.1",
-      "description": "Use when the user says \"write the training loop\", \"add checkpointing\", \"review this PyTorch model\" or \"package the model for serving\". Builds and hardens PyTorch pipelines, model and dataset modules, the training loop, checkpointing, the evaluation harness, mixed precision, device placement and serving, rather than proposing the architecture. Not for general Python services, use `python-pro`.",
+      "version": "1.1.0",
+      "description": "Use when the user says \"write the training loop\", \"add checkpointing\", \"review this PyTorch model\" or \"package the model for serving\". Builds and hardens PyTorch pipelines, model and dataset modules, the training loop, checkpointing, the evaluation harness, mixed precision, device placement and serving, not the architecture. Not for general Python services, use `python-pro`.",
       "category": "agent",
       "author": {
         "name": "Łukasz Sarna",
@@ -1543,7 +1543,7 @@
       "name": "agent-observability-engineer",
       "source": "./.claude/agents/observability-engineer",
       "strict": false,
-      "version": "1.0.2",
+      "version": "1.1.0",
       "description": "Use when the user says \"add tracing\", \"define our SLOs\", \"these alerts are noise\" or \"build a dashboard for this service\". Designs and extends logs, metrics, traces, SLOs, alerts and dashboards toward signals that drive an action rather than vanity charts, wired into the code and the deployment. Not for responding to a live incident, use `devops-troubleshooter`.",
       "category": "agent",
       "author": {
@@ -1576,7 +1576,7 @@
       "name": "agent-performance-engineer",
       "source": "./.claude/agents/performance-engineer",
       "strict": false,
-      "version": "1.0.2",
+      "version": "1.1.0",
       "description": "Use when the user says \"the app is slow\", \"performance regressed after the deploy\" or \"get a baseline before we optimise\". Measures first, names the bottleneck with evidence, and proposes the smallest change that moves the metric, read-only on production code and running load only where the caller allows it. Not for one known slow query, use `database-expert`.",
       "category": "agent",
       "author": {
@@ -1609,8 +1609,8 @@
       "name": "agent-project-manager",
       "source": "./.claude/agents/project-manager",
       "strict": false,
-      "version": "1.0.2",
-      "description": "Use when the user says \"write a ticket for this\", \"split this epic\", \"add acceptance criteria\" or \"reconcile the board with the repo\". Turns a vague ask into tracked items with testable acceptance criteria, triages a backlog, and checks a Jira board or a GitHub milestone against what the repository contains, never touching product code. Not for cutting a release, use `release-manager`.",
+      "version": "1.1.0",
+      "description": "Use when the user says \"write a ticket for this\", \"split this epic\", \"add acceptance criteria\" or \"reconcile the board with the repo\". Turns a vague ask into tracked items with testable acceptance criteria, triages a backlog, and checks a Jira board or a GitHub milestone against what the repository holds, never touching product code. Not for cutting a release, use `release-manager`.",
       "category": "agent",
       "author": {
         "name": "Łukasz Sarna",
@@ -1643,7 +1643,7 @@
       "name": "agent-python-pro",
       "source": "./.claude/agents/python-pro",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.1.0",
       "description": "Use when the user says \"write this FastAPI endpoint\", \"review this Python module\" or \"modernise this Python project\". Applies Python 3.14 idioms, type hints, dataclasses, structural pattern matching and async where the work is I/O-bound, with uv, ruff and pytest discipline, as an implementer. Not for PyTorch training and inference, use `ml-engineer`.",
       "category": "agent",
       "author": {
@@ -1677,8 +1677,8 @@
       "name": "agent-quality-loop",
       "source": "./.claude/agents/quality-loop",
       "strict": false,
-      "version": "1.0.2",
-      "description": "Use when the user says \"clean up this code\", \"run the quality loop\" or \"measure CRAP and mutants\", and after a feature before review. Runs Robert C. Martin's crapper, dryer and mutator through the project wrapper, fixes the worst scores in code and tests, measures again for up to three rounds, and reports before and after. Not for writing the tests of a new feature, use `test-automator`.",
+      "version": "1.1.0",
+      "description": "Use when the user says \"clean up this code\", \"run the quality loop\" or \"measure CRAP and mutants\", and after a feature before review. Runs Robert C. Martin's crapper, dryer and mutator with the project wrapper, fixes the worst scores in code and tests, re-measures for up to three rounds, and reports before and after. Not for writing the tests of a new feature, use `test-automator`.",
       "category": "agent",
       "author": {
         "name": "Łukasz Sarna",
@@ -1710,7 +1710,7 @@
       "name": "agent-react-nextjs-expert",
       "source": "./.claude/agents/react-nextjs-expert",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.1.0",
       "description": "Use when the user says \"build this Next.js page\", \"review this React component\" or \"move this to a Server Action\". Applies React 19 and Next.js 16 App Router defaults, Server Components first, Client Components only where interactivity needs them, Server Actions for mutations and Suspense for streaming. Not for design tokens and shared components, use `design-system-architect`.",
       "category": "agent",
       "author": {
@@ -1745,7 +1745,7 @@
       "name": "agent-release-manager",
       "source": "./.claude/agents/release-manager",
       "strict": false,
-      "version": "1.0.2",
+      "version": "1.1.0",
       "description": "Use when the user says \"cut a release\", \"write the release notes\", \"what version is next\" or \"are we ready to tag\". Chooses the version, assembles notes from merged pull requests, checks the dependency and deployment gates, prepares the tag and records what shipped, never pushing or tagging without per-action approval. Not for the pipeline itself, use `devops-automator`.",
       "category": "agent",
       "author": {
@@ -1781,7 +1781,7 @@
       "name": "agent-security-auditor",
       "source": "./.claude/agents/security-auditor",
       "strict": false,
-      "version": "1.0.2",
+      "version": "1.1.0",
       "description": "Use when the user says \"threat model this\", \"is this auth flow safe\" or \"run a security assessment\", and before any auth, payment or sensitive-data change ships. Covers STRIDE and attack trees, secure coding on backend and frontend, and compliance gap analysis, read-only, returning findings and remediation guidance. Not for a general review of a change, use `code-reviewer`.",
       "category": "agent",
       "author": {
@@ -1814,7 +1814,7 @@
       "name": "agent-seo-content-marketer",
       "source": "./.claude/agents/seo-content-marketer",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.1.0",
       "description": "Use when the user says \"plan our content strategy\", \"write an SEO article\", \"fix the meta tags\" or \"audit this page for SEO\". Covers the whole pipeline from strategy through writing, keywords, metadata and content structure to an E-E-A-T audit, with the content and audits as the deliverable and application code untouched. Not for legal pages, use `legal-advisor`.",
       "category": "agent",
       "author": {
@@ -1846,7 +1846,7 @@
       "name": "agent-test-automator",
       "source": "./.claude/agents/test-automator",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.1.0",
       "description": "Use when the user says \"write tests for this\", \"the suite is failing\" or \"raise coverage here\", and after any code change that lacks tests. Writes the missing unit and integration tests, runs the suites, analyses failures and fixes them without weakening a test, reporting a genuine code bug instead. Not for load, contract or smoke tests on a running API, use `api-tester`.",
       "category": "agent",
       "author": {
@@ -1879,7 +1879,7 @@
       "name": "agent-ui-ux-designer",
       "source": "./.claude/agents/ui-ux-designer",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.1.0",
       "description": "Use when the user says \"design this flow\", \"lay out this screen\", \"plan the user research\" or \"what do these interview notes tell us\". Works in two modes, UX research to understand the user and interaction design to shape the flow, and produces specs and rationale a framework agent implements. Not for design tokens and the component library, use `design-system-architect`.",
       "category": "agent",
       "author": {
@@ -1913,7 +1913,7 @@
       "name": "agent-unity-game-dev",
       "source": "./.claude/agents/unity-game-dev",
       "strict": false,
-      "version": "1.0.1",
+      "version": "1.1.0",
       "description": "Use when the user says \"write this Unity script\", \"review this C# gameplay code\" or \"why does this scene stutter\". Applies frame-budget discipline with no per-frame allocations and cached component lookups, ScriptableObject-based architecture, the Unity Test Framework and Addressables for asset loading. Not for profiling a non-game service, use `performance-engineer`.",
       "category": "agent",
       "author": {

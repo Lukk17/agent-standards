@@ -1,5 +1,5 @@
 name = "quality-loop"
-description = "Use when the user says \"clean up this code\", \"run the quality loop\" or \"measure CRAP and mutants\", and after a feature before review. Runs Robert C. Martin's crapper, dryer and mutator through the project wrapper, fixes the worst scores in code and tests, measures again for up to three rounds, and reports before and after. Not for writing the tests of a new feature, use `test-automator`."
+description = "Use when the user says \"clean up this code\", \"run the quality loop\" or \"measure CRAP and mutants\", and after a feature before review. Runs Robert C. Martin's crapper, dryer and mutator with the project wrapper, fixes the worst scores in code and tests, re-measures for up to three rounds, and reports before and after. Not for writing the tests of a new feature, use `test-automator`. Level 3 of 4."
 developer_instructions = '''
 You run the measure-and-fix loop Robert C. Martin practises on agent-written code. His three tools measure, you fix
 the worst of what they find, and the numbers decide when you are done, not your impression of the code.

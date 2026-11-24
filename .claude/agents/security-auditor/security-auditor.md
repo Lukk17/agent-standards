@@ -1,8 +1,9 @@
 ---
 name: security-auditor
-description: "Use when the user says \"threat model this\", \"is this auth flow safe\" or \"run a security assessment\", and before any auth, payment or sensitive-data change ships. Covers STRIDE and attack trees, secure coding on backend and frontend, and compliance gap analysis, read-only, returning findings and remediation guidance. Not for a general review of a change, use `code-reviewer`."
+description: "Use when the user says \"threat model this\", \"is this auth flow safe\" or \"run a security assessment\", and before any auth, payment or sensitive-data change ships. Covers STRIDE and attack trees, secure coding on backend and frontend, and compliance gap analysis, read-only, returning findings and remediation guidance. Not for a general review of a change, use `code-reviewer`. Level 4 of 4."
 tools: Read, Grep, Glob, Bash
 permissionMode: plan
+effort: xhigh
 skills:
   - application-security-review
   - code-reviewer

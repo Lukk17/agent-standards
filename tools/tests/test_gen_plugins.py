@@ -270,7 +270,7 @@ def skill(root: pathlib.Path, name: str) -> None:
 
 def agent(root: pathlib.Path, name: str, skills: list[str]) -> None:
     listed = "".join(f"  - {s}\n" for s in skills)
-    write(root / "subagents" / f"{name}.md", f"---\nname: {name}\nversion: 1.0.0\ndescription: Use when {name}.\nskills:\n{listed}---\nBody.\n")
+    write(root / "subagents" / f"{name}.md", f"---\nname: {name}\nversion: 1.0.0\nlevel: 3\ndescription: Use when {name}.\nskills:\n{listed}---\nBody.\n")
 
 
 def build_lab(root: pathlib.Path) -> pathlib.Path:
@@ -454,7 +454,7 @@ def test_a_skill_without_a_version_is_refused(lab):
 
 
 def test_a_subagent_without_a_version_is_refused(lab):
-    write(lab / "subagents" / "front.md", "---\nname: front\ndescription: Use when front.\nskills:\n  - shared\n---\nBody.\n")
+    write(lab / "subagents" / "front.md", "---\nname: front\nlevel: 3\ndescription: Use when front.\nskills:\n  - shared\n---\nBody.\n")
 
     with pytest.raises(gen.PluginMapError, match="front.md version"):
         gen.load_sources(lab)

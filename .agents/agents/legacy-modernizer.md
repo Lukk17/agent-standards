@@ -1,5 +1,5 @@
 ---
-description: "Use when the user says \"upgrade us to the next major\", \"migrate off this framework\", \"split this monolith\" or \"pay down this tech debt\". Plans the migration in phases, adds tests before each refactor, keeps backward compatibility behind feature flags, and documents the rollback for every phase. Not for mapping an unknown codebase first, use `code-archaeologist`."
+description: "Use when the user says \"upgrade us to the next major\", \"migrate off this framework\", \"split this monolith\" or \"pay down this tech debt\". Plans the migration in phases, adds tests before each refactor, keeps backward compatibility behind feature flags, and documents the rollback for every phase. Not for mapping an unknown codebase first, use `code-archaeologist`. Level 4 of 4."
 mode: subagent
 permission:
   webfetch: deny

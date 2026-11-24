@@ -1,7 +1,8 @@
 ---
 name: performance-engineer
-description: "Use when the user says \"the app is slow\", \"performance regressed after the deploy\" or \"get a baseline before we optimise\". Measures first, names the bottleneck with evidence, and proposes the smallest change that moves the metric, read-only on production code and running load only where the caller allows it. Not for one known slow query, use `database-expert`."
+description: "Use when the user says \"the app is slow\", \"performance regressed after the deploy\" or \"get a baseline before we optimise\". Measures first, names the bottleneck with evidence, and proposes the smallest change that moves the metric, read-only on production code and running load only where the caller allows it. Not for one known slow query, use `database-expert`. Level 4 of 4."
 tools: Read, Grep, Glob, Bash
+effort: xhigh
 skills:
   - performance-optimization
   - observability-and-logging

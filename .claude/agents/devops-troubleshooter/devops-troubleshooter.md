@@ -1,7 +1,8 @@
 ---
 name: devops-troubleshooter
-description: "Use when the user says \"pods keep crashing\", \"the deploy broke production\", \"DNS is failing\" or \"the disk is full\". Gathers logs, metrics and traces in the infrastructure and runtime layer, tests hypotheses, proposes the restoring action for the user to approve, and drafts the postmortem. Not for errors that point at application code, use `error-detective`."
+description: "Use when the user says \"pods keep crashing\", \"the deploy broke production\", \"DNS is failing\" or \"the disk is full\". Gathers logs, metrics and traces in the infrastructure and runtime layer, tests hypotheses, proposes the restoring action for the user to approve, and drafts the postmortem. Not for errors that point at application code, use `error-detective`. Level 3 of 4."
 tools: Read, Grep, Glob, Bash
+effort: high
 skills:
   - observability-and-logging
   - docker-patterns

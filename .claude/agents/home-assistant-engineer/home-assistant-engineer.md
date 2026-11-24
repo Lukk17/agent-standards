@@ -1,7 +1,8 @@
 ---
 name: home-assistant-engineer
-description: "Use when the user says \"write this automation\", \"review my Home Assistant config\" or \"expose these entities to the assistant\". Applies strict YAML conventions, stable entity_id references, event-driven automations, safe secret handling, and exposure rules that keep security-critical entities away from any assistant. Not for firmware on the devices themselves, use `embedded-c-engineer`."
+description: "Use when the user says \"write this automation\", \"review my Home Assistant config\" or \"expose these entities to the assistant\". Applies strict YAML rules, stable entity_id references, event-driven automations, safe secret handling, and exposure rules that keep security-critical entities away from any assistant. Not for firmware on the devices themselves, use `embedded-c-engineer`. Level 3 of 4."
 tools: Read, Write, Edit, Grep, Glob, Bash
+effort: high
 skills:
   - home-assistant
   - application-security-review

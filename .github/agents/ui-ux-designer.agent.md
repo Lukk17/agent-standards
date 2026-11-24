@@ -1,6 +1,6 @@
 ---
 name: ui-ux-designer
-description: "Use when the user says \"design this flow\", \"lay out this screen\", \"plan the user research\" or \"what do these interview notes tell us\". Works in two modes, UX research to understand the user and interaction design to shape the flow, and produces specs and rationale a framework agent implements. Not for design tokens and the component library, use `design-system-architect`."
+description: "Use when the user says \"design this flow\", \"lay out this screen\", \"plan the user research\" or \"what do these interview notes tell us\". Works in two modes, UX research to understand the user and interaction design to shape the flow, and produces specs and rationale a framework agent implements. Not for design tokens and the component library, use `design-system-architect`. Level 3 of 4."
 tools: ["read", "create", "apply_patch", "edit", "search"]
 ---
 

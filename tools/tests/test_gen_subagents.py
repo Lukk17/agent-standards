@@ -39,6 +39,7 @@ BODY = "You do one thing.\n\n### Done when\n\nIt is done.\n"
 WRITER = {
     "name": "fixture-writer",
     "description": "Use when a fixture needs writing.",
+    "level": 3,
     "tools": ["read", "write", "edit", "grep", "glob", "bash"],
     "skills": ["coding-standards", "python-patterns"],
 }
@@ -46,6 +47,7 @@ WRITER = {
 TRICKY = {
     "name": "fixture-tricky",
     "description": 'Use when auditing a "live" system. Read-only: produces a report, applies no fix.',
+    "level": 2,
     "tools": ["read", "grep", "glob"],
     "skills": ["markdown-writer"],
 }
@@ -55,6 +57,7 @@ FRONT_MATTER = re.compile(r"^---\n(.*?)\n---\n", re.S)
 READER = {
     "name": "fixture-reader",
     "description": "Use when a fixture needs reading only.",
+    "level": 1,
     "tools": ["read", "grep", "glob"],
     "skills": ["markdown-writer"],
 }
@@ -80,7 +83,7 @@ def test_parse_accepts_a_skill_that_has_a_folder(tmp_path):
     path = write_agent(
         tmp_path,
         "ok",
-        "name: ok\ndescription: Use when fine.\nskills:\n  - coding-standards",
+        "name: ok\nlevel: 3\ndescription: Use when fine.\nskills:\n  - coding-standards",
     )
 
     frontmatter, body = gen.parse(path, SKILLS)
@@ -93,7 +96,7 @@ def test_parse_rejects_a_skill_with_no_folder(tmp_path):
     path = write_agent(
         tmp_path,
         "dangling",
-        "name: dangling\ndescription: Use when broken.\n"
+        "name: dangling\nlevel: 3\ndescription: Use when broken.\n"
         "skills:\n  - coding-standards\n  - flutter-accessibility\n  - nextjs-best-practices",
     )
 
@@ -113,7 +116,7 @@ def test_parse_rejects_a_scalar_skills_value(tmp_path):
     path = write_agent(
         tmp_path,
         "scalar",
-        "name: scalar\ndescription: Use when broken.\nskills: coding-standards",
+        "name: scalar\nlevel: 3\ndescription: Use when broken.\nskills: coding-standards",
     )
 
     # When
@@ -128,7 +131,7 @@ def test_parse_rejects_a_scalar_skills_value(tmp_path):
 
 
 def test_parse_accepts_a_missing_skills_key(tmp_path):
-    path = write_agent(tmp_path, "none", "name: none\ndescription: Use when fine.")
+    path = write_agent(tmp_path, "none", "name: none\nlevel: 3\ndescription: Use when fine.")
 
     frontmatter, _body = gen.parse(path, SKILLS)
 
@@ -137,7 +140,7 @@ def test_parse_accepts_a_missing_skills_key(tmp_path):
 
 def test_parse_rejects_an_unknown_tool(tmp_path):
     path = write_agent(
-        tmp_path, "bad-tool", "name: bad-tool\ndescription: Use when broken.\ntools: [read, telepathy]"
+        tmp_path, "bad-tool", "name: bad-tool\nlevel: 3\ndescription: Use when broken.\ntools: [read, telepathy]"
     )
 
     with pytest.raises(SystemExit) as exc:
@@ -149,7 +152,7 @@ def test_parse_rejects_an_unknown_tool(tmp_path):
 @pytest.mark.parametrize("model", ["inherit", "opus", "sonnet", "gpt-9"])
 def test_parse_rejects_any_model_key(tmp_path, model):
     # Given a canonical agent that pins a model, even the one that means the session model
-    path = write_agent(tmp_path, "pinned", f"name: pinned\ndescription: Use when pinned.\nmodel: {model}")
+    path = write_agent(tmp_path, "pinned", f"name: pinned\nlevel: 3\ndescription: Use when pinned.\nmodel: {model}")
 
     # When
     with pytest.raises(SystemExit) as exc:
@@ -165,7 +168,7 @@ def test_parse_rejects_any_model_key(tmp_path, model):
 
 def test_parse_accepts_websearch_as_a_tool(tmp_path):
     path = write_agent(
-        tmp_path, "searcher", "name: searcher\ndescription: Use when researching.\ntools: [read, webfetch, websearch]"
+        tmp_path, "searcher", "name: searcher\nlevel: 3\ndescription: Use when researching.\ntools: [read, webfetch, websearch]"
     )
 
     frontmatter, _ = gen.parse(path, SKILLS)
@@ -179,8 +182,8 @@ def test_generating_two_agents_with_the_same_name_fails(tmp_path, monkeypatch):
     src.mkdir()
     skills = tmp_path / "skills"
     (skills / "coding-standards").mkdir(parents=True)
-    write_agent(src, "first", "name: clash\ndescription: Use when first.")
-    write_agent(src, "second", "name: clash\ndescription: Use when second.")
+    write_agent(src, "first", "name: clash\nlevel: 3\ndescription: Use when first.")
+    write_agent(src, "second", "name: clash\nlevel: 3\ndescription: Use when second.")
 
     monkeypatch.setattr(gen, "SRC", src)
     monkeypatch.setattr(gen, "SKILLS", skills)
@@ -199,9 +202,10 @@ def test_claude_emits_name_tools_and_skills():
     head = rendered.split("---\n")[1].splitlines()
 
     assert head[0] == "name: fixture-writer"
-    assert head[1] == 'description: "Use when a fixture needs writing."'
+    assert head[1] == 'description: "Use when a fixture needs writing. Level 3 of 4."'
     assert head[2] == "tools: Read, Write, Edit, Grep, Glob, Bash"
-    assert head[3:] == ["skills:", "  - coding-standards", "  - python-patterns"]
+    assert head[3] == "effort: high"
+    assert head[4:] == ["skills:", "  - coding-standards", "  - python-patterns"]
     assert "permissionMode" not in rendered
 
 
@@ -209,7 +213,7 @@ def test_opencode_emits_no_model_and_a_tool_map():
     rendered = gen.emit_opencode(WRITER, BODY)
     head = rendered.split("---\n")[1].splitlines()
 
-    assert head[0] == 'description: "Use when a fixture needs writing."'
+    assert head[0] == 'description: "Use when a fixture needs writing. Level 3 of 4."'
     assert head[1] == "mode: subagent"
     assert head[2:5] == ["permission:", "  webfetch: deny", "  websearch: deny"]
     assert head[5] == "tools:"
@@ -228,7 +232,7 @@ def test_codex_emits_a_toml_document_with_the_body_inline():
     parsed = tomllib.loads(gen.emit_codex(WRITER, BODY))
 
     assert parsed["name"] == "fixture-writer"
-    assert parsed["description"] == "Use when a fixture needs writing."
+    assert parsed["description"] == "Use when a fixture needs writing. Level 3 of 4."
     assert parsed["developer_instructions"].startswith("You do one thing.")
     assert "- `coding-standards`" in parsed["developer_instructions"]
 
@@ -238,7 +242,7 @@ def test_copilot_emits_its_own_tool_names():
     head = rendered.split("---\n")[1].splitlines()
 
     assert head[0] == "name: fixture-writer"
-    assert head[1] == 'description: "Use when a fixture needs writing."'
+    assert head[1] == 'description: "Use when a fixture needs writing. Level 3 of 4."'
     assert head[2] == 'tools: ["read", "create", "apply_patch", "edit", "search", "bash", "powershell"]'
 
 
@@ -315,14 +319,16 @@ def test_a_description_holding_a_colon_and_a_quote_stays_valid_yaml(emitter):
     """
     parsed = front_matter(emitter(TRICKY, BODY))
 
-    assert parsed["description"] == TRICKY["description"]
+    assert parsed["description"] == TRICKY["description"] + " Level 2 of 4."
 
 
-@pytest.mark.parametrize(
-    ("tool", "extension"),
-    [("claude", ".md"), ("agents", ".md"), ("copilot", ".agent.md")],
-)
-def test_every_generated_markdown_agent_parses_and_keeps_its_description(tool, extension):
+def generated_header(tool, rendered):
+    """The parsed header of one generated agent file: TOML for Codex, front matter elsewhere."""
+    return tomllib.loads(rendered) if tool == "codex" else front_matter(rendered)
+
+
+@pytest.mark.parametrize("tool", ["claude", "agents", "codex", "copilot"])
+def test_every_generated_agent_parses_and_keeps_its_description_with_its_level(tool):
     sources = sorted(gen.SRC.glob("*.md"))
 
     assert sources, f"no canonical agents under {gen.SRC}"
@@ -333,9 +339,10 @@ def test_every_generated_markdown_agent_parses_and_keeps_its_description(tool, e
 
         assert generated.is_file(), f"{generated} was never generated"
 
-        parsed = front_matter(generated.read_text(encoding="utf-8"))
+        description = generated_header(tool, generated.read_text(encoding="utf-8"))["description"]
 
-        assert parsed["description"] == canonical["description"].strip()
+        assert description == f"{canonical['description'].strip()} Level {canonical['level']} of 4.", canonical["name"]
+        assert DESCRIPTION_LIMITS[0] <= len(description) <= DESCRIPTION_LIMITS[1], (canonical["name"], len(description))
 
 
 @pytest.mark.parametrize(
@@ -467,7 +474,7 @@ def test_opencode_keeps_web_access_the_agent_lists():
 @pytest.mark.parametrize("tool", ["webfetch", "websearch"])
 def test_parse_rejects_a_read_only_agent_with_web_access(tmp_path, tool):
     """Rule E denies every web tool to a read-only agent, so listing one would promise a tool it never gets."""
-    path = write_agent(tmp_path, "marked", f"name: marked\ndescription: Use when marked.\ntools: [read, bash, {tool}]\nreadonly: true")
+    path = write_agent(tmp_path, "marked", f"name: marked\nlevel: 3\ndescription: Use when marked.\ntools: [read, bash, {tool}]\nreadonly: true")
 
     with pytest.raises(SystemExit, match=f"may not list {tool}"):
         gen.parse(path, SKILLS)
@@ -488,7 +495,7 @@ def test_claude_emits_no_model_line(fixture):
 @pytest.mark.parametrize("tool", ["claude", "agents", "codex", "copilot"])
 def test_every_target_emits_no_model(tmp_path, tool):
     # Given a parsed canonical agent with no model key
-    path = write_agent(tmp_path, "plain", "name: plain\ndescription: Use when plain.\ntools: [read]")
+    path = write_agent(tmp_path, "plain", "name: plain\nlevel: 3\ndescription: Use when plain.\ntools: [read]")
     frontmatter, body = gen.parse(path, SKILLS)
 
     # When
@@ -518,9 +525,78 @@ def test_every_generated_agent_runs_on_the_session_model():
             assert "model" not in header, f"{tool}: {name}"
 
 
+LEVEL_EFFORTS = {1: "low", 2: "medium", 3: "high", 4: "xhigh"}
+
+
+def test_parse_rejects_a_missing_level(tmp_path):
+    path = write_agent(tmp_path, "unlevelled", "name: unlevelled\ndescription: Use when unlevelled.")
+
+    with pytest.raises(SystemExit) as exc:
+        gen.parse(path, SKILLS)
+
+    message = str(exc.value)
+
+    assert "unlevelled.md" in message
+    assert "missing required field 'level'" in message
+    assert "1 to 4" in message
+
+
+@pytest.mark.parametrize("level", ["0", "5", "-1", "2.5", "1.0", '"3"', "true", "null", "high"])
+def test_parse_rejects_a_level_outside_one_to_four(tmp_path, level):
+    path = write_agent(tmp_path, "odd", f"name: odd\nlevel: {level}\ndescription: Use when odd.")
+
+    with pytest.raises(SystemExit) as exc:
+        gen.parse(path, SKILLS)
+
+    message = str(exc.value)
+
+    assert "odd.md" in message
+    assert "'level' must be a whole number from 1 to 4" in message
+
+
+@pytest.mark.parametrize(("level", "effort"), sorted(LEVEL_EFFORTS.items()))
+def test_claude_runs_each_level_at_its_effort(tmp_path, level, effort):
+    path = write_agent(tmp_path, "levelled", f"name: levelled\nlevel: {level}\ndescription: Use when levelled.")
+    frontmatter, body = gen.parse(path, SKILLS)
+
+    assert front_matter(gen.emit_claude(frontmatter, body))["effort"] == effort
+
+
+@pytest.mark.parametrize("tool", ["agents", "codex", "copilot"])
+def test_no_other_target_emits_an_effort_or_a_level(tool):
+    header = generated_header(tool, gen.render(tool, WRITER, BODY))
+
+    assert "effort" not in header
+    assert "level" not in header
+
+
+@pytest.mark.parametrize("level", sorted(LEVEL_EFFORTS))
+@pytest.mark.parametrize("tool", ["claude", "agents", "codex", "copilot"])
+def test_every_target_ends_the_description_with_the_level(tool, level):
+    header = generated_header(tool, gen.render(tool, {**WRITER, "level": level}, BODY))
+
+    assert header["description"] == f"Use when a fixture needs writing. Level {level} of 4."
+
+
+def test_every_canonical_subagent_carries_a_level_from_one_to_four():
+    for source in sorted(gen.SRC.glob("*.md")):
+        level = front_matter(source.read_text(encoding="utf-8")).get("level")
+
+        assert type(level) is int and level in LEVEL_EFFORTS, source.name
+
+
+def test_every_generated_claude_agent_runs_at_the_effort_its_level_names():
+    for source in sorted(gen.SRC.glob("*.md")):
+        canonical = front_matter(source.read_text(encoding="utf-8"))
+        generated = front_matter(gen.target_path("claude", canonical["name"]).read_text(encoding="utf-8"))
+
+        assert generated["effort"] == LEVEL_EFFORTS[canonical["level"]], canonical["name"]
+
+
 REVIEWER = {
     "name": "fixture-reviewer",
     "description": "Use when the user says review this diff.",
+    "level": 3,
     "tools": ["read", "grep", "glob", "bash"],
     "readonly": True,
     "readonly-commands": ["gh pr diff*", "gh pr view*"],
@@ -586,7 +662,7 @@ def test_an_agent_with_only_read_tools_is_told_the_gate_denies_it_where_the_hook
     ],
 )
 def test_parse_rejects_a_read_only_marker_it_cannot_honour(tmp_path, frontmatter, message):
-    path = write_agent(tmp_path, "marked", f"name: marked\ndescription: Use when marked.\n{frontmatter}")
+    path = write_agent(tmp_path, "marked", f"name: marked\nlevel: 3\ndescription: Use when marked.\n{frontmatter}")
 
     with pytest.raises(SystemExit) as exc:
         gen.parse(path, SKILLS)
@@ -599,7 +675,7 @@ def test_parse_accepts_a_read_only_marker_with_extra_commands(tmp_path):
     path = write_agent(
         tmp_path,
         "marked",
-        'name: marked\ndescription: Use when marked.\ntools: [read, bash]\nreadonly: true\nreadonly-commands: ["gh pr view*"]',
+        'name: marked\nlevel: 3\ndescription: Use when marked.\ntools: [read, bash]\nreadonly: true\nreadonly-commands: ["gh pr view*"]',
     )
 
     frontmatter, _ = gen.parse(path, SKILLS)
@@ -843,7 +919,7 @@ def nested_fixture(tmp_path, monkeypatch, names=("solo",)):
     skills = tmp_path / "skills"
     (skills / "coding-standards").mkdir(parents=True)
     for name in names:
-        write_agent(src, name, f"name: {name}\ndescription: Use when {name}.\nskills:\n  - coding-standards")
+        write_agent(src, name, f"name: {name}\nlevel: 3\ndescription: Use when {name}.\nskills:\n  - coding-standards")
     monkeypatch.setattr(gen, "SRC", src)
     monkeypatch.setattr(gen, "SKILLS", skills)
     monkeypatch.setattr(gen, "SYMLINKS", {})

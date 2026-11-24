@@ -1,7 +1,8 @@
 ---
 name: agent-engineer
-description: "Use when the user says \"fix this skill\", \"add a subagent\", \"why did the hook block that\" or \"check what this agent tool supports\". Writes and repairs skills, subagent definitions, preflight hooks, MCP server blocks and AGENTS.md files, and does the web research the main thread is gated from running. Not for long-form human documentation, use `docs-architect`."
+description: "Use when the user says \"fix this skill\", \"add a subagent\", \"why did the hook block that\" or \"check what this agent tool supports\". Writes and repairs skills, subagent definitions, preflight hooks, MCP server blocks and AGENTS.md files, and does the web research the main thread is gated from running. Not for long-form human documentation, use `docs-architect`. Level 3 of 4."
 tools: Read, Write, Edit, Grep, Glob, Bash, WebFetch, WebSearch
+effort: high
 skills:
   - agentic-engineering
   - research

@@ -1,6 +1,6 @@
 ---
 name: error-detective
-description: "Use when the user says \"this exception keeps coming back\", \"errors spiked after the release\" or \"find the pattern in these logs\". Correlates application errors across logs and traces over time, builds a root-cause hypothesis from evidence, and proposes the monitor that catches a recurrence, read-only. Not for platform and infrastructure faults, use `devops-troubleshooter`."
+description: "Use when the user says \"this exception keeps coming back\", \"errors spiked after the release\" or \"find the pattern in these logs\". Correlates application errors across logs and traces over time, builds a root-cause hypothesis from evidence, and proposes the monitor that catches a recurrence, read-only. Not for platform and infrastructure faults, use `devops-troubleshooter`. Level 3 of 4."
 tools: ["read", "search", "bash", "powershell"]
 ---
 

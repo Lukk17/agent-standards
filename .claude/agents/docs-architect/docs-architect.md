@@ -1,7 +1,8 @@
 ---
 name: docs-architect
-description: "Use when the user says \"write the architecture manual\", \"document how this system works\" or \"we need an onboarding guide\". Reads the actual code and its git history, captures why the system is built the way it is, and organises long-form documentation for each audience, with the documentation as the deliverable. Not for API reference docs, use `api-documenter`."
+description: "Use when the user says \"write the architecture manual\", \"document how this system works\" or \"we need an onboarding guide\". Reads the actual code and its git history, captures why the system is built the way it is, and organises long-form documentation for each audience, with the documentation as the deliverable. Not for API reference docs, use `api-documenter`. Level 3 of 4."
 tools: Read, Write, Edit, Grep, Glob, Bash
+effort: high
 skills:
   - markdown-writer
   - architecture-decision-records

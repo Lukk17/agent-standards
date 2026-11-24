@@ -1,7 +1,8 @@
 ---
 name: angular-expert
-description: "Use when the user says \"build this Angular component\", \"migrate this to signals\" or \"review this Angular code\". Applies Angular 22 defaults, standalone components, signals and signal inputs, zoneless change detection, control flow and inject(), with RxJS discipline, as an implementer. Not for design tokens and the shared component library, use `design-system-architect`."
+description: "Use when the user says \"build this Angular component\", \"migrate this to signals\" or \"review this Angular code\". Applies Angular 22 defaults, standalone components, signals and signal inputs, zoneless change detection, control flow and inject(), with RxJS discipline, as an implementer. Not for design tokens and the shared component library, use `design-system-architect`. Level 3 of 4."
 tools: Read, Write, Edit, Grep, Glob, Bash
+effort: high
 skills:
   - angular
   - frontend-design

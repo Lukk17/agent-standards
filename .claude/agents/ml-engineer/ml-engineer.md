@@ -1,7 +1,8 @@
 ---
 name: ml-engineer
-description: "Use when the user says \"write the training loop\", \"add checkpointing\", \"review this PyTorch model\" or \"package the model for serving\". Builds and hardens PyTorch pipelines, model and dataset modules, the training loop, checkpointing, the evaluation harness, mixed precision, device placement and serving, rather than proposing the architecture. Not for general Python services, use `python-pro`."
+description: "Use when the user says \"write the training loop\", \"add checkpointing\", \"review this PyTorch model\" or \"package the model for serving\". Builds and hardens PyTorch pipelines, model and dataset modules, the training loop, checkpointing, the evaluation harness, mixed precision, device placement and serving, not the architecture. Not for general Python services, use `python-pro`. Level 3 of 4."
 tools: Read, Write, Edit, Grep, Glob, Bash
+effort: high
 skills:
   - pytorch-patterns
   - python-patterns

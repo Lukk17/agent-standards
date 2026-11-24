@@ -1,6 +1,6 @@
 ---
 name: code-archaeologist
-description: "Use when the user says \"map this codebase\", \"I just inherited this repo\" or \"what is risky in here before we refactor\". Maps the architecture, surfaces hidden contracts and dead code, scores health and writes a prioritised action plan other agents can execute, read-only, with git history as its only shell. Not for carrying out the refactor, use `legacy-modernizer`."
+description: "Use when the user says \"map this codebase\", \"I just inherited this repo\" or \"what is risky in here before we refactor\". Maps the architecture, surfaces hidden contracts and dead code, scores health and writes a prioritised action plan other agents can execute, read-only, with git history as its only shell. Not for carrying out the refactor, use `legacy-modernizer`. Level 4 of 4."
 tools: ["read", "search"]
 ---
 

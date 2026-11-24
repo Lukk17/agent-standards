@@ -1,7 +1,8 @@
 ---
 name: react-nextjs-expert
-description: "Use when the user says \"build this Next.js page\", \"review this React component\" or \"move this to a Server Action\". Applies React 19 and Next.js 16 App Router defaults, Server Components first, Client Components only where interactivity needs them, Server Actions for mutations and Suspense for streaming. Not for design tokens and shared components, use `design-system-architect`."
+description: "Use when the user says \"build this Next.js page\", \"review this React component\" or \"move this to a Server Action\". Applies React 19 and Next.js 16 App Router defaults, Server Components first, Client Components only where interactivity needs them, Server Actions for mutations and Suspense for streaming. Not for design tokens and shared components, use `design-system-architect`. Level 3 of 4."
 tools: Read, Write, Edit, Grep, Glob, Bash
+effort: high
 skills:
   - nextjs-app-router-patterns
   - react-patterns

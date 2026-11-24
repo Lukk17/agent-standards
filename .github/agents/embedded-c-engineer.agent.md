@@ -1,6 +1,6 @@
 ---
 name: embedded-c-engineer
-description: "Use when the user says \"write this Arduino sketch\", \"review this firmware\", \"lay out the PCB\" or \"print an enclosure for it\". Writes and reviews embedded C with memory safety, non-blocking timing, ISR discipline, a hardware abstraction layer and host-side unit tests, and designs KiCad boards and printed enclosures. Not for Home Assistant configuration, use `home-assistant-engineer`."
+description: "Use when the user says \"write this Arduino sketch\", \"review this firmware\", \"lay out the PCB\" or \"print an enclosure for it\". Writes and reviews embedded C with memory safety, non-blocking timing, ISR discipline, a hardware abstraction layer and host-side unit tests, and designs KiCad boards and printed enclosures. Not for Home Assistant configuration, use `home-assistant-engineer`. Level 3 of 4."
 tools: ["read", "create", "apply_patch", "edit", "search", "bash", "powershell"]
 ---
 

@@ -1,6 +1,7 @@
 ---
 name: security-auditor
-version: "1.0.2"
+version: "1.1.0"
+level: 4
 description: 'Use when the user says "threat model this", "is this auth flow safe" or "run a security assessment", and before any auth, payment or sensitive-data change ships. Covers STRIDE and attack trees, secure coding on backend and frontend, and compliance gap analysis, read-only, returning findings and remediation guidance. Not for a general review of a change, use `code-reviewer`.'
 tools: [read, grep, glob, bash]
 readonly: true

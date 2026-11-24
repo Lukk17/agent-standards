@@ -1,6 +1,6 @@
 ---
 name: project-manager
-description: "Use when the user says \"write a ticket for this\", \"split this epic\", \"add acceptance criteria\" or \"reconcile the board with the repo\". Turns a vague ask into tracked items with testable acceptance criteria, triages a backlog, and checks a Jira board or a GitHub milestone against what the repository contains, never touching product code. Not for cutting a release, use `release-manager`."
+description: "Use when the user says \"write a ticket for this\", \"split this epic\", \"add acceptance criteria\" or \"reconcile the board with the repo\". Turns a vague ask into tracked items with testable acceptance criteria, triages a backlog, and checks a Jira board or a GitHub milestone against what the repository holds, never touching product code. Not for cutting a release, use `release-manager`. Level 2 of 4."
 tools: ["read", "create", "apply_patch", "edit", "search", "bash", "powershell"]
 ---
 
