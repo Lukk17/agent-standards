@@ -49,13 +49,18 @@ import { spawn } from "node:child_process"
 import { randomBytes } from "node:crypto"
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs"
 import { homedir } from "node:os"
-import { isAbsolute, join, relative, resolve, sep } from "node:path"
+import { isAbsolute, join, posix, relative, resolve, sep, win32 } from "node:path"
 import { fileURLToPath } from "node:url"
 
 // Tried in this order, the way every other wiring resolves its interpreter:
 // Debian and Ubuntu ship no `python`, the python.org Windows installer ships no
 // `python3`, and a Windows Store alias of either name can exist and run nothing.
 const PYTHON_CANDIDATES = ["python3", "python"]
+// The extensions cmd.exe tries when PATHEXT is unset.
+const DEFAULT_PATHEXT = ".COM;.EXE;.BAT;.CMD"
+// A drive letter with a separator, or a UNC path. `\x` and `C:x` are relative
+// to the current drive or to that drive's current folder.
+const WINDOWS_ABSOLUTE = /^(?:[A-Za-z]:[\\/]|[\\/]{2}[^\\/])/
 const PROBE = ["-c", "import sys; sys.stdout.write('ok')"]
 // -S skips site initialisation and -E ignores the PYTHON* environment, which
 // takes a measurable slice off the interpreter start the runner pays on every
@@ -281,16 +286,88 @@ const execute = (command, args, root, input) =>
     child.stdin?.end(input, "utf8")
   })
 
-// The first candidate that runs the probe and prints its answer, or null when
-// none does, which runs no hook and so allows. Only an interpreter that answered
-// is kept for the life of the plugin, so a probe that failed under load is
-// tried again on the next call.
+// Whether `folder` is `project` or sits below it, compared as written, without
+// case on Windows.
+const within = (paths, project, folder) => {
+  const path = paths.relative(project, paths.resolve(folder))
+
+  return path === "" || (path !== ".." && !path.startsWith(".." + paths.sep) && !paths.isAbsolute(path))
+}
+
+const extensionsOf = (pathext) => {
+  const listed = String(pathext || "")
+    .split(";")
+    .filter((extension) => extension.length > 1 && extension.startsWith("."))
+
+  return listed.length > 0 ? listed : DEFAULT_PATHEXT.split(";")
+}
+
+// Every absolute path an interpreter may sit at, in the order they are tried:
+// each name of PYTHON_CANDIDATES in turn, through every PATH folder in order,
+// with every PATHEXT extension in order on Windows. Only absolute folders
+// outside the project root count. An empty, "." or other relative entry, which
+// the spawn resolves against its working folder, the project root, is skipped,
+// and the working folder itself is never searched, which a bare name on
+// Windows searches first. Pure, so the Windows rules run under test anywhere.
+export const interpreterPaths = ({ platform, path, pathext, root } = {}) => {
+  const windows = platform === "win32"
+  const paths = windows ? win32 : posix
+  const absolute = windows ? (folder) => WINDOWS_ABSOLUTE.test(folder) : (folder) => posix.isAbsolute(folder)
+  const extensions = windows ? extensionsOf(pathext) : [""]
+  const project = typeof root === "string" && root ? paths.resolve(root) : null
+  const folders = String(path ?? "")
+    .split(paths.delimiter)
+    .map((entry) => (windows ? entry.replace(/^"(.*)"$/, "$1") : entry))
+    .filter((folder) => folder && absolute(folder) && !(project && within(paths, project, folder)))
+
+  return PYTHON_CANDIDATES.flatMap((name) =>
+    folders.flatMap((folder) => extensions.map((extension) => paths.join(folder, name + extension))),
+  )
+}
+
+// One variable of this process's environment. Windows names are matched
+// without case, so `Path` counts as PATH on either runtime.
+const environment = (name) => {
+  if (process.platform !== "win32") return process.env[name]
+
+  const key = Object.keys(process.env).find((candidate) => candidate.toUpperCase() === name)
+
+  return key === undefined ? undefined : process.env[key]
+}
+
+const isFile = (path) => {
+  try {
+    return statSync(path).isFile()
+  } catch {
+    return false
+  }
+}
+
+// The first interpreter path that runs the probe and prints its answer, or
+// null when none does, which runs no hook and so allows. Only an interpreter
+// that answered is kept for the life of the plugin, so a probe that failed
+// under load is tried again on the next call.
 let interpreter = null
+
+const candidatesFor = (root) => {
+  try {
+    return interpreterPaths({
+      platform: process.platform,
+      path: environment("PATH"),
+      pathext: environment("PATHEXT"),
+      root,
+    }).filter(isFile)
+  } catch {
+    return []
+  }
+}
 
 const resolvePython = async (root) => {
   if (interpreter) return interpreter
 
-  for (const candidate of PYTHON_CANDIDATES) {
+  const candidates = candidatesFor(root)
+
+  for (const candidate of candidates) {
     const result = await execute(candidate, [...PYTHON_FLAGS, ...PROBE], root, "")
 
     if (result?.status === 0 && result.stdout === "ok") {

@@ -1802,20 +1802,21 @@ def test_every_shipped_declaration_sits_inside_the_part_the_runner_reads():
         assert re.search(r"^HOOK_ORDER\s*=\s*\d+\s*$", source, re.M), hook.name
 
 
-# The interpreter is resolved python3 first, then python, and a candidate that
-# does not answer the probe is skipped.
+# The interpreter is resolved python3 first, then python, each to an absolute
+# path found only in the absolute PATH folders outside the project root, and a
+# match that does not answer the probe is skipped.
 
 
-def interpreter_dir(tmp_path, python3=None, python=None):
+def interpreter_dir(tmp_path, python3=None, python=None, name="bin"):
     """A PATH directory holding only the named interpreters, as symlinks or failing stubs."""
-    directory = tmp_path / "bin"
+    directory = tmp_path / name
     directory.mkdir()
 
-    for name, kind in (("python3", python3), ("python", python)):
+    for program, kind in (("python3", python3), ("python", python)):
         if kind == "real":
-            (directory / name).symlink_to(sys.executable)
+            (directory / program).symlink_to(sys.executable)
         elif kind == "stub":
-            stub = directory / name
+            stub = directory / program
             stub.write_text("#!/bin/sh\necho 'Python was not found'\nexit 9009\n", encoding="utf-8")
             stub.chmod(0o755)
 
@@ -1823,11 +1824,13 @@ def interpreter_dir(tmp_path, python3=None, python=None):
 
 
 def gate_decision_with_path(tmp_path, path):
-    """Drive a main-thread source edit through the shipped gate with PATH set to `path`."""
-    real_hooks(tmp_path)
+    """Drive a main-thread source edit through the shipped gate in tmp_path/project with PATH set to `path`."""
+    project = tmp_path / "project"
+    project.mkdir(exist_ok=True)
+    real_hooks(project)
     step = call(tool="Edit", args={"file_path": "src/app.py"}, session=ROOT_SESSION)
 
-    return drive(tmp_path, [step], path=path)[0]["ok"]
+    return drive(project, [step], path=path)[0]["ok"]
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="interpreter stubs need a POSIX shell and symlinks")
@@ -1838,6 +1841,139 @@ def gate_decision_with_path(tmp_path, path):
 )
 def test_the_runner_finds_a_working_interpreter(tmp_path, python3, python):
     assert gate_decision_with_path(tmp_path, str(interpreter_dir(tmp_path, python3, python))) is False
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="interpreter stubs need a POSIX shell and symlinks")
+def test_a_broken_python3_early_on_path_gives_way_to_a_working_python3_later_on_path(tmp_path):
+    # Given the first PATH folder holds a python3 that runs nothing, the way a Windows Store alias does
+    broken = interpreter_dir(tmp_path, python3="stub", name="alias")
+    working = interpreter_dir(tmp_path, python3="real", name="bin")
+
+    # When the gate decides a main-thread source edit
+    allowed = gate_decision_with_path(tmp_path, os.pathsep.join([str(broken), str(working)]))
+
+    # Then the python3 further down PATH ran it
+    assert allowed is False
+
+
+PLANTED_INTERPRETER = """#!/bin/sh
+echo ran >> {marker}
+printf ok
+"""
+
+
+def plant_interpreter(folder, marker):
+    """An executable python3 in `folder` that answers the probe, records that it ran, and allows every hook."""
+    folder.mkdir(parents=True, exist_ok=True)
+    planted = folder / "python3"
+    planted.write_text(PLANTED_INTERPRETER.format(marker=json.dumps(str(marker))), encoding="utf-8")
+    planted.chmod(0o755)
+
+    return planted
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the planted interpreter is a POSIX shell script")
+@pytest.mark.parametrize(
+    ("entry", "planted_in"),
+    [(".", ""), ("", ""), ("tools", "tools"), ("{root}", ""), ("{root}/.venv/bin", ".venv/bin")],
+    ids=["dot", "empty", "relative", "the-root-itself", "inside-the-root"],
+)
+def test_a_python3_planted_in_the_project_never_runs_when_path_also_holds_a_real_python(tmp_path, entry, planted_in):
+    # Given a python3 planted in the project and a PATH entry that reaches it ahead of a real Python
+    project = tmp_path / "project"
+    marker = tmp_path / "planted-ran.txt"
+    plant_interpreter(project / planted_in, marker)
+    real = interpreter_dir(tmp_path, python3="real")
+    path = os.pathsep.join([entry.format(root=project), str(real)])
+
+    # When the gate decides a main-thread source edit
+    allowed = gate_decision_with_path(tmp_path, path)
+
+    # Then the real Python ran the gate and the planted one never started
+    assert allowed is False
+    assert not marker.exists()
+
+
+def interpreter_paths(platform, path, pathext, root):
+    """The ordered interpreter paths the runner's pure resolver lists for the given inputs."""
+    script = (
+        "const m = await import(process.argv[1]);"
+        "process.stdout.write(JSON.stringify(m.interpreterPaths(JSON.parse(process.argv[2]))))"
+    )
+    inputs = json.dumps({"platform": platform, "path": path, "pathext": pathext, "root": root})
+    result = run_bounded(
+        [NODE, "--input-type=module", "-e", script, PLUGIN.as_uri(), inputs],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+    assert result.returncode == 0, result.stderr
+
+    return json.loads(result.stdout)
+
+
+def test_on_windows_only_absolute_path_folders_outside_the_project_are_searched():
+    # Given a PATH mixing the project, its subfolders, the working folder, relative and quoted entries
+    path = ";".join(
+        [
+            r"C:\Work\Proj",
+            r"c:\work\PROJ\.venv\Scripts",
+            ".",
+            "",
+            r"tools\bin",
+            r"C:relative",
+            r"\rooted\on\the\current\drive",
+            r"C:\Python314",
+            r'"C:\Program Files\Py"',
+            r"C:\Work\Proj2\bin",
+        ]
+    )
+
+    # When the resolver lists the interpreter paths
+    paths = interpreter_paths("win32", path, ".COM;.EXE;.BAT;.CMD", r"C:\Work\Proj")
+
+    # Then only the absolute folders outside the project appear, python3 before python, extensions in PATHEXT order
+    folders = [r"C:\Python314", r"C:\Program Files\Py", r"C:\Work\Proj2\bin"]
+    assert paths == [
+        folder + "\\" + name + extension
+        for name in ("python3", "python")
+        for folder in folders
+        for extension in (".COM", ".EXE", ".BAT", ".CMD")
+    ]
+
+
+def test_on_windows_an_empty_pathext_falls_back_to_the_default_executable_extensions():
+    assert interpreter_paths("win32", r"C:\Python314", "", r"C:\Work\Proj") == [
+        r"C:\Python314\python3.COM",
+        r"C:\Python314\python3.EXE",
+        r"C:\Python314\python3.BAT",
+        r"C:\Python314\python3.CMD",
+        r"C:\Python314\python.COM",
+        r"C:\Python314\python.EXE",
+        r"C:\Python314\python.BAT",
+        r"C:\Python314\python.CMD",
+    ]
+
+
+def test_on_windows_the_pathext_order_is_kept():
+    assert interpreter_paths("win32", r"D:\py", ".EXE;.CMD", r"C:\Work\Proj") == [
+        r"D:\py\python3.EXE",
+        r"D:\py\python3.CMD",
+        r"D:\py\python.EXE",
+        r"D:\py\python.CMD",
+    ]
+
+
+def test_on_posix_only_absolute_path_folders_outside_the_project_are_searched():
+    path = ":".join(["", "/usr/bin", ".", "bin", "/work/proj", "/work/proj/.venv/bin", "/work/proj2/bin", ""])
+
+    assert interpreter_paths("linux", path, ".EXE", "/work/proj") == [
+        "/usr/bin/python3",
+        "/work/proj2/bin/python3",
+        "/usr/bin/python",
+        "/work/proj2/bin/python",
+    ]
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="the python.org Windows layout names only python.exe")

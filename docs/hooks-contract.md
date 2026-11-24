@@ -62,14 +62,18 @@ The plugin has one default export, `{ id, server, setup }`, and is declared by i
 The runner spawns each hook as:
 
 ```text
-python3 -S -E <hook path> --format plain
+<absolute path of python3 or python> -S -E <hook path> --format plain
 ```
 
 The interpreter is `python3` when that name answers and `python` otherwise, because Debian and Ubuntu ship no `python`
-and the python.org Windows installer ships no `python3`. The runner decides on its first call by running `-S -E
--c` with a one-line probe under each name in turn and keeping the first that prints the expected answer, so a Windows
-Store alias that exists under either name but runs nothing is skipped. A failed probe is retried on the next call, and
-when neither name answers no hook runs and the call is allowed. `-S` skips site initialisation and `-E` ignores the
+and the python.org Windows installer ships no `python3`. The runner decides on its first call. It looks each name up
+in the absolute `PATH` folders outside the project root only, on Windows with every `PATHEXT` extension in order, runs
+`-S -E -c` with a one-line probe under each path it finds in turn, and keeps the first that prints the expected
+answer, so a Windows Store alias that exists under either name but runs nothing is skipped. It never hands the spawn a
+bare name, which Windows searches for in the project root first, and it skips an empty, `.` or other relative `PATH`
+entry, which resolves against the project root. The sources are under "Wiring details per surface" in
+[agent-compatibility.md](agent-compatibility.md). A failed probe is retried on the next call, and when no path
+answers no hook runs and the call is allowed. `-S` skips site initialisation and `-E` ignores the
 `PYTHON*` environment variables, which takes a slice off the interpreter start the runner pays on every tool call. Both
 are safe here only because every hook is standard library only. A hook that needs an installed package does not belong
 in this directory.

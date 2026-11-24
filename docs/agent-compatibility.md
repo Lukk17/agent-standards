@@ -597,9 +597,12 @@ Known limits of Rule A, accepted rather than open:
   folders up from `.agents/hooks/preflight-gate/`, wherever the session starts. A user-level or plugin install has no
   such root, so a session started in a subfolder of a repository leaves the rest of that repository writable to the
   main thread. This predates the marketplace.
-- Every hook runs the first `python3` or `python` on `PATH`. A main-thread write of a user-writable interpreter or shim
-  that comes ahead of the system Python, or into the standard library of an interpreter the user owns, outside every
-  protected location, swaps the interpreter every hook runs on and so can switch off every hook.
+- Every hook runs the first `python3` or `python` on `PATH`, and through the OpenCode and Kilo Code runner the first
+  one in an absolute `PATH` folder outside the project root, as "Wiring details per surface" below says. A main-thread
+  write of a user-writable interpreter or shim that comes ahead of the system Python, or into the standard library of
+  an interpreter the user owns, outside every protected location, swaps the interpreter every hook runs on and so can
+  switch off every hook. The runner compares a `PATH` folder with the project root as written, so a folder outside the
+  root that is a link into it still counts as outside.
 - The protection of Claude Code's own files applies on the claude format only. On Codex and through the OpenCode and
   Kilo Code runner the main thread can still overwrite `~/.config/agents/hooks/...` and the files under `~/.codex`,
   as before the marketplace.
@@ -800,6 +803,30 @@ Read these before you touch any hook wiring. They moved here from `AGENTS.md`, w
   The user-wide install in [GLOBAL_SETUP.md](GLOBAL_SETUP.md) and [sandbox-agent/setup-global.sh](../sandbox-agent/setup-global.sh) install that plugin with the user scope
   and hold no copy of the text.
 - Every hook runs on `-S -E` under `python3`, falling back to `python`.
+- The OpenCode and Kilo Code runner in [../.agents/plugin/hooks.js](../.agents/plugin/hooks.js) never hands a spawn a
+  bare interpreter name. `interpreterPaths` there lists every absolute path `python3`, then `python`, can sit at, in
+  `PATH` order, and on Windows with every `PATHEXT` extension in its order, `.COM;.EXE;.BAT;.CMD` when it is unset.
+  Only an absolute `PATH` folder outside the project root counts: an empty, `.` or other relative entry is skipped, a
+  Windows entry needs a drive letter and a separator or a UNC path, and the root and every folder below it are skipped,
+  compared without case on Windows. The runner probes each of those paths that exists until one prints `ok`, and spawns
+  that path for the probe and for every hook. The spawn's working folder is the project root, and on Windows a bare
+  name is looked up there before `PATH`, so a `python3.exe`, `python3.cmd` or `python3.bat` planted in a project ran
+  every hook. libuv, which Node.js spawns through, says "If there's really only a filename, check the current directory
+  for file, then search all path directories"
+  (`https://github.com/libuv/libuv/blob/v1.53.0/src/win/process.c#L303-L304`, read 2026-11-24), and Bun says "Windows
+  resolves bare names against the working directory before `$PATH`" and tries `exe`, `cmd` and `bat`
+  (`https://github.com/oven-sh/bun/blob/bun-v1.4.5/src/which/lib.rs#L59-L81`, read 2026-11-24). The opt-out does not
+  help a hook either: libuv asks `NeedCurrentDirectoryForExePathW(L"")` (lines 381 to 386 of the same file), whose
+  page says "The value of the NoDefaultCurrentDirectoryInExePath environment variable determines the value this
+  function returns"
+  (`https://learn.microsoft.com/en-us/windows/win32/api/processenv/nf-processenv-needcurrentdirectoryforexepathw`,
+  read 2026-11-24), and Bun reads it with `std::env::var_os("NoDefaultCurrentDirectoryInExePath")` (line 81). Both read
+  the runtime's own environment, never the environment handed to the child. On Linux and macOS a bare name is looked up
+  in `PATH` only, but libuv calls `chdir` to the project root before `execvp`
+  (`https://github.com/libuv/libuv/blob/v1.53.0/src/unix/process.c#L427-L458`), so an empty or relative entry resolves
+  there, which is why those entries are skipped on every system. Tests in
+  [../tools/tests/test_hook_runner.py](../tools/tests/test_hook_runner.py), which check the Windows lists on Linux
+  through the pure function. Not measured on a real Windows machine.
 - No hook uses `argparse`, which exits 2 on a usage error. Two is the deny code in the plain format, so a stray flag
   would read as a block. Each hook scans `sys.argv` by hand instead and treats an unknown flag as an allow.
 - Every wiring moves to the project root before it calls a hook, and forces a zero exit where its format allows, so a
