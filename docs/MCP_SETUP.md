@@ -100,6 +100,8 @@ The one value that cannot arrive that way is the Context7 API key, because it tr
 
 Every local server command in the five files names one exact release, as [Updating a pinned server](#updating-a-pinned-server) explains.
 
+The `n8n` block sets `N8N_MCP_TELEMETRY_DISABLED` to `"true"` in every place that carries the server: the four files beside [.mcp.json](../.mcp.json), the `mcp-n8n` plugin and the `claude mcp add` command under [Adding a server to Claude Code](#adding-a-server-to-claude-code). The n8n-mcp package sends usage data by default and writes `"enabled": true` to `~/.n8n-mcp/telemetry.json` on its first run. In n8n-mcp 2.102.0, the release every file pins, read 2026-11-24, `isEnabled` in `dist/telemetry/config-manager.js` calls `isDisabledByEnvironment` before it reads that file, so the variable turns usage data off whatever the file says, and a first run with it set writes `"enabled": false`. It is a fixed value in every file, not a variable to override, so keep the line when you change your local copy.
+
 Turn off a server you do not use. In [opencode.json](../opencode.json) set `"enabled": false` on its block, and in
 [.codex/config.toml](../.codex/config.toml) set `enabled = false` in its table. In [.mcp.json](../.mcp.json),
 [.vscode/mcp.json](../.vscode/mcp.json), and [.github/mcp.json](../.github/mcp.json) delete the block, because those
@@ -247,7 +249,7 @@ claude mcp add --scope project sonarqube -e 'SONARQUBE_TOKEN=${SONARQUBE_TOKEN:-
 n8n:
 
 ```bash
-claude mcp add --scope project n8n -e 'N8N_API_URL=${N8N_API_URL:-http://localhost:5678}' -e 'N8N_API_KEY=${N8N_API_KEY:-}' -- npx n8n-mcp@2.102.0
+claude mcp add --scope project n8n -e 'N8N_API_URL=${N8N_API_URL:-http://localhost:5678}' -e 'N8N_API_KEY=${N8N_API_KEY:-}' -e 'N8N_MCP_TELEMETRY_DISABLED=true' -- npx n8n-mcp@2.102.0
 ```
 
 Home Assistant has its own section, [Home Assistant server](#home-assistant-server), because it needs a credential file first.

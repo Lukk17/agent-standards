@@ -139,10 +139,10 @@ VERIFIED, measured on a Telegraf 1 release with `telegraf --test --input-filter 
 ```toml
 [[inputs.internet_speed]]
   interval = "1h"
-  cache = true
+  cache = false
 ```
 
-`cache` "Caches the closest server location". `memory_saving_mode` stays off on a fast line, because the README says it reduces accuracy "especially for fast (>30Mb/s) connections".
+`cache = true` ("Caches the closest server location") keeps the server picked at the first test until Telegraf restarts, so a slow server caps every result: VERIFIED, every hourly test for eight days stopped near 226 Mbit/s on a line that reached 849.8 Mbit/s. Keep `cache = false`, the default, so the server is picked again before every test, and never pin or exclude a server with `server_id_include` or `server_id_exclude`. `memory_saving_mode` stays off on a fast line, because the README says it reduces accuracy "especially for fast (>30Mb/s) connections".
 
 Telegraf rounds every interval to the clock, `round_interval`, true by default in `config/config.go`. A one hour test therefore starts at the full hour, and a ping or DNS failure in the first minute after it may be the test filling the line. Look for a `speed.csv` row near that time before counting it as an outage.
 

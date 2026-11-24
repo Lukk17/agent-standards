@@ -84,7 +84,8 @@
         "n8n-mcp@2.102.0"
       ],
       "env": {
-        "N8N_API_URL": "http://localhost:5678"
+        "N8N_API_URL": "http://localhost:5678",
+        "N8N_MCP_TELEMETRY_DISABLED": "true"
       }
     }
   }
