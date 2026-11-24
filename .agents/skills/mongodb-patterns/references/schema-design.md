@@ -17,7 +17,7 @@ MongoDB performance and cost issues-queries and indexes cannot fix a fundamental
 - [How to Use](#how-to-use)
 - [How These Rules Work](#how-these-rules-work)
   - [MongoDB MCP Integration](#mongodb-mcp-integration)
-  - [⚠️ Action Policy](#-action-policy)
+  - [Action Policy](#action-policy)
   - [Working Together](#working-together)
 - [Where to go next](#where-to-go-next)
 
@@ -173,7 +173,7 @@ When connected, I can automatically:
 - Measure document/array sizes via `mcp__mongodb__aggregate`
 - Check collection statistics via `mcp__mongodb__db-stats`
 
-#### ⚠️ Action Policy
+#### Action Policy
 
 I will NEVER execute write operations without your explicit approval.
 

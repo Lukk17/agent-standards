@@ -86,8 +86,8 @@ CONTRACTS = frozenset({3})
 
 TEXT_EVENT = "experimental.text.complete"
 
-EM_DASH = "—"
-EN_DASH = "–"
+EM_DASH = "\u2014"
+EN_DASH = "\u2013"
 
 FENCE_RE = re.compile(r"^( {0,3})(`{3,}|~{3,})(.*)$")
 INLINE_CODE_RE = re.compile(r"``[^\n]+?``|`[^`\n]*`")
@@ -132,7 +132,7 @@ PLACEHOLDER_FIRST = 0xE000
 PLACEHOLDER_RE = re.compile("[-]")
 PLACEHOLDER_COUNT = 0xF8FF - PLACEHOLDER_FIRST + 1
 
-DASH_RE = re.compile("[–—]+")
+DASH_RE = re.compile("[\u2013\u2014]+")
 FIXABLE_CHARS = EM_DASH + EN_DASH + "*_"
 # A display batch holding none of these can neither change nor move a fence.
 DISPLAY_CHARS = FIXABLE_CHARS + "`~"

@@ -107,7 +107,7 @@ def main():
     return 0
 """
 
-EM_DASH_PROSE = "The plan is simple — delegate the work."
+EM_DASH_PROSE = "The plan is simple \u2014 delegate the work."
 
 
 def write_hook(root, name, source):
@@ -1561,13 +1561,13 @@ def test_the_shipped_formatting_check_fixes_a_finished_text_part(tmp_path):
     real_hooks(tmp_path)
 
     # When
-    results = drive(tmp_path, [finished_text("The plan is simple — delegate **now**.")])
+    results = drive(tmp_path, [finished_text("The plan is simple \u2014 delegate **now**.")])
 
     # Then
     assert results == [{"ok": True, "text": "The plan is simple, delegate now."}]
 
 
-SUBAGENT_PROSE = "The plan is simple — delegate the work; Should I go on?"
+SUBAGENT_PROSE = "The plan is simple \u2014 delegate the work; Should I go on?"
 
 
 def test_a_subagent_session_text_part_is_left_as_written(tmp_path):
@@ -1598,7 +1598,7 @@ def test_a_text_part_in_a_session_that_cannot_be_placed_is_still_fixed(tmp_path,
     real_hooks(tmp_path)
 
     # When
-    results = drive(tmp_path, [finished_text("The plan is simple — delegate **now**.", session=session)])
+    results = drive(tmp_path, [finished_text("The plan is simple \u2014 delegate **now**.", session=session)])
 
     # Then an unplaced session is the main thread for reply style, never a subagent
     assert results == [{"ok": True, "text": "The plan is simple, delegate now."}]

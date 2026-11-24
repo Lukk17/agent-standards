@@ -912,7 +912,7 @@ def test_envelope_main_thread_is_not_treated_as_a_subagent(tmp_path):
     assert (code, out, err) == (0, "", "")
 
 
-NON_ASCII_PROSE = "Dash — and quotes “” and żółw."
+NON_ASCII_PROSE = "Dash \u2014 and quotes “” and żółw."
 
 
 def test_envelope_with_non_ascii_prose_still_decides():

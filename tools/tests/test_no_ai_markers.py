@@ -19,8 +19,8 @@ from tests import claude_wiring_support as claude_wiring
 from tests.conftest import NO_AI_MARKERS_HOOK, REPO_ROOT
 from tests.process_tree import run_bounded
 
-EM_DASH = "—"
-EN_DASH = "–"
+EM_DASH = "\u2014"
+EN_DASH = "\u2013"
 
 
 def transcript(tmp_path, *entries):

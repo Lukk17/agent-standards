@@ -17,7 +17,7 @@ import pytest
 from tests.conftest import MARKDOWN_LINT_HOOK, MARKDOWN_LINT_RULES
 from tests.process_tree import run_bounded
 
-EM_DASH = "—"
+EM_DASH = "\u2014"
 
 DIRTY = "### Heading\n\nProse carrying an em dash " + EM_DASH + " which the lint bans.\n"
 

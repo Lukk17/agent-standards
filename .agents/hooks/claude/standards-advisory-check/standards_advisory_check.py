@@ -163,7 +163,7 @@ def _unpinned_action(line: str) -> str:
 
     if not FULL_SHA.match(ref):
         return (
-            "action pinned to a moving ref instead of a full 40-character commit SHA; resolve it with "
+            "action pinned to a moving ref instead of a full 40-character commit SHA. Resolve it with "
             "`git ls-remote --tags https://github.com/<owner>/<repo> refs/tags/<tag> refs/tags/<tag>^{}` "
             "and add a `# vX.Y.Z` comment (deployment-patterns)"
         )
@@ -187,20 +187,20 @@ def _findings_for_line(line: str, path: PurePath) -> List[str]:
 
         if LATEST_RUNNER.search(line):
             found.append(
-                "runner on a moving `-latest` label; name a fixed one such as `ubuntu-24.04` (deployment-patterns)"
+                "runner on a moving `-latest` label. Name a fixed one such as `ubuntu-24.04` (deployment-patterns)"
             )
 
     if suffix not in PROSE_SUFFIXES and LATEST_IMAGE.search(line):
-        found.append("image on `:latest`; pin an exact version tag plus its `@sha256:` digest (docker-patterns)")
+        found.append("image on `:latest`. Pin an exact version tag plus its `@sha256:` digest (docker-patterns)")
 
     if suffix in JPA_SUFFIXES and QUERY_ANNOTATION.search(line):
         found.append(
-            "query string annotation; use a Spring Data `Specification` or a derived query method (springboot-patterns)"
+            "query string annotation. Use a Spring Data `Specification` or a derived query method (springboot-patterns)"
         )
 
     if suffix not in PROSE_SUFFIXES and _is_test_file(path) and DIVIDER_BANNER.match(line):
         found.append(
-            "divider banner in a test; the only test comments are `// Given`, `// When`, `// Then` (tdd-workflow)"
+            "divider banner in a test. The only test comments are `// Given`, `// When`, `// Then` (tdd-workflow)"
         )
 
     return found

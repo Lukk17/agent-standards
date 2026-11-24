@@ -33,7 +33,8 @@ Enforces a subset of the `markdown-writer` skill rules:
 - A file inside `.agents/skills/<name>/` links only to files that exist. A
   file under `references/` sits directly in that folder, is linked from its
   `SKILL.md`, and opens with a Contents list that links its sections once it
-  runs past 100 lines.
+  runs past 100 lines. Each of those links matches the anchor GitHub makes
+  from a heading of the same file.
 
 - No dated or "current version" baseline in an agent-facing file: a skill
   file under `.agents/skills/`, a `subagents/<name>.md` source, or a file in a
@@ -111,8 +112,10 @@ unchecked.
 import os
 import re
 import sys
+import unicodedata
 from collections.abc import Iterator
 from pathlib import Path
+from urllib.parse import unquote
 
 try:
     import yaml
@@ -125,7 +128,7 @@ except ModuleNotFoundError:
     except (ModuleNotFoundError, AttributeError):
         yaml = None
 
-EM_OR_EN_DASH = re.compile(r"[–—]")
+EM_OR_EN_DASH = re.compile(r"[\u2013\u2014]")
 HEADING = re.compile(r"^(#{1,6})\s")
 FENCE_OPEN = re.compile(r"^( {0,3})(`{3,}|~{3,})(.*)$")
 TABLE_ROW = re.compile(r"^\s*\|")
@@ -175,6 +178,12 @@ LIST_ITEM = re.compile(r"^(?:[-*+]|\d+[.)])\s+\S")
 BACKTICKED_NAME = re.compile(r"`[a-z0-9]+(?:-[a-z0-9]+)*`")
 CONTENTS_MARKER = re.compile(r"^(?:#{1,6}\s+)?contents:?$", re.IGNORECASE)
 SECTION_ANCHOR = "#"
+HEADING_CODE_SPAN = re.compile(r"(`+)(.+?)\1")
+HEADING_LINK = re.compile(r"!?\[([^\]]*)\]\([^)]*\)")
+HTML_TAG = re.compile(r"<[^>]+>")
+ESCAPE_OR_EMPHASIS_UNDERSCORE = re.compile(r"\\([!-/:-@\[-`{-~])|(?<![^\W_])_+|_+(?![^\W_])")
+SLUG_REMOVED = frozenset({"No", "Pe", "Pf", "Pi", "Ps", "Po", "Pd", "Sm", "Sc", "Sk", "So", "Cc", "Co", "Cf", "Cn", "Zs", "Zl", "Zp"})
+SLUG_KEPT = frozenset(" -")
 FENCE_OUTSIDE = ""
 FENCE_OPENER = "opener"
 FENCE_BODY = "body"
@@ -287,7 +296,7 @@ def _skill_link_violations(line: str, line_no: int, path: Path, folder: Path | N
             failures += _violation(
                 path,
                 line_no,
-                f"links outside its own skill folder to {target}; a consumer may not have that path, "
+                f"links outside its own skill folder to {target}. A consumer may not have that path, "
                 "so name another skill in backticks instead of linking it",
             )
 
@@ -373,7 +382,7 @@ def check_lines(lines: list[str], path: Path) -> int:
             preview = line[:80].rstrip()
             print(
                 f"::error file={path},line={line_no}::"
-                f"level-2 heading; sections start at level 3, level 1 is the title only: {preview}"
+                f"level-2 heading. Sections start at level 3, level 1 is the title only: {preview}"
             )
             failures += 1
 
@@ -425,7 +434,7 @@ def check_hash_pins(lines: list[str], path: Path) -> int:
                 failures += _violation(
                     path,
                     line_no,
-                    f'real hash pin "{match.group(0)}"; show the pin as a placeholder such as '
+                    f'real hash pin "{match.group(0)}". Show the pin as a placeholder such as '
                     "`@<commit-sha> # v5` or `@sha256:<digest>`, with the command that resolves it",
                 )
                 break
@@ -454,7 +463,7 @@ def check_dated_baselines(lines: list[str], path: Path) -> int:
                 failures += _violation(
                     path,
                     line_no,
-                    f'dated or "current version" baseline "{match.group(0)}"; it goes stale unseen, '
+                    f'dated or "current version" baseline "{match.group(0)}". It goes stale unseen, '
                     "so state only the major version or versions the content is written for",
                 )
                 break
@@ -536,14 +545,14 @@ def _description_quoting_problem(raw: str) -> str:
 
     if raw[0] in YAML_INDICATORS:
         return (
-            f"description opens with the YAML indicator {raw[0]!r} and is not quoted; "
-            "wrap the whole value in double quotes"
+            f"description opens with the YAML indicator {raw[0]!r} and is not quoted. "
+            "Wrap the whole value in double quotes"
         )
 
     if ": " in raw or raw.endswith(":"):
         return (
-            "description holds an unquoted colon, which YAML reads as a nested mapping; "
-            "wrap the whole value in double quotes and escape any inner double quote"
+            "description holds an unquoted colon, which YAML reads as a nested mapping. "
+            "Wrap the whole value in double quotes and escape any inner double quote"
         )
 
     return ""
@@ -572,7 +581,7 @@ def check_front_matter(lines: list[str], path: Path) -> int:
     kind, expected_name = target
 
     if not lines or lines[0].strip() != FRONT_MATTER_FENCE:
-        return _violation(path, 1, f"{kind} front matter missing; the file has to open with a --- block")
+        return _violation(path, 1, f"{kind} front matter missing. The file has to open with a --- block")
 
     end = _front_matter_end(lines)
 
@@ -618,7 +627,7 @@ def check_front_matter(lines: list[str], path: Path) -> int:
         failures += _violation(
             path,
             key_lines.get("name", 1),
-            f"name is {name!r} but the {source} is {expected_name!r}; they have to match",
+            f"name is {name!r} but the {source} is {expected_name!r}. They have to match",
         )
 
     description = data.get("description")
@@ -652,7 +661,7 @@ def check_front_matter(lines: list[str], path: Path) -> int:
             failures += _violation(
                 path,
                 key_lines.get(str(key), 1),
-                f"key {key!r} is not in the Agent Skills specification; allowed keys are {allowed}",
+                f"key {key!r} is not in the Agent Skills specification. Allowed keys are {allowed}",
             )
 
     return failures + check_manifest_version(data, kind, path, key_lines)
@@ -675,13 +684,13 @@ def check_manifest_version(data: dict, kind: str, path: Path, key_lines: dict[st
         label, line = VERSION_KEY, key_lines.get(VERSION_KEY, 1)
 
     if version is None:
-        return _violation(path, line, f"{label} is missing; give the {kind} a MAJOR.MINOR.PATCH version such as 1.0.0")
+        return _violation(path, line, f"{label} is missing. Give the {kind} a MAJOR.MINOR.PATCH version such as 1.0.0")
 
     if not isinstance(version, str) or not SEMANTIC_VERSION.fullmatch(version):
         return _violation(
             path,
             line,
-            f"{label} is {version!r}, not a MAJOR.MINOR.PATCH version such as 1.0.0; write it as a quoted string",
+            f"{label} is {version!r}, not a MAJOR.MINOR.PATCH version such as 1.0.0. Write it as a quoted string",
         )
 
     return 0
@@ -706,8 +715,8 @@ def check_skill_manifest_size(text: str, path: Path) -> int:
     return _violation(
         path,
         1,
-        f"skill manifest is {size} characters, over the {MAX_SKILL_MANIFEST_CHARACTERS} character limit; "
-        "keep the technology-neutral rules and the routing table here and move the depth into references/, "
+        f"skill manifest is {size} characters, over the {MAX_SKILL_MANIFEST_CHARACTERS} character limit. "
+        "Keep the technology-neutral rules and the routing table here and move the depth into references/, "
         "one file per technology",
     )
 
@@ -934,11 +943,87 @@ def _links_a_section(item: str) -> bool:
     return any(target.startswith(SECTION_ANCHOR) for target in targets)
 
 
+def github_slug(title: str) -> str:
+    """The anchor GitHub gives a heading title, before a repeated title gets its -1, -2 suffix.
+
+    Markup goes first: a code span keeps its text, a link or an image keeps
+    its text, an HTML tag goes, a backslash escape keeps the character it
+    escapes, and any other underscore that is no part of a word is emphasis.
+    A Unicode mark such as the variation selector after an emoji stays, as it
+    does on GitHub. Then the title is lowercased, every character in SLUG_REMOVED
+    categories goes unless it is a letter, a space or a hyphen, and each space
+    turns into a hyphen. SLUG_REMOVED is the category list of github-slugger,
+    https://github.com/Flet/github-slugger/blob/master/script/generate-regex.js,
+    and the rules match "Section links" in
+    https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax.
+    """
+    pieces = []
+
+    for index, piece in enumerate(HEADING_CODE_SPAN.split(title)):
+        if index % 3 == 2:
+            pieces.append(piece)
+        elif index % 3 == 0:
+            text = HEADING_LINK.sub(r"\1", piece)
+            pieces.append(ESCAPE_OR_EMPHASIS_UNDERSCORE.sub(lambda match: match.group(1) or "", HTML_TAG.sub("", text)))
+
+    kept = (
+        character
+        for character in "".join(pieces).lower()
+        if character in SLUG_KEPT or character.isalpha() or unicodedata.category(character) not in SLUG_REMOVED
+    )
+
+    return "".join(kept).replace(" ", "-")
+
+
+def heading_anchors(lines: list[str]) -> set[str]:
+    """Every anchor GitHub gives the headings of a file, outside fenced code, repeats numbered."""
+    anchors: set[str] = set()
+    seen: dict[str, int] = {}
+
+    for _, line in _outside_fences(lines, _body_start(lines)):
+        match = HEADING_TEXT.match(line)
+
+        if match is None:
+            continue
+
+        base = github_slug(match.group(2).strip())
+        anchor = base
+
+        while anchor in anchors:
+            seen[base] = seen.get(base, 0) + 1
+            anchor = f"{base}-{seen[base]}"
+
+        anchors.add(anchor)
+
+    return anchors
+
+
+def check_contents_anchors(lines: list[str], path: Path, items: list[tuple[int, str]]) -> int:
+    """Report every Contents link to an anchor that no heading of the same file produces. Returns the count."""
+    anchors = heading_anchors(lines)
+    failures = 0
+
+    for line_no, item in items:
+        for target in INLINE_LINK_TARGET.findall(INLINE_CODE.sub("", item)):
+            if not target.startswith(SECTION_ANCHOR) or unquote(target[1:]) in anchors:
+                continue
+
+            failures += _violation(
+                path,
+                line_no,
+                f"Contents link {target} matches no heading in this file. "
+                "Use the anchor GitHub makes from the heading, as in [Setup steps](#setup-steps)",
+            )
+
+    return failures
+
+
 def check_reference_contents(lines: list[str], path: Path) -> int:
     """Report a long reference that does not open with a Contents list linking its sections.
 
     Returns the violation count. A list with items that link no section is
-    reported once, on the first such item.
+    reported once, on the first such item, and each link to an anchor no
+    heading of the file produces is reported on its own line.
     """
     if len(lines) <= MAX_REFERENCE_LINES_WITHOUT_CONTENTS:
         return 0
@@ -953,12 +1038,13 @@ def check_reference_contents(lines: list[str], path: Path) -> int:
             'before its first section. Open it with "Contents:" and a list that links its sections',
         )
 
+    failures = check_contents_anchors(lines, path, items)
     unlinked = [line_no for line_no, item in items if not _links_a_section(item)]
 
     if not unlinked:
-        return 0
+        return failures
 
-    return _violation(
+    return failures + _violation(
         path,
         unlinked[0],
         f"Contents list items without a link to a section: {len(unlinked)} of {len(items)}, the first on this line. "

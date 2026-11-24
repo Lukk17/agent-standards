@@ -24,7 +24,7 @@ naming an agent directory, which is why this is a symlink rather than a setting.
 Codex reads TOML custom agents from .codex/agents/. GitHub Copilot needs its own
 .agent.md format in .github/agents/ and cannot read either of the others.
 
-Consumer repos pull only the generated trees plus skills — they never see the
+Consumer repos pull only the generated trees plus skills. They never see the
 canonical subagents/ source or this generator.
 
 Usage:

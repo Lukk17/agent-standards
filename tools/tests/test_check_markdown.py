@@ -899,9 +899,9 @@ def test_a_link_leaving_the_skill_folder_is_reported_once(tmp_path, capsys):
     assert "does not exist" not in out
 
 
-def _long_reference(opening, lines=101):
+def _long_reference(opening, lines=101, sections=("### First section",)):
     filler = [f"Line {number}." for number in range(lines)]
-    text = opening + "\n\n### First section\n\n"
+    text = opening + "\n\n" + "\n\n".join(sections) + "\n\n"
     padding = lines - len(text.splitlines())
 
     return text + "\n".join(filler[:padding]) + "\n"
@@ -912,7 +912,7 @@ CONTENTS_OPENINGS = {
     "contents-heading": "# Topic\n\nWhat the file holds.\n\n---\n\n### Contents\n\n- [First section](#first-section)",
     "numbered-list": "# Topic\n\nContents:\n\n1. [First section](#first-section)",
     "no-title": "### Contents\n\n- [First section](#first-section)",
-    "nested-items": "# Topic\n\nContents:\n\n- [First section](#first-section)\n  - [A part of it](#a-part-of-it)",
+    "nested-items": "# Topic\n\nContents:\n\n- [First section](#first-section)\n  - [A part of it](#a-part-of-it)\n\n#### A part of it",
     "code-in-the-link-text": "# Topic\n\nContents:\n\n- [`first` section](#first-section)",
 }
 
@@ -956,7 +956,7 @@ def test_a_long_reference_without_an_opening_contents_list_is_reported(tmp_path,
 
 UNLINKED_CONTENTS_OPENINGS = {
     "no-item-linked": ("# Topic\n\nContents:\n\n- First section\n- Second section", 5, "2 of 2"),
-    "one-item-not-linked": ("# Topic\n\nContents:\n\n- [First section](#first-section)\n- Second section\n- [Third](#third)", 6, "1 of 3"),
+    "one-item-not-linked": ("# Topic\n\nContents:\n\n- [First section](#first-section)\n- Second section\n- [Third](#third)\n\n### Third", 6, "1 of 3"),
     "link-to-another-file": ("# Topic\n\nContents:\n\n- [First section](#first-section)\n- [Topic](topic.md)", 6, "1 of 2"),
     "link-shown-as-code": ("# Topic\n\nContents:\n\n- `[First section](#first-section)`", 5, "1 of 1"),
     "nested-item-not-linked": ("# Topic\n\nContents:\n\n- [First section](#first-section)\n  - A part of it", 6, "1 of 2"),
@@ -977,6 +977,93 @@ def test_a_contents_list_item_that_links_no_section_is_reported(tmp_path, capsys
     assert failures == 1
     assert f"line={line}::" in out
     assert f"Contents list items without a link to a section: {share}, the first on this line. Write each item as a link to its section, as in [Setup](#setup)" in out
+
+
+MATCHING_CONTENTS_ANCHORS = {
+    "punctuation-removed": (("### Step 1: set up the venv",), "#step-1-set-up-the-venv"),
+    "inline-code-kept-as-text": (("### Install `uv` and pip",), "#install-uv-and-pip"),
+    "underscore-inside-a-word-kept": (("### The snake_case rule",), "#the-snake_case-rule"),
+    "emphasis-removed": (("### **Bold** and _italic_ words",), "#bold-and-italic-words"),
+    "link-text-kept": (("### Read [the docs](https://example.com) first",), "#read-the-docs-first"),
+    "symbol-between-spaces": (("### Pins & digests",), "#pins--digests"),
+    "dots-and-brackets-removed": (("### Version 1.2 (old)",), "#version-12-old"),
+    "closing-hashes-dropped": (("### Closed heading ###",), "#closed-heading"),
+    "repeated-heading-numbered": (("### Setup", "### Setup"), "#setup-1"),
+    "backslash-escape-kept": (("### Exclude \\_id",), "#exclude-_id"),
+    "letters-beyond-ascii": (("### Größe der Straße",), "#größe-der-straße"),
+    "percent-encoded-anchor": (("### Größe der Straße",), "#gr%C3%B6%C3%9Fe-der-stra%C3%9Fe"),
+    "emoji-variation-selector-kept": (("### \u26a0\ufe0f Policy",), "#%EF%B8%8F-policy"),
+    "the-title-itself": (("### Body",), "#topic"),
+}
+
+
+@pytest.mark.parametrize(("sections", "anchor"), list(MATCHING_CONTENTS_ANCHORS.values()), ids=list(MATCHING_CONTENTS_ANCHORS))
+def test_a_contents_link_to_the_anchor_github_gives_a_heading_passes(tmp_path, capsys, sections, anchor):
+    # Given a long reference whose Contents list links the anchor GitHub makes from one of its headings
+    _write_manifest(tmp_path, "Open [topic](references/topic.md) for the depth.\n")
+    opening = f"# Topic\n\nContents:\n\n- [The section]({anchor})"
+    path = _write_reference(tmp_path, "topic.md", _long_reference(opening, sections=sections))
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then
+    assert failures == 0, capsys.readouterr().out
+
+
+BROKEN_CONTENTS_ANCHORS = {
+    "misspelt": (("### First section",), "#first-sectoin"),
+    "heading-text-cut-short": (("### Step 1: set up the venv",), "#step-1-set-up"),
+    "punctuation-left-in": (("### Version 1.2",), "#version-1.2"),
+    "first-of-a-repeated-heading-numbered": (("### Setup",), "#setup-1"),
+    "heading-inside-a-fence": (("```text\n### Hidden\n```",), "#hidden"),
+    "emoji-variation-selector-dropped": (("### \u26a0\ufe0f Policy",), "#-policy"),
+}
+
+
+@pytest.mark.parametrize(("sections", "anchor"), list(BROKEN_CONTENTS_ANCHORS.values()), ids=list(BROKEN_CONTENTS_ANCHORS))
+def test_a_contents_link_that_matches_no_heading_is_reported(tmp_path, capsys, sections, anchor):
+    # Given a long reference whose Contents list links an anchor no heading of the file produces
+    _write_manifest(tmp_path, "Open [topic](references/topic.md) for the depth.\n")
+    opening = f"# Topic\n\nContents:\n\n- [The section]({anchor})"
+    path = _write_reference(tmp_path, "topic.md", _long_reference(opening, sections=sections))
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the item is reported on its own line, naming the anchor
+    out = capsys.readouterr().out
+    assert failures == 1, out
+    assert "line=5::" in out
+    assert f"Contents link {anchor} matches no heading in this file. Use the anchor GitHub makes from the heading, as in [Setup steps](#setup-steps)" in out
+
+
+def test_every_contents_link_that_matches_no_heading_is_reported(tmp_path, capsys):
+    # Given a long reference whose Contents list holds two items linking no heading of the file
+    _write_manifest(tmp_path, "Open [topic](references/topic.md) for the depth.\n")
+    opening = "# Topic\n\nContents:\n\n- [Gone](#gone)\n- [First section](#first-section)\n  - [Also gone](#also-gone)"
+    path = _write_reference(tmp_path, "topic.md", _long_reference(opening))
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then each broken link is reported on its own line
+    out = capsys.readouterr().out
+    assert failures == 2, out
+    assert "line=5::Contents link #gone matches no heading" in out
+    assert "line=7::Contents link #also-gone matches no heading" in out
+
+
+def test_a_short_reference_may_link_a_missing_heading_from_its_contents_list(tmp_path, capsys):
+    # Given a linked reference of exactly the line limit whose Contents list links an anchor no heading produces
+    _write_manifest(tmp_path, "Open [topic](references/topic.md) for the depth.\n")
+    path = _write_reference(tmp_path, "topic.md", _long_reference("# Topic\n\nContents:\n\n- [Gone](#gone)", lines=100))
+
+    # When
+    failures = MARKDOWN.check_file(path)
+
+    # Then the Contents rule starts past the limit
+    assert failures == 0, capsys.readouterr().out
 
 
 def test_a_short_reference_may_keep_a_contents_list_without_links(tmp_path, capsys):
@@ -1035,8 +1122,7 @@ tools: Read, Grep
     assert failures == 1
 
     out = capsys.readouterr().out
-    assert "key 'tools' is not in the Agent Skills specification" in out
-    assert "allowed keys are name, description, license, compatibility, metadata" in out
+    assert "key 'tools' is not in the Agent Skills specification. Allowed keys are name, description, license, compatibility, metadata" in out
 
 
 def test_every_key_outside_the_specification_is_reported(tmp_path, capsys):
@@ -1182,7 +1268,7 @@ description: Demo skill for the lint tests.
 """
     path = _write_skill(tmp_path, front_matter)
     path.write_text(
-        _with_version(front_matter, 'metadata:\n  version: "1.0.0"\n') + "\n# Demo\n\nProse with an em-dash — in it.\n",
+        _with_version(front_matter, 'metadata:\n  version: "1.0.0"\n') + "\n# Demo\n\nProse with an em-dash \u2014 in it.\n",
         encoding="utf-8",
     )
 
@@ -1400,7 +1486,7 @@ def test_no_real_skill_links_outside_its_own_folder(capsys):
 def test_the_ci_command_runs_the_shipped_rules(tmp_path):
     # Given a file breaking a shipped rule
     path = tmp_path / "GUIDE.md"
-    path.write_text("### Heading\n\nProse with an em-dash — in it.\n", encoding="utf-8")
+    path.write_text("### Heading\n\nProse with an em-dash \u2014 in it.\n", encoding="utf-8")
 
     # When the command CI and CONTRIBUTING.md name is run on it
     result = run_bounded(
@@ -1420,7 +1506,7 @@ def test_a_violation_in_a_global_template_is_caught_by_default(tmp_path, capsys,
     # Given a global install document carrying an em dash, under a throwaway repo root
     path = tmp_path / "global" / name
     path.parent.mkdir(parents=True)
-    path.write_text("### Heading\n\nProse — with a dash.\n", encoding="utf-8")
+    path.write_text("### Heading\n\nProse \u2014 with a dash.\n", encoding="utf-8")
 
     # When the default target set is linted
     targets = MARKDOWN.default_targets(tmp_path)
@@ -1541,7 +1627,7 @@ def test_a_generated_agent_file_gets_the_dated_baseline_rule_and_no_other(tmp_pa
     # Given a generated agent file carrying a dated baseline and an em dash
     path = tmp_path / tree / "agents" / name
     path.parent.mkdir(parents=True)
-    path.write_text("## Heading\n\nWritten — verified October 2026.\n", encoding="utf-8")
+    path.write_text("## Heading\n\nWritten \u2014 verified October 2026.\n", encoding="utf-8")
 
     # When
     failures = MARKDOWN.check_file(path)
