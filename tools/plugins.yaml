@@ -53,7 +53,7 @@ marketplace:
 
 hooks:
   - name: preflight-gate
-    version: 1.0.1
+    version: 1.1.0
     description: The preflight gate on PreToolUse. The main thread may not write project files, run scripts or browse, and a subagent with no skills or a read-only one is held to its definition.
     wiring:
       PreToolUse:

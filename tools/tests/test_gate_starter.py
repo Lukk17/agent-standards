@@ -59,6 +59,9 @@ BROKEN_RULES_ERRORS = {
 }
 LOAD_FAILURE_PREFIX = "preflight-gate: gate_rules failed to load: "
 MESSAGE_CAP = 300
+LOAD_WARNING_TEXT = "Preflight gate rules failed to load, so every tool call is allowed. Run the gate by hand to see the error."
+CLAUDE_LOAD_WARNING = '{"systemMessage": "' + LOAD_WARNING_TEXT + '"}'
+LOAD_FAILURE_STDOUT = {"claude": CLAUDE_LOAD_WARNING, "codex": "", "copilot": "", "plain": ""}
 
 RULES_THAT_ALLOW = "def main():\n    return 0\n"
 ENDS_THE_PROCESS_AND_ALLOWS = "import os\nos._exit(0)\n"
@@ -230,10 +233,53 @@ def test_a_starter_whose_rules_cannot_be_imported_allows_and_names_the_failure_o
     # When a main-thread write arrives, which the rules would deny
     code, out, err = start(WRITES[fmt], fmt, script=starter, cwd=project(tmp_path))
 
-    # Then the call is allowed with exit 0 and no decision, and stderr carries one line naming the failure
-    assert (code, out) == (0, "")
+    # Then the call is allowed with exit 0 and no decision, stdout holds only the format's warning, and stderr carries one line naming the failure
+    assert (code, out) == (0, LOAD_FAILURE_STDOUT[fmt])
     assert err.endswith("\n") and err.count("\n") == 1
     assert err.startswith(f"{LOAD_FAILURE_PREFIX}{BROKEN_RULES_ERRORS[case]}: ")
+
+
+@pytest.mark.parametrize("case", BROKEN_RULES)
+def test_a_claude_starter_whose_rules_cannot_be_loaded_prints_only_a_fixed_system_message(tmp_path, case):
+    # Given the starter in a folder whose rules file is missing or broken
+    starter = starter_with_rules(tmp_path, BROKEN_RULES[case])
+
+    # When a main-thread write arrives on the claude format
+    code, out, _ = start(WRITE, "claude", script=starter, cwd=project(tmp_path))
+
+    # Then stdout is one JSON object holding only the fixed warning, with no decision and no exception text
+    assert code == 0
+    assert json.loads(out) == {"systemMessage": LOAD_WARNING_TEXT}
+
+
+@pytest.mark.parametrize(
+    ("arguments", "warned"),
+    [
+        (["--format=claude"], True),
+        (["--format", "codex", "--format", "claude"], True),
+        (["--format", "claude", "--format=plain"], False),
+        (["--format"], False),
+        ([], False),
+    ],
+    ids=["equals-form", "last-claude-wins", "last-plain-wins", "no-value", "no-format"],
+)
+def test_the_starter_reads_the_format_for_its_warning_the_way_the_rules_read_it(tmp_path, arguments, warned):
+    # Given the starter beside a rules file that raises while it is imported
+    starter = starter_with_rules(tmp_path, BROKEN_RULES["raises-on-import"])
+
+    # When it starts with the given arguments
+    result = run_bounded(
+        [sys.executable, *WIRING_FLAGS, str(starter), *arguments],
+        input=json.dumps(WRITE),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(project(tmp_path)),
+        timeout=SUBPROCESS_TIMEOUT_SECONDS,
+    )
+
+    # Then only a last format of claude prints the warning, and the call is allowed either way
+    assert (result.returncode, result.stdout) == (0, CLAUDE_LOAD_WARNING if warned else "")
 
 
 def test_the_load_failure_line_carries_the_exception_message(tmp_path):
@@ -244,7 +290,7 @@ def test_the_load_failure_line_carries_the_exception_message(tmp_path):
     result = start(WRITE, "claude", script=starter, cwd=project(tmp_path))
 
     # Then the call is allowed and stderr names the exception type and its message
-    assert result == (0, "", f"{LOAD_FAILURE_PREFIX}RuntimeError: the rules blew up\n")
+    assert result == (0, CLAUDE_LOAD_WARNING, f"{LOAD_FAILURE_PREFIX}RuntimeError: the rules blew up\n")
 
 
 def test_a_multi_line_exception_message_stays_on_one_line(tmp_path):
@@ -255,7 +301,7 @@ def test_a_multi_line_exception_message_stays_on_one_line(tmp_path):
     result = start(WRITE, "claude", script=starter, cwd=project(tmp_path))
 
     # Then the message is joined into the one line
-    assert result == (0, "", f"{LOAD_FAILURE_PREFIX}RuntimeError: first second\n")
+    assert result == (0, CLAUDE_LOAD_WARNING, f"{LOAD_FAILURE_PREFIX}RuntimeError: first second\n")
 
 
 def test_a_message_whose_text_cannot_be_read_still_allows_and_never_crashes_the_starter(tmp_path):
@@ -266,8 +312,8 @@ def test_a_message_whose_text_cannot_be_read_still_allows_and_never_crashes_the_
     # When a main-thread write arrives
     result = start(WRITE, "claude", script=starter, cwd=project(tmp_path))
 
-    # Then the call is allowed and no traceback reaches stderr
-    assert result == ALLOWED
+    # Then the call is allowed with the warning, and no traceback reaches stderr
+    assert result == (0, CLAUDE_LOAD_WARNING, "")
 
 
 def test_characters_that_cannot_be_printed_are_replaced_in_the_load_failure_line(tmp_path):
@@ -278,7 +324,7 @@ def test_characters_that_cannot_be_printed_are_replaced_in_the_load_failure_line
     result = start(WRITE, "claude", script=starter, cwd=project(tmp_path))
 
     # Then each of them is a question mark
-    assert result == (0, "", f"{LOAD_FAILURE_PREFIX}RuntimeError: a?[31mb?c?d\n")
+    assert result == (0, CLAUDE_LOAD_WARNING, f"{LOAD_FAILURE_PREFIX}RuntimeError: a?[31mb?c?d\n")
 
 
 def test_a_long_load_failure_message_is_cut_to_its_cap(tmp_path):
@@ -289,7 +335,7 @@ def test_a_long_load_failure_message_is_cut_to_its_cap(tmp_path):
     result = start(WRITE, "claude", script=starter, cwd=project(tmp_path))
 
     # Then the message keeps only its first MESSAGE_CAP characters
-    assert result == (0, "", f"{LOAD_FAILURE_PREFIX}RuntimeError: {'x' * MESSAGE_CAP}\n")
+    assert result == (0, CLAUDE_LOAD_WARNING, f"{LOAD_FAILURE_PREFIX}RuntimeError: {'x' * MESSAGE_CAP}\n")
 
 
 @pytest.mark.skipif(SHELL is None, reason="needs a POSIX shell to start the gate with stderr closed")
@@ -308,8 +354,28 @@ def test_a_starter_started_with_no_stderr_still_allows_on_broken_rules(tmp_path)
         timeout=SUBPROCESS_TIMEOUT_SECONDS,
     )
 
-    # Then sys.stderr was None and the starter still allowed the call with exit 0
-    assert (result.returncode, result.stdout) == (0, "None")
+    # Then sys.stderr was None and the starter still allowed the call with exit 0 and printed its warning
+    assert (result.returncode, result.stdout) == (0, "None" + CLAUDE_LOAD_WARNING)
+
+
+@pytest.mark.skipif(SHELL is None, reason="needs a POSIX shell to start the gate with stdout closed")
+def test_a_claude_starter_started_with_no_stdout_still_allows_on_broken_rules(tmp_path):
+    # Given the starter beside a rules file that raises while it is imported
+    starter = starter_with_rules(tmp_path, BROKEN_RULES["raises-on-import"])
+
+    # When the starter runs on the claude format with its stdout file descriptor closed
+    result = run_bounded(
+        [SHELL, "-c", 'exec "$0" -S -E "$1" --format claude >&-', sys.executable, str(starter)],
+        input=json.dumps(WRITE),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(project(tmp_path)),
+        timeout=SUBPROCESS_TIMEOUT_SECONDS,
+    )
+
+    # Then the warning has nowhere to go, and the call is still allowed with exit 0 and only the load failure line
+    assert (result.returncode, result.stderr) == (0, f"{LOAD_FAILURE_PREFIX}RuntimeError: the rules blew up\n")
 
 
 def broken_gate_in_a_repository(tmp_path, rules):
@@ -341,17 +407,25 @@ def codex_command_for(root, folder):
     return command, dict(os.environ)
 
 
-WIRED_LOAD_FAILURE_STDERR = {"claude": True, "codex": False}
+def copilot_command_for(root, folder):
+    """The GitHub Copilot wiring's bash command, which starts the gate on its path relative to the project."""
+    wiring_file = json.loads((REPO_ROOT / ".github" / "hooks" / "preflight.json").read_text(encoding="utf-8"))
+    command = next(entry["bash"] for entry in wiring_file["hooks"]["preToolUse"] if PREFLIGHT_GATE.name in entry["bash"])
+
+    return command, dict(os.environ)
+
+
+WIRED_COMMANDS = {"claude": claude_command_for, "codex": codex_command_for, "copilot": copilot_command_for}
+WIRED_LOAD_FAILURE_STDERR = {"claude": True, "codex": False, "copilot": False}
 
 
 @pytest.mark.skipif(SHELL is None or GIT is None, reason="needs a POSIX shell and git")
-@pytest.mark.parametrize("command", [claude_command_for, codex_command_for], ids=["claude", "codex"])
+@pytest.mark.parametrize("name", WIRED_COMMANDS)
 @pytest.mark.parametrize("case", BROKEN_RULES)
-def test_the_wiring_s_own_command_allows_when_the_rules_cannot_be_loaded(tmp_path, command, case):
+def test_the_wiring_s_own_command_allows_when_the_rules_cannot_be_loaded(tmp_path, name, case):
     # Given a project whose gate rules are missing or broken, and the command a shipped wiring holds
     root, folder = broken_gate_in_a_repository(tmp_path, BROKEN_RULES[case])
-    wired, environment = command(root, folder)
-    name = "claude" if command is claude_command_for else "codex"
+    wired, environment = WIRED_COMMANDS[name](root, folder)
 
     # When the shell runs it from the project with a main-thread write
     result = run_bounded(
@@ -365,8 +439,8 @@ def test_the_wiring_s_own_command_allows_when_the_rules_cannot_be_loaded(tmp_pat
         timeout=SUBPROCESS_TIMEOUT_SECONDS,
     )
 
-    # Then the call is allowed, and the load failure line reaches stderr only where the wiring keeps it
-    assert (result.returncode, result.stdout) == (0, "")
+    # Then the call is allowed, only Claude Code gets the warning on stdout, and the load failure line reaches stderr only where the wiring keeps it
+    assert (result.returncode, result.stdout) == (0, LOAD_FAILURE_STDOUT[name])
 
     if WIRED_LOAD_FAILURE_STDERR[name]:
         assert result.stderr == result.stderr.splitlines()[0] + "\n"

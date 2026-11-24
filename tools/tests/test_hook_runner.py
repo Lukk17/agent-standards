@@ -946,6 +946,21 @@ def test_the_gate_s_rules_are_imported_by_the_starter_and_never_started_by_the_r
     assert hooks_run(log) == [GATE_RULES.stem]
 
 
+@pytest.mark.parametrize(("rules", "allowed"), [(None, False), ('raise RuntimeError("the rules blew up")\n', True)], ids=["intact", "broken"])
+def test_a_gate_whose_rules_cannot_be_loaded_allows_a_main_thread_write_through_the_runner(tmp_path, rules, allowed):
+    # Given the shipped starter in its folder, beside the shipped rules or beside a rules file that raises while it is imported
+    folder = tmp_path / ".agents" / "hooks" / PREFLIGHT_GATE.parent.name
+    folder.mkdir(parents=True)
+    shutil.copy(PREFLIGHT_GATE, folder / PREFLIGHT_GATE.name)
+    (folder / GATE_RULES.name).write_text(GATE_RULES.read_text(encoding="utf-8") if rules is None else rules, encoding="utf-8")
+
+    # When a main-thread write goes through the runner, which starts the gate on the plain format
+    (result,) = drive(tmp_path, [call(tool="Write", args={"file_path": "src/app.py"})])
+
+    # Then the shipped rules deny it, and a gate with broken rules allows it
+    assert result["ok"] is allowed
+
+
 def test_envelope_carries_the_documented_fields(tmp_path):
     # Given
     log = tmp_path / "log.jsonl"

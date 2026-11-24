@@ -1924,7 +1924,7 @@ Honest list of what a global install cannot do.
 
 8. Project settings win. A project that ran the per-project import brings its own `opencode.json`,
    `.codex/config.toml`, and skills, its plugin install writes its own `.claude/settings.json`, and those take precedence over the global ones. Hooks are the
-   exception: Codex runs the global and the project hooks side by side. In a project whose own `.claude/settings.json` still wires a hook that a plugin with the user scope also carries, both handlers start, every plugin copy but the gate stands down, and only the gate runs twice, which only repeats a deny. A plugin switched on at both scopes is still one plugin. The formatting check handles
+   exception: Codex runs the global and the project hooks side by side. In a project whose own `.claude/settings.json` still wires a hook that a plugin with the user scope also carries, both handlers start, every plugin copy but the gate stands down, and only the gate runs twice, which only repeats a deny, or the load failure warning when both copies cannot load their rules. A plugin switched on at both scopes is still one plugin. The formatting check handles
    that itself. The copy under `~/.config/agents/hooks/` stays silent in a project whose `.claude/settings.json`,
    `.claude/settings.local.json`, `.codex/config.toml`, `.codex/hooks.json` or `.github/hooks/*.json` already runs
    `no_ai_markers_check.py` on the same event, so one reply is never blocked twice and one batch never fixed twice.

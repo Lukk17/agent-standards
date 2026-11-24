@@ -174,7 +174,7 @@ claude plugin install python@agent-standards --scope project
 
 Keep the bundle `all`, every domain at once, for a model with a 1M token context window: Claude Code gives the skill list 1% of the window, as [GLOBAL_SETUP.md](GLOBAL_SETUP.md#claude-code) measures, and on a 200k window it drops descriptions past that, so the model stops picking those skills.
 
-These commands write into your `.claude/settings.json` and keep what it holds. An import made before the plugins left a `hooks` block there, which runs the scripts in `.agents/hooks/`. Upstream ships no such block any more, so nothing refreshes it. Delete the block, then install the hooks as plugins. While the block and a plugin both carry a hook, both handlers start, every plugin copy but the gate stands down, and only the gate runs twice, which only repeats a deny. Unix shell:
+These commands write into your `.claude/settings.json` and keep what it holds. An import made before the plugins left a `hooks` block there, which runs the scripts in `.agents/hooks/`. Upstream ships no such block any more, so nothing refreshes it. Delete the block, then install the hooks as plugins. While the block and a plugin both carry a hook, both handlers start, every plugin copy but the gate stands down, and only the gate runs twice, which only repeats a deny, or the load failure warning when both copies cannot load their rules. Unix shell:
 
 ```bash
 python3 -c 'import json;p=".claude/settings.json";s=json.load(open(p,encoding="utf-8"));s.pop("hooks",None);open(p,"w",encoding="utf-8").write(json.dumps(s,indent=2)+"\n")'

@@ -7,9 +7,11 @@ standard module, and then loads the rules by their path with Python's source
 loader, so no package, extension module or other file of that name can stand in
 for them either. The source loader keeps a compiled copy in __pycache__ and
 loads that on the next start. A rules file that is missing or cannot be loaded
-allows the call: exit 0 and nothing on stdout, like every other allow, with one
-line on stderr that names the failure, which no agent reads as a decision on
-exit 0 (docs/agent-compatibility.md).
+allows the call with exit 0 and one line on stderr that names the failure, which
+no agent reads as a decision on exit 0. On the claude format stdout carries one
+fixed JSON object holding only a systemMessage, which Claude Code shows the user
+and which decides nothing. Every other format keeps stdout empty, like every
+other allow (docs/agent-compatibility.md).
 
 HOOK_ORDER is the runner order of the gate, which the OpenCode and Kilo Code
 runner reads from this file (docs/hooks-contract.md).
@@ -23,6 +25,11 @@ RULES_MODULE = "gate_rules"
 RULES_FILE = RULES_MODULE + ".py"
 LOAD_FAILURE = "preflight-gate: gate_rules failed to load: {kind}: {message}\n"
 MESSAGE_CAP = 300
+WARNING_FORMAT = "claude"
+LOAD_WARNING = (
+    '{"systemMessage": "Preflight gate rules failed to load, so every tool call is allowed.'
+    ' Run the gate by hand to see the error."}'
+)
 
 
 def _drop_own_folder() -> None:
@@ -52,6 +59,37 @@ def _report_load_failure(error: BaseException) -> None:
         pass
 
 
+def _asked_format(argv: "list[str]") -> str:
+    """The value of the last --format in argv, read the way the rules read it, or "" when there is none."""
+    fmt = ""
+    index = 0
+
+    while index < len(argv):
+        token = argv[index]
+
+        if token == "--format" and index + 1 < len(argv):
+            fmt = argv[index + 1]
+            index += 2
+            continue
+
+        if token.startswith("--format="):
+            fmt = token.split("=", 1)[1]
+
+        index += 1
+
+    return fmt
+
+
+def _warn_on_claude(argv: "list[str]") -> None:
+    """Print LOAD_WARNING on stdout when the format is WARNING_FORMAT, and never raise."""
+    try:
+        if _asked_format(argv) == WARNING_FORMAT:
+            sys.stdout.write(LOAD_WARNING)
+            sys.stdout.flush()
+    except Exception:
+        pass
+
+
 def _load_rules():
     """The rules module, loaded from RULES_FILE beside this file and nowhere else.
 
@@ -77,6 +115,7 @@ def main() -> int:
         decide = _load_rules().main
     except (Exception, SystemExit) as error:
         _report_load_failure(error)
+        _warn_on_claude(sys.argv[1:])
         return 0
 
     return decide()
