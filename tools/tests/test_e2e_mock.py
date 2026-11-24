@@ -424,6 +424,95 @@ def test_an_unreadable_log_gives_all_zero_shell_facts(tmp_path):
     assert driver(f"e2e_shell_facts '{(tmp_path / 'missing.jsonl').as_posix()}'").stdout.split() == ["0", "0", "0"]
 
 
+GATE_COMMAND = 'cd "${CLAUDE_PROJECT_DIR}" && "$PY" -S -E "${CLAUDE_PLUGIN_ROOT}"/preflight_gate.py --format claude ; exit 0'
+SYNC_COMMAND = 'cd "${CLAUDE_PROJECT_DIR}" && "$PY" -S -E "${CLAUDE_PLUGIN_ROOT}"/task_list_sync.py --event stop --format claude ; exit 0'
+HOOK_WIRING = {"hooks": {
+    "PreToolUse": [{"matcher": "^(Write|Edit)$", "hooks": [{"type": "command", "command": GATE_COMMAND}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": SYNC_COMMAND}]}],
+}}
+
+
+def asked(event: str, query: str, matched: int | None) -> str:
+    """The verbose debug lines of one event firing, as Claude Code 2.1.314 writes them."""
+    lines = f"2026-11-24T12:00:00.000Z [VERBOSE] Getting matching hook commands for {event} with query: {query}\n"
+    lines += "2026-11-24T12:00:00.000Z [VERBOSE] Found 1 hook matchers in settings\n"
+    if matched is not None:
+        shown = "no match query" if query == "undefined" else query
+        lines += f'2026-11-24T12:00:00.000Z [VERBOSE] Matched {matched} unique hooks for query "{shown}" ({matched} before deduplication)\n'
+    return lines
+
+
+def ran(event: str, script: str, plugin: str | None) -> str:
+    """The debug line of one hook run, from a plugin or, with no plugin, from a settings file."""
+    root = f'"/cache/{plugin}/1.0.1"' if plugin else ".agents/hooks/x"
+    source = f" (plugin {plugin}@agent-standards)" if plugin else ""
+    return f'2026-11-24T12:00:00.100Z [DEBUG] Hooks: {event} [cd "${{CLAUDE_PROJECT_DIR}}" && "$PY" -S -E {root}/{script} ; exit 0]{source} finished with status 0 (30ms)\n'
+
+
+def hook_runs(tmp_path: Path, debug: str) -> list[str]:
+    (tmp_path / "debug.log").write_text(debug, encoding="utf-8")
+    (tmp_path / "wiring.json").write_text(json.dumps(HOOK_WIRING), encoding="utf-8")
+    result = driver(f"e2e_hook_runs '{(tmp_path / 'debug.log').as_posix()}' '{(tmp_path / 'wiring.json').as_posix()}'")
+    assert result.returncode == 0, result.stderr
+    return result.stdout.splitlines()
+
+
+def test_the_hook_runs_count_each_wired_hook_once_on_each_firing(tmp_path):
+    # Given a Write call that fires the gate, a Read call that matches nothing, and two Stop firings
+    debug = (asked("PreToolUse", "Write", 1) + ran("PreToolUse:Write", "preflight_gate.py", "hook-preflight-gate")
+             + asked("PreToolUse", "Read", None)
+             + asked("Stop", "undefined", 1) + ran("Stop", "task_list_sync.py", "hook-task-list-sync")
+             + asked("Stop", "undefined", 1) + ran("Stop", "task_list_sync.py", "hook-task-list-sync"))
+
+    # Then: 3 firings, 3 runs, both events, and no problem
+    assert hook_runs(tmp_path, debug) == ["3 3 PreToolUse,Stop"]
+
+
+def test_the_hook_runs_find_a_hook_wired_in_a_settings_file_beside_its_plugin(tmp_path):
+    debug = (asked("PreToolUse", "Write", 2) + ran("PreToolUse:Write", "preflight_gate.py", "hook-preflight-gate")
+             + ran("PreToolUse:Write", "preflight_gate.py", None))
+
+    facts = hook_runs(tmp_path, debug)
+
+    assert facts[0] == "1 2 PreToolUse"
+    assert "PreToolUse:Write matched 2 hooks where the plugins wire 1" in facts
+    assert "preflight_gate.py ran on PreToolUse from outside a plugin" in facts
+    assert "preflight_gate.py ran 2 times on 1 firings of PreToolUse:Write" in facts
+
+
+def test_the_hook_runs_find_a_hook_two_plugins_run_on_one_firing(tmp_path):
+    debug = (asked("Stop", "undefined", 2) + ran("Stop", "task_list_sync.py", "hook-task-list-sync")
+             + ran("Stop", "task_list_sync.py", "hook-task-list-sync-copy"))
+
+    assert hook_runs(tmp_path, debug)[1:] == [
+        "Stop:- matched 2 hooks where the plugins wire 1",
+        "task_list_sync.py ran 2 times on 1 firings of Stop:-",
+    ]
+
+
+def test_the_hook_runs_find_a_run_on_an_event_the_plugins_do_not_wire_it_to(tmp_path):
+    debug = asked("Stop", "undefined", 1) + ran("Stop", "task_list_sync.py", "hook-task-list-sync") + ran("SessionStart:startup", "task_list_sync.py", "hook-task-list-sync")
+
+    assert hook_runs(tmp_path, debug)[1:] == ["task_list_sync.py ran 1 times on SessionStart:startup, which the plugins do not wire it to"]
+
+
+def test_an_unreadable_debug_log_gives_no_firings_and_a_reason(tmp_path):
+    result = driver(f"e2e_hook_runs '{(tmp_path / 'missing.log').as_posix()}' '{(tmp_path / 'missing.json').as_posix()}'")
+
+    first, reason = result.stdout.splitlines()
+    assert first == "0 0 -"
+    assert "cannot be read" in reason
+
+
+def test_the_driver_counts_claude_code_hook_runs_in_the_spawn_case_and_in_the_clone():
+    source = DRIVER.read_text(encoding="utf-8")
+
+    assert "CLAUDE_CODE_DEBUG_LOG_LEVEL=verbose" in source
+    assert '--debug-file "${dir}/${name}.debug.log"' in source
+    assert re.search(r'e2e_check_own_wiring "\$project"\n\s*e2e_check_hooks_once "\$dir" spawn ', source)
+    assert re.search(r'e2e_check_hooks_once "\$dir" own-wiring ', source)
+
+
 def test_the_driver_proves_on_codex_that_an_agent_without_bash_gets_no_shell():
     source = DRIVER.read_text(encoding="utf-8")
     agent = re.search(r'^readonly E2E_NO_SHELL_AGENT="([\w-]+)"$', source, re.M).group(1)

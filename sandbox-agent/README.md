@@ -92,6 +92,7 @@ An agent passes when all of these hold, each its own `PASS` or `FAIL` line:
 - the main thread's own write is refused with the gate's `RULE_A_REASON`, read from the imported gate, and the file was never created
 - on Claude Code, every `code-reviewer` turn carries the first prose line of the project's `.agents/skills/application-security-review/SKILL.md`, read at run time, and none carries the opening of the built-in `/security-review` command's prompt, `You are a senior security engineer conducting a focused security review of the changes on this branch.`, read from the pinned 2.1.314 binary. The check first confirms that line is still in the `claude` binary it runs, so its absence from the request means the project skill won the name
 - on Claude Code, a clone of the repository itself, with nothing installed and the folder trusted, refuses the main thread's write and carries the reminder on every main-thread turn. Its own [.claude/settings.json](../.claude/settings.json) names its own folder as the marketplace, `{"source": "directory", "path": "."}`, and switches on the eight hook plugins, which load in place. The case sets `CLAUDE_CODE_SYNC_PLUGIN_INSTALL=1`, because a machine's first headless run otherwise registers the marketplace in the background and its first turn has no plugin. Measured on 2.1.314 on 2026-11-23: without the variable the first run wrote the file and the second refused it, and in an untrusted clone no hook ran at all
+- on Claude Code, in the first case and in that clone, each hook the enabled plugins wire runs once on each firing of its event, so no hook is wired both in a settings file and in a plugin, or in two plugins. Each run writes its debug log with `--debug-file` and `CLAUDE_CODE_DEBUG_LOG_LEVEL=verbose`. Every `Matched N unique hooks` line counts as one firing and every `Hooks: <event> [<command>] ... finished` line as one run, and both are held to the wiring of the plugins the settings switch on. Measured on 2.1.314
 - on Codex, a scripted case starts `backend-architect`, whose canonical tools leave out `bash`, and none of its turns may offer `exec_command`, `write_stdin` or another shell tool, while the `python-pro` turns of the first case must, so the check can see one. Measured on Codex 0.167.0 without Docker: it passed with the generated `features.shell_tool = false`, and with that line removed from the project copy it failed with 1 of 1 turns offering a shell
 
 GitHub Copilot reports one `KNOWN-GAP`, the way live test 1 does, and it does not fail the run: the main thread's own write lands, because the Copilot `preToolUse` payload carries no agent identifier, as the Maintenance follow-ups in [AGENTS.md](../AGENTS.md) record. A Copilot subagent that does not write the file is a plain `FAIL`.
@@ -429,6 +430,8 @@ measuring that rather than measuring how much of the answer survived the pipe.
 
 Every command here runs from this directory, which is where Compose finds its `compose.yaml`. The same line
 works in a Unix shell and in PowerShell.
+
+Run it from a full clone, not a linked git worktree. A worktree's `.git` is a file that points at the main checkout's `.git` folder, which sits outside the `/repo` mount, so git inside the container cannot read the repository.
 
 ```bash
 cd sandbox-agent

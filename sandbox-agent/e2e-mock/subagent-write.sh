@@ -17,7 +17,10 @@
 #              /security-review command, and a clone of the repository
 #              itself, whose own settings name its folder as the marketplace
 #              and switch on the hook plugins, has to deny the main thread's
-#              write with nothing installed. On Codex a fourth case starts
+#              write with nothing installed. In the spawn case and in that
+#              clone, the verbose debug log has to show each hook the enabled
+#              plugins wire running once on each firing of its event, so no
+#              hook is wired twice. On Codex a fourth case starts
 #              backend-architect, whose tools leave out bash, and checks that
 #              its turns offer no shell tool, against the python-pro turns of
 #              the first case, which do. Only the model is mocked.
@@ -72,6 +75,11 @@ readonly E2E_BUILTIN_REVIEW_MARKER="You are a senior security engineer conductin
 # Codex build has offered a shell under.
 readonly E2E_NO_SHELL_AGENT="backend-architect"
 readonly E2E_SHELL_TOOLS='["exec_command","write_stdin","shell","shell_command","local_shell"]'
+# The Claude Code hook events each case has to fire, so the count of hook runs
+# per firing covers them: the spawn case starts a subagent that writes a file,
+# and a main-thread write case has its one write call refused by the gate.
+readonly E2E_SPAWN_EVENTS=(SessionStart UserPromptSubmit SubagentStart PreToolUse PostToolUse Stop)
+readonly E2E_MAIN_WRITE_EVENTS=(SessionStart UserPromptSubmit PreToolUse Stop)
 
 E2E_TMP=""
 E2E_PID=""
@@ -311,15 +319,16 @@ e2e_invoke() {
 
   case "$agent" in
     claude-code)
+      : >"${dir}/${name}.debug.log"
       (cd "$project" && env -u ANTHROPIC_API_KEY \
         CLAUDE_CONFIG_DIR="${state}/claude-config" ANTHROPIC_BASE_URL="$url" ANTHROPIC_AUTH_TOKEN=sandbox \
         ANTHROPIC_MODEL="$E2E_MODEL" ANTHROPIC_SMALL_FAST_MODEL="$E2E_MODEL" \
         ANTHROPIC_DEFAULT_HAIKU_MODEL="$E2E_MODEL" ANTHROPIC_DEFAULT_SONNET_MODEL="$E2E_MODEL" \
         ANTHROPIC_DEFAULT_OPUS_MODEL="$E2E_MODEL" CLAUDE_CODE_SUBAGENT_MODEL="$E2E_MODEL" \
-        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 DISABLE_AUTOUPDATER=1 \
+        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 DISABLE_AUTOUPDATER=1 CLAUDE_CODE_DEBUG_LOG_LEVEL=verbose \
         timeout "$E2E_TIMEOUT" claude -p "$prompt" --output-format stream-json --verbose \
         --permission-mode acceptEdits --max-turns 6 --model "$E2E_MODEL" \
-        --strict-mcp-config --mcp-config "${state}/no-mcp.json" \
+        --strict-mcp-config --mcp-config "${state}/no-mcp.json" --debug-file "${dir}/${name}.debug.log" \
         </dev/null >"${dir}/${name}.out" 2>"${dir}/${name}.err") || status=$?
       ;;
     codex)
@@ -439,6 +448,124 @@ e2e_shell_facts() {
   printf '%s\n' "$facts"
 }
 
+# Facts over one Claude Code case's debug log, written at the verbose level,
+# against the hook wiring of the plugins its settings switch on, in the shape
+# claude_plugin_wiring prints. The first line is "<firings> <runs> <events>":
+# every "Matched N unique hooks" line is one firing of an event, every "Hooks:
+# <event>[:<query>] [<command>] ... finished" line one run of a hook, and the
+# events are those that fired, joined by commas. Each further line is one
+# problem: a firing that matched another number of hooks than the plugins
+# wire for it, a script the plugins wire that ran another number of times than
+# its event fired, or a run the plugins do not wire, such as a hook from a
+# settings file. A script is known by its file name. An unreadable log or
+# wiring gives "0 0 -" and the reason, so the check fails rather than passing.
+e2e_hook_runs() {
+  local log="$1" wiring="$2"
+
+  python3 -I -S - "$log" "$wiring" <<'PY' 2>/dev/null || printf '0 0 -\nthe debug log %s or the wiring %s cannot be read\n' "$log" "$wiring"
+import json
+import re
+import sys
+
+ASKED = re.compile(r"Getting matching hook commands for (\w+) with query: (.*)$")
+MATCHED = re.compile(r'Matched (\d+) unique hooks for query "(.*)" \(\d+ before deduplication\)$')
+RAN = re.compile(r"Hooks: (\w+)(?::(\S+))? \[(.*)\]( \(plugin [^)]+\))? (?:finished|completed|timed out|cancelled|moved to the background|failed to start)")
+SCRIPT = re.compile(r"[A-Za-z0-9_.-]+\.(?:py|sh|mjs|js|ps1)\b")
+UNSET = "undefined"
+NO_QUERY = "no match query"
+
+
+def script(command):
+    found = SCRIPT.findall(command)
+    return found[-1] if found else command
+
+
+def wired(hooks, event, query):
+    return {
+        script(handler.get("command", ""))
+        for group in hooks.get(event, [])
+        if query is None or not group.get("matcher") or re.search(group["matcher"], query)
+        for handler in group.get("hooks", [])
+        if handler.get("type", "command") == "command"
+    }
+
+
+hooks = json.load(open(sys.argv[2], encoding="utf-8"))["hooks"]
+pending, firings, runs, problems = [], {}, {}, []
+
+for line in open(sys.argv[1], encoding="utf-8", errors="replace"):
+    line = line.rstrip("\n")
+    if asked := ASKED.search(line):
+        pending.append((asked.group(1), None if asked.group(2) == UNSET else asked.group(2)))
+    elif matched := MATCHED.search(line):
+        query = None if matched.group(2) == NO_QUERY else matched.group(2)
+        key = next((item for item in reversed(pending) if item[1] == query), None)
+        if key is None:
+            problems.append(f"a firing for query {matched.group(2)!r} has no event")
+            continue
+        pending.remove(key)
+        firings[key] = firings.get(key, 0) + 1
+        expected = wired(hooks, *key)
+        if int(matched.group(1)) != len(expected):
+            problems.append(f"{key[0]}:{key[1] or '-'} matched {matched.group(1)} hooks where the plugins wire {len(expected)}")
+    elif ran := RAN.search(line):
+        key = (ran.group(1), ran.group(2))
+        name = script(ran.group(3))
+        runs.setdefault(key, {})
+        runs[key][name] = runs[key].get(name, 0) + 1
+        if not ran.group(4):
+            problems.append(f"{name} ran on {key[0]} from outside a plugin")
+
+for key, fired in sorted(firings.items(), key=str):
+    for name in sorted(wired(hooks, *key)):
+        count = runs.get(key, {}).get(name, 0)
+        if count != fired:
+            problems.append(f"{name} ran {count} times on {fired} firings of {key[0]}:{key[1] or '-'}")
+
+for key, ran in sorted(runs.items(), key=str):
+    for name, count in sorted(ran.items()):
+        if key not in firings or name not in wired(hooks, *key):
+            problems.append(f"{name} ran {count} times on {key[0]}:{key[1] or '-'}, which the plugins do not wire it to")
+
+events = sorted({event for event, _query in firings})
+print(sum(firings.values()), sum(sum(ran.values()) for ran in runs.values()), ",".join(events) or "-")
+print("\n".join(problems), end="\n" if problems else "")
+PY
+}
+
+# The catalog Claude Code cloned into a configuration directory for the
+# marketplace a settings file names.
+e2e_claude_catalog() {
+  local config="$1" settings="$2" market=""
+
+  market="$(jq -r '.extraKnownMarketplaces | keys[0]' "$settings" 2>/dev/null)" || market=""
+  printf '%s/plugins/marketplaces/%s/.claude-plugin/marketplace.json\n' "$config" "$market"
+}
+
+# Claude Code only: every hook the plugins of the settings switch on ran once
+# on every firing of its event in one case, and every event the case has to
+# fire did fire, so the count is not vacuous. Arguments: the case's agent
+# directory, its name, the catalog, the settings file, then the events.
+e2e_check_hooks_once() {
+  local dir="$1" name="$2" catalog="$3" settings="$4"
+  shift 4
+  local wiring="${dir}/${name}.wiring.json" facts="" firings=0 runs=0 fired="" event="" missing=()
+
+  claude_plugin_wiring "$catalog" "$settings" >"$wiring" 2>/dev/null || : >"$wiring"
+  facts="$(e2e_hook_runs "${dir}/${name}.debug.log" "$wiring")"
+  IFS=' ' read -r firings runs fired <<<"$(head -n 1 <<<"$facts")"
+
+  for event in "$@"; do
+    [[ ",${fired}," == *",${event},"* ]] || missing+=("$event")
+  done
+
+  if [[ "$(wc -l <<<"$facts")" -eq 1 && "${#missing[@]}" -eq 0 && "$firings" -gt 0 ]]; then
+    pass "${E2E_LABEL}: in the ${name} case each hook the enabled plugins wire ran once on each firing of its event (${firings} firings, ${runs} runs, events ${fired})"
+  else
+    fail "${E2E_LABEL}: in the ${name} case each hook the enabled plugins wire ran once on each firing of its event (${firings} firings, ${runs} runs, events ${fired}, not fired: ${missing[*]:-none}; $(one_line "$(tail -n +2 <<<"$facts")"))"
+  fi
+}
+
 # Returns 0 when the agent binary on PATH, or the package it was installed
 # from, still holds the built-in command's prompt, so its absence from a
 # request means something.
@@ -518,6 +645,9 @@ e2e_check_own_wiring() {
   else
     fail "${E2E_LABEL}: in that clone every main-thread turn carries the main-thread reminder, from its plugin (${main_with_own} of ${main_turns} with '${own}')"
   fi
+
+  e2e_check_hooks_once "$dir" own-wiring "${dir}/project/.claude-plugin/marketplace.json" \
+    "${dir}/project/.claude/settings.json" "${E2E_MAIN_WRITE_EVENTS[@]}"
 }
 
 # Codex only: the main thread starts an agent whose tools leave out bash, and
@@ -617,6 +747,8 @@ e2e_check_agent() {
   if [[ "$agent" == "claude-code" ]]; then
     e2e_check_review "$dir"
     e2e_check_own_wiring "$project"
+    e2e_check_hooks_once "$dir" spawn "$(e2e_claude_catalog "${dir}/state/claude-config" "${dir}/project/.claude/settings.json")" \
+      "${dir}/project/.claude/settings.json" "${E2E_SPAWN_EVENTS[@]}"
   fi
 
   if [[ "$agent" == "codex" ]]; then

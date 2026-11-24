@@ -549,15 +549,15 @@ claude plugin install review-and-security@agent-standards --scope user
 
 Install every other bundle, subagent or skill in the project that needs it, with `--scope project`, as [Claude Code plugins](https://github.com/Lukk17/agent-standards/blob/master/docs/AGENT_TOOLING.md#claude-code-plugins) shows. A domain bundle installed in a project brings `core` again, at project scope. The two do not add up, because `enabledPlugins` entries "merge key by key. For each plugin id, the value that applies is the one from the highest-precedence source that mentions the id" ([plugin loading](https://code.claude.com/docs/en/plugins/loading), "Find where a plugin is enabled", read 2026-11-24), so a plugin switched on at both scopes is still one plugin.
 
-Choose the user-wide set by the size of the skill listing. Claude Code loads the name and the description of every enabled skill into every session, and "The budget scales at 1% of the model's context window. When the listing overflows, Claude Code drops descriptions starting with the skills you invoke least" ([skills docs](https://code.claude.com/docs/en/skills), "Skill descriptions are cut short", read 2026-11-24). A skill whose description was dropped can no longer be matched to a request by its keywords. These are the description characters of what this repository shipped on 2026-11-24:
+Choose the user-wide set by the size of the skill listing. Claude Code loads the name and the description of every enabled skill into every session, and "The budget scales at 1% of the model's context window. When the listing overflows, Claude Code drops descriptions starting with the skills you invoke least" ([skills docs](https://code.claude.com/docs/en/skills), "Skill descriptions are cut short", read 2026-11-24). A skill whose description was dropped can no longer be matched to a request by its keywords. These are the characters each set adds to the listing, of what this repository shipped on 2026-11-24, counted the way Claude Code 2.1.314 counts them: one line `- <plugin>:<skill>: <description>` per skill, joined by newlines:
 
-| Installed with the user scope | Description characters |
+| Installed with the user scope | Listing characters |
 | --- | --- |
-| `core` | 2,992 |
-| `core` and one domain bundle | 3,199 to 4,275 |
-| `core`, `agent-tooling`, `linux`, `personal-tools` and `homelab` | 7,059 |
-| the bundle `all` | 11,281 |
-| all 72 skills | 15,374 |
+| `core` | 3,579 |
+| `core` and one domain bundle | 3,802 to 5,082 |
+| `core`, `agent-tooling`, `linux`, `personal-tools` and `homelab` | 8,212 |
+| the bundle `all` | 13,276 |
+| all 72 skills | 17,885 |
 
 So install `core` and the bundles you use in every project with the user scope, install the rest in the project that needs them, and never install `all` with the user scope. A plugin at project scope adds its descriptions only in that project.
 
